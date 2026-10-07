@@ -38,6 +38,7 @@ from inspect_ai._display import (
 from inspect_ai._display.core.display import TaskCancel, TaskDisplayMetric
 from inspect_ai._eval.task.scan import Scanners
 from inspect_ai._sentinel._config import SentinelRoot
+from inspect_ai._sentinel._context import SentinelFailure
 from inspect_ai._util._async import Wake, aexit_shielded_when
 from inspect_ai._util.async_zip import AsyncZipReader
 from inspect_ai._util.asyncfiles import get_async_filesystem
@@ -2501,12 +2502,11 @@ async def _task_run_sample_attempt(
 
         # use sandbox if provided
         #
-        # The sandbox CM's `__aexit__` is wrapped so its teardown runs shielded
-        # whenever the sample's own cancel was caught upstream (`cancelled_error`
-        # set). Otherwise, the eval-level scope's still-cancelled state would
-        # re-cancel the first await inside `cleanup_sandbox_environments_sample`,
-        # propagating a fresh CancelledError out past the (already shielded)
-        # logging block and dropping the in-flight sample from the eval log.
+        # The sandbox CM's `__aexit__` is wrapped only after the sample's own
+        # cancel was caught upstream. A cancel that first arrives during
+        # cleanup can interrupt it; once scoring has finished, the outer
+        # cancellation handler below records that cancel and continues to log
+        # the in-flight sample.
         sandboxenv_cm = (
             aexit_shielded_when(
                 sandboxenv_context(
@@ -2531,6 +2531,10 @@ async def _task_run_sample_attempt(
 
         # helper to handle exceptions (will throw if we've exceeded the limit)
         def handle_error(ex: BaseException) -> tuple[EvalError, BaseException | None]:
+            # report the sentinel's own error, from the solver or scorers
+            if isinstance(ex, SentinelFailure):
+                ex = inner_exception(ex.error)
+
             # helper to log sample error
             def log_sample_error() -> None:
                 msg = f"Sample error (id: {sample.id}, epoch: {state.epoch}): {exception_message(ex)})"
@@ -2614,6 +2618,7 @@ async def _task_run_sample_attempt(
             raise_error: BaseException | None = None
             cancelled_error: BaseException | None = None
             solver_cancel: BaseException | None = None
+            scoring_finished = False
             operator_cancelled = False
             results: ScoresByScorer = {}
             limit: EvalSampleLimit | None = None
@@ -3164,6 +3169,8 @@ async def _task_run_sample_attempt(
                             else:
                                 error, raise_error = handle_error(ex)
                         finally:
+                            scoring_finished = True
+
                             # run task cleanup if required (inside sandbox context)
                             if cleanup is not None:
                                 with anyio.CancelScope(shield=True):
@@ -3174,6 +3181,14 @@ async def _task_run_sample_attempt(
                                             f"Exception occurred during task cleanup: {ex}",
                                             exc_info=ex,
                                         )
+
+            except anyio.get_cancelled_exc_class() as ex:
+                if not scoring_finished:
+                    raise
+                with anyio.CancelScope(shield=True):
+                    cancelled_error = ex
+                    error = eval_error(ex, type(ex), ex, ex.__traceback__)
+                    transcript()._event(ErrorEvent(error=error))
 
             except Exception as ex:
                 error, raise_error = handle_error(ex)

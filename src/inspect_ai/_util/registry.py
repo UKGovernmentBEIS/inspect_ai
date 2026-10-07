@@ -202,14 +202,7 @@ def registry_create(type: Literal["scanner"], name: str, **kwargs: Any) -> Any: 
 def registry_create(type: Literal["scanjob"], name: str, **kwargs: Any) -> Any: ...
 
 
-# No overloads for "monitor" or "protocol" on purpose: their factories return
-# union-aliased callables with no __name__, so the instantiation rule below
-# would hand back the factory uncalled. inspect_sentinel constructs through
-# create_registry_object(); the missing overloads make a registry_create()
-# call a type error instead of a silent no-op.
-# TODO: the real fix is for registry_create() to tell a factory from an
-# instance by how it was registered (not by return annotation) and call
-# factories for every type.
+# No "monitor"/"protocol" overloads: they are built with create_registry_object(), so registry_create() is a type error.
 
 
 def registry_create(type: RegistryType, name: str, **kwargs: Any) -> object:  # type: ignore[return]

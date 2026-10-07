@@ -1,6 +1,6 @@
 from collections.abc import Sequence
 from logging import getLogger
-from typing import Any, Literal
+from typing import Any, Literal, cast
 from weakref import WeakKeyDictionary
 
 from inspect_sentinel import (
@@ -25,7 +25,12 @@ from inspect_ai.approval._approval import ApprovalDecision
 from inspect_ai.approval._human.approver import human_approver
 from inspect_ai.event._event import Event
 from inspect_ai.event._model import ModelEvent
-from inspect_ai.event._sentinel import SentinelAction, SentinelEvent, SentinelSuspicion
+from inspect_ai.event._sentinel import (
+    SentinelAction,
+    SentinelEvent,
+    SentinelStatus,
+    SentinelSuspicion,
+)
 from inspect_ai.log._samples import sample_active
 from inspect_ai.log._transcript import Transcript, transcript
 from inspect_ai.model._chat_message import (
@@ -34,11 +39,11 @@ from inspect_ai.model._chat_message import (
     ChatMessageTool,
 )
 from inspect_ai.model._generate_config import GenerateConfig
-from inspect_ai.model._model import active_model, get_model, model_roles
+from inspect_ai.model._model import Model, active_model, get_model, model_roles
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.review._human import (
-    _escape_placeholders,
-    _fenced,
+    escape_placeholders,
+    fenced,
     view_with_result,
 )
 from inspect_ai.scorer._metric import Reference
@@ -61,7 +66,6 @@ from ._context import SentinelFailure, active_sentinel, active_task_metadata
 logger = getLogger(__name__)
 
 _Kind = Literal["observation", "decision"]
-_Status = Literal["reported", "cancelled", "bypassed", "superseded", "error"]
 
 
 async def sentinel_before_tool_call(
@@ -78,20 +82,10 @@ async def sentinel_before_tool_call(
         input=_model_input(call, history),
         history=history,
     )
-    try:
-        return await _run(step)
-    except Exception as ex:
-        raise SentinelFailure(ex) from ex
+    return await _run(step)
 
 
 def apply_sentinel_decision(decision: Decision | None, call: ToolCall) -> ToolCall:
-    """Apply a before-tool-call decision, returning the call to execute.
-
-    Raises:
-        ToolApprovalError: The sentinel rejected the call.
-        TerminateSampleError: The sentinel requested termination.
-        SentinelFailure: A modify decision carried no modified call.
-    """
     if decision is None:
         return call
     if decision.action == "reject":
@@ -139,14 +133,17 @@ async def _run(step: Step) -> Decision | None:
     if root is None:
         return None
     try:
-        async with span(name="sentinel", type="sentinel"):
-            with suspend_token_limit(), suspend_turn_limit():
-                decision = await run_sentinel(root, _host_context(), step)
-    except TimeoutError as ex:
-        # the sample runner treats a bare TimeoutError as benign
-        raise RuntimeError(
-            f"A sentinel timed out at the {_stage(step)} stage: {ex}"
-        ) from ex
+        try:
+            async with span(name="sentinel", type="sentinel"):
+                with suspend_token_limit(), suspend_turn_limit():
+                    decision = await run_sentinel(root, _host_context(), step)
+        except TimeoutError as ex:
+            # the sample runner treats a bare TimeoutError as benign
+            raise RuntimeError(
+                f"A sentinel timed out at the {_stage(step)} stage: {ex}"
+            ) from ex
+    except Exception as ex:
+        raise SentinelFailure(ex) from ex
     if decision is not None and decision.action == "escalate":
         # recorded as the root's decision; with nobody above to take it, the call proceeds
         warn_once(
@@ -290,18 +287,25 @@ class _Host:
         input: str | list[ChatMessage],
         *,
         model: str | None = None,
-        role: str | None = None,
         tools: list[ToolInfo] | None = None,
         config: GenerateConfig | None = None,
     ) -> ModelOutput:
-        # get_model() returns a Model instance before consulting the role, so
-        # the role's precedence is applied here
-        role = role or ("monitor" if model is None else None)
-        configured = role is not None and role in model_roles()
-        if model is not None and not configured:
+        if isinstance(cast(object, model), Model):
+            raise TypeError(
+                "Host.generate() takes a model role or a model name, not a Model. "
+                "Configure the Model for a role with Task(model_roles={'<role>': model}) "
+                "or --model-role, and pass the role name."
+            )
+        if model == "":
+            raise ValueError(
+                "Host.generate() model must be a model role or a model name, "
+                "not an empty string. Pass None for the 'monitor' role."
+            )
+        if model is not None and "/" in model:
             resolved = get_model(model)
         else:
-            if not configured:
+            role = "monitor" if model is None else model
+            if role not in model_roles():
                 warn_once(
                     logger,
                     f"No model is configured for the sentinel role '{role}', so monitor calls use the agent's own model. "
@@ -325,7 +329,7 @@ class _Host:
                     f"human() cannot offer {choice!r}; the choices are "
                     f"{', '.join(repr(c) for c in _HUMAN_CHOICES)}."
                 )
-            offered.append(_HUMAN_CHOICES[choice])
+            offered.append(cast(ApprovalDecision, choice))
         approval = await human_approver(choices=offered)(
             step.message, step.call, _human_view(step), step.history
         )
@@ -340,17 +344,13 @@ class _Host:
         )
 
 
-_HUMAN_CHOICES: dict[str, ApprovalDecision] = {
-    "approve": "approve",
-    "reject": "reject",
-    "terminate": "terminate",
-}
+_HUMAN_CHOICES = ("approve", "reject", "terminate")
 
 
 def _human_view(step: Step) -> ToolCallView:
     view = step.view
     if step.escalations:
-        lines = _escape_placeholders(
+        lines = escape_placeholders(
             "\n".join(
                 f"- {e.name}: {e.report.explanation}"
                 if e.report.explanation
@@ -358,7 +358,7 @@ def _human_view(step: Step) -> ToolCallView:
                 for e in step.escalations
             )
         )
-        escalated = f"**Escalated by**\n\n{_fenced(lines)}"
+        escalated = f"**Escalated by**\n\n{fenced(lines)}"
         if view.call is None:
             call = ToolCallContent(format="markdown", content=escalated)
         elif view.call.format == "markdown":
@@ -445,7 +445,7 @@ def _emit_decision(
     context: Context,
     factory: str,
     step: Step,
-    status: _Status,
+    status: SentinelStatus,
     function: str,
     decision: Decision,
 ) -> None:
@@ -471,7 +471,7 @@ def _emit(
     factory: str,
     step: Step,
     kind: _Kind,
-    status: _Status,
+    status: SentinelStatus,
     *,
     function: str | None = None,
     suspicion: SentinelSuspicion | None = None,

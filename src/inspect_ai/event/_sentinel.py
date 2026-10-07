@@ -19,11 +19,18 @@ SentinelStage: TypeAlias = Literal[
 ]
 """Point in the agent loop a sentinel step belongs to."""
 
+SentinelStatus: TypeAlias = Literal[
+    "reported", "cancelled", "bypassed", "superseded", "error"
+]
+"""What happened to a sentinel report."""
+
 
 class SentinelEvent(BaseEvent):
     """Report from a sentinel monitor or protocol about one step.
 
     A report's metadata is recorded in the event's `metadata` field.
+
+    Experimental: not yet a stable API; may change without notice.
     """
 
     event: Literal["sentinel"] = Field(default="sentinel")
@@ -50,7 +57,7 @@ class SentinelEvent(BaseEvent):
     kind: Literal["observation", "decision"]
     """The report family: `observation` from a monitor, `decision` from a protocol."""
 
-    status: Literal["reported", "cancelled", "bypassed", "superseded", "error"]
+    status: SentinelStatus
     """What happened to the report: `reported` carries it; `cancelled` and `bypassed` record no report; `superseded` carries a decision that did not take effect; `error` records a monitor function that raised instead of reporting."""
 
     suspicion: SentinelSuspicion | None = Field(default=None)

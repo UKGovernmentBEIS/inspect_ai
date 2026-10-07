@@ -40,8 +40,9 @@ def _require_sentinel() -> None:
         importlib.import_module("inspect_sentinel._integration")
     except ImportError as ex:
         raise PrerequisiteError(
-            "[bold]ERROR[/bold]: Sentinel support requires the inspect_sentinel package. "
-            "Install with:\n\n[bold]pip install inspect_sentinel[/bold]"
+            "[bold]ERROR[/bold]: Sentinel support requires the inspect_sentinel package, "
+            "which is not released yet. Install it from GitHub with:\n\n"
+            "[bold]pip install git+https://github.com/meridianlabs-ai/inspect_sentinel[/bold]"
         ) from ex
 
 

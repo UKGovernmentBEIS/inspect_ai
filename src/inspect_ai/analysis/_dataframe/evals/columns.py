@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Any, Callable, Mapping, Type
+from typing import Any, Callable, Mapping, Type, cast
 
 from jsonpath_ng import JSONPath  # type: ignore
 from pydantic import JsonValue
@@ -7,7 +7,7 @@ from typing_extensions import override
 
 from inspect_ai.log._log import EvalLog
 
-from ..columns import Column, ColumnType
+from ..columns import Column, ColumnType, JsonLike
 from ..extract import list_as_str, remove_namespace
 from ..validate import resolved_schema
 from .extract import (
@@ -29,7 +29,7 @@ class EvalColumn(Column):
         self,
         name: str,
         *,
-        path: str | JSONPath | Callable[[EvalLog], JsonValue],
+        path: str | JSONPath | Callable[[EvalLog], JsonLike],
         required: bool = False,
         default: JsonValue | None = None,
         type: Type[ColumnType] | None = None,
@@ -43,7 +43,9 @@ class EvalColumn(Column):
             type=type,
             value=value,
         )
-        self._extract_eval = path if callable(path) else None
+        self._extract_eval = (
+            cast(Callable[[EvalLog], JsonValue], path) if callable(path) else None
+        )
 
     @override
     def path_schema(self) -> Mapping[str, Any]:

@@ -2,7 +2,7 @@ import logging
 from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
 from dataclasses import replace
-from typing import Any
+from typing import Any, cast
 
 import anyio
 import pytest
@@ -11,7 +11,8 @@ from inspect_ai import Task, eval
 from inspect_ai._sentinel._config import resolve_sentinel_root, resolve_sentinel_spec
 from inspect_ai._sentinel._context import init_sentinel
 from inspect_ai._util.exception import TerminateSampleError
-from inspect_ai.agent import as_solver, handoff, react
+from inspect_ai.agent import as_solver, as_tool, deepagent, handoff, react, subagent
+from inspect_ai.approval import Approval, ApprovalPolicy, Approver, approver
 from inspect_ai.dataset import Sample
 from inspect_ai.event import (
     Event,
@@ -31,12 +32,14 @@ from inspect_ai.model import (
     GenerateConfig,
     Model,
     ModelOutput,
+    ModelUsage,
     get_model,
 )
 from inspect_ai.model._call_tools import execute_tools
-from inspect_ai.scorer import Reference
-from inspect_ai.solver import generate, use_tools
-from inspect_ai.tool import Tool, ToolCall, ToolCallView, tool
+from inspect_ai.review import Review, Reviewer, ReviewPolicy, reviewer
+from inspect_ai.scorer import Reference, Score, Scorer, Target, scorer
+from inspect_ai.solver import TaskState, generate, use_tools
+from inspect_ai.tool import Tool, ToolCall, ToolCallView, ToolResult, tool
 from inspect_ai.util import StoreModel
 from inspect_ai.util._limit import LimitExceededError
 
@@ -190,10 +193,10 @@ def d3_asks_model() -> Monitor:
 
 
 @monitor
-def d3_asks_with(model: str | None = None, role: str | None = None) -> Monitor:
+def d3_asks_with(model: str | None = None) -> Monitor:
     async def ask(context: Context, step: BeforeToolCall) -> Observation | None:
         output = await context.host.generate(
-            "How suspicious is this call?", model=model, role=role
+            "How suspicious is this call?", model=model
         )
         return Observation.score(float(output.completion))
 
@@ -302,10 +305,14 @@ def test_modify_executes_the_modified_call() -> None:
         assert event.modified.arguments == {"x": 10, "y": 20}
         assert event.modified.id == message.tool_call_id
 
-    # as with approval's modify, the ToolEvent shows the call the model made
+    # as with approval's modify, the ToolEvent shows the arguments that ran and the
+    # ModelEvent keeps the model's proposal
     assert log.samples
     [tool_event] = [e for e in log.samples[0].events if isinstance(e, ToolEvent)]
-    assert tool_event.arguments == {"x": 1, "y": 1}
+    assert tool_event.arguments == {"x": 10, "y": 20}
+    [model_event, *_] = [e for e in log.samples[0].events if isinstance(e, ModelEvent)]
+    [proposed] = model_event.output.message.tool_calls or []
+    assert proposed.arguments == {"x": 1, "y": 1}
 
 
 def test_terminate_ends_the_sample() -> None:
@@ -342,7 +349,7 @@ def d3_reject_handoff() -> Protocol:
     return decide
 
 
-def run_handoff(sentinel: Any) -> EvalLog:
+def run_handoff(sentinel: Any, via_tool: bool = False) -> EvalLog:
     helper_model = get_model(
         "mockllm/model",
         custom_outputs=[
@@ -364,7 +371,9 @@ def run_handoff(sentinel: Any) -> EvalLog:
         "mockllm/model",
         custom_outputs=[
             ModelOutput.for_tool_call(
-                "mockllm/model", tool_name="transfer_to_helper", tool_arguments={}
+                "mockllm/model",
+                tool_name="helper" if via_tool else "transfer_to_helper",
+                tool_arguments={"input": "add 2 and 3"} if via_tool else {},
             ),
             ModelOutput.from_content("mockllm/model", content="done"),
         ],
@@ -372,7 +381,10 @@ def run_handoff(sentinel: Any) -> EvalLog:
     )
     task = Task(
         dataset=[Sample(input="What is 2 + 3?", target="5")],
-        solver=[use_tools(handoff(helper)), generate()],
+        solver=[
+            use_tools(as_tool(helper) if via_tool else handoff(helper)),
+            generate(),
+        ],
         sentinel=sentinel,
     )
     return eval(task, model=parent_model)[0]
@@ -461,6 +473,101 @@ def test_terminate_after_a_handoff_ends_the_sample() -> None:
     assert event.step_id == handoff_call_id(log)
 
 
+@approver
+def d3_approver(
+    seen: list[ToolCall], decision: str = "approve", x: int | None = None
+) -> Approver:
+    async def approve(
+        message: str, call: ToolCall, view: ToolCallView, history: list[ChatMessage]
+    ) -> Approval:
+        seen.append(call)
+        if decision == "modify":
+            return Approval(
+                decision="modify",
+                modified=replace(call, arguments={**call.arguments, "x": x}),
+            )
+        return Approval(decision="reject" if decision == "reject" else "approve")
+
+    return approve
+
+
+@reviewer
+def d3_terminating_reviewer() -> Reviewer:
+    async def review_(
+        message: str,
+        call: ToolCall,
+        result: ChatMessageTool,
+        output: ToolResult,
+        view: ToolCallView,
+        history: list[ChatMessage],
+    ) -> Review:
+        return Review(decision="terminate", explanation="reviewer stopped it")
+
+    return review_
+
+
+def run_with(sentinel: Any, **task_kwargs: Any) -> EvalLog:
+    task = Task(
+        dataset=[Sample(input="What is 1 + 1?", target="2")],
+        solver=[use_tools(addition()), generate()],
+        sentinel=sentinel,
+        **task_kwargs,
+    )
+    return eval(task, model=agent_model())[0]
+
+
+def test_an_approvers_modify_reaches_the_sentinel() -> None:
+    approved: list[ToolCall] = []
+    seen: Seen = []
+    log = run_with(
+        observe_only([d3_recording(seen)]),
+        approval=[ApprovalPolicy(d3_approver(approved, "modify", x=7), "*")],
+    )
+    assert log.status == "success", log.error
+    assert [call.arguments for call in approved] == [{"x": 1, "y": 1}]
+    assert [step.call.arguments for _, step in seen] == [{"x": 7, "y": 1}]
+    [message] = tool_messages(log)
+    assert message.text == "8"
+
+
+def test_an_approval_reject_skips_the_sentinel() -> None:
+    approved: list[ToolCall] = []
+    seen: Seen = []
+    log = run_with(
+        observe_only([d3_recording(seen), d3_suspicion()]),
+        approval=[ApprovalPolicy(d3_approver(approved, "reject"), "*")],
+    )
+    assert log.status == "success", log.error
+    assert len(approved) == 1
+    assert seen == []
+    assert sentinel_events(log) == []
+    [message] = tool_messages(log)
+    assert message.error is not None and message.error.type == "approval"
+
+
+def test_a_sentinel_modify_is_not_re_approved() -> None:
+    approved: list[ToolCall] = []
+    log = run_with(d3_modify(), approval=[ApprovalPolicy(d3_approver(approved), "*")])
+    assert log.status == "success", log.error
+    assert [call.arguments for call in approved] == [{"x": 1, "y": 1}]
+    [message] = tool_messages(log)
+    assert message.text == "30"
+
+
+def test_a_review_terminate_skips_the_after_call_sentinel() -> None:
+    log = run_with(
+        observe_only([d3_trajectory()]),
+        review=[ReviewPolicy(d3_terminating_reviewer(), "*")],
+    )
+    assert log.samples
+    sample = log.samples[0]
+    assert sample.limit is not None and sample.limit.type == "operator"
+    assert [e for e in sentinel_events(log) if e.stage == "tool_result"] == []
+    # without the review, the after-call sentinel reports
+    after = sentinel_events(run_with(observe_only([d3_trajectory()])))
+    assert [e.stage for e in after] == ["tool_result"]
+
+
 def test_observe_only_records_observations_without_effect() -> None:
     log = run(observe_only([d3_suspicion(score=0.4)]))
     assert log.status == "success", log.error
@@ -538,13 +645,17 @@ def test_multi_function_monitor_shares_state_across_calls() -> None:
     assert log.samples[0].store["Trajectory:d3_trajectory:calls"] == 2
 
 
-def test_host_generate_uses_the_monitor_role() -> None:
+@pytest.mark.parametrize("model", [None, "monitor"])
+def test_host_generate_uses_the_monitor_role(model: str | None) -> None:
     monitor_model = get_model(
         "mockllm/model",
         custom_outputs=[ModelOutput.from_content("mockllm/model", content="0.75")],
         memoize=False,
     )
-    log = run(observe_only([d3_asks_model()]), model_roles={"monitor": monitor_model})
+    log = run(
+        observe_only([d3_asks_with(model=model)]),
+        model_roles={"monitor": monitor_model},
+    )
     assert log.status == "success", log.error
 
     [event] = sentinel_events(log)
@@ -893,6 +1004,154 @@ def test_sentinel_errors_fail_the_sample_rather_than_the_call(
     assert sentinel_span_ids(events) and set(sentinel_span_ids(events)) <= ended
 
 
+@protocol
+def d3_raising_in_helper(error: Any, after: bool = False) -> ProtocolGroup:
+    async def before(context: Context, step: BeforeToolCall) -> Decision | None:
+        if not after and step.call.function == "addition":
+            raise error
+        return None
+
+    async def later(context: Context, step: AfterToolCall) -> Decision | None:
+        if after and step.call.function == "addition":
+            raise error
+        return None
+
+    return ProtocolGroup(before, later)
+
+
+@pytest.mark.parametrize("via_tool", [False, True])
+@pytest.mark.parametrize("after", [False, True])
+@pytest.mark.parametrize(
+    "error",
+    [FileNotFoundError("sentinel config missing"), PermissionError("sentinel denied")],
+)
+def test_sentinel_errors_in_a_sub_agent_fail_the_sample(
+    error: Exception, after: bool, via_tool: bool
+) -> None:
+    log = run_handoff([d3_raising_in_helper(error, after=after)], via_tool=via_tool)
+    assert log.status == "error"
+    assert log.samples
+    sample_error = log.samples[0].error
+    assert sample_error is not None
+    assert sample_error.message == f"{type(error).__name__}('{error}')"
+    assert "SentinelFailure" not in sample_error.message
+    assert all(
+        message.error is None
+        for message in log.samples[0].messages
+        if isinstance(message, ChatMessageTool)
+    )
+
+
+def test_sentinel_errors_in_a_background_sub_agent_fail_the_sample() -> None:
+    helper_model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.for_tool_call(
+                "mockllm/model", tool_name="addition", tool_arguments={"x": 2, "y": 3}
+            ),
+            ModelOutput.from_content("mockllm/model", content="helper done"),
+        ],
+        memoize=False,
+    )
+    helper = subagent(
+        name="helper",
+        description="A helper agent.",
+        prompt="You are a helper.",
+        model=helper_model,
+        extra_tools=[addition()],
+    )
+    parent_model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.for_tool_call(
+                "mockllm/model",
+                tool_name="agent",
+                tool_arguments={"prompt": "add 2 and 3", "background": True},
+            ),
+            ModelOutput.for_tool_call(
+                "mockllm/model",
+                tool_name="agent_wait",
+                tool_arguments={"agent_ids": ["AGENT-1"]},
+            ),
+            ModelOutput.from_content("mockllm/model", content="done"),
+        ],
+        memoize=False,
+    )
+    error = PermissionError("sentinel denied")
+    task = Task(
+        dataset=[Sample(input="What is 2 + 3?", target="5")],
+        solver=deepagent(subagents=[helper], background=True),
+        sentinel=[d3_raising_in_helper(error)],
+        message_limit=30,
+    )
+    log = eval(task, model=parent_model)[0]
+    assert log.status == "error"
+    assert log.samples
+    sample_error = log.samples[0].error
+    assert sample_error is not None
+    assert sample_error.message == "PermissionError('sentinel denied')"
+
+
+@scorer(metrics=[])
+def adds_with_tools() -> Scorer:
+    async def score(state: TaskState, target: Target) -> Score:
+        message = ChatMessageAssistant(
+            content="",
+            tool_calls=[
+                ToolCall(
+                    id="score_call", function="addition", arguments={"x": 1, "y": 2}
+                )
+            ],
+        )
+        await execute_tools([message], [addition()])
+        return Score(value=1)
+
+    return score
+
+
+def test_sentinel_errors_in_a_scorer_report_the_original_exception() -> None:
+    task = Task(
+        dataset=[Sample(input="What is 1 + 1?", target="2")],
+        solver=generate(),
+        scorer=adds_with_tools(),
+        sentinel=[d3_raising(PermissionError("sentinel denied"))],
+    )
+    log = eval(task, model="mockllm/model")[0]
+    assert log.status == "error"
+    assert log.samples
+    sample_error = log.samples[0].error
+    assert sample_error is not None
+    assert sample_error.message == "PermissionError('sentinel denied')"
+
+
+@pytest.mark.parametrize("after", [False, True])
+def test_a_sentinel_terminate_error_in_a_sub_agent_ends_the_sample(
+    after: bool,
+) -> None:
+    log = run_handoff(
+        [d3_raising_in_helper(TerminateSampleError("stop now"), after=after)]
+    )
+    assert log.status == "success", log.error
+    assert log.samples
+    sample = log.samples[0]
+    assert sample.error is None
+    assert sample.limit is not None
+    assert sample.limit.type == "operator"
+    assert sample.limit.reason == "stop now"
+
+
+@pytest.mark.parametrize("after", [False, True])
+def test_a_sentinel_limit_in_a_sub_agent_stops_the_handoff(after: bool) -> None:
+    error = LimitExceededError("working", value=10, limit=5, message="hit")
+    log = run_handoff([d3_raising_in_helper(error, after=after)])
+    assert log.status == "success", log.error
+    assert log.samples
+    assert any(
+        "helper exceeded its working limit of 5" in message.text
+        for message in log.samples[0].messages
+    )
+
+
 def test_host_generate_without_a_monitor_role_labels_the_agent_model() -> None:
     model = get_model(
         "mockllm/model",
@@ -930,64 +1189,102 @@ def _scoring_model(score: str) -> Model:
 
 def test_host_generate_uses_a_named_role() -> None:
     log = run(
-        observe_only([d3_asks_with(role="trusted")]),
-        model_roles={"trusted": _scoring_model("0.25")},
+        observe_only([d3_asks_with(model="judge")]),
+        model_roles={"judge": _scoring_model("0.25")},
     )
     assert log.status == "success", log.error
     [event] = sentinel_events(log)
     assert event.suspicion == 0.25
     assert log.samples
     roles = [e.role for e in log.samples[0].events if isinstance(e, ModelEvent)]
-    assert roles.count("trusted") == 1
+    assert roles.count("judge") == 1
 
 
-def test_host_generate_model_is_always_a_model_name() -> None:
-    # a role named like the model must not shadow an explicit model
-    log = run(
-        observe_only([d3_asks_with(model="mockllm/model")]),
-        model_roles={"mockllm/model": _scoring_model("0.9")},
+def test_sentinel_inference_is_not_charged_to_the_sample_limits() -> None:
+    expensive = ModelOutput.from_content("mockllm/model", content="0.25")
+    expensive.usage = ModelUsage(
+        input_tokens=50_000, output_tokens=50_000, total_tokens=100_000
     )
+    judge = get_model("mockllm/model", custom_outputs=[expensive], memoize=False)
+    log = run(
+        observe_only([d3_asks_with(model="judge")]),
+        model_roles={"judge": judge},
+        token_limit=10_000,
+        turn_limit=2,
+    )
+    assert log.status == "success", log.error
+    assert log.samples
+    sample = log.samples[0]
+    assert sample.limit is None
+    [event] = sentinel_events(log)
+    assert event.suspicion == 0.25
+    assert [m.text for m in sample.messages][-1] == "done"
+
+
+def test_host_generate_uses_a_name_with_a_slash_as_a_model(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    # a role named like the model must not shadow it
+    with caplog.at_level(logging.WARNING):
+        log = run(
+            observe_only([d3_asks_with(model="mockllm/model")]),
+            model_roles={"mockllm/model": _scoring_model("0.9")},
+        )
     [event] = sentinel_events(log)
     assert event.error is not None
     assert "could not convert string to float" in event.error
-
-
-def test_host_generate_prefers_a_configured_role_to_the_model() -> None:
-    log = run(
-        observe_only([d3_asks_with(model="mockllm/model", role="trusted")]),
-        model_roles={"trusted": _scoring_model("0.25")},
-    )
-    assert log.status == "success", log.error
-    [event] = sentinel_events(log)
-    assert event.suspicion == 0.25
-
-
-def test_host_generate_uses_the_model_when_the_role_is_not_configured(
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    with caplog.at_level(logging.WARNING):
-        log = run(observe_only([d3_asks_with(model="mockllm/other", role="trusted")]))
     assert log.samples
-    models = [e.model for e in log.samples[0].events if isinstance(e, ModelEvent)]
-    assert "mockllm/other" in models
     assert not [r for r in caplog.records if "sentinel role" in r.getMessage()]
+    monitor_calls = [
+        e
+        for e in log.samples[0].events
+        if isinstance(e, ModelEvent)
+        and e.span_id in sentinel_span_ids(log.samples[0].events)
+    ]
+    assert [(e.model, e.role) for e in monitor_calls] == [("mockllm/model", None)]
 
 
+def test_host_generate_rejects_a_model_instance() -> None:
+    log = run(observe_only([d3_asks_with(model=cast(str, _scoring_model("0.5")))]))
+    [event] = sentinel_events(log)
+    assert event.error is not None
+    assert "TypeError" in event.error
+    assert "not a Model" in event.error
+    assert "model_roles" in event.error
+
+
+def test_host_generate_rejects_an_empty_model() -> None:
+    log = run(observe_only([d3_asks_with(model="")]))
+    [event] = sentinel_events(log)
+    assert event.error is not None
+    assert "ValueError" in event.error
+    assert "not an empty string" in event.error
+
+
+@pytest.mark.parametrize("model,role", [(None, "monitor"), ("judge", "judge")])
 def test_host_generate_warns_once_without_the_role(
-    caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
+    caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
+    model: str | None,
+    role: str,
 ) -> None:
     import inspect_ai._util.logger as logger_module
 
     monkeypatch.setattr(logger_module, "_warned", [])
     with caplog.at_level(logging.WARNING):
-        run(observe_only([d3_asks_with(role="judge")]))
+        log = run(observe_only([d3_asks_with(model=model)]))
     warnings = [
         r.getMessage()
         for r in caplog.records
-        if "sentinel role 'judge'" in r.getMessage()
+        if f"sentinel role '{role}'" in r.getMessage()
     ]
     assert len(warnings) == 1
-    assert "--model-role judge=" in warnings[0]
+    assert f"--model-role {role}=" in warnings[0]
+    assert log.samples
+    monitor_calls = [
+        e for e in log.samples[0].events if isinstance(e, ModelEvent) and e.role == role
+    ]
+    assert len(monitor_calls) == 1
 
 
 async def test_missing_model_event_falls_back_to_the_prior_conversation(

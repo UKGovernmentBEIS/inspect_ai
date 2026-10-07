@@ -51,6 +51,22 @@ async def apply_tool_approval(
         return True, None
 
 
+def modified_function_error(call: ToolCall, modified: ToolCall) -> str | None:
+    """Error for a `modify` decision that changes the function called, else `None`.
+
+    A `modify` decision may change only the call's arguments. A different function
+    is an error in the eval's approver, not something to report to the model, so
+    callers fail the sample with it and run neither tool.
+    """
+    if modified.function == call.function:
+        return None
+    return (
+        f"An approver returned a modified call to '{modified.function}' for a call "
+        f"to '{call.function}'. A 'modify' decision may change only the arguments "
+        "of a tool call, not the function called."
+    )
+
+
 @contextlib.contextmanager
 def approval(
     policies: list[ApprovalPolicy],
