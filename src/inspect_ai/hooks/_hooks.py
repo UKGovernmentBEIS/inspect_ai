@@ -25,7 +25,7 @@ from inspect_ai.log._log import (
     EvalSampleSummary,
     EvalSpec,
 )
-from inspect_ai.log._samples import sample_active
+from inspect_ai.log._samples import ActiveSample, sample_active
 from inspect_ai.model._chat_message import ChatMessage
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model_output import ModelUsage
@@ -773,6 +773,11 @@ def start_sample_event_emitter() -> None:
     """Start the background coroutine that emits sample events to hooks.
 
     Must be called after active.start(tg) so that the task group is available.
+    The emitter owns a receiver clone so cancelling a drain does not discard
+    events still queued for a live emitter. The original receiver remains
+    available for the drain after the emitter's task group is cancelled.
+    Start once per sample, or after a drain closes the prior sender. A drain
+    retains ownership of its captured handles when a new emitter starts.
     """
     active = sample_active()
     if active is None or active.tg is None:
@@ -781,9 +786,8 @@ def start_sample_event_emitter() -> None:
     send_stream, receive_stream = anyio.create_memory_object_stream[SampleEvent](
         math.inf
     )
-    active.event_send = send_stream
-    active.event_receive = receive_stream
-    active.event_done = anyio.Event()
+    done = anyio.Event()
+    emitter_receive = receive_stream.clone()
 
     async def _emit_loop(
         receive: MemoryObjectReceiveStream[SampleEvent],
@@ -800,39 +804,68 @@ def start_sample_event_emitter() -> None:
                 except Exception as ex:
                     logger.warning(f"Exception in sample event emitter: {ex}")
         finally:
+            receive.close()
             done.set()
 
-    active.tg.start_soon(_emit_loop, receive_stream, active.event_done)
+    try:
+        active.tg.start_soon(_emit_loop, emitter_receive, done)
+    except BaseException:
+        emitter_receive.close()
+        receive_stream.close()
+        send_stream.close()
+        raise
+    active.event_send = send_stream
+    active.event_receive = receive_stream
+    active.event_done = done
+
+
+def _close_sample_event_streams(active: ActiveSample) -> None:
+    """Close the sample's handles even when cancellation skips the drain.
+
+    The emitter closes its own receiver clone when its loop ends.
+    Sample teardown owns the remaining sender and original receiver.
+    """
+    if active.event_send is not None:
+        active.event_send.close()
+    if active.event_receive is not None:
+        active.event_receive.close()
+    active.event_send = None
+    active.event_receive = None
+    active.event_done = None
 
 
 async def drain_sample_events() -> None:
     """Drain all queued sample events and wait for the emitter to finish.
 
     Must be called before emit_sample_end() to ensure all queued events are
-    delivered before the sample end hook fires.
+    delivered before the sample end hook fires. A timed-out callback may
+    finish later; the emitter closes its receiver clone when its loop ends.
     """
     active = sample_active()
     if active is None:
         return
+    send_stream = active.event_send
+    receive_stream = active.event_receive
+    done = active.event_done
 
     try:
         # Close the send stream to signal no more events
-        if active.event_send is not None:
-            await active.event_send.aclose()
+        if send_stream is not None:
+            await send_stream.aclose()
 
         # Wait for the background emitter to finish processing
-        if active.event_done is not None:
+        if done is not None:
             with anyio.move_on_after(5):
-                await active.event_done.wait()
-            if not active.event_done.is_set():
+                await done.wait()
+            if not done.is_set():
                 logger.warning("Timed out waiting for sample event emitter to drain")
 
         # Process any remaining events the background emitter didn't get to
         # (e.g. scoring events queued after the solver task group was cancelled)
-        if active.event_receive is not None:
+        if receive_stream is not None:
             try:
                 while True:
-                    data = active.event_receive.receive_nowait()
+                    data = receive_stream.receive_nowait()
 
                     async def _emit_event(hook: Hooks, d: SampleEvent = data) -> None:
                         await hook.on_sample_event(d)
@@ -843,10 +876,14 @@ async def drain_sample_events() -> None:
     except Exception as ex:
         logger.warning(f"Exception draining sample events: {ex}")
     finally:
-        # Clean up regardless of success/failure
-        active.event_send = None
-        active.event_receive = None
-        active.event_done = None
+        if send_stream is not None:
+            send_stream.close()
+        if receive_stream is not None:
+            receive_stream.close()
+        if active.event_done is done:
+            active.event_send = None
+            active.event_receive = None
+            active.event_done = None
 
 
 async def emit_sample_end(

@@ -1,6 +1,8 @@
 import functools
 import logging
 import tempfile
+from collections.abc import Iterator
+from contextlib import contextmanager
 from copy import deepcopy
 from pathlib import Path
 from typing import Any, Callable, Literal, cast
@@ -25,6 +27,7 @@ from inspect_ai._util._async import tg_collect
 from inspect_ai._util.dateutil import datetime_from_iso_format_safe, datetime_now_utc
 from inspect_ai.approval._policy import ApprovalPolicyConfig, ApproverPolicyConfig
 from inspect_ai.dataset import Sample
+from inspect_ai.hooks._hooks import Hooks
 from inspect_ai.scorer import match
 from inspect_ai.solver import Generate, Solver, TaskState, solver
 
@@ -1611,3 +1614,251 @@ def test_retry_resumes_from_own_checkpoint_or_discards_it(
     assert retried.status == "success"
     assert seen[-1] is None
     assert not (Path(eval_checkpoints_dir(retried.location, None)) / "s__1").exists()
+
+
+@contextmanager
+def _registered_hook(
+    hook_type: type[Hooks],
+    name: str,
+    description: str,
+) -> Iterator[list[Hooks]]:
+    from inspect_ai._util import registry as registry_module
+    from inspect_ai.hooks import _hooks
+
+    original_registry = registry_module._registry.copy()
+    try:
+        _hooks.hooks(name=name, description=description)(hook_type)
+        registered = [
+            hook for hook in _hooks.get_all_hooks() if isinstance(hook, hook_type)
+        ]
+        assert len(registered) == 1
+        yield registered
+    finally:
+        # Restore only this fixture's entries; preserve native plugin loads.
+        for key, value in list(registry_module._registry.items()):
+            if isinstance(value, hook_type):
+                if key in original_registry:
+                    previous = original_registry[key]
+                    registry_module.registry_add(
+                        previous, registry_module.registry_info(previous)
+                    )
+                else:
+                    del registry_module._registry[key]
+    assert not any(isinstance(hook, hook_type) for hook in _hooks.get_all_hooks())
+
+
+@pytest.mark.parametrize("sample_outcome", ["complete", "retry", "limit", "scoring"])
+def test_eval_closes_sample_event_streams(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    sample_outcome: Literal["complete", "retry", "limit", "scoring"],
+) -> None:
+    import gc
+    import warnings
+
+    from anyio.streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
+
+    from inspect_ai.event import InfoEvent, ScoreEvent
+    from inspect_ai.hooks import _hooks
+    from inspect_ai.hooks._hooks import SampleEvent
+    from inspect_ai.log import transcript
+    from inspect_ai.log._samples import sample_active
+    from inspect_ai.scorer import Score, Scorer, Target, accuracy, scorer
+
+    receivers: list[MemoryObjectReceiveStream[SampleEvent]] = []
+    events: list[str] = []
+    attempts = 0
+    original_start = _hooks.start_sample_event_emitter
+
+    def track_start() -> None:
+        original_start()
+        active = sample_active()
+        assert active is not None and active.event_receive is not None
+        receivers.append(active.event_receive)
+
+    class Recorder(Hooks):
+        async def on_sample_event(self, data: SampleEvent) -> None:
+            if isinstance(data.event, InfoEvent):
+                events.append(str(data.event.data))
+            elif isinstance(data.event, ScoreEvent):
+                events.append("score")
+
+    try:
+        with (
+            _registered_hook(
+                Recorder,
+                f"event_stream_owner_test_{sample_outcome}",
+                "Record sample events in lifecycle tests.",
+            ) as registered,
+            monkeypatch.context() as patch,
+        ):
+            patch.setattr(_hooks, "get_all_hooks", lambda: registered)
+            patch.setattr(_hooks, "start_sample_event_emitter", track_start)
+
+            @solver
+            def emit_then_finish() -> Solver:
+                async def solve(state: TaskState, generate: Generate) -> TaskState:
+                    nonlocal attempts
+                    attempts += 1
+                    transcript().info(f"attempt-{attempts}")
+                    if sample_outcome == "retry" and attempts == 1:
+                        raise RuntimeError("retry sample")
+                    if sample_outcome == "limit":
+                        await anyio.sleep_forever()
+                    return await generate(state)
+
+                return solve
+
+            @scorer(metrics=[accuracy()])
+            def emit_while_scoring() -> Scorer:
+                async def score(state: TaskState, target: Target) -> Score:
+                    transcript().info("scoring")
+                    return Score(value=1)
+
+                return score
+
+            task = Task(
+                dataset=[Sample(input="hello")],
+                solver=emit_then_finish(),
+                scorer=emit_while_scoring() if sample_outcome == "scoring" else None,
+                time_limit=1 if sample_outcome == "limit" else None,
+            )
+            gc.collect()
+            with warnings.catch_warnings(record=True) as caught:
+                warnings.simplefilter("always", ResourceWarning)
+                log = eval(
+                    task,
+                    model="mockllm/model",
+                    display="none",
+                    log_dir=str(tmp_path),
+                    retry_on_error=1,
+                )[0]
+                assert log.status == "success", log.error
+                assert attempts == (2 if sample_outcome == "retry" else 1)
+                expected_events = [
+                    f"attempt-{number}" for number in range(1, attempts + 1)
+                ]
+                if sample_outcome == "scoring":
+                    expected_events.extend(["scoring", "score"])
+                assert events == expected_events
+                assert len(receivers) == attempts
+                for receive in receivers:
+                    stats = receive.statistics()
+                    assert stats.open_send_streams == stats.open_receive_streams == 0
+                del receive
+                assert log.samples is not None
+                if sample_outcome == "scoring":
+                    assert log.results is not None
+                    assert log.results.scores[0].metrics["accuracy"].value == 1
+                    assert log.samples[0].scores is not None
+                    assert log.samples[0].scores["emit_while_scoring"].value == 1
+                    assert any(
+                        isinstance(event, ScoreEvent) for event in log.samples[0].events
+                    )
+                if sample_outcome == "limit":
+                    assert log.samples[0].limit is not None
+                    assert log.samples[0].limit.type == "time"
+                receivers.clear()
+                gc.collect()
+                probe_start = len(caught)
+                probe_send, probe_receive = anyio.create_memory_object_stream[
+                    SampleEvent
+                ]()
+                probe_send.close()
+                probe_id = id(probe_receive)
+                del probe_receive
+                gc.collect()
+                probe_warnings = [
+                    item for item in caught[probe_start:] if id(item.source) == probe_id
+                ]
+                assert len(probe_warnings) == 1
+                probe_warning = probe_warnings[0]
+                assert issubclass(probe_warning.category, ResourceWarning)
+                assert isinstance(probe_warning.source, MemoryObjectReceiveStream)
+                probe_warning.source.close()
+                caught.remove(probe_warning)
+            assert not [
+                item
+                for item in caught
+                if issubclass(item.category, ResourceWarning)
+                and isinstance(
+                    item.source, (MemoryObjectReceiveStream, MemoryObjectSendStream)
+                )
+            ]
+    finally:
+        for receive in receivers:
+            receive.close()
+        receivers.clear()
+
+
+async def test_eval_scoring_hook_cancellation_closes_sample_streams(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    from anyio.streams.memory import MemoryObjectReceiveStream
+
+    from inspect_ai.hooks import _hooks
+    from inspect_ai.hooks._hooks import SampleEvent, SampleScoring
+    from inspect_ai.log import list_eval_logs_async, read_eval_log_async
+    from inspect_ai.log._samples import sample_active
+
+    reached = anyio.Event()
+    cancelled = anyio.Event()
+    receivers: list[MemoryObjectReceiveStream[SampleEvent]] = []
+    original_start = _hooks.start_sample_event_emitter
+
+    class ScoringHook(Hooks):
+        async def on_sample_scoring(self, data: SampleScoring) -> None:
+            reached.set()
+            try:
+                await anyio.sleep_forever()
+            except anyio.get_cancelled_exc_class():
+                cancelled.set()
+                raise
+
+    def track_start() -> None:
+        original_start()
+        active = sample_active()
+        assert active is not None and active.event_receive is not None
+        receivers.append(active.event_receive)
+
+    try:
+        with (
+            _registered_hook(
+                ScoringHook,
+                "event_stream_scoring_cancel_test",
+                "Cancel a native scoring hook.",
+            ) as registered,
+            monkeypatch.context() as patch,
+        ):
+            patch.setattr(_hooks, "get_all_hooks", lambda: registered)
+            patch.setattr(_hooks, "start_sample_event_emitter", track_start)
+            with anyio.CancelScope() as scope:
+                async with anyio.create_task_group() as tg:
+
+                    async def cancel_at_scoring() -> None:
+                        await reached.wait()
+                        scope.cancel()
+
+                    tg.start_soon(cancel_at_scoring)
+                    await eval_async(
+                        Task(dataset=[Sample(input="hello")]),
+                        model="mockllm/model",
+                        log_dir=str(tmp_path),
+                    )
+                    tg.cancel_scope.cancel()
+            assert scope.cancel_called
+            assert reached.is_set() and cancelled.is_set()
+            assert len(receivers) == 1
+            for receive in receivers:
+                stats = receive.statistics()
+                assert stats.open_send_streams == stats.open_receive_streams == 0
+            # eval_async can consume cancellation after producing a native log.
+            logs = await list_eval_logs_async(str(tmp_path))
+            assert len(logs) == 1
+            log = await read_eval_log_async(logs[0])
+            assert log.status == "cancelled"
+            assert not log.samples
+    finally:
+        for receive in receivers:
+            receive.close()
