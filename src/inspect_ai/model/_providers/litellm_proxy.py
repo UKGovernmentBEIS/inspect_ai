@@ -28,6 +28,7 @@ from inspect_ai.tool._tools._computer._computer import is_computer_tool_info
 
 from .._chat_message import ChatMessage
 from .._generate_config import GenerateConfig
+from .._model import same_model
 from .._model_call import ModelCall
 from .._model_data.model_data import ModelInfo
 from .._model_info import (
@@ -36,7 +37,12 @@ from .._model_info import (
     _get_model_info_direct,
     set_model_info,
 )
-from .._model_output import ChatCompletionChoice, ModelOutput
+from .._model_output import (
+    ChatCompletionChoice,
+    ModelOutput,
+    ModelUsage,
+    ServedModelUsage,
+)
 from .._openai import (
     OpenAIResponseError,
     chat_choices_from_openai,
@@ -50,10 +56,25 @@ from .._openai_responses import (
     _maybe_native_tool_param,
     _tool_param_for_tool_info,
 )
+from .._reasoning import (
+    clamp_reasoning_effort_to_minimal_low_medium_high,
+)
+from .._stream import report_model_stream_restart
 from ._anthropic_max_tokens import (
     ANTHROPIC_HIGH_EFFORT_MAX_TOKENS,
     ANTHROPIC_MAX_TOKENS,
     anthropic_effort_max_tokens,
+)
+from ._gemini_function_calling import MAX_TOOL_CALLING_ATTEMPTS
+from ._google_reasoning import (
+    gemini_3_plus,
+    gemini_has_thinking_config,
+    gemini_is_latest,
+    gemini_thinking_budget,
+    gemini_thinking_level,
+    gemini_thinking_only,
+    is_gemini,
+    is_gemini_2_5,
 )
 from ._litellm_proxy_caching import (
     cache_write_ttl,
@@ -61,13 +82,27 @@ from ._litellm_proxy_caching import (
     with_tool_cache_breakpoint,
 )
 from ._litellm_proxy_errors import litellm_error_model_output, upstream_message
+from ._litellm_proxy_gemini import (
+    add_usage,
+    malformed_function_call,
+    malformed_function_retry,
+    with_function_calling_hint,
+    with_json_tool_results_wrapped,
+    with_malformed_function_apology,
+    with_tool_call_signatures,
+)
 from ._litellm_proxy_model_info import (
     ProxyDeployment,
     proxy_aliases,
     proxy_deployments,
     proxy_model_info,
 )
-from ._litellm_proxy_names import ProxyResolution, resolve_deployments
+from ._litellm_proxy_names import (
+    ProxyResolution,
+    resolve_deployments,
+    resolve_upstream,
+    upstream_model,
+)
 from ._litellm_proxy_reasoning import (
     ThinkingBlocksAccumulator,
     choice_with_litellm_reasoning,
@@ -233,6 +268,8 @@ class LiteLLMProxyAPI(OpenAICompatibleAPI):
         # get_model_info() constructs providers with a placeholder key, which
         # the proxy would reject
         self._deployments: list[ProxyDeployment] | None = None
+        # every deployment the proxy lists, to identify a fallback's deployment
+        self._proxy_deployments: list[ProxyDeployment] = []
         # the model name a key or team alias routes to, and why aliases
         # couldn't be read
         self._alias_target: str | None = None
@@ -255,6 +292,7 @@ class LiteLLMProxyAPI(OpenAICompatibleAPI):
                     "team gets the model info of the listed model.",
                 )
             self._deployments = [d for d in deployments if d.model_name == target]
+            self._proxy_deployments = deployments
         self._resolution: ProxyResolution | None = resolve_deployments(
             self.service_model_name(), self._deployments or []
         )
@@ -305,10 +343,7 @@ class LiteLLMProxyAPI(OpenAICompatibleAPI):
         key = self._model_info_key()
         current = _get_custom_model_info(key)
         previous = _registrations.get(key)
-        if previous is not None and current is previous.registered:
-            user = previous.user
-        else:
-            user = current
+        user = _user_model_info(key)
         db_key = self._resolution.db_key if self._resolution else None
         db = _get_model_info_direct(db_key) if db_key else None
         proxy = proxy_model_info(self._deployments or [])
@@ -332,6 +367,66 @@ class LiteLLMProxyAPI(OpenAICompatibleAPI):
         _registrations[key] = _Registration(
             user=user, registered=info, base_url=self.base_url
         )
+
+    @override
+    def served_model_usage(self, output: ModelOutput) -> list[ServedModelUsage] | None:
+        """The deployment that served the request, when the response names one.
+
+        The proxy reports the model either as an alias (the requested one, or
+        the fallback's for streamed Chat Completions) or as the serving
+        deployment's upstream model id (the fallback's, or the called
+        deployment's for streamed Responses). An upstream id identifies one
+        deployment, which is priced on its own; an alias stands for all of
+        its deployments, and the requested alias keeps its price.
+        """
+        if output.usage is None or not output.model:
+            return None
+        called = self._routed_name()
+        reported = output.model
+        if reported in (self.service_model_name(), called):
+            return None
+        serving = self._serving_deployments(reported)
+        if serving is None:
+            # an upstream id of no listed deployment
+            resolution = resolve_upstream(reported)
+            if self._resolution is not None and same_model(
+                _db_model_info(resolution.db_key),
+                _db_model_info(self._resolution.db_key),
+            ):
+                return None
+            served = resolution.db_key or resolution.upstream or reported
+            return [ServedModelUsage(served, output.usage)]
+        alias, deployments = serving
+        key = self._model_info_key() if alias == called else f"litellm-proxy/{alias}"
+        return [_deployment_usage(key, alias, deployments, reported, output.usage)]
+
+    def _serving_deployments(
+        self, reported: str
+    ) -> tuple[str, list[ProxyDeployment]] | None:
+        """The listed alias and deployments a reported model name names.
+
+        An alias name names all of its deployments; an upstream id (raw, or a
+        snapshot the model database identifies) names one. The called alias's
+        deployments take precedence.
+        """
+        deployments = self._proxy_deployments
+        named = [d for d in deployments if d.model_name == reported]
+        if named:
+            return reported, named
+        called = self._routed_name()
+        ordered = sorted(deployments, key=lambda d: d.model_name != called)
+        for deployment in ordered:
+            ids = {deployment.model, upstream_model(deployment)} - {None}
+            if reported in ids | {i.split("/", 1)[-1] for i in ids if i}:
+                return deployment.model_name, [deployment]
+        reported_info = _db_model_info(resolve_upstream(reported).db_key)
+        for deployment in ordered:
+            resolution = resolve_deployments(deployment.model_name, [deployment])
+            if resolution is not None and same_model(
+                reported_info, _db_model_info(resolution.db_key)
+            ):
+                return deployment.model_name, [deployment]
+        return None
 
     def _routed_name(self) -> str:
         """The model name requests are routed to (the alias target, if any)."""
@@ -647,6 +742,10 @@ class LiteLLMProxyAPI(OpenAICompatibleAPI):
         self, input: list[ChatMessage]
     ) -> list[ChatCompletionMessageParam]:
         messages = await litellm_messages_to_openai(input)
+        if self._vendor in (None, "google"):
+            messages = with_tool_call_signatures(messages)
+        if self._vendor == "google":
+            messages = with_json_tool_results_wrapped(messages)
         return with_cache_breakpoints(messages) if _cache_prompt.get() else messages
 
     @override
@@ -673,10 +772,16 @@ class LiteLLMProxyAPI(OpenAICompatibleAPI):
         breakpoints unless `cache_prompt` is false (see
         `_litellm_proxy_caching`).
 
-        A rejection (see `_litellm_proxy_reasoning_effort`) is remembered for
-        this model, a warning names the value used instead, and the request is
-        retried. Later requests use the lowered value directly. A rejected
-        `thinking` parameter (see `_thinking_for`) is dropped the same way.
+        Gemini efforts are first mapped as in the native provider (see
+        `_gemini_effort`). A rejection (see `_litellm_proxy_reasoning_effort`)
+        is remembered for this model, a warning names the value used instead,
+        and the request is retried. Later requests use the lowered value
+        directly. A rejected `thinking` parameter (see `_thinking_for`) is
+        dropped the same way.
+
+        Requests with tools to a Gemini upstream carry the function-calling
+        hint, and a turn that comes back as a malformed function call is
+        retried with a corrective exchange (see `_litellm_proxy_gemini`).
         """
         if config.reasoning_tokens is not None:
             warn_once(
@@ -687,11 +792,18 @@ class LiteLLMProxyAPI(OpenAICompatibleAPI):
         _cache_prompt.set(self._is_claude() and config.cache_prompt is not False)
         _cache_write_ttl.set(None)
         requested = config.reasoning_effort
+        gemini_tools = self._vendor == "google" and len(tools) > 0
+        if gemini_tools:
+            input = with_function_calling_hint(input)
+        tool_calling_attempts = 0
+        discarded_usage: ModelUsage | None = None
         # ends: each rejection is recorded, so the next attempt sends a value
-        # not yet rejected, no effort, or no thinking
+        # not yet rejected, no effort, or no thinking; malformed function
+        # calls are bounded by MAX_TOOL_CALLING_ATTEMPTS
         while True:
-            effort = self._effort_for(requested)
-            thinking = self._thinking_for(effort, config)
+            mapped = self._mapped_effort(requested, config)
+            effort = self._effort_for(mapped)
+            thinking = self._thinking_for(requested, effort, config)
             update: dict[str, Any] = {"reasoning_effort": effort}
             if thinking is not None:
                 update["extra_body"] = (config.extra_body or {}) | {
@@ -716,15 +828,22 @@ class LiteLLMProxyAPI(OpenAICompatibleAPI):
                 and rejected_thinking(message)
             ):
                 self._thinking_unsupported = True
+                consequence = (
+                    "so its thinking may not be summarized"
+                    if self._is_claude()
+                    else "sending reasoning_effort instead"
+                )
                 warn_once(
                     logger,
                     f"LiteLLM proxy model '{self.service_model_name()}' does not "
                     f"accept thinking={thinking}; sending no thinking parameter, "
-                    "so its thinking may not be summarized.",
+                    f"{consequence}.",
                 )
                 continue
             if rejection is None:
-                if requested is not None and effort != requested:
+                # a mapping in _mapped_effort is expected, so only a lowering
+                # after a rejection warns
+                if requested is not None and effort != mapped:
                     instead = (
                         f"using '{effort}'" if effort else "sending no reasoning_effort"
                     )
@@ -734,6 +853,34 @@ class LiteLLMProxyAPI(OpenAICompatibleAPI):
                         f"not accept reasoning_effort='{requested}'; {instead}."
                         + self._effort_unsupported_fix(),
                     )
+                if gemini_tools and isinstance(output, ModelOutput):
+                    call = result[1] if isinstance(result, tuple) else None
+                    malformed = malformed_function_call(
+                        output, call.response if call is not None else None
+                    )
+                    if malformed is not None:
+                        tool_calling_attempts += 1
+                        if tool_calling_attempts < MAX_TOOL_CALLING_ATTEMPTS:
+                            # the retry regenerates the turn, so streamed output
+                            # of this attempt is stale
+                            await report_model_stream_restart()
+                            discarded_usage = add_usage(discarded_usage, output.usage)
+                            input = input + malformed_function_retry(malformed)
+                            if tool_choice == "auto":
+                                tool_choice = "any"
+                            continue
+                        output = with_malformed_function_apology(output, malformed)
+                    if tool_calling_attempts:
+                        output = output.model_copy(
+                            update={
+                                "usage": add_usage(discarded_usage, output.usage),
+                                "metadata": (output.metadata or {})
+                                | {
+                                    "malformed_function_call_attempts": tool_calling_attempts
+                                },
+                            }
+                        )
+                        result = (output, call) if call is not None else output
                 return result
             if rejection.kind == "parameter":
                 self._effort_unsupported = True
@@ -771,6 +918,77 @@ class LiteLLMProxyAPI(OpenAICompatibleAPI):
             f"{base_model}{_ADAPTIVE_THINKING_MODEL_INFO}"
         )
 
+    def _mapped_effort(
+        self, requested: str | None, config: GenerateConfig
+    ) -> str | None:
+        """The effort to ask for, before any rejections.
+
+        `requested`, except for Google models (see `_gemini_effort`).
+        """
+        if requested is None or self._vendor != "google":
+            return requested
+        return self._gemini_effort(requested, config)
+
+    def _gemini_effort(self, requested: str, config: GenerateConfig) -> str | None:
+        """The effort to send to a Gemini model, as the native provider maps it.
+
+        Gemini 1.5 and 2.0 take none, and thinking-only (Pro) models cannot
+        turn thinking off. Gemini 3 and later (including codenames) take
+        `minimal` (where supported) to `high`. Gemini 2.5 gets a thinking
+        budget instead (see `_thinking_for`), or, if the proxy rejects that,
+        the effort with `xhigh` and `max` lowered to `high`. Other Google
+        models (e.g. Gemma) get `requested`.
+        """
+        family = self._gemini_family()
+        latest = gemini_is_latest(family)
+        if not is_gemini(family, latest):
+            return requested
+        if not gemini_has_thinking_config(family, latest):
+            return None
+        if requested == "none":
+            if gemini_thinking_only(family, latest):
+                warn_once(
+                    logger,
+                    f"Thinking cannot be disabled for model "
+                    f"{self.service_model_name()}.",
+                )
+                return None
+            return requested
+        if gemini_3_plus(family, latest):
+            level = gemini_thinking_level(requested, family)
+            if requested == "minimal" and level == "low":
+                warn_once(
+                    logger,
+                    f"Model {self.service_model_name()} does not support "
+                    "minimal thinking; using low instead.",
+                )
+            return level
+        if self._gemini_thinking_budget(requested, config) is not None:
+            return None
+        return clamp_reasoning_effort_to_minimal_low_medium_high(requested)
+
+    def _gemini_thinking_budget(
+        self, requested: str | None, config: GenerateConfig
+    ) -> int | None:
+        """The thinking budget to send to a Gemini 2.5 model, if any.
+
+        Inspect's budget for the effort (see `gemini_thinking_budget`), as
+        the native provider sends, rather than LiteLLM's smaller ones. None if the proxy rejected the `thinking`
+        parameter or `extra_body` has one.
+        """
+        if (
+            self._vendor != "google"
+            or self._thinking_unsupported
+            or "thinking" in (config.extra_body or {})
+            or not is_gemini_2_5(self._gemini_family())
+        ):
+            return None
+        return gemini_thinking_budget(requested, self._gemini_family())
+
+    def _gemini_family(self) -> str:
+        """The model family without a route (e.g. `gemini/` on an alias)."""
+        return self.model_family().rsplit("/", 1)[-1]
+
     def _effort_for(self, requested: str | None) -> str | None:
         """The effort to send for `requested`, given the rejections so far."""
         if requested is None or self._effort_unsupported:
@@ -780,9 +998,12 @@ class LiteLLMProxyAPI(OpenAICompatibleAPI):
         return requested
 
     def _thinking_for(
-        self, effort: str | None, config: GenerateConfig
-    ) -> dict[str, str] | None:
+        self, requested: str | None, effort: str | None, config: GenerateConfig
+    ) -> dict[str, Any] | None:
         """The `thinking` parameter to send with `effort`, if any.
+
+        For Gemini 2.5, a thinking budget for the `requested` effort (see
+        `_gemini_thinking_budget`).
 
         Claude 4.7+ omits thinking text unless asked for a summary, and then
         streams nothing until its reply. LiteLLM sends `display: summarized`
@@ -797,6 +1018,9 @@ class LiteLLMProxyAPI(OpenAICompatibleAPI):
         replacing the one it derives from the effort. A `thinking` in
         `extra_body` is sent instead.
         """
+        budget = self._gemini_thinking_budget(requested, config)
+        if budget is not None:
+            return {"type": "enabled", "budget_tokens": budget}
         if (
             effort is None
             or effort == "none"
@@ -929,3 +1153,80 @@ def merged_model_info(
     if primary.input_tokens is None and "context_length" in fill:
         merged = ModelInfo(_input_tokens=secondary.input_tokens, **merged.model_dump())
     return merged
+
+
+def _db_model_info(db_key: str | None) -> ModelInfo | None:
+    return _get_model_info_direct(db_key) if db_key else None
+
+
+def _user_model_info(key: str) -> ModelInfo | None:
+    """The user's own registration for a model info key, if any.
+
+    Model info this provider registered under the key is not the user's; the
+    user's registration it merged in is.
+    """
+    current = _get_custom_model_info(key)
+    previous = _registrations.get(key)
+    if previous is not None and current is previous.registered:
+        return previous.user
+    return current
+
+
+def _deployment_usage(
+    key: str,
+    alias: str,
+    deployments: list[ProxyDeployment],
+    reported: str,
+    usage: ModelUsage,
+) -> ServedModelUsage:
+    """Usage served by these deployments of an alias, for pricing.
+
+    The same precedence as registered model info: the user's registration
+    for the alias, then Inspect's entry for the model, then the proxy's
+    metadata. An alias reported by name with several deployments does not
+    say which one served the call, so it is priced as the alias, the way
+    the alias is priced when called. An identified deployment is priced by
+    its own model (its resolved model, the reported snapshot, or its
+    upstream id, as registered or in Inspect's database). Without a price,
+    the deployment's model is reported so that pricing falls back to the
+    called model and warns, rather than using another deployment's rates.
+    """
+    user = _user_model_info(key)
+    if user is not None and user.cost is not None:
+        return ServedModelUsage(key, usage, user.cost)
+    if len(deployments) > 1:
+        resolution = resolve_deployments(alias, deployments)
+        db = _db_model_info(resolution.db_key if resolution else None)
+        if db is not None and db.cost is not None:
+            return ServedModelUsage(key, usage, db.cost)
+        proxy = proxy_model_info(deployments)
+        return ServedModelUsage(key, usage, proxy.cost if proxy is not None else None)
+    names = _deployment_names(alias, deployments, reported)
+    for name in names:
+        info = _get_model_info_direct(name)
+        if info is not None and info.cost is not None:
+            return ServedModelUsage(name, usage)
+    proxy = proxy_model_info(deployments)
+    cost = proxy.cost if proxy is not None else None
+    return ServedModelUsage(names[0] if names else reported, usage, cost)
+
+
+def _deployment_names(
+    alias: str, deployments: list[ProxyDeployment], reported: str
+) -> list[str]:
+    """Model info names for deployments, most specific identity first."""
+    resolution = resolve_deployments(alias, deployments)
+    names = [resolution.db_key if resolution else None]
+    reported_upstream = None
+    if reported != alias:
+        reported_resolution = resolve_upstream(reported)
+        names.append(reported_resolution.db_key)
+        reported_upstream = reported_resolution.upstream
+    for deployment in deployments:
+        for upstream in (deployment.model, upstream_model(deployment)):
+            if upstream:
+                names += [upstream, upstream.split("/", 1)[-1]]
+    names.append(resolution.upstream if resolution else None)
+    if reported != alias:
+        names += [reported, reported_upstream]
+    return list(dict.fromkeys(n for n in names if n))
