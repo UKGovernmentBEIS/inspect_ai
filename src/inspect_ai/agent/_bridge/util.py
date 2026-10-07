@@ -396,7 +396,8 @@ def _is_model_filter(fn: GenerateFilter) -> TypeIs[ModelGenerateFilter]:
     """
     sig = inspect.signature(fn)  # type: ignore[arg-type]
     first = next(iter(sig.parameters.values()), None)
-    if first is not None and first.annotation is str:
+    annotation = first.annotation if first is not None else None
+    if annotation is str or (isinstance(annotation, str) and annotation == "str"):
         warnings.warn(
             "GenerateFilter with 'str' as the first parameter is "
             "deprecated. Update your filter to accept a 'Model' "

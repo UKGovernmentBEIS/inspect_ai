@@ -1,3 +1,7 @@
+## Unreleased
+
+- Agent Bridge: Legacy filters defined with postponed annotations now receive the model name and emit their deprecation warning.
+
 ## 0.3.277 (06 October 2026)
 
 - Fixed trace logs growing to many gigabytes when model output caching is enabled.
