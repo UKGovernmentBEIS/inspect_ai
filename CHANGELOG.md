@@ -2,6 +2,8 @@
 
 - Agent bridge: Host tools run through `sandbox_agent_bridge(bridged_tools=...)` are now recorded as tool events in the transcript, including denied calls.
 - Agent bridge: Bridged tool calls with arguments nested more than 100 levels deep are now rejected with a parsing error, as for other tool calls.
+- Anthropic: Support for Claude Haiku 5.5 (`claude-haiku-5-5`): `reasoning_effort="none"` disables thinking, computer use uses the computer toolset on the Claude API and Vertex, and `fallback_models` is ignored with a warning.
+- Bugfix: `inspect log convert --stream` (and `convert_eval_logs(stream=...)`) no longer drops the error message and traceback from logs of failed evals.
 
 ## 0.3.277 (06 October 2026)
 
