@@ -1,6 +1,6 @@
 ## Unreleased
 
-- Sandbox: Sample and task `docker` compose files with non-standard names (e.g. `env.yaml`) are no longer silently dropped when a `--sandbox` override or another sandbox type applies.
+- Sandbox: A sample's or task's `docker` compose file with a non-standard name (e.g. `env.yaml`) is no longer silently dropped under another sandbox type or a `--sandbox` override.
 
 ## 0.3.277 (06 October 2026)
 

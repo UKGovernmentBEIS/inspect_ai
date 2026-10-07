@@ -506,9 +506,9 @@ def is_docker_compatible_config(
         config: Sandbox config.
         declared_type: Sandbox type the config was declared for. The `docker`
             sandbox uses any file that is not a Dockerfile as a compose file, so
-            a file declared for it is accepted whatever its name. Files declared
-            for other types are checked by name, since those types can accept
-            other files (e.g. Helm values for `k8s`).
+            a file declared for it is accepted regardless of its name. Files
+            declared for other types are checked by name, since those types can
+            accept other files (e.g. Helm values for `k8s`).
 
     Returns:
         True if `config` is a path to a Dockerfile or compose file, or a
