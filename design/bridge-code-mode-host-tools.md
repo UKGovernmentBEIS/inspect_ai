@@ -1,6 +1,6 @@
 # Bridged host tools under Codex code mode
 
-Status: proposed, 2026-10-07. Issue:
+Status: accepted (Ransom, 2026-10-07) and implemented in the same PR. Issue:
 https://github.com/UKGovernmentBEIS/inspect_ai/issues/5687. Author: agent
 (Claude), reviewed by Codex; see the PR.
 
