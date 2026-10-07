@@ -12,7 +12,10 @@ bridged feeds in ``bridge_model_generate()`` so the synchronous subscriber sees
 the same flag a live bridge generate would set.
 """
 
+from contextlib import nullcontext
+
 import anyio
+import pytest
 from acp.schema import (
     ContentToolCallContent,
     SessionNotification,
@@ -30,7 +33,9 @@ from inspect_ai.agent._bridge.sandbox.types import SandboxAgentBridge
 from inspect_ai.agent._bridge.types import AgentBridge
 from inspect_ai.agent._bridge.util import bridge_generate, bridge_model_generate
 from inspect_ai.event import Event, InterruptEvent
+from inspect_ai.event._info import InfoEvent
 from inspect_ai.event._model import ModelEvent
+from inspect_ai.event._span import SpanBeginEvent, SpanEndEvent
 from inspect_ai.event._tool import ToolEvent
 from inspect_ai.log._samples import _sample_active as samples_var
 from inspect_ai.log._transcript import Transcript, _transcript
@@ -802,3 +807,107 @@ async def test_turn_cancel_marks_a_running_host_tool_cancelled() -> None:
     assert event.error is not None and event.error.type == "cancelled"
     assert event.failed is True
     assert sum(1 for e, pending in emissions if e is event and not pending) == 2
+
+
+# ---------------------------------------------------------------------------
+# Host tool calls attributed to a sub-agent span
+# ---------------------------------------------------------------------------
+
+
+def _sub_agent_execution(*, overlap: bool) -> tuple[list[Event], ToolEvent]:
+    """A sub-agent's host tool call, executed after (or finishing after) its span closed.
+
+    The sandbox bridge records the call in the span a ``ModelEventSink`` gave
+    the proposing generation. codex_cli's sink closes that span in a later
+    generation, so an execution can be emitted after the close; with
+    ``overlap`` the call starts while the span is open and completes after.
+    Returns the transcript's events (the host event still pending) and the
+    host event, which the caller completes after the last of them.
+    """
+    proposing = _tool_call_event(_read_call("proposed"))
+    proposing.span_id = "agent-sub"
+    host = _host_tool_event("proposed", proposal_id="proposed", pending=True)
+    host.span_id = "agent-sub"
+    tool_span = SpanBeginEvent(
+        id="tool-span", parent_id="agent-sub", type="tool", name="read_file"
+    )
+    tool_span.span_id = "agent-sub"
+    nested = InfoEvent(data="reading")
+    nested.span_id = "tool-span"
+    close = SpanEndEvent(id="agent-sub")
+    close.span_id = "agent-sub"
+    execution: list[Event] = [tool_span, host, nested]
+    events: list[Event] = [
+        SpanBeginEvent(id="outer", type="agent", name="main"),
+        SpanBeginEvent(id="agent-sub", parent_id="outer", type="agent", name="sub"),
+        proposing,
+    ]
+    events += [*execution, close] if overlap else [close, *execution]
+    return events, host
+
+
+def _complete(event: ToolEvent) -> None:
+    event._set_result(
+        result="contents",
+        truncated=None,
+        error=None,
+        waiting_time=0,
+        agent=None,
+        failed=None,
+        message_id=None,
+    )
+
+
+def _tool_card_ids(published: list[SessionNotification]) -> list[str]:
+    return [
+        n.update.tool_call_id
+        for n in published
+        if isinstance(n.update, (ToolCallStart, ToolCallProgress))
+    ]
+
+
+@pytest.mark.parametrize("overlap", [False, True], ids=["after-close", "overlap"])
+@pytest.mark.parametrize("filtered", [True, False], ids=["filtered", "unfiltered"])
+def test_live_sub_agent_host_call_follows_its_attributed_span(
+    overlap: bool, filtered: bool
+) -> None:
+    tr = Transcript()
+    token = _transcript.set(tr)
+    try:
+        session = _new_session()
+        session._filter_subagent_events = filtered
+        _, published = _attach_router(session)
+        events, host = _sub_agent_execution(overlap=overlap)
+        for event in events:
+            with (
+                bridge_model_generate()
+                if isinstance(event, ModelEvent)
+                else nullcontext()
+            ):
+                tr._event(event)
+        _complete(host)
+        tr._event_updated(host)
+
+        cards = _tool_card_ids(published)
+        if filtered:
+            assert cards == []
+        else:
+            assert "proposed" in cards
+    finally:
+        _transcript.reset(token)
+
+
+@pytest.mark.parametrize("overlap", [False, True], ids=["after-close", "overlap"])
+@pytest.mark.parametrize("filtered", [True, False], ids=["filtered", "unfiltered"])
+def test_replay_sub_agent_host_call_follows_its_attributed_span(
+    overlap: bool, filtered: bool
+) -> None:
+    events, host = _sub_agent_execution(overlap=overlap)
+    _complete(host)
+    notifs = list(replay_transcript(events, session_id="s", filter_subagents=filtered))
+
+    cards = _tool_card_ids(notifs)
+    if filtered:
+        assert cards == []
+    else:
+        assert "proposed" in cards

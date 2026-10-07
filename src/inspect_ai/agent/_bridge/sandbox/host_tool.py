@@ -175,8 +175,17 @@ async def _record_rejection(
         failed=None,
         message_id=None,
     )
-    async with span(name=tool, type="tool"):
-        transcript()._event(event)
+    recorded = False
+    try:
+        async with span(name=tool, type="tool"):
+            transcript()._event(event)
+            recorded = True
+    except anyio.get_cancelled_exc_class():
+        # cancelled while a span-ID provider allocated the span: the request
+        # was still received and decided, so it is still recorded
+        if not recorded:
+            transcript()._event(event)
+        raise
 
 
 async def _execute_granted(
@@ -226,6 +235,7 @@ async def _execute_granted(
         sample.execution_observer if sample is not None else null_execution_observer()
     )
     waiting_start = sample_waiting_time()
+    recorded = False
 
     def finalise(
         result: ToolResult = "",
@@ -243,56 +253,66 @@ async def _execute_granted(
             message_id=None,
             agent_span_id=getattr(tool_fn, "agent_span_id", None),
         )
-        transcript()._event_updated(event)
+        if recorded:
+            transcript()._event_updated(event)
+        else:
+            transcript()._event(event)
 
-    async with span(name=tool, type="tool"):
-        transcript()._event(event)
-        with observer.track_tool_call(event.id, event):
-            try:
-                with anyio.CancelScope() as scope:
-                    event._set_cancel_fn(scope.cancel)
-                    result: ToolResult = await tool_fn(**call_arguments)
-            except anyio.get_cancelled_exc_class():
-                # an outer cancellation (bridge teardown, sample limit): the
-                # operator's per-call cancel is absorbed by `scope` instead
-                finalise(
-                    error=ToolCallError(
-                        "cancelled", "Host tool call was cancelled before completing."
-                    )
-                )
-                raise
-            except Exception as ex:
-                # classify the unwrapped exception, but let the original
-                # propagate: the service dispatcher special-cases a bare
-                # LimitExceededError (ending the sample), and unwrapping a
-                # grouped one would newly route it there
-                inner_ex = inner_exception(ex)
-                mapped = tool_call_error(inner_ex, tool)
-                if mapped is None:
-                    finalise(failed=True)
-                    bridge.request_fail(inner_ex)
-                else:
-                    recorded, truncated = (
-                        _recorded_result(tool, mapped.result, tool_def.max_output)
-                        if mapped.result is not None
-                        else ("", None)
-                    )
-                    finalise(result=recorded, truncated=truncated, error=mapped.error)
-                raise
+    cancelled = ToolCallError(
+        "cancelled", "Host tool call was cancelled before completing."
+    )
+    try:
+        async with span(name=tool, type="tool"):
+            transcript()._event(event)
+            recorded = True
+            with observer.track_tool_call(event.id, event):
+                try:
+                    with anyio.CancelScope() as scope:
+                        event._set_cancel_fn(scope.cancel)
+                        result: ToolResult = await tool_fn(**call_arguments)
+                except anyio.get_cancelled_exc_class():
+                    # an outer cancellation (bridge teardown, sample limit): the
+                    # operator's per-call cancel is absorbed by `scope` instead
+                    finalise(error=cancelled)
+                    raise
+                except Exception as ex:
+                    # classify the unwrapped exception, but let the original
+                    # propagate: the service dispatcher special-cases a bare
+                    # LimitExceededError (ending the sample), and unwrapping a
+                    # grouped one would newly route it there
+                    inner_ex = inner_exception(ex)
+                    mapped = tool_call_error(inner_ex, tool)
+                    if mapped is None:
+                        finalise(failed=True)
+                        bridge.request_fail(inner_ex)
+                    else:
+                        output, truncated = (
+                            _recorded_result(tool, mapped.result, tool_def.max_output)
+                            if mapped.result is not None
+                            else ("", None)
+                        )
+                        finalise(result=output, truncated=truncated, error=mapped.error)
+                    raise
+    except anyio.get_cancelled_exc_class():
+        # cancelled while a span-ID provider allocated the span, before the
+        # pending event was recorded (a consumed grant is not restored)
+        if not recorded:
+            finalise(error=cancelled)
+        raise
 
     if scope.cancelled_caught:
         finalise(error=ToolCallError("timeout", OPERATOR_CANCEL_MESSAGE))
         raise ToolError(OPERATOR_CANCEL_MESSAGE)
 
-    recorded, truncated = _recorded_result(tool, result, tool_def.max_output)
-    finalise(result=recorded, truncated=truncated)
+    output, truncated = _recorded_result(tool, result, tool_def.max_output)
+    finalise(result=output, truncated=truncated)
 
     # Plain strings are returned verbatim (the MCP `tools/call` text part
     # carries them as-is). For anything else, use pydantic_core.to_json so
     # Pydantic models (e.g. list[ContentText] from real MCP tools) are
     # serialized correctly — json.dumps can't handle BaseModel.
-    if isinstance(recorded, str):
-        return recorded
+    if isinstance(output, str):
+        return output
     if isinstance(result, ContentImage) or (
         isinstance(result, list)
         and all(isinstance(content, (ContentText, ContentImage)) for content in result)

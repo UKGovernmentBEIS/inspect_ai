@@ -95138,6 +95138,7 @@ var ModelEventView_module_default = {
 			offset = -1;
 		}
 		for (const msg of input.slice(offset).reverse()) if (msg.role === "user" && !msg.tool_call_id || msg.role === "system" || msg.role === "tool" && !shownByToolEvent(msg, options)) result.unshift(msg);
+		else if (msg.role === "tool" && options.toolEventIds !== void 0) continue;
 		else break;
 	}
 	if (result.length === input.length && result.length > 0) {

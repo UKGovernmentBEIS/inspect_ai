@@ -1509,3 +1509,122 @@ def test_sandbox_bridge_records_the_result_the_scaffold_received(
         assert "was too long to be displayed" in text
         assert "\n" + "x" * 1024 + "\n" in text
         assert event.truncated == (4096, 1024)
+
+
+# =============================================================================
+# Large arguments
+# =============================================================================
+
+
+@tool
+def echo_text():
+    async def execute(text: str) -> str:
+        """Return `text`.
+
+        Args:
+            text: Text to return.
+        """
+        return text
+
+    return execute
+
+
+class PeakPythonMemory:
+    """Peak Python heap growth from now until `stop()`, traced with `tracemalloc`.
+
+    Unlike the process RSS, the traced peak does not depend on what the
+    allocator kept from earlier tests (or an earlier attempt of this one).
+    """
+
+    def __init__(self) -> None:
+        import tracemalloc
+
+        self._started = not tracemalloc.is_tracing()
+        if self._started:
+            tracemalloc.start()
+        tracemalloc.reset_peak()
+        self.baseline, _ = tracemalloc.get_traced_memory()
+
+    def stop(self) -> int:
+        """Stop tracing and return the peak growth over the baseline, in bytes."""
+        import tracemalloc
+
+        _, peak = tracemalloc.get_traced_memory()
+        if self._started:
+            tracemalloc.stop()
+        return peak - self.baseline
+
+
+@pytest.mark.parametrize("char", ["x", "é"], ids=["ascii", "non-ascii"])
+@skip_if_no_docker
+@pytest.mark.slow
+def test_sandbox_bridge_records_a_large_denied_call_within_a_memory_bound(
+    char: str,
+) -> None:
+    """A denied call near the proxy's 50 MiB body cap is recorded and condensed.
+
+    Arguments are not capped beyond the request limits, so the record holds
+    them whole. The non-ASCII case reaches about 135 MiB once the proxy
+    re-serializes the request with escapes, near the service's 150 MiB read
+    limit. Peak Python heap growth while the call is read, recorded and the
+    log is written must stay within four times the request the service reads.
+    """
+    body_bytes = 45 * 1024 * 1024
+    text = char * (body_bytes // len(char.encode()))
+    service_request_bytes = len(json.dumps(text))
+    measured: list[PeakPythonMemory] = []
+    responses: list[dict] = []
+
+    @solver
+    def test_solver():
+        async def solve(state, generate):
+            async with sandbox_agent_bridge(
+                bridged_tools=[BridgedToolsSpec(name="srv", tools=[echo_text()])]
+            ) as bridge:
+                request = json.dumps(
+                    {
+                        "jsonrpc": "2.0",
+                        "id": 1,
+                        "method": "tools/call",
+                        "params": {"name": "echo_text", "arguments": {"text": text}},
+                    },
+                    ensure_ascii=False,
+                ).encode()
+                await sandbox().write_file("/tmp/request.json", request)
+                del request
+                measured.append(PeakPythonMemory())
+                result = await sandbox().exec(
+                    [
+                        "curl",
+                        "-s",
+                        "-X",
+                        "POST",
+                        "-H",
+                        "Content-Type: application/json",
+                        "--data-binary",
+                        "@/tmp/request.json",
+                        bridge.mcp_server_configs[0].url,
+                    ],
+                    timeout=300,
+                )
+                assert result.success, result.stderr
+                responses.append(json.loads(result.stdout))
+            return state
+
+        return solve
+
+    log = eval_bridged_tools_task(test_solver())
+    growth = measured[0].stop()
+
+    assert "was not proposed by the model" in responses[0]["error"]["message"]
+    [event] = host_tool_events(log)
+    assert event.error is not None and event.error.type == "permission"
+    assert log.samples is not None
+    stored = log.samples[0].attachments
+    reference = event.arguments["text"]
+    assert isinstance(reference, str) and reference.startswith("attachment://")
+    assert stored[reference.removeprefix("attachment://")] == text
+    assert growth <= 4 * service_request_bytes, (
+        f"peak Python heap growth {growth / 2**20:.0f} MiB for a "
+        f"{service_request_bytes / 2**20:.0f} MiB request"
+    )

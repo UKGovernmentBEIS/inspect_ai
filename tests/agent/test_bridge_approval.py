@@ -17,10 +17,14 @@ from unittest.mock import AsyncMock, MagicMock
 
 import anyio
 import pytest
+from acp.schema import SessionNotification, ToolCallProgress, ToolCallStart
 
 from inspect_ai import Task, eval
 from inspect_ai._util.content import ContentText
 from inspect_ai._util.exception import TerminateSampleError
+from inspect_ai.agent._acp.event_mapping import _AcpEventRouter, replay_transcript
+from inspect_ai.agent._acp.transport import AcpUpdate
+from inspect_ai.agent._acp.transport_live import LiveAcpTransport
 from inspect_ai.agent._agent import Agent, AgentState, agent
 from inspect_ai.agent._bridge._approval import MAX_CONSECUTIVE_REJECTIONS
 from inspect_ai.agent._bridge.anthropic_api import inspect_anthropic_api_request
@@ -85,7 +89,7 @@ from inspect_ai.tool._tool_info import ToolInfo
 from inspect_ai.tool._tool_params import ToolParam, ToolParams
 from inspect_ai.util._limit import LimitExceededError
 from inspect_ai.util._sandbox.events import SandboxTimeoutError
-from inspect_ai.util._span import current_span_id, span
+from inspect_ai.util._span import current_span_id, span, span_id_provider
 from inspect_ai.util._store import Store, _subtask_store
 
 if sys.version_info < (3, 11):
@@ -2850,6 +2854,62 @@ async def test_execution_after_its_proposal_span_closed_still_nests_under_it() -
     assert event in sub.children
 
 
+class RecordingAcpTransport(LiveAcpTransport):
+    """An ACP transport that keeps the session notifications it publishes."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.published: list[SessionNotification] = []
+
+    def publish(self, update: AcpUpdate) -> None:
+        if isinstance(update, SessionNotification):
+            self.published.append(update)
+
+
+@pytest.mark.parametrize("filtered", [True, False], ids=["filtered", "unfiltered"])
+async def test_acp_keeps_a_closed_sub_agent_spans_host_call_out_of_the_conversation(
+    filtered: bool,
+) -> None:
+    """ACP filters the late execution by its attributed span, live and on replay."""
+    bridge = sandbox_bridge_with_sink(
+        AsyncMock(return_value="contents"),
+        StampingSink({"open"}, {"stamp"}, {"close"}),
+    )
+    call = ToolCall(id="proposed", function="read_file", arguments={"path": "a"})
+
+    with recorded_transcript() as recorded:
+        session = RecordingAcpTransport()
+        session._attachable_override = True
+        session._filter_subagent_events = filtered
+        published = session.published
+        _AcpEventRouter(session).attach()
+        async with span("main", type="agent"):
+            await run_bridge(
+                [ModelOutput.from_content("mockllm/model", "spawn")], bridge=bridge
+            )
+            await propose(bridge, call)
+            await run_bridge(
+                [ModelOutput.from_content("mockllm/model", "done")], bridge=bridge
+            )
+            await call_host_tool(bridge)("host", "read_file", {"path": "a"})
+        replayed = list(
+            replay_transcript(recorded.events, "s", filter_subagents=filtered)
+        )
+
+    def cards(notifications: list[SessionNotification]) -> list[str]:
+        return [
+            n.update.tool_call_id
+            for n in notifications
+            if isinstance(n.update, (ToolCallStart, ToolCallProgress))
+        ]
+
+    for notifications in (published, replayed):
+        if filtered:
+            assert cards(notifications) == []
+        else:
+            assert "proposed" in cards(notifications)
+
+
 async def test_opted_out_server_pairs_a_proposed_call() -> None:
     tool = AsyncMock(return_value="contents")
     bridge = sandbox_bridge_with_tool(tool, None, require_proposal=False)
@@ -3452,3 +3512,52 @@ async def test_execution_observer_tracks_the_running_call() -> None:
 
     [event] = recorded.tool_events
     assert tracked == [("proposed", event)]
+
+
+@pytest.mark.parametrize("request_kind", ["exempt", "proposed", "rejected"])
+async def test_cancel_while_the_tool_span_is_allocated_still_records_the_call(
+    request_kind: str,
+) -> None:
+    """A span-ID provider can suspend before the event is recorded; a cancel there still records it."""
+    tool = AsyncMock(return_value="contents")
+    bridge = sandbox_bridge_with_tool(
+        tool, None, require_proposal=request_kind != "exempt"
+    )
+    allocating = anyio.Event()
+
+    async def blocking_provider(
+        name: str, parent_id: str | None, requested_id: str | None
+    ) -> str:
+        allocating.set()
+        await anyio.sleep_forever()
+        raise AssertionError("unreachable")
+
+    server = "nowhere" if request_kind == "rejected" else "host"
+
+    async def request() -> None:
+        with span_id_provider(blocking_provider):
+            await call_host_tool(bridge)(server, "read_file", {"path": "a"})
+
+    with recorded_transcript() as recorded:
+        if request_kind == "proposed":
+            await propose(
+                bridge,
+                ToolCall(id="proposed", function="read_file", arguments={"path": "a"}),
+            )
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(request)
+            await allocating.wait()
+            tg.cancel_scope.cancel()
+
+    tool.assert_not_awaited()
+    [event] = recorded.tool_events
+    assert event.pending is None
+    assert event.error is not None
+    assert recorded.completions(event) == 1
+    if request_kind == "rejected":
+        assert event.error.type == "parsing"
+    else:
+        assert event.error.type == "cancelled"
+    if request_kind == "proposed":
+        assert event.id == "proposed"
+        assert bridge_metadata(event)["grant"] == "consumed"

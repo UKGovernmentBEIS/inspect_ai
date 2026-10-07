@@ -3,6 +3,18 @@
 Status: proposed, 2026-09-15. Issue: none (task from Ransom). Author: agent
 (Claude), reviewed by Codex; see the PR.
 
+As built (PR C, 2026-10-07), two points differ from the text below, pending
+Ransom's confirmation. Output truncation: #5654 had already made bridged
+results follow `truncate_tool_output`, including the native 16 KiB default,
+so PR C records the result as delivered and changes no limit. Argument
+checks: the depth bound runs before the grant check, but schema validation
+still runs after it, as on `main`, so an unproposed call with invalid
+arguments is denied, and a proposed one consumes its grant and pairs with its
+proposal. The large-argument test sends a request near the proxy's 50 MiB
+body cap (about 135 MiB at the service for non-ASCII text) instead of
+120 MiB, which the proxy rejects, and bounds peak Python heap growth with
+`tracemalloc` rather than process RSS.
+
 All `path:line` references are to `main` at `472cf7dd2` (2026-09-22, which
 includes #5464) unless a different tree is named. Viewer references are to
 the `ts-mono` submodule at the commit that tree pins (`02f2c5ad`), under
