@@ -1,3 +1,4 @@
+import math
 import re
 from copy import deepcopy
 from typing import (
@@ -361,6 +362,35 @@ def _apply_fast_list_op(target: list[Any], op: dict[str, Any], rel_path: str) ->
         target[:] = jsonpatch.apply_patch(target, [{**op, "path": "/" + rel_path}])  # type: ignore
 
 
+_NAN = float("nan")
+
+
+def _contains_nan(value: Any) -> bool:
+    if isinstance(value, float):
+        return math.isnan(value)
+    if isinstance(value, dict):
+        return any(_contains_nan(v) for v in value.values())
+    if isinstance(value, list):
+        return any(_contains_nan(v) for v in value)
+    return False
+
+
+def _share_nan(value: Any) -> Any:
+    """Copy of a JSON value with every NaN replaced by one shared NaN object.
+
+    jsonpatch pairs removed and added values with a dict lookup, which treats
+    an object as equal to itself, so the remove and add it makes for an
+    unchanged NaN then cancel out.
+    """
+    if isinstance(value, float):
+        return _NAN if math.isnan(value) else value
+    if isinstance(value, dict):
+        return {k: _share_nan(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_share_nan(v) for v in value]
+    return value
+
+
 def json_changes(
     before: dict[str, Any] | list[Any], after: dict[str, Any] | list[Any]
 ) -> list[JsonChange] | None:
@@ -386,6 +416,11 @@ def json_changes(
         A list of JsonChange objects (which mimic JSON patch ops but include the 'replaced' field), or None if there are no changes.
     """
     patch_list = list(jsonpatch.make_patch(before, after))
+    if any(_contains_nan(op.get("value")) for op in patch_list):
+        # NaN != NaN, so an unchanged NaN serialized separately into each
+        # snapshot looks changed; diff again with every NaN as one object
+        before, after = _share_nan(before), _share_nan(after)
+        patch_list = list(jsonpatch.make_patch(before, after))
     if not patch_list:
         return None
 

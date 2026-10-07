@@ -19,6 +19,7 @@ Store is used in practice) and assert that the emitted
 
 from __future__ import annotations
 
+import math
 from contextlib import contextmanager
 from copy import deepcopy
 from typing import Any, Callable, ContextManager
@@ -26,16 +27,21 @@ from typing import Any, Callable, ContextManager
 from pydantic import BaseModel, Field
 
 from inspect_ai._util.json import JsonChange
+from inspect_ai.agent._human.state import HumanAgentState, IntermediateScoring
 from inspect_ai.event import Event, StoreEvent
 from inspect_ai.log._transcript import Transcript, init_transcript, track_store_changes
 from inspect_ai.model import ChatMessageAssistant, ChatMessageUser
+from inspect_ai.scorer import Score
 from inspect_ai.util import StoreModel
 from inspect_ai.util._store import (
     Store,
     dict_jsonable,
     init_subtask_store,
     store_changes,
+    store_jsonable,
 )
+
+NAN = float("nan")
 
 
 def test_dict_jsonable_independent_copy() -> None:
@@ -230,6 +236,37 @@ def test_track_store_changes_with_store_model() -> None:
         model.payload["y"] = 2
 
     _assert_store_events_equal(build_store, mutate)
+
+
+def test_store_changes_unchanged_nan_reports_no_change() -> None:
+    """Re-serializing a NaN (in a StoreModel or a plain list) is not a change."""
+    store = Store()
+    state = HumanAgentState(instructions="t", store=store)
+    state.scorings = [
+        IntermediateScoring(time=1.0, scores=[Score(value=[float("nan"), 1.0])])
+    ]
+    store.set("values", [float("nan"), float("inf"), float("-inf")])
+
+    assert store_changes(store_jsonable(store), store_jsonable(store)) is None
+    assert store_changes(store, store) is None
+    assert _run_span_with(track_store_changes, store, lambda s: None) == []
+
+
+def test_store_changes_reports_change_to_nan() -> None:
+    store = Store()
+    store.set("values", [float("nan"), 1.0])
+
+    events = _run_span_with(
+        track_store_changes, store, lambda s: s.set("values", [float("nan"), NAN])
+    )
+
+    store_events = [e for e in events if isinstance(e, StoreEvent)]
+    assert len(store_events) == 1
+    changes = store_events[0].changes
+    assert [(c.op, c.path, c.replaced) for c in changes] == [
+        ("replace", "/values/1", 1.0)
+    ]
+    assert isinstance(changes[0].value, float) and math.isnan(changes[0].value)
 
 
 # ---------------------------------------------------------------------------

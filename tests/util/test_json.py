@@ -1,4 +1,5 @@
 import json
+import math
 
 from pydantic import BaseModel, ConfigDict
 
@@ -454,3 +455,55 @@ def test_excluding_object_builder_skips_excluded_top_level_keys() -> None:
         builder.event(event, value)
     # only top-level keys are excluded; a same-named nested key is kept
     assert builder.data == {"id": 1, "input": "q", "nested": {"events": "kept"}}
+
+
+def test_json_changes_unchanged_nan_and_inf_report_no_change():
+    # each snapshot gets its own NaN objects, as re-serialization produces
+    def snapshot() -> dict:
+        nan = float("nan")
+        return {
+            "list": [nan, 1.0, float("inf"), float("-inf")],
+            "dict": {"nan": nan, "inf": float("inf")},
+            "nested": [{"values": [nan, [nan]]}],
+        }
+
+    assert json_changes(snapshot(), snapshot()) is None
+    assert json_changes([float("nan")], [float("nan")]) is None
+
+
+def test_json_changes_reports_changes_to_and_from_nan():
+    changes = json_changes({"a": [1.0]}, {"a": [float("nan")]})
+    assert changes is not None and len(changes) == 1
+    assert (changes[0].op, changes[0].path, changes[0].replaced) == (
+        "replace",
+        "/a/0",
+        1.0,
+    )
+    assert isinstance(changes[0].value, float) and math.isnan(changes[0].value)
+
+    changes = json_changes({"a": [float("nan")]}, {"a": [1.0]})
+    assert changes is not None and len(changes) == 1
+    assert (changes[0].op, changes[0].path, changes[0].value) == (
+        "replace",
+        "/a/0",
+        1.0,
+    )
+    assert isinstance(changes[0].replaced, float) and math.isnan(changes[0].replaced)
+
+
+def test_json_changes_unchanged_nan_beside_real_change():
+    before = {"a": [float("nan"), 1.0, 2.0], "b": {"c": float("nan")}}
+    after = {"a": [float("nan"), 3.0], "b": {"c": float("nan")}}
+
+    changes = json_changes(before, after)
+
+    assert changes is not None
+    assert [(c.op, c.path) for c in changes] == [
+        ("replace", "/a/1"),
+        ("remove", "/a/2"),
+    ]
+    assert changes[0].value == 3.0 and changes[0].replaced == 1.0
+
+    changes = json_changes({"a": [float("nan")]}, {"a": [float("nan"), float("nan")]})
+    assert changes is not None
+    assert [(c.op, c.path) for c in changes] == [("add", "/a/1")]
