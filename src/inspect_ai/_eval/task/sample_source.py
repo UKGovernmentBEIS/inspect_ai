@@ -31,7 +31,7 @@ from __future__ import annotations
 
 from contextvars import ContextVar, Token
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Awaitable, Callable
+from typing import TYPE_CHECKING, Awaitable, Callable, NamedTuple
 
 if TYPE_CHECKING:
     from inspect_ai.dataset import Sample
@@ -204,6 +204,14 @@ class _CallableSampleSource(SampleSource):
         return None
 
 
+class EnqueuedSample(NamedTuple):
+    """A sample added to a running task, with the epoch it runs as (if given)."""
+
+    sample: "Sample"
+    epoch: int | None
+    """The single epoch to run, or ``None`` to run the task's configured epochs."""
+
+
 @dataclass
 class SampleEnqueuer:
     """Buffers samples added to one running task and hands them to its loop.
@@ -218,17 +226,17 @@ class SampleEnqueuer:
     since neither method has a yield point.
     """
 
-    _pending: list["Sample"] = field(default_factory=list)
+    _pending: list[EnqueuedSample] = field(default_factory=list)
     on_enqueue: Callable[[], None] | None = None
     """Fired after samples are buffered — used to wake the task's dispatcher."""
 
-    def enqueue(self, samples: list["Sample"]) -> None:
-        """Queue ``samples`` to run in the task."""
-        self._pending.extend(samples)
+    def enqueue(self, samples: list["Sample"], epoch: int | None = None) -> None:
+        """Queue ``samples`` to run in the task (as ``epoch`` only, if given)."""
+        self._pending.extend(EnqueuedSample(sample, epoch) for sample in samples)
         if self.on_enqueue is not None:
             self.on_enqueue()
 
-    def drain(self) -> list["Sample"]:
+    def drain(self) -> list[EnqueuedSample]:
         """Remove and return all currently-buffered samples (empty if none)."""
         batch, self._pending = self._pending, []
         return batch
@@ -256,12 +264,19 @@ def clear_sample_enqueuer(token: Token[SampleEnqueuer | None]) -> None:
     _sample_enqueuer.reset(token)
 
 
-def enqueue_sample(samples: "Sample | list[Sample]") -> None:
+def enqueue_sample(
+    samples: "Sample | list[Sample]", *, epoch: int | None = None
+) -> None:
     """Add one or more samples to the running task.
 
     The samples run in the current task as soon as there is free capacity
     (bounded by ``max_samples``), each for the task's configured number of
     epochs. Samples without an ``id`` are assigned one automatically.
+
+    Pass ``epoch`` to run each sample once, as that epoch, instead, so the
+    same id can be run repeatedly. Each ``(id, epoch)`` may be added once (a
+    sample added without ``epoch`` takes epochs 1 to the task's ``epochs``);
+    a duplicate fails the task.
 
     Only available inside a task driven by a :class:`SampleSource` (i.e. a
     ``Task`` whose ``dataset`` is a ``SampleSource``) — a plain task's sample
@@ -276,17 +291,28 @@ def enqueue_sample(samples: "Sample | list[Sample]") -> None:
 
     Args:
         samples: A ``Sample`` (or list of samples) to add to the running task.
+        epoch: Run each sample once, as this epoch (1-based), rather than for
+            the task's configured number of epochs.
 
     Raises:
         RuntimeError: If the current task is not driven by a ``SampleSource``
             (or no task is running in this context).
+        ValueError: If ``epoch`` is not an integer of 1 or more.
     """
     from inspect_ai.dataset import Sample
 
+    if epoch is not None and (
+        isinstance(epoch, bool) or not isinstance(epoch, int) or epoch < 1
+    ):
+        raise ValueError(
+            f"enqueue_sample() epoch must be an integer of 1 or more (got {epoch!r})."
+        )
     enqueuer = get_sample_enqueuer()
     if enqueuer is None:
         raise RuntimeError(
             "enqueue_sample() can only be called from within a running task "
             "whose dataset is a SampleSource."
         )
-    enqueuer.enqueue([samples] if isinstance(samples, Sample) else list(samples))
+    enqueuer.enqueue(
+        [samples] if isinstance(samples, Sample) else list(samples), epoch=epoch
+    )

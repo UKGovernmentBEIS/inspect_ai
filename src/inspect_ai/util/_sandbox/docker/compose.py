@@ -34,6 +34,12 @@ logger = getLogger(__name__)
 # How long to wait for compose environment to pass a health check
 COMPOSE_WAIT = 600
 
+# Allowance for the work `compose up` does before its health wait starts (creating
+# and starting containers, waiting on their dependencies), which Docker does not
+# count against the `--wait-timeout` of its health wait (each dependency wait gets
+# its own `--wait-timeout`) but which does count against our timeout
+COMPOSE_STARTUP_ALLOWANCE = 60
+
 
 async def compose_up(
     project: ComposeProject, services: dict[str, ComposeService]
@@ -42,17 +48,22 @@ async def compose_up(
     up_command = ["up", "--detach", "--wait"]
 
     # are there healthchecks in the service definitions? if so then peg our timeout
-    # at the maximum total wait time. otherwise, pick a reasonable default
+    # at the maximum total wait time plus time to start. otherwise, pick a reasonable
+    # default
     healthcheck_time = services_healthcheck_time(services)
     if healthcheck_time > 0:
-        timeout: int = healthcheck_time
+        timeout: int = COMPOSE_STARTUP_ALLOWANCE + healthcheck_time
         trace_message(
-            logger, TRACE_DOCKER, f"Docker services healthcheck timeout: {timeout}"
+            logger,
+            TRACE_DOCKER,
+            f"Docker services startup timeout: {timeout} (healthcheck estimate {healthcheck_time})",
         )
     else:
         timeout = COMPOSE_WAIT
 
-    # align global wait timeout to maximum healthcheck timeout
+    # keep docker's wait longer than our timeout, so a service that is still starting
+    # when our timeout expires fails with a TimeoutError (the result of `up` is not
+    # checked, see below)
     up_command.extend(["--wait-timeout", str(timeout + 1)])
 
     # Start the environment. Note that we don't check the result because docker will
