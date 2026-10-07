@@ -71,6 +71,7 @@ def sandbox(name: str | None = None) -> SandboxEnvironment:
         if not environment:
             raise ValueError(
                 f"SandboxEnvironment '{name}' is not a recognized environment name."
+                f" Available environments: {', '.join(environments)}."
             )
         return environment
 

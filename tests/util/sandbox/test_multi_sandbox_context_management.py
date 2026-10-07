@@ -31,9 +31,11 @@ def test_sandbox_rejects_unknown_name(environment_names: list[str], name: str) -
             pytest.raises(
                 ValueError,
                 match=f"SandboxEnvironment '{name}' is not a recognized environment name",
-            ),
+            ) as exc_info,
         ):
             sandbox(name)
+        for env_name in environment_names:
+            assert env_name in str(exc_info.value)
     finally:
         sandbox_environments_context_var.reset(token)
 
