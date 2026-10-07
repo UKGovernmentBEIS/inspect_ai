@@ -1,3 +1,8 @@
+## Unreleased
+
+- Agent bridge: Host tools run through `sandbox_agent_bridge(bridged_tools=...)` are now recorded as tool events in the transcript, including denied calls.
+- Agent bridge: Bridged tool calls with arguments nested more than 100 levels deep are now rejected with a parsing error, as for other tool calls.
+
 ## 0.3.277 (06 October 2026)
 
 - Fixed trace logs growing to many gigabytes when model output caching is enabled.

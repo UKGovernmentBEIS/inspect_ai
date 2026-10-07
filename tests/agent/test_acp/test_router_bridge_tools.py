@@ -12,6 +12,7 @@ bridged feeds in ``bridge_model_generate()`` so the synchronous subscriber sees
 the same flag a live bridge generate would set.
 """
 
+import anyio
 from acp.schema import (
     ContentToolCallContent,
     SessionNotification,
@@ -24,11 +25,14 @@ from inspect_ai.agent import AgentState
 from inspect_ai.agent._acp.event_mapping import _AcpEventRouter, replay_transcript
 from inspect_ai.agent._acp.inspect_ext import TOOL_CALL_CANCELABLE_META_KEY
 from inspect_ai.agent._acp.transport_live import LiveAcpTransport
+from inspect_ai.agent._bridge.sandbox.service import call_tool
+from inspect_ai.agent._bridge.sandbox.types import SandboxAgentBridge
 from inspect_ai.agent._bridge.types import AgentBridge
 from inspect_ai.agent._bridge.util import bridge_generate, bridge_model_generate
-from inspect_ai.event import Event
+from inspect_ai.event import Event, InterruptEvent
 from inspect_ai.event._model import ModelEvent
 from inspect_ai.event._tool import ToolEvent
+from inspect_ai.log._samples import _sample_active as samples_var
 from inspect_ai.log._transcript import Transcript, _transcript
 from inspect_ai.model import (
     ChatMessageAssistant,
@@ -38,7 +42,10 @@ from inspect_ai.model import (
 )
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model_output import ChatCompletionChoice, ModelOutput
+from inspect_ai.tool import Tool, tool
 from inspect_ai.tool._tool_call import ToolCall, ToolCallContent, ToolCallError
+
+from ._capture import acp_test_active_sample
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -614,3 +621,184 @@ def test_replay_mixed_bridge_and_react_each_once() -> None:
     notifs = list(replay_transcript(events, session_id="s"))
     ids = sorted(s.tool_call_id for s in _starts(notifs))
     assert ids == ["tc_bridge", "tc_react"]
+
+
+# ---------------------------------------------------------------------------
+# Host tools a sandbox bridge runs for the scaffold (``bridged_tools``)
+# ---------------------------------------------------------------------------
+
+
+def _host_tool_event(
+    tool_id: str, *, proposal_id: str | None, pending: bool | None = None
+) -> ToolEvent:
+    """A host tool event as the sandbox bridge records it."""
+    return ToolEvent(
+        id=tool_id,
+        function="read_file",
+        arguments={"path": "a"},
+        pending=pending,
+        metadata={
+            "bridge": {
+                "server": "host",
+                "tool": "read_file",
+                "function": "mcp__host__read_file",
+                "proposal_id": proposal_id,
+                "grant": "consumed" if proposal_id else "exempt",
+            }
+        },
+    )
+
+
+def _read_call(tool_id: str = "tc1") -> ToolCall:
+    return ToolCall(
+        id=tool_id, function="mcp__host__read_file", arguments={"path": "a"}
+    )
+
+
+def test_host_tool_event_settles_its_synthesized_card_once() -> None:
+    """The real event updates the card; the scaffold's result does not settle it again."""
+    tr = Transcript()
+    token = _transcript.set(tr)
+    try:
+        _, published = _attach_router(_new_session())
+        with bridge_model_generate():
+            tr._event(_tool_call_event(_read_call()))
+        event = _host_tool_event("tc1", proposal_id="tc1", pending=True)
+        tr._event(event)
+        event._set_result(
+            result="contents",
+            truncated=None,
+            error=None,
+            waiting_time=0,
+            agent=None,
+            failed=None,
+            message_id=None,
+        )
+        tr._event_updated(event)
+        settled = len(published)
+        with bridge_model_generate():
+            tr._event(
+                _result_event(
+                    ChatMessageTool(
+                        tool_call_id="tc1",
+                        function="mcp__host__read_file",
+                        content="contents",
+                    )
+                )
+            )
+
+        starts = _starts(published)
+        assert [s.tool_call_id for s in starts] == ["tc1"]
+        # the start keeps the title the model-facing name gave it
+        assert starts[0].title is not None
+        updates = [p for p in _progress(published) if p.tool_call_id == "tc1"]
+        assert [u.status for u in updates] == ["in_progress", "completed"]
+        assert not [
+            n
+            for n in published[settled:]
+            if isinstance(n.update, (ToolCallStart, ToolCallProgress))
+        ]
+    finally:
+        _transcript.reset(token)
+
+
+def test_unpaired_host_tool_event_gets_its_own_card() -> None:
+    tr = Transcript()
+    token = _transcript.set(tr)
+    try:
+        _, published = _attach_router(_new_session())
+        with bridge_model_generate():
+            tr._event(_tool_call_event(_read_call()))
+        tr._event(_host_tool_event("fresh", proposal_id=None))
+
+        assert [s.tool_call_id for s in _starts(published)] == ["tc1", "fresh"]
+        fresh = _starts(published)[1]
+        assert fresh.status == "completed"
+    finally:
+        _transcript.reset(token)
+
+
+def test_replay_host_tool_event_is_one_card() -> None:
+    events: list[Event] = [
+        _tool_call_event(_read_call()),
+        _host_tool_event("tc1", proposal_id="tc1"),
+        _result_event(
+            ChatMessageTool(
+                tool_call_id="tc1", function="mcp__host__read_file", content="contents"
+            )
+        ),
+    ]
+    notifs = list(replay_transcript(events, session_id="s"))
+    starts = _starts(notifs)
+    assert [s.tool_call_id for s in starts] == ["tc1"]
+    assert starts[0].status == "completed"
+    assert TOOL_CALL_CANCELABLE_META_KEY not in (starts[0].field_meta or {})
+    assert _progress(notifs) == []
+
+
+async def test_turn_cancel_marks_a_running_host_tool_cancelled() -> None:
+    """ACP's turn cancel stamps the host event; the runner still records the result."""
+    started = anyio.Event()
+    release = anyio.Event()
+
+    @tool
+    def read_file() -> Tool:
+        async def execute(path: str) -> str:
+            """Read a file from the host.
+
+            Args:
+                path: Path of the file.
+            """
+            started.set()
+            await release.wait()
+            return "contents"
+
+        return execute
+
+    bridge = SandboxAgentBridge(
+        state=AgentState(messages=[]),
+        filter=None,
+        retry_refusals=None,
+        compaction=None,
+        port=13131,
+        model=None,
+        bridged_tools={"host": {"read_file": read_file()}},
+        proposal_exempt_servers={"host"},
+    )
+
+    async def read_a() -> None:
+        await call_tool(bridge)("host", "read_file", {"path": "a"})
+
+    transcript = Transcript()
+    emissions: list[tuple[Event, bool | None]] = []
+    transcript._subscribe(lambda e: emissions.append((e, e.pending)))
+    token = _transcript.set(transcript)
+    sample = acp_test_active_sample(transcript)
+    session = sample.acp_transport
+    assert isinstance(session, LiveAcpTransport)
+    sample_token = samples_var.set(sample)
+    try:
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(read_a)
+            await started.wait()
+            [event] = [e for e in transcript.events if isinstance(e, ToolEvent)]
+
+            session.cancel_current_turn()
+
+            assert event.pending is None
+            assert event.failed is True
+            assert event.error is not None and event.error.type == "cancelled"
+            [interrupt] = [
+                e for e in transcript.events if isinstance(e, InterruptEvent)
+            ]
+            assert interrupt.interrupted_tool_call_id == event.id
+            release.set()
+    finally:
+        samples_var.reset(sample_token)
+        _transcript.reset(token)
+
+    assert event.result == "contents"
+    assert event.completed is not None
+    assert event.error is not None and event.error.type == "cancelled"
+    assert event.failed is True
+    assert sum(1 for e, pending in emissions if e is event and not pending) == 2

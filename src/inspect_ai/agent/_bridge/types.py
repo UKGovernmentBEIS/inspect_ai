@@ -247,17 +247,24 @@ class AgentBridge:
     """
 
     def register_tool_execution_grants(
-        self, calls: Sequence[ToolCall], tools: Sequence[ToolInfo | Tool]
+        self,
+        calls: Sequence[ToolCall],
+        tools: Sequence[ToolInfo | Tool],
+        *,
+        span_id: str | None = None,
     ) -> None:
         """Register the calls in a response handed to the scaffold for execution-edge checks.
 
         `tools` are the declarations the scaffold made to the model in the request
         that produced the response; a subclass overriding this hook must accept
         them (the parameter is new, and required, since the calls cannot be
-        resolved without it). In-process bridges execute no host tools through a
-        separate service, so the base implementation has nothing to register.
-        Sandbox bridges override this to bind later service requests to the calls
-        the model actually made.
+        resolved without it). `span_id` is the span the proposing `ModelEvent`
+        was placed in when a `ModelEventSink` put it somewhere other than the
+        current span, else `None`; an override must accept it too, as
+        `bridge_generate` passes it for every generation. In-process bridges
+        execute no host tools through a separate service, so the base
+        implementation has nothing to register. Sandbox bridges override this to
+        bind later service requests to the calls the model actually made.
         """
 
     def dispatched_call(self, call: ToolCall) -> DispatchedCall | None:

@@ -21,6 +21,8 @@ from inspect_ai.agent import BridgedToolsSpec, sandbox_agent_bridge
 from inspect_ai.agent._bridge.sandbox.service import call_tool
 from inspect_ai.dataset import Sample
 from inspect_ai.event._model import ModelEvent
+from inspect_ai.event._span import SpanBeginEvent
+from inspect_ai.event._tool import ToolEvent
 from inspect_ai.log import EvalLog
 from inspect_ai.model import get_model
 from inspect_ai.model._call_tools import tool_call_error, truncate_tool_output
@@ -146,6 +148,21 @@ def eval_bridged_tools_task(
     return log
 
 
+def host_tool_events(log: EvalLog) -> list[ToolEvent]:
+    """The tool events the bridge recorded for host tool calls."""
+    assert log.samples is not None
+    return [e for e in log.samples[0].events if isinstance(e, ToolEvent)]
+
+
+def tool_span_parents(log: EvalLog) -> list[str | None]:
+    assert log.samples is not None
+    return [
+        e.parent_id
+        for e in log.samples[0].events
+        if isinstance(e, SpanBeginEvent) and e.type == "tool"
+    ]
+
+
 async def _mcp_http_request_with_retry(
     url: str, request: str, max_retries: int = 30, retry_delay: float = 0.5
 ) -> dict:
@@ -255,9 +272,16 @@ def test_single_tool_call_returns_correct_result(
 
         return solve
 
-    eval_bridged_tools_task(test_solver(), sandbox)
+    log = eval_bridged_tools_task(test_solver(), sandbox)
 
     assert call_log == [{"tool": "calculator_add", "x": 5, "y": 3}]
+    [event] = host_tool_events(log)
+    assert event.function == "calculator_add"
+    assert event.result == "8"
+    assert event.error is None
+    assert event.metadata is not None
+    assert event.metadata["bridge"]["grant"] == "exempt"
+    assert event.metadata["bridge"]["proposal_id"] is None
 
 
 @skip_if_no_docker
@@ -750,15 +774,22 @@ def test_sandbox_bridge_denies_unproposed_host_tool_call(approval: list | None) 
 
         return solve
 
-    eval_bridged_tools_task(test_solver())
+    log = eval_bridged_tools_task(test_solver())
 
     assert call_log == []
     # the denial reaches the agent intact as the JSON-RPC error message (the
     # sandbox service prefixes it with the failing RPC method)
-    assert seen[0]["error"]["message"].endswith(
+    denial = (
         "Host tool call 'calc/calculator_add' was not proposed by the model in a "
         "bridged generation (a bridged host tool runs once per proposed call)"
     )
+    assert seen[0]["error"]["message"].endswith(denial)
+    [event] = host_tool_events(log)
+    assert event.error is not None
+    assert event.error.type == "permission"
+    assert event.error.message == denial
+    assert event.metadata is not None
+    assert event.metadata["bridge"]["grant"] == "denied"
 
 
 @pytest.mark.parametrize("approval", [None, approve_all()], ids=["no-policy", "policy"])
@@ -843,6 +874,22 @@ def test_sandbox_bridge_executes_proposed_host_tool_call_once(
     assert responses[0]["result"]["content"][0]["text"] == "8"
     assert "was not proposed by the model" in responses[1]["error"]["message"]
     assert call_log == [{"tool": "calculator_add", "x": 5, "y": 3}]
+
+    executed, denied = host_tool_events(log)
+    assert executed.id == "proposed"
+    assert executed.function == "calculator_add"
+    assert executed.arguments == {"y": 3, "x": 5}
+    assert executed.result == "8"
+    assert executed.metadata is not None
+    assert executed.metadata["bridge"]["function"] == "calculator_add"
+    assert executed.metadata["bridge"]["grant"] == "consumed"
+    assert denied.id != "proposed"
+    assert denied.function == "calculator_add"
+    assert denied.error is not None and denied.error.type == "permission"
+    assert log.samples is not None
+    [model_event] = [e for e in log.samples[0].events if isinstance(e, ModelEvent)]
+    assert executed.span_id == denied.span_id == model_event.span_id
+    assert tool_span_parents(log) == [model_event.span_id, model_event.span_id]
 
 
 @skip_if_no_docker
@@ -1239,6 +1286,41 @@ def test_sandbox_bridge_host_tool_error_does_not_end_the_sample() -> None:
     eval_bridged_tools_task(test_solver())
 
 
+@skip_if_no_docker
+@pytest.mark.slow
+def test_sandbox_bridge_host_tool_timeout_is_recorded_with_the_native_error() -> None:
+    """The scaffold reads the exception's own text; the event has the native wording."""
+    responses: list[dict] = []
+
+    @solver
+    def test_solver():
+        async def solve(state, generate):
+            async with sandbox_agent_bridge(
+                bridged_tools=[
+                    BridgedToolsSpec(
+                        name="srv",
+                        tools=[raising_tool(TimeoutError("tool-specific timeout"))],
+                        require_proposal=False,
+                    )
+                ]
+            ) as bridge:
+                config = bridge.mcp_server_configs[0]
+                responses.append(
+                    await call_mcp_tool(config, "raising_tool", {"text": "hi"})
+                )
+            return state
+
+        return solve
+
+    log = eval_bridged_tools_task(test_solver())
+
+    assert responses[0]["error"]["message"].endswith("tool-specific timeout")
+    [event] = host_tool_events(log)
+    assert event.error is not None
+    assert event.error.type == "timeout"
+    assert event.error.message == "Command timed out before completing."
+
+
 # =============================================================================
 # Output limits
 # =============================================================================
@@ -1382,3 +1464,48 @@ async def test_bridged_tool_content_result_is_not_truncated() -> None:
         result = await call_tool(bridge)("srv", "long_content_tool", {"size": 50})
 
     assert result == to_json_str_safe([ContentText(text="x" * 50)])
+
+
+@pytest.mark.parametrize("limit", [1024, None], ids=["max_tool_output", "default"])
+@skip_if_no_docker
+@pytest.mark.slow
+def test_sandbox_bridge_records_the_result_the_scaffold_received(
+    limit: int | None,
+) -> None:
+    responses: list[dict] = []
+
+    @solver
+    def test_solver():
+        async def solve(state, generate):
+            async with sandbox_agent_bridge(
+                bridged_tools=[
+                    BridgedToolsSpec(
+                        name="srv", tools=[long_output_tool()], require_proposal=False
+                    )
+                ]
+            ) as bridge:
+                config = bridge.mcp_server_configs[0]
+                responses.append(
+                    await call_mcp_tool(config, "long_output_tool", {"size": 4096})
+                )
+            return state
+
+        return solve
+
+    log = eval(
+        bridged_tools_task(test_solver()),
+        model=get_model("mockllm/model"),
+        max_tool_output=limit,
+    )[0]
+
+    assert log.status == "success"
+    text = responses[0]["result"]["content"][0]["text"]
+    [event] = host_tool_events(log)
+    assert event.result == text
+    if limit is None:
+        assert text == "x" * 4096
+        assert event.truncated is None
+    else:
+        assert "was too long to be displayed" in text
+        assert "\n" + "x" * 1024 + "\n" in text
+        assert event.truncated == (4096, 1024)

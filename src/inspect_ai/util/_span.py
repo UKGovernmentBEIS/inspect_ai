@@ -120,6 +120,24 @@ def current_span_id() -> str | None:
 
 
 @contextlib.contextmanager
+def parent_span(parent_id: str | None) -> Iterator[None]:
+    """Make `parent_id` the current span for the block (no-op when `None`).
+
+    Events constructed in the block are stamped with `parent_id`, and a `span()`
+    opened in it gets `parent_id` as its parent. For recording work under a span
+    other than the one current in this task (no begin or end event is emitted).
+    """
+    if parent_id is None:
+        yield
+        return
+    token = _current_span_id.set(parent_id)
+    try:
+        yield
+    finally:
+        _current_span_id.reset(token)
+
+
+@contextlib.contextmanager
 def span_id_provider(provider: SpanIdProvider | None) -> Iterator[None]:
     """Set the span-ID provider for the duration of the context.
 

@@ -109,9 +109,12 @@ _SubagentAction = Literal["consume", "skip", "emit"]
 class _BridgeToolState:
     """Per-session state for synthesizing bridged tool-call cards.
 
-    Bridged agents (claude_code, codex, …) emit no ``ToolEvent``; their tool
-    calls live only on the assistant message and results return as a
-    ``ChatMessageTool`` in a later call's input. Two modes:
+    Bridged agents (claude_code, codex, …) emit no ``ToolEvent`` for the tools
+    they run themselves; those calls live only on the assistant message and
+    results return as a ``ChatMessageTool`` in a later call's input. A host tool
+    a sandbox bridge runs for the scaffold (``bridged_tools``) does get a real
+    ``ToolEvent``, with the proposing call's id when it was proposed; it updates
+    the synthesized card and removes it from ``pending``. Two modes:
 
     - **Live** (``replay`` is False): ``pending`` holds calls we've emitted an
       in-progress start for, awaiting the result that settles them. Gated on
@@ -455,7 +458,7 @@ def _map_event(
             bridge,
         )
     elif isinstance(event, ToolEvent):
-        yield from _map_tool_event(event, session_id, seen_tool_call_ids)
+        yield from _map_tool_event(event, session_id, seen_tool_call_ids, bridge)
 
 
 def _map_input_messages(
@@ -818,7 +821,11 @@ def _map_tool_event(
     event: ToolEvent,
     session_id: str,
     seen_tool_call_ids: set[str],
+    bridge: _BridgeToolState,
 ) -> Iterator[SessionNotification]:
+    # a host tool a sandbox bridge ran for a proposed call updates the card
+    # synthesized for that call, so the scaffold's result must not settle it again
+    bridge.pending.pop(event.id, None)
     status = _tool_call_status(event)
     if event.id in seen_tool_call_ids:
         yield session_notification(

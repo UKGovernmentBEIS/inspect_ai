@@ -195,6 +195,8 @@ The bridge handles:
 - Writing an MCP server script to the sandbox that forwards tool calls to the host
 - Returning `MCPServerConfigStdio` configs that CLI agents can use to connect
 
+Bridged tool arguments are checked as for other tool calls: arguments nested more than 100 levels deep, or that do not match the tool's parameters, are rejected with a parsing error the agent returns to the model.
+
 Bridged tool results are truncated in the same way as other tool results: at the tool's own `max_output` if it declares one, otherwise at `max_tool_output` from the generate config (16KB by default). Results returned as content (e.g. `list[ContentText]`) are not truncated, as for other tools.
 
 ### Execution Contract {#bridged-tools-execution}
@@ -327,6 +329,8 @@ An agent that reaches every bridged tool through one dispatcher function (Antigr
 ## Transcript
 
 Custom agents run through a bridge still get most of the benefit of the Inspect transcript and log viewer. All model calls are captured and produce the same transcript output as when using conventional agents.
+
+Tools the agent runs itself (e.g. its own shell or file tools) appear only in the model calls. [Bridged tools](#bridged-tools) run by Inspect are recorded as tool events, like other tool calls, including calls that were denied or rejected. A call the model proposed takes the id of the model's tool call, so the log viewer shows it with that call. Each event's `metadata["bridge"]` records the server and tool, the name the model called it by, the id of the proposing call, and whether a proposal matched (`grant`: `"consumed"`, `"denied"`, `"exempt"` for a `require_proposal=False` server, or `None` for a request rejected before that check). Counts of tool events in a bridged sample (e.g. from `events_df()`) include bridged tool calls but not the agent's own tools.
 
 If you want to use additional features of Inspect transcripts (e.g. spans, markdown output, etc.) you can still import and use the `transcript` function as normal. For example:
 
