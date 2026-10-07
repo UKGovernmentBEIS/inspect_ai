@@ -809,12 +809,14 @@ class GoogleGenAIAPI(ModelAPI):
                 else m
                 for m in input
             ]
-            contents: list[ContentUnion] = [
+            count_contents = [
                 await content(
                     client, m, emulate_reasoning=not self.is_gemini_thinking()
                 )
                 for m in count_messages
             ]
+            acknowledge_safety_decisions(count_contents)
+            contents: list[ContentUnion] = list(count_contents)
             try:
                 response = await client.aio.models.count_tokens(
                     model=self.service_model_name(), contents=contents
@@ -1405,8 +1407,39 @@ async def as_chat_messages(
         consecutive_tool_message_reducer, chat_messages, []
     )
 
+    acknowledge_safety_decisions(chat_messages)
+
     # return messages
     return chat_messages
+
+
+def acknowledge_safety_decisions(contents: list[Content]) -> None:
+    """Acknowledge results of replayed calls that carry a `safety_decision`.
+
+    The API rejects a result without `safety_acknowledgement` when its call
+    carries a `safety_decision`. Calls read from a Gemini response have it
+    removed, but histories imported with `messages_from_google()` or through
+    the agent bridge keep it. Results are matched to calls by id, then by
+    name, since imported results need not carry their call's id.
+    """
+    unanswered: list[FunctionCall] = []
+    for content in contents:
+        for part in content.parts or []:
+            if part.function_call is not None:
+                unanswered.append(part.function_call)
+            elif part.function_response is not None:
+                response = part.function_response
+                call = next(
+                    (c for c in unanswered if response.id and c.id == response.id),
+                    None,
+                ) or next((c for c in unanswered if c.name == response.name), None)
+                if call is None:
+                    continue
+                unanswered.remove(call)
+                if "safety_decision" in (call.args or {}):
+                    response.response = (response.response or {}) | {
+                        "safety_acknowledgement": "true"
+                    }
 
 
 def consecutive_tool_message_reducer(
@@ -1729,8 +1762,7 @@ def function_response_body(message: ChatMessageTool) -> dict[str, object]:
     gemini-2.5-pro repeat tool calls after a result, sometimes without end.
 
     No `safety_acknowledgement`: the API requires one only when the replayed
-    call carries a `safety_decision`, and those are removed from non-computer
-    calls when the response is read.
+    call carries a `safety_decision` (see `acknowledge_safety_decisions()`).
     """
     if message.error is not None:
         return {"error": message.error.message}
