@@ -1366,25 +1366,21 @@ def _tool_content_from_openai_tool_output(
 def filter_duplicate_assistant_content(
     input: list[list[Content]],
 ) -> list[Content]:
-    """Remove scaffold repeats across input items, preserving blocks within an item.
+    """Remove duplicate state-bearing input items without dropping their blocks.
 
-    A provider message may legitimately contain identical state-bearing text
-    blocks. Only compare a block against content from later input items.
+    Compare complete items so plain text and reasoning stay with their provider
+    state, and repeated text within one item remains in order.
     """
-    filtered_input: list[Content] = []
-    seen_content: set[str] = set()
+    filtered_groups: list[list[Content]] = []
+    seen_groups: set[tuple[str, ...]] = set()
     for group in reversed(input):
-        group_keys: set[str] = set()
-        for c in reversed(group):
-            if c.type == "text" and c.internal:
-                key = c.model_dump_json()
-                if key not in seen_content:
-                    filtered_input.append(c)
-                group_keys.add(key)
-            else:
-                filtered_input.append(c)
-        seen_content.update(group_keys)
-    return list(reversed(filtered_input))
+        if any(c.type == "text" and c.internal for c in group):
+            key = tuple(c.model_dump_json() for c in group)
+            if key in seen_groups:
+                continue
+            seen_groups.add(key)
+        filtered_groups.append(group)
+    return [c for group in reversed(filtered_groups) for c in group]
 
 
 output_item_adapter = TypeAdapter(list[ResponseOutputItem])
@@ -1403,7 +1399,10 @@ def responses_output_items_from_assistant_message(
         if isinstance(message.content, str)
         else message.content
     )
+    pending_text_message: ResponseOutputMessage | None = None
     for content in message_content:
+        if not isinstance(content, ContentText):
+            pending_text_message = None
         if isinstance(content, ContentText):
             # check for content.internal
             if content.internal:
@@ -1414,24 +1413,26 @@ def responses_output_items_from_assistant_message(
             # apply internal to content
             content_text = f"{content.text}{internal}"
 
-            output.append(
-                ResponseOutputMessage(
+            output_content = (
+                ResponseOutputRefusal(type="refusal", refusal=content_text)
+                if content.refusal
+                else ResponseOutputText(
+                    type="output_text",
+                    text=content_text,
+                    annotations=[],
+                    logprobs=[],
+                )
+            )
+            if pending_text_message is None:
+                pending_text_message = ResponseOutputMessage(
                     type="message",
                     id=uuid(),
                     role="assistant",
-                    content=[
-                        ResponseOutputRefusal(type="refusal", refusal=content_text)
-                        if content.refusal
-                        else ResponseOutputText(
-                            type="output_text",
-                            text=content_text,
-                            annotations=[],
-                            logprobs=[],
-                        )
-                    ],
+                    content=[],
                     status="completed",
                 )
-            )
+                output.append(pending_text_message)
+            pending_text_message.content.append(output_content)
         elif isinstance(content, ContentReasoning):
             # Serialize reasoning as <think> tag with full attributes (signature, redacted, summary)
             # so it travels through the scaffold as opaque text and can be restored on the way back
