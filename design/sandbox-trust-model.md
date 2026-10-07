@@ -9,10 +9,11 @@ This document describes what runs where when Inspect evaluates a model against
 a sandbox, which principals exist inside a sandbox, what the boundaries between
 them are meant to guarantee, and the two contracts Inspect uses for directories
 it trusts inside a sandbox: the verified-directory contract and the
-verify-before-use rule. [AGENTS.md](../AGENTS.md) points reviewers of any
-change that creates, adopts or trusts such a directory to the helper modules
-that define these contracts; this document describes them and the model they
-serve.
+verify-before-use rule. [AGENTS.md](../AGENTS.md) points authors and
+reviewers of any change that creates, adopts or trusts such a directory here,
+and to the helper modules that implement these contracts
+([host](../src/inspect_ai/util/_sandbox/_framework_directory.py),
+[guest](../src/inspect_sandbox_tools/src/inspect_sandbox_tools/_util/server_dir.py)).
 
 Containment depends on the sandbox provider and its configuration. The
 built-in `local` provider runs commands as host subprocesses with the host
@@ -80,16 +81,28 @@ no `user`, that is the sandbox's default user:
 
 "Root usable" means a `user="root"` exec runs as uid 0 with `CAP_SETUID`,
 `CAP_SETGID` and `setgroups` allowed (`ai/tool/_sandbox_tools_utils/sandbox.py:398-424`).
-The privilege boundary between the agent and the tools exists when the tools
-user is root and every model-facing tool runs as a non-root user. With no
-overrides that is only the first row; an eval author can also establish it in
-a root-default sandbox by configuring every model-facing tool with a non-root
-user (for example `bash(user="nobody")` and `bash_session(user="nobody")`),
-and removes it in any sandbox by configuring one with `user="root"`. Where the
-boundary exists, the tools tree is root-owned and mode `0700`, so the agent
-can neither read nor execute the tooling that serves it. A root-owned `0700`
-tree is not a boundary against a process that itself runs as root in the
-sandbox (`ai/util/_sandbox/_cli.py:16-20`).
+The privilege boundary between the agent and the tools is a property of the
+actual identities: it exists when every model-facing tool runs as a uid that
+is neither root nor the tools user's uid. With no overrides that is only the
+first row. An eval author can also establish it with explicit users:
+
+- In a root-default sandbox, the tools run as root and model-facing tools
+  configured as, for example, `bash(user="nobody")` and
+  `bash_session(user="nobody")` keep the agent non-root.
+- Where root is not usable, the tools run as the default user, and plain
+  `bash()` or `python()` configured with another user that the provider can
+  run (`bash(user="nobody")`) keep the agent out of the tools' private state.
+  A tools process that is not root cannot switch user
+  (`guest/_util/user_switch.py:36-50`), so injected tools such as
+  `bash_session()` cannot be given another user there; leaving any
+  model-facing tool on the default user then puts the agent in the tools
+  user's uid.
+
+Configuring any model-facing tool with `user="root"` removes the boundary.
+Where it exists, the tools tree and the server's state are owned by the tools
+user and mode `0700`, so the agent can neither read nor execute the tooling
+that serves it. A root-owned `0700` tree is not a boundary against a process
+that itself runs as root in the sandbox (`ai/util/_sandbox/_cli.py:16-20`).
 
 ```mermaid
 flowchart TB
@@ -129,8 +142,8 @@ outside sample init is probed on first use. The verdict
 - `unusable` (the provider refused root, or root cannot switch users): the
   tools install and run as the default user;
 - `ambiguous` (no verdict could be read): the tools fall back to the default
-  user and Inspect warns once that they are not isolated from the agent
-  (`sandbox.py:215-244`);
+  user and Inspect warns once that they run as the same user as the agent's
+  own commands when those use the default user (`sandbox.py:215-244`);
 - `failed` (the probe did not run or timed out): tool injection fails
   (`sandbox.py:179-198`).
 
@@ -158,6 +171,12 @@ injected on the first call to `sandbox_with_injected_tools()`
 exec tool can run commands, and create files anywhere its user can write,
 before any injection has happened. This ordering is why the directories the
 tools use must be verified rather than created with `mkdir -p` and trusted.
+
+Injecting on first use is a product choice. Tools can be added to an eval
+dynamically, so Inspect does not know in advance whether a sample will need
+the injected tools; requiring authors to declare that need up front would let
+Inspect inject before the agent runs. (The sandbox agent bridge already
+injects during its setup, before the agent starts.)
 
 ### Delivery of the injected tools
 
@@ -286,7 +305,7 @@ Two secondary positions matter:
 
 | Boundary | Separates | Present |
 |---|---|---|
-| **A**: in-sandbox privilege | agent user and tools user | Both patterns, only when the tools user is root and the agent's code runs as a non-root user |
+| **A**: in-sandbox privilege | agent user and tools user | Both patterns, only when every model-facing tool runs as a uid that is neither root nor the tools user's |
 | **B**: sandbox to host capability | sandbox processes and the Inspect process | Wherever a sandbox service runs, for example the sandbox agent bridge |
 | **C**: mediation | what the agent does and what Inspect can refuse and record | Both patterns, with different strength |
 
@@ -298,8 +317,8 @@ describe that work as it lands.
 
 1. Unless the eval author grants a model-facing tool the tools user's
    authority (by configuring `user="root"`, or by leaving `user` unset where
-   the default user is root), the agent cannot execute code as the tools user.
-   *(A)*
+   the default user is root or is itself the tools user), the agent cannot
+   execute code as the tools user. *(A)*
 2. The agent cannot read, replace or redirect the tools tree, the tools
    server's state directory, or their contents. *(A)*
 3. The agent cannot invoke host-side capability outside the paths Inspect
@@ -315,10 +334,10 @@ call outright. When the agent runs its own loop, Inspect can only decline to
 return a proposal; it cannot stop the agent acting without asking. Pattern 2
 relies on containment where Pattern 1 relies on mediation.
 
-Boundary A has the same presence condition in both patterns, because both
-inject the same tools and obtain a separate privileged tools principal only
-when root is usable; whether the agent is outside it then depends on the user
-its code runs as.
+Boundary A has the same presence condition in both patterns: both inject the
+same tools under the same tools user, so in both, whether the agent is outside
+the boundary depends on the identities its code runs as relative to that
+user.
 
 ### Out of scope
 
@@ -327,9 +346,10 @@ its code runs as.
   provider supplies none. A stronger isolation layer (a microVM) does not supply
   any guarantee above: Boundary A is internal to the guest, and Boundaries B
   and C are channels Inspect deliberately provides across the isolation layer.
-- **Boundary A in single-principal sandboxes.** When root is not usable, or
-  the agent's code runs as root (a root default user with no `user` override,
-  or an explicit `user="root"`), there is no agent/tools privilege boundary and
+- **Boundary A in single-principal sandboxes.** When the agent's code runs as
+  root or as the tools user (a root default user with no `user` override, an
+  explicit `user="root"`, or a model-facing tool left on the default user
+  where root is not usable), there is no agent/tools privilege boundary and
   guarantees 1 and 2 are not supplied. Boundaries B and C remain in scope.
 - **Denial of service by the agent against its own tooling.** An agent can
   refuse to cooperate regardless; for example, a directory it plants at a
@@ -342,8 +362,8 @@ its code runs as.
 
 ### Host verified directories
 
-`ai/util/_sandbox/_framework_directory.py` is the one audited primitive the
-host uses to prepare a directory inside a sandbox that Inspect later trusts,
+[`ai/util/_sandbox/_framework_directory.py`](../src/inspect_ai/util/_sandbox/_framework_directory.py)
+is the one audited primitive the host uses to prepare a directory inside a sandbox that Inspect later trusts,
 and to run commands against it. Its contract for a private framework
 directory (`_framework_directory.py:13-30`):
 
@@ -374,9 +394,13 @@ tells the user to remove the entry (`:41-47`, `:256-268`). Nothing is silently
 replaced: a wrong-owner or wrong-mode directory may already hold planted
 content. Callers must not fall back to a weaker owner or continue privileged
 work on that error. The one exception is opt-in `repair_mode`, which sets the
-mode of a directory the current uid already owns; it is for rootless installs
-only, where the agent shares the owner's uid and the mode never protected
-anything (`:69-75`, `:514-523`).
+mode of a directory the current uid already owns (`:69-75`, `:514-523`). Only
+the rootless tools install uses it, to reuse a tools tree an older release
+left at `0755`. It runs after the type, owner and parent checks, so the
+directory's contents can only have been written by its owner, by root, or by a
+principal the owner itself gave write access. Where the agent shares the
+owner's uid the mode never protected anything; where the agent runs as another
+uid, tightening the mode removes access only the owner could have granted.
 
 **Binding to the verified object.** Verification runs in one `/bin/sh`
 process (`_SCRIPT`, `:129-237`). The script `cd -P`s into the parent and then
@@ -391,20 +415,21 @@ the verified object rather than to whatever the path names by then.
 touching anything when `id -u` reports another uid; `expected_uid_for("root")`
 pins uid 0 (`:334-342`), so a provider that ignores or downgrades
 `user="root"` cannot pass off a default-user directory as root's.
-`try_ensure_framework_directory_as_root` (`:564-650`) returns `False`, and its
-caller then prepares the directory as the default user, when the script ran as
-a uid other than 0 (`FrameworkDirectoryUserError`) or the provider raised any
-other exception. That second case is deliberately broad, because providers
-signal "cannot exec as root" with provider-specific exceptions, so an
-unrelated provider failure also selects the default-user path
-(`:575-590`, `:628-650`). A contract violation (`FrameworkDirectoryError`), a
+`try_ensure_framework_directory_as_root` (`:564-650`) returns `False` when the
+script ran as a uid other than 0 (`FrameworkDirectoryUserError`) or the
+provider raised any other exception. That second case is deliberately broad,
+because providers signal "cannot exec as root" with provider-specific
+exceptions, so an unrelated provider failure also selects the caller's
+fallback (`:575-590`, `:628-650`). The caller chooses the fallback user: a
+sandbox service prepares the shared directory as the service's own user, which
+is the user passed to `sandbox_service(user=...)` or the default user when
+none is (`ai/util/_sandbox/service.py:661-675`); the human agent's installer
+falls back to the default user (`ai/agent/_human/install.py:124-131`). A contract violation (`FrameworkDirectoryError`), a
 check that could not be performed (`FrameworkDirectoryUnavailableError`), a
 timeout and a `ValueError` are re-raised rather than read as "no root". This
 per-call classification is separate from the sandbox's recorded root-access
 decision ([above](#root-access-is-decided-before-the-agent-runs)), which
-selects the tools user; the sandbox service directory and the human agent's
-install directory use this helper
-(`ai/util/_sandbox/service.py:661-675`, `ai/agent/_human/install.py:124-131`).
+selects the tools user.
 
 **Verdicts.** The script reports its verdict as a marker line on stderr and
 announces successful verification with a marker just before it runs the
@@ -437,8 +462,9 @@ fallback), and the human agent's install directory
 
 ### Guest verified directories
 
-Inside the sandbox, `guest/_util/server_dir.py` is the equivalent contract for
-the tools' own state. In an injected bundle the server's state directory is
+Inside the sandbox,
+[`guest/_util/server_dir.py`](../src/inspect_sandbox_tools/src/inspect_sandbox_tools/_util/server_dir.py)
+is the equivalent contract for the tools' own state. In an injected bundle the server's state directory is
 `.server` beside the launcher, inside the tools tree only the tools user can
 write (`server_dir.py:26-44`); the `local` sandbox supplies a per-sample
 directory instead (`ai/util/_sandbox/local.py:67-71`, `:96-101`).
@@ -450,8 +476,9 @@ directory instead (`ai/util/_sandbox/local.py:67-71`, `:96-101`).
   `fstat`: a symbolic link, a non-directory, or an owner other than the
   effective uid is refused with an error telling the user to remove it;
 - tightens a wrong mode with `fchmod` on that descriptor when `repair_mode` is
-  set (the default for the server directory), and refuses it otherwise (the
-  text editor's history directory);
+  set (the default for the server directory, on the same reasoning as the host
+  helper's: the directory is already owned by the effective uid), and refuses
+  it otherwise (the text editor's history directory);
 - checks only the final component; the caller must supply parents protected
   against replacement by other principals.
 
@@ -545,8 +572,8 @@ turns into a failed operation with an error naming the path.
 
 The largest reduction in attack surface would be to stop running privileged
 tools alongside an untrusted agent: run the agent as root in a disposable
-sandbox, so there is nothing to escalate to. The root-default and rootless
-configurations already collapse Boundary A. Boundaries B and C remain.
+sandbox, so there is nothing to escalate to. With no user overrides, the
+root-default and rootless configurations already collapse Boundary A. Boundaries B and C remain.
 
 This is a product decision as much as a security one: evaluations that hide
 root-owned assets from the agent, or that deliberately deprivilege it, depend
