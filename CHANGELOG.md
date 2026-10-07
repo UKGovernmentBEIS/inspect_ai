@@ -1,3 +1,7 @@
+## Unreleased
+
+- Fixed ResourceWarning messages for unclosed sample event streams after each sample.
+
 ## 0.3.277 (06 October 2026)
 
 - Fixed trace logs growing to many gigabytes when model output caching is enabled.
