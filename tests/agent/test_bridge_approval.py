@@ -1600,7 +1600,16 @@ async def run_code_mode_exec(bridge: SandboxAgentBridge) -> None:
 
 
 async def test_code_mode_exec_call_grants_no_nested_tool() -> None:
-    """An `exec` proposal grants nothing for the host tool calls its script makes."""
+    """An `exec` proposal grants nothing for the host tool calls its script makes.
+
+    The script's calls and their arguments are decided when it runs in the
+    sandbox, so a grant from the `exec` proposal would authorize whatever the
+    sandbox makes of the script; parsing literal calls out of the script would
+    bring back name matching and cover only some scripts. The bridge does not
+    detect code mode either: current Codex defers MCP tools in code mode, so the
+    `exec` declaration names none of them, and an unproposed call from a script
+    looks the same as a model probing the endpoint.
+    """
     tool = AsyncMock(return_value="contents")
     bridge = sandbox_bridge_with_tool(tool, None)
 
