@@ -1,3 +1,5 @@
+import re
+
 from inspect_ai.approval._approval import Approval, ApprovalDecision
 from inspect_ai.approval._human.approver import human_approver
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageTool
@@ -72,9 +74,7 @@ def view_with_result(view: ToolCallView, result: ChatMessageTool) -> ToolCallVie
         outcome = f"Error ({result.error.type}): {result.error.message}"
     else:
         outcome = _result_text(result)
-    # The surfaces substitute `{{param}}` placeholders from the call's
-    # arguments into the view; tool output is evidence, not a template.
-    outcome = outcome.replace("{{", "{ {")
+    outcome = _escape_placeholders(outcome)
     result_block = f"**Result**\n\n{_fenced(outcome)}"
     if view.call is None:
         call = ToolCallContent(format="markdown", content=result_block)
@@ -128,6 +128,12 @@ def _result_text(result: ChatMessageTool) -> str:
         content.text if content.type == "text" else f"[{content.type}]"
         for content in result.content_list
     )
+
+
+def _escape_placeholders(text: str) -> str:
+    # The surfaces substitute `{{param}}` placeholders from the call's
+    # arguments into the view; tool output is evidence, not a template.
+    return re.sub(r"\{(?=\{)", "{ ", text)
 
 
 def _fenced(text: str) -> str:
