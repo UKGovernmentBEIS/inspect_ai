@@ -1165,6 +1165,7 @@ def adds_with_tools(grouped: bool = False) -> Scorer:
                 )
             ],
         )
+
         async def run_tools() -> None:
             await execute_tools([message], [addition()])
 
