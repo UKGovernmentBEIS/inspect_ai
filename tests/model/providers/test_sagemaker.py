@@ -23,6 +23,7 @@ from inspect_ai.model._providers.sagemaker import (
     process_chat_message,
     process_content,
 )
+from inspect_ai.model._response_headers import ResponseHeaders, track_response_headers
 from inspect_ai.model._stream import (
     ModelStreamObserver,
     StreamReasoningEvent,
@@ -50,6 +51,40 @@ def _make_api(**model_args: Any):
             region_name="us-west-2",
             **model_args,
         )
+
+
+@pytest.mark.parametrize(
+    "operation", ["InvokeEndpoint", "InvokeEndpointWithResponseStream"]
+)
+def test_response_received_records_each_attempts_headers(operation: str) -> None:
+    api = _make_api()
+    registrations = dict(call.args for call in api.session.register.call_args_list)
+    response_received = registrations[
+        f"response-received.sagemaker-runtime.{operation}"
+    ]
+    headers = ResponseHeaders()
+
+    with track_response_headers(headers):
+        response_received(
+            response_dict={"status_code": 503, "headers": {"X-Request-ID": "first"}}
+        )
+        assert headers.latest == {"x-request-id": "first"}
+        response_received(
+            response_dict={"status_code": 200, "headers": {"X-Request-ID": "second"}}
+        )
+        assert headers.latest == {"x-request-id": "second"}
+        response_received(response_dict={"status_code": 200, "headers": {}})
+        assert headers.latest == {}
+
+
+def test_response_received_without_http_response_records_nothing() -> None:
+    api = _make_api()
+    headers = ResponseHeaders()
+
+    with track_response_headers(headers):
+        api._response_received(response_dict=None)
+
+    assert headers.latest is None
 
 
 OPENAI_RESPONSE = {
