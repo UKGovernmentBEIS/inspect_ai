@@ -432,6 +432,15 @@ def test_refusal_hint_suppressed_on_non_claude_5(hint_warnings: list[str]) -> No
     assert hint_warnings == []
 
 
+def test_refusal_hint_suppressed_on_haiku_5_5(hint_warnings: list[str]) -> None:
+    # Haiku 5.5 runs refusal classifiers but rejects the fallbacks param
+    api = AnthropicAPI(model_name="claude-haiku-5-5", api_key="test-key")
+    _warn_refusal_without_fallback(
+        api, GenerateConfig(), _refusal_output(_refusal_details())
+    )
+    assert hint_warnings == []
+
+
 def test_refusal_hint_requires_refusal_details(hint_warnings: list[str]) -> None:
     api = AnthropicAPI(model_name=REQUESTED_MODEL, api_key="test-key")
     # content_filter without stop_details (e.g. mid-stream HTTP error
