@@ -2,17 +2,19 @@ import subprocess
 import tempfile
 from pathlib import Path
 
+import pytest
 import yaml
 from pydantic import BaseModel
 
-from inspect_ai import Task, eval, task
+from inspect_ai import Epochs, Task, eval, task
 from inspect_ai._cli.eval import RunConfigInput
 from inspect_ai.dataset import Sample
 from inspect_ai.log._config import eval_log_to_run_config_dict
 from inspect_ai.log._file import list_eval_logs, read_eval_log
 from inspect_ai.log._log import EvalConfig, EvalDataset, EvalLog, EvalSpec
 from inspect_ai.model import GenerateConfig, get_model
-from inspect_ai.solver import SolverSpec, solver
+from inspect_ai.scorer import Score, Scorer, Target, accuracy, at_least, pass_at, scorer
+from inspect_ai.solver import SolverSpec, TaskState, solver
 from inspect_ai.util._limit import TokenLimit
 from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec
 
@@ -47,6 +49,30 @@ def config_test_task(color: str = "red", count: int = 1) -> Task:
     )
 
 
+@scorer(metrics=[accuracy()])
+def reducer_args_scorer() -> Scorer:
+    plan: dict[int | str, list[str]] = {
+        1: ["P", "P", "I"],
+        2: ["C", "I", "I"],
+        3: ["C", "P", "I"],
+    }
+
+    async def score(state: TaskState, target: Target) -> Score:
+        return Score(value=plan[state.sample_id][(state.epoch or 1) - 1])
+
+    return score
+
+
+@task
+def reducer_args_task() -> Task:
+    return Task(
+        dataset=[Sample(input="q", id=i) for i in (1, 2, 3)],
+        plan=[],
+        scorer=reducer_args_scorer(),
+        epochs=Epochs(3, [at_least(2, value=0.5), pass_at(1, value=0.5)]),
+    )
+
+
 def test_eval_log_to_run_config_dict() -> None:
     grader = get_model(
         "mockllm/model",
@@ -73,6 +99,8 @@ def test_eval_log_to_run_config_dict() -> None:
     assert d["model_roles"]["grader"]["config"]["temperature"] == 0.5
     assert d["model_roles"]["grader"]["config"]["max_tokens"] == 1000
     assert d["eval_config"]["limit"] == 1
+    # no epochs reducer was used, so no reducer specs are recorded or exported
+    assert "epochs_reducer_specs" not in d["eval_config"]
 
 
 def test_eval_log_to_run_config_dict_model_role_list() -> None:
@@ -181,6 +209,60 @@ def test_eval_log_run_config_round_trip() -> None:
     assert grader_config.model == "mockllm/model"
     assert grader_config.config.temperature == 0.3
     assert grader_config.config.max_tokens == 500
+
+
+def test_eval_log_run_config_round_trip_reducer_args() -> None:
+    """Round-trip with non-default reducer args: the re-run keeps the arguments."""
+    log1 = eval(reducer_args_task, model="mockllm/model")[0]
+
+    def metrics_by_reducer(lg: EvalLog) -> dict[str, float]:
+        assert lg.results is not None
+        return {
+            s.reducer: s.metrics["accuracy"].value
+            for s in lg.results.scores
+            if s.reducer is not None
+        }
+
+    def recorded_specs(lg: EvalLog) -> list[tuple[str, dict | None]]:
+        return [(s.name, s.options) for s in lg.eval.config.epochs_reducer_specs or []]
+
+    expected_specs = [
+        ("at_least", {"k": 2, "value": 0.5}),
+        ("pass_at", {"k": 1, "value": 0.5}),
+    ]
+    assert log1.eval.config.epochs_reducer == ["at_least_2", "pass_at_1"]
+    assert recorded_specs(log1) == expected_specs
+    assert metrics_by_reducer(log1) == pytest.approx(
+        {"at_least_2": 2 / 3, "pass_at_1": 5 / 9}
+    )
+
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_path = Path(tmp)
+        run_config = tmp_path / "run.yaml"
+        log_dir = tmp_path / "logs"
+
+        d = eval_log_to_run_config_dict(log1)
+        assert [
+            (s["name"], s["options"]) for s in d["eval_config"]["epochs_reducer_specs"]
+        ] == expected_specs
+        run_config.write_text(yaml.dump(d, default_flow_style=False, sort_keys=False))
+
+        subprocess.run(
+            [
+                "inspect",
+                "eval",
+                "--run-config",
+                run_config.as_posix(),
+                "--log-dir",
+                log_dir.as_posix(),
+            ],
+            check=True,
+        )
+
+        log2 = read_eval_log(list_eval_logs(log_dir.as_posix())[0])
+
+    assert recorded_specs(log2) == expected_specs
+    assert metrics_by_reducer(log2) == metrics_by_reducer(log1)
 
 
 def test_sandbox_string_config() -> None:

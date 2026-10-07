@@ -56,13 +56,13 @@ from inspect_ai.approval._policy import ApprovalPolicy, config_from_approval_pol
 from inspect_ai.dataset._dataset import Dataset, Sample
 from inspect_ai.log import EvalConfig, EvalLog
 from inspect_ai.log._file import EvalLogInfo
-from inspect_ai.log._log import eval_error
+from inspect_ai.log._log import EvalReducerDefinition, eval_error
 from inspect_ai.log._recorders import Recorder
 from inspect_ai.model import GenerateConfigArgs
 from inspect_ai.model._model import Model, ModelName, ensure_model_controller
 from inspect_ai.review._policy import ReviewPolicy, config_from_review_policies
 from inspect_ai.scorer._metric import to_metric_specs
-from inspect_ai.scorer._reducer import ScoreReducer, reducer_log_names
+from inspect_ai.scorer._reducer import ScoreReducer, reducer_log_names, reducer_specs
 from inspect_ai.scorer._reducer.registry import validate_reducer
 from inspect_ai.scorer._scorer import as_scorer_spec
 from inspect_ai.solver._solver import Solver, SolverSpec
@@ -302,10 +302,24 @@ async def eval_run(
                 if epochs_reducer is not None:
                     # override task (eval_config already reflects epochs_reducer)
                     task.epochs_reducer = epochs_reducer
+                    task_eval_config.epochs_reducer_specs = [
+                        EvalReducerDefinition(name=spec.name, options=spec.args or None)
+                        for spec in reducer_specs(epochs_reducer) or []
+                    ]
                 else:
                     # use task (eval_config needs to be updated to reflect task reducer)
                     task_eval_config.epochs_reducer = reducer_log_names(
                         task.epochs_reducer
+                    )
+                    task_eval_config.epochs_reducer_specs = (
+                        [
+                            EvalReducerDefinition(
+                                name=spec.name, options=spec.args or None
+                            )
+                            for spec in reducer_specs(task.epochs_reducer) or []
+                        ]
+                        if task.epochs_reducer is not None
+                        else None
                     )
 
                 # validate task epochs

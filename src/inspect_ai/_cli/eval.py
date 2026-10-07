@@ -53,7 +53,11 @@ from inspect_ai.model._generate_config import (  # noqa: F811
     ResponseSchema,
 )
 from inspect_ai.model._model_config import ModelConfig, model_config_to_model
-from inspect_ai.scorer._reducer import create_reducers
+from inspect_ai.scorer._reducer import (
+    ReducerSpec,
+    create_reducers,
+    create_reducers_from_specs,
+)
 from inspect_ai.solver._solver import SolverSpec
 from inspect_ai.util._checkpoint.parse_cli import parse_checkpoint
 from inspect_ai.util._limit import TokenLimit
@@ -1780,8 +1784,18 @@ class RunConfigInput(BaseModel):
             ec["approval"] = ApprovalPolicyConfig.model_validate(ec["approval"])
         epochs = ec.pop("epochs", None)
         epochs_reducer = ec.pop("epochs_reducer", None)
+        epochs_reducer_specs = ec.pop("epochs_reducer_specs", None)
         if epochs is not None:
-            ec["epochs"] = Epochs(epochs, create_reducers(epochs_reducer))
+            if epochs_reducer_specs:
+                reducers = create_reducers_from_specs(
+                    [
+                        ReducerSpec(name=spec["name"], args=spec.get("options") or {})
+                        for spec in epochs_reducer_specs
+                    ]
+                )
+            else:
+                reducers = create_reducers(epochs_reducer)
+            ec["epochs"] = Epochs(epochs, reducers)
         # token_limit_type is stored beside token_limit on EvalConfig, but
         # eval() takes a single token_limit (int or TokenLimit). Leaving the
         # type in the flattened kwargs makes GenerateConfig reject it.
