@@ -283,6 +283,14 @@ def _json_pointer_join(path: str, key: str | int) -> str:
     return path + "/" + str(key).replace("~", "~0").replace("/", "~1")
 
 
+def _replace_change(path: str, value: Any, replaced: Any) -> JsonChange:
+    change = JsonChange(op="replace", path=path, value=value)
+    # assigned without validation, since validating a deeply nested old value
+    # exceeds pydantic's recursion limit
+    change.replaced = replaced
+    return change
+
+
 def _diff_values(path: str, before: Any, after: Any, changes: list[JsonChange]) -> None:
     if isinstance(before, dict) and isinstance(after, dict):
         for key in before:
@@ -312,9 +320,7 @@ def _diff_values(path: str, before: Any, after: Any, changes: list[JsonChange]) 
             ):
                 _diff_values(item_path, old, new, changes)
             else:
-                changes.append(
-                    JsonChange(op="replace", path=item_path, value=new, replaced=old)
-                )
+                changes.append(_replace_change(item_path, new, old))
         # trailing items are removed or appended, so no earlier index shifts
         for _ in range(common, len(before)):
             changes.append(
@@ -327,9 +333,7 @@ def _diff_values(path: str, before: Any, after: Any, changes: list[JsonChange]) 
                 )
             )
     elif json.dumps(before) != json.dumps(after):
-        changes.append(
-            JsonChange(op="replace", path=path, value=after, replaced=before)
-        )
+        changes.append(_replace_change(path, after, before))
 
 
 def json_changes(

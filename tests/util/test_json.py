@@ -400,6 +400,19 @@ def test_json_changes_replaced_values_come_from_before():
     assert _apply_changes(before, changes) == after
 
 
+def test_json_changes_replace_deeply_nested_old_value():
+    """The old value is recorded as is, however deeply it nests."""
+    value: Any = "leaf"
+    for _ in range(255):
+        value = {"a": value}
+
+    for before, after in [({"x": value}, {"x": None}), ({"x": [value]}, {"x": [None]})]:
+        changes = json_changes(before, after)
+        assert changes is not None and len(changes) == 1
+        assert changes[0].replaced is value
+        assert _apply_changes(before, changes) == after
+
+
 def test_jsonlines_reader_kwargs(tmp_path):
     jsonl_content = '{"a": NaN}\n{"b": 123}\n'
     json_file = tmp_path / "test.jsonl"
