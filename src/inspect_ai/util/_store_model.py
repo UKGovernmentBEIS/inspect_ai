@@ -96,18 +96,20 @@ class StoreModel(BaseModel):
         # validate store or custom dict
         data = data if data is not None else self.store._data
 
-        # pick out this instance's fields to validate
+        # pick out this instance's fields to validate (store and instance
+        # default to the current values, so validators see them)
         validate: dict[str, Any] = {}
         for name in self.__class__.model_fields.keys():
-            if name in ["store", "instance"]:
-                continue
             ns_name = self._ns_name(name)
             if ns_name in data:
                 validate[self._validation_key(name)] = data[ns_name]
+            elif name in ["store", "instance"]:
+                validate[self._validation_key(name)] = getattr(self, name)
 
         # perform validation
+        instance = data.get(self._ns_name("instance"), self.instance)
         self.__class__.model_validate(
-            validate, context={_VALIDATING: True, "instance": self.instance}
+            validate, context={_VALIDATING: True, "instance": instance}
         )
 
     def _validation_key(self, name: str) -> str:

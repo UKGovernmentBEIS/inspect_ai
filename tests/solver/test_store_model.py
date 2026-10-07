@@ -8,7 +8,10 @@ from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
+    ModelWrapValidatorHandler,
     ValidationError,
+    ValidationInfo,
+    ValidatorFunctionWrapHandler,
     field_validator,
     model_validator,
 )
@@ -525,3 +528,107 @@ def test_store_model_validators_see_instance(
 
     NamedLimit(store=backing).x = 10
     assert backing.get("NamedLimit:x") == 10
+
+
+def _check_m1_limit(instance: Any, x: Any) -> None:
+    if instance == "m1" and int(x) > 5:
+        raise ValueError("m1 is limited to 5")
+
+
+class AfterFieldLimit(StoreModel):
+    x: int = 1
+
+    @field_validator("x", mode="after")
+    @classmethod
+    def check_x(cls, x: int, info: ValidationInfo) -> int:
+        _check_m1_limit(info.data.get("instance"), x)
+        return x
+
+
+class BeforeFieldLimit(StoreModel):
+    x: int = 1
+
+    @field_validator("x", mode="before")
+    @classmethod
+    def check_x(cls, x: Any, info: ValidationInfo) -> Any:
+        _check_m1_limit(info.data.get("instance"), x)
+        return x
+
+
+class PlainFieldLimit(StoreModel):
+    x: int = 1
+
+    @field_validator("x", mode="plain")
+    @classmethod
+    def check_x(cls, x: Any, info: ValidationInfo) -> int:
+        _check_m1_limit(info.data.get("instance"), x)
+        return int(x)
+
+
+class WrapFieldLimit(StoreModel):
+    x: int = 1
+
+    @field_validator("x", mode="wrap")
+    @classmethod
+    def check_x(
+        cls, x: Any, handler: ValidatorFunctionWrapHandler, info: ValidationInfo
+    ) -> Any:
+        _check_m1_limit(info.data.get("instance"), x)
+        return handler(x)
+
+
+class BeforeModelLimit(StoreModel):
+    x: int = 1
+
+    @model_validator(mode="before")
+    @classmethod
+    def check_m1(cls, data: Any) -> Any:
+        _check_m1_limit(data.get("instance"), data.get("x", 1))
+        return data
+
+
+class WrapModelLimit(StoreModel):
+    x: int = 1
+
+    @model_validator(mode="wrap")
+    @classmethod
+    def check_m1(cls, data: Any, handler: ModelWrapValidatorHandler[Any]) -> Any:
+        _check_m1_limit(data.get("instance"), data.get("x", 1))
+        return handler(data)
+
+
+@pytest.mark.parametrize(
+    "model_cls",
+    [
+        AfterFieldLimit,
+        BeforeFieldLimit,
+        PlainFieldLimit,
+        WrapFieldLimit,
+        BeforeModelLimit,
+        WrapModelLimit,
+    ],
+)
+def test_store_model_early_validators_see_instance(
+    model_cls: type[StoreModel],
+) -> None:
+    backing = Store()
+    model = model_cls(store=backing, instance="m1")
+
+    with pytest.raises(ValidationError):
+        setattr(model, "x", 10)
+    assert backing.get(f"{model_cls.__name__}:m1:x") == 1
+
+
+def test_store_model_reserved_field_assignment_validated() -> None:
+    backing = Store()
+    model = MyModel(store=backing, instance="m1")
+    before = dict(backing._data)
+
+    with pytest.raises(ValidationError):
+        setattr(model, "store", 17)
+    with pytest.raises(ValidationError):
+        setattr(model, "instance", 17)
+
+    assert model.store is backing
+    assert model.instance == "m1"
+    assert backing._data == before
