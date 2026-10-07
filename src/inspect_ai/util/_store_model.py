@@ -1,6 +1,6 @@
 from typing import Any, Type, TypeVar
 
-from pydantic import BaseModel, ConfigDict, Field, TypeAdapter
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, TypeAdapter
 
 from ._store import Store, store
 
@@ -83,22 +83,35 @@ class StoreModel(BaseModel):
         # validate store or custom dict
         data = data if data is not None else self.store._data
 
-        # pick out this instance's fields to validate
-        validate: dict[str, Any] = {}
+        # pick out this instance's fields to validate (use a scratch store so
+        # model_post_init of the validation model doesn't write into any real store)
+        validate: dict[str, Any] = {
+            self._validation_key("store"): Store(),
+            self._validation_key("instance"): self.instance,
+        }
         for name in self.__class__.model_fields.keys():
             if name in ["store", "instance"]:
                 continue
             ns_name = self._ns_name(name)
             if ns_name in data:
-                validate[name] = data[ns_name]
+                validate[self._validation_key(name)] = data[ns_name]
 
-        # perform validation (use a scratch store so model_post_init of
-        # the validation model doesn't write into any real store; keys are
-        # field names, so accept them even when the model has aliases)
-        self.__class__.model_validate(
-            validate | {"store": Store(), "instance": self.instance},
-            by_name=True,
-        )
+        # perform validation
+        self.__class__.model_validate(validate)
+
+    def _validation_key(self, name: str) -> str:
+        """Input key for a field in model_validate().
+
+        Uses the field's validation alias when the model validates by alias,
+        so aliases (e.g. from an alias_generator) don't drop the value. A
+        global `by_name=True` would also change how nested models validate.
+        """
+        alias = self.__class__.model_fields[name].validation_alias
+        if isinstance(alias, AliasChoices):
+            alias = alias.choices[0]
+        if isinstance(alias, str) and self.model_config.get("validate_by_alias", True):
+            return alias
+        return name
 
     def _validate_value(self, name: str, value: Any) -> None:
         # validate that we aren't using a nested StoreModel

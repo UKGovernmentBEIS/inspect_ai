@@ -344,7 +344,7 @@ def test_store_model_instance_validation_uses_own_namespace():
 @pytest.mark.parametrize(
     "alias_generator", [str.upper, AliasGenerator(validation_alias=str.upper)]
 )
-def test_store_model_validation_ignores_aliases(
+def test_store_model_validation_with_aliases(
     ambient_store: Store, alias_generator: Any
 ) -> None:
     class AliasedModel(StoreModel):
@@ -387,3 +387,23 @@ def test_store_model_nested_aliases_still_validate() -> None:
     with pytest.raises(ValidationError):
         setattr(model, "nested", {"v": "invalid"})
     assert model.nested.value == 7
+
+
+class RequiredAliasedNested(BaseModel):
+    value: int = Field(alias="v")
+
+
+class RequiredAliasedNestedModel(StoreModel):
+    nested: RequiredAliasedNested = Field(
+        default_factory=lambda: RequiredAliasedNested(v=0)
+    )
+
+
+def test_store_model_nested_aliases_reject_field_names() -> None:
+    store = Store()
+    model = RequiredAliasedNestedModel(store=store)
+
+    with pytest.raises(ValidationError):
+        setattr(model, "nested", {"value": 42})
+    assert model.nested.value == 0
+    assert store.get("RequiredAliasedNestedModel:nested") == RequiredAliasedNested(v=0)
