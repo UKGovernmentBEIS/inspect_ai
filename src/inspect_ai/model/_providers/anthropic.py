@@ -193,6 +193,7 @@ from .._model_output import (
     ModelFallback,
     ModelOutput,
     ModelUsage,
+    ServedModelUsage,
     StopCategory,
     StopDetails,
     StopReason,
@@ -224,6 +225,7 @@ from .util import (
     environment_prerequisite_error,
     forced_tool_choice_degraded_metadata,
     is_claude_fable_5_1_model,
+    is_claude_haiku_5_5_model,
     is_claude_opus_5_5_model,
     is_claude_sonnet_5_5_model,
     is_forced_tool_choice,
@@ -438,9 +440,9 @@ class AnthropicAPI(ModelAPI):
         floor and pool settings apply.
         """
         # A copy, so every initialize() builds a fresh client: aclose() then
-        # initialize() is the auth-retry path in _model.py's before_retry, and
-        # a closed client fails every later request with the error class these
-        # defaults exist to prevent.
+        # initialize() is the auth-retry path for clients refresh_credentials()
+        # can't update in place, and a closed client fails every later request
+        # with the error class these defaults exist to prevent.
         model_args = dict(self.model_args)
         if "http_client" in model_args:
             return model_args
@@ -563,6 +565,22 @@ class AnthropicAPI(ModelAPI):
         self.client = self._create_client()
         self._http_hooks = HttpxHooks(self.client._client, api=self)
         self._batcher: AnthropicBatcher | None = None
+
+    @override
+    async def refresh_credentials(self) -> None:
+        # In-flight requests and SDK retries share this client; closing it
+        # during credential refresh would also fail other samples. Bedrock,
+        # Vertex and ANTHROPIC_AUTH_TOKEN credentials don't come from the key
+        # hooks, so those keep the default rebuild.
+        if (
+            not isinstance(self.client, AsyncAnthropic)
+            or self.client.auth_token
+            or os.environ.get("ANTHROPIC_AUTH_TOKEN")
+        ):
+            await super().refresh_credentials()
+            return
+        super().initialize()
+        self.client.api_key = self.api_key
 
     @override
     async def aclose(self) -> None:
@@ -704,6 +722,29 @@ class AnthropicAPI(ModelAPI):
             state.last_cached_request_start = request_start
 
     @override
+    def served_model_usage(self, output: ModelOutput) -> list[ServedModelUsage] | None:
+        fallback = output.fallback
+        if output.usage is None:
+            return None
+        if fallback is None:
+            # a Foundry model name is a deployment name, which need not name
+            # the model the deployment serves
+            if (
+                self.is_azure()
+                and output.model
+                and output.model != self.service_model_name()
+            ):
+                return [ServedModelUsage(f"anthropic/{output.model}", output.usage)]
+            return None
+        iterations = (fallback.metadata or {}).get("iterations")
+        if isinstance(iterations, list) and any(
+            isinstance(it, dict) and it.get("type") == "fallback_message"
+            for it in iterations
+        ):
+            return _fallback_attempts_usage(iterations, self.service_model_name())
+        return [ServedModelUsage(f"anthropic/{fallback.fallback_model}", output.usage)]
+
+    @override
     def cache_write_ttl(self) -> str | None:
         # the TTL this call was sent with, not the sample's current escalation
         # state — a sibling may have escalated while this one was in flight.
@@ -722,214 +763,221 @@ class AnthropicAPI(ModelAPI):
         config: GenerateConfig,
     ) -> tuple[ModelOutput | Exception, ModelCall]:
         # allocate request_id (so we can see it from ModelCall)
-        request_id = self._http_hooks.start_request()
+        with self._http_hooks.request() as request_id:
+            model_call: ModelCall | None = None
 
-        model_call: ModelCall | None = None
-
-        # generate
-        try:
-            resolved_cache_ttl = self._resolve_cache_ttl(config)
-            cache_ttl = resolved_cache_ttl.ttl
-
-            (
-                system_param,
-                tools_param,
-                mcp_servers_param,
-                messages,
-                auto_cache,
-            ) = await self.resolve_chat_input(input, tools, config, cache_ttl)
-
-            # prepare request params (assembled this way so we can log the raw model call)
-            request: dict[str, Any] = dict(messages=messages)
-
-            # automatic caching for messages (system/tools use explicit
-            # breakpoints; `auto_cache` is False when caching is off or the
-            # request has its own explicit breakpoints). Top-level
-            # `cache_control` is rejected on Bedrock/Vertex, which fall back
-            # to per-block markers instead.
-            # ref: https://docs.claude.com/en/docs/build-with-claude/prompt-caching#automatic-caching
-            if auto_cache and not (self.is_bedrock() or self.is_vertex()):
-                request["cache_control"] = cache_control_param(cache_ttl)
-
-            # system messages and tools
-            if system_param is not None:
-                request["system"] = system_param
-            request["tools"] = tools_param
-            # with thinking active, tool_choice is omitted entirely (the API
-            # rejects forced tool choice with thinking; long-standing behavior
-            # for all Claude models)
-            tool_choice_degraded = False
-            if len(tools_param) > 0:
-                resolved_choice = self.resolved_tool_choice(tool_choice)
-                # the computer toolset has no tool named `computer` to force
-                # (the API rejects a tool choice naming the toolset or a
-                # member), so degrade a forced computer tool choice to auto
-                if (
-                    isinstance(resolved_choice, ToolFunction)
-                    and resolved_choice.name == INTERNAL_COMPUTER_TOOL_NAME
-                    and any(is_computer_toolset(tool) for tool in tools_param)
-                ):
-                    warn_once(
-                        logger,
-                        _COMPUTER_TOOLSET_TOOL_CHOICE_WARNING.format(
-                            model=self.service_model_name()
-                        ),
-                    )
-                    resolved_choice = "auto"
-                tool_choice_degraded = resolved_choice != tool_choice
-                if not self.is_using_thinking(config):
-                    request["tool_choice"] = message_tool_choice(
-                        resolved_choice, config
-                    )
-
-            # additional options
-            req, extra_body, headers, betas = self.completion_config(config)
-            request = request | req
-
-            # beta param for mcp tools
-            if len(mcp_servers_param) > 0:
-                betas.append("mcp-client-2025-04-04")
-
-            # beta param for interleaved thinking
-            if self.is_using_thinking(config) and (
-                self.is_claude_4() or self.is_claude_5() or self.is_claude_latest()
-            ):
-                betas.append("interleaved-thinking-2025-05-14")
-
-            self.apply_thinking_block_binding(request, betas)
-
-            # extra headers (for time tracker and computer use)
-            extra_headers = headers | {HttpxHooks.REQUEST_ID_HEADER: request_id}
-            if any(
-                tool.get("type", None) == "computer_20251124" for tool in tools_param
-            ):
-                betas.append("computer-use-2025-11-24")
-            elif any(
-                tool.get("type", None) == "computer_20250124" for tool in tools_param
-            ):
-                # From: https://docs.anthropic.com/en/docs/agents-and-tools/computer-use#claude-3-7-sonnet-beta-flag
-                # Note: The Bash (bash_20250124) and Text Editor (text_editor_20250124)
-                # tools are generally available for Claude 3.5 Sonnet (new) as well and
-                # can be used without the computer use beta header.
-                betas.append("computer-use-2025-01-24")
-            if any("20241022" in str(tool.get("type", "")) for tool in tools_param):
-                betas.append("computer-use-2024-10-22")
-            if any(tool.get("type", None) == "memory_20250818" for tool in tools_param):
-                betas.append("context-management-2025-06-27")
-            if any(
-                tool.get("type", None) == "code_execution_20250825"
-                for tool in tools_param
-            ):
-                betas.append("code-execution-2025-08-25")
-            if any(
-                tool.get("type", None) == "web_fetch_20250910" for tool in tools_param
-            ):
-                betas.append("web-fetch-2025-09-10")
-
-            # extra_body
-            if len(extra_body) > 0 or self.extra_body is not None:
-                request[EXTRA_BODY] = extra_body | (self.extra_body or {})
-
-            # cache diagnostics: thread the previous response id forward. The
-            # SDK only exposes `diagnostics` on client.beta.messages.create,
-            # but inspect calls client.messages.create — route via extra_body
-            # so the field reaches /v1/messages without SDK kwarg validation.
-            if self.cache_diagnostics_enabled(config):
-                prev_id = _previous_assistant_message_id(input)
-                request[EXTRA_BODY] = (request.get(EXTRA_BODY) or {}) | {
-                    "diagnostics": {"previous_message_id": prev_id},
-                }
-
-            # add compaction if the input has it and there is no config
-            if _input_has_compaction(input) and not _request_has_edit_compaction(
-                request
-            ):
-                _add_edit_compaction(
-                    request=request,
-                    betas=betas,
-                    has_1mm_context=self.is_claude_frontier(),
-                )
-
-            # add compaction beta header if required
-            if _request_has_edit_compaction(request):
-                betas.append("compact-2026-01-12")
-
-            # add fallback beta header if the input contains fallback blocks
-            # (so replayed blocks are accepted even if fallback_models is no
-            # longer configured, e.g. on a resumed eval with changed config)
-            if FALLBACK_BETA not in betas and _input_has_fallback(input):
-                betas.append(FALLBACK_BETA)
-
-            # resolve betas and extra headers
-            if len(betas) > 0:
-                extra_headers["anthropic-beta"] = self._beta_header_value(betas)
-            request["extra_headers"] = extra_headers
-
-            # mcp servers
-            if len(mcp_servers_param) > 0:
-                if EXTRA_BODY not in request:
-                    request[EXTRA_BODY] = dict()
-                request[EXTRA_BODY]["mcp_servers"] = mcp_servers_param
-
-            # resume the prior turn's code execution container if it left
-            # work pending (e.g. a client tool call cut the turn short)
-            container = _pending_container_for_input(input)
-            if container is not None:
-                request["container"] = container
-
-            model_call = set_active_model_event_call(request, model_call_filter)
-
-            # stream if the caller passed on_stream or (in auto mode) when
-            # using reasoning or >= 8192 max_tokens; an explicit streaming
-            # model arg overrides both
-            streaming = (
-                (self.auto_streaming(config) or model_stream_requested())
-                if self.streaming is None
-                else self.streaming
-            )
-
+            # generate
             try:
-                response, output = await self._perform_request_and_continuations(
-                    request, streaming, tools, config
+                resolved_cache_ttl = self._resolve_cache_ttl(config)
+                cache_ttl = resolved_cache_ttl.ttl
+
+                (
+                    system_param,
+                    tools_param,
+                    mcp_servers_param,
+                    messages,
+                    auto_cache,
+                ) = await self.resolve_chat_input(input, tools, config, cache_ttl)
+
+                # prepare request params (assembled this way so we can log the raw model call)
+                request: dict[str, Any] = dict(messages=messages)
+
+                # automatic caching for messages (system/tools use explicit
+                # breakpoints; `auto_cache` is False when caching is off or the
+                # request has its own explicit breakpoints). Top-level
+                # `cache_control` is rejected on Bedrock/Vertex, which fall back
+                # to per-block markers instead.
+                # ref: https://docs.claude.com/en/docs/build-with-claude/prompt-caching#automatic-caching
+                if auto_cache and not (self.is_bedrock() or self.is_vertex()):
+                    request["cache_control"] = cache_control_param(cache_ttl)
+
+                # system messages and tools
+                if system_param is not None:
+                    request["system"] = system_param
+                request["tools"] = tools_param
+                # with thinking active, tool_choice is omitted entirely (the API
+                # rejects forced tool choice with thinking; long-standing behavior
+                # for all Claude models)
+                tool_choice_degraded = False
+                if len(tools_param) > 0:
+                    resolved_choice = self.resolved_tool_choice(tool_choice)
+                    # the computer toolset has no tool named `computer` to force
+                    # (the API rejects a tool choice naming the toolset or a
+                    # member), so degrade a forced computer tool choice to auto
+                    if (
+                        isinstance(resolved_choice, ToolFunction)
+                        and resolved_choice.name == INTERNAL_COMPUTER_TOOL_NAME
+                        and any(is_computer_toolset(tool) for tool in tools_param)
+                    ):
+                        warn_once(
+                            logger,
+                            _COMPUTER_TOOLSET_TOOL_CHOICE_WARNING.format(
+                                model=self.service_model_name()
+                            ),
+                        )
+                        resolved_choice = "auto"
+                    tool_choice_degraded = resolved_choice != tool_choice
+                    if not self.is_using_thinking(config):
+                        request["tool_choice"] = message_tool_choice(
+                            resolved_choice, config
+                        )
+
+                # additional options
+                req, extra_body, headers, betas = self.completion_config(config)
+                request = request | req
+
+                # beta param for mcp tools
+                if len(mcp_servers_param) > 0:
+                    betas.append("mcp-client-2025-04-04")
+
+                # beta param for interleaved thinking
+                if self.is_using_thinking(config) and (
+                    self.is_claude_4() or self.is_claude_5() or self.is_claude_latest()
+                ):
+                    betas.append("interleaved-thinking-2025-05-14")
+
+                self.apply_thinking_block_binding(request, betas)
+
+                # extra headers (for time tracker and computer use)
+                extra_headers = headers | {HttpxHooks.REQUEST_ID_HEADER: request_id}
+                if any(
+                    tool.get("type", None) == "computer_20251124"
+                    for tool in tools_param
+                ):
+                    betas.append("computer-use-2025-11-24")
+                elif any(
+                    tool.get("type", None) == "computer_20250124"
+                    for tool in tools_param
+                ):
+                    # From: https://docs.anthropic.com/en/docs/agents-and-tools/computer-use#claude-3-7-sonnet-beta-flag
+                    # Note: The Bash (bash_20250124) and Text Editor (text_editor_20250124)
+                    # tools are generally available for Claude 3.5 Sonnet (new) as well and
+                    # can be used without the computer use beta header.
+                    betas.append("computer-use-2025-01-24")
+                if any("20241022" in str(tool.get("type", "")) for tool in tools_param):
+                    betas.append("computer-use-2024-10-22")
+                if any(
+                    tool.get("type", None) == "memory_20250818" for tool in tools_param
+                ):
+                    betas.append("context-management-2025-06-27")
+                if any(
+                    tool.get("type", None) == "code_execution_20250825"
+                    for tool in tools_param
+                ):
+                    betas.append("code-execution-2025-08-25")
+                if any(
+                    tool.get("type", None) == "web_fetch_20250910"
+                    for tool in tools_param
+                ):
+                    betas.append("web-fetch-2025-09-10")
+
+                # extra_body
+                if len(extra_body) > 0 or self.extra_body is not None:
+                    request[EXTRA_BODY] = extra_body | (self.extra_body or {})
+
+                # cache diagnostics: thread the previous response id forward. The
+                # SDK only exposes `diagnostics` on client.beta.messages.create,
+                # but inspect calls client.messages.create — route via extra_body
+                # so the field reaches /v1/messages without SDK kwarg validation.
+                if self.cache_diagnostics_enabled(config):
+                    prev_id = _previous_assistant_message_id(input)
+                    request[EXTRA_BODY] = (request.get(EXTRA_BODY) or {}) | {
+                        "diagnostics": {"previous_message_id": prev_id},
+                    }
+
+                # add compaction if the input has it and there is no config
+                if _input_has_compaction(input) and not _request_has_edit_compaction(
+                    request
+                ):
+                    _add_edit_compaction(
+                        request=request,
+                        betas=betas,
+                        has_1mm_context=self.is_claude_frontier(),
+                    )
+
+                # add compaction beta header if required
+                if _request_has_edit_compaction(request):
+                    betas.append("compact-2026-01-12")
+
+                # add fallback beta header if the input contains fallback blocks
+                # (so replayed blocks are accepted even if fallback_models is no
+                # longer configured, e.g. on a resumed eval with changed config)
+                if FALLBACK_BETA not in betas and _input_has_fallback(input):
+                    betas.append(FALLBACK_BETA)
+
+                # resolve betas and extra headers
+                if len(betas) > 0:
+                    extra_headers["anthropic-beta"] = self._beta_header_value(betas)
+                request["extra_headers"] = extra_headers
+
+                # mcp servers
+                if len(mcp_servers_param) > 0:
+                    if EXTRA_BODY not in request:
+                        request[EXTRA_BODY] = dict()
+                    request[EXTRA_BODY]["mcp_servers"] = mcp_servers_param
+
+                # resume the prior turn's code execution container if it left
+                # work pending (e.g. a client tool call cut the turn short)
+                container = _pending_container_for_input(input)
+                if container is not None:
+                    request["container"] = container
+
+                model_call = set_active_model_event_call(request, model_call_filter)
+
+                # stream if the caller passed on_stream or (in auto mode) when
+                # using reasoning or >= 8192 max_tokens; an explicit streaming
+                # model arg overrides both
+                streaming = (
+                    (self.auto_streaming(config) or model_stream_requested())
+                    if self.streaming is None
+                    else self.streaming
                 )
-            except (BadRequestError, APIStatusError) as ex:
-                model_call.set_error(
-                    as_error_response(ex.body), self._http_hooks.end_request(request_id)
+
+                try:
+                    response, output = await self._perform_request_and_continuations(
+                        request, streaming, tools, config
+                    )
+                except (BadRequestError, APIStatusError) as ex:
+                    model_call.set_error(
+                        as_error_response(ex.body),
+                        self._http_hooks.end_request(request_id),
+                    )
+                    raise ex
+
+                model_call.set_response(
+                    response, self._http_hooks.end_request(request_id)
                 )
+
+                _warn_refusal_without_fallback(self, config, output)
+
+                if tool_choice_degraded:
+                    output.metadata = (
+                        output.metadata or {}
+                    ) | forced_tool_choice_degraded_metadata(tool_choice)
+
+                self._record_cache_ttl_refresh(resolved_cache_ttl, output.usage)
+
+                return output, model_call
+
+            except BadRequestError as ex:
+                return self.handle_bad_request(ex), model_call or ModelCall(request={})
+
+            except APIStatusError as ex:
+                if ex.status_code == 413:
+                    return ModelOutput.from_content(
+                        model=self.service_model_name(),
+                        content=ex.message,
+                        stop_reason="model_length",
+                        error=ex.message,
+                    ), model_call or ModelCall(request={})
+                # Content-filter errors that arrive mid-stream surface as a plain
+                # APIStatusError (the SDK can't infer the 400 subclass once the
+                # HTTP response was 200), so route through handle_bad_request to
+                # convert them into a content_filter refusal.
+                handled = self.handle_bad_request(ex)
+                if isinstance(handled, ModelOutput):
+                    return handled, model_call or ModelCall(request={})
                 raise ex
-
-            model_call.set_response(response, self._http_hooks.end_request(request_id))
-
-            _warn_refusal_without_fallback(self, config, output)
-
-            if tool_choice_degraded:
-                output.metadata = (
-                    output.metadata or {}
-                ) | forced_tool_choice_degraded_metadata(tool_choice)
-
-            self._record_cache_ttl_refresh(resolved_cache_ttl, output.usage)
-
-            return output, model_call
-
-        except BadRequestError as ex:
-            return self.handle_bad_request(ex), model_call or ModelCall(request={})
-
-        except APIStatusError as ex:
-            if ex.status_code == 413:
-                return ModelOutput.from_content(
-                    model=self.service_model_name(),
-                    content=ex.message,
-                    stop_reason="model_length",
-                    error=ex.message,
-                ), model_call or ModelCall(request={})
-            # Content-filter errors that arrive mid-stream surface as a plain
-            # APIStatusError (the SDK can't infer the 400 subclass once the
-            # HTTP response was 200), so route through handle_bad_request to
-            # convert them into a content_filter refusal.
-            handled = self.handle_bad_request(ex)
-            if isinstance(handled, ModelOutput):
-                return handled, model_call or ModelCall(request={})
-            raise ex
 
     @override
     async def count_tokens(
@@ -1331,7 +1379,7 @@ class AnthropicAPI(ModelAPI):
                 betas.append("output-128k-2025-02-19")
 
         elif config.reasoning_effort == "none" and self._supports_disabling_thinking():
-            # Claude 4.7+ (incl. Sonnet 5 and Opus 5) run adaptive thinking by
+            # Claude 4.7+ (incl. Sonnet 5, Opus 5, Haiku 5.5) run adaptive thinking by
             # default, so `reasoning_effort="none"` must explicitly disable it.
             # Pre-4.7 models default to no thinking, so omitting the field
             # already suffices. Sonnet 5.5 rejects `disabled` and names
@@ -1341,12 +1389,16 @@ class AnthropicAPI(ModelAPI):
                 if self.is_claude_sonnet_5_5_or_later()
                 else "disabled"
             }
-            # Opus 5 and Sonnet 5.5 return a 400 for turned-off thinking
-            # combined with effort above `high` (Opus 4.8 and Sonnet 5 accept
-            # the combination).
+            # Opus 5, Sonnet 5.5, and Haiku 5.5 return a 400 for turned-off
+            # thinking combined with effort above `high` (Opus 4.8 and Sonnet 5
+            # accept the combination).
             output_config = params.get("output_config")
             if (
-                (self.is_claude_opus_5() or self.is_claude_sonnet_5_5_or_later())
+                (
+                    self.is_claude_opus_5()
+                    or self.is_claude_sonnet_5_5_or_later()
+                    or self.is_claude_haiku_5_5_or_later()
+                )
                 and isinstance(output_config, dict)
                 and output_config.get("effort") in ("xhigh", "max")
             ):
@@ -1387,6 +1439,14 @@ class AnthropicAPI(ModelAPI):
                     logger,
                     "fallback_models is not supported with the Anthropic "
                     "Batches API and will be ignored.",
+                )
+            elif self.is_claude_haiku_5_5_or_later():
+                # Haiku 5.5 publishes no allowed_fallback_models and rejects
+                # the `fallbacks` param with a 400
+                warn_once(
+                    logger,
+                    f"fallback_models is not supported by the model "
+                    f"'{self.service_model_name()}' and will be ignored.",
                 )
             else:
                 betas.append(FALLBACK_BETA)
@@ -1470,9 +1530,10 @@ class AnthropicAPI(ModelAPI):
     def _supports_disabling_thinking(self) -> bool:
         """Whether `reasoning_effort="none"` should send a thinking-off config.
 
-        Claude 4.7+ (Opus 4.7/4.8, Sonnet 5, Opus 5) run adaptive thinking by
-        default and accept `disabled` to turn it off (on Opus 5 only at effort
-        `high` or below — see completion_config). Sonnet 5.5 rejects `disabled`
+        Claude 4.7+ (Opus 4.7/4.8, Sonnet 5, Opus 5, Haiku 5.5) run adaptive
+        thinking by default and accept `disabled` to turn it off (on Opus 5 and
+        Haiku 5.5 only at effort `high` or below — see completion_config).
+        Sonnet 5.5 rejects `disabled`
         but accepts `between_tools`, which turns off up-front thinking.
         Fable/Mythos 5 and Opus 5.5 always think and reject `disabled` (400),
         so `"none"` leaves thinking on for them (the field is omitted).
@@ -1490,16 +1551,20 @@ class AnthropicAPI(ModelAPI):
         # Claude 5: only tier-named models accept `disabled`. Fable/Mythos also
         # always think but reject `disabled` (400) — as do unknown codename
         # Claude 5 models, which are assumed to follow Fable rather than the
-        # tier-named (opus/sonnet) models.
-        return self.is_claude_sonnet_5() or self.is_claude_opus_5()
+        # tier-named (opus/sonnet) models and Haiku 5.5.
+        return (
+            self.is_claude_sonnet_5()
+            or self.is_claude_opus_5()
+            or self.is_claude_haiku_5_5_or_later()
+        )
 
     def apply_thinking_block_binding(
         self, request: dict[str, Any], betas: list[str]
     ) -> None:
         """Opt into dropping prefix-mismatched thinking blocks on bound-thinking models.
 
-        Fable 5.1, Opus 5.5, and Sonnet 5.5 bind thinking blocks to the request
-        prefix that produced them; solvers legitimately edit history, and without
+        Fable 5.1, Opus 5.5, Sonnet 5.5, and Haiku 5.5 bind thinking blocks to
+        the request prefix that produced them; solvers legitimately edit history, and without
         drop_block such an edit fails the replay with a 400. Applied to every
         request for these models — not only those replaying thinking blocks —
         so the beta header stays uniform across a task's requests (the batcher
@@ -1509,8 +1574,8 @@ class AnthropicAPI(ModelAPI):
         arrives per model on bedrock/vertex and is not offered on foundry, so
         other model/platform pairs stay opted out until verified, and a
         history edit there can still 400. The API accepts `block_binding`
-        only with adaptive thinking, so Sonnet 5.5's
-        `between_tools` (`reasoning_effort="none"`) requests carry the beta
+        only with adaptive thinking, so Sonnet 5.5's `between_tools` and Haiku
+        5.5's `disabled` (`reasoning_effort="none"`) requests carry the beta
         header but no binding config, and a history edit before a replayed
         thinking block can still 400 there. A caller-supplied
         `extra_body.thinking` shallow-merges over the request body and
@@ -1523,6 +1588,7 @@ class AnthropicAPI(ModelAPI):
             )
             or self.is_claude_opus_5_5_or_later()
             or self.is_claude_sonnet_5_5_or_later()
+            or self.is_claude_haiku_5_5_or_later()
         )
         binding_offered = not (
             self.is_bedrock() or self.is_vertex() or self.is_azure()
@@ -1637,13 +1703,17 @@ class AnthropicAPI(ModelAPI):
         """Sonnet 5.5 or a later point release (a subset of is_claude_sonnet_5)."""
         return is_claude_sonnet_5_5_model(self.model_family())
 
+    def is_claude_haiku_5_5_or_later(self) -> bool:
+        """Haiku 5.5 or a later Haiku 5 point release."""
+        return is_claude_haiku_5_5_model(self.model_family())
+
     def computer_use_toolset(self) -> bool:
         """Whether the computer tool is declared as Anthropic's computer toolset.
 
         Auto mode (no `computer_toolset` model arg) uses the toolset where the
-        legacy `computer_20251124` tool is rejected (Opus 5.5 and Sonnet 5.5 on
-        the Claude API and Vertex) and, where the platform offers it, for Fable/Mythos 5.x and
-        any other non-Sonnet/Opus Claude 5 model. Every other model keeps the
+        legacy `computer_20251124` tool is rejected (Opus 5.5, Sonnet 5.5, and
+        Haiku 5.5 on the Claude API and Vertex) and, where the platform offers
+        it, for Fable/Mythos 5.x and other Claude 5 models treated like them. Every other model keeps the
         legacy tool, matching prior behavior; so do Fable/Mythos on Bedrock and
         Foundry, which offer only the legacy tool.
         """
@@ -1656,13 +1726,15 @@ class AnthropicAPI(ModelAPI):
     def computer_toolset_preferred(self) -> bool:
         """Whether the toolset is the default computer use path where offered.
 
-        Fable/Mythos 5.x (and any other non-Sonnet/Opus Claude 5 codename)
-        default to the toolset, which is GA for them on the Claude API and
+        Fable/Mythos 5.x (and any other Claude 5 model not known to follow
+        the Sonnet/Opus 5 or Haiku 5.5 rules) default to the toolset, which is GA for them on the Claude API and
         Vertex; they also accept the legacy tool, so `computer_toolset=false`
         and platforms without the toolset fall back to it.
         """
         return self.is_claude_5() and not (
-            self.is_claude_sonnet_5() or self.is_claude_opus_5()
+            self.is_claude_sonnet_5()
+            or self.is_claude_opus_5()
+            or self.is_claude_haiku_5_5_or_later()
         )
 
     def computer_toolset_available(self) -> bool:
@@ -1678,13 +1750,15 @@ class AnthropicAPI(ModelAPI):
     def computer_toolset_required(self) -> bool:
         """Whether the legacy computer tool is rejected for this model/platform.
 
-        Only Opus 5.5 and Sonnet 5.5 on the Claude API and Vertex reject
-        `computer_20251124`; Bedrock and Foundry keep accepting it there, and
+        Only Opus 5.5, Sonnet 5.5, and Haiku 5.5 on the Claude API and Vertex
+        reject `computer_20251124`; Bedrock and Foundry keep accepting it there, and
         every other model listed for the legacy tool (Fable/Mythos 5.x
         included) still accepts it.
         """
         return (
-            self.is_claude_opus_5_5_or_later() or self.is_claude_sonnet_5_5_or_later()
+            self.is_claude_opus_5_5_or_later()
+            or self.is_claude_sonnet_5_5_or_later()
+            or self.is_claude_haiku_5_5_or_later()
         ) and self.computer_toolset_available()
 
     def _is_claude_4_x(self, x: int) -> bool:
@@ -2316,8 +2390,9 @@ class AnthropicAPI(ModelAPI):
                         f"'{self.service_model_name()}' on this platform. Remove "
                         "computer_toolset=true to use the legacy computer tool."
                     )
-                # the toolset is documented for Opus 4.8, Sonnet 5/5.5, Opus 5/5.5
-                # and Fable/Mythos 5.x (so a forced opt-in on older models errors)
+                # the toolset is documented for Opus 4.8, Sonnet 5/5.5, Opus 5/5.5,
+                # Haiku 5.5 and Fable/Mythos 5.x (so a forced opt-in on older
+                # models errors)
                 if not self.is_claude_4_8_or_later():
                     raise PrerequisiteError(
                         f"Anthropic's computer toolset (computer_toolset_20260801) is "
@@ -2331,7 +2406,7 @@ class AnthropicAPI(ModelAPI):
                 # inspect computer tool always supports it, so no configs.
                 return BetaComputerToolset20260801Param(type=COMPUTER_TOOLSET_TYPE)
             # legacy path forced (computer_toolset=false) where the legacy tool
-            # is rejected (Opus 5.5 / Sonnet 5.5 on the Claude API / Vertex)
+            # is rejected (Opus/Sonnet/Haiku 5.5 on the Claude API / Vertex)
             if self.computer_toolset_required():
                 raise PrerequisiteError(
                     f"The legacy computer tool (computer_20251124) is not supported "
@@ -2350,8 +2425,9 @@ class AnthropicAPI(ModelAPI):
             # TODO: enhance this code to calculate the dimensions based on the scaled screen
             # size used by the container.
             # computer_20251124 is supported by Claude Opus 5, Sonnet 5,
-            # Opus 4.6/4.7/4.8, Sonnet 4.6, and Opus 4.5 (and by Opus 5.5 and
-            # Sonnet 5.5 on Bedrock and Foundry, where the toolset is not offered)
+            # Opus 4.6/4.7/4.8, Sonnet 4.6, and Opus 4.5 (and by Opus, Sonnet,
+            # and Haiku 5.5 on Bedrock and Foundry, where the toolset is not
+            # offered)
             if self.is_claude_frontier() or (
                 self.is_claude_4_5() and self.is_claude_4_opus()
             ):
@@ -4345,7 +4421,7 @@ async def model_output_from_message(
         {"extra_body": dict(extra_body)} if extra_body else None
     )
 
-    # thinking block binding (Fable 5.1, Opus 5.5, Sonnet 5.5): with the
+    # thinking block binding (Fable 5.1, Opus/Sonnet/Haiku 5.5): with the
     # thinking-binding beta, replayed thinking blocks the server dropped (e.g.
     # after a history edit) are reported via input_transformations. Warn so callers know
     # reasoning context was lost; the raw entries (including the message path
@@ -4366,9 +4442,16 @@ async def model_output_from_message(
     # server-side refusal fallback: record a typed ModelFallback so log
     # analysis can detect a fallback without parsing assistant content. the
     # handoff chain and per-attempt `usage.iterations` are surfaced as
-    # diagnostics on ModelFallback.metadata.
+    # diagnostics on ModelFallback.metadata. a turn that sticky routing sent
+    # straight to the fallback model has no handoff, only the
+    # `fallback_message` iteration.
     fallback: ModelFallback | None = None
-    requested_model = fallback_handoffs[0]["from"] if fallback_handoffs else None
+    if fallback_handoffs:
+        requested_model = fallback_handoffs[0]["from"]
+    elif is_fallback_iterations and model != serving_model:
+        requested_model = model
+    else:
+        requested_model = None
     if requested_model and serving_model:
         fallback = ModelFallback(
             model=requested_model,
@@ -4409,6 +4492,7 @@ async def model_output_from_message(
             ),
             fallback=fallback,
             metadata=metadata,
+            response_id=message.id,
         ),
         pause_turn,
     )
@@ -4948,6 +5032,43 @@ def _fallback_block_models(block: Any) -> tuple[str | None, str | None]:
     return info_model(from_info), info_model(to_info)
 
 
+def _fallback_attempts_usage(
+    iterations: list[Any], requested_model: str
+) -> list[ServedModelUsage]:
+    """Billable usage of each attempt of a server-side fallback request.
+
+    Each attempt is billed at the rates of the model that ran it. An attempt
+    that declined before any output is billed only for some refusal
+    categories, which a fallback response does not report, so it is left out.
+    """
+    attempts: list[ServedModelUsage] = []
+    for it in iterations:
+        if not isinstance(it, dict):
+            continue
+        if it.get("type") == "message" and not it.get("output_tokens"):
+            continue
+        input_tokens = it.get("input_tokens") or 0
+        output_tokens = it.get("output_tokens") or 0
+        cache_write = it.get("cache_creation_input_tokens")
+        cache_read = it.get("cache_read_input_tokens")
+        attempts.append(
+            ServedModelUsage(
+                model=f"anthropic/{it.get('model') or requested_model}",
+                usage=ModelUsage(
+                    input_tokens=input_tokens,
+                    output_tokens=output_tokens,
+                    total_tokens=input_tokens
+                    + output_tokens
+                    + (cache_write or 0)
+                    + (cache_read or 0),
+                    input_tokens_cache_write=cache_write,
+                    input_tokens_cache_read=cache_read,
+                ),
+            )
+        )
+    return attempts
+
+
 def _content_data_for_fallback(block: Any) -> ContentData:
     from_model, to_model = _fallback_block_models(block)
     return ContentData(
@@ -5007,7 +5128,8 @@ def _warn_refusal_without_fallback(
     not configured, first-party non-batch API, and a Claude 5+ requested model
     (the `fallbacks` param is only accepted for models publishing
     allowed_fallback_models -- Opus 4.7/4.8 emit the same refusal stop_details
-    but cannot fall back).
+    but cannot fall back, and Haiku 5.5 publishes an empty list and rejects
+    the param).
     """
     if config.fallback_models:
         return
@@ -5016,6 +5138,8 @@ def _warn_refusal_without_fallback(
     if normalized_batch_config(config.batch):
         return
     if not (api.is_claude_5() or api.is_claude_latest()):
+        return
+    if api.is_claude_haiku_5_5_or_later():
         return
     # classifier refusal (stop_details.type == "refusal") distinguishes
     # rescuable safety-classifier declines from other content_filter stops

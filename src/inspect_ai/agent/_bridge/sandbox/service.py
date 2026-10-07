@@ -11,6 +11,8 @@ from inspect_ai._util.url import data_uri_mime_type, data_uri_to_base64, is_data
 from inspect_ai.model._call_tools import (
     get_tools_info,
     tool_call_error,
+    tool_result_content_list,
+    truncate_tool_output,
     validate_tool_input,
 )
 from inspect_ai.model._model import ModelRefusalError
@@ -247,6 +249,10 @@ def call_tool(
     the sample at once, and the original still propagates so the RPC unwinds
     with an error reply (the teardown may pre-empt its delivery; the
     scaffold's turn is over either way).
+
+    A result a native call would pass to the model as text (anything but
+    content) is truncated to the same output limit, in the same format
+    (`truncate_tool_output`).
     """
 
     async def execute(
@@ -277,9 +283,8 @@ def call_tool(
 
         tool_fn = server_tools[tool]
         try:
-            validation_errors = validate_tool_input(
-                arguments, ToolDef(tool_fn).parameters
-            )
+            tool_def = ToolDef(tool_fn)
+            validation_errors = validate_tool_input(arguments, tool_def.parameters)
             if validation_errors:
                 raise ToolParsingError(validation_errors)
             result = await tool_fn(**arguments)
@@ -295,8 +300,10 @@ def call_tool(
         # carries them as-is). For anything else, use pydantic_core.to_json so
         # Pydantic models (e.g. list[ContentText] from real MCP tools) are
         # serialized correctly — json.dumps can't handle BaseModel.
-        if isinstance(result, str):
-            return result
+        if tool_result_content_list(result) is None:
+            text = result if isinstance(result, str) else to_json_str_safe(result)
+            truncated = truncate_tool_output(tool, text, tool_def.max_output)
+            return truncated.output if truncated else text
         if isinstance(result, ContentImage) or (
             isinstance(result, list)
             and all(

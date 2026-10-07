@@ -1,3 +1,5 @@
+from typing import Callable
+
 import anyio
 
 from inspect_ai.event._base import BaseEvent
@@ -7,7 +9,18 @@ from inspect_ai.event._subtask import (
 )
 from inspect_ai.event._tool import ToolEvent
 from inspect_ai.log._log import EvalLog
-from inspect_ai.model._model_output import ModelUsage
+from inspect_ai.model import (
+    ChatMessage,
+    GenerateConfig,
+    ModelOutput,
+    ModelUsage,
+    StreamEvent,
+    StreamRetryEvent,
+    StreamTextEvent,
+    get_model,
+)
+from inspect_ai.model._stream import NoStreamDataError, report_model_stream_delta
+from inspect_ai.tool import ToolChoice, ToolInfo
 from inspect_ai.util._limit import check_token_limit, record_model_usage, token_limit
 
 
@@ -58,3 +71,38 @@ async def exceed_token_limit_in_child_task(
 
     async with anyio.create_task_group() as tg:
         tg.start_soon(exceed)
+
+
+async def generate_with_retry_boundary(
+    calls: list[list[ChatMessage]], on_retry_boundary: Callable[[], None]
+) -> ModelOutput:
+    """Generate with a first attempt that streams a delta and then fails.
+
+    The retry is announced to `on_stream` before the second attempt is sent.
+    `on_retry_boundary` runs inside that callback, standing in for a
+    concurrent call that records usage while the callback is awaited. Each
+    provider attempt is appended to `calls`; an attempt uses one token.
+    """
+
+    async def outputs(
+        input: list[ChatMessage],
+        tools: list[ToolInfo],
+        tool_choice: ToolChoice,
+        config: GenerateConfig,
+    ) -> ModelOutput:
+        calls.append(input)
+        if len(calls) == 1:
+            await report_model_stream_delta(StreamTextEvent(text="partial"))
+            raise NoStreamDataError("retry me")
+        output = ModelOutput.from_content("mockllm/model", "hello")
+        output.usage = ModelUsage(total_tokens=1)
+        return output
+
+    async def on_stream(event: StreamEvent) -> None:
+        if isinstance(event, StreamRetryEvent):
+            on_retry_boundary()
+
+    model = get_model("mockllm/model", custom_outputs=outputs)
+    return await model.generate(
+        "", config=GenerateConfig(max_retries=1), on_stream=on_stream
+    )

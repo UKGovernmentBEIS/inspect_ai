@@ -7,7 +7,8 @@ request. Request-shape assertions alone cannot do that — botocore accepts
 shapes the service then ignores or rejects.
 """
 
-from typing import Any, Literal, cast
+from contextlib import contextmanager
+from typing import Any, Iterator, Literal, cast
 
 import pytest
 
@@ -96,8 +97,9 @@ class _FakeSession:
 
 
 class _FakeHooks:
-    def start_request(self) -> str:
-        return "request-id"
+    @contextmanager
+    def request(self) -> Iterator[str]:
+        yield "request-id"
 
     def user_agent_extra(self, request_id: str) -> str:
         return f"test/{request_id}"
