@@ -527,6 +527,8 @@ NAN = float("nan")
         ({"a": [NAN, 1.0]}, {"a": [1.0, float("nan")]}),
         ({"a": [NAN, NAN]}, {"a": [0, float("nan"), float("nan")]}),
         ({"a": [NAN], "b": {"c": NAN}}, {"a": [], "b": {"c": float("nan")}}),
+        # a patch with a move as well as an unchanged NaN
+        ({"a": [5, NAN], "b": [NAN]}, {"a": [float("nan")], "b": [float("nan"), 5]}),
     ],
 )
 def test_json_changes_with_nan_apply_to_after(before: dict, after: dict):
