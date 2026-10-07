@@ -144,24 +144,117 @@ async def test_time_remaining_does_not_charge_downtime() -> None:
         assert limit.remaining == pytest.approx(10.0 - elapsed, abs=0.05)
 
 
-async def test_working_restore_continues_from_snapshot() -> None:
-    """Working/waiting continue from the snapshot; downtime is not working time."""
-    import time
+class _Clock:
+    """A fake sample clock."""
 
-    init_sample_working_time(time.monotonic())
-    with working_limit(30.0) as limit:
+    def __init__(self) -> None:
+        self.t = 100.0
+
+    def __call__(self) -> float:
+        return self.t
+
+    def advance(self, seconds: float) -> None:
+        self.t += seconds
+
+
+async def test_working_restore_continues_from_snapshot() -> None:
+    """Working/waiting continue from the snapshot; downtime is not working time.
+
+    Covers a normal resume, then a scoring resume of the next attempt.
+    """
+    clock = _Clock()
+    init_sample_working_time(clock(), clock)
+    with working_limit(30.0):
+        clock.advance(1.0)
         report_sample_waiting_time(0.4)
-        await anyio.sleep(0.12)
+        clock.advance(0.2)
         payload = dump_sample_runtime()
-        assert isinstance(payload, dict)
-        waiting = payload["working_waiting"]
-        elapsed = payload["working_elapsed"]
-        assert isinstance(waiting, (int, float))
-        assert isinstance(elapsed, (int, float))
-        assert float(waiting) == pytest.approx(0.4)
-        await anyio.sleep(0.25)
+    assert payload["sample_elapsed"] == pytest.approx(1.2)
+    assert payload["working_elapsed"] == pytest.approx(0.8)
+    assert payload["working_waiting"] == pytest.approx(0.4)
+
+    # normal resume after 10 s of downtime, which is not charged
+    clock.advance(10.0)
+    init_sample_working_time(clock(), clock)
+    with working_limit(30.0) as limit:
         restore_sample_runtime(payload, check=True)
-        assert limit.usage == pytest.approx(float(elapsed), abs=0.08)
+        assert limit.usage == pytest.approx(0.8)
+        clock.advance(2.0)
+        assert limit.usage == pytest.approx(2.8)
+        assert sample_working_time() == pytest.approx(2.8)
+        assert sample_waiting_time() == 0.0
+        payload = dump_sample_runtime()
+    assert payload["sample_elapsed"] == pytest.approx(3.2)
+    assert payload["working_elapsed"] == pytest.approx(2.8)
+
+    # a scoring resume reports the prior working time but does not enforce it
+    clock.advance(10.0)
+    init_sample_working_time(clock(), clock)
+    with working_limit(30.0) as limit:
+        restore_sample_runtime(payload, check=False)
+        clock.advance(1.0)
+        assert limit.usage == pytest.approx(1.0)
+        assert sample_working_time() == pytest.approx(3.8)
+        payload = dump_sample_runtime()
+    assert payload["sample_elapsed"] == pytest.approx(4.2)
+    assert payload["working_elapsed"] == pytest.approx(3.8)
+
+
+async def test_sample_elapsed_includes_time_before_restore() -> None:
+    """``sample_elapsed`` counts the attempt's time before restore.
+
+    ``time_elapsed`` comes from the time-limit node, whose origin restore
+    resets, so with 5 s from earlier attempts, 10 s before restore and 2 s
+    after it misses the 10 s. ``sample_elapsed`` reads 17.
+    """
+    clock = _Clock()
+    init_sample_working_time(clock(), clock)
+    with time_limit(None), working_limit(None) as limit:
+        clock.advance(10.0)
+        restore_sample_runtime(
+            {"time_elapsed": 5.0, "sample_elapsed": 5.0, "working_elapsed": 5.0},
+            check=True,
+        )
+        clock.advance(2.0)
+        payload = dump_sample_runtime()
+        assert limit.usage == pytest.approx(17.0)
+    assert payload["sample_elapsed"] == pytest.approx(17.0)
+    assert payload["working_elapsed"] == pytest.approx(17.0)
+    assert payload["time_elapsed"] == pytest.approx(5.0, abs=0.5)
+
+
+@pytest.mark.parametrize(
+    "payload,prior_wall,prior_working",
+    [
+        # an old snapshot with a negative working time
+        ({"time_elapsed": 10.0, "working_elapsed": -12.5}, 10.0, 0.0),
+        # working time is clamped to the wall time
+        ({"time_elapsed": 7.0, "working_elapsed": 9.0}, 7.0, 7.0),
+        # no sample_elapsed or time_elapsed
+        ({"working_elapsed": 8.0, "working_waiting": 2.0}, 10.0, 8.0),
+        ({"working_elapsed": 8.0}, 8.0, 8.0),
+        ({}, 0.0, 0.0),
+        # sample_elapsed wins over time_elapsed
+        (
+            {"sample_elapsed": 20.0, "time_elapsed": 7.0, "working_elapsed": 9.0},
+            20.0,
+            9.0,
+        ),
+    ],
+)
+async def test_restore_prior_wall_and_working(
+    payload: dict[str, float], prior_wall: float, prior_working: float
+) -> None:
+    clock = _Clock()
+    init_sample_working_time(clock(), clock)
+    with working_limit(None) as limit:
+        restore_sample_runtime(dict(payload), check=True)
+        assert limit.usage == pytest.approx(prior_working)
+        assert sample_working_time() == pytest.approx(prior_working)
+        dumped = dump_sample_runtime()
+    assert dumped["sample_elapsed"] == pytest.approx(prior_wall)
+    assert dumped["working_elapsed"] == pytest.approx(prior_working)
+    assert dumped["working_waiting"] == pytest.approx(prior_wall - prior_working)
 
 
 async def test_scoring_resume_does_not_seed_working_enforcement() -> None:

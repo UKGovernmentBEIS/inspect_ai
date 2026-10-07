@@ -55,7 +55,7 @@ from inspect_ai._util.json import exceeds_max_depth
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.text import truncate_string_to_bytes
 from inspect_ai._util.trace import trace_action
-from inspect_ai._util.working import sample_waiting_time
+from inspect_ai._util.working import sample_clock, sample_waiting_time
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.tool import Tool, ToolCall, ToolError, ToolInfo
 from inspect_ai.tool._tool import (
@@ -475,16 +475,16 @@ async def _execute_tools_impl(
         result_output: ModelOutput | None = None
 
         for stage in stages:
-            # Pre-create pending events and waiting-time baselines so they
-            # reflect the moment this stage actually starts. (The tool
-            # transcript event itself is recorded inside call_tool by
-            # call_tool_task; the baseline lets us compute working time.)
+            # Pre-create pending events and start times so they reflect the
+            # moment this stage actually starts. (The tool transcript event
+            # itself is recorded inside call_tool by call_tool_task; the start
+            # time lets us compute working time.)
             stage_events: dict[int, ToolEvent] = {}
             waiting_starts: dict[int, float] = {}
             stage_results: dict[int, StreamItem | None] = {}
             for idx in stage:
                 call = tool_calls[idx]
-                waiting_starts[idx] = sample_waiting_time()
+                waiting_starts[idx] = sample_clock()
                 stage_events[idx] = ToolEvent(
                     id=call.id,
                     function=call.function,
@@ -572,7 +572,7 @@ async def _execute_tools_impl(
                         result=result_event.result,
                         truncated=result_event.truncated,
                         error=result_event.error,
-                        waiting_time=sample_waiting_time() - waiting_start,
+                        waiting_time=sample_waiting_time(waiting_start),
                         agent=result_event.agent,
                         failed=None,
                         message_id=result.messages[0].id,
@@ -612,12 +612,11 @@ async def _execute_tools_impl(
                             # call actually finished, not when the whole
                             # stage exits. Fast siblings of slow tools would
                             # otherwise look as slow as the slowest call.
-                            waiting_time_end = sample_waiting_time()
                             event._set_result(
                                 result=result_event.result,
                                 truncated=result_event.truncated,
                                 error=result_event.error,
-                                waiting_time=waiting_time_end - waiting_start,
+                                waiting_time=sample_waiting_time(waiting_start),
                                 agent=result_event.agent,
                                 failed=True if call_exception else None,
                                 message_id=(
@@ -680,12 +679,11 @@ async def _execute_tools_impl(
                         op_result_event,
                         None,
                     )
-                    waiting_time_end = sample_waiting_time()
                     event._set_result(
                         result=op_result_event.result,
                         truncated=op_result_event.truncated,
                         error=op_result_event.error,
-                        waiting_time=waiting_time_end - waiting_start,
+                        waiting_time=sample_waiting_time(waiting_start),
                         agent=op_result_event.agent,
                         # Operator-cancel preserves pre-existing serial
                         # semantics: failed=None, the "timeout" error
@@ -768,12 +766,11 @@ async def _execute_tools_impl(
                     )
                     result_messages.append(tool_message)
 
-                    waiting_time_end = sample_waiting_time()
                     event._set_result(
                         result=cancellation_event.result,
                         truncated=cancellation_event.truncated,
                         error=cancellation_event.error,
-                        waiting_time=waiting_time_end - waiting_start,
+                        waiting_time=sample_waiting_time(waiting_start),
                         agent=cancellation_event.agent,
                         failed=True,
                         message_id=tool_message.id,

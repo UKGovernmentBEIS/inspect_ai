@@ -15,7 +15,7 @@ from typing import (
 from inspect_ai._util._async import is_callable_coroutine, tg_collect
 from inspect_ai._util.content import Content
 from inspect_ai._util.trace import trace_action
-from inspect_ai._util.working import sample_waiting_time
+from inspect_ai._util.working import sample_clock, sample_waiting_time
 from inspect_ai.util._span import span
 from inspect_ai.util._store import Store, dict_jsonable, init_subtask_store
 
@@ -125,7 +125,7 @@ def subtask(
                 with trace_action(logger, "Subtask", subtask_name):
                     async with span(name=subtask_name, type="subtask"):
                         # create subtask event
-                        waiting_time_start = sample_waiting_time()
+                        start = sample_clock()
                         event = SubtaskEvent(
                             name=subtask_name, input=log_input, type=type, pending=True
                         )
@@ -136,11 +136,10 @@ def subtask(
 
                         # time accounting
                         completed = datetime.now(timezone.utc)
-                        waiting_time_end = sample_waiting_time()
                         event.completed = completed
                         event.working_time = (
                             completed - event.timestamp
-                        ).total_seconds() - (waiting_time_end - waiting_time_start)
+                        ).total_seconds() - sample_waiting_time(start)
 
                         # update event
                         event.result = result

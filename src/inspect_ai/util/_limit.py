@@ -26,6 +26,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from typing_extensions import Self, override
 
 from inspect_ai._util.logger import warn_once
+from inspect_ai._util.working import SampleTiming, sample_timing, sample_wait
 
 if TYPE_CHECKING:
     # These imports are used as type hints only - prevent circular imports.
@@ -874,7 +875,10 @@ def working_limit(limit: float | None) -> _WorkingLimit:
     """Limits the working time which can elapse.
 
     Working time is the wall clock time minus any waiting time e.g. waiting before
-    retrying in response to rate limits or waiting on a semaphore.
+    retrying in response to rate limits or waiting on a semaphore. The sample
+    counts as waiting while any known wait is open, so work done during a wait
+    (for example by a parallel tool call or sub-agent) is not charged and working
+    time can undercount. Set a `time_limit()` as well to bound wall clock time.
 
     The timer starts when the context manager is opened and stops when it is closed.
 
@@ -889,11 +893,28 @@ def working_limit(limit: float | None) -> _WorkingLimit:
     return _WorkingLimit(limit)
 
 
-def record_waiting_time(waiting_time: float) -> None:
-    node = working_limit_tree.get()
-    if node is None:
-        return
-    node.record_waiting_time(waiting_time)
+def suspend_working_limit() -> AbstractContextManager[None]:
+    """Count the time spent in a block of code as waiting time.
+
+    While this context manager is open, the whole sample counts as waiting, for
+    `working_limit()` and for the sample's logged working time. This includes
+    work done by other tasks in the sample during the block, unlike
+    `suspend_token_limit()` and `suspend_turn_limit()`, which only affect code
+    inside the block.
+
+    Useful for time the agent should not be charged for, such as waiting on a
+    person or running a monitor. Inspect already does this for tool approval
+    and review.
+
+    Only code in the eval process can call it (not agent code running in a
+    sandbox). Outside a running sample it has no effect.
+
+    Example:
+        with suspend_working_limit():
+            # time spent here is not charged as working time
+            await wait_for_operator()
+    """
+    return sample_wait()
 
 
 def check_working_limit() -> None:
@@ -910,7 +931,7 @@ def check_working_limit() -> None:
 
 
 def monitor_working_limit(interval: float = 1) -> None:
-    from inspect_ai.log._samples import has_active_model_event, sample_active
+    from inspect_ai.log._samples import sample_active
 
     # get the active sample
     sample = sample_active()
@@ -931,12 +952,6 @@ def monitor_working_limit(interval: float = 1) -> None:
             # don't continue after the sample is completed
             if sample.completed:
                 return
-
-            # don't check if there is an active model event
-            # (need to wait until it completes for the working time
-            # computation to be done)
-            if has_active_model_event():
-                continue
 
             error = working_limit_exceeded()
             if error is not None:
@@ -1486,11 +1501,16 @@ class _WorkingLimit(Limit, _Node):
         self.parent: _WorkingLimit | None = None
         self._start_time: float | None = None
         self._end_time: float | None = None
+        # the sample this node measures against (None outside a sample, where
+        # usage is wall clock time)
+        self._timing: SampleTiming | None = None
+        # working time of prior attempts, restored on a normal resume
+        self._prior_usage = 0.0
 
     def __enter__(self) -> Limit:
         super()._check_reuse()
-        self._start_time = anyio.current_time()
-        self._waiting_time = 0.0
+        self._timing = sample_timing()
+        self._start_time = self._now()
         working_limit_tree.push(self)
         return self
 
@@ -1500,7 +1520,7 @@ class _WorkingLimit(Limit, _Node):
         exc_val: BaseException | None,
         exc_tb: TracebackType | None,
     ) -> None:
-        self._end_time = anyio.current_time()
+        self._end_time = self._now()
         self._pop_and_check_identity(working_limit_tree)
 
     @property
@@ -1509,17 +1529,20 @@ class _WorkingLimit(Limit, _Node):
 
     @property
     def usage(self) -> float:
+        # computed from the waits inside the node's own interval when read,
+        # so waits recorded after the fact (retried attempts) are included
         if self._start_time is None:
             return 0.0
-        if self._end_time is None:
-            return anyio.current_time() - self._start_time - self._waiting_time
-        return self._end_time - self._start_time - self._waiting_time
+        end = self._end_time if self._end_time is not None else self._now()
+        waiting = (
+            self._timing.waiting(self._start_time, end)
+            if self._timing is not None
+            else 0.0
+        )
+        return self._prior_usage + (end - self._start_time) - waiting
 
-    def record_waiting_time(self, waiting_time: float) -> None:
-        """Record waiting time for this node and its ancestor nodes."""
-        if self.parent is not None:
-            self.parent.record_waiting_time(waiting_time)
-        self._waiting_time += waiting_time
+    def _now(self) -> float:
+        return self._timing.now() if self._timing is not None else anyio.current_time()
 
     def check(self) -> LimitExceededError | None:
         """Check if this working time limit or any ancestor limits have been exceeded.

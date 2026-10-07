@@ -2,6 +2,7 @@
 
 - Anthropic: Support for Claude Haiku 5.5 (`claude-haiku-5-5`): `reasoning_effort="none"` disables thinking, computer use uses the computer toolset on the Claude API and Vertex, and `fallback_models` is ignored with a warning.
 - Bugfix: `inspect log convert --stream` (and `convert_eval_logs(stream=...)`) no longer drops the error message and traceback from logs of failed evals.
+- Working time: Overlapping waits in a sample now count once, so `working_time` can no longer go negative or exceed clock time; approval and human input count as waiting, and `suspend_working_limit()` marks other waits.
 
 ## 0.3.277 (06 October 2026)
 

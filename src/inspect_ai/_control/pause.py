@@ -53,12 +53,13 @@ that re-invoking ``eval-set`` on the same log dir can't recover.
 
 from __future__ import annotations
 
-import time
 from contextlib import AbstractAsyncContextManager
 from logging import getLogger
 from typing import TYPE_CHECKING, Any, Callable, Literal, NamedTuple
 
 import anyio
+
+from inspect_ai._util.working import sample_wait
 
 if TYPE_CHECKING:
     from inspect_ai._control.eval_state import EvalState
@@ -542,17 +543,9 @@ async def wait_task_dispatch(
         return
 
 
-# Interval between waiting-time credits while a generate attempt is held at
-# the hard-pause gate. monitor_working_limit polls working time every second
-# (skipping only active model events — a span the gate sits outside), so held
-# time must be credited incrementally: crediting only at hold end would let a
-# working_limit expire and kill the sample mid-hold, forfeiting exactly the
-# in-sample progress hold semantics exist to preserve. Unlike retry backoff,
-# a hold cannot pre-credit — its duration is unknown at hold start. Half the
-# monitor's poll interval: the tick and the poll are unsynchronized, so a
-# full-interval tick could leave ~1s of hold uncredited at a monitor wake —
-# enough to reap a sample that entered the hold with under a second of
-# working budget left.
+# Interval at which a generate attempt held at the hard-pause gate re-checks
+# for an escape (a per-sample interrupt has no waker into the gate). The hold
+# itself is an open sample wait, so it needs no incremental crediting.
 _HELD_CREDIT_INTERVAL: float = 0.5
 
 
@@ -626,7 +619,6 @@ def _active_sample_hold_key() -> _HoldKey:
 
 async def wait_generate_dispatch(
     model: "Model",
-    report_waiting_time: Callable[[float], None],
     connection: "ConnectionSlot | None" = None,
 ) -> None:
     """Hard-pause gate for one generate attempt (``pause --now``).
@@ -638,21 +630,13 @@ async def wait_generate_dispatch(
     read-only, cheap to free), so first attempts and retry attempts gate
     uniformly: an attempt begins
     when its backoff has elapsed *and* the gate is open (extending resolved
-    question 2 of ``design/ctl/pause-resume.md`` to the hard gate; the two
-    waiting spans are disjoint by construction, since backoff pre-credits its
-    sleep and a park starts only after the sleep completes). Parks while the
-    process latch, the active sample's task gate, or the called model's gate
-    is hard-closed.
+    question 2 of ``design/ctl/pause-resume.md`` to the hard gate). Parks
+    while the process latch, the active sample's task gate, or the called
+    model's gate is hard-closed.
 
-    Held time is credited as waiting time incrementally (every
-    ``_HELD_CREDIT_INTERVAL`` seconds, and on the way out — including
-    cancellation) through ``report_waiting_time``, which must feed
-    ``report_sample_waiting_time`` (keeping ``working_limit`` enforcement and
-    the sample's reported working time honest) plus whatever call-local
-    accounting the caller keeps: generate passes a closure that also feeds
-    its own waiting accumulator, whose post-call reconciliation would
-    otherwise re-report the held span as provider-internal waiting; compact
-    has no reconciliation and passes ``report_sample_waiting_time`` directly. ``time_limit``
+    The hold and the slot reacquire after it are an open sample wait (see
+    design/working-time-concurrency.md), so held time counts as waiting time
+    for ``working_limit`` and the sample's reported working time. ``time_limit``
     deadlines deliberately keep running while held — explicitly the
     operator's risk with ``pause --now``.
 
@@ -672,7 +656,8 @@ async def wait_generate_dispatch(
     the reacquire wait reported through ``report_waiting_time`` like the
     held span itself. A cancellation during the reacquire leaves the slot
     un-held, which the slot's own held flag makes safe for the owning
-    context's final release (see ``ConnectionSlot``).
+    context's final release (see ``ConnectionSlot``). The reacquire wait is
+    part of the held wait.
     """
     if not _any_hard_gate():
         return
@@ -689,35 +674,24 @@ async def wait_generate_dispatch(
     if task_id is not None and sample is not None:
         _held_entered(task_id, sample.id)
     released = False
-    last = time.monotonic()
-    try:
-        while gate is not None and not escaped():
-            if connection is not None and not released:
-                released = True
-                await connection.release()
-            # the tick both keeps working-limit crediting incremental and
-            # bounds the latency of an escape stamped while parked (a
-            # per-sample interrupt has no waker into this gate)
-            with anyio.move_on_after(_HELD_CREDIT_INTERVAL):
-                await gate.wait_hard_open()
-            now = time.monotonic()
-            report_waiting_time(now - last)
-            last = now
-            # re-resolve: the parked-on gate may have opened while another
-            # latch hard-closed (independent latches)
-            gate = _generate_hold_gate(task_id, model_name, sample_id)
-    finally:
-        tail = time.monotonic() - last
-        if tail > 0:
-            report_waiting_time(tail)
-        if task_id is not None and sample is not None:
-            _held_exited(task_id, sample.id)
-        if released and connection is not None:
-            reacquire_start = time.monotonic()
-            try:
+    with sample_wait():
+        try:
+            while gate is not None and not escaped():
+                if connection is not None and not released:
+                    released = True
+                    await connection.release()
+                # the tick bounds the latency of an escape stamped while
+                # parked (a per-sample interrupt has no waker into this gate)
+                with anyio.move_on_after(_HELD_CREDIT_INTERVAL):
+                    await gate.wait_hard_open()
+                # re-resolve: the parked-on gate may have opened while another
+                # latch hard-closed (independent latches)
+                gate = _generate_hold_gate(task_id, model_name, sample_id)
+        finally:
+            if task_id is not None and sample is not None:
+                _held_exited(task_id, sample.id)
+            if released and connection is not None:
                 await connection.reacquire()
-            finally:
-                report_waiting_time(time.monotonic() - reacquire_start)
 
 
 def dispatch_model_name(model: "Model") -> str:

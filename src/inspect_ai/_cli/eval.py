@@ -631,7 +631,7 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
     @click.option(
         "--working-limit",
         type=int,
-        help="Limit on total working time (e.g. model generation, tool calls, etc.) for each sample.",
+        help="Limit on total working time (e.g. model generation, tool calls, etc.) for each sample. Work done while any wait is open is not charged, so also set --time-limit to bound wall clock time.",
         envvar="INSPECT_EVAL_WORKING_LIMIT",
     )
     @click.option(
