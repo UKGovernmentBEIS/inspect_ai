@@ -149,7 +149,9 @@ def recording_approver(seen: list[tuple[str, ToolCall, list[ChatMessage]]]) -> A
 
 
 @approver(name="test_bridge_modify")
-def modifying_approver(arguments: dict[str, object]) -> Approver:
+def modifying_approver(
+    arguments: dict[str, object], function: str | None = None
+) -> Approver:
     async def approve(
         message: str,
         call: ToolCall,
@@ -159,7 +161,9 @@ def modifying_approver(arguments: dict[str, object]) -> Approver:
         return Approval(
             decision="modify",
             modified=ToolCall(
-                id=call.id, function=call.function, arguments=dict(arguments)
+                id=call.id,
+                function=function or call.function,
+                arguments=dict(arguments),
             ),
         )
 
@@ -384,6 +388,52 @@ async def test_modify_preserves_the_original_call_in_the_transcript() -> None:
     assert proposed.message.tool_calls is not None
     assert proposed.message.tool_calls[0].arguments == {"cmd": "rm -rf /"}
     assert run.output is not proposed
+
+
+async def test_modify_changing_the_function_fails_the_sample() -> None:
+    """A `modify` may change only the arguments; a new function is an approver bug."""
+    original = ToolCall(id="1", function="bash", arguments={"cmd": "rm -rf /"})
+
+    with pytest.raises(RuntimeError, match="may change only the arguments"):
+        await run_bridge(
+            [tool_calls_output(original)],
+            approval=[
+                ApprovalPolicy(
+                    modifying_approver({"path": "a.txt"}, function="read_file"), "*"
+                )
+            ],
+        )
+
+
+async def test_dispatched_call_modify_changing_the_target_fails_the_sample() -> None:
+    """For a dispatcher call the reviewed target's function may not change either."""
+    tool = AsyncMock(return_value="contents")
+    bridge = sandbox_bridge_with_tool(
+        tool,
+        [
+            ApprovalPolicy(
+                modifying_approver({"path": "b.txt"}, function="write_file"),
+                "read_file",
+            )
+        ],
+    )
+
+    with pytest.raises(
+        RuntimeError, match="call to 'write_file' for a call to 'read_file'"
+    ):
+        await run_bridge(
+            [tool_calls_output(dispatched("1", {"path": "a.txt"}))], bridge=bridge
+        )
+
+    # the sandbox bridge's monitor task fails the sample with the same error
+    assert isinstance(bridge._failure, RuntimeError)
+    assert "may change only the arguments" in str(bridge._failure)
+    # and no host tool may run for the call
+    execute = call_host_tool(bridge)
+    for path in ("a.txt", "b.txt"):
+        with pytest.raises(PermissionError, match="was not proposed by the model"):
+            await execute("host", "read_file", {"path": path})
+    tool.assert_not_awaited()
 
 
 # ---------------------------------------------------------------------------

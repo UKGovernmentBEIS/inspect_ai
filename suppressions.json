@@ -408,26 +408,10 @@
     "noqa:B023": {
       "count": 3,
       "undescribed": 3
-    },
-    "type: ignore[misc]": {
-      "count": 1,
-      "undescribed": 1
-    },
-    "type: ignore[typeddict-item]": {
-      "count": 1,
-      "undescribed": 1
     }
   },
   "src/inspect_ai/agent/_bridge/responses_impl.py": {
     "type: ignore[comparison-overlap]": {
-      "count": 1,
-      "undescribed": 1
-    },
-    "type: ignore[misc]": {
-      "count": 1,
-      "undescribed": 1
-    },
-    "type: ignore[typeddict-item]": {
       "count": 1,
       "undescribed": 1
     }
@@ -490,10 +474,6 @@
   },
   "src/inspect_ai/analysis/_dataframe/record.py": {
     "type: ignore": {
-      "count": 1,
-      "undescribed": 1
-    },
-    "type: ignore[arg-type]": {
       "count": 1,
       "undescribed": 1
     },
@@ -1661,8 +1641,8 @@
   },
   "tests/model/providers/test_hf.py": {
     "type: ignore[attr-defined]": {
-      "count": 9,
-      "undescribed": 9
+      "count": 2,
+      "undescribed": 2
     },
     "type: ignore[import-not-found]": {
       "count": 1,
