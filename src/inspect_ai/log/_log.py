@@ -335,7 +335,8 @@ class EvalSampleSummary(BaseModel):
 
     Clock time minus the time when any wait (retries, rate limits, shared
     resources, approval, human input) was open in the sample. Other work done
-    during a wait is not counted.
+    during a wait, such as concurrent tool calls or sub-agents, is not counted,
+    so set `time_limit` alongside `working_limit` to bound clock time.
     """
 
     uuid: str | None = Field(default=None)
@@ -542,7 +543,8 @@ class EvalSample(BaseModel):
 
     Clock time minus the time when any wait (retries, rate limits, shared
     resources, approval, human input) was open in the sample. Other work done
-    during a wait is not counted.
+    during a wait, such as concurrent tool calls or sub-agents, is not counted,
+    so set `time_limit` alongside `working_limit` to bound clock time.
     """
 
     uuid: str | None = Field(default=None)
