@@ -24,6 +24,7 @@ from inspect_ai.model._providers.azureai import (
     azureai_completion_from_stream,
     chat_complection_choice,
 )
+from inspect_ai.model._response_headers import ResponseHeaders, track_response_headers
 from inspect_ai.model._stream import (
     ModelStreamObserver,
     StreamTextEvent,
@@ -645,3 +646,61 @@ async def test_azureai_streamed_output_without_id_has_no_response_id() -> None:
 
     assert output.completion == "hi"
     assert output.response_id is None
+
+
+@pytest.mark.parametrize("streaming", [False, True])
+@pytest.mark.parametrize("status", [200, 400])
+async def test_azureai_records_each_responses_headers(
+    streaming: bool, status: int
+) -> None:
+    from unittest.mock import AsyncMock, MagicMock, patch
+
+    from azure.core.pipeline import PipelineContext, PipelineRequest, PipelineResponse
+    from azure.core.pipeline.policies import CustomHookPolicy
+
+    from inspect_ai.model import ChatMessageUser
+
+    api = _azureai_api(streaming=streaming)
+    headers = ResponseHeaders()
+    completion = MagicMock(model="test-model", choices=[], usage=None, id="response")
+    updates = MagicMock()
+    updates.aclose = AsyncMock()
+    client = MagicMock()
+    client.close = AsyncMock()
+
+    async def complete(**kwargs: Any) -> Any:
+        request = PipelineRequest(MagicMock(), PipelineContext(None, **kwargs))
+        policy: CustomHookPolicy[Any, Any] = CustomHookPolicy()
+        policy.on_request(request)
+        for code, request_id in ((503, "first"), (status, "second")):
+            response = MagicMock(status_code=code, headers={"X-Request-ID": request_id})
+            policy.on_response(
+                request,
+                PipelineResponse(request.http_request, response, request.context),
+            )
+            assert headers.latest == {"x-request-id": request_id}
+            if code == 400:
+                raise HttpResponseError("refused", response=response)
+        return updates if streaming else completion
+
+    client.complete = AsyncMock(side_effect=complete)
+    with (
+        track_response_headers(headers),
+        patch(
+            "inspect_ai.model._providers.azureai.ChatCompletionsClient",
+            return_value=client,
+        ),
+        patch(
+            "inspect_ai.model._providers.azureai.azureai_completion_from_stream",
+            new=AsyncMock(return_value=completion),
+        ),
+    ):
+        await api.generate(
+            input=[ChatMessageUser(content="hello")],
+            tools=[],
+            tool_choice="none",
+            config=GenerateConfig(),
+        )
+
+    assert headers.latest == {"x-request-id": "second"}
+    client.close.assert_awaited_once()
