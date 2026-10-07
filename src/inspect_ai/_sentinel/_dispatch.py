@@ -287,31 +287,37 @@ class _Host:
         input: str | list[ChatMessage],
         *,
         model: str | None = None,
+        role: str | None = None,
         tools: list[ToolInfo] | None = None,
         config: GenerateConfig | None = None,
     ) -> ModelOutput:
         if isinstance(cast(object, model), Model):
             raise TypeError(
-                "Host.generate() takes a model role or a model name, not a Model. "
+                "Host.generate() takes a model name, not a Model. "
                 "Configure the Model for a role with Task(model_roles={'<role>': model}) "
-                "or --model-role, and pass the role name."
+                "or --model-role, and pass role='<role>'."
             )
         if model == "":
             raise ValueError(
-                "Host.generate() model must be a model role or a model name, "
-                "not an empty string. Pass None for the 'monitor' role."
+                "Host.generate() model must be a model name, not an empty string. "
+                "Pass None to use a role."
             )
-        if model is not None and "/" in model:
+        if role == "":
+            raise ValueError(
+                "Host.generate() role must be a model role, not an empty string. "
+                "Pass None for the 'monitor' role."
+            )
+        if model is not None and role is None:
             resolved = get_model(model)
         else:
-            role = "monitor" if model is None else model
-            if role not in model_roles():
+            role = role or "monitor"
+            if model is None and role not in model_roles():
                 warn_once(
                     logger,
                     f"No model is configured for the sentinel role '{role}', so monitor calls use the agent's own model. "
                     f"Set one with Task(model_roles={{'{role}': ...}}) or --model-role {role}=<model>.",
                 )
-            resolved = get_model(role=role, default=active_model())
+            resolved = get_model(model, role=role, default=active_model())
         return await resolved.generate(
             input, tools=tools or [], config=config or GenerateConfig()
         )
