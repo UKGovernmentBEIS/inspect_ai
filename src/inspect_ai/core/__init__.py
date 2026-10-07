@@ -13,6 +13,7 @@ from ._citation import (
     CitationBase,
     ContentCitation,
     DocumentCitation,
+    DocumentRange,
     UrlCitation,
 )
 from ._content import (
@@ -95,6 +96,7 @@ __all__ = [
     "ContentToolUse",
     "ContentVideo",
     "DocumentCitation",
+    "DocumentRange",
     "GenerateConfig",
     "GenerateConfigArgs",
     "ImageOutput",
