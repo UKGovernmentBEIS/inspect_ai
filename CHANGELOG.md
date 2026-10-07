@@ -2,6 +2,7 @@
 
 - Bugfix: `inspect log convert --stream` (and `convert_eval_logs(stream=...)`) no longer drops the error message and traceback from logs of failed evals.
 - Bugfix: Store and state changes that move values between lists or objects no longer crash the sample or log changes that replay to the wrong state.
+- Bugfix: A NaN value in a sample's store or state no longer causes every later span or solver to log a spurious store or state change.
 
 ## 0.3.277 (06 October 2026)
 

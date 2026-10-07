@@ -1,4 +1,5 @@
 import json
+import math
 import random
 from copy import deepcopy
 from typing import Any
@@ -19,6 +20,8 @@ from inspect_ai.dataset._sources.json import (
 )
 from inspect_ai.event import StoreEvent
 from inspect_ai.util._store import _apply_store_event
+
+NAN = float("nan")
 
 
 def _apply_changes(
@@ -90,8 +93,8 @@ def test_json_changes_basic_replace_no_arrays():
     assert changes[0].replaced == "old_value"
 
 
-def test_array_insert_replaces_then_appends():
-    """The `replaced` value of each replace is the item at that index in `before`."""
+def test_array_insert_before_unchanged_tail():
+    """Items both lists end with are left alone; the rest compare by index."""
     before = {"x": ["a", "b"]}
     after = {"x": ["c", "d", "b"]}
 
@@ -100,8 +103,7 @@ def test_array_insert_replaces_then_appends():
     assert changes is not None
     assert [(c.op, c.path, c.value, c.replaced) for c in changes] == [
         ("replace", "/x/0", "c", "a"),
-        ("replace", "/x/1", "d", "b"),
-        ("add", "/x/2", "b", None),
+        ("add", "/x/1", "d", None),
     ]
     assert _apply_changes(before, changes) == after
 
@@ -137,42 +139,20 @@ def test_slow_path_nested_object_modification():
     after = {
         "items": [
             {"id": 99, "status": "new"},  # Was item with id:1
-            {"id": 1, "status": "inactive"},  # Was item with id:2
-            {"id": 2, "status": "active"},  # New item added
+            {"id": 1, "status": "inactive"},  # New item inserted
+            {"id": 2, "status": "active"},  # Unchanged last item
         ]
     }
 
     changes = json_changes(before, after)
-    ops = {c.path: c for c in changes}
 
-    # Replace at /items/0/id: 1 -> 99
-    assert "/items/0/id" in ops
-    assert ops["/items/0/id"].op == "replace"
-    assert ops["/items/0/id"].value == 99
-    assert ops["/items/0/id"].replaced == 1
-
-    # Replace at /items/0/status: "active" -> "new"
-    assert "/items/0/status" in ops
-    assert ops["/items/0/status"].op == "replace"
-    assert ops["/items/0/status"].value == "new"
-    assert ops["/items/0/status"].replaced == "active"
-
-    # Replace at /items/1/id: 2 -> 1
-    assert "/items/1/id" in ops
-    assert ops["/items/1/id"].op == "replace"
-    assert ops["/items/1/id"].value == 1
-    assert ops["/items/1/id"].replaced == 2
-
-    # Replace at /items/1/status: "active" -> "inactive"
-    assert "/items/1/status" in ops
-    assert ops["/items/1/status"].op == "replace"
-    assert ops["/items/1/status"].value == "inactive"
-    assert ops["/items/1/status"].replaced == "active"
-
-    # Add at /items/2
-    assert "/items/2" in ops
-    assert ops["/items/2"].op == "add"
-    assert ops["/items/2"].value == {"id": 2, "status": "active"}
+    assert changes is not None
+    assert [(c.op, c.path, c.value, c.replaced) for c in changes] == [
+        ("replace", "/items/0/id", 99, 1),
+        ("replace", "/items/0/status", "new", "active"),
+        ("add", "/items/1", {"id": 1, "status": "inactive"}, None),
+    ]
+    assert _apply_changes(before, changes) == after
 
 
 def test_multiple_independent_arrays():
@@ -342,7 +322,7 @@ def _random_json(rng: random.Random, depth: int = 0) -> Any:
             rng.choice("ab"): _random_json(rng, depth + 1)
             for _ in range(rng.randint(0, 2))
         }
-    return rng.choice([0, 1, 1.5, "x", None, {}, [], [0], {"a": 0}])
+    return rng.choice([0, 1, 1.5, NAN, "x", None, {}, [], [0], {"a": 0}])
 
 
 def _mutate_json(rng: random.Random, value: Any, depth: int = 0) -> Any:
@@ -372,7 +352,8 @@ def _mutate_json(rng: random.Random, value: Any, depth: int = 0) -> Any:
 def test_json_changes_reproduce_target_for_random_edits():
     """Seeded probe: edits that move, insert and remove nested values.
 
-    jsonpatch.make_patch() fails on 91 of these 3,000 pairs (80 raise, 11 differ).
+    On these 3,000 pairs jsonpatch.make_patch() raises for 73, gives the wrong
+    result for 6, and reports changes for 122 unchanged pairs holding a NaN.
     """
     rng = random.Random(0)
     for _ in range(3000):
@@ -381,7 +362,11 @@ def test_json_changes_reproduce_target_for_random_edits():
             after = {"a": _mutate_json(rng, deepcopy(before["a"]))}
         else:
             after = {"a": _random_json(rng)}
+        # re-serialize, as snapshots are, so NaNs are distinct objects
+        after = json.loads(json.dumps(after))
         _assert_round_trip(before, after)
+        if json.dumps(before) == json.dumps(after):
+            assert json_changes(before, after) is None
 
 
 def test_json_changes_replaced_values_come_from_before():
@@ -411,6 +396,113 @@ def test_json_changes_replace_deeply_nested_old_value():
         assert changes is not None and len(changes) == 1
         assert changes[0].replaced is value
         assert _apply_changes(before, changes) == after
+
+
+@pytest.mark.parametrize(
+    "item",
+    [7, {"role": "user", "content": "hi"}],
+)
+def test_json_changes_insert_or_remove_at_front_is_one_change(item: Any):
+    items = [
+        {"role": "user", "content": str(i)} if isinstance(item, dict) else i
+        for i in range(1000)
+    ]
+
+    changes = json_changes({"q": items}, {"q": [item, *items]})
+    assert changes is not None
+    assert [(c.op, c.path, c.value) for c in changes] == [("add", "/q/0", item)]
+
+    changes = json_changes({"q": items}, {"q": items[1:]})
+    assert changes is not None
+    assert [(c.op, c.path) for c in changes] == [("remove", "/q/0")]
+
+    changes = json_changes({"q": items}, {"q": [*items[:500], item, *items[500:]]})
+    assert changes is not None
+    assert [(c.op, c.path) for c in changes] == [("add", "/q/500")]
+
+
+def test_json_changes_unchanged_nan_and_inf_report_no_change():
+    # each snapshot gets its own NaN objects, as re-serialization produces
+    def snapshot() -> dict[str, Any]:
+        nan = float("nan")
+        return {
+            "list": [nan, 1.0, float("inf"), float("-inf")],
+            "dict": {"nan": nan, "inf": float("inf")},
+            "nested": [{"values": [nan, [nan]]}],
+        }
+
+    assert json_changes(snapshot(), snapshot()) is None
+    assert json_changes([float("nan")], [float("nan")]) is None
+
+
+def test_json_changes_reports_changes_to_and_from_nan():
+    changes = json_changes({"a": [1.0]}, {"a": [float("nan")]})
+    assert changes is not None and len(changes) == 1
+    assert (changes[0].op, changes[0].path, changes[0].replaced) == (
+        "replace",
+        "/a/0",
+        1.0,
+    )
+    assert isinstance(changes[0].value, float) and math.isnan(changes[0].value)
+
+    changes = json_changes({"a": [float("nan")]}, {"a": [1.0]})
+    assert changes is not None and len(changes) == 1
+    assert (changes[0].op, changes[0].path, changes[0].value) == (
+        "replace",
+        "/a/0",
+        1.0,
+    )
+    assert isinstance(changes[0].replaced, float) and math.isnan(changes[0].replaced)
+
+
+def test_json_changes_unchanged_nan_beside_real_change():
+    before = {"a": [float("nan"), 1.0, 2.0], "b": {"c": float("nan")}}
+    after = {"a": [float("nan"), 3.0], "b": {"c": float("nan")}}
+
+    changes = json_changes(before, after)
+
+    assert changes is not None
+    assert [(c.op, c.path) for c in changes] == [
+        ("replace", "/a/1"),
+        ("remove", "/a/2"),
+    ]
+    assert changes[0].value == 3.0 and changes[0].replaced == 1.0
+
+    # an unchanged trailing NaN is skipped like any unchanged item
+    changes = json_changes({"a": [0, float("nan")]}, {"a": [5, 0, float("nan")]})
+    assert changes is not None
+    assert [(c.op, c.path, c.value) for c in changes] == [("add", "/a/0", 5)]
+
+
+@pytest.mark.parametrize(
+    "before,after",
+    [
+        # a NaN element replaced while a NaN appears in a nested container
+        ({"a": [NAN, {}]}, {"a": [0, {"x": float("nan")}]}),
+        ({"a": [NAN, [0]]}, {"a": ["text", [float("nan")]]}),
+        ({"a": [{}, NAN, [0], 1]}, {"a": [[], "text", [float("nan")]]}),
+        # reorders and insertions beside NaNs
+        ({"a": [NAN, 1.0]}, {"a": [1.0, float("nan")]}),
+        ({"a": [NAN, NAN]}, {"a": [0, float("nan"), float("nan")]}),
+        ({"a": [NAN], "b": {"c": NAN}}, {"a": [], "b": {"c": float("nan")}}),
+        ({"a": [5, NAN], "b": [NAN]}, {"a": [float("nan")], "b": [float("nan"), 5]}),
+    ],
+)
+def test_json_changes_with_nan_apply_to_after(
+    before: dict[str, Any], after: dict[str, Any]
+):
+    changes = json_changes(before, after)
+
+    assert changes is not None
+    assert not any(
+        c.op == "replace"
+        and isinstance(c.value, float)
+        and math.isnan(c.value)
+        and isinstance(c.replaced, float)
+        and math.isnan(c.replaced)
+        for c in changes
+    )
+    _assert_round_trip(before, after)
 
 
 def test_jsonlines_reader_kwargs(tmp_path):
