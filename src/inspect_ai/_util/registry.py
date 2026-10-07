@@ -68,6 +68,9 @@ registered using a decorator (e.g. `@task`, `@solver`). The "monitor" and
 `registry_create()`; see the note above the `registry_create()` overloads.
 Registered objects can in turn be created dynamically using
 the `registry_create()` function.
+
+The "monitor" and "protocol" types are experimental: not yet a stable API;
+may change without notice.
 """
 
 _REGISTRY_TYPE_VALUES: frozenset[str] = frozenset(get_args(RegistryType))
@@ -415,7 +418,8 @@ def registry_create(type: Literal["scanner"], name: str, **kwargs: Any) -> Any: 
 def registry_create(type: Literal["scanjob"], name: str, **kwargs: Any) -> Any: ...
 
 
-# No "monitor"/"protocol" overloads: they are built with create_registry_object(), so registry_create() is a type error.
+# No "monitor"/"protocol" overloads: they are built with
+# create_registry_object(), so registry_create() is a type error.
 
 
 def registry_create(type: RegistryType, name: str, **kwargs: Any) -> object:  # type: ignore[return]

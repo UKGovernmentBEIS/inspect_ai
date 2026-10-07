@@ -447,11 +447,9 @@ class _Recorder:
 
 
 def _factory_kind(factory: str) -> _Kind:
-    if registry_lookup("monitor", factory) is not None:
-        return "observation"
     if registry_lookup("protocol", factory) is not None:
         return "decision"
-    raise RuntimeError(f"{factory!r} is not a registered monitor or protocol.")
+    return "observation"
 
 
 def _emit_decision(

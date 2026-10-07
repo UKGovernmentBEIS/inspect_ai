@@ -392,6 +392,8 @@ class EvalSetOverrides(BaseModel):
     """Sentinel config file path, registered protocol name, or parsed configuration, overriding the definition's.
 
     Constructed monitors and protocols are absent for the same reason as approvers.
+
+    Experimental: not yet a stable API; may change without notice.
     """
 
     # --- what happens when something goes wrong -------------------------------

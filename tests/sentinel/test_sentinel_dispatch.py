@@ -1155,7 +1155,7 @@ def test_sentinel_errors_in_a_background_sub_agent_fail_the_sample() -> None:
 
 
 @scorer(metrics=[])
-def adds_with_tools() -> Scorer:
+def adds_with_tools(grouped: bool = False) -> Scorer:
     async def score(state: TaskState, target: Target) -> Score:
         message = ChatMessageAssistant(
             content="",
@@ -1165,17 +1165,27 @@ def adds_with_tools() -> Scorer:
                 )
             ],
         )
-        await execute_tools([message], [addition()])
+        async def run_tools() -> None:
+            await execute_tools([message], [addition()])
+
+        if grouped:
+            async with anyio.create_task_group() as tg:
+                tg.start_soon(run_tools)
+        else:
+            await run_tools()
         return Score(value=1)
 
     return score
 
 
-def test_sentinel_errors_in_a_scorer_report_the_original_exception() -> None:
+@pytest.mark.parametrize("grouped", [False, True])
+def test_sentinel_errors_in_a_scorer_report_the_original_exception(
+    grouped: bool,
+) -> None:
     task = Task(
         dataset=[Sample(input="What is 1 + 1?", target="2")],
         solver=generate(),
-        scorer=adds_with_tools(),
+        scorer=adds_with_tools(grouped),
         sentinel=[d3_raising(PermissionError("sentinel denied"))],
     )
     log = eval(task, model="mockllm/model")[0]

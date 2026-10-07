@@ -727,9 +727,9 @@ async def _run_background(
         # reaches here belongs to an outer (sample/parent) scope and must
         # not be downgraded to a per-agent "errored" result. A refusal under
         # fail_on_refusal, or a sentinel's own error, likewise fails the
-        # sample wherever it occurs. The sample is terminating; record a terminal status so the
-        # `finally: done.set()` below never wakes a waiter with a stale
-        # "running" status.
+        # sample wherever it occurs. The sample is terminating; record a
+        # terminal status so the `finally: done.set()` below never wakes a
+        # waiter with a stale "running" status.
         future.status = "cancelled"
         raise
     except Exception as ex:
