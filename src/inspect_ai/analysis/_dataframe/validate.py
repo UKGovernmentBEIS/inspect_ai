@@ -114,7 +114,7 @@ def jsonpath_in_schema(expr: JSONPath, schema: Schema) -> bool:
 
 def iter_tokens(node: JSONPath) -> Iterator[str | int | None]:
     """Linearise a jsonpath-ng AST into a stream of tokens we care about."""
-    if hasattr(node, "left"):  # Child, Descendants, etc.
+    if hasattr(node, "left") and hasattr(node, "right"):  # Child, Descendants, etc.
         yield from iter_tokens(node.left)
         yield from iter_tokens(node.right)
     elif isinstance(node, Fields):
