@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Anthropic: Support for Claude Haiku 5.5 (`claude-haiku-5-5`): `reasoning_effort="none"` disables thinking, computer use uses the computer toolset on the Claude API and Vertex, and `fallback_models` is ignored with a warning.
 - Bugfix: `inspect log convert --stream` (and `convert_eval_logs(stream=...)`) no longer drops the error message and traceback from logs of failed evals.
 - Google: Fixed Gemini models repeating tool calls after a tool result, and `messages_from_google()` now reads documented tool outputs and errors as well as older response bodies.
 
