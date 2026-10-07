@@ -139,10 +139,18 @@ attempt**, with no folding, plus the start time of the oldest open span:
   less, because overlapping spans merge. A sample has at most a few
   thousand waits, so memory is small. Prior attempts are carried as totals
   in the checkpoint (see "Resume accounting").
-- **Readings.** `waiting(a, b)` is the length of the set intersected with
-  `[a, b]`, plus the open span's overlap with `[a, b]`. It uses a bisect
-  and a short scan. Working time over `[a, b]` is `(b - a) - waiting(a,
-  b)`.
+- **Readings.** The live span is `[oldest open span start, now]` while any
+  known wait is open. `waiting(a, b)` is the length of `[a, b]` intersected
+  with the **union** of the closed set and the live span. Time covered by
+  both counts once:
+
+  `|closed ∩ [a, b]| + |live ∩ [a, b]| - |closed ∩ live ∩ [a, b]|`
+
+  The last term uses the same bisect and short scan over the closed
+  intervals that fall inside the live span's window. Working time over
+  `[a, b]` is `(b - a) - waiting(a, b)` and always lies in `[0, b - a]`.
+  When the live span closes, it is merged into the closed set, and every
+  reading is unchanged at that instant.
 
 ### Approvals and limit suspension
 
@@ -340,7 +348,16 @@ block on `anyio.Event`s, so ordering is fixed.
     every window's working time lies in `[0, b - a]`;
   - late overlap: a `report_sample_waiting_time` interval overlapping an
     already-closed native wait, and the `[0,1]`/`[1,2]` then `[1,3]` case,
-    giving totals 3 and 2.
+    giving totals 3 and 2;
+  - closed intervals added while a span is still open:
+    - a native wait open over `[0, 2]` with a private report of `[1, 2]`
+      (METR's approver reporting every second inside the native approval
+      span) reads waiting 2 and working 0 over `[0, 2]`, and working 0
+      over a scope window `[1, 2]`, before the span closes;
+    - a retried attempt classified while a sibling's backoff span is open
+      counts the overlap once;
+    - in both cases, closing the open span leaves every reading
+      unchanged.
 - **Samples** (`tests/test_sample_limits.py`):
   - the three measured scenarios: concurrent retries give `working_time ≥
     0` and waiting equal to the union, a semaphore waiter merges, and a
