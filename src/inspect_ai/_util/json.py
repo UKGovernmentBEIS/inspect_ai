@@ -296,18 +296,27 @@ def _same_json(old: Any, new: Any) -> bool:
 
     Unlike `==`, this tells 1, 1.0 and True apart, and 0.0 from -0.0.
     Snapshots serialized separately hold distinct NaN objects, and NaN != NaN.
+    Walks with an explicit stack, so deep values cannot hit the recursion limit.
     """
-    if isinstance(old, dict) and isinstance(new, dict):
-        return old.keys() == new.keys() and all(
-            _same_json(value, new[key]) for key, value in old.items()
-        )
-    if isinstance(old, list) and isinstance(new, list):
-        return len(old) == len(new) and all(_same_json(a, b) for a, b in zip(old, new))
-    if type(old) is not type(new):
-        return False
-    if isinstance(old, float):
-        return repr(old) == repr(new)
-    return bool(old == new)
+    pending = [(old, new)]
+    while pending:
+        old, new = pending.pop()
+        if isinstance(old, dict) and isinstance(new, dict):
+            if old.keys() != new.keys():
+                return False
+            pending.extend((value, new[key]) for key, value in old.items())
+        elif isinstance(old, list) and isinstance(new, list):
+            if len(old) != len(new):
+                return False
+            pending.extend(zip(old, new))
+        elif type(old) is not type(new):
+            return False
+        elif isinstance(old, float):
+            if repr(old) != repr(new):
+                return False
+        elif old != new:
+            return False
+    return True
 
 
 def _diff_values(path: str, before: Any, after: Any, changes: list[JsonChange]) -> None:

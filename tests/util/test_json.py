@@ -28,7 +28,10 @@ def _apply_changes(
     before: dict[str, Any], changes: list[JsonChange] | None
 ) -> dict[str, Any]:
     """Apply changes to a copy of `before` the way StoreEvent replay does."""
-    return _apply_store_event(deepcopy(before), StoreEvent(changes=changes or []))
+    # copied through JSON, since deepcopy() has a lower depth limit
+    return _apply_store_event(
+        json.loads(json.dumps(before)), StoreEvent(changes=changes or [])
+    )
 
 
 def _assert_round_trip(before: dict[str, Any], after: dict[str, Any]) -> None:
@@ -540,6 +543,40 @@ def test_json_changes_shifted_items_must_be_the_same_json_value(old: Any, new: A
     _assert_round_trip({"a": [old]}, {"a": ["insert", new]})
     _assert_round_trip({"a": ["remove", old]}, {"a": [new]})
     _assert_round_trip({"a": [{"v": old}]}, {"a": ["insert", {"v": new}]})
+
+
+def _deep_value(kind: str, depth: int = 600) -> Any:
+    value: Any = "leaf"
+    for level in range(depth):
+        if kind == "list" or (kind == "mixed" and level % 2):
+            value = [value]
+        else:
+            value = {"k": value}
+    return value
+
+
+@pytest.mark.parametrize("kind", ["list", "dict", "mixed"])
+def test_json_changes_insert_or_remove_before_deep_item(kind: str):
+    """Comparing shifted items does not hit the recursion limit."""
+    short = {"a": [_deep_value(kind)], "b": [[_deep_value(kind)]]}
+    long = json.loads(
+        json.dumps(
+            {"a": ["insert", _deep_value(kind)], "b": [["insert", _deep_value(kind)]]}
+        )
+    )
+
+    changes = json_changes(short, long)
+    assert changes is not None
+    assert [(c.op, c.path) for c in changes] == [("add", "/a/0"), ("add", "/b/0/0")]
+    _assert_round_trip(short, long)
+
+    changes = json_changes(long, short)
+    assert changes is not None
+    assert [(c.op, c.path) for c in changes] == [
+        ("remove", "/a/0"),
+        ("remove", "/b/0/0"),
+    ]
+    _assert_round_trip(long, short)
 
 
 def test_jsonlines_reader_kwargs(tmp_path):
