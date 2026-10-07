@@ -109,9 +109,12 @@ _SubagentAction = Literal["consume", "skip", "emit"]
 class _BridgeToolState:
     """Per-session state for synthesizing bridged tool-call cards.
 
-    Bridged agents (claude_code, codex, …) emit no ``ToolEvent``; their tool
-    calls live only on the assistant message and results return as a
-    ``ChatMessageTool`` in a later call's input. Two modes:
+    Bridged agents (claude_code, codex, …) emit no ``ToolEvent`` for the tools
+    they run themselves; those calls live only on the assistant message and
+    results return as a ``ChatMessageTool`` in a later call's input. A host tool
+    a sandbox bridge runs for the scaffold (``bridged_tools``) does get a real
+    ``ToolEvent``, with the proposing call's id when it was proposed; it updates
+    the synthesized card and removes it from ``pending``. Two modes:
 
     - **Live** (``replay`` is False): ``pending`` holds calls we've emitted an
       in-progress start for, awaiting the result that settles them. Gated on
@@ -193,6 +196,12 @@ class SubagentDepthTracker:
     ``SpanEndEvent``s (e.g. one that opened before the tracker was
     constructed) don't underflow the counter.
 
+    An event is also inside a sub-agent when its ``span_id`` places it
+    in a sub-agent span (or a span nested in one), even if that span has
+    already closed. The sandbox agent bridge records a host tool call in
+    the span of the model event that proposed it, which can be a
+    sub-agent span a ``ModelEventSink`` opened and has since closed.
+
     Used by:
     - :class:`_AcpEventRouter` (live event publication)
     - :func:`replay_transcript` (replay-on-attach with filter param)
@@ -212,6 +221,11 @@ class SubagentDepthTracker:
         # matching SpanEndEvent is consumed without decrementing
         # depth.
         self._outer_span_id: str | None = None
+        # Parent of every span begun since construction, and the nested
+        # sub-agent spans among them, so an event can be placed by its
+        # ``span_id`` after its span closed.
+        self._span_parents: dict[str, str | None] = {}
+        self._subagent_span_ids: set[str] = set()
 
     @property
     def depth(self) -> int:
@@ -228,6 +242,8 @@ class SubagentDepthTracker:
           caller should drop it if filtering is enabled.
         - ``"emit"`` — the event is top-level and should be emitted.
         """
+        if isinstance(event, SpanBeginEvent):
+            self._span_parents[event.id] = event.parent_id
         if isinstance(event, SpanBeginEvent) and event.type == AGENT_SPAN_TYPE:
             self._boundary_span_ids.add(event.id)
             if self._outer_span_id is None:
@@ -235,6 +251,7 @@ class SubagentDepthTracker:
                 # agent. Keep depth at 0 so its contents emit.
                 self._outer_span_id = event.id
                 return "consume"
+            self._subagent_span_ids.add(event.id)
             self._depth += 1
             return "consume"
         if isinstance(event, SpanEndEvent) and event.id in self._boundary_span_ids:
@@ -245,7 +262,18 @@ class SubagentDepthTracker:
                 return "consume"
             self._depth -= 1
             return "consume"
-        return "skip" if self._depth > 0 else "emit"
+        if self._depth > 0 or self._in_subagent_span(event.span_id):
+            return "skip"
+        return "emit"
+
+    def _in_subagent_span(self, span_id: str | None) -> bool:
+        seen: set[str] = set()
+        while span_id is not None and span_id not in seen:
+            if span_id in self._subagent_span_ids:
+                return True
+            seen.add(span_id)
+            span_id = self._span_parents.get(span_id)
+        return False
 
 
 class _AcpEventRouter:
@@ -455,7 +483,7 @@ def _map_event(
             bridge,
         )
     elif isinstance(event, ToolEvent):
-        yield from _map_tool_event(event, session_id, seen_tool_call_ids)
+        yield from _map_tool_event(event, session_id, seen_tool_call_ids, bridge)
 
 
 def _map_input_messages(
@@ -818,7 +846,11 @@ def _map_tool_event(
     event: ToolEvent,
     session_id: str,
     seen_tool_call_ids: set[str],
+    bridge: _BridgeToolState,
 ) -> Iterator[SessionNotification]:
+    # a host tool a sandbox bridge ran for a proposed call updates the card
+    # synthesized for that call, so the scaffold's result must not settle it again
+    bridge.pending.pop(event.id, None)
     status = _tool_call_status(event)
     if event.id in seen_tool_call_ids:
         yield session_notification(

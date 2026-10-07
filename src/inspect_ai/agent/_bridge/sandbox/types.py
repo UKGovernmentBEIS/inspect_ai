@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING, Any, NamedTuple, NoReturn, Sequence
 
 import anyio
 from pydantic_core import to_jsonable_python
+from shortuuid import uuid
 
 from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai._util.logger import warn_once
@@ -124,7 +125,11 @@ class SandboxAgentBridge(AgentBridge):
             self.proposal_exempt_servers.add(server)
 
     def register_tool_execution_grants(
-        self, calls: Sequence[ToolCall], tools: Sequence[ToolInfo | Tool]
+        self,
+        calls: Sequence[ToolCall],
+        tools: Sequence[ToolInfo | Tool],
+        *,
+        span_id: str | None = None,
     ) -> None:
         """Add one-shot host-tool grants for the calls in a response handed to the scaffold.
 
@@ -135,8 +140,14 @@ class SandboxAgentBridge(AgentBridge):
         and the arguments handed to the scaffold, JSON-normalized since the
         scaffold re-sends them as parsed JSON. A call denoting several bridged
         tools (a shared description; `warn_indistinct_tools` names them at setup)
-        gets one grant for each. No grant is stored for a server in
-        `proposal_exempt_servers`.
+        gets one grant for each.
+
+        Each grant also carries the proposing call (`_Proposal`), so the host
+        tool's `ToolEvent` can pair with it. `span_id` is the span to record
+        executions under when the proposing `ModelEvent` was placed in a span
+        other than the current one (a `ModelEventSink` re-attributed it). Grants
+        are stored for servers in `proposal_exempt_servers` too, only so that a
+        proposed call on them pairs; they execute without one.
 
         A grant persists until consumed or evicted (with a warning, once
         `_MAX_TOOL_EXECUTION_GRANTS` unconsumed grants accumulate), including when
@@ -159,9 +170,8 @@ class SandboxAgentBridge(AgentBridge):
                     + ", ".join(f"{t.server}/{t.tool}" for t in targets)
                     + "); an execution grant was registered for each of them.",
                 )
+            proposal = _Proposal(call, span_id)
             for target in targets:
-                if target.server in self.proposal_exempt_servers:
-                    continue
                 if (
                     len(self._tool_execution_grants)
                     == self._tool_execution_grants.maxlen
@@ -178,6 +188,7 @@ class SandboxAgentBridge(AgentBridge):
                         server=target.server,
                         tool=target.tool,
                         arguments=to_jsonable_python(arguments, fallback=str),
+                        proposal=proposal,
                     )
                 )
 
@@ -204,8 +215,8 @@ class SandboxAgentBridge(AgentBridge):
 
     def consume_tool_execution_grant(
         self, server: str, tool: str, arguments: dict[str, Any]
-    ) -> bool:
-        """Consume one grant binding this exact (server, tool), if present.
+    ) -> "_ToolExecutionGrant | None":
+        """Consume and return the oldest grant binding this exact (server, tool), if any.
 
         Arguments match by JSON semantics (`_json_equal`): key order and
         int/float numeric equality (`5 == 5.0`) don't matter, so a scaffold's
@@ -219,8 +230,8 @@ class SandboxAgentBridge(AgentBridge):
                 and _json_equal(grant.arguments, arguments)
             ):
                 del self._tool_execution_grants[index]
-                return True
-        return False
+                return grant
+        return None
 
     def dispatched_call(self, call: ToolCall) -> DispatchedCall | None:
         """The bridged tool call `call` makes through a dispatcher (`_dispatched_call`)."""
@@ -259,6 +270,38 @@ class SandboxAgentBridge(AgentBridge):
         raise error
 
 
+class _Proposal:
+    """One model tool call that minted grants; shared by every grant it minted.
+
+    Referenced only from those grants, so it is dropped with the last of them
+    and no pairing state outlives the bounded grant store.
+    """
+
+    __slots__ = ("call", "span_id", "paired")
+
+    def __init__(self, call: ToolCall, span_id: str | None) -> None:
+        self.call = call
+        """The proposing call, with the function name as the model saw it."""
+
+        self.span_id = span_id
+        """Span to record executions under, or `None` for the span current then."""
+
+        self.paired = False
+        """Whether an execution has already taken `call.id`."""
+
+    def take_id(self) -> str:
+        """The `ToolEvent` id for the next execution of this proposal.
+
+        The proposing call's id the first time; a fresh id after, since a call
+        granted for several indistinguishable tools can execute more than once
+        and consumers key on the event id.
+        """
+        if self.paired:
+            return uuid()
+        self.paired = True
+        return self.call.id
+
+
 class _ToolExecutionGrant(NamedTuple):
     """Identity of one host tool execution the model proposed."""
 
@@ -270,6 +313,9 @@ class _ToolExecutionGrant(NamedTuple):
 
     arguments: dict[str, Any]
     """The arguments handed to the scaffold, JSON-normalized and matched via `_json_equal`."""
+
+    proposal: _Proposal
+    """The proposing call, shared with the other grants it minted."""
 
 
 class _BridgedToolId(NamedTuple):
