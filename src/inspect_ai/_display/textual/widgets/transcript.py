@@ -394,8 +394,11 @@ def render_sentinel_event(event: SentinelEvent) -> EventDisplay:
     summary: str = event.action or event.kind
     if event.status != "reported":
         summary = f"{summary} ({event.status})"
-    if event.suspicion is not None:
-        summary = f"{summary}, suspicion {event.suspicion}"
+    if isinstance(event.suspicion, dict):
+        scores = ", ".join(f"{k} {v:.2f}" for k, v in event.suspicion.items())
+        summary = f"{summary}, suspicion {scores}"
+    elif event.suspicion is not None:
+        summary = f"{summary}, suspicion {event.suspicion:.2f}"
     if event.error:
         summary = f"{summary}: {event.error}"
     if event.explanation:
