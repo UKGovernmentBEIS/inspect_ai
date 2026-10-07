@@ -12,7 +12,7 @@ The `fallback_models` generation option enables this automatically. When the req
 ::: {.callout-note appearance="simple"}
 ## API Compatibility
 
-Fallbacks apply only to the first-party Anthropic Claude API (they are ignored, with a warning, on Bedrock, Vertex, and Azure and with [batch mode](models-batch.qmd)) and only to Claude 5 and later requested models. Each fallback target must be one of the requested model's permitted targets, published as `allowed_fallback_models` on the model's [Models API](https://platform.claude.com/docs/en/api/models/list) entry (currently `claude-opus-4-8` is the only permitted target for `claude-fable-5`).
+Fallbacks apply only to the first-party Anthropic Claude API (they are ignored, with a warning, on Bedrock, Vertex, and Azure and with [batch mode](models-batch.qmd)) and only to Claude 5 and later requested models (except Claude Haiku 5.5, which has no permitted targets, so `fallback_models` is ignored with a warning). Each fallback target must be one of the requested model's permitted targets, published as `allowed_fallback_models` on the model's [Models API](https://platform.claude.com/docs/en/api/models/list) entry (currently `claude-opus-4-8` is the only permitted target for `claude-fable-5`).
 :::
 
 ## Basic Usage
