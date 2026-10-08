@@ -381,14 +381,15 @@ async def _execute_tools_impl(
                         truncated_output.truncated_bytes,
                     )
 
-            # create event
+            # create event (`call_tool` records an approver's modified arguments
+            # on `event`)
             result_event = ToolEvent(
                 id=call.id,
                 function=call.function,
-                arguments=call.arguments,
+                arguments=event.arguments,
                 result=content,
                 truncated=truncated,
-                view=call.view,
+                view=event.view,
                 error=tool_error,
                 agent=agent,
                 agent_span_id=agent_span_id,
@@ -668,10 +669,10 @@ async def _execute_tools_impl(
                     op_result_event = ToolEvent(
                         id=call.id,
                         function=call.function,
-                        arguments=call.arguments,
+                        arguments=event.arguments,
                         result=tool_result_content(op_tool_message.content),
                         truncated=None,
-                        view=call.view,
+                        view=event.view,
                         error=op_tool_message.error,
                     )
                     results[idx] = (
@@ -755,10 +756,10 @@ async def _execute_tools_impl(
                     cancellation_event = ToolEvent(
                         id=call.id,
                         function=call.function,
-                        arguments=call.arguments,
+                        arguments=event.arguments,
                         result=tool_result_content(tool_message.content),
                         truncated=None,
-                        view=call.view,
+                        view=event.view,
                         error=tool_message.error,
                     )
                     transcript().info(
@@ -881,7 +882,10 @@ async def call_tool(
         raise await record_tool_parsing_error(f"Tool {call.function} not found")
 
     # if we have a tool approver, apply it now
-    from inspect_ai.approval._apply import apply_tool_approval
+    from inspect_ai.approval._apply import (
+        apply_tool_approval,
+        modified_function_error,
+    )
 
     approved, approval = await apply_tool_approval(
         message, call, tool_def.viewer, conversation
@@ -894,7 +898,15 @@ async def call_tool(
         else:
             raise ToolApprovalError(approval.explanation if approval else None)
     if approval and approval.modified:
+        error = modified_function_error(call, approval.modified)
+        if error is not None:
+            await record_pending_tool_event()
+            raise RuntimeError(error)
+        # record the arguments that run: the model's proposal stays in the
+        # ModelEvent and the ApprovalEvent
         call = approval.modified
+        event.arguments = call.arguments
+        event.view = tool_call_view(call, tools)
 
     # validate the schema of the passed object
     validation_errors = validate_tool_input(call.arguments, tool_def.parameters)
@@ -1272,20 +1284,22 @@ def tool_params(input: dict[str, Any], func: Callable[..., Any]) -> dict[str, An
 
     # build params
     params: dict[str, Any] = {}
+    named_params: set[str] = set()
+    var_keyword: inspect.Parameter | None = None
     for param_name, param in signature.parameters.items():
-        # Parse docstring
-        docstring_info = parse_docstring(docstring, param_name)
+        # *args can't be passed by name, so tool arguments never fill it
+        if param.kind == inspect.Parameter.VAR_POSITIONAL:
+            continue
+
+        # **kwargs receives the arguments that no named parameter takes
+        if param.kind == inspect.Parameter.VAR_KEYWORD:
+            var_keyword = param
+            continue
+
+        named_params.add(param_name)
 
         # get type hint (fallback to docstring as required)
-        type_hint: Type[Any] | None = None
-        if param_name in type_hints:
-            type_hint = type_hints[param_name]
-        # as a fallback try to parse it from the docstring
-        elif "docstring_type" in docstring_info:
-            docstring_type = docstring_info["docstring_type"]
-            import builtins
-
-            type_hint = getattr(builtins, docstring_type, None)
+        type_hint = param_type_hint(param_name, type_hints, docstring)
 
         # error if there is no type_hint
         if type_hint is None:
@@ -1303,7 +1317,41 @@ def tool_params(input: dict[str, Any], func: Callable[..., Any]) -> dict[str, An
                 f"Required parameter {param_name} not provided to tool call."
             )
 
+    # pass the remaining arguments (e.g. ones declared by an explicit tool
+    # schema) through to **kwargs, converted using its annotation or
+    # docstring type if present
+    if var_keyword is not None:
+        kwargs_type: Any = (
+            param_type_hint(var_keyword.name, type_hints, docstring) or Any
+        )
+        for name, value in input.items():
+            if name not in named_params:
+                params[name] = tool_param(kwargs_type, value)
+
     return params
+
+
+def param_type_hint(
+    param_name: str, type_hints: dict[str, Type[Any]], docstring: str | None
+) -> Type[Any] | None:
+    # prefer the annotation
+    if param_name in type_hints:
+        return type_hints[param_name]
+
+    # as a fallback try to parse it from the docstring (a documented type
+    # that can't be resolved is an error rather than missing type info)
+    docstring_info = parse_docstring(docstring, param_name)
+    if "docstring_type" in docstring_info:
+        import builtins
+
+        type_hint: Type[Any] | None = getattr(
+            builtins, docstring_info["docstring_type"], None
+        )
+        if type_hint is None:
+            raise ValueError(f"No type annotation available for parameter {param_name}")
+        return type_hint
+
+    return None
 
 
 def tool_param(type_hint: Type[Any], input: Any) -> Any:
