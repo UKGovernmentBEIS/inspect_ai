@@ -1022,17 +1022,30 @@ recorded offset is parsed without a signature check, and
 different offsets (a new flush that grew a member, an `edit_score` or a
 viewer edit that rewrites the whole zip) can instead raise a decompression
 error, a `struct.error` from a garbage header, or an `EOFError` from a
-short read. The merge restarts on the same set of exceptions ctl log-dir
-mode already treats as a torn read (`_TORN_READ_ERRORS` in
+short read. When the rewrite makes the object shorter, a stale offset can
+lie past its new end: locally that is a short read, but on S3 the ranged
+`get_object` fails with a `ClientError` whose code is `InvalidRange`
+(HTTP 416), which `AsyncFilesystem.read_file_bytes` propagates
+(`src/inspect_ai/_util/asyncfiles.py:592`; only the missing-object codes
+are mapped, to `FileNotFoundError`, by `_map_missing_s3_object` at `:64`).
+
+The merge restarts when `is_torn_read(ex)` is true for an exception from
+any read of a shard. PR 5 adds that predicate to `_util/async_zip.py`
+beside `ZipCrcError`: true for an instance of the set ctl log-dir mode
+already treats as torn (`_TORN_READ_ERRORS` in
 `src/inspect_ai/_control/log_dir/consistency.py:40`: `ZipCrcError`,
 `zlib.error`, `zstandard.ZstdError`, `struct.error`, `EOFError`, ijson's
-`JSONError` and `ValueError`), raised by any read of a shard. PR 5 moves
-that tuple to `_util/async_zip.py` beside `ZipCrcError`, as
-`TORN_READ_ERRORS`, and both consumers import it, so the two agree on what
-counts as torn. As in ctl, a pydantic `ValidationError` is not a torn
-read and is caught before the tuple (it subclasses `ValueError`): it is
-raised only after the bytes passed their CRC check, so it means the
-member itself does not parse, and the pass fails at once.
+`JSONError` and `ValueError`), moved beside it, and for a botocore
+`ClientError` whose `response["Error"]["Code"]` is `"InvalidRange"`.
+Every other `ClientError` (access denied, expired credentials, throttling
+after the client's retries) is not torn and propagates at once, as do
+`FileNotFoundError` and other storage errors. ctl's `consistency.py`
+calls the same predicate, so the two agree on what counts as torn, and
+ctl gains the `InvalidRange` case ("Reading a member consistently" in its
+design). As in ctl, a pydantic `ValidationError` is not a torn read and is
+checked first (it subclasses `ValueError`): it is raised only after the
+bytes passed their CRC check, so it means the member itself does not
+parse, and the pass fails at once.
 Checking the local-header signature in the reader would catch some of
 these cases earlier but not a decompression error from a stale range, so
 it is not needed. A shard that is corrupt rather than changing fails the
@@ -1915,9 +1928,15 @@ Per PR (numbers from "Implementation plan"):
      writing. The replacement is tested both with the same member offsets
      (a CRC mismatch) and with different offsets (an `edit_score` rewrite
      of the shard, so the stale offset yields a decompression,
-     local-header or short-read error); both restart. A shard member that
-     passes its CRC but fails validation fails the pass without a
-     restart;
+     local-header or short-read error); both restart. On `mock_s3`, a
+     rewrite that shrinks the shard so that a planned member's offset lies
+     past the new end makes the member read fail with `InvalidRange`
+     (416); the pass restarts, re-reads the new central directory,
+     re-validates the shard and merges it. A storage error that is not
+     `InvalidRange` (an injected `AccessDenied` `ClientError`) fails the
+     pass at once without a restart, and so does a shard member that
+     passes its CRC but fails validation. `tests/util/test_async_zip.py`
+     covers `is_torn_read` for each case;
    - `delete_shards`: removes the companion after a verified `success`
      publish; a verification failure leaves the shards; combined with
      `allow_incomplete` it is a `ValueError`; a companion with a
@@ -2091,7 +2110,8 @@ Step 1 in eight PRs, of which PR 1 has landed. There is no viewer PR
    them), CHANGELOG entry. Depends on 2, 3,
    4. Files as listed plus `log/__init__.py`, `_cli/log.py`, `_eval/eval.py`,
    `_util/async_zip.py` and `_control/log_dir/consistency.py` (the shared
-   torn-read exceptions, "Consistent reads"),
+   `is_torn_read` predicate, "Consistent reads"),
+   `tests/util/test_async_zip.py`,
    `docs/reference/inspect_ai.log.qmd`, `docs/parallelism.qmd`,
    `CHANGELOG.md`, `tests/log/test_shards.py`, `tests/cli/test_log.py`.
    Uses the landed `ZipEntry` CRC and `verify_crc=True` reads

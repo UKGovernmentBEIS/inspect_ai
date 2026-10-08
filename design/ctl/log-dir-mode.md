@@ -717,7 +717,11 @@ read into missing or pending data.
   reads (whole or streamed) against the central directory's CRC-32, which
   `ZipEntry` gains for this and for the journal-member cache key; a CRC mismatch, a
   decompression error or a JSON error re-reads the central directory and
-  the member, up to twice. A streamed read is validated when its stream is
+  the member, up to twice. So does, on S3, an `InvalidRange` (416) from a
+  member offset past the end of a shorter replacement, through the
+  `is_torn_read` predicate the sharding merge shares (sharding
+  implementation, "Consistent reads", added with its PR 5); other storage
+  errors are not re-read. A streamed read is validated when its stream is
   fully consumed (the field-excluding parse scans the whole member, so the
   final checksum is always reached); a stream closed early, by
   cancellation or error, is never treated as validated.
