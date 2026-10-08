@@ -9,13 +9,12 @@ from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.url import data_uri_mime_type, data_uri_to_base64, is_data_uri
 from inspect_ai.model._call_tools import (
-    ValidatedToolCall,
     get_tools_info,
     tool_call_error,
-    validated_tool_call,
+    validate_tool_input,
 )
 from inspect_ai.model._model import ModelRefusalError
-from inspect_ai.tool._tool_call import ToolCall
+from inspect_ai.tool._tool import ToolParsingError
 from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.tool._tools._code_execution import CodeExecutionProviders
 from inspect_ai.tool._tools._web_search._web_search import WebSearchProviders
@@ -233,11 +232,9 @@ def call_tool(
     per proposal (see `SandboxAgentBridge.register_tool_execution_grants`), unless
     its server was registered with `require_proposal=False`.
 
-    The grant is matched on the arguments the scaffold was handed, and the tool
-    runs the call the grant carries, prepared (validated, canonicalized and
-    converted, `validated_tool_call()`) when approval reviewed it or the grant
-    was made, not again here. A scaffold's malformed arguments surface as a
-    `ToolParsingError` the model can recover from.
+    Arguments are validated against the tool's schema as for a native call, so
+    a scaffold's malformed arguments surface as a `ToolParsingError` the model
+    can recover from; they are otherwise forwarded as the scaffold sent them.
     Exceptions are classified after unwrapping any task-group
     `ExceptionGroup`, as `execute_tools` does, and with the same
     `tool_call_error` mapping. Those a native call would show the model
@@ -259,18 +256,10 @@ def call_tool(
         if tool not in server_tools:
             raise ValueError(f"Unknown tool '{tool}' in server '{server}'")
 
-        tool_fn = server_tools[tool]
-        prepared: ValidatedToolCall | None = None
-        exempt = server in bridge.proposal_exempt_servers
-        grant = (
-            None
-            if exempt
-            else bridge.consume_tool_execution_grant(server, tool, arguments)
-        )
-        if grant is not None:
-            # run the call as prepared for the grant, not a new construction of it
-            prepared = grant.prepared
-        if not exempt and grant is None:
+        if (
+            server not in bridge.proposal_exempt_servers
+            and not bridge.consume_tool_execution_grant(server, tool, arguments)
+        ):
             warn_once(
                 logger,
                 f"Denied host tool call '{server}/{tool}': the model did not "
@@ -283,13 +272,14 @@ def call_tool(
                 "proposed call)"
             )
 
+        tool_fn = server_tools[tool]
         try:
-            if prepared is None:
-                prepared = validated_tool_call(
-                    ToolCall(id="", function=tool, arguments=arguments),
-                    ToolDef(tool_fn),
-                )
-            result = await tool_fn(**prepared.arguments)
+            validation_errors = validate_tool_input(
+                arguments, ToolDef(tool_fn).parameters
+            )
+            if validation_errors:
+                raise ToolParsingError(validation_errors)
+            result = await tool_fn(**arguments)
         except Exception as ex:
             # classify the unwrapped exception, but let the original propagate:
             # the service dispatcher special-cases a bare LimitExceededError

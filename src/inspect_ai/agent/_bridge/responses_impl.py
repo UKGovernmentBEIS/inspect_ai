@@ -169,7 +169,6 @@ from inspect_ai.tool._tools._web_search._web_search import (
 )
 from inspect_ai.util._json import JSONSchema
 
-from ._declared import with_declared_schema
 from .util import (
     apply_message_ids,
     bridge_generate,
@@ -585,14 +584,11 @@ def tool_from_responses_tool(
         # it verbatim: ToolParams validation is lossy (drops schema extensions
         # like `encrypted: true`, normalizes `required`) and models with
         # reserved tool schemas (e.g. codex collaboration tools) reject drift.
-        return with_declared_schema(
-            ToolInfo(
-                name=tool_param["name"],
-                description=tool_param["description"] or tool_param["name"],
-                parameters=ToolParams.model_validate(tool_param["parameters"]),
-                options={RESPONSES_VERBATIM: dict(tool_param)},
-            ),
-            tool_param["parameters"],
+        return ToolInfo(
+            name=tool_param["name"],
+            description=tool_param["description"] or tool_param["name"],
+            parameters=ToolParams.model_validate(tool_param["parameters"]),
+            options={RESPONSES_VERBATIM: dict(tool_param)},
         )
     elif is_custom_tool_param(tool_param):
         return ToolInfo(

@@ -81,7 +81,6 @@ from inspect_ai.tool._tools._web_search._web_search import (
     web_search,
 )
 
-from ._declared import with_declared_schema
 from ._errors import BridgePolicyError
 from .types import AgentBridge
 from .util import (
@@ -342,15 +341,12 @@ def tools_from_anthropic_tools(
     for anthropic_tool in anthropic_tools or []:
         if is_tool_param(anthropic_tool):
             tools.append(
-                with_declared_schema(
-                    ToolInfo(
-                        name=anthropic_tool["name"],
-                        description=anthropic_tool["description"],
-                        parameters=ToolParams.model_validate(
-                            anthropic_tool["input_schema"]
-                        ),
+                ToolInfo(
+                    name=anthropic_tool["name"],
+                    description=anthropic_tool["description"],
+                    parameters=ToolParams.model_validate(
+                        anthropic_tool["input_schema"]
                     ),
-                    anthropic_tool["input_schema"],
                 )
             )
         elif is_text_editor_tool(anthropic_tool):

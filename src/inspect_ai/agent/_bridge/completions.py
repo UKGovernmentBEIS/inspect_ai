@@ -15,7 +15,6 @@ from inspect_ai.tool._tool_choice import ToolChoice, ToolFunction
 from inspect_ai.tool._tool_info import ToolInfo
 from inspect_ai.tool._tool_params import ToolParams
 
-from ._declared import with_declared_schema
 from ._errors import BridgePolicyError
 from .util import (
     apply_message_ids,
@@ -154,13 +153,10 @@ def tools_from_openai_tools(tools: "list[ChatCompletionToolParam]") -> list[Tool
         assert tool["type"] == "function", '"custom" tool calls are not supported'
         function = tool["function"].copy()
         inspect_tools.append(
-            with_declared_schema(
-                ToolInfo(
-                    name=function["name"],
-                    description=function["description"],
-                    parameters=ToolParams.model_validate(function["parameters"]),
-                ),
-                function["parameters"],
+            ToolInfo(
+                name=function["name"],
+                description=function["description"],
+                parameters=ToolParams.model_validate(function["parameters"]),
             )
         )
     return inspect_tools

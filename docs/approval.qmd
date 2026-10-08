@@ -65,7 +65,9 @@ approvers:
     tools: "*"
 ```
 
-The function name and the arguments are matched separately: a name glob such as `*_click` matches only function names, and each `name=value` item in a pattern matches the argument of that name wherever it appears in the call. String values are written in single quotes; a `'` or backslash inside a value is preceded by a backslash. The last value is prefix matched, and other arguments are allowed, unless the pattern ends with `)`. Approval sees the call after its arguments pass the tool's schema, so a call with invalid arguments fails before any approver sees it. A parameter typed as a Pydantic model is shown to approvers as the model serializes (`model_dump(mode="json")`), with its defaults and any value its own validation changed; a model with custom serializers is shown in its serialized form. Approval decides on these values, and the tool runs with the model that produced them. A `modify` decision runs only if each changed argument converts to exactly the value the approver selected; an argument it left as approved keeps the model approval saw.
+Note that since this is a prefix match and there could be other arguments, we don't end the tool match pattern with a parentheses.
+
+Approval sees a call after its arguments pass the tool's schema and are converted to the tool's parameter types, so a call with invalid arguments fails before any approver sees it. A parameter typed as a Pydantic model (or a list of models) is shown as the constructed model serializes (`model_dump(mode="json")`), with its defaults and any value its own validation changed, and the tool runs with that model. A model in any other form (for example in a dict) is a parsing error while approval is active. A `modify` decision runs only if each argument converts to exactly the value the approver selected.
 
 ## Approvers in Code
 
@@ -185,8 +187,6 @@ Two behaviors are specific to bridged agents:
 1.  **A rejection discards every tool call in the same response.** Each call gets a result explaining what happened, and the calls that weren't themselves rejected are told which call caused it so the model can re-issue them on their own. This differs from Inspect-executed tools, where each call is handled independently.
 
 2.  **Three consecutive rejected responses terminate the sample.** Without this a model that keeps proposing rejected calls would retry indefinitely.
-
-As for Inspect-executed tools, approvers see only valid calls. A call whose arguments don't match the tool's declared schema (or, for a bridged host tool, the tool's own parameters) is answered with a parsing error in the same way as a rejection (and counts toward the three), without consulting the approvers. The declared schema is the one the model was sent, after any bridge `filter`. Its `$ref` references resolve only within the schema, and a schema that is invalid or has a reference that doesn't resolve also gives a parsing error. A call to a bridged host tool is approved with the arguments the tool will act on (for example the canonical path for the memory tool) and the tool's own viewer. A call that matches several bridged tools (because they share a description) is approved once for each, and a `modify` decision on it is treated as a rejection.
 
 Because Inspect doesn't execute these tool calls, no tool event is recorded for them — the transcript shows the approval decision rather than a tool call with an approval attached. Two things follow from that when reading a log:
 

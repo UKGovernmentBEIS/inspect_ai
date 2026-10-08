@@ -118,7 +118,7 @@ def test_tool_call_view_returns_view_when_viewer_succeeds():
     assert result.content == "rendered ok"
 
 
-async def test_apply_tool_approval_rejects_when_viewer_raises() -> None:
+async def test_apply_tool_approval_falls_back_when_viewer_raises() -> None:
     def raising_viewer(call: ToolCall) -> ToolCallView:
         raise TypeError("not a string")
 
@@ -133,7 +133,7 @@ async def test_apply_tool_approval_rejects_when_viewer_raises() -> None:
     token = _tool_approver.set(capture_approver)
     handler = _attach("inspect_ai.approval._apply")
     try:
-        approved, approval = await apply_tool_approval(
+        approved, _ = await apply_tool_approval(
             "msg",
             ToolCall(id="1", function="viewer_typeerror_tool", arguments={"x": 1}),
             raising_viewer,
@@ -143,14 +143,10 @@ async def test_apply_tool_approval_rejects_when_viewer_raises() -> None:
         _tool_approver.reset(token)
         logging.getLogger("inspect_ai.approval._apply").removeHandler(handler)
 
-    # the approver is not asked to decide on a fallback rendering
-    assert approved is False
-    assert captured == {}
-    assert approval is not None
-    assert approval.decision == "reject"
-    assert approval.explanation is not None
-    assert "viewer for tool 'viewer_typeerror_tool' failed" in approval.explanation
-    assert "not a string" in approval.explanation
+    assert approved is True
+    view = captured["view"]
+    assert view.call is not None
+    assert "viewer_typeerror_tool" in view.call.content
     assert any(
         "viewer_typeerror_tool" in r.getMessage()
         and "Error in viewer" in r.getMessage()
@@ -158,24 +154,8 @@ async def test_apply_tool_approval_rejects_when_viewer_raises() -> None:
     )
 
 
-async def generate_view(
-    tool_def: ToolDef, arguments: dict[str, object]
-) -> ToolCallContent | None:
-    model = get_model(
-        "mockllm/model",
-        custom_outputs=[
-            ModelOutput.for_tool_call(
-                "mockllm/model", tool_name=tool_def.name, tool_arguments=arguments
-            )
-        ],
-    )
-    output = await model.generate("go", tools=[tool_def])
-    tool_calls = output.message.tool_calls
-    assert tool_calls
-    return tool_calls[0].view
-
-
 async def test_generate_skips_viewer_for_invalid_call() -> None:
+    """The transcript viewer, like approval, sees only a validated call."""
     viewed: list[ToolCall] = []
 
     def viewer(call: ToolCall) -> ToolCallView:
@@ -184,26 +164,20 @@ async def test_generate_skips_viewer_for_invalid_call() -> None:
 
     tdef = _make_tool_def("viewer_invalid_tool", viewer)
 
-    assert await generate_view(tdef, {"thought": 5}) is None
+    async def generate_view(arguments: dict[str, object]) -> ToolCallContent | None:
+        model = get_model(
+            "mockllm/model",
+            custom_outputs=[
+                ModelOutput.for_tool_call(
+                    "mockllm/model", tool_name=tdef.name, tool_arguments=arguments
+                )
+            ],
+        )
+        output = await model.generate("go", tools=[tdef])
+        assert output.message.tool_calls
+        return output.message.tool_calls[0].view
+
+    assert await generate_view({"thought": 5}) is None
     assert viewed == []
-
-    view = await generate_view(tdef, {"thought": "ok"})
-    assert view is not None
-    assert view.content == "viewed"
-
-
-async def test_generate_viewer_sees_canonical_memory_path() -> None:
-    from inspect_ai.tool import memory
-
-    viewed: list[ToolCall] = []
-
-    def viewer(call: ToolCall) -> ToolCallView:
-        viewed.append(call)
-        return ToolCallView(call=ToolCallContent(format="text", content="viewed"))
-
-    tdef = ToolDef(memory(), viewer=viewer)
-    await generate_view(
-        tdef, {"command": "view", "path": "/memories/a/../public/b.txt"}
-    )
-
-    assert [call.arguments["path"] for call in viewed] == ["/memories/public/b.txt"]
+    view = await generate_view({"thought": "ok"})
+    assert view is not None and view.content == "viewed"

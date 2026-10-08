@@ -1,9 +1,7 @@
 from collections import deque
-from copy import deepcopy
-from dataclasses import replace
 from logging import getLogger
 from os.path import commonprefix
-from typing import TYPE_CHECKING, Any, Callable, Mapping, NamedTuple, NoReturn, Sequence
+from typing import TYPE_CHECKING, Any, NamedTuple, NoReturn, Sequence
 
 import anyio
 from pydantic_core import to_jsonable_python
@@ -12,13 +10,8 @@ from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai._util.json import json_equal
 from inspect_ai._util.logger import warn_once
 from inspect_ai.agent._agent import AgentState
-from inspect_ai.agent._bridge.types import AgentBridge, DispatchedCall, ReviewedCall
-from inspect_ai.model._call_tools import (
-    ValidatedToolCall,
-    approved_modification,
-    get_tools_info,
-    validated_tool_call,
-)
+from inspect_ai.agent._bridge.types import AgentBridge, DispatchedCall
+from inspect_ai.model._call_tools import get_tools_info
 from inspect_ai.model._compaction.types import CompactionStrategy
 from inspect_ai.model._model import (
     GenerateFilter,
@@ -28,9 +21,7 @@ from inspect_ai.model._model import (
 )
 from inspect_ai.tool import Tool
 from inspect_ai.tool._mcp._config import MCPServerConfigHTTP
-from inspect_ai.tool._tool import ToolParsingError
 from inspect_ai.tool._tool_call import ToolCall
-from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.tool._tool_info import ToolInfo
 from inspect_ai.util._checkpoint.checkpointer import Checkpointer
 
@@ -95,7 +86,6 @@ class SandboxAgentBridge(AgentBridge):
             maxlen=_MAX_TOOL_EXECUTION_GRANTS
         )
         self._failure_requested = anyio.Event()
-        self._approved_preparations: dict[tuple[int, str, str], ValidatedToolCall] = {}
         self._failure: Exception | None = None
 
     port: int
@@ -134,35 +124,6 @@ class SandboxAgentBridge(AgentBridge):
         if not require_proposal:
             self.proposal_exempt_servers.add(server)
 
-    def record_approved_preparations(
-        self, prepared: Mapping[tuple[int, str, str], ValidatedToolCall]
-    ) -> None:
-        """Hold the calls approval prepared for `register_tool_execution_grants`."""
-        self._approved_preparations = dict(prepared)
-
-    def reviewed_modification(
-        self,
-        call: ToolCall,
-        reviewed: ReviewedCall,
-        selected: dict[str, Any],
-        declared: dict[str, list[ToolInfo]],
-    ) -> ReviewedCall:
-        """Prepare a host tool's modified call (`approved_modification()`)."""
-        if (
-            reviewed.target is None
-            or reviewed.prepared is None
-            or reviewed.source is None
-        ):
-            return super().reviewed_modification(call, reviewed, selected, declared)
-        tool_def = ToolDef(self.bridged_tools[reviewed.target[0]][reviewed.target[1]])
-        prepared = approved_modification(
-            reviewed.source,
-            reviewed.prepared,
-            replace(reviewed.source, arguments=deepcopy(selected)),
-            tool_def,
-        )
-        return reviewed._replace(call=prepared.call, prepared=prepared)
-
     def register_tool_execution_grants(
         self, calls: Sequence[ToolCall], tools: Sequence[ToolInfo | Tool]
     ) -> None:
@@ -178,13 +139,6 @@ class SandboxAgentBridge(AgentBridge):
         gets one grant for each. No grant is stored for a server in
         `proposal_exempt_servers`.
 
-        A grant also carries the host tool's prepared call, which is what runs:
-        the one approval reviewed (`record_approved_preparations`, by the call's
-        position in the response and its target), or one prepared here from its
-        own copy of the arguments for a call no approval reviewed. The tool is
-        not prepared again at execution, so a model whose construction varies
-        (a `default_factory`, a stateful validator) runs as approved.
-
         A grant persists until consumed or evicted (with a warning, once
         `_MAX_TOOL_EXECUTION_GRANTS` unconsumed grants accumulate), including when
         the response never reached the scaffold, but only ever authorizes the
@@ -194,9 +148,7 @@ class SandboxAgentBridge(AgentBridge):
         for tool in tools:
             if isinstance(tool, ToolInfo):
                 declared.setdefault(tool.name, []).append(tool)
-        prepared = self._approved_preparations
-        self._approved_preparations = {}
-        for index, call in enumerate(calls):
+        for call in calls:
             targets, arguments = _proposed_call(
                 self.bridged_tools, self.served_tools, call, declared
             )
@@ -211,13 +163,6 @@ class SandboxAgentBridge(AgentBridge):
             for target in targets:
                 if target.server in self.proposal_exempt_servers:
                     continue
-                target_prepared = prepared.get(
-                    (index, target.server, target.tool)
-                ) or _prepared_host_call(
-                    self.bridged_tools[target.server][target.tool],
-                    target.tool,
-                    arguments,
-                )
                 if (
                     len(self._tool_execution_grants)
                     == self._tool_execution_grants.maxlen
@@ -234,7 +179,6 @@ class SandboxAgentBridge(AgentBridge):
                         server=target.server,
                         tool=target.tool,
                         arguments=to_jsonable_python(arguments, fallback=str),
-                        prepared=target_prepared,
                     )
                 )
 
@@ -261,8 +205,8 @@ class SandboxAgentBridge(AgentBridge):
 
     def consume_tool_execution_grant(
         self, server: str, tool: str, arguments: dict[str, Any]
-    ) -> "_ToolExecutionGrant | None":
-        """Consume and return one grant binding this exact (server, tool), if present.
+    ) -> bool:
+        """Consume one grant binding this exact (server, tool), if present.
 
         Arguments match by JSON semantics (`json_equal`): key order and
         int/float numeric equality (`5 == 5.0`) don't matter, so a scaffold's
@@ -276,57 +220,12 @@ class SandboxAgentBridge(AgentBridge):
                 and json_equal(grant.arguments, arguments)
             ):
                 del self._tool_execution_grants[index]
-                return grant
-        return None
+                return True
+        return False
 
     def dispatched_call(self, call: ToolCall) -> DispatchedCall | None:
         """The bridged tool call `call` makes through a dispatcher (`_dispatched_call`)."""
         return _dispatched_call(self.bridged_tools, call)
-
-    def reviewed_calls(
-        self, call: ToolCall, declared: dict[str, list[ToolInfo]]
-    ) -> list[ReviewedCall]:
-        """Review a call denoting bridged host tools as each will run it.
-
-        The host tools are resolved as for execution grants (`_proposed_call`),
-        except that a dispatcher call needs no declaration (as before). Each is
-        reviewed with the host tool's validated, canonical arguments
-        (`validated_tool_call()`) and its viewer, under the scaffold's function
-        name for a call matched by its declaration and under the target's name
-        for a dispatcher call. Any other call is reviewed as the base class does.
-
-        Raises:
-            ToolParsingError: The arguments are not valid for a host tool it
-                denotes, or for the scaffold's declaration.
-        """
-        declarations = declared.get(call.function)
-        targets = (
-            _resolve_by_served_content(self.served_tools, declarations)
-            if declarations
-            else []
-        )
-        if targets:
-            return [
-                _reviewed_host_call(
-                    call,
-                    self.bridged_tools[target.server][target.tool],
-                    None,
-                    target,
-                )
-                for target in targets
-            ]
-        dispatched = self.dispatched_call(call)
-        if dispatched is not None:
-            target = _BridgedToolId(
-                server=dispatched.server, tool=dispatched.target.function
-            )
-            tool = self.bridged_tools[target.server][target.tool]
-            return [
-                _reviewed_host_call(
-                    dispatched.target, tool, dispatched.dispatch, target
-                )
-            ]
-        return super().reviewed_calls(call, declared)
 
     def request_fail(self, error: Exception) -> None:
         """Fail the sample with `error` from a bridged generation or tool call.
@@ -372,10 +271,6 @@ class _ToolExecutionGrant(NamedTuple):
 
     arguments: dict[str, Any]
     """The arguments handed to the scaffold, JSON-normalized and matched via `json_equal`."""
-
-    prepared: ValidatedToolCall | None
-    """The host tool's prepared call, which the execution runs (None when the
-    arguments are invalid for the tool; the service reports the parsing error)."""
 
 
 class _BridgedToolId(NamedTuple):
@@ -526,38 +421,3 @@ def _dispatched_call(
             dispatch=lambda modified: {**call.arguments, "Arguments": modified},
         )
     return None
-
-
-def _reviewed_host_call(
-    call: ToolCall,
-    tool: Tool,
-    dispatch: Callable[[dict[str, Any]], dict[str, Any]] | None,
-    target: _BridgedToolId,
-) -> ReviewedCall:
-    """`call` as `tool` will run it, for approval (raises `ToolParsingError`).
-
-    Prepared from its own copy of the arguments, so a target sharing the
-    proposal with others cannot change what another runs.
-    """
-    tool_def = ToolDef(tool)
-    source = replace(call, arguments=deepcopy(call.arguments))
-    prepared = validated_tool_call(source, tool_def)
-    return ReviewedCall(
-        prepared.call,
-        tool_def.viewer,
-        dispatch,
-        (target.server, target.tool),
-        prepared,
-        source,
-    )
-
-
-def _prepared_host_call(
-    tool: Tool, name: str, arguments: dict[str, Any]
-) -> ValidatedToolCall | None:
-    """The host tool's prepared call for (a copy of) `arguments`, or None if invalid."""
-    call = ToolCall(id="", function=name, arguments=deepcopy(arguments))
-    try:
-        return validated_tool_call(call, ToolDef(tool))
-    except ToolParsingError:
-        return None

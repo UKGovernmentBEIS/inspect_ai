@@ -46,7 +46,6 @@ from inspect_ai.tool._tools._web_search._web_search import (
     web_search,
 )
 
-from ._declared import with_declared_schema
 from ._errors import BridgePolicyError
 from .types import AgentBridge
 from .util import (
@@ -267,19 +266,12 @@ def tools_from_google_tools(
                 # Convert Google SDK enum types to strings before validation
                 parameters = _convert_google_enums(parameters)
                 tools.append(
-                    with_declared_schema(
-                        ToolInfo(
-                            name=func_decl.get("name", ""),
-                            description=func_decl.get("description", ""),
-                            parameters=ToolParams.model_validate(parameters)
-                            if parameters
-                            else ToolParams(),
-                        ),
-                        _nullable_to_json_schema(
-                            _google_schema_to_json_schema(parameters)
-                        )
-                        if "parameters" in func_decl
-                        else parameters,
+                    ToolInfo(
+                        name=func_decl.get("name", ""),
+                        description=func_decl.get("description", ""),
+                        parameters=ToolParams.model_validate(parameters)
+                        if parameters
+                        else ToolParams(),
                     )
                 )
         elif "googleSearch" in google_tool or "googleSearchRetrieval" in google_tool:
@@ -834,22 +826,6 @@ _GEMINI_SCHEMA_KEYWORDS = frozenset({"nullable", "propertyOrdering", "example"})
 def _google_schema_to_json_schema(schema: Any) -> Any:
     """Normalize a Gemini OpenAPI-style Schema into a standard JSON Schema dict."""
     return _lowercase_schema_types(_convert_google_enums(schema))
-
-
-def _nullable_to_json_schema(value: Any) -> Any:
-    """Express the OpenAPI `nullable` keyword (which JSON Schema ignores) as a type."""
-    if isinstance(value, dict):
-        out = {k: _nullable_to_json_schema(v) for k, v in value.items()}
-        if out.pop("nullable", False) is True:
-            schema_type = out.get("type")
-            if isinstance(schema_type, str):
-                out["type"] = [schema_type, "null"]
-            if isinstance(out.get("enum"), list) and None not in out["enum"]:
-                out["enum"] = [*out["enum"], None]
-        return out
-    if isinstance(value, list):
-        return [_nullable_to_json_schema(v) for v in value]
-    return value
 
 
 def _lowercase_schema_types(value: Any) -> Any:

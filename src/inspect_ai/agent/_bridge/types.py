@@ -1,15 +1,6 @@
 from enum import IntEnum
 from functools import lru_cache
-from typing import (
-    TYPE_CHECKING,
-    Any,
-    Callable,
-    Mapping,
-    NamedTuple,
-    NoReturn,
-    Sequence,
-    Set,
-)
+from typing import TYPE_CHECKING, Any, Callable, NamedTuple, NoReturn, Sequence, Set
 
 from shortuuid import uuid
 
@@ -33,8 +24,8 @@ from inspect_ai.model._model import (
     ModelResolver,
 )
 from inspect_ai.model._model_output import ModelOutput
-from inspect_ai.tool._tool import Tool, ToolParsingError
-from inspect_ai.tool._tool_call import ToolCall, ToolCallViewer
+from inspect_ai.tool._tool import Tool
+from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_info import ToolInfo
 from inspect_ai.util._checkpoint.checkpointer import Checkpointer
 from inspect_ai.util._checkpoint.checkpointer_noop import _NoopCheckpointer
@@ -45,7 +36,6 @@ if TYPE_CHECKING:
     # cycles back through partially-initialized modules). Same reason
     # `model/_call_tools.py` defers it.
     from inspect_ai.approval._policy import ApprovalPolicy
-    from inspect_ai.model._call_tools import ValidatedToolCall
 
 
 class DispatchedCall(NamedTuple):
@@ -59,32 +49,6 @@ class DispatchedCall(NamedTuple):
 
     dispatch: Callable[[dict[str, Any]], dict[str, Any]]
     """Arguments for the dispatcher call that make the target call with the given ones."""
-
-
-class ReviewedCall(NamedTuple):
-    """A call approval decides on for a tool call in a bridged response."""
-
-    call: ToolCall
-    """The call the approver sees: validated, with canonical arguments for a host tool."""
-
-    viewer: ToolCallViewer | None
-    """The host tool's viewer (None for a tool the scaffold runs itself)."""
-
-    dispatch: Callable[[dict[str, Any]], dict[str, Any]] | None
-    """Arguments for the scaffold's call that make `call` with the given ones (None
-    when they are the same)."""
-
-    target: tuple[str, str] | None = None
-    """The bridged host tool (server, tool) `call` is for (None for a tool the
-    scaffold runs itself)."""
-
-    prepared: "ValidatedToolCall | None" = None
-    """The host tool's prepared call: what an approval of `call` authorizes it to
-    run (None for a tool the scaffold runs itself)."""
-
-    source: ToolCall | None = None
-    """The host tool's call as proposed, before it was prepared (None for a tool
-    the scaffold runs itself)."""
 
 
 class AgentBridge:
@@ -257,43 +221,6 @@ class AgentBridge:
     decide whether alternate choices must be dropped without an approval policy.
     """
 
-    def record_approved_preparations(
-        self, prepared: Mapping[tuple[int, str, str], "ValidatedToolCall"]
-    ) -> None:
-        """Hold the host-tool calls approval prepared for the next grant registration.
-
-        Keyed by the call's position in the response and the (server, tool) it
-        runs. `bridge_generate` calls this just before
-        `register_tool_execution_grants`; in-process bridges run no host tools,
-        so the base implementation discards them.
-        """
-
-    def reviewed_modification(
-        self,
-        call: ToolCall,
-        reviewed: ReviewedCall,
-        selected: dict[str, Any],
-        declared: dict[str, list[ToolInfo]],
-    ) -> ReviewedCall:
-        """The review of `call` after an approver selected `selected` for `reviewed`.
-
-        A tool the scaffold runs itself is checked against its declaration as
-        `reviewed_calls` does. `SandboxAgentBridge` prepares a host tool's
-        modified call, keeping the arguments the approver left as approved.
-
-        Raises:
-            ToolParsingError: The modified arguments are invalid.
-            ToolApprovalError: A changed argument would not run as selected.
-        """
-        arguments = reviewed.dispatch(selected) if reviewed.dispatch else selected
-        (review,) = self.reviewed_calls(
-            ToolCall(
-                id=call.id, function=call.function, arguments=arguments, type=call.type
-            ),
-            declared,
-        )
-        return review
-
     def register_tool_execution_grants(
         self, calls: Sequence[ToolCall], tools: Sequence[ToolInfo | Tool]
     ) -> None:
@@ -318,35 +245,6 @@ class AgentBridge:
         dispatched; `SandboxAgentBridge` overrides this.
         """
         return None
-
-    def reviewed_calls(
-        self, call: ToolCall, declared: dict[str, list[ToolInfo]]
-    ) -> list[ReviewedCall]:
-        """The calls approval decides on for `call`, a tool call in a bridged response.
-
-        As for a natively executed tool, approval decides only on a valid call: a
-        call to a tool the scaffold declared (`declared`, by name) must match the
-        schema the model was sent for it (`effective_schema()`). The scaffold
-        runs it, so it is otherwise reviewed as given. `SandboxAgentBridge`
-        reviews a call that denotes bridged host tools as each host tool will
-        run it.
-
-        Raises:
-            ToolParsingError: The arguments do not match the declared schema, or
-                it cannot be used to check them.
-        """
-        from inspect_ai.model._call_tools import validate_declared_input
-
-        from ._declared import effective_schema
-
-        declarations = declared.get(call.function)
-        if declarations and call.type == "function":
-            errors = validate_declared_input(
-                call.arguments, effective_schema(declarations[0])
-            )
-            if errors:
-                raise ToolParsingError(errors)
-        return [ReviewedCall(call, None, None)]
 
     def compaction(
         self, tools: Sequence[ToolInfo | Tool], model: Model

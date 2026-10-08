@@ -1,26 +1,11 @@
 import datetime
-import uuid
 from dataclasses import dataclass
 from datetime import date, time, timezone
 from enum import Enum
-from typing import (
-    Any,
-    Deque,
-    Dict,
-    FrozenSet,
-    Generator,
-    Iterable,
-    List,
-    Literal,
-    Optional,
-    Set,
-    Tuple,
-    Union,
-)
+from typing import Any, Dict, List, Literal, Optional, Set, Tuple, Union
 
 import pytest
 from pydantic import BaseModel
-from pydantic_core import to_jsonable_python
 from typing_extensions import TypedDict
 
 from inspect_ai._util.content import ContentDocument, ContentText
@@ -567,27 +552,18 @@ async def test_tool_event_message_id_for_multiple_calls():
         (bool, "false"),
         (bool, 0),
         (str, {"a": 1}),
-        (str, ["a"]),
         (str, 5),
         (int, 1.5),
         (int, "5"),
         (int, True),
         (float, "1.5"),
-        (float, False),
         (float, 2**53 + 1),
         (List[str], "abc"),
-        (Set[str], "abc"),
-        (Tuple[str, ...], {"a": 1}),
-        (Tuple[str, int], ["a", 1, 2]),
         (Tuple[str, int], ["a", "1"]),
         (Dict[str, int], ["a"]),
-        (MyTypedDict, "count"),
-        (MyDataClass, ["value"]),
-        (MyPydanticModel, {"name": "a", "id": 1.5}),
-        (MyPydanticModel, "a"),
         (date, "not-a-date"),
-        (date, 20250101),
         (MyEnum, "zulu"),
+        (MyPydanticModel, {"name": "a", "id": "x"}),
     ],
 )
 def test_tool_param_rejects_inexact_conversions(type_hint: Any, value: Any) -> None:
@@ -602,10 +578,8 @@ def test_tool_param_rejects_inexact_conversions(type_hint: Any, value: Any) -> N
     [
         (bool, False, False),
         (str, "5", "5"),
-        (int, 5, 5),
         (int, 5.0, 5),
         (float, 5, 5.0),
-        (float, 0.5, 0.5),
         (List[int], [1, 2.0], [1, 2]),
         (Tuple[str, int], ["a", 1], ("a", 1)),
         (Optional[int], None, None),
@@ -626,11 +600,7 @@ def test_tool_param_omitted_fields_keep_defaults() -> None:
         name: str
         label: str = "default"
 
-    class Partial(TypedDict, total=False):
-        label: str
-
     assert tool_param(WithDefault, {"name": "a"}) == WithDefault("a", "default")
-    assert tool_param(Partial, {}) == {}
 
 
 async def test_inexact_argument_is_a_parsing_error() -> None:
@@ -651,181 +621,18 @@ async def test_inexact_argument_is_a_parsing_error() -> None:
     tool_def = ToolDef(
         flag(), parameters=ToolParams(properties={"enabled": ToolParam()})
     )
-    call = make_call("flag", {"enabled": "false"})
-
     messages, _ = await execute_tools(
-        [ChatMessageAssistant(content=[], tool_calls=[call])], [tool_def]
+        [
+            ChatMessageAssistant(
+                content=[], tool_calls=[make_call("flag", {"enabled": "false"})]
+            )
+        ],
+        [tool_def],
     )
 
     assert isinstance(messages[-1], ChatMessageTool)
     assert messages[-1].error is not None
     assert messages[-1].error.type == "parsing"
-    assert "Unable to convert 'false' to bool" in messages[-1].error.message
-
-
-def test_tool_params_passes_extra_arguments_to_var_keyword() -> None:
-    from inspect_ai.model._call_tools import tool_params
-
-    async def execute(count: int, **arguments: str) -> str:
-        return ""
-
-    assert tool_params({"count": 2.0, "a": "x"}, execute) == {"count": 2, "a": "x"}
-
-
-def test_tool_params_keeps_an_argument_named_like_the_var_keyword() -> None:
-    from inspect_ai.model._call_tools import tool_params
-
-    async def execute(**arguments: Any) -> str:
-        return ""
-
-    async def named(count: int, **arguments: Any) -> str:
-        return ""
-
-    assert tool_params({"arguments": "kept"}, execute) == {"arguments": "kept"}
-    assert tool_params({"count": 1.0, "arguments": "kept", "x": 1}, named) == {
-        "count": 1,
-        "arguments": "kept",
-        "x": 1,
-    }
-
-
-def test_model_conversion_keeps_values_parsed_from_strings() -> None:
-    from decimal import Decimal
-
-    class Parsed(BaseModel):
-        when: date
-        enum: MyEnum
-        data: bytes
-        tags: Set[str]
-        price: Decimal
-        ratio: float
-
-    parsed = tool_param(
-        Parsed,
-        {
-            "when": "2025-01-02",
-            "enum": "alpha",
-            "data": "abc",
-            "tags": ["a", "a"],
-            "price": 5,
-            "ratio": 2,
-        },
-    )
-    assert parsed == Parsed(
-        when=date(2025, 1, 2),
-        enum=MyEnum.ALPHA,
-        data=b"abc",
-        tags={"a"},
-        price=Decimal(5),
-        ratio=2.0,
-    )
-
-
-TUPLE_MEMBERS: list[tuple[Any, str, Any]] = [
-    (date, "2025-01-02", date(2025, 1, 2)),
-    (bytes, "abc", b"abc"),
-    (MyEnum, "alpha", MyEnum.ALPHA),
-    (
-        uuid.UUID,
-        "12345678-1234-5678-1234-567812345678",
-        uuid.UUID("12345678-1234-5678-1234-567812345678"),
-    ),
-]
-
-
-@pytest.mark.parametrize(
-    "member,text,expected",
-    TUPLE_MEMBERS,
-    ids=[str(m.__name__) for m, _, _ in TUPLE_MEMBERS],
-)
-@pytest.mark.parametrize("collection", [Set, FrozenSet], ids=["set", "frozenset"])
-def test_model_set_of_tuples_keeps_parsed_members(
-    member: Any, text: str, expected: Any, collection: Any
-) -> None:
-    from pydantic import create_model
-
-    model = create_model("Members", value=(collection[Tuple[member, float]], ...))
-    assert tool_param(model, {"value": [[text, 2], [text, 2]]}).value == {
-        (expected, 2.0)
-    }
-
-
-def test_model_set_of_nested_composites_converts_exactly() -> None:
-    from pydantic import create_model
-
-    model = create_model(
-        "Composite", value=(Set[Tuple[date, Tuple[MyEnum, float]]], ...)
-    )
-    assert tool_param(model, {"value": [["2025-01-02", ["alpha", 1]]]}).value == {
-        (date(2025, 1, 2), (MyEnum.ALPHA, 1.0))
-    }
-
-
-# --- Pydantic parameters are approved as constructed ------------------------
-
-
-class Step(BaseModel):
-    step: str
-    status: Literal["pending", "in_progress", "completed"] = "pending"
-
-
-class Lookup(BaseModel):
-    user_id: str
-    limit: float = 10
-
-
-@tool
-def model_params(received: list[dict[str, Any]]):
-    async def execute(
-        steps: List[Step],
-        lookups: List[Union[Lookup, Dict[str, Any]]],
-        lookup: Union[Lookup, Dict[str, Any]],
-    ) -> str:
-        """Record model parameters.
-
-        Args:
-            steps: Plan steps (as `update_plan` and `todo_write` take).
-            lookups: Models or plain objects (as tau2's tools take).
-            lookup: A model or a plain object.
-        """
-        received.append({"steps": steps, "lookups": lookups, "lookup": lookup})
-        return "ok"
-
-    return execute
-
-
-def test_model_parameters_are_approved_as_serialized() -> None:
-    from inspect_ai.model._call_tools import validated_tool_call
-
-    received: list[dict[str, Any]] = []
-    arguments: dict[str, Any] = {
-        "steps": [{"step": "plan"}, {"step": "act", "status": "in_progress"}],
-        "lookups": [{"user_id": "u1", "limit": 2}, {"other": 1}],
-        "lookup": {"other": "x"},
-    }
-    validated = validated_tool_call(
-        make_call("model_params", arguments), ToolDef(model_params(received))
-    )
-
-    # the approver sees each model as it serializes (with its defaults and
-    # the values it holds); a plain object stays as given
-    assert validated.call.arguments == {
-        "steps": [
-            {"step": "plan", "status": "pending"},
-            {"step": "act", "status": "in_progress"},
-        ],
-        "lookups": [{"user_id": "u1", "limit": 2.0}, {"other": 1}],
-        "lookup": {"other": "x"},
-    }
-    assert validated.arguments["steps"] == [
-        Step(step="plan"),
-        Step(step="act", status="in_progress"),
-    ]
-    assert validated.arguments["lookups"] == [
-        Lookup(user_id="u1", limit=2.0),
-        {"other": 1},
-    ]
-    assert validated.arguments["lookup"] == {"other": "x"}
 
 
 @pytest.mark.parametrize(
@@ -839,6 +646,7 @@ def test_model_parameters_are_approved_as_serialized() -> None:
 async def test_plan_tools_run_as_approved(
     tool_factory: Any, name: str, item: dict[str, str]
 ) -> None:
+    """The built-in tools that take `list[BaseModel]` run under approval."""
     from inspect_ai.approval import Approval, ApprovalPolicy, Approver, approver
 
     approved: list[ToolCall] = []
@@ -854,9 +662,12 @@ async def test_plan_tools_run_as_approved(
         return approve
 
     tool_def = ToolDef(tool_factory())
-    call = make_call(tool_def.name, {name: [item]})
     messages, _ = await execute_tools(
-        [ChatMessageAssistant(content=[], tool_calls=[call])],
+        [
+            ChatMessageAssistant(
+                content=[], tool_calls=[make_call(tool_def.name, {name: [item]})]
+            )
+        ],
         [tool_def],
         approval=[ApprovalPolicy(recorder(), "*")],
     )
@@ -864,146 +675,3 @@ async def test_plan_tools_run_as_approved(
     assert isinstance(messages[-1], ChatMessageTool)
     assert messages[-1].error is None
     assert [c.arguments for c in approved] == [{name: [item]}]
-
-
-class LazyIterable(BaseModel):
-    values: Iterable[float]
-
-
-class LazyGenerator(BaseModel):
-    values: Generator[float, None, None]
-
-
-@tool
-def lazy_params():
-    async def execute(
-        iterable: LazyIterable | None = None, generator: LazyGenerator | None = None
-    ) -> str:
-        """Take lazy iterables.
-
-        Args:
-            iterable: An iterable field.
-            generator: A generator field.
-        """
-        return ""
-
-    return execute
-
-
-@pytest.mark.parametrize("name", ["iterable", "generator"])
-def test_model_lazy_iterables_are_read_for_approval(name: str) -> None:
-    """Serializing for approval leaves the tool the values to iterate."""
-    from inspect_ai.model._call_tools import validated_tool_call
-
-    tool_def = ToolDef(
-        lazy_params(),
-        parameters=ToolParams(properties={name: ToolParam()}),
-    )
-    validated = validated_tool_call(
-        make_call("lazy_params", {name: {"values": [1, 2.5]}}), tool_def
-    )
-
-    assert validated.call.arguments == {name: {"values": [1.0, 2.5]}}
-    assert list(validated.arguments[name].values) == [1.0, 2.5]
-
-
-class ListOfLazy(BaseModel):
-    rows: List[Iterable[float]]
-
-
-class TupleOfLazy(BaseModel):
-    rows: Tuple[Iterable[float], ...]
-
-
-class DictOfLazy(BaseModel):
-    rows: Dict[str, Iterable[float]]
-
-
-class DequeOfLazy(BaseModel):
-    rows: Deque[Iterable[float]]
-
-
-class LazyOfModels(BaseModel):
-    items: Iterable[LazyIterable]
-
-
-class LazyExtras(BaseModel):
-    model_config = {"extra": "allow"}
-    __pydantic_extra__: Dict[str, Iterable[float]]
-
-
-class FrozenLazy(BaseModel):
-    model_config = {"frozen": True}
-    values: Iterable[int]
-
-
-class SetOfFrozenLazy(BaseModel):
-    members: FrozenSet[FrozenLazy]
-
-
-def _rows(value: Any) -> Any:
-    """`value` with every iterable consumed into a list."""
-    if isinstance(value, BaseModel):
-        return {
-            k: _rows(v)
-            for k, v in {**value.__dict__, **(value.__pydantic_extra__ or {})}.items()
-        }
-    if isinstance(value, dict):
-        return {k: _rows(v) for k, v in value.items()}
-    if isinstance(value, str):
-        return value
-    if isinstance(value, Iterable):
-        return [_rows(v) for v in value]
-    return value
-
-
-@pytest.mark.parametrize(
-    "model,payload,expected",
-    [
-        (ListOfLazy, {"rows": [[1, 2]]}, {"rows": [[1.0, 2.0]]}),
-        (TupleOfLazy, {"rows": [[1, 2]]}, {"rows": [[1.0, 2.0]]}),
-        (DictOfLazy, {"rows": {"a": [1, 2]}}, {"rows": {"a": [1.0, 2.0]}}),
-        (DequeOfLazy, {"rows": [[1, 2]]}, {"rows": [[1.0, 2.0]]}),
-        (
-            LazyOfModels,
-            {"items": [{"values": [1, 2]}]},
-            {"items": [{"values": [1.0, 2.0]}]},
-        ),
-        (LazyExtras, {"a": [1, 2]}, {"a": [1.0, 2.0]}),
-    ],
-    ids=["list", "tuple", "dict", "deque", "model-items", "extras"],
-)
-def test_nested_lazy_iterables_are_read_for_approval(
-    model: Any, payload: dict[str, Any], expected: dict[str, Any]
-) -> None:
-    from inspect_ai.model._call_tools import validated_tool_call
-
-    async def execute(payload: Any) -> str:
-        return ""
-
-    execute.__annotations__["payload"] = model
-    tool_def = ToolDef(
-        execute,
-        name="lazy",
-        description="Lazy.",
-        parameters=ToolParams(
-            properties={"payload": ToolParam()}, required=["payload"]
-        ),
-    )
-    validated = validated_tool_call(make_call("lazy", {"payload": payload}), tool_def)
-
-    assert validated.call.arguments == {"payload": expected}
-    # the tool still receives every value (the serialization consumed nothing)
-    assert _rows(validated.arguments["payload"]) == expected
-
-
-def test_frozen_lazy_members_stay_in_their_set() -> None:
-    from inspect_ai.model._call_tools import _materialized, tool_param
-
-    built = tool_param(SetOfFrozenLazy, {"members": [{"values": [1, 2]}]})
-    prepared = _materialized(built)
-
-    assert to_jsonable_python(prepared) == {"members": [{"values": [1, 2]}]}
-    (member,) = prepared.members
-    assert member in prepared.members
-    assert list(member.values) == [1, 2]
