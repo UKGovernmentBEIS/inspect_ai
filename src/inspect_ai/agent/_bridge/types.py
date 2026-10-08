@@ -25,7 +25,7 @@ from inspect_ai.model._model import (
 )
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.tool._tool import Tool
-from inspect_ai.tool._tool_call import ToolCall
+from inspect_ai.tool._tool_call import ToolCall, ToolCallViewer
 from inspect_ai.tool._tool_info import ToolInfo
 from inspect_ai.util._checkpoint.checkpointer import Checkpointer
 from inspect_ai.util._checkpoint.checkpointer_noop import _NoopCheckpointer
@@ -269,6 +269,11 @@ class AgentBridge:
         arguments. In-process bridges have no bridged tools, so nothing is
         dispatched; `SandboxAgentBridge` overrides this.
         """
+        return None
+
+    def _host_tool_viewer(
+        self, call: ToolCall, tools: Sequence[ToolInfo | Tool]
+    ) -> ToolCallViewer | None:
         return None
 
     def compaction(

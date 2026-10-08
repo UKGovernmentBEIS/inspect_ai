@@ -1,5 +1,6 @@
 from collections import OrderedDict
 from functools import partial
+from logging import getLogger
 from typing import TYPE_CHECKING, Awaitable, Callable, NamedTuple, TypeVar
 from weakref import WeakKeyDictionary
 
@@ -16,6 +17,7 @@ from inspect_ai._util.content import (
     ContentVideo,
 )
 from inspect_ai._util.exception import TerminateSampleError
+from inspect_ai._util.logger import warn_once
 from inspect_ai.agent._bridge.sandbox.types import _json_equal
 from inspect_ai.agent._bridge.types import AgentBridge
 from inspect_ai.model._chat_message import (
@@ -24,22 +26,31 @@ from inspect_ai.model._chat_message import (
     ChatMessageTool,
 )
 from inspect_ai.tool._tool import ToolResult
-from inspect_ai.tool._tool_call import ToolCall
+from inspect_ai.tool._tool_call import ToolCall, ToolCallViewer
 from inspect_ai.util._anyio import inner_exception
 from inspect_ai.util._limit import LimitExceededError
 
 if TYPE_CHECKING:
     from inspect_sentinel import Decision
 
+logger = getLogger(__name__)
+
 T = TypeVar("T")
 
 _MAX_PENDING_CALLS = 1000
+
+
+class HandedCall(NamedTuple):
+    handed: ToolCall
+    call: ToolCall
+    viewer: ToolCallViewer | None
 
 
 class _PendingCall(NamedTuple):
     handed: ToolCall
     message: str
     call: ToolCall
+    viewer: ToolCallViewer | None
     input: list[ChatMessage]
     history: list[ChatMessage]
 
@@ -53,6 +64,7 @@ async def sentinel_tool_call(
     bridge: AgentBridge,
     message: str,
     call: ToolCall,
+    viewer: ToolCallViewer | None,
     input: list[ChatMessage],
     history: list[ChatMessage],
 ) -> "Decision | None":
@@ -60,22 +72,29 @@ async def sentinel_tool_call(
 
     return await _guarded(
         bridge,
-        partial(sentinel_before_tool_call, message, call, None, history, input=input),
+        partial(sentinel_before_tool_call, message, call, viewer, history, input=input),
     )
 
 
 def track_sentinel_calls(
     bridge: AgentBridge,
     message: str,
-    calls: list[tuple[ToolCall, ToolCall]],
+    calls: list[HandedCall],
     input: list[ChatMessage],
     history: list[ChatMessage],
 ) -> None:
     pending = _pending.setdefault(bridge, OrderedDict())
-    for handed, call in calls:
-        pending[call.id] = _PendingCall(handed, message, call, input, history)
+    for handed, call, viewer in calls:
+        pending[call.id] = _PendingCall(handed, message, call, viewer, input, history)
         while len(pending) > _MAX_PENDING_CALLS:
             pending.popitem(last=False)
+            warn_once(
+                logger,
+                f"More than {_MAX_PENDING_CALLS} bridged tool calls are awaiting "
+                "their results; the oldest was dropped, so the sentinel's "
+                "tool_result check may be skipped for calls handed to the scaffold "
+                f"more than {_MAX_PENDING_CALLS} calls ago.",
+            )
 
 
 async def sentinel_host_tool_result(
@@ -170,7 +189,7 @@ async def _tool_result(
             pending.call,
             result,
             output,
-            None,
+            pending.viewer,
             pending.history,
             input=pending.input,
         ),

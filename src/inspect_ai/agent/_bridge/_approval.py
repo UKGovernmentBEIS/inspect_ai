@@ -24,17 +24,22 @@ import sys
 from contextlib import AbstractContextManager, nullcontext
 from dataclasses import replace
 from logging import getLogger
-from typing import TYPE_CHECKING, Any, NamedTuple, NoReturn
+from typing import TYPE_CHECKING, Any, NamedTuple, NoReturn, Sequence
 
 from inspect_ai._sentinel._context import active_sentinel
 from inspect_ai._util.format import format_function_call
 from inspect_ai._util.logger import warn_once
-from inspect_ai.agent._bridge._sentinel import sentinel_tool_call, track_sentinel_calls
+from inspect_ai.agent._bridge._sentinel import (
+    HandedCall,
+    sentinel_tool_call,
+    track_sentinel_calls,
+)
 from inspect_ai.agent._bridge.types import AgentBridge, DispatchedCall
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageTool
 from inspect_ai.model._model_output import ModelOutput
-from inspect_ai.tool._tool import ToolApprovalError
+from inspect_ai.tool._tool import Tool, ToolApprovalError
 from inspect_ai.tool._tool_call import ToolCall, ToolCallError
+from inspect_ai.tool._tool_info import ToolInfo
 
 if TYPE_CHECKING:
     from inspect_ai.approval._policy import ApprovalPolicy
@@ -93,6 +98,7 @@ async def apply_bridge_tool_approval(
     output: ModelOutput,
     history: list[ChatMessage],
     conversation: list[ChatMessage] | None = None,
+    tools: Sequence[ToolInfo | Tool] = (),
 ) -> BridgeApproval:
     """Approve the tool calls in a bridged model response.
 
@@ -120,6 +126,8 @@ async def apply_bridge_tool_approval(
         history: Conversation that produced `output`: the model's input.
         conversation: The scaffold's conversation before compaction, for the
             sentinel's step history (defaults to `history`).
+        tools: The declarations the scaffold made to the model, which identify
+            the host tools (and so the registered viewers) the calls denote.
 
     Returns:
         The response for the scaffold, plus the messages to replay to the model when
@@ -197,10 +205,11 @@ async def apply_bridge_tool_approval(
         # rejection never discards sentinel work (or a person's answer to human())
         if sentinel_active:
             sentinel_history = (conversation or history) + [output.message]
-            pending: list[tuple[ToolCall, ToolCall]] = []
+            pending: list[HandedCall] = []
             for call, reviewed in zip(tool_calls, reviewed_calls):
+                viewer = bridge._host_tool_viewer(call, tools)
                 decision = await sentinel_tool_call(
-                    bridge, message, reviewed, history, sentinel_history
+                    bridge, message, reviewed, viewer, history, sentinel_history
                 )
                 if decision is not None and decision.action == "reject":
                     explanation = ToolApprovalError(decision.message).message
@@ -221,7 +230,7 @@ async def apply_bridge_tool_approval(
                         bridge.dispatched_call(call), reviewed
                     )
                 handed = replace(call, arguments=modified.get(call.id, call.arguments))
-                pending.append((handed, reviewed))
+                pending.append(HandedCall(handed=handed, call=reviewed, viewer=viewer))
             track_sentinel_calls(bridge, message, pending, history, sentinel_history)
 
     # modifications are adopted only now that the whole response is approved: a later

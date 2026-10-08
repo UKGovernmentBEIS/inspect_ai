@@ -20,7 +20,8 @@ from inspect_ai.model._model import (
 )
 from inspect_ai.tool import Tool
 from inspect_ai.tool._mcp._config import MCPServerConfigHTTP
-from inspect_ai.tool._tool_call import ToolCall
+from inspect_ai.tool._tool_call import ToolCall, ToolCallViewer
+from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.tool._tool_info import ToolInfo
 from inspect_ai.util._checkpoint.checkpointer import Checkpointer
 
@@ -233,6 +234,26 @@ class SandboxAgentBridge(AgentBridge):
     def dispatched_call(self, call: ToolCall) -> DispatchedCall | None:
         """The bridged tool call `call` makes through a dispatcher (`_dispatched_call`)."""
         return _dispatched_call(self.bridged_tools, call)
+
+    def _host_tool_viewer(
+        self, call: ToolCall, tools: Sequence[ToolInfo | Tool]
+    ) -> ToolCallViewer | None:
+        dispatched = self.dispatched_call(call)
+        if dispatched is not None:
+            target = _BridgedToolId(
+                server=dispatched.server, tool=dispatched.target.function
+            )
+        else:
+            declarations = [
+                tool
+                for tool in tools
+                if isinstance(tool, ToolInfo) and tool.name == call.function
+            ]
+            targets = _resolve_by_served_content(self.served_tools, declarations)
+            if len(targets) != 1:
+                return None
+            target = targets[0]
+        return ToolDef(self.bridged_tools[target.server][target.tool]).viewer
 
     def request_fail(self, error: Exception) -> None:
         """Fail the sample with `error` from a bridged generation or tool call.

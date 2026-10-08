@@ -39,8 +39,17 @@ from inspect_ai.model import (
 )
 from inspect_ai.model._model import GenerateInput
 from inspect_ai.model._model_output import ChatCompletionChoice
-from inspect_ai.tool import Tool, ToolCall, ToolCallView, ToolChoice, ToolInfo, tool
+from inspect_ai.tool import (
+    Tool,
+    ToolCall,
+    ToolCallContent,
+    ToolCallView,
+    ToolChoice,
+    ToolInfo,
+    tool,
+)
 from inspect_ai.tool._tool import ToolParsingError
+from inspect_ai.tool._tool_call import default_tool_call_viewer
 from inspect_ai.tool._tool_params import ToolParam, ToolParams
 
 try:
@@ -237,7 +246,9 @@ def read_file(mock: AsyncMock) -> Tool:
     return execute
 
 
-def sandbox_bridge(tool: AsyncMock | None = None) -> SandboxAgentBridge:
+def sandbox_bridge(
+    tool: AsyncMock | None = None, tools: dict[str, Tool] | None = None
+) -> SandboxAgentBridge:
     return SandboxAgentBridge(
         state=AgentState(messages=[]),
         filter=None,
@@ -245,7 +256,7 @@ def sandbox_bridge(tool: AsyncMock | None = None) -> SandboxAgentBridge:
         compaction=None,
         port=13131,
         model=None,
-        bridged_tools={"host": {"read_file": read_file(tool or AsyncMock())}},
+        bridged_tools={"host": tools or {"read_file": read_file(tool or AsyncMock())}},
     )
 
 
@@ -888,3 +899,114 @@ async def test_a_host_result_is_attributed_to_the_latest_matching_proposal() -> 
     assert [step.call.id for step in seen if isinstance(step, AfterToolCall)] == [
         "fresh"
     ]
+
+
+def read_file_view(call: ToolCall) -> ToolCallView:
+    return ToolCallView(
+        call=ToolCallContent(
+            format="markdown", content=f"Reading `{call.arguments['path']}`"
+        )
+    )
+
+
+@tool(viewer=read_file_view)
+def viewed_read_file(mock: AsyncMock) -> Tool:
+    async def execute(path: str) -> str:
+        """Read a file from the host.
+
+        Args:
+            path: Path of the file to read.
+        """
+        result: str = await mock(path=path)
+        return result
+
+    return execute
+
+
+async def test_a_host_tool_is_viewed_with_its_registered_viewer() -> None:
+    seen: Steps = []
+    read = ToolCall(
+        id="host_1", function="mcp__host__read_file", arguments=READ.arguments
+    )
+    model = Scripted(calls_output(read, BASH), calls_output())
+    bridge = sandbox_bridge(
+        tools={"viewed_read_file": viewed_read_file(AsyncMock(return_value="contents"))}
+    )
+
+    with active(observe_only([bridge_recording(seen)])):
+        output = await generate(
+            bridge, model, [ChatMessageUser(content=TASK)], declare_read_file()
+        )
+        await call_host_tool(bridge)("host", "viewed_read_file", READ.arguments)
+        await generate(
+            bridge,
+            model,
+            [
+                ChatMessageUser(content=TASK),
+                output.message,
+                ChatMessageTool(content="contents", tool_call_id=read.id),
+                ChatMessageTool(content="ok", tool_call_id=BASH.id),
+            ],
+            declare_read_file(),
+        )
+
+    views = {(step.call.id, type(step)): step.view for step in seen}
+    assert len(views) == 4
+    for stage in (BeforeToolCall, AfterToolCall):
+        host_view = views[(read.id, stage)].call
+        assert host_view is not None
+        assert host_view.content == "Reading `notes.txt`"
+        assert views[(BASH.id, stage)] == default_tool_call_viewer(BASH)
+
+
+async def test_a_dispatched_call_is_viewed_with_its_targets_viewer() -> None:
+    seen: Steps = []
+    call = ToolCall(
+        id="d_1",
+        function="call_mcp_tool",
+        arguments={
+            "ServerName": "host",
+            "ToolName": "viewed_read_file",
+            "Arguments": {"path": "notes.txt"},
+        },
+    )
+    model = Scripted(calls_output(call))
+    bridge = sandbox_bridge(tools={"viewed_read_file": viewed_read_file(AsyncMock())})
+
+    with active(observe_only([bridge_recording(seen)])):
+        await generate(bridge, model, [ChatMessageUser(content=TASK)])
+
+    [step] = seen
+    assert step.view.call is not None
+    assert step.view.call.content == "Reading `notes.txt`"
+
+
+def test_evicting_a_pending_call_warns_once(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    from inspect_ai._util import logger as inspect_logger
+    from inspect_ai.agent._bridge import _sentinel
+
+    monkeypatch.setattr(_sentinel, "_MAX_PENDING_CALLS", 2)
+    monkeypatch.setattr(inspect_logger, "_warned", [])
+    bridge = in_process_bridge([])
+    calls = [replace(READ, id=f"read_{i}") for i in range(4)]
+
+    with caplog.at_level("WARNING"):
+        _sentinel.track_sentinel_calls(
+            bridge,
+            "",
+            [_sentinel.HandedCall(call, call, None) for call in calls[:3]],
+            [],
+            [],
+        )
+        _sentinel.track_sentinel_calls(
+            bridge, "", [_sentinel.HandedCall(calls[3], calls[3], None)], [], []
+        )
+
+    warnings = [r for r in caplog.records if "awaiting their results" in r.message]
+    assert len(warnings) == 1
+    assert "tool_result check may be skipped" in warnings[0].message
+    assert _sentinel._take(bridge, "read_0") is None
+    assert _sentinel._take(bridge, "read_1") is None
+    assert _sentinel._take(bridge, "read_3") is not None
