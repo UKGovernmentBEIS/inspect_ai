@@ -18,6 +18,7 @@ from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.approval import ApprovalPolicy, auto_approver
 from inspect_ai.dataset import Sample
 from inspect_ai.log._log import EvalLog
+from inspect_ai.log._samples import awaiting_human
 from inspect_ai.model._chat_message import ChatMessageUser
 from inspect_ai.model._model import Model, get_model
 from inspect_ai.model._model_data.model_data import ModelCost, ModelInfo
@@ -504,6 +505,28 @@ def test_working_limit_reporting():
     for sample in log.samples:
         waiting_time += sample.total_time - sample.working_time + 0.1
     assert waiting_time > 3
+
+
+def test_human_wait_is_not_working_time():
+    @solver
+    def awaiting_human_solver() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            with awaiting_human("approval", "bash"):
+                await anyio.sleep(2)
+            return state
+
+        return solve
+
+    log = eval(
+        Task(solver=awaiting_human_solver()),
+        model="mockllm/model",
+        working_limit=1,
+    )[0]
+    assert log.status == "success"
+    assert log.samples
+    assert find_limit_event(log) is None
+    assert log.samples[0].working_time is not None
+    assert log.samples[0].working_time < 1
 
 
 @pytest.mark.slow

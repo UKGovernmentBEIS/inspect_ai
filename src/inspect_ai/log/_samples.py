@@ -53,6 +53,7 @@ import anyio
 from anyio.abc import TaskGroup
 from shortuuid import uuid
 
+from inspect_ai._util.working import sample_waiting
 from inspect_ai.dataset._dataset import Sample
 from inspect_ai.util._checkpoint.checkpointer import CheckpointerSetup, ResumeCheckpoint
 from inspect_ai.util._checkpoint.checkpointer_factory import create_checkpointer
@@ -617,7 +618,9 @@ def awaiting_human(
     if sample is None:
         yield
         return
-    with sample.awaiting_human(kind, subject):
+    # a person's response time is waiting time, so it does not count
+    # against `working_limit`
+    with sample.awaiting_human(kind, subject), sample_waiting():
         yield
 
 

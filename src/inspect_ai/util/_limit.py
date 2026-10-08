@@ -938,6 +938,11 @@ def monitor_working_limit(interval: float = 1) -> None:
             if has_active_model_event():
                 continue
 
+            # don't check while waiting on a person (the wait is reported
+            # as waiting time once it completes)
+            if sample.pending_interactions:
+                continue
+
             error = working_limit_exceeded()
             if error is not None:
                 sample.limit_exceeded(error)

@@ -3,7 +3,7 @@ import time
 from contextvars import ContextVar
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Any, AsyncIterator
+from typing import Any, AsyncIterator, Iterator
 
 
 @dataclass
@@ -53,8 +53,8 @@ _sample_timing: ContextVar[SampleTiming] = ContextVar(
 )
 
 
-@contextlib.asynccontextmanager
-async def sample_waiting() -> AsyncIterator[None]:
+@contextlib.contextmanager
+def sample_waiting() -> Iterator[None]:
     """Track a waiting span without owning a semaphore hold.
 
     The acquire-only counterpart to :func:`sample_waiting_for`: wraps just

@@ -839,7 +839,7 @@ class ConnectionSlot:
     async def acquire(self) -> None:
         """Acquire the slot, tracking the wait as sample waiting time."""
         if not self._held:
-            async with sample_waiting():
+            with sample_waiting():
                 await self._semaphore.__aenter__()
             self._held = True
 
