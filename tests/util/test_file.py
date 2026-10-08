@@ -1,4 +1,5 @@
 import importlib
+import json
 import os
 import sys
 import weakref
@@ -13,10 +14,11 @@ import fsspec.core  # type: ignore
 import pytest
 from test_helpers.utils import skip_if_trio
 
-from inspect_ai._util.error import PrerequisiteError
+from inspect_ai._util.error import PrerequisiteError, WriteConflictError
 from inspect_ai._util.file import (
     HF_FILESYSTEM_REQUIRED_VERSION,
     absolute_file_path,
+    acquire_exclusive_lock,
     basename,
     cleanup_s3_sessions,
     filesystem,
@@ -547,3 +549,77 @@ async def test_cleanup_s3_sessions_no_s3creator() -> None:
         await cleanup_s3_sessions()
 
         mock_s3fs.clear_instance_cache.assert_called_once()
+
+
+def test_exclusive_lock_refuses_a_second_holder(tmp_path: Path) -> None:
+    lock = tmp_path / "log.merge.lock"
+    holder = {"pid": 123, "host": "worker-1", "started": "2026-10-08T12:00:00"}
+    with acquire_exclusive_lock(str(lock), holder):
+        assert json.loads(lock.read_text()) == holder
+        with pytest.raises(WriteConflictError) as exc_info:
+            with acquire_exclusive_lock(to_uri(str(lock)), {"pid": 456}):
+                pytest.fail("second holder entered the lock")
+        message = str(exc_info.value)
+        assert str(lock) in message
+        assert "worker-1" in message and "123" in message
+        # the refused acquire leaves the holder's lock alone
+        assert json.loads(lock.read_text()) == holder
+    assert not lock.exists()
+
+    with acquire_exclusive_lock(str(lock), {"pid": 456}):
+        assert json.loads(lock.read_text()) == {"pid": 456}
+    assert not lock.exists()
+
+
+def test_exclusive_lock_left_by_a_crash_is_reported_not_overridden(
+    tmp_path: Path,
+) -> None:
+    lock = tmp_path / "log.merge.lock"
+    lock.write_text('{"pid": 99, "host": "crashed"}')
+    with pytest.raises(WriteConflictError, match="crashed"):
+        with acquire_exclusive_lock(str(lock), {"pid": 1}):
+            pass
+    assert lock.read_text() == '{"pid": 99, "host": "crashed"}'
+
+
+def test_exclusive_lock_released_after_exception(tmp_path: Path) -> None:
+    lock = tmp_path / "log.merge.lock"
+    with pytest.raises(RuntimeError, match="boom"):
+        with acquire_exclusive_lock(str(lock), {"pid": 1}):
+            raise RuntimeError("boom")
+    assert not lock.exists()
+
+
+def test_exclusive_lock_released_when_info_is_not_serializable(
+    tmp_path: Path,
+) -> None:
+    lock = tmp_path / "log.merge.lock"
+    with pytest.raises(TypeError):
+        with acquire_exclusive_lock(str(lock), {"pid": object()}):
+            pytest.fail("entered the lock")
+    assert not lock.exists()
+
+
+async def test_exclusive_lock_released_after_cancellation(tmp_path: Path) -> None:
+    lock = tmp_path / "log.merge.lock"
+    held = anyio.Event()
+
+    async def hold() -> None:
+        with acquire_exclusive_lock(str(lock), {"pid": 1}):
+            held.set()
+            await anyio.sleep_forever()
+
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(hold)
+        await held.wait()
+        assert lock.exists()
+        tg.cancel_scope.cancel()
+    assert not lock.exists()
+
+
+def test_exclusive_lock_does_not_remove_a_replaced_lock(tmp_path: Path) -> None:
+    lock = tmp_path / "log.merge.lock"
+    with acquire_exclusive_lock(str(lock), {"pid": 1}):
+        lock.unlink()
+        lock.write_text('{"pid": 2}')
+    assert lock.read_text() == '{"pid": 2}'

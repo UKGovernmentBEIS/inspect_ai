@@ -1,6 +1,7 @@
 import datetime
 import importlib
 import io
+import json
 import logging
 import os
 import re
@@ -30,7 +31,11 @@ from inspect_ai._util.azure import (
     is_azure_delete_permission_error,
     is_azure_path,
 )
-from inspect_ai._util.error import PrerequisiteError, pip_dependency_error
+from inspect_ai._util.error import (
+    PrerequisiteError,
+    WriteConflictError,
+    pip_dependency_error,
+)
 from inspect_ai._util.trace import trace_message
 
 # https://filesystem-spec.readthedocs.io/en/latest/_modules/fsspec/spec.html#AbstractFileSystem
@@ -160,6 +165,67 @@ def write_atomic_text(path: str | Path, write: Callable[[TextIO], object]) -> No
     except Exception:
         tmp_path.unlink(missing_ok=True)
         raise
+
+
+@contextmanager
+def acquire_exclusive_lock(path: str, info: dict[str, Any]) -> Iterator[None]:
+    """Hold a lock file at a local `path` for the duration of the block.
+
+    The file is created with ``O_CREAT | O_EXCL``, so at most one holder
+    exists, and `info` is written into it as JSON to identify the holder. The
+    file is removed when the block exits, including on an exception or
+    cancellation. A lock left by a process that crashed is never overridden:
+    the holder named in it must be checked and the file removed by hand.
+
+    Args:
+        path: Local path or ``file://`` URI of the lock file.
+        info: JSON-serializable description of the holder (for example its
+            pid, host and start time). Informational only; never read back
+            to decide anything.
+
+    Raises:
+        WriteConflictError: The lock file already exists. The message names
+            the file and its contents.
+    """
+    lock = local_path(path)
+    try:
+        fd = os.open(lock, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o666)
+    except FileExistsError:
+        raise WriteConflictError(
+            f"Lock file {lock} is held by another process: "
+            f"{_lock_holder(lock)}. If that process is no longer running, "
+            "delete the lock file and try again."
+        ) from None
+    created = os.fstat(fd)
+    try:
+        with open(fd, "w", encoding="utf-8") as f:
+            json.dump(info, f)
+        yield
+    finally:
+        _release_exclusive_lock(lock, created)
+
+
+def _lock_holder(lock: str) -> str:
+    try:
+        with open(lock, encoding="utf-8", errors="replace") as f:
+            return f.read(1000) or "(empty)"
+    except OSError as ex:
+        return f"(unreadable: {ex})"
+
+
+def _release_exclusive_lock(lock: str, created: os.stat_result) -> None:
+    """Remove `lock` only if it is still the file this holder created."""
+    try:
+        current = os.stat(lock)
+    except FileNotFoundError:
+        logger.warning(f"Lock file {lock} was removed while it was held.")
+        return
+    if (current.st_dev, current.st_ino) != (created.st_dev, created.st_ino):
+        logger.warning(
+            f"Lock file {lock} was replaced while it was held; leaving it in place."
+        )
+        return
+    os.remove(lock)
 
 
 def basename(file: str) -> str:
