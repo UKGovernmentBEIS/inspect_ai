@@ -368,6 +368,8 @@ would also work but couples the record to the reopen.
 `flush()`'s remote branch becomes:
 
 ```python
+if (violation := self._compose_prefix_violation) is not None:   # verify mode; see "The violation is sticky"
+    raise ComposePrefixInvariantError(str(violation)) from violation
 self._zip.close()
 member_end = self._zip.start_dir
 written, etag = True, None
@@ -483,18 +485,22 @@ verification passes belong in that scheduled run, not in the PR suite
 2. **Slow verification, scheduled run only.** Tests marked `slow` (so they
    run under `--runslow` in the scheduled workflow and are skipped by plain
    `pytest`) that drive the compose path at the benchmark's shapes: a
-   multi-hundred-MiB log flushed repeatedly against the moto server, each
-   flush followed by a conditional range read of the composed object's
-   `[0, prefix.length)` (`if_match` = the flush's ETag) digested and
-   compared with the local prefix digest, and the whole object compared to
-   the temp file. This is the remote half of "compare with what is being
-   composed" — the pass that costs a download per flush and therefore does
-   not belong in the PR suite. If the local digest ever shows in the PR
-   suite's timing, the `conftest.py` line moves to the scheduled workflow's
-   step `env:` in the actions repository; no other change is needed.
+   multi-hundred-MiB log flushed repeatedly against the moto server. After
+   each flush the test reads the composed object's `[0, prefix.length)`
+   itself with the test's S3 client (`get_object` with `Range:
+   bytes=0-<length-1>`, unconditional), asserts the response's ETag equals
+   the ETag the flush returned, digests the bytes and compares them with
+   the local prefix digest, and compares the whole object to the temp
+   file. The ETag assertion stands in for an `IfMatch` read, which moto
+   may not honour (it already ignores `CopySourceIfMatch`). This is the
+   remote half of "compare with what is being composed" — the pass that
+   costs a download per flush and therefore does not belong in the PR
+   suite.
 
 **What is compared.** `ZipLogFile` gains `_compose_prefix_digest: bytes |
-None`, set and cleared together with `_compose_prefix`. Whenever a prefix
+None`, set and cleared together with `_compose_prefix`, and
+`_compose_prefix_violation: ComposePrefixInvariantError | None`, set once
+by the first mismatch and never cleared (see below). Whenever a prefix
 is established — the seed's adoption of a byte copy, and each successful S3
 flush in step 4 — verify mode hashes `tempfile[0:prefix.length]` with
 `hashlib.blake2b` in a worker thread (under `_lock`, where the flush already
@@ -505,20 +511,39 @@ the same range and compares:
 if _verify_compose_prefix():
     digest = await anyio.to_thread.run_sync(_digest_prefix, self._temp_file, prefix.length)
     if digest != self._compose_prefix_digest:
-        raise ComposePrefixInvariantError(
+        self._compose_prefix_violation = ComposePrefixInvariantError(
             f"compose prefix of {self._file} changed since it was recorded: "
             f"source={prefix.filename} length={prefix.length} "
             f"recorded={self._compose_prefix_digest.hex()} now={digest.hex()}"
         )
+        raise self._compose_prefix_violation
 ```
 
 `ComposePrefixInvariantError` is a `RuntimeError` subclass that
 `_write_remote`'s fallback does **not** catch (it catches only
 `ComposeSourceChangedError` and `ClientError`): the flush fails, the
-failure rule clears the prefix, and the exception propagates — to the test,
-or in a verify-mode eval to the flush's caller as any flush failure does,
-with the invariant violation in the message. Falling back to a full upload
-here would hide exactly the bug the mode exists to expose.
+failure rule clears the prefix, and the exception propagates with the
+invariant violation in the message. Falling back to a full upload here
+would hide exactly the bug the mode exists to expose.
+
+**The violation is sticky.** Clearing the prefix alone would let the next
+flush upload whole and succeed, and one flush path swallows the first
+failure: the stale-flush timer (`_stale_flush_after_delay`,
+`_eval/task/log.py:1126-1128`) catches every `Exception`, logs a warning
+and re-arms. It cannot re-raise instead, because `run_in_background`
+(`_util/background.py:22-25`) treats an exception escaping a background
+task as undefined behaviour. So the recorder remembers the violation: once
+`_compose_prefix_violation` is set, every later `flush()` raises a new
+`ComposePrefixInvariantError` with the same message (chained `from` the
+stored one) before it touches the temp file or the destination, and so
+does `close()`, after releasing the temp file. `log.py` does not change.
+In verify mode a violation found by the timer logs a warning on every
+timer tick until the eval finishes, and the destination keeps the last
+complete object. The next awaited flush — a buffer-full flush, an
+on-demand `flush_samples()`, or the final flush in `log_finish` — raises,
+so the eval fails with the violation in its error instead of finishing on
+a whole upload. Raising a fresh instance each time keeps one exception's
+traceback from growing with every re-raise.
 
 Why the recorded digest *is* "what is being composed": at the moment a
 prefix is recorded the local bytes and the object's leading bytes are the
@@ -536,9 +561,8 @@ Cost: one extra pass over the prefix at record time and one before each
 compose, verify mode only (`blake2b` runs near 1 GB/s, so a 500 MB log adds
 under a second per flush in the suite); production skips both. The remote
 comparison (tier 2) is a test, not a mode: it needs no switch and no
-production code beyond the conditional range read the design already adds
-for #482. For the
-#482 sparse path the locally held part of the prefix is
+production code at all, since the test reads the object with its own S3
+client. For the #482 sparse path the locally held part of the prefix is
 `[SparseSource.length, prefix.length)`, so the digest covers that range only;
 the hole itself is protected by the rule that a sparse temp file is never
 uploaded.
@@ -1022,13 +1046,15 @@ Unit, `tests/log/test_eval_log.py` (next to the seed tests at `:1715-2300`):
   later flush uploads whole, `_compose_disabled` set.
 - **Failure clears the prefix**: cancel a compose mid-tail → the next
   flush uploads whole; the moto server lists no in-progress uploads.
-- **Verification mode** (the suite runs with `INSPECT_VERIFY_COMPOSE_PREFIX=1`;
-  a tripwire test asserts the variable is set): establish a prefix on moto,
-  then overwrite one byte inside `[0, prefix.length)` of the temp file
-  directly — the shape of a future rewrite that forgets to clear the
-  prefix — and flush → `ComposePrefixInvariantError`, the destination still
-  holds the previous complete object, the moto server lists no in-progress
-  upload, and the next flush (prefix cleared) uploads whole. With the
+- **Verification mode** (the suite runs with
+  `INSPECT_VERIFY_COMPOSE_PREFIX=1`; a tripwire test asserts the variable
+  is set): establish a prefix on moto, then overwrite one byte inside `[0,
+  prefix.length)` of the temp file directly — the shape of a future
+  rewrite that forgets to clear the prefix — and flush →
+  `ComposePrefixInvariantError`, the destination still holds the previous
+  complete object, the moto server lists no in-progress upload, and the
+  violation is sticky: the next flush raises `ComposePrefixInvariantError`
+  again without writing, and the destination is unchanged. With the
   variable removed (`monkeypatch.delenv`) the same manipulation composes
   without error, documenting that production relies on the invariant and
   the suite on the check. The digest is recorded after a seed adoption and
@@ -1038,11 +1064,14 @@ Unit, `tests/log/test_eval_log.py` (next to the seed tests at `:1715-2300`):
   workflow in `meridianlabs-ai/actions`): benchmark shape A (≈120 MiB) and
   B (≈200 MiB) logs built with the retry benchmark's synthetic samples,
   flushed every `log_buffer` completions to the moto server through a
-  seeded retry and through a fresh eval; after every flush the composed
-  object's `[0, prefix.length)` is read back under `if_match` and its
-  digest compared with the recorded local digest, and the full object
-  compared to the temp file. Reported in the PR's `### Slow tests` section
-  with the command and counts, per AGENTS.md.
+  seeded retry and through a fresh eval; after every flush the test reads
+  the composed object's `[0, prefix.length)` with its own S3 client
+  (`get_object` with `Range: bytes=0-<length-1>`, no `IfMatch`), asserts
+  the response's ETag equals the ETag the flush returned, compares the
+  bytes' digest with the recorded local digest, and compares the full
+  object to the temp file. No production code beyond step 3 is needed, so
+  the test lands with #479 and does not wait on #482. Reported in the PR's
+  `### Slow tests` section with the command and counts, per AGENTS.md.
 - **#479 seeded start flush**: seed from an S3 prior >8 MiB (byte-copy
   path), `start()`, `flush()` → object equals the temp file and the client
   saw one `upload_part_copy` with `CopySource` = the prior key; restricted
@@ -1062,6 +1091,17 @@ Unit, `tests/log/test_task_log.py` (next to
   `flush_pending`; `N < flush_buffer` → exactly one flush, N pending, stale
   timer armed. `flush_samples()` and the stale timer still flush a
   below-threshold remainder (existing tests `:616`, `:636` unchanged).
+- **Verification mode through the stale-flush timer** (#479b; the shape of
+  `test_task_logger_scheduled_stale_flush_failure_recovers_on_next_timer`,
+  `:824`, with a real `EvalRecorder` on `mock_s3`): verify mode on, a
+  `TaskLogger` with pending samples below `log_buffer` and
+  `_stale_flush_interval = 0.01`; a first flush establishes a prefix; then
+  overwrite one byte inside the temp file's `[0, prefix.length)` and let
+  the timer fire. Assert the "Stale eval log flush failed" warning is
+  logged (with `caplog`) and the timer re-armed, the destination still
+  holds the previous complete object, and `log_finish` raises
+  `ComposePrefixInvariantError` (or, run through `eval()`, the eval ends
+  with `status == "error"` and the violation in its error).
 
 Unit, #482 (only on a go; `tests/log/test_eval_log.py` and
 `tests/util/test_async_zip.py`):
@@ -1134,9 +1174,11 @@ size.
    `_copy_prior_log` returning the ETag, `seed_from_prior_log` setting the
    prefix, `compact()` clearing it, and the verification mode
    (`_verify_compose_prefix`, `_compose_prefix_digest`, `_digest_prefix`,
-   `ComposePrefixInvariantError`); `tests/conftest.py` sets
+   `ComposePrefixInvariantError`, and the sticky `_compose_prefix_violation`
+   that `flush()` and `close()` re-raise); `tests/conftest.py` sets
    `INSPECT_VERIFY_COMPOSE_PREFIX=1` in `pytest_configure`; tests in
-   `tests/log/test_eval_log.py` including the verification-mode tests and
+   `tests/log/test_eval_log.py` including the verification-mode tests, the
+   stale-flush timer test in `tests/log/test_task_log.py`, and
    the `slow`-marked remote-comparison tests that the scheduled workflow in
    `meridianlabs-ai/actions` runs (Ransom's condition for landing #479);
    CHANGELOG: "Retrying an eval whose logs are on S3 no longer re-uploads the
@@ -1165,8 +1207,8 @@ size.
 
 ## Decisions
 
-The design's two open questions were answered when Ransom read it, and a
-third condition came from his review of the design PR. No open questions
+The design's two open questions were answered when Ransom read it; the
+later decisions came from reviews of the design PRs. No open questions
 remain.
 
 1. **#482 go threshold** (decision: Ransom, 2026-09-23). Build the sparse
@@ -1183,6 +1225,19 @@ remain.
    (decision: Ransom, 2026-09-29). The remote-comparison pass is
    `slow`-marked so it runs in `meridianlabs-ai/actions`'
    `inspect-ai-scheduled-tests.yml`, not in the PR suite.
+5. **The local digest check stays in the PR suite** (decision: Ransom,
+   2026-10-08, review of PR #5608). `conftest.py` turns verify mode on for
+   every run; there is no fallback that moves it to the scheduled run.
+   Decision 4 covers only the remote pass.
+6. **A prefix violation is sticky in the recorder** (decision: Ransom,
+   2026-10-08, review of PR #5608). The stale-flush timer keeps catching
+   and re-arming; the recorder re-raises the stored violation on every
+   later flush and close, so the eval fails at its next awaited flush.
+   See "The violation is sticky".
+7. **The remote comparison reads without `IfMatch`** (decision: Ransom,
+   2026-10-08, review of PR #5608). The slow test reads the object range
+   with its own S3 client and checks the response ETag, so it lands with
+   #479 instead of waiting on the gated #482 readers.
 
 ## Not this design
 
