@@ -1,8 +1,9 @@
 """Adapted from: https://github.com/anthropics/anthropic-quickstarts/blob/main/computer-use-demo/computer_use_demo/tools/edit.py"""
 
+import json
 import logging
 import os
-import pickle
+import stat
 import tempfile
 from collections import defaultdict
 from pathlib import Path
@@ -14,8 +15,12 @@ from inspect_sandbox_tools._in_process_tools._text_editor._run import (
     run,
 )
 from inspect_sandbox_tools._util.common_types import ToolException
+from inspect_sandbox_tools._util.server_dir import (
+    ensure_private_server_dir,
+    open_private_binary,
+)
 
-DEFAULT_HISTORY_PATH = "/tmp/inspect_editor_history.pkl"
+_HISTORY_PARENT = Path("/tmp")
 MAX_HISTORY_ENTRIES_PER_FILE = 10
 SNIPPET_LINES: int = 4
 
@@ -87,8 +92,9 @@ async def view(path_str: str, view_range: list[int] | None = None) -> str:
 
 async def create(path_str: str, file_text: str) -> str:
     path = _validated_path(path_str, "create")
+    history = _load_history()
     _write_file(path, file_text)
-    _add_history_entry(path, -1)
+    _add_history_entry(path, -1, history)
     return f"File created successfully at: {path}"
 
 
@@ -122,10 +128,11 @@ async def str_replace(path_str: str, old_str: str, new_str: str | None = None) -
     new_file_content = file_content.replace(old_str, new_str)
 
     # Write the new content to the file
+    history = _load_history()
     _write_file(path, new_file_content)
 
     # Save the content to history
-    _add_history_entry(path, file_content)
+    _add_history_entry(path, file_content, history)
 
     # Create a snippet of the edited section
     replacement_line = file_content.split(old_str)[0].count("\n")
@@ -166,8 +173,9 @@ async def insert(path_str: str, insert_line: int, new_str: str) -> str:
     new_file_text = "\n".join(new_file_text_lines)
     snippet = "\n".join(snippet_lines)
 
+    history = _load_history()
     _write_file(path, new_file_text)
-    _add_history_entry(path, file_text)
+    _add_history_entry(path, file_text, history)
 
     success_msg = f"The file {path} has been edited. "
     success_msg += _make_output(
@@ -263,8 +271,9 @@ def _make_output(
     )
 
 
-def _add_history_entry(path: Path, entry: HistoryEntryType) -> None:
-    history = _load_history()
+def _add_history_entry(
+    path: Path, entry: HistoryEntryType, history: HistoryType
+) -> None:
     history[path].append(entry)
     _save_history(history)
 
@@ -277,22 +286,48 @@ def _trim_history(history: HistoryType) -> None:
             del history[path]
 
 
-def _save_history(history: HistoryType, file_path: str = DEFAULT_HISTORY_PATH) -> None:
+def _history_path() -> Path:
+    """Verify private history storage for the effective uid at access time.
+
+    Resolve platform aliases such as macOS /tmp, then check from root to leaf
+    without following further symlinks. Each accepted path component is protected
+    against replacement by another account before its children are inspected.
+    Root and same-UID processes remain outside this boundary.
+    """
+    try:
+        parent = _HISTORY_PARENT.resolve(strict=True)
+        for directory in (*reversed(parent.parents), parent):
+            info = directory.lstat()
+            if (
+                not stat.S_ISDIR(info.st_mode)
+                or info.st_uid not in (0, os.geteuid())
+                or (info.st_mode & 0o022 and not info.st_mode & stat.S_ISVTX)
+            ):
+                raise RuntimeError(f"History parent {directory} cannot be trusted")
+        directory = parent / f"inspect-editor-{os.geteuid()}"
+        ensure_private_server_dir(directory, repair_mode=False)
+        return directory / "history.json"
+    except (OSError, RuntimeError) as ex:
+        raise ToolException(f"Cannot access text_editor history: {ex}") from ex
+
+
+def _save_history(history: HistoryType) -> None:
+    file_path = _history_path()
     try:
         _trim_history(history)
-        _atomic_pickle_dump(history, file_path)
+        _atomic_json_dump(history, file_path)
     except Exception as e:
         logger.warning(f"Discarding text_editor history at {file_path} due to: {e}")
         _discard_history(file_path)
 
 
-def _atomic_pickle_dump(history: HistoryType, file_path: str) -> None:
-    """Write history via atomic replace so errors/timeouts cannot leave a partial pickle."""
-    path = Path(file_path)
-    fd, tmp_path = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.")
+def _atomic_json_dump(history: HistoryType, file_path: Path) -> None:
+    """Write history via atomic replace so errors/timeouts cannot leave partial JSON."""
+    fd, tmp_path = tempfile.mkstemp(dir=file_path.parent, prefix=f".{file_path.name}.")
     try:
-        with os.fdopen(fd, "wb") as f:
-            pickle.dump(history, f)
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            os.fchmod(f.fileno(), 0o600)
+            json.dump({str(path): entries for path, entries in history.items()}, f)
             f.flush()
             os.fsync(f.fileno())
         os.replace(tmp_path, file_path)
@@ -301,23 +336,45 @@ def _atomic_pickle_dump(history: HistoryType, file_path: str) -> None:
         raise
 
 
-def _load_history(file_path: str = DEFAULT_HISTORY_PATH) -> HistoryType:
+def _load_history() -> HistoryType:
+    file_path = _history_path()
     try:
-        with open(file_path, "rb") as f:
-            history = pickle.load(f)
-        return defaultdict(list, history)
+        with open_private_binary(file_path) as f:
+            info = os.fstat(f.fileno())
+            if stat.S_IMODE(info.st_mode) != 0o600 or info.st_nlink != 1:
+                raise RuntimeError(
+                    f"History file {file_path} must have mode 0600 and one link"
+                )
+            data = f.read()
     except FileNotFoundError:
         # First edit in this sandbox: no undo history exists yet.
         return defaultdict(list)
-    except Exception as e:
-        # If there's a corrupt history, discard to restart from scratch,
-        # rather than show the agent ToolException every time
+    except (OSError, RuntimeError) as ex:
+        raise ToolException(f"Cannot read text_editor history: {ex}") from ex
+
+    try:
+        history = json.loads(data)
+        if not isinstance(history, dict) or not all(
+            isinstance(entries, list)
+            and all(
+                isinstance(entry, str) or (type(entry) is int and entry == -1)
+                for entry in entries
+            )
+            for entries in history.values()
+        ):
+            raise ValueError("Expected paths mapped to lists of text or -1")
+        return defaultdict(
+            list, {Path(path): entries for path, entries in history.items()}
+        )
+    except (ValueError, UnicodeError) as e:
+        # Malformed data in verified private storage is recoverable. Unsafe
+        # storage above is an error and must never be discarded or adopted.
         logger.warning(f"Discarding text_editor history at {file_path} due to: {e}")
         _discard_history(file_path)
         return defaultdict(list)
 
 
-def _discard_history(file_path: str) -> None:
+def _discard_history(file_path: Path) -> None:
     try:
         os.unlink(file_path)
     except FileNotFoundError:

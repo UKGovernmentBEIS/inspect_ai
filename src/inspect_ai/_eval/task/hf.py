@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field
 from pathlib import Path
 from string import ascii_uppercase
-from typing import TYPE_CHECKING, Annotated, Any, Literal
+from typing import TYPE_CHECKING, Annotated, Any, Literal, cast
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
@@ -81,6 +81,22 @@ class HFTask(BaseModel):
     scorers: list[HFScorer] = Field(min_length=1)
 
 
+def _load_eval_yaml(path: Path) -> dict[str, Any]:
+    """Read a Hub-delivered eval.yaml as UTF-8.
+
+    YAML is UTF-8 by spec, but ``open`` defaults to the locale encoding,
+    which crashes or silently corrupts non-ASCII task configs on Windows
+    (cp1252) and under the C locale (#5597).
+    """
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            return cast(dict[str, Any], yaml.safe_load(f))
+    except UnicodeDecodeError as ex:
+        raise PrerequisiteError(
+            f"eval.yaml file at {path} is not valid UTF-8: {ex}"
+        ) from ex
+
+
 def task_create_from_hf(task_name: str, **kwargs: Any) -> list[Task]:
     """Build a Task from a full config definition (solvers, scorers, dataset, etc.)."""
     from inspect_ai._eval.loader import scorer_from_spec, solver_from_spec
@@ -121,8 +137,7 @@ def task_create_from_hf(task_name: str, **kwargs: Any) -> list[Task]:
         )
 
     # read tasks
-    with open(yaml_path, "r") as f:
-        global_config = yaml.safe_load(f)
+    global_config = _load_eval_yaml(yaml_path)
     task_configs = global_config.get("tasks", None)
     if task_configs is None:
         raise PrerequisiteError("eval.yaml does not include 'tasks' field.")

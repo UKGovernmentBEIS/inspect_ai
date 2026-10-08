@@ -1,4 +1,6 @@
+import hashlib
 import io
+import json
 import math
 import os
 import re
@@ -30,7 +32,12 @@ from inspect_ai.event._span import SpanBeginEvent, SpanEndEvent
 from inspect_ai.event._subtask import SubtaskEvent
 from inspect_ai.event._timeline import TimelineEvent, timeline_build
 from inspect_ai.event._tool import ToolEvent
-from inspect_ai.log import read_eval_log
+from inspect_ai.log import (
+    EvalError,
+    EvalShardEntry,
+    EvalShards,
+    read_eval_log,
+)
 from inspect_ai.log._edit import ProvenanceData
 from inspect_ai.log._file import (
     ReadEvalLogsProgress,
@@ -42,8 +49,9 @@ from inspect_ai.log._file import (
     write_eval_log,
 )
 from inspect_ai.log._log import EvalLog, EvalSample, EvalSpec
-from inspect_ai.model import ChatMessage, get_model
+from inspect_ai.model import ChatMessage, ModelUsage, get_model
 from inspect_ai.model._generate_config import GenerateConfig
+from inspect_ai.model._model import requested_model
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.scorer import (
     Metric,
@@ -195,6 +203,37 @@ def test_can_round_trip_serialize_model_event():
     deserialized = ModelEvent.model_validate_json(serialized)
 
     assert original == deserialized
+
+
+def test_model_event_requested_model_round_trips_through_log(tmp_path: Path) -> None:
+    @solver
+    def bridged_generate():
+        async def solve(state: TaskState, generate: Generate):
+            with requested_model("gpt-4o-mini"):
+                return await generate(state)
+
+        return solve
+
+    task = Task(dataset=[Sample(input="Say hello.")], solver=bridged_generate())
+    log = eval(task, model="mockllm/model", log_dir=str(tmp_path))[0]
+    assert log.status == "success"
+
+    read_back = read_eval_log(log.location)
+    assert read_back.samples is not None
+    events = [e for e in read_back.samples[0].events if isinstance(e, ModelEvent)]
+    assert [(e.model, e.requested_model) for e in events] == [
+        ("mockllm/model", "gpt-4o-mini")
+    ]
+
+
+def test_model_event_requested_model_absent_in_older_log() -> None:
+    log = read_eval_log(
+        os.path.join("tests", "log", "test_eval_log", "log_read_sample.eval")
+    )
+    assert log.samples is not None
+    events = [e for s in log.samples for e in s.events if isinstance(e, ModelEvent)]
+    assert events
+    assert all(e.requested_model is None for e in events)
 
 
 def _inject_invalid_unicode_into_log(log: EvalLog) -> EvalLog:
@@ -542,6 +581,139 @@ def test_read_bytes_header(format):
 
     assert log2.samples is None
     assert log.eval.task == log2.eval.task
+
+
+log_formats_eval = os.path.join("tests", "log", "test_eval_log", "log_formats.eval")
+
+
+def _eval_shards(selection: Literal["ids", "count", "none"]) -> EvalShards:
+    return EvalShards(
+        selection=selection,
+        sample_count=3 if selection == "count" else None,
+        ledger=[
+            EvalShardEntry(
+                shard="0",
+                log="2026-09-24T11-00-00+00-00_task_aaa.eval",
+                eval_set_id="set-1",
+                status="success",
+                samples=4,
+                selected=2,
+                selection_digest=hashlib.sha256(b'["2","a"]').hexdigest(),
+                started_at="2026-09-24T11:00:00+00:00",
+                completed_at="2026-09-24T11:30:00+00:00",
+                model_usage={
+                    "mockllm/model": ModelUsage(
+                        input_tokens=10, output_tokens=5, total_tokens=15
+                    )
+                },
+                role_usage={
+                    "grader": ModelUsage(
+                        input_tokens=3, output_tokens=1, total_tokens=4
+                    )
+                },
+                size=1234,
+                etag='"0123abcd"',
+                mtime=1790247600.5,
+            ),
+            EvalShardEntry(
+                shard="1",
+                log="2026-09-24T11-05-00+00-00_task_bbb.eval",
+                status="error",
+                error=EvalError(
+                    message="boom", traceback="Traceback", traceback_ansi="Traceback"
+                ),
+                samples=1,
+                selected=1,
+                selection_digest=hashlib.sha256(b'["b"]').hexdigest(),
+                started_at="2026-09-24T11:05:00+00:00",
+                size=99,
+            ),
+        ],
+    )
+
+
+def _eval_log_header_json(location: str) -> dict[str, Any]:
+    with ZipFile(location) as zf:
+        return cast(dict[str, Any], json.loads(zf.read("header.json")))
+
+
+@pytest.mark.parametrize("selection", ["ids", "count", "none"])
+def test_eval_log_header_round_trips_shards(
+    tmp_path: Path, selection: Literal["ids", "count", "none"]
+) -> None:
+    log = read_eval_log(log_formats_eval, header_only=True)
+    shards = _eval_shards(selection)
+    log.eval.shards = shards
+    location = str(tmp_path / "merged.eval")
+    write_eval_log(log, location)
+
+    stored = _eval_log_header_json(location)["eval"]["shards"]
+    assert stored["selection"] == selection
+    if selection == "count":
+        assert stored["sample_count"] == 3
+        assert set(stored) == {"selection", "sample_count", "ledger"}
+    else:
+        assert set(stored) == {"selection", "ledger"}
+    assert set(stored["ledger"][0]) == {
+        "shard",
+        "log",
+        "eval_set_id",
+        "status",
+        "samples",
+        "selected",
+        "selection_digest",
+        "started_at",
+        "completed_at",
+        "model_usage",
+        "role_usage",
+        "size",
+        "etag",
+        "mtime",
+    }
+    assert stored["ledger"][0]["samples"] == 4
+    assert stored["ledger"][0]["selected"] == 2
+    assert len(stored["ledger"][0]["selection_digest"]) == 64
+    assert stored["ledger"][0]["etag"] == '"0123abcd"'
+    assert "error" not in stored["ledger"][0]
+    assert stored["ledger"][1]["error"]["message"] == "boom"
+    assert "etag" not in stored["ledger"][1]
+    assert "mtime" not in stored["ledger"][1]
+
+    assert read_eval_log(location).eval.shards == shards
+    assert read_eval_log(location, header_only=True).eval.shards == shards
+
+
+def test_eval_log_header_without_shards_has_no_shards_key(tmp_path: Path) -> None:
+    log = read_eval_log(log_formats_eval, header_only=True)
+    assert log.eval.shards is None
+    location = str(tmp_path / "plain.eval")
+    write_eval_log(log, location)
+
+    assert "shards" not in _eval_log_header_json(location)["eval"]
+    assert read_eval_log(location, header_only=True).eval.shards is None
+
+
+def test_eval_log_header_with_unknown_keys_validates(tmp_path: Path) -> None:
+    log = read_eval_log(log_formats_eval, header_only=True)
+    shards = _eval_shards("ids")
+    log.eval.shards = shards
+    written = str(tmp_path / "written.eval")
+    write_eval_log(log, written)
+
+    # a header from a newer writer, with keys this version does not know
+    header = _eval_log_header_json(written)
+    header["eval"]["future_eval_field"] = "x"
+    header["eval"]["shards"]["future_shards_field"] = 1
+    header["eval"]["shards"]["ledger"][0]["future_entry_field"] = {"x": 1}
+    location = str(tmp_path / "newer.eval")
+    with ZipFile(written) as src, ZipFile(location, "w") as dst:
+        for info in src.infolist():
+            if info.filename != "header.json":
+                dst.writestr(info, src.read(info))
+        dst.writestr("header.json", json.dumps(header))
+
+    read = read_eval_log(location, header_only=True)
+    assert read.eval.shards == shards
 
 
 list_logs_dir = os.path.join("tests", "log", "test_list_logs")

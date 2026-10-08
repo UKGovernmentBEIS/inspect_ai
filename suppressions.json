@@ -408,26 +408,10 @@
     "noqa:B023": {
       "count": 3,
       "undescribed": 3
-    },
-    "type: ignore[misc]": {
-      "count": 1,
-      "undescribed": 1
-    },
-    "type: ignore[typeddict-item]": {
-      "count": 1,
-      "undescribed": 1
     }
   },
   "src/inspect_ai/agent/_bridge/responses_impl.py": {
     "type: ignore[comparison-overlap]": {
-      "count": 1,
-      "undescribed": 1
-    },
-    "type: ignore[misc]": {
-      "count": 1,
-      "undescribed": 1
-    },
-    "type: ignore[typeddict-item]": {
       "count": 1,
       "undescribed": 1
     }
@@ -490,10 +474,6 @@
   },
   "src/inspect_ai/analysis/_dataframe/record.py": {
     "type: ignore": {
-      "count": 1,
-      "undescribed": 1
-    },
-    "type: ignore[arg-type]": {
       "count": 1,
       "undescribed": 1
     },
@@ -560,6 +540,12 @@
   },
   "src/inspect_ai/approval/_human/acp.py": {
     "type: ignore[assignment]": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
+  "src/inspect_ai/core/_generate_config.py": {
+    "type: ignore": {
       "count": 1,
       "undescribed": 1
     }
@@ -642,12 +628,6 @@
       "undescribed": 2
     }
   },
-  "src/inspect_ai/model/_generate_config.py": {
-    "type: ignore": {
-      "count": 1,
-      "undescribed": 1
-    }
-  },
   "src/inspect_ai/model/_message_ids.py": {
     "type: ignore[arg-type]": {
       "count": 1,
@@ -674,6 +654,11 @@
     "noqa:F401": {
       "count": 1,
       "undescribed": 1
+    }
+  },
+  "src/inspect_ai/model/_model_output.py": {
+    "type: ignore[method-assign]": {
+      "count": 1
     }
   },
   "src/inspect_ai/model/_openai.py": {
@@ -1656,8 +1641,8 @@
   },
   "tests/model/providers/test_hf.py": {
     "type: ignore[attr-defined]": {
-      "count": 9,
-      "undescribed": 9
+      "count": 2,
+      "undescribed": 2
     },
     "type: ignore[import-not-found]": {
       "count": 1,
@@ -1716,12 +1701,6 @@
   },
   "tests/model/test_compaction_native.py": {
     "type: ignore[dict-item]": {
-      "count": 1,
-      "undescribed": 1
-    }
-  },
-  "tests/model/test_redacted_reasoning_tokens.py": {
-    "type: ignore[method-assign]": {
       "count": 1,
       "undescribed": 1
     }

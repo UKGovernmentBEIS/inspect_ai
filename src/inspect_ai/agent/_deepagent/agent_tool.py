@@ -1,17 +1,22 @@
 from __future__ import annotations
 
-from contextlib import contextmanager
+import sys
+from contextlib import asynccontextmanager, contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass, field
 from logging import getLogger
 from pathlib import Path
-from typing import TYPE_CHECKING, Callable, Iterator, Literal, Sequence
+from typing import TYPE_CHECKING, AsyncIterator, Callable, Iterator, Literal, Sequence
 
 if TYPE_CHECKING:
     from inspect_ai.approval._policy import ApprovalPolicy
     from inspect_ai.tool._tools._skill import Skill
 
+if sys.version_info < (3, 11):
+    from exceptiongroup import ExceptionGroup
+
 import anyio
+from anyio.abc import TaskGroup
 from shortuuid import uuid as shortuuid
 
 from inspect_ai.agent._agent import Agent, AgentState
@@ -103,7 +108,9 @@ class BackgroundRegistry:
 
     Lives in a ContextVar set/reset in ``deepagent.execute()``. Nested
     deepagents get isolated namespaces because ContextVars carry per-task
-    semantics.
+    semantics. Children run in the sample's task group, or in a task group
+    the registry owns when the deepagent starts without a live one (see
+    ``owned_task_group()``).
     """
 
     max_background: int
@@ -116,6 +123,8 @@ class BackgroundRegistry:
     eager push and the periodic reminder's "collect" list) so neither
     re-announces a finish the model already saw; never filters what any tool
     displays."""
+
+    _task_group: TaskGroup | None = field(default=None, init=False, repr=False)
 
     def next_id(self) -> str:
         """Allocate the next AGENT-N handle. Counter never reuses."""
@@ -130,6 +139,58 @@ class BackgroundRegistry:
         don't occupy a slot.
         """
         return sum(1 for f in self.futures.values() if f.status == "running")
+
+    @asynccontextmanager
+    async def owned_task_group(self) -> AsyncIterator[None]:
+        """Own a task group for children when the sample has none.
+
+        While the sample's task group is live, this does nothing: children
+        run there via ``background()`` and keep the sample-scoped lifetime.
+        The sample runner cancels that group when the solver chain finishes,
+        so a deepagent that starts in a scorer owns a task group instead. Its
+        children are cancelled when the deepagent exits, and the exit waits
+        for them to finish.
+        """
+        if _live_sample_task_group() is not None:
+            yield
+            return
+
+        unwrapped: Exception | None = None
+        cancelled: BaseException | None = None
+        try:
+            async with anyio.create_task_group() as task_group:
+                self._task_group = task_group
+                try:
+                    yield
+                except anyio.get_cancelled_exc_class() as ex:
+                    # The group's own cancel below would absorb a cancellation
+                    # the body re-raises after its scope exited; keep it.
+                    cancelled = ex
+                    raise
+                finally:
+                    task_group.cancel_scope.cancel()
+        except ExceptionGroup as ex:
+            # The task group wraps whatever ends it. Undo that wrapper when
+            # it holds one exception, so the caller sees what was raised.
+            if len(ex.exceptions) != 1:
+                raise
+            unwrapped = ex.exceptions[0]
+        finally:
+            self._task_group = None
+        if unwrapped is not None:
+            raise unwrapped
+        if cancelled is not None:
+            raise cancelled
+
+
+def _live_sample_task_group() -> TaskGroup | None:
+    """The running sample's task group, if children can still start in it."""
+    from inspect_ai.log._samples import sample_active
+
+    sample = sample_active()
+    if sample is None or sample.tg is None or sample.tg.cancel_scope.cancel_called:
+        return None
+    return sample.tg
 
 
 _background_registry: ContextVar[BackgroundRegistry | None] = ContextVar(
@@ -580,7 +641,8 @@ def _dispatch_background(
     """Spawn the child agent in the background and return the AGENT-N handle.
 
     Validates the cap, registers an ``AgentFuture``, and kicks the child
-    off via ``background()`` (sample-scoped lifetime).
+    off via ``background()`` (sample-scoped lifetime), or in the registry's
+    own task group when it has one (see ``owned_task_group()``).
 
     All registration is synchronous (no awaits) so the cap check and
     insert form an atomic critical section under cooperative scheduling —
@@ -617,16 +679,11 @@ def _dispatch_background(
     )
     registry.futures[agent_id] = future
 
-    background(
-        _run_background,
-        future,
-        child_agent,
-        sa,
-        dispatch_input,
-        span_id,
-        forked,
-        from_message,
-    )
+    args = (future, child_agent, sa, dispatch_input, span_id, forked, from_message)
+    if registry._task_group is not None:
+        registry._task_group.start_soon(_run_background, *args)
+    else:
+        background(_run_background, *args)
 
     return f"Dispatched {agent_id}."
 
@@ -647,14 +704,16 @@ async def _run_background(
     reference in ``future.child_state`` for the parent's status-peek to
     read — ``run()``'s internal state is unreachable from outside.
 
-    On cancellation (``future.cancel_scope`` is cancelled, or the sample
-    ends), we record ``cancelled`` status and re-raise. ``CancelledError``
+    On cancellation (``future.cancel_scope`` is cancelled, the sample ends,
+    or the deepagent that owns the task group exits), we record
+    ``cancelled`` status and re-raise. ``CancelledError``
     derives from ``BaseException`` so the ``except Exception`` in
     ``background()`` (``_background.py:62-65``) will not log it as an
     error.
     """
     from copy import copy, deepcopy
 
+    from inspect_ai._sentinel._context import SentinelFailure
     from inspect_ai._util.exception import TerminateSampleError
     from inspect_ai.event._timeline import timeline_branch
     from inspect_ai.model._model import ModelRefusalError
@@ -713,24 +772,31 @@ async def _run_background(
         # structured concurrency requires it to propagate.
         future.status = "cancelled"
         raise
-    except (LimitExceededError, TerminateSampleError, ModelRefusalError):
+    except (
+        LimitExceededError,
+        TerminateSampleError,
+        ModelRefusalError,
+        SentinelFailure,
+    ):
         # Sample-level control flow must propagate so the sample runner
-        # records/enforces it (run.py catches these off sample.tg). The
+        # records/enforces it (run.py catches these off sample.tg; from an
+        # owned task group they reach the deepagent's caller). The
         # subagent's OWN limits were already caught into limit_scope by
         # apply_limits(catch_errors=True), so any LimitExceededError that
         # reaches here belongs to an outer (sample/parent) scope and must
         # not be downgraded to a per-agent "errored" result. A refusal under
-        # fail_on_refusal likewise fails the sample wherever it occurs. The
-        # sample is terminating; record a terminal status so the
-        # `finally: done.set()` below never wakes a waiter with a stale
-        # "running" status.
+        # fail_on_refusal, or a sentinel's own error, likewise fails the
+        # sample wherever it occurs. The sample is terminating; record a
+        # terminal status so the `finally: done.set()` below never wakes a
+        # waiter with a stale "running" status.
         future.status = "cancelled"
         raise
     except Exception as ex:
         # A background subagent failure is captured on the future and
         # surfaced via agent_status / agent_wait — it must NOT propagate
-        # to sample.tg (that would fail the whole sample). Swallow after
-        # recording; log so the failure is still visible in the eval log.
+        # to the task group running it (that would fail the whole sample, or
+        # the deepagent that owns the group). Swallow after recording; log so
+        # the failure is still visible in the eval log.
         future.status = "errored"
         future.error = f"{type(ex).__name__}: {ex}"
         logger.warning(

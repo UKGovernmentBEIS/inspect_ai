@@ -58,6 +58,12 @@
   author: "[Transluce](https://transluce.org/introducing-docent)"
   categories: ["Analysis"]
 
+- name: "[Probity native result reader](https://github.com/probityai/agent-evidence-observer/blob/71ac0b2126473316655184235000647a6dd0f5cf/docs/NATIVE-CONSUMER-CI.md)"
+  description: |
+    Offline reader and publication gate for bounded native Inspect execution records, preserving errors and unstarted attempts.
+  author: "[Probity](https://github.com/probityai)"
+  categories: ["Analysis"]
+
 - name: "[Inspect WandB](https://github.com/DanielPolatajko/inspect_wandb)"
   description: |
     Integration with Weights and Biases platform.
@@ -189,6 +195,12 @@
   description: |
     Podman-backed sandbox environment for Inspect, enabling containerized tool calls without Docker.
   author: "[Vector Institute](https://github.com/VectorInstitute/inspect-podman)"
+  categories: ["Sandboxes"]
+
+- name: "[OpenShell Sandbox](https://github.com/32bitsret/inspect-openshell-sandbox)"
+  description: |
+    NVIDIA OpenShell sandbox environment for Inspect, with kernel-enforced filesystem and network policies per task.
+  author: "[Retnan Daser](https://github.com/32bitsret)"
   categories: ["Sandboxes"]
 
 

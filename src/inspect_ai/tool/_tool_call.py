@@ -1,98 +1,55 @@
 import re
-from dataclasses import dataclass, field
-from typing import Any, Callable, Literal
+from logging import getLogger
 
-from pydantic import BaseModel, Field, JsonValue, field_validator
-from pydantic.dataclasses import dataclass as pydantic_dataclass
-from typing_extensions import TypedDict
+from pydantic import JsonValue
 
-from inspect_ai._util.content import Content
+from inspect_ai._util.format import format_function_call
+from inspect_ai._util.logger import warn_once
 
+# isort: split
+# Backward-compatible re-exports of names that moved to inspect_ai.core.
+from inspect_ai.core._tool_call import ToolCall as ToolCall
+from inspect_ai.core._tool_call import ToolCallContent as ToolCallContent
+from inspect_ai.core._tool_call import ToolCallError as ToolCallError
+from inspect_ai.core._tool_call import ToolCallModelInput as ToolCallModelInput
+from inspect_ai.core._tool_call import (
+    ToolCallModelInputHints as ToolCallModelInputHints,
+)
+from inspect_ai.core._tool_call import ToolCallView as ToolCallView
+from inspect_ai.core._tool_call import ToolCallViewer as ToolCallViewer
 
-class ToolCallContent(BaseModel):
-    """Content to include in tool call view."""
+# End of backward-compatible re-exports.
 
-    title: str | None = Field(default=None)
-    """Optional (plain text) title for tool call content."""
-
-    format: Literal["text", "markdown"]
-    """Format (text or markdown)."""
-
-    content: str = Field(default_factory=str)
-    """Text or markdown content."""
-
-
-class ToolCallView(BaseModel):
-    """Custom view of a tool call.
-
-    Both `context` and `call` are optional. If `call` is not specified
-    then the view will default to a syntax highlighted Python function call.
-    """
-
-    context: ToolCallContent | None = Field(default=None)
-    """Context for the tool call (i.e. current tool state)."""
-
-    call: ToolCallContent | None = Field(default=None)
-    """Custom representation of tool call."""
+logger = getLogger(__name__)
 
 
-@pydantic_dataclass
-class ToolCall:
-    id: str
-    """Unique identifier for tool call."""
-
-    function: str
-    """Function called."""
-
-    arguments: dict[str, Any]
-    """Arguments to function."""
-
-    parse_error: str | None = field(default=None)
-    """Error which occurred parsing tool call."""
-
-    view: ToolCallContent | None = field(default=None)
-    """Custom view of tool call input."""
-
-    type: Literal["function", "custom"] = field(default="function")
-    """Type of tool call."""
-
-    @field_validator("type", mode="before")
-    @classmethod
-    def migrate_type(cls, v: Any) -> Any:
-        """Migrate None values from deprecated type field to 'function'."""
-        if v is None:
-            return "function"
-        return v
+def resolve_tool_call_view(
+    call: ToolCall, viewer: ToolCallViewer | None
+) -> ToolCallView:
+    if viewer:
+        try:
+            view = viewer(call)
+            if not view.call:
+                view.call = default_tool_call_viewer(call).call
+            return view
+        except Exception as ex:
+            warn_once(
+                logger,
+                f"Error in viewer for tool '{call.function}': {ex}. "
+                "Falling back to default rendering.",
+            )
+    return default_tool_call_viewer(call)
 
 
-@dataclass
-class ToolCallError:
-    """Error raised by a tool call."""
-
-    type: Literal[
-        "parsing",
-        "timeout",
-        "unicode_decode",
-        "permission",
-        "file_not_found",
-        "is_a_directory",
-        "limit",
-        "approval",
-        "cancelled",
-        "sandbox_unavailable",
-        "unknown",
-        # Retained for backward compatibility when loading logs created with an older
-        # version of inspect.
-        "output_limit",
-    ]
-    """Error type."""
-
-    message: str
-    """Error message."""
-
-
-ToolCallViewer = Callable[[ToolCall], ToolCallView]
-"""Custom view renderer for tool calls."""
+def default_tool_call_viewer(call: ToolCall) -> ToolCallView:
+    return ToolCallView(
+        call=ToolCallContent(
+            format="markdown",
+            content="```python\n"
+            + format_function_call(call.function, call.arguments)
+            + "\n```\n",
+        )
+    )
 
 
 def substitute_tool_call_content(
@@ -118,21 +75,3 @@ def substitute_tool_call_content(
         format=content.format,
         content=_replace(content.content),
     )
-
-
-class ToolCallModelInputHints(TypedDict):
-    # This type is a little sketchy but it allows tools to customize their
-    # input hook behavior based on model limitations without creating a tight
-    # coupling to the model provider.
-    disable_computer_screenshot_truncation: bool
-    """The model does not support the truncation/redaction of computer screenshots."""
-
-
-ToolCallModelInput = Callable[
-    [int, int, str | list[Content], ToolCallModelInputHints], str | list[Content]
-]
-"""Determine how tool call results are played back as model input.
-
-The first argument is an index into the total number of tool results
-for this tool in the message history, the second is the total number.
-"""
