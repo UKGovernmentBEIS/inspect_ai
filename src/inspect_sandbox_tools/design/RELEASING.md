@@ -85,7 +85,7 @@ Once `slow-tool-tests-release` is green, merge through the normal review process
 
 ### 8. PyPI release (when releasing inspect_ai)
 
-Publishing a GitHub Release for an `inspect_ai` version tag (e.g. `0.3.278`, no `v` prefix) runs `.github/workflows/publish.yml`, which pulls sandbox tools from S3 with the release script's `prepare` command and checks the built wheel with `verify-dist` before uploading to PyPI. The local break-glass path runs the same gates:
+Publishing a GitHub Release for an `inspect_ai` version tag (e.g. `0.3.278`, no `v` prefix) runs `.github/workflows/publish.yml`, which pulls sandbox tools from S3 with the release script's `prepare` command and checks the built wheel with `verify-dist` before uploading to PyPI. Its build steps live in `.github/actions/build-dist`, which `.github/workflows/publish-parity.yml` also uses to rebuild the latest PyPI version and compare it with PyPI's files (`verify-parity`). The local break-glass path runs the same gates:
 
 ```bash
 python scripts/pypi-release.py release {INSPECT_AI_VERSION}

@@ -11,6 +11,9 @@ from __future__ import annotations
 import argparse
 import hashlib
 import importlib.util
+import io
+import json
+import tarfile
 import zipfile
 from pathlib import Path
 from types import ModuleType
@@ -230,7 +233,9 @@ class _FakeUrlResponse:
     def __exit__(self, *_exc: object) -> None:
         return None
 
-    def read(self, n: int) -> bytes:
+    def read(self, n: int = -1) -> bytes:
+        if n < 0:
+            n = len(self._content)
         chunk, self._content = self._content[:n], self._content[n:]
         return chunk
 
@@ -314,43 +319,122 @@ def test_pypi_pre_build_gate(pypi_release: ModuleType, tmp_path: Path) -> None:
         pypi_release.verify_sandbox_tools_bundle("9", digests, tmp_path)
 
 
+_WHEEL_GLOBS = ["binaries/*", "**/*.yml", "_view/dist/**/*", "py.typed"]
+
+
+def _wheel_members(version: str = "9") -> dict[str, bytes]:
+    return {
+        "inspect_ai/tool/_sandbox_tools_utils/SHA256SUMS": b"sums",
+        "inspect_ai/tool/_sandbox_tools_utils/sandbox_tools_version.txt": b"9",
+        f"inspect_ai/binaries/inspect-sandbox-tools-amd64-v{version}": b"amd64",
+        f"inspect_ai/binaries/inspect-sandbox-tools-arm64-v{version}": b"arm64",
+        "inspect_ai/_view/dist/index.html": b"<html>",
+        "inspect_ai/_view/dist/assets/index.js": b"js",
+        "inspect_ai/_view/dist/assets/index.css": b"css",
+        "inspect_ai/_util/config.yml": b"key: value",
+        "inspect_ai/py.typed": b"",
+    }
+
+
+def _write_wheel(path: Path, members: dict[str, bytes]) -> Path:
+    with zipfile.ZipFile(path, "w") as wheel:
+        for name, content in members.items():
+            wheel.writestr(name, content)
+    return path
+
+
 def test_pypi_wheel_contents_gate(pypi_release: ModuleType, tmp_path: Path) -> None:
-    required = [
-        "inspect_ai/tool/_sandbox_tools_utils/SHA256SUMS",
-        "inspect_ai/tool/_sandbox_tools_utils/sandbox_tools_version.txt",
-        "inspect_ai/binaries/inspect-sandbox-tools-amd64-v9",
-        "inspect_ai/binaries/inspect-sandbox-tools-arm64-v9",
+    complete = _write_wheel(tmp_path / "complete.whl", _wheel_members())
+    pypi_release.verify_wheel_contents(complete, "9", _WHEEL_GLOBS)
+
+
+@pytest.mark.parametrize(
+    "change,error",
+    [
+        (
+            {"inspect_ai/tool/_sandbox_tools_utils/SHA256SUMS": None},
+            "SHA256SUMS is missing",
+        ),
+        (
+            {"inspect_ai/binaries/inspect-sandbox-tools-amd64-v9": b""},
+            "amd64-v9 is empty",
+        ),
+        ({"inspect_ai/_view/dist/index.html": None}, "index.html is missing"),
+        ({"inspect_ai/_view/dist/assets/index.css": None}, "viewer .css assets"),
+        ({"inspect_ai/_util/config.yml": None}, r"'\*\*/\*\.yml' matches no files"),
+        ({"inspect_ai/_util/config.yml": b""}, r"'\*\*/\*\.yml' has empty files"),
+    ],
+)
+def test_pypi_wheel_contents_gate_rejects(
+    pypi_release: ModuleType,
+    tmp_path: Path,
+    change: dict[str, bytes | None],
+    error: str,
+) -> None:
+    members = {
+        name: content
+        for name, content in {**_wheel_members(), **change}.items()
+        if content is not None
+    }
+    wheel = _write_wheel(tmp_path / "bad.whl", members)
+    with pytest.raises(RuntimeError, match=error):
+        pypi_release.verify_wheel_contents(wheel, "9", _WHEEL_GLOBS)
+
+
+@pytest.mark.parametrize(
+    "pattern,name,matches",
+    [
+        ("**/*.yml", "inspect_ai/a.yml", True),
+        ("**/*.yml", "inspect_ai/x/y/a.yml", True),
+        ("**/*.yml", "inspect_ai/a.yaml", False),
+        ("binaries/*", "inspect_ai/binaries/tool", True),
+        ("binaries/*", "inspect_ai/binaries/sub/tool", False),
+        ("_view/dist/**/*", "inspect_ai/_view/dist/assets/index.js", True),
+        ("py.typed", "inspect_ai/py.typed", True),
+        ("py.typed", "inspect_ai/pyXtyped", False),
+    ],
+)
+def test_pypi_package_data_regex(
+    pypi_release: ModuleType, pattern: str, name: str, matches: bool
+) -> None:
+    assert bool(pypi_release._package_data_regex(pattern).fullmatch(name)) is matches
+
+
+def test_committed_package_data_globs_match_source_files(
+    pypi_release: ModuleType,
+) -> None:
+    """Every package-data glob but the downloaded binaries matches a source file.
+
+    A stale entry would otherwise fail the release's wheel gate.
+    """
+    package = Path(__file__).parents[3] / "src" / "inspect_ai"
+    files = [
+        "inspect_ai/" + p.relative_to(package).as_posix()
+        for p in package.rglob("*")
+        if p.is_file() and "ts-mono" not in p.parts
     ]
-
-    complete = tmp_path / "complete.whl"
-    with zipfile.ZipFile(complete, "w") as wheel:
-        for member in required:
-            wheel.writestr(member, "content")
-    pypi_release.verify_wheel_contents(complete, "9")
-
-    incomplete = tmp_path / "incomplete.whl"
-    with zipfile.ZipFile(incomplete, "w") as wheel:
-        for member in required[1:]:
-            wheel.writestr(member, "content")
-    with pytest.raises(RuntimeError, match="SHA256SUMS"):
-        pypi_release.verify_wheel_contents(incomplete, "9")
+    globs = pypi_release.read_package_data_globs()
+    assert "binaries/*" in globs
+    for pattern in globs:
+        if pattern != "binaries/*":
+            regex = pypi_release._package_data_regex(pattern)
+            assert any(regex.fullmatch(f) for f in files), pattern
 
 
 def _write_dist(dist: Path, wheel_version: str, sdist_version: str) -> None:
     dist.mkdir()
-    with zipfile.ZipFile(
-        dist / f"inspect_ai-{wheel_version}-py3-none-any.whl", "w"
-    ) as wheel:
-        for member in [
-            "inspect_ai/tool/_sandbox_tools_utils/SHA256SUMS",
-            "inspect_ai/tool/_sandbox_tools_utils/sandbox_tools_version.txt",
-            "inspect_ai/binaries/inspect-sandbox-tools-amd64-v9",
-            "inspect_ai/binaries/inspect-sandbox-tools-arm64-v9",
-        ]:
-            wheel.writestr(member, "content")
+    _write_wheel(
+        dist / f"inspect_ai-{wheel_version}-py3-none-any.whl", _wheel_members()
+    )
     (dist / f"inspect_ai-{sdist_version}.tar.gz").write_bytes(b"sdist")
 
 
+@pytest.fixture
+def wheel_globs(pypi_release: ModuleType, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(pypi_release, "read_package_data_globs", lambda: _WHEEL_GLOBS)
+
+
+@pytest.mark.usefixtures("wheel_globs")
 def test_pypi_verify_dist_accepts_matching_version(
     pypi_release: ModuleType, tmp_path: Path
 ) -> None:
@@ -358,6 +442,7 @@ def test_pypi_verify_dist_accepts_matching_version(
     pypi_release.verify_dist(tmp_path / "dist", "0.3.278", "9")
 
 
+@pytest.mark.usefixtures("wheel_globs")
 @pytest.mark.parametrize(
     "wheel_version,sdist_version,bad",
     [
@@ -379,6 +464,7 @@ def test_pypi_verify_dist_rejects_version_mismatch(
         pypi_release.verify_dist(tmp_path / "dist", "0.3.278", "9")
 
 
+@pytest.mark.usefixtures("wheel_globs")
 def test_pypi_verify_dist_rejects_unexpected_files(
     pypi_release: ModuleType, tmp_path: Path
 ) -> None:
@@ -392,6 +478,7 @@ def test_pypi_verify_dist_rejects_unexpected_files(
         pypi_release.verify_dist(dist, "0.3.278", "9")
 
 
+@pytest.mark.usefixtures("wheel_globs")
 def test_pypi_verify_dist_runs_wheel_gate(
     pypi_release: ModuleType, tmp_path: Path
 ) -> None:
@@ -453,3 +540,129 @@ def test_pypi_prepare_fails_on_digest_mismatch(
         pypi_release.prepare_command(argparse.Namespace())
     assert exit_info.value.code == 1
     assert list(binaries.iterdir()) == []
+
+
+def _write_sdist(path: Path, members: dict[str, bytes]) -> Path:
+    with tarfile.open(path, "w:gz") as sdist:
+        for name, content in members.items():
+            info = tarfile.TarInfo(f"inspect_ai-0.3.277/{name}")
+            info.size = len(content)
+            sdist.addfile(info, io.BytesIO(content))
+    return path
+
+
+def _scm_version(branch: str, node: str = "gaa20052a6") -> bytes:
+    return json.dumps({"tag": "0.3.277", "node": node, "branch": branch}).encode()
+
+
+_WHEEL = "inspect_ai-0.3.277-py3-none-any.whl"
+_SDIST = "inspect_ai-0.3.277.tar.gz"
+_SDIST_MEMBERS = {
+    "PKG-INFO": b"Version: 0.3.277",
+    "src/inspect_ai.egg-info/scm_version.json": _scm_version("main"),
+}
+
+
+def _publish(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, pypi_release: ModuleType
+) -> Path:
+    """Serve a fake PyPI release of 0.3.277 and return the local dist dir."""
+    published = tmp_path / "published"
+    published.mkdir()
+    files = {
+        _WHEEL: _write_wheel(published / _WHEEL, _wheel_members()).read_bytes(),
+        _SDIST: _write_sdist(published / _SDIST, _SDIST_MEMBERS).read_bytes(),
+    }
+    release = {
+        "urls": [
+            {
+                "filename": name,
+                "packagetype": "bdist_wheel" if name.endswith(".whl") else "sdist",
+                "url": f"https://files.example/{name}",
+                "digests": {"sha256": _sha256(content)},
+            }
+            for name, content in files.items()
+        ]
+    }
+
+    def urlopen(url: str, timeout: int) -> _FakeUrlResponse:
+        if url == pypi_release.PYPI_JSON_URL.format(version="0.3.277"):
+            return _FakeUrlResponse(json.dumps(release).encode())
+        return _FakeUrlResponse(files[url.rsplit("/", 1)[1]])
+
+    monkeypatch.setattr(pypi_release.urllib.request, "urlopen", urlopen)
+    dist = tmp_path / "dist"
+    dist.mkdir()
+    return dist
+
+
+def test_pypi_verify_parity_accepts_identical_build(
+    pypi_release: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    dist = _publish(tmp_path, monkeypatch, pypi_release)
+    _write_wheel(dist / _WHEEL, _wheel_members())
+    # a detached tag checkout records branch "HEAD"; that alone is not a diff
+    _write_sdist(
+        dist / _SDIST,
+        {
+            **_SDIST_MEMBERS,
+            "src/inspect_ai.egg-info/scm_version.json": _scm_version("HEAD"),
+        },
+    )
+    pypi_release.verify_parity(dist, "0.3.277")
+
+
+def test_pypi_verify_parity_reports_differences(
+    pypi_release: ModuleType,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    dist = _publish(tmp_path, monkeypatch, pypi_release)
+    wheel = _wheel_members()
+    del wheel["inspect_ai/binaries/inspect-sandbox-tools-amd64-v9"]
+    wheel["inspect_ai/_view/dist/assets/index.js"] = b"rebuilt js"
+    wheel["inspect_ai/_view/dist/assets/index.js.map"] = b"map"
+    _write_wheel(dist / _WHEEL, wheel)
+    _write_sdist(
+        dist / _SDIST,
+        {
+            **_SDIST_MEMBERS,
+            "src/inspect_ai.egg-info/scm_version.json": _scm_version("HEAD", "g0"),
+        },
+    )
+
+    with caplog.at_level("INFO"), pytest.raises(RuntimeError, match="differ from PyPI"):
+        pypi_release.verify_parity(dist, "0.3.277")
+    assert f"{_WHEEL}: missing from build: inspect_ai/binaries/" in caplog.text
+    assert "extra in build: inspect_ai/_view/dist/assets/index.js.map" in caplog.text
+    assert "content differs: inspect_ai/_view/dist/assets/index.js" in caplog.text
+    assert "content differs: src/inspect_ai.egg-info/scm_version.json" in caplog.text
+    assert "1 missing, 1 extra, 1 differing" in caplog.text
+
+
+def test_pypi_verify_parity_requires_published_files_built(
+    pypi_release: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    dist = _publish(tmp_path, monkeypatch, pypi_release)
+    _write_wheel(dist / _WHEEL, _wheel_members())
+    with pytest.raises(RuntimeError, match=f"{_SDIST} was not built"):
+        pypi_release.verify_parity(dist, "0.3.277")
+
+
+def test_pypi_verify_parity_rejects_digest_mismatch(
+    pypi_release: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    dist = _publish(tmp_path, monkeypatch, pypi_release)
+    real = pypi_release.urllib.request.urlopen
+    monkeypatch.setattr(
+        pypi_release.urllib.request,
+        "urlopen",
+        lambda url, timeout: (
+            _FakeUrlResponse(b"tampered")
+            if url.endswith(_WHEEL)
+            else real(url, timeout)
+        ),
+    )
+    with pytest.raises(RuntimeError, match=f"Could not download {_WHEEL}"):
+        pypi_release.verify_parity(dist, "0.3.277")
