@@ -91,12 +91,20 @@ def record_to_sample_fn(
                         f"Unexpected type for 'metadata' field: {type(metadata_field)}"
                     )
 
+            sample_id = record.get(sample_fields.id, None)
+            try:
+                choices = read_choices(record.get(sample_fields.choices))
+            except ValueError as ex:
+                if sample_id is None:
+                    raise
+                raise ValueError(f"Sample {sample_id!r}: {ex}") from ex
+
             # return sample
             return Sample(
                 input=read_input(record.get(sample_fields.input)),
                 target=read_target(record.get(sample_fields.target)),
-                choices=read_choices(record.get(sample_fields.choices)),
-                id=record.get(sample_fields.id, None),
+                choices=choices,
+                id=sample_id,
                 metadata=metadata,
                 sandbox=read_sandbox(record.get(sample_fields.sandbox)),
                 files=read_files(record.get(sample_fields.files)),
@@ -213,20 +221,21 @@ def read_choices(obj: Any | None) -> list[str] | None:
     if is_none_or_nan(obj):
         return None
     if isinstance(obj, list):
-        return _drop_trailing_blank_choices([str(choice) for choice in obj])
+        return _drop_trailing_blank_choices([str(choice) for choice in obj], obj)
     if isinstance(obj, str):
         choices = obj.split(",")
         if len(choices) == 1:
             choices = obj.split()
-        return [choice.strip() for choice in _drop_trailing_blank_choices(choices)]
+        return [choice.strip() for choice in _drop_trailing_blank_choices(choices, obj)]
     return [str(obj)]
 
 
-def _drop_trailing_blank_choices(choices: list[str]) -> list[str]:
+def _drop_trailing_blank_choices(choices: list[str], source: object) -> list[str]:
     """Remove trailing blank choices without shifting later answer letters.
 
     Args:
         choices: Choice strings, not yet stripped.
+        source: The field value as read, quoted in the error.
 
     Returns:
         Choices with a trailing run of blanks removed.
@@ -240,8 +249,9 @@ def _drop_trailing_blank_choices(choices: list[str]) -> list[str]:
     kept = choices[:end]
     if any(not choice.strip() for choice in kept):
         raise ValueError(
-            "Choices contain a blank before a later option. "
-            "Removing it would change answer labels; correct the choices and target."
+            f"Choices {source!r} contain a blank before a later option. "
+            "Removing it would change answer labels; correct the choices and target, "
+            "or use a custom sample_fields function to keep the blank."
         )
     return kept
 

@@ -777,12 +777,13 @@ def example_path(*paths: str) -> str:
 
 
 _BLANK_CHOICE_BEFORE_LATER_OPTION = (
-    "Choices contain a blank before a later option. "
-    "Removing it would change answer labels; correct the choices and target."
+    "contain a blank before a later option. "
+    "Removing it would change answer labels; correct the choices and target, "
+    "or use a custom sample_fields function to keep the blank."
 )
 
 
-def test_read_choices_drops_empty_entries() -> None:
+def test_read_choices_drops_trailing_blank_entries() -> None:
     assert read_choices("Paris,London,") == ["Paris", "London"]
     assert read_choices("Paris, London") == ["Paris", "London"]
     assert read_choices("Paris London") == ["Paris", "London"]
@@ -817,7 +818,9 @@ def test_read_choices_rejects_blank_before_later_option(
 ) -> None:
     with pytest.raises(ValueError) as exc_info:
         read_choices(choices)
-    assert str(exc_info.value) == _BLANK_CHOICE_BEFORE_LATER_OPTION
+    assert str(exc_info.value) == (
+        f"Choices {choices!r} {_BLANK_CHOICE_BEFORE_LATER_OPTION}"
+    )
 
 
 @pytest.mark.parametrize(
@@ -885,7 +888,7 @@ def test_dataset_loaders_reject_blank_choice_before_later_option(
     with pytest.raises(ValueError) as exc_info:
         loader(dataset_file.as_posix())
 
-    assert str(exc_info.value) == _BLANK_CHOICE_BEFORE_LATER_OPTION
+    assert _BLANK_CHOICE_BEFORE_LATER_OPTION in str(exc_info.value)
 
 
 @pytest.mark.parametrize(
@@ -911,11 +914,11 @@ def test_dataset_loaders_reject_blank_choice_before_later_option(
                     {
                         "input": "What is the capital of France?",
                         "choices": ["Paris", "London", " "],
-                        "target": "C",
+                        "target": "B",
                     }
                 ]
             ),
-            "C",
+            "B",
         ),
         (
             ".jsonl",
@@ -972,7 +975,26 @@ def test_field_spec_renamed_choices_rejects_blank_before_later_option(
             sample_fields=FieldSpec(choices="options"),
         )
 
-    assert str(exc_info.value) == _BLANK_CHOICE_BEFORE_LATER_OPTION
+    assert _BLANK_CHOICE_BEFORE_LATER_OPTION in str(exc_info.value)
+
+
+def test_blank_choice_error_names_the_sample(tmp_path: Path) -> None:
+    dataset_file = tmp_path / "choices.json"
+    dataset_file.write_text(
+        json_module.dumps(
+            [
+                {"id": "q-ok", "input": "q", "choices": ["a", "b"], "target": "A"},
+                {"id": "q-bad", "input": "q", "choices": ["a", "", "b"], "target": "A"},
+            ]
+        )
+    )
+
+    with pytest.raises(ValueError) as exc_info:
+        json_dataset(dataset_file.as_posix())
+
+    assert str(exc_info.value) == (
+        f"Sample 'q-bad': Choices ['a', '', 'b'] {_BLANK_CHOICE_BEFORE_LATER_OPTION}"
+    )
 
 
 def test_custom_mapper_can_keep_a_blank_choice(tmp_path: Path) -> None:
