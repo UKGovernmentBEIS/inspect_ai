@@ -143,7 +143,9 @@ async def sandbox_agent_bridge(
             makes the specified tools available to the agent. A bridged tool
             executes only for a call the model proposed in a bridged generation,
             once per proposal, unless its spec sets `require_proposal=False`
-            (see `BridgedToolsSpec`). The resolved MCPServerConfigStdio objects
+            (see `BridgedToolsSpec`); an agent that calls host tools from
+            model-written code, such as Codex CLI in code mode, needs that
+            opt-out. The resolved MCPServerConfigStdio objects
             to pass to CLI agents are available via bridge.mcp_server_configs.
         model_event_sink: Optional sink that takes ownership of `ModelEvent`
             emission for calls routed through the bridge. When set, the bridge
