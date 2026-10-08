@@ -96,9 +96,8 @@ In the outer frame of `Model.generate()`, as the last step before
 `return output`, using the resolved config for that call. The refusal
 counter (`report_refusal()`) runs at the end of `Model._generate()`; the
 outer `generate()` then stamps `event.timestamp`, `event.working_start`,
-`event.completed` and `event.working_time` on the `ModelEvent`, re-emits it
-via `transcript()._event_updated(event)`, and calls
-`_stamp_redacted_reasoning_tokens(output)`. The raise goes after all of that,
+`event.completed` and `event.working_time` on the `ModelEvent` and re-emits it
+via `transcript()._event_updated(event)`. The raise goes after all of that,
 so a refusal `ModelEvent` in the log carries the same completion timing as
 any other. Raising there, rather than in `_generate()`, inside the retry
 loop, or in the provider, means:
