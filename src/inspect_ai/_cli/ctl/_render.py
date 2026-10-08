@@ -809,7 +809,9 @@ def _print_human_table(summaries: list[dict[str, Any]]) -> None:
         # task_id (not eval_id): stable across retries, and the handle
         # `inspect ctl sample list` takes.
         cells = [
-            _short_id(s.get("task_id", "")),
+            # a `--log-dir --shards` row of an unreadable shard with no
+            # task id in its file name has a null id
+            _short_id(s.get("task_id") or "?"),
             s.get("task", "?") or "?",
             s.get("model", "") or "",
         ]

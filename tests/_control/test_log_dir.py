@@ -2337,9 +2337,15 @@ async def test_an_unreadable_shard_marks_the_row_and_blocks_sample_reads(
     broken = companion / "2" / f"{_SHARD_STAMP}_alpha_SHARD2TASK000000000000.eval"
     broken.parent.mkdir()
     broken.write_bytes(b"not a zip")
+    # the readable shards finished long ago; the unreadable one was just written
+    for path in companion.glob("[01]/*.eval"):
+        os.utime(path, (1000, 1000))
+    os.utime(broken, (5000, 5000))
 
     index, [view] = await _shard_views(tmp_path)
     row = task_row(view)
+    # every member's listing counts toward updated_at, readable or not
+    assert row["updated_at"] == pytest.approx(5000)
     assert row["incomplete"] is True
     assert [u["log_location"] for u in row["unreadable"]] == [str(broken)]
     assert row["samples"]["total"] == 2
@@ -2353,6 +2359,22 @@ async def test_an_unreadable_shard_marks_the_row_and_blocks_sample_reads(
     async with AsyncFilesystem() as fs:
         with pytest.raises(LogUnparseableError):
             await sample_detail(fs, index.tasks[0], "1", 1)
+
+
+async def test_a_shard_set_with_no_readable_shard_keeps_its_listing_times(
+    tmp_path: Path,
+) -> None:
+    companion = tmp_path / f"{_SET_NAME}.shards"
+    for k, mtime in (("0", 1000), ("1", 3000)):
+        broken = companion / k / "bad.eval"
+        broken.parent.mkdir(parents=True)
+        broken.write_bytes(b"not a zip")
+        os.utime(broken, (mtime, mtime))
+    _, [row] = await _index(tmp_path)
+    assert row["current_attempt"] == "shards" and row["task_id"] == _SET_ID
+    assert row["updated_at"] == pytest.approx(3000)
+    assert row["status"] == "running" and row["incomplete"] is True
+    assert row["shards"]["total"] == 2 and row["shards"]["running"] == 0
 
 
 async def test_stray_and_nested_logs_in_a_companion(
@@ -2546,6 +2568,25 @@ def test_cli_shards_is_a_no_op_in_live_mode(monkeypatch: pytest.MonkeyPatch) -> 
     result = cli_runner().invoke(ctl_command, ["task", "list", "--shards", "--json"])
     assert result.exit_code == 0, result.output
     assert set(_json(result)) == {"as_of", "tasks"}
+
+
+def test_cli_shard_rows_of_an_unreadable_shard_without_a_task_id(
+    tmp_path: Path, finished_log: EvalLog, no_discovery: None
+) -> None:
+    companion = anyio.run(
+        functools.partial(_shard_set, tmp_path, finished_log, {"1": [1]})
+    )
+    (companion / "0").mkdir()
+    (companion / "0" / "bad.eval").write_bytes(b"not a zip")
+
+    payload = _json(_ctl(tmp_path, "task", "list", "--shards", "--json"))
+    [unreadable] = [t for t in payload["tasks"] if t["shard"] == "0"]
+    # nothing names its task id: the JSON keeps it null
+    assert unreadable["task_id"] is None and unreadable["incomplete"] is True
+
+    human = _ctl(tmp_path, "task", "list", "--shards")
+    assert human.exit_code == 0, human.output
+    assert "shard 0" in human.stdout and "shard 1" in human.stdout
 
 
 def test_cli_hostile_shard_names_are_sanitized(

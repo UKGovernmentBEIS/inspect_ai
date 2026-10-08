@@ -931,7 +931,7 @@ def _progress(reads: list[MemberRead], *, authoritative: int | None) -> _Progres
         "process_paused_now": None,
         "paused_models": [],
         "api_version": None,
-        "updated_at": _updated_at(known, members),
+        "updated_at": _updated_at([r.member.file for r in reads], members),
         "live_samples": _live_samples(live),
     }
     return _Progress(fields=fields, overlapping=len(overlapping))
@@ -1053,9 +1053,13 @@ def sample_listing(
     )
 
 
-def _updated_at(plans: list[LogPlan], members: list[MemberSnapshot]) -> float | None:
-    """The latest of the members' log mtimes and their manifests' Last-Modified."""
-    times = [p.file.mtime for p in plans] + [
+def _updated_at(files: list[LogFile], members: list[MemberSnapshot]) -> float | None:
+    """The latest of the members' listed log mtimes and their manifests' Last-Modified.
+
+    Every member's listing counts, readable or not: a log just written that
+    does not parse is still a sign its worker is alive.
+    """
+    times = [f.mtime for f in files] + [
         m.buffer.mtime for m in members if m.buffer is not None
     ]
     return max((t for t in times if t is not None), default=None)
