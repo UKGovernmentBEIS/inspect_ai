@@ -216,8 +216,19 @@ def compute_eval_scores_for_views(
     mixed_views = reduced_metrics is not None and unreduced_metrics is not None
 
     if reduced_metrics is not None:
-        for reducer, reducer_display_nm in _reduced_views(reducers, mixed_views):
-            reduced_scores = reduce_scores(scores, reducer=reducer)
+        # One score per sample and no reducer: there is nothing to collapse.
+        # mean_score() would convert each value with the default float
+        # converter before the metric's own to_float or on_missing handling
+        # sees it. An explicit reducer still runs, and so does the implicit
+        # mean when any sample id appears more than once.
+        if reducers is None and not _has_repeated_sample_ids(scores):
+            reduced_views: list[tuple[list[SampleScore], str | None]] = [(scores, None)]
+        else:
+            reduced_views = [
+                (reduce_scores(scores, reducer=reducer), reducer_display_nm)
+                for reducer, reducer_display_nm in _reduced_views(reducers, mixed_views)
+            ]
+        for reduced_scores, reducer_display_nm in reduced_views:
             sample_reductions.append(
                 EvalSampleReductions(
                     scorer=scorer_name,
