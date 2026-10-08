@@ -1,3 +1,5 @@
+import inspect
+
 from test_helpers.tasks import minimal_task
 
 from inspect_ai import task_with
@@ -103,7 +105,9 @@ def test_task_description() -> None:
 
 def test_task_positional_version_compatibility() -> None:
     parameters = list(inspect.signature(Task).parameters.values())
-    version_index = next(i for i, parameter in enumerate(parameters) if parameter.name == "version")
+    version_index = next(
+        i for i, parameter in enumerate(parameters) if parameter.name == "version"
+    )
     positional = [parameter.default for parameter in parameters[: version_index + 1]]
     positional[version_index] = "v2"
 
@@ -117,4 +121,3 @@ def test_task_with_description() -> None:
     # unspecified leaves the description in place
     task = task_with(Task(description="Kept."), time_limit=30)
     assert task.description == "Kept."
-import inspect

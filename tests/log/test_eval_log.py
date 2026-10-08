@@ -11,7 +11,7 @@ from zipfile import ZipFile
 
 import anyio
 import pytest
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from pydantic_core import PydanticSerializationError
 from test_helpers.utils import skip_if_trio
 from typing_extensions import override
@@ -298,10 +298,25 @@ def test_sample_init_event_omits_description_for_older_readers():
         timestamp=datetime.now(timezone.utc),
     )
 
-    serialized = original.model_dump_json(exclude_none=True)
+    serialized = original.model_dump(mode="json", exclude_none=True)
+    legacy_sample = serialized["sample"]
 
-    assert '"description"' not in serialized
-    assert SampleInitEvent.model_validate_json(serialized).sample.description is None
+    class PreviousSampleReader(BaseModel):
+        model_config = ConfigDict(extra="forbid")
+
+        input: str
+        target: str | list[str]
+
+    assert "description" not in legacy_sample
+    PreviousSampleReader.model_validate(legacy_sample)
+    assert SampleInitEvent.model_validate(serialized).sample.description is None
+
+    schema = SampleInitEvent.model_json_schema(mode="serialization")
+    assert schema["$defs"]["Sample"]
+    assert schema["properties"]["sample"] == {"$ref": "#/$defs/Sample"}
+
+    # The omission is specific to the event; persisted eval samples retain it.
+    assert original.sample.model_dump(exclude_none=True)["description"] == "solve this"
 
 
 def test_can_round_trip_serialize_sandbox_event():

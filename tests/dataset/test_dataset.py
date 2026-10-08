@@ -10,6 +10,7 @@ import pytest
 from pydantic import BaseModel
 from test_helpers.utils import skip_if_github_action
 
+from inspect_ai._eval.task.hf import HFFieldSpec
 from inspect_ai._util.content import ContentImage
 from inspect_ai._util.file import exists
 from inspect_ai.dataset import (
@@ -21,7 +22,6 @@ from inspect_ai.dataset import (
     file_dataset,
     json_dataset,
 )
-from inspect_ai._eval.task.hf import HFFieldSpec
 from inspect_ai.dataset._util import read_choices
 from inspect_ai.model._chat_message import ChatMessageUser
 
@@ -39,6 +39,7 @@ def test_field_spec_positional_metadata_compatibility() -> None:
 
     assert FieldSpec("input", "target", "choices", "id", fields).metadata is fields
     assert HFFieldSpec("input", "target", "choices", "id", fields).metadata is fields
+
 
 # test functions are parameterized by dataset type and input file
 csv = (csv_dataset, "samples.csv")

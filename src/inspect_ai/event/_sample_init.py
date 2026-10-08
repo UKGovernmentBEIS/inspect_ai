@@ -1,6 +1,6 @@
-from typing import Literal
+from typing import Annotated, Literal
 
-from pydantic import Field, JsonValue, field_serializer
+from pydantic import Field, JsonValue, PlainSerializer
 
 from inspect_ai.dataset._dataset import Sample
 from inspect_ai.event._base import BaseEvent
@@ -12,14 +12,14 @@ class SampleInitEvent(BaseEvent):
     event: Literal["sample_init"] = Field(default="sample_init")
     """Event type."""
 
-    sample: Sample
+    sample: Annotated[
+        Sample,
+        PlainSerializer(
+            lambda sample: sample.model_copy(update={"description": None}),
+            return_type=Sample,
+        ),
+    ]
     """Sample."""
-
-    @field_serializer("sample")
-    @classmethod
-    def _serialize_sample(cls, sample: Sample) -> dict[str, object]:
-        """Omit descriptions from this event for compatibility with older readers."""
-        return sample.model_dump(mode="json", exclude={"description"}, exclude_none=True)
 
     state: JsonValue = None
     """Initial state.
