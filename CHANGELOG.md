@@ -1,5 +1,8 @@
 ## Unreleased
 
+- Compaction: Fixed compaction triggering early and reporting inflated token counts on OpenAI reasoning models, which counted replayed reasoning twice.
+- Compaction: Removed `ModelAPI.apply_redacted_reasoning_tokens_to_input()` and stopped adding `redacted_reasoning_tokens` to assistant message metadata.
+- Compaction: Overflow recovery in `react()` no longer forces compaction again when the retry after a forced compaction also overflows, which could resend the same request indefinitely.
 - Grok: Fixed batch mode failing after a credential refresh (e.g. on an expired API key), including batches already in progress.
 - Models: Setting `text` on a `ChatMessage` with a list of content now replaces the existing text in place instead of moving it after images and other media; a message with no text still gets the new text appended. `prompt_template()`, `chain_of_thought()` and `multiple_choice()` set `text`, so multimodal evals that put text before media now send the prompt in the order they wrote it, and their baselines may shift on rerun. (#4770)
 - Solver: `TaskState.input_text` no longer raises when the last user message has no text; image-only and other non-text messages return placeholders such as `[image]`, and an empty message returns `""`.
@@ -17,6 +20,7 @@
 - Agent Bridge: A provider error delivered during a streamed response now reaches the bridged agent as an error instead of a malformed HTTP 200 success.
 - Agent Bridge: A bridged Anthropic client now sees conflict, timeout, and billing errors as such instead of as generic server errors.
 - Agent Bridge: Sandboxed agents now receive exhausted provider errors with their original status and error details.
+- Dependencies: Require `nest_asyncio2` >= 1.7.4, fixing cancel scope errors (e.g. from Mistral streaming) after Inspect is called synchronously from a notebook or another running event loop.
 
 ## 0.3.277 (06 October 2026)
 
