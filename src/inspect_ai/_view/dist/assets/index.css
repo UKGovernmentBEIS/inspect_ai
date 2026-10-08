@@ -18990,7 +18990,7 @@ a._citationLink_1gzkd_9:hover {
    which are neutral by default and only colorized under the readable
    variant (the Event Colors toggle); the output well is the tool-output
    fill, hairlines/border are the subtle border token. */
-._block_1v0e4_5 {
+._block_1ib8l_5 {
   border-left: var(--inspect-tool-block-edge);
 }
 
@@ -18998,7 +18998,7 @@ a._citationLink_1gzkd_9:hover {
    frame a scroll container, which traps the sticky "less…" toggle of the
    ExpandablePanels inside at the block's bottom edge — off screen for any
    output taller than the viewport. */
-._standalone_1v0e4_13 {
+._standalone_1ib8l_13 {
   border-top: 1px solid var(--bs-light-border-subtle);
   border-right: 1px solid var(--bs-light-border-subtle);
   border-bottom: 1px solid var(--bs-light-border-subtle);
@@ -19006,7 +19006,7 @@ a._citationLink_1gzkd_9:hover {
   overflow: clip;
 }
 
-._header_1v0e4_21 {
+._header_1ib8l_21 {
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -19017,17 +19017,17 @@ a._citationLink_1gzkd_9:hover {
 /* The zero bottom padding above assumes an input/output zone follows; a
    header-only block (no input, no output yet) otherwise sits flush against
    the container's bottom edge. */
-._header_1v0e4_21:last-child {
+._header_1ib8l_21:last-child {
   padding-bottom: 0.5rem;
 }
 
-._icon_1v0e4_36 {
+._icon_1ib8l_36 {
   flex: none;
   font-size: 13px;
   color: var(--inspect-tool-block-ink);
 }
 
-._title_1v0e4_42 {
+._title_1ib8l_42 {
   flex: none;
   font-family: var(--bs-font-monospace);
   font-size: var(--inspect-font-size-smaller);
@@ -19035,7 +19035,7 @@ a._citationLink_1gzkd_9:hover {
   color: var(--inspect-tool-block-ink);
 }
 
-._summary_1v0e4_50 {
+._summary_1ib8l_50 {
   flex: 1;
   min-width: 0;
   overflow: hidden;
@@ -19046,7 +19046,7 @@ a._citationLink_1gzkd_9:hover {
   color: var(--bs-secondary-color);
 }
 
-._pill_1v0e4_61 {
+._pill_1ib8l_61 {
   flex: none;
   /* Right-aligned even when there is no args summary to push it over. */
   margin-left: auto;
@@ -19060,7 +19060,7 @@ a._citationLink_1gzkd_9:hover {
   padding: 1px 7px;
 }
 
-._inputZone_1v0e4_75 {
+._inputZone_1ib8l_75 {
   background-color: var(--inspect-tool-block-input-bg);
   padding: 0 0.5rem 0.2rem 0.5rem;
 }
@@ -19069,11 +19069,11 @@ a._citationLink_1gzkd_9:hover {
    inside the ExpandablePanel's content — a scroll container on the zone
    would sit between the panel and the transcript scroller and trap its
    sticky toggle (see `.standalone`). */
-._inputZone_1v0e4_75 .tool-call-input {
+._inputZone_1ib8l_75 .tool-call-input {
   overflow-x: auto;
 }
 
-._outputWell_1v0e4_88 {
+._outputWell_1ib8l_88 {
   border-top: 1px solid var(--bs-light-border-subtle);
   background-color: var(--inspect-tool-block-output-bg);
   padding: 12px 15px;
@@ -19085,8 +19085,8 @@ a._citationLink_1gzkd_9:hover {
    renderers (prism code blocks, tool-call-input call-outs, tool output wells)
    would otherwise stack inside them. !important outranks the readable
    variant's higher-specificity :root[data-theme-variant] surface rules. */
-._inputZone_1v0e4_75 pre.tool-call-input,
-._inputZone_1v0e4_75 div.tool-call-input {
+._inputZone_1ib8l_75 pre.tool-call-input,
+._inputZone_1ib8l_75 div.tool-call-input {
   background-color: transparent !important;
   border: 0 !important;
   border-radius: 0 !important;
@@ -19094,13 +19094,13 @@ a._citationLink_1gzkd_9:hover {
   margin: 0 !important;
 }
 
-._inputZone_1v0e4_75 .tool-call-input pre[class*="language-"] {
+._inputZone_1ib8l_75 .tool-call-input pre[class*="language-"] {
   margin: 0 !important;
   padding: 0 !important;
   background-color: transparent !important;
 }
 
-._outputWell_1v0e4_88 .tool-output {
+._outputWell_1ib8l_88 .tool-output {
   background-color: transparent !important;
   border: 0 !important;
   border-radius: 0 !important;
@@ -19108,45 +19108,35 @@ a._citationLink_1gzkd_9:hover {
   padding: 0 !important;
 }
 
-._inputInsetZone_1v0e4_123,
-._outputInsetZone_1v0e4_124 {
+._inputInsetZone_1ib8l_123,
+._outputInsetZone_1ib8l_124 {
   display: flex;
   flex-direction: column;
   gap: 6px;
   padding: 0 10px 10px;
 }
 
-._inputInsetZone_1v0e4_123 {
+._inputInsetZone_1ib8l_123 {
   background-color: var(--inspect-tool-block-input-bg);
 }
 
-._header_1v0e4_21 + ._inputInsetZone_1v0e4_123 {
+._header_1ib8l_21 + ._inputInsetZone_1ib8l_123 {
   padding-top: 6px;
 }
 
-._inputZone_1v0e4_75 + ._inputInsetZone_1v0e4_123 {
+._inputZone_1ib8l_75 + ._inputInsetZone_1ib8l_123 {
   padding-top: 5px;
 }
 
-._outputInsetZone_1v0e4_124 {
+._outputInsetZone_1ib8l_124 {
   border-top: 1px solid var(--bs-light-border-subtle);
   background-color: var(--inspect-tool-block-output-bg);
   padding-top: 10px;
 }
 
-._outputWell_1v0e4_88 + ._outputInsetZone_1v0e4_124 {
+._outputWell_1ib8l_88 + ._outputInsetZone_1ib8l_124 {
   border-top: 0;
   padding-top: 0;
-}
-
-/* The call a check replaced or blocked: struck through and without syntax
-   colors, so the replacement reads as what ran. */
-._struckText_1v0e4_156,
-._struck_1v0e4_156 .tool-call-input,
-._struck_1v0e4_156 .tool-call-input * {
-  color: rgba(var(--bs-body-color-rgb), 0.6) !important;
-  text-decoration: line-through;
-  text-decoration-color: rgba(var(--bs-body-color-rgb), 0.35);
 }
 ._error_wtrgp_1 {
   color: var(--inspect-tool-error-color);
@@ -24105,7 +24095,7 @@ a._citationLink_1gzkd_9:hover {
 ._chainExplanation_etmzh_45 > :last-child {
   margin-bottom: 0;
 }
-._inset_1l14j_1 {
+._inset_1g4dt_1 {
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -24118,21 +24108,21 @@ a._citationLink_1gzkd_9:hover {
   color: var(--bs-body-color);
 }
 
-._output_1l14j_14 {
+._output_1g4dt_14 {
   border-color: var(--inspect-check-result-border);
 }
 
-._inset_1l14j_1._reject_1l14j_18 {
+._inset_1g4dt_1._reject_1g4dt_18 {
   border-color: var(--inspect-check-reject-border);
   background-color: var(--inspect-check-reject-bg);
 }
 
-._inset_1l14j_1._modify_1l14j_23 {
+._inset_1g4dt_1._modify_1g4dt_23 {
   border-color: var(--inspect-check-modify-border);
   background-color: var(--inspect-check-modify-bg);
 }
 
-._summary_1l14j_28 {
+._summary_1g4dt_28 {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
@@ -24140,35 +24130,65 @@ a._citationLink_1gzkd_9:hover {
   min-width: 0;
 }
 
-._icon_1l14j_36 {
+._icon_1g4dt_36 {
   color: rgba(var(--bs-body-color-rgb), 0.6);
 }
 
-._verdict_1l14j_40 {
+._verdict_1g4dt_40 {
   font-weight: 600;
 }
 
-._who_1l14j_44 {
+._who_1g4dt_44 {
   color: var(--bs-secondary-color);
 }
 
-._mono_1l14j_48 {
+._mono_1g4dt_48 {
   font-family: var(--bs-font-monospace);
 }
 
-._reason_1l14j_52 {
+._reasonWrap_1g4dt_52,
+._error_1g4dt_53 {
   flex: 1 1 200px;
   min-width: 0;
+}
+
+._reasonWrap_1g4dt_52 {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+._reason_1g4dt_52 {
+  min-width: 0;
+  max-width: 100%;
   overflow-wrap: anywhere;
 }
 
-._reason_1l14j_52 p,
-._reason_1l14j_52 > :last-child {
+._error_1g4dt_53 {
+  margin: 0;
+  font-family: var(--bs-font-monospace);
+  font-size: 0.75rem;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+._more_1g4dt_78 {
+  padding: 0;
+  border: 0;
+  background: none;
+  font-size: 0.72rem;
+  color: var(--bs-link-color);
+  cursor: pointer;
+}
+
+._reason_1g4dt_52 p,
+._reason_1g4dt_52 > :last-child {
   margin-bottom: 0;
 }
 
-/* With the checks expandable, the full explanation is in the tree detail. */
-._clamped_1l14j_64 {
+/* With the checks expandable, the full explanation is in the tree detail;
+   "more" shows it in place. */
+._clamped_1g4dt_94 {
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
@@ -24176,43 +24196,43 @@ a._citationLink_1gzkd_9:hover {
   overflow: hidden;
 }
 
-._scores_1l14j_72 {
+._scores_1g4dt_102 {
   font-family: var(--bs-font-monospace);
   font-size: 0.78rem;
   color: var(--bs-secondary-color);
   white-space: nowrap;
 }
 
-._approveIcon_1l14j_79 {
+._approveIcon_1g4dt_109 {
   color: var(--inspect-check-approve-icon);
 }
 
-._approveText_1l14j_83 {
+._approveText_1g4dt_113 {
   color: var(--inspect-check-approve-text);
 }
 
-._rejectIcon_1l14j_87 {
+._rejectIcon_1g4dt_117 {
   color: var(--inspect-check-reject-icon);
 }
 
-._rejectText_1l14j_91 {
+._rejectText_1g4dt_121 {
   color: var(--inspect-check-reject-text);
 }
 
-._rejectReason_1l14j_95 {
+._rejectReason_1g4dt_125 {
   color: var(--inspect-check-reject-reason);
 }
 
-._modifyIcon_1l14j_99 {
+._modifyIcon_1g4dt_129 {
   color: var(--inspect-check-modify-icon);
 }
 
-._modifyText_1l14j_103 {
+._modifyText_1g4dt_133 {
   color: var(--inspect-check-modify-text);
 }
 
-._chip_1l14j_107,
-._pill_1l14j_108 {
+._chip_1g4dt_137,
+._pill_1g4dt_138 {
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -24224,13 +24244,13 @@ a._citationLink_1gzkd_9:hover {
   white-space: nowrap;
 }
 
-._chip_1l14j_107 {
+._chip_1g4dt_137 {
   color: var(--inspect-check-modify-text);
   background-color: var(--inspect-check-flag-bg);
   border-color: var(--inspect-check-modify-border);
 }
 
-._pill_1l14j_108 {
+._pill_1g4dt_138 {
   cursor: pointer;
   font-family: inherit;
   color: var(--inspect-tool-block-ink);
@@ -24238,43 +24258,43 @@ a._citationLink_1gzkd_9:hover {
   border-color: var(--inspect-check-input-border);
 }
 
-._trailing_1l14j_134 {
+._trailing_1g4dt_164 {
   display: inline-flex;
   align-items: center;
   gap: 8px;
   margin-left: auto;
 }
 
-._output_1l14j_14 ._pill_1l14j_108 {
+._output_1g4dt_14 ._pill_1g4dt_138 {
   color: var(--inspect-check-result-pill-text);
   background-color: var(--inspect-check-result-pill-bg);
   border-color: var(--inspect-check-result-border);
 }
 
-._reject_1l14j_18 ._pill_1l14j_108 {
+._reject_1g4dt_18 ._pill_1g4dt_138 {
   color: var(--inspect-check-reject-reason);
   background-color: var(--bs-body-bg);
   border-color: var(--inspect-check-reject-border);
 }
 
-._modify_1l14j_23 ._pill_1l14j_108 {
+._modify_1g4dt_23 ._pill_1g4dt_138 {
   color: var(--inspect-check-modify-text);
   background-color: var(--bs-body-bg);
   border-color: var(--inspect-check-modify-border);
 }
 
-._pillChevron_1l14j_159 {
+._pillChevron_1g4dt_189 {
   font-size: 0.8em;
 }
 
-._label_1l14j_163 {
+._label_1g4dt_193 {
   font-size: 0.65rem;
   font-weight: 600;
   letter-spacing: 0.03em;
   text-transform: uppercase;
 }
 
-._ranInstead_1l14j_170 {
+._replaced_1g4dt_200 {
   display: flex;
   flex-direction: column;
   gap: 3px;
@@ -24285,7 +24305,7 @@ a._citationLink_1gzkd_9:hover {
   background-color: var(--bs-body-bg);
 }
 
-._code_1l14j_181 {
+._code_1g4dt_211 {
   font-family: var(--bs-font-monospace);
   font-size: 0.78rem;
   line-height: 1.55;
@@ -24293,11 +24313,11 @@ a._citationLink_1gzkd_9:hover {
   overflow-wrap: anywhere;
 }
 
-/* The replacement renders through the tool input view; flatten the boxed
+/* The proposal renders through the tool input view; flatten the boxed
    surface the readable variant gives it. */
-._ranInstead_1l14j_170 ._code_1l14j_181 pre.tool-call-input,
-._ranInstead_1l14j_170 ._code_1l14j_181 div.tool-call-input,
-._ranInstead_1l14j_170 ._code_1l14j_181 .tool-call-input pre[class*="language-"] {
+._replaced_1g4dt_200 ._code_1g4dt_211 pre.tool-call-input,
+._replaced_1g4dt_200 ._code_1g4dt_211 div.tool-call-input,
+._replaced_1g4dt_200 ._code_1g4dt_211 .tool-call-input pre[class*="language-"] {
   background-color: transparent !important;
   border: 0 !important;
   border-radius: 0 !important;
@@ -24306,7 +24326,15 @@ a._citationLink_1gzkd_9:hover {
   font-size: inherit;
 }
 
-._notRun_1l14j_202 {
+/* Struck through and without syntax colors, so the tool input reads as what ran. */
+._struck_1g4dt_233,
+._struck_1g4dt_233 * {
+  color: rgba(var(--bs-body-color-rgb), 0.6) !important;
+  text-decoration: line-through;
+  text-decoration-color: rgba(var(--bs-body-color-rgb), 0.35);
+}
+
+._notRun_1g4dt_240 {
   display: flex;
   align-items: baseline;
   gap: 8px;
@@ -24317,7 +24345,7 @@ a._citationLink_1gzkd_9:hover {
   color: var(--bs-secondary-color);
 }
 
-._notRunBody_1l14j_213 {
+._notRunBody_1g4dt_251 {
   display: flex;
   flex: 1;
   flex-direction: column;
@@ -24325,7 +24353,7 @@ a._citationLink_1gzkd_9:hover {
   min-width: 0;
 }
 
-._message_1l14j_221 {
+._message_1g4dt_259 {
   display: grid;
   grid-template-columns: max-content minmax(0, 1fr);
   align-items: baseline;
@@ -24337,11 +24365,11 @@ a._citationLink_1gzkd_9:hover {
   color: var(--bs-body-color);
 }
 
-._message_1l14j_221 ._label_1l14j_163 {
+._message_1g4dt_259 ._label_1g4dt_193 {
   color: var(--inspect-check-reject-text);
 }
 
-._messageText_1l14j_237 {
+._messageText_1g4dt_275 {
   font-family: var(--bs-font-monospace);
   font-size: 0.75rem;
   white-space: pre-wrap;

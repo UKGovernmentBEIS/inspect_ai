@@ -14,6 +14,11 @@ from inspect_ai.util._limit import suspend_token_limit, suspend_turn_limit
 from ._approver import Approver
 from ._policy import ApprovalPolicy, policy_approver
 
+MODIFY_WITHOUT_CALL = (
+    "The approver chose to modify this tool call but supplied no modified call, "
+    "so the call was not run."
+)
+
 
 async def apply_tool_approval(
     message: str,
@@ -37,7 +42,15 @@ async def apply_tool_approval(
 
         # process decision
         match approval.decision:
-            case "approve" | "modify":
+            case "approve":
+                return True, approval
+            case "modify":
+                # without a modified call there is nothing approved to run, and
+                # running the original would contradict the recorded decision
+                if approval.modified is None:
+                    return False, Approval(
+                        decision="reject", explanation=MODIFY_WITHOUT_CALL
+                    )
                 return True, approval
             case "reject":
                 return False, approval

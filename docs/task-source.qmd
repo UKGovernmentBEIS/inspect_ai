@@ -3,14 +3,6 @@ title: Task Sources
 llms-description: Generate an eval's tasks dynamically from code — a seed plus result-driven follow-ups — while the eval runs.
 ---
 
-::: {.callout-note appearance="simple"}
-Task sources require the development version of Inspect, which you can install from GitHub:
-
-```bash
-pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-```
-:::
-
 ## Overview
 
 The `tasks` argument to `eval()` is normally static: you pass a `Task` (or list of tasks) and the run executes those. A `TaskSource` generates tasks dynamically instead — a seed plus follow-ups that depend on results — all under one run id.

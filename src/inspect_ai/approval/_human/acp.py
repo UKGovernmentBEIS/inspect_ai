@@ -96,11 +96,10 @@ class _ApprovalRoutingSession(Protocol):
 # allow/reject color treatment); the actual decision routes via
 # ``optionId``. Mappings here are best-effort semantic neighbors —
 # ACP's kinds are binary allow/deny variants and Inspect's
-# ``terminate`` / ``escalate`` / ``modify`` don't have perfect ACP
-# counterparts.
+# ``terminate`` / ``escalate`` don't have perfect ACP counterparts.
+# ``modify`` has no entry: ``human_approver`` never offers it.
 _KIND_BY_DECISION: dict[ApprovalDecision, PermissionOptionKind] = {
     "approve": "allow_once",
-    "modify": "allow_once",  # "approve with modification"
     "reject": "reject_once",
     "terminate": "reject_always",  # strongest reject — also stops the eval
     "escalate": "reject_once",  # no real ACP equivalent
@@ -110,7 +109,6 @@ _KIND_BY_DECISION: dict[ApprovalDecision, PermissionOptionKind] = {
 # button text on the permission card.
 _LABEL_BY_DECISION: dict[ApprovalDecision, str] = {
     "approve": "Approve",
-    "modify": "Modify",
     "reject": "Reject",
     "terminate": "Terminate",
     "escalate": "Escalate",
