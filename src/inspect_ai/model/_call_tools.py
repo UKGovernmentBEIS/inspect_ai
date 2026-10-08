@@ -295,6 +295,11 @@ async def _execute_tools_impl(
         # before the limit reaches run_one.
         stage_limit_errors: list[LimitExceededError] = []
 
+        def record_stage_limit_error(ex: Exception) -> None:
+            limit_error = enclosing_limit_error(ex)
+            if limit_error is not None:
+                stage_limit_errors.append(limit_error)
+
         async def call_tool_task(
             call: ToolCall,
             event: ToolEvent,
@@ -359,6 +364,7 @@ async def _execute_tools_impl(
 
             except SentinelFailure as ex:
                 tool_exception = _sentinel_exception(ex)
+                record_stage_limit_error(tool_exception)
             except Exception as ex:
                 mapped = tool_call_error(ex, call.function)
                 if mapped is not None:
@@ -372,7 +378,7 @@ async def _execute_tools_impl(
                         and limit_error_scope(ex) != "inner"
                     ):
                         tool_exception = ex
-                        stage_limit_errors.append(ex)
+                        record_stage_limit_error(ex)
                 elif isinstance(ex, ValueError):
                     # pre-existing: a ValueError other than the null-byte case
                     # escapes the per-call handler rather than being captured
@@ -453,8 +459,10 @@ async def _execute_tools_impl(
                     raise
                 except SentinelFailure as ex:
                     tool_exception = _sentinel_exception(ex)
+                    record_stage_limit_error(tool_exception)
                 except Exception as ex:
                     tool_exception = ex
+                    record_stage_limit_error(ex)
 
             # yield message and event
             async with send_stream:

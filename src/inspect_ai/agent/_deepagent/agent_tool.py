@@ -41,6 +41,7 @@ from inspect_ai.tool._tool_call import (
     ToolCallViewer,
 )
 from inspect_ai.tool._tool_def import ToolDef
+from inspect_ai.util._limit import enclosing_limit_error
 
 from .prompt import SUBAGENT_SUBMIT_PROMPT
 from .subagent import Subagent
@@ -171,10 +172,16 @@ class BackgroundRegistry:
                     task_group.cancel_scope.cancel()
         except ExceptionGroup as ex:
             # The task group wraps whatever ends it. Undo that wrapper when
-            # it holds one exception, so the caller sees what was raised.
-            if len(ex.exceptions) != 1:
+            # it holds one exception, so the caller sees what was raised. An
+            # enclosing limit, which a child and its parent can both raise,
+            # comes out bare so its owner's apply_limits() catches it.
+            limit_error = enclosing_limit_error(ex)
+            if limit_error is not None:
+                unwrapped = limit_error
+            elif len(ex.exceptions) != 1:
                 raise
-            unwrapped = ex.exceptions[0]
+            else:
+                unwrapped = ex.exceptions[0]
         finally:
             self._task_group = None
         if unwrapped is not None:
@@ -717,11 +724,7 @@ async def _run_background(
     from inspect_ai._util.exception import TerminateSampleError
     from inspect_ai.event._timeline import timeline_branch
     from inspect_ai.model._model import ModelRefusalError
-    from inspect_ai.util._limit import (
-        LimitExceededError,
-        apply_limits,
-        enclosing_limit_error,
-    )
+    from inspect_ai.util._limit import LimitExceededError, apply_limits
     from inspect_ai.util._span import AGENT_SPAN_TYPE, span
 
     assert future.cancel_scope is not None, (

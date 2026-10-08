@@ -1676,3 +1676,136 @@ def test_each_turn_sees_its_own_model_input(caplog: pytest.LogCaptureFixture) ->
     for (_, step), event in zip(seen, model_events, strict=False):
         assert [m.id for m in step.input] == [m.id for m in event.input]
     assert len({len(step.input) for _, step in seen}) == 3
+
+
+# Both parallel calls wait here, so the limit and the sibling's failure are
+# raised together. One barrier per sample: these evals run one sample at a time.
+_barrier: dict[str, Any] = {}
+
+
+async def _meet_sibling() -> None:
+    if "event" not in _barrier:
+        _barrier["event"] = anyio.Event()
+        _barrier["arrived"] = 0
+    event = _barrier["event"]
+    _barrier["arrived"] += 1
+    if _barrier["arrived"] == 2:
+        event.set()
+    await event.wait()
+
+
+def _exceed_limit(sourced: bool) -> None:
+    if sourced:
+        # exceeds the sample's message limit of 100
+        check_message_limit(1000, raise_for_equal=False)
+    raise LimitExceededError("custom", value=2, limit=1, message="custom limit")
+
+
+@tool(parallel=True)
+def limited_target() -> Tool:
+    async def execute() -> str:
+        """A tool whose sentinel or reviewer exceeds a limit."""
+        return "ok"
+
+    return execute
+
+
+@tool(parallel=True)
+def failing_sibling() -> Tool:
+    async def execute() -> str:
+        """A tool that fails at the same time."""
+        await _meet_sibling()
+        raise RuntimeError("sibling failure")
+
+    return execute
+
+
+# not portable: it checks the eval's limit directly
+@protocol(portable=False)
+def d3_limit_with_sibling(sourced: bool, after: bool) -> ProtocolGroup:
+    async def before(context: Context, step: BeforeToolCall) -> Decision | None:
+        if not after and step.call.function == "limited_target":
+            await _meet_sibling()
+            _exceed_limit(sourced)
+        return None
+
+    async def later(context: Context, step: AfterToolCall) -> Decision | None:
+        if after and step.call.function == "limited_target":
+            await _meet_sibling()
+            _exceed_limit(sourced)
+        return None
+
+    return ProtocolGroup(before, later)
+
+
+@reviewer
+def d3_limit_reviewer(sourced: bool) -> Reviewer:
+    async def review_(
+        message: str,
+        call: ToolCall,
+        result: ChatMessageTool,
+        output: ToolResult,
+        view: ToolCallView,
+        history: list[ChatMessage],
+    ) -> Review:
+        await _meet_sibling()
+        _exceed_limit(sourced)
+        return Review(decision="continue")
+
+    return review_
+
+
+@solver
+def call_limited_and_failing() -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        _barrier.clear()
+        calls = [
+            ToolCall(id="1", function="limited_target", arguments={}),
+            ToolCall(id="2", function="failing_sibling", arguments={}),
+        ]
+        # alternate the order, since the first call is started first
+        if state.epoch % 2 == 0:
+            calls.reverse()
+        state.messages.append(ChatMessageAssistant(content="", tool_calls=calls))
+        result = await execute_tools(
+            state.messages, [limited_target(), failing_sibling()]
+        )
+        state.messages.extend(result.messages)
+        state.messages.append(ChatMessageUser(content="continued"))
+        return state
+
+    return solve
+
+
+@pytest.mark.parametrize("sourced", [True, False], ids=["sourced", "custom"])
+@pytest.mark.parametrize("hook", ["sentinel_before", "sentinel_after", "reviewer"])
+def test_a_callback_limit_wins_over_a_parallel_sibling_failure(
+    hook: str, sourced: bool
+) -> None:
+    task_kwargs: dict[str, Any] = {}
+    if hook == "reviewer":
+        task_kwargs["review"] = [
+            ReviewPolicy(d3_limit_reviewer(sourced), "limited_target")
+        ]
+    else:
+        task_kwargs["sentinel"] = [
+            d3_limit_with_sibling(sourced, after=hook == "sentinel_after")
+        ]
+    task = Task(
+        dataset=[Sample(input="Run the tools.")],
+        solver=call_limited_and_failing(),
+        message_limit=100,
+        epochs=6,
+        **task_kwargs,
+    )
+    log = eval(task, model="mockllm/model", max_samples=1)[0]
+    assert log.status == "success", log.error
+    assert log.samples and len(log.samples) == 6
+    for sample in log.samples:
+        assert sample.error is None
+        assert sample.limit is not None
+        assert sample.limit.type == ("message" if sourced else "custom")
+        assert sample.messages[-1].text != "continued"
+        tool_events = [e for e in sample.events if isinstance(e, ToolEvent)]
+        assert len(tool_events) == 2
+        assert all(not e.pending for e in tool_events)

@@ -15,7 +15,7 @@
 - Limits: A sample or outer agent limit hit inside an `as_tool()` or `handoff()` agent without its own limits now ends that sample or agent, instead of returning a tool error or handoff notice.
 - Limits: A custom `LimitExceededError` (one with no `source`) raised inside a tool now ends the sample instead of returning a `limit` tool error.
 - Sandbox agent bridge: A limit opened by a bridged host tool now fails only that tool call instead of ending the sample.
-- Deep agents: Sample or enclosing agent limits hit in a background subagent's child task now end the sample instead of returning a subagent error.
+- Deep agents: Sample or enclosing agent limits hit in a background subagent's child task now end the sample during solving, and the enclosing agent during scoring, instead of returning a subagent error.
 - Fixed `StoreModel` skipping field validation when constructed with an empty `instance` string.
 - Fixed the human reviewer filling in tool arguments inside tool output that contains `{{{...}}}` (three or more braces).
 

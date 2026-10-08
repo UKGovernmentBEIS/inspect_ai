@@ -2195,6 +2195,99 @@ class TestNoLiveSampleTaskGroup:
         assert future.status == "cancelled"
         assert future.done.is_set()
 
+    @pytest.mark.parametrize("in_child_task", [False, True])
+    def test_scorer_parent_limit_hit_by_parent_and_child_ends_parent_only(
+        self, in_child_task: bool
+    ) -> None:
+        # The parent and its background child exceed the parent's limit
+        # together (the child from a child task of its tool, or directly),
+        # so the owned task group ends with both errors. The parent's run()
+        # gets its own limit back and the scorer goes on.
+        from inspect_ai.agent._deepagent.subagent import subagent as subagent_factory
+        from inspect_ai.agent._run import run
+        from inspect_ai.model._model_output import ModelUsage
+        from inspect_ai.util._limit import check_token_limit, record_model_usage
+
+        arrived = 0
+        both_arrived: anyio.Event | None = None
+
+        async def exceed_together(child_task: bool) -> None:
+            nonlocal arrived, both_arrived
+            if both_arrived is None:
+                both_arrived = anyio.Event()
+            event = both_arrived
+            arrived += 1
+            if arrived == 2:
+                event.set()
+            await event.wait()
+            if child_task:
+                await exceed_token_limit_in_child_task()
+            record_model_usage(ModelUsage(total_tokens=1_000_000))
+            check_token_limit()
+
+        @tool
+        def exceed_in_child() -> Tool:
+            async def execute() -> str:
+                """Exceed the parent's limit together with the parent."""
+                await exceed_together(in_child_task)
+                return "unreachable"
+
+            return execute
+
+        @tool
+        def exceed_in_parent() -> Tool:
+            async def execute() -> str:
+                """Exceed the parent's limit together with the child."""
+                await exceed_together(False)
+                return "unreachable"
+
+            return execute
+
+        child = subagent_factory(
+            name="runner",
+            description="Background runner subagent.",
+            prompt="You are a runner agent.",
+            tools=[exceed_in_child()],
+            model=get_model(
+                "mockllm/model", custom_outputs=[_tool_call("exceed_in_child")]
+            ),
+        )
+        agent = deepagent(
+            subagents=[child],
+            tools=[exceed_in_parent()],
+            model=get_model(
+                "mockllm/model",
+                custom_outputs=[
+                    _agent_call(prompt="go"),
+                    _tool_call("exceed_in_parent"),
+                    _submit("done"),
+                ],
+            ),
+            background=True,
+            submit=True,
+        )
+        results: list[bool] = []
+
+        async def run_agent(state: TaskState) -> None:
+            parent_limit = token_limit(100_000)
+            with anyio.fail_after(30):
+                _, limit_error = await run(
+                    agent, list(state.messages), limits=[parent_limit]
+                )
+            results.append(
+                limit_error is not None and limit_error.source is parent_limit
+            )
+
+        log = _eval_in_scorer(run_agent)
+
+        assert log.status == "success"
+        assert log.samples is not None
+        sample = log.samples[0]
+        assert sample.error is None
+        assert sample.limit is None
+        assert results == [True]
+        assert sample.scores is not None and len(sample.scores) == 1
+
     def test_scorer_parent_cancellation_cancels_children(self) -> None:
         from inspect_ai.agent._agent import AgentState
 
