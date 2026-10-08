@@ -57,7 +57,12 @@ from inspect_ai.tool import (
     tool,
 )
 from inspect_ai.util import StoreModel
-from inspect_ai.util._limit import LimitExceededError
+from inspect_ai.util._limit import (
+    Limit,
+    LimitExceededError,
+    check_message_limit,
+    message_limit,
+)
 
 try:
     from inspect_sentinel import (
@@ -378,7 +383,9 @@ def d3_reject_handoff() -> Protocol:
     return decide
 
 
-def run_handoff(sentinel: Any, via_tool: bool = False) -> EvalLog:
+def run_handoff(
+    sentinel: Any, via_tool: bool = False, limits: list[Limit] | None = None
+) -> EvalLog:
     helper_model = get_model(
         "mockllm/model",
         custom_outputs=[
@@ -411,7 +418,11 @@ def run_handoff(sentinel: Any, via_tool: bool = False) -> EvalLog:
     task = Task(
         dataset=[Sample(input="What is 2 + 3?", target="5")],
         solver=[
-            use_tools(as_tool(helper) if via_tool else handoff(helper)),
+            use_tools(
+                as_tool(helper, limits=limits or [])
+                if via_tool
+                else handoff(helper, limits=limits or [])
+            ),
             generate(),
         ],
         sentinel=sentinel,
@@ -1213,16 +1224,51 @@ def test_a_sentinel_terminate_error_in_a_sub_agent_ends_the_sample(
     assert sample.limit.reason == "stop now"
 
 
+# not portable: it checks the eval's limit directly
+@protocol(portable=False)
+def d3_exceeding_message_limit_in_helper(after: bool = False) -> ProtocolGroup:
+    async def before(context: Context, step: BeforeToolCall) -> Decision | None:
+        if not after and step.call.function == "addition":
+            check_message_limit(100, raise_for_equal=False)
+        return None
+
+    async def later(context: Context, step: AfterToolCall) -> Decision | None:
+        if after and step.call.function == "addition":
+            check_message_limit(100, raise_for_equal=False)
+        return None
+
+    return ProtocolGroup(before, later)
+
+
 @pytest.mark.parametrize("after", [False, True])
 def test_a_sentinel_limit_in_a_sub_agent_stops_the_handoff(after: bool) -> None:
+    # the sentinel exceeds the sub-agent's own limit
+    log = run_handoff(
+        [d3_exceeding_message_limit_in_helper(after=after)],
+        limits=[message_limit(50)],
+    )
+    assert log.status == "success", log.error
+    assert log.samples
+    assert log.samples[0].limit is None
+    assert any(
+        "helper exceeded its message limit of 50" in message.text
+        for message in log.samples[0].messages
+    )
+
+
+@pytest.mark.parametrize("after", [False, True])
+def test_a_custom_sentinel_limit_in_a_sub_agent_ends_the_sample(after: bool) -> None:
+    # a limit error with no source is a custom limit, which the sample enforces
     error = LimitExceededError("working", value=10, limit=5, message="hit")
     log = run_handoff([d3_raising_in_helper(error, after=after)])
     assert log.status == "success", log.error
     assert log.samples
-    assert any(
-        "helper exceeded its working limit of 5" in message.text
-        for message in log.samples[0].messages
-    )
+    sample = log.samples[0]
+    assert sample.error is None
+    assert sample.limit is not None
+    assert sample.limit.type == "working"
+    assert sample.limit.reason == "hit"
+    assert not any("helper exceeded" in message.text for message in sample.messages)
 
 
 def test_host_generate_without_a_monitor_role_labels_the_agent_model() -> None:
