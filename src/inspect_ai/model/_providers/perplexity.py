@@ -26,6 +26,7 @@ RETIRED_SONAR_MODELS = ["sonar-pro", "sonar-reasoning-pro", "sonar-deep-research
 SONAR_SEARCH_OPTIONS = [
     "search_mode",
     "web_search_options",
+    "search_context_size",
     "search_domain_filter",
     "search_recency_filter",
     "search_after_date_filter",
@@ -106,10 +107,16 @@ class PerplexityAPI(OpenAICompatibleAPI):
                 if isinstance(maybe_opts, dict):
                     sonar_options = [k for k in maybe_opts if k in SONAR_SEARCH_OPTIONS]
                     if sonar_options:
+                        budgets = (
+                            " Use the token budgets max_tokens and "
+                            "max_tokens_per_page in place of search_context_size."
+                            if "search_context_size" in sonar_options
+                            else ""
+                        )
                         raise ValueError(
                             f"Perplexity web_search options {sonar_options} are Sonar "
-                            "parameters, which the Agent API does not accept. See "
-                            "https://docs.perplexity.ai/docs/agent-api/migrate-from-sonar/how-to#parameter-reference"
+                            f"parameters, which the Agent API does not accept.{budgets} "
+                            "See https://docs.perplexity.ai/docs/agent-api/migrate-from-sonar/how-to#parameter-reference"
                         )
                     web_search = {"type": "web_search", **maybe_opts}
                 elif maybe_opts is True:

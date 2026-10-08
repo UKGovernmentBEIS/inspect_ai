@@ -39,7 +39,13 @@ async def test_perplexity_api() -> None:
         input=[message],
         tools=[
             web_search(
-                {"perplexity": {"search_context_size": "low", "search_type": "fast"}}
+                {
+                    "perplexity": {
+                        "search_type": "fast",
+                        "max_tokens": 2000,
+                        "max_tokens_per_page": 500,
+                    }
+                }
             )
         ],
     )
@@ -67,6 +73,44 @@ async def test_perplexity_api() -> None:
     for citation in citations:
         assert isinstance(citation, UrlCitation)
         assert citation.url.startswith(("http://", "https://"))
+
+
+def _snippet_lengths(output: ModelOutput) -> list[int]:
+    assert output.metadata is not None
+    return [len(r.get("snippet", "")) for r in output.metadata["search_results"]]
+
+
+@pytest.mark.anyio
+@skip_if_no_perplexity
+async def test_perplexity_search_token_budgets() -> None:
+    model = get_model("perplexity/sonar", config=GenerateConfig(max_tokens=150))
+    message = ChatMessageUser(
+        content="What are the main provisions of the EU AI Act? Answer in one sentence."
+    )
+
+    async def search(max_tokens: int, max_tokens_per_page: int) -> list[int]:
+        output = await model.generate(
+            input=[message],
+            tools=[
+                web_search(
+                    {
+                        "perplexity": {
+                            "max_tokens": max_tokens,
+                            "max_tokens_per_page": max_tokens_per_page,
+                        }
+                    }
+                )
+            ],
+        )
+        return _snippet_lengths(output)
+
+    small = await search(500, 100)
+    large = await search(8000, 2000)
+
+    # the budgets bound the search content returned
+    assert len(small) > 0 and len(large) > 0
+    assert max(small) < 1000
+    assert sum(small) < sum(large)
 
 
 @pytest.mark.anyio
@@ -332,7 +376,8 @@ async def test_perplexity_web_search_options_and_extra_body(
         description="",
         options={
             "perplexity": {
-                "search_context_size": "low",
+                "max_tokens": 2000,
+                "max_tokens_per_page": 500,
                 "search_type": search_type,
                 "filters": {"search_domain_filter": ["example.com"]},
             }
@@ -355,7 +400,8 @@ async def test_perplexity_web_search_options_and_extra_body(
         "tools": [
             {
                 "type": "web_search",
-                "search_context_size": "low",
+                "max_tokens": 2000,
+                "max_tokens_per_page": 500,
                 "search_type": search_type,
                 "filters": {"search_domain_filter": ["example.com"]},
             }
@@ -383,6 +429,19 @@ async def test_perplexity_rejects_unsupported_tools_and_options() -> None:
                         name="web_search",
                         description="",
                         options={"perplexity": {"search_mode": "academic"}},
+                    )
+                ],
+                "auto",
+                GenerateConfig(),
+            )
+        with pytest.raises(ValueError, match="max_tokens_per_page"):
+            await provider.generate(
+                [ChatMessageUser(content="a")],
+                [
+                    ToolInfo(
+                        name="web_search",
+                        description="",
+                        options={"perplexity": {"search_context_size": "low"}},
                     )
                 ],
                 "auto",
