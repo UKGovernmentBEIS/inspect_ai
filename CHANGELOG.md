@@ -7,7 +7,7 @@
 - Bugfix: `inspect log convert --stream` (and `convert_eval_logs(stream=...)`) no longer drops the error message and traceback from logs of failed evals.
 
 - Tools: Tools with `*args` or `**kwargs` no longer advertise required `args`/`kwargs` parameters to models; declare model-chosen arguments with an explicit `ToolParams` schema instead.
-- Dataframe imports now treat a timezone-less timestamp as UTC instead of shifting it by the host timezone.
+- Analysis: Dataframe imports now treat a timezone-less timestamp as UTC instead of shifting it by the host timezone.
 
 ## 0.3.277 (06 October 2026)
 

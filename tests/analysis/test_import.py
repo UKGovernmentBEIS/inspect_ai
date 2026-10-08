@@ -1,9 +1,9 @@
+import os
 import subprocess
 import sys
-from datetime import date, datetime, time, timezone, tzinfo
+from datetime import date, datetime, time, timezone
 from pathlib import Path
 from textwrap import dedent
-from typing import Any
 
 import pytest
 from pydantic import JsonValue
@@ -415,56 +415,22 @@ def test_resolve_value_invalid_datetime_still_fails() -> None:
         _resolve_value("not-a-timestamp", datetime)
 
 
-def test_resolve_value_does_not_astimezone_naive_datetime(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Converting a timezone-less timestamp must not call astimezone() while naive.
-
-    ``datetime.astimezone`` cannot be replaced on the builtin class, so this
-    wraps the YAML datetime. A naive receiver raises even when the host is UTC.
-    """
-    import yaml
-
-    real_safe_load = yaml.safe_load
-
-    class _NaiveAstimezoneRaises(datetime):
-        @override
-        def astimezone(self, tz: tzinfo | None = None) -> "_NaiveAstimezoneRaises":
-            if self.tzinfo is None:
-                raise AssertionError("astimezone() called on a naive datetime")
-            converted = datetime.astimezone(self, tz)
-            return _NaiveAstimezoneRaises(
-                converted.year,
-                converted.month,
-                converted.day,
-                converted.hour,
-                converted.minute,
-                converted.second,
-                converted.microsecond,
-                converted.tzinfo,
-                fold=converted.fold,
-            )
-
-    def guarded_safe_load(text: str) -> Any:
-        parsed = real_safe_load(text)
-        if isinstance(parsed, datetime) and parsed.__class__ is datetime:
-            return _NaiveAstimezoneRaises(
-                parsed.year,
-                parsed.month,
-                parsed.day,
-                parsed.hour,
-                parsed.minute,
-                parsed.second,
-                parsed.microsecond,
-                parsed.tzinfo,
-                fold=parsed.fold,
-            )
-        return parsed
-
-    monkeypatch.setattr(yaml, "safe_load", guarded_safe_load)
-    resolved = _resolve_value("2024-01-01T12:00:00", datetime)
-    assert isinstance(resolved, datetime)
-    assert resolved.isoformat() == "2024-01-01T12:00:00+00:00"
+@pytest.mark.skipif(sys.platform == "win32", reason="relies on POSIX TZ handling")
+def test_resolve_value_naive_datetime_ignores_host_timezone() -> None:
+    """A timezone-less timestamp resolves the same on a non-UTC host."""
+    code = (
+        "from datetime import datetime\n"
+        "from inspect_ai.analysis._dataframe.record import _resolve_value\n"
+        "print(_resolve_value('2024-01-01T12:00:00', datetime).isoformat())\n"
+    )
+    result = subprocess.run(
+        [sys.executable, "-c", code],
+        capture_output=True,
+        text=True,
+        env={**os.environ, "TZ": "IST-05:30"},
+    )
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == "2024-01-01T12:00:00+00:00"
 
 
 def _log_with_timestamp_metadata(timestamp: str) -> EvalLog:
