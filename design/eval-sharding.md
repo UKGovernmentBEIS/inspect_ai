@@ -304,8 +304,13 @@ Copying a shard out of its directory makes it an ordinary partial log.
 - **`-recovered`.** `log_basename` strips `-recovered`, so a recovered merged
   log `<name>-recovered.eval` maps to the same companion `<name>.shards/`.
   In practice a `started` merged log is re-merged, not recovered (see
-  "Eval-set integration"), so this mapping matters for the CLI case where a
-  user has run `inspect log recover` by hand. A recovered *shard*
+  "Eval-set integration"), so this mapping matters for readers (ctl, the
+  viewer's shard hiding) after a user has run `inspect log recover` by
+  hand. The merge does not write to it: a `<name>-recovered.eval` argument
+  is refused in favour of `<name>.eval`, so one companion never gets two
+  merged logs (see
+  [`eval-sharding-implementation.md`](eval-sharding-implementation.md),
+  "Python API"). A recovered *shard*
   (`<shard>-recovered.eval` written beside the original inside `<k>/`) makes
   its directory hold two files for one shard; the merge treats the files in
   one `<k>/` as attempts of the same shard and takes the newest, the same
