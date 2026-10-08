@@ -1,3 +1,5 @@
+from logging import getLogger
+
 from inspect_ai.model._chat_message import ChatMessage
 from inspect_ai.tool._tool_call import ToolCall, ToolCallView
 from inspect_ai.util._notify import notify
@@ -8,6 +10,8 @@ from .._registry import approver
 from .console import console_approval
 from .panel import panel_approval
 
+logger = getLogger(__name__)
+
 
 @approver(name="human")
 def human_approver(
@@ -16,11 +20,27 @@ def human_approver(
     """Interactive human approver.
 
     Args:
-       choices: Choices to present to human.
+       choices: Choices to present to human. "modify" is not supported, since a
+          human cannot supply a modified tool call; it is dropped with a warning.
 
     Returns:
        Approver: Interactive human approver.
+
+    Raises:
+       ValueError: If "modify" is the only choice.
     """
+    if "modify" in choices:
+        choices = [choice for choice in choices if choice != "modify"]
+        if not choices:
+            raise ValueError(
+                "The human approver does not support the 'modify' choice (a human "
+                "cannot supply a modified tool call). Choose at least one of "
+                "'approve', 'reject', 'terminate' or 'escalate'."
+            )
+        logger.warning(
+            "The human approver does not support the 'modify' choice (a human "
+            "cannot supply a modified tool call), so it will not be offered."
+        )
 
     async def approve(
         message: str,

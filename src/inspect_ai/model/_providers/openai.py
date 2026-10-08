@@ -33,7 +33,7 @@ from inspect_ai.tool import ToolChoice, ToolInfo
 
 from .._chat_message import ChatMessage
 from .._generate_config import GenerateConfig
-from .._model import ModelAPI, RetryDecision, _stamp_redacted_reasoning_tokens
+from .._model import ModelAPI, RetryDecision
 from .._model_call import ModelCall
 from .._model_output import (
     ModelOutput,
@@ -676,16 +676,13 @@ class OpenAIAPI(ModelAPI):
             response = await generate_once(False)
 
         # the probe is billed, so this call's output reports its usage too.
-        # Its prompt was never part of the input, so the context size and the
-        # redacted reasoning stamp come from the primary request only
+        # Its prompt was never part of the input, so the context size comes
+        # from the primary request only
         if probe_usage is not None:
             output = response[0] if isinstance(response, tuple) else response
             if isinstance(output, ModelOutput):
                 if output.input_context_tokens is None:
                     output.input_context_tokens = usage_input_tokens(output.usage)
-                _stamp_redacted_reasoning_tokens(
-                    output, (output.usage.reasoning_tokens if output.usage else 0) or 0
-                )
                 output.usage = sum_usage(probe_usage, output.usage)
 
         return response
@@ -780,14 +777,6 @@ class OpenAIAPI(ModelAPI):
         when models actually share an upstream rate-limit budget.
         """
         return f"{self.initial_api_key}:{self.model_name}"
-
-    @override
-    def apply_redacted_reasoning_tokens_to_input(self) -> bool:
-        # Responses API with store=false + include=encrypted_content re-injects
-        # encrypted reasoning blocks on every turn but excludes them from
-        # usage.input_tokens. Compaction's threshold check needs the count
-        # added back. Chat Completions is unaffected.
-        return self.responses_api
 
     async def reasoning_summaries(self) -> _ReasoningSummariesProbe:
         # validate that reasoning summaries are supported for this account

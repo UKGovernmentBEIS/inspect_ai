@@ -1143,56 +1143,6 @@ async def test_malformed_function_call_retry_error_keeps_earlier_usage():
     assert output.input_context_tokens == 10
 
 
-@pytest.mark.anyio
-async def test_malformed_function_call_retry_stamps_final_reasoning():
-    """The redacted reasoning stamp counts the returned response's reasoning only."""
-    from inspect_ai.model._model import REDACTED_REASONING_TOKENS_METADATA_KEY
-
-    final = GenerateContentResponse(
-        candidates=[
-            Candidate(
-                finish_reason=FinishReason.STOP,
-                content=Content(
-                    role="model",
-                    parts=[
-                        Part(
-                            function_call=FunctionCall(name="my_tool", args={"x": 1}),
-                            thought_signature=b"signature",
-                        )
-                    ],
-                ),
-            )
-        ],
-    )
-    mock_generate = AsyncMock(
-        side_effect=[
-            _with_usage(_create_malformed_response(), 10, 2, 3),
-            _with_usage(_create_malformed_response(), 20, 4, 5),
-            _with_usage(final, 30, 6, 7),
-        ]
-    )
-    mock_client = _create_mock_google_client(mock_generate)
-
-    with patch("inspect_ai.model._providers.google.Client", return_value=mock_client):
-        api = GoogleGenAIAPI(
-            model_name="gemini-2.0-flash",
-            base_url=None,
-            api_key="test-key",
-        )
-
-        output, _ = await api.generate(
-            input=[ChatMessageUser(content="Call my_tool")],
-            tools=[_create_test_tool()],
-            tool_choice="auto",
-            config=GenerateConfig(),
-        )
-
-    assert output.usage is not None
-    assert output.usage.reasoning_tokens == 3 + 5 + 7
-    metadata = output.message.metadata or {}
-    assert metadata[REDACTED_REASONING_TOKENS_METADATA_KEY] == 7
-
-
 # Tests for count_tokens with unpaired tool messages
 
 

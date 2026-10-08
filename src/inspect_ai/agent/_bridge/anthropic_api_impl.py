@@ -48,6 +48,7 @@ from inspect_ai.model._model import Model, ModelName
 from inspect_ai.model._model_output import ModelUsage, StopDetails, StopReason
 from inspect_ai.model._providers._anthropic_citations import to_inspect_citation
 from inspect_ai.model._providers.anthropic import (
+    _WEB_SEARCH_TOOL_TYPES,
     AnthropicAPI,
     ToolParamDef,
     anthropic_extra_body_fields,
@@ -365,9 +366,11 @@ def tools_from_anthropic_tools(
     The eval's `web_search` configuration governs the options of a declared web
     search tool. The client may set a `user_location` the eval leaves unset (it
     shapes results without widening what can be searched) and may lower
-    `max_uses`. Other differing options are ignored, with a warning once per
-    `bridge`. Without a bridge (a caller that only observes the declarations)
-    the same options are used and nothing is logged.
+    `max_uses`. It may also choose the tool version (`type`) when the eval sets
+    none; a version the provider does not support is dropped, leaving the
+    choice to the provider. Other differing options are ignored, with a warning
+    once per `bridge`. Without a bridge (a caller that only observes the
+    declarations) the same options are used and nothing is logged.
     """
     tools: list[ToolInfo | Tool] = []
 
@@ -391,17 +394,26 @@ def tools_from_anthropic_tools(
                 withheld_bridge_tool("web_search")
             else:
                 anthropic_options = web_search_providers.get("anthropic", None)
+                eval_options = (
+                    anthropic_options if isinstance(anthropic_options, dict) else {}
+                )
+                client_options = client_tool_options(anthropic_tool, "name")
+                if client_options.get("type") not in _WEB_SEARCH_TOOL_TYPES:
+                    client_options.pop("type", None)
                 options = eval_tool_options(
                     bridge,
                     "web_search options",
-                    client_tool_options(anthropic_tool, "type", "name"),
-                    anthropic_options if isinstance(anthropic_options, dict) else {},
+                    client_options,
+                    eval_options,
                     "set them with the bridge's web_search option",
                     narrowing={"max_uses": narrow_max_uses},
-                    client_settable=("user_location",),
+                    client_settable=("type", "user_location"),
                 )
                 providers = web_search_providers
-                if isinstance(anthropic_options, dict) and options != anthropic_options:
+                enabled = anthropic_options is True or isinstance(
+                    anthropic_options, dict
+                )
+                if enabled and options != eval_options:
                     providers = cast(
                         WebSearchProviders, {**providers, "anthropic": options}
                     )
