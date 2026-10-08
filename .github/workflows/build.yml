@@ -106,6 +106,16 @@ jobs:
         if: github.event_name != 'pull_request' || steps.filter.outputs.code == 'true'
         run: uv sync
 
+      # TEMPORARY: stays until inspect_sentinel is published on PyPI, then a
+      # requirements-dev.txt entry replaces it (its git-ref dependency on
+      # inspect-ai conflicts with the editable install). --no-deps so the drift
+      # test in tests/log/test_event_discriminator.py runs instead of skipping.
+      # Pinned to a commit so a sentinel change cannot break inspect_ai CI
+      # unannounced; bump it deliberately when inspect_ai needs newer sentinel code.
+      - name: Install inspect_sentinel (TEMPORARY)
+        if: github.event_name != 'pull_request' || steps.filter.outputs.code == 'true'
+        run: uv pip install --no-deps "inspect_sentinel @ git+https://github.com/meridianlabs-ai/inspect_sentinel@7deac5b02780fab18eeb343395802d24db3cffcd"
+
       - name: Run mypy
         if: github.event_name != 'pull_request' || steps.filter.outputs.code == 'true'
         run: uv run --no-sync mypy --exclude tests/test_package src tests
@@ -328,6 +338,16 @@ jobs:
         run: |-
           uv sync
           uv pip install --no-deps ./tests/test_package
+
+      # TEMPORARY: stays until inspect_sentinel is published on PyPI, then a
+      # requirements-dev.txt entry replaces it (its git-ref dependency on
+      # inspect-ai conflicts with the editable install). --no-deps so the drift
+      # test in tests/log/test_event_discriminator.py runs instead of skipping.
+      # Pinned to a commit so a sentinel change cannot break inspect_ai CI
+      # unannounced; bump it deliberately when inspect_ai needs newer sentinel code.
+      - name: Install inspect_sentinel (TEMPORARY)
+        if: env.RUN_TESTS == 'true'
+        run: uv pip install --no-deps "inspect_sentinel @ git+https://github.com/meridianlabs-ai/inspect_sentinel@7deac5b02780fab18eeb343395802d24db3cffcd"
 
       - name: Test with pytest
         if: env.RUN_TESTS == 'true'
@@ -724,5 +744,5 @@ jobs:
           fetch-tags: true
           filter: "blob:none"
 
-      - uses: hynek/build-and-inspect-python-package@d44ca7d91762de7a7d5436ddae667c6da6d1c3df # v2.18.0
+      - uses: hynek/build-and-inspect-python-package@2abe76da66d0a6a4a227101f9348ee855797cfa5 # v3.0.1
         if: github.event_name != 'pull_request' || steps.filter.outputs.code == 'true' || steps.filter.outputs.package_readme == 'true'

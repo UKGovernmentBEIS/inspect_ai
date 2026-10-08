@@ -303,7 +303,10 @@ def call_tool(
                 logger,
                 f"Denied host tool call '{server}/{tool}': the model did not "
                 "propose it in a bridged generation (or its proposal has "
-                "already executed).",
+                "already executed). An agent that calls host tools from code "
+                "the model writes (Codex CLI in code mode) can never match a "
+                "proposal; set require_proposal=False on the existing "
+                f"BridgedToolsSpec for server '{server}' for such an agent.",
             )
             raise PermissionError(
                 f"Host tool call '{server}/{tool}' was not proposed by the model "
