@@ -2,7 +2,9 @@
 
 The walk's ``.eval`` files are grouped into logical tasks (every attempt of a
 ``task_id``, the newest current), whose rows carry every key of a live
-``/tasks`` row plus the additive log-dir keys. A running member's shared
+``/tasks`` row plus the additive log-dir keys. A ``<name>.shards/`` shard set
+is one attempt whose members are the current file of each shard; an ordinary
+retry sharing its task id is current over it. A running member's shared
 buffer (``--log-shared``) supplies its running and completed-but-unflushed
 samples. See "Logical tasks", "Reading a member consistently", "Task rows"
 and "Sample rows" in ``design/ctl/log-dir-mode.md``.
@@ -30,7 +32,7 @@ from inspect_ai._util.async_zip import AsyncZipReader
 from inspect_ai._util.asyncfiles import AsyncFilesystem
 from inspect_ai._util.constants import get_deserializing_context
 from inspect_ai._util.file import local_path
-from inspect_ai.log._file import _timestamp_prefix_re, _try_parse_filename
+from inspect_ai.log._file import _try_parse_filename
 from inspect_ai.log._log import EvalLog, EvalSampleSummary
 from inspect_ai.log._recorders.eval import (
     HEADER_JSON,
@@ -40,6 +42,7 @@ from inspect_ai.log._recorders.eval import (
     _read_all_summaries_async,
     _read_member_json,
 )
+from inspect_ai.log._shards._walk import AttemptSortKey, StrayFile
 
 from .buffer import read_manifest
 from .consistency import (
@@ -59,12 +62,17 @@ from .select import (
     select_source,
     totals,
 )
-from .walk import LogDirListing, LogFile, basename, walk_log_dir
+from .walk import (
+    LogDirListing,
+    LogFile,
+    ShardSetFiles,
+    attempt_order,
+    basename,
+    walk_log_dir,
+)
 
 # Reads in flight at once, the CLI's fan-out cap.
 _MAX_CONCURRENT_READS = 32
-
-_RECOVERED_SUFFIX = "-recovered"
 
 # Storage failures a list read reports per member rather than failing the
 # whole read (a vanished object is a FileNotFoundError, an OSError).
@@ -83,6 +91,10 @@ class UnsupportedLogFormatError(Exception):
     """A ``.json`` log, which this mode does not read."""
 
 
+class StrayLogError(Exception):
+    """A log in a shard set that is not a shard attempt, which this mode does not read."""
+
+
 @dataclass(frozen=True)
 class Unreadable:
     """A log a read could not use, and why."""
@@ -96,30 +108,129 @@ class Unreadable:
         return {"log_location": local_path(self.location), "reason": self.reason}
 
 
+@dataclass(frozen=True)
+class Member:
+    """A current member log of a logical task: its plan, or why it is unreadable."""
+
+    file: LogFile
+    plan: LogPlan | None
+    """``None`` when the plan could not be read (``failure`` says why)."""
+
+    failure: Unreadable | None = None
+
+    attempts: int = 1
+    """The attempt files in its shard directory (1 for an unsharded log)."""
+
+
+@dataclass
+class ShardSet:
+    """A ``<name>.shards/`` companion: one attempt of a logical task.
+
+    Its members are the current (newest) file of each ``<k>/``; older files
+    are superseded and only counted. The merged log beside the companion
+    gives the row its ``eval_id`` and ``log_location``; sample state comes
+    from the shards.
+    """
+
+    location: str
+    """The companion directory."""
+
+    path: str
+    """The companion's path relative to the root."""
+
+    shards: list[Member]
+    """One member per shard directory, in shard order."""
+
+    merged_file: LogFile | None = None
+    """The newest merged log (``<name>.eval`` or ``<name>-recovered.eval``)."""
+
+    merged: LogPlan | None = None
+    """The merged log's plan, when it could be read."""
+
+    unreadable: list[Unreadable] = field(default_factory=list)
+    """The merged log's failure and the companion's stray logs."""
+
+    @property
+    def log_target(self) -> str:
+        return f"shards:{self.path}"
+
+    @property
+    def identity(self) -> LogPlan | None:
+        """The plan the row's identity comes from: the first readable shard's."""
+        return next((m.plan for m in self.shards if m.plan is not None), None)
+
+
 @dataclass
 class LogicalTask:
-    """Every attempt of one task in the directory; the newest is current."""
+    """Every attempt of one task in the directory; the newest is current.
+
+    An unsharded attempt is current over a shard set with the same task id
+    (an ``eval_set()`` retry seeded from the merged log), whatever the
+    mtimes.
+    """
 
     key: str
     """The task id (the eval id for a log that records none)."""
 
     attempts: list[LogPlan]
-    """Readable attempts in attempt order, oldest first."""
+    """Readable unsharded attempts in attempt order, oldest first."""
+
+    shard_sets: list[ShardSet] = field(default_factory=list)
+    """Shard sets with this task id, oldest first (almost always one)."""
 
     unreadable: list[Unreadable] = field(default_factory=list)
-    """Attempts (by file name) whose plan could not be read."""
+    """Unsharded attempts (by file name) whose plan could not be read."""
 
     newest_unreadable: Unreadable | None = None
-    """The newest unreadable attempt when it sorts after the current one, so
+    """The newest unreadable unsharded attempt when it would be current, so
     the current attempt may not be the task's newest."""
 
     @property
     def current(self) -> LogPlan:
+        """The current unsharded attempt (only when ``attempts`` is non-empty)."""
         return self.attempts[-1]
+
+    @property
+    def shard_set(self) -> ShardSet | None:
+        """The newest shard set: current when there is no unsharded attempt."""
+        return self.shard_sets[-1] if self.shard_sets else None
+
+    @property
+    def sharded(self) -> bool:
+        """Whether the current attempt is a shard set."""
+        return not self.attempts
+
+    @property
+    def members(self) -> list[Member]:
+        """The current attempt's member logs."""
+        if self.attempts:
+            return [Member(self.current.file, self.current)]
+        assert self.shard_set is not None
+        return self.shard_set.shards
+
+    @property
+    def identity(self) -> LogPlan | None:
+        """The plan the row's identity fields come from."""
+        if self.attempts:
+            return self.current
+        assert self.shard_set is not None
+        return self.shard_set.identity or self.shard_set.merged
+
+    @property
+    def location(self) -> str:
+        """Where the current attempt is: its log, or the shard set's merged log or companion."""
+        if self.attempts:
+            return self.current.file.location
+        assert self.shard_set is not None
+        if self.shard_set.merged_file is not None:
+            return self.shard_set.merged_file.location
+        return self.shard_set.location
 
     @property
     def log_target(self) -> str:
         """The task's identifier within the root, which sample reads route by."""
+        if self.shard_set is not None:
+            return self.shard_set.log_target
         return f"log:{self.key}"
 
 
@@ -176,7 +287,7 @@ class UnreadableTask:
 
 
 async def index_log_dir(fs: AsyncFilesystem, root: str) -> LogDirIndex:
-    """Walk ``root`` and read every ``.eval`` file's plan, folding attempts."""
+    """Walk ``root`` and read every current log's plan, folding attempts."""
     as_of = time.time()
     listing = await walk_log_dir(fs, root)
     return await _index_listing(fs, root, as_of, listing)
@@ -194,9 +305,19 @@ async def _index_listing(
         except READ_FAILURES as ex:
             return Unreadable(file.location, _reason(ex), ex)
 
-    results = await tg_collect(
-        [functools.partial(plan_or_failure, f) for f in listing.eval_files]
+    # a superseded shard attempt is only counted, so only current files are read
+    files = [
+        *listing.eval_files,
+        *(shard.attempts[-1] for s in listing.shard_sets for shard in s.shards),
+        *(s.merged[-1] for s in listing.shard_sets if s.merged),
+    ]
+    results = dict(
+        zip(
+            (f.location for f in files),
+            await tg_collect([functools.partial(plan_or_failure, f) for f in files]),
+        )
     )
+
     by_key: dict[str, list[LogPlan]] = {}
     failures: list[tuple[LogFile | None, Unreadable]] = [
         (
@@ -209,7 +330,8 @@ async def _index_listing(
         )
         for path in listing.json_logs
     ]
-    for file, result in zip(listing.eval_files, results):
+    for file in listing.eval_files:
+        result = results[file.location]
         if isinstance(result, Unreadable):
             failures.append((file, result))
         else:
@@ -220,8 +342,18 @@ async def _index_listing(
         key: LogicalTask(key=key, attempts=sorted(plans, key=_plan_order))
         for key, plans in by_key.items()
     }
-    unattributed: list[Unreadable] = []
-    newest: dict[str, tuple[tuple[str, int, float], Unreadable]] = {}
+    shard_sets = sorted(
+        (_shard_set(files, results) for files in listing.shard_sets),
+        key=lambda s: (attempt_order(_dir_file(s.location)), s.location),
+    )
+    for shard_set in shard_sets:
+        key = _set_key(shard_set.location)
+        tasks.setdefault(key, LogicalTask(key=key, attempts=[])).shard_sets.append(
+            shard_set
+        )
+
+    unattributed: list[Unreadable] = [_stray(s) for s in listing.stray]
+    newest: dict[str, tuple[AttemptSortKey, Unreadable]] = {}
     unreadable_tasks: dict[str, UnreadableTask] = {}
     for failed_file, failure in failures:
         name, task_id = _file_identity(failure.location)
@@ -236,16 +368,14 @@ async def _index_listing(
         task.unreadable.append(failure)
         if failed_file is None:
             continue
-        order = _attempt_order(failed_file)
-        if order > _plan_order(task.current) and (
-            task.key not in newest or order > newest[task.key][0]
-        ):
+        order = attempt_order(failed_file)
+        # an unsharded attempt is current over a shard set whatever its order
+        newer = not task.attempts or order > _plan_order(task.current)
+        if newer and (task.key not in newest or order > newest[task.key][0]):
             newest[task.key] = (order, failure)
     for key, (_, failure) in newest.items():
         tasks[key].newest_unreadable = failure
-    ordered = sorted(
-        tasks.values(), key=lambda t: (t.current.header.eval.created, t.key)
-    )
+    ordered = sorted(tasks.values(), key=lambda t: (_created(t), t.key))
     for unreadable_task in unreadable_tasks.values():
         unreadable_task.failures.sort(key=lambda u: basename(u.location))
     return LogDirIndex(
@@ -255,6 +385,62 @@ async def _index_listing(
         unattributed=unattributed,
         unreadable_tasks=sorted(unreadable_tasks.values(), key=lambda t: t.task_id),
     )
+
+
+def _shard_set(
+    files: ShardSetFiles, results: dict[str, LogPlan | Unreadable]
+) -> ShardSet:
+    """A shard set from its walk and the plans of its current files."""
+    shards: list[Member] = []
+    for shard in files.shards:
+        current = shard.attempts[-1]
+        result = results[current.location]
+        shards.append(
+            Member(current, None, result, len(shard.attempts))
+            if isinstance(result, Unreadable)
+            else Member(current, result, None, len(shard.attempts))
+        )
+    shard_set = ShardSet(
+        location=files.location,
+        path=files.path,
+        shards=shards,
+        unreadable=[_stray(s) for s in files.stray],
+    )
+    if files.merged:
+        shard_set.merged_file = files.merged[-1]
+        merged = results[shard_set.merged_file.location]
+        if isinstance(merged, Unreadable):
+            shard_set.unreadable.insert(0, merged)
+        else:
+            shard_set.merged = merged
+    return shard_set
+
+
+def _stray(stray: StrayFile) -> Unreadable:
+    """A stray log in a shard set, reported as unreadable with the walk's reason."""
+    return Unreadable(
+        stray.path,
+        stray.reason,
+        StrayLogError(f"{local_path(stray.path)} is not read: {stray.reason}"),
+    )
+
+
+def _set_key(companion: str) -> str:
+    """A shard set's task id: ``{id}`` parsed from ``<name>``, else ``<name>``."""
+    _, task_id = _file_identity(companion)
+    return task_id or basename(companion).rsplit(".", 1)[0]
+
+
+def _dir_file(location: str) -> LogFile:
+    """A directory as a :class:`LogFile`, to order it by its name's timestamp."""
+    return LogFile(
+        location=location, name=basename(location), size=0, mtime=None, etag=None
+    )
+
+
+def _created(task: LogicalTask) -> str:
+    plan = task.identity
+    return plan.header.eval.created if plan is not None else ""
 
 
 async def read_plan(fs: AsyncFilesystem, file: LogFile) -> LogPlan:
@@ -374,63 +560,145 @@ async def read_summaries(
     return {SampleKey(str(s.id), s.epoch): s for s in summaries}
 
 
+class MemberRead(NamedTuple):
+    """One member's view, or why it could not be read."""
+
+    member: Member
+    snapshot: MemberSnapshot | None
+    failure: Unreadable | None
+
+    @property
+    def plan(self) -> LogPlan | None:
+        """The member's latest plan: from its view, else from the index."""
+        return self.snapshot.plan if self.snapshot is not None else self.member.plan
+
+
 class TaskView(NamedTuple):
-    """A logical task with its current member read (see :func:`read_task_view`)."""
+    """A logical task with its current members read (see :func:`read_task_views`)."""
 
     task: LogicalTask
-    member: MemberSnapshot | None
-    """``None`` when the member could not be read."""
+    reads: list[MemberRead]
+    """The current members' reads, in member order."""
 
-    unreadable: list[Unreadable]
-    """The task's unreadable attempts plus the member's own failure, if any."""
+    shard_reads: list[MemberRead] | None = None
+    """With ``shards``, the reads of the newest shard set's shards (the
+    current members' reads when it is current)."""
+
+    @property
+    def members(self) -> list[MemberSnapshot]:
+        """The current members that could be read."""
+        return [r.snapshot for r in self.reads if r.snapshot is not None]
+
+    @property
+    def unreadable(self) -> list[Unreadable]:
+        """Every log of the task not read, the current members' failures included."""
+        task = self.task
+        failures = [
+            *task.unreadable,
+            *(u for s in task.shard_sets for u in s.unreadable),
+            *(m.failure for s in task.shard_sets for m in s.shards if m.failure),
+            *(r.failure for r in self.reads if r.failure),
+        ]
+        unique: dict[str, Unreadable] = {}
+        for failure in failures:
+            unique.setdefault(failure.location, failure)
+        return list(unique.values())
 
 
-async def read_task_view(fs: AsyncFilesystem, task: LogicalTask) -> TaskView:
-    """Read the current attempt's member view, recording a failure rather than raising."""
-    try:
-        member = await read_member(fs, task.current)
-    except READ_FAILURES as ex:
-        failure = Unreadable(task.current.file.location, _reason(ex), ex)
-        return TaskView(task, None, [*task.unreadable, failure])
-    return TaskView(task, member, list(task.unreadable))
+async def read_members(
+    fs: AsyncFilesystem,
+    members: list[Member],
+    limiter: anyio.CapacityLimiter | None = None,
+) -> list[MemberRead]:
+    """Read each member's view, recording a failure rather than raising."""
+    limiter = limiter or anyio.CapacityLimiter(_MAX_CONCURRENT_READS)
+
+    async def read(member: Member) -> MemberRead:
+        if member.plan is None:
+            return MemberRead(member, None, member.failure)
+        try:
+            async with limiter:
+                return MemberRead(member, await read_member(fs, member.plan), None)
+        except READ_FAILURES as ex:
+            failure = Unreadable(member.file.location, _reason(ex), ex)
+            return MemberRead(member, None, failure)
+
+    return await tg_collect([functools.partial(read, m) for m in members])
 
 
 async def read_task_views(
-    fs: AsyncFilesystem, tasks: list[LogicalTask]
+    fs: AsyncFilesystem, tasks: list[LogicalTask], *, shards: bool = False
 ) -> list[TaskView]:
+    """Read each task's current members, and with ``shards`` its shard set's.
+
+    A shard set that is a prior attempt (an ordinary retry is current) is
+    read only with ``shards``: its samples are not the task's.
+    """
     limiter = anyio.CapacityLimiter(_MAX_CONCURRENT_READS)
 
-    async def read(task: LogicalTask) -> TaskView:
-        async with limiter:
-            return await read_task_view(fs, task)
+    async def view(task: LogicalTask) -> TaskView:
+        reads = await read_members(fs, task.members, limiter)
+        shard_reads: list[MemberRead] | None = None
+        if shards and task.shard_set is not None:
+            shard_reads = (
+                reads
+                if task.sharded
+                else await read_members(fs, task.shard_set.shards, limiter)
+            )
+        return TaskView(task, reads, shard_reads)
 
-    return await tg_collect([functools.partial(read, t) for t in tasks])
+    return await tg_collect([functools.partial(view, t) for t in tasks])
+
+
+async def read_current_members(
+    fs: AsyncFilesystem, task: LogicalTask
+) -> list[MemberSnapshot]:
+    """Read every current member's view, raising the first member's failure.
+
+    A per-sample read uses this: a key cannot be located, or reported
+    missing, while any member that may hold it is unread.
+    """
+    reads = await read_members(fs, task.members)
+    failure = next((r.failure for r in reads if r.failure is not None), None)
+    if failure is not None:
+        raise failure.error
+    return [r.snapshot for r in reads if r.snapshot is not None]
 
 
 def identity_row(task: LogicalTask) -> dict[str, Any]:
-    """The identity fields of a task row, from its plan alone.
+    """The identity fields of a task row, from its plans alone.
 
     What selector resolution (``_resolve_target_eval``) and the ambiguity
-    table read, without the summaries a full row needs.
+    table read, without the summaries a full row needs. A shard set's
+    ``task``, ``model``, ``solver`` and ``epochs`` come from its first
+    readable shard, its ``eval_id`` and ``run_id`` from the merged log (null
+    without one), and its ``log_location`` is the merged log or, without
+    one, the companion.
     """
-    plan = task.current
-    spec = plan.header.eval
+    plans = [m.plan for m in task.members]
+    if task.sharded:
+        shard_set = task.shard_set
+        assert shard_set is not None
+        merged = shard_set.merged.header.eval if shard_set.merged else None
+        identity = _plan_identity(task.identity, shard_set.location)
+        identity.update(
+            run_id=merged.run_id if merged else None,
+            eval_id=merged.eval_id if merged else None,
+            task_id=task.key,
+        )
+    else:
+        identity = _plan_identity(task.current, task.current.file.location)
     return {
-        "run_id": spec.run_id,
-        "eval_id": spec.eval_id,
-        "task": spec.task,
-        "task_id": spec.task_id,
-        "model": spec.model,
-        "solver": spec.solver or "",
-        "log_location": local_path(plan.file.location),
-        "status": _task_status(plan),
-        "attempts": len(task.attempts) + len(task.unreadable),
-        "epochs": spec.config.epochs or 1,
+        **identity,
+        "log_location": local_path(task.location),
+        "status": "running" if _running(plans) else "completed",
+        "attempts": len(task.attempts) + len(task.unreadable) + len(task.shard_sets),
         "pid": None,
         "socket_path": None,
         "source": "log_dir",
         "log_target": task.log_target,
-        "current_attempt": "log",
+        "current_attempt": "shards" if task.sharded else "log",
+        "shard": None,
     }
 
 
@@ -456,6 +724,7 @@ def unreadable_identity_row(task: UnreadableTask) -> dict[str, Any]:
         "source": "log_dir",
         "log_target": task.log_target,
         "current_attempt": "log",
+        "shard": None,
         "incomplete": True,
         "unreadable": [u.as_dict() for u in task.failures],
     }
@@ -463,13 +732,112 @@ def unreadable_identity_row(task: UnreadableTask) -> dict[str, Any]:
 
 def task_row(view: TaskView) -> dict[str, Any]:
     """A full log-dir task row: every live row key plus the additive keys."""
-    task, member = view.task, view.member
-    plan = member.plan if member is not None else task.current
+    task = view.task
+    progress = _progress(view.reads, authoritative=_authoritative(view))
+    shards = None
+    if task.shard_set is not None:
+        shards = _shards_block(
+            task.shard_set,
+            view.reads if task.sharded else None,
+            overlapping=progress.overlapping if task.sharded else None,
+        )
+    return {
+        **identity_row(task),
+        **progress.fields,
+        "shards": shards,
+        "incomplete": bool(view.unreadable),
+        "unreadable": [u.as_dict() for u in view.unreadable],
+    }
+
+
+def shard_rows(view: TaskView) -> list[dict[str, Any]]:
+    """One row per shard of the task's newest shard set (``task list --shards``).
+
+    Each describes its shard's current file as an eval of its own, with the
+    shard's own ``task_id``, ``shard`` naming its directory and ``attempts``
+    the files in it. Shards are not separately selectable: ``log_target`` is
+    the logical task's.
+    """
+    rows: list[dict[str, Any]] = []
+    for read in view.shard_reads or []:
+        member = read.member
+        plan = read.snapshot.plan if read.snapshot is not None else None
+        progress = _progress(
+            [read], authoritative=authoritative_total(plan) if plan else None
+        )
+        rows.append(
+            {
+                **_plan_identity(read.plan, member.file.location),
+                "log_location": local_path(member.file.location),
+                "attempts": member.attempts,
+                "pid": None,
+                "socket_path": None,
+                "source": "log_dir",
+                "log_target": view.task.log_target,
+                "current_attempt": "log",
+                "shard": member.file.shard,
+                **progress.fields,
+                "shards": None,
+                "incomplete": read.failure is not None,
+                "unreadable": [read.failure.as_dict()] if read.failure else [],
+            }
+        )
+    return rows
+
+
+def _plan_identity(plan: LogPlan | None, location: str) -> dict[str, Any]:
+    """Identity fields from a plan, or from the file name when there is none."""
+    if plan is None:
+        name, task_id = _file_identity(location)
+        return {
+            "run_id": None,
+            "eval_id": None,
+            "task": name,
+            "task_id": task_id,
+            "model": None,
+            "solver": "",
+            "epochs": None,
+        }
     spec = plan.header.eval
-    members = [member] if member is not None else []
+    return {
+        "run_id": spec.run_id,
+        "eval_id": spec.eval_id,
+        "task": spec.task,
+        "task_id": spec.task_id,
+        "model": spec.model,
+        "solver": spec.solver or "",
+        "epochs": spec.config.epochs or 1,
+    }
+
+
+def _authoritative(view: TaskView) -> int | None:
+    """The task's authoritative sample total: a finished unsharded current log's.
+
+    A shard set has none until the merged log records its intended
+    selection.
+    """
+    if view.task.sharded or not view.members:
+        return None
+    return authoritative_total(view.members[0].plan)
+
+
+class _Progress(NamedTuple):
+    fields: dict[str, Any]
+    """The row's status, timing, sample and usage fields."""
+
+    overlapping: int
+    """Members holding a key another member also holds."""
+
+
+def _progress(reads: list[MemberRead], *, authoritative: int | None) -> _Progress:
+    """Status, timing, sample counts and usage over the members' selected records."""
+    members = [r.snapshot for r in reads if r.snapshot is not None]
+    plans = [r.plan for r in reads]
+    known = [p for p in plans if p is not None]
     keys = known_keys(members)
     counts = {"completed": 0, "error": 0, "cancelled": 0, "running": 0}
     conflicted = 0
+    overlapping: set[str] = set()
     total_tokens = 0
     total_messages = 0
     sample_starts: list[float] = []
@@ -477,6 +845,7 @@ def task_row(view: TaskView) -> dict[str, Any]:
         choice = select_source(members, key)
         if choice.kind == "conflict":
             conflicted += 1
+            overlapping.update(m.plan.file.location for m in choice.holders)
             continue
         if choice.summary is None:
             continue
@@ -489,19 +858,39 @@ def task_row(view: TaskView) -> dict[str, Any]:
         started = _iso_to_timestamp(summary.started_at)
         if started is not None:
             sample_starts.append(started)
-    sample_totals = totals(
-        authoritative_total(plan) if member is not None else None, len(keys)
-    )
-    running = _task_status(plan) == "running"
+    sample_totals = totals(authoritative, len(keys))
+    running = _running(plans)
     live = [m.live_samples for m in members if m.live_samples is not None]
-    # a running member whose log could not be read has unknown running samples
-    if member is None and running:
-        live.append(False)
+    # a member that could not be read and may be running has unknown running samples
+    live.extend(
+        False
+        for r in reads
+        if r.snapshot is None and (r.plan is None or r.plan.running)
+    )
     started_at = min(sample_starts, default=None)
     if started_at is None:
-        started_at = _iso_to_timestamp(spec.created)
+        started_at = min(
+            (
+                t
+                for t in (_iso_to_timestamp(p.header.eval.created) for p in known)
+                if t is not None
+            ),
+            default=None,
+        )
     completed_at = (
-        None if running else _iso_to_timestamp(plan.header.stats.completed_at or None)
+        None
+        if running
+        else max(
+            (
+                t
+                for t in (
+                    _iso_to_timestamp(p.header.stats.completed_at or None)
+                    for p in known
+                )
+                if t is not None
+            ),
+            default=None,
+        )
     )
     elapsed = (completed_at or time.time()) - (started_at or 0.0)
     tokens_per_second = (
@@ -510,10 +899,8 @@ def task_row(view: TaskView) -> dict[str, Any]:
         else None
     )
     terminal = counts["completed"] + counts["error"] + counts["cancelled"]
-    return {
-        **identity_row(task),
-        "log_location": local_path(plan.file.location),
-        "status": _task_status(plan),
+    fields: dict[str, Any] = {
+        "status": "running" if running else "completed",
         "started_at": started_at,
         "completed_at": completed_at,
         "paused": None,
@@ -544,11 +931,47 @@ def task_row(view: TaskView) -> dict[str, Any]:
         "process_paused_now": None,
         "paused_models": [],
         "api_version": None,
-        "updated_at": _updated_at(plan, members),
+        "updated_at": _updated_at(known, members),
         "live_samples": _live_samples(live),
-        "incomplete": bool(view.unreadable),
-        "unreadable": [u.as_dict() for u in view.unreadable],
     }
+    return _Progress(fields=fields, overlapping=len(overlapping))
+
+
+def _shards_block(
+    shard_set: ShardSet, reads: list[MemberRead] | None, *, overlapping: int | None
+) -> dict[str, Any]:
+    """The ``shards`` block: shard counts by log status, overlaps and mismatches.
+
+    ``reads`` are the shards' reads when the shard set is current; a prior
+    shard set is described from its plans, and its ``overlapping`` is null
+    (its samples are not read). A shard whose task, model or epochs differ
+    from the first readable shard's is counted in ``mismatched``.
+    """
+    plans = (
+        [r.plan for r in reads]
+        if reads is not None
+        else [m.plan for m in shard_set.shards]
+    )
+    known = [p for p in plans if p is not None]
+    statuses = [p.header.status for p in known]
+    identities = [
+        (p.header.eval.task, p.header.eval.model, p.header.eval.config.epochs or 1)
+        for p in known
+    ]
+    return {
+        "total": len(shard_set.shards),
+        "running": statuses.count("started"),
+        "success": statuses.count("success"),
+        "error": statuses.count("error"),
+        "cancelled": statuses.count("cancelled"),
+        "overlapping": overlapping,
+        "mismatched": sum(1 for i in identities[1:] if i != identities[0]),
+    }
+
+
+def _running(plans: list[LogPlan | None]) -> bool:
+    """Whether any member is running; one whose plan is unknown may be."""
+    return any(p is None or p.running for p in plans)
 
 
 class SampleListing(NamedTuple):
@@ -577,7 +1000,7 @@ def sample_listing(
     without rows. A conflicted key yields one row per member holding it, and
     is left out of ``counts``.
     """
-    members = [view.member] if view.member is not None else []
+    members = view.members
     keys = known_keys(members)
     rows: list[dict[str, Any]] = []
     conflicted = 0
@@ -608,9 +1031,8 @@ def sample_listing(
     for row in rows:
         if not row["conflict"]:
             counts[row["status"]] = counts.get(row["status"], 0) + 1
-    if sample_filter != "errors" and members:
-        plan = members[0].plan
-        pending_unlisted = totals(authoritative_total(plan), len(keys)).pending_unlisted
+    if sample_filter != "errors":
+        pending_unlisted = totals(_authoritative(view), len(keys)).pending_unlisted
         counts["pending"] += pending_unlisted or 0
 
     rows = _sorted_samples(rows)
@@ -631,9 +1053,9 @@ def sample_listing(
     )
 
 
-def _updated_at(plan: LogPlan, members: list[MemberSnapshot]) -> float | None:
+def _updated_at(plans: list[LogPlan], members: list[MemberSnapshot]) -> float | None:
     """The latest of the members' log mtimes and their manifests' Last-Modified."""
-    times = [plan.file.mtime] + [
+    times = [p.file.mtime for p in plans] + [
         m.buffer.mtime for m in members if m.buffer is not None
     ]
     return max((t for t in times if t is not None), default=None)
@@ -655,39 +1077,14 @@ def _sample_row(
 ) -> dict[str, Any]:
     return {
         **_summary_from_eval_sample_summary(summary),
-        "shard": None,
+        "shard": member.plan.file.shard,
         "log_location": local_path(member.plan.file.location),
         "conflict": conflict,
     }
 
 
-def _task_status(plan: LogPlan) -> str:
-    """Live's two task statuses: ``running`` while the log is ``started``."""
-    return "running" if plan.header.status == "started" else "completed"
-
-
-def _attempt_order(file: LogFile) -> tuple[str, int, float]:
-    """Attempt order: file-name timestamp, then ``-recovered`` after its original, then mtime.
-
-    Recovery keeps the original's timestamp prefix and writes the original's
-    records plus its buffer, so the recovered copy is the more complete. Names
-    with no timestamp prefix sort by mtime alone (before timestamped ones):
-    without the shared prefix, a ``-recovered`` name says nothing about which
-    copy is newer.
-    """
-    match = _timestamp_prefix_re.match(file.name)
-    if match is None:
-        return ("", 0, file.mtime or 0.0)
-    stem = file.name.rsplit(".", 1)[0]
-    return (
-        match.group(0),
-        1 if stem.endswith(_RECOVERED_SUFFIX) else 0,
-        file.mtime or 0.0,
-    )
-
-
-def _plan_order(plan: LogPlan) -> tuple[str, int, float]:
-    return _attempt_order(plan.file)
+def _plan_order(plan: LogPlan) -> AttemptSortKey:
+    return attempt_order(plan.file)
 
 
 def _file_identity(location: str) -> tuple[str | None, str | None]:

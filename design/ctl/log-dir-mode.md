@@ -428,9 +428,16 @@ The walk produces a listing of logical tasks without paging through
     listing is recorded; a member's manifest path is derived as
     `.buffer/<stem>/manifest.json` and fetched directly (below).
   - `*.checkpoints/`: skip.
-  - `<name>.shards/`: list it to get the `<k>/` prefixes, then list each
-    `<k>/` (its `.eval` files, and whether it has a `.buffer/` prefix).
-    Deeper directories under `<k>/` are ignored.
+  - `<name>.shards/` (the first on each path below the root): the shared
+    shard-set walk (`list_shard_set`, `src/inspect_ai/log/_shards/_walk.py`)
+    lists it to get the `<k>/` prefixes, then lists each `<k>/` (its
+    `.eval` files, and whether it has a `.buffer/` prefix). Logs it reports
+    as stray (a log directly in the companion or in a directory starting
+    with `.`, a `.json` log in a `<k>/`) are listed in the task row's
+    `unreadable`. The directories it does not list (its `unlisted_dirs`:
+    `scans/`, a nested `*.shards/` and the like) are walked as ordinary
+    directories, so a log nested there is an ordinary log, as `eval_set()`
+    treats it (`is_shard_path`; decision: Ransom, 2026-10-05).
   - Any other subdirectory: descend, as `list_eval_logs` recurses today, so
     an eval-set directory or a directory of runs works.
 - `.eval` files only. `.json` logs are listed as unsupported rows: the
@@ -502,7 +509,8 @@ as above; `task`, `model`, `solver` and `epochs` from the first shard's
 header (the merge refuses shards that differ on `task_identifier`, epochs
 or reducer; this mode only reports, so a shard whose `task`, `model` or
 `epochs` differs from the first is counted in `shards.mismatched` rather
-than hidden); `eval_id` from the merged log when present, else null;
+than hidden); `eval_id` and `run_id` from the merged log when present,
+else null (each shard has its own);
 `log_location` the merged log's path when present, else the companion
 path.
 
@@ -747,7 +755,9 @@ Additive keys, present on every log-dir row and absent in live mode:
 - `shards` (null when the task has no shard set): `{total, running,
   success, error, cancelled, overlapping, mismatched}` over the shard set's
   current files, by log status; for a task whose current attempt is an
-  ordinary retry, it describes the prior shard set.
+  ordinary retry, it describes the prior shard set from its plans, with
+  `overlapping` null (its samples are not read).
+- `shard`: `"<k>"` on a `--shards` row, null otherwise.
 - `merged` (null when there is no merged log): see "Merged log".
 - `incomplete` and `unreadable` (see "Reading a member consistently").
 

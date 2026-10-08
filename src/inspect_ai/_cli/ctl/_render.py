@@ -800,6 +800,8 @@ def _print_human_table(summaries: list[dict[str, Any]]) -> None:
     # (drain/score/error) — the marker that says a static-looking row is a
     # draining tail (or a stalled scorer), not a stall
     any_resolving = any(s.get("resolving") for s in summaries)
+    # `--log-dir` rows only: a sharded task's shard counts, and `--shards` rows
+    any_shards = any(s.get("shards") or s.get("shard") is not None for s in summaries)
 
     rows = []
     for s in summaries:
@@ -834,6 +836,8 @@ def _print_human_table(summaries: list[dict[str, Any]]) -> None:
         cells.append(_format_started(s.get("started_at", 0)))
         if any_retries:
             cells.append(str(int(s.get("attempts", 1) or 1)))
+        if any_shards:
+            cells.append(_format_shards(s))
         rows.append(tuple(cells))
 
     headers_list = ["task_id", "task", "model"]
@@ -859,8 +863,29 @@ def _print_human_table(summaries: list[dict[str, Any]]) -> None:
     headers_list.append("started")
     if any_retries:
         headers_list.append("attempts")
+    if any_shards:
+        headers_list.append("shards")
 
     _render_table(tuple(headers_list), rows)
+
+
+def _format_shards(summary: dict[str, Any]) -> str:
+    """A ``--log-dir`` row's shards cell.
+
+    ``shard <k>`` on a ``--shards`` row, else the task's shard count with the
+    running, overlapping and mismatched ones (blank for an unsharded task).
+    """
+    if summary.get("shard") is not None:
+        return f"shard {summary['shard']}"
+    shards = summary.get("shards")
+    if not shards:
+        return ""
+    notes = [
+        f"{shards[key]} {key}"
+        for key in ("running", "overlapping", "mismatched")
+        if shards.get(key)
+    ]
+    return f"{shards['total']} ({', '.join(notes)})" if notes else str(shards["total"])
 
 
 def _format_count(value: Any) -> str:

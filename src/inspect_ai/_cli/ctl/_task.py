@@ -28,6 +28,7 @@ from ._group import (
     _model_option,
     _NounGroup,
     _now_option,
+    _shards_option,
     _terse_line,
     _terse_option,
     _use_terse,
@@ -82,8 +83,9 @@ task_group.hint = lambda token: (
 
 @task_group.command("list")
 @_log_dir_option()
+@_shards_option()
 @_json_option("an `{as_of, tasks}` envelope")
-def task_list_command(as_json: bool) -> None:
+def task_list_command(as_json: bool, shards: bool) -> None:
     """List running tasks across all live Inspect processes.
 
     Each `--json` row carries the selectors other commands take (`task_id`,
@@ -94,7 +96,7 @@ def task_list_command(as_json: bool) -> None:
 
     Example: inspect ctl task list --json
     """
-    _run_task_list(as_json)
+    _run_task_list(as_json, shards=shards)
 
 
 _mirror_list_options(task_group, task_list_command)
@@ -374,7 +376,7 @@ def task_resume_command(
 
 
 @_envelope_failures
-def _run_task_list(as_json: bool) -> None:
+def _run_task_list(as_json: bool, *, shards: bool = False) -> None:
     # Stamp as_of BEFORE the reads: anything that changes during them has a
     # timestamp >= as_of and is caught by the next poll rather than missed.
     as_of = time.time()
@@ -382,7 +384,7 @@ def _run_task_list(as_json: bool) -> None:
     # --log-dir adds `incomplete` / `unreadable` (the logs the rows omit)
     extra: dict[str, Any] = {}
     if log_dir:
-        read = _log_dir._task_rows()
+        read = _log_dir._task_rows(shards=shards)
         summaries = read.rows
         extra = {"incomplete": bool(read.unreadable), "unreadable": read.unreadable}
     else:
@@ -401,7 +403,10 @@ def _run_task_list(as_json: bool) -> None:
     _print_human_table(summaries)
     if log_dir:
         _log_dir._print_quiet_footer(summaries)
-        _print_errored_samples_footer(summaries, _log_dir._errors_command())
+        # `--shards` rows repeat their task's samples
+        tasks = [s for s in summaries if s.get("shard") is None]
+        _log_dir._print_sharded_totals_note(tasks)
+        _print_errored_samples_footer(tasks, _log_dir._errors_command())
     else:
         _print_keep_alive_footer(summaries)
         _print_errored_samples_footer(summaries)

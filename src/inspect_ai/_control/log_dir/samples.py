@@ -1,8 +1,8 @@
 """Per-sample reads: show, events, messages, store.
 
 Each read locates the key through :func:`~.select.select_source` over the
-current member's freshly read view (manifest, then log; so it never answers
-from a stale key set). A log record is read from the sample member with the
+current members' freshly read views (manifest, then log; so it never answers
+from a stale key set); a key two shards hold is ambiguous. A log record is read from the sample member with the
 field exclusions the live terminal path uses, verified against the central
 directory's CRC-32, and built into the same envelope through the shared
 projection code. A shared-buffer row (running, or completed but not yet
@@ -48,7 +48,7 @@ from inspect_ai.log._log import EvalSample, EvalSampleSummary
 from .buffer import buffered_events, read_sample_data
 from .consistency import MAX_REREADS, LogChangedError, read_consistently
 from .select import MemberSnapshot, SampleKey, known_keys, select_source
-from .snapshot import LogicalTask, read_member, read_summaries
+from .snapshot import LogicalTask, read_current_members, read_summaries
 
 
 class SampleNotFoundError(Exception):
@@ -209,23 +209,29 @@ async def sample_store(
 async def _locate(
     fs: AsyncFilesystem, task: LogicalTask, sample_id: str, epoch: int
 ) -> _Located:
-    """Find the key's current record after making the member's key set current.
+    """Find the key's current record after making every member's key set current.
 
-    Reads the member's manifest (when it may have one) and then its log, as a
-    list read does. Refuses to answer from an older attempt while a newer one
-    is unreadable (re-raising that attempt's failure).
+    Reads each current member's manifest (when it may have one) and then its
+    log, as a list read does. Refuses to answer while a member is unreadable
+    or from an older attempt while a newer one is unreadable (re-raising that
+    log's failure): the key may be in it.
     """
     if task.newest_unreadable is not None:
         raise task.newest_unreadable.error
-    member = await read_member(fs, task.current)
-    location = local_path(member.plan.file.location)
+    members = await read_current_members(fs, task)
+    # a shard set's samples are in its shards, not its merged log
+    location = local_path(
+        task.shard_set.location
+        if task.sharded and task.shard_set is not None
+        else task.location
+    )
     key = SampleKey(sample_id, epoch)
-    known = next((k for k in known_keys([member]) if k.key == key), None)
+    known = next((k for k in known_keys(members) if k.key == key), None)
     if known is None:
         raise SampleNotFoundError(
             f"Sample '{sample_id}' (epoch {epoch}) not found in {location}."
         )
-    choice = select_source([member], known)
+    choice = select_source(members, known)
     if choice.kind == "conflict":
         logs = ", ".join(local_path(m.plan.file.location) for m in choice.holders)
         raise SampleAmbiguousError(
@@ -236,7 +242,7 @@ async def _locate(
         why = (
             "it has not started, or it is running without a shared buffer (run "
             "the eval with --log-shared to see running samples)"
-            if member.live_samples is False
+            if any(m.live_samples is False for m in members)
             else "it has not started"
         )
         raise SampleNotFoundError(

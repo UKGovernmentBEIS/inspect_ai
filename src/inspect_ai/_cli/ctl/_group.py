@@ -267,6 +267,23 @@ def _log_dir_option() -> Callable[[Callable[..., None]], Callable[..., None]]:
     )
 
 
+def _shards_option() -> Callable[[Callable[..., None]], Callable[..., None]]:
+    """``task list --shards``: follow each sharded task's row with one row per shard.
+
+    Only ``--log-dir`` rows can be sharded, so in live mode the flag changes
+    nothing.
+    """
+    return click.option(
+        "--shards",
+        is_flag=True,
+        default=False,
+        help=(
+            "With --log-dir, follow each sharded task's row with one row per "
+            "shard (`shard` names its directory). No effect on live processes."
+        ),
+    )
+
+
 def _model_option() -> Callable[[Callable[..., None]], Callable[..., None]]:
     """The ``--model`` disambiguator the task-selecting commands carry.
 
