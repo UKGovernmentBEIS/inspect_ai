@@ -1416,34 +1416,49 @@ def _contains_model(value: Any) -> bool:
 
 
 def _serialized_model(name: str, value: Any) -> Any:
-    """A `BaseModel` or `list[BaseModel]` argument as the models serialize."""
-    if isinstance(value, BaseModel) and not _holds_iterator(value):
+    """A `BaseModel` or `list[BaseModel]` argument as the models serialize.
+
+    A lazy iterable anywhere in the value is refused before serializing, since
+    serializing would consume it and leave the tool with nothing.
+    """
+    supported = isinstance(value, BaseModel) or (
+        isinstance(value, list)
+        and all(
+            isinstance(item, BaseModel) or not _contains_model(item) for item in value
+        )
+    )
+    if not supported or _holds_iterator(value):
+        raise ToolParsingError(
+            f"Argument '{name}' holds a Pydantic model in a form that tool "
+            "approval does not support (only a model or a list of models, "
+            "without lazy iterables)."
+        )
+    if isinstance(value, BaseModel):
         return value.model_dump(mode="json")
-    if isinstance(value, list) and all(
-        (isinstance(item, BaseModel) and not _holds_iterator(item))
-        or not _contains_model(item)
+    return [
+        item.model_dump(mode="json")
+        if isinstance(item, BaseModel)
+        else to_jsonable_python(item, fallback=str)
         for item in value
-    ):
-        return [
-            item.model_dump(mode="json")
-            if isinstance(item, BaseModel)
-            else to_jsonable_python(item, fallback=str)
-            for item in value
-        ]
-    raise ToolParsingError(
-        f"Argument '{name}' holds a Pydantic model in a form that tool approval "
-        "does not support (only a model or a list of models)."
-    )
+    ]
 
 
-def _holds_iterator(model: BaseModel) -> bool:
-    """Whether a model holds a lazy iterable, which serializing would consume."""
-    values = [*model.__dict__.values(), *(model.__pydantic_extra__ or {}).values()]
-    return any(
-        isinstance(value, Iterator)
-        or (isinstance(value, BaseModel) and _holds_iterator(value))
-        for value in values
-    )
+def _holds_iterator(value: Any) -> bool:
+    """Whether a value holds a lazy iterable anywhere, without consuming it."""
+    if isinstance(value, Iterator):
+        return True
+    if isinstance(value, str | bytes):
+        return False
+    if isinstance(value, BaseModel):
+        values = [*value.__dict__.values(), *(value.__pydantic_extra__ or {}).values()]
+        return any(_holds_iterator(v) for v in values)
+    if is_dataclass(value) and not isinstance(value, type):
+        return any(_holds_iterator(getattr(value, f.name)) for f in fields(value))
+    if isinstance(value, Mapping):
+        return any(_holds_iterator(v) for v in value.values())
+    if isinstance(value, Iterable):
+        return any(_holds_iterator(v) for v in value)
+    return False
 
 
 def tool_param(type_hint: Type[Any], input: Any) -> Any:

@@ -67,7 +67,7 @@ approvers:
 
 Note that since this is a prefix match and there could be other arguments, we don't end the tool match pattern with a parentheses.
 
-Approval sees a call after its arguments pass the tool's schema and are converted to the tool's parameter types, so a call with invalid arguments fails before any approver sees it. A parameter typed as a Pydantic model (or a list of models) is shown as the constructed model serializes (`model_dump(mode="json")`), with its defaults and any value its own validation changed, and the tool runs with that model. A model in any other form (for example in a dict) is a parsing error while approval is active. A `modify` decision runs only if each argument converts to exactly the value the approver selected.
+Approval sees a call after its arguments pass the tool's schema and are converted to the tool's parameter types, so a call with invalid arguments fails before any approver sees it. A parameter typed as a Pydantic model (or a list of models) is shown as the constructed model serializes (`model_dump(mode="json")`), with its defaults and any value its own validation changed, and the tool runs with that model. A model in any other form (for example in a dict, or holding a lazy iterable such as an `Iterable` field) is a parsing error while approval is active. A `modify` decision runs only if each argument converts to exactly the value the approver selected.
 
 ## Approvers in Code
 

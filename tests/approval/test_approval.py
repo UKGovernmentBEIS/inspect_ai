@@ -1,3 +1,4 @@
+from collections.abc import Iterable
 from datetime import date
 from pathlib import Path
 from typing import Any, Literal, NamedTuple
@@ -708,6 +709,14 @@ class Flag(BaseModel):
         return bool(n)
 
 
+class Lazy(BaseModel):
+    values: Iterable[int]
+
+
+class Parent(BaseModel):
+    children: list[Lazy]
+
+
 @tool
 def model_tool(received: list[Any]):
     async def execute(
@@ -717,6 +726,7 @@ def model_tool(received: list[Any]):
         bumped: Bumped | None = None,
         flag: Flag | None = None,
         by_name: dict[str, Step] | None = None,
+        parent: Parent | None = None,
     ) -> str:
         """Record models.
 
@@ -727,6 +737,7 @@ def model_tool(received: list[Any]):
             bumped: A model whose validator changes its value.
             flag: A model whose validator turns a number into a flag.
             by_name: Models in a mapping (not supported under approval).
+            parent: A model holding lazy values (not supported under approval).
         """
         received.append(
             {
@@ -738,6 +749,7 @@ def model_tool(received: list[Any]):
                     bumped=bumped,
                     flag=flag,
                     by_name=by_name,
+                    parent=parent,
                 ).items()
                 if v is not None
             }
@@ -786,8 +798,23 @@ async def test_model_parameter_is_approved_as_it_runs(
     assert json_equal(to_jsonable_python(values), shown)
 
 
-async def test_model_in_unsupported_form_errors_under_approval() -> None:
-    arguments = {"by_name": {"a": {"step": "plan"}}}
+@pytest.mark.parametrize(
+    "arguments,runs",
+    [
+        (
+            {"by_name": {"a": {"step": "plan"}}},
+            {"by_name": {"a": {"step": "plan", "status": "pending"}}},
+        ),
+        (
+            {"parent": {"children": [{"values": [1, 2]}]}},
+            {"parent": {"children": [{"values": [1, 2]}]}},
+        ),
+    ],
+    ids=["mapping", "nested-lazy"],
+)
+async def test_model_in_unsupported_form_errors_under_approval(
+    arguments: dict[str, Any], runs: dict[str, Any]
+) -> None:
     received: list[Any] = []
     calls: list[ToolCall] = []
     message = await execute_with_approval(
@@ -801,7 +828,7 @@ async def test_model_in_unsupported_form_errors_under_approval() -> None:
     assert "does not support" in message.error.message
     assert calls == []
 
-    # without approval the tool runs as before
+    # without approval the tool runs as before, with its lazy values unconsumed
     messages, _ = await execute_tools(
         [
             ChatMessageAssistant(
@@ -815,7 +842,7 @@ async def test_model_in_unsupported_form_errors_under_approval() -> None:
     )
     assert isinstance(messages[-1], ChatMessageTool)
     assert messages[-1].error is None
-    assert received == [{"by_name": {"a": Step(step="plan")}}]
+    assert to_jsonable_python(received) == [runs]
 
 
 @pytest.mark.parametrize(
