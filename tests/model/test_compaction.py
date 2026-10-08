@@ -1,7 +1,8 @@
 """Tests for the compaction() factory function."""
 
-from typing import Literal
+from typing import Callable, Literal
 
+import anyio
 import pytest
 from test_helpers.checkpoint import RecordingCheckpointer
 
@@ -25,6 +26,7 @@ from inspect_ai.model._compaction.edit import CompactionEdit
 from inspect_ai.model._compaction.memory import MEMORY_TOOL
 from inspect_ai.model._compaction.summary import CompactionSummary
 from inspect_ai.model._compaction.trim import CompactionTrim
+from inspect_ai.model._compaction.types import CompactionStrategy
 from inspect_ai.model._model import Model, get_model
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.model._trim import partition_messages, strip_citations
@@ -935,6 +937,173 @@ async def test_force_compaction_raises_without_reduction() -> None:
     result, _ = await compact.compact_input(messages)
     assert result == messages
     assert not [e for e in transcript.events if isinstance(e, CompactionEvent)]
+
+
+def _reasoning_msg(
+    id: str, reasoning: str, tool_call: str | None = None
+) -> ChatMessageAssistant:
+    return ChatMessageAssistant(
+        id=id,
+        content=[ContentReasoning(reasoning=reasoning, redacted=True)],
+        tool_calls=[ToolCall(id=tool_call, function="lookup", arguments={})]
+        if tool_call
+        else None,
+    )
+
+
+@pytest.mark.parametrize(
+    "strategy,messages",
+    [
+        pytest.param(
+            # keeps both tool uses and drops the older reasoning
+            lambda: CompactionEdit(threshold=1_000_000),
+            [
+                user_msg("task", "u1", source="input"),
+                _reasoning_msg("a1", "REASONING-1", tool_call="t1"),
+                ChatMessageTool(
+                    id="r1", content="ok", tool_call_id="t1", function="lookup"
+                ),
+                _reasoning_msg("a2", "REASONING-2", tool_call="t2"),
+                ChatMessageTool(
+                    id="r2", content="ok", tool_call_id="t2", function="lookup"
+                ),
+            ],
+            id="edit",
+        ),
+        pytest.param(
+            # drops a reasoning-only assistant turn
+            lambda: CompactionTrim(threshold=1_000_000, preserve=0.5),
+            [
+                user_msg("task", "u1", source="input"),
+                _reasoning_msg("a1", "REASONING-1"),
+                user_msg("go", "u2"),
+            ],
+            id="trim",
+        ),
+        pytest.param(
+            # the summary counts more than the turns it replaces
+            lambda: CompactionSummary(
+                threshold=1_000_000,
+                model=get_model(
+                    "mockllm/model",
+                    custom_outputs=[
+                        ModelOutput.from_content("mockllm/model", "SUMMARY " * 50)
+                    ]
+                    * 2,
+                ),
+            ),
+            [
+                user_msg("task", "u1", source="input"),
+                _reasoning_msg("a1", "REASONING-1"),
+                user_msg("go", "u2"),
+            ],
+            id="summary",
+        ),
+    ],
+)
+async def test_force_compaction_accepts_removed_reasoning(
+    strategy: Callable[[], CompactionStrategy], messages: list[ChatMessage]
+) -> None:
+    """Removing reasoning the count skips is progress, unchanged input is not.
+
+    Token counting skips reasoning payloads, so these compactions do not
+    lower the count. A second forced compaction of the stored compacted view
+    has no reasoning left to remove and raises.
+    """
+    model = get_model("mockllm/model")
+    compact = compaction(strategy(), prefix=messages[:1], tools=None, model=model)
+
+    result, c_message = await compact.compact_input(messages, force=True)
+    assert await model.count_tokens(result) >= await model.count_tokens(messages)
+    reasoning = [
+        c.reasoning
+        for m in result
+        if not isinstance(m.content, str)
+        for c in m.content
+        if isinstance(c, ContentReasoning)
+    ]
+    assert "REASONING-1" not in reasoning
+
+    with pytest.raises(RuntimeError, match="did not reduce the input"):
+        await compact.compact_input(
+            messages + ([c_message] if c_message else []), force=True
+        )
+
+
+async def test_force_compaction_cancelled_during_progress_count(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Cancelling the progress count leaves the handler state and lock intact."""
+    from inspect_ai.event import CompactionEvent
+    from inspect_ai.log._transcript import Transcript, init_transcript
+
+    transcript = Transcript()
+    init_transcript(transcript)
+    model = get_model("mockllm/model")
+    messages: list[ChatMessage] = [
+        user_msg("task", "u1", source="input"),
+        ChatMessageAssistant(
+            id="a1",
+            content="looking",
+            tool_calls=[ToolCall(id="t1", function="lookup", arguments={})],
+        ),
+        ChatMessageTool(
+            id="r1", content="value " * 50, tool_call_id="t1", function="lookup"
+        ),
+        user_msg("go", "u2"),
+    ]
+    message_ids = [m.id for m in messages]
+
+    # pause on the second count of the full input in the forced call: the
+    # first is the threshold estimate, the second the progress comparison
+    paused = anyio.Event()
+    full_input_counts = 0
+    armed = False
+    count_tokens = model.count_tokens
+
+    async def pausing_count_tokens(
+        input: str | list[ChatMessage], config: GenerateConfig | None = None
+    ) -> int:
+        nonlocal full_input_counts
+        if armed and not isinstance(input, str):
+            if [m.id for m in input] == message_ids:
+                full_input_counts += 1
+                if full_input_counts == 2:
+                    paused.set()
+                    await anyio.sleep_forever()
+        return await count_tokens(input, config)
+
+    monkeypatch.setattr(model, "count_tokens", pausing_count_tokens)
+
+    cp = RecordingCheckpointer()
+    compact = compaction(
+        CompactionEdit(threshold=1_000_000, keep_tool_uses=0),
+        prefix=messages[:1],
+        tools=None,
+        model=model,
+        checkpointer=cp,
+    )
+    await compact.compact_input(messages)
+    before = cp.callbacks["compaction"]()
+    assert isinstance(before, _CompactionState)
+    before = before.model_copy(deep=True)
+
+    armed = True
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(compact.compact_input, messages, True)
+        with anyio.fail_after(5):
+            await paused.wait()
+        tg.cancel_scope.cancel()
+    armed = False
+
+    assert cp.callbacks["compaction"]() == before
+    assert not [e for e in transcript.events if isinstance(e, CompactionEvent)]
+
+    # the lock was released, so the next forced compaction completes
+    with anyio.fail_after(5):
+        result, _ = await compact.compact_input(messages, force=True)
+    assert await model.count_tokens(result) < await model.count_tokens(messages)
+    assert len([e for e in transcript.events if isinstance(e, CompactionEvent)]) == 1
 
 
 async def test_compaction_collapses_provider_required_consecutive_messages(

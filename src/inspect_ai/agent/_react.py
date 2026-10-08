@@ -634,8 +634,8 @@ async def _handle_overflow(
     if compact is not None:
         try:
             # a successful return means the handler already validated that
-            # its result fits and is smaller than the input that overflowed,
-            # so unlike the filter below there is no length gate
+            # its result fits and reduces the input that overflowed, so
+            # unlike the filter below there is no length gate
             _, c_message = await compact.compact_input(previous_messages, force=True)
             # compaction shapes the model input, not the record: the handler
             # keeps the compacted view internally, so assigning it here would

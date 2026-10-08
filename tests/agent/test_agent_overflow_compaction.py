@@ -1,19 +1,20 @@
 """Tests for forced-compaction recovery in the react agent's overflow path."""
 
+import json
+from typing import Any, Literal
+
 import httpx2
 import pytest
 from openai import DefaultAsyncHttpxClient
 from typing_extensions import override
 
 from inspect_ai import Task, eval
-from inspect_ai._util.content import ContentReasoning, ContentText
 from inspect_ai.agent import Agent, AgentState, react
 from inspect_ai.dataset import Sample
 from inspect_ai.event import CompactionEvent
 from inspect_ai.model import (
     ChatMessage,
     ChatMessageAssistant,
-    ChatMessageTool,
     ChatMessageUser,
     GenerateConfig,
     Model,
@@ -21,9 +22,11 @@ from inspect_ai.model import (
     get_model,
 )
 from inspect_ai.model._compaction import CompactionStrategy
+from inspect_ai.model._compaction.auto import CompactionAuto
 from inspect_ai.model._compaction.edit import CompactionEdit
+from inspect_ai.model._compaction.summary import CompactionSummary
 from inspect_ai.model._compaction.trim import CompactionTrim
-from inspect_ai.tool import Tool, ToolCall, tool
+from inspect_ai.tool import Tool, tool
 from inspect_ai.tool._tool_info import ToolInfo
 
 
@@ -464,23 +467,101 @@ def test_overflow_recovery_stops_when_compacted_input_cannot_shrink() -> None:
     assert "done" not in (log.samples[0].output.completion or "")
 
 
-@pytest.mark.parametrize("status_code", [404, 405])
-def test_overflow_recovery_with_local_counting_does_not_resend_reasoning(
-    status_code: int,
-) -> None:
-    """Retained reasoning the local tokenizer cannot count is not retried.
+def _response_body(output: list[dict[str, Any]]) -> dict[str, Any]:
+    return {
+        "id": "resp",
+        "object": "response",
+        "created_at": 0,
+        "model": "gpt-5.6-sol",
+        "status": "completed",
+        "output": output,
+        "parallel_tool_calls": True,
+        "tool_choice": "auto",
+        "tools": [],
+        "usage": {
+            "input_tokens": 1,
+            "output_tokens": 1,
+            "total_tokens": 2,
+            "input_tokens_details": {"cached_tokens": 0},
+            "output_tokens_details": {"reasoning_tokens": 0},
+        },
+    }
 
-    Without the native token-count endpoint, OpenAI counts with a local
-    tokenizer that skips encrypted reasoning, so an input that overflowed can
-    count well under the threshold. The edit keeps the latest reasoning and
-    tool use, so forced compaction cannot shrink the input that overflowed.
+
+def _reasoning_and_lookup(n: int) -> list[dict[str, Any]]:
+    return [
+        {
+            "type": "reasoning",
+            "id": f"rs_{n}",
+            "summary": [],
+            "encrypted_content": f"ENCRYPTED-{n}",
+        },
+        {
+            "type": "function_call",
+            "id": f"fc_{n}",
+            "call_id": f"call_{n}",
+            "name": "lookup",
+            "arguments": "{}",
+            "status": "completed",
+        },
+    ]
+
+
+def _final_output(request: dict[str, Any]) -> list[dict[str, Any]]:
+    if "submit" in [tool.get("name") for tool in request.get("tools", [])]:
+        return [
+            {
+                "type": "function_call",
+                "id": "fc_submit",
+                "call_id": "call_submit",
+                "name": "submit",
+                "arguments": json.dumps({"answer": "done"}),
+                "status": "completed",
+            }
+        ]
+    return [_text_output("done")]
+
+
+def _text_output(text: str) -> dict[str, Any]:
+    return {
+        "type": "message",
+        "id": "msg",
+        "role": "assistant",
+        "status": "completed",
+        "content": [{"type": "output_text", "text": text, "annotations": []}],
+    }
+
+
+def _error_response(request: httpx2.Request, code: str) -> httpx2.Response:
+    return httpx2.Response(
+        400,
+        json={
+            "error": {
+                "message": "Input exceeds the context window.",
+                "type": "invalid_request_error",
+                "param": "input",
+                "code": code,
+            }
+        },
+        request=request,
+    )
+
+
+def _openai_with_local_counting(
+    status_code: int,
+    turns: list[Literal["lookup", "overflow", "final"]],
+    agent_requests: list[dict[str, Any]],
+) -> Model:
+    """OpenAI Responses model whose token-count endpoint is unavailable.
+
+    Agent requests (those with tools) are answered from `turns` and recorded;
+    a request beyond them fails the sample rather than looping. Requests
+    without tools are summarization calls; the summary counts more than the
+    turns it replaces, so only the removed reasoning shows progress.
     """
-    count_calls: list[str] = []
-    generate_calls: list[str] = []
 
     async def handler(request: httpx2.Request) -> httpx2.Response:
-        if request.url.path == "/v1/responses/input_tokens":
-            count_calls.append("call")
+        if request.url.path in ("/v1/responses/input_tokens", "/v1/responses/compact"):
             return httpx2.Response(
                 status_code,
                 headers={"allow": "GET"} if status_code == 405 else {},
@@ -488,24 +569,28 @@ def test_overflow_recovery_with_local_counting_does_not_resend_reasoning(
                 request=request,
             )
         assert request.url.path == "/v1/responses"
-        generate_calls.append("call")
-        # fail the sample rather than loop if the same input is resent
-        code = "context_length_exceeded" if len(generate_calls) == 1 else "resent"
-        return httpx2.Response(
-            400,
-            json={
-                "error": {
-                    "message": "Input exceeds the context window.",
-                    "type": "invalid_request_error",
-                    "param": "input",
-                    "code": code,
-                }
-            },
-            request=request,
+        body = json.loads(request.content)
+        if not body.get("tools"):
+            return httpx2.Response(
+                200,
+                json=_response_body([_text_output("SUMMARY " * 300)]),
+                request=request,
+            )
+        agent_requests.append(body)
+        if len(agent_requests) > len(turns):
+            return _error_response(request, "unexpected_request")
+        turn = turns[len(agent_requests) - 1]
+        if turn == "overflow":
+            return _error_response(request, "context_length_exceeded")
+        output = (
+            _reasoning_and_lookup(len(agent_requests))
+            if turn == "lookup"
+            else _final_output(body)
         )
+        return httpx2.Response(200, json=_response_body(output), request=request)
 
-    model = get_model(
-        "openai/gpt-5-mini",
+    return get_model(
+        "openai/gpt-5.6-sol",
         api_key="test",
         base_url="http://test/v1",
         http_client=DefaultAsyncHttpxClient(transport=httpx2.MockTransport(handler)),
@@ -514,27 +599,75 @@ def test_overflow_recovery_with_local_counting_does_not_resend_reasoning(
         # skips the reasoning-summary probe request
         config=GenerateConfig(reasoning_summary="none"),
     )
-    sample_input: list[ChatMessage] = [
-        ChatMessageUser(content="Solve this using the tool."),
-        ChatMessageAssistant(
-            content=[
-                ContentReasoning(reasoning="ENCRYPTED", redacted=True),
-                ContentText(text="Checking"),
-            ],
-            tool_calls=[ToolCall(id="call_1", function="lookup", arguments={})],
-        ),
-        ChatMessageTool(content="ok", tool_call_id="call_1", function="lookup"),
-    ]
+
+
+@pytest.mark.parametrize("status_code", [404, 405])
+@pytest.mark.parametrize("submit", [True, False], ids=["react", "react_no_submit"])
+def test_overflow_recovery_with_local_counting_does_not_resend_reasoning(
+    status_code: int, submit: bool
+) -> None:
+    """Retained reasoning the local tokenizer cannot count is not retried.
+
+    Without the native token-count endpoint, OpenAI counts with a local
+    tokenizer that skips encrypted reasoning, so an input that overflowed can
+    count well under the threshold. The edit keeps the latest reasoning and
+    tool use, so forced compaction cannot shrink the input that overflowed.
+    """
+    agent_requests: list[dict[str, Any]] = []
+    model = _openai_with_local_counting(
+        status_code, ["lookup", "overflow", "final"], agent_requests
+    )
 
     task = Task(
-        dataset=[Sample(input=sample_input, target="done")],
+        dataset=[Sample(input="Solve this using the tool.", target="done")],
         solver=react(
             tools=[lookup()],
+            submit=submit,
             compaction=CompactionEdit(threshold=1_000, memory=False),
         ),
     )
 
     log = eval(task, model=model)[0]
     assert log.status == "success", log.error
-    assert count_calls
-    assert len(generate_calls) == 1
+    assert len(agent_requests) == 2
+    assert "ENCRYPTED-1" in json.dumps(agent_requests[1]["input"])
+
+
+@pytest.mark.parametrize("status_code", [404, 405])
+@pytest.mark.parametrize("submit", [True, False], ids=["react", "react_no_submit"])
+@pytest.mark.parametrize(
+    "strategy",
+    [
+        # drops the older reasoning, keeps both tool uses
+        pytest.param(CompactionEdit(threshold=10_000, memory=False), id="edit"),
+        pytest.param(CompactionSummary(threshold=10_000, memory=False), id="summary"),
+        # native compaction is unavailable, so this falls back to summary
+        pytest.param(CompactionAuto(threshold=10_000, memory=False), id="auto"),
+    ],
+)
+def test_overflow_recovery_with_local_counting_removes_reasoning(
+    status_code: int, submit: bool, strategy: CompactionStrategy
+) -> None:
+    """Forced compaction that removes encrypted reasoning recovers.
+
+    The local tokenizer skips the reasoning, so the count does not fall (the
+    edit leaves it unchanged, the summary raises it), but the retry no longer
+    sends that reasoning.
+    """
+    agent_requests: list[dict[str, Any]] = []
+    model = _openai_with_local_counting(
+        status_code, ["lookup", "lookup", "overflow", "final"], agent_requests
+    )
+
+    task = Task(
+        dataset=[Sample(input="Solve this using the tool.", target="done")],
+        solver=react(tools=[lookup()], submit=submit, compaction=strategy),
+    )
+
+    log = eval(task, model=model)[0]
+    assert log.status == "success", log.error
+    assert log.samples
+    assert len(agent_requests) == 4
+    assert "ENCRYPTED-1" in json.dumps(agent_requests[2]["input"])
+    assert "ENCRYPTED-1" not in json.dumps(agent_requests[3]["input"])
+    assert "done" in (log.samples[0].output.completion or "")

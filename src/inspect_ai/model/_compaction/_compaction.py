@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+from collections import Counter
 from logging import getLogger
 from typing import Sequence
 
 import anyio
 from pydantic import BaseModel, Field
 
+from inspect_ai._util.content import ContentData, ContentReasoning
 from inspect_ai.tool import Tool, ToolDef, ToolInfo, ToolSource
 from inspect_ai.util._checkpoint import Checkpointer
 from inspect_ai.util._checkpoint.checkpointer_noop import _NoopCheckpointer
@@ -244,11 +246,13 @@ def compaction(
                 # with a local tokenizer), and a retry would overflow again.
                 if force:
                     input_tokens = await target_model.count_tokens(target_messages)
-                    if compacted_tokens >= input_tokens:
+                    if compacted_tokens >= input_tokens and not _removes_uncounted(
+                        target_messages, c_input
+                    ):
                         raise RuntimeError(
                             f"Forced compaction did not reduce the input "
                             f"({input_tokens:,} tokens before, "
-                            f"{compacted_tokens:,} after)"
+                            f"{compacted_tokens:,} after, no reasoning removed)"
                         )
 
                 # track all messages that were processed in this compaction pass
@@ -331,6 +335,27 @@ def compaction(
 
 
 DEFAULT_CONTEXT_WINDOW = 128_000
+
+
+def _removes_uncounted(before: list[ChatMessage], after: list[ChatMessage]) -> bool:
+    """Whether `after` drops content that token counts can omit, adding none.
+
+    Local token counting skips reasoning payloads and opaque data (see
+    `model/_tokens.py`), so removing them shrinks the input without lowering
+    the count. Content is compared by value and the result must be a strict
+    subset, so new message ids or replaced opaque blocks do not count.
+    """
+    return Counter(_uncounted_content(after)) < Counter(_uncounted_content(before))
+
+
+def _uncounted_content(messages: list[ChatMessage]) -> list[str]:
+    return [
+        content.model_dump_json()
+        for message in messages
+        if not isinstance(message.content, str)
+        for content in message.content
+        if isinstance(content, ContentReasoning | ContentData)
+    ]
 
 
 async def _perform_compaction(
