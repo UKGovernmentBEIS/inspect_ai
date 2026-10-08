@@ -4,6 +4,8 @@
 - Solver: `TaskState.input_text` no longer raises when the last user message has no text; image-only and other non-text messages return placeholders such as `[image]`, and an empty message returns `""`.
 - Bugfix: Hugging Face task loading reads the Hub-delivered `eval.yaml` in UTF-8 rather than the locale default, so task configs with non-ASCII characters no longer crash or silently corrupt on Windows with a non-UTF-8 code page (or on a C-locale system).
 - Anthropic: Support for Claude Haiku 5.5 (`claude-haiku-5-5`): `reasoning_effort="none"` disables thinking, computer use uses the computer toolset on the Claude API and Vertex, and `fallback_models` is ignored with a warning.
+- Perplexity: Fixed every request failing after Perplexity retired Sonar Chat Completions; the provider now uses the Agent API and its model names, such as `perplexity/openai/gpt-5.6-luna`.
+- Perplexity: Models, including `perplexity/sonar`, now search the web only when the `web_search()` tool is passed, matching the Agent API; add it to keep search-grounded answers and citations.
 - Bugfix: `inspect log convert --stream` (and `convert_eval_logs(stream=...)`) no longer drops the error message and traceback from logs of failed evals.
 
 - Tools: Tools with `*args` or `**kwargs` no longer advertise required `args`/`kwargs` parameters to models; declare model-chosen arguments with an explicit `ToolParams` schema instead.
@@ -20,8 +22,6 @@
 - Realtime logging: Fixed live sample reads occasionally showing model calls with empty inputs when the sample finished while being read.
 - Meta: Muse models not yet in the model database (new versions or codenames) now use the current frontier model's context window and `max` reasoning effort support.
 - Bedrock: Unsupported Amazon Nova models now ignore reasoning effort with a warning instead of failing every request.
-- Perplexity: Fixed every request failing after Perplexity retired Sonar Chat Completions; the provider now uses the Agent API and its model names, such as `perplexity/openai/gpt-5.6-luna`.
-- Perplexity: Models, including `perplexity/sonar`, now search the web only when the `web_search()` tool is passed, matching the Agent API; add it to keep search-grounded answers and citations.
 - Timestamps and times ending in a lowercase `z` are now parsed as UTC on Python 3.11 and later, as they already were on Python 3.10.
 - Model API: Model events log provider request ids (including for retried requests) and response ids, even when raw model API calls are not logged.
 - Datasets: `shuffle` on `csv_dataset()`, `json_dataset()`, `file_dataset()` and `hf_dataset()` now treats an integer as a seed, so `shuffle=0` shuffles with seed 0.
