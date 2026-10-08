@@ -5,7 +5,7 @@ import re
 import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import BinaryIO, Literal, cast
+from typing import Any, BinaryIO, Literal, cast
 from unittest.mock import patch
 from zipfile import ZipFile
 
@@ -42,7 +42,7 @@ from inspect_ai.log._file import (
     write_eval_log,
 )
 from inspect_ai.log._log import EvalLog, EvalSample, EvalSpec
-from inspect_ai.model import get_model
+from inspect_ai.model import ChatMessage, get_model
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.scorer import (
@@ -62,6 +62,8 @@ from inspect_ai.solver import (
     generate,
     solver,
 )
+from inspect_ai.util import SandboxEnvironmentType
+from inspect_ai.util._checkpoint.config import CheckpointSampleConfig
 
 
 def log_path(file: str) -> str:
@@ -2462,6 +2464,65 @@ def test_log_task_and_sample_description(
     assert reread.eval.task_description == "Say the input."
     assert reread.samples is not None
     assert sorted(s.description or "" for s in reread.samples) == ["", "Say x."]
+
+
+@pytest.mark.parametrize("log_format", ["eval", "json"])
+def test_description_logs_are_readable_by_legacy_sample_constructor(
+    tmp_path: Path, log_format: Literal["eval", "json"]
+) -> None:
+    class LegacySample:
+        """The pre-description Sample constructor used by previous readers."""
+
+        def __init__(
+            self,
+            input: str | list[ChatMessage],
+            choices: list[str] | None = None,
+            target: str | list[str] = "",
+            id: int | str | None = None,
+            metadata: dict[str, Any] | None = None,
+            sandbox: SandboxEnvironmentType | None = None,
+            files: dict[str, str] | None = None,
+            setup: str | None = None,
+            checkpoint: CheckpointSampleConfig | None = None,
+        ) -> None:
+            self.input = input
+            self.choices = choices
+            self.target = target
+            self.id = id
+            self.metadata = metadata
+            self.sandbox = sandbox
+            self.files = files
+            self.setup = setup
+            self.checkpoint = checkpoint
+
+    from inspect_ai.log import read_eval_log_sample_summaries
+
+    task = Task(
+        dataset=[Sample(id=1, input="x", description="Say x.")],
+        description="Say the input.",
+    )
+    log = eval(
+        task, model="mockllm/model", log_dir=str(tmp_path), log_format=log_format
+    )[0]
+    full_log = read_eval_log(log.location)
+    sample_record = read_eval_log_sample(log.location, id=1)
+
+    assert full_log.eval.task_description == "Say the input."
+    assert full_log.samples is not None
+    assert full_log.samples[0].description == "Say x."
+    assert sample_record.description == "Say x."
+    assert read_eval_log_sample_summaries(log.location)[0].description == "Say x."
+
+    for record in [full_log.samples[0], sample_record]:
+        init_events = [
+            event for event in record.events if isinstance(event, SampleInitEvent)
+        ]
+        assert len(init_events) == 1
+        legacy_sample = LegacySample(
+            **init_events[0].sample.model_dump(exclude_none=True)
+        )
+        assert legacy_sample.input == "x"
+        assert "description" not in init_events[0].sample.model_dump(exclude_none=True)
 
 
 @pytest.mark.parametrize("log_file", ["log_formats.json", "log_formats.eval"])

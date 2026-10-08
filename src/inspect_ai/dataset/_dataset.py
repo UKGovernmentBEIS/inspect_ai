@@ -40,6 +40,7 @@ class Sample(BaseModel):
         files: dict[str, str] | None = None,
         setup: str | None = None,
         checkpoint: CheckpointSampleConfig | None = None,
+        *,
         description: str | None = None,
     ) -> None:
         r"""Create a Sample.

@@ -34,11 +34,29 @@ def test_sample_positional_metadata_compatibility() -> None:
     assert sample.metadata == {"difficulty": "easy"}
 
 
+def test_sample_description_is_keyword_only() -> None:
+    assert (
+        inspect.signature(Sample).parameters["description"].kind
+        == inspect.Parameter.KEYWORD_ONLY
+    )
+
+
 def test_field_spec_positional_metadata_compatibility() -> None:
     fields = ["difficulty"]
 
     assert FieldSpec("input", "target", "choices", "id", fields).metadata is fields
     assert HFFieldSpec("input", "target", "choices", "id", fields).metadata is fields
+
+
+def test_field_descriptions_are_keyword_only() -> None:
+    assert (
+        inspect.signature(FieldSpec).parameters["description"].kind
+        == inspect.Parameter.KEYWORD_ONLY
+    )
+    assert (
+        inspect.signature(HFFieldSpec).parameters["description"].kind
+        == inspect.Parameter.KEYWORD_ONLY
+    )
 
 
 # test functions are parameterized by dataset type and input file

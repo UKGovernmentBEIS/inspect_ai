@@ -104,14 +104,17 @@ def test_task_description() -> None:
 
 
 def test_task_positional_version_compatibility() -> None:
-    parameters = list(inspect.signature(Task).parameters.values())
-    version_index = next(
-        i for i, parameter in enumerate(parameters) if parameter.name == "version"
-    )
-    positional = [parameter.default for parameter in parameters[: version_index + 1]]
-    positional[version_index] = "v2"
+    # This pins version at its historical 29th positional argument.
+    task = Task(*([None] * 28), "v2")
+    assert task.version == "v2"
+    assert task.description is None
 
-    assert Task(*positional).version == "v2"
+
+def test_task_description_is_keyword_only() -> None:
+    assert (
+        inspect.signature(Task).parameters["description"].kind
+        == inspect.Parameter.KEYWORD_ONLY
+    )
 
 
 def test_task_with_description() -> None:

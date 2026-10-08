@@ -121,6 +121,7 @@ class Task:
         tags: list[str] | None = None,
         viewer: ViewerConfig | None = None,
         headline_metric: HeadlineMetric | str | None = None,
+        *,
         description: str | None = None,
         **kwargs: Unpack[TaskDeprecatedArgs],
     ) -> None:
