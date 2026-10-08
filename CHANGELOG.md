@@ -8,6 +8,7 @@
 
 - Tools: Tools with `*args` or `**kwargs` no longer advertise required `args`/`kwargs` parameters to models; declare model-chosen arguments with an explicit `ToolParams` schema instead.
 - Control Channel: `inspect ctl model throughput` now reports each model's input, output and cache read/write tokens per minute, in the table and in `--json` output; the table's output column is now per minute instead of per second.
+- Bugfix: An approver's `modify` decision with no modified call now rejects the tool call instead of running the original, and the human approver no longer offers Modify.
 - Deep Agent: `deepagent(background=True)` run from a scorer can now dispatch background subagents instead of failing.
 
 ## 0.3.277 (06 October 2026)
