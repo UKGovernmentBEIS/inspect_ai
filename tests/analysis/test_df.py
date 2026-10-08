@@ -338,6 +338,23 @@ def test_evals_df_includes_token_limit_type_column():
     assert "token_limit_type" in df.columns
 
 
+def test_evals_df_sentinel_column(tmp_path: Path) -> None:
+    from inspect_ai.log import SentinelConfig
+
+    [plain] = eval(Task(), model="mockllm/model", log_dir=str(tmp_path / "plain"))
+    with_sentinel = plain.model_copy(deep=True)
+    with_sentinel.eval.config.sentinel = SentinelConfig.model_validate(
+        [{"name": "d4_rule", "params": {"reason": "no"}}]
+    )
+    write_eval_log(with_sentinel, str(tmp_path / "sentinel" / "log.eval"))
+
+    df = evals_df(tmp_path / "sentinel")
+    assert "d4_rule" in df["sentinel"].iloc[0]
+    df = evals_df(tmp_path / "plain")
+    assert "sentinel" in df.columns
+    assert df["sentinel"].isna().all()
+
+
 def test_messages_df():
     df = messages_df(LOGS_DIR)
     assert len(df) == 34

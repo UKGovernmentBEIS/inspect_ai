@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Tool review now also reviews `handoff()` calls, as approval does.
 - Compaction: Fixed compaction triggering early and reporting inflated token counts on OpenAI reasoning models, which counted replayed reasoning twice.
 - Compaction: Removed `ModelAPI.apply_redacted_reasoning_tokens_to_input()` and stopped adding `redacted_reasoning_tokens` to assistant message metadata.
 - Compaction: Overflow recovery in `react()` no longer forces compaction again when the retry after a forced compaction also overflows, which could resend the same request indefinitely.
