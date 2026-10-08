@@ -196,13 +196,11 @@ def acquire_exclusive_lock(path: str, info: dict[str, Any]) -> Iterator[None]:
             f"{_lock_holder(lock)}. If that process is no longer running, "
             "delete the lock file and try again."
         ) from None
-    created = os.fstat(fd)
     try:
-        with open(fd, "w", encoding="utf-8") as f:
-            json.dump(info, f)
+        os.write(fd, json.dumps(info).encode("utf-8"))
         yield
     finally:
-        _release_exclusive_lock(lock, created)
+        _release_exclusive_lock(lock, fd)
 
 
 def _lock_holder(lock: str) -> str:
@@ -213,13 +211,21 @@ def _lock_holder(lock: str) -> str:
         return f"(unreadable: {ex})"
 
 
-def _release_exclusive_lock(lock: str, created: os.stat_result) -> None:
-    """Remove `lock` only if it is still the file this holder created."""
+def _release_exclusive_lock(lock: str, fd: int) -> None:
+    """Close `fd` and remove `lock` only if it is still the file `fd` created.
+
+    The descriptor stays open until this check: once a file is closed and
+    unlinked, Linux can give its inode number to the next file created, so a
+    replacement would look like the original.
+    """
+    created = os.fstat(fd)
     try:
         current = os.stat(lock)
     except FileNotFoundError:
         logger.warning(f"Lock file {lock} was removed while it was held.")
         return
+    finally:
+        os.close(fd)
     if (current.st_dev, current.st_ino) != (created.st_dev, created.st_ino):
         logger.warning(
             f"Lock file {lock} was replaced while it was held; leaving it in place."

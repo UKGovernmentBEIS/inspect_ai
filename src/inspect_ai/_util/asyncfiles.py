@@ -1040,7 +1040,7 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
                     condition=condition,
                     final_client=await self._s3_final_client_async(),
                 )
-            return await anyio.to_thread.run_sync(
+            etag = await anyio.to_thread.run_sync(
                 _s3_upload_fileobj_conditional_sync,
                 self.s3_client(),
                 self._s3_final_client(),
@@ -1050,6 +1050,10 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
                 condition,
                 _s3_transfer_config(),
             )
+            # the worker is not abandoned on cancellation, so a cancellation
+            # that arrived during its final call is raised here
+            await anyio.lowlevel.checkpoint_if_cancelled()
+            return etag
         except ClientError as ex:
             if _is_s3_condition_failure(ex, missing=expected is not None):
                 raise WriteConflictError(
@@ -1090,14 +1094,15 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
             filesystem(remote).get_file(remote, local)
 
     async def get_file_if_match(self, remote: str, local: str, etag: str) -> None:
-        """Download the S3 object `remote` to the local path `local` only if its ETag is `etag`.
+        """Download the S3 object `remote` to `local` only if its ETag is `etag`.
 
         Every request (the ``head_object`` for the size, then each ranged GET of
         the transfer chunk size) carries ``IfMatch: etag``, so all the bytes
         come from that version and memory is bounded by the chunk size times
         the concurrency (ranges are fetched one at a time on Trio). The
         download lands in a sibling temp file that replaces `local` on success
-        and is removed on failure.
+        and is removed on failure or cancellation. `local` is a local path or
+        ``file://`` URI.
 
         S3 URLs only.
 
@@ -1110,6 +1115,7 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
             raise ValueError(f"get_file_if_match supports S3 URLs only: {remote}")
         bucket, key = s3_bucket_and_key(remote)
         if_match = _quoted_etag(etag)
+        local = local_path(local)
         partial_path = f"{local}.{uuid.uuid4().hex}.part"
         try:
             try:
@@ -1139,6 +1145,8 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
                         f"Expected ETag: {if_match}."
                     ) from ex
                 raise
+            # a cancellation during the last range must not replace `local`
+            await anyio.lowlevel.checkpoint_if_cancelled()
             os.replace(partial_path, local)
         finally:
             with suppress(FileNotFoundError):

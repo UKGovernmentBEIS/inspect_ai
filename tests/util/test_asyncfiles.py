@@ -39,6 +39,7 @@ from inspect_ai._util.asyncfiles import (
     s3_write_file_streaming,
 )
 from inspect_ai._util.error import WriteConflictError
+from inspect_ai._util.file import to_uri
 
 S3_BUCKET = "s3://test-bucket"
 
@@ -2568,6 +2569,128 @@ async def test_write_file_conditional_cancelled_part_upload_aborts(
         assert not finished
         assert not await fs.exists(url)
     assert _in_progress_uploads(key) == []
+
+
+def _blocking_hook(
+    blocked: anyio.Event,
+    release: threading.Event,
+    when: Callable[[AWSPreparedRequest], bool] = lambda request: True,
+) -> Callable[..., Any]:
+    """A ``before-send`` hook that blocks the matching request until cancelled.
+
+    On asyncio it waits on the event loop, where cancellation reaches it. On
+    Trio the request runs in a worker thread that cancellation does not
+    interrupt: it waits for `release`, then lets the request through.
+    """
+    if current_async_backend() == "asyncio":
+
+        async def block_async(request: AWSPreparedRequest, **kwargs: Any) -> None:
+            if when(request):
+                blocked.set()
+                await anyio.sleep_forever()
+
+        return block_async
+
+    def block_sync(request: AWSPreparedRequest, **kwargs: Any) -> None:
+        if when(request):
+            anyio.from_thread.run_sync(blocked.set)
+            assert release.wait(timeout=10)
+
+    return block_sync
+
+
+@pytest.mark.parametrize("route", ["put", "multipart"])
+async def test_write_file_conditional_cancelled_during_final_call_propagates(
+    mock_s3: None, small_transfer_config: TransferConfig, route: str
+) -> None:
+    """Cancellation arriving while the final call is in flight is not swallowed.
+
+    On Trio the call completes in its worker thread, so the object may exist
+    (the ambiguous outcome); the caller must still see the cancellation.
+    """
+    key, url = _conditional_key(f"cancel-final-{route}")
+    final_op = "PutObject" if route == "put" else "CompleteMultipartUpload"
+    blocked = anyio.Event()
+    release = threading.Event()
+    finished = False
+
+    async with AsyncFilesystem() as fs:
+        for client in await _s3_clients(fs):
+            client.meta.events.register(
+                f"before-send.s3.{final_op}", _blocking_hook(blocked, release)
+            )
+
+        async def write() -> None:
+            nonlocal finished
+            await fs.write_file_conditional(
+                url, io.BytesIO(os.urandom(_ROUTE_SIZES[route])), if_none_match=True
+            )
+            finished = True
+
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(write)
+            await blocked.wait()
+            tg.cancel_scope.cancel()
+            release.set()
+
+    assert not finished
+    assert _in_progress_uploads(key) == []
+
+
+async def test_get_file_if_match_cancelled_during_last_range_keeps_destination(
+    mock_s3: None, small_transfer_config: TransferConfig, tmp_path: Path
+) -> None:
+    key, url = _conditional_key("get-cancel")
+    local = tmp_path / "out.bin"
+    local.write_bytes(b"old")
+    blocked = anyio.Event()
+    release = threading.Event()
+    finished = False
+
+    def last_range(request: AWSPreparedRequest) -> bool:
+        return f"bytes={2 * _PART}-" in str(request.headers.get("Range", ""))
+
+    async with AsyncFilesystem() as fs:
+        etag = await fs.write_file_conditional(
+            url, io.BytesIO(os.urandom(_ROUTE_SIZES["multipart"])), if_none_match=True
+        )
+        for client in await _s3_clients(fs):
+            client.meta.events.register(
+                "before-send.s3.GetObject", _blocking_hook(blocked, release, last_range)
+            )
+
+        async def download() -> None:
+            nonlocal finished
+            await fs.get_file_if_match(url, str(local), etag)
+            finished = True
+
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(download)
+            await blocked.wait()
+            tg.cancel_scope.cancel()
+            release.set()
+
+    assert not finished
+    assert local.read_bytes() == b"old"
+    assert not list(tmp_path.glob("*.part"))
+
+
+@pytest.mark.parametrize("as_uri", [False, True])
+async def test_get_file_if_match_local_destination_forms(
+    mock_s3: None, tmp_path: Path, as_uri: bool
+) -> None:
+    key, url = _conditional_key("get-uri")
+    directory = tmp_path / "a dir%20x"
+    directory.mkdir()
+    local = directory / "out file.bin"
+    destination = to_uri(str(local)) if as_uri else str(local)
+    async with AsyncFilesystem() as fs:
+        etag = await fs.write_file_conditional(
+            url, io.BytesIO(b"payload"), if_none_match=True
+        )
+        await fs.get_file_if_match(url, destination, etag)
+    assert local.read_bytes() == b"payload"
+    assert [p.name for p in directory.iterdir()] == ["out file.bin"]
 
 
 async def test_write_file_conditional_rejects_bad_arguments(tmp_path: Path) -> None:
