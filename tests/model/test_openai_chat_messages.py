@@ -230,15 +230,21 @@ async def test_assistant_message_reasoning_content_round_trip():
 
 
 @pytest.mark.parametrize("as_parts", [False, True])
+@pytest.mark.parametrize("double_wrapped", [False, True])
 async def test_assistant_message_preserves_multiple_internal_text_blocks(
     as_parts: bool,
+    double_wrapped: bool,
 ) -> None:
     serialized = "\n".join(
         [
             "first",
-            content_internal_tag({"a": 1}),
+            f"<{content_internal_tag({'a': 1})}>"
+            if double_wrapped
+            else content_internal_tag({"a": 1}),
             "second",
-            content_internal_tag({"b": 2}),
+            f"<{content_internal_tag({'b': 2})}>"
+            if double_wrapped
+            else content_internal_tag({"b": 2}),
         ]
     )
 
@@ -264,11 +270,15 @@ async def test_assistant_message_preserves_multiple_internal_text_blocks(
     ] == [("first", {"a": 1}), ("second", {"b": 2})]
 
 
-async def test_assistant_message_preserves_single_internal_text_block() -> None:
+@pytest.mark.parametrize("double_wrapped", [False, True])
+async def test_assistant_message_preserves_single_internal_text_block(
+    double_wrapped: bool,
+) -> None:
+    capsule = content_internal_tag({"provider_state": "opaque"})
     serialized = "\n".join(
         [
             "assistant output",
-            content_internal_tag({"provider_state": "opaque"}),
+            f"<{capsule}>" if double_wrapped else capsule,
         ]
     )
 

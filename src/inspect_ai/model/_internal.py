@@ -21,13 +21,16 @@ def content_internal_tag(internal: JsonValue) -> str:
 
 def _content_internal_pattern(tag: str) -> re.Pattern[str]:
     escaped_tag = re.escape(tag)
-    return re.compile(rf"<{escaped_tag}>(.*?)</{escaped_tag}>", re.DOTALL)
+    return re.compile(
+        rf"(?P<outer><)?<{escaped_tag}>(?P<payload>.*?)</{escaped_tag}>(?(outer)>)",
+        re.DOTALL,
+    )
 
 
 def _decode_content_internal(match: re.Match[str]) -> JsonValue:
     return cast(
         JsonValue,
-        json.loads(base64.b64decode(match.group(1)).decode("utf-8")),
+        json.loads(base64.b64decode(match.group("payload")).decode("utf-8")),
     )
 
 
@@ -35,6 +38,9 @@ def parse_content_with_internal_blocks(
     content: str, tag: str
 ) -> list[ContentWithInternal]:
     """Extract all internal values while preserving their text block association.
+
+    Both single-wrapped capsules and the double-wrapped form emitted by older
+    bridge serializers are supported.
 
     Multiple capsules are emitted by bridge serializers immediately after the
     text block they describe. Any text following the final capsule is returned
