@@ -13,6 +13,9 @@ import hashlib
 import importlib.util
 import io
 import json
+import shutil
+import subprocess
+import sys
 import tarfile
 import zipfile
 from pathlib import Path
@@ -666,3 +669,51 @@ def test_pypi_verify_parity_rejects_digest_mismatch(
     )
     with pytest.raises(RuntimeError, match=f"Could not download {_WHEEL}"):
         pypi_release.verify_parity(dist, "0.3.277")
+
+
+_RELEASE_SCRIPT = Path(__file__).parents[3] / "scripts" / "pypi-release.py"
+_COMMANDS = [
+    "release",
+    "sandbox-tools-download",
+    "prepare",
+    "verify-dist",
+    "verify-parity",
+]
+
+
+@pytest.mark.parametrize("command", _COMMANDS)
+def test_pypi_release_script_loads_without_a_toml_library(command: str) -> None:
+    """Only the wheel gate reads pyproject.toml; every command starts without it."""
+    blocked = (
+        "import runpy, sys; "
+        "sys.modules['tomllib'] = sys.modules['tomli'] = None; "
+        f"sys.argv = [{str(_RELEASE_SCRIPT)!r}, {command!r}, '--help']; "
+        f"runpy.run_path({str(_RELEASE_SCRIPT)!r}, run_name='__main__')"
+    )
+    result = subprocess.run(
+        [sys.executable, "-c", blocked], capture_output=True, text=True
+    )
+    assert result.returncode == 0, result.stderr
+
+
+def test_pypi_read_package_data_globs_without_a_toml_library(
+    pypi_release: ModuleType, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setitem(sys.modules, "tomllib", None)
+    monkeypatch.setitem(sys.modules, "tomli", None)
+    with pytest.raises(RuntimeError, match="requires tomli"):
+        pypi_release.read_package_data_globs()
+
+
+@pytest.mark.skipif(shutil.which("python3.10") is None, reason="needs python3.10")
+@pytest.mark.parametrize("command", ["sandbox-tools-download", "release"])
+def test_pypi_release_script_runs_on_bare_python_310(command: str) -> None:
+    """Python 3.10 with no site-packages (so no tomli), as for local releases."""
+    python310 = shutil.which("python3.10")
+    assert python310
+    result = subprocess.run(
+        [python310, "-I", "-S", str(_RELEASE_SCRIPT), command, "--help"],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stderr

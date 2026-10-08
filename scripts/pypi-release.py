@@ -39,11 +39,6 @@ from datetime import datetime
 from pathlib import Path
 from typing import Callable, Dict, List, NamedTuple, Optional, Tuple
 
-if sys.version_info >= (3, 11):
-    import tomllib
-else:
-    import tomli as tomllib  # installed with `build` on Python < 3.11
-
 SANDBOX_TOOLS_UTILS_DIR = Path("src/inspect_ai/tool/_sandbox_tools_utils")
 SHA256SUMS_FILE = SANDBOX_TOOLS_UTILS_DIR / "SHA256SUMS"
 
@@ -345,7 +340,22 @@ def read_package_data_globs(
     Defaults to this script's own revision, which is also the built tree
     except when CI rebuilds an older tag for the parity check; that build is
     then held to the current package-data contract.
+
+    Raises:
+        RuntimeError: On Python < 3.11 without `tomli` (installed with
+            `build`). Imported here so the other commands stay stdlib-only.
     """
+    try:
+        if sys.version_info >= (3, 11):
+            import tomllib
+        else:
+            import tomli as tomllib
+    except ImportError as e:
+        raise RuntimeError(
+            "Reading pyproject.toml on Python < 3.11 requires tomli "
+            "(pip install tomli, or install build)"
+        ) from e
+
     with open(pyproject, "rb") as f:
         globs: List[str] = tomllib.load(f)["tool"]["setuptools"]["package-data"][
             "inspect_ai"
