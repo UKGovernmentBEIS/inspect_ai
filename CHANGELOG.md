@@ -7,6 +7,7 @@
 - Bugfix: `inspect log convert --stream` (and `convert_eval_logs(stream=...)`) no longer drops the error message and traceback from logs of failed evals.
 
 - Tools: Tools with `*args` or `**kwargs` no longer advertise required `args`/`kwargs` parameters to models; declare model-chosen arguments with an explicit `ToolParams` schema instead.
+- Eval Set: `eval_set()` now runs a task again when its scorer or metrics change, instead of returning the previous successful log.
 
 ## 0.3.277 (06 October 2026)
 

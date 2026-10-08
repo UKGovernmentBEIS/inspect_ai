@@ -8,7 +8,7 @@ from inspect_ai._eval.loader import resolve_tasks
 from inspect_ai._eval.task.task import task_with
 from inspect_ai.dataset import Sample
 from inspect_ai.model import GenerateConfig, get_model
-from inspect_ai.scorer import exact
+from inspect_ai.scorer import accuracy, exact
 from inspect_ai.solver import generate
 
 # Expected task identifiers for each version. These values must NOT be changed.
@@ -23,6 +23,8 @@ _EXPECTED_TASK_IDENTIFIERS: dict[int, str] = {
     # a version bump: excluding a field no prior config could set changes no
     # existing hash (the fixture sets it to prove the exclusion holds).
     3: "tests/test_task_identifier_version.py@version_test_task#44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a/mockllm/model/7d262bcd59b6c9bd5c8acdf7c3f1342cede8c626a416c5b4b4a77a2e7ade7e99",
+    # 4 hashes the resolved scorer specification and task-level metrics.
+    4: "tests/test_task_identifier_version.py@version_test_task#44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a/mockllm/model/c6a41dc8bba2e7ddf37b3c62127bff7ff1d3215fe994b8610b58ab41f2e8ad4b",
 }
 
 
@@ -49,6 +51,8 @@ def _create_resolved_task_with_all_fields():
           - time_limit
           - working_limit
           - cost_limit
+          - scorers (exact(), non-default)
+          - task metrics (accuracy(), non-default)
     """
     # Each GenerateConfig site (primary model, role model, and the
     # EvalSetArgsInTaskIdentifier.config that becomes eval_plan.config) sets
@@ -75,6 +79,7 @@ def _create_resolved_task_with_all_fields():
             dataset=[Sample(input="test input", target="test target")],
             solver=[generate()],
             scorer=exact(),
+            metrics=[accuracy()],
             version=2,
             message_limit=50,
             token_limit=1000,
