@@ -7,7 +7,7 @@ from test_helpers.utils import skip_if_no_openai
 
 from inspect_ai import Task, eval_async
 from inspect_ai._sentinel._config import SentinelSpec
-from inspect_ai.agent import handoff, react
+from inspect_ai.agent import Agent, AgentState, agent, agent_bridge, handoff, react
 from inspect_ai.approval._approval import Approval
 from inspect_ai.approval._human import acp as acp_module
 from inspect_ai.approval._human import approver as approver_module
@@ -479,3 +479,108 @@ async def test_a_live_handoff_is_checked_before_and_after_it_runs() -> None:
         stages.setdefault(event.step_id, set()).add(event.stage)
     executed = [e for e in events if isinstance(e, ToolEvent)]
     assert all(stages.get(e.id) == {"tool_call", "tool_result"} for e in executed)
+
+
+BRIDGED_TOOLS: list[Any] = [
+    {
+        "type": "function",
+        "function": {
+            "name": name,
+            "description": description,
+            "parameters": {
+                "type": "object",
+                "properties": {"path": {"type": "string"}},
+                "required": ["path"],
+            },
+        },
+    }
+    for name, description in [
+        ("read_file", "Read a file."),
+        ("delete_file", "Delete a file."),
+    ]
+]
+
+
+@agent(name="e2e_openai_scaffold")
+def openai_scaffold(executed: list[tuple[str, str]]) -> Agent:
+    async def execute(state: AgentState) -> AgentState:
+        from openai import AsyncOpenAI
+
+        from inspect_ai.model._openai import messages_to_openai
+
+        async with agent_bridge(state) as bridge:
+            messages: list[Any] = await messages_to_openai(state.messages)
+            async with AsyncOpenAI(api_key="sk-unused") as client:
+                for _ in range(6):
+                    completion = await client.chat.completions.create(
+                        model="inspect", messages=messages, tools=BRIDGED_TOOLS
+                    )
+                    message = completion.choices[0].message
+                    messages.append(message.model_dump(exclude_none=True))
+                    if not message.tool_calls:
+                        break
+                    for call in message.tool_calls:
+                        assert call.type == "function"
+                        path = json.loads(call.function.arguments)["path"]
+                        executed.append((call.function.name, path))
+                        messages.append(
+                            {
+                                "role": "tool",
+                                "tool_call_id": call.id,
+                                "content": f"Done: {call.function.name} {path}",
+                            }
+                        )
+            return bridge.state
+
+    return execute
+
+
+@skip_if_no_openai
+async def test_a_bridged_agent_is_checked_before_and_after_its_tool_calls() -> None:
+    executed: list[tuple[str, str]] = []
+    task = Task(
+        dataset=[
+            Sample(
+                input="First call read_file with path '/tmp/notes.txt'. After it "
+                "returns, call delete_file with path '/etc/passwd'. Make one tool "
+                "call per turn. If a call is refused, reply with the word DONE "
+                "and stop."
+            )
+        ],
+        solver=openai_scaffold(executed),
+        sentinel=[e2e_every_stage(), e2e_protect_etc()],
+        message_limit=20,
+    )
+    [log] = await eval_async(task, model=MODEL, temperature=0, max_tokens=256)
+
+    assert log.status == "success", log.error
+    [sample] = samples(log)
+    assert sample.error is None
+    assert ("read_file", "/tmp/notes.txt") in executed
+    assert not any(path.startswith("/etc") for _, path in executed)
+
+    events = sentinel_events(sample)
+    [read_id] = {
+        e.step_id
+        for e in events
+        if e.stage == "tool_result" and e.path == "e2e_every_stage"
+    }
+    assert {e.stage for e in events if e.step_id == read_id} == {
+        "tool_call",
+        "tool_result",
+    }
+    [reject] = [e for e in events if e.action == "reject" and e.path == ""]
+    assert (reject.stage, reject.message) == (
+        "tool_call",
+        "Refused: /etc is protected.",
+    )
+    assert reject.step_id != read_id
+    assert any(
+        isinstance(m, ChatMessageTool)
+        and m.tool_call_id == reject.step_id
+        and m.error is not None
+        and m.error.message == "Refused: /etc is protected."
+        for e in sample.events
+        if isinstance(e, ModelEvent)
+        for m in e.input
+    )

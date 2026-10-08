@@ -38,6 +38,7 @@ from inspect_ai.agent._bridge._approval import (
     terminate_for_repeated_rejections,
 )
 from inspect_ai.agent._bridge._errors import BridgePolicyError
+from inspect_ai.agent._bridge._sentinel import sentinel_tool_results
 from inspect_ai.agent._bridge.types import AgentBridge, message_json_hash
 from inspect_ai.model._agent_message import validate_agent_message
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageUser
@@ -639,10 +640,13 @@ async def bridge_generate(
     retries up to bridge.retry_refusals times, with inputs reset to original values for
     each retry to ensure clean state.
 
-    Tool calls in the output are approved before it is handed back to the scaffold. A
-    rejected call is not edited out of the response — instead the model is told it was
-    rejected and generation is retried, so the scaffold sees only the replacement (see
-    `_approval.apply_bridge_tool_approval`).
+    Tool calls in the output are approved, and go through the sentinel's `tool_call`
+    stage, before it is handed back to the scaffold. A rejected call is not edited
+    out of the response — instead the model is told it was rejected and generation
+    is retried, so the scaffold sees only the replacement (see
+    `_approval.apply_bridge_tool_approval`). Tool results in `input` for calls an
+    earlier response handed over go through the sentinel's `tool_result` stage
+    first.
 
     `routing` is how the dialect resolved `model`. Its requested name is recorded
     on the `ModelEvent` of the client's request (whether the filter or the default
@@ -657,6 +661,8 @@ async def bridge_generate(
     # before compaction/recording so the restored source persists in both the
     # ModelEvent input and state.messages (and thus the eval log).
     _restore_operator_message_source(bridge, input)
+
+    await sentinel_tool_results(bridge, input)
 
     # get compaction function and run compaction once before retry loop
     compact = bridge.compaction(tools, model)
@@ -674,6 +680,7 @@ async def bridge_generate(
 
     refusals = 0
     rejections = 0
+    replayed: list[ChatMessage] = []
     while True:
         # Reset to original inputs for each retry
         input_messages = original_input
@@ -760,7 +767,9 @@ async def bridge_generate(
         # are the only ones the scaffold may run as host tools, once each; they
         # resolve against the declarations this attempt generated with (tools and
         # in-input declarations alike), which a filter may have rewritten.
-        reviewed = await apply_bridge_tool_approval(bridge, output, input_messages)
+        reviewed = await apply_bridge_tool_approval(
+            bridge, output, input_messages, input + replayed
+        )
         if reviewed.rejection is None:
             declarations: list[ToolInfo | Tool] = list(tools)
             if declared_in_input is not None:
@@ -777,6 +786,7 @@ async def bridge_generate(
         # accumulate onto original_input (rather than input_messages) since that is
         # what the top of the loop resets to, and any filter rewrite is per-attempt
         original_input = original_input + reviewed.rejection
+        replayed = replayed + reviewed.rejection
 
 
 def resolve_generate_config(

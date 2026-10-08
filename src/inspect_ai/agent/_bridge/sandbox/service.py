@@ -25,6 +25,7 @@ from inspect_ai.util._limit import LimitExceededError
 from inspect_ai.util._sandbox import SandboxEnvironment, sandbox_service
 
 from .._errors import PROVIDER_ERROR_KEY, provider_error_payload
+from .._sentinel import sentinel_host_tool_result
 from ..anthropic_api import inspect_anthropic_api_request
 from ..completions import inspect_completions_api_request
 from ..google_api import inspect_google_api_request
@@ -250,6 +251,9 @@ def call_tool(
     A result a native call would pass to the model as text (anything but
     content) is truncated to the same output limit, in the same format
     (`truncate_tool_output`).
+
+    A call that executes against a grant goes through the sentinel's
+    `tool_result` stage before its result is returned to the scaffold.
     """
 
     async def execute(
@@ -262,10 +266,9 @@ def call_tool(
         if tool not in server_tools:
             raise ValueError(f"Unknown tool '{tool}' in server '{server}'")
 
-        if (
-            server not in bridge.proposal_exempt_servers
-            and not bridge.consume_tool_execution_grant(server, tool, arguments)
-        ):
+        exempt = server in bridge.proposal_exempt_servers
+        grant = None if exempt else bridge._consume_grant(server, tool, arguments)
+        if not exempt and grant is None:
             warn_once(
                 logger,
                 f"Denied host tool call '{server}/{tool}': the model did not "
@@ -299,10 +302,18 @@ def call_tool(
         # carries them as-is). For anything else, use pydantic_core.to_json so
         # Pydantic models (e.g. list[ContentText] from real MCP tools) are
         # serialized correctly — json.dumps can't handle BaseModel.
-        if tool_result_content_list(result) is None:
+        contents = tool_result_content_list(result)
+        if contents is None:
             text = result if isinstance(result, str) else to_json_str_safe(result)
             truncated = truncate_tool_output(tool, text, tool_def.max_output)
-            return truncated.output if truncated else text
+            text = truncated.output if truncated else text
+            if grant is not None:
+                await sentinel_host_tool_result(bridge, grant.call_id, text, result)
+            return text
+        if grant is not None:
+            await sentinel_host_tool_result(
+                bridge, grant.call_id, list(contents), result
+            )
         if isinstance(result, ContentImage) or (
             isinstance(result, list)
             and all(

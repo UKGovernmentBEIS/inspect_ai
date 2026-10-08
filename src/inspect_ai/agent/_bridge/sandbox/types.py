@@ -178,6 +178,7 @@ class SandboxAgentBridge(AgentBridge):
                         server=target.server,
                         tool=target.tool,
                         arguments=to_jsonable_python(arguments, fallback=str),
+                        call_id=call.id,
                     )
                 )
 
@@ -212,6 +213,11 @@ class SandboxAgentBridge(AgentBridge):
         JSON round-trip cannot turn a proposed call into a denial; any other
         difference (including bool vs number) is denied.
         """
+        return self._consume_grant(server, tool, arguments) is not None
+
+    def _consume_grant(
+        self, server: str, tool: str, arguments: dict[str, Any]
+    ) -> "_ToolExecutionGrant | None":
         for index, grant in enumerate(self._tool_execution_grants):
             if (
                 grant.server == server
@@ -219,8 +225,8 @@ class SandboxAgentBridge(AgentBridge):
                 and _json_equal(grant.arguments, arguments)
             ):
                 del self._tool_execution_grants[index]
-                return True
-        return False
+                return grant
+        return None
 
     def dispatched_call(self, call: ToolCall) -> DispatchedCall | None:
         """The bridged tool call `call` makes through a dispatcher (`_dispatched_call`)."""
@@ -270,6 +276,9 @@ class _ToolExecutionGrant(NamedTuple):
 
     arguments: dict[str, Any]
     """The arguments handed to the scaffold, JSON-normalized and matched via `_json_equal`."""
+
+    call_id: str
+    """Id of the proposed call the grant was minted for."""
 
 
 class _BridgedToolId(NamedTuple):
