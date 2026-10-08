@@ -8,6 +8,7 @@ verification helpers in `scripts/pypi-release.py`. See
 
 from __future__ import annotations
 
+import argparse
 import hashlib
 import importlib.util
 import zipfile
@@ -333,3 +334,122 @@ def test_pypi_wheel_contents_gate(pypi_release: ModuleType, tmp_path: Path) -> N
             wheel.writestr(member, "content")
     with pytest.raises(RuntimeError, match="SHA256SUMS"):
         pypi_release.verify_wheel_contents(incomplete, "9")
+
+
+def _write_dist(dist: Path, wheel_version: str, sdist_version: str) -> None:
+    dist.mkdir()
+    with zipfile.ZipFile(
+        dist / f"inspect_ai-{wheel_version}-py3-none-any.whl", "w"
+    ) as wheel:
+        for member in [
+            "inspect_ai/tool/_sandbox_tools_utils/SHA256SUMS",
+            "inspect_ai/tool/_sandbox_tools_utils/sandbox_tools_version.txt",
+            "inspect_ai/binaries/inspect-sandbox-tools-amd64-v9",
+            "inspect_ai/binaries/inspect-sandbox-tools-arm64-v9",
+        ]:
+            wheel.writestr(member, "content")
+    (dist / f"inspect_ai-{sdist_version}.tar.gz").write_bytes(b"sdist")
+
+
+def test_pypi_verify_dist_accepts_matching_version(
+    pypi_release: ModuleType, tmp_path: Path
+) -> None:
+    _write_dist(tmp_path / "dist", "0.3.278", "0.3.278")
+    pypi_release.verify_dist(tmp_path / "dist", "0.3.278", "9")
+
+
+@pytest.mark.parametrize(
+    "wheel_version,sdist_version,bad",
+    [
+        ("0.3.279.dev1+g1234567", "0.3.278", "whl"),
+        ("0.3.278", "0.3.278+d20261008", "tar.gz"),
+    ],
+)
+def test_pypi_verify_dist_rejects_version_mismatch(
+    pypi_release: ModuleType,
+    tmp_path: Path,
+    wheel_version: str,
+    sdist_version: str,
+    bad: str,
+) -> None:
+    _write_dist(tmp_path / "dist", wheel_version, sdist_version)
+    with pytest.raises(
+        RuntimeError, match=rf"\.{bad} has version .*, expected 0\.3\.278"
+    ):
+        pypi_release.verify_dist(tmp_path / "dist", "0.3.278", "9")
+
+
+def test_pypi_verify_dist_rejects_unexpected_files(
+    pypi_release: ModuleType, tmp_path: Path
+) -> None:
+    dist = tmp_path / "dist"
+    with pytest.raises(RuntimeError, match="exactly one wheel and one sdist"):
+        pypi_release.verify_dist(dist, "0.3.278", "9")
+
+    _write_dist(dist, "0.3.278", "0.3.278")
+    (dist / "inspect_ai-0.3.277.tar.gz").write_bytes(b"stale sdist")
+    with pytest.raises(RuntimeError, match="exactly one wheel and one sdist"):
+        pypi_release.verify_dist(dist, "0.3.278", "9")
+
+
+def test_pypi_verify_dist_runs_wheel_gate(
+    pypi_release: ModuleType, tmp_path: Path
+) -> None:
+    _write_dist(tmp_path / "dist", "0.3.278", "0.3.278")
+    with pytest.raises(RuntimeError, match="inspect-sandbox-tools-amd64-v10"):
+        pypi_release.verify_dist(tmp_path / "dist", "0.3.278", "10")
+
+
+def _prepare_repo(tmp_path: Path, digests: dict[str, str]) -> Path:
+    utils = tmp_path / "src" / "inspect_ai" / "tool" / "_sandbox_tools_utils"
+    utils.mkdir(parents=True)
+    (utils / "sandbox_tools_version.txt").write_text("9\n")
+    write_sha256sums(digests, utils / "SHA256SUMS")
+    return tmp_path / "src" / "inspect_ai" / "binaries"
+
+
+def test_pypi_prepare_downloads_verifies_and_removes_stale(
+    pypi_release: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    artifacts = {
+        "inspect-sandbox-tools-amd64-v9": b"amd64 bytes",
+        "inspect-sandbox-tools-arm64-v9": b"arm64 bytes",
+    }
+    binaries = _prepare_repo(
+        tmp_path, {name: _sha256(content) for name, content in artifacts.items()}
+    )
+    binaries.mkdir()
+    (binaries / "inspect-sandbox-tools-amd64-v8").write_bytes(b"old")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(
+        pypi_release.urllib.request,
+        "urlopen",
+        lambda url, timeout: _FakeUrlResponse(artifacts[url.rsplit("/", 1)[1]]),
+    )
+
+    pypi_release.prepare_command(argparse.Namespace())
+
+    assert {f.name: f.read_bytes() for f in binaries.iterdir()} == artifacts
+
+
+def test_pypi_prepare_fails_on_digest_mismatch(
+    pypi_release: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    binaries = _prepare_repo(
+        tmp_path,
+        {
+            "inspect-sandbox-tools-amd64-v9": _sha256(b"amd64 bytes"),
+            "inspect-sandbox-tools-arm64-v9": _sha256(b"arm64 bytes"),
+        },
+    )
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(
+        pypi_release.urllib.request,
+        "urlopen",
+        lambda url, timeout: _FakeUrlResponse(b"tampered"),
+    )
+
+    with pytest.raises(SystemExit) as exit_info:
+        pypi_release.prepare_command(argparse.Namespace())
+    assert exit_info.value.code == 1
+    assert list(binaries.iterdir()) == []

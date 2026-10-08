@@ -85,13 +85,13 @@ Once `slow-tool-tests-release` is green, merge through the normal review process
 
 ### 8. PyPI release (when releasing inspect_ai)
 
-The `inspect_ai` release script automatically pulls sandbox tools from S3:
+Publishing a GitHub Release for an `inspect_ai` version tag (e.g. `0.3.278`, no `v` prefix) runs `.github/workflows/publish.yml`, which pulls sandbox tools from S3 with the release script's `prepare` command and checks the built wheel with `verify-dist` before uploading to PyPI. The local break-glass path runs the same gates:
 
 ```bash
-python scripts/pypi-release.py release v{INSPECT_AI_VERSION}
+python scripts/pypi-release.py release {INSPECT_AI_VERSION}
 ```
 
-This downloads the **glibc** binaries from S3 into `src/inspect_ai/binaries/`, bundles them into the wheel as package data, and publishes to PyPI. The musl variants are intentionally **not** bundled — they live on S3 and are fetched at runtime when a musl sandbox is detected (keeps the wheel small for the common case).
+Either path downloads the **glibc** binaries from S3 into `src/inspect_ai/binaries/`, bundles them into the wheel as package data, and publishes to PyPI. The musl variants are intentionally **not** bundled — they live on S3 and are fetched at runtime when a musl sandbox is detected (keeps the wheel small for the common case).
 
 ## How binaries are resolved at runtime
 

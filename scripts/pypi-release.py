@@ -14,6 +14,10 @@ Usage:
     # Sandbox tools download command
     python pypi-release.py sandbox-tools-download
     python pypi-release.py sandbox-tools-download --dry-run
+
+    # Non-interactive steps for the publish workflow (.github/workflows/publish.yml)
+    python pypi-release.py prepare
+    python pypi-release.py verify-dist <version>
 """
 
 import argparse
@@ -350,6 +354,38 @@ def verify_wheel_contents(wheel_path: Path, version: str) -> None:
         )
 
     logging.info(f"✓ Wheel contents verified: {wheel_path.name}")
+
+
+def verify_dist(dist_dir: Path, version: str, sandbox_version: str) -> None:
+    """Post-build gate for CI: dist/ holds one sdist and one wheel of `version`.
+
+    `version` is the release tag. setuptools_scm derives the built version
+    from git, so a tag that is not on the built commit, or a dirty tree,
+    produces a different version and fails here rather than on PyPI.
+
+    Raises:
+        RuntimeError: If dist/ holds anything other than exactly one sdist
+            and one wheel of `version`, or the wheel fails
+            `verify_wheel_contents`.
+    """
+    files = sorted(f.name for f in dist_dir.iterdir()) if dist_dir.is_dir() else []
+    wheels = [f for f in files if f.endswith(".whl")]
+    sdists = [f for f in files if f.endswith(".tar.gz")]
+    if len(wheels) != 1 or len(sdists) != 1 or len(files) != 2:
+        raise RuntimeError(
+            f"{dist_dir}/ must contain exactly one wheel and one sdist; found {files}"
+        )
+
+    wheel, sdist = wheels[0], sdists[0]
+    built = {wheel: wheel.split("-")[1], sdist: sdist[: -len(".tar.gz")].split("-")[-1]}
+    for filename, built_version in built.items():
+        if built_version != version:
+            raise RuntimeError(
+                f"{filename} has version {built_version}, expected {version}"
+            )
+
+    verify_wheel_contents(dist_dir / wheel, sandbox_version)
+    logging.info(f"✓ Distributions verified for version {version}: {files}")
 
 
 def ensure_sandbox_tools(
@@ -820,6 +856,31 @@ def sandbox_tools_download_command(args):
     logging.info("-" * 40)
 
 
+def prepare_command(args: argparse.Namespace) -> None:
+    """Execute the prepare command: download sandbox tools and gate them."""
+    setup_logging("prepare")
+
+    version = get_sandbox_tools_version()
+    digests = read_pinned_digests()
+    ensure_sandbox_tools(version, digests)
+    try:
+        verify_sandbox_tools_bundle(version, digests)
+    except RuntimeError as e:
+        logging.error(f"Pre-build sandbox tools gate failed: {e}")
+        sys.exit(1)
+
+
+def verify_dist_command(args: argparse.Namespace) -> None:
+    """Execute the verify-dist command: version and wheel-contents gate."""
+    setup_logging("verify_dist")
+
+    try:
+        verify_dist(Path(args.dist_dir), args.version, get_sandbox_tools_version())
+    except RuntimeError as e:
+        logging.error(f"Post-build distribution gate failed: {e}")
+        sys.exit(1)
+
+
 def main():
     # Create main parser
     parser = argparse.ArgumentParser(
@@ -862,6 +923,20 @@ def main():
         "--dry-run", action="store_true", help="Run in dry-run mode (no actual changes)"
     )
 
+    # Non-interactive steps for the publish workflow
+    subparsers.add_parser(
+        "prepare",
+        help="Download sandbox tools and run the pre-build digest gate",
+    )
+    verify_dist_parser = subparsers.add_parser(
+        "verify-dist",
+        help="Check built distributions match a version and run the wheel gate",
+    )
+    verify_dist_parser.add_argument("version", help="Expected package version")
+    verify_dist_parser.add_argument(
+        "--dist-dir", default="dist", help="Distribution directory (default: dist)"
+    )
+
     # Parse arguments
     args = parser.parse_args()
 
@@ -877,6 +952,10 @@ def main():
         release_command(args)
     elif args.command == "sandbox-tools-download":
         sandbox_tools_download_command(args)
+    elif args.command == "prepare":
+        prepare_command(args)
+    elif args.command == "verify-dist":
+        verify_dist_command(args)
     else:
         parser.print_help()
         sys.exit(1)
