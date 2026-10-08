@@ -2333,6 +2333,64 @@ async def test_anthropic_forced_tool_choice_with_thinking_records_metadata(
         assert not (output.metadata or {}).get("tool_choice_degraded")
 
 
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    "config_kwargs,expected_thinking",
+    [
+        ({"reasoning_effort": "high"}, "adaptive"),
+        ({"reasoning_tokens": 2048}, "enabled"),
+        ({}, None),
+    ],
+)
+async def test_anthropic_tool_choice_none_with_thinking(
+    config_kwargs: dict[str, Any], expected_thinking: str | None
+) -> None:
+    """tool_choice="none" keeps the tools; only extended thinking omits it.
+
+    Anthropic requires tool definitions to validate tool history, so
+    `Model.generate` passes "none" through to the provider with the tools.
+    """
+    from inspect_ai.model._model_output import ModelOutput
+    from inspect_ai.tool._tool_params import ToolParam, ToolParams
+
+    model = get_model(
+        "anthropic/claude-sonnet-4-6",
+        api_key="test-key",
+        config=GenerateConfig(
+            max_tokens=4096, parallel_tool_calls=False, **config_kwargs
+        ),
+    )
+    captured: dict[str, Any] = {}
+
+    async def fake_perform(
+        request: dict[str, Any], *args: Any, **kwargs: Any
+    ) -> tuple[dict[str, Any], ModelOutput]:
+        captured.update(request)
+        return {}, ModelOutput.from_content(model=model.name, content="ok")
+
+    with patch.object(model.api, "_perform_request_and_continuations", fake_perform):
+        await model.generate(
+            input="What is 1 + 1?",
+            tools=[
+                ToolInfo(
+                    name="addition",
+                    description="Add two numbers.",
+                    parameters=ToolParams(
+                        properties={"x": ToolParam(type="integer")}, required=["x"]
+                    ),
+                )
+            ],
+            tool_choice="none",
+        )
+
+    assert captured.get("thinking", {}).get("type") == expected_thinking
+    assert [tool["name"] for tool in captured["tools"]] == ["addition"]
+    if expected_thinking == "enabled":
+        assert "tool_choice" not in captured
+    else:
+        assert captured["tool_choice"] == {"type": "none"}
+
+
 def _message_with_transformations(transformations: list[dict[str, Any]]) -> Any:
     """Build an SDK Message carrying the input_transformations response field.
 
