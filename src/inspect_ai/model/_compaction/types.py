@@ -97,7 +97,7 @@ class Compact(Protocol):
 
         Calibrates the compaction's token estimation against the actual
         input token count from `output.input_context_tokens` (or
-        `output.usage` when that is unset). This captures API-level
+        `output.usage` when that is None). This captures API-level
         overhead (tool definitions, system messages, thinking configuration)
         that per-message counting cannot.
 

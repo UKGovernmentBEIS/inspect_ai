@@ -1730,12 +1730,8 @@ class Model:
                 ) from output
 
             # a provider whose generate makes one request leaves the context
-            # size to be read from its usage; one that assigned the field
-            # (None included, for an input it could not measure) has set it
-            if (
-                "input_context_tokens" not in output.model_fields_set
-                and output.usage is not None
-            ):
+            # size to be read from its usage
+            if output.input_context_tokens is None:
                 output.input_context_tokens = usage_input_tokens(output.usage)
 
             # update output with time (call.time captures time spent

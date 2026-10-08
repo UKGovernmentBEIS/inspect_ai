@@ -367,24 +367,6 @@ def test_usage_update_uses_input_context_tokens() -> None:
         _transcript.reset(token)
 
 
-def test_usage_update_skipped_when_input_context_unknown() -> None:
-    """A rejected request billed only a probe: no chip update from that usage."""
-    tr = Transcript()
-    token = _transcript.set(tr)
-    try:
-        session = _new_session()
-        _, published = _attach_router(session)
-        event = _model_event(
-            text="hi",
-            usage=ModelUsage(input_tokens=12, output_tokens=30, total_tokens=42),
-        )
-        event.output.input_context_tokens = None
-        tr._event(event)
-        assert not [n for n in published if isinstance(n.update, UsageUpdate)]
-    finally:
-        _transcript.reset(token)
-
-
 def test_usage_update_skipped_when_model_unknown_to_registry() -> None:
     """No size lookup → no UsageUpdate (schema requires size)."""
     tr = Transcript()

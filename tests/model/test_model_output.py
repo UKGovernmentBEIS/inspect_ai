@@ -1,7 +1,7 @@
 import json
 import math
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any
 
 import pytest
 
@@ -323,32 +323,24 @@ def _round_trip(event: ModelEvent, writer: str) -> tuple[dict[str, Any], ModelOu
     [
         # known size
         (10, 10),
-        # unknown (a rejected request that billed only a probe): stays unknown
-        (None, None),
-        # a log from before the field existed: falls back to usage
-        ("absent", 12),
+        # not known: falls back to usage
+        (None, 12),
     ],
 )
 @pytest.mark.parametrize("writer", _WRITERS)
 def test_input_context_tokens_survives_serialization(
-    input_context_tokens: int | Literal["absent"] | None,
-    expected: int | None,
-    writer: str,
+    input_context_tokens: int | None, expected: int, writer: str
 ) -> None:
-    """Every writer keeps a known, an unknown and a legacy context apart."""
+    """Every writer keeps the context size, or the usage fallback when it is None."""
     from inspect_ai.model._model_output import output_input_context_tokens
 
     output = ModelOutput.from_content("mockllm/model", "hi")
     output.usage = ModelUsage(input_tokens=12, output_tokens=30, total_tokens=42)
-    if input_context_tokens != "absent":
-        output.input_context_tokens = input_context_tokens
+    output.input_context_tokens = input_context_tokens
 
-    dumped, restored = _round_trip(_model_event(output), writer)
+    _, restored = _round_trip(_model_event(output), writer)
 
-    if input_context_tokens == "absent":
-        assert "input_context_tokens" not in dumped["output"]
-    else:
-        assert dumped["output"]["input_context_tokens"] == input_context_tokens
+    assert restored.input_context_tokens == input_context_tokens
     assert output_input_context_tokens(restored) == expected
     assert restored.usage == output.usage
 
@@ -369,41 +361,10 @@ def test_old_log_context_falls_back_after_round_trip(writer: str) -> None:
     event = next(e for e in log.samples[0].events if isinstance(e, ModelEvent))
     assert output_input_context_tokens(event.output) == 53
 
-    dumped, restored = _round_trip(event, writer)
+    _, restored = _round_trip(event, writer)
 
-    assert "input_context_tokens" not in dumped["output"]
+    assert restored.input_context_tokens is None
     assert output_input_context_tokens(restored) == 53
-
-
-def test_unknown_input_context_tokens_survives_eval_log(tmp_path: Path) -> None:
-    """An .eval log keeps an unknown context unknown and a known one as written."""
-    from inspect_ai.model._model_output import output_input_context_tokens
-
-    unknown = ModelOutput.from_content("mockllm/model", "rejected")
-    unknown.usage = ModelUsage(input_tokens=12, output_tokens=30, total_tokens=42)
-    unknown.input_context_tokens = None
-    known = ModelOutput.from_content("mockllm/model", "ok")
-    known.usage = ModelUsage(input_tokens=20, output_tokens=2, total_tokens=22)
-
-    log = eval(
-        Task(dataset=[Sample(input="one"), Sample(input="two")]),
-        model=get_model("mockllm/model", custom_outputs=[unknown, known]),
-        log_dir=str(tmp_path),
-        max_samples=1,
-    )[0]
-
-    log = read_eval_log(log.location)
-    assert log.samples
-    outputs = [
-        e.output
-        for sample in log.samples
-        for e in sample.events
-        if isinstance(e, ModelEvent)
-    ]
-    by_text = {o.completion: o for o in outputs}
-    assert by_text["rejected"].input_context_tokens is None
-    assert output_input_context_tokens(by_text["rejected"]) is None
-    assert by_text["ok"].input_context_tokens == 20
 
 
 def test_from_message_uses_active_model_name() -> None:

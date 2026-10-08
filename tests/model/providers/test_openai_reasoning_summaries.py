@@ -168,11 +168,8 @@ async def test_reasoning_summaries_probe_usage_reported_once(
 async def test_reasoning_summaries_probe_then_rejected_request(
     monkeypatch: pytest.MonkeyPatch, code: str, stop_reason: str
 ) -> None:
-    """A rejected request after the probe bills the probe but has no context size."""
-    from inspect_ai.agent._acp.event_mapping import _build_usage_update
-    from inspect_ai.event import ModelEvent
+    """A rejected request after the probe still reports the billed probe."""
     from inspect_ai.model import get_model
-    from inspect_ai.model._model_output import output_input_context_tokens
 
     model = get_model(
         "openai/gpt-5",
@@ -199,7 +196,6 @@ async def test_reasoning_summaries_probe_then_rejected_request(
         output = await model.generate("hi")
 
         assert output.stop_reason == stop_reason
-        # the probe was billed...
         assert output.usage == ModelUsage(
             input_tokens=10,
             output_tokens=30,
@@ -207,19 +203,6 @@ async def test_reasoning_summaries_probe_then_rejected_request(
             input_tokens_cache_read=2,
             reasoning_tokens=20,
         )
-        # ...but the rejected request's context size is unknown, and
-        # consumers do not read it from the probe's usage
-        assert output.input_context_tokens is None
-        assert output_input_context_tokens(output) is None
-        event = ModelEvent(
-            model="openai/gpt-5",
-            input=[],
-            tools=[],
-            tool_choice="none",
-            config=GenerateConfig(),
-            output=output,
-        )
-        assert _build_usage_update(event) is None
     finally:
         await api.aclose()
 

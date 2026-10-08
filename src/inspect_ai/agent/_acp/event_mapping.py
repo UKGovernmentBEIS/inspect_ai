@@ -800,11 +800,8 @@ def _build_usage_update(event: ModelEvent) -> UsageUpdate | None:
         return None
     # the input's size in context plus output_tokens, so the chip reflects
     # "size of state after the call", which matches what an operator looking
-    # at a running agent expects. An unknown input size skips the update.
-    input_tokens = output_input_context_tokens(event.output)
-    if input_tokens is None:
-        return None
-    used = input_tokens + usage.output_tokens
+    # at a running agent expects.
+    used = (output_input_context_tokens(event.output) or 0) + usage.output_tokens
     return UsageUpdate(
         session_update="usage_update",
         used=max(used, 0),

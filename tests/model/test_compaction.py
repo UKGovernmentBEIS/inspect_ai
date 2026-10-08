@@ -1396,16 +1396,13 @@ async def test_baseline_shortcut_trips_only_with_redacted_reasoning_correction(
         # a multi-request call: usage sums several requests, the context
         # size is the one request built from the input
         (1500, False),
-        # unknown size (e.g. a rejected request after a billed probe): no
-        # baseline from usage
-        (None, False),
-        # an output logged before input_context_tokens existed falls back to
-        # usage
-        ("absent", True),
+        # not known (e.g. an output logged before input_context_tokens
+        # existed): falls back to usage
+        (None, True),
     ],
 )
 async def test_baseline_uses_input_context_tokens(
-    input_context_tokens: int | Literal["absent"] | None, compacts: bool
+    input_context_tokens: int | None, compacts: bool
 ) -> None:
     """The compaction baseline is the input's context size, not billed usage."""
     from inspect_ai.model._model_output import ModelUsage
@@ -1424,8 +1421,7 @@ async def test_baseline_uses_input_context_tokens(
     # billed usage of three requests, well over the threshold
     output = ModelOutput.from_message(initial[-1])
     output.usage = ModelUsage(input_tokens=4500, output_tokens=30, total_tokens=4530)
-    if input_context_tokens != "absent":
-        output.input_context_tokens = input_context_tokens
+    output.input_context_tokens = input_context_tokens
     await compact.record_output(initial, output)
 
     next_messages = initial + [user_msg("q-new", "u-new")]

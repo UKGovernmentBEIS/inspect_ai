@@ -61,14 +61,8 @@ def sum_usage(*usages: ModelUsage | None) -> ModelUsage | None:
 
 
 def output_input_context_tokens(output: ModelOutput) -> int | None:
-    """The input's context size for a consumer of an output.
-
-    An output from generate always has `input_context_tokens` set, and None
-    there means the size is unknown (e.g. the request was rejected). An output
-    read from a log written before the field existed lacks it, so this falls
-    back to the input side of its usage.
-    """
-    if "input_context_tokens" in output.model_fields_set:
+    """The input's context size: `input_context_tokens`, else the input side of usage."""
+    if output.input_context_tokens is not None:
         return output.input_context_tokens
     return usage_input_tokens(output.usage)
 
