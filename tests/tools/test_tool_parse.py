@@ -222,9 +222,10 @@ def test_function_with_args_kwargs():
         """A function with *args and **kwargs."""
         pass
 
+    # variadic parameters can't be supplied by name, so they aren't advertised
     info = parse_tool_info(func_with_args_kwargs)
-    assert "args" in info.parameters.properties
-    assert "kwargs" in info.parameters.properties
+    assert info.parameters.properties == {}
+    assert info.parameters.required == []
 
 
 def test_list_of_dicts():
