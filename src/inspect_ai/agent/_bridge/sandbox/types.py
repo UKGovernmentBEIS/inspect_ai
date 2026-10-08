@@ -218,7 +218,9 @@ class SandboxAgentBridge(AgentBridge):
     def _consume_grant(
         self, server: str, tool: str, arguments: dict[str, Any]
     ) -> "_ToolExecutionGrant | None":
-        for index, grant in enumerate(self._tool_execution_grants):
+        # newest first, so a result is attributed to the latest matching proposal
+        for index in range(len(self._tool_execution_grants) - 1, -1, -1):
+            grant = self._tool_execution_grants[index]
             if (
                 grant.server == server
                 and grant.tool == tool

@@ -25,7 +25,7 @@ from inspect_ai.util._limit import LimitExceededError
 from inspect_ai.util._sandbox import SandboxEnvironment, sandbox_service
 
 from .._errors import PROVIDER_ERROR_KEY, provider_error_payload
-from .._sentinel import sentinel_host_tool_result
+from .._sentinel import discard_sentinel_call, sentinel_host_tool_result
 from ..anthropic_api import inspect_anthropic_api_request
 from ..completions import inspect_completions_api_request
 from ..google_api import inspect_google_api_request
@@ -286,6 +286,8 @@ def call_tool(
             tool_def = ToolDef(tool_fn)
             validation_errors = validate_tool_input(arguments, tool_def.parameters)
             if validation_errors:
+                if grant is not None:
+                    discard_sentinel_call(bridge, grant.call_id)
                 raise ToolParsingError(validation_errors)
             result = await tool_fn(**arguments)
         except Exception as ex:

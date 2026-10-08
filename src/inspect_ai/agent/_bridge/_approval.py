@@ -30,7 +30,7 @@ from inspect_ai._sentinel._context import active_sentinel
 from inspect_ai._util.format import format_function_call
 from inspect_ai._util.logger import warn_once
 from inspect_ai.agent._bridge._sentinel import sentinel_tool_call, track_sentinel_calls
-from inspect_ai.agent._bridge.types import AgentBridge
+from inspect_ai.agent._bridge.types import AgentBridge, DispatchedCall
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageTool
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.tool._tool import ToolApprovalError
@@ -101,9 +101,9 @@ async def apply_bridge_tool_approval(
     `terminate` doesn't return, and neither does a `modify` decision that changes the
     function called: that is an error in the approver, and fails the sample.
 
-    When a sentinel is active, each approved call then goes through its `tool_call`
-    stage, as on the native path: its `reject`, `modify` and `terminate` take
-    effect like an approver's. The calls handed to the scaffold are recorded for
+    When a sentinel is active, once every call is approved each goes through its
+    `tool_call` stage in order, as on the native path: its `reject`, `modify` and
+    `terminate` take effect like an approver's. The calls handed to the scaffold are recorded for
     the `tool_result` stage (`_sentinel.py`).
 
     A multi-choice response whose alternate choices carry tool calls is reduced to
@@ -157,14 +157,12 @@ async def apply_bridge_tool_approval(
         # approver may weigh a call against its siblings. A new list, so the input
         # the caller hands to `_track_state` is untouched.
         approval_history = history + [output.message]
-        sentinel_history = (conversation or history) + [output.message]
         message = output.message.text
         modified: dict[str, dict[str, Any]] = {}
-        sentinel_calls: list[ToolCall] = []
+        reviewed_calls: list[ToolCall] = []
         for call in tool_calls:
             dispatched = bridge.dispatched_call(call)
             reviewed = dispatched.target if dispatched else call
-            arguments: dict[str, Any] | None = None
             if approval_active:
                 # no viewer: bridged tools reach us as ToolInfo from the scaffold's
                 # request, not as ToolDef, so there is no registered viewer to
@@ -191,11 +189,16 @@ async def apply_bridge_tool_approval(
                         failure = RuntimeError(error)
                         bridge.request_fail(failure)
                         raise failure
-                    arguments = approval.modified.arguments
+                    reviewed = replace(reviewed, arguments=approval.modified.arguments)
+                    modified[call.id] = _handed_arguments(dispatched, reviewed)
+            reviewed_calls.append(reviewed)
 
-            if sentinel_active:
-                if arguments is not None:
-                    reviewed = replace(reviewed, arguments=arguments)
+        # the sentinel runs once the whole response is approved, so an approval
+        # rejection never discards sentinel work (or a person's answer to human())
+        if sentinel_active:
+            sentinel_history = (conversation or history) + [output.message]
+            pending: list[tuple[ToolCall, ToolCall]] = []
+            for call, reviewed in zip(tool_calls, reviewed_calls):
                 decision = await sentinel_tool_call(
                     bridge, message, reviewed, history, sentinel_history
                 )
@@ -214,16 +217,12 @@ async def apply_bridge_tool_approval(
                     and decision.modified is not None
                 ):
                     reviewed = decision.modified
-                    arguments = reviewed.arguments
-                sentinel_calls.append(reviewed)
-
-            if arguments is not None:
-                modified[call.id] = (
-                    dispatched.dispatch(arguments) if dispatched else arguments
-                )
-
-    if sentinel_calls:
-        track_sentinel_calls(bridge, message, sentinel_calls, history, sentinel_history)
+                    modified[call.id] = _handed_arguments(
+                        bridge.dispatched_call(call), reviewed
+                    )
+                handed = replace(call, arguments=modified.get(call.id, call.arguments))
+                pending.append((handed, reviewed))
+            track_sentinel_calls(bridge, message, pending, history, sentinel_history)
 
     # modifications are adopted only now that the whole response is approved: a later
     # rejection discards every call, and rewriting an earlier one as we went would
@@ -232,6 +231,12 @@ async def apply_bridge_tool_approval(
         return BridgeApproval(with_modified_arguments(output, modified), None)
 
     return BridgeApproval(output, None)
+
+
+def _handed_arguments(
+    dispatched: DispatchedCall | None, reviewed: ToolCall
+) -> dict[str, Any]:
+    return dispatched.dispatch(reviewed.arguments) if dispatched else reviewed.arguments
 
 
 def with_modified_arguments(

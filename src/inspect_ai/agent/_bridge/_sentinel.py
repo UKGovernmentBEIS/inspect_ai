@@ -3,6 +3,8 @@ from functools import partial
 from typing import TYPE_CHECKING, Awaitable, Callable, NamedTuple, TypeVar
 from weakref import WeakKeyDictionary
 
+from pydantic_core import to_jsonable_python
+
 from inspect_ai._sentinel._context import SentinelFailure, active_sentinel
 from inspect_ai._util._async import tg_collect
 from inspect_ai._util.content import (
@@ -14,8 +16,13 @@ from inspect_ai._util.content import (
     ContentVideo,
 )
 from inspect_ai._util.exception import TerminateSampleError
+from inspect_ai.agent._bridge.sandbox.types import _json_equal
 from inspect_ai.agent._bridge.types import AgentBridge
-from inspect_ai.model._chat_message import ChatMessage, ChatMessageTool
+from inspect_ai.model._chat_message import (
+    ChatMessage,
+    ChatMessageAssistant,
+    ChatMessageTool,
+)
 from inspect_ai.tool._tool import ToolResult
 from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.util._anyio import inner_exception
@@ -30,6 +37,7 @@ _MAX_PENDING_CALLS = 1000
 
 
 class _PendingCall(NamedTuple):
+    handed: ToolCall
     message: str
     call: ToolCall
     input: list[ChatMessage]
@@ -59,13 +67,13 @@ async def sentinel_tool_call(
 def track_sentinel_calls(
     bridge: AgentBridge,
     message: str,
-    calls: list[ToolCall],
+    calls: list[tuple[ToolCall, ToolCall]],
     input: list[ChatMessage],
     history: list[ChatMessage],
 ) -> None:
     pending = _pending.setdefault(bridge, OrderedDict())
-    for call in calls:
-        pending[call.id] = _PendingCall(message, call, input, history)
+    for handed, call in calls:
+        pending[call.id] = _PendingCall(handed, message, call, input, history)
         while len(pending) > _MAX_PENDING_CALLS:
             pending.popitem(last=False)
 
@@ -88,9 +96,14 @@ async def sentinel_tool_results(bridge: AgentBridge, input: list[ChatMessage]) -
     if active_sentinel() is None:
         return
     results: list[tuple[_PendingCall, ChatMessageTool]] = []
+    calls: dict[str, ToolCall] = {}
     for message in input:
-        if isinstance(message, ChatMessageTool) and message.tool_call_id is not None:
-            pending = _take(bridge, message.tool_call_id)
+        if isinstance(message, ChatMessageAssistant):
+            calls.update({call.id: call for call in message.tool_calls or []})
+        elif isinstance(message, ChatMessageTool) and message.tool_call_id is not None:
+            pending = _take(bridge, message.tool_call_id) or _take_matching(
+                bridge, calls.get(message.tool_call_id)
+            )
             if pending is not None:
                 results.append((pending, message))
     if results:
@@ -117,9 +130,28 @@ def _output(result: ChatMessageTool) -> ToolResult:
     ]
 
 
+def discard_sentinel_call(bridge: AgentBridge, call_id: str) -> None:
+    _take(bridge, call_id)
+
+
 def _take(bridge: AgentBridge, call_id: str) -> _PendingCall | None:
     pending = _pending.get(bridge)
     return pending.pop(call_id, None) if pending is not None else None
+
+
+def _take_matching(bridge: AgentBridge, call: ToolCall | None) -> _PendingCall | None:
+    # a dialect whose calls carry no id (Google) mints new ids when the scaffold
+    # sends a call back, so match the call as handed over instead
+    pending = _pending.get(bridge)
+    if pending is None or call is None:
+        return None
+    for call_id, entry in pending.items():
+        if entry.handed.function == call.function and _json_equal(
+            to_jsonable_python(entry.handed.arguments, fallback=str),
+            call.arguments,
+        ):
+            return pending.pop(call_id)
+    return None
 
 
 async def _tool_result(

@@ -40,6 +40,7 @@ from inspect_ai.model import (
 from inspect_ai.model._model import GenerateInput
 from inspect_ai.model._model_output import ChatCompletionChoice
 from inspect_ai.tool import Tool, ToolCall, ToolCallView, ToolChoice, ToolInfo, tool
+from inspect_ai.tool._tool import ToolParsingError
 from inspect_ai.tool._tool_params import ToolParam, ToolParams
 
 try:
@@ -730,3 +731,160 @@ def test_an_in_process_bridged_agent_runs_both_stages() -> None:
     assert after.result.text == "file contents"
     model_events = [e for e in log.samples[0].events if isinstance(e, ModelEvent)]
     assert after.input == model_events[0].input
+
+
+async def test_a_dispatched_call_is_checked_as_its_target() -> None:
+    seen: Steps = []
+    call = ToolCall(
+        id="d_1",
+        function="call_mcp_tool",
+        arguments={
+            "ServerName": "host",
+            "ToolName": "read_file",
+            "Arguments": {"path": "notes.txt"},
+        },
+    )
+    model = Scripted(calls_output(call))
+    bridge = sandbox_bridge()
+
+    with active([bridge_modify(), observe_only([bridge_recording(seen)])]):
+        output = await generate(bridge, model, [ChatMessageUser(content=TASK)])
+
+    [step] = seen
+    assert (step.call.id, step.call.function) == ("d_1", "read_file")
+    assert output.message.tool_calls == [
+        replace(
+            call,
+            arguments={
+                "ServerName": "host",
+                "ToolName": "read_file",
+                "Arguments": {"path": "safe.txt"},
+            },
+        )
+    ]
+
+
+async def test_an_approval_reject_of_a_sibling_runs_no_sentinel() -> None:
+    seen: Steps = []
+    model = Scripted(calls_output(READ, BASH), calls_output(READ))
+    bridge = in_process_bridge([ChatMessageUser(content=TASK)])
+    bridge.approval = [
+        ApprovalPolicy(auto_approver("reject"), "bash"),
+        ApprovalPolicy(auto_approver("approve"), "*"),
+    ]
+
+    with active(observe_only([bridge_recording(seen)])):
+        await generate(bridge, model, [ChatMessageUser(content=TASK)])
+
+    # only the regenerated response reached the sentinel
+    assert [step.call.id for step in seen] == [READ.id]
+
+
+async def test_a_google_result_is_matched_to_the_call_handed_over() -> None:
+    from inspect_ai.agent._bridge.google_api import inspect_google_api_request
+
+    seen: Steps = []
+    model = Scripted(calls_output(READ), calls_output())
+    bridge = AgentBridge(
+        AgentState(messages=[]), model_aliases={"inspect": model.model}
+    )
+    tools: Any = [
+        {
+            "functionDeclarations": [
+                {
+                    "name": "read_file",
+                    "description": "Read a file.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {"path": {"type": "string"}},
+                    },
+                }
+            ]
+        }
+    ]
+    user: Any = {"role": "user", "parts": [{"text": TASK}]}
+
+    with active(observe_only([bridge_recording(seen)])):
+        first = await inspect_google_api_request(
+            {"model": "inspect", "contents": [user], "tools": tools},
+            None,
+            None,
+            bridge,
+        )
+        parts: Any = first["candidates"][0]["content"]["parts"]
+        response: Any = {
+            "role": "user",
+            "parts": [
+                {"functionResponse": {"name": "read_file", "response": {"out": "x"}}}
+            ],
+        }
+        await inspect_google_api_request(
+            {
+                "model": "inspect",
+                "contents": [user, {"role": "model", "parts": parts}, response],
+                "tools": tools,
+            },
+            None,
+            None,
+            bridge,
+        )
+
+    before, after = seen
+    assert isinstance(after, AfterToolCall)
+    assert after.call == before.call
+    assert [(e.step_id, e.stage) for e in sentinel_events()] == [
+        (READ.id, "tool_call"),
+        (READ.id, "tool_result"),
+    ]
+
+
+async def test_a_host_call_that_fails_validation_has_no_tool_result_stage() -> None:
+    seen: Steps = []
+    read = ToolCall(id="host_1", function="mcp__host__read_file", arguments={"path": 1})
+    model = Scripted(calls_output(read), calls_output())
+    tool = AsyncMock(return_value="x")
+    bridge = sandbox_bridge(tool)
+
+    with active(observe_only([bridge_recording(seen)])):
+        output = await generate(
+            bridge, model, [ChatMessageUser(content=TASK)], declare_read_file()
+        )
+        with pytest.raises(ToolParsingError):
+            await call_host_tool(bridge)("host", "read_file", {"path": 1})
+        await generate(
+            bridge,
+            model,
+            [
+                ChatMessageUser(content=TASK),
+                output.message,
+                ChatMessageTool(content="bad arguments", tool_call_id=read.id),
+            ],
+            declare_read_file(),
+        )
+
+    tool.assert_not_awaited()
+    assert [type(step) for step in seen] == [BeforeToolCall]
+
+
+async def test_a_host_result_is_attributed_to_the_latest_matching_proposal() -> None:
+    seen: Steps = []
+    stale = ToolCall(
+        id="stale", function="mcp__host__read_file", arguments=READ.arguments
+    )
+    fresh = replace(stale, id="fresh")
+    model = Scripted(calls_output(stale), calls_output(fresh))
+    bridge = sandbox_bridge(AsyncMock(return_value="contents"))
+
+    with active(observe_only([bridge_recording(seen)])):
+        # the scaffold never ran the first response's call
+        await generate(
+            bridge, model, [ChatMessageUser(content=TASK)], declare_read_file()
+        )
+        await generate(
+            bridge, model, [ChatMessageUser(content=TASK)], declare_read_file()
+        )
+        await call_host_tool(bridge)("host", "read_file", READ.arguments)
+
+    assert [step.call.id for step in seen if isinstance(step, AfterToolCall)] == [
+        "fresh"
+    ]
