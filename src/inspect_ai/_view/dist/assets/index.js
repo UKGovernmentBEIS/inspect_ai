@@ -11934,7 +11934,7 @@ var isVscode = () => {
 	};
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+react-query@5.103.2_react@19.3.0/node_modules/@tanstack/react-query/build/modern/QueryClientProvider.js
+//#region ../../node_modules/.pnpm/@tanstack+react-query@5.104.0_react@19.3.0/node_modules/@tanstack/react-query/build/modern/QueryClientProvider.js
 var import_react = /* @__PURE__ */ __toESM(require_react(), 1);
 var import_jsx_runtime = require_jsx_runtime();
 /**
@@ -11987,7 +11987,7 @@ var QueryClientProvider = ({ client, children }) => {
 	});
 };
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.103.2/node_modules/@tanstack/query-core/build/modern/timeoutManager.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.104.0/node_modules/@tanstack/query-core/build/modern/timeoutManager.js
 var defaultTimeoutProvider = {
 	setTimeout: (callback, delay) => setTimeout(callback, delay),
 	clearTimeout: (timeoutId) => clearTimeout(timeoutId),
@@ -12135,7 +12135,7 @@ function systemSetTimeoutZero(callback) {
 	setTimeout(callback, 0);
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.103.2/node_modules/@tanstack/query-core/build/modern/utils.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.104.0/node_modules/@tanstack/query-core/build/modern/utils.js
 /** @deprecated
 * use `environmentManager.isServer()` instead.
 */
@@ -12389,19 +12389,38 @@ function addConsumeAwareSignal(object, getSignal, onCancelled) {
 	return object;
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.103.2/node_modules/@tanstack/query-core/build/modern/environmentManager.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.104.0/node_modules/@tanstack/query-core/build/modern/environmentManager.js
 var isServerFn = () => isServer$1;
 /**
 * Returns whether the current runtime should be treated as a server environment.
 */
 var isServer = () => isServerFn();
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.103.2/node_modules/@tanstack/query-core/build/modern/subscribable.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.104.0/node_modules/@tanstack/query-core/build/modern/subscribable.js
+/**
+* The base class behind everything in Query that you can subscribe to: `QueryCache`, `MutationCache`,
+* the observers, and the `FocusManager`/`OnlineManager` behind `focusManager` and `onlineManager`.
+* Subclasses decide what a listener receives and when it is called.
+*/
 var Subscribable = class {
 	constructor() {
 		this.listeners = /* @__PURE__ */ new Set();
 		this.subscribe = this.subscribe.bind(this);
 	}
+	/**
+	* Registers a listener to be called on every update this object notifies about. Returns a function
+	* that removes the listener again — call it to stop listening. The base class never drops a listener
+	* on its own, though some subclasses clear all of theirs in `destroy()`.
+	* @param listener - Called on each update, with whatever the subclass passes to its subscribers.
+	* @example
+	* ```ts
+	* const unsubscribe = subscribable.subscribe(() => {
+	*   // react to the update
+	* })
+	*
+	* unsubscribe()
+	* ```
+	*/
 	subscribe(listener) {
 		this.listeners.add(listener);
 		this.onSubscribe();
@@ -12410,6 +12429,9 @@ var Subscribable = class {
 			this.onUnsubscribe();
 		};
 	}
+	/**
+	* Returns `true` while at least one listener is registered, `false` once they have all unsubscribed.
+	*/
 	hasListeners() {
 		return this.listeners.size > 0;
 	}
@@ -12417,7 +12439,7 @@ var Subscribable = class {
 	onUnsubscribe() {}
 };
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.103.2/node_modules/@tanstack/query-core/build/modern/focusManager.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.104.0/node_modules/@tanstack/query-core/build/modern/focusManager.js
 /**
 * The `FocusManager` manages the focus state within TanStack Query.
 *
@@ -12527,7 +12549,7 @@ var FocusManager = class extends Subscribable {
 */
 var focusManager = new FocusManager();
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.103.2/node_modules/@tanstack/query-core/build/modern/notifyManager.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.104.0/node_modules/@tanstack/query-core/build/modern/notifyManager.js
 /**
 * Default scheduling function used by the notify manager.
 * Schedules the callback with the system's `setTimeout(callback, 0)`.
@@ -12644,7 +12666,7 @@ function createNotifyManager() {
 */
 var notifyManager = createNotifyManager();
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.103.2/node_modules/@tanstack/query-core/build/modern/onlineManager.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.104.0/node_modules/@tanstack/query-core/build/modern/onlineManager.js
 /**
 * The `OnlineManager` manages the online state within TanStack Query. It can
 * be used to change the default event listeners or to manually change the
@@ -12739,7 +12761,7 @@ var OnlineManager = class extends Subscribable {
 */
 var onlineManager = new OnlineManager();
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.103.2/node_modules/@tanstack/query-core/build/modern/retryer.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.104.0/node_modules/@tanstack/query-core/build/modern/retryer.js
 function defaultRetryDelay(failureCount) {
 	return Math.min(1e3 * 2 ** failureCount, 3e4);
 }
@@ -12872,9 +12894,18 @@ function createRetryer(config) {
 	};
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.103.2/node_modules/@tanstack/query-core/build/modern/removable.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.104.0/node_modules/@tanstack/query-core/build/modern/removable.js
+/**
+* The base class for cache entries that are garbage collected once nothing is using them —
+* `Query` and `Mutation` both extend it. `gcTime` controls how long an unused entry is kept.
+*/
 var Removable = class {
 	#gcTimeout;
+	/**
+	* Clears the pending garbage collection timeout, so the entry is no longer scheduled for removal.
+	* A subclass may override this to release what it holds on to as well — `Query` also cancels any
+	* in-flight fetch.
+	*/
 	destroy() {
 		this.clearGcTimeout();
 	}
@@ -12895,7 +12926,7 @@ var Removable = class {
 	}
 };
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.103.2/node_modules/@tanstack/query-core/build/modern/infiniteQueryBehavior.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.104.0/node_modules/@tanstack/query-core/build/modern/infiniteQueryBehavior.js
 function infiniteQueryBehavior(pages) {
 	return { onFetch: (context, query) => {
 		const options = context.options;
@@ -12988,7 +13019,7 @@ function hasPreviousPage(options, data) {
 	return getPreviousPageParam(options, data) != null;
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.103.2/node_modules/@tanstack/query-core/build/modern/query.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.104.0/node_modules/@tanstack/query-core/build/modern/query.js
 /**
 * Represents a single cached query. A `Query` holds the query's key, options,
 * state (data/error/status), and the observers currently subscribed to it.
@@ -13502,7 +13533,7 @@ function getDefaultState$1(options) {
 	};
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.103.2/node_modules/@tanstack/query-core/build/modern/queryObserver.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.104.0/node_modules/@tanstack/query-core/build/modern/queryObserver.js
 /**
 * A `QueryObserver` watches a single query in the `QueryCache` and computes a
 * `QueryObserverResult` from its state, recomputing and notifying subscribers
@@ -13945,7 +13976,7 @@ function isStale(query, options) {
 	return resolveQueryValue(options.enabled, query) !== false && query.isStaleByTime(resolveQueryValue(options.staleTime, query));
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.103.2/node_modules/@tanstack/query-core/build/modern/infiniteQueryObserver.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.104.0/node_modules/@tanstack/query-core/build/modern/infiniteQueryObserver.js
 /**
 * An `InfiniteQueryObserver` extends `QueryObserver` to observe and switch
 * between infinite queries. It augments the base `QueryObserverResult` with
@@ -14067,7 +14098,7 @@ var InfiniteQueryObserver = class extends QueryObserver {
 	}
 };
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.103.2/node_modules/@tanstack/query-core/build/modern/mutation.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.104.0/node_modules/@tanstack/query-core/build/modern/mutation.js
 /**
 * Represents a single mutation attempt. A `Mutation` holds the mutation's
 * options, state (data/error/status), and the `MutationObserver`s currently
@@ -14358,7 +14389,7 @@ function getDefaultState() {
 	};
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.103.2/node_modules/@tanstack/query-core/build/modern/mutationCache.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.104.0/node_modules/@tanstack/query-core/build/modern/mutationCache.js
 /**
 * The `MutationCache` is the storage for mutations.
 *
@@ -14539,7 +14570,7 @@ function scopeFor(mutation) {
 	return mutation.options.scope?.id;
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.103.2/node_modules/@tanstack/query-core/build/modern/mutationObserver.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.104.0/node_modules/@tanstack/query-core/build/modern/mutationObserver.js
 /**
 * Observes a single mutation and derives a `MutationObserverResult` from it.
 * A framework hook like `useMutation` creates one `MutationObserver` per hook
@@ -14720,7 +14751,7 @@ var MutationObserver$1 = class extends Subscribable {
 	}
 };
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.103.2/node_modules/@tanstack/query-core/build/modern/queryCache.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.104.0/node_modules/@tanstack/query-core/build/modern/queryCache.js
 /**
 * The `QueryCache` is the storage mechanism for TanStack Query. It stores all the data, meta
 * information, and state of the queries it contains.
@@ -14931,7 +14962,7 @@ var QueryCache = class extends Subscribable {
 	}
 };
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.103.2/node_modules/@tanstack/query-core/build/modern/queryClient.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.104.0/node_modules/@tanstack/query-core/build/modern/queryClient.js
 /**
 * `QueryClient` is used to interact with a cache of queries and mutations. It owns a
 * `QueryCache` and a `MutationCache` (creating default ones if none are passed in) and holds
@@ -15044,6 +15075,7 @@ var QueryClient = class {
 	* Hint: Do not use this function inside a component, because it won't receive updates.
 	* Use `useQuery` to create a `QueryObserver` that subscribes to changes.
 	*
+	* @returns The cached data for the query, or `undefined` if no query with this key has been observed yet.
 	* @see {@link QueryClient#getQueriesData}
 	*/
 	getQueryData(queryKey) {
@@ -15072,6 +15104,7 @@ var QueryClient = class {
 	* every matched query holds the same shape — it is not checked against the actual cache
 	* contents.
 	*
+	* @returns An array of query key and data pairs. The data is `undefined` for a query with no cached data.
 	* @see {@link QueryClient#getQueryData}
 	* @example
 	* ```ts
@@ -15095,6 +15128,9 @@ var QueryClient = class {
 	* @param queryKey - The query key to set data for.
 	* @param updater - Either the new data, or a function that receives the current data (which
 	* may be `undefined`) and returns the new data.
+	* @param options - Set `updatedAt` to override the timestamp the written data is recorded with.
+	* @returns The data that was written, or `undefined` if the updater returned `undefined` — in that case
+	* the write is skipped and the cache is left unchanged.
 	*
 	* @example
 	* ```ts
@@ -15120,6 +15156,8 @@ var QueryClient = class {
 	* filters are updated; no new cache entries are created. Internally this calls
 	* {@link QueryClient#setQueryData} for each matching query.
 	*
+	* @returns One `[queryKey, data]` tuple per matched query, in the same shape and with the same
+	* `undefined` case as {@link QueryClient#setQueryData}.
 	* @example
 	* ```ts
 	* queryClient.setQueriesData({ queryKey: ['posts'] }, (oldPosts) =>
@@ -15568,7 +15606,7 @@ var QueryClient = class {
 	}
 };
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+react-query@5.103.2_react@19.3.0/node_modules/@tanstack/react-query/build/modern/IsRestoringProvider.js
+//#region ../../node_modules/.pnpm/@tanstack+react-query@5.104.0_react@19.3.0/node_modules/@tanstack/react-query/build/modern/IsRestoringProvider.js
 var IsRestoringContext = import_react.createContext(false);
 /**
 * If you are using `PersistQueryClientProvider`, you can also use the `useIsRestoring` hook alongside it to
@@ -15580,7 +15618,7 @@ var IsRestoringContext = import_react.createContext(false);
 var useIsRestoring = () => import_react.useContext(IsRestoringContext);
 IsRestoringContext.Provider;
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+react-query@5.103.2_react@19.3.0/node_modules/@tanstack/react-query/build/modern/QueryErrorResetBoundary.js
+//#region ../../node_modules/.pnpm/@tanstack+react-query@5.104.0_react@19.3.0/node_modules/@tanstack/react-query/build/modern/QueryErrorResetBoundary.js
 /**
 * Resets any query errors within the boundary, so queries know they can try again.
 */
@@ -15640,7 +15678,7 @@ var QueryErrorResetBoundaryContext = import_react.createContext(createValue());
 */
 var useQueryErrorResetBoundary = () => import_react.useContext(QueryErrorResetBoundaryContext);
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+react-query@5.103.2_react@19.3.0/node_modules/@tanstack/react-query/build/modern/errorBoundaryUtils.js
+//#region ../../node_modules/.pnpm/@tanstack+react-query@5.104.0_react@19.3.0/node_modules/@tanstack/react-query/build/modern/errorBoundaryUtils.js
 var ensurePreventErrorBoundaryRetry = (options, errorResetBoundary, query) => {
 	const throwOnError = query?.state.error && typeof options.throwOnError === "function" ? shouldThrowError(options.throwOnError, [query.state.error, query]) : options.throwOnError;
 	if (options.suspense || throwOnError) {
@@ -15656,7 +15694,7 @@ var getHasError = ({ result, errorResetBoundary, throwOnError, query, suspense }
 	return result.isError && !errorResetBoundary.isReset() && !result.isFetching && query && (suspense && result.data === void 0 || shouldThrowError(throwOnError, [result.error, query]));
 };
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+react-query@5.103.2_react@19.3.0/node_modules/@tanstack/react-query/build/modern/suspense.js
+//#region ../../node_modules/.pnpm/@tanstack+react-query@5.104.0_react@19.3.0/node_modules/@tanstack/react-query/build/modern/suspense.js
 var ensureSuspenseTimers = (defaultedOptions) => {
 	if (defaultedOptions.suspense) {
 		const MIN_SUSPENSE_TIME_MS = 1e3;
@@ -15671,7 +15709,7 @@ var fetchOptimistic = (defaultedOptions, observer, errorResetBoundary) => observ
 	errorResetBoundary.clearReset();
 });
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+react-query@5.103.2_react@19.3.0/node_modules/@tanstack/react-query/build/modern/useBaseQuery.js
+//#region ../../node_modules/.pnpm/@tanstack+react-query@5.104.0_react@19.3.0/node_modules/@tanstack/react-query/build/modern/useBaseQuery.js
 function useBaseQuery(options, Observer, queryClient) {
 	const isRestoring = useIsRestoring();
 	const errorResetBoundary = useQueryErrorResetBoundary();
@@ -15705,12 +15743,12 @@ function useBaseQuery(options, Observer, queryClient) {
 	return !defaultedOptions.notifyOnChangeProps ? observer.trackResult(result) : result;
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+react-query@5.103.2_react@19.3.0/node_modules/@tanstack/react-query/build/modern/useQuery.js
+//#region ../../node_modules/.pnpm/@tanstack+react-query@5.104.0_react@19.3.0/node_modules/@tanstack/react-query/build/modern/useQuery.js
 function useQuery(options, queryClient) {
 	return useBaseQuery(options, QueryObserver, queryClient);
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+react-query@5.103.2_react@19.3.0/node_modules/@tanstack/react-query/build/modern/useMutation.js
+//#region ../../node_modules/.pnpm/@tanstack+react-query@5.104.0_react@19.3.0/node_modules/@tanstack/react-query/build/modern/useMutation.js
 /**
 * Unlike queries, mutations are typically used to create/update/delete data or perform server side-effects.
 * `useMutation` is the hook for that.
@@ -15901,7 +15939,7 @@ function useMutation(options, queryClient) {
 	};
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+react-query@5.103.2_react@19.3.0/node_modules/@tanstack/react-query/build/modern/useInfiniteQuery.js
+//#region ../../node_modules/.pnpm/@tanstack+react-query@5.104.0_react@19.3.0/node_modules/@tanstack/react-query/build/modern/useInfiniteQuery.js
 function useInfiniteQuery(options, queryClient) {
 	return useBaseQuery(options, InfiniteQueryObserver, queryClient);
 }
@@ -39574,7 +39612,7 @@ var useCollapsibleIds = (key) => {
 };
 //#endregion
 //#region ../../packages/react/src/hooks/useStatefulScrollPosition.ts
-var log$7 = createLogger("scrolling");
+var log$6 = createLogger("scrolling");
 function useStatefulScrollPosition(elementRef, elementKey, t0, t1) {
 	const $ = (0, import_compiler_runtime.c)(21);
 	const delay = t0 === void 0 ? 1e3 : t0;
@@ -39599,7 +39637,7 @@ function useStatefulScrollPosition(elementRef, elementKey, t0, t1) {
 	let t4;
 	if ($[3] !== elementKey || $[4] !== setScrollPosition) {
 		t4 = (position) => {
-			log$7.debug("Storing scroll position", elementKey, position);
+			log$6.debug("Storing scroll position", elementKey, position);
 			setScrollPosition(position);
 		};
 		$[3] = elementKey;
@@ -39646,16 +39684,16 @@ function useStatefulScrollPosition(elementRef, elementKey, t0, t1) {
 		t8 = () => {
 			const element_0 = elementRef.current;
 			if (!element_0 || !scrollable) return;
-			log$7.debug("Restore Scroll Hook", elementKey);
+			log$6.debug("Restore Scroll Hook", elementKey);
 			let pollTimer;
 			const savedPosition_0 = scrollPositionRef.current;
 			if (savedPosition_0 !== void 0) {
-				log$7.debug("Restoring scroll position", savedPosition_0);
+				log$6.debug("Restoring scroll position", savedPosition_0);
 				const tryRestoreScroll = () => {
 					if (element_0.scrollHeight > element_0.clientHeight) {
 						if (element_0.scrollTop !== savedPosition_0) {
 							element_0.scrollTop = savedPosition_0;
-							log$7.debug(`Scroll position restored to ${savedPosition_0}`);
+							log$6.debug(`Scroll position restored to ${savedPosition_0}`);
 						}
 						return true;
 					}
@@ -39665,7 +39703,7 @@ function useStatefulScrollPosition(elementRef, elementKey, t0, t1) {
 					let attempts = 0;
 					const pollForRender = () => {
 						if (tryRestoreScroll() || attempts >= 20) {
-							if (attempts >= 20) log$7.debug("Failed to restore scroll after 20 attempts");
+							if (attempts >= 20) log$6.debug("Failed to restore scroll after 20 attempts");
 							return;
 						}
 						attempts = attempts + 1;
@@ -44666,6 +44704,7 @@ var EVAL_CONFIG_KEYS = {
 	cost_limit: true,
 	epochs: true,
 	epochs_reducer: true,
+	epochs_reducer_specs: true,
 	fail_on_error: true,
 	limit: true,
 	log_buffer: true,
@@ -48734,7 +48773,7 @@ var kindClass = {
 var CHUNK_SIZE = 100;
 var COPIED_FEEDBACK_MS = 1e3;
 var classes = (...names) => names.filter((n) => typeof n === "string").join(" ");
-var TreeNode$1 = /*#__PURE__*/ (0, import_react.memo)((t0) => {
+var TreeNode$2 = /*#__PURE__*/ (0, import_react.memo)((t0) => {
 	const $ = (0, import_compiler_runtime.c)(41);
 	const { name, value, defaultExpanded: t1 } = t0;
 	const [expanded, setExpanded] = (0, import_react.useState)(t1 === void 0 ? false : t1);
@@ -48910,7 +48949,7 @@ var TreeNode$1 = /*#__PURE__*/ (0, import_react.memo)((t0) => {
 	} else t7 = $[18];
 	return t7;
 });
-TreeNode$1.displayName = "TreeNode";
+TreeNode$2.displayName = "TreeNode";
 function _temp$95(k) {
 	return k + 1;
 }
@@ -48918,7 +48957,7 @@ function _temp2$55(e) {
 	return !e;
 }
 function _temp3$39(entry) {
-	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(TreeNode$1, {
+	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(TreeNode$2, {
 		name: entry.key,
 		value: entry.value
 	}, entry.id);
@@ -49723,7 +49762,7 @@ var FetchEngine = class {
 	async updateDbStats() {
 		const deps = this._deps;
 		const database = deps?.database;
-		if (deps === void 0 || !database?.opened()) return;
+		if (!deps || !database) return;
 		try {
 			const stats = await database.getCacheStats({ prefix: deps.logDir });
 			this.setStatus({ dbStats: {
@@ -53616,59 +53655,8 @@ var AppDatabase = class extends Dexie {
 	} catch {}
 };
 //#endregion
-//#region src/client/database/manager.ts
-var log$6 = createLogger("DatabaseManager");
-/**
-* Manages the (single, per-origin) database connection. Log dirs are query
-* scopes over the unified database, not separate databases.
-*/ var DatabaseManager = class {
-	database = null;
-	/**
-	* Open the database, returning the existing connection when already open.
-	*/ async openDatabase() {
-		if (this.database) return this.database;
-		if (await AppDatabase.checkVersionMismatch()) {
-			log$6.info("Recreating database due to version mismatch");
-			await Dexie.delete(DB_NAME);
-			log$6.debug(`Deleted old database: ${DB_NAME}`);
-		}
-		this.database = new AppDatabase();
-		try {
-			await this.database.open();
-			log$6.debug("Successfully opened database");
-			deleteLegacyDatabases();
-			return this.database;
-		} catch (error) {
-			log$6.error("Failed to open database:", error);
-			this.database = null;
-			throw error;
-		}
-	}
-	/**
-	* Get the current database instance.
-	* Returns null if no database is open.
-	*/ getDatabase() {
-		return this.database;
-	}
-	/**
-	* Close the current database connection.
-	*/ close() {
-		if (this.database) {
-			log$6.debug("Closing database");
-			this.database.close();
-			this.database = null;
-		}
-		return Promise.resolve();
-	}
-	/**
-	* Check if a database is currently open.
-	*/ isOpen() {
-		return this.database !== null;
-	}
-};
-//#endregion
 //#region src/client/database/service.ts
-var log$5 = createLogger("DatabaseService");
+var log$5 = createLogger("OpenDatabase");
 var newRow$1 = (handle) => ({
 	...handle,
 	depth: "listed",
@@ -53684,40 +53672,45 @@ var newRow$1 = (handle) => ({
 	return !Number.isNaN(numeric) && String(numeric) === id ? [id, numeric] : [id];
 };
 /**
-* Database service for caching and retrieving log data.
-* Works with a DatabaseManager instance to handle database operations.
-*/ var DatabaseService = class {
-	manager;
-	constructor(manager) {
-		this.manager = manager;
+* The read/write surface over the (single, per-origin) database. Constructed
+* only with a live connection — obtaining one proves an open succeeded, so
+* consumers holding an `OpenDatabase` never need an "is it open?" check
+* (sessions without persistence hold `null` instead; see #518 for the bug
+* class this shape rules out).
+*/ var OpenDatabase = class OpenDatabase {
+	db;
+	constructor(db) {
+		this.db = db;
+	}
+	/** Open the (unified) database and wrap the live connection. */ static async open() {
+		if (await AppDatabase.checkVersionMismatch()) {
+			log$5.info("Recreating database due to version mismatch");
+			await Dexie.delete(DB_NAME);
+		}
+		const db = new AppDatabase();
+		try {
+			await db.open();
+			log$5.debug("Successfully opened database");
+			deleteLegacyDatabases();
+			return new OpenDatabase(db);
+		} catch (error) {
+			log$5.error("Failed to open database:", error);
+			throw error;
+		}
 	}
 	/**
-	* Get the current database instance.
-	* Throws an error if no database is open.
-	*/ getDb() {
-		const db = this.manager.getDatabase();
-		if (!db) throw new Error("No database initialized. Call openDatabase first.");
-		return db;
-	}
-	opened() {
-		return this.manager.getDatabase() !== null;
-	}
-	/**
-	* Open the (unified) database.
-	*/ async openDatabase() {
-		await this.manager.openDatabase();
-	}
-	/**
-	* Close the current database connection.
-	*/ async closeDatabase() {
-		await this.manager.close();
+	* Close the underlying connection. Test teardown only (a same-process
+	* `Dexie.delete` blocks on an open connection) — production never closes;
+	* a handle is valid for the life of the page.
+	*/ close() {
+		this.db.close();
 	}
 	/**
 	* Upsert the listing identity tier: new files get fresh listed-depth rows;
 	* known files update identity fields only (depth, content, and retrieval
 	* facts are preserved).
 	*/ async writeLogs(handles) {
-		const db = this.getDb();
+		const db = this.db;
 		const now = (/* @__PURE__ */ new Date()).toISOString();
 		const existingRecords = await db.logs.where("file_path").anyOf(handles.map((handle) => handle.name)).toArray();
 		const existingByPath = new Map(existingRecords.map((record) => [record.file_path, record]));
@@ -53736,11 +53729,7 @@ var newRow$1 = (handle) => ({
 	}
 	async readLogs(scope) {
 		try {
-			if (!this.opened()) {
-				log$5.debug("Database not open");
-				return null;
-			}
-			const records = await this.getDb().logs.where("file_path").startsWith(scopePrefix(scope.prefix)).toArray();
+			const records = await this.db.logs.where("file_path").startsWith(scopePrefix(scope.prefix)).toArray();
 			records.sort((a, b) => {
 				if (a.mtime != null && b.mtime != null) return b.mtime - a.mtime;
 				if (a.id != null && b.id != null) return a.id - b.id;
@@ -53755,7 +53744,7 @@ var newRow$1 = (handle) => ({
 	}
 	async readLogRow(filePath) {
 		try {
-			const record = await this.getDb().logs.where("file_path").equals(filePath).first();
+			const record = await this.db.logs.where("file_path").equals(filePath).first();
 			return record ? fromLogRecord(record) : null;
 		} catch (error) {
 			log$5.error(`Error retrieving log row for ${filePath}:`, error);
@@ -53764,7 +53753,7 @@ var newRow$1 = (handle) => ({
 	}
 	async readLogRows(filePaths) {
 		try {
-			const records = await this.getDb().logs.where("file_path").anyOf(filePaths).toArray();
+			const records = await this.db.logs.where("file_path").anyOf(filePaths).toArray();
 			const result = {};
 			for (const record of records) result[record.file_path] = fromLogRecord(record);
 			return result;
@@ -53775,7 +53764,7 @@ var newRow$1 = (handle) => ({
 	}
 	/** Merge a set of per-file row patches, creating listed-depth rows for
 	*  unknown files (e.g. single-file mode). Depth ratchets, never lowers. */ async mergeRows(patches) {
-		const db = this.getDb();
+		const db = this.db;
 		const now = (/* @__PURE__ */ new Date()).toISOString();
 		const files = Object.keys(patches);
 		const existing = await db.logs.where("file_path").anyOf(files).toArray();
@@ -53806,7 +53795,7 @@ var newRow$1 = (handle) => ({
 	* call so a reader never sees a header whose summary rows are from an
 	* older ingestion.
 	*/ async writeLogDetails(details) {
-		const db = this.getDb();
+		const db = this.db;
 		const now = (/* @__PURE__ */ new Date()).toISOString();
 		const entries = Object.entries(details);
 		log$5.debug(`Ingesting ${entries.length} log details (split)`);
@@ -53825,11 +53814,11 @@ var newRow$1 = (handle) => ({
 		});
 	}
 	async readSampleSummaries(scope) {
-		const db = this.getDb();
+		const db = this.db;
 		return ("file" in scope ? db.sample_summaries.where("file_path").equals(scope.file) : db.sample_summaries.where("file_path").startsWith(scopePrefix(scope.prefix))).toArray();
 	}
 	async hasCompletedSampleSummary(filePath, id, epoch) {
-		const db = this.getDb();
+		const db = this.db;
 		const keys = sampleIdsForLookup(id).map((sampleId) => [
 			filePath,
 			sampleId,
@@ -53846,7 +53835,7 @@ var newRow$1 = (handle) => ({
 	* retrieval facts back to listed depth; the file's sample summary rows go
 	* with it.
 	*/ async resetDepth(filePaths) {
-		const db = this.getDb();
+		const db = this.db;
 		const now = (/* @__PURE__ */ new Date()).toISOString();
 		await db.transaction("rw", db.logs, db.sample_summaries, async () => {
 			const records = await db.logs.where("file_path").anyOf(filePaths).toArray();
@@ -53860,7 +53849,7 @@ var newRow$1 = (handle) => ({
 		});
 	}
 	/** Remove a deleted file's row and its sample summaries. */ async clearCacheForFile(filePath) {
-		const db = this.getDb();
+		const db = this.db;
 		log$5.debug(`Clearing cache for file: ${filePath}`);
 		await Promise.all([db.logs.where("file_path").equals(filePath).delete(), db.sample_summaries.where("file_path").equals(filePath).delete()]);
 	}
@@ -53869,7 +53858,7 @@ var newRow$1 = (handle) => ({
 	* `clearScope`, this reaches rows persisted under names outside any synced
 	* scope's namespace (see `namesInScope` in logsContent).
 	*/ async clearAllData() {
-		const db = this.getDb();
+		const db = this.db;
 		log$5.debug("Clearing all cached data");
 		await db.transaction("rw", [
 			db.logs,
@@ -53885,7 +53874,7 @@ var newRow$1 = (handle) => ({
 	* Clear all cached data under a scope: its log rows, their sample
 	* summaries, and the scope's sync record. Other scopes' rows are untouched.
 	*/ async clearScope(scope) {
-		const db = this.getDb();
+		const db = this.db;
 		const prefix = scopePrefix(scope.prefix);
 		log$5.debug(`Clearing caches under: ${prefix}`);
 		await db.transaction("rw", [
@@ -53899,7 +53888,7 @@ var newRow$1 = (handle) => ({
 		]));
 	}
 	/** Record that a scope is active (creating its row on first contact). */ async touchSyncScope(prefix) {
-		const db = this.getDb();
+		const db = this.db;
 		const key = scopePrefix(prefix);
 		const now = (/* @__PURE__ */ new Date()).toISOString();
 		await db.transaction("rw", db.sync_scopes, async () => {
@@ -53912,10 +53901,10 @@ var newRow$1 = (handle) => ({
 		});
 	}
 	/** Read a scope's sync record (undefined when never activated). */ async getSyncScope(prefix) {
-		return this.getDb().sync_scopes.get(scopePrefix(prefix));
+		return this.db.sync_scopes.get(scopePrefix(prefix));
 	}
 	/** Record that a listing sync persisted under a scope. */ async markScopeSynced(prefix) {
-		const db = this.getDb();
+		const db = this.db;
 		const key = scopePrefix(prefix);
 		const now = (/* @__PURE__ */ new Date()).toISOString();
 		await db.transaction("rw", db.sync_scopes, async () => {
@@ -53930,7 +53919,7 @@ var newRow$1 = (handle) => ({
 	/**
 	* Get cache statistics for a scope.
 	*/ async getCacheStats(scope) {
-		const db = this.getDb();
+		const db = this.db;
 		const prefix = scopePrefix(scope.prefix);
 		const depthCount = (depth) => db.logs.where("[depth+file_path]").between([depth, prefix], [depth, prefix + "￿"]).count();
 		const [logFiles, previewed, detailed, sampleSummaries] = await Promise.all([
@@ -53947,24 +53936,31 @@ var newRow$1 = (handle) => ({
 		};
 	}
 };
-/**
-* Create a new database service instance.
-* Each service instance works with its own database manager.
-*/ function createDatabaseService() {
-	return new DatabaseService(new DatabaseManager());
-}
 //#endregion
-//#region src/log_data/databaseServiceInstance.ts
-var instance = null;
+//#region src/log_data/databaseInstance.ts
+var current$1 = null;
+var opening = null;
 /**
-* The shared DatabaseService singleton, created lazily on first use — every
-* acquisition path reaches it through `ensureFetchEngine`, so there is no
-* initialize verb to call. Construction is side-effect free; the database
-* itself opens later (`openLogDirDatabase`).
-*/ function getDatabaseService() {
-	instance ??= createDatabaseService();
-	return instance;
+* Open the app database once and share the handle; concurrent callers
+* coalesce onto the in-flight open, and a failed open clears it so the next
+* acquisition retries (activation relies on this — see `engineReady`).
+*/ async function acquireDatabase() {
+	if (current$1) return current$1;
+	opening ??= OpenDatabase.open().then((db) => {
+		current$1 = db;
+		opening = null;
+		return db;
+	}, (error) => {
+		opening = null;
+		throw error;
+	});
+	return opening;
 }
+/**
+* The shared open handle, or null when this session has none — before the
+* first successful open, and forever in single-file sessions (which never
+* open one; their reads miss and writes stay cache-only).
+*/ var currentDatabase = () => current$1;
 //#endregion
 //#region src/log_data/listingSync.ts
 /**
@@ -54081,8 +54077,8 @@ var pageOf = (rows, params) => {
 	return params.limit === void 0 && start === 0 ? rows : rows.slice(start, params.limit === void 0 ? void 0 : start + params.limit);
 };
 var readSamplesListing = async (params) => {
-	const db = getDatabaseService();
-	if (!db.opened()) return queryClient.getQueryData(samplesListingKey(params)) ?? EMPTY_ROWS;
+	const db = currentDatabase();
+	if (!db) return queryClient.getQueryData(samplesListingKey(params)) ?? EMPTY_ROWS;
 	const records = await db.readSampleSummaries(params.scope);
 	const files = [...new Set(records.map((record) => record.file_path))];
 	const rows = await db.readLogRows(files);
@@ -54133,8 +54129,8 @@ var readSamplesListing = async (params) => {
 * in db-less sessions.
 */ var readSettledSummaries = async (logDir, logFile) => {
 	const scope = { file: logFile };
-	const db = getDatabaseService();
-	if (db.opened()) return (await db.readSampleSummaries(scope)).map((record) => record.summary);
+	const db = currentDatabase();
+	if (db) return (await db.readSampleSummaries(scope)).map((record) => record.summary);
 	return queryClient.getQueryData(samplesListingKey({
 		logDir,
 		scope
@@ -54142,8 +54138,8 @@ var readSamplesListing = async (params) => {
 };
 /** Whether one settled sample is complete, without materializing its file's
 *  full summary list when IndexedDB is available. */ var hasCompletedSettledSummary = async (logDir, logFile, id, epoch) => {
-	const db = getDatabaseService();
-	if (db.opened()) return db.hasCompletedSampleSummary(logFile, id, epoch);
+	const db = currentDatabase();
+	if (db) return db.hasCompletedSampleSummary(logFile, id, epoch);
 	return (await readSettledSummaries(logDir, logFile)).some((summary) => sampleIdsEqual(summary.id, id) && summary.epoch === epoch && summary.completed !== false);
 };
 /**
@@ -54184,7 +54180,7 @@ var readSamplesListing = async (params) => {
 *
 * The invariant for this module: IndexedDB is never written without the same
 * write landing in the cache. The `write*` / `clear*` / `reset*` seam below
-* are the only callers of the `DatabaseService` mutators anywhere — each
+* are the only callers of the `OpenDatabase` mutators anywhere — each
 * pairs the persistence with its cache update. Cache-only writes (the
 * `set*`/`merge*`/`seed*` primitives) are allowed; the invariant is
 * one-directional (db ⟹ cache).
@@ -54332,7 +54328,7 @@ var namesInScope = (logDir, handles) => {
 * holds the full re-read, so the full list is read back and returned for the
 * caller's continued sync logic.
 */ var writeListing = async (db, logDir, handles) => {
-	if (db?.opened() && namesInScope(logDir, handles)) {
+	if (db && namesInScope(logDir, handles)) {
 		await db.writeLogs(handles);
 		await db.markScopeSynced(logDir);
 		const all = await db.readLogs({ prefix: logDir });
@@ -54348,7 +54344,7 @@ var namesInScope = (logDir, handles) => {
 };
 var writePreviews = async (db, logDir, previews) => {
 	mergePreviews(logDir, previews);
-	if (db?.opened()) await db.writeLogPreviews(previews);
+	if (db) await db.writeLogPreviews(previews);
 	invalidateDatabaseLogsListings();
 };
 /**
@@ -54385,7 +54381,7 @@ var writePreviews = async (db, logDir, previews) => {
 	const { prepared, failures } = prepareBatch(details);
 	await Promise.all(prepared.map(([name, file]) => pushFileSamples(logDir, name, toSamplesListingRows(name, file.header, file.summaries))));
 	mergePatches(logDir, Object.fromEntries(prepared.map(([name, file]) => [name, file.patch])));
-	if (db?.opened()) {
+	if (db) {
 		await db.writeLogDetails(Object.fromEntries(prepared));
 		invalidateSamplesListings(logDir);
 	}
@@ -54394,7 +54390,7 @@ var writePreviews = async (db, logDir, previews) => {
 };
 var writeFetchStates = async (db, logDir, states) => {
 	mergeFetchStates(logDir, states);
-	if (db?.opened()) await db.writeFetchStates(states);
+	if (db) await db.writeFetchStates(states);
 };
 /**
 * mtime invalidation: each row keeps its identity but drops content and
@@ -54411,19 +54407,19 @@ var writeFetchStates = async (db, logDir, states) => {
 	}) : row);
 	queryClient.setQueryData(logsKey(logDir), next);
 	for (const row of next) if (nameSet.has(row.name)) pushLog(logDir, row);
-	if (db?.opened()) await db.resetDepth(names);
+	if (db) await db.resetDepth(names);
 	invalidateDatabaseLogsListings();
 	invalidateSamplesListings(logDir);
 };
 var clearFile = async (db, logDir, name) => {
 	evictFile(logDir, name);
-	if (db?.opened()) await db.clearCacheForFile(name);
+	if (db) await db.clearCacheForFile(name);
 	invalidateDatabaseLogsListings();
 	invalidateSamplesListings(logDir);
 };
 var clearAll = async (db, logDir) => {
 	clearCache(logDir);
-	if (db?.opened()) await db.clearAllData();
+	if (db) await db.clearAllData();
 	invalidateDatabaseLogsListings();
 };
 /**
@@ -54492,11 +54488,10 @@ var useLogs = (logDir) => {
 //#endregion
 //#region src/log_data/replicationControl.ts
 var openLogDirDatabase = async (logDir) => {
-	const databaseService = getDatabaseService();
 	try {
-		await databaseService.openDatabase();
-		await databaseService.touchSyncScope(logDir);
-		return databaseService;
+		const database = await acquireDatabase();
+		await database.touchSyncScope(logDir);
+		return database;
 	} catch (e) {
 		console.log(e);
 		return;
@@ -54862,16 +54857,17 @@ var useLogListing = (logDir) => {
 * Where listing queries for `logDir` read their rows — an explicit,
 * scope-level decision rather than a per-query fallback:
 *
-* - "database": the normal dir-mode path; IndexedDB holds the replicated
-*   rows and is the row source.
-* - "cache": the react-query logs cache is the row source. This serves the
+* - a database handle: the normal dir-mode path; IndexedDB holds the
+*   replicated rows and is the row source.
+* - null: the react-query logs cache is the row source. This serves the
 *   out-of-namespace degrade (listing persistence skipped — see
 *   `namesInScope` in logsContent) and db-less sessions (the database
 *   failed to open; single-file mode renders no log list at all).
-*/ var logsListingSource = (logDir) => getDatabaseService().opened() && !isCacheOnlyListingScope(logDir) ? "database" : "cache";
+*/ var logsListingDatabase = (logDir) => isCacheOnlyListingScope(logDir) ? null : currentDatabase();
 var scanRows = async (logDir, prefix) => {
-	if (logsListingSource(logDir) === "database") {
-		const logs = await getDatabaseService().readLogs({ prefix });
+	const db = logsListingDatabase(logDir);
+	if (db) {
+		const logs = await db.readLogs({ prefix });
 		if (logs !== null) return logs;
 	}
 	if (isCacheOnlyListingScope(logDir)) return getLogRows(logDir);
@@ -55011,8 +55007,8 @@ var readLogsListing = async (logDir, prefix, toRow, plan) => {
 	let t2;
 	if ($[3] !== key) {
 		t2 = key === void 0 ? skipToken : async () => {
-			const db = getDatabaseService();
-			return (db.opened() ? await db.readLogRow(key) : null) ?? null;
+			const db = currentDatabase();
+			return (db ? await db.readLogRow(key) : null) ?? null;
 		};
 		$[3] = key;
 		$[4] = t2;
@@ -121611,8 +121607,8 @@ function _temp4$13(warning) {
 /**
 The default maximum length of a `TreeBuffer` node.
 */
-var DefaultBufferLength = 1024;
-var nextPropID = 0;
+var DefaultBufferLength$1 = 1024;
+var nextPropID$1 = 0;
 var Range$1 = class {
 	constructor(from, to) {
 		this.from = from;
@@ -121624,12 +121620,12 @@ Each [node type](#common.NodeType) or [individual tree](#common.Tree)
 can have metadata associated with it in props. Instances of this
 class represent prop names.
 */
-var NodeProp = class {
+var NodeProp$1 = class {
 	/**
 	Create a new node prop type.
 	*/
 	constructor(config = {}) {
-		this.id = nextPropID++;
+		this.id = nextPropID$1++;
 		this.perNode = !!config.perNode;
 		this.deserialize = config.deserialize || (() => {
 			throw new Error("This node type doesn't define a deserialize function");
@@ -121647,7 +121643,7 @@ var NodeProp = class {
 	*/
 	add(match) {
 		if (this.perNode) throw new RangeError("Can't add per-node props to node types");
-		if (typeof match != "function") match = NodeType.match(match);
+		if (typeof match != "function") match = NodeType$1.match(match);
 		return (type) => {
 			let result = match(type);
 			return result === void 0 ? null : [this, result];
@@ -121660,19 +121656,19 @@ delimiters, this holds an array of node names (written as a
 space-separated string when declaring this prop in a grammar)
 for the node types of closing delimiters that match it.
 */
-NodeProp.closedBy = new NodeProp({ deserialize: (str) => str.split(" ") });
+NodeProp$1.closedBy = new NodeProp$1({ deserialize: (str) => str.split(" ") });
 /**
 The inverse of [`closedBy`](#common.NodeProp^closedBy). This is
 attached to closing delimiters, holding an array of node names
 of types of matching opening delimiters.
 */
-NodeProp.openedBy = new NodeProp({ deserialize: (str) => str.split(" ") });
+NodeProp$1.openedBy = new NodeProp$1({ deserialize: (str) => str.split(" ") });
 /**
 Used to assign node types to groups (for example, all node
 types that represent an expression could be tagged with an
 `"Expression"` group).
 */
-NodeProp.group = new NodeProp({ deserialize: (str) => str.split(" ") });
+NodeProp$1.group = new NodeProp$1({ deserialize: (str) => str.split(" ") });
 /**
 Attached to nodes to indicate these should be
 [displayed](https://codemirror.net/docs/ref/#language.syntaxTree)
@@ -121684,7 +121680,7 @@ nodes that appear _inside_ arbitrary text, like HTML tags. When
 not given a value, in a grammar declaration, defaults to
 `"auto"`.
 */
-NodeProp.isolate = new NodeProp({ deserialize: (value) => {
+NodeProp$1.isolate = new NodeProp$1({ deserialize: (value) => {
 	if (value && value != "rtl" && value != "ltr" && value != "auto") throw new RangeError("Invalid value for isolate: " + value);
 	return value || "auto";
 } });
@@ -121693,26 +121689,26 @@ The hash of the [context](#lr.ContextTracker.constructor)
 that the node was parsed in, if any. Used to limit reuse of
 contextual nodes.
 */
-NodeProp.contextHash = new NodeProp({ perNode: true });
+NodeProp$1.contextHash = new NodeProp$1({ perNode: true });
 /**
 The distance beyond the end of the node that the tokenizer
 looked ahead for any of the tokens inside the node. (The LR
 parser only stores this when it is larger than 25, for
 efficiency reasons.)
 */
-NodeProp.lookAhead = new NodeProp({ perNode: true });
+NodeProp$1.lookAhead = new NodeProp$1({ perNode: true });
 /**
 This per-node prop is used to replace a given node, or part of a
 node, with another tree. This is useful to include trees from
 different languages in mixed-language parsers.
 */
-NodeProp.mounted = new NodeProp({ perNode: true });
+NodeProp$1.mounted = new NodeProp$1({ perNode: true });
 /**
 A mounted tree, which can be [stored](#common.NodeProp^mounted) on
 a tree node to indicate that parts of its content are
 represented by another tree.
 */
-var MountedTree = class {
+var MountedTree$1 = class {
 	constructor(tree, overlay, parser, bracketed = false) {
 		this.tree = tree;
 		this.overlay = overlay;
@@ -121723,14 +121719,14 @@ var MountedTree = class {
 	@internal
 	*/
 	static get(tree) {
-		return tree && tree.props && tree.props[NodeProp.mounted.id];
+		return tree && tree.props && tree.props[NodeProp$1.mounted.id];
 	}
 };
-var noProps = Object.create(null);
+var noProps$1 = Object.create(null);
 /**
 Each node in a syntax tree has a node type associated with it.
 */
-var NodeType = class NodeType {
+var NodeType$1 = class NodeType$1 {
 	/**
 	@internal
 	*/
@@ -121744,9 +121740,9 @@ var NodeType = class NodeType {
 	Define a node type.
 	*/
 	static define(spec) {
-		let props = spec.props && spec.props.length ? Object.create(null) : noProps;
+		let props = spec.props && spec.props.length ? Object.create(null) : noProps$1;
 		let flags = (spec.top ? 1 : 0) | (spec.skipped ? 2 : 0) | (spec.error ? 4 : 0) | (spec.name == null ? 8 : 0);
-		let type = new NodeType(spec.name || "", props, spec.id, flags);
+		let type = new NodeType$1(spec.name || "", props, spec.id, flags);
 		if (spec.props) for (let src of spec.props) {
 			if (!Array.isArray(src)) src = src(type);
 			if (src) {
@@ -121795,7 +121791,7 @@ var NodeType = class NodeType {
 	is(name) {
 		if (typeof name == "string") {
 			if (this.name == name) return true;
-			let group = this.prop(NodeProp.group);
+			let group = this.prop(NodeProp$1.group);
 			return group ? group.indexOf(name) > -1 : false;
 		}
 		return this.id == name;
@@ -121812,7 +121808,7 @@ var NodeType = class NodeType {
 		let direct = Object.create(null);
 		for (let prop in map) for (let name of prop.split(" ")) direct[name] = map[prop];
 		return (node) => {
-			for (let groups = node.prop(NodeProp.group), i = -1; i < (groups ? groups.length : 0); i++) {
+			for (let groups = node.prop(NodeProp$1.group), i = -1; i < (groups ? groups.length : 0); i++) {
 				let found = direct[i < 0 ? node.name : groups[i]];
 				if (found) return found;
 			}
@@ -121822,7 +121818,7 @@ var NodeType = class NodeType {
 /**
 An empty dummy node type to use when no actual type is available.
 */
-NodeType.none = new NodeType("", Object.create(null), 0, 8);
+NodeType$1.none = new NodeType$1("", Object.create(null), 0, 8);
 /**
 A node set holds a collection of node types. It is used to
 compactly represent trees by storing their type ids, rather than a
@@ -121859,18 +121855,18 @@ var NodeSet = class NodeSet {
 					newProps[prop.id] = value;
 				}
 			}
-			newTypes.push(newProps ? new NodeType(type.name, newProps, type.id, type.flags) : type);
+			newTypes.push(newProps ? new NodeType$1(type.name, newProps, type.id, type.flags) : type);
 		}
 		return new NodeSet(newTypes);
 	}
 };
-var CachedNode = /* @__PURE__ */ new WeakMap();
-var CachedInnerNode = /* @__PURE__ */ new WeakMap();
+var CachedNode$1 = /* @__PURE__ */ new WeakMap();
+var CachedInnerNode$1 = /* @__PURE__ */ new WeakMap();
 /**
 Options that control iteration. Can be combined with the `|`
 operator to enable multiple ones.
 */
-var IterMode;
+var IterMode$1;
 (function(IterMode) {
 	/**
 	When enabled, iteration will only visit [`Tree`](#common.Tree)
@@ -121904,7 +121900,7 @@ var IterMode;
 	[`enter`](#common.SyntaxNode.enter), not in cursors.
 	*/
 	IterMode[IterMode["EnterBracketed"] = 16] = "EnterBracketed";
-})(IterMode || (IterMode = {}));
+})(IterMode$1 || (IterMode$1 = {}));
 /**
 A piece of syntax tree. There are two ways to approach these
 trees: the way they are actually stored in memory, and the
@@ -121921,7 +121917,7 @@ use the [`TreeCursor`](#common.TreeCursor) or
 a view on some part of this data structure, and can be used to
 move around to adjacent nodes.
 */
-var Tree = class Tree {
+var Tree$1 = class Tree$1 {
 	/**
 	Construct a new tree. See also [`Tree.build`](#common.Tree^build).
 	*/
@@ -121943,7 +121939,7 @@ var Tree = class Tree {
 	@internal
 	*/
 	toString() {
-		let mounted = MountedTree.get(this);
+		let mounted = MountedTree$1.get(this);
 		if (mounted && !mounted.overlay) return mounted.tree.toString();
 		let children = "";
 		for (let ch of this.children) {
@@ -121961,7 +121957,7 @@ var Tree = class Tree {
 	nodes the cursor visits.
 	*/
 	cursor(mode = 0) {
-		return new TreeCursor(this.topNode, mode);
+		return new TreeCursor$1(this.topNode, mode);
 	}
 	/**
 	Get a [tree cursor](#common.TreeCursor) pointing into this tree
@@ -121969,9 +121965,9 @@ var Tree = class Tree {
 	[`moveTo`](#common.TreeCursor.moveTo).
 	*/
 	cursorAt(pos, side = 0, mode = 0) {
-		let cursor = new TreeCursor(CachedNode.get(this) || this.topNode);
+		let cursor = new TreeCursor$1(CachedNode$1.get(this) || this.topNode);
 		cursor.moveTo(pos, side);
-		CachedNode.set(this, cursor._tree);
+		CachedNode$1.set(this, cursor._tree);
 		return cursor;
 	}
 	/**
@@ -121979,7 +121975,7 @@ var Tree = class Tree {
 	tree.
 	*/
 	get topNode() {
-		return new TreeNode(this, 0, 0, null);
+		return new TreeNode$1(this, 0, 0, null);
 	}
 	/**
 	Get the [syntax node](#common.SyntaxNode) at the given position.
@@ -121993,8 +121989,8 @@ var Tree = class Tree {
 	[`resolveInner`](#common.Tree.resolveInner) instead.
 	*/
 	resolve(pos, side = 0) {
-		let node = resolveNode(CachedNode.get(this) || this.topNode, pos, side, false);
-		CachedNode.set(this, node);
+		let node = resolveNode$1(CachedNode$1.get(this) || this.topNode, pos, side, false);
+		CachedNode$1.set(this, node);
 		return node;
 	}
 	/**
@@ -122005,8 +122001,8 @@ var Tree = class Tree {
 	the host trees).
 	*/
 	resolveInner(pos, side = 0) {
-		let node = resolveNode(CachedInnerNode.get(this) || this.topNode, pos, side, true);
-		CachedInnerNode.set(this, node);
+		let node = resolveNode$1(CachedInnerNode$1.get(this) || this.topNode, pos, side, true);
+		CachedInnerNode$1.set(this, node);
 		return node;
 	}
 	/**
@@ -122017,7 +122013,7 @@ var Tree = class Tree {
 	position.
 	*/
 	resolveStack(pos, side = 0) {
-		return stackIterator(this, pos, side);
+		return stackIterator$1(this, pos, side);
 	}
 	/**
 	Iterate over the tree and its children, calling `enter` for any
@@ -122028,8 +122024,8 @@ var Tree = class Tree {
 	*/
 	iterate(spec) {
 		let { enter, leave, from = 0, to = this.length } = spec;
-		let mode = spec.mode || 0, anon = (mode & IterMode.IncludeAnonymous) > 0;
-		for (let c = this.cursor(mode | IterMode.IncludeAnonymous);;) {
+		let mode = spec.mode || 0, anon = (mode & IterMode$1.IncludeAnonymous) > 0;
+		for (let c = this.cursor(mode | IterMode$1.IncludeAnonymous);;) {
 			let entered = false;
 			if (c.from <= to && c.to >= from && (!anon && c.type.isAnonymous || enter(c) !== false)) {
 				if (c.firstChild()) continue;
@@ -122066,21 +122062,21 @@ var Tree = class Tree {
 	[`NodeType.none`](#common.NodeType^none).
 	*/
 	balance(config = {}) {
-		return this.children.length <= 8 ? this : balanceRange(NodeType.none, this.children, this.positions, 0, this.children.length, 0, this.length, (children, positions, length) => new Tree(this.type, children, positions, length, this.propValues), config.makeTree || ((children, positions, length) => new Tree(NodeType.none, children, positions, length)));
+		return this.children.length <= 8 ? this : balanceRange$1(NodeType$1.none, this.children, this.positions, 0, this.children.length, 0, this.length, (children, positions, length) => new Tree$1(this.type, children, positions, length, this.propValues), config.makeTree || ((children, positions, length) => new Tree$1(NodeType$1.none, children, positions, length)));
 	}
 	/**
 	Build a tree from a postfix-ordered buffer of node information,
 	or a cursor over such a buffer.
 	*/
 	static build(data) {
-		return buildTree(data);
+		return buildTree$1(data);
 	}
 };
 /**
 The empty tree
 */
-Tree.empty = new Tree(NodeType.none, [], [], 0);
-var FlatBufferCursor = class FlatBufferCursor {
+Tree$1.empty = new Tree$1(NodeType$1.none, [], [], 0);
+var FlatBufferCursor$1 = class FlatBufferCursor$1 {
 	constructor(buffer, index) {
 		this.buffer = buffer;
 		this.index = index;
@@ -122104,7 +122100,7 @@ var FlatBufferCursor = class FlatBufferCursor {
 		this.index -= 4;
 	}
 	fork() {
-		return new FlatBufferCursor(this.buffer, this.index);
+		return new FlatBufferCursor$1(this.buffer, this.index);
 	}
 };
 /**
@@ -122113,7 +122109,7 @@ node. In such a buffer, nodes are stored in prefix order (parents
 before children, with the endIndex of the parent indicating which
 children belong to it).
 */
-var TreeBuffer = class TreeBuffer {
+var TreeBuffer$1 = class TreeBuffer$1 {
 	/**
 	Create a tree buffer.
 	*/
@@ -122126,7 +122122,7 @@ var TreeBuffer = class TreeBuffer {
 	@internal
 	*/
 	get type() {
-		return NodeType.none;
+		return NodeType$1.none;
 	}
 	/**
 	@internal
@@ -122160,7 +122156,7 @@ var TreeBuffer = class TreeBuffer {
 	*/
 	findChild(startIndex, endIndex, dir, pos, side) {
 		let { buffer } = this, pick = -1;
-		for (let i = startIndex; i != endIndex; i = buffer[i + 3]) if (checkSide(side, pos, buffer[i + 1], buffer[i + 2])) {
+		for (let i = startIndex; i != endIndex; i = buffer[i + 3]) if (checkSide$1(side, pos, buffer[i + 1], buffer[i + 2])) {
 			pick = i;
 			if (dir > 0) break;
 		}
@@ -122179,10 +122175,10 @@ var TreeBuffer = class TreeBuffer {
 			copy[j++] = b[i++] - startI;
 			len = Math.max(len, to);
 		}
-		return new TreeBuffer(copy, len, this.set);
+		return new TreeBuffer$1(copy, len, this.set);
 	}
 };
-function checkSide(side, pos, from, to) {
+function checkSide$1(side, pos, from, to) {
 	switch (side) {
 		case -2: return from < pos;
 		case -1: return to >= pos && from < pos;
@@ -122192,16 +122188,16 @@ function checkSide(side, pos, from, to) {
 		case 4: return true;
 	}
 }
-function resolveNode(node, pos, side, overlays) {
+function resolveNode$1(node, pos, side, overlays) {
 	var _a;
 	while (node.from == node.to || (side < 1 ? node.from >= pos : node.from > pos) || (side > -1 ? node.to <= pos : node.to < pos)) {
-		let parent = !overlays && node instanceof TreeNode && node.index < 0 ? null : node.parent;
+		let parent = !overlays && node instanceof TreeNode$1 && node.index < 0 ? null : node.parent;
 		if (!parent) return node;
 		node = parent;
 	}
-	let mode = overlays ? 0 : IterMode.IgnoreOverlays;
+	let mode = overlays ? 0 : IterMode$1.IgnoreOverlays;
 	if (overlays) {
-		for (let scan = node, parent = scan.parent; parent; scan = parent, parent = scan.parent) if (scan instanceof TreeNode && scan.index < 0 && ((_a = parent.enter(pos, side, mode)) === null || _a === void 0 ? void 0 : _a.from) != scan.from) node = parent;
+		for (let scan = node, parent = scan.parent; parent; scan = parent, parent = scan.parent) if (scan instanceof TreeNode$1 && scan.index < 0 && ((_a = parent.enter(pos, side, mode)) === null || _a === void 0 ? void 0 : _a.from) != scan.from) node = parent;
 	}
 	for (;;) {
 		let inner = node.enter(pos, side, mode);
@@ -122209,25 +122205,25 @@ function resolveNode(node, pos, side, overlays) {
 		node = inner;
 	}
 }
-var BaseNode = class {
+var BaseNode$1 = class {
 	cursor(mode = 0) {
-		return new TreeCursor(this, mode);
+		return new TreeCursor$1(this, mode);
 	}
 	getChild(type, before = null, after = null) {
-		let r = getChildren(this, type, before, after);
+		let r = getChildren$1(this, type, before, after);
 		return r.length ? r[0] : null;
 	}
 	getChildren(type, before = null, after = null) {
-		return getChildren(this, type, before, after);
+		return getChildren$1(this, type, before, after);
 	}
 	resolve(pos, side = 0) {
-		return resolveNode(this, pos, side, false);
+		return resolveNode$1(this, pos, side, false);
 	}
 	resolveInner(pos, side = 0) {
-		return resolveNode(this, pos, side, true);
+		return resolveNode$1(this, pos, side, true);
 	}
 	matchContext(context) {
-		return matchNodeContext(this.parent, context);
+		return matchNodeContext$1(this.parent, context);
 	}
 	enterUnfinishedNodesBefore(pos) {
 		let scan = this.childBefore(pos), node = this;
@@ -122248,7 +122244,7 @@ var BaseNode = class {
 		return this.parent;
 	}
 };
-var TreeNode = class TreeNode extends BaseNode {
+var TreeNode$1 = class TreeNode$1 extends BaseNode$1 {
 	constructor(_tree, from, index, _parent) {
 		super();
 		this._tree = _tree;
@@ -122269,19 +122265,19 @@ var TreeNode = class TreeNode extends BaseNode {
 		for (let parent = this;;) {
 			for (let { children, positions } = parent._tree, e = dir > 0 ? children.length : -1; i != e; i += dir) {
 				let next = children[i], start = positions[i] + parent.from, mounted;
-				if (!(mode & IterMode.EnterBracketed && next instanceof Tree && (mounted = MountedTree.get(next)) && !mounted.overlay && mounted.bracketed && pos >= start && pos <= start + next.length) && !checkSide(side, pos, start, start + next.length)) continue;
-				if (next instanceof TreeBuffer) {
-					if (mode & IterMode.ExcludeBuffers) continue;
+				if (!(mode & IterMode$1.EnterBracketed && next instanceof Tree$1 && (mounted = MountedTree$1.get(next)) && !mounted.overlay && mounted.bracketed && pos >= start && pos <= start + next.length) && !checkSide$1(side, pos, start, start + next.length)) continue;
+				if (next instanceof TreeBuffer$1) {
+					if (mode & IterMode$1.ExcludeBuffers) continue;
 					let index = next.findChild(0, next.buffer.length, dir, pos - start, side);
-					if (index > -1) return new BufferNode(new BufferContext(parent, next, i, start), null, index);
-				} else if (mode & IterMode.IncludeAnonymous || !next.type.isAnonymous || hasChild(next)) {
+					if (index > -1) return new BufferNode$1(new BufferContext$1(parent, next, i, start), null, index);
+				} else if (mode & IterMode$1.IncludeAnonymous || !next.type.isAnonymous || hasChild$1(next)) {
 					let mounted;
-					if (!(mode & IterMode.IgnoreMounts) && (mounted = MountedTree.get(next)) && !mounted.overlay) return new TreeNode(mounted.tree, start, i, parent);
-					let inner = new TreeNode(next, start, i, parent);
-					return mode & IterMode.IncludeAnonymous || !inner.type.isAnonymous ? inner : inner.nextChild(dir < 0 ? next.children.length - 1 : 0, dir, pos, side, mode);
+					if (!(mode & IterMode$1.IgnoreMounts) && (mounted = MountedTree$1.get(next)) && !mounted.overlay) return new TreeNode$1(mounted.tree, start, i, parent);
+					let inner = new TreeNode$1(next, start, i, parent);
+					return mode & IterMode$1.IncludeAnonymous || !inner.type.isAnonymous ? inner : inner.nextChild(dir < 0 ? next.children.length - 1 : 0, dir, pos, side, mode);
 				}
 			}
-			if (mode & IterMode.IncludeAnonymous || !parent.type.isAnonymous) return null;
+			if (mode & IterMode$1.IncludeAnonymous || !parent.type.isAnonymous) return null;
 			if (parent.index >= 0) i = parent.index + dir;
 			else i = dir < 0 ? -1 : parent._parent._tree.children.length;
 			parent = parent._parent;
@@ -122305,9 +122301,9 @@ var TreeNode = class TreeNode extends BaseNode {
 	}
 	enter(pos, side, mode = 0) {
 		let mounted;
-		if (!(mode & IterMode.IgnoreOverlays) && (mounted = MountedTree.get(this._tree)) && mounted.overlay) {
-			let rPos = pos - this.from, enterBracketed = mode & IterMode.EnterBracketed && mounted.bracketed;
-			for (let { from, to } of mounted.overlay) if ((side > 0 || enterBracketed ? from <= rPos : from < rPos) && (side < 0 || enterBracketed ? to >= rPos : to > rPos)) return new TreeNode(mounted.tree, mounted.overlay[0].from + this.from, -1, this);
+		if (!(mode & IterMode$1.IgnoreOverlays) && (mounted = MountedTree$1.get(this._tree)) && mounted.overlay) {
+			let rPos = pos - this.from, enterBracketed = mode & IterMode$1.EnterBracketed && mounted.bracketed;
+			for (let { from, to } of mounted.overlay) if ((side > 0 || enterBracketed ? from <= rPos : from < rPos) && (side < 0 || enterBracketed ? to >= rPos : to > rPos)) return new TreeNode$1(mounted.tree, mounted.overlay[0].from + this.from, -1, this);
 		}
 		return this.nextChild(0, 1, pos, side, mode);
 	}
@@ -122338,7 +122334,7 @@ var TreeNode = class TreeNode extends BaseNode {
 		return this._tree.toString();
 	}
 };
-function getChildren(node, type, before, after) {
+function getChildren$1(node, type, before, after) {
 	let cur = node.cursor(), result = [];
 	if (!cur.firstChild()) return result;
 	if (before != null) for (let found = false; !found;) {
@@ -122351,7 +122347,7 @@ function getChildren(node, type, before, after) {
 		if (!cur.nextSibling()) return after == null ? result : [];
 	}
 }
-function matchNodeContext(node, context, i = context.length - 1) {
+function matchNodeContext$1(node, context, i = context.length - 1) {
 	for (let p = node; i >= 0; p = p.parent) {
 		if (!p) return false;
 		if (!p.type.isAnonymous) {
@@ -122361,7 +122357,7 @@ function matchNodeContext(node, context, i = context.length - 1) {
 	}
 	return true;
 }
-var BufferContext = class {
+var BufferContext$1 = class {
 	constructor(parent, buffer, index, start) {
 		this.parent = parent;
 		this.buffer = buffer;
@@ -122369,7 +122365,7 @@ var BufferContext = class {
 		this.start = start;
 	}
 };
-var BufferNode = class BufferNode extends BaseNode {
+var BufferNode$1 = class BufferNode$1 extends BaseNode$1 {
 	get name() {
 		return this.type.name;
 	}
@@ -122389,7 +122385,7 @@ var BufferNode = class BufferNode extends BaseNode {
 	child(dir, pos, side) {
 		let { buffer } = this.context;
 		let index = buffer.findChild(this.index + 4, buffer.buffer[this.index + 3], dir, pos - this.context.start, side);
-		return index < 0 ? null : new BufferNode(this.context, this, index);
+		return index < 0 ? null : new BufferNode$1(this.context, this, index);
 	}
 	get firstChild() {
 		return this.child(1, 0, 4);
@@ -122407,10 +122403,10 @@ var BufferNode = class BufferNode extends BaseNode {
 		return this.type.prop(prop);
 	}
 	enter(pos, side, mode = 0) {
-		if (mode & IterMode.ExcludeBuffers) return null;
+		if (mode & IterMode$1.ExcludeBuffers) return null;
 		let { buffer } = this.context;
 		let index = buffer.findChild(this.index + 4, buffer.buffer[this.index + 3], side > 0 ? 1 : -1, pos - this.context.start, side);
-		return index < 0 ? null : new BufferNode(this.context, this, index);
+		return index < 0 ? null : new BufferNode$1(this.context, this, index);
 	}
 	get parent() {
 		return this._parent || this.context.parent.nextSignificantParent();
@@ -122421,14 +122417,14 @@ var BufferNode = class BufferNode extends BaseNode {
 	get nextSibling() {
 		let { buffer } = this.context;
 		let after = buffer.buffer[this.index + 3];
-		if (after < (this._parent ? buffer.buffer[this._parent.index + 3] : buffer.buffer.length)) return new BufferNode(this.context, this._parent, after);
+		if (after < (this._parent ? buffer.buffer[this._parent.index + 3] : buffer.buffer.length)) return new BufferNode$1(this.context, this._parent, after);
 		return this.externalSibling(1);
 	}
 	get prevSibling() {
 		let { buffer } = this.context;
 		let parentStart = this._parent ? this._parent.index + 4 : 0;
 		if (this.index == parentStart) return this.externalSibling(-1);
-		return new BufferNode(this.context, this._parent, buffer.findChild(parentStart, this.index, -1, 0, 4));
+		return new BufferNode$1(this.context, this._parent, buffer.findChild(parentStart, this.index, -1, 0, 4));
 	}
 	get tree() {
 		return null;
@@ -122442,7 +122438,7 @@ var BufferNode = class BufferNode extends BaseNode {
 			children.push(buffer.slice(startI, endI, from));
 			positions.push(0);
 		}
-		return new Tree(this.type, children, positions, this.to - this.from);
+		return new Tree$1(this.type, children, positions, this.to - this.from);
 	}
 	/**
 	@internal
@@ -122451,7 +122447,7 @@ var BufferNode = class BufferNode extends BaseNode {
 		return this.context.buffer.childString(this.index);
 	}
 };
-function iterStack(heads) {
+function iterStack$1(heads) {
 	if (!heads.length) return null;
 	let pick = 0, picked = heads[0];
 	for (let i = 1; i < heads.length; i++) {
@@ -122461,41 +122457,41 @@ function iterStack(heads) {
 			pick = i;
 		}
 	}
-	let next = picked instanceof TreeNode && picked.index < 0 ? null : picked.parent;
+	let next = picked instanceof TreeNode$1 && picked.index < 0 ? null : picked.parent;
 	let newHeads = heads.slice();
 	if (next) newHeads[pick] = next;
 	else newHeads.splice(pick, 1);
-	return new StackIterator(newHeads, picked);
+	return new StackIterator$1(newHeads, picked);
 }
-var StackIterator = class {
+var StackIterator$1 = class {
 	constructor(heads, node) {
 		this.heads = heads;
 		this.node = node;
 	}
 	get next() {
-		return iterStack(this.heads);
+		return iterStack$1(this.heads);
 	}
 };
-function stackIterator(tree, pos, side) {
+function stackIterator$1(tree, pos, side) {
 	let inner = tree.resolveInner(pos, side), layers = null;
-	for (let scan = inner instanceof TreeNode ? inner : inner.context.parent; scan; scan = scan.parent) if (scan.index < 0) {
+	for (let scan = inner instanceof TreeNode$1 ? inner : inner.context.parent; scan; scan = scan.parent) if (scan.index < 0) {
 		let parent = scan.parent;
 		(layers || (layers = [inner])).push(parent.resolve(pos, side));
 		scan = parent;
 	} else {
-		let mount = MountedTree.get(scan.tree);
+		let mount = MountedTree$1.get(scan.tree);
 		if (mount && mount.overlay && mount.overlay[0].from <= pos && mount.overlay[mount.overlay.length - 1].to >= pos) {
-			let root = new TreeNode(mount.tree, mount.overlay[0].from + scan.from, -1, scan);
-			(layers || (layers = [inner])).push(resolveNode(root, pos, side, false));
+			let root = new TreeNode$1(mount.tree, mount.overlay[0].from + scan.from, -1, scan);
+			(layers || (layers = [inner])).push(resolveNode$1(root, pos, side, false));
 		}
 	}
-	return layers ? iterStack(layers) : inner;
+	return layers ? iterStack$1(layers) : inner;
 }
 /**
 A tree cursor object focuses on a given node in a syntax tree, and
 allows you to move to adjacent nodes.
 */
-var TreeCursor = class {
+var TreeCursor$1 = class {
 	/**
 	Shorthand for `.type.name`.
 	*/
@@ -122516,8 +122512,8 @@ var TreeCursor = class {
 		*/
 		this.index = 0;
 		this.bufferNode = null;
-		this.mode = mode & ~IterMode.EnterBracketed;
-		if (node instanceof TreeNode) this.yieldNode(node);
+		this.mode = mode & ~IterMode$1.EnterBracketed;
+		if (node instanceof TreeNode$1) this.yieldNode(node);
 		else {
 			this._tree = node.context.parent;
 			this.buffer = node.context;
@@ -122547,7 +122543,7 @@ var TreeCursor = class {
 	*/
 	yield(node) {
 		if (!node) return false;
-		if (node instanceof TreeNode) {
+		if (node instanceof TreeNode$1) {
 			this.buffer = null;
 			return this.yieldNode(node);
 		}
@@ -122605,15 +122601,15 @@ var TreeCursor = class {
 	*/
 	enter(pos, side, mode = this.mode) {
 		if (!this.buffer) return this.yield(this._tree.enter(pos, side, mode));
-		return mode & IterMode.ExcludeBuffers ? false : this.enterChild(1, pos, side);
+		return mode & IterMode$1.ExcludeBuffers ? false : this.enterChild(1, pos, side);
 	}
 	/**
 	Move to the node's parent node, if this isn't the top node.
 	*/
 	parent() {
-		if (!this.buffer) return this.yieldNode(this.mode & IterMode.IncludeAnonymous ? this._tree._parent : this._tree.parent);
+		if (!this.buffer) return this.yieldNode(this.mode & IterMode$1.IncludeAnonymous ? this._tree._parent : this._tree.parent);
 		if (this.stack.length) return this.yieldBuf(this.stack.pop());
-		let parent = this.mode & IterMode.IncludeAnonymous ? this.buffer.parent : this.buffer.parent.nextSignificantParent();
+		let parent = this.mode & IterMode$1.IncludeAnonymous ? this.buffer.parent : this.buffer.parent.nextSignificantParent();
 		this.buffer = null;
 		return this.yieldNode(parent);
 	}
@@ -122654,7 +122650,7 @@ var TreeCursor = class {
 		} else ({index, _parent: parent} = this._tree);
 		for (; parent; {index, _parent: parent} = parent) if (index > -1) for (let i = index + dir, e = dir < 0 ? -1 : parent._tree.children.length; i != e; i += dir) {
 			let child = parent._tree.children[i];
-			if (this.mode & IterMode.IncludeAnonymous || child instanceof TreeBuffer || !child.type.isAnonymous || hasChild(child)) return false;
+			if (this.mode & IterMode$1.IncludeAnonymous || child instanceof TreeBuffer$1 || !child.type.isAnonymous || hasChild$1(child)) return false;
 		}
 		return true;
 	}
@@ -122710,8 +122706,8 @@ var TreeCursor = class {
 			}
 			index = this.stack[--d];
 		}
-		for (let i = depth; i < this.stack.length; i++) result = new BufferNode(this.buffer, result, this.stack[i]);
-		return this.bufferNode = new BufferNode(this.buffer, result, this.index);
+		for (let i = depth; i < this.stack.length; i++) result = new BufferNode$1(this.buffer, result, this.stack[i]);
+		return this.bufferNode = new BufferNode$1(this.buffer, result, this.index);
 	}
 	/**
 	Get the [tree](#common.Tree) that represents the current node, if
@@ -122754,10 +122750,10 @@ var TreeCursor = class {
 	are treated as wildcards.
 	*/
 	matchContext(context) {
-		if (!this.buffer) return matchNodeContext(this.node.parent, context);
+		if (!this.buffer) return matchNodeContext$1(this.node.parent, context);
 		let { buffer } = this.buffer, { types } = buffer.set;
 		for (let i = context.length - 1, d = this.stack.length - 1; i >= 0; d--) {
-			if (d < 0) return matchNodeContext(this._tree, context, i);
+			if (d < 0) return matchNodeContext$1(this._tree, context, i);
 			let type = types[buffer.buffer[this.stack[d]]];
 			if (!type.isAnonymous) {
 				if (context[i] && context[i] != type.name) return false;
@@ -122767,13 +122763,13 @@ var TreeCursor = class {
 		return true;
 	}
 };
-function hasChild(tree) {
-	return tree.children.some((ch) => ch instanceof TreeBuffer || !ch.type.isAnonymous || hasChild(ch));
+function hasChild$1(tree) {
+	return tree.children.some((ch) => ch instanceof TreeBuffer$1 || !ch.type.isAnonymous || hasChild$1(ch));
 }
-function buildTree(data) {
+function buildTree$1(data) {
 	var _a;
-	let { buffer, nodeSet, maxBufferLength = DefaultBufferLength, reused = [], minRepeatType = nodeSet.types.length } = data;
-	let cursor = Array.isArray(buffer) ? new FlatBufferCursor(buffer, buffer.length) : buffer;
+	let { buffer, nodeSet, maxBufferLength = DefaultBufferLength$1, reused = [], minRepeatType = nodeSet.types.length } = data;
+	let cursor = Array.isArray(buffer) ? new FlatBufferCursor$1(buffer, buffer.length) : buffer;
 	let types = nodeSet.types;
 	let contextHash = 0, lookAhead = 0;
 	function takeNode(parentStart, minPos, children, positions, inRepeat, depth) {
@@ -122800,7 +122796,7 @@ function buildTree(data) {
 			let data = new Uint16Array(buffer.size - buffer.skip);
 			let endPos = cursor.pos - buffer.size, index = data.length;
 			while (cursor.pos > endPos) index = copyToBuffer(buffer.start, data, index);
-			node = new TreeBuffer(data, end - buffer.start, nodeSet);
+			node = new TreeBuffer$1(data, end - buffer.start, nodeSet);
 			startPos = buffer.start - parentStart;
 		} else {
 			let endPos = cursor.pos - size;
@@ -122822,7 +122818,7 @@ function buildTree(data) {
 			localPositions.reverse();
 			if (localInRepeat > -1 && lastGroup > 0) {
 				let make = makeBalanced(type, contextAtStart);
-				node = balanceRange(type, localChildren, localPositions, 0, localChildren.length, 0, end - start, make, make);
+				node = balanceRange$1(type, localChildren, localPositions, 0, localChildren.length, 0, end - start, make, make);
 			} else node = makeTree(type, localChildren, localPositions, end - start, lookAheadAtStart - end, contextAtStart);
 		}
 		children.push(node);
@@ -122851,16 +122847,16 @@ function buildTree(data) {
 				buffer[j++] = nodes[i + 2] - start;
 				buffer[j++] = j;
 			}
-			children.push(new TreeBuffer(buffer, nodes[2] - start, nodeSet));
+			children.push(new TreeBuffer$1(buffer, nodes[2] - start, nodeSet));
 			positions.push(start - parentStart);
 		}
 	}
 	function makeBalanced(type, contextHash) {
 		return (children, positions, length) => {
 			let lookAhead = 0, lastI = children.length - 1, last, lookAheadProp;
-			if (lastI >= 0 && (last = children[lastI]) instanceof Tree) {
+			if (lastI >= 0 && (last = children[lastI]) instanceof Tree$1) {
 				if (!lastI && last.type == type && last.length == length) return last;
-				if (lookAheadProp = last.prop(NodeProp.lookAhead)) lookAhead = positions[lastI] + last.length + lookAheadProp;
+				if (lookAheadProp = last.prop(NodeProp$1.lookAhead)) lookAhead = positions[lastI] + last.length + lookAheadProp;
 			}
 			return makeTree(type, children, positions, length, lookAhead, contextHash);
 		};
@@ -122876,14 +122872,14 @@ function buildTree(data) {
 	}
 	function makeTree(type, children, positions, length, lookAhead, contextHash, props) {
 		if (contextHash) {
-			let pair = [NodeProp.contextHash, contextHash];
+			let pair = [NodeProp$1.contextHash, contextHash];
 			props = props ? [pair].concat(props) : [pair];
 		}
 		if (lookAhead > 25) {
-			let pair = [NodeProp.lookAhead, lookAhead];
+			let pair = [NodeProp$1.lookAhead, lookAhead];
 			props = props ? [pair].concat(props) : [pair];
 		}
-		return new Tree(type, children, positions, length, props);
+		return new Tree$1(type, children, positions, length, props);
 	}
 	function findBufferSize(maxSize, inRepeat) {
 		let fork = cursor.fork();
@@ -122947,36 +122943,36 @@ function buildTree(data) {
 	let children = [], positions = [];
 	while (cursor.pos > 0) takeNode(data.start || 0, data.bufferStart || 0, children, positions, -1, 0);
 	let length = (_a = data.length) !== null && _a !== void 0 ? _a : children.length ? positions[0] + children[0].length : 0;
-	return new Tree(types[data.topID], children.reverse(), positions.reverse(), length);
+	return new Tree$1(types[data.topID], children.reverse(), positions.reverse(), length);
 }
-var nodeSizeCache = /* @__PURE__ */ new WeakMap();
-function nodeSize(balanceType, node) {
-	if (!balanceType.isAnonymous || node instanceof TreeBuffer || node.type != balanceType) return 1;
-	let size = nodeSizeCache.get(node);
+var nodeSizeCache$1 = /* @__PURE__ */ new WeakMap();
+function nodeSize$1(balanceType, node) {
+	if (!balanceType.isAnonymous || node instanceof TreeBuffer$1 || node.type != balanceType) return 1;
+	let size = nodeSizeCache$1.get(node);
 	if (size == null) {
 		size = 1;
 		for (let child of node.children) {
-			if (child.type != balanceType || !(child instanceof Tree)) {
+			if (child.type != balanceType || !(child instanceof Tree$1)) {
 				size = 1;
 				break;
 			}
-			size += nodeSize(balanceType, child);
+			size += nodeSize$1(balanceType, child);
 		}
-		nodeSizeCache.set(node, size);
+		nodeSizeCache$1.set(node, size);
 	}
 	return size;
 }
-function balanceRange(balanceType, children, positions, from, to, start, length, mkTop, mkTree) {
+function balanceRange$1(balanceType, children, positions, from, to, start, length, mkTop, mkTree) {
 	let total = 0;
-	for (let i = from; i < to; i++) total += nodeSize(balanceType, children[i]);
+	for (let i = from; i < to; i++) total += nodeSize$1(balanceType, children[i]);
 	let maxChild = Math.ceil(total * 1.5 / 8);
 	let localChildren = [], localPositions = [];
 	function divide(children, positions, from, to, offset) {
 		for (let i = from; i < to;) {
-			let groupFrom = i, groupStart = positions[i], groupSize = nodeSize(balanceType, children[i]);
+			let groupFrom = i, groupStart = positions[i], groupSize = nodeSize$1(balanceType, children[i]);
 			i++;
 			for (; i < to; i++) {
-				let nextSize = nodeSize(balanceType, children[i]);
+				let nextSize = nodeSize$1(balanceType, children[i]);
 				if (groupSize + nextSize >= maxChild) break;
 				groupSize += nextSize;
 			}
@@ -122989,7 +122985,7 @@ function balanceRange(balanceType, children, positions, from, to, start, length,
 				localChildren.push(children[groupFrom]);
 			} else {
 				let length = positions[i - 1] + children[i - 1].length - groupStart;
-				localChildren.push(balanceRange(balanceType, children, positions, groupFrom, i, groupStart, length, null, mkTree));
+				localChildren.push(balanceRange$1(balanceType, children, positions, groupFrom, i, groupStart, length, null, mkTree));
 			}
 			localPositions.push(groupStart + offset - start);
 		}
@@ -123125,7 +123121,7 @@ var StringInput = class {
 		return this.string.slice(from, to);
 	}
 };
-new NodeProp({ perNode: true });
+new NodeProp$1({ perNode: true });
 //#endregion
 //#region ../../node_modules/.pnpm/@marijn+find-cluster-break@1.0.4/node_modules/@marijn/find-cluster-break/src/index.js
 var rangeFrom = [];
@@ -123198,7 +123194,7 @@ function codePointSize$1(code) {
 	return code < 65536 ? 1 : 2;
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@codemirror+state@6.7.5/node_modules/@codemirror/state/dist/index.js
+//#region ../../node_modules/.pnpm/@codemirror+state@6.7.6/node_modules/@codemirror/state/dist/index.js
 /**
 The data structure for documents. @nonabstract
 */
@@ -125505,7 +125501,7 @@ var EditorState = class EditorState {
 				to: range.to,
 				insert: text
 			},
-			range: EditorSelection.cursor(range.from + text.length)
+			range: EditorSelection.cursor(range.from + text.length, -1)
 		}));
 	}
 	/**
@@ -126833,7 +126829,7 @@ function add(elt, child) {
 	else throw new RangeError("Unsupported child node: " + child);
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@codemirror+view@6.43.12/node_modules/@codemirror/view/dist/index.js
+//#region ../../node_modules/.pnpm/@codemirror+view@6.43.13/node_modules/@codemirror/view/dist/index.js
 var nav = typeof navigator != "undefined" ? navigator : {
 	userAgent: "",
 	vendor: "",
@@ -127822,8 +127818,15 @@ function trivialOrder(length) {
 var movedOver = "";
 function moveVisually(line, order, dir, start, forward) {
 	var _a;
-	let startIndex = start.head - line.from;
-	let spanI = BidiSpan.find(order, startIndex, (_a = start.bidiLevel) !== null && _a !== void 0 ? _a : -1, start.assoc);
+	if (!line.length) return null;
+	let startIndex = start.head - line.from, spanI;
+	if (start.head == line.from && start.assoc < 0) {
+		if (!forward) return null;
+		startIndex = order[spanI = 0].side(false, dir);
+	} else if (start.head == line.to && start.assoc > 0) {
+		if (forward) return null;
+		startIndex = order[spanI = order.length - 1].side(true, dir);
+	} else spanI = BidiSpan.find(order, startIndex, (_a = start.bidiLevel) !== null && _a !== void 0 ? _a : -1, start.assoc);
 	let span = order[spanI], spanEnd = span.side(forward, dir);
 	if (startIndex == spanEnd) {
 		let nextI = spanI += forward ? 1 : -1;
@@ -127836,7 +127839,10 @@ function moveVisually(line, order, dir, start, forward) {
 	if (nextIndex < span.from || nextIndex > span.to) nextIndex = spanEnd;
 	movedOver = line.text.slice(Math.min(startIndex, nextIndex), Math.max(startIndex, nextIndex));
 	let nextSpan = spanI == (forward ? order.length - 1 : 0) ? null : order[spanI + (forward ? 1 : -1)];
-	if (nextSpan && nextIndex == spanEnd && nextSpan.level + (forward ? 0 : 1) < span.level) return EditorSelection.cursor(nextSpan.side(!forward, dir) + line.from, nextSpan.forward(forward, dir) ? 1 : -1, nextSpan.level);
+	if (nextIndex == spanEnd) {
+		if (!nextSpan) return forward ? EditorSelection.cursor(line.to, 1) : EditorSelection.cursor(line.from, -1);
+		if (nextSpan.level + (forward ? 0 : 1) < span.level) return EditorSelection.cursor(nextSpan.side(!forward, dir) + line.from, nextSpan.forward(forward, dir) ? 1 : -1, nextSpan.level);
+	}
 	return EditorSelection.cursor(nextIndex + line.from, span.forward(forward, dir) ? -1 : 1, span.level);
 }
 function autoDirection(text, from, to) {
@@ -129856,8 +129862,6 @@ function moveToLineBoundary(view, start, forward, includeWrap) {
 		});
 		if (pos != null) return EditorSelection.cursor(pos, forward ? -1 : 1);
 	}
-	let line = view.state.doc.lineAt(start.head);
-	if (forward ? line.to == block.to : line.from == block.from) return view.visualLineSide(line, forward);
 	return EditorSelection.cursor(forward ? block.to : block.from, forward ? -1 : 1);
 }
 function moveByChar(view, start, forward, by) {
@@ -129870,7 +129874,7 @@ function moveByChar(view, start, forward, by) {
 			char = "\n";
 			line = view.state.doc.line(line.number + (forward ? 1 : -1));
 			spans = view.bidiSpans(line);
-			next = view.visualLineSide(line, !forward);
+			next = forward ? EditorSelection.cursor(line.from, -1) : EditorSelection.cursor(line.to, 1);
 		}
 		if (!check) {
 			if (!by) return next;
@@ -130469,7 +130473,7 @@ function selectionPoints(view) {
 function selectionFromPoints(points, base) {
 	if (points.length == 0) return null;
 	let anchor = points[0].pos, head = points.length == 2 ? points[1].pos : anchor;
-	return anchor > -1 && head > -1 ? EditorSelection.single(anchor + base, head + base) : null;
+	return anchor < 0 || head < 0 ? null : anchor == head ? EditorSelection.create([EditorSelection.cursor(head + base, -1)]) : EditorSelection.single(anchor + base, head + base);
 }
 function sameSelPos(selection, range) {
 	return range.head == selection.main.head && range.anchor == selection.main.anchor;
@@ -130563,12 +130567,14 @@ var InputState = class {
 				shiftKey: event.shiftKey
 			};
 			if (mods.shiftKey && browser.ios && !/^(off|none)$/.test(this.view.contentDOM.autocapitalize) && iosVirtualKeyboardOpen(this.view.win)) mods.shiftKey = false;
-			this.pendingIOSKey = {
+			let pending = this.pendingIOSKey = {
 				key: event.key,
 				keyCode: event.keyCode,
 				mods
 			};
-			setTimeout(() => this.flushIOSKey(), 50);
+			setTimeout(() => {
+				if (this.pendingIOSKey == pending) this.flushIOSKey();
+			}, 50);
 			return true;
 		}
 		if (event.keyCode != 229) this.view.observer.forceFlush();
@@ -130830,7 +130836,7 @@ function doPaste(view, input) {
 					from: line.from,
 					insert
 				},
-				range: EditorSelection.cursor(range.from + insert.length)
+				range: EditorSelection.cursor(range.from + insert.length, -1)
 			};
 		});
 	} else if (byLine) changes = state.changeByRange((range) => {
@@ -130841,7 +130847,7 @@ function doPaste(view, input) {
 				to: range.to,
 				insert: line.text
 			},
-			range: EditorSelection.cursor(range.from + line.length)
+			range: EditorSelection.cursor(range.from + line.length, -1)
 		};
 	});
 	else changes = state.replaceSelection(text);
@@ -131440,12 +131446,12 @@ var HeightMap = class HeightMap {
 			let next = nodes[--j];
 			if (next) after += next.size;
 		}
-		let brk = 0;
+		let brk = false;
 		if (nodes[i - 1] == null) {
-			brk = 1;
+			brk = true;
 			i--;
 		} else if (nodes[i] == null) {
-			brk = 1;
+			brk = true;
 			j++;
 		}
 		return new HeightMapBranch(HeightMap.of(nodes.slice(0, i)), brk, HeightMap.of(nodes.slice(j)));
@@ -131644,7 +131650,7 @@ var HeightMapGap = class HeightMapGap extends HeightMap {
 };
 var HeightMapBranch = class extends HeightMap {
 	constructor(left, brk, right) {
-		super(left.length + brk + right.length, left.height + right.height, brk | (left.outdated || right.outdated ? 2 : 0));
+		super(left.length + (brk ? 1 : 0) + right.length, left.height + right.height, (brk ? 1 : 0) | (left.outdated || right.outdated ? 2 : 0));
 		this.left = left;
 		this.right = right;
 		this.size = left.size + right.size;
@@ -131672,9 +131678,9 @@ var HeightMapBranch = class extends HeightMap {
 			if (to >= rightOffset) this.right.forEachLine(from, to, oracle, rightTop, rightOffset, f);
 		} else {
 			let mid = this.lineAt(rightOffset, QueryType.ByPos, oracle, top, offset);
-			if (from < mid.from) this.left.forEachLine(from, mid.from - 1, oracle, top, offset, f);
+			if (from < mid.from) this.left.forEachLine(from, Math.min(to, mid.from - 1), oracle, top, offset, f);
 			if (mid.to >= from && mid.from <= to) f(mid);
-			if (to > mid.to) this.right.forEachLine(mid.to + 1, to, oracle, rightTop, rightOffset, f);
+			if (to > mid.to) this.right.forEachLine(Math.max(from, mid.to + 1), to, oracle, rightTop, rightOffset, f);
 		}
 	}
 	replace(from, to, nodes) {
@@ -133799,15 +133805,11 @@ var EditorView = class EditorView {
 		return skipAtoms(this, start, moveByChar(this, start, forward, (initial) => byGroup(this, start.head, initial)));
 	}
 	/**
-	Get the cursor position visually at the start or end of a line.
-	Note that this may differ from the _logical_ position at its
-	start or end (which is simply at `line.from`/`line.to`) if text
-	at the start or end goes against the line's base text direction.
+	**\[DEPRECATED]** Get the cursor position visually at the start
+	or end of a line.
 	*/
 	visualLineSide(line, end) {
-		let order = this.bidiSpans(line), dir = this.textDirectionAt(line.from);
-		let span = order[end ? order.length - 1 : 0];
-		return EditorSelection.cursor(span.side(end, dir) + line.from, span.forward(!end, dir) ? 1 : -1);
+		return end ? EditorSelection.cursor(line.to, 1) : EditorSelection.cursor(line.from, -1);
 	}
 	/**
 	Move to the next line boundary in the given direction. If
@@ -133876,6 +133878,15 @@ var EditorView = class EditorView {
 		this.readMeasured();
 		let line = this.state.doc.lineAt(pos), order = this.bidiSpans(line);
 		let span = order[BidiSpan.find(order, pos - line.from, -1, side)];
+		if (line.length && (pos == line.from && side < 0 || pos == line.to && side > 0) && span.dir != this.textDirectionAt(line.from)) {
+			if (pos == line.to) {
+				pos = line.from + span.from;
+				side = 1;
+			} else {
+				pos = line.from + span.to;
+				side = -1;
+			}
+		}
 		return this.docView.coordsAt(pos, side, span.dir == Direction.RTL);
 	}
 	/**
@@ -135866,7 +135877,1352 @@ GutterMarker.prototype.mapMode = MapMode.TrackBefore;
 GutterMarker.prototype.startSide = GutterMarker.prototype.endSide = -1;
 GutterMarker.prototype.point = true;
 //#endregion
-//#region ../../node_modules/.pnpm/@lezer+highlight@1.2.3/node_modules/@lezer/highlight/dist/index.js
+//#region ../../node_modules/.pnpm/@lezer+common@1.5.3/node_modules/@lezer/common/dist/index.js
+/**
+The default maximum length of a `TreeBuffer` node.
+*/
+var DefaultBufferLength = 1024;
+var nextPropID = 0;
+/**
+Each [node type](#common.NodeType) or [individual tree](#common.Tree)
+can have metadata associated with it in props. Instances of this
+class represent prop names.
+*/
+var NodeProp = class {
+	/**
+	Create a new node prop type.
+	*/
+	constructor(config = {}) {
+		this.id = nextPropID++;
+		this.perNode = !!config.perNode;
+		this.deserialize = config.deserialize || (() => {
+			throw new Error("This node type doesn't define a deserialize function");
+		});
+		this.combine = config.combine || null;
+	}
+	/**
+	This is meant to be used with
+	[`NodeSet.extend`](#common.NodeSet.extend) or
+	[`LRParser.configure`](#lr.ParserConfig.props) to compute
+	prop values for each node type in the set. Takes a [match
+	object](#common.NodeType^match) or function that returns undefined
+	if the node type doesn't get this prop, and the prop's value if
+	it does.
+	*/
+	add(match) {
+		if (this.perNode) throw new RangeError("Can't add per-node props to node types");
+		if (typeof match != "function") match = NodeType.match(match);
+		return (type) => {
+			let result = match(type);
+			return result === void 0 ? null : [this, result];
+		};
+	}
+};
+/**
+Prop that is used to describe matching delimiters. For opening
+delimiters, this holds an array of node names (written as a
+space-separated string when declaring this prop in a grammar)
+for the node types of closing delimiters that match it.
+*/
+NodeProp.closedBy = new NodeProp({ deserialize: (str) => str.split(" ") });
+/**
+The inverse of [`closedBy`](#common.NodeProp^closedBy). This is
+attached to closing delimiters, holding an array of node names
+of types of matching opening delimiters.
+*/
+NodeProp.openedBy = new NodeProp({ deserialize: (str) => str.split(" ") });
+/**
+Used to assign node types to groups (for example, all node
+types that represent an expression could be tagged with an
+`"Expression"` group).
+*/
+NodeProp.group = new NodeProp({ deserialize: (str) => str.split(" ") });
+/**
+Attached to nodes to indicate these should be
+[displayed](https://codemirror.net/docs/ref/#language.syntaxTree)
+in a bidirectional text isolate, so that direction-neutral
+characters on their sides don't incorrectly get associated with
+surrounding text. You'll generally want to set this for nodes
+that contain arbitrary text, like strings and comments, and for
+nodes that appear _inside_ arbitrary text, like HTML tags. When
+not given a value, in a grammar declaration, defaults to
+`"auto"`.
+*/
+NodeProp.isolate = new NodeProp({ deserialize: (value) => {
+	if (value && value != "rtl" && value != "ltr" && value != "auto") throw new RangeError("Invalid value for isolate: " + value);
+	return value || "auto";
+} });
+/**
+The hash of the [context](#lr.ContextTracker.constructor)
+that the node was parsed in, if any. Used to limit reuse of
+contextual nodes.
+*/
+NodeProp.contextHash = new NodeProp({ perNode: true });
+/**
+The distance beyond the end of the node that the tokenizer
+looked ahead for any of the tokens inside the node. (The LR
+parser only stores this when it is larger than 25, for
+efficiency reasons.)
+*/
+NodeProp.lookAhead = new NodeProp({ perNode: true });
+/**
+This per-node prop is used to replace a given node, or part of a
+node, with another tree. This is useful to include trees from
+different languages in mixed-language parsers.
+*/
+NodeProp.mounted = new NodeProp({ perNode: true });
+/**
+A mounted tree, which can be [stored](#common.NodeProp^mounted) on
+a tree node to indicate that parts of its content are
+represented by another tree.
+*/
+var MountedTree = class {
+	constructor(tree, overlay, parser, bracketed = false) {
+		this.tree = tree;
+		this.overlay = overlay;
+		this.parser = parser;
+		this.bracketed = bracketed;
+	}
+	/**
+	@internal
+	*/
+	static get(tree) {
+		return tree && tree.props && tree.props[NodeProp.mounted.id];
+	}
+};
+var noProps = Object.create(null);
+/**
+Each node in a syntax tree has a node type associated with it.
+*/
+var NodeType = class NodeType {
+	/**
+	@internal
+	*/
+	constructor(name, props, id, flags = 0) {
+		this.name = name;
+		this.props = props;
+		this.id = id;
+		this.flags = flags;
+	}
+	/**
+	Define a node type.
+	*/
+	static define(spec) {
+		let props = spec.props && spec.props.length ? Object.create(null) : noProps;
+		let flags = (spec.top ? 1 : 0) | (spec.skipped ? 2 : 0) | (spec.error ? 4 : 0) | (spec.name == null ? 8 : 0);
+		let type = new NodeType(spec.name || "", props, spec.id, flags);
+		if (spec.props) for (let src of spec.props) {
+			if (!Array.isArray(src)) src = src(type);
+			if (src) {
+				if (src[0].perNode) throw new RangeError("Can't store a per-node prop on a node type");
+				props[src[0].id] = src[1];
+			}
+		}
+		return type;
+	}
+	/**
+	Retrieves a node prop for this type. Will return `undefined` if
+	the prop isn't present on this node.
+	*/
+	prop(prop) {
+		return this.props[prop.id];
+	}
+	/**
+	True when this is the top node of a grammar.
+	*/
+	get isTop() {
+		return (this.flags & 1) > 0;
+	}
+	/**
+	True when this node is produced by a skip rule.
+	*/
+	get isSkipped() {
+		return (this.flags & 2) > 0;
+	}
+	/**
+	Indicates whether this is an error node.
+	*/
+	get isError() {
+		return (this.flags & 4) > 0;
+	}
+	/**
+	When true, this node type doesn't correspond to a user-declared
+	named node, for example because it is used to cache repetition.
+	*/
+	get isAnonymous() {
+		return (this.flags & 8) > 0;
+	}
+	/**
+	Returns true when this node's name or one of its
+	[groups](#common.NodeProp^group) matches the given string.
+	*/
+	is(name) {
+		if (typeof name == "string") {
+			if (this.name == name) return true;
+			let group = this.prop(NodeProp.group);
+			return group ? group.indexOf(name) > -1 : false;
+		}
+		return this.id == name;
+	}
+	/**
+	Create a function from node types to arbitrary values by
+	specifying an object whose property names are node or
+	[group](#common.NodeProp^group) names. Often useful with
+	[`NodeProp.add`](#common.NodeProp.add). You can put multiple
+	names, separated by spaces, in a single property name to map
+	multiple node names to a single value.
+	*/
+	static match(map) {
+		let direct = Object.create(null);
+		for (let prop in map) for (let name of prop.split(" ")) direct[name] = map[prop];
+		return (node) => {
+			for (let groups = node.prop(NodeProp.group), i = -1; i < (groups ? groups.length : 0); i++) {
+				let found = direct[i < 0 ? node.name : groups[i]];
+				if (found) return found;
+			}
+		};
+	}
+};
+/**
+An empty dummy node type to use when no actual type is available.
+*/
+NodeType.none = new NodeType("", Object.create(null), 0, 8);
+var CachedNode = /* @__PURE__ */ new WeakMap();
+var CachedInnerNode = /* @__PURE__ */ new WeakMap();
+/**
+Options that control iteration. Can be combined with the `|`
+operator to enable multiple ones.
+*/
+var IterMode;
+(function(IterMode) {
+	/**
+	When enabled, iteration will only visit [`Tree`](#common.Tree)
+	objects, not nodes packed into
+	[`TreeBuffer`](#common.TreeBuffer)s.
+	*/
+	IterMode[IterMode["ExcludeBuffers"] = 1] = "ExcludeBuffers";
+	/**
+	Enable this to make iteration include anonymous nodes (such as
+	the nodes that wrap repeated grammar constructs into a balanced
+	tree).
+	*/
+	IterMode[IterMode["IncludeAnonymous"] = 2] = "IncludeAnonymous";
+	/**
+	By default, regular [mounted](#common.NodeProp^mounted) nodes
+	replace their base node in iteration. Enable this to ignore them
+	instead.
+	*/
+	IterMode[IterMode["IgnoreMounts"] = 4] = "IgnoreMounts";
+	/**
+	This option only applies in
+	[`enter`](#common.SyntaxNode.enter)-style methods. It tells the
+	library to not enter mounted overlays if one covers the given
+	position.
+	*/
+	IterMode[IterMode["IgnoreOverlays"] = 8] = "IgnoreOverlays";
+	/**
+	When set, positions on the boundary of a mounted overlay tree
+	that has its [`bracketed`](#common.NestedParse.bracketed) flag
+	set will enter that tree regardless of side. Only supported in
+	[`enter`](#common.SyntaxNode.enter), not in cursors.
+	*/
+	IterMode[IterMode["EnterBracketed"] = 16] = "EnterBracketed";
+})(IterMode || (IterMode = {}));
+/**
+A piece of syntax tree. There are two ways to approach these
+trees: the way they are actually stored in memory, and the
+convenient way.
+
+Syntax trees are stored as a tree of `Tree` and `TreeBuffer`
+objects. By packing detail information into `TreeBuffer` leaf
+nodes, the representation is made a lot more memory-efficient.
+
+However, when you want to actually work with tree nodes, this
+representation is very awkward, so most client code will want to
+use the [`TreeCursor`](#common.TreeCursor) or
+[`SyntaxNode`](#common.SyntaxNode) interface instead, which provides
+a view on some part of this data structure, and can be used to
+move around to adjacent nodes.
+*/
+var Tree = class Tree {
+	/**
+	Construct a new tree. See also [`Tree.build`](#common.Tree^build).
+	*/
+	constructor(type, children, positions, length, props) {
+		this.type = type;
+		this.children = children;
+		this.positions = positions;
+		this.length = length;
+		/**
+		@internal
+		*/
+		this.props = null;
+		if (props && props.length) {
+			this.props = Object.create(null);
+			for (let [prop, value] of props) this.props[typeof prop == "number" ? prop : prop.id] = value;
+		}
+	}
+	/**
+	@internal
+	*/
+	toString() {
+		let mounted = MountedTree.get(this);
+		if (mounted && !mounted.overlay) return mounted.tree.toString();
+		let children = "";
+		for (let ch of this.children) {
+			let str = ch.toString();
+			if (str) {
+				if (children) children += ",";
+				children += str;
+			}
+		}
+		return !this.type.name ? children : (/\W/.test(this.type.name) && !this.type.isError ? JSON.stringify(this.type.name) : this.type.name) + (children.length ? "(" + children + ")" : "");
+	}
+	/**
+	Get a [tree cursor](#common.TreeCursor) positioned at the top of
+	the tree. Mode can be used to [control](#common.IterMode) which
+	nodes the cursor visits.
+	*/
+	cursor(mode = 0) {
+		return new TreeCursor(this.topNode, mode);
+	}
+	/**
+	Get a [tree cursor](#common.TreeCursor) pointing into this tree
+	at the given position and side (see
+	[`moveTo`](#common.TreeCursor.moveTo).
+	*/
+	cursorAt(pos, side = 0, mode = 0) {
+		let cursor = new TreeCursor(CachedNode.get(this) || this.topNode);
+		cursor.moveTo(pos, side);
+		CachedNode.set(this, cursor._tree);
+		return cursor;
+	}
+	/**
+	Get a [syntax node](#common.SyntaxNode) object for the top of the
+	tree.
+	*/
+	get topNode() {
+		return new TreeNode(this, 0, 0, null);
+	}
+	/**
+	Get the [syntax node](#common.SyntaxNode) at the given position.
+	If `side` is -1, this will move into nodes that end at the
+	position. If 1, it'll move into nodes that start at the
+	position. With 0, it'll only enter nodes that cover the position
+	from both sides.
+	
+	Note that this will not enter
+	[overlays](#common.MountedTree.overlay), and you often want
+	[`resolveInner`](#common.Tree.resolveInner) instead.
+	*/
+	resolve(pos, side = 0) {
+		let node = resolveNode(CachedNode.get(this) || this.topNode, pos, side, false);
+		CachedNode.set(this, node);
+		return node;
+	}
+	/**
+	Like [`resolve`](#common.Tree.resolve), but will enter
+	[overlaid](#common.MountedTree.overlay) nodes, producing a syntax node
+	pointing into the innermost overlaid tree at the given position
+	(with parent links going through all parent structure, including
+	the host trees).
+	*/
+	resolveInner(pos, side = 0) {
+		let node = resolveNode(CachedInnerNode.get(this) || this.topNode, pos, side, true);
+		CachedInnerNode.set(this, node);
+		return node;
+	}
+	/**
+	In some situations, it can be useful to iterate through all
+	nodes around a position, including those in overlays that don't
+	directly cover the position. This method gives you an iterator
+	that will produce all nodes, from small to big, around the given
+	position.
+	*/
+	resolveStack(pos, side = 0) {
+		return stackIterator(this, pos, side);
+	}
+	/**
+	Iterate over the tree and its children, calling `enter` for any
+	node that touches the `from`/`to` region (if given) before
+	running over such a node's children, and `leave` (if given) when
+	leaving the node. When `enter` returns `false`, that node will
+	not have its children iterated over (or `leave` called).
+	*/
+	iterate(spec) {
+		let { enter, leave, from = 0, to = this.length } = spec;
+		let mode = spec.mode || 0, anon = (mode & IterMode.IncludeAnonymous) > 0;
+		for (let c = this.cursor(mode | IterMode.IncludeAnonymous);;) {
+			let entered = false;
+			if (c.from <= to && c.to >= from && (!anon && c.type.isAnonymous || enter(c) !== false)) {
+				if (c.firstChild()) continue;
+				entered = true;
+			}
+			for (;;) {
+				if (entered && leave && (anon || !c.type.isAnonymous)) leave(c);
+				if (c.nextSibling()) break;
+				if (!c.parent()) return;
+				entered = true;
+			}
+		}
+	}
+	/**
+	Get the value of the given [node prop](#common.NodeProp) for this
+	node. Works with both per-node and per-type props.
+	*/
+	prop(prop) {
+		return !prop.perNode ? this.type.prop(prop) : this.props ? this.props[prop.id] : void 0;
+	}
+	/**
+	Returns the node's [per-node props](#common.NodeProp.perNode) in a
+	format that can be passed to the [`Tree`](#common.Tree)
+	constructor.
+	*/
+	get propValues() {
+		let result = [];
+		if (this.props) for (let id in this.props) result.push([+id, this.props[id]]);
+		return result;
+	}
+	/**
+	Balance the direct children of this tree, producing a copy of
+	which may have children grouped into subtrees with type
+	[`NodeType.none`](#common.NodeType^none).
+	*/
+	balance(config = {}) {
+		return this.children.length <= 8 ? this : balanceRange(NodeType.none, this.children, this.positions, 0, this.children.length, 0, this.length, (children, positions, length) => new Tree(this.type, children, positions, length, this.propValues), config.makeTree || ((children, positions, length) => new Tree(NodeType.none, children, positions, length)));
+	}
+	/**
+	Build a tree from a postfix-ordered buffer of node information,
+	or a cursor over such a buffer.
+	*/
+	static build(data) {
+		return buildTree(data);
+	}
+};
+/**
+The empty tree
+*/
+Tree.empty = new Tree(NodeType.none, [], [], 0);
+var FlatBufferCursor = class FlatBufferCursor {
+	constructor(buffer, index) {
+		this.buffer = buffer;
+		this.index = index;
+	}
+	get id() {
+		return this.buffer[this.index - 4];
+	}
+	get start() {
+		return this.buffer[this.index - 3];
+	}
+	get end() {
+		return this.buffer[this.index - 2];
+	}
+	get size() {
+		return this.buffer[this.index - 1];
+	}
+	get pos() {
+		return this.index;
+	}
+	next() {
+		this.index -= 4;
+	}
+	fork() {
+		return new FlatBufferCursor(this.buffer, this.index);
+	}
+};
+/**
+Tree buffers contain (type, start, end, endIndex) quads for each
+node. In such a buffer, nodes are stored in prefix order (parents
+before children, with the endIndex of the parent indicating which
+children belong to it).
+*/
+var TreeBuffer = class TreeBuffer {
+	/**
+	Create a tree buffer.
+	*/
+	constructor(buffer, length, set) {
+		this.buffer = buffer;
+		this.length = length;
+		this.set = set;
+	}
+	/**
+	@internal
+	*/
+	get type() {
+		return NodeType.none;
+	}
+	/**
+	@internal
+	*/
+	toString() {
+		let result = [];
+		for (let index = 0; index < this.buffer.length;) {
+			result.push(this.childString(index));
+			index = this.buffer[index + 3];
+		}
+		return result.join(",");
+	}
+	/**
+	@internal
+	*/
+	childString(index) {
+		let id = this.buffer[index], endIndex = this.buffer[index + 3];
+		let type = this.set.types[id], result = type.name;
+		if (/\W/.test(result) && !type.isError) result = JSON.stringify(result);
+		index += 4;
+		if (endIndex == index) return result;
+		let children = [];
+		while (index < endIndex) {
+			children.push(this.childString(index));
+			index = this.buffer[index + 3];
+		}
+		return result + "(" + children.join(",") + ")";
+	}
+	/**
+	@internal
+	*/
+	findChild(startIndex, endIndex, dir, pos, side) {
+		let { buffer } = this, pick = -1;
+		for (let i = startIndex; i != endIndex; i = buffer[i + 3]) if (checkSide(side, pos, buffer[i + 1], buffer[i + 2])) {
+			pick = i;
+			if (dir > 0) break;
+		}
+		return pick;
+	}
+	/**
+	@internal
+	*/
+	slice(startI, endI, from) {
+		let b = this.buffer;
+		let copy = new Uint16Array(endI - startI), len = 0;
+		for (let i = startI, j = 0; i < endI;) {
+			copy[j++] = b[i++];
+			copy[j++] = b[i++] - from;
+			let to = copy[j++] = b[i++] - from;
+			copy[j++] = b[i++] - startI;
+			len = Math.max(len, to);
+		}
+		return new TreeBuffer(copy, len, this.set);
+	}
+};
+function checkSide(side, pos, from, to) {
+	switch (side) {
+		case -2: return from < pos;
+		case -1: return to >= pos && from < pos;
+		case 0: return from < pos && to > pos;
+		case 1: return from <= pos && to > pos;
+		case 2: return to > pos;
+		case 4: return true;
+	}
+}
+function resolveNode(node, pos, side, overlays) {
+	var _a;
+	while (node.from == node.to || (side < 1 ? node.from >= pos : node.from > pos) || (side > -1 ? node.to <= pos : node.to < pos)) {
+		let parent = !overlays && node instanceof TreeNode && node.index < 0 ? null : node.parent;
+		if (!parent) return node;
+		node = parent;
+	}
+	let mode = overlays ? 0 : IterMode.IgnoreOverlays;
+	if (overlays) {
+		for (let scan = node, parent = scan.parent; parent; scan = parent, parent = scan.parent) if (scan instanceof TreeNode && scan.index < 0 && ((_a = parent.enter(pos, side, mode)) === null || _a === void 0 ? void 0 : _a.from) != scan.from) node = parent;
+	}
+	for (;;) {
+		let inner = node.enter(pos, side, mode);
+		if (!inner) return node;
+		node = inner;
+	}
+}
+var BaseNode = class {
+	cursor(mode = 0) {
+		return new TreeCursor(this, mode);
+	}
+	getChild(type, before = null, after = null) {
+		let r = getChildren(this, type, before, after);
+		return r.length ? r[0] : null;
+	}
+	getChildren(type, before = null, after = null) {
+		return getChildren(this, type, before, after);
+	}
+	resolve(pos, side = 0) {
+		return resolveNode(this, pos, side, false);
+	}
+	resolveInner(pos, side = 0) {
+		return resolveNode(this, pos, side, true);
+	}
+	matchContext(context) {
+		return matchNodeContext(this.parent, context);
+	}
+	enterUnfinishedNodesBefore(pos) {
+		let scan = this.childBefore(pos), node = this;
+		while (scan) {
+			let last = scan.lastChild;
+			if (!last || last.to != scan.to) break;
+			if (last.type.isError && last.from == last.to) {
+				node = scan;
+				scan = last.prevSibling;
+			} else scan = last;
+		}
+		return node;
+	}
+	get node() {
+		return this;
+	}
+	get next() {
+		return this.parent;
+	}
+};
+var TreeNode = class TreeNode extends BaseNode {
+	constructor(_tree, from, index, _parent) {
+		super();
+		this._tree = _tree;
+		this.from = from;
+		this.index = index;
+		this._parent = _parent;
+	}
+	get type() {
+		return this._tree.type;
+	}
+	get name() {
+		return this._tree.type.name;
+	}
+	get to() {
+		return this.from + this._tree.length;
+	}
+	nextChild(i, dir, pos, side, mode = 0) {
+		for (let parent = this;;) {
+			for (let { children, positions } = parent._tree, e = dir > 0 ? children.length : -1; i != e; i += dir) {
+				let next = children[i], start = positions[i] + parent.from, mounted;
+				if (!(mode & IterMode.EnterBracketed && next instanceof Tree && (mounted = MountedTree.get(next)) && !mounted.overlay && mounted.bracketed && pos >= start && pos <= start + next.length) && !checkSide(side, pos, start, start + next.length)) continue;
+				if (next instanceof TreeBuffer) {
+					if (mode & IterMode.ExcludeBuffers) continue;
+					let index = next.findChild(0, next.buffer.length, dir, pos - start, side);
+					if (index > -1) return new BufferNode(new BufferContext(parent, next, i, start), null, index);
+				} else if (mode & IterMode.IncludeAnonymous || !next.type.isAnonymous || hasChild(next)) {
+					let mounted;
+					if (!(mode & IterMode.IgnoreMounts) && (mounted = MountedTree.get(next)) && !mounted.overlay) return new TreeNode(mounted.tree, start, i, parent);
+					let inner = new TreeNode(next, start, i, parent);
+					return mode & IterMode.IncludeAnonymous || !inner.type.isAnonymous ? inner : inner.nextChild(dir < 0 ? next.children.length - 1 : 0, dir, pos, side, mode);
+				}
+			}
+			if (mode & IterMode.IncludeAnonymous || !parent.type.isAnonymous) return null;
+			if (parent.index >= 0) i = parent.index + dir;
+			else i = dir < 0 ? -1 : parent._parent._tree.children.length;
+			parent = parent._parent;
+			if (!parent) return null;
+		}
+	}
+	get firstChild() {
+		return this.nextChild(0, 1, 0, 4);
+	}
+	get lastChild() {
+		return this.nextChild(this._tree.children.length - 1, -1, 0, 4);
+	}
+	childAfter(pos) {
+		return this.nextChild(0, 1, pos, 2);
+	}
+	childBefore(pos) {
+		return this.nextChild(this._tree.children.length - 1, -1, pos, -2);
+	}
+	prop(prop) {
+		return this._tree.prop(prop);
+	}
+	enter(pos, side, mode = 0) {
+		let mounted;
+		if (!(mode & IterMode.IgnoreOverlays) && (mounted = MountedTree.get(this._tree)) && mounted.overlay) {
+			let rPos = pos - this.from, enterBracketed = mode & IterMode.EnterBracketed && mounted.bracketed;
+			for (let { from, to } of mounted.overlay) if ((side > 0 || enterBracketed ? from <= rPos : from < rPos) && (side < 0 || enterBracketed ? to >= rPos : to > rPos)) return new TreeNode(mounted.tree, mounted.overlay[0].from + this.from, -1, this);
+		}
+		return this.nextChild(0, 1, pos, side, mode);
+	}
+	nextSignificantParent() {
+		let val = this;
+		while (val.type.isAnonymous && val._parent) val = val._parent;
+		return val;
+	}
+	get parent() {
+		return this._parent ? this._parent.nextSignificantParent() : null;
+	}
+	get nextSibling() {
+		return this._parent && this.index >= 0 ? this._parent.nextChild(this.index + 1, 1, 0, 4) : null;
+	}
+	get prevSibling() {
+		return this._parent && this.index >= 0 ? this._parent.nextChild(this.index - 1, -1, 0, 4) : null;
+	}
+	get tree() {
+		return this._tree;
+	}
+	toTree() {
+		return this._tree;
+	}
+	/**
+	@internal
+	*/
+	toString() {
+		return this._tree.toString();
+	}
+};
+function getChildren(node, type, before, after) {
+	let cur = node.cursor(), result = [];
+	if (!cur.firstChild()) return result;
+	if (before != null) for (let found = false; !found;) {
+		found = cur.type.is(before);
+		if (!cur.nextSibling()) return result;
+	}
+	for (;;) {
+		if (after != null && cur.type.is(after)) return result;
+		if (cur.type.is(type)) result.push(cur.node);
+		if (!cur.nextSibling()) return after == null ? result : [];
+	}
+}
+function matchNodeContext(node, context, i = context.length - 1) {
+	for (let p = node; i >= 0; p = p.parent) {
+		if (!p) return false;
+		if (!p.type.isAnonymous) {
+			if (context[i] && context[i] != p.name) return false;
+			i--;
+		}
+	}
+	return true;
+}
+var BufferContext = class {
+	constructor(parent, buffer, index, start) {
+		this.parent = parent;
+		this.buffer = buffer;
+		this.index = index;
+		this.start = start;
+	}
+};
+var BufferNode = class BufferNode extends BaseNode {
+	get name() {
+		return this.type.name;
+	}
+	get from() {
+		return this.context.start + this.context.buffer.buffer[this.index + 1];
+	}
+	get to() {
+		return this.context.start + this.context.buffer.buffer[this.index + 2];
+	}
+	constructor(context, _parent, index) {
+		super();
+		this.context = context;
+		this._parent = _parent;
+		this.index = index;
+		this.type = context.buffer.set.types[context.buffer.buffer[index]];
+	}
+	child(dir, pos, side) {
+		let { buffer } = this.context;
+		let index = buffer.findChild(this.index + 4, buffer.buffer[this.index + 3], dir, pos - this.context.start, side);
+		return index < 0 ? null : new BufferNode(this.context, this, index);
+	}
+	get firstChild() {
+		return this.child(1, 0, 4);
+	}
+	get lastChild() {
+		return this.child(-1, 0, 4);
+	}
+	childAfter(pos) {
+		return this.child(1, pos, 2);
+	}
+	childBefore(pos) {
+		return this.child(-1, pos, -2);
+	}
+	prop(prop) {
+		return this.type.prop(prop);
+	}
+	enter(pos, side, mode = 0) {
+		if (mode & IterMode.ExcludeBuffers) return null;
+		let { buffer } = this.context;
+		let index = buffer.findChild(this.index + 4, buffer.buffer[this.index + 3], side > 0 ? 1 : -1, pos - this.context.start, side);
+		return index < 0 ? null : new BufferNode(this.context, this, index);
+	}
+	get parent() {
+		return this._parent || this.context.parent.nextSignificantParent();
+	}
+	externalSibling(dir) {
+		return this._parent ? null : this.context.parent.nextChild(this.context.index + dir, dir, 0, 4);
+	}
+	get nextSibling() {
+		let { buffer } = this.context;
+		let after = buffer.buffer[this.index + 3];
+		if (after < (this._parent ? buffer.buffer[this._parent.index + 3] : buffer.buffer.length)) return new BufferNode(this.context, this._parent, after);
+		return this.externalSibling(1);
+	}
+	get prevSibling() {
+		let { buffer } = this.context;
+		let parentStart = this._parent ? this._parent.index + 4 : 0;
+		if (this.index == parentStart) return this.externalSibling(-1);
+		return new BufferNode(this.context, this._parent, buffer.findChild(parentStart, this.index, -1, 0, 4));
+	}
+	get tree() {
+		return null;
+	}
+	toTree() {
+		let children = [], positions = [];
+		let { buffer } = this.context;
+		let startI = this.index + 4, endI = buffer.buffer[this.index + 3];
+		if (endI > startI) {
+			let from = buffer.buffer[this.index + 1];
+			children.push(buffer.slice(startI, endI, from));
+			positions.push(0);
+		}
+		return new Tree(this.type, children, positions, this.to - this.from);
+	}
+	/**
+	@internal
+	*/
+	toString() {
+		return this.context.buffer.childString(this.index);
+	}
+};
+function iterStack(heads) {
+	if (!heads.length) return null;
+	let pick = 0, picked = heads[0];
+	for (let i = 1; i < heads.length; i++) {
+		let node = heads[i];
+		if (node.from > picked.from || node.to < picked.to) {
+			picked = node;
+			pick = i;
+		}
+	}
+	let next = picked instanceof TreeNode && picked.index < 0 ? null : picked.parent;
+	let newHeads = heads.slice();
+	if (next) newHeads[pick] = next;
+	else newHeads.splice(pick, 1);
+	return new StackIterator(newHeads, picked);
+}
+var StackIterator = class {
+	constructor(heads, node) {
+		this.heads = heads;
+		this.node = node;
+	}
+	get next() {
+		return iterStack(this.heads);
+	}
+};
+function stackIterator(tree, pos, side) {
+	let inner = tree.resolveInner(pos, side), layers = null;
+	for (let scan = inner instanceof TreeNode ? inner : inner.context.parent; scan; scan = scan.parent) if (scan.index < 0) {
+		let parent = scan.parent;
+		(layers || (layers = [inner])).push(parent.resolve(pos, side));
+		scan = parent;
+	} else {
+		let mount = MountedTree.get(scan.tree);
+		if (mount && mount.overlay && mount.overlay[0].from <= pos && mount.overlay[mount.overlay.length - 1].to >= pos) {
+			let root = new TreeNode(mount.tree, mount.overlay[0].from + scan.from, -1, scan);
+			(layers || (layers = [inner])).push(resolveNode(root, pos, side, false));
+		}
+	}
+	return layers ? iterStack(layers) : inner;
+}
+/**
+A tree cursor object focuses on a given node in a syntax tree, and
+allows you to move to adjacent nodes.
+*/
+var TreeCursor = class {
+	/**
+	Shorthand for `.type.name`.
+	*/
+	get name() {
+		return this.type.name;
+	}
+	/**
+	@internal
+	*/
+	constructor(node, mode = 0) {
+		/**
+		@internal
+		*/
+		this.buffer = null;
+		this.stack = [];
+		/**
+		@internal
+		*/
+		this.index = 0;
+		this.bufferNode = null;
+		this.mode = mode & ~IterMode.EnterBracketed;
+		if (node instanceof TreeNode) this.yieldNode(node);
+		else {
+			this._tree = node.context.parent;
+			this.buffer = node.context;
+			for (let n = node._parent; n; n = n._parent) this.stack.unshift(n.index);
+			this.bufferNode = node;
+			this.yieldBuf(node.index);
+		}
+	}
+	yieldNode(node) {
+		if (!node) return false;
+		this._tree = node;
+		this.type = node.type;
+		this.from = node.from;
+		this.to = node.to;
+		return true;
+	}
+	yieldBuf(index, type) {
+		this.index = index;
+		let { start, buffer } = this.buffer;
+		this.type = type || buffer.set.types[buffer.buffer[index]];
+		this.from = start + buffer.buffer[index + 1];
+		this.to = start + buffer.buffer[index + 2];
+		return true;
+	}
+	/**
+	@internal
+	*/
+	yield(node) {
+		if (!node) return false;
+		if (node instanceof TreeNode) {
+			this.buffer = null;
+			return this.yieldNode(node);
+		}
+		this.buffer = node.context;
+		return this.yieldBuf(node.index, node.type);
+	}
+	/**
+	@internal
+	*/
+	toString() {
+		return this.buffer ? this.buffer.buffer.childString(this.index) : this._tree.toString();
+	}
+	/**
+	@internal
+	*/
+	enterChild(dir, pos, side) {
+		if (!this.buffer) return this.yield(this._tree.nextChild(dir < 0 ? this._tree._tree.children.length - 1 : 0, dir, pos, side, this.mode));
+		let { buffer } = this.buffer;
+		let index = buffer.findChild(this.index + 4, buffer.buffer[this.index + 3], dir, pos - this.buffer.start, side);
+		if (index < 0) return false;
+		this.stack.push(this.index);
+		return this.yieldBuf(index);
+	}
+	/**
+	Move the cursor to this node's first child. When this returns
+	false, the node has no child, and the cursor has not been moved.
+	*/
+	firstChild() {
+		return this.enterChild(1, 0, 4);
+	}
+	/**
+	Move the cursor to this node's last child.
+	*/
+	lastChild() {
+		return this.enterChild(-1, 0, 4);
+	}
+	/**
+	Move the cursor to the first child that ends after `pos`.
+	*/
+	childAfter(pos) {
+		return this.enterChild(1, pos, 2);
+	}
+	/**
+	Move to the last child that starts before `pos`.
+	*/
+	childBefore(pos) {
+		return this.enterChild(-1, pos, -2);
+	}
+	/**
+	Move the cursor to the child around `pos`. If side is -1 the
+	child may end at that position, when 1 it may start there. This
+	will also enter [overlaid](#common.MountedTree.overlay)
+	[mounted](#common.NodeProp^mounted) trees unless `overlays` is
+	set to false.
+	*/
+	enter(pos, side, mode = this.mode) {
+		if (!this.buffer) return this.yield(this._tree.enter(pos, side, mode));
+		return mode & IterMode.ExcludeBuffers ? false : this.enterChild(1, pos, side);
+	}
+	/**
+	Move to the node's parent node, if this isn't the top node.
+	*/
+	parent() {
+		if (!this.buffer) return this.yieldNode(this.mode & IterMode.IncludeAnonymous ? this._tree._parent : this._tree.parent);
+		if (this.stack.length) return this.yieldBuf(this.stack.pop());
+		let parent = this.mode & IterMode.IncludeAnonymous ? this.buffer.parent : this.buffer.parent.nextSignificantParent();
+		this.buffer = null;
+		return this.yieldNode(parent);
+	}
+	/**
+	@internal
+	*/
+	sibling(dir) {
+		if (!this.buffer) return !this._tree._parent ? false : this.yield(this._tree.index < 0 ? null : this._tree._parent.nextChild(this._tree.index + dir, dir, 0, 4, this.mode));
+		let { buffer } = this.buffer, d = this.stack.length - 1;
+		if (dir < 0) {
+			let parentStart = d < 0 ? 0 : this.stack[d] + 4;
+			if (this.index != parentStart) return this.yieldBuf(buffer.findChild(parentStart, this.index, -1, 0, 4));
+		} else {
+			let after = buffer.buffer[this.index + 3];
+			if (after < (d < 0 ? buffer.buffer.length : buffer.buffer[this.stack[d] + 3])) return this.yieldBuf(after);
+		}
+		return d < 0 ? this.yield(this.buffer.parent.nextChild(this.buffer.index + dir, dir, 0, 4, this.mode)) : false;
+	}
+	/**
+	Move to this node's next sibling, if any.
+	*/
+	nextSibling() {
+		return this.sibling(1);
+	}
+	/**
+	Move to this node's previous sibling, if any.
+	*/
+	prevSibling() {
+		return this.sibling(-1);
+	}
+	atLastNode(dir) {
+		let index, parent, { buffer } = this;
+		if (buffer) {
+			if (dir > 0) {
+				if (this.index < buffer.buffer.buffer.length) return false;
+			} else for (let i = 0; i < this.index; i++) if (buffer.buffer.buffer[i + 3] < this.index) return false;
+			({index, parent} = buffer);
+		} else ({index, _parent: parent} = this._tree);
+		for (; parent; {index, _parent: parent} = parent) if (index > -1) for (let i = index + dir, e = dir < 0 ? -1 : parent._tree.children.length; i != e; i += dir) {
+			let child = parent._tree.children[i];
+			if (this.mode & IterMode.IncludeAnonymous || child instanceof TreeBuffer || !child.type.isAnonymous || hasChild(child)) return false;
+		}
+		return true;
+	}
+	move(dir, enter) {
+		if (enter && this.enterChild(dir, 0, 4)) return true;
+		for (;;) {
+			if (this.sibling(dir)) return true;
+			if (this.atLastNode(dir) || !this.parent()) return false;
+		}
+	}
+	/**
+	Move to the next node in a
+	[pre-order](https://en.wikipedia.org/wiki/Tree_traversal#Pre-order,_NLR)
+	traversal, going from a node to its first child or, if the
+	current node is empty or `enter` is false, its next sibling or
+	the next sibling of the first parent node that has one.
+	*/
+	next(enter = true) {
+		return this.move(1, enter);
+	}
+	/**
+	Move to the next node in a last-to-first pre-order traversal. A
+	node is followed by its last child or, if it has none, its
+	previous sibling or the previous sibling of the first parent
+	node that has one.
+	*/
+	prev(enter = true) {
+		return this.move(-1, enter);
+	}
+	/**
+	Move the cursor to the innermost node that covers `pos`. If
+	`side` is -1, it will enter nodes that end at `pos`. If it is 1,
+	it will enter nodes that start at `pos`.
+	*/
+	moveTo(pos, side = 0) {
+		while (this.from == this.to || (side < 1 ? this.from >= pos : this.from > pos) || (side > -1 ? this.to <= pos : this.to < pos)) if (!this.parent()) break;
+		while (this.enterChild(1, pos, side));
+		return this;
+	}
+	/**
+	Get a [syntax node](#common.SyntaxNode) at the cursor's current
+	position.
+	*/
+	get node() {
+		if (!this.buffer) return this._tree;
+		let cache = this.bufferNode, result = null, depth = 0;
+		if (cache && cache.context == this.buffer) scan: for (let index = this.index, d = this.stack.length; d >= 0;) {
+			for (let c = cache; c; c = c._parent) if (c.index == index) {
+				if (index == this.index) return c;
+				result = c;
+				depth = d + 1;
+				break scan;
+			}
+			index = this.stack[--d];
+		}
+		for (let i = depth; i < this.stack.length; i++) result = new BufferNode(this.buffer, result, this.stack[i]);
+		return this.bufferNode = new BufferNode(this.buffer, result, this.index);
+	}
+	/**
+	Get the [tree](#common.Tree) that represents the current node, if
+	any. Will return null when the node is in a [tree
+	buffer](#common.TreeBuffer).
+	*/
+	get tree() {
+		return this.buffer ? null : this._tree._tree;
+	}
+	/**
+	Iterate over the current node and all its descendants, calling
+	`enter` when entering a node and `leave`, if given, when leaving
+	one. When `enter` returns `false`, any children of that node are
+	skipped, and `leave` isn't called for it.
+	*/
+	iterate(enter, leave) {
+		for (let depth = 0;;) {
+			let mustLeave = false;
+			if (this.type.isAnonymous || enter(this) !== false) {
+				if (this.firstChild()) {
+					depth++;
+					continue;
+				}
+				if (!this.type.isAnonymous) mustLeave = true;
+			}
+			for (;;) {
+				if (mustLeave && leave) leave(this);
+				mustLeave = this.type.isAnonymous;
+				if (!depth) return;
+				if (this.nextSibling()) break;
+				this.parent();
+				depth--;
+				mustLeave = true;
+			}
+		}
+	}
+	/**
+	Test whether the current node matches a given context—a sequence
+	of direct parent node names. Empty strings in the context array
+	are treated as wildcards.
+	*/
+	matchContext(context) {
+		if (!this.buffer) return matchNodeContext(this.node.parent, context);
+		let { buffer } = this.buffer, { types } = buffer.set;
+		for (let i = context.length - 1, d = this.stack.length - 1; i >= 0; d--) {
+			if (d < 0) return matchNodeContext(this._tree, context, i);
+			let type = types[buffer.buffer[this.stack[d]]];
+			if (!type.isAnonymous) {
+				if (context[i] && context[i] != type.name) return false;
+				i--;
+			}
+		}
+		return true;
+	}
+};
+function hasChild(tree) {
+	return tree.children.some((ch) => ch instanceof TreeBuffer || !ch.type.isAnonymous || hasChild(ch));
+}
+function buildTree(data) {
+	var _a;
+	let { buffer, nodeSet, maxBufferLength = DefaultBufferLength, reused = [], minRepeatType = nodeSet.types.length } = data;
+	let cursor = Array.isArray(buffer) ? new FlatBufferCursor(buffer, buffer.length) : buffer;
+	let types = nodeSet.types;
+	let contextHash = 0, lookAhead = 0;
+	function takeNode(parentStart, minPos, children, positions, inRepeat, depth) {
+		let { id, start, end, size } = cursor;
+		let lookAheadAtStart = lookAhead, contextAtStart = contextHash;
+		if (size < 0) {
+			cursor.next();
+			if (size == -1) {
+				let node = reused[id];
+				children.push(node);
+				positions.push(start - parentStart);
+				return;
+			} else if (size == -3) {
+				contextHash = id;
+				return;
+			} else if (size == -4) {
+				lookAhead = id;
+				return;
+			} else throw new RangeError(`Unrecognized record size: ${size}`);
+		}
+		let type = types[id], node, buffer;
+		let startPos = start - parentStart;
+		if (end - start <= maxBufferLength && (buffer = findBufferSize(cursor.pos - minPos, inRepeat))) {
+			let data = new Uint16Array(buffer.size - buffer.skip);
+			let endPos = cursor.pos - buffer.size, index = data.length;
+			while (cursor.pos > endPos) index = copyToBuffer(buffer.start, data, index);
+			node = new TreeBuffer(data, end - buffer.start, nodeSet);
+			startPos = buffer.start - parentStart;
+		} else {
+			let endPos = cursor.pos - size;
+			cursor.next();
+			let localChildren = [], localPositions = [];
+			let localInRepeat = id >= minRepeatType ? id : -1;
+			let lastGroup = 0, lastEnd = end;
+			while (cursor.pos > endPos) if (localInRepeat >= 0 && cursor.id == localInRepeat && cursor.size >= 0) {
+				if (cursor.end <= lastEnd - maxBufferLength) {
+					makeRepeatLeaf(localChildren, localPositions, start, lastGroup, cursor.end, lastEnd, localInRepeat, lookAheadAtStart, contextAtStart);
+					lastGroup = localChildren.length;
+					lastEnd = cursor.end;
+				}
+				cursor.next();
+			} else if (depth > 2500) takeFlatNode(start, endPos, localChildren, localPositions);
+			else takeNode(start, endPos, localChildren, localPositions, localInRepeat, depth + 1);
+			if (localInRepeat >= 0 && lastGroup > 0 && lastGroup < localChildren.length) makeRepeatLeaf(localChildren, localPositions, start, lastGroup, start, lastEnd, localInRepeat, lookAheadAtStart, contextAtStart);
+			localChildren.reverse();
+			localPositions.reverse();
+			if (localInRepeat > -1 && lastGroup > 0) {
+				let make = makeBalanced(type, contextAtStart);
+				node = balanceRange(type, localChildren, localPositions, 0, localChildren.length, 0, end - start, make, make);
+			} else node = makeTree(type, localChildren, localPositions, end - start, lookAheadAtStart - end, contextAtStart);
+		}
+		children.push(node);
+		positions.push(startPos);
+	}
+	function takeFlatNode(parentStart, minPos, children, positions) {
+		let nodes = [];
+		let nodeCount = 0, stopAt = -1;
+		while (cursor.pos > minPos) {
+			let { id, start, end, size } = cursor;
+			if (size > 4) cursor.next();
+			else if (stopAt > -1 && start < stopAt) break;
+			else {
+				if (stopAt < 0) stopAt = end - maxBufferLength;
+				nodes.push(id, start, end);
+				nodeCount++;
+				cursor.next();
+			}
+		}
+		if (nodeCount) {
+			let buffer = new Uint16Array(nodeCount * 4);
+			let start = nodes[nodes.length - 2];
+			for (let i = nodes.length - 3, j = 0; i >= 0; i -= 3) {
+				buffer[j++] = nodes[i];
+				buffer[j++] = nodes[i + 1] - start;
+				buffer[j++] = nodes[i + 2] - start;
+				buffer[j++] = j;
+			}
+			children.push(new TreeBuffer(buffer, nodes[2] - start, nodeSet));
+			positions.push(start - parentStart);
+		}
+	}
+	function makeBalanced(type, contextHash) {
+		return (children, positions, length) => {
+			let lookAhead = 0, lastI = children.length - 1, last, lookAheadProp;
+			if (lastI >= 0 && (last = children[lastI]) instanceof Tree) {
+				if (!lastI && last.type == type && last.length == length) return last;
+				if (lookAheadProp = last.prop(NodeProp.lookAhead)) lookAhead = positions[lastI] + last.length + lookAheadProp;
+			}
+			return makeTree(type, children, positions, length, lookAhead, contextHash);
+		};
+	}
+	function makeRepeatLeaf(children, positions, base, i, from, to, type, lookAhead, contextHash) {
+		let localChildren = [], localPositions = [];
+		while (children.length > i) {
+			localChildren.push(children.pop());
+			localPositions.push(positions.pop() + base - from);
+		}
+		children.push(makeTree(nodeSet.types[type], localChildren, localPositions, to - from, lookAhead - to, contextHash));
+		positions.push(from - base);
+	}
+	function makeTree(type, children, positions, length, lookAhead, contextHash, props) {
+		if (contextHash) {
+			let pair = [NodeProp.contextHash, contextHash];
+			props = props ? [pair].concat(props) : [pair];
+		}
+		if (lookAhead > 25) {
+			let pair = [NodeProp.lookAhead, lookAhead];
+			props = props ? [pair].concat(props) : [pair];
+		}
+		return new Tree(type, children, positions, length, props);
+	}
+	function findBufferSize(maxSize, inRepeat) {
+		let fork = cursor.fork();
+		let size = 0, start = 0, skip = 0, minStart = fork.end - maxBufferLength;
+		let result = {
+			size: 0,
+			start: 0,
+			skip: 0
+		};
+		scan: for (let minPos = fork.pos - maxSize; fork.pos > minPos;) {
+			let nodeSize = fork.size;
+			if (fork.id == inRepeat && nodeSize >= 0) {
+				result.size = size;
+				result.start = start;
+				result.skip = skip;
+				skip += 4;
+				size += 4;
+				fork.next();
+				continue;
+			}
+			let startPos = fork.pos - nodeSize;
+			if (nodeSize < 0 || startPos < minPos || fork.start < minStart) break;
+			let localSkipped = fork.id >= minRepeatType ? 4 : 0;
+			let nodeStart = fork.start;
+			fork.next();
+			while (fork.pos > startPos) {
+				if (fork.size < 0) {
+					if (fork.size == -3 || fork.size == -4) localSkipped += 4;
+					else break scan;
+				} else if (fork.id >= minRepeatType) localSkipped += 4;
+				fork.next();
+			}
+			start = nodeStart;
+			size += nodeSize;
+			skip += localSkipped;
+		}
+		if (inRepeat < 0 || size == maxSize) {
+			result.size = size;
+			result.start = start;
+			result.skip = skip;
+		}
+		return result.size > 4 ? result : void 0;
+	}
+	function copyToBuffer(bufferStart, buffer, index) {
+		let { id, start, end, size } = cursor;
+		cursor.next();
+		if (size >= 0 && id < minRepeatType) {
+			let startIndex = index;
+			if (size > 4) {
+				let endPos = cursor.pos - (size - 4);
+				while (cursor.pos > endPos) index = copyToBuffer(bufferStart, buffer, index);
+			}
+			buffer[--index] = startIndex;
+			buffer[--index] = end - bufferStart;
+			buffer[--index] = start - bufferStart;
+			buffer[--index] = id;
+		} else if (size == -3) contextHash = id;
+		else if (size == -4) lookAhead = id;
+		return index;
+	}
+	let children = [], positions = [];
+	while (cursor.pos > 0) takeNode(data.start || 0, data.bufferStart || 0, children, positions, -1, 0);
+	let length = (_a = data.length) !== null && _a !== void 0 ? _a : children.length ? positions[0] + children[0].length : 0;
+	return new Tree(types[data.topID], children.reverse(), positions.reverse(), length);
+}
+var nodeSizeCache = /* @__PURE__ */ new WeakMap();
+function nodeSize(balanceType, node) {
+	if (!balanceType.isAnonymous || node instanceof TreeBuffer || node.type != balanceType) return 1;
+	let size = nodeSizeCache.get(node);
+	if (size == null) {
+		size = 1;
+		for (let child of node.children) {
+			if (child.type != balanceType || !(child instanceof Tree)) {
+				size = 1;
+				break;
+			}
+			size += nodeSize(balanceType, child);
+		}
+		nodeSizeCache.set(node, size);
+	}
+	return size;
+}
+function balanceRange(balanceType, children, positions, from, to, start, length, mkTop, mkTree) {
+	let total = 0;
+	for (let i = from; i < to; i++) total += nodeSize(balanceType, children[i]);
+	let maxChild = Math.ceil(total * 1.5 / 8);
+	let localChildren = [], localPositions = [];
+	function divide(children, positions, from, to, offset) {
+		for (let i = from; i < to;) {
+			let groupFrom = i, groupStart = positions[i], groupSize = nodeSize(balanceType, children[i]);
+			i++;
+			for (; i < to; i++) {
+				let nextSize = nodeSize(balanceType, children[i]);
+				if (groupSize + nextSize >= maxChild) break;
+				groupSize += nextSize;
+			}
+			if (i == groupFrom + 1) {
+				if (groupSize > maxChild) {
+					let only = children[groupFrom];
+					divide(only.children, only.positions, 0, only.children.length, positions[groupFrom] + offset);
+					continue;
+				}
+				localChildren.push(children[groupFrom]);
+			} else {
+				let length = positions[i - 1] + children[i - 1].length - groupStart;
+				localChildren.push(balanceRange(balanceType, children, positions, groupFrom, i, groupStart, length, null, mkTree));
+			}
+			localPositions.push(groupStart + offset - start);
+		}
+	}
+	divide(children, positions, from, to, 0);
+	return (mkTop || mkTree)(localChildren, localPositions, length);
+}
+new NodeProp({ perNode: true });
+//#endregion
+//#region ../../node_modules/.pnpm/@lezer+highlight@1.2.5/node_modules/@lezer/highlight/dist/index.js
 var nextTagID = 0;
 /**
 Highlighting tags are markers that denote a highlighting category.
@@ -136047,7 +137403,7 @@ function styleTags(spec) {
 var ruleNodeProp = new NodeProp({ combine(a, b) {
 	let cur, root, take;
 	while (a || b) {
-		if (!a || b && a.depth >= b.depth) {
+		if (!a || b && a.depth <= b.depth) {
 			take = b;
 			b = b.next;
 		} else {
@@ -136230,7 +137586,7 @@ and necessarily incomplete. A full ontology of syntactic
 constructs would fill a stack of books, and be impractical to
 write themes for. So try to make do with this set. If all else
 fails, [open an
-issue](https://github.com/codemirror/codemirror.next) to propose a
+issue](https://code.haverbeke.berlin/codemirror/dev/issues) to propose a
 new tag, or [define](#highlight.Tag^define) a local custom tag for
 your use case.
 
@@ -136837,7 +138193,7 @@ var _a;
 Node prop stored in a parser's top syntax node to provide the
 facet that stores language-specific data for that language.
 */
-var languageDataProp = /*@__PURE__*/ new NodeProp();
+var languageDataProp = /*@__PURE__*/ new NodeProp$1();
 /**
 Helper function to define a facet (to be added to the top syntax
 node(s) for a language via
@@ -136853,7 +138209,7 @@ function defineLanguageFacet(baseData) {
 Syntax node prop used to register sublanguages. Should be added to
 the top level node type for the language.
 */
-var sublanguageProp = /*@__PURE__*/ new NodeProp();
+var sublanguageProp = /*@__PURE__*/ new NodeProp$1();
 /**
 A language object manages parsing and per-language
 [metadata](https://codemirror.net/6/docs/ref/#state.EditorState.languageDataAt). Parse data is
@@ -136919,7 +138275,7 @@ var Language = class {
 				});
 				return;
 			}
-			let mount = tree.prop(NodeProp.mounted);
+			let mount = tree.prop(NodeProp$1.mounted);
 			if (mount) {
 				if (mount.tree.prop(languageDataProp) == this.data) {
 					if (mount.overlay) for (let r of mount.overlay) result.push({
@@ -136939,7 +138295,7 @@ var Language = class {
 			}
 			for (let i = 0; i < tree.children.length; i++) {
 				let ch = tree.children[i];
-				if (ch instanceof Tree) explore(ch, tree.positions[i] + from);
+				if (ch instanceof Tree$1) explore(ch, tree.positions[i] + from);
 			}
 		};
 		explore(syntaxTree(state), 0);
@@ -136960,7 +138316,7 @@ Language.setState = /*@__PURE__*/ StateEffect.define();
 function topNodeAt(state, pos, side) {
 	let topLang = state.facet(language$1), tree = syntaxTree(state).topNode;
 	if (!topLang || topLang.allowsNesting) {
-		for (let node = tree; node; node = node.enter(pos, side, IterMode.ExcludeBuffers | IterMode.EnterBracketed)) if (node.type.isTop) tree = node;
+		for (let node = tree; node; node = node.enter(pos, side, IterMode$1.ExcludeBuffers | IterMode$1.EnterBracketed)) if (node.type.isTop) tree = node;
 	}
 	return tree;
 }
@@ -136972,7 +138328,7 @@ language available.
 */
 function syntaxTree(state) {
 	let field = state.field(Language.state, false);
-	return field ? field.tree : Tree.empty;
+	return field ? field.tree : Tree$1.empty;
 }
 /**
 Lezer-style
@@ -137034,7 +138390,7 @@ var ParseContext = class ParseContext {
 	@internal
 	*/
 	static create(parser, state, viewport) {
-		return new ParseContext(parser, state, [], Tree.empty, 0, viewport, [], null);
+		return new ParseContext(parser, state, [], Tree$1.empty, 0, viewport, [], null);
 	}
 	startParse() {
 		return this.parser.startParse(new DocInput(this.state.doc), this.fragments);
@@ -137044,7 +138400,7 @@ var ParseContext = class ParseContext {
 	*/
 	work(until, upto) {
 		if (upto != null && upto >= this.state.doc.length) upto = void 0;
-		if (this.tree != Tree.empty && this.isDone(upto !== null && upto !== void 0 ? upto : this.state.doc.length)) {
+		if (this.tree != Tree$1.empty && this.isDone(upto !== null && upto !== void 0 ? upto : this.state.doc.length)) {
 			this.takeTree();
 			return true;
 		}
@@ -137114,7 +138470,7 @@ var ParseContext = class ParseContext {
 				toB
 			}));
 			fragments = TreeFragment.applyChanges(fragments, ranges);
-			tree = Tree.empty;
+			tree = Tree$1.empty;
 			treeLen = 0;
 			viewport = {
 				from: changes.mapPos(viewport.from, -1),
@@ -137193,7 +138549,7 @@ var ParseContext = class ParseContext {
 							if (until) cx.scheduleOn = cx.scheduleOn ? Promise.all([cx.scheduleOn, until]) : until;
 						}
 						this.parsedPos = to;
-						return new Tree(NodeType.none, [], [], to - from);
+						return new Tree$1(NodeType$1.none, [], [], to - from);
 					},
 					stoppedAt: null,
 					stopAt() {}
@@ -137511,7 +138867,7 @@ context to a column number (see also
 [`indentString`](https://codemirror.net/6/docs/ref/#language.indentString)) or null, where null
 indicates that no definitive indentation can be determined.
 */
-var indentNodeProp = /*@__PURE__*/ new NodeProp();
+var indentNodeProp = /*@__PURE__*/ new NodeProp$1();
 function syntaxIndentation(cx, ast, pos) {
 	let stack = ast.resolveStack(pos);
 	let inner = ast.resolveInner(pos, -1).resolve(pos, 0).enterUnfinishedNodesBefore(pos);
@@ -137539,7 +138895,7 @@ function indentStrategy(tree) {
 	let strategy = tree.type.prop(indentNodeProp);
 	if (strategy) return strategy;
 	let first = tree.firstChild, close;
-	if (first && (close = first.type.prop(NodeProp.closedBy))) {
+	if (first && (close = first.type.prop(NodeProp$1.closedBy))) {
 		let last = tree.lastChild, closed = last && close.indexOf(last.name) > -1;
 		return (cx) => delimitedStrategy(cx, true, 1, void 0, closed && !ignoreClosed(cx) ? last.from : void 0);
 	}
@@ -137902,9 +139258,9 @@ a node, a ‘handle’—the part of the node that is highlighted, and
 that the cursor must be on to activate highlighting in the first
 place.
 */
-var bracketMatchingHandle = /*@__PURE__*/ new NodeProp();
+var bracketMatchingHandle = /*@__PURE__*/ new NodeProp$1();
 function matchingNodes(node, dir, brackets) {
-	let byProp = node.prop(dir < 0 ? NodeProp.openedBy : NodeProp.closedBy);
+	let byProp = node.prop(dir < 0 ? NodeProp$1.openedBy : NodeProp$1.closedBy);
 	if (byProp) return byProp;
 	if (node.name.length == 1) {
 		let index = brackets.indexOf(node.name);
@@ -138213,7 +139569,7 @@ var StreamLanguage = class StreamLanguage extends Language {
 		this.topNode = docID(data, this);
 		self = this;
 		this.streamParser = p;
-		this.stateAfter = new NodeProp({ perNode: true });
+		this.stateAfter = new NodeProp$1({ perNode: true });
 		this.tokenTable = parser.tokenTable ? new TokenTable(p.tokenTable) : defaultTokenTable;
 	}
 	/**
@@ -138267,7 +139623,7 @@ function findState(lang, tree, off, startPos, before) {
 	};
 	for (let i = tree.children.length - 1; i >= 0; i--) {
 		let child = tree.children[i], pos = off + tree.positions[i];
-		let found = child instanceof Tree && pos < before && findState(lang, child, pos, startPos, before);
+		let found = child instanceof Tree$1 && pos < before && findState(lang, child, pos, startPos, before);
 		if (found) return found;
 	}
 	return null;
@@ -138277,9 +139633,9 @@ function cutTree(lang, tree, from, to, inside) {
 	if (!inside && from == 0 && tree.type == lang.topNode) inside = true;
 	for (let i = tree.children.length - 1; i >= 0; i--) {
 		let pos = tree.positions[i], child = tree.children[i], inner;
-		if (pos < to && child instanceof Tree) {
+		if (pos < to && child instanceof Tree$1) {
 			if (!(inner = cutTree(lang, child, from - pos, to - pos, inside))) break;
-			return !inside ? inner : new Tree(tree.type, tree.children.slice(0, i).concat(inner), tree.positions.slice(0, i + 1), pos + inner.length);
+			return !inside ? inner : new Tree$1(tree.type, tree.children.slice(0, i).concat(inner), tree.positions.slice(0, i + 1), pos + inner.length);
 		}
 	}
 	return null;
@@ -138295,7 +139651,7 @@ function findStartInFragments(lang, fragments, startPos, endPos, editorState) {
 	}
 	return {
 		state: lang.streamParser.startState(editorState ? getIndentUnit(editorState) : 4),
-		tree: Tree.empty
+		tree: Tree$1.empty
 	};
 }
 var Parse = class {
@@ -138410,7 +139766,7 @@ var Parse = class {
 		if (this.parsedPos < this.to) this.parsedPos++;
 	}
 	finishChunk() {
-		let tree = Tree.build({
+		let tree = Tree$1.build({
 			buffer: this.chunk,
 			start: this.chunkStart,
 			length: this.parsedPos - this.chunkStart,
@@ -138419,7 +139775,7 @@ var Parse = class {
 			maxBufferLength: 512,
 			reused: this.chunkReused
 		});
-		tree = new Tree(tree.type, tree.children, tree.positions, tree.length, [[this.lang.stateAfter, this.lang.streamParser.copyState(this.state)]]);
+		tree = new Tree$1(tree.type, tree.children, tree.positions, tree.length, [[this.lang.stateAfter, this.lang.streamParser.copyState(this.state)]]);
 		this.chunks.push(tree);
 		this.chunkPos.push(this.chunkStart - this.ranges[0].from);
 		this.chunk = [];
@@ -138427,7 +139783,7 @@ var Parse = class {
 		this.chunkStart = this.parsedPos;
 	}
 	finish() {
-		return new Tree(this.lang.topNode, this.chunks, this.chunkPos, this.parsedPos - this.ranges[0].from).balance();
+		return new Tree$1(this.lang.topNode, this.chunks, this.chunkPos, this.parsedPos - this.ranges[0].from).balance();
 	}
 };
 function readToken(token, stream, state) {
@@ -138439,7 +139795,7 @@ function readToken(token, stream, state) {
 	throw new Error("Stream parser failed to advance stream.");
 }
 var noTokens = /*@__PURE__*/ Object.create(null);
-var typeArray = [NodeType.none];
+var typeArray = [NodeType$1.none];
 var nodeSet = /*@__PURE__*/ new NodeSet(typeArray);
 var warned = [];
 var byTag = /*@__PURE__*/ Object.create(null);
@@ -138492,7 +139848,7 @@ function createTokenType(extra, tagStr) {
 	let name = tagStr.replace(/ /g, "_"), key = name + " " + tags$1.map((t) => t.id);
 	let known = byTag[key];
 	if (known) return known.id;
-	let type = byTag[key] = NodeType.define({
+	let type = byTag[key] = NodeType$1.define({
 		id: typeArray.length,
 		name,
 		props: [styleTags({ [name]: tags$1 })]
@@ -138501,7 +139857,7 @@ function createTokenType(extra, tagStr) {
 	return type.id;
 }
 function docID(data, lang) {
-	let type = NodeType.define({
+	let type = NodeType$1.define({
 		id: typeArray.length,
 		name: "Document",
 		props: [languageDataProp.add(() => data), indentNodeProp.add(() => (cx) => lang.getIndent(cx))],
@@ -141784,7 +143140,7 @@ function interestingNode(state, node, bracketProp) {
 }
 function moveBySyntax(state, start, forward) {
 	let pos = syntaxTree(state).resolveInner(start.head);
-	let bracketProp = forward ? NodeProp.closedBy : NodeProp.openedBy;
+	let bracketProp = forward ? NodeProp$1.closedBy : NodeProp$1.openedBy;
 	for (let at = start.head;;) {
 		let next = forward ? pos.childAfter(at) : pos.childBefore(at);
 		if (!next) break;
@@ -142430,7 +143786,7 @@ function isBetweenBrackets(state, pos) {
 	};
 	let context = syntaxTree(state).resolveInner(pos);
 	let before = context.childBefore(pos), after = context.childAfter(pos), closedBy;
-	if (before && after && before.to <= pos && after.from >= pos && (closedBy = before.type.prop(NodeProp.closedBy)) && closedBy.indexOf(after.name) > -1 && state.doc.lineAt(before.to).from == state.doc.lineAt(after.from).from && !/\S/.test(state.sliceDoc(before.to, after.from))) return {
+	if (before && after && before.to <= pos && after.from >= pos && (closedBy = before.type.prop(NodeProp$1.closedBy)) && closedBy.indexOf(after.name) > -1 && state.doc.lineAt(before.to).from == state.doc.lineAt(after.from).from && !/\S/.test(state.sliceDoc(before.to, after.from))) return {
 		from: before.to,
 		to: after.from
 	};
