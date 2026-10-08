@@ -80,11 +80,13 @@ class CentralDirectory:
 
 
 async def _find_central_directory(
-    filesystem: AsyncFilesystem, filename: str
+    filesystem: AsyncFilesystem, filename: str, pin_version: bool = False
 ) -> CentralDirectoryLocation:
     """Locate and parse the central directory metadata.
 
     Uses a suffix range request to avoid a separate HEAD for the file size.
+    With ``pin_version``, a further read (the ZIP64 end record) is pinned to
+    the suffix response's ETag.
 
     Returns:
         CentralDirectoryLocation with offset, size, tail data, and etag.
@@ -157,7 +159,10 @@ async def _find_central_directory(
                 eocd64_data = tail[rel : rel + 56]
             else:
                 eocd64_data = await filesystem.read_file_bytes_fully(
-                    filename, eocd64_offset, eocd64_offset + 56
+                    filename,
+                    eocd64_offset,
+                    eocd64_offset + 56,
+                    if_match=suffix.etag if pin_version else None,
                 )
 
             # Verify ZIP64 EOCD signature
@@ -172,14 +177,22 @@ async def _find_central_directory(
 
 
 async def _parse_central_directory(
-    filesystem: AsyncFilesystem, filename: str
+    filesystem: AsyncFilesystem, filename: str, pin_version: bool = False
 ) -> CentralDirectory:
     """Parse the central directory and return all entries.
 
+    With ``pin_version``, every read after the suffix read is pinned to the
+    suffix response's ETag (S3), so the returned etag describes all of the
+    central directory's bytes.
+
     Returns:
         CentralDirectory with entries and etag.
+
+    Raises:
+        ObjectChangedError: with ``pin_version``, the object was replaced
+            between the suffix read and a later read.
     """
-    cd_loc = await _find_central_directory(filesystem, filename)
+    cd_loc = await _find_central_directory(filesystem, filename, pin_version)
 
     # Reuse the tail buffer if the central directory falls within it
     if cd_loc.offset >= cd_loc.tail_start:
@@ -187,7 +200,10 @@ async def _parse_central_directory(
         buf = cd_loc.tail[rel : rel + cd_loc.size]
     else:
         buf = await filesystem.read_file_bytes_fully(
-            filename, cd_loc.offset, cd_loc.offset + cd_loc.size
+            filename,
+            cd_loc.offset,
+            cd_loc.offset + cd_loc.size,
+            if_match=cd_loc.etag if pin_version else None,
         )
 
     entries = []
@@ -363,6 +379,7 @@ class AsyncZipReader:
         chunk_size: int = DEFAULT_CHUNK_SIZE,
         *,
         verify_crc: bool = False,
+        pin_version: bool = False,
         central_directory: CentralDirectory | None = None,
     ):
         """Initialize the async ZIP reader.
@@ -374,6 +391,11 @@ class AsyncZipReader:
             verify_crc: Check every decompressed member read (whole, or a
                 stream consumed to its end) against the central directory's
                 CRC-32, raising :class:`ZipCrcError` on a mismatch.
+            pin_version: Pin the central directory's reads after the suffix
+                read (a ZIP64 end record, or a central directory larger than
+                the suffix) to the suffix response's ETag (S3), so
+                :attr:`etag` describes every byte of the central directory;
+                a replacement in between raises ``ObjectChangedError``.
             central_directory: A central directory already parsed from this
                 file, used instead of reading it again.
 
@@ -386,6 +408,7 @@ class AsyncZipReader:
         self._filename = filename
         self._chunk_size = chunk_size
         self._verify_crc = verify_crc
+        self._pin_version = pin_version
         self._central_directory: CentralDirectory | None = central_directory
         self._lock = anyio.Lock()
 
@@ -401,7 +424,7 @@ class AsyncZipReader:
             async with self._lock:
                 if self._central_directory is None:
                     self._central_directory = await _parse_central_directory(
-                        self._filesystem, self._filename
+                        self._filesystem, self._filename, self._pin_version
                     )
         return self._central_directory
 

@@ -4,7 +4,9 @@ A running log is replaced on every flush, and the central-directory read and
 each member read are separate range requests, so one read can mix bytes from
 two versions of the object. Every member is checked against the central
 directory's CRC-32; a mismatch, a decompression error or a JSON error re-reads
-the central directory and the member, up to :data:`MAX_REREADS` times.
+the central directory and the member, up to :data:`MAX_REREADS` times. On S3
+the central directory's own reads are pinned to one ETag, so its version names
+all of its bytes.
 
 A member's log and its shared-buffer manifest are separate objects, so the log
 is observed after the manifest: :func:`log_version` is the freshness check that
@@ -25,7 +27,11 @@ import zstandard
 from pydantic import ValidationError
 
 from inspect_ai._util.async_zip import AsyncZipReader, CentralDirectory, ZipCrcError
-from inspect_ai._util.asyncfiles import AsyncFilesystem, is_s3_filename
+from inspect_ai._util.asyncfiles import (
+    AsyncFilesystem,
+    ObjectChangedError,
+    is_s3_filename,
+)
 from inspect_ai._util.file import filesystem, local_path
 
 from .walk import LogFile
@@ -41,6 +47,7 @@ _IJSON_ERROR: type[Exception] = importlib.import_module("ijson").JSONError
 
 _TORN_READ_ERRORS = (
     ZipCrcError,
+    ObjectChangedError,
     zlib.error,
     zstandard.ZstdError,
     struct.error,
@@ -87,14 +94,17 @@ async def read_consistently(
     must re-derive anything it took from the old one.
 
     Raises:
-        LogChangedError: the reads kept failing their CRC check.
+        LogChangedError: the reads kept failing their CRC check, or the log
+            kept being replaced during a central-directory read.
         LogUnparseableError: the bytes were consistent but do not parse, or
             the reads kept failing to decompress or parse.
     """
     last: BaseException | None = None
     for attempt in range(MAX_REREADS + 1):
         reuse = central_directory if attempt == 0 else None
-        reader = AsyncZipReader(fs, location, verify_crc=True, central_directory=reuse)
+        reader = AsyncZipReader(
+            fs, location, verify_crc=True, pin_version=True, central_directory=reuse
+        )
         try:
             return await read(reader, reuse is None)
         except ValidationError as ex:
@@ -102,7 +112,7 @@ async def read_consistently(
         except _TORN_READ_ERRORS as ex:
             last = ex
     assert last is not None
-    if isinstance(last, ZipCrcError):
+    if isinstance(last, (ZipCrcError, ObjectChangedError)):
         raise LogChangedError(location, str(last)) from last
     raise LogUnparseableError(location, str(last) or type(last).__name__) from last
 
@@ -146,8 +156,9 @@ async def read_version(
 ) -> tuple[CentralDirectory, str | None]:
     """Read a central directory with the version of the object it came from.
 
-    On S3 the version is the ETag of the response that returned the central
-    directory, so it names exactly those bytes. Elsewhere there is no such
+    On S3 the version is the ETag of the responses that returned the central
+    directory (pinned to one ETag by ``pin_version``), so it names exactly
+    those bytes. Elsewhere there is no such
     response, so the version is looked up *before* the read: a replacement in
     between leaves an older version than the bytes, which the freshness check
     then reports as changed (an extra re-read, never a stale answer).

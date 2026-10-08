@@ -5,9 +5,10 @@ log costs only what changed. One JSON file per log URI (named by its
 SHA-256) under ``inspect_data_dir("ctl")/log-dir-cache/``, created 0700,
 holding:
 
-- the plan: the header read from ``header.json`` or ``_journal/start.json``.
-  It names the task for as long as the file exists, and is the log's status
-  while the log's version is unchanged;
+- the plan: the header read from ``header.json`` or ``_journal/start.json``,
+  used while the log's version is unchanged. Once the version changes the plan
+  is read again through the new central directory, reusing a running log's
+  start record while its CRC-32 is unchanged;
 - the sample summaries of that version;
 - for a running log, the journal summary members already parsed, keyed by
   member name, CRC-32 and compressed size, so a changed running log costs its
@@ -130,18 +131,7 @@ class JournalCache:
 
     def members(self, cd: CentralDirectory | None) -> dict[str, _JournalMember]:
         """The members returned whose entries ``cd`` lists unchanged."""
-        if cd is None:
-            return {}
-        members: dict[str, _JournalMember] = {}
-        for path, member in self._read.items():
-            entry = cd.entry(path)
-            if (
-                entry is not None
-                and entry.crc32 == member.crc32
-                and entry.compressed_size == member.compressed_size
-            ):
-                members[path] = member
-        return members
+        return _still_listed(self._read, cd)
 
 
 class LogDirCache:
@@ -152,19 +142,14 @@ class LogDirCache:
         self._entries: dict[str, _Entry | None] = {}
         self._wrote = False
 
-    def plan(self, file: LogFile, version: str | None) -> LogPlan | None:
-        """The cached plan of ``file``, or ``None`` when there is none.
+    def plan(self, file: LogFile) -> LogPlan | None:
+        """The cached plan of ``file``, with the version it was read from.
 
-        With ``version`` (the log's current version) equal to the cached one,
-        the plan is the log's status too. Otherwise it carries no version, so
-        the log is read again before its status or summaries are used: only
-        its task identity is taken from the cache.
+        It describes the log only while the log still has that version; a
+        caller that finds another version reads the plan again.
         """
         entry = self._entry(file)
-        if entry is None:
-            return None
-        current = version is not None and version == entry.plan.version
-        return _log_plan(file, entry, current=current)
+        return _log_plan(file, entry) if entry is not None else None
 
     def snapshot(self, file: LogFile, version: str | None) -> MemberSnapshot | None:
         """The cached plan and summaries of ``file`` at ``version``, if held."""
@@ -177,7 +162,7 @@ class LogDirCache:
         ):
             return None
         return MemberSnapshot(
-            plan=_log_plan(file, entry, current=True),
+            plan=_log_plan(file, entry),
             summaries={SampleKey(str(s.id), s.epoch): s for s in entry.summaries},
         )
 
@@ -186,8 +171,26 @@ class LogDirCache:
         return JournalCache(entry.journal if entry is not None else {})
 
     def store_plan(self, plan: LogPlan) -> None:
-        """Store a plan read and checked in this invocation."""
-        self._store(plan, summaries=None, journal={})
+        """Store a plan read and checked in this invocation.
+
+        Keeps the cached summaries when they are of the plan's version, and
+        the journal members its central directory still lists.
+        """
+        entry = self._entry(plan.file)
+        same_version = (
+            entry is not None
+            and plan.version is not None
+            and entry.plan.version == plan.version
+        )
+        self._store(
+            plan,
+            summaries=entry.summaries if entry is not None and same_version else None,
+            journal=(
+                _still_listed(entry.journal, plan.central_directory)
+                if entry is not None
+                else {}
+            ),
+        )
 
     def store_snapshot(self, snapshot: MemberSnapshot, journal: JournalCache) -> None:
         """Store a member view read and checked in this invocation.
@@ -300,8 +303,8 @@ class LogDirCache:
 
 def open_cache() -> LogDirCache | None:
     """The user's cache, its directory created owner-only; ``None`` if it cannot be."""
-    directory = inspect_data_dir("ctl") / "log-dir-cache"
     try:
+        directory = inspect_data_dir("ctl") / "log-dir-cache"
         directory.mkdir(mode=DISCOVERY_DIR_MODE, exist_ok=True)
     except OSError as ex:
         logger.debug(f"log-dir cache disabled: {ex}")
@@ -335,7 +338,7 @@ def use_cache(cache: LogDirCache | None) -> Iterator[None]:
             cache.prune()
 
 
-def _log_plan(file: LogFile, entry: _Entry, *, current: bool) -> LogPlan:
+def _log_plan(file: LogFile, entry: _Entry) -> LogPlan:
     header = entry.plan.header
     header.location = file.location
     return LogPlan(
@@ -343,9 +346,27 @@ def _log_plan(file: LogFile, entry: _Entry, *, current: bool) -> LogPlan:
         central_directory=None,
         header=header,
         finished=entry.plan.finished,
-        version=entry.plan.version if current else None,
+        version=entry.plan.version,
         header_crc=entry.plan.header_crc,
     )
+
+
+def _still_listed(
+    members: dict[str, _JournalMember], cd: CentralDirectory | None
+) -> dict[str, _JournalMember]:
+    """The journal members whose entries ``cd`` lists with the same CRC-32 and size."""
+    if cd is None:
+        return {}
+    listed: dict[str, _JournalMember] = {}
+    for path, member in members.items():
+        entry = cd.entry(path)
+        if (
+            entry is not None
+            and entry.crc32 == member.crc32
+            and entry.compressed_size == member.compressed_size
+        ):
+            listed[path] = member
+    return listed
 
 
 def _cache_key(location: str) -> str:

@@ -263,17 +263,21 @@ async def _index_listing(
 async def read_plan(fs: AsyncFilesystem, file: LogFile) -> LogPlan:
     """Read one log's central directory and header (or journal start record).
 
-    With the cache active, a cached plan of the file is used instead (see
-    :meth:`~.cache.LogDirCache.plan`).
+    With the cache active, the cached plan is used while the log has the
+    version it was read from. For a log that changed since, the cached plan
+    is the prior that spares re-reading an unchanged start record.
     """
     cache = active_cache()
-    if cache is not None:
-        cached = cache.plan(file, await listed_version(fs, file))
-        if cached is not None:
-            return cached
+    cached = cache.plan(file) if cache is not None else None
+    if (
+        cached is not None
+        and cached.version is not None
+        and cached.version == await listed_version(fs, file)
+    ):
+        return cached
 
     async def read(reader: AsyncZipReader, fresh: bool) -> LogPlan:
-        return await _plan_from(fs, reader, file)
+        return await _plan_from(fs, reader, file, cached)
 
     plan = await read_consistently(fs, file.location, read)
     if cache is not None:

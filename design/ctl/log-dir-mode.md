@@ -667,7 +667,11 @@ read into missing or pending data.
   pollers and stale or lost cache entries cannot weaken it; they can only
   cost extra reads.
 - **Mixed versions.** A central-directory read and a member read are
-  separate range requests. The log-dir reader verifies every member it
+  separate range requests. On S3 the central directory's own requests
+  after the suffix read (a ZIP64 end record, or a directory larger than the
+  suffix) are pinned to the suffix response's ETag (`IfMatch`), so its
+  version names all of its bytes; a replacement in between is a torn read.
+  The log-dir reader verifies every member it
   reads (whole or streamed) against the central directory's CRC-32, which
   `ZipEntry` gains for this and for the journal-member cache key; a CRC mismatch, a
   decompression error or a JSON error re-reads the central directory and
@@ -869,10 +873,12 @@ of what changed. `src/inspect_ai/_control/log_dir/cache.py`:
   the control discovery directory. One JSON file per log URI, named by
   `sha256(uri)` (a local log by its absolute path), holding a schema
   version and:
-  - the plan (valid for as long as the file exists; a retried shard writes
-    a new file with a new name). Whenever a running log's central directory
-    is read again, the plan is reused only while `_journal/start.json` has
-    the CRC-32 it was read from;
+  - the plan, used as is while the listing reports the version it was
+    read from. A log whose version changed has its plan read again through
+    its new central directory (so task identity, status and buffer
+    eligibility are never taken from an older version), reusing the cached
+    header of a running log while `_journal/start.json` keeps the CRC-32 it
+    was read from;
   - the header-derived status fields and the parsed summaries, keyed by the
     file's ETag (locally its inode, `mtime_ns` and size, the freshness
     check's form), valid only while the listing reports the same key;

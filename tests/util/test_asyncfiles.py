@@ -20,6 +20,7 @@ from test_helpers.utils import skip_if_trio
 from inspect_ai._util._async import current_async_backend, run_coroutine, tg_collect
 from inspect_ai._util.asyncfiles import (
     AsyncFilesystem,
+    ObjectChangedError,
     _current_async_fs,
     _RetiredClient,
     _s3_download_file_async,
@@ -620,6 +621,24 @@ async def test_read_file_info_s3_returns_the_response_etag_and_last_modified(
     assert content.data == b"{}"
     assert content.etag == head["ETag"].strip('"')
     assert content.mtime == head["LastModified"].timestamp() * 1000
+
+
+async def test_read_file_bytes_s3_pinned_to_an_etag_fails_once_the_object_changes(
+    mock_s3: None,
+) -> None:
+    import boto3
+
+    s3 = boto3.client("s3")
+    s3.put_object(Bucket="test-bucket", Key="if_match/a.bin", Body=b"0123456789")
+    etag = s3.head_object(Bucket="test-bucket", Key="if_match/a.bin")["ETag"]
+    url = f"{S3_BUCKET}/if_match/a.bin"
+    async with AsyncFilesystem() as fs:
+        pinned = await fs.read_file_bytes_fully(url, 2, 5, if_match=etag.strip('"'))
+        s3.put_object(Bucket="test-bucket", Key="if_match/a.bin", Body=b"abcdefghij")
+        with pytest.raises(ObjectChangedError):
+            await fs.read_file_bytes_fully(url, 2, 5, if_match=etag.strip('"'))
+        unpinned = await fs.read_file_bytes_fully(url, 2, 5)
+    assert (pinned, unpinned) == (b"234", b"cde")
 
 
 async def test_write_file_local():
