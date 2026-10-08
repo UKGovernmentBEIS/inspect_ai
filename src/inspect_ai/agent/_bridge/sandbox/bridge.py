@@ -76,21 +76,37 @@ async def sandbox_agent_bridge(
 
     You should set `OPENAI_BASE_URL=http://localhost:13131/v1`, `ANTHROPIC_BASE_URL=http://localhost:13131`, or `GOOGLE_GEMINI_BASE_URL=http://localhost:13131` when executing
     the agent within the container and ensure that your agent targets the
-    model name "inspect" when calling OpenAI, Anthropic, or Google. Use "inspect/<full-model-name>" to target other Inspect model providers.
+    model name "inspect" when calling OpenAI, Anthropic, or Google. Requests for other
+    model names are served by the eval's model unless `model_aliases` or
+    `model_resolver` maps them elsewhere.
+
+    The eval's configuration, not the agent's request, governs `service_tier`,
+    `store`, `truncation` and the options of provider tools the agent declares;
+    requests with `previous_response_id` are refused, and the agent's HTTP
+    headers are not forwarded.
 
     Args:
         state: Initial state for agent bridge. Used as a basis for yielding
             an updated state based on traffic over the bridge.
-        model: Fallback model for requests that don't use "inspect" or an "inspect/"
-            prefixed model (defaults to "inspect", can also specify e.g.
-            "inspect/openai/gpt-4o" to force another specific model).
+        model: Pin every request the bridge does not otherwise recognise to
+            this model (e.g. "inspect/openai/gpt-4o"; the "inspect/" prefix is
+            optional). Aliases, resolver results and the name "inspect" are not
+            pinned. Defaults to `None`, which routes unrecognised names to the
+            eval's active model ("inspect" means the same); map other names
+            with `model_aliases`.
         model_aliases: Map of model name aliases. When a request uses a name
             that appears here, the corresponding value (a ``Model`` instance
-            or model spec string) is used instead. Checked before the fallback ``model``.
+            or model spec string) is used instead. Checked before the ``model``
+            pin. Keys are the exact names the agent sends. Use this to reach a
+            model other than the eval's model (e.g.
+            ``{"claude-haiku-4-5": get_model("anthropic/claude-haiku-4-5")}``),
+            including a model role the agent is meant to call
+            (``{"subagent": get_model(role="subagent")}``). Every key is a
+            model the agent can call, so do not alias a role such as a grader.
         model_resolver: Dynamic routing policy called with the requested model
             name (provider-qualified on a provider-specific endpoint, e.g.
             ``openai/gpt-5.1``). Checked after ``model_aliases`` and before the ``model``
-            fallback; return a ``Model``/spec to route the request there, or
+            pin; return a ``Model``/spec to route the request there, or
             ``None`` to defer. Routes by policy without enumerating every name.
         filter: Filter for bridge model generation.
         retry_refusals: Should refusals be retried? (pass number of times to retry)

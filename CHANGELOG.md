@@ -1,6 +1,13 @@
 ## Unreleased
 
 - Solver: `TaskState.input_text` no longer raises when the last user message has no text; image-only and other non-text messages return placeholders such as `[image]`, and an empty message returns `""`.
+- Bugfix: Hugging Face task loading reads the Hub-delivered `eval.yaml` in UTF-8 rather than the locale default, so task configs with non-ASCII characters no longer crash or silently corrupt on Windows with a non-UTF-8 code page (or on a C-locale system).
+- Anthropic: Support for Claude Haiku 5.5 (`claude-haiku-5-5`): `reasoning_effort="none"` disables thinking, computer use uses the computer toolset on the Claude API and Vertex, and `fallback_models` is ignored with a warning.
+- Bugfix: `inspect log convert --stream` (and `convert_eval_logs(stream=...)`) no longer drops the error message and traceback from logs of failed evals.
+
+## 0.3.277 (06 October 2026)
+
+- Fixed trace logs growing to many gigabytes when model output caching is enabled.
 - Fixed model calls and token counting in multiprocess Scout scans using the default model configuration.
 - Bugfix: Interrupting after scoring no longer drops the scored sample from a cancelled evaluation log while its sandbox is being cleaned up.
 - Bugfix: Overflow recovery no longer drops the sample's input from the recorded conversation, so scorers and the viewer still see the task after a forced compaction.
@@ -34,6 +41,15 @@
 - Bugfix: Remote MCP servers are now refused while an approval policy is active, rather than having their tools run by the model provider without approval.
 - Bugfix: Results of `sandbox_agent_bridge()` bridged tools are now truncated at `max_tool_output` (or the tool's `max_output`), as other tool results are.
 - Eval Set: Fixed logging with S3 credentials restricted to the log directory's prefix, and reading and writing `eval-set.json` for Azure log directories with a trailing slash or an account in the URL.
+- Analysis: Type checkers now accept column extract functions that take a specific event, message or sample type, or return a precise JSON type such as `list[dict[str, int]]`.
+- Hugging Face: Concurrent requests for different models or generation settings are now generated with their own model and settings, not the first request's.
+- OpenAI and Anthropic: Fixed concurrent requests failing or restarting when another sample's request triggers a credential refresh (e.g. on an expired API key).
+- OpenAI: OpenAI: The OpenAI providers, message and output converters, and agent bridge now require openai >= 3.4.0.
+- Bugfix: Tool events now record the arguments an approver's `modify` decision substituted, and a `modify` that changes the function now fails the sample instead of running the wrong call.
+- Agent Bridge: `sandbox_agent_bridge()` now serves a request for an unknown model name with the eval's model and logs a warning; add the name to `model_aliases` to send it to another model.
+- Agent Bridge: Fixed a bridge `filter` sometimes receiving the model name instead of a `Model` (or the reverse) when filters of both signatures were used in one process.
+- Perplexity: Each response now gets only its own citations and usage when one model handles concurrent requests, and a failed request no longer reuses an earlier response's.
+- Agent Bridge: For both `agent_bridge()` and `sandbox_agent_bridge()`, the eval's configuration now governs `service_tier`, `store`, `truncation` and provider tool options such as web search domains, which the agent's requests no longer override; requests with `previous_response_id` are refused.
 
 ## 0.3.276 (02 October 2026)
 
