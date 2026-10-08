@@ -55,11 +55,34 @@ def _run_after_nest_asyncio(
         loop.close()
 
 
+def _without_asyncgen_hooks(
+    main: Callable[[], Awaitable[None]],
+) -> Callable[[], Awaitable[None]]:
+    """Run `main` with no async-generator hooks installed.
+
+    nest_asyncio2 < 1.7.4 ran `run_until_complete` this way; 1.7.4 installs the
+    loop's hooks, so clear them to reproduce the hazard on any version.
+    """
+
+    async def wrapper() -> None:
+        hooks = sys.get_asyncgen_hooks()
+        sys.set_asyncgen_hooks(firstiter=None, finalizer=None)
+        try:
+            await main()
+        finally:
+            sys.set_asyncgen_hooks(*hooks)
+
+    return wrapper
+
+
 def test_abandoned_stream_breaks_fail_after_without_hooks() -> None:
     unraisable: list[Any] = []
     with pytest.raises(RuntimeError, match="isn't the current tasks's current cancel"):
         _run_after_nest_asyncio(
-            functools.partial(_abandon_stream, wait_for_close=False), unraisable
+            _without_asyncgen_hooks(
+                functools.partial(_abandon_stream, wait_for_close=False)
+            ),
+            unraisable,
         )
     assert [str(u.exc_value) for u in unraisable] == [
         "async generator ignored GeneratorExit"
@@ -70,7 +93,9 @@ def test_with_asyncgen_hooks_closes_abandoned_stream_in_its_own_task() -> None:
     hooks = sys.get_asyncgen_hooks()
     unraisable: list[Any] = []
     _run_after_nest_asyncio(
-        with_asyncgen_hooks(functools.partial(_abandon_stream, wait_for_close=True)),
+        _without_asyncgen_hooks(
+            with_asyncgen_hooks(functools.partial(_abandon_stream, wait_for_close=True))
+        ),
         unraisable,
     )
     assert unraisable == []
