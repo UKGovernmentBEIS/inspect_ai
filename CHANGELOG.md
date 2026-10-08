@@ -10,6 +10,8 @@
 - Anthropic: Support for Claude Haiku 5.5 (`claude-haiku-5-5`): `reasoning_effort="none"` disables thinking, computer use uses the computer toolset on the Claude API and Vertex, and `fallback_models` is ignored with a warning.
 - Anthropic: With `reasoning_effort` on Claude 4.6+, forced tool choice (except on Fable/Mythos 5.1, Opus 5.5, Sonnet 5.5), `tool_choice="none"` and `parallel_tool_calls=False` are now honored; forced turns skip thinking.
 - Bugfix: `inspect log convert --stream` (and `convert_eval_logs(stream=...)`) no longer drops the error message and traceback from logs of failed evals.
+- Fixed `StoreModel` skipping field validation when constructed with an empty `instance` string.
+- Fixed the human reviewer filling in tool arguments inside tool output that contains `{{{...}}}` (three or more braces).
 
 - Tools: Tools with `*args` or `**kwargs` no longer advertise required `args`/`kwargs` parameters to models; declare model-chosen arguments with an explicit `ToolParams` schema instead.
 - Control Channel: `inspect ctl model throughput` now reports each model's input, output and cache read/write tokens per minute, in the table and in `--json` output; the table's output column is now per minute instead of per second.
