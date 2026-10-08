@@ -1,7 +1,9 @@
 """Tests for bridge header extraction and filtering."""
 
 import importlib
+import importlib.util
 import json
+import sys
 from typing import Any, cast
 
 import httpx
@@ -35,6 +37,7 @@ try:
     brotli = importlib.import_module("brotli")
 except ImportError:
     brotli = importlib.import_module("brotlicffi")
+zstandard = importlib.import_module("zstandard")
 
 
 class TestFilterBridgeHeaders:
@@ -350,6 +353,33 @@ class TestForwardClientHeaders:
             )
 
     @pytest.mark.parametrize(
+        "forward_client_headers,match",
+        [
+            ({"anthropic-beta": None}, "anthropic-beta"),
+            ({"anthropic-beta": 5}, "anthropic-beta"),
+            ({"anthropic-beta": [None]}, "None"),
+            ({"anthropic-beta": ["beta-a", 5]}, "5"),
+            ({5: ["on"]}, "names must be strings"),
+            ({None: ["on"]}, "names must be strings"),
+        ],
+    )
+    def test_non_string_names_and_values_rejected(
+        self, forward_client_headers: Any, match: str
+    ) -> None:
+        with pytest.raises(TypeError, match=match):
+            resolve_forward_client_headers(forward_client_headers)
+
+    def test_names_and_values_stripped(self) -> None:
+        resolved = resolve_forward_client_headers(
+            {" Anthropic-Beta ": [" beta-a-2026-01-01 "]}
+        )
+        assert resolved == {"anthropic-beta": frozenset({"beta-a-2026-01-01"})}
+        assert _sandbox_filter(
+            {"anthropic-beta": "beta-a-2026-01-01"},
+            {" Anthropic-Beta ": [" beta-a-2026-01-01 "]},
+        ) == {"anthropic-beta": "beta-a-2026-01-01"}
+
+    @pytest.mark.parametrize(
         "name",
         [
             "Authorization",
@@ -374,6 +404,110 @@ class TestForwardClientHeaders:
     def test_blocked_header_names_rejected(self, name: str) -> None:
         with pytest.raises(ValueError, match=name):
             resolve_forward_client_headers({name: ["anything"]})
+
+
+def _zstd_decodable() -> bool:
+    """Whether httpx2 (the OpenAI and Anthropic SDKs' client) can decode zstd."""
+    return sys.version_info >= (3, 14) or (
+        importlib.util.find_spec("backports") is not None
+        and importlib.util.find_spec("backports.zstd") is not None
+    )
+
+
+class TestDecodableAcceptEncoding:
+    """A forwarded `Accept-Encoding` lists only codings the host can decode."""
+
+    def test_installed_decoders(self) -> None:
+        codings = bridge_module._decodable_content_codings()
+        assert {"gzip", "deflate", "br"} <= codings
+        assert ("zstd" in codings) is _zstd_decodable()
+
+    @pytest.mark.parametrize("sandbox", [False, True], ids=["in-process", "sandbox"])
+    def test_undecodable_codings_dropped(
+        self, monkeypatch: pytest.MonkeyPatch, sandbox: bool
+    ) -> None:
+        monkeypatch.setattr(
+            bridge_module,
+            "_decodable_content_codings",
+            lambda: frozenset({"identity", "gzip", "deflate", "br"}),
+        )
+        headers = {"Accept-Encoding": "gzip, deflate, br, zstd, *;q=0.1"}
+        result = (
+            _sandbox_filter(headers, None)
+            if sandbox
+            else filter_bridge_headers(headers)
+        )
+        assert result == {"Accept-Encoding": "gzip, deflate, br"}
+
+        only_zstd = {"Accept-Encoding": "zstd", "x-custom-header": "value"}
+        result = (
+            _sandbox_filter(only_zstd, None)
+            if sandbox
+            else filter_bridge_headers(only_zstd)
+        )
+        assert result == (None if sandbox else {"x-custom-header": "value"})
+
+    @pytest.mark.anyio
+    async def test_zstd_advertising_client_gets_a_decoded_response(self) -> None:
+        """A Bun-based client (e.g. Claude Code) advertises zstd alongside br."""
+        provider_requests: list[httpx2.Request] = []
+        message = {
+            "id": "msg_1",
+            "type": "message",
+            "role": "assistant",
+            "model": "claude-sonnet-4-5",
+            "content": [{"type": "text", "text": "decoded"}],
+            "stop_reason": "end_turn",
+            "stop_sequence": None,
+            "usage": {"input_tokens": 3, "output_tokens": 1},
+        }
+
+        def handler(request: httpx2.Request) -> httpx2.Response:
+            provider_requests.append(request)
+            body = json.dumps(message).encode()
+            # a provider prefers zstd when the client offers it
+            if "zstd" in request.headers["accept-encoding"]:
+                content, encoding = zstandard.ZstdCompressor().compress(body), "zstd"
+            else:
+                content, encoding = brotli.compress(body), "br"
+            return httpx2.Response(
+                200,
+                content=content,
+                headers={
+                    "content-encoding": encoding,
+                    "content-type": "application/json",
+                },
+            )
+
+        model = get_model(
+            "anthropic/claude-sonnet-4-5",
+            api_key="host-key",
+            memoize=False,
+            streaming=False,
+            config=GenerateConfig(max_tokens=64),
+            http_client=httpx2.AsyncClient(transport=httpx2.MockTransport(handler)),
+        )
+        try:
+            response: Any = await generate_anthropic(
+                cast(WebSearchProviders, None),
+                cast(CodeExecutionProviders, None),
+                _route_bridge(model),
+            )(
+                {
+                    "model": "agent-model",
+                    "max_tokens": 64,
+                    "messages": [{"role": "user", "content": "hi"}],
+                },
+                {"accept-encoding": "gzip, deflate, br, zstd"},
+            )
+        finally:
+            await model.api.aclose()
+
+        assert response["content"][0]["text"] == "decoded"
+        [request] = provider_requests
+        assert request.headers["accept-encoding"] == (
+            "gzip, deflate, br, zstd" if _zstd_decodable() else "gzip, deflate, br"
+        )
 
 
 class TestSandboxAnthropicRequest:

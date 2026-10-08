@@ -88,7 +88,7 @@ from inspect_ai.model._internal import (
     content_internal_tag,
     parse_content_with_internal,
 )
-from inspect_ai.model._model import Model, ModelName
+from inspect_ai.model._model import Model, ModelName, tools_for_tool_choice
 from inspect_ai.model._model_output import StopReason
 from inspect_ai.model._openai_responses import (
     RESPONSES_NAMESPACE,
@@ -210,13 +210,18 @@ def _is_openai_responses_provider(model: Model) -> bool:
 
 
 def _sends_responses_requests(
-    model: Model, tools: Sequence[ToolInfo | Tool], config: GenerateConfig
+    model: Model,
+    tools: Sequence[ToolInfo | Tool],
+    tool_choice: ToolChoice | None,
+    config: GenerateConfig,
 ) -> bool:
     """Whether the resolved model sends this request to the OpenAI Responses API.
 
     Only those requests carry the fields of a forwarded client `reasoning`
     object that `GenerateConfig` does not model (e.g. `context`); other
-    providers receive its effort and summary through `GenerateConfig`.
+    providers receive its effort and summary through `GenerateConfig`. The
+    provider decides on the tools `Model.generate()` sends it, so the tool
+    choice narrows them first (`tools_for_tool_choice`).
     """
     try:
         from inspect_ai.model._providers.openai import OpenAIAPI
@@ -225,10 +230,14 @@ def _sends_responses_requests(
         return False
     if not isinstance(model.api, OpenAIAPI | OpenAICompatibleAPI):
         return False
-    tool_infos = [
-        tool if isinstance(tool, ToolInfo) else tool_to_tool_info(tool)
-        for tool in tools
-    ]
+    tool_infos, _ = tools_for_tool_choice(
+        model.api,
+        [
+            tool if isinstance(tool, ToolInfo) else tool_to_tool_info(tool)
+            for tool in tools
+        ],
+        tool_choice if tool_choice is not None else "auto",
+    )
     return model.api.uses_responses_api(tool_infos, config)
 
 
@@ -371,7 +380,10 @@ async def inspect_responses_api_request_impl(
     client_reasoning = json_data.get("reasoning", None)
 
     def with_client_reasoning(
-        model: Model, tools: Sequence[ToolInfo | Tool], config: GenerateConfig
+        model: Model,
+        tools: Sequence[ToolInfo | Tool],
+        tool_choice: ToolChoice | None,
+        config: GenerateConfig,
     ) -> GenerateConfig:
         # the Responses provider takes the reasoning fields GenerateConfig does
         # not model from extra_body (other providers would send them on as they
@@ -379,7 +391,7 @@ async def inspect_responses_api_request_impl(
         if (
             bridge.forward_generation_config
             and isinstance(client_reasoning, dict)
-            and _sends_responses_requests(model, tools, config)
+            and _sends_responses_requests(model, tools, tool_choice, config)
         ):
             extra_body = {"reasoning": client_reasoning} | (config.extra_body or {})
             return config.model_copy(update={"extra_body": extra_body})

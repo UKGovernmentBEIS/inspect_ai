@@ -145,7 +145,7 @@ async with sandbox_agent_bridge(
     ...
 ```
 
-Header names are case-insensitive. A comma-separated value is checked one item at a time: items you did not list are dropped with a warning, and the header is dropped if none remain. A header you did not list is logged once by name. Credentials (such as `Authorization`, `x-api-key`, `api-key`, `x-goog-api-key`, and AWS `x-amz-` headers) and transport headers (such as `Host` and `Content-Type`) cannot be forwarded.
+Header names are case-insensitive. A comma-separated value is checked one item at a time: items you did not list are dropped with a warning, and the header is dropped if none remain. A header you did not list is logged once by name. Credentials (such as `Authorization`, `x-api-key`, `api-key`, `x-goog-api-key`, and AWS `x-amz-` headers) and transport headers (such as `Host` and `Content-Type`) cannot be forwarded. On both bridges, a forwarded `Accept-Encoding` keeps only the encodings Inspect can decode (`zstd` needs Python 3.14 or the `backports.zstd` package).
 
 Headers configured on the Inspect model itself (e.g. the Anthropic `betas` model arg or `extra_headers`) are not affected.
 

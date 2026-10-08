@@ -623,7 +623,8 @@ async def bridge_generate(
     *,
     routing: "BridgeModelResolution | None" = None,
     finalize_config: Callable[
-        [Model, Sequence[ToolInfo | Tool], GenerateConfig], GenerateConfig
+        [Model, Sequence[ToolInfo | Tool], ToolChoice | None, GenerateConfig],
+        GenerateConfig,
     ]
     | None = None,
 ) -> tuple[ModelOutput, ChatMessageUser | None]:
@@ -655,8 +656,8 @@ async def bridge_generate(
     and approval calls are not the client's request and are not labelled.
 
     `finalize_config` adjusts the config of the bridge's own generation call for
-    the model, tools and config it is made with, after any filter rewrite. It is
-    not applied to a generation the filter makes itself.
+    the model, tools, tool choice and config it is made with, after any filter
+    rewrite. It is not applied to a generation the filter makes itself.
     """
     if routing is not None and routing.redirected:
         _warn_redirect(routing, bridge.model)
@@ -736,7 +737,7 @@ async def bridge_generate(
                             input=input_messages,
                             tool_choice=tool_choice,
                             tools=tools,
-                            config=finalize_config(model, tools, config)
+                            config=finalize_config(model, tools, tool_choice, config)
                             if finalize_config is not None
                             else config,
                         )

@@ -200,6 +200,7 @@ def test_responses_requests_detected_from_provider_request_selection() -> None:
         return _sends_responses_requests(
             get_model(model, api_key="test-key", memoize=False, **model_args),
             tools or [],
+            None,
             GenerateConfig(),
         )
 
@@ -499,6 +500,45 @@ async def test_bridged_reasoning_reaches_forced_responses_requests() -> None:
 
     assert requests[0]["reasoning"] == _CLIENT_REASONING
     assert [tool["type"] for tool in requests[0]["tools"]] == ["web_search"]
+
+
+_FUNCTION_TOOL = {
+    "type": "function",
+    "name": "lookup",
+    "description": "Look something up.",
+    "parameters": {"type": "object", "properties": {}},
+}
+
+
+@pytest.mark.parametrize(
+    "tool_choice",
+    ["none", {"type": "function", "name": "lookup"}],
+    ids=["none", "forced-function"],
+)
+@pytest.mark.anyio
+async def test_bridged_reasoning_follows_tool_choice_narrowing(
+    tool_choice: Any,
+) -> None:
+    """A tool choice that drops the native tool sends the request to Chat Completions.
+
+    `Model.generate()` keeps only the forced tool, or none for `"none"`, so the
+    native web search no longer switches the model to Responses.
+    """
+    model, requests = _capturing_model("openai/gpt-5.4", responses_api=False)
+
+    with pytest.raises(_ChatRequestCaptured):
+        await _bridged_responses_request(
+            model,
+            {
+                "reasoning": _CLIENT_REASONING,
+                "tools": [{"type": "web_search"}, _FUNCTION_TOOL],
+                "tool_choice": tool_choice,
+            },
+            web_search={"openai": True},
+        )
+
+    assert "reasoning" not in requests[0]
+    assert "reasoning" not in (requests[0].get("extra_body") or {})
 
 
 @pytest.mark.anyio

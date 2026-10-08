@@ -4,7 +4,7 @@ import re
 from collections.abc import Mapping, Sequence
 from contextvars import ContextVar
 from dataclasses import dataclass, field
-from functools import wraps
+from functools import cache, wraps
 from logging import getLogger
 from typing import (
     TYPE_CHECKING,
@@ -124,8 +124,12 @@ def resolve_forward_client_headers(
 ) -> dict[str, frozenset[str]]:
     """Validate `forward_client_headers`, keyed by lowercase header name.
 
+    Names and values are stripped of surrounding whitespace, as client header
+    values are when they are matched one comma-separated item at a time.
+
     Raises:
-        TypeError: The mapping or one of its value lists is a bare string.
+        TypeError: The mapping is not a mapping, a name is not a string, or a
+            value list is a bare string, not a sequence, or holds a non-string.
         ValueError: A header that must never cross the sandbox boundary is listed.
     """
     if forward_client_headers is None:
@@ -139,21 +143,70 @@ def resolve_forward_client_headers(
         )
     resolved: dict[str, frozenset[str]] = {}
     for name, values in forward_client_headers.items():
-        lower_name = name.lower()
+        if not isinstance(name, str):
+            raise TypeError(
+                f"forward_client_headers names must be strings (got {name!r})."
+            )
+        lower_name = name.strip().lower()
         if _is_blocked_client_header(lower_name):
             raise ValueError(
                 f"forward_client_headers cannot list '{name}': the sandboxed agent "
                 "may never set this header on the host's model request."
             )
-        if isinstance(values, str):
+        if isinstance(values, str) or not isinstance(values, Sequence):
             raise TypeError(
                 f"forward_client_headers['{name}'] must be a list of allowed "
-                f"values, not a string (got {values!r})."
+                f"values (got {values!r})."
             )
+        for value in values:
+            if not isinstance(value, str):
+                raise TypeError(
+                    f"forward_client_headers['{name}'] values must be strings "
+                    f"(got {value!r})."
+                )
         resolved[lower_name] = resolved.get(lower_name, frozenset()) | frozenset(
             value.strip() for value in values
         )
     return resolved
+
+
+@cache
+def _decodable_content_codings() -> frozenset[str]:
+    """Content codings every HTTP client the model providers use can decode.
+
+    httpx and httpx2 (used by the OpenAI and Anthropic SDKs) each skip a content
+    coding they have no decoder for and pass the body on still encoded, so a
+    client may only advertise codings both decode on this host. httpx2 decodes
+    `zstd` only on Python 3.14+ or with `backports.zstd` installed.
+    """
+    from httpx._decoders import SUPPORTED_DECODERS as httpx_decoders
+
+    codings = set(httpx_decoders)
+    try:
+        from httpx2._decoders import SUPPORTED_DECODERS as httpx2_decoders
+    except ImportError:
+        pass
+    else:
+        codings &= set(httpx2_decoders)
+    return frozenset(codings)
+
+
+def _with_decodable_accept_encoding(
+    headers: dict[str, str],
+) -> dict[str, str] | None:
+    """Narrow a forwarded `Accept-Encoding` to codings the host can decode."""
+    for name in list(headers):
+        if name.lower() == "accept-encoding":
+            kept = [
+                item.strip()
+                for item in headers[name].split(",")
+                if item.split(";")[0].strip().lower() in _decodable_content_codings()
+            ]
+            if kept:
+                headers[name] = ", ".join(kept)
+            else:
+                del headers[name]
+    return headers if headers else None
 
 
 def filter_bridge_headers(headers: dict[str, str] | None) -> dict[str, str] | None:
@@ -170,7 +223,7 @@ def filter_bridge_headers(headers: dict[str, str] | None) -> dict[str, str] | No
         if k.lower() not in _BLOCKED_BRIDGE_HEADERS
         and not k.lower().startswith(_BLOCKED_BRIDGE_HEADER_PREFIXES)
     }
-    return filtered if filtered else None
+    return _with_decodable_accept_encoding(filtered)
 
 
 def filter_sandbox_client_headers(
@@ -208,7 +261,7 @@ def filter_sandbox_client_headers(
             filtered[name] = value
         elif not _is_blocked_client_header(lower_name):
             _log_unlisted_client_header(lower_name)
-    return filtered if filtered else None
+    return _with_decodable_accept_encoding(filtered)
 
 
 def _allowed_header_value(name: str, value: str, allowed: frozenset[str]) -> str:
