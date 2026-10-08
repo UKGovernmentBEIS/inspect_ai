@@ -6,6 +6,7 @@ from unittest.mock import Mock
 
 import anthropic
 import anyio
+import groq
 import httpx
 import httpx2
 import openai
@@ -29,6 +30,7 @@ from inspect_ai.model import (
 )
 from inspect_ai.model._model_info import _get_model_info_direct
 from inspect_ai.model._providers.anthropic import AnthropicAPI
+from inspect_ai.model._providers.groq import GroqAPI
 from inspect_ai.model._providers.openai import OpenAIAPI
 from inspect_ai.model._providers.openai_compatible import OpenAICompatibleAPI
 from inspect_ai.model._providers.openrouter import OpenRouterAPI
@@ -194,6 +196,12 @@ _ANTHROPIC_MESSAGE = {
         (OpenRouterAPI, "test/model", "https://example.com/v1", "authorization"),
         (OpenAIAPI, "gpt-4o", "https://example.com/v1", "authorization"),
         (OpenAIAPI, "azure/gpt-4o", "https://example.openai.azure.com", "api-key"),
+        (
+            OpenAIAPI,
+            "bedrock/openai.gpt-oss-120b",
+            "https://example.com/v1",
+            "authorization",
+        ),
         (AnthropicAPI, "claude-sonnet-4-6", "https://example.com", "x-api-key"),
         (
             AnthropicAPI,
@@ -201,12 +209,16 @@ _ANTHROPIC_MESSAGE = {
             "https://example.services.ai.azure.com/anthropic",
             "api-key",
         ),
+        (GroqAPI, "llama-3.3-70b-versatile", "https://example.com", "authorization"),
     ],
 )
 @pytest.mark.parametrize("parallel_status", [200, 500, 401])
 async def test_refresh_preserves_concurrent_requests(
     monkeypatch: pytest.MonkeyPatch,
-    provider: type[OpenAICompatibleAPI] | type[OpenAIAPI] | type[AnthropicAPI],
+    provider: type[OpenAICompatibleAPI]
+    | type[OpenAIAPI]
+    | type[AnthropicAPI]
+    | type[GroqAPI],
     model_name: str,
     base_url: str,
     auth_header: str,
@@ -223,6 +235,9 @@ async def test_refresh_preserves_concurrent_requests(
 
     monkeypatch.setattr("inspect_ai.hooks._hooks.override_api_key", override_api_key)
     monkeypatch.delenv("ANTHROPIC_AUTH_TOKEN", raising=False)
+    monkeypatch.setenv("AWS_REGION", "us-east-1")
+    # the Groq SDK is built on httpx rather than httpx2
+    http = httpx if provider is GroqAPI else httpx2
 
     async def respond(request: httpx2.Request) -> httpx2.Response:
         marker = json.loads(request.content)["messages"][0]["content"]
@@ -230,20 +245,20 @@ async def test_refresh_preserves_concurrent_requests(
         if len(seen[marker]) == 1:
             if marker == "auth":
                 await parallel_started.wait()
-                return httpx2.Response(401, json={"error": {"message": "expired"}})
+                return http.Response(401, json={"error": {"message": "expired"}})
             parallel_started.set()
             await refreshed.wait()
             if parallel_status != 200:
-                return httpx2.Response(
+                return http.Response(
                     parallel_status,
                     json={"error": {"message": "retry"}},
                 )
-        return httpx2.Response(
+        return http.Response(
             200,
             json=_ANTHROPIC_MESSAGE if provider is AnthropicAPI else _OPENAI_COMPLETION,
         )
 
-    http_client = httpx2.AsyncClient(transport=httpx2.MockTransport(respond))
+    http_client = http.AsyncClient(transport=http.MockTransport(respond))
     api = provider(
         model_name,
         api_key=token,
@@ -270,7 +285,11 @@ async def test_refresh_preserves_concurrent_requests(
         nonlocal token
         try:
             await create(marker)
-        except (openai.AuthenticationError, anthropic.AuthenticationError) as ex:
+        except (
+            openai.AuthenticationError,
+            anthropic.AuthenticationError,
+            groq.AuthenticationError,
+        ) as ex:
             token = "new-token"
             await model.before_retry(ex)
             # before retrying, since a rebuilt client would use the real network
