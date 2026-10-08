@@ -437,6 +437,54 @@ async def test_dispatched_call_modify_changing_the_target_fails_the_sample() -> 
     tool.assert_not_awaited()
 
 
+async def test_modify_without_a_modified_call_is_rejected() -> None:
+    """A `modify` that carries no modified call never hands the original over."""
+    original = ToolCall(id="1", function="bash", arguments={"cmd": "rm -rf /"})
+    replacement = ToolCall(id="2", function="bash", arguments={"cmd": "ls"})
+    run = await run_bridge(
+        [tool_calls_output(original), tool_calls_output(replacement)],
+        approval=[
+            ApprovalPolicy(auto_approver("modify"), "bash(cmd='rm"),
+            ApprovalPolicy(auto_approver("approve"), "*"),
+        ],
+    )
+
+    # the model is told and generates again; the scaffold sees only the replacement
+    assert run.generations == 2
+    assert run.output.message.tool_calls == [replacement]
+    (result,) = run.tool_results(1)
+    assert result.tool_call_id == "1"
+    assert result.error is not None
+    assert result.error.type == "approval"
+    assert "no modified call" in result.error.message
+
+
+async def test_sandbox_modify_without_a_modified_call_grants_nothing() -> None:
+    tool = AsyncMock(return_value="contents")
+    bridge = sandbox_bridge_with_tool(
+        tool,
+        [
+            ApprovalPolicy(auto_approver("modify"), "read_file(path='secret"),
+            ApprovalPolicy(auto_approver("approve"), "*"),
+        ],
+    )
+    original = ToolCall(id="1", function="read_file", arguments={"path": "secret"})
+    replacement = ToolCall(id="2", function="read_file", arguments={"path": "a.txt"})
+
+    run = await run_bridge(
+        [tool_calls_output(original), tool_calls_output(replacement)],
+        bridge=bridge,
+        tools=declare("read_file"),
+    )
+
+    assert run.generations == 2
+    assert run.output.message.tool_calls == [replacement]
+    execute = call_host_tool(bridge)
+    with pytest.raises(PermissionError, match="was not proposed by the model"):
+        await execute("host", "read_file", {"path": "secret"})
+    tool.assert_not_awaited()
+
+
 # ---------------------------------------------------------------------------
 # reject: the internal round-trip
 # ---------------------------------------------------------------------------
