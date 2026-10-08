@@ -671,11 +671,11 @@ def test_cli_sentinel(tmp_path: Path, via: str) -> None:
 
 
 @pytest.mark.parametrize("fn", [Task.__init__, eval, eval_async, eval_set])
-def test_sentinel_is_the_last_named_parameter(fn: Callable[..., Any]) -> None:
+def test_sentinel_is_the_last_positional_parameter(fn: Callable[..., Any]) -> None:
     # added after the other parameters, so it must not shift their positions
     names = [
         p.name
         for p in inspect.signature(fn).parameters.values()
-        if p.kind is not inspect.Parameter.VAR_KEYWORD
+        if p.kind is inspect.Parameter.POSITIONAL_OR_KEYWORD
     ]
     assert names[-1] == "sentinel"

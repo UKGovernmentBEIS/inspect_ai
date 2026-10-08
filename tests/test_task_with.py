@@ -1,3 +1,6 @@
+import inspect
+from typing import Any
+
 from test_helpers.tasks import minimal_task
 
 from inspect_ai import task_with
@@ -94,3 +97,32 @@ def test_task_with_agent_as_solver():
         solver=minimal_agent(),
     )
     assert str(task.solver).find("agent_to_solver") != -1
+
+
+def test_task_description() -> None:
+    assert Task().description is None
+    assert Task(description="Solve the puzzle.").description == "Solve the puzzle."
+
+
+def test_task_positional_version_compatibility() -> None:
+    # This pins version at its historical 29th positional argument.
+    positional: list[Any] = [None] * 28 + ["v2"]
+    task = Task(*positional)
+    assert task.version == "v2"
+    assert task.description is None
+
+
+def test_task_description_is_keyword_only() -> None:
+    assert (
+        inspect.signature(Task).parameters["description"].kind
+        == inspect.Parameter.KEYWORD_ONLY
+    )
+
+
+def test_task_with_description() -> None:
+    task = task_with(Task(description="Original."), description="Changed.")
+    assert task.description == "Changed."
+    assert task_with(task, description=None).description is None
+    # unspecified leaves the description in place
+    task = task_with(Task(description="Kept."), time_limit=30)
+    assert task.description == "Kept."

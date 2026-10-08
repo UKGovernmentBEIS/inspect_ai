@@ -1649,6 +1649,39 @@ def resolved_tasks_have_unique_identifiers(resolved_tasks: list[ResolvedTask]) -
     return True
 
 
+def test_task_identifier_ignores_description():
+    model = get_model("mockllm/model")
+
+    def ident(description: str | None) -> str:
+        t = task_with(hello_world(), model=model, description=description)
+        (resolved,) = resolve_tasks([t], {}, model, None, None, None)
+        return task_identifier(
+            resolved, EvalSetArgsInTaskIdentifier(config=GenerateConfig())
+        )
+
+    assert ident(None) == ident("First.") == ident("Second.")
+
+
+def test_eval_set_description_change_reuses_log():
+    with tempfile.TemporaryDirectory() as log_dir:
+
+        def run(description: str) -> EvalLog:
+            success, logs = eval_set(
+                tasks=[task_with(hello_world(), description=description)],
+                log_dir=log_dir,
+                model="mockllm/model",
+            )
+            assert success
+            return logs[0]
+
+        first = run("First.")
+        second = run("Second.")
+        # the completed log is matched to the task, not re-run
+        assert second.eval.eval_id == first.eval.eval_id
+        assert second.eval.task_description == "First."
+        assert len([f for f in os.listdir(log_dir) if f.endswith(".eval")]) == 1
+
+
 def test_task_identifier_with_task_versions():
     model1 = get_model("mockllm/model")
 
