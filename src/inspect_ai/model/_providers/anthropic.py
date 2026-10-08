@@ -821,6 +821,11 @@ class AnthropicAPI(ModelAPI):
                         request["tool_choice"] = message_tool_choice(
                             resolved_choice, config
                         )
+                        if (
+                            isinstance(resolved_choice, ToolFunction)
+                            and resolved_choice.name == "web_search"
+                        ):
+                            _allow_direct_web_search(tools_param)
 
                 # additional options
                 req, extra_body, headers, betas = self.completion_config(config)
@@ -938,6 +943,7 @@ class AnthropicAPI(ModelAPI):
                         request, streaming, tools, config
                     )
                 except (BadRequestError, APIStatusError) as ex:
+                    ex = _normalize_stream_error(ex)
                     model_call.set_error(
                         as_error_response(ex.body),
                         self._http_hooks.end_request(request_id),
@@ -1904,21 +1910,16 @@ class AnthropicAPI(ModelAPI):
     @override
     def should_retry(self, ex: BaseException) -> bool | RetryDecision:
         if isinstance(ex, APIStatusError):
+            # A mid-stream SSE error event reaches here with the stream's 200
+            # status; give it its effective status first (a no-op once
+            # generate() has done so) so the rules below classify it.
+            ex = _normalize_stream_error(ex)
             retry_after = parse_retry_after_from_exception(ex)
-            # An error event delivered mid-stream surfaces as an
-            # APIStatusError with status_code == 200 (the SDK builds it from
-            # the SSE error body, not an HTTP status), so the status-based
-            # checks below can't classify it — classify from the body's
-            # error type: these are the in-band analogues of 429/529/500/408.
-            # Scoped to status 200 so that a real HTTP error status (e.g. a
-            # proxy's 4xx wrapping an anthropic-format body) keeps failing
-            # fast via the status rules.
-            if ex.status_code == 200 and isinstance(ex.body, dict):
-                error_type = _error_type_from_body(ex.body)
-                if error_type == "rate_limit_error":
-                    return RetryDecision.rate_limit(retry_after=retry_after)
-                if error_type in ("overloaded_error", "api_error", "timeout_error"):
-                    return RetryDecision.transient(retry_after=retry_after)
+            if ex.status_code == 429:
+                # The provider's own classification outranks any message text:
+                # a rate_limit_error whose message mentions overload is still a
+                # rate limit, and only that kind feeds adaptive concurrency.
+                return RetryDecision.rate_limit(retry_after=retry_after)
             if isinstance(ex.body, dict | str):
                 # message-based fallback for error bodies without a
                 # recognized type (a mid-stream error event whose data fails
@@ -1935,11 +1936,12 @@ class AnthropicAPI(ModelAPI):
                 ):
                     return RetryDecision.transient(retry_after=retry_after)
 
-            # standard http status code checking
+            if isinstance(ex, _UnclassifiedStreamError):
+                return RetryDecision.no()
+
+            # standard http status code checking (429 was decided above)
             if not is_retryable_http_status(ex.status_code):
                 return RetryDecision.no()
-            if ex.status_code == 429:
-                return RetryDecision.rate_limit(retry_after=retry_after)
             return RetryDecision.transient(retry_after=retry_after)
 
         decision = httpx_classify_retry(ex)
@@ -2677,6 +2679,9 @@ def _supports_memory(model_name: str) -> bool:
     ) or _is_claude_5(model_name)
 
 
+_WEB_SEARCH_TOOL_TYPES = ("web_search_20250305", "web_search_20260209")
+
+
 def _web_search_tool_params(
     maybe_anthropic_options: object,
     web_search_filtering: bool = False,
@@ -2692,6 +2697,17 @@ def _web_search_tool_params(
         raise TypeError(
             f"Expected a dictionary for anthropic_options, got {type(maybe_anthropic_options)}"
         )
+
+    # an explicit search tool version (e.g. the one a bridged client declared)
+    # selects the matching search/fetch pair
+    if maybe_anthropic_options and "type" in maybe_anthropic_options:
+        tool_type = maybe_anthropic_options["type"]
+        if tool_type not in _WEB_SEARCH_TOOL_TYPES:
+            raise ValueError(
+                f"Unsupported Anthropic web_search tool type {tool_type!r} "
+                f"(supported: {', '.join(_WEB_SEARCH_TOOL_TYPES)})."
+            )
+        web_search_filtering = tool_type == "web_search_20260209"
 
     # use the dynamic filtering tool versions when supported (these run web
     # search/fetch inside the code execution sandbox so the model can filter
@@ -2733,6 +2749,11 @@ def _web_search_tool_params(
             web_fetch_tool["max_uses"] = web_search_tool["max_uses"]
         if "user_location" in maybe_anthropic_options:
             web_search_tool["user_location"] = maybe_anthropic_options["user_location"]
+        if "allowed_callers" in maybe_anthropic_options:
+            web_search_tool["allowed_callers"] = maybe_anthropic_options[
+                "allowed_callers"
+            ]
+            web_fetch_tool["allowed_callers"] = web_search_tool["allowed_callers"]
 
         if "citations" in maybe_anthropic_options:
             web_fetch_tool["citations"] = maybe_anthropic_options["citations"]
@@ -2805,6 +2826,23 @@ def is_web_fetch_tool(
     param: ToolParamDef,
 ) -> TypeGuard[BetaWebFetchTool20250910Param | BetaWebFetchTool20260209Param]:
     return param.get("name") == "web_fetch" and not is_tool_param(param)
+
+
+def _allow_direct_web_search(tools_param: list[ToolParamDef]) -> None:
+    """Let a forced tool choice call the dynamic filtering web search.
+
+    `web_search_20260209` defaults `allowed_callers` to the code execution
+    caller only, and the API rejects a `tool_choice` naming a tool the model
+    cannot call directly. A forced choice is a request for a direct call, so
+    add the direct caller unless `allowed_callers` was set explicitly.
+    """
+    for param in tools_param:
+        if (
+            is_web_search_tool(param)
+            and param["type"] == "web_search_20260209"
+            and "allowed_callers" not in param
+        ):
+            param["allowed_callers"] = ["direct", "code_execution_20260120"]
 
 
 def is_memory_tool(param: ToolParamDef) -> TypeGuard[BetaMemoryTool20250818Param]:
@@ -5174,18 +5212,74 @@ def _warn_refusal_without_fallback(
     )
 
 
-def _error_type_from_body(body: dict[str, Any]) -> str | None:
-    """Extract the API error type from an error response body.
+# The HTTP status Anthropic sends with each error type on the Messages API. Batch
+# results classify some of these types differently (`_anthropic_batch.py`): a batch
+# result carries no HTTP response, so it borrows each SDK subclass's own status
+# (a billing error becomes a 403 PermissionDeniedError there). These are the wire
+# statuses, and the sandbox proxy's inverse table must invert exactly this one.
+_ANTHROPIC_ERROR_TYPE_STATUS = {
+    "invalid_request_error": 400,
+    "authentication_error": 401,
+    "billing_error": 402,
+    "permission_error": 403,
+    "not_found_error": 404,
+    "conflict_error": 409,
+    "request_too_large": 413,
+    "rate_limit_error": 429,
+    "api_error": 500,
+    "timeout_error": 504,
+    "overloaded_error": 529,
+}
 
-    The SDK attaches the full error envelope as `ex.body` — for both
-    mid-stream SSE error events and non-streaming HTTP errors —
-    ({"type": "error", "error": {"type": "rate_limit_error", ...}}).
+
+class _UnclassifiedStreamError(APIStatusError):
+    """A mid-stream SSE error event this provider could not classify.
+
+    Its type is absent from `_ANTHROPIC_ERROR_TYPE_STATUS`, its `error` is not a
+    mapping, or its body did not decode. It carries a 500 so the failure is
+    reported as one rather than escaping as the stream's 200, but nothing says
+    the failure is transient, so `should_retry` exempts this type from the
+    status rules; only the message-text fallback can retry it. An ordinary HTTP
+    500 is never this type.
     """
-    error = body.get("error")
+
+
+def _normalize_stream_error(ex: APIStatusError) -> APIStatusError:
+    """Give a mid-stream SSE error event its effective HTTP status and message.
+
+    The SDK raises `APIStatusError` for an SSE `error` event with the stream's
+    own status (200) and the event's data as `body`: the error envelope when it
+    parsed, the raw string when it did not. The real status is only implied by
+    the envelope's `type`. Returns the exception every downstream reader --
+    retry classification, bad-request handling, the agent bridge -- should see:
+    `ex` itself, rewritten in place with the status the provider meant, or a
+    `_UnclassifiedStreamError` built from it when the event cannot be
+    classified. Callers raise or classify the returned exception, not `ex`;
+    `ex` is nonetheless left consistent (a 500 on both `status_code` and its
+    `response`), since it survives as the raised error's `__context__`. The
+    body is left as the SDK captured it so the diagnostic survives.
+
+    A 200 here is never a success: the SDK raised, so the provider reported a
+    failure. Returns an ordinary HTTP error or an already-normalized exception
+    unchanged.
+    """
+    if ex.status_code != 200:
+        return ex
+    status: int | None = None
+    error = ex.body.get("error") if isinstance(ex.body, dict) else None
     if isinstance(error, dict):
         error_type = error.get("type")
-        return error_type if isinstance(error_type, str) else None
-    return None
+        if isinstance(error_type, str):
+            status = _ANTHROPIC_ERROR_TYPE_STATUS.get(error_type)
+        message = error.get("message")
+        if isinstance(message, str):
+            ex.message = message
+            ex.args = (message,)
+    if status is None:
+        ex.status_code = ex.response.status_code = 500
+        return _UnclassifiedStreamError(ex.message, response=ex.response, body=ex.body)
+    ex.status_code = ex.response.status_code = status
+    return ex
 
 
 def _strip_reasoning(message: ChatMessageAssistant) -> ChatMessageAssistant:
