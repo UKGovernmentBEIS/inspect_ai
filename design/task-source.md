@@ -361,8 +361,8 @@ attempt and on crash-resume.
 [task_file@]task_name#task_args_hash/model/additional_hash
 ```
 
-`additional_hash` folds in the plan, generate config, model roles, version, and
-limits. Nothing in it encodes *when* or *how* a task was produced — no
+`additional_hash` folds in the plan, generate config, model roles, version,
+limits, scorers, and task metrics. Nothing in it encodes *when* or *how* a task was produced — no
 generation index, no ordinal, no run_id. So a task emitted by a `TaskSource`'s
 third `next_tasks()` call hashes to the same identifier as the identical task in
 a static list. eval_set's existing diff (`task_identifier(task) in

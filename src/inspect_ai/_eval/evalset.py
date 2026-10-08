@@ -70,6 +70,7 @@ from inspect_ai._util.file import (
 )
 from inspect_ai._util.json import to_json_safe
 from inspect_ai._util.notgiven import NOT_GIVEN, NotGiven
+from inspect_ai._util.registry import is_model_dict
 from inspect_ai.agent._agent import Agent, is_agent
 from inspect_ai.agent._as_solver import as_solver
 from inspect_ai.approval._policy import ApprovalPolicy, ApprovalPolicyConfig
@@ -2137,6 +2138,42 @@ def _logged_scorer_identity(task: Task) -> _LoggedScorerIdentity:
     )
 
 
+def _scorers_for_identifier(
+    scorers: list[EvalScorer] | None,
+) -> list[EvalScorer] | None:
+    """Scorers with grader model transport settings removed.
+
+    A `Model` scorer argument is recorded with its full generate config and
+    `base_url`. Strip the same fields excluded for model roles, so changing a
+    grader's `max_connections` or an env-derived `base_url` keeps the identifier.
+    """
+    if scorers is None:
+        return None
+    return [
+        scorer.model_copy(update={"options": _strip_model_transport(scorer.options)})
+        for scorer in scorers
+    ]
+
+
+def _strip_model_transport(value: Any) -> Any:
+    if isinstance(value, list):
+        return [_strip_model_transport(item) for item in value]
+    if is_model_dict(value):
+        config = value["config"] or {}
+        return {
+            **value,
+            "base_url": None,
+            "config": {
+                key: item
+                for key, item in config.items()
+                if key not in GENERATE_CONFIG_FIELDS_TO_EXCLUDE
+            },
+        }
+    if isinstance(value, dict):
+        return {key: _strip_model_transport(item) for key, item in value.items()}
+    return value
+
+
 # Version of the task_identifier computation. Bump this only when the computed
 # identifier values change, so that persisted identifiers (e.g. in inspect_flow)
 # can be recomputed. A logic change that provably preserves every identifier
@@ -2249,7 +2286,7 @@ def task_identifier(
             cost_limit=task.task.cost_limit
             if eval_set_args.cost_limit is None
             else eval_set_args.cost_limit,
-            scorers=scorer_identity.scorers,
+            scorers=_scorers_for_identifier(scorer_identity.scorers),
             metrics=scorer_identity.metrics,
         )
     else:
@@ -2271,7 +2308,7 @@ def task_identifier(
             time_limit=task.eval.config.time_limit,
             working_limit=task.eval.config.working_limit,
             cost_limit=task.eval.config.cost_limit,
-            scorers=task.eval.scorers,
+            scorers=_scorers_for_identifier(task.eval.scorers),
             metrics=task.eval.metrics,
         )
 

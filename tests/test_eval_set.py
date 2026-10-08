@@ -1725,6 +1725,47 @@ def test_task_identifier_includes_scorer_and_metrics() -> None:
         )
 
 
+def test_task_identifier_ignores_grader_transport_config() -> None:
+    """A grader's transport settings don't change identity; its generation settings do."""
+
+    @scorer(metrics=[accuracy()], name="grader_scorer")
+    def grader(model: Model) -> Scorer:
+        async def score(state: TaskState, target: Target) -> Score:
+            return Score(value=CORRECT)
+
+        return score
+
+    def make_task(**config: Any) -> Task:
+        return Task(
+            name="grader_identity_task",
+            dataset=[Sample(input="hello", target="hello")],
+            solver=[],
+            scorer=grader(get_model("mockllm/model", config=GenerateConfig(**config))),
+        )
+
+    model = get_model("mockllm/model")
+    base = _resolved_identifier(make_task(max_connections=5, temperature=0.2), model)
+    assert base == _resolved_identifier(
+        make_task(max_connections=10, max_retries=3, temperature=0.2), model
+    )
+    assert base != _resolved_identifier(
+        make_task(max_connections=5, temperature=0.9), model
+    )
+
+    with tempfile.TemporaryDirectory() as log_dir:
+        _, first = eval_set(
+            tasks=make_task(max_connections=5, temperature=0.2),
+            log_dir=log_dir,
+            model="mockllm/model",
+        )
+        _, second = eval_set(
+            tasks=make_task(max_connections=10, temperature=0.2),
+            log_dir=log_dir,
+            model="mockllm/model",
+        )
+        assert basename(second[0].location) == basename(first[0].location)
+
+
 def test_eval_set_reruns_when_scorer_changes() -> None:
     """Changing only the scorer re-runs; repeating that scorer reuses the log."""
     calls = {"a": 0, "b": 0}
@@ -1795,6 +1836,63 @@ def test_eval_set_reruns_when_scorer_changes() -> None:
         assert success
         assert calls == {"a": 1, "b": 1}
         _assert_logged_score(again[0], "scorer_b", 0.0)
+
+
+def test_eval_set_scorer_change_rejects_clean_log_dir() -> None:
+    """Without log_dir_allow_dirty, a scorer change is rejected like other identity changes."""
+    calls = {"b": 0}
+
+    @scorer(metrics=[accuracy()], name="clean_dir_scorer_a")
+    def scorer_a() -> Scorer:
+        async def score(state: TaskState, target: Target) -> Score:
+            return Score(value=CORRECT)
+
+        return score
+
+    @scorer(metrics=[accuracy()], name="clean_dir_scorer_b")
+    def scorer_b() -> Scorer:
+        async def score(state: TaskState, target: Target) -> Score:
+            calls["b"] += 1
+            return Score(value=INCORRECT)
+
+        return score
+
+    def make_task(chosen: Scorer) -> Task:
+        return Task(
+            name="clean_dir_scorer_task",
+            dataset=[Sample(input="hello", target="hello")],
+            solver=[],
+            scorer=chosen,
+        )
+
+    with tempfile.TemporaryDirectory() as log_dir:
+        success, _ = eval_set(
+            tasks=make_task(scorer_a()), log_dir=log_dir, model="mockllm/model"
+        )
+        assert success
+        with pytest.raises(PrerequisiteError, match="not associated with a task"):
+            eval_set(
+                tasks=make_task(scorer_b()), log_dir=log_dir, model="mockllm/model"
+            )
+        assert calls == {"b": 0}
+
+
+def test_task_identifier_log_without_recorded_scorers_does_not_match() -> None:
+    """Logs that predate recorded scorers cannot prove the scorer matches."""
+    log = read_eval_log(
+        "tests/test_eval_set/2024-08-29T15-11-18+00-00_popularity_5EAmX6wjMFqea6WY7XHzZp.json"
+    )
+    resolved = resolve_tasks(
+        "examples/popularity.py", {}, get_model("mockllm/model"), None, None, None
+    )[0]
+    task_with(resolved.task, config=GenerateConfig(temperature=1.0))
+    args = EvalSetArgsInTaskIdentifier(config=GenerateConfig())
+    assert task_identifier(resolved, args) == task_identifier(log, None)
+
+    legacy = log.model_copy(
+        update={"eval": log.eval.model_copy(update={"scorers": None})}
+    )
+    assert task_identifier(resolved, args) != task_identifier(legacy, None)
 
 
 def resolved_tasks_have_unique_identifiers(resolved_tasks: list[ResolvedTask]) -> bool:

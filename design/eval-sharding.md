@@ -500,8 +500,8 @@ must have the same `task_identifier` (`evalset.py:2058`; decision: Ransom,
 that are pairwise disjoint. The merge refuses on any mismatch rather than
 skipping the odd file. `task_identifier` is the right predicate because it
 is computed from a log header and already covers task file, name, args,
-model, solver plan, generate config, model args, model roles, task version
-and the execution limits while ignoring the dataset selectors (`sample_id`,
+model, solver plan, generate config, model args, model roles, task version,
+the execution limits, scorers and task metrics while ignoring the dataset selectors (`sample_id`,
 `limit`, `sample_shuffle`) and runtime-only options; it is versioned; and it
 is what `eval_set()` uses to pair the merged log with its task afterwards,
 so a shard set is by construction a set of logs eval_set would treat as one
