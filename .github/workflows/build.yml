@@ -32,7 +32,7 @@ jobs:
       contents: read
       pull-requests: read
     steps:
-      - uses: dorny/paths-filter@v4
+      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
         if: github.event_name == 'pull_request'
         id: filter
         with:
@@ -43,7 +43,7 @@ jobs:
               - '!docs/**'
               - '!design/**'
               - '!**/*.md'
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         if: github.event_name != 'pull_request' || steps.filter.outputs.code == 'true'
         with:
           fetch-depth: 0
@@ -53,12 +53,12 @@ jobs:
           filter: "blob:none"
       - name: Lint with Ruff
         if: github.event_name != 'pull_request' || steps.filter.outputs.code == 'true'
-        uses: astral-sh/ruff-action@v4.1.0
+        uses: astral-sh/ruff-action@278981a28ce3188b1e39527901f38254bf3aac89 # v4.1.0
         with:
           version-file: requirements-dev.txt
       - name: Format with Ruff
         if: github.event_name != 'pull_request' || steps.filter.outputs.code == 'true'
-        uses: astral-sh/ruff-action@v4.1.0
+        uses: astral-sh/ruff-action@278981a28ce3188b1e39527901f38254bf3aac89 # v4.1.0
         with:
           version-file: requirements-dev.txt
           args: "format --check"
@@ -72,7 +72,7 @@ jobs:
       matrix:
         python-version: ["3.10", "3.11"]
     steps:
-      - uses: dorny/paths-filter@v4
+      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
         if: github.event_name == 'pull_request'
         id: filter
         with:
@@ -83,7 +83,7 @@ jobs:
               - '!docs/**'
               - '!design/**'
               - '!**/*.md'
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         if: github.event_name != 'pull_request' || steps.filter.outputs.code == 'true'
         with:
           fetch-depth: 0
@@ -92,7 +92,7 @@ jobs:
 
       - name: Install uv
         if: github.event_name != 'pull_request' || steps.filter.outputs.code == 'true'
-        uses: astral-sh/setup-uv@v10.2.0
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
           version: ${{ env.UV_VERSION }}
           python-version: ${{ matrix.python-version }}
@@ -126,14 +126,14 @@ jobs:
     env:
       SKIP: "ruff"
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Set up Python
-        uses: actions/setup-python@v7
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.11"
 
-      - uses: pre-commit/action@v3.0.1
+      - uses: pre-commit/action@2c7b3805fd2a0fd8c1884dcaebf91fc102a13ecd # v3.0.1
 
   # Detect which areas changed so conditional jobs (docs, sandbox-tools-unit)
   # can be skipped. A skipped job-level `if` still reports a (non-blocking)
@@ -152,8 +152,8 @@ jobs:
       sandbox_tools: ${{ steps.areas.outputs.sandbox_tools }}
       docs: ${{ steps.areas.outputs.docs }}
     steps:
-      - uses: actions/checkout@v7
-      - uses: dorny/paths-filter@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
         id: areas
         with:
           filters: |
@@ -175,7 +175,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           fetch-tags: true
@@ -206,7 +206,7 @@ jobs:
 
       - name: Check for previous successful render
         id: render-cache
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: .docs-render-ok
           key: docs-render-${{ hashFiles('docs/**', 'requirements-doc.txt', '.docs-src-delta') }}
@@ -220,7 +220,7 @@ jobs:
       # hashed file rotates the key.
       - name: Install uv
         if: steps.render-cache.outputs.cache-hit != 'true'
-        uses: astral-sh/setup-uv@v10.2.0
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
           version: ${{ env.UV_VERSION }}
           python-version: "3.11"
@@ -275,7 +275,7 @@ jobs:
       # 'every' is required for the negations to bite: the default 'some'
       # quantifier matches a file against ANY pattern, and '**' matches
       # everything, so `code` would be unconditionally true.
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         if: github.event_name != 'pull_request'
         with:
           fetch-depth: 0
@@ -283,7 +283,7 @@ jobs:
           filter: "blob:none"
           submodules: true
 
-      - uses: dorny/paths-filter@v4
+      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
         id: filter
         with:
           predicate-quantifier: every
@@ -297,7 +297,7 @@ jobs:
       - name: Set RUN_TESTS
         run: echo "RUN_TESTS=${{ github.event_name == 'workflow_dispatch' || steps.filter.outputs.code == 'true' }}" >> "$GITHUB_ENV"
 
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         if: github.event_name == 'pull_request' && env.RUN_TESTS == 'true'
         with:
           fetch-depth: 0
@@ -307,7 +307,7 @@ jobs:
 
       - name: Install uv
         if: env.RUN_TESTS == 'true'
-        uses: astral-sh/setup-uv@v10.2.0
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
           version: ${{ env.UV_VERSION }}
           python-version: ${{ matrix.python-version }}
@@ -351,7 +351,7 @@ jobs:
 
       - name: Upload test order log
         if: ${{ !cancelled() && env.RUN_TESTS == 'true' }}
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: test-report-log-${{ matrix.python-version }}
           path: test-report-log.jsonl
@@ -375,10 +375,10 @@ jobs:
     timeout-minutes: 15
 
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v10.2.0
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
           version: ${{ env.UV_VERSION }}
           python-version: "3.11"
@@ -408,11 +408,11 @@ jobs:
       injectable_src_changed: ${{ steps.injectable.outputs.injectable_src }}
       areas: ${{ steps.areas.outputs.changes }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       # Special case: tools carries injectable-build/version/S3 baggage, so its
       # filters feed a dedicated chain (check-version-bump -> slow-tool-tests-*)
       # rather than the generic slow-tests matrix below.
-      - uses: dorny/paths-filter@v4
+      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
         id: tools
         with:
           filters: |
@@ -425,7 +425,7 @@ jobs:
       # Keep the exclusions in sync with _check_main_divergence in
       # src/inspect_ai/tool/_sandbox_tools_utils/sandbox.py — the runtime uses
       # the same definition of "injectable source" to decide dev vs published.
-      - uses: dorny/paths-filter@v4
+      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
         id: injectable
         with:
           predicate-quantifier: every
@@ -441,7 +441,7 @@ jobs:
       # Convention: each key is also the tests/<key>/ directory to run.
       # Tests needing an API key self-skip via skip_if_no_* (no secrets here),
       # so only add an area whose slow tests need no build artifact or secret.
-      - uses: dorny/paths-filter@v4
+      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
         id: areas
         with:
           filters: |
@@ -463,7 +463,7 @@ jobs:
     outputs:
       version_correctly_bumped: ${{ steps.bump.outputs.correctly_bumped }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           fetch-tags: true
@@ -521,7 +521,7 @@ jobs:
     timeout-minutes: 60
 
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           fetch-tags: true
@@ -532,7 +532,7 @@ jobs:
         run: git branch main origin/main
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v10.2.0
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
           version: ${{ env.UV_VERSION }}
           python-version: "3.11"
@@ -575,7 +575,7 @@ jobs:
     timeout-minutes: 60
 
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           fetch-tags: true
@@ -583,7 +583,7 @@ jobs:
           submodules: true
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v10.2.0
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
           version: ${{ env.UV_VERSION }}
           python-version: "3.11"
@@ -670,7 +670,7 @@ jobs:
         area: ${{ fromJSON(needs.detect-slow.outputs.areas) }}
 
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           fetch-tags: true
@@ -678,7 +678,7 @@ jobs:
           submodules: true
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v10.2.0
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
           version: ${{ env.UV_VERSION }}
           python-version: "3.11"
@@ -703,7 +703,7 @@ jobs:
       pull-requests: read
 
     steps:
-      - uses: dorny/paths-filter@v4
+      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
         if: github.event_name == 'pull_request'
         id: filter
         with:
@@ -717,12 +717,12 @@ jobs:
             # pyproject.toml uses this file as package metadata.
             package_readme:
               - 'README.md'
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         if: github.event_name != 'pull_request' || steps.filter.outputs.code == 'true' || steps.filter.outputs.package_readme == 'true'
         with:
           fetch-depth: 0
           fetch-tags: true
           filter: "blob:none"
 
-      - uses: hynek/build-and-inspect-python-package@v2
+      - uses: hynek/build-and-inspect-python-package@2abe76da66d0a6a4a227101f9348ee855797cfa5 # v3.0.1
         if: github.event_name != 'pull_request' || steps.filter.outputs.code == 'true' || steps.filter.outputs.package_readme == 'true'
