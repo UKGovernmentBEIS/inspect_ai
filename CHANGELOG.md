@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Grok: Fixed batch mode failing after a credential refresh (e.g. on an expired API key), including batches already in progress.
 - Models: Setting `text` on a `ChatMessage` with a list of content now replaces the existing text in place instead of moving it after images and other media; a message with no text still gets the new text appended. `prompt_template()`, `chain_of_thought()` and `multiple_choice()` set `text`, so multimodal evals that put text before media now send the prompt in the order they wrote it, and their baselines may shift on rerun. (#4770)
 - Solver: `TaskState.input_text` no longer raises when the last user message has no text; image-only and other non-text messages return placeholders such as `[image]`, and an empty message returns `""`.
 - Bugfix: Hugging Face task loading reads the Hub-delivered `eval.yaml` in UTF-8 rather than the locale default, so task configs with non-ASCII characters no longer crash or silently corrupt on Windows with a non-UTF-8 code page (or on a C-locale system).
