@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import functools
+import json
 import sys
 import time
 
@@ -21,6 +23,7 @@ from inspect_ai.model._providers.util.batch import (
     Batcher,
     BatchRequest,
 )
+from inspect_ai.model._providers.util.hooks import HttpxHooks
 from inspect_ai.model._retry import model_retry_config
 
 
@@ -190,6 +193,40 @@ class TestBatcher:
             assert len(results) == 5
             for result in results:
                 assert result.startswith("result-for-")
+
+        await self._run_with_task_group(test_logic)
+
+    async def test_batch_worker_runs_outside_the_requesting_model_event(self):
+        """Batch-level API calls must not be attributed to the request that started the worker."""
+        from inspect_ai.event._model import ModelEvent
+        from inspect_ai.log._samples import (
+            has_active_model_event,
+            track_active_model_event,
+        )
+        from inspect_ai.model import GenerateConfig, ModelOutput
+
+        worker_saw_model_event: list[bool] = []
+
+        class RecordingBatcher(FakeBatcher):
+            async def _create_batch(self, batch_requests) -> str:
+                worker_saw_model_event.append(has_active_model_event())
+                return await super()._create_batch(batch_requests)
+
+        async def test_logic():
+            batcher = RecordingBatcher()
+            event = ModelEvent(
+                model="test",
+                input=[],
+                tools=[],
+                tool_choice="auto",
+                config=GenerateConfig(),
+                output=ModelOutput(model="test", choices=[]),
+            )
+            with track_active_model_event(event):
+                result = await batcher.generate_for_request({"prompt": "test"})
+
+            assert result.startswith("result-for-")
+            assert worker_saw_model_event == [False]
 
         await self._run_with_task_group(test_logic)
 
@@ -1059,3 +1096,339 @@ class TestBatcher:
             assert elapsed < 0.5  # Should fail within reasonable time
 
         await self._run_with_task_group(test_logic)
+
+
+class HeaderRecordingBatcher(FakeBatcher):
+    """FakeBatcher that records each created batch's requests and headers."""
+
+    def __init__(self, **kwargs) -> None:
+        super().__init__(**kwargs)
+        self.created: list[tuple[list[str], dict[str, str], float]] = []
+
+    async def _create_batch(self, batch_requests) -> str:
+        headers = {
+            k: v
+            for k, v in (batch_requests[0].request.get("extra_headers") or {}).items()
+            if k != HttpxHooks.REQUEST_ID_HEADER
+        }
+        self.created.append(
+            ([req.request["prompt"] for req in batch_requests], headers, time.time())
+        )
+        return await super()._create_batch(batch_requests)
+
+
+def _headers_request(prompt: str, **headers: str) -> dict[str, object]:
+    return {
+        "prompt": prompt,
+        "extra_headers": {HttpxHooks.REQUEST_ID_HEADER: f"rid-{prompt}"} | headers,
+    }
+
+
+async def _run_in_background_group(test_func) -> None:
+    from inspect_ai._util.background import set_background_task_group
+
+    async with anyio.create_task_group() as tg:
+        set_background_task_group(tg)
+        try:
+            await test_func()
+        finally:
+            set_background_task_group(None)
+
+
+async def test_batcher_separates_requests_with_different_headers() -> None:
+    async def test_logic() -> None:
+        batcher = HeaderRecordingBatcher(
+            config=BatchConfig(size=10, send_delay=0.02, tick=0.001)
+        )
+        await tg_collect(
+            [
+                lambda: batcher.generate_for_request(
+                    _headers_request("a1", **{"x-org": "a"})
+                ),
+                lambda: batcher.generate_for_request(
+                    _headers_request("b1", **{"x-org": "b"})
+                ),
+                lambda: batcher.generate_for_request(
+                    _headers_request("a2", **{"x-org": "a"})
+                ),
+            ]
+        )
+        batches = sorted(
+            (sorted(prompts), headers) for prompts, headers, _ in batcher.created
+        )
+        assert batches == [
+            (["a1", "a2"], {"x-org": "a"}),
+            (["b1"], {"x-org": "b"}),
+        ]
+
+    await _run_in_background_group(test_logic)
+
+
+async def test_batcher_requests_differing_only_in_request_id_share_a_batch() -> None:
+    async def test_logic() -> None:
+        batcher = HeaderRecordingBatcher(
+            config=BatchConfig(size=3, send_delay=0.02, tick=0.001)
+        )
+        await tg_collect(
+            [
+                functools.partial(
+                    batcher.generate_for_request,
+                    _headers_request(f"p{i}", **{"x-org": "a"}),
+                )
+                for i in range(3)
+            ]
+        )
+        assert len(batcher.created) == 1
+        prompts, headers, _ = batcher.created[0]
+        assert sorted(prompts) == ["p0", "p1", "p2"]
+        assert headers == {"x-org": "a"}
+
+    await _run_in_background_group(test_logic)
+
+
+async def test_batcher_lone_header_set_sent_after_send_delay() -> None:
+    """A request with unique headers does not wait for its own batch to fill."""
+    send_delay = 0.05
+
+    async def test_logic() -> None:
+        batcher = HeaderRecordingBatcher(
+            config=BatchConfig(size=10, send_delay=send_delay, tick=0.001)
+        )
+        start = time.time()
+        await tg_collect(
+            [
+                functools.partial(
+                    batcher.generate_for_request,
+                    _headers_request(f"a{i}", **{"x-org": "a"}),
+                )
+                for i in range(10)
+            ]
+            + [
+                lambda: batcher.generate_for_request(
+                    _headers_request("b", **{"x-org": "b"})
+                )
+            ]
+        )
+        assert len(batcher.created) == 2
+        (a_prompts, _, _), (b_prompts, _, b_created) = batcher.created
+        assert len(a_prompts) == 10
+        assert b_prompts == ["b"]
+        assert b_created - start < send_delay + 0.5
+
+    await _run_in_background_group(test_logic)
+
+
+async def test_batcher_sends_oldest_ready_header_set_first() -> None:
+    """When batch slots are scarce, one header set cannot take every slot."""
+    batcher = HeaderRecordingBatcher(
+        config=BatchConfig(
+            size=1, max_size=1, send_delay=0.01, tick=0.001, max_batches=1
+        ),
+        batch_completion_delay=0.02,
+    )
+    # queue the requests directly so their arrival order is fixed
+    receive_streams = []
+    for prompt, org in [("a1", "a"), ("a2", "a"), ("b1", "b"), ("a3", "a")]:
+        send_stream, receive_stream = anyio.create_memory_object_stream[
+            str | Exception
+        ](1)
+        batcher._intake_queue.append(
+            BatchRequest[str](
+                request=_headers_request(prompt, **{"x-org": org}),
+                result_stream=send_stream,
+            )
+        )
+        receive_streams.append(receive_stream)
+
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(batcher._batch_worker)
+        for receive_stream in receive_streams:
+            assert isinstance(await receive_stream.receive(), str)
+
+    assert [prompts for prompts, _, _ in batcher.created] == [
+        ["a1"],
+        ["b1"],
+        ["a2"],
+        ["a3"],
+    ]
+
+
+async def test_batcher_drops_header_sets_once_sent() -> None:
+    """Header sets that have been sent leave no pending state behind."""
+
+    async def test_logic() -> None:
+        batcher = HeaderRecordingBatcher(
+            config=BatchConfig(size=1, send_delay=0.01, tick=0.001)
+        )
+        await tg_collect(
+            [
+                functools.partial(
+                    batcher.generate_for_request,
+                    _headers_request(f"p{i}", **{"x-routing": str(i)}),
+                )
+                for i in range(50)
+            ]
+        )
+        assert len(batcher.created) == 50
+        assert batcher._next_batches == {}
+
+    await _run_in_background_group(test_logic)
+
+
+async def test_batcher_send_delay_runs_from_last_batch_sent() -> None:
+    """A request arriving after `send_delay` has passed since the last batch is sent at once."""
+    send_delay = 0.5
+
+    async def test_logic() -> None:
+        batcher = HeaderRecordingBatcher(
+            config=BatchConfig(size=10, send_delay=send_delay, tick=0.001)
+        )
+        await batcher.generate_for_request(_headers_request("first", **{"x-org": "a"}))
+        await anyio.sleep(send_delay)
+
+        start = time.time()
+        await batcher.generate_for_request(_headers_request("second", **{"x-org": "a"}))
+        assert len(batcher.created) == 2
+        assert batcher.created[1][2] - start < send_delay / 2
+
+    await _run_in_background_group(test_logic)
+
+
+def _send_stream() -> anyio.abc.ObjectSendStream[str | Exception]:
+    send_stream, _ = anyio.create_memory_object_stream[str | Exception](1)
+    return send_stream
+
+
+def test_pop_batch_headers_moves_request_id_to_custom_id() -> None:
+    from inspect_ai.model._providers.util.batch import pop_batch_headers
+
+    batch = [
+        BatchRequest[str](
+            request=_headers_request(name, **{"x-org": "a"}),
+            result_stream=_send_stream(),
+        )
+        for name in ["one", "two"]
+    ]
+    assert pop_batch_headers(batch) == {"x-org": "a"}
+    assert [request.custom_id for request in batch] == ["rid-one", "rid-two"]
+    assert all("extra_headers" not in request.request for request in batch)
+
+    # a retried submission gets the same headers
+    assert pop_batch_headers(batch) == {"x-org": "a"}
+    assert [request.custom_id for request in batch] == ["rid-one", "rid-two"]
+
+
+def test_pop_batch_headers_excludes_request_id_in_any_case() -> None:
+    from inspect_ai.model._providers.util.batch import pop_batch_headers
+
+    caller_only = BatchRequest[str](
+        request={"prompt": "one", "extra_headers": {"X-IRID": "caller", "x-org": "a"}},
+        result_stream=_send_stream(),
+    )
+    generated_id = caller_only.custom_id
+    both = BatchRequest[str](
+        request={
+            "prompt": "two",
+            "extra_headers": {
+                HttpxHooks.REQUEST_ID_HEADER: "generated",
+                "X-IRID": "caller",
+                "x-org": "a",
+            },
+        },
+        result_stream=_send_stream(),
+    )
+    assert caller_only.headers == both.headers == {"x-org": "a"}
+
+    assert pop_batch_headers([caller_only, both]) == {"x-org": "a"}
+    assert caller_only.custom_id == generated_id
+    assert both.custom_id == "generated"
+
+
+def test_pop_batch_headers_rejects_mixed_headers() -> None:
+    from inspect_ai.model._providers.util.batch import pop_batch_headers
+
+    batch = [
+        BatchRequest[str](
+            request=_headers_request("one", **{"x-org": "a"}),
+            result_stream=_send_stream(),
+        ),
+        BatchRequest[str](
+            request=_headers_request("two", **{"x-org": "b"}),
+            result_stream=_send_stream(),
+        ),
+    ]
+    with pytest.raises(ValueError, match="same headers"):
+        pop_batch_headers(batch)
+
+
+async def test_openai_file_batcher_sends_each_header_set_separately() -> None:
+    """The file batcher sends one batch per header set, without the request id."""
+    from unittest.mock import AsyncMock, MagicMock
+
+    from openai.types.chat import ChatCompletion
+
+    from inspect_ai.model._providers._openai_batch import OpenAIBatcher
+
+    class CompletingOpenAIBatcher(OpenAIBatcher[ChatCompletion]):
+        """Completes each batch at once, answering each request with its id."""
+
+        async def _check_batch(self, batch):
+            return BatchCheckResult(
+                completed_count=len(batch.requests),
+                failed_count=0,
+                created_at=int(time.time()),
+                completion_info={"result_uris": []},
+            )
+
+        async def _handle_batch_result(self, batch, completion_info):
+            return {custom_id: custom_id for custom_id in batch.requests}
+
+    uploaded: list[tuple[list[str], dict[str, str]]] = []
+
+    async def files_create(file, purpose, extra_headers):
+        custom_ids = [
+            json.loads(line)["custom_id"] for line in file.read().splitlines()
+        ]
+        uploaded.append((sorted(custom_ids), extra_headers))
+        return MagicMock(id=f"file-{len(uploaded)}")
+
+    client = MagicMock()
+    client.files.create = AsyncMock(side_effect=files_create)
+    client.batches.create = AsyncMock(
+        side_effect=[MagicMock(id="batch-1"), MagicMock(id="batch-2")]
+    )
+    batcher = CompletingOpenAIBatcher(
+        client,
+        BatchConfig(size=10, send_delay=0.02, tick=0.001),
+        model_retry_config(
+            "test", 3, None, lambda e: True, lambda ex: None, lambda m, s: None
+        ),
+        ChatCompletion,
+    )
+
+    async def test_logic() -> None:
+        results = await tg_collect(
+            [
+                lambda: batcher.generate_for_request(
+                    _headers_request("a1", **{"x-org": "a"})
+                ),
+                lambda: batcher.generate_for_request(
+                    _headers_request("b1", **{"x-org": "b"})
+                ),
+                lambda: batcher.generate_for_request(
+                    _headers_request("a2", **{"x-org": "a"})
+                ),
+            ]
+        )
+        assert [str(result) for result in results] == ["rid-a1", "rid-b1", "rid-a2"]
+
+    await _run_in_background_group(test_logic)
+
+    assert sorted(uploaded, key=str) == [
+        (["rid-a1", "rid-a2"], {"x-org": "a"}),
+        (["rid-b1"], {"x-org": "b"}),
+    ]
+    create_headers = [
+        call.kwargs["extra_headers"] for call in client.batches.create.call_args_list
+    ]
+    assert sorted(create_headers, key=str) == [{"x-org": "a"}, {"x-org": "b"}]

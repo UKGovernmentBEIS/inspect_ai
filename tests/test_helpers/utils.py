@@ -12,6 +12,7 @@ from pathlib import Path
 from random import random
 from types import FrameType
 from typing import Awaitable, Callable, Generator, ParamSpec, Sequence, TypeVar
+from unittest import mock
 
 import anyio
 import pytest
@@ -168,6 +169,44 @@ def with_timeout(
         return async_wrapper
 
     return decorator
+
+
+def with_asyncgen_hooks(
+    func: Callable[P, Awaitable[R]],
+) -> Callable[P, Awaitable[R]]:
+    """Decorator that runs an async test with asyncio's async-generator hooks.
+
+    nest_asyncio2's patched ``run_until_complete`` does not install them, and
+    once a test calls ``init_nest_asyncio()`` every later asyncio test in the
+    process runs that way. An async generator left suspended (mistralai leaves
+    httpx2's byte stream so at the end of every stream) is then closed by the
+    garbage collector inside whichever task is running. httpcore2's cleanup
+    awaits inside a shielded cancel scope, so that scope stays on the test's
+    task and the enclosing ``fail_after`` fails to exit. With the hooks,
+    asyncio closes such generators in a task of their own. Does nothing under
+    trio or when hooks are already installed.
+    """
+
+    @functools.wraps(func)
+    async def async_wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            return await func(*args, **kwargs)
+        hooks = sys.get_asyncgen_hooks()
+        if hooks.finalizer is not None or not isinstance(loop, asyncio.BaseEventLoop):
+            return await func(*args, **kwargs)
+        # the hooks asyncio's own run_forever() installs (private, untyped)
+        sys.set_asyncgen_hooks(
+            firstiter=getattr(loop, "_asyncgen_firstiter_hook"),
+            finalizer=getattr(loop, "_asyncgen_finalizer_hook"),
+        )
+        try:
+            return await func(*args, **kwargs)
+        finally:
+            sys.set_asyncgen_hooks(*hooks)
+
+    return async_wrapper
 
 
 def setenv_if_unset(name: str, value: str) -> None:
@@ -685,6 +724,26 @@ def keyboard_interrupt(seconds: int) -> Generator[None, None, None]:
     finally:
         signal.alarm(0)
         signal.signal(signal.SIGALRM, original_handler)
+
+
+@contextlib.contextmanager
+def no_network() -> Generator[tuple[mock.Mock, mock.Mock], None, None]:
+    """Fail any DNS lookup or socket connection made inside the block.
+
+    Yields the `socket.getaddrinfo` and `socket.socket.connect` mocks so a test
+    can assert that neither was called.
+    """
+    with (
+        mock.patch(
+            "socket.getaddrinfo",
+            new=mock.Mock(side_effect=AssertionError("unexpected DNS lookup")),
+        ) as getaddrinfo,
+        mock.patch(
+            "socket.socket.connect",
+            new=mock.Mock(side_effect=AssertionError("unexpected connection")),
+        ) as connect,
+    ):
+        yield getaddrinfo, connect
 
 
 async def register_adaptive_controller(

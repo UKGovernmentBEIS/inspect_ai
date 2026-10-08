@@ -22,6 +22,7 @@ from inspect_ai._util.hash import base57_id_hash
 from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.metadata import MT, metadata_as
+from inspect_ai._util.model_validator import model_wrap_validator
 from inspect_ai._util.rich import format_traceback
 from inspect_ai.approval._policy import ApprovalPolicyConfig
 from inspect_ai.event._timeline import Timeline
@@ -667,7 +668,7 @@ class EvalSample(BaseModel):
 
         return migrate_values(values)
 
-    @model_validator(mode="wrap")
+    @model_wrap_validator
     @classmethod
     def _resolve_timelines(
         cls, data: Any, handler: Any, info: ValidationInfo

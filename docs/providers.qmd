@@ -235,14 +235,6 @@ inspect eval arc.py --model anthropic/claude-sonnet-4-0 -M betas=context-1m-2025
 
 ### Refusal Fallback {#anthropic-refusal-fallback}
 
-::: {.callout-note appearance="simple"}
-The model fallback feature described below requires the development version of Inspect. You can install the development version from GitHub with:
-
-```bash
-pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-```
-:::
-
 Claude 5 classifiers can decline a request, returning a refusal (surfaced by Inspect as `stop_reason="content_filter"`). Such a request can usually be served by another Claude model. Set the `fallback_models` generate config to retry refused requests on one or more fallback models (tried in order) within the same request, using Anthropic's [server-side fallback](https://platform.claude.com/docs/en/build-with-claude/refusals-and-fallback):
 
 ``` bash
@@ -255,7 +247,7 @@ Or via the `eval()` / `GenerateConfig` API:
 eval("arc.py", model="anthropic/claude-fable-5", fallback_models=["claude-opus-4-8"])
 ```
 
-This is a feature of the first-party Anthropic API only — it is not supported on Bedrock, Vertex, or Azure, nor with [batch mode](models-batch.qmd), and is ignored (with a warning) in those cases.
+This is a feature of the first-party Anthropic API only — it is not supported on Bedrock, Vertex, or Azure, nor with [batch mode](models-batch.qmd) or Claude Haiku 5.5 (which has no permitted fallback targets), and is ignored (with a warning) in those cases.
 
 See the [Fallbacks](fallbacks.qmd) article for complete documentation, including what gets recorded in logs, dataframes, and the viewer when fallbacks occur.
 
@@ -293,11 +285,11 @@ inspect eval arc.py --model anthropic/claude-sonnet-4-0 -M streaming=true
 
 ### Computer Use {#anthropic-computer-use}
 
-When the [`computer()`](tools-standard.qmd#sec-computer) tool is used with a Claude model, Inspect binds it to Anthropic's native computer use support. On the Claude API and Vertex, Claude Opus 5.5 and Sonnet 5.5 (which reject the earlier tool there), Fable 5/5.1, and Mythos 5/5.1 use Anthropic's [computer toolset](https://platform.claude.com/docs/en/agents-and-tools/tool-use/computer-use-tool) (`computer_toolset_20260801`). Other models, including Opus 5, Sonnet 5, and Opus 4.8, keep the legacy `computer_20251124` tool. Anthropic offers the toolset only on the Claude API and Vertex, so on Bedrock and Foundry every model (Opus 5.5, Sonnet 5.5, and Fable/Mythos included) uses the legacy tool.
+When the [`computer()`](tools-standard.qmd#sec-computer) tool is used with a Claude model, Inspect binds it to Anthropic's native computer use support. On the Claude API and Vertex, Claude Opus 5.5, Sonnet 5.5, and Haiku 5.5 (which reject the earlier tool there), Fable 5/5.1, and Mythos 5/5.1 use Anthropic's [computer toolset](https://platform.claude.com/docs/en/agents-and-tools/tool-use/computer-use-tool) (`computer_toolset_20260801`). Other models, including Opus 5, Sonnet 5, and Opus 4.8, keep the legacy `computer_20251124` tool. Anthropic offers the toolset only on the Claude API and Vertex, so on Bedrock and Foundry every model (Opus 5.5, Sonnet 5.5, Haiku 5.5, and Fable/Mythos included) uses the legacy tool.
 
 With the toolset, each computer action arrives as its own tool call. Inspect executes the actions in one assistant turn in order and stops at the first failure, reporting the remaining actions to the model as not executed. Logs record each action as a `computer` tool call with an `action` argument, exactly as with the legacy tool.
 
-Use the `computer_toolset` model arg (`-M`) to force either mode where the platform supports it (`false` is rejected only for Opus 5.5 and Sonnet 5.5 on the Claude API or Vertex, where the legacy tool returns an error). The toolset requires Claude Opus 4.8, Sonnet 5, Opus 5 or later on the Claude API or Vertex; for example, to use it with Opus 5:
+Use the `computer_toolset` model arg (`-M`) to force either mode where the platform supports it (`false` is rejected only for Opus 5.5, Sonnet 5.5, and Haiku 5.5 on the Claude API or Vertex, where the legacy tool returns an error). The toolset requires Claude Opus 4.8, Sonnet 5, Opus 5 or later on the Claude API or Vertex; for example, to use it with Opus 5:
 
 ``` bash
 inspect eval computer.py --model anthropic/claude-opus-5 -M computer_toolset=true
@@ -1739,7 +1731,17 @@ When the upstream model is a Claude model (recognized by its name, including mod
 
 A model that does not accept a conversation ending with an assistant message (assistant prefill) fails with an error saying so rather than being retried.
 
+### Gemini Models {#litellm-proxy-gemini}
+
+When the upstream model is a Gemini model (recognized by its name), requests with tools follow the native `google` provider's handling of malformed function calls:
+
+-   The system prompt carries a function-calling hint that discourages Gemini from writing a function call as code (`print(default_api.bash(...))`).
+-   A turn that comes back as a malformed function call is retried up to 3 times with a corrective exchange, with tool calling required when the tool choice was `auto`. LiteLLM reports Gemini's `MALFORMED_FUNCTION_CALL` as an ordinary stop, so Inspect recognizes such a turn by its shape: no text and no tool call, or text that is a function call written as code. When the retries run out, the assistant message says that it had trouble calling a function. Usage covers every attempt, and `ModelOutput.metadata` records `malformed_function_call_attempts`.
+-   Each replayed tool call carries its thought signature in `provider_specific_fields` as well as in its id. LiteLLM strips the id-embedded signature when the proxy's `model_name` does not contain "gemini" and then sends a placeholder signature, which Google documents as degrading the model.
+
 ### Reasoning Effort {#litellm-proxy-reasoning-effort}
+
+Google models get the same `reasoning_effort` mapping as the [Google](#google-gemini) provider: Gemini 3 and later (and names matching no known Gemini model, such as predeployment codenames) take `minimal` through `high`, with `xhigh` and `max` lowered to `high` and `minimal` raised to `low` where the model does not support it.
 
 When the proxy or upstream model rejects the requested `reasoning_effort`, Inspect retries with the nearest effort the model accepts (or with no effort, if the model takes none), warns once, and uses that effort for later requests. Reasoning returned by the upstream model (including Claude thinking blocks and Gemini thought signatures) is sent back on the next turn.
 

@@ -153,6 +153,7 @@ def view_server_app(
     fs_options: dict[str, Any] = {},
     generate_direct_urls: bool = False,
     show_shards: bool = False,
+    trust_content: bool | None = None,
 ) -> "FastAPI":
     app = FastAPI()
 
@@ -633,7 +634,7 @@ def view_server_app(
 
     @app.get("/app-config", response_model=AppConfig)
     async def api_app_config() -> AppConfig:
-        return get_app_config()
+        return get_app_config(trust_content)
 
     scout_router = get_scout_search_router()
     if scout_router is not None:
@@ -766,6 +767,7 @@ def standalone_view_app(
     generate_direct_urls: bool = False,
     dist_dir: Path | None = None,
     show_shards: bool = False,
+    trust_content: bool | None = None,
 ) -> ASGIApp:
     api = view_server_app(
         mapping_policy=None,
@@ -779,6 +781,7 @@ def standalone_view_app(
         fs_options=fs_options,
         generate_direct_urls=generate_direct_urls,
         show_shards=show_shards,
+        trust_content=trust_content,
     )
 
     resolved_dist_dir = dist_dir or resolve_dist_directory()
@@ -815,6 +818,7 @@ def view_server(
     unsafe_allow_unauthenticated: bool = False,
     network_policy: ViewerNetworkPolicy | None = None,
     show_shards: bool = False,
+    trust_content: bool | None = None,
 ) -> None:
     network_policy = network_policy or resolve_viewer_network_policy(
         bind_host=host,
@@ -838,6 +842,7 @@ def view_server(
         fs_options=fs_options,
         generate_direct_urls=generate_direct_urls,
         show_shards=show_shards,
+        trust_content=trust_content,
     )
 
     # one server-lifetime async filesystem (shared client + connection pool)

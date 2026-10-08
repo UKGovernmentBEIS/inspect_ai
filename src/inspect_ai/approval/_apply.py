@@ -20,6 +20,11 @@ from ._policy import ApprovalPolicy, policy_approver
 
 logger = getLogger(__name__)
 
+MODIFY_WITHOUT_CALL = (
+    "The approver chose to modify this tool call but supplied no modified call, "
+    "so the call was not run."
+)
+
 
 async def apply_tool_approval(
     message: str,
@@ -57,7 +62,15 @@ async def apply_tool_approval(
 
         # process decision
         match approval.decision:
-            case "approve" | "modify":
+            case "approve":
+                return True, approval
+            case "modify":
+                # without a modified call there is nothing approved to run, and
+                # running the original would contradict the recorded decision
+                if approval.modified is None:
+                    return False, Approval(
+                        decision="reject", explanation=MODIFY_WITHOUT_CALL
+                    )
                 return True, approval
             case "reject":
                 return False, approval
@@ -69,6 +82,22 @@ async def apply_tool_approval(
     # no approval system registered
     else:
         return True, None
+
+
+def modified_function_error(call: ToolCall, modified: ToolCall) -> str | None:
+    """Error for a `modify` decision that changes the function called, else `None`.
+
+    A `modify` decision may change only the call's arguments. A different function
+    is an error in the eval's approver, not something to report to the model, so
+    callers fail the sample with it and run neither tool.
+    """
+    if modified.function == call.function:
+        return None
+    return (
+        f"An approver returned a modified call to '{modified.function}' for a call "
+        f"to '{call.function}'. A 'modify' decision may change only the arguments "
+        "of a tool call, not the function called."
+    )
 
 
 def default_tool_call_viewer(call: ToolCall) -> ToolCallView:

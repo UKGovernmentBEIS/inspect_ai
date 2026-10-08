@@ -20,7 +20,7 @@ from collections import deque
 from collections.abc import Iterator
 from datetime import datetime, timezone
 from types import FrameType
-from typing import TYPE_CHECKING, TextIO
+from typing import TYPE_CHECKING, Any, TextIO
 
 import boto3
 import pytest
@@ -960,19 +960,23 @@ def pytest_collection_modifyitems(config, items):
     # retry can honor xfail markers, including ones added during fixture setup
     # (as the sandbox self-check suite does): expected failures run once, and a
     # flaky pass on a retry can't turn into a hard XPASS(strict) failure.
-    from test_helpers.utils import flaky_retry, with_timeout
+    # Every async test then runs with asyncio's async-generator hooks, which
+    # nest_asyncio2 drops once any test has applied it (see
+    # with_asyncgen_hooks).
+    from test_helpers.utils import flaky_retry, with_asyncgen_hooks, with_timeout
 
     _timeout = with_timeout(300)
     for item in items:
         fn = item.obj
-        if inspect.iscoroutinefunction(fn) and not getattr(
-            fn, "_has_default_timeout", False
-        ):
+        is_async = inspect.iscoroutinefunction(fn)
+        if is_async and not getattr(fn, "_has_default_timeout", False):
             fn = _timeout(fn)
         if getattr(fn, "_needs_flaky_retry", False) and not getattr(
             fn, "_flaky_retry", False
         ):
             fn = flaky_retry(max_retries=3, item=item)(fn)
+        if is_async:
+            fn = with_asyncgen_hooks(fn)
         item.obj = fn
 
 
@@ -1039,6 +1043,35 @@ def mock_s3():
             del os.environ[key]
         else:
             os.environ[key] = value
+
+
+@pytest.fixture
+def prefix_scoped_s3(mock_s3: None, monkeypatch: pytest.MonkeyPatch) -> Iterator[str]:
+    key = f"prefix-scoped/{uuid.uuid4().hex}"
+    client = boto3.client("s3")
+    client.put_object(Bucket="test-bucket", Key=f"{key}/.models.json", Body=b"{}")
+
+    s3_class = importlib.import_module("s3fs").S3FileSystem
+    original_call = s3_class._call_s3
+
+    async def restricted_call(self: Any, method: str, *args: Any, **kwargs: Any) -> Any:
+        if (
+            method == "head_object"
+            and kwargs.get("Bucket") == "test-bucket"
+            and kwargs.get("Key") == key
+        ):
+            raise PermissionError("directory HeadObject denied")
+        return await original_call(self, method, *args, **kwargs)
+
+    monkeypatch.setattr(s3_class, "_call_s3", restricted_call)
+    try:
+        yield f"s3://test-bucket/{key}"
+    finally:
+        for page in client.get_paginator("list_objects_v2").paginate(
+            Bucket="test-bucket", Prefix=f"{key}/"
+        ):
+            for obj in page.get("Contents", []):
+                client.delete_object(Bucket="test-bucket", Key=obj["Key"])
 
 
 def pytest_sessionfinish(session, exitstatus):

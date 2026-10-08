@@ -51,6 +51,7 @@ from inspect_ai.log._file import (
 from inspect_ai.log._log import EvalLog, EvalSample, EvalSpec
 from inspect_ai.model import ModelUsage, get_model
 from inspect_ai.model._generate_config import GenerateConfig
+from inspect_ai.model._model import requested_model
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.scorer import (
     Metric,
@@ -200,6 +201,37 @@ def test_can_round_trip_serialize_model_event():
     deserialized = ModelEvent.model_validate_json(serialized)
 
     assert original == deserialized
+
+
+def test_model_event_requested_model_round_trips_through_log(tmp_path: Path) -> None:
+    @solver
+    def bridged_generate():
+        async def solve(state: TaskState, generate: Generate):
+            with requested_model("gpt-4o-mini"):
+                return await generate(state)
+
+        return solve
+
+    task = Task(dataset=[Sample(input="Say hello.")], solver=bridged_generate())
+    log = eval(task, model="mockllm/model", log_dir=str(tmp_path))[0]
+    assert log.status == "success"
+
+    read_back = read_eval_log(log.location)
+    assert read_back.samples is not None
+    events = [e for e in read_back.samples[0].events if isinstance(e, ModelEvent)]
+    assert [(e.model, e.requested_model) for e in events] == [
+        ("mockllm/model", "gpt-4o-mini")
+    ]
+
+
+def test_model_event_requested_model_absent_in_older_log() -> None:
+    log = read_eval_log(
+        os.path.join("tests", "log", "test_eval_log", "log_read_sample.eval")
+    )
+    assert log.samples is not None
+    events = [e for s in log.samples for e in s.events if isinstance(e, ModelEvent)]
+    assert events
+    assert all(e.requested_model is None for e in events)
 
 
 def _inject_invalid_unicode_into_log(log: EvalLog) -> EvalLog:

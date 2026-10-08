@@ -55,10 +55,10 @@ Available `BatchConfig` options include:
 
 | Option | Description |
 |------------------------------------|------------------------------------|
-| `size` | Target number of requests to include in each batch. If not specified, uses provider-specific defaults (OpenAI: 100, Anthropic: 100). Batches may be smaller if the timeout is reached or if requests don’t fit within size limits. |
+| `size` | Target number of requests to include in each batch. If not specified, uses a default of 100. Batches may be smaller if the timeout is reached or if requests don’t fit within size limits. |
 | `send_delay` | Maximum time (in seconds) to wait before sending a partially filled batch. If not specified, uses a default of 15 seconds. This prevents indefinite waiting when request volume is low. |
 | `tick` | Time interval (in seconds) between checking for new batch requests and batch completion status. If not specified, uses a default of 15 seconds. |
-| `max_batches` | Maximum number of batches to have in flight at once for a provider (defaults to 100). |
+| `max_batches` | Maximum number of batches to have in flight at once for a provider (defaults to 50). |
 
 : {tbl-colwidths=\[30,70\]}
 
@@ -68,7 +68,7 @@ When batch processing is enabled, the following steps are taken when handling ge
 
 1.  **Request Queuing**: Individual model requests are queued rather than sent immediately
 
-2.  **Batch Formation**: Requests are grouped into batches based on size limits and timeouts.
+2.  **Batch Formation**: Requests are grouped into batches based on size limits and timeouts. Requests with different HTTP headers go in separate batches, since a batch is sent with one set of headers.
 
 3.  **Batch Submission**: Complete batches are submitted to the provider's batch API.
 
