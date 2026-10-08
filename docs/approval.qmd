@@ -67,7 +67,7 @@ approvers:
     tools: "*"
 ```
 
-Note that since this is a prefix match and there could be other arguments, we don't end the tool match pattern with a parentheses.
+The function name and the arguments are matched separately. A name glob such as `*_click` matches only function names. Each `name=value` item matches the argument of that name wherever it appears in the call. String values are written in single quotes; a `'` or backslash inside a value is preceded by a backslash. The last value is prefix matched and other arguments are allowed, which is why these patterns don't end with `)`. A pattern that ends with `)` matches its last value exactly and allows no other arguments. A `*` item, as in `bash(cmd='ls', *)`, allows other arguments. Any other item that is not `name=value` is an error.
 
 ## Approvers in Code
 
@@ -329,3 +329,5 @@ def bash(timeout: int | None = None) -> Tool:
 The `ToolCallViewer` gets passed the `ToolCall` and returns a `ToolCallView` that provides one or both of `context` (additional information for understand the call) and `call` (alternate rendering of the call). In the case of the bash tool we provide a markdown code block rendering of the bash code to be executed.
 
 The `context` is typically used for stateful tools that need to present some context from the current state. For example, the web browsing tool provides a snippet from the currently loaded page.
+
+If a viewer raises an exception while approval is active, the call is rejected and the model is told why. Approvers never see a fallback rendering in its place.

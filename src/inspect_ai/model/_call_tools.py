@@ -4,7 +4,7 @@ import string
 import types
 import typing
 from copy import copy, deepcopy
-from dataclasses import is_dataclass
+from dataclasses import is_dataclass, replace
 from datetime import date, datetime, time
 from enum import EnumMeta
 from logging import getLogger
@@ -66,6 +66,7 @@ from inspect_ai.tool._tool import (
     tool_result_content,
 )
 from inspect_ai.tool._tool_call import ToolCallContent, ToolCallError
+from inspect_ai.tool._tool_canonical import tool_canonical_arguments
 from inspect_ai.tool._tool_def import ToolDef, tool_def_fields, tool_defs
 from inspect_ai.tool._tool_info import parse_docstring
 from inspect_ai.tool._tool_params import ToolParams
@@ -880,6 +881,10 @@ async def call_tool(
     tool_def = next((tool for tool in tools if tool.name == call.function), None)
     if tool_def is None:
         raise await record_tool_parsing_error(f"Tool {call.function} not found")
+
+    canonical_arguments = tool_canonical_arguments(tool_def.tool)
+    if canonical_arguments is not None:
+        call = replace(call, arguments=canonical_arguments(call.arguments))
 
     # if we have a tool approver, apply it now
     from inspect_ai.approval._apply import (

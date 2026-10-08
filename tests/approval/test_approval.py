@@ -21,6 +21,7 @@ from inspect_ai.approval._policy import (
     ApprovalPolicyConfig,
     ApproverPolicyConfig,
     approval_policies_from_config,
+    policy_approver,
 )
 from inspect_ai.dataset import Sample
 from inspect_ai.event._approval import ApprovalEvent
@@ -770,3 +771,126 @@ def test_human_approver_rejects_modify_as_the_only_choice() -> None:
 
 if __name__ == "__main__":
     test_approve_escalate()
+
+
+@approver
+def recording_approver(
+    calls: list[ToolCall], decision: ApprovalDecision = "approve"
+) -> Approver:
+    """Approver which records the calls it is asked to decide on."""
+
+    async def approve(
+        message: str,
+        call: ToolCall,
+        view: ToolCallView,
+        history: list[ChatMessage],
+    ) -> Approval:
+        calls.append(call)
+        return Approval(decision=decision)
+
+    return approve
+
+
+async def test_raising_viewer_rejects_call() -> None:
+    from inspect_ai.log._transcript import Transcript, init_transcript, transcript
+    from inspect_ai.model._call_tools import execute_tools
+    from inspect_ai.model._chat_message import ChatMessageAssistant
+    from inspect_ai.tool._tool_def import ToolDef
+
+    def raising_viewer(call: ToolCall) -> ToolCallView:
+        raise KeyError("missing")
+
+    init_transcript(Transcript())
+    calls: list[ToolCall] = []
+    call = ToolCall(id="1", function="addition", arguments={"x": 1, "y": 1})
+    messages, _ = await execute_tools(
+        [ChatMessageAssistant(content=[], tool_calls=[call])],
+        [ToolDef(addition(), viewer=raising_viewer)],
+        approval=[ApprovalPolicy(recording_approver(calls), "*")],
+    )
+
+    # the approver was not asked to decide on a fallback rendering
+    assert calls == []
+    message = messages[-1]
+    assert isinstance(message, ChatMessageTool)
+    assert message.error is not None
+    assert message.error.type == "approval"
+    assert "viewer for tool 'addition' failed" in message.error.message
+
+    # the rejection is in the log
+    approvals = [e for e in transcript().events if isinstance(e, ApprovalEvent)]
+    assert len(approvals) == 1
+    assert approvals[0].decision == "reject"
+    assert approvals[0].view is None
+
+
+async def matched_approvers(tools: str | list[str], call: ToolCall) -> list[str]:
+    """Names of the policies `call` is routed to, in order."""
+    matched: list[ToolCall] = []
+    other: list[ToolCall] = []
+    approve = policy_approver(
+        [
+            ApprovalPolicy(recording_approver(matched, "escalate"), tools),
+            ApprovalPolicy(recording_approver(other, "escalate"), "*"),
+        ]
+    )
+    await approve("", call, ToolCallView(), [])
+    return (["matched"] if matched else []) + (["other"] if other else [])
+
+
+def make_tool_call(function: str, **arguments: object) -> ToolCall:
+    return ToolCall(id="1", function=function, arguments=arguments)
+
+
+async def test_policy_argument_text_cannot_change_match() -> None:
+    both = ["matched", "other"]
+
+    # a name glob is matched against the function name only (before, it was
+    # matched against `type(text='left_click')`)
+    assert await matched_approvers("*_click", make_tool_call("left_click")) == both
+    call = make_tool_call("type", text="left_click")
+    assert await matched_approvers("*_click", call) == ["other"]
+
+    # argument text naming another function does not match its pattern
+    call = make_tool_call("python", code="bash(cmd='ls')")
+    assert await matched_approvers("bash(cmd='ls'", call) == ["other"]
+
+    # a string value cannot end itself early and complete the pattern
+    call = make_tool_call("computer", action="type', mode='safe")
+    assert await matched_approvers("computer(action='type', mode='safe'", call) == [
+        "other"
+    ]
+    assert await matched_approvers("computer(action='type'", call) == ["other"]
+    escaped = "computer(action='type\\', mode=\\'safe'"
+    assert await matched_approvers(escaped, call) == both
+
+
+async def test_policy_documented_patterns_still_match() -> None:
+    both = ["matched", "other"]
+
+    # name globs are prefix matched
+    call = make_tool_call("web_browser_type_submit", text="hello")
+    assert await matched_approvers("web_browser_type", call) == both
+    assert await matched_approvers("web_browser_go", call) == ["other"]
+
+    # the last argument value is prefix matched, in any argument position
+    patterns = ["computer(action='key'", "computer(action='left_click'"]
+    call = make_tool_call("computer", text="Return", action="key")
+    assert await matched_approvers(patterns, call) == both
+    call = make_tool_call("computer", action="type", text="key")
+    assert await matched_approvers(patterns, call) == ["other"]
+
+    # `)` closes the argument list; `*` allows other arguments
+    call = make_tool_call("bash", cmd="ls", timeout=10)
+    assert await matched_approvers("bash(cmd='ls')", call) == ["other"]
+    assert await matched_approvers("bash(timeout=10, cmd='ls')", call) == both
+    assert await matched_approvers("bash(cmd='ls', *)", call) == both
+    assert await matched_approvers("bash(cmd='rm', timeout=10)", call) == ["other"]
+
+    # a comma inside an argument pattern does not split the tool list
+    assert await matched_approvers("bash(cmd='ls', timeout=10), python", call) == both
+
+
+def test_policy_argument_pattern_must_be_name_value() -> None:
+    with pytest.raises(ValueError, match="expected name=value"):
+        policy_approver([ApprovalPolicy(auto_approver(), "computer(*'key'*")])
