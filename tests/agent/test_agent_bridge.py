@@ -1137,14 +1137,20 @@ def test_bridged_forced_web_search_keeps_client_version():
 
 
 @skip_if_no_anthropic
-def test_bridged_forced_web_search_filtering_version():
+@pytest.mark.parametrize("reasoning_effort", [None, "high"])
+def test_bridged_forced_web_search_filtering_version(
+    reasoning_effort: Literal["high"] | None,
+):
     log = eval(
         web_search_task(anthropic_forced_web_search_agent("web_search_20260209")),
         model="anthropic/claude-sonnet-4-6",
+        reasoning_effort=reasoning_effort,
     )[0]
     log_json = log.model_dump_json(exclude_none=True, indent=2)
     assert '"type": "web_search_20260209"' in log_json
     assert '"direct"' in log_json
+    if reasoning_effort is not None:
+        assert '"type": "adaptive"' in log_json
     check_server_tool_use(log, "web_search")
 
 
