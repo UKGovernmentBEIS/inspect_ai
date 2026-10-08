@@ -3,14 +3,6 @@ title: Sample Sources
 llms-description: Generate a task's samples dynamically from code — a seed plus result-driven follow-ups — while the task runs.
 ---
 
-::: {.callout-note appearance="simple"}
-Sample sources require the development version of Inspect, which you can install from GitHub:
-
-```bash
-pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-```
-:::
-
 ## Overview
 
 The `dataset` argument to `Task` is normally static: you pass a `Dataset` (or list of samples) and the task runs exactly those. A `SampleSource` generates samples dynamically instead — a seed plus follow-ups that depend on results — all within one task and one log.
