@@ -10,9 +10,9 @@ this file pins the *CLI* contract that editors interact with.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import os
-import tempfile
 import time
 from pathlib import Path
 
@@ -23,7 +23,7 @@ from inspect_ai._cli.acp import acp_command
 
 
 @pytest.fixture(autouse=True)
-def mock_stdio_streams(monkeypatch):
+def mock_stdio_streams(monkeypatch: pytest.MonkeyPatch) -> None:
     """Replace ``acp.stdio.stdio_streams`` with a working in-memory pair.
 
     CliRunner wraps ``sys.stdin``/``sys.stdout`` in StringIO that lack
@@ -31,7 +31,7 @@ def mock_stdio_streams(monkeypatch):
     ``loop.connect_read_pipe(sys.stdin)``) blows up with
     ``OSError: [Errno 9] fileno``. Stubbing it lets us exercise the
     bridge layer cleanly — the bridge's eventual connect call still
-    fails (because the test specifies a bad socket) and we observe
+    fails (because the test specifies an unreachable server) and we observe
     that failure instead of an unrelated stdio-setup error.
     """
     import asyncio as _aio
@@ -68,16 +68,11 @@ def mock_stdio_streams(monkeypatch):
 
 
 @pytest.fixture
-def short_data_dir(monkeypatch):
-    """Stub ``inspect_data_dir`` to an empty per-test temp dir.
-
-    Also stubs ``pid_alive`` to ``True`` so synthetic-PID discovery
-    files in the temp dir register as live.
-    """
-    dirpath = Path(tempfile.mkdtemp(prefix="acp_cli_", dir="/tmp"))
+def short_data_dir(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
+    """Use pytest-owned discovery storage and treat synthetic PIDs as live."""
 
     def _stub(subdir: str | None) -> Path:
-        path = (dirpath / (subdir or "")).resolve()
+        path = (tmp_path / (subdir or "")).resolve()
         path.mkdir(parents=True, exist_ok=True)
         return path
 
@@ -89,21 +84,28 @@ def short_data_dir(monkeypatch):
         "inspect_ai._util.process.pid_alive",
         lambda pid: pid > 0,
     )
-    try:
-        yield dirpath
-    finally:
-        for p in sorted(dirpath.rglob("*"), reverse=True):
-            try:
-                if p.is_dir():
-                    p.rmdir()
-                else:
-                    p.unlink()
-            except OSError:
-                pass
-        try:
-            dirpath.rmdir()
-        except OSError:
-            pass
+    return tmp_path
+
+
+@pytest.fixture
+def refused_tcp_connections(
+    monkeypatch: pytest.MonkeyPatch,
+) -> list[tuple[str, int]]:
+    """Record TCP attempts and refuse them without opening a real socket."""
+    connections: list[tuple[str, int]] = []
+
+    async def _refuse(
+        host: str,
+        port: int,
+        *,
+        limit: int,
+    ) -> tuple[asyncio.StreamReader, asyncio.StreamWriter]:
+        connections.append((host, port))
+        raise ConnectionRefusedError("connection refused by test")
+
+    monkeypatch.setattr(asyncio, "open_connection", _refuse)
+    monkeypatch.delattr(asyncio, "open_unix_connection", raising=False)
+    return connections
 
 
 def _write_discovery(
@@ -229,6 +231,27 @@ def test_stdio_eval_id_nonexistent_exits_2(short_data_dir: Path) -> None:
     assert "ghost" in result.stderr
 
 
+def test_stdio_bad_tcp_address_exits_2(
+    short_data_dir: Path,
+    refused_tcp_connections: list[tuple[str, int]],
+) -> None:
+    """An unreachable TCP server produces a clean CLI diagnostic."""
+    result = CliRunner().invoke(
+        acp_command,
+        ["--stdio", "--server=127.0.0.1:41000"],
+        standalone_mode=False,
+    )
+    assert isinstance(result.exception, SystemExit)
+    assert result.exception.code == 2
+    assert "could not connect to eval ACP server at 127.0.0.1:41000" in result.stderr
+    assert result.stdout == ""
+    assert refused_tcp_connections == [("127.0.0.1", 41000)]
+
+
+@pytest.mark.skipif(
+    not hasattr(asyncio, "open_unix_connection"),
+    reason="asyncio Unix connections are unavailable on this platform",
+)
 def test_stdio_bad_socket_path_exits_2(short_data_dir: Path) -> None:
     """``--server=<nonexistent path>`` → bridge tries to connect, fails."""
     runner = CliRunner()
@@ -239,7 +262,7 @@ def test_stdio_bad_socket_path_exits_2(short_data_dir: Path) -> None:
     )
     assert isinstance(result.exception, SystemExit)
     assert result.exception.code == 2
-    assert "/tmp/does/not/exist/inspect.sock" in result.stderr
+    assert str(Path("/tmp/does/not/exist/inspect.sock")) in result.stderr
 
 
 def test_stdio_out_of_range_port_exits_2(short_data_dir: Path) -> None:
@@ -271,6 +294,7 @@ def test_stdio_out_of_range_port_exits_2(short_data_dir: Path) -> None:
 
 def test_stdio_multi_eval_picks_newest_and_logs_to_stderr(
     short_data_dir: Path,
+    refused_tcp_connections: list[tuple[str, int]],
 ) -> None:
     """Multiple evals, no ``--eval-id`` → newest wins; stderr names the pick.
 
@@ -283,30 +307,35 @@ def test_stdio_multi_eval_picks_newest_and_logs_to_stderr(
         short_data_dir,
         pid=100001,
         eval_id="older",
-        socket_path="/tmp/acp_older.sock",
+        host="127.0.0.1",
+        port=41001,
         started_at=1000.0,
     )
     _write_discovery(
         short_data_dir,
         pid=100002,
         eval_id="newer",
-        socket_path="/tmp/acp_newer.sock",
+        host="127.0.0.1",
+        port=41002,
         started_at=2000.0,
     )
     runner = CliRunner()
     result = runner.invoke(acp_command, ["--stdio"], standalone_mode=False)
-    # Bridge picks "newer" then fails to connect (socket doesn't exist).
-    # Either FileNotFoundError or ConnectionRefusedError; both become
-    # exit 2 with a "not reachable" message.
     assert isinstance(result.exception, SystemExit)
     assert result.exception.code == 2
     # Pick-notice landed BEFORE the connect failure.
     assert "most recent of 2" in result.stderr
     assert "newer" in result.stderr
     assert "older" in result.stderr
+    assert "could not connect to eval ACP server at 127.0.0.1:41002" in result.stderr
+    assert result.stdout == ""
+    assert refused_tcp_connections == [("127.0.0.1", 41002)]
 
 
-def test_stdio_single_eval_no_pick_notice(short_data_dir: Path) -> None:
+def test_stdio_single_eval_no_pick_notice(
+    short_data_dir: Path,
+    refused_tcp_connections: list[tuple[str, int]],
+) -> None:
     """One eval running, no ``--eval-id`` → no pick-notice on stderr.
 
     Pins the contract that the pick-notice is only emitted when
@@ -317,15 +346,17 @@ def test_stdio_single_eval_no_pick_notice(short_data_dir: Path) -> None:
         short_data_dir,
         pid=os.getpid(),
         eval_id="only",
-        socket_path="/tmp/acp_only.sock",
+        host="127.0.0.1",
+        port=41003,
     )
     runner = CliRunner()
     result = runner.invoke(acp_command, ["--stdio"], standalone_mode=False)
-    # Connection fails (socket doesn't exist), but the stderr should
-    # contain ONLY the connect failure, not a pick-notice.
     assert isinstance(result.exception, SystemExit)
     assert result.exception.code == 2
     assert "most recent of" not in result.stderr
+    assert "could not connect to eval ACP server at 127.0.0.1:41003" in result.stderr
+    assert result.stdout == ""
+    assert refused_tcp_connections == [("127.0.0.1", 41003)]
 
 
 # ---------------------------------------------------------------------------
@@ -385,8 +416,12 @@ def test_tui_partial_triple_accepted(short_data_dir: Path, monkeypatch) -> None:
     assert captured == {"task_id": "foo", "sample_id": None, "epoch": None}
 
 
-def test_stdio_full_triple_preflight_unreachable_socket(short_data_dir: Path) -> None:
-    """``--stdio`` + complete triple + unreachable socket → exit 2 on preflight.
+def test_stdio_full_triple_preflight_unreachable_tcp(
+    short_data_dir: Path,
+    refused_tcp_connections: list[tuple[str, int]],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """``--stdio`` + complete triple + unreachable TCP server → exit 2 on preflight.
 
     The preflight runs BEFORE the bridge starts; on connect failure it
     surfaces a clean diagnostic rather than letting the editor see a
@@ -396,8 +431,14 @@ def test_stdio_full_triple_preflight_unreachable_socket(short_data_dir: Path) ->
         short_data_dir,
         pid=100001,
         eval_id="real",
-        socket_path="/tmp/acp_does_not_exist.sock",
+        host="127.0.0.1",
+        port=41004,
     )
+
+    async def _unexpected_stdio() -> tuple[asyncio.StreamReader, asyncio.StreamWriter]:
+        raise AssertionError("preflight failure must precede stdio setup")
+
+    monkeypatch.setattr("acp.stdio.stdio_streams", _unexpected_stdio)
     runner = CliRunner()
     result = runner.invoke(
         acp_command,
@@ -411,7 +452,10 @@ def test_stdio_full_triple_preflight_unreachable_socket(short_data_dir: Path) ->
     )
     assert isinstance(result.exception, SystemExit)
     assert result.exception.code == 2
-    assert "/tmp/acp_does_not_exist.sock" in result.stderr
+    assert "could not connect to eval ACP server at 127.0.0.1:41004" in result.stderr
+    assert "failed to open stdio streams" not in result.stderr
+    assert result.stdout == ""
+    assert refused_tcp_connections == [("127.0.0.1", 41004)]
 
 
 # ---------------------------------------------------------------------------
