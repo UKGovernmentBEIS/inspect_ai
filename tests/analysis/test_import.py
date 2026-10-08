@@ -1,8 +1,9 @@
 import subprocess
 import sys
-from datetime import date, datetime, time, timezone
+from datetime import date, datetime, time, timezone, tzinfo
 from pathlib import Path
 from textwrap import dedent
+from typing import Any
 
 import pytest
 from pydantic import JsonValue
@@ -16,12 +17,13 @@ from inspect_ai.analysis import (
     EventColumn,
     MessageColumn,
     SampleColumn,
+    samples_df,
 )
 from inspect_ai.analysis._dataframe.columns import parse
 from inspect_ai.analysis._dataframe.evals.columns import EvalColumn
 from inspect_ai.analysis._dataframe.record import _resolve_value, import_record
 from inspect_ai.event import ModelEvent, ToolEvent
-from inspect_ai.log._file import read_eval_log
+from inspect_ai.log._file import read_eval_log, write_eval_log
 from inspect_ai.log._log import (
     EvalConfig,
     EvalDataset,
@@ -380,6 +382,121 @@ def test_resolve_value_errors() -> None:
         ValueError, match=r"^Cannot coerce not a bool from type str to int$"
     ):
         _resolve_value("not a bool", int)
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ("2024-01-01T12:00:00", "2024-01-01T12:00:00+00:00"),
+        ("2024-01-01 12:00:00", "2024-01-01T12:00:00+00:00"),
+        ("2024-01-01T12:00:00Z", "2024-01-01T12:00:00+00:00"),
+        ("2024-01-01T12:00:00+05:30", "2024-01-01T06:30:00+00:00"),
+        ("2024-01-01T12:00:00-08:00", "2024-01-01T20:00:00+00:00"),
+        ("2024-01-01T00:30:00+05:30", "2023-12-31T19:00:00+00:00"),
+    ],
+)
+def test_resolve_value_datetime_strings(text: str, expected: str) -> None:
+    """Timezone-less timestamps keep their clock time and are tagged UTC.
+
+    An explicit offset converts to the same UTC instant, which can roll the
+    date backward. A space-separated timestamp is accepted by the YAML parser.
+    """
+    resolved = _resolve_value(text, datetime)
+    assert isinstance(resolved, datetime)
+    assert resolved.isoformat() == expected
+
+
+def test_resolve_value_invalid_datetime_still_fails() -> None:
+    """Strings that are not timestamps still fail coercion."""
+    with pytest.raises(
+        ValueError,
+        match=r"^Cannot coerce not-a-timestamp from type str to datetime$",
+    ):
+        _resolve_value("not-a-timestamp", datetime)
+
+
+def test_resolve_value_does_not_astimezone_naive_datetime(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Converting a timezone-less timestamp must not call astimezone() while naive.
+
+    ``datetime.astimezone`` cannot be replaced on the builtin class, so this
+    wraps the YAML datetime. A naive receiver raises even when the host is UTC.
+    """
+    import yaml
+
+    real_safe_load = yaml.safe_load
+
+    class _NaiveAstimezoneRaises(datetime):
+        @override
+        def astimezone(self, tz: tzinfo | None = None) -> "_NaiveAstimezoneRaises":
+            if self.tzinfo is None:
+                raise AssertionError("astimezone() called on a naive datetime")
+            converted = datetime.astimezone(self, tz)
+            return _NaiveAstimezoneRaises(
+                converted.year,
+                converted.month,
+                converted.day,
+                converted.hour,
+                converted.minute,
+                converted.second,
+                converted.microsecond,
+                converted.tzinfo,
+                fold=converted.fold,
+            )
+
+    def guarded_safe_load(text: str) -> Any:
+        parsed = real_safe_load(text)
+        if isinstance(parsed, datetime) and parsed.__class__ is datetime:
+            return _NaiveAstimezoneRaises(
+                parsed.year,
+                parsed.month,
+                parsed.day,
+                parsed.hour,
+                parsed.minute,
+                parsed.second,
+                parsed.microsecond,
+                parsed.tzinfo,
+                fold=parsed.fold,
+            )
+        return parsed
+
+    monkeypatch.setattr(yaml, "safe_load", guarded_safe_load)
+    resolved = _resolve_value("2024-01-01T12:00:00", datetime)
+    assert isinstance(resolved, datetime)
+    assert resolved.isoformat() == "2024-01-01T12:00:00+00:00"
+
+
+def _log_with_timestamp_metadata(timestamp: str) -> EvalLog:
+    log = eval_log()
+    log.samples = [
+        EvalSample(
+            id="sample-1",
+            epoch=1,
+            input="question",
+            target="answer",
+            metadata={"started": timestamp},
+        )
+    ]
+    return log
+
+
+def test_samples_df_naive_metadata_timestamp(tmp_path: Path) -> None:
+    """samples_df keeps a timezone-less metadata timestamp on the UTC clock."""
+    timestamp = "2024-01-01T12:00:00"
+    expected = "2024-01-01T12:00:00+00:00"
+    columns: list[Column] = [
+        SampleColumn("started", path="metadata.started", type=datetime)
+    ]
+    log = _log_with_timestamp_metadata(timestamp)
+
+    in_memory = samples_df(log, columns=columns, quiet=True)
+    assert in_memory["started"].iloc[0].isoformat() == expected
+
+    path = tmp_path / "timestamp.eval"
+    write_eval_log(log, path)
+    from_file = samples_df(path, columns=columns, quiet=True)
+    assert from_file["started"].iloc[0].isoformat() == expected
 
 
 def test_column_error_path_type() -> None:
