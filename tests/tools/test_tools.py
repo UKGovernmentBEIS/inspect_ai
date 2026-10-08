@@ -1,6 +1,7 @@
 from random import randint
-from typing import Literal
+from typing import Callable, Literal
 
+import pytest
 from test_helpers.tool_call_utils import (
     get_tool_call,
     get_tool_calls,
@@ -20,7 +21,9 @@ from inspect_ai import Task, eval
 from inspect_ai.dataset import Sample
 from inspect_ai.log import EvalLog
 from inspect_ai.model import (
+    ChatMessage,
     ChatMessageUser,
+    GenerateConfig,
     Model,
     get_model,
 )
@@ -34,7 +37,7 @@ from inspect_ai.solver import (
     system_message,
     use_tools,
 )
-from inspect_ai.tool import ToolFunction, tool
+from inspect_ai.tool import ToolChoice, ToolFunction, ToolInfo, tool
 
 # we define 3 versions of addition so we can test the ability to force the
 # the model to use a certain tool via tool_choice=ToolFunction()
@@ -105,6 +108,9 @@ def check_tools_calls(model: Model, **model_args) -> None:
             generate(),
         ],
         scorer=match("any", numeric=True),
+        # bound the eval: after the forced call some models keep calling the
+        # tool indefinitely, which would otherwise hang until pytest-timeout
+        message_limit=10,
     )
 
     # evaluate the task
@@ -158,6 +164,9 @@ def check_tools_force(model: Model, **model_args) -> None:
             generate(),
         ],
         scorer=match(),
+        # bound the eval: once tool_choice reverts to "auto" some models (seen
+        # with gemini-2.5-pro) loop on `addition` forever
+        message_limit=10,
     )
 
     # evaluate the task
@@ -168,6 +177,34 @@ def check_tools_force(model: Model, **model_args) -> None:
     messages = log[0].samples[0].messages
     tool_call = get_tool_call(messages, "addition2")
     assert tool_call is not None and tool_call.function == "addition2"
+
+
+@pytest.mark.parametrize("check", [check_tools_calls, check_tools_force])
+def test_check_tools_bounded_when_model_loops(check: Callable[..., None]) -> None:
+    generate_calls = 0
+
+    def keep_calling_tools(
+        input: list[ChatMessage],
+        tools: list[ToolInfo],
+        tool_choice: ToolChoice,
+        config: GenerateConfig,
+    ) -> ModelOutput:
+        nonlocal generate_calls
+        generate_calls += 1
+        # stop after 100 calls so an unbounded eval fails here instead of hanging
+        if generate_calls > 100:
+            return ModelOutput.from_content(model="mockllm/model", content="2")
+        tool_name = (
+            tool_choice.name if isinstance(tool_choice, ToolFunction) else "addition"
+        )
+        return ModelOutput.for_tool_call(
+            model="mockllm/model",
+            tool_name=tool_name,
+            tool_arguments={"x": 1, "y": 1},
+        )
+
+    check(get_model("mockllm/model", custom_outputs=keep_calling_tools))
+    assert generate_calls <= 10
 
 
 @skip_if_no_openai
