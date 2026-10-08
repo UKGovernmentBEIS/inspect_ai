@@ -1,5 +1,7 @@
 ## Unreleased
 
+- Anthropic: Support for Claude Haiku 5.5 (`claude-haiku-5-5`): `reasoning_effort="none"` disables thinking, computer use uses the computer toolset on the Claude API and Vertex, and `fallback_models` is ignored with a warning.
+- Bugfix: `inspect log convert --stream` (and `convert_eval_logs(stream=...)`) no longer drops the error message and traceback from logs of failed evals.
 - Sandbox: A sample's or task's `docker` compose file with a non-standard name (e.g. `env.yaml`) is no longer silently dropped under another sandbox type or a `--sandbox` override.
 
 ## 0.3.277 (06 October 2026)
