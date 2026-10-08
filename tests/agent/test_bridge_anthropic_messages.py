@@ -12,13 +12,17 @@ from inspect_ai.agent._bridge.anthropic_api_impl import (
     messages_from_anthropic_input,
     tools_from_anthropic_tools,
 )
-from inspect_ai.agent._bridge.util import internal_web_search_providers
+from inspect_ai.agent._bridge.util import (
+    internal_web_search_providers,
+    resolve_bridge_web_search,
+)
 from inspect_ai.model._chat_message import (
     ChatMessageAssistant,
     ChatMessageSystem,
     ChatMessageUser,
 )
 from inspect_ai.model._providers.anthropic import AnthropicAPI, message_block_params
+from inspect_ai.tool import WebSearchProviders
 from inspect_ai.tool._tool_info import ToolInfo
 from inspect_ai.tool._tool_util import tool_to_tool_info
 
@@ -375,12 +379,25 @@ def test_anthropic_usage_omits_thinking_tokens_when_absent_beta() -> None:
     assert usage.output_tokens_details is None
 
 
+# the providers a bridge resolves by default, and the raw default before resolution
+DEFAULT_WEB_SEARCH = pytest.mark.parametrize(
+    "providers",
+    [
+        resolve_bridge_web_search(True, default_grant=False),
+        internal_web_search_providers(),
+    ],
+    ids=["resolved", "raw"],
+)
+
+
 def _bridged_web_search_params(
-    client_tool: dict[str, Any], model_name: str = "claude-opus-5"
+    client_tool: dict[str, Any],
+    providers: WebSearchProviders | None,
+    model_name: str = "claude-opus-5",
 ) -> list[Any] | None:
     """The web tools the provider sends for a client's web_search declaration."""
     tools = tools_from_anthropic_tools(
-        [cast(Any, client_tool)], None, internal_web_search_providers(), None, False
+        [cast(Any, client_tool)], None, providers, None, False
     )
     assert len(tools) == 1
     tool = tools[0]
@@ -389,10 +406,14 @@ def _bridged_web_search_params(
     return api.web_search_tool_params(tool_info)
 
 
-def test_bridge_preserves_claude_code_web_search_version() -> None:
+@DEFAULT_WEB_SEARCH
+def test_bridge_preserves_claude_code_web_search_version(
+    providers: WebSearchProviders | None,
+) -> None:
     # the tool Claude Code's WebSearch sends with a forced tool_choice
     params = _bridged_web_search_params(
-        {"type": "web_search_20250305", "name": "web_search", "max_uses": 8}
+        {"type": "web_search_20250305", "name": "web_search", "max_uses": 8},
+        providers,
     )
     assert params == [
         {"name": "web_fetch", "type": "web_fetch_20250910", "max_uses": 8},
@@ -400,32 +421,28 @@ def test_bridge_preserves_claude_code_web_search_version() -> None:
     ]
 
 
-def test_bridge_preserves_client_allowed_callers() -> None:
+@DEFAULT_WEB_SEARCH
+def test_bridge_preserves_client_latest_web_search_version(
+    providers: WebSearchProviders | None,
+) -> None:
+    # honoured even on a model whose default is the older version
     params = _bridged_web_search_params(
-        {
-            "type": "web_search_20260209",
-            "name": "web_search",
-            "allowed_callers": ["direct"],
-        },
+        {"type": "web_search_20260209", "name": "web_search"},
+        providers,
         model_name="claude-sonnet-4-5",
     )
     assert params == [
-        {
-            "name": "web_fetch",
-            "type": "web_fetch_20260209",
-            "allowed_callers": ["direct"],
-        },
-        {
-            "name": "web_search",
-            "type": "web_search_20260209",
-            "allowed_callers": ["direct"],
-        },
+        {"name": "web_fetch", "type": "web_fetch_20260209"},
+        {"name": "web_search", "type": "web_search_20260209"},
     ]
 
 
-def test_bridge_unknown_web_search_version_uses_provider_choice() -> None:
+@DEFAULT_WEB_SEARCH
+def test_bridge_unknown_web_search_version_uses_provider_choice(
+    providers: WebSearchProviders | None,
+) -> None:
     params = _bridged_web_search_params(
-        {"type": "web_search_20990101", "name": "web_search"}
+        {"type": "web_search_20990101", "name": "web_search"}, providers
     )
     assert params is not None
     assert [param["type"] for param in params] == [

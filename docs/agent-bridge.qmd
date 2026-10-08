@@ -293,6 +293,8 @@ Some request fields and tool options change billing, storage at the model provid
 
 -   The agent may set a web search `user_location` (OpenAI and Anthropic) or `search_context_size` (OpenAI) that the bridge's `web_search` options leave unset. These shape the results but do not widen what can be searched. `search_context_size` can change cost, because OpenAI bills search content tokens; to control that cost, set it in the bridge's `web_search` option. When the eval sets one, the eval's value is used.
 
+-   The agent may choose the Anthropic web search tool version (its `type`, such as `web_search_20250305`) when the bridge's `web_search` options set none. A version Inspect does not support is dropped and Inspect picks one.
+
 -   The agent may also ask for less: a lower Anthropic `max_uses`, or OpenAI `external_web_access: false`, is applied.
 
 -   An OpenAI computer tool needs storage at the provider. If the eval turns storage off (`-M responses_store=false` or `store: False` in `GenerateConfig(extra_body=...)`), a request that declares the computer tool is refused with a 400 error. When the eval does not set storage, Inspect turns it on for these requests, as it does for any OpenAI computer tool.
