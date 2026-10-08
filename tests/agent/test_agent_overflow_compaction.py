@@ -551,6 +551,7 @@ def _openai_with_local_counting(
     status_code: int,
     turns: list[Literal["lookup", "overflow", "final"]],
     agent_requests: list[dict[str, Any]],
+    reasoning_history: Literal["none", "last"] | None = None,
 ) -> Model:
     """OpenAI Responses model whose token-count endpoint is unavailable.
 
@@ -597,7 +598,9 @@ def _openai_with_local_counting(
         responses_api=True,
         memoize=False,
         # skips the reasoning-summary probe request
-        config=GenerateConfig(reasoning_summary="none"),
+        config=GenerateConfig(
+            reasoning_summary="none", reasoning_history=reasoning_history
+        ),
     )
 
 
@@ -631,6 +634,40 @@ def test_overflow_recovery_with_local_counting_does_not_resend_reasoning(
     assert log.status == "success", log.error
     assert len(agent_requests) == 2
     assert "ENCRYPTED-1" in json.dumps(agent_requests[1]["input"])
+
+
+@pytest.mark.parametrize("status_code", [404, 405])
+@pytest.mark.parametrize("submit", [True, False], ids=["react", "react_no_submit"])
+@pytest.mark.parametrize("reasoning_history", ["none", "last"])
+def test_overflow_recovery_does_not_credit_reasoning_the_model_is_not_sent(
+    status_code: int, submit: bool, reasoning_history: Literal["none", "last"]
+) -> None:
+    """Removing reasoning that `reasoning_history` already drops is no progress.
+
+    The edit removes the older reasoning, but generation already leaves it out
+    (and with "none", all reasoning), so the retry would send the same input.
+    """
+    agent_requests: list[dict[str, Any]] = []
+    model = _openai_with_local_counting(
+        status_code,
+        ["lookup", "lookup", "overflow", "final"],
+        agent_requests,
+        reasoning_history=reasoning_history,
+    )
+
+    task = Task(
+        dataset=[Sample(input="Solve this using the tool.", target="done")],
+        solver=react(
+            tools=[lookup()],
+            submit=submit,
+            compaction=CompactionEdit(threshold=1_000, memory=False),
+        ),
+    )
+
+    log = eval(task, model=model)[0]
+    assert log.status == "success", log.error
+    assert len(agent_requests) == 3
+    assert "ENCRYPTED-1" not in json.dumps(agent_requests[2]["input"])
 
 
 @pytest.mark.parametrize("status_code", [404, 405])

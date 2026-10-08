@@ -85,8 +85,8 @@ class Compact(Protocol):
             force: If True, perform compaction unconditionally (skip the
                 threshold gate). Used by overflow recovery paths after a
                 model_length error. Raises `RuntimeError` if compaction
-                neither lowers the token count nor removes reasoning or
-                opaque content that token counts can omit.
+                neither lowers the token count nor removes reasoning that
+                the model would be sent.
 
         Returns: Input to present to the model and (optionally) a message to append to the history (e.g. a summarization).
         """

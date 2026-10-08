@@ -9,6 +9,7 @@ from test_helpers.checkpoint import RecordingCheckpointer
 from inspect_ai._util.citation import UrlCitation
 from inspect_ai._util.content import (
     Content,
+    ContentData,
     ContentImage,
     ContentReasoning,
     ContentText,
@@ -1028,6 +1029,29 @@ async def test_force_compaction_accepts_removed_reasoning(
         await compact.compact_input(
             messages + ([c_message] if c_message else []), force=True
         )
+
+
+async def test_force_compaction_does_not_credit_removed_data() -> None:
+    """Removing opaque data the count skips is not progress.
+
+    Providers replay or ignore `ContentData` by their own rules, so its
+    removal does not show that the model input shrank.
+    """
+    model = get_model("mockllm/model")
+    messages: list[ChatMessage] = [
+        user_msg("task", "u1", source="input"),
+        ChatMessageAssistant(id="a1", content=[ContentData(data={"opaque": "x"})]),
+        user_msg("go", "u2"),
+    ]
+    compact = compaction(
+        CompactionTrim(threshold=1_000_000, preserve=0.5),
+        prefix=messages[:1],
+        tools=None,
+        model=model,
+    )
+
+    with pytest.raises(RuntimeError, match="did not reduce the input"):
+        await compact.compact_input(messages, force=True)
 
 
 async def test_force_compaction_cancelled_during_progress_count(

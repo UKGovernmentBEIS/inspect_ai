@@ -7,7 +7,7 @@ from typing import Sequence
 import anyio
 from pydantic import BaseModel, Field
 
-from inspect_ai._util.content import ContentData, ContentReasoning
+from inspect_ai._util.content import ContentReasoning
 from inspect_ai.tool import Tool, ToolDef, ToolInfo, ToolSource
 from inspect_ai.util._checkpoint import Checkpointer
 from inspect_ai.util._checkpoint.checkpointer_noop import _NoopCheckpointer
@@ -18,6 +18,7 @@ from .._model import (
     Model,
     collapse_consecutive_messages_for_api,
     get_model,
+    resolve_reasoning_history,
 )
 from .._model_info import get_model_input_tokens
 from .._model_output import ModelOutput
@@ -246,8 +247,8 @@ def compaction(
                 # with a local tokenizer), and a retry would overflow again.
                 if force:
                     input_tokens = await target_model.count_tokens(target_messages)
-                    if compacted_tokens >= input_tokens and not _removes_uncounted(
-                        target_messages, c_input
+                    if compacted_tokens >= input_tokens and not _removes_reasoning(
+                        target_messages, c_input, target_model
                     ):
                         raise RuntimeError(
                             f"Forced compaction did not reduce the input "
@@ -337,24 +338,32 @@ def compaction(
 DEFAULT_CONTEXT_WINDOW = 128_000
 
 
-def _removes_uncounted(before: list[ChatMessage], after: list[ChatMessage]) -> bool:
-    """Whether `after` drops content that token counts can omit, adding none.
+def _removes_reasoning(
+    before: list[ChatMessage], after: list[ChatMessage], model: Model
+) -> bool:
+    """Whether `after` sends the model less reasoning than `before`, adding none.
 
-    Local token counting skips reasoning payloads and opaque data (see
-    `model/_tokens.py`), so removing them shrinks the input without lowering
-    the count. Content is compared by value and the result must be a strict
-    subset, so new message ids or replaced opaque blocks do not count.
+    Local token counting skips reasoning payloads (see `model/_tokens.py`), so
+    removing them shrinks the input without lowering the count. Only reasoning
+    that generation would send counts: the model's `reasoning_history` is
+    applied first. Reasoning is compared by value and the result must be a
+    strict subset, so new message ids do not count.
     """
-    return Counter(_uncounted_content(after)) < Counter(_uncounted_content(before))
+    config = model._resolve_config(None)
+    return Counter(
+        _reasoning_content(resolve_reasoning_history(after, config, model.api))
+    ) < Counter(
+        _reasoning_content(resolve_reasoning_history(before, config, model.api))
+    )
 
 
-def _uncounted_content(messages: list[ChatMessage]) -> list[str]:
+def _reasoning_content(messages: list[ChatMessage]) -> list[str]:
     return [
         content.model_dump_json()
         for message in messages
         if not isinstance(message.content, str)
         for content in message.content
-        if isinstance(content, ContentReasoning | ContentData)
+        if isinstance(content, ContentReasoning)
     ]
 
 
