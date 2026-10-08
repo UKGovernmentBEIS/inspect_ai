@@ -16,6 +16,7 @@ from inspect_ai.tool._tool_call import (
 from inspect_ai.util._limit import suspend_token_limit, suspend_turn_limit
 
 from ._approver import Approver
+from ._call import record_approval
 from ._policy import ApprovalPolicy, policy_approver
 
 logger = getLogger(__name__)
@@ -32,6 +33,12 @@ async def apply_tool_approval(
     viewer: ToolCallViewer | None,
     history: list[ChatMessage],
 ) -> tuple[bool, Approval | None]:
+    """Apply the active approval policy to a tool call.
+
+    If the tool's viewer raises, the call is rejected without consulting the
+    approvers: an approver deciding on a fallback rendering might approve an
+    action that the tool's own view would have shown differently.
+    """
     approver = _tool_approver.get(None)
     if approver:
         # resolve view
@@ -44,9 +51,18 @@ async def apply_tool_approval(
                 warn_once(
                     logger,
                     f"Error in viewer for tool '{call.function}': {ex}. "
-                    "Falling back to default rendering.",
+                    "Rejecting the tool call.",
                 )
-                view = default_tool_call_viewer(call)
+                rejection = Approval(
+                    decision="reject",
+                    explanation=(
+                        f"The tool call was rejected because the viewer for tool "
+                        f"'{call.function}' failed, so it could not be shown for "
+                        f"approval: {ex}"
+                    ),
+                )
+                record_approval("policy", message, call, None, rejection)
+                return False, rejection
         else:
             view = default_tool_call_viewer(call)
 

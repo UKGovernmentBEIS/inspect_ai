@@ -1,13 +1,13 @@
 import fnmatch
 import sys
 from dataclasses import dataclass
-from typing import Any, Generator, cast
+from typing import Any, Generator, Literal, NamedTuple, cast, overload
 
 from pydantic import BaseModel, Field, model_validator
 
 from inspect_ai._util.config import read_config_object
 from inspect_ai._util.file import exists, local_path
-from inspect_ai._util.format import format_function_call
+from inspect_ai._util.format import format_value
 from inspect_ai._util.registry import create_registry_object, registry_lookup
 from inspect_ai.model._chat_message import ChatMessage
 from inspect_ai.tool._tool_call import ToolCall, ToolCallView
@@ -34,29 +34,22 @@ def policy_approver(policies: str | list[ApprovalPolicy]) -> Approver:
     if isinstance(policies, str):
         policies = approval_policies_from_config(policies)
 
-    # compile policy into approvers and regexes for matching
-    policy_matchers: list[tuple[list[str], Approver]] = []
+    # compile policy into approvers and patterns for matching
+    policy_matchers: list[tuple[list[ToolPattern], Approver]] = []
     for policy in policies:
         tool_specs = [policy.tools] if isinstance(policy.tools, str) else policy.tools
-        tools: list[str] = []
+        patterns: list[ToolPattern] = []
         for spec in tool_specs:
-            tools.extend([t.strip() for t in spec.split(",") if t.strip()])
-        globs = [tool if tool.endswith("*") else f"{tool}*" for tool in tools]
-        policy_matchers.append((globs, policy.approver))
+            patterns.extend(
+                tool_pattern(t.strip()) for t in _split_top_level(spec) if t.strip()
+            )
+        policy_matchers.append((patterns, policy.approver))
 
     # generator for policies that match a tool_call
     def tool_approvers(tool_call: ToolCall) -> Generator[Approver, None, None]:
-        for policy_matcher in iter(policy_matchers):
-            function_call = format_function_call(
-                tool_call.function, tool_call.arguments, width=sys.maxsize
-            )
-            if any(
-                [
-                    fnmatch.fnmatch(function_call, pattern)
-                    for pattern in policy_matcher[0]
-                ]
-            ):
-                yield policy_matcher[1]
+        for patterns, approver in policy_matchers:
+            if any(pattern.matches(tool_call) for pattern in patterns):
+                yield approver
 
     async def approve(
         message: str,
@@ -82,6 +75,167 @@ def policy_approver(policies: str | list[ApprovalPolicy]) -> Approver:
         return reject
 
     return approve
+
+
+@dataclass(frozen=True)
+class ArgumentPattern:
+    """One `name=value` item of a tool pattern's argument list."""
+
+    name: str
+    """Glob for the argument name."""
+
+    value: str
+    """Glob for the argument value, rendered by `_render_argument()`."""
+
+    def matches(self, arguments: dict[str, Any]) -> bool:
+        return any(
+            fnmatch.fnmatch(name, self.name)
+            and fnmatch.fnmatch(_render_argument(value), self.value)
+            for name, value in arguments.items()
+        )
+
+
+@dataclass(frozen=True)
+class ToolPattern:
+    """A pattern in `ApprovalPolicy.tools`, matched against a tool call.
+
+    The function name and the arguments are matched separately, so argument
+    text cannot make a call match a pattern written for another function or
+    argument.
+    """
+
+    function: str
+    """Glob for the function name."""
+
+    arguments: list[ArgumentPattern] | None
+    """Argument patterns, each matching one argument in any position (None for a
+    name-only pattern)."""
+
+    closed: bool
+    """The pattern ended with `)` and has no `*` item: arguments it does not
+    name are not allowed."""
+
+    def matches(self, call: ToolCall) -> bool:
+        if self.arguments is None:
+            return fnmatch.fnmatch(call.function, self.function)
+        if not fnmatch.fnmatch(call.function, self.function):
+            return False
+        if not all(pattern.matches(call.arguments) for pattern in self.arguments):
+            return False
+        return not self.closed or all(
+            any(fnmatch.fnmatch(name, pattern.name) for pattern in self.arguments)
+            for name in call.arguments
+        )
+
+
+def tool_pattern(pattern: str) -> ToolPattern:
+    """Parse a tool pattern.
+
+    A name-only pattern (`bash`, `web_browser*`) is a prefix glob on the
+    function name. A pattern with arguments (`computer(action='key'`) is a glob
+    on the function name, then `name=value` items, each matched against the
+    argument of that name wherever it appears in the call. String values are
+    rendered in single quotes, with a backslash before each `'` and backslash
+    they contain; other values as in `format_function_call()`. The last value
+    is a prefix glob unless the pattern ends with `)`, which also rules out
+    arguments the pattern does not name. A `*` item stands for any other
+    arguments.
+
+    Raises:
+        ValueError: An argument item is not `name=value` or `*`.
+    """
+    if "(" not in pattern:
+        glob = pattern if pattern.endswith("*") else f"{pattern}*"
+        return ToolPattern(function=glob, arguments=None, closed=False)
+
+    function, argument_text = pattern.split("(", 1)
+    items = _split_top_level(argument_text, closing=True)
+    stripped = [item.strip() for item in items.items]
+    any_others = "*" in stripped
+    arguments: list[ArgumentPattern] = []
+    for item in stripped:
+        if item == "" or item == "*":
+            continue
+        name, equals, value = item.partition("=")
+        if not equals or not name.strip():
+            raise ValueError(
+                f"Invalid approval policy tool pattern '{pattern}': expected "
+                f"name=value or * in the argument list, got '{item}'."
+            )
+        arguments.append(ArgumentPattern(name=name.strip(), value=value.strip()))
+    if arguments and not items.closed and stripped[-1] != "*":
+        last = arguments[-1]
+        if not last.value.endswith("*"):
+            arguments[-1] = ArgumentPattern(name=last.name, value=f"{last.value}*")
+    return ToolPattern(
+        function=function.strip(),
+        arguments=arguments,
+        closed=items.closed and not any_others,
+    )
+
+
+class _SplitPattern(NamedTuple):
+    items: list[str]
+    closed: bool
+
+
+@overload
+def _split_top_level(text: str) -> list[str]: ...
+
+
+@overload
+def _split_top_level(text: str, closing: Literal[True]) -> _SplitPattern: ...
+
+
+def _split_top_level(text: str, closing: bool = False) -> list[str] | _SplitPattern:
+    """Split `text` on commas outside quotes and parentheses.
+
+    With `closing`, `text` is an argument list that may end with the `)` that
+    closes it (optionally followed by `*`).
+    """
+    items: list[str] = []
+    current: list[str] = []
+    quote: str | None = None
+    escaped = False
+    depth = 0
+    closed = False
+    for index, char in enumerate(text):
+        if quote is not None:
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == quote:
+                quote = None
+        elif char in "'\"":
+            quote = char
+        elif char == "(":
+            depth += 1
+        elif char == ")":
+            if depth == 0 and closing:
+                if text[index + 1 :].strip() not in ("", "*"):
+                    raise ValueError(
+                        f"Invalid approval policy tool pattern: unexpected text "
+                        f"after ')' in '{text}'."
+                    )
+                closed = True
+                break
+            depth = max(depth - 1, 0)
+        elif char == "," and depth == 0:
+            items.append("".join(current))
+            current = []
+            continue
+        current.append(char)
+    items.append("".join(current))
+    return _SplitPattern(items, closed) if closing else items
+
+
+def _render_argument(value: Any) -> str:
+    """Render an argument value for matching against an argument pattern."""
+    if isinstance(value, str):
+        escaped = value.replace("\\", "\\\\").replace("'", "\\'")
+        return f"'{escaped}'"
+    return format_value(value, width=sys.maxsize)
 
 
 class ApproverPolicyConfig(BaseModel):
