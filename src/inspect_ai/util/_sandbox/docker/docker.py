@@ -358,7 +358,7 @@ class DockerSandboxEnvironment(SandboxEnvironment):
             # through the image's possibly user-writable PATH. The requested
             # command keeps whatever PATH the caller gave it (see the `exec`
             # contract in `environment.py`).
-            in_container_cmd = ["/usr/bin/timeout", "-k", "5s", f"{timeout}s", *cmd]
+            in_container_cmd = ["timeout", "-k", "5s", f"{timeout}s", *cmd]
 
         # add a buffer to the host timeout so the in-container timeout
         # fires first under normal conditions. the in-container timeout
