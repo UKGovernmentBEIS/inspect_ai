@@ -54,6 +54,7 @@ from inspect_ai._eval.task.scan import (
     serialized_scan,
     verify_selection_scan_dir,
 )
+from inspect_ai._sentinel._config import SentinelSpec, resolve_sentinel_spec
 from inspect_ai._util._async import run_coroutine
 from inspect_ai._util.azure import call_with_azure_auth_fallback
 from inspect_ai._util.dotenv import init_dotenv
@@ -182,6 +183,12 @@ def _applied(value: _T, override: "_T | None") -> _T:
     return value if override is None else override
 
 
+def _validate_sentinel(sentinel: SentinelSpec | None) -> None:
+    # after task resolution, so names registered by task files resolve
+    if sentinel is not None:
+        resolve_sentinel_spec(sentinel)
+
+
 def _overridden_selection(
     limit: "int | tuple[int, int] | None",
     sample_id: "str | int | list[str] | list[int] | list[str | int] | None",
@@ -258,6 +265,7 @@ def eval_set(
     display: DisplayType | None = None,
     approval: str | list[ApprovalPolicy] | ApprovalPolicyConfig | None = None,
     review: str | list[ReviewPolicy] | ReviewPolicyConfig | None = None,
+    sentinel: SentinelSpec | None = None,
     notification: bool | str | None = None,
     score: bool = True,
     score_display: bool | None = None,
@@ -380,6 +388,9 @@ def eval_set(
         review: Tool result review policies.
             Either a path to a review policy config file, a ReviewPolicyConfig, or a list of review policies.
             Defaults to no review policy.
+        sentinel: Monitors and protocols that watch the agent's steps (requires the `inspect_sentinel` package). Experimental: not yet a stable API; may change without notice.
+            A protocol, a list or mapping of monitors and protocols with at least one protocol, a config file path or registered protocol name, or a parsed configuration. Monitors alone are an error: wrap them in `observe_only()` to record without acting.
+            Overrides the task's sentinel. Defaults to no sentinel.
         notification: Enable out-of-band notifications when a human-in-the-loop
             interaction (`ask_user`, human approval) is posted. Pass `True` to
             send via the URL(s) in the `INSPECT_EVAL_NOTIFICATION` environment
@@ -554,6 +565,7 @@ def eval_set(
             display=display,
             approval=approval,
             review=review,
+            sentinel=sentinel,
             notification=notification,
             log_level=log_level,
             log_level_transcript=log_level_transcript,
@@ -725,6 +737,7 @@ def eval_set(
         checkpoint = _applied(checkpoint, overrides.checkpoint)
         approval = _applied(approval, overrides.approval)
         review = _applied(review, overrides.review)
+        sentinel = _applied(sentinel, overrides.sentinel)
         retry_on_error = _applied(retry_on_error, overrides.retry_on_error)
         score_on_error = _applied(score_on_error, overrides.score_on_error)
         debug_errors = _applied(debug_errors, overrides.debug_errors)
@@ -763,7 +776,6 @@ def eval_set(
         log_refusals=log_refusals,
         **kwargs,
     )
-
     # capture mode: resolve tasks, write the manifest, and exit the process
     # without running anything. deliberately placed before any log_dir side
     # effects (mkdir, .eval-set-id, eval-set.json) and before eval-set hooks.
@@ -791,6 +803,7 @@ def eval_set(
             raise PrerequisiteError(
                 "Error: No inspect tasks were found at the specified paths."
             )
+        _validate_sentinel(sentinel)
         # the definition's scanner configuration, serialized so a runner can
         # own the scan directory's lifecycle without executing the definition
         # (workers scan record-only in selection mode).
@@ -882,6 +895,7 @@ def eval_set(
                 raise PrerequisiteError(
                     "Error: No inspect tasks were found at the specified paths."
                 )
+            _validate_sentinel(sentinel)
             return resolved
 
         selection_args = EvalSetArgsInTaskIdentifier(
@@ -1047,6 +1061,7 @@ def eval_set(
             raise PrerequisiteError(
                 "Error: No inspect tasks were found at the specified paths."
             )
+        _validate_sentinel(sentinel)
 
         # list all logs currently in the log directory (update manifest if there are some)
         all_logs = list_all_eval_logs(log_dir)
