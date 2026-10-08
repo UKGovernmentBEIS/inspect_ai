@@ -1,15 +1,12 @@
-"""Tests for the async-generator hooks conftest gives every async test."""
+"""Tests for async-generator hooks on loops patched by nest_asyncio2."""
 
 import asyncio
-import functools
 import sys
 from collections.abc import AsyncIterator, Awaitable, Callable
 from typing import Any
 from unittest import mock
 
 import anyio
-import pytest
-from test_helpers.utils import with_asyncgen_hooks
 
 from inspect_ai._util._async import init_nest_asyncio
 
@@ -23,19 +20,6 @@ async def _stream(closed: anyio.Event) -> AsyncIterator[bytes]:
             await anyio.lowlevel.checkpoint()
         closed.set()
         raise
-
-
-async def _abandon_stream(wait_for_close: bool) -> None:
-    """Start a stream and drop it unclosed inside a `fail_after` scope."""
-    closed = anyio.Event()
-    with anyio.fail_after(10):
-        stream = _stream(closed)
-        await stream.__anext__()
-        del stream
-        if wait_for_close:
-            await closed.wait()
-        else:
-            await anyio.lowlevel.checkpoint()
 
 
 def _run_after_nest_asyncio(
@@ -55,52 +39,31 @@ def _run_after_nest_asyncio(
         loop.close()
 
 
-def _without_asyncgen_hooks(
-    main: Callable[[], Awaitable[None]],
-) -> Callable[[], Awaitable[None]]:
-    """Run `main` with no async-generator hooks installed.
-
-    nest_asyncio2 < 1.7.4 ran `run_until_complete` this way; 1.7.4 installs the
-    loop's hooks, so clear them to reproduce the hazard on any version.
-    """
-
-    async def wrapper() -> None:
-        hooks = sys.get_asyncgen_hooks()
-        sys.set_asyncgen_hooks(firstiter=None, finalizer=None)
-        try:
-            await main()
-        finally:
-            sys.set_asyncgen_hooks(*hooks)
-
-    return wrapper
-
-
-def test_abandoned_stream_breaks_fail_after_without_hooks() -> None:
-    unraisable: list[Any] = []
-    with pytest.raises(RuntimeError, match="isn't the current tasks's current cancel"):
-        _run_after_nest_asyncio(
-            _without_asyncgen_hooks(
-                functools.partial(_abandon_stream, wait_for_close=False)
-            ),
-            unraisable,
-        )
-    assert [str(u.exc_value) for u in unraisable] == [
-        "async generator ignored GeneratorExit"
-    ]
-
-
-def test_with_asyncgen_hooks_closes_abandoned_stream_in_its_own_task() -> None:
+def test_nest_asyncio_run_until_complete_installs_asyncgen_hooks() -> None:
     hooks = sys.get_asyncgen_hooks()
+    finalizers: list[Any] = []
+
+    async def main() -> None:
+        finalizers.append(sys.get_asyncgen_hooks().finalizer)
+
     unraisable: list[Any] = []
-    _run_after_nest_asyncio(
-        _without_asyncgen_hooks(
-            with_asyncgen_hooks(functools.partial(_abandon_stream, wait_for_close=True))
-        ),
-        unraisable,
-    )
+    _run_after_nest_asyncio(main, unraisable)
+    assert finalizers[0] is not None
     assert unraisable == []
     assert sys.get_asyncgen_hooks() == hooks
 
 
-async def test_async_tests_run_with_asyncgen_hooks() -> None:
-    assert sys.get_asyncgen_hooks().finalizer is not None
+def test_abandoned_stream_does_not_break_fail_after_with_nest_asyncio() -> None:
+    async def main() -> None:
+        closed = anyio.Event()
+        with anyio.fail_after(10):
+            stream = _stream(closed)
+            await stream.__anext__()
+            del stream
+            await anyio.lowlevel.checkpoint()
+        with anyio.fail_after(10):
+            await closed.wait()
+
+    unraisable: list[Any] = []
+    _run_after_nest_asyncio(main, unraisable)
+    assert unraisable == []

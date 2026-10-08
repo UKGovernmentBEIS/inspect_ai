@@ -11,6 +11,7 @@
 - Control Channel: `inspect ctl model throughput` now reports each model's input, output and cache read/write tokens per minute, in the table and in `--json` output; the table's output column is now per minute instead of per second.
 - Bugfix: An approver's `modify` decision with no modified call now rejects the tool call instead of running the original, and the human approver no longer offers Modify.
 - Deep Agent: `deepagent(background=True)` run from a scorer can now dispatch background subagents instead of failing.
+- Dependencies: Require `nest_asyncio2` >= 1.7.4, fixing cancel scope errors (e.g. from Mistral streaming) after Inspect is called synchronously from a notebook or another running event loop.
 
 ## 0.3.277 (06 October 2026)
 
