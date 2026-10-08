@@ -191,21 +191,59 @@ def read_target(obj: Any | None) -> str | list[str]:
 
 
 def read_choices(obj: Any | None) -> list[str] | None:
-    if not is_none_or_nan(obj):
-        if isinstance(obj, list):
-            # drop empty entries the same way as the string branch
-            return [str(choice) for choice in obj if str(choice).strip()]
-        elif isinstance(obj, str):
-            choices = obj.split(",")
-            if len(choices) == 1:
-                choices = obj.split()
-            # drop empty entries so a trailing or doubled comma does not
-            # produce an empty-string choice
-            return [choice.strip() for choice in choices if choice.strip()]
-        else:
-            return [str(obj)]
-    else:
+    """Read answer choices from a dataset field.
+
+    Trailing empty or whitespace-only choices are removed. A blank that
+    remains before a later option is rejected, because dropping it would
+    renumber the remaining answers while the target stays as written.
+    Text from a string field is stripped. A string with no comma is split
+    on whitespace.
+
+    Args:
+        obj: Choices as a list, a comma-separated string, or another value
+            stringified into a single choice. None and NaN mean the field
+            is absent.
+
+    Returns:
+        The choices, or None when the field is absent.
+
+    Raises:
+        ValueError: If a blank choice sits before a later option.
+    """
+    if is_none_or_nan(obj):
         return None
+    if isinstance(obj, list):
+        return _drop_trailing_blank_choices([str(choice) for choice in obj])
+    if isinstance(obj, str):
+        choices = obj.split(",")
+        if len(choices) == 1:
+            choices = obj.split()
+        return [choice.strip() for choice in _drop_trailing_blank_choices(choices)]
+    return [str(obj)]
+
+
+def _drop_trailing_blank_choices(choices: list[str]) -> list[str]:
+    """Remove trailing blank choices without shifting later answer letters.
+
+    Args:
+        choices: Choice strings, not yet stripped.
+
+    Returns:
+        Choices with a trailing run of blanks removed.
+
+    Raises:
+        ValueError: If a blank choice sits before a later option.
+    """
+    end = len(choices)
+    while end > 0 and not choices[end - 1].strip():
+        end -= 1
+    kept = choices[:end]
+    if any(not choice.strip() for choice in kept):
+        raise ValueError(
+            "Choices contain a blank before a later option. "
+            "Removing it would change answer labels; correct the choices and target."
+        )
+    return kept
 
 
 def read_setup(setup: Any | None) -> str | None:

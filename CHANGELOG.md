@@ -7,6 +7,7 @@
 - Bugfix: `inspect log convert --stream` (and `convert_eval_logs(stream=...)`) no longer drops the error message and traceback from logs of failed evals.
 
 - Tools: Tools with `*args` or `**kwargs` no longer advertise required `args`/`kwargs` parameters to models; declare model-chosen arguments with an explicit `ToolParams` schema instead.
+- Datasets: Loaders now reject a blank choice that sits before a later option instead of dropping it and shifting the remaining answer letters.
 
 ## 0.3.277 (06 October 2026)
 
