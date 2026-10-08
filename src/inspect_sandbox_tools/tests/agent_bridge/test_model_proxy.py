@@ -3264,3 +3264,61 @@ async def test_relayed_upstream_response_has_no_cross_origin_headers(
             assert response.status == 200
             assert await response.read() == upstream_body
             _assert_no_cross_origin_headers(response.headers)
+
+
+_CLIENT_HEADERS = {
+    "OpenAI-Organization": "org-from-sandbox",
+    "OpenAI-Project": "proj-from-sandbox",
+    "X-Client-Header": "client-header-value",
+}
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("path", "body", "method"),
+    [
+        (
+            "/v1/chat/completions",
+            {"model": "inspect", "messages": [{"role": "user", "content": "hi"}]},
+            "generate_completions",
+        ),
+        (
+            "/v1/responses",
+            {"model": "inspect", "input": "hi"},
+            "generate_responses",
+        ),
+        (
+            "/v1/messages",
+            {
+                "model": "inspect",
+                "max_tokens": 8,
+                "messages": [{"role": "user", "content": "hi"}],
+            },
+            "generate_anthropic",
+        ),
+        (
+            "/v1beta/models/inspect:generateContent",
+            {"contents": [{"role": "user", "parts": [{"text": "hi"}]}]},
+            "generate_google",
+        ),
+    ],
+)
+async def test_proxy_forwards_no_client_headers(
+    proxy_server_recording_bridge: tuple[str, list[tuple[str, dict[str, Any]]]],
+    path: str,
+    body: dict[str, Any],
+    method: str,
+) -> None:
+    """Only the request body reaches the bridge, so client headers never reach the provider."""
+    base_url, calls = proxy_server_recording_bridge
+    async with ClientSession() as session:
+        async with session.post(
+            f"{base_url}{path}", json=body, headers=_CLIENT_HEADERS
+        ) as response:
+            await response.read()
+
+    assert [call_method for call_method, _ in calls] == [method]
+    forwarded = json.dumps(calls)
+    for name, value in _CLIENT_HEADERS.items():
+        assert name.lower() not in forwarded.lower()
+        assert value not in forwarded

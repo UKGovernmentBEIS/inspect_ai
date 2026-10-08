@@ -291,6 +291,8 @@ def test_anthropic_thinking_keeps_display_without_full_thinking_beta() -> None:
         ("claude-sonnet-5", "disabled"),
         ("claude-opus-4-8", "disabled"),
         ("claude-opus-4-7", "disabled"),
+        ("claude-haiku-5-5", "disabled"),
+        ("anthropic.claude-haiku-5-5", "disabled"),
         # Sonnet 5.5 rejects `disabled`; `between_tools` is its lowest setting
         ("claude-sonnet-5-5", "between_tools"),
         ("anthropic.claude-sonnet-5-5", "between_tools"),
@@ -304,6 +306,7 @@ def test_anthropic_thinking_keeps_display_without_full_thinking_beta() -> None:
         # pre-4.7 default to no thinking — omitting the field already means off
         ("claude-sonnet-4-6", None),
         ("claude-sonnet-4-5", None),
+        ("claude-haiku-4-5", None),
     ],
 )
 def test_anthropic_reasoning_effort_none_disables_thinking(
@@ -334,17 +337,24 @@ def test_anthropic_reasoning_effort_high_still_adaptive_on_sonnet_5() -> None:
     assert params["thinking"]["type"] == "adaptive"
 
 
+@pytest.mark.parametrize("model_name", ["claude-opus-5", "claude-haiku-5-5"])
 @pytest.mark.parametrize("effort", ["xhigh", "max"])
 def test_anthropic_opus_5_disabled_thinking_clamps_effort(
+    model_name: str,
     effort: Literal["xhigh", "max"],
+    _warn_once_messages: list[str],
 ) -> None:
-    """Opus 5 rejects disabled thinking with effort above `high`; clamp to `high`."""
-    api = AnthropicAPI(model_name="claude-opus-5", api_key="test-key")
+    """Opus 5 / Haiku 5.5 reject disabled thinking above `high`; clamp to `high`."""
+    api = AnthropicAPI(model_name=model_name, api_key="test-key")
     params, _e, _h, _b = api.completion_config(
         GenerateConfig(max_tokens=64, reasoning_effort="none", effort=effort)
     )
     assert params["thinking"] == {"type": "disabled"}
     assert params["output_config"]["effort"] == "high"
+    assert any(
+        model_name in m and "clamping effort to 'high'" in m
+        for m in _warn_once_messages
+    )
 
 
 @pytest.mark.parametrize("effort", ["xhigh", "max"])
@@ -404,14 +414,28 @@ def test_anthropic_disabled_thinking_keeps_high_effort_elsewhere(
     assert params["output_config"]["effort"] == "xhigh"
 
 
-def test_anthropic_opus_5_disabled_thinking_keeps_high_effort() -> None:
-    """Effort at or below `high` passes through unclamped on Opus 5."""
-    api = AnthropicAPI(model_name="claude-opus-5", api_key="test-key")
+@pytest.mark.parametrize("model_name", ["claude-opus-5", "claude-haiku-5-5"])
+def test_anthropic_opus_5_disabled_thinking_keeps_high_effort(model_name: str) -> None:
+    """Effort at or below `high` passes through unclamped on Opus 5 / Haiku 5.5."""
+    api = AnthropicAPI(model_name=model_name, api_key="test-key")
     params, _e, _h, _b = api.completion_config(
         GenerateConfig(max_tokens=64, reasoning_effort="none", effort="high")
     )
     assert params["thinking"] == {"type": "disabled"}
     assert params["output_config"]["effort"] == "high"
+
+
+@pytest.mark.parametrize("effort", ["low", "medium", "high", "xhigh", "max"])
+def test_anthropic_haiku_5_5_reasoning_effort_is_adaptive(
+    effort: Literal["low", "medium", "high", "xhigh", "max"],
+) -> None:
+    """A real reasoning effort routes to adaptive thinking on Haiku 5.5."""
+    api = AnthropicAPI(model_name="claude-haiku-5-5", api_key="test-key")
+    params, _e, _h, _b = api.completion_config(
+        GenerateConfig(max_tokens=64, reasoning_effort=effort)
+    )
+    assert params["thinking"] == {"type": "adaptive", "display": "summarized"}
+    assert params["output_config"]["effort"] == effort
 
 
 @pytest.mark.parametrize("model_name", ["claude-opus-5-5", "claude-fable-5-1"])
@@ -1359,6 +1383,7 @@ def test_anthropic_pre_4_7_keeps_sampling_params_without_thinking(
         "claude-opus-5-0",
         "claude-opus-5-5",
         "claude-sonnet-5-5",
+        "claude-haiku-5-5",
         "claude-sonnet-4-7",
         "claude-sonnet-5-0",
     ],
@@ -1648,6 +1673,7 @@ async def test_anthropic_opus_5_disabled_thinking_effort_clamp_live() -> None:
         ("claude-opus-5", 128000),
         ("claude-opus-5-5", 128000),
         ("claude-sonnet-5-5", 128000),
+        ("claude-haiku-5-5", 128000),
         ("claude-fable-5", 128000),
         ("claude-fable-5-1", 128000),
         ("claude-mythos-5-1", 128000),
@@ -1684,6 +1710,7 @@ def test_anthropic_max_tokens_caps(model_name: str, expected_cap: int) -> None:
         # point releases
         "claude-opus-5-5",
         "claude-sonnet-5-5",
+        "claude-haiku-5-5",
         "claude-fable-5-1",
         "claude-mythos-5-1",
         # forward-compat variants: tier-named, new codename
@@ -1776,10 +1803,14 @@ def test_anthropic_computer_use_tool_version(
 
 @pytest.mark.parametrize(
     "model_name",
-    ["bedrock/anthropic.claude-opus-5-5", "bedrock/anthropic.claude-sonnet-5-5"],
+    [
+        "bedrock/anthropic.claude-opus-5-5",
+        "bedrock/anthropic.claude-sonnet-5-5",
+        "bedrock/anthropic.claude-haiku-5-5",
+    ],
 )
 def test_anthropic_5_5_computer_use_on_bedrock(model_name: str) -> None:
-    """Bedrock still accepts `computer_20251124` on Opus 5.5 and Sonnet 5.5."""
+    """Bedrock still accepts `computer_20251124` on Opus/Sonnet/Haiku 5.5."""
     setenv_if_unset("AWS_REGION", "us-east-1")
     setenv_if_unset("AWS_ACCESS_KEY_ID", "fake")
     setenv_if_unset("AWS_SECRET_ACCESS_KEY", "fake")
@@ -1899,6 +1930,40 @@ def test_anthropic_is_claude_sonnet_5_5_or_later(
 
 
 @pytest.mark.parametrize(
+    "model_name,expected",
+    [
+        ("claude-haiku-5-5", True),
+        ("anthropic.claude-haiku-5-5", True),
+        ("global.anthropic.claude-haiku-5-5", True),
+        ("claude-haiku-5.5", True),
+        ("claude-haiku-5-5-20261007", True),
+        # assume later point releases keep the 5.5 behavior
+        ("claude-haiku-5-6", True),
+        ("claude-haiku-5-10", True),
+        # the base release, earlier (hypothetical) point releases, other tiers
+        ("claude-haiku-5", False),
+        ("claude-haiku-5-1", False),
+        ("claude-sonnet-5-5", False),
+        ("claude-haiku-4-5", False),
+        ("claude-haiku-4-5-20251001", False),
+        # 1M-context style and date suffixes are not point releases
+        ("claude-haiku-5-5m", False),
+        ("claude-haiku-5-20261007", False),
+    ],
+)
+def test_anthropic_is_claude_haiku_5_5_or_later(
+    model_name: str, expected: bool
+) -> None:
+    api = AnthropicAPI(model_name=model_name, api_key="test-key")
+    assert api.is_claude_haiku_5_5_or_later() is expected
+    if expected:
+        # 5.5 is still a Claude 5 model for the shared gates
+        assert api.is_claude_5() is True
+        assert api.is_claude_sonnet_5_5_or_later() is False
+        assert api.is_claude_opus_5_5_or_later() is False
+
+
+@pytest.mark.parametrize(
     "model_name", ["claude-fable-5-1", "claude-mythos-5-1", "claude-opus-5-5"]
 )
 def test_anthropic_fable_5_1_degrades_forced_tool_choice(model_name: str) -> None:
@@ -1946,7 +2011,8 @@ def _request_with_thinking_history() -> dict[str, Any]:
 
 
 @pytest.mark.parametrize(
-    "model_name", ["claude-fable-5-1", "claude-opus-5-5", "claude-sonnet-5-5"]
+    "model_name",
+    ["claude-fable-5-1", "claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5"],
 )
 def test_anthropic_fable_5_1_thinking_block_binding(model_name: str) -> None:
     """Replayed thinking blocks opt into drop_block on prefix mismatch."""
@@ -2014,6 +2080,9 @@ def test_anthropic_fable_5_no_binding_on_base_model(model_name: str) -> None:
         "azure/claude-opus-5-5",
         "vertex/claude-sonnet-5-5",
         "azure/claude-sonnet-5-5",
+        "bedrock/anthropic.claude-haiku-5-5",
+        "vertex/claude-haiku-5-5",
+        "azure/claude-haiku-5-5",
     ],
 )
 def test_anthropic_fable_5_1_no_binding_off_first_party(model_name: str) -> None:
@@ -2047,6 +2116,19 @@ def test_anthropic_sonnet_5_5_between_tools_has_no_binding_config() -> None:
     api.apply_thinking_block_binding(request, betas)
     assert betas == ["thinking-binding-controls-2026-08-01"]
     assert request["thinking"] == {"type": "between_tools"}
+
+
+def test_anthropic_haiku_5_5_disabled_thinking_has_no_binding_config() -> None:
+    """`block_binding` is accepted only with adaptive thinking, not `disabled`."""
+    api = AnthropicAPI(model_name="claude-haiku-5-5", api_key="test-key")
+    params, _e, _h, _b = api.completion_config(
+        GenerateConfig(max_tokens=64, reasoning_effort="none")
+    )
+    request = _request_with_thinking_history() | params
+    betas: list[str] = []
+    api.apply_thinking_block_binding(request, betas)
+    assert betas == ["thinking-binding-controls-2026-08-01"]
+    assert request["thinking"] == {"type": "disabled"}
 
 
 @pytest.mark.parametrize(
@@ -2092,6 +2174,8 @@ def test_anthropic_mythos_5_1_no_binding() -> None:
         ("claude-opus-5", "tool"),
         ("claude-sonnet-5-5", "auto"),
         ("claude-sonnet-5", "tool"),
+        # Haiku 5.5 accepts forced tool choice
+        ("claude-haiku-5-5", "tool"),
     ],
 )
 async def test_anthropic_forced_tool_choice_request_wiring(
@@ -2158,6 +2242,7 @@ async def test_anthropic_forced_tool_choice_request_wiring(
         ("claude-sonnet-5-5", True),
         # other models keep their existing log shape on this long-standing path
         ("claude-opus-4-8", False),
+        ("claude-haiku-5-5", False),
     ],
 )
 async def test_anthropic_forced_tool_choice_with_thinking_records_metadata(
@@ -2288,7 +2373,8 @@ async def test_anthropic_no_thinking_dropped_warning_when_empty(
 @pytest.mark.anyio
 @skip_if_no_anthropic
 @pytest.mark.parametrize(
-    "model_name", ["claude-fable-5-1", "claude-opus-5-5", "claude-sonnet-5-5"]
+    "model_name",
+    ["claude-fable-5-1", "claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5"],
 )
 async def test_anthropic_bound_thinking_drop_reported_live(
     model_name: str,
@@ -2480,6 +2566,60 @@ async def test_anthropic_sonnet_5_5_forced_tool_choice_bedrock_live() -> None:
     await _check_forced_tool_choice_degrades(
         "anthropic/bedrock/global.anthropic.claude-sonnet-5-5"
     )
+
+
+@pytest.mark.anyio
+@skip_if_no_anthropic
+async def test_anthropic_haiku_5_5_generate_live() -> None:
+    """Haiku 5.5 accepts our request shape (adaptive thinking + effort) and generates."""
+    model = get_model(
+        "anthropic/claude-haiku-5-5",
+        config=GenerateConfig(reasoning_effort="low", max_tokens=1024),
+    )
+    response = await model.generate(input="Say hello in one short sentence.")
+    assert len(response.completion) >= 1
+
+
+@pytest.mark.anyio
+@skip_if_no_anthropic
+@pytest.mark.parametrize("effort", [None, "max"])
+async def test_anthropic_haiku_5_5_reasoning_effort_none_live(
+    effort: Literal["max"] | None,
+) -> None:
+    """reasoning_effort='none' (disabled thinking) must not 400 on Haiku 5.5.
+
+    `max` pins the effort clamp: the API rejects disabled thinking above `high`.
+    """
+    model = get_model(
+        "anthropic/claude-haiku-5-5",
+        config=GenerateConfig(reasoning_effort="none", effort=effort, max_tokens=128),
+    )
+    response = await model.generate(input="Say hello in one short sentence.")
+    assert len(response.completion) >= 1
+    content = response.message.content
+    assert not (
+        isinstance(content, list)
+        and any(isinstance(c, ContentReasoning) for c in content)
+    )
+
+
+@pytest.mark.anyio
+@skip_if_no_anthropic
+async def test_anthropic_haiku_5_5_forced_tool_choice_live() -> None:
+    """Haiku 5.5 honors forced tool choice (no degrade to auto)."""
+    from test_helpers.tools import addition
+
+    model = get_model(
+        "anthropic/claude-haiku-5-5", config=GenerateConfig(max_tokens=1024)
+    )
+    response = await model.generate(
+        input="What is 1 + 1? Use the addition tool to compute it.",
+        tools=[addition()],
+        tool_choice=ToolFunction(name="addition"),
+    )
+    assert response.message.tool_calls
+    assert response.message.tool_calls[0].function == "addition"
+    assert "tool_choice_degraded" not in (response.metadata or {})
 
 
 async def _check_forced_tool_choice_degrades(model_str: str) -> None:

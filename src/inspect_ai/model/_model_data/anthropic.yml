@@ -200,6 +200,22 @@ anthropic:
           snapshot: "20260928"
           aliases:
             - anthropic.claude-sonnet-5-5
+    claude-haiku-5-5:
+      display_name: Claude Haiku 5.5
+      release_date: 2026-10-07
+      knowledge_cutoff_date: 2026-06-01
+      context_length: 1000000
+      output_tokens: 128000
+      reasoning: True
+      # Adaptive thinking runs by default; `disabled` is accepted only at
+      # effort `high` or below.
+      # https://platform.claude.com/docs/en/models/haiku-5-5/whats-new-haiku-5-5
+      reasoning_effort_default: medium
+      versions:
+        claude-haiku-5-5:
+          snapshot: "20261007"
+          aliases:
+            - anthropic.claude-haiku-5-5
     claude-haiku-4-5:
       display_name: Claude Haiku 4.5
       release_date: 2025-10-01

@@ -225,6 +225,7 @@ from .util import (
     environment_prerequisite_error,
     forced_tool_choice_degraded_metadata,
     is_claude_fable_5_1_model,
+    is_claude_haiku_5_5_model,
     is_claude_opus_5_5_model,
     is_claude_sonnet_5_5_model,
     is_forced_tool_choice,
@@ -1384,7 +1385,7 @@ class AnthropicAPI(ModelAPI):
                 betas.append("output-128k-2025-02-19")
 
         elif config.reasoning_effort == "none" and self._supports_disabling_thinking():
-            # Claude 4.7+ (incl. Sonnet 5 and Opus 5) run adaptive thinking by
+            # Claude 4.7+ (incl. Sonnet 5, Opus 5, Haiku 5.5) run adaptive thinking by
             # default, so `reasoning_effort="none"` must explicitly disable it.
             # Pre-4.7 models default to no thinking, so omitting the field
             # already suffices. Sonnet 5.5 rejects `disabled` and names
@@ -1394,12 +1395,16 @@ class AnthropicAPI(ModelAPI):
                 if self.is_claude_sonnet_5_5_or_later()
                 else "disabled"
             }
-            # Opus 5 and Sonnet 5.5 return a 400 for turned-off thinking
-            # combined with effort above `high` (Opus 4.8 and Sonnet 5 accept
-            # the combination).
+            # Opus 5, Sonnet 5.5, and Haiku 5.5 return a 400 for turned-off
+            # thinking combined with effort above `high` (Opus 4.8 and Sonnet 5
+            # accept the combination).
             output_config = params.get("output_config")
             if (
-                (self.is_claude_opus_5() or self.is_claude_sonnet_5_5_or_later())
+                (
+                    self.is_claude_opus_5()
+                    or self.is_claude_sonnet_5_5_or_later()
+                    or self.is_claude_haiku_5_5_or_later()
+                )
                 and isinstance(output_config, dict)
                 and output_config.get("effort") in ("xhigh", "max")
             ):
@@ -1440,6 +1445,14 @@ class AnthropicAPI(ModelAPI):
                     logger,
                     "fallback_models is not supported with the Anthropic "
                     "Batches API and will be ignored.",
+                )
+            elif self.is_claude_haiku_5_5_or_later():
+                # Haiku 5.5 publishes no allowed_fallback_models and rejects
+                # the `fallbacks` param with a 400
+                warn_once(
+                    logger,
+                    f"fallback_models is not supported by the model "
+                    f"'{self.service_model_name()}' and will be ignored.",
                 )
             else:
                 betas.append(FALLBACK_BETA)
@@ -1523,9 +1536,10 @@ class AnthropicAPI(ModelAPI):
     def _supports_disabling_thinking(self) -> bool:
         """Whether `reasoning_effort="none"` should send a thinking-off config.
 
-        Claude 4.7+ (Opus 4.7/4.8, Sonnet 5, Opus 5) run adaptive thinking by
-        default and accept `disabled` to turn it off (on Opus 5 only at effort
-        `high` or below — see completion_config). Sonnet 5.5 rejects `disabled`
+        Claude 4.7+ (Opus 4.7/4.8, Sonnet 5, Opus 5, Haiku 5.5) run adaptive
+        thinking by default and accept `disabled` to turn it off (on Opus 5 and
+        Haiku 5.5 only at effort `high` or below — see completion_config).
+        Sonnet 5.5 rejects `disabled`
         but accepts `between_tools`, which turns off up-front thinking.
         Fable/Mythos 5 and Opus 5.5 always think and reject `disabled` (400),
         so `"none"` leaves thinking on for them (the field is omitted).
@@ -1543,16 +1557,20 @@ class AnthropicAPI(ModelAPI):
         # Claude 5: only tier-named models accept `disabled`. Fable/Mythos also
         # always think but reject `disabled` (400) — as do unknown codename
         # Claude 5 models, which are assumed to follow Fable rather than the
-        # tier-named (opus/sonnet) models.
-        return self.is_claude_sonnet_5() or self.is_claude_opus_5()
+        # tier-named (opus/sonnet) models and Haiku 5.5.
+        return (
+            self.is_claude_sonnet_5()
+            or self.is_claude_opus_5()
+            or self.is_claude_haiku_5_5_or_later()
+        )
 
     def apply_thinking_block_binding(
         self, request: dict[str, Any], betas: list[str]
     ) -> None:
         """Opt into dropping prefix-mismatched thinking blocks on bound-thinking models.
 
-        Fable 5.1, Opus 5.5, and Sonnet 5.5 bind thinking blocks to the request
-        prefix that produced them; solvers legitimately edit history, and without
+        Fable 5.1, Opus 5.5, Sonnet 5.5, and Haiku 5.5 bind thinking blocks to
+        the request prefix that produced them; solvers legitimately edit history, and without
         drop_block such an edit fails the replay with a 400. Applied to every
         request for these models — not only those replaying thinking blocks —
         so the beta header stays uniform across a task's requests (the batcher
@@ -1562,8 +1580,8 @@ class AnthropicAPI(ModelAPI):
         arrives per model on bedrock/vertex and is not offered on foundry, so
         other model/platform pairs stay opted out until verified, and a
         history edit there can still 400. The API accepts `block_binding`
-        only with adaptive thinking, so Sonnet 5.5's
-        `between_tools` (`reasoning_effort="none"`) requests carry the beta
+        only with adaptive thinking, so Sonnet 5.5's `between_tools` and Haiku
+        5.5's `disabled` (`reasoning_effort="none"`) requests carry the beta
         header but no binding config, and a history edit before a replayed
         thinking block can still 400 there. A caller-supplied
         `extra_body.thinking` shallow-merges over the request body and
@@ -1576,6 +1594,7 @@ class AnthropicAPI(ModelAPI):
             )
             or self.is_claude_opus_5_5_or_later()
             or self.is_claude_sonnet_5_5_or_later()
+            or self.is_claude_haiku_5_5_or_later()
         )
         binding_offered = not (
             self.is_bedrock() or self.is_vertex() or self.is_azure()
@@ -1690,13 +1709,17 @@ class AnthropicAPI(ModelAPI):
         """Sonnet 5.5 or a later point release (a subset of is_claude_sonnet_5)."""
         return is_claude_sonnet_5_5_model(self.model_family())
 
+    def is_claude_haiku_5_5_or_later(self) -> bool:
+        """Haiku 5.5 or a later Haiku 5 point release."""
+        return is_claude_haiku_5_5_model(self.model_family())
+
     def computer_use_toolset(self) -> bool:
         """Whether the computer tool is declared as Anthropic's computer toolset.
 
         Auto mode (no `computer_toolset` model arg) uses the toolset where the
-        legacy `computer_20251124` tool is rejected (Opus 5.5 and Sonnet 5.5 on
-        the Claude API and Vertex) and, where the platform offers it, for Fable/Mythos 5.x and
-        any other non-Sonnet/Opus Claude 5 model. Every other model keeps the
+        legacy `computer_20251124` tool is rejected (Opus 5.5, Sonnet 5.5, and
+        Haiku 5.5 on the Claude API and Vertex) and, where the platform offers
+        it, for Fable/Mythos 5.x and other Claude 5 models treated like them. Every other model keeps the
         legacy tool, matching prior behavior; so do Fable/Mythos on Bedrock and
         Foundry, which offer only the legacy tool.
         """
@@ -1709,13 +1732,15 @@ class AnthropicAPI(ModelAPI):
     def computer_toolset_preferred(self) -> bool:
         """Whether the toolset is the default computer use path where offered.
 
-        Fable/Mythos 5.x (and any other non-Sonnet/Opus Claude 5 codename)
-        default to the toolset, which is GA for them on the Claude API and
+        Fable/Mythos 5.x (and any other Claude 5 model not known to follow
+        the Sonnet/Opus 5 or Haiku 5.5 rules) default to the toolset, which is GA for them on the Claude API and
         Vertex; they also accept the legacy tool, so `computer_toolset=false`
         and platforms without the toolset fall back to it.
         """
         return self.is_claude_5() and not (
-            self.is_claude_sonnet_5() or self.is_claude_opus_5()
+            self.is_claude_sonnet_5()
+            or self.is_claude_opus_5()
+            or self.is_claude_haiku_5_5_or_later()
         )
 
     def computer_toolset_available(self) -> bool:
@@ -1731,13 +1756,15 @@ class AnthropicAPI(ModelAPI):
     def computer_toolset_required(self) -> bool:
         """Whether the legacy computer tool is rejected for this model/platform.
 
-        Only Opus 5.5 and Sonnet 5.5 on the Claude API and Vertex reject
-        `computer_20251124`; Bedrock and Foundry keep accepting it there, and
+        Only Opus 5.5, Sonnet 5.5, and Haiku 5.5 on the Claude API and Vertex
+        reject `computer_20251124`; Bedrock and Foundry keep accepting it there, and
         every other model listed for the legacy tool (Fable/Mythos 5.x
         included) still accepts it.
         """
         return (
-            self.is_claude_opus_5_5_or_later() or self.is_claude_sonnet_5_5_or_later()
+            self.is_claude_opus_5_5_or_later()
+            or self.is_claude_sonnet_5_5_or_later()
+            or self.is_claude_haiku_5_5_or_later()
         ) and self.computer_toolset_available()
 
     def _is_claude_4_x(self, x: int) -> bool:
@@ -2365,8 +2392,9 @@ class AnthropicAPI(ModelAPI):
                         f"'{self.service_model_name()}' on this platform. Remove "
                         "computer_toolset=true to use the legacy computer tool."
                     )
-                # the toolset is documented for Opus 4.8, Sonnet 5/5.5, Opus 5/5.5
-                # and Fable/Mythos 5.x (so a forced opt-in on older models errors)
+                # the toolset is documented for Opus 4.8, Sonnet 5/5.5, Opus 5/5.5,
+                # Haiku 5.5 and Fable/Mythos 5.x (so a forced opt-in on older
+                # models errors)
                 if not self.is_claude_4_8_or_later():
                     raise PrerequisiteError(
                         f"Anthropic's computer toolset (computer_toolset_20260801) is "
@@ -2380,7 +2408,7 @@ class AnthropicAPI(ModelAPI):
                 # inspect computer tool always supports it, so no configs.
                 return BetaComputerToolset20260801Param(type=COMPUTER_TOOLSET_TYPE)
             # legacy path forced (computer_toolset=false) where the legacy tool
-            # is rejected (Opus 5.5 / Sonnet 5.5 on the Claude API / Vertex)
+            # is rejected (Opus/Sonnet/Haiku 5.5 on the Claude API / Vertex)
             if self.computer_toolset_required():
                 raise PrerequisiteError(
                     f"The legacy computer tool (computer_20251124) is not supported "
@@ -2399,8 +2427,9 @@ class AnthropicAPI(ModelAPI):
             # TODO: enhance this code to calculate the dimensions based on the scaled screen
             # size used by the container.
             # computer_20251124 is supported by Claude Opus 5, Sonnet 5,
-            # Opus 4.6/4.7/4.8, Sonnet 4.6, and Opus 4.5 (and by Opus 5.5 and
-            # Sonnet 5.5 on Bedrock and Foundry, where the toolset is not offered)
+            # Opus 4.6/4.7/4.8, Sonnet 4.6, and Opus 4.5 (and by Opus, Sonnet,
+            # and Haiku 5.5 on Bedrock and Foundry, where the toolset is not
+            # offered)
             if self.is_claude_frontier() or (
                 self.is_claude_4_5() and self.is_claude_4_opus()
             ):
@@ -4430,7 +4459,7 @@ async def model_output_from_message(
         {"extra_body": dict(extra_body)} if extra_body else None
     )
 
-    # thinking block binding (Fable 5.1, Opus 5.5, Sonnet 5.5): with the
+    # thinking block binding (Fable 5.1, Opus/Sonnet/Haiku 5.5): with the
     # thinking-binding beta, replayed thinking blocks the server dropped (e.g.
     # after a history edit) are reported via input_transformations. Warn so callers know
     # reasoning context was lost; the raw entries (including the message path
@@ -5137,7 +5166,8 @@ def _warn_refusal_without_fallback(
     not configured, first-party non-batch API, and a Claude 5+ requested model
     (the `fallbacks` param is only accepted for models publishing
     allowed_fallback_models -- Opus 4.7/4.8 emit the same refusal stop_details
-    but cannot fall back).
+    but cannot fall back, and Haiku 5.5 publishes an empty list and rejects
+    the param).
     """
     if config.fallback_models:
         return
@@ -5146,6 +5176,8 @@ def _warn_refusal_without_fallback(
     if normalized_batch_config(config.batch):
         return
     if not (api.is_claude_5() or api.is_claude_latest()):
+        return
+    if api.is_claude_haiku_5_5_or_later():
         return
     # classifier refusal (stop_details.type == "refusal") distinguishes
     # rescuable safety-classifier declines from other content_filter stops
