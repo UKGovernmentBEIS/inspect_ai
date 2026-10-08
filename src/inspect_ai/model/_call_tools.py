@@ -88,6 +88,25 @@ from ._generate_config import active_generate_config
 logger = getLogger(__name__)
 
 
+TOOL_CALLS_FAIL_FAST = "tool_calls_fail_fast"
+"""Assistant message metadata key naming tools whose calls form a fail-fast batch.
+
+The value is a list of tool names. Within that assistant message, calls to a
+named tool run serially and stop at the first tool error: each later call to
+the same tool is not executed and is answered with
+`Not executed: an earlier <tool> action in this turn failed.` Providers set it
+when the model API defines batch semantics for a tool (Anthropic's computer
+toolset); `execute_tools` reads it. Calls to other tools are unaffected.
+"""
+
+
+def _fail_fast_tools(message: ChatMessageAssistant) -> set[str]:
+    value = (message.metadata or {}).get(TOOL_CALLS_FAIL_FAST)
+    if isinstance(value, list):
+        return {name for name in value if isinstance(name, str)}
+    return set()
+
+
 class ExecuteToolsResult(NamedTuple):
     """Result from executing tools in the last assistant message.
 
@@ -333,36 +352,19 @@ async def _execute_tools_impl(
             # massage result, leave list[Content] alone, convert all other
             # types to string as that is what the model APIs accept
             truncated: tuple[int, int] | None = None
-            if isinstance(
-                result,
-                ContentText
-                | ContentImage
-                | ContentAudio
-                | ContentVideo
-                | ContentDocument,
-            ):
-                content: (
-                    str
-                    | list[
-                        ContentText
-                        | ContentImage
-                        | ContentAudio
-                        | ContentVideo
-                        | ContentDocument
-                    ]
-                ) = [result]
-            elif isinstance(result, list) and all(
-                isinstance(
-                    r,
+            content: (
+                str
+                | list[
                     ContentText
                     | ContentImage
                     | ContentAudio
                     | ContentVideo
-                    | ContentDocument,
-                )
-                for r in result
-            ):
-                content = result
+                    | ContentDocument
+                ]
+            )
+            result_content = tool_result_content_list(result)
+            if result_content is not None:
+                content = result_content
             else:
                 content = str(result)
 
@@ -379,14 +381,15 @@ async def _execute_tools_impl(
                         truncated_output.truncated_bytes,
                     )
 
-            # create event
+            # create event (`call_tool` records an approver's modified arguments
+            # on `event`)
             result_event = ToolEvent(
                 id=call.id,
                 function=call.function,
-                arguments=call.arguments,
+                arguments=event.arguments,
                 result=content,
                 truncated=truncated,
-                view=call.view,
+                view=event.view,
                 error=tool_error,
                 agent=agent,
                 agent_span_id=agent_span_id,
@@ -432,9 +435,17 @@ async def _execute_tools_impl(
 
         StreamItem = tuple[ExecuteToolsResult, ToolEvent, Exception | None]
 
+        # Tools whose calls in this message form an ordered batch that stops
+        # at the first failure (see TOOL_CALLS_FAIL_FAST).
+        fail_fast_tools = _fail_fast_tools(message)
+
         # Determine each call's parallel eligibility from its ToolDef.
-        # Unknown tools default to serial.
+        # Unknown tools default to serial. A fail-fast tool runs serially
+        # regardless: its later calls must not start until an earlier one has
+        # succeeded.
         def is_parallel(call: ToolCall) -> bool:
+            if call.function in fail_fast_tools:
+                return False
             tdef = next((t for t in tdefs if t.name == call.function), None)
             return bool(tdef and tdef.parallel)
 
@@ -455,6 +466,10 @@ async def _execute_tools_impl(
             else:
                 stages.append([i])
                 i += 1
+
+        # Fail-fast tools (by name) whose earlier call in this message failed
+        # with a tool error: their remaining calls are not executed.
+        halted_functions: set[str] = set()
 
         result_messages: list[ChatMessage] = []
         result_output: ModelOutput | None = None
@@ -478,6 +493,54 @@ async def _execute_tools_impl(
                     pending=True,
                 )
                 stage_results[idx] = None
+
+            # Calls to a halted tool are not executed. Synthesise their
+            # results now (the post-stage splice below places them in
+            # declared order) and finalise their events.
+            skipped: set[int] = {
+                idx for idx in stage if tool_calls[idx].function in halted_functions
+            }
+            for idx in sorted(skipped):
+                call = tool_calls[idx]
+                event = stage_events[idx]
+                tool_message = ChatMessageTool(
+                    content="",
+                    function=call.function,
+                    tool_call_id=call.id,
+                    error=ToolCallError(
+                        "cancelled",
+                        f"Not executed: an earlier {call.function} action in "
+                        "this turn failed.",
+                    ),
+                )
+                skipped_event = ToolEvent(
+                    id=call.id,
+                    function=call.function,
+                    arguments=call.arguments,
+                    result=tool_result_content(tool_message.content),
+                    truncated=None,
+                    view=call.view,
+                    error=tool_message.error,
+                )
+                stage_results[idx] = (
+                    ExecuteToolsResult(messages=[tool_message], output=None),
+                    skipped_event,
+                    None,
+                )
+                event._set_result(
+                    result=skipped_event.result,
+                    truncated=skipped_event.truncated,
+                    error=skipped_event.error,
+                    waiting_time=0,
+                    agent=None,
+                    failed=None,
+                    message_id=tool_message.id,
+                )
+                transcript()._event(event)
+                transcript().info(
+                    f"Tool call '{call.function}' was not executed because an "
+                    "earlier call to it in this turn failed."
+                )
 
             async def run_one(
                 idx: int,
@@ -606,10 +669,10 @@ async def _execute_tools_impl(
                     op_result_event = ToolEvent(
                         id=call.id,
                         function=call.function,
-                        arguments=call.arguments,
+                        arguments=event.arguments,
                         result=tool_result_content(op_tool_message.content),
                         truncated=None,
-                        view=call.view,
+                        view=event.view,
                         error=op_tool_message.error,
                     )
                     results[idx] = (
@@ -648,6 +711,8 @@ async def _execute_tools_impl(
             try:
                 async with anyio.create_task_group() as outer_tg:
                     for idx in stage:
+                        if idx in skipped:
+                            continue
                         outer_tg.start_soon(
                             run_one,
                             idx,
@@ -691,10 +756,10 @@ async def _execute_tools_impl(
                     cancellation_event = ToolEvent(
                         id=call.id,
                         function=call.function,
-                        arguments=call.arguments,
+                        arguments=event.arguments,
                         result=tool_result_content(tool_message.content),
                         truncated=None,
-                        view=call.view,
+                        view=event.view,
                         error=tool_message.error,
                     )
                     transcript().info(
@@ -732,6 +797,24 @@ async def _execute_tools_impl(
                         result_messages.extend(result.messages)
                         if result.output is not None:
                             result_output = result.output
+
+            # A tool error from a fail-fast tool halts that tool's remaining
+            # calls in this message (an unhandled exception is re-raised
+            # below and ends execution outright).
+            for idx in stage:
+                stream_item = stage_results[idx]
+                if (
+                    idx in skipped
+                    or stream_item is None
+                    or tool_calls[idx].function not in fail_fast_tools
+                ):
+                    continue
+                result, _, _ = stream_item
+                if any(
+                    isinstance(m, ChatMessageTool) and m.error is not None
+                    for m in result.messages[:1]
+                ):
+                    halted_functions.add(tool_calls[idx].function)
 
             # If anything in the stage raised, re-raise after updating the
             # events so the transcript captures partial state cleanly.
@@ -799,7 +882,10 @@ async def call_tool(
         raise await record_tool_parsing_error(f"Tool {call.function} not found")
 
     # if we have a tool approver, apply it now
-    from inspect_ai.approval._apply import apply_tool_approval
+    from inspect_ai.approval._apply import (
+        apply_tool_approval,
+        modified_function_error,
+    )
 
     approved, approval = await apply_tool_approval(
         message, call, tool_def.viewer, conversation
@@ -812,7 +898,15 @@ async def call_tool(
         else:
             raise ToolApprovalError(approval.explanation if approval else None)
     if approval and approval.modified:
+        error = modified_function_error(call, approval.modified)
+        if error is not None:
+            await record_pending_tool_event()
+            raise RuntimeError(error)
+        # record the arguments that run: the model's proposal stays in the
+        # ModelEvent and the ApprovalEvent
         call = approval.modified
+        event.arguments = call.arguments
+        event.view = tool_call_view(call, tools)
 
     # validate the schema of the passed object
     validation_errors = validate_tool_input(call.arguments, tool_def.parameters)
@@ -1190,20 +1284,22 @@ def tool_params(input: dict[str, Any], func: Callable[..., Any]) -> dict[str, An
 
     # build params
     params: dict[str, Any] = {}
+    named_params: set[str] = set()
+    var_keyword: inspect.Parameter | None = None
     for param_name, param in signature.parameters.items():
-        # Parse docstring
-        docstring_info = parse_docstring(docstring, param_name)
+        # *args can't be passed by name, so tool arguments never fill it
+        if param.kind == inspect.Parameter.VAR_POSITIONAL:
+            continue
+
+        # **kwargs receives the arguments that no named parameter takes
+        if param.kind == inspect.Parameter.VAR_KEYWORD:
+            var_keyword = param
+            continue
+
+        named_params.add(param_name)
 
         # get type hint (fallback to docstring as required)
-        type_hint: Type[Any] | None = None
-        if param_name in type_hints:
-            type_hint = type_hints[param_name]
-        # as a fallback try to parse it from the docstring
-        elif "docstring_type" in docstring_info:
-            docstring_type = docstring_info["docstring_type"]
-            import builtins
-
-            type_hint = getattr(builtins, docstring_type, None)
+        type_hint = param_type_hint(param_name, type_hints, docstring)
 
         # error if there is no type_hint
         if type_hint is None:
@@ -1221,7 +1317,41 @@ def tool_params(input: dict[str, Any], func: Callable[..., Any]) -> dict[str, An
                 f"Required parameter {param_name} not provided to tool call."
             )
 
+    # pass the remaining arguments (e.g. ones declared by an explicit tool
+    # schema) through to **kwargs, converted using its annotation or
+    # docstring type if present
+    if var_keyword is not None:
+        kwargs_type: Any = (
+            param_type_hint(var_keyword.name, type_hints, docstring) or Any
+        )
+        for name, value in input.items():
+            if name not in named_params:
+                params[name] = tool_param(kwargs_type, value)
+
     return params
+
+
+def param_type_hint(
+    param_name: str, type_hints: dict[str, Type[Any]], docstring: str | None
+) -> Type[Any] | None:
+    # prefer the annotation
+    if param_name in type_hints:
+        return type_hints[param_name]
+
+    # as a fallback try to parse it from the docstring (a documented type
+    # that can't be resolved is an error rather than missing type info)
+    docstring_info = parse_docstring(docstring, param_name)
+    if "docstring_type" in docstring_info:
+        import builtins
+
+        type_hint: Type[Any] | None = getattr(
+            builtins, docstring_info["docstring_type"], None
+        )
+        if type_hint is None:
+            raise ValueError(f"No type annotation available for parameter {param_name}")
+        return type_hint
+
+    return None
 
 
 def tool_param(type_hint: Type[Any], input: Any) -> Any:
@@ -1322,6 +1452,34 @@ def validate_tool_input(input: dict[str, Any], parameters: ToolParams) -> str | 
             + [f"- {error.message}" for error in errors]
         )
         return message
+    else:
+        return None
+
+
+def tool_result_content_list(
+    result: ToolResult,
+) -> (
+    list[ContentText | ContentImage | ContentAudio | ContentVideo | ContentDocument]
+    | None
+):
+    """Content a tool result is passed to the model as, if any.
+
+    Returns `None` for any other result, which is converted to a string and
+    truncated to the tool's output limit (`truncate_tool_output()`).
+    """
+    if isinstance(
+        result,
+        ContentText | ContentImage | ContentAudio | ContentVideo | ContentDocument,
+    ):
+        return [result]
+    elif isinstance(result, list) and all(
+        isinstance(
+            r,
+            ContentText | ContentImage | ContentAudio | ContentVideo | ContentDocument,
+        )
+        for r in result
+    ):
+        return result
     else:
         return None
 

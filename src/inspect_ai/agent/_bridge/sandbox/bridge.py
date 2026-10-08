@@ -58,6 +58,7 @@ async def sandbox_agent_bridge(
     compaction: CompactionStrategy | None = None,
     sandbox: str | None = None,
     port: int = 13131,
+    poll_timeout_recovery: float | None = None,
     web_search: WebSearchProviders | bool | None = None,
     code_execution: CodeExecutionProviders | bool | None = None,
     client_mcp_servers: bool | None = None,
@@ -75,21 +76,37 @@ async def sandbox_agent_bridge(
 
     You should set `OPENAI_BASE_URL=http://localhost:13131/v1`, `ANTHROPIC_BASE_URL=http://localhost:13131`, or `GOOGLE_GEMINI_BASE_URL=http://localhost:13131` when executing
     the agent within the container and ensure that your agent targets the
-    model name "inspect" when calling OpenAI, Anthropic, or Google. Use "inspect/<full-model-name>" to target other Inspect model providers.
+    model name "inspect" when calling OpenAI, Anthropic, or Google. Requests for other
+    model names are served by the eval's model unless `model_aliases` or
+    `model_resolver` maps them elsewhere.
+
+    The eval's configuration, not the agent's request, governs `service_tier`,
+    `store`, `truncation` and the options of provider tools the agent declares;
+    requests with `previous_response_id` are refused, and the agent's HTTP
+    headers are not forwarded.
 
     Args:
         state: Initial state for agent bridge. Used as a basis for yielding
             an updated state based on traffic over the bridge.
-        model: Fallback model for requests that don't use "inspect" or an "inspect/"
-            prefixed model (defaults to "inspect", can also specify e.g.
-            "inspect/openai/gpt-4o" to force another specific model).
+        model: Pin every request the bridge does not otherwise recognise to
+            this model (e.g. "inspect/openai/gpt-4o"; the "inspect/" prefix is
+            optional). Aliases, resolver results and the name "inspect" are not
+            pinned. Defaults to `None`, which routes unrecognised names to the
+            eval's active model ("inspect" means the same); map other names
+            with `model_aliases`.
         model_aliases: Map of model name aliases. When a request uses a name
             that appears here, the corresponding value (a ``Model`` instance
-            or model spec string) is used instead. Checked before the fallback ``model``.
+            or model spec string) is used instead. Checked before the ``model``
+            pin. Keys are the exact names the agent sends. Use this to reach a
+            model other than the eval's model (e.g.
+            ``{"claude-haiku-4-5": get_model("anthropic/claude-haiku-4-5")}``),
+            including a model role the agent is meant to call
+            (``{"subagent": get_model(role="subagent")}``). Every key is a
+            model the agent can call, so do not alias a role such as a grader.
         model_resolver: Dynamic routing policy called with the requested model
             name (provider-qualified on a provider-specific endpoint, e.g.
             ``openai/gpt-5.1``). Checked after ``model_aliases`` and before the ``model``
-            fallback; return a ``Model``/spec to route the request there, or
+            pin; return a ``Model``/spec to route the request there, or
             ``None`` to defer. Routes by policy without enumerating every name.
         filter: Filter for bridge model generation.
         retry_refusals: Should refusals be retried? (pass number of times to retry)
@@ -97,6 +114,12 @@ async def sandbox_agent_bridge(
             the model's context window. See [Compaction](https://inspect.aisi.org.uk/compaction.html) for details on compaction strategies.
         sandbox: Sandbox to run model proxy server within.
         port: Port to run proxy server on.
+        poll_timeout_recovery: Seconds to keep re-polling the proxy server's
+            process after a poll of it times out. Defaults to `None`, where a
+            proxy poll that times out fails the sample. Each re-issued poll can
+            wait the proxy's full 600-second poll timeout, so recovery can run
+            past this value by about that much (see
+            `ExecRemoteCommonOptions.poll_timeout_recovery`).
         web_search: Configuration for mapping model internal web_search tools to
             Inspect. Withheld by default: a sandboxed agent that names the native
             tool in a request would otherwise reach the web through the model
@@ -117,9 +140,13 @@ async def sandbox_agent_bridge(
             exposing tools you choose.
         bridged_tools: Host-side Inspect tools to expose to the sandboxed agent
             via MCP protocol. Each BridgedToolsSpec creates an MCP server that
-            makes the specified tools available to the agent. The resolved
-            MCPServerConfigStdio objects to pass to CLI agents are available via
-            bridge.mcp_server_configs.
+            makes the specified tools available to the agent. A bridged tool
+            executes only for a call the model proposed in a bridged generation,
+            once per proposal, unless its spec sets `require_proposal=False`
+            (see `BridgedToolsSpec`); an agent that calls host tools from
+            model-written code, such as Codex CLI in code mode, needs that
+            opt-out. The resolved MCPServerConfigStdio objects
+            to pass to CLI agents are available via bridge.mcp_server_configs.
         model_event_sink: Optional sink that takes ownership of `ModelEvent`
             emission for calls routed through the bridge. When set, the bridge
             installs it around `model.generate()` so the sink decides when and
@@ -200,6 +227,7 @@ async def sandbox_agent_bridge(
                 seen_names.add(spec.name)
                 config = _register_bridged_tools(bridge, spec, port)
                 bridge.mcp_server_configs.append(config)
+            bridge.warn_indistinct_tools()
 
             # sandbox service that receives model requests (and tool calls)
             tg.start_soon(
@@ -226,6 +254,7 @@ async def sandbox_agent_bridge(
                         f"{MODEL_SERVICE.upper()}_INSTANCE": instance,
                     },
                     poll_timeout=600,
+                    poll_timeout_recovery=poll_timeout_recovery,
                 ),
             )
 
@@ -267,9 +296,11 @@ def _register_bridged_tools(
     Tools are registered in bridge.bridged_tools for execution by the service.
     Returns an MCPServerConfigHTTP with URL pointing to the MCP HTTP endpoint.
     """
-    # Build tool registry for this server
-    tools_dict = {ToolDef(tool).name: tool for tool in spec.tools}
-    bridge.bridged_tools[spec.name] = tools_dict
+    bridge.register_bridged_tools(
+        spec.name,
+        {ToolDef(tool).name: tool for tool in spec.tools},
+        require_proposal=spec.require_proposal,
+    )
 
     # Return MCP config with HTTP URL
     return MCPServerConfigHTTP(

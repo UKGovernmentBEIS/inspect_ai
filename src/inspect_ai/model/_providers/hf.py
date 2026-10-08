@@ -13,7 +13,8 @@ from dataclasses import dataclass
 from logging import getLogger
 from queue import Empty, Queue
 from threading import Thread
-from typing import Any, Literal, Protocol, cast
+from types import MethodType
+from typing import Any, Hashable, Literal, Protocol, cast
 
 import anyio
 import numpy as np
@@ -559,6 +560,7 @@ class GenerateOutput:
 class _QueueItem:
     input: GenerateInput
     future: Future[GenerateOutput]
+    key: Hashable
 
 
 batch_thread: Thread | None = None
@@ -575,7 +577,7 @@ async def batched_generate(input: GenerateInput) -> GenerateOutput:
 
     # enqueue the job
     future = Future[GenerateOutput]()
-    batch_queue.put(_QueueItem(input=input, future=future))
+    batch_queue.put(_QueueItem(input=input, future=future, key=_batch_key(input)))
 
     # await the future
     with trace_action(logger, "HF Batched Generate", "HF Batched Generate"):
@@ -590,91 +592,158 @@ async def batched_generate(input: GenerateInput) -> GenerateOutput:
 def process_batches() -> None:
     while True:
         # drain the queue (wait until no new messages have shown up for 2 seconds)
-        inputs: list[tuple[GenerateInput, Future[GenerateOutput]]] = []
-        while True:
-            try:
-                input = batch_queue.get(timeout=2)
-                inputs.append((input.input, input.future))
-                if len(inputs) == input.input.batch_size:
-                    # max batch size reached
-                    break
-            except Empty:
-                # we have exhausted the queue
-                break
+        for batch in _drain_batches(batch_queue, timeout=2):
+            _generate_batch(batch)
 
-        # see if we have any work to do
-        if len(inputs) == 0:
-            continue
 
+def _drain_batches(
+    queue: "Queue[_QueueItem]", timeout: float
+) -> list[list[_QueueItem]]:
+    """Drain queued requests into batches that can be generated together.
+
+    Stops when no request has arrived for `timeout` seconds or when it has
+    collected a batch size of requests across all batches, so requests that
+    keep arriving with different settings cannot hold back the ones already
+    collected. Requests are grouped by their batch key, so each batch holds
+    requests for one model with the same tokenizer, generation and decoder
+    settings, and no more than its batch size. Batches are returned in order of
+    their first request.
+    """
+    batches: dict[Hashable, list[_QueueItem]] = {}
+    collected = 0
+    while True:
         try:
-            # capture the generator and decoder functions
-            start_time = time.monotonic()
-            first_input = inputs[0][0]
-            device = first_input.device
-            tokenizer = first_input.tokenizer
-            generator = first_input.generator
-            decoder = first_input.decoder
+            item = queue.get(timeout=timeout)
+        except Empty:
+            # we have exhausted the queue
+            break
+        batches.setdefault(item.key, []).append(item)
+        collected += 1
+        if collected >= item.input.batch_size:
+            # max batch size reached
+            break
+    return list(batches.values())
 
-            # tokenize and move to device
-            tokenized_inputs = tokenizer([item[0].input for item in inputs])
-            input_ids = tokenized_inputs["input_ids"]
-            attention_mask = tokenized_inputs["attention_mask"]
-            input_ids = input_ids.to(device)
-            attention_mask = attention_mask.to(device)
 
-            # generate
-            with torch.inference_mode():
-                generation_outputs = cast(
-                    ModelGenerateOutput,
-                    generator(input_ids=input_ids, attention_mask=attention_mask),
+def _batch_key(input: GenerateInput) -> Hashable:
+    """Key that is equal for requests that can share a batch.
+
+    `generate()` builds new partials for every call, so the key is built from
+    what they carry: the model and tokenizer objects (by identity) and their
+    keyword arguments (by value). Identity is safe because a queued request
+    holds references to those objects until it is generated.
+    """
+    return (
+        input.device,
+        input.batch_size,
+        _callable_key(input.tokenizer),
+        _callable_key(input.generator),
+        _callable_key(input.decoder),
+    )
+
+
+def _callable_key(fn: object) -> Hashable:
+    if isinstance(fn, functools.partial):
+        return (
+            _callable_key(fn.func),
+            tuple(_value_key(arg) for arg in fn.args),
+            tuple(
+                sorted((name, _value_key(value)) for name, value in fn.keywords.items())
+            ),
+        )
+    if isinstance(fn, MethodType):
+        # a new bound method object is created on each attribute access
+        return ("method", id(fn.__self__), fn.__func__)
+    return ("object", id(fn))
+
+
+def _value_key(value: object) -> Hashable:
+    if value is None or isinstance(value, str | int | float):
+        return value
+    if isinstance(value, list | tuple):
+        return (type(value).__name__, tuple(_value_key(item) for item in value))
+    if isinstance(value, dict):
+        return ("dict", tuple((key, _value_key(item)) for key, item in value.items()))
+    if isinstance(value, transformers.generation.StopStringCriteria):
+        # built anew from config.stop_seqs on each call
+        return ("StopStringCriteria", value.stop_strings)
+    if callable(value):
+        return _callable_key(value)
+    return ("object", id(value))
+
+
+def _generate_batch(batch: list[_QueueItem]) -> None:
+    try:
+        # capture the generator and decoder functions
+        start_time = time.monotonic()
+        first_input = batch[0].input
+        device = first_input.device
+        tokenizer = first_input.tokenizer
+        generator = first_input.generator
+        decoder = first_input.decoder
+
+        # tokenize and move to device
+        tokenized_inputs = tokenizer([item.input.input for item in batch])
+        input_ids = tokenized_inputs["input_ids"]
+        attention_mask = tokenized_inputs["attention_mask"]
+        input_ids = input_ids.to(device)
+        attention_mask = attention_mask.to(device)
+
+        # generate
+        with torch.inference_mode():
+            generation_outputs = cast(
+                ModelGenerateOutput,
+                generator(input_ids=input_ids, attention_mask=attention_mask),
+            )
+            generate_ids = generation_outputs.sequences
+            logits = generation_outputs.logits
+            hidden_states = generation_outputs.hidden_states
+
+        # get logprobs from logits
+        logprobs = None
+        if logits is not None:
+            stacked_logits = torch.stack(logits).transpose(0, 1)
+            logprobs = torch.nn.functional.log_softmax(stacked_logits, dim=-1)
+
+        # decode
+        generated_tokens = generate_ids[:, input_ids.size(dim=1) :]
+        if logprobs is not None:
+            assert logprobs.shape[1] == generated_tokens.shape[1]
+        outputs = decoder(sequences=generated_tokens)
+
+        # call back futures
+        total_time = time.monotonic() - start_time
+        for i, output in enumerate(outputs):
+            future = batch[i].future
+            input_tokens = input_ids.size(dim=1)
+            output_tokens = generate_ids.size(dim=1) - input_ids.size(dim=1)
+
+            # asyncio futures are not thread safe, so we need to pass the event loop
+            # down to this point, so we can mark the future as done in a thread safe manner.
+            # see: https://docs.python.org/3/library/asyncio-dev.html#concurrency-and-multithreading
+            future.set_result(
+                GenerateOutput(
+                    output=output,
+                    input_tokens=input_tokens,
+                    output_tokens=output_tokens,
+                    total_tokens=input_tokens + output_tokens,
+                    logprobs=logprobs[i] if logprobs is not None else None,
+                    # slice this sample out of the batch dimension and
+                    # materialize to lists here (off the event loop) so each
+                    # sample records only its own activations, once
+                    hidden_states=hidden_states_to_jsonable(
+                        hidden_states, sample_index=i
+                    ),
+                    time=total_time,
                 )
-                generate_ids = generation_outputs.sequences
-                logits = generation_outputs.logits
-                hidden_states = generation_outputs.hidden_states
+            )
 
-            # get logprobs from logits
-            logprobs = None
-            if logits is not None:
-                stacked_logits = torch.stack(logits).transpose(0, 1)
-                logprobs = torch.nn.functional.log_softmax(stacked_logits, dim=-1)
-
-            # decode
-            generated_tokens = generate_ids[:, input_ids.size(dim=1) :]
-            if logprobs is not None:
-                assert logprobs.shape[1] == generated_tokens.shape[1]
-            outputs = decoder(sequences=generated_tokens)
-
-            # call back futures
-            total_time = time.monotonic() - start_time
-            for i, output in enumerate(outputs):
-                future = inputs[i][1]
-                input_tokens = input_ids.size(dim=1)
-                output_tokens = generate_ids.size(dim=1) - input_ids.size(dim=1)
-
-                # asyncio futures are not thread safe, so we need to pass the event loop
-                # down to this point, so we can mark the future as done in a thread safe manner.
-                # see: https://docs.python.org/3/library/asyncio-dev.html#concurrency-and-multithreading
-                future.set_result(
-                    GenerateOutput(
-                        output=output,
-                        input_tokens=input_tokens,
-                        output_tokens=output_tokens,
-                        total_tokens=input_tokens + output_tokens,
-                        logprobs=logprobs[i] if logprobs is not None else None,
-                        # slice this sample out of the batch dimension and
-                        # materialize to lists here (off the event loop) so each
-                        # sample records only its own activations, once
-                        hidden_states=hidden_states_to_jsonable(
-                            hidden_states, sample_index=i
-                        ),
-                        time=total_time,
-                    )
-                )
-
-        except Exception as ex:
-            for inp in inputs:
-                future = inp[1]
-                future.set_exception(ex)
+    except Exception as ex:
+        for item in batch:
+            # an earlier sample may already have its result; setting an
+            # exception on it would raise and stop the batch thread
+            if not item.future.done():
+                item.future.set_exception(ex)
 
 
 def extract_logprobs(

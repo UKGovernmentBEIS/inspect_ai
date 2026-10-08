@@ -1138,7 +1138,7 @@ async def test_check_action_gates_prompt_letter_outside_approval(
     """``check_action('prompt_letter', ...)`` returns False outside approval mode.
 
     The approval bar's bare-letter shortcuts (``a`` / ``r`` / ``e`` /
-    ``t`` / ``m``) are registered through the shared ``prompt_letter``
+    ``t``) are registered through the shared ``prompt_letter``
     dispatcher so they share Textual's binding table with the cancel
     bar's ``s`` / ``e``. Without the gate, typing ``r`` into the
     composer would fire the reject action instead of inserting the
@@ -1164,6 +1164,8 @@ async def test_check_action_gates_prompt_letter_outside_approval(
         )
         await pilot.pause()
         assert app.screen.check_action("prompt_letter", ("a",)) is True
+        # no ``m``: the human approver never offers ``modify``
+        assert app.screen.check_action("prompt_letter", ("m",)) is False
 
 
 @skip_if_trio
@@ -1470,10 +1472,15 @@ async def test_escape_with_elicitation_card_mounted_declines(
         # resolves and the apply-loop unmounts the card.
         await pilot.press("escape")
         # The decline bubble travels card → screen handler →
-        # resolve_elicitation → pending.event.set(). Pump enough
-        # pauses for the message + the subsequent re-apply tick.
-        for _ in range(5):
+        # resolve_elicitation → pending.event.set(), and the card's
+        # ``remove()`` is then processed by Textual on a later tick.
+        # Pump pauses until both the state and the DOM have settled.
+        for _ in range(10):
             await pilot.pause()
+            if app.screen.state.pending_elicitation is None and not list(
+                app.screen.query(_ElicitationCard)
+            ):
+                break
 
         # State cleared, pending event fired, card unmounted.
         assert app.screen.state.pending_elicitation is None
@@ -1636,7 +1643,12 @@ async def test_escape_with_both_cards_mounted_dismisses_cancel_first(
         # First Esc → backs out of cancel, leaves elicitation
         # intact (no decline shipped).
         await app.screen.action_interrupt()
-        await pilot.pause()
+        # ``Widget.remove()`` detaches on a later message-loop tick,
+        # so wait for the DOM to catch up rather than a single pause.
+        for _ in range(10):
+            await pilot.pause()
+            if not list(app.screen.query(_CancelCard)):
+                break
         assert app.screen.state.pending_cancel is None
         assert app.screen.state.pending_elicitation is elicitation_pending
         assert elicitation_pending.action is None, (
@@ -1651,9 +1663,16 @@ async def test_escape_with_both_cards_mounted_dismisses_cancel_first(
         # remaining card). Positive proof that the elicitation
         # branch still fires once cancel is out of the way.
         await app.screen.action_interrupt()
-        for _ in range(5):
+        for _ in range(10):
             await pilot.pause()
-            if app.screen.state.pending_elicitation is None:
+            # The state slot clears in the screen's decision handler
+            # once the posted message lands, but the card's
+            # ``remove()`` is processed by Textual on a later tick.
+            # Wait for both so the DOM assertion below can't race
+            # the prune.
+            if app.screen.state.pending_elicitation is None and not list(
+                app.screen.query(_ElicitationCard)
+            ):
                 break
         assert app.screen.state.pending_elicitation is None
         assert elicitation_pending.action == "decline"

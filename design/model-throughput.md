@@ -34,6 +34,8 @@ when the right move was to switch to a smaller run or a different API key.
   tokens per second over a recent window** — aggregated **across all
   samples and tasks in the run** (i.e. per process, which is what "a run"
   is: `eval_set` with `retry_immediate` executes as one `eval()` call).
+  Input tokens and cache read/write tokens per minute sit beside it, since
+  providers often set separate input and output token rate limits.
 - Alongside the rate, report the context needed to interpret it: retry
   counts by kind (`rate_limit` vs `transient`), seconds of backoff incurred,
   the rate at which scheduled backoff is accumulating relative to
@@ -117,6 +119,9 @@ class ModelThroughput:
     requests: int = 0                  # successful generates recorded
     output_tokens: int = 0
     total_tokens: int = 0
+    input_tokens: int = 0              # uncached input (ModelUsage.input_tokens)
+    input_tokens_cache_read: int = 0
+    input_tokens_cache_write: int = 0
     retries_rate_limit: int = 0
     retries_transient: int = 0
     retry_wait_seconds: float = 0.0    # backoff scheduled (sum of sleeps)
@@ -131,7 +136,8 @@ class ModelThroughput:
 
 `TokenBuckets` is a fixed-length ring (e.g. 60 buckets × 10 s = a 10-minute
 horizon) where each bucket accumulates `{output_tokens, total_tokens,
-requests, retries}` for its 10-second slice. Bucket indexing uses the
+input_tokens, cache_read_tokens, cache_write_tokens, requests, retries}`
+for its 10-second slice. Bucket indexing uses the
 monotonic clock; writes are O(1) (index by `monotonic() // 10`). Slots are
 epoch-tagged rather than zeroed on advance: each slot stores the absolute
 bucket epoch it was last written in, a write resets a slot whose stored
@@ -183,7 +189,9 @@ def init_model_throughput() -> None: ...   # clears the registry
 each run clean.
 
 `ModelThroughputView` (the read-side snapshot) adds the derived fields:
-`output_tokens_per_second`, `requests_per_minute`, `retries_per_minute`,
+`output_tokens_per_second`, `input_tokens_per_minute`,
+`cache_read_tokens_per_minute`, `cache_write_tokens_per_minute`,
+`requests_per_minute`, `retries_per_minute`,
 `backoff_ratio` (window backoff-seconds from the interval overlap ÷ window
 seconds — scheduled backoff per wall-clock second, summed across concurrent
 generates, so it exceeds 1.0 whenever more than one generate is backing
@@ -236,6 +244,10 @@ existing trace retry lines and the ctl `retry_wait` activity view unchanged:
 - **Tokens** — `record_and_check_model_usage()` (`model/_model.py`) calls
   `record_generate(model, usage)` next to the existing `set_model_usage`
   calls, with the qualified key it already computes. Scope notes:
+  - *Input tokens follow `ModelUsage`.* `input_tokens` excludes cache
+    reads and writes, which are counted separately, so total input is the
+    sum of the three. A provider that reports no cache usage (`None`)
+    counts as 0.
   - *Cache hits are already excluded.* The cache-hit path returns before
     the usage-recording call (`_model.py` ~L1344 early return; cached usage
     goes through `emit_model_cache_usage` instead), which is the behavior
@@ -309,12 +321,18 @@ envelope:
       "model": "anthropic/claude-sonnet-5",
       "window_seconds": 60,
       "output_tokens_per_second": 41.7,
+      "output_tokens_per_minute": 2502.0,
+      "input_tokens_per_minute": 182340.0,
+      "cache_read_tokens_per_minute": 1523000.0,
+      "cache_write_tokens_per_minute": 45210.0,
       "requests_per_minute": 12.0,
       "retries_per_minute": 33.0,
       "backoff_ratio": 11.2,
       "retry_waits_active": 14,
       "cumulative": {
         "requests": 4310, "output_tokens": 5210044, "total_tokens": 9422108,
+        "input_tokens": 1210300, "input_tokens_cache_read": 2851000,
+        "input_tokens_cache_write": 150764,
         "retries": {"rate_limit": 812, "transient": 9},
         "retry_wait_seconds": 14208.5,
         "first_activity_at": "...", "last_activity_at": "..."
@@ -332,6 +350,12 @@ envelope `window_seconds` is that requested (clamped) window; each model
 row carries its *effective* `window_seconds` — further clamped to
 time-since-first-activity — so a consumer recovering counts from rates
 (rate × window) isn't misled for a model younger than the window.
+Output tokens are reported both per second (`output_tokens_per_second`,
+the original field) and per minute (`output_tokens_per_minute`); input and
+cache tokens are per minute only. Per minute is the unit providers use for
+their input and output token limits. The per-minute output field and the
+input and cache fields were added after the endpoint first shipped: a
+client must treat them as absent when talking to an older server.
 Cheap-shoveling compliance: everything is materialized at write time; the
 read is a bounded sum over ≤ 60 buckets × (number of models), a
 concurrency-bounded pass over each model's backoff intervals, plus one
@@ -350,10 +374,22 @@ the requested output, per `design/ctl/control-channel.md`). Human table
 (one row per model):
 
 ```
-model                          out tok/s   req/min   retries/min   in backoff   backoff (cum)
-anthropic/claude-sonnet-5           41.7      12.0          33.0           14          3h 57m
-openai/gpt-5                       310.2      45.0           0.0            0               –
+model                      out tok/min  in tok/min  cache rd/wr/min  req/min  retries/min  in backoff  backoff (cum)
+-------------------------  -----------  ----------  ---------------  -------  -----------  ----------  -------------
+anthropic/claude-sonnet-5  2.5k         182.3k      1.5M/45.2k       12.0     33.0         14          3h 57m
+openai/gpt-5               18.6k        950         0/0              45.0     0.0          0           -
+bedrock/us.anthropic.claude-sonnet-5-5-20260928-v1:0
+                           720          40.1k       0/0              4.0      0.0          0           -
 ```
+
+Every rate in the table is per minute, so it compares directly with a
+provider's per-minute token limits. Token cells use the compact
+`1.2k`/`3.4M` form, and cache reads and writes share one `read/write` cell.
+The table is capped at 120 columns: a model name too long to fit is
+printed whole on its own line, with its rates on the next line. For an
+older server without `output_tokens_per_minute`, the CLI derives it from
+`output_tokens_per_second` × 60. Its missing input and cache fields show
+blank (unreported, not 0).
 
 The `ctl task` row also gains a per-task `tokens_per_second` derived from
 data it already has (`EvalState.total_tokens` deltas are *not* windowed, so
@@ -423,7 +459,8 @@ HTTP retries: 821  out tok/s: 352
 ```
 
 Aggregate (summed across models) keeps the footer glanceable; per-model
-detail is ctl's job. Gating on retries-observed avoids adding a noisy
+detail (including input and cache token rates) is ctl's job. The footer
+shows output tokens per second only. Gating on retries-observed avoids adding a noisy
 number to healthy runs — and the gate reads the new per-run registry, not
 the never-reset `_http_retries_count` scalar, so a keep-alive process's
 second run starts quiet. The footer is already `@throttle(1)`d, and the

@@ -1,3 +1,5 @@
+from logging import getLogger
+
 from inspect_ai.model._chat_message import ChatMessage
 from inspect_ai.tool._tool_call import ToolCall, ToolCallView
 from inspect_ai.util._notify import notify
@@ -5,9 +7,10 @@ from inspect_ai.util._notify import notify
 from .._approval import Approval, ApprovalDecision
 from .._approver import Approver
 from .._registry import approver
-from .acp import request_human_approval_via_acp
 from .console import console_approval
 from .panel import panel_approval
+
+logger = getLogger(__name__)
 
 
 @approver(name="human")
@@ -17,11 +20,27 @@ def human_approver(
     """Interactive human approver.
 
     Args:
-       choices: Choices to present to human.
+       choices: Choices to present to human. "modify" is not supported, since a
+          human cannot supply a modified tool call; it is dropped with a warning.
 
     Returns:
        Approver: Interactive human approver.
+
+    Raises:
+       ValueError: If "modify" is the only choice.
     """
+    if "modify" in choices:
+        choices = [choice for choice in choices if choice != "modify"]
+        if not choices:
+            raise ValueError(
+                "The human approver does not support the 'modify' choice (a human "
+                "cannot supply a modified tool call). Choose at least one of "
+                "'approve', 'reject', 'terminate' or 'escalate'."
+            )
+        logger.warning(
+            "The human approver does not support the 'modify' choice (a human "
+            "cannot supply a modified tool call), so it will not be offered."
+        )
 
     async def approve(
         message: str,
@@ -33,6 +52,11 @@ def human_approver(
         # graph and reaching it at module load closes a cycle (approval ->
         # log -> transcript -> approval)
         from inspect_ai.log._samples import awaiting_human
+
+        # deferred: the ACP shim imports `acp.schema`, the single largest
+        # cost of `import inspect_ai`, and only matters once a human
+        # approval is actually requested
+        from .acp import request_human_approval_via_acp
 
         # Ping the operator out-of-band via Apprise (no-op when no
         # notification target is configured) regardless of which

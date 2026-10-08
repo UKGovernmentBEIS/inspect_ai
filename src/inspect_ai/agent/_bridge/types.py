@@ -1,6 +1,6 @@
 from enum import IntEnum
 from functools import lru_cache
-from typing import TYPE_CHECKING, NamedTuple, NoReturn, Sequence, Set
+from typing import TYPE_CHECKING, Any, Callable, NamedTuple, NoReturn, Sequence, Set
 
 from shortuuid import uuid
 
@@ -38,6 +38,19 @@ if TYPE_CHECKING:
     from inspect_ai.approval._policy import ApprovalPolicy
 
 
+class DispatchedCall(NamedTuple):
+    """A bridged tool call the model made through a scaffold's dispatcher function."""
+
+    server: str
+    """The bridged server the target tool is registered under."""
+
+    target: ToolCall
+    """The call to the bridged tool itself, under the dispatcher call's id."""
+
+    dispatch: Callable[[dict[str, Any]], dict[str, Any]]
+    """Arguments for the dispatcher call that make the target call with the given ones."""
+
+
 class AgentBridge:
     """Agent bridge."""
 
@@ -56,12 +69,15 @@ class AgentBridge:
         allow_remote_mcp: bool = True,
         allow_remote_media: bool = False,
         model_resolver: ModelResolver | None = None,
+        allow_client_model_names: bool = False,
     ) -> None:
-        # Capabilities a client-declared request may reach for. Media defaults
-        # closed so new bridge subclasses cannot accidentally grant host I/O.
-        # The known in-process factory grants it explicitly.
+        # Capabilities a client-declared request may reach for. Media and
+        # client-chosen model names default closed so new bridge subclasses
+        # cannot accidentally grant host I/O or host credentials. The known
+        # in-process factory grants them explicitly.
         self.allow_remote_mcp = allow_remote_mcp
         self.allow_remote_media = allow_remote_media
+        self.allow_client_model_names = allow_client_model_names
         self._cp = checkpointer or _NoopCheckpointer()
         # AgentState is not a BaseModel so it can't be tracked directly;
         # track its messages and output separately (same approach as react()).
@@ -126,6 +142,7 @@ class AgentBridge:
         self._candidate_fps: list[_MessageFingerprint] | None = None
         self._pending_operator = 0
         self._operator_keys: set[str] = set()
+        self._warned_request_settings: set[str] = set()
 
     state: AgentState
     """State updated from messages traveling over the bridge."""
@@ -137,22 +154,34 @@ class AgentBridge:
     """
 
     model: str | None
-    """Fallback model for requests that don't use ``inspect`` or ``inspect/``
-    prefixed names.  ``None`` means no fallback (the request model name is
-    used as-is).
+    """Model that serves every request the bridge does not otherwise recognise
+    (e.g. ``"inspect/openai/gpt-4o"``; the ``inspect/`` prefix is optional).
+    Aliases, resolver results and the name ``"inspect"`` are not pinned.
+    ``None`` (or ``"inspect"``) serves such requests with the eval's active
+    model, or with the model the name implies when
+    ``allow_client_model_names`` is set.
     """
 
     model_aliases: dict[str, str | Model]
     """Map of model name aliases.  When a request uses a name that appears
     here, the corresponding value (a ``Model`` instance or model spec string)
-    is used instead.  Checked before the fallback ``model``.
+    is used instead.  Checked before the pinned ``model``.
     """
 
     model_resolver: ModelResolver | None
     """Dynamic per-request model routing policy.  Called with the requested
-    model name after ``model_aliases`` and before the static ``model`` fallback;
+    model name after ``model_aliases`` and before the pinned ``model``;
     returning a ``Model``/spec routes the request there, ``None`` defers to the
-    fallback.  Lets a bridge route by policy without enumerating every name.
+    rest of the resolution.  Lets a bridge route by policy without enumerating
+    every name.
+    """
+
+    allow_client_model_names: bool
+    """Let a requested name the bridge does not otherwise recognise reach the
+    model role or model it names (e.g. ``"inspect/openai/gpt-4o"``).  When
+    ``False`` (the default), such requests are served by the eval's active
+    model.  Set by the in-process ``agent_bridge()``, whose agent already has
+    the host's credentials.
     """
 
     model_event_sink: ModelEventSink | None
@@ -199,13 +228,48 @@ class AgentBridge:
         """
         raise TerminateSampleError(reason)
 
-    def register_tool_execution_grants(self, calls: Sequence[ToolCall]) -> None:
-        """Register calls from an approved response for execution-edge checks.
+    def request_fail(self, error: Exception) -> None:
+        """Fail the sample with `error` from a bridged generation.
 
-        In-process bridges execute no host tools through a separate service, so the
-        base implementation has nothing to register. Sandbox bridges override this
-        to bind later service requests to the calls approval actually reviewed.
+        The caller then raises `error`, which propagates out through the agent to
+        the sample runner, so an in-process bridge has nothing to do here.
+        `SandboxAgentBridge` overrides this to signal its monitor task, since a
+        raise in the sandbox service task never reaches the sample runner.
         """
+
+    grants_tool_execution: bool = False
+    """Whether this bridge binds host-tool execution to the calls in each response.
+
+    In-process bridges execute no host tools through a separate service, so nothing
+    is granted or checked. `SandboxAgentBridge` sets this and overrides
+    `register_tool_execution_grants`; `apply_bridge_tool_approval` reads it to
+    decide whether alternate choices must be dropped without an approval policy.
+    """
+
+    def register_tool_execution_grants(
+        self, calls: Sequence[ToolCall], tools: Sequence[ToolInfo | Tool]
+    ) -> None:
+        """Register the calls in a response handed to the scaffold for execution-edge checks.
+
+        `tools` are the declarations the scaffold made to the model in the request
+        that produced the response; a subclass overriding this hook must accept
+        them (the parameter is new, and required, since the calls cannot be
+        resolved without it). In-process bridges execute no host tools through a
+        separate service, so the base implementation has nothing to register.
+        Sandbox bridges override this to bind later service requests to the calls
+        the model actually made.
+        """
+
+    def dispatched_call(self, call: ToolCall) -> DispatchedCall | None:
+        """The bridged tool call that `call` makes through a dispatcher, if any.
+
+        Some scaffolds reach every bridged tool through one function whose arguments
+        name the target. Approval reviews such a call as the target call, so policies
+        match the bridged tool's own name and approvers see (and modify) its own
+        arguments. In-process bridges have no bridged tools, so nothing is
+        dispatched; `SandboxAgentBridge` overrides this.
+        """
+        return None
 
     def compaction(
         self, tools: Sequence[ToolInfo | Tool], model: Model

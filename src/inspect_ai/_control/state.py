@@ -36,6 +36,7 @@ from __future__ import annotations
 import time
 from collections import defaultdict
 from functools import partial
+from itertools import chain
 from typing import TYPE_CHECKING, Any, Literal, NamedTuple
 
 from inspect_ai._util._async import tg_collect
@@ -319,8 +320,9 @@ async def current_sample_summaries(
       (eval finished / torn down) — read once and memoized on the state
       (see :func:`completed_eval_sample_summaries`).
     - **pending** ← synthesized from the eval's registered planned
-      ``(sample_id, epoch)`` pairs (``EvalState.sample_ids`` × ``epochs``)
-      that aren't yet running or done — no live source holds these.
+      ``(sample_id, epoch)`` pairs (``EvalState.sample_ids`` × ``epochs``
+      and ``EvalState.sample_epochs``) that aren't yet running or done — no
+      live source holds these.
 
     Merged and deduped by ``(sample_id, epoch)``; a terminal record
     (completed / error) supersedes a running one, which supersedes a
@@ -525,13 +527,17 @@ def _add_pending_samples(
     from inspect_ai._control.eval_state import get_eval_state
 
     state = get_eval_state(eval_id)
-    if state is None or not state.sample_ids:
+    if state is None:
         return
-    for sample_id in state.sample_ids:
-        for epoch in range(1, max(1, state.epochs) + 1):
-            key = (sample_id, epoch)
-            if key not in by_key:
-                by_key[key] = _pending_summary(sample_id, epoch)
+    planned = (
+        (sample_id, epoch)
+        for sample_id in state.sample_ids
+        for epoch in range(1, max(1, state.epochs) + 1)
+    )
+    for sample_id, epoch in chain(planned, state.sample_epochs):
+        key = (sample_id, epoch)
+        if key not in by_key:
+            by_key[key] = _pending_summary(sample_id, epoch)
 
 
 def _pending_requeue_keys(eval_id: str) -> frozenset[SampleKey]:
@@ -859,10 +865,7 @@ async def sample_error_detail(
         return running
 
     sample = await _full_sample(
-        eval_id,
-        sample_id,
-        epoch,
-        exclude_fields={"messages", "events", "store", "attachments", "output"},
+        eval_id, sample_id, epoch, exclude_fields=set(SAMPLE_DETAIL_EXCLUDE_FIELDS)
     )
     if sample is None:
         # a cancelled-before-start sample has no record: mirror the listing's
@@ -915,6 +918,31 @@ async def sample_error_detail(
             "scores": {},
         }
 
+    return terminal_sample_detail(
+        sample, row, will_retry=_eval_will_retry(eval_id), content=content
+    )
+
+
+# The heavy fields the sample detail read never consumes (only error data and
+# the summary fields are needed).
+SAMPLE_DETAIL_EXCLUDE_FIELDS = frozenset(
+    {"messages", "events", "store", "attachments", "output"}
+)
+
+
+def terminal_sample_detail(
+    sample: Any,
+    row: dict[str, Any] | None,
+    *,
+    will_retry: bool,
+    content: bool,
+) -> dict[str, Any]:
+    """The detail envelope for a logged sample and its (ungated) summary row.
+
+    ``sample`` is the ``EvalSample`` read without
+    :data:`SAMPLE_DETAIL_EXCLUDE_FIELDS`. Shared by :func:`sample_error_detail`
+    and the ``--log-dir`` reader, so the two surfaces cannot drift.
+    """
     # status/error apply the listing's classification
     # (_summary_from_eval_sample_summary reads the same error message), so the
     # detail's override of the row can't contradict it: a cancellation is
@@ -924,7 +952,7 @@ async def sample_error_detail(
     if sample.error is None:
         status, error = "completed", None
     elif is_cancellation_message(sample.error.message):
-        status, error = _cancellation_status(_eval_will_retry(eval_id)), None
+        status, error = _cancellation_status(will_retry), None
     else:
         status, error = "error", _error_dict(sample.error, content)
 

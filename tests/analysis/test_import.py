@@ -1,16 +1,37 @@
+import subprocess
+import sys
 from datetime import date, datetime, time, timezone
 from pathlib import Path
+from textwrap import dedent
 
 import pytest
 from pydantic import JsonValue
 from typing_extensions import override
 
 from inspect_ai._util.dateutil import iso_now
-from inspect_ai.analysis import Column, EvalColumns
+from inspect_ai._util.version import has_required_version
+from inspect_ai.analysis import (
+    Column,
+    EvalColumns,
+    EventColumn,
+    MessageColumn,
+    SampleColumn,
+)
+from inspect_ai.analysis._dataframe.columns import parse
 from inspect_ai.analysis._dataframe.evals.columns import EvalColumn
 from inspect_ai.analysis._dataframe.record import _resolve_value, import_record
+from inspect_ai.event import ModelEvent, ToolEvent
 from inspect_ai.log._file import read_eval_log
-from inspect_ai.log._log import EvalConfig, EvalDataset, EvalLog, EvalSpec
+from inspect_ai.log._log import (
+    EvalConfig,
+    EvalDataset,
+    EvalLog,
+    EvalSample,
+    EvalSampleSummary,
+    EvalSpec,
+)
+from inspect_ai.model import ChatMessageAssistant, GenerateConfig, ModelOutput
+from inspect_ai.scorer import Score, Value
 
 
 class TColumn(Column):
@@ -371,10 +392,155 @@ def test_column_error_path_type() -> None:
     assert len(errors) == 2
     for err in errors:
         assert isinstance(err.path, str)
-    assert errors[0].path == "(($.eval).task)"
-    assert errors[1].path == "(($.eval).nonexistent)"
+    # str() of a path differs across jsonpath-ng versions, so check it re-parses
+    assert [parse(str(err.path)) for err in errors] == [
+        parse("$.eval.task"),
+        parse("$.eval.nonexistent"),
+    ]
     assert "Cannot coerce foo from type str to int" in str(errors[0])
     assert "field not found" in str(errors[1])
+
+
+def test_index_paths_across_jsonpath_ng_versions() -> None:
+    """Integer indices that select nothing raise on jsonpath-ng < 1.9 only."""
+    record: dict[str, JsonValue] = {"mapping": {"a": 1}, "items": [1, 2]}
+    spec: list[Column] = [
+        TColumn("mapping_index", path="$.mapping[0]"),
+        TColumn("out_of_range", path="$.items[-3]"),
+        TColumn("last", path="$.items[-1]"),
+    ]
+    result, errors = import_record(eval_log(), record, spec, strict=False)
+    assert result["last"] == 2
+    if has_required_version("jsonpath-ng", "1.9.0"):
+        assert errors == []
+        assert result["mapping_index"] is None
+        assert result["out_of_range"] is None
+    else:
+        assert [(e.column, type(e.error)) for e in errors] == [
+            ("mapping_index", KeyError),
+            ("out_of_range", IndexError),
+        ]
+        assert "mapping_index" not in result
+        assert "out_of_range" not in result
+
+
+def test_integer_filter_across_jsonpath_ng_versions() -> None:
+    """Integer filters truncate non-string values on jsonpath-ng < 1.9 only."""
+    record: dict[str, JsonValue] = {
+        "values": [{"v": 1.9, "name": "float"}, {"v": "1", "name": "string"}]
+    }
+    spec: list[Column] = [TColumn("name", path="$.values[?(@.v == 1)].name")]
+    result, errors = import_record(eval_log(), record, spec, strict=False)
+    assert errors == []
+    expected = "string" if has_required_version("jsonpath-ng", "1.9.0") else "float"
+    assert result["name"] == expected
+
+
+def model_event_completion(event: ModelEvent) -> str:
+    return event.output.completion
+
+
+def event_counts(event: ModelEvent | ToolEvent) -> list[dict[str, int]]:
+    return [{"count": 1 if isinstance(event, ModelEvent) else 2}]
+
+
+def assistant_text(message: ChatMessageAssistant) -> str:
+    return message.text
+
+
+def first_score(sample: EvalSample | EvalSampleSummary) -> Value | None:
+    return next(iter(sample.scores.values())).value if sample.scores else None
+
+
+def eval_counts(log: EvalLog) -> dict[str, list[int]]:
+    return {"counts": [1, 2]}
+
+
+def test_extract_function_subtypes() -> None:
+    """Extract functions may take a subtype and return a precise JSON type.
+
+    mypy checks these calls as part of the test suite.
+    """
+    model_event = ModelEvent(
+        model="model",
+        input=[],
+        tools=[],
+        tool_choice="none",
+        config=GenerateConfig(),
+        output=ModelOutput.from_content("model", "hello"),
+    )
+    tool_event = ToolEvent(id="1", function="f", arguments={})
+    event_spec: list[Column] = [
+        EventColumn("completion", path=model_event_completion),
+        EventColumn("counts", path=event_counts),
+    ]
+    assert import_record(eval_log(), model_event, event_spec) == {
+        "completion": "hello",
+        "counts": '[{"count": 1}]',
+    }
+    assert import_record(eval_log(), tool_event, event_spec[1:]) == {
+        "counts": '[{"count": 2}]'
+    }
+
+    message_spec: list[Column] = [MessageColumn("text", path=assistant_text)]
+    message = ChatMessageAssistant(content="hi")
+    assert import_record(eval_log(), message, message_spec) == {"text": "hi"}
+
+    sample = EvalSampleSummary(
+        id=1, epoch=1, input="x", target="y", scores={"s": Score(value=0.5)}
+    )
+    sample_spec: list[Column] = [SampleColumn("score", path=first_score)]
+    assert import_record(eval_log(), sample, sample_spec) == {"score": 0.5}
+
+    eval_spec: list[Column] = [EvalColumn("counts", path=eval_counts)]
+    assert import_record(eval_log(), eval_log(), eval_spec) == {
+        "counts": '{"counts": [1, 2]}'
+    }
+
+
+@pytest.mark.slow
+def test_extract_function_types_checked(tmp_path: Path) -> None:
+    """Mypy accepts subtype extract functions and rejects unrelated types."""
+    source = tmp_path / "columns.py"
+    source.write_text(
+        dedent(
+            """
+            from inspect_ai.analysis import EventColumn, MessageColumn
+            from inspect_ai.event import ModelEvent, ToolEvent
+            from inspect_ai.model import ChatMessageAssistant
+
+            def model_input(event: ModelEvent) -> list[dict[str, int]]:
+                return []
+
+            def tool_or_model(event: ModelEvent | ToolEvent) -> str:
+                return ""
+
+            def text(message: ChatMessageAssistant) -> str:
+                return message.text
+
+            def number(value: int) -> str:
+                return ""
+
+            EventColumn("input", path=model_input)
+            EventColumn("event", path=tool_or_model)
+            MessageColumn("text", path=text)
+            EventColumn("number", path=number)
+            """
+        )
+    )
+    result = subprocess.run(
+        [sys.executable, "-m", "mypy", "--no-incremental", str(source)],
+        capture_output=True,
+        text=True,
+        cwd=tmp_path,
+    )
+    errors = [line for line in result.stdout.splitlines() if ": error:" in line]
+    if has_required_version("jsonpath-ng", "1.9.0"):
+        assert len(errors) == 1, result.stdout
+        assert 'variable "E" of "EventColumn" cannot be "int"' in errors[0]
+    else:
+        # jsonpath-ng < 1.9 is untyped, so the path union accepts any callable
+        assert errors == [], result.stdout
 
 
 def test_complex_import_scenario() -> None:
