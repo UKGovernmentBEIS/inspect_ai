@@ -21,10 +21,24 @@ from inspect_ai.dataset import (
     file_dataset,
     json_dataset,
 )
+from inspect_ai._eval.task.hf import HFFieldSpec
 from inspect_ai.dataset._util import read_choices
 from inspect_ai.model._chat_message import ChatMessageUser
 
 T_ds = TypeVar("T_ds")
+
+
+def test_sample_positional_metadata_compatibility() -> None:
+    sample = Sample("x", None, "y", 1, {"difficulty": "easy"})
+
+    assert sample.metadata == {"difficulty": "easy"}
+
+
+def test_field_spec_positional_metadata_compatibility() -> None:
+    fields = ["difficulty"]
+
+    assert FieldSpec("input", "target", "choices", "id", fields).metadata is fields
+    assert HFFieldSpec("input", "target", "choices", "id", fields).metadata is fields
 
 # test functions are parameterized by dataset type and input file
 csv = (csv_dataset, "samples.csv")

@@ -101,6 +101,15 @@ def test_task_description() -> None:
     assert Task(description="Solve the puzzle.").description == "Solve the puzzle."
 
 
+def test_task_positional_version_compatibility() -> None:
+    parameters = list(inspect.signature(Task).parameters.values())
+    version_index = next(i for i, parameter in enumerate(parameters) if parameter.name == "version")
+    positional = [parameter.default for parameter in parameters[: version_index + 1]]
+    positional[version_index] = "v2"
+
+    assert Task(*positional).version == "v2"
+
+
 def test_task_with_description() -> None:
     task = task_with(Task(description="Original."), description="Changed.")
     assert task.description == "Changed."
@@ -108,3 +117,4 @@ def test_task_with_description() -> None:
     # unspecified leaves the description in place
     task = task_with(Task(description="Kept."), time_limit=30)
     assert task.description == "Kept."
+import inspect

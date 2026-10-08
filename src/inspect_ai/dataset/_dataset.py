@@ -35,12 +35,12 @@ class Sample(BaseModel):
         choices: list[str] | None = None,
         target: str | list[str] = "",
         id: int | str | None = None,
-        description: str | None = None,
         metadata: dict[str, Any] | None = None,
         sandbox: SandboxEnvironmentType | None = None,
         files: dict[str, str] | None = None,
         setup: str | None = None,
         checkpoint: CheckpointSampleConfig | None = None,
+        description: str | None = None,
     ) -> None:
         r"""Create a Sample.
 
@@ -243,9 +243,6 @@ class FieldSpec:
     id: str = field(default="id")
     """ Unique identifier for the sample."""
 
-    description: str | None = field(default=None)
-    """Name of the field containing a short statement of what the sample asks of the agent (not read unless specified)."""
-
     metadata: list[str] | Type[BaseModel] | None = field(default=None)
     """List of additional field names that should be read as metadata."""
 
@@ -257,6 +254,9 @@ class FieldSpec:
 
     setup: str = field(default="setup")
     """Setup script to run for sample (run within default SandboxEnvironment)."""
+
+    description: str | None = field(default=None, kw_only=True)
+    """Name of the field containing a short statement of what the sample asks of the agent (not read unless specified)."""
 
 
 RecordToSample = Callable[[DatasetRecord], Sample | list[Sample]]

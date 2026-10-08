@@ -116,12 +116,12 @@ class Task:
         early_stopping: "EarlyStopping" | None = None,
         display_name: str | None = None,
         name: str | None = None,
-        description: str | None = None,
         version: int | str = 0,
         metadata: dict[str, Any] | None = None,
         tags: list[str] | None = None,
         viewer: ViewerConfig | None = None,
         headline_metric: HeadlineMetric | str | None = None,
+        description: str | None = None,
         **kwargs: Unpack[TaskDeprecatedArgs],
     ) -> None:
         """Create a task.

@@ -291,6 +291,19 @@ def test_can_round_trip_serialize_sample_init_event_with_none_state():
     assert original == deserialized
 
 
+def test_sample_init_event_omits_description_for_older_readers():
+    original = SampleInitEvent(
+        sample=Sample(input="input", description="solve this"),
+        state=None,
+        timestamp=datetime.now(timezone.utc),
+    )
+
+    serialized = original.model_dump_json(exclude_none=True)
+
+    assert '"description"' not in serialized
+    assert SampleInitEvent.model_validate_json(serialized).sample.description is None
+
+
 def test_can_round_trip_serialize_sandbox_event():
     original = SandboxEvent(action="exec", timestamp=datetime.now(timezone.utc))
 
