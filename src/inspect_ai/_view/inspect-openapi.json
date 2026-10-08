@@ -2497,6 +2497,20 @@
             ],
             "title": "Epochs Reducer"
           },
+          "epochs_reducer_specs": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/EvalReducerDefinition"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Epochs Reducer Specs"
+          },
           "fail_on_error": {
             "anyOf": [
               {
@@ -3244,6 +3258,31 @@
           "params_passed"
         ],
         "title": "EvalPlanStep",
+        "type": "object"
+      },
+      "EvalReducerDefinition": {
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "options": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Options"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "EvalReducerDefinition",
         "type": "object"
       },
       "EvalResults": {
@@ -8085,7 +8124,7 @@
         "type": "object"
       },
       "Reference": {
-        "description": "Reference to scanned content.",
+        "description": "Reference from a score to content in the scored transcript.\n\nReferences are stored as a list of dicts under a score's\n`metadata[\"scanner_references\"]` key. Inspect View identifies scanner\nscores by the presence of that key and renders cites in the score's\nexplanation (e.g. `[M22]`) as links to the referenced content.",
         "properties": {
           "cite": {
             "anyOf": [
