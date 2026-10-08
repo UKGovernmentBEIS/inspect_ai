@@ -214,15 +214,6 @@ def compaction(
                     prefix_tokens=prefix_tokens,
                 )
 
-                # track all messages that were processed in this compaction pass
-                for m in state.compacted_input + unprocessed:
-                    state.processed_message_ids.add(message_id(m))
-
-                # c_message is a compaction side effect to append to the history
-                # (e.g. a summary). track it as processed as well
-                if c_message is not None:
-                    state.processed_message_ids.add(message_id(c_message))
-
                 # Preserve prefix messages based on strategy type
                 if strategy.preserve_prefix:
                     # Non-native strategies: prepend any prefix messages not in output
@@ -244,14 +235,36 @@ def compaction(
                 if c_message_was_in_input and not any(m is c_message for m in c_input):
                     c_message = None
 
+                compacted_tokens = await target_model.count_tokens(c_input)
+
+                # a forced compaction recovers from an overflow, so it must
+                # shrink the input that overflowed. the threshold check alone
+                # can pass unchanged input when the count omits content the
+                # model still receives (e.g. encrypted reasoning when counting
+                # with a local tokenizer), and a retry would overflow again.
+                if force:
+                    input_tokens = await target_model.count_tokens(target_messages)
+                    if compacted_tokens >= input_tokens:
+                        raise RuntimeError(
+                            f"Forced compaction did not reduce the input "
+                            f"({input_tokens:,} tokens before, "
+                            f"{compacted_tokens:,} after)"
+                        )
+
+                # track all messages that were processed in this compaction pass
+                for m in state.compacted_input + unprocessed:
+                    state.processed_message_ids.add(message_id(m))
+
+                # c_message is a compaction side effect to append to the history
+                # (e.g. a summary). track it as processed as well
+                if c_message is not None:
+                    state.processed_message_ids.add(message_id(c_message))
+
                 # update input
                 state.compacted_input.clear()
                 state.compacted_input.extend(c_input)
 
                 # log compaction
-                compacted_tokens = await target_model.count_tokens(
-                    state.compacted_input
-                )
                 transcript()._event(
                     CompactionEvent(
                         type=strategy.type,

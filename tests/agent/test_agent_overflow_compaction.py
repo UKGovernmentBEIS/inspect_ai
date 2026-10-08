@@ -1,16 +1,21 @@
 """Tests for forced-compaction recovery in the react agent's overflow path."""
 
+import httpx2
 import pytest
+from openai import DefaultAsyncHttpxClient
 from typing_extensions import override
 
 from inspect_ai import Task, eval
+from inspect_ai._util.content import ContentReasoning, ContentText
 from inspect_ai.agent import Agent, AgentState, react
 from inspect_ai.dataset import Sample
 from inspect_ai.event import CompactionEvent
 from inspect_ai.model import (
     ChatMessage,
     ChatMessageAssistant,
+    ChatMessageTool,
     ChatMessageUser,
+    GenerateConfig,
     Model,
     ModelOutput,
     get_model,
@@ -18,8 +23,35 @@ from inspect_ai.model import (
 from inspect_ai.model._compaction import CompactionStrategy
 from inspect_ai.model._compaction.edit import CompactionEdit
 from inspect_ai.model._compaction.trim import CompactionTrim
-from inspect_ai.tool import Tool
+from inspect_ai.tool import Tool, ToolCall, tool
 from inspect_ai.tool._tool_info import ToolInfo
+
+
+@tool
+def lookup() -> Tool:
+    async def execute() -> str:
+        """Look up a value."""
+        return "value " * 50
+
+    return execute
+
+
+def _lookup_turns(count: int) -> list[ModelOutput]:
+    """Tool-calling turns that give a compaction strategy something to reduce."""
+    return [
+        ModelOutput.for_tool_call(
+            model="mockllm/model", tool_name="lookup", tool_arguments={}
+        )
+        for _ in range(count)
+    ]
+
+
+def _overflow_output() -> ModelOutput:
+    return ModelOutput.from_content(
+        model="mockllm/model",
+        content="Failed turn (overflow)",
+        stop_reason="model_length",
+    )
 
 
 class _AlwaysRaisesCompaction(CompactionStrategy):
@@ -58,6 +90,7 @@ def test_model_length_with_compaction_triggers_force_and_continues(
     model = get_model(
         "mockllm/model",
         custom_outputs=[
+            *_lookup_turns(3),
             ModelOutput.from_content(
                 model="mockllm/model",
                 content="Failed turn (overflow)",
@@ -78,6 +111,7 @@ def test_model_length_with_compaction_triggers_force_and_continues(
     task = Task(
         dataset=[Sample(input="Test", target="done")],
         solver=react_factory(
+            tools=[lookup()],
             compaction=CompactionTrim(threshold=10_000),
         ),
     )
@@ -123,13 +157,10 @@ def test_model_length_with_compaction_recovers_and_continues(strategy_factory) -
     which guards against summary-style strategies where the c_message
     object is also the last element of the compacted input.
     """
-    # Build conversation: 10 plain turns (each adds an assistant message
-    # and a default-continue user prompt = 20 messages), then overflow,
-    # then recovery, then submit.
-    custom_outputs = [
-        ModelOutput.from_content(model="mockllm/model", content=f"Turn {i}")
-        for i in range(10)
-    ]
+    # Build conversation: 10 tool-calling turns (each adds an assistant
+    # message and a tool result = 20 messages), then overflow, then
+    # recovery, then submit.
+    custom_outputs = _lookup_turns(10)
     custom_outputs.extend(
         [
             ModelOutput.from_content(
@@ -153,7 +184,7 @@ def test_model_length_with_compaction_recovers_and_continues(strategy_factory) -
 
     task = Task(
         dataset=[Sample(input="Test", target="done")],
-        solver=react(compaction=strategy_factory()),
+        solver=react(tools=[lookup()], compaction=strategy_factory()),
         message_limit=100,
     )
 
@@ -386,3 +417,124 @@ def test_custom_agent_model_does_not_loop_on_overflow(submit: bool) -> None:
     assert len(calls) == 1, (
         f"expected the agent to be called once and then terminate; got {len(calls)}"
     )
+
+
+def test_overflow_recovery_stops_when_compacted_input_cannot_shrink() -> None:
+    """A second overflow on an already compacted input ends the agent.
+
+    The first forced compaction clears tool results and the agent retries.
+    The retry overflows too, and the edit has nothing left to clear, so
+    sending the same input again would only overflow again.
+    """
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            *_lookup_turns(3),
+            _overflow_output(),
+            _overflow_output(),
+            _overflow_output(),
+            ModelOutput.for_tool_call(
+                model="mockllm/model",
+                tool_name="submit",
+                tool_arguments={"answer": "done"},
+            ),
+        ],
+    )
+
+    task = Task(
+        dataset=[Sample(input="Test", target="done")],
+        solver=react(
+            tools=[lookup()],
+            compaction=CompactionEdit(threshold=10_000, keep_tool_uses=0),
+        ),
+    )
+
+    log = eval(task, model=model)[0]
+    assert log.status == "success"
+    assert log.samples
+    events = log.samples[0].events
+    forced = [
+        e
+        for e in events
+        if isinstance(e, CompactionEvent)
+        and (e.metadata or {}).get("trigger") == "forced"
+    ]
+    assert len(forced) == 1
+    assert len([e for e in events if e.event == "model"]) == 5
+    assert "done" not in (log.samples[0].output.completion or "")
+
+
+@pytest.mark.parametrize("status_code", [404, 405])
+def test_overflow_recovery_with_local_counting_does_not_resend_reasoning(
+    status_code: int,
+) -> None:
+    """Retained reasoning the local tokenizer cannot count is not retried.
+
+    Without the native token-count endpoint, OpenAI counts with a local
+    tokenizer that skips encrypted reasoning, so an input that overflowed can
+    count well under the threshold. The edit keeps the latest reasoning and
+    tool use, so forced compaction cannot shrink the input that overflowed.
+    """
+    count_calls: list[str] = []
+    generate_calls: list[str] = []
+
+    async def handler(request: httpx2.Request) -> httpx2.Response:
+        if request.url.path == "/v1/responses/input_tokens":
+            count_calls.append("call")
+            return httpx2.Response(
+                status_code,
+                headers={"allow": "GET"} if status_code == 405 else {},
+                json={"detail": f"HTTP {status_code}"},
+                request=request,
+            )
+        assert request.url.path == "/v1/responses"
+        generate_calls.append("call")
+        # fail the sample rather than loop if the same input is resent
+        code = "context_length_exceeded" if len(generate_calls) == 1 else "resent"
+        return httpx2.Response(
+            400,
+            json={
+                "error": {
+                    "message": "Input exceeds the context window.",
+                    "type": "invalid_request_error",
+                    "param": "input",
+                    "code": code,
+                }
+            },
+            request=request,
+        )
+
+    model = get_model(
+        "openai/gpt-5-mini",
+        api_key="test",
+        base_url="http://test/v1",
+        http_client=DefaultAsyncHttpxClient(transport=httpx2.MockTransport(handler)),
+        responses_api=True,
+        memoize=False,
+        # skips the reasoning-summary probe request
+        config=GenerateConfig(reasoning_summary="none"),
+    )
+    sample_input: list[ChatMessage] = [
+        ChatMessageUser(content="Solve this using the tool."),
+        ChatMessageAssistant(
+            content=[
+                ContentReasoning(reasoning="ENCRYPTED", redacted=True),
+                ContentText(text="Checking"),
+            ],
+            tool_calls=[ToolCall(id="call_1", function="lookup", arguments={})],
+        ),
+        ChatMessageTool(content="ok", tool_call_id="call_1", function="lookup"),
+    ]
+
+    task = Task(
+        dataset=[Sample(input=sample_input, target="done")],
+        solver=react(
+            tools=[lookup()],
+            compaction=CompactionEdit(threshold=1_000, memory=False),
+        ),
+    )
+
+    log = eval(task, model=model)[0]
+    assert log.status == "success", log.error
+    assert count_calls
+    assert len(generate_calls) == 1

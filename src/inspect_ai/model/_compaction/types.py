@@ -84,7 +84,8 @@ class Compact(Protocol):
             messages: Full message history.
             force: If True, perform compaction unconditionally (skip the
                 threshold gate). Used by overflow recovery paths after a
-                model_length error.
+                model_length error. Raises `RuntimeError` if compaction does
+                not reduce the input.
 
         Returns: Input to present to the model and (optionally) a message to append to the history (e.g. a summarization).
         """

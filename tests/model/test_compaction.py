@@ -909,6 +909,34 @@ async def test_force_compaction_skips_threshold() -> None:
     )
 
 
+async def test_force_compaction_raises_without_reduction() -> None:
+    """force=True raises when compaction does not shrink the input.
+
+    The handler state is left as it was, so later calls are unaffected.
+    """
+    from inspect_ai.event import CompactionEvent
+    from inspect_ai.log._transcript import Transcript, init_transcript
+
+    transcript = Transcript()
+    init_transcript(transcript)
+    model = get_model("mockllm/model")
+    compact = compaction(
+        CompactionEdit(threshold=1_000_000), prefix=[], tools=None, model=model
+    )
+    messages: list[ChatMessage] = [
+        user_msg("question", "u1"),
+        assistant_msg("answer", "a1"),
+        user_msg("follow-up", "u2"),
+    ]
+
+    with pytest.raises(RuntimeError, match="did not reduce the input"):
+        await compact.compact_input(messages, force=True)
+
+    result, _ = await compact.compact_input(messages)
+    assert result == messages
+    assert not [e for e in transcript.events if isinstance(e, CompactionEvent)]
+
+
 async def test_compaction_collapses_provider_required_consecutive_messages(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -923,8 +951,9 @@ async def test_compaction_collapses_provider_required_consecutive_messages(
         model=model,
     )
 
+    # forced compaction must reduce the input, so it has to outweigh the result
     result, summary = await compact.compact_input(
-        [user_msg("original", "original")], force=True
+        [user_msg("original " * 100, "original")], force=True
     )
 
     assert summary is None
@@ -959,14 +988,18 @@ async def test_compaction_collapse_does_not_accumulate_old_summaries(
         tools=None,
         model=model,
     )
-    messages: list[ChatMessage] = [user_msg("TASK", "task", source="input")]
+    # forced compaction must reduce the input, so it has to outweigh the summary
+    messages: list[ChatMessage] = [
+        user_msg("TASK", "task", source="input"),
+        assistant_msg("working " * 500, "working"),
+    ]
 
     result, summary = await compact.compact_input(messages, force=True)
     assert summary is None
     assert len(result) == 1
     assert "SUMMARY1" in result[0].text
 
-    messages = result + [assistant_msg("continuing", "assistant")]
+    messages = result + [assistant_msg("continuing " * 500, "assistant")]
     result, summary = await compact.compact_input(messages, force=True)
     assert len(result) == 1
     assert result[0] is summary
