@@ -104,7 +104,6 @@ class Task:
         on_resume: OnResumeCallback | None = None,
         approval: str | ApprovalPolicyConfig | list[ApprovalPolicy] | None = None,
         review: str | ReviewPolicyConfig | list[ReviewPolicy] | None = None,
-        sentinel: SentinelSpec | None = None,
         epochs: int | Epochs | None = None,
         fail_on_error: bool | float | None = None,
         continue_on_fail: bool | None = None,
@@ -123,6 +122,7 @@ class Task:
         tags: list[str] | None = None,
         viewer: ViewerConfig | None = None,
         headline_metric: HeadlineMetric | str | None = None,
+        sentinel: SentinelSpec | None = None,
         *,
         description: str | None = None,
         **kwargs: Unpack[TaskDeprecatedArgs],
@@ -167,8 +167,6 @@ class Task:
                 Either a path to an approval policy config file, an ApprovalPolicyConfig, or a list of approval policies. Defaults to no approval policy.
             review: Tool result review policies.
                 Either a path to a review policy config file, a ReviewPolicyConfig, or a list of review policies. Defaults to no review policy.
-            sentinel: Monitors and protocols that watch the agent's steps (requires the `inspect_sentinel` package). Experimental: not yet a stable API; may change without notice.
-                A protocol, a list or mapping of monitors and protocols with at least one protocol, a config file path or registered protocol name, or a parsed configuration. Monitors alone are an error: wrap them in `observe_only()` to record without acting. Defaults to no sentinel.
             epochs: Epochs to repeat samples for and optional score
                 reducer function(s) used to combine sample scores (defaults to "mean")
             fail_on_error: `True` to fail on first sample error
@@ -212,6 +210,8 @@ class Task:
                 convention, so `HeadlineMetric(metric="accuracy")` takes that
                 metric from the first score reporting it; the default is the
                 first metric of the first score.
+            sentinel: Monitors and protocols that watch the agent's steps (requires the `inspect_sentinel` package). Experimental: not yet a stable API; may change without notice.
+                A protocol, a list or mapping of monitors and protocols with at least one protocol, a config file path or registered protocol name, or a parsed configuration. Monitors alone are an error: wrap them in `observe_only()` to record without acting. Defaults to no sentinel.
             **kwargs: Deprecated arguments.
         """
         # handle deprecated args

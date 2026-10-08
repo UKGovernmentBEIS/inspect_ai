@@ -1,4 +1,5 @@
 import inspect
+from typing import Any
 
 from test_helpers.tasks import minimal_task
 
@@ -105,7 +106,8 @@ def test_task_description() -> None:
 
 def test_task_positional_version_compatibility() -> None:
     # This pins version at its historical 29th positional argument.
-    task = Task(*([None] * 28), "v2")
+    positional: list[Any] = [None] * 28 + ["v2"]
+    task = Task(*positional)
     assert task.version == "v2"
     assert task.description is None
 
