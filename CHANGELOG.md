@@ -1,6 +1,7 @@
 ## Unreleased
 
 - Preserve each text block’s internal provider state when converting multi-block assistant messages.
+- Bugfix: Hugging Face task loading reads the Hub-delivered `eval.yaml` in UTF-8 rather than the locale default, so task configs with non-ASCII characters no longer crash or silently corrupt on Windows with a non-UTF-8 code page (or on a C-locale system).
 - Anthropic: Support for Claude Haiku 5.5 (`claude-haiku-5-5`): `reasoning_effort="none"` disables thinking, computer use uses the computer toolset on the Claude API and Vertex, and `fallback_models` is ignored with a warning.
 - Bugfix: `inspect log convert --stream` (and `convert_eval_logs(stream=...)`) no longer drops the error message and traceback from logs of failed evals.
 
