@@ -6,7 +6,7 @@
 - Limits: A sample or outer agent limit hit inside an `as_tool()` or `handoff()` agent without its own limits now ends that sample or agent, instead of returning a tool error or handoff notice.
 - Limits: A custom `LimitExceededError` (one with no `source`) raised inside a tool now ends the sample instead of returning a `limit` tool error.
 - Sandbox agent bridge: A limit opened by a bridged host tool now fails only that tool call instead of ending the sample.
-- Deep agents: A sample or agent limit hit in a background subagent's child task now ends that sample or agent instead of being reported as a subagent error.
+- Deep agents: Sample or enclosing agent limits hit in a background subagent's child task now end the sample instead of returning a subagent error.
 
 ## 0.3.277 (06 October 2026)
 
