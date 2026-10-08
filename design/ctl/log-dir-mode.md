@@ -867,19 +867,23 @@ of what changed. `src/inspect_ai/_control/log_dir/cache.py`:
 
 - **Location.** `inspect_data_dir("ctl")/log-dir-cache/`, created 0700 like
   the control discovery directory. One JSON file per log URI, named by
-  `sha256(uri)`, holding a schema version and:
+  `sha256(uri)` (a local log by its absolute path), holding a schema
+  version and:
   - the plan (valid for as long as the file exists; a retried shard writes
-    a new file with a new name);
+    a new file with a new name). Whenever a running log's central directory
+    is read again, the plan is reused only while `_journal/start.json` has
+    the CRC-32 it was read from;
   - the header-derived status fields and the parsed summaries, keyed by the
-    file's ETag (or `mtime`+`size` locally), valid only while the listing
-    reports the same key;
+    file's ETag (locally its inode, `mtime_ns` and size, the freshness
+    check's form), valid only while the listing reports the same key;
   - for a running log, the journal summary members already parsed, keyed by
     member name, CRC-32 and compressed size from the central directory.
     Journal members are append-only, so a changed running log costs its
     central directory plus the new journal members rather than every
     journal member again;
   - the observed key set (plan ids and summary keys, both tied to the
-    log's version) used to skip re-reading unchanged logs.
+    log's version) used to skip re-reading unchanged logs. It is derived
+    from the cached plan and summaries rather than stored separately.
 - **Not cached**: manifest contents (they change every sync), sample
   members and segments (large; each invocation reads what it pages).
 - **Writes**: only from validated member views, atomically (temp file,
@@ -895,7 +899,8 @@ of what changed. `src/inspect_ai/_control/log_dir/cache.py`:
   logged at debug; the cache never changes what a read returns, only
   whether it is fetched.
 - **Scope.** Keyed by URI, so two directories never share entries; nothing
-  in the log directory is written.
+  in the log directory is written. Only the CLI's reads use it (the reader
+  functions consult the cache made active for the invocation).
 
 ### Cost and scale
 

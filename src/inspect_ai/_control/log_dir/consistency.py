@@ -28,6 +28,8 @@ from inspect_ai._util.async_zip import AsyncZipReader, CentralDirectory, ZipCrcE
 from inspect_ai._util.asyncfiles import AsyncFilesystem, is_s3_filename
 from inspect_ai._util.file import filesystem, local_path
 
+from .walk import LogFile
+
 MAX_REREADS = 2
 """Re-reads after the first attempt before a read is reported as failed."""
 
@@ -123,6 +125,20 @@ async def log_version(fs: AsyncFilesystem, location: str) -> str | None:
     if info.etag:
         return info.etag
     return f"{info.mtime}:{info.size}" if info.mtime is not None else None
+
+
+async def listed_version(fs: AsyncFilesystem, file: LogFile) -> str | None:
+    """The log's version in :func:`log_version`'s form, as of now.
+
+    The walk's ETag where its listing has one (S3), so no request is made; a
+    local file's ``stat``. ``None`` for other backends, whose listings carry
+    no ETag.
+    """
+    if file.etag is not None:
+        return file.etag
+    if not is_s3_filename(file.location) and filesystem(file.location).is_local():
+        return await log_version(fs, file.location)
+    return None
 
 
 async def read_version(

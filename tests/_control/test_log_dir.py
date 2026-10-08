@@ -10,11 +10,12 @@ import errno
 import functools
 import os
 import shutil
+import time
 import zipfile
 from collections import Counter
 from collections.abc import Iterator
 from pathlib import Path
-from typing import Any, NamedTuple
+from typing import Any, Literal, NamedTuple
 
 import anyio
 import boto3
@@ -24,6 +25,12 @@ from test_helpers.utils import skip_if_trio
 from inspect_ai import Task, eval, eval_async
 from inspect_ai._control.events import decode_cursor
 from inspect_ai._control.log_dir import consistency
+from inspect_ai._control.log_dir.cache import (
+    JournalCache,
+    LogDirCache,
+    open_cache,
+    use_cache,
+)
 from inspect_ai._control.log_dir.consistency import (
     LogChangedError,
     LogUnparseableError,
@@ -47,6 +54,7 @@ from inspect_ai._control.log_dir.select import (
 from inspect_ai._control.log_dir.snapshot import (
     LogDirIndex,
     LogicalTask,
+    TaskView,
     identity_row,
     index_log_dir,
     read_plan,
@@ -2075,3 +2083,439 @@ def test_cli_buffer_events_that_do_not_parse_are_invalid_response(
     assert error["kind"] == "invalid_response"
     assert error["exception"] == "inspect_ai.LogUnparseableError"
     assert f"{buffer}/" in error["message"] and "segment.1.zip" in error["message"]
+
+
+# --- cache ---------------------------------------------------------------------
+
+
+class _Poll(NamedTuple):
+    dir_index: LogDirIndex
+    views: list[TaskView]
+
+
+async def _poll(
+    root: Path | str, cache: LogDirCache | None | Literal["new"] = "new"
+) -> _Poll:
+    """One invocation's list read, by default with a new cache object (a new poller)."""
+    async with AsyncFilesystem() as fs:
+        with use_cache(open_cache() if cache == "new" else cache):
+            index = await index_log_dir(fs, str(root))
+            views = await read_task_views(fs, index.tasks)
+    return _Poll(dir_index=index, views=views)
+
+
+def _answers(poll: _Poll) -> list[Any]:
+    """What a list read reports (less ``tokens_per_second``, which uses the clock)."""
+    return [
+        (
+            {**task_row(view), "tokens_per_second": None},
+            sample_listing(view, content=True),
+        )
+        for view in poll.views
+    ]
+
+
+def _cache_files(data_dir: Path) -> list[Path]:
+    return sorted((data_dir / "ctl" / "log-dir-cache").glob("*"))
+
+
+@pytest.fixture
+def central_directory_reads(monkeypatch: pytest.MonkeyPatch) -> Counter[str]:
+    """Count central-directory reads, by log file name."""
+    from inspect_ai._util import async_zip
+
+    counts = Counter[str]()
+    original = async_zip._parse_central_directory
+
+    async def counting(filesystem: AsyncFilesystem, filename: str) -> Any:
+        counts[Path(filename).name] += 1
+        return await original(filesystem, filename)
+
+    monkeypatch.setattr(async_zip, "_parse_central_directory", counting)
+    return counts
+
+
+async def _per_sample_reads(task: LogicalTask) -> list[Any]:
+    async with AsyncFilesystem() as fs:
+        return [
+            await sample_detail(fs, task, "2", 1, content=True),
+            await sample_events(fs, task, "1", 1, types=frozenset({"*"})),
+            {**await sample_messages(fs, task, "1", 1), "as_of": 0},
+            {**await sample_store(fs, task, "1", 1), "as_of": 0},
+        ]
+
+
+async def test_a_warm_poll_answers_as_a_cold_one_without_re_reading_unchanged_logs(
+    log_dir: Path,
+    finished_log: EvalLog,
+    central_directory_reads: Counter[str],
+    _isolate_log_dir_cache: Path,
+) -> None:
+    running = await _write_running_log(
+        log_dir, finished_log, logged=[1, 2], sample_ids=[1, 2, 3]
+    )
+    uncached = await _poll(log_dir, cache=None)
+    uncached_reads = await _per_sample_reads(uncached.dir_index.tasks[0])
+    central_directory_reads.clear()
+
+    cold = await _poll(log_dir)
+    assert len(_cache_files(_isolate_log_dir_cache)) == 2
+    assert set(central_directory_reads) == {
+        Path(finished_log.location).name,
+        running.name,
+    }
+    central_directory_reads.clear()
+
+    warm = await _poll(log_dir)
+    # nothing changed: the plans, statuses and summaries come from the cache
+    assert central_directory_reads == Counter()
+    assert _answers(uncached) == _answers(cold) == _answers(warm)
+    assert [
+        view.member.plan.central_directory for view in warm.views if view.member
+    ] == [
+        None,
+        None,
+    ]
+    finished = next(t for t in warm.dir_index.tasks if t.current.finished)
+    with use_cache(open_cache()):
+        assert await _per_sample_reads(finished) == uncached_reads
+
+
+async def test_non_finite_scores_and_metrics_are_served_from_the_cache(
+    tmp_path: Path, finished_log: EvalLog, central_directory_reads: Counter[str]
+) -> None:
+    log = finished_log.model_copy(deep=True)
+    assert log.samples is not None and log.results is not None
+    sample = log.samples[0]
+    assert sample.scores is not None
+    scorer = next(iter(sample.scores))
+    sample.scores[scorer] = sample.scores[scorer].model_copy(
+        update={"value": float("nan")}
+    )
+    metric = next(iter(log.results.scores[0].metrics.values()))
+    metric.value = float("inf")
+    await write_eval_log_async(log, str(tmp_path / Path(log.location).name))
+    await _poll(tmp_path)
+    central_directory_reads.clear()
+    [view] = (await _poll(tmp_path)).views
+    assert central_directory_reads == Counter()
+    assert view.member is not None
+    assert view.member.plan.header.results is not None
+    assert view.member.plan.header.results.scores[0].metrics[
+        metric.name
+    ].value == float("inf")
+
+
+async def test_a_changed_log_is_re_read_and_an_older_entry_written_over_a_newer_one_is_not_used(
+    log_dir: Path, _isolate_log_dir_cache: Path
+) -> None:
+    [path] = list(log_dir.glob("*.eval"))
+    poller_a = open_cache()
+    first = await _poll(log_dir, poller_a)
+    assert _statuses(sample_listing(first.views[0]))[2] == "error"
+
+    # the log is rewritten (sample 2 now succeeded) and a second poller reads it
+    replaced = await read_eval_log_async(str(path))
+    assert replaced.samples is not None
+    replaced.samples[1] = replaced.samples[1].model_copy(update={"error": None})
+    await write_eval_log_async(replaced, str(path))
+    second = await _poll(log_dir)
+    assert _statuses(sample_listing(second.views[0]))[2] == "completed"
+
+    # the first poller, still holding the older view, writes it over the
+    # second's entry: it describes the older version, so it is not used
+    member = first.views[0].member
+    assert member is not None
+    assert poller_a is not None
+    poller_a.store_snapshot(member, JournalCache({}))
+    third = await _poll(log_dir)
+    assert _answers(third) == _answers(second)
+
+
+def test_cli_cache_entries_change_what_is_fetched_never_what_is_returned(
+    log_dir: Path,
+    finished_log: EvalLog,
+    no_discovery: None,
+    _isolate_log_dir_cache: Path,
+) -> None:
+    import json
+    import stat
+
+    from inspect_ai._control.log_dir import cache
+
+    task_id = finished_log.eval.task_id
+    commands = [
+        ["task", "list"],
+        ["sample", "list", "--content"],
+        ["sample", "errors"],
+        ["sample", "show", task_id, "2", "--content"],
+        ["sample", "events", task_id, "1"],
+        ["sample", "messages", task_id, "1"],
+        ["sample", "store", task_id, "1"],
+    ]
+
+    def answers() -> list[Any]:
+        results = [_ctl(log_dir, *command, "--json") for command in commands]
+        assert all(r.exit_code == 0 for r in results), [r.output for r in results]
+        return [{**_json(r), "as_of": 0} for r in results]
+
+    cold = answers()
+    [entry] = _cache_files(_isolate_log_dir_cache)
+    assert stat.S_IMODE(entry.parent.stat().st_mode) == 0o700
+    assert answers() == cold
+
+    entry.write_text("{not json")
+    assert answers() == cold
+    entry.unlink()
+    assert answers() == cold
+    # an entry of another schema version is discarded and rebuilt
+    data = json.loads(entry.read_text())
+    entry.write_text(json.dumps({**data, "schema_version": cache.SCHEMA_VERSION + 1}))
+    assert answers() == cold
+    assert json.loads(entry.read_text())["schema_version"] == cache.SCHEMA_VERSION
+
+
+async def test_failed_and_cancelled_reads_store_no_snapshot(
+    log_dir: Path, monkeypatch: pytest.MonkeyPatch, _isolate_log_dir_cache: Path
+) -> None:
+    from inspect_ai._util import async_zip
+
+    poller = open_cache()
+    assert poller is not None
+    async with AsyncFilesystem() as fs:
+        with use_cache(poller):
+            index = await index_log_dir(fs, str(log_dir))
+    # the plan read succeeded and is stored, with no summaries yet
+    [entry] = _cache_files(_isolate_log_dir_cache)
+    plan = index.tasks[0].current
+    stored = entry.read_bytes()
+
+    # a member read that keeps failing its CRC check
+    def always_torn(filename: str, member: Any, crc: int) -> None:
+        raise ZipCrcError(f"torn {member.filename}")
+
+    with monkeypatch.context() as patch:
+        patch.setattr(async_zip, "_check_crc", always_torn)
+        [view] = (await _poll(log_dir)).views
+    assert view.member is None
+    assert entry.read_bytes() == stored
+
+    # a read cancelled while it reads the summaries
+    started = anyio.Event()
+    original = async_zip.AsyncZipReader.read_member_fully
+
+    async def blocked(self: AsyncZipReader, member: Any) -> bytes:
+        if member == "summaries.json":
+            started.set()
+            await anyio.sleep_forever()
+        return await original(self, member)
+
+    monkeypatch.setattr(async_zip.AsyncZipReader, "read_member_fully", blocked)
+    async with AsyncFilesystem() as fs:
+        async with anyio.create_task_group() as tg:
+
+            async def poll() -> None:
+                with use_cache(open_cache()):
+                    await read_task_views(fs, index.tasks)
+
+            tg.start_soon(poll)
+            await started.wait()
+            tg.cancel_scope.cancel()
+    assert entry.read_bytes() == stored
+    fresh = open_cache()
+    assert fresh is not None
+    assert fresh.snapshot(plan.file, plan.version) is None
+
+
+async def test_a_replaced_start_record_is_read_again(
+    tmp_path: Path, finished_log: EvalLog
+) -> None:
+    location = await _write_running_log(
+        tmp_path, finished_log, logged=[1], sample_ids=[1, 2]
+    )
+    await _poll(tmp_path)
+    # another running log written under the same name: the cached plan names
+    # the task until the log is re-read, which checks the start record's CRC
+    other = finished_log.model_copy(
+        update={"eval": finished_log.eval.model_copy(update={"model": "mockllm/other"})}
+    )
+    replacement = await _write_running_log(
+        tmp_path / "other", other, logged=[1, 2], sample_ids=[1, 2]
+    )
+    shutil.move(replacement, location)
+    [view] = (await _poll(tmp_path)).views
+    assert view.member is not None
+    assert view.member.plan.header.eval.model == "mockllm/other"
+
+
+async def test_a_key_admitted_to_the_manifest_of_an_unchanged_log_is_found(
+    tmp_path: Path, finished_log: EvalLog
+) -> None:
+    running = await _start_running_log(
+        tmp_path, finished_log, logged=[1], sample_ids=[1, 2], log_shared=10
+    )
+    _write_buffer(running.location, [(_buffer_summary(2), [])])
+    poll = await _poll(tmp_path)
+    await _poll(tmp_path)
+    # a SampleSource admits sample 7; the log itself has not changed
+    _write_buffer(
+        running.location, [(_buffer_summary(2), []), (_buffer_summary(7), [])]
+    )
+    async with AsyncFilesystem() as fs:
+        with use_cache(open_cache()):
+            detail = await sample_detail(fs, poll.dir_index.tasks[0], "7", 1)
+    assert detail["status"] == "running"
+
+
+async def test_the_least_recently_used_entries_are_pruned(
+    tmp_path: Path,
+    finished_log: EvalLog,
+    monkeypatch: pytest.MonkeyPatch,
+    _isolate_log_dir_cache: Path,
+) -> None:
+    from inspect_ai._control.log_dir import cache
+
+    async def poll_new_directory(name: str) -> Path:
+        directory = tmp_path / name
+        directory.mkdir()
+        shutil.copy(finished_log.location, directory)
+        before = set(_cache_files(_isolate_log_dir_cache))
+        await _poll(directory)
+        [entry] = set(_cache_files(_isolate_log_dir_cache)) - before
+        return entry
+
+    entries = [await poll_new_directory(str(i)) for i in range(3)]
+    # last used 300, 200 and 100 seconds ago
+    now = time.time()
+    for age, entry in zip((300, 200, 100), entries):
+        os.utime(entry, (now - age, now - age))
+    monkeypatch.setattr(cache, "MAX_CACHE_BYTES", int(2.5 * entries[0].stat().st_size))
+
+    # a warm read of the oldest makes it the most recently used
+    await _poll(tmp_path / "0")
+    assert len(_cache_files(_isolate_log_dir_cache)) == 3
+    # a new entry pushes the cache over the limit
+    newest = await poll_new_directory("3")
+    assert _cache_files(_isolate_log_dir_cache) == sorted([entries[0], newest])
+
+
+@skip_if_trio
+async def test_s3_request_counts_with_the_cache_for_finished_logs(
+    mock_s3: None, tmp_path: Path, finished_log: EvalLog, s3_requests: Counter[str]
+) -> None:
+    prefix = "log-dir-cache-finished"
+    root = f"s3://test-bucket/{prefix}"
+    logs = 3
+    for i in range(logs):
+        task_id = f"TASK{i}"
+        log = finished_log.model_copy(
+            update={"eval": finished_log.eval.model_copy(update={"task_id": task_id})}
+        )
+        path = await _attempt(log, tmp_path, f"2026-01-0{i + 1}T00-00-00+00-00")
+        _upload(path, f"{prefix}/{path.name}")
+
+    cold = await _poll(root)
+    # per log: the plan (central directory and header.json), then summaries.json
+    assert s3_requests == Counter({"ListObjectsV2": 1, "GetObject": 3 * logs})
+    s3_requests.clear()
+
+    warm = await _poll(root)
+    # a finished run with nothing changed: the listing alone
+    assert s3_requests == Counter({"ListObjectsV2": 1})
+    assert _answers(warm) == _answers(cold)
+    s3_requests.clear()
+
+    task = warm.dir_index.tasks[0]
+    async with AsyncFilesystem() as fs:
+        with use_cache(open_cache()):
+            await sample_detail(fs, task, "1", 1)
+            # the key refresh is free; the sample read is the central
+            # directory, the member's local header and its body
+            assert s3_requests == Counter({"GetObject": 3})
+            s3_requests.clear()
+            await sample_events(fs, task, "1", 1)
+            # the central directory and one full member read
+            assert s3_requests == Counter({"GetObject": 2})
+            s3_requests.clear()
+
+    # one log changes: only it is read again (its central directory,
+    # header.json and summaries.json)
+    [path] = list(tmp_path.glob("2026-01-02*"))
+    changed = await read_eval_log_async(str(path))
+    assert changed.samples is not None
+    changed.samples[1] = changed.samples[1].model_copy(update={"error": None})
+    await write_eval_log_async(changed, str(path))
+    _upload(path, f"{prefix}/{path.name}")
+    s3_requests.clear()
+    after = await _poll(root)
+    assert s3_requests == Counter({"ListObjectsV2": 1, "GetObject": 3})
+    assert [task_row(v)["samples"]["errored"] for v in after.views] == [1, 0, 1]
+
+
+@skip_if_trio
+async def test_s3_request_counts_with_the_cache_for_running_logs(
+    mock_s3: None, tmp_path: Path, finished_log: EvalLog, s3_requests: Counter[str]
+) -> None:
+    running = await _start_running_log(
+        tmp_path, finished_log, logged=[1], sample_ids=[1, 2, 3], log_shared=10
+    )
+    buffer = _write_buffer(running.location, [(_buffer_summary(2), [])])
+    prefix = "log-dir-cache-running"
+    root = f"s3://test-bucket/{prefix}"
+    manifest_key = f"{prefix}/.buffer/{buffer.name}/manifest.json"
+
+    def journal() -> int:
+        return len(
+            [
+                n
+                for n in zipfile.ZipFile(running.location).namelist()
+                if n.startswith("_journal/summaries/")
+            ]
+        )
+
+    _upload(running.location, f"{prefix}/{running.location.name}")
+    _upload(buffer / "manifest.json", manifest_key)
+    await _poll(root)
+    s3_requests.clear()
+
+    # between flushes: the manifest and the freshness check, no log reads
+    warm = await _poll(root)
+    assert s3_requests == Counter({"ListObjectsV2": 1, "GetObject": 1, "HeadObject": 1})
+    assert task_row(warm.views[0])["samples"]["in_flight"] == 1
+    s3_requests.clear()
+
+    # after a flush: the central directory and the new journal members only
+    # (start.json and the journal members already parsed are not read)
+    before = journal()
+    await _flush(running, [running.sample(2)])
+    _write_buffer(running.location, [])
+    _upload(running.location, f"{prefix}/{running.location.name}")
+    _upload(buffer / "manifest.json", manifest_key)
+    s3_requests.clear()
+    flushed = await _poll(root)
+    assert journal() > before
+    assert s3_requests == Counter(
+        {
+            "ListObjectsV2": 1,
+            "GetObject": 1 + 1 + (journal() - before),
+            "HeadObject": 1,
+        }
+    )
+    assert _statuses(sample_listing(flushed.views[0]))[2] == "error"
+    s3_requests.clear()
+
+    # the log finishes and the worker removes its buffer: the central
+    # directory, the final header.json and summaries.json
+    assert finished_log.results is not None
+    await running.recorder.log_finish(
+        running.spec, "success", finished_log.stats, finished_log.results, None
+    )
+    _upload(running.location, f"{prefix}/{running.location.name}")
+    boto3.client("s3").delete_object(Bucket="test-bucket", Key=manifest_key)
+    s3_requests.clear()
+    done = await _poll(root)
+    assert s3_requests == Counter({"ListObjectsV2": 1, "GetObject": 3})
+    assert task_row(done.views[0])["status"] == "completed"
+    s3_requests.clear()
+    await _poll(root)
+    assert s3_requests == Counter({"ListObjectsV2": 1})
