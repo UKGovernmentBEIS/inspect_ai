@@ -40,7 +40,6 @@ def lookup() -> Tool:
 
 
 def _lookup_turns(count: int) -> list[ModelOutput]:
-    """Tool-calling turns that give a compaction strategy something to reduce."""
     return [
         ModelOutput.for_tool_call(
             model="mockllm/model", tool_name="lookup", tool_arguments={}
@@ -55,6 +54,16 @@ def _overflow_output() -> ModelOutput:
         content="Failed turn (overflow)",
         stop_reason="model_length",
     )
+
+
+def _done_output(submit: bool) -> ModelOutput:
+    if submit:
+        return ModelOutput.for_tool_call(
+            model="mockllm/model",
+            tool_name="submit",
+            tool_arguments={"answer": "done"},
+        )
+    return ModelOutput.from_content(model="mockllm/model", content="done")
 
 
 class _AlwaysRaisesCompaction(CompactionStrategy):
@@ -93,7 +102,6 @@ def test_model_length_with_compaction_triggers_force_and_continues(
     model = get_model(
         "mockllm/model",
         custom_outputs=[
-            *_lookup_turns(3),
             ModelOutput.from_content(
                 model="mockllm/model",
                 content="Failed turn (overflow)",
@@ -114,7 +122,6 @@ def test_model_length_with_compaction_triggers_force_and_continues(
     task = Task(
         dataset=[Sample(input="Test", target="done")],
         solver=react_factory(
-            tools=[lookup()],
             compaction=CompactionTrim(threshold=10_000),
         ),
     )
@@ -160,10 +167,13 @@ def test_model_length_with_compaction_recovers_and_continues(strategy_factory) -
     which guards against summary-style strategies where the c_message
     object is also the last element of the compacted input.
     """
-    # Build conversation: 10 tool-calling turns (each adds an assistant
-    # message and a tool result = 20 messages), then overflow, then
-    # recovery, then submit.
-    custom_outputs = _lookup_turns(10)
+    # Build conversation: 10 plain turns (each adds an assistant message
+    # and a default-continue user prompt = 20 messages), then overflow,
+    # then recovery, then submit.
+    custom_outputs = [
+        ModelOutput.from_content(model="mockllm/model", content=f"Turn {i}")
+        for i in range(10)
+    ]
     custom_outputs.extend(
         [
             ModelOutput.from_content(
@@ -187,7 +197,7 @@ def test_model_length_with_compaction_recovers_and_continues(strategy_factory) -
 
     task = Task(
         dataset=[Sample(input="Test", target="done")],
-        solver=react(tools=[lookup()], compaction=strategy_factory()),
+        solver=react(compaction=strategy_factory()),
         message_limit=100,
     )
 
@@ -422,25 +432,32 @@ def test_custom_agent_model_does_not_loop_on_overflow(submit: bool) -> None:
     )
 
 
-def test_overflow_recovery_stops_when_compacted_input_cannot_shrink() -> None:
-    """A second overflow on an already compacted input ends the agent.
+def _forced_compactions(log: Any) -> int:
+    return len(
+        [
+            e
+            for e in log.samples[0].events
+            if isinstance(e, CompactionEvent)
+            and (e.metadata or {}).get("trigger") == "forced"
+        ]
+    )
 
-    The first forced compaction clears tool results and the agent retries.
-    The retry overflows too, and the edit has nothing left to clear, so
-    sending the same input again would only overflow again.
+
+@pytest.mark.parametrize("submit", [True, False], ids=["react", "react_no_submit"])
+def test_overflow_after_forced_compaction_terminates(submit: bool) -> None:
+    """A retry that overflows again does not force compaction a second time.
+
+    The handler does not check that forced compaction shrank the input, so
+    compacting again could resend the same request indefinitely. With no
+    overflow filter the agent ends.
     """
     model = get_model(
         "mockllm/model",
         custom_outputs=[
-            *_lookup_turns(3),
+            *_lookup_turns(2),
             _overflow_output(),
             _overflow_output(),
-            _overflow_output(),
-            ModelOutput.for_tool_call(
-                model="mockllm/model",
-                tool_name="submit",
-                tool_arguments={"answer": "done"},
-            ),
+            _done_output(submit),
         ],
     )
 
@@ -448,6 +465,7 @@ def test_overflow_recovery_stops_when_compacted_input_cannot_shrink() -> None:
         dataset=[Sample(input="Test", target="done")],
         solver=react(
             tools=[lookup()],
+            submit=submit,
             compaction=CompactionEdit(threshold=10_000, keep_tool_uses=0),
         ),
     )
@@ -455,16 +473,76 @@ def test_overflow_recovery_stops_when_compacted_input_cannot_shrink() -> None:
     log = eval(task, model=model)[0]
     assert log.status == "success"
     assert log.samples
-    events = log.samples[0].events
-    forced = [
-        e
-        for e in events
-        if isinstance(e, CompactionEvent)
-        and (e.metadata or {}).get("trigger") == "forced"
-    ]
-    assert len(forced) == 1
-    assert len([e for e in events if e.event == "model"]) == 5
+    assert _forced_compactions(log) == 1
+    assert len([e for e in log.samples[0].events if e.event == "model"]) == 4
     assert "done" not in (log.samples[0].output.completion or "")
+
+
+@pytest.mark.parametrize("submit", [True, False], ids=["react", "react_no_submit"])
+def test_overflow_after_forced_compaction_falls_back_to_filter(submit: bool) -> None:
+    """A retry that overflows again goes to the overflow filter, not compaction."""
+    filtered: list[int] = []
+
+    async def drop_last(messages: list[ChatMessage]) -> list[ChatMessage]:
+        filtered.append(len(messages))
+        return messages[:-1]
+
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            *_lookup_turns(2),
+            _overflow_output(),
+            _overflow_output(),
+            _done_output(submit),
+        ],
+    )
+
+    task = Task(
+        dataset=[Sample(input="Test", target="done")],
+        solver=react(
+            tools=[lookup()],
+            submit=submit,
+            compaction=CompactionEdit(threshold=10_000, keep_tool_uses=0),
+            truncation=drop_last,
+        ),
+    )
+
+    log = eval(task, model=model)[0]
+    assert log.status == "success"
+    assert log.samples
+    assert _forced_compactions(log) == 1
+    assert len(filtered) == 1
+    assert "done" in (log.samples[0].output.completion or "")
+
+
+@pytest.mark.parametrize("submit", [True, False], ids=["react", "react_no_submit"])
+def test_overflow_after_successful_retry_compacts_again(submit: bool) -> None:
+    """An overflow after a retry that fit gets forced compaction again."""
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            *_lookup_turns(2),
+            _overflow_output(),
+            *_lookup_turns(1),
+            _overflow_output(),
+            _done_output(submit),
+        ],
+    )
+
+    task = Task(
+        dataset=[Sample(input="Test", target="done")],
+        solver=react(
+            tools=[lookup()],
+            submit=submit,
+            compaction=CompactionEdit(threshold=10_000, keep_tool_uses=0),
+        ),
+    )
+
+    log = eval(task, model=model)[0]
+    assert log.status == "success"
+    assert log.samples
+    assert _forced_compactions(log) == 2
+    assert "done" in (log.samples[0].output.completion or "")
 
 
 def _response_body(output: list[dict[str, Any]]) -> dict[str, Any]:
@@ -551,14 +629,13 @@ def _openai_with_local_counting(
     status_code: int,
     turns: list[Literal["lookup", "overflow", "final"]],
     agent_requests: list[dict[str, Any]],
-    reasoning_history: Literal["none", "last"] | None = None,
 ) -> Model:
     """OpenAI Responses model whose token-count endpoint is unavailable.
 
     Agent requests (those with tools) are answered from `turns` and recorded;
     a request beyond them fails the sample rather than looping. Requests
     without tools are summarization calls; the summary counts more than the
-    turns it replaces, so only the removed reasoning shows progress.
+    turns it replaces, so the local count does not fall.
     """
 
     async def handler(request: httpx2.Request) -> httpx2.Response:
@@ -598,61 +675,26 @@ def _openai_with_local_counting(
         responses_api=True,
         memoize=False,
         # skips the reasoning-summary probe request
-        config=GenerateConfig(
-            reasoning_summary="none", reasoning_history=reasoning_history
-        ),
+        config=GenerateConfig(reasoning_summary="none"),
     )
 
 
 @pytest.mark.parametrize("status_code", [404, 405])
 @pytest.mark.parametrize("submit", [True, False], ids=["react", "react_no_submit"])
-def test_overflow_recovery_with_local_counting_does_not_resend_reasoning(
+def test_overflow_recovery_with_local_counting_resends_at_most_once(
     status_code: int, submit: bool
 ) -> None:
-    """Retained reasoning the local tokenizer cannot count is not retried.
+    """Forced compaction that cannot shrink the input is retried only once.
 
     Without the native token-count endpoint, OpenAI counts with a local
     tokenizer that skips encrypted reasoning, so an input that overflowed can
-    count well under the threshold. The edit keeps the latest reasoning and
-    tool use, so forced compaction cannot shrink the input that overflowed.
+    count well under the threshold. The edit keeps the only reasoning and tool
+    use, so the retry sends the same input and overflows again. The agent then
+    ends instead of compacting and resending it indefinitely.
     """
     agent_requests: list[dict[str, Any]] = []
     model = _openai_with_local_counting(
-        status_code, ["lookup", "overflow", "final"], agent_requests
-    )
-
-    task = Task(
-        dataset=[Sample(input="Solve this using the tool.", target="done")],
-        solver=react(
-            tools=[lookup()],
-            submit=submit,
-            compaction=CompactionEdit(threshold=1_000, memory=False),
-        ),
-    )
-
-    log = eval(task, model=model)[0]
-    assert log.status == "success", log.error
-    assert len(agent_requests) == 2
-    assert "ENCRYPTED-1" in json.dumps(agent_requests[1]["input"])
-
-
-@pytest.mark.parametrize("status_code", [404, 405])
-@pytest.mark.parametrize("submit", [True, False], ids=["react", "react_no_submit"])
-@pytest.mark.parametrize("reasoning_history", ["none", "last"])
-def test_overflow_recovery_does_not_credit_reasoning_the_model_is_not_sent(
-    status_code: int, submit: bool, reasoning_history: Literal["none", "last"]
-) -> None:
-    """Removing reasoning that `reasoning_history` already drops is no progress.
-
-    The edit removes the older reasoning, but generation already leaves it out
-    (and with "none", all reasoning), so the retry would send the same input.
-    """
-    agent_requests: list[dict[str, Any]] = []
-    model = _openai_with_local_counting(
-        status_code,
-        ["lookup", "lookup", "overflow", "final"],
-        agent_requests,
-        reasoning_history=reasoning_history,
+        status_code, ["lookup", "overflow", "overflow"], agent_requests
     )
 
     task = Task(
@@ -667,7 +709,7 @@ def test_overflow_recovery_does_not_credit_reasoning_the_model_is_not_sent(
     log = eval(task, model=model)[0]
     assert log.status == "success", log.error
     assert len(agent_requests) == 3
-    assert "ENCRYPTED-1" not in json.dumps(agent_requests[2]["input"])
+    assert agent_requests[2]["input"] == agent_requests[1]["input"]
 
 
 @pytest.mark.parametrize("status_code", [404, 405])

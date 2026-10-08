@@ -1,13 +1,11 @@
 from __future__ import annotations
 
-from collections import Counter
 from logging import getLogger
 from typing import Sequence
 
 import anyio
 from pydantic import BaseModel, Field
 
-from inspect_ai._util.content import ContentReasoning
 from inspect_ai.tool import Tool, ToolDef, ToolInfo, ToolSource
 from inspect_ai.util._checkpoint import Checkpointer
 from inspect_ai.util._checkpoint.checkpointer_noop import _NoopCheckpointer
@@ -18,7 +16,6 @@ from .._model import (
     Model,
     collapse_consecutive_messages_for_api,
     get_model,
-    resolve_reasoning_history,
 )
 from .._model_info import get_model_input_tokens
 from .._model_output import ModelOutput
@@ -217,6 +214,15 @@ def compaction(
                     prefix_tokens=prefix_tokens,
                 )
 
+                # track all messages that were processed in this compaction pass
+                for m in state.compacted_input + unprocessed:
+                    state.processed_message_ids.add(message_id(m))
+
+                # c_message is a compaction side effect to append to the history
+                # (e.g. a summary). track it as processed as well
+                if c_message is not None:
+                    state.processed_message_ids.add(message_id(c_message))
+
                 # Preserve prefix messages based on strategy type
                 if strategy.preserve_prefix:
                     # Non-native strategies: prepend any prefix messages not in output
@@ -238,38 +244,14 @@ def compaction(
                 if c_message_was_in_input and not any(m is c_message for m in c_input):
                     c_message = None
 
-                compacted_tokens = await target_model.count_tokens(c_input)
-
-                # a forced compaction recovers from an overflow, so it must
-                # shrink the input that overflowed. the threshold check alone
-                # can pass unchanged input when the count omits content the
-                # model still receives (e.g. encrypted reasoning when counting
-                # with a local tokenizer), and a retry would overflow again.
-                if force:
-                    input_tokens = await target_model.count_tokens(target_messages)
-                    if compacted_tokens >= input_tokens and not _removes_reasoning(
-                        target_messages, c_input, target_model
-                    ):
-                        raise RuntimeError(
-                            f"Forced compaction did not reduce the input "
-                            f"({input_tokens:,} tokens before, "
-                            f"{compacted_tokens:,} after, no reasoning removed)"
-                        )
-
-                # track all messages that were processed in this compaction pass
-                for m in state.compacted_input + unprocessed:
-                    state.processed_message_ids.add(message_id(m))
-
-                # c_message is a compaction side effect to append to the history
-                # (e.g. a summary). track it as processed as well
-                if c_message is not None:
-                    state.processed_message_ids.add(message_id(c_message))
-
                 # update input
                 state.compacted_input.clear()
                 state.compacted_input.extend(c_input)
 
                 # log compaction
+                compacted_tokens = await target_model.count_tokens(
+                    state.compacted_input
+                )
                 transcript()._event(
                     CompactionEvent(
                         type=strategy.type,
@@ -336,35 +318,6 @@ def compaction(
 
 
 DEFAULT_CONTEXT_WINDOW = 128_000
-
-
-def _removes_reasoning(
-    before: list[ChatMessage], after: list[ChatMessage], model: Model
-) -> bool:
-    """Whether `after` sends the model less reasoning than `before`, adding none.
-
-    Local token counting skips reasoning payloads (see `model/_tokens.py`), so
-    removing them shrinks the input without lowering the count. Only reasoning
-    that generation would send counts: the model's `reasoning_history` is
-    applied first. Reasoning is compared by value and the result must be a
-    strict subset, so new message ids do not count.
-    """
-    config = model._resolve_config(None)
-    return Counter(
-        _reasoning_content(resolve_reasoning_history(after, config, model.api))
-    ) < Counter(
-        _reasoning_content(resolve_reasoning_history(before, config, model.api))
-    )
-
-
-def _reasoning_content(messages: list[ChatMessage]) -> list[str]:
-    return [
-        content.model_dump_json()
-        for message in messages
-        if not isinstance(message.content, str)
-        for content in message.content
-        if isinstance(content, ContentReasoning)
-    ]
 
 
 async def _perform_compaction(
