@@ -960,19 +960,23 @@ def pytest_collection_modifyitems(config, items):
     # retry can honor xfail markers, including ones added during fixture setup
     # (as the sandbox self-check suite does): expected failures run once, and a
     # flaky pass on a retry can't turn into a hard XPASS(strict) failure.
-    from test_helpers.utils import flaky_retry, with_timeout
+    # Every async test then runs with asyncio's async-generator hooks, which
+    # nest_asyncio2 drops once any test has applied it (see
+    # with_asyncgen_hooks).
+    from test_helpers.utils import flaky_retry, with_asyncgen_hooks, with_timeout
 
     _timeout = with_timeout(300)
     for item in items:
         fn = item.obj
-        if inspect.iscoroutinefunction(fn) and not getattr(
-            fn, "_has_default_timeout", False
-        ):
+        is_async = inspect.iscoroutinefunction(fn)
+        if is_async and not getattr(fn, "_has_default_timeout", False):
             fn = _timeout(fn)
         if getattr(fn, "_needs_flaky_retry", False) and not getattr(
             fn, "_flaky_retry", False
         ):
             fn = flaky_retry(max_retries=3, item=item)(fn)
+        if is_async:
+            fn = with_asyncgen_hooks(fn)
         item.obj = fn
 
 
