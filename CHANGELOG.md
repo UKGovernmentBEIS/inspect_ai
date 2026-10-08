@@ -3,6 +3,10 @@
 - Anthropic: Support for Claude Haiku 5.5 (`claude-haiku-5-5`): `reasoning_effort="none"` disables thinking, computer use uses the computer toolset on the Claude API and Vertex, and `fallback_models` is ignored with a warning.
 - Bugfix: `inspect log convert --stream` (and `convert_eval_logs(stream=...)`) no longer drops the error message and traceback from logs of failed evals.
 - Limits: A sample limit exceeded during a tool call, MCP sampling request, compaction or Google web search now ends the sample, and an agent limit exceeded in a tool call ends the agent.
+- Limits: A sample or outer agent limit hit inside an `as_tool()` or `handoff()` agent without its own limits now ends that sample or agent, instead of returning a tool error or handoff notice.
+- Limits: A custom `LimitExceededError` (one with no `source`) raised inside a tool now ends the sample instead of returning a `limit` tool error.
+- Sandbox agent bridge: A limit opened by a bridged host tool now fails only that tool call instead of ending the sample.
+- Deep agents: A sample or agent limit hit in a background subagent's child task now ends that sample or agent instead of being reported as a subagent error.
 
 ## 0.3.277 (06 October 2026)
 
