@@ -1,7 +1,5 @@
 ## Unreleased
 
-- Bugfix: Assigning or dumping `StoreModel` fields no longer writes stray keys into the sample's store, and after-model validators now see the model's `instance` and the new values.
-- `StoreModel`: Assigning `store` or `instance` after construction now raises an error; bind the model with `store_as()` or the constructor instead.
 - Bugfix: `inspect log convert --stream` (and `convert_eval_logs(stream=...)`) no longer drops the error message and traceback from logs of failed evals.
 
 ## 0.3.277 (06 October 2026)
