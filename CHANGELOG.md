@@ -1,6 +1,5 @@
 ## Unreleased
 
-- Scanning: Scanners run during `eval_set()` record the task's `ViewerConfig(trust_content=...)`, so Scout shows untrusted results as plain text (requires Inspect Scout 0.5.5).
 - Tasks and samples can carry a `description` of what they ask of the agent, recorded in the eval log and in `evals_df()` and `samples_df()`.
 - Tool review now also reviews `handoff()` calls, as approval does.
 - Compaction: Fixed compaction triggering early and reporting inflated token counts on OpenAI reasoning models, which counted replayed reasoning twice.
