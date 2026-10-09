@@ -98,6 +98,9 @@ def record_to_sample_fn(
                 target=read_target(record.get(sample_fields.target)),
                 choices=read_choices(record.get(sample_fields.choices)),
                 id=record.get(sample_fields.id, None),
+                description=read_description(record.get(sample_fields.description))
+                if sample_fields.description is not None
+                else None,
                 metadata=metadata,
                 sandbox=read_sandbox(record.get(sample_fields.sandbox)),
                 files=read_files(record.get(sample_fields.files)),
@@ -208,6 +211,17 @@ def read_choices(obj: Any | None) -> list[str] | None:
             return [str(obj)]
     else:
         return None
+
+
+def read_description(description: Any | None) -> str | None:
+    if is_none_or_nan(description):
+        return None
+    if not isinstance(description, str):
+        raise ValueError(
+            f"Sample 'description' field must be a string (got {type(description).__name__})"
+        )
+    # empty CSV cells read as "" (no description)
+    return description or None
 
 
 def read_setup(setup: Any | None) -> str | None:

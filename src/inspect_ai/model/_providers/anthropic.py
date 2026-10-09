@@ -795,9 +795,9 @@ class AnthropicAPI(ModelAPI):
                 if system_param is not None:
                     request["system"] = system_param
                 request["tools"] = tools_param
-                # with thinking active, tool_choice is omitted entirely (the API
-                # rejects forced tool choice with thinking; long-standing behavior
-                # for all Claude models)
+                # extended thinking rejects forced tool choice (400), so
+                # tool_choice is omitted entirely with it; adaptive thinking
+                # accepts it (the model skips thinking on a forced turn)
                 tool_choice_degraded = False
                 if len(tools_param) > 0:
                     resolved_choice = self.resolved_tool_choice(tool_choice)
@@ -817,7 +817,7 @@ class AnthropicAPI(ModelAPI):
                         )
                         resolved_choice = "auto"
                     tool_choice_degraded = resolved_choice != tool_choice
-                    if not self.is_using_thinking(config):
+                    if not self.is_using_extended_thinking(config):
                         request["tool_choice"] = message_tool_choice(
                             resolved_choice, config
                         )
@@ -1531,6 +1531,19 @@ class AnthropicAPI(ModelAPI):
         return self.is_thinking_model() and (
             (self.bridged_reasoning_tokens(config) is not None)
             or (self.effort_from_reasoning_effort(config) is not None)
+        )
+
+    def is_using_extended_thinking(self, config: GenerateConfig) -> bool:
+        """Whether the request uses extended thinking (`budget_tokens`).
+
+        Pre-4.6 Claude, and 4.6 with `reasoning_tokens` but no
+        `reasoning_effort`, use extended thinking; otherwise thinking is
+        adaptive (`effort`). Matches the `thinking` type chosen in
+        `completion_config`.
+        """
+        return (
+            self.is_using_thinking(config)
+            and self.effort_from_reasoning_effort(config) is None
         )
 
     def _supports_disabling_thinking(self) -> bool:

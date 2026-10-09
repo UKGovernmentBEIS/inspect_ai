@@ -5,7 +5,16 @@ import sys
 from contextlib import ExitStack
 from copy import copy
 from dataclasses import dataclass, replace
-from typing import Any, Awaitable, Callable, Iterable, NamedTuple, Set, cast
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Awaitable,
+    Callable,
+    Iterable,
+    NamedTuple,
+    Set,
+    cast,
+)
 
 from inspect_ai._eval.task.constants import TASK_ALL_PARAMS_ATTR
 from inspect_ai._util._async import Wake
@@ -22,6 +31,9 @@ if sys.version_info < (3, 11):
 import anyio
 from anyio.abc import TaskGroup
 from typing_extensions import Unpack
+
+if TYPE_CHECKING:
+    from inspect_sentinel._integration import Sentinels
 
 from inspect_ai._control.eval_state import (
     clear_eval_retry_pending,
@@ -49,6 +61,7 @@ from inspect_ai._display.core.active import (
 )
 from inspect_ai._display.core.display import CancelType, TaskCancel, TaskSpec
 from inspect_ai._eval.task.scan import Scanners
+from inspect_ai._sentinel._config import resolve_sentinel_root, sentinel_config
 from inspect_ai._util.error import PrerequisiteError, exception_message
 from inspect_ai._util.exception import TaskRetryAbandonedError
 from inspect_ai._util.path import chdir
@@ -148,6 +161,7 @@ async def eval_run(
     epochs_reducer: list[ScoreReducer] | None = None,
     approval: list[ApprovalPolicy] | None = None,
     review: list[ReviewPolicy] | None = None,
+    sentinel: "Sentinels | None" = None,
     solver: Solver | SolverSpec | None = None,
     scanner: "Scanners | None" = None,
     scan_id: str | None = None,
@@ -385,6 +399,17 @@ async def eval_run(
                 elif task.review:
                     task_eval_config.review = config_from_review_policies(task.review)
 
+                # sentinel (eval_config already reflects an eval-level one)
+                if sentinel is not None:
+                    task.sentinel = sentinel
+                elif task.sentinel is not None:
+                    task_eval_config.sentinel = sentinel_config(task.sentinel)
+                sentinel_root = (
+                    resolve_sentinel_root(task.sentinel)
+                    if task.sentinel is not None
+                    else None
+                )
+
                 # merge eval-level and task-level tags
                 merged_tags = list(set(tags or []) | set(task.tags or [])) or None
 
@@ -395,6 +420,7 @@ async def eval_run(
                     task_file=resolved_task.task_file,
                     task_registry_name=resolved_task.task.registry_name,
                     task_display_name=resolved_task.task.display_name,
+                    task_description=task.description,
                     task_id=resolved_task.id,
                     eval_set_id=eval_set_id,
                     run_id=run_id,
@@ -444,6 +470,7 @@ async def eval_run(
                         logger=logger,
                         eval_wd=eval_wd,
                         config=task_eval_config,
+                        sentinel=sentinel_root,
                         solver=eval_solver,
                         scanner=scanner,
                         scan_id=scan_id,
