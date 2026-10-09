@@ -19,6 +19,10 @@ Usage:
     python pypi-release.py prepare
     python pypi-release.py verify-dist <version>
     python pypi-release.py verify-parity <version>
+    python pypi-release.py skip-published <version>
+
+    # Release PR check (.github/workflows/release-pr-checks.yml)
+    python pypi-release.py verify-sandbox-tools-published
 """
 
 import argparse
@@ -41,6 +45,7 @@ from typing import Callable, Dict, List, NamedTuple, Optional, Tuple
 
 SANDBOX_TOOLS_UTILS_DIR = Path("src/inspect_ai/tool/_sandbox_tools_utils")
 SHA256SUMS_FILE = SANDBOX_TOOLS_UTILS_DIR / "SHA256SUMS"
+SANDBOX_TOOLS_BASE_URL = "https://inspect-sandbox-tools.s3.us-east-2.amazonaws.com"
 
 
 def setup_logging(name: str) -> None:
@@ -261,7 +266,6 @@ def download_sandbox_tools(
     version: str, digests: Dict[str, str], dry_run: bool = False
 ) -> bool:
     """Download sandbox tools for both platforms from S3, digest-verified."""
-    base_url = "https://inspect-sandbox-tools.s3.us-east-2.amazonaws.com"
     binaries_dir = Path("src/inspect_ai/binaries")
 
     platforms = ["amd64", "arm64"]
@@ -277,7 +281,7 @@ def download_sandbox_tools(
         if expected is None:
             logging.error(f"No digest entry for {filename} in {SHA256SUMS_FILE}")
             return False
-        url = f"{base_url}/{filename}"
+        url = f"{SANDBOX_TOOLS_BASE_URL}/{filename}"
         dest_path = binaries_dir / filename
 
         if not download_file(url, dest_path, expected, dry_run):
@@ -285,6 +289,41 @@ def download_sandbox_tools(
             break
 
     return success
+
+
+def verify_sandbox_tools_published(
+    version: str, digests: Dict[str, str], download_dir: Path
+) -> None:
+    """Release PR gate: every SHA256SUMS artifact is on S3 with its digest.
+
+    Covers the musl builds as well as the bundled glibc ones, since the
+    package downloads those at runtime.
+
+    Raises:
+        RuntimeError: If SHA256SUMS does not pin the glibc builds of
+            `version`, or an artifact is missing or does not match.
+    """
+    required = {
+        f"inspect-sandbox-tools-{platform}-v{version}"
+        for platform in ("amd64", "arm64")
+    }
+    unpinned = sorted(required - digests.keys())
+    if unpinned:
+        raise RuntimeError(f"{SHA256SUMS_FILE} has no digest for {unpinned}")
+
+    failed = [
+        filename
+        for filename, digest in sorted(digests.items())
+        if not download_file(
+            f"{SANDBOX_TOOLS_BASE_URL}/{filename}", download_dir / filename, digest
+        )
+    ]
+    if failed:
+        raise RuntimeError(
+            f"Not published at {SANDBOX_TOOLS_BASE_URL} with the digest pinned "
+            f"in {SHA256SUMS_FILE}: {failed}"
+        )
+    logging.info(f"✓ All {len(digests)} pinned sandbox tools artifacts are published")
 
 
 def verify_sandbox_tools_bundle(
@@ -595,6 +634,67 @@ def download_published_dists(version: str, dest_dir: Path) -> List[str]:
         ):
             raise RuntimeError(f"Could not download {f['filename']} from PyPI")
     return sorted(f["filename"] for f in files)
+
+
+def skip_published_dists(
+    dist_dir: Path, version: str, published_dir: Path
+) -> List[str]:
+    """Move files PyPI already has out of `dist_dir`, so a retry uploads the rest.
+
+    A built file counts as published when PyPI has a file of the same name
+    with the same SHA256, or, since a rebuild of the same tag differs in
+    archive metadata, with the same members and member contents under the
+    parity rules (`compare_archives`).
+
+    Returns:
+        The moved filenames.
+
+    Raises:
+        RuntimeError: If PyPI has a file of the same name with different
+            contents (PyPI never replaces a file), or it cannot be fetched.
+    """
+    url = PYPI_JSON_URL.format(version=version)
+    try:
+        with urllib.request.urlopen(url, timeout=60) as response:
+            release = json.load(response)
+    except urllib.error.HTTPError as e:
+        if e.code == 404:
+            logging.info(f"{version} is not on PyPI yet; nothing to skip")
+            return []
+        raise
+
+    published = {f["filename"]: f for f in release["urls"]}
+    skipped: List[str] = []
+    for path in sorted(p for p in dist_dir.iterdir() if p.is_file()):
+        entry = published.get(path.name)
+        if entry is None:
+            continue
+        digest = entry["digests"]["sha256"]
+        if sha256_of_file(path) == digest:
+            logging.info(f"✓ {path.name} is already on PyPI (same SHA256); skipping")
+        else:
+            with tempfile.TemporaryDirectory() as tmp:
+                remote = Path(tmp) / path.name
+                if not download_file(entry["url"], remote, digest):
+                    raise RuntimeError(f"Could not download PyPI's {path.name}")
+                try:
+                    result = compare_archives(remote, path)
+                except (tarfile.TarError, zipfile.BadZipFile) as e:
+                    raise RuntimeError(f"Could not compare {path.name}: {e}") from e
+            if result.missing or result.extra or result.differing:
+                raise RuntimeError(
+                    f"PyPI already has {path.name} with different contents "
+                    f"(missing {result.missing}, extra {result.extra}, "
+                    f"differing {result.differing}); PyPI never replaces a file"
+                )
+            logging.info(
+                f"✓ {path.name} matches PyPI's file in all {result.compared} "
+                f"members; skipping"
+            )
+        published_dir.mkdir(parents=True, exist_ok=True)
+        shutil.move(str(path), str(published_dir / path.name))
+        skipped.append(path.name)
+    return skipped
 
 
 def verify_parity(dist_dir: Path, version: str) -> None:
@@ -1112,6 +1212,20 @@ def prepare_command(args: argparse.Namespace) -> None:
         sys.exit(1)
 
 
+def verify_sandbox_tools_published_command(args: argparse.Namespace) -> None:
+    """Execute the verify-sandbox-tools-published command."""
+    setup_logging("verify_sandbox_tools_published")
+
+    version = get_sandbox_tools_version()
+    digests = read_pinned_digests()
+    with tempfile.TemporaryDirectory() as download_dir:
+        try:
+            verify_sandbox_tools_published(version, digests, Path(download_dir))
+        except RuntimeError as e:
+            logging.error(f"Sandbox tools publication check failed: {e}")
+            sys.exit(1)
+
+
 def verify_dist_command(args: argparse.Namespace) -> None:
     """Execute the verify-dist command: version and wheel-contents gate."""
     setup_logging("verify_dist")
@@ -1120,6 +1234,19 @@ def verify_dist_command(args: argparse.Namespace) -> None:
         verify_dist(Path(args.dist_dir), args.version, get_sandbox_tools_version())
     except RuntimeError as e:
         logging.error(f"Post-build distribution gate failed: {e}")
+        sys.exit(1)
+
+
+def skip_published_command(args: argparse.Namespace) -> None:
+    """Execute the skip-published command."""
+    setup_logging("skip_published")
+
+    try:
+        skip_published_dists(
+            Path(args.dist_dir), args.version, Path(args.published_dir)
+        )
+    except (RuntimeError, urllib.error.URLError) as e:
+        logging.error(f"PyPI already-published check failed: {e}")
         sys.exit(1)
 
 
@@ -1181,6 +1308,10 @@ def main():
         "prepare",
         help="Download sandbox tools and run the pre-build digest gate",
     )
+    subparsers.add_parser(
+        "verify-sandbox-tools-published",
+        help="Check every sandbox tools artifact in SHA256SUMS is on S3 with its digest",
+    )
     verify_dist_parser = subparsers.add_parser(
         "verify-dist",
         help="Check built distributions match a version and run the wheel gate",
@@ -1188,6 +1319,20 @@ def main():
     verify_dist_parser.add_argument("version", help="Expected package version")
     verify_dist_parser.add_argument(
         "--dist-dir", default="dist", help="Distribution directory (default: dist)"
+    )
+
+    skip_published_parser = subparsers.add_parser(
+        "skip-published",
+        help="Move distributions PyPI already has (same contents) out of the dist dir",
+    )
+    skip_published_parser.add_argument("version", help="Version being published")
+    skip_published_parser.add_argument(
+        "--dist-dir", default="dist", help="Distribution directory (default: dist)"
+    )
+    skip_published_parser.add_argument(
+        "--published-dir",
+        default="dist-published",
+        help="Where to move already-published files (default: dist-published)",
     )
 
     verify_parity_parser = subparsers.add_parser(
@@ -1216,8 +1361,12 @@ def main():
         sandbox_tools_download_command(args)
     elif args.command == "prepare":
         prepare_command(args)
+    elif args.command == "verify-sandbox-tools-published":
+        verify_sandbox_tools_published_command(args)
     elif args.command == "verify-dist":
         verify_dist_command(args)
+    elif args.command == "skip-published":
+        skip_published_command(args)
     elif args.command == "verify-parity":
         verify_parity_command(args)
     else:

@@ -9,12 +9,22 @@ on:
       - main
     paths:
       - ".github/actions/build-dist/**"
+      - ".github/actions/publish-dist/**"
       - ".github/workflows/publish.yml"
       - ".github/workflows/publish-parity.yml"
+      - ".github/workflows/release.yml"
+      - ".github/workflows/release-pr-checks.yml"
       - "scripts/pypi-release.py"
       - "pyproject.toml"
       - "MANIFEST.in"
       - "requirements.txt"
+  # Called by release-pr-checks.yml on the release PR.
+  workflow_call:
+    inputs:
+      version:
+        description: "Version on PyPI to rebuild (default: latest)"
+        required: false
+        type: string
   workflow_dispatch:
     inputs:
       version:
