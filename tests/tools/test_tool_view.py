@@ -131,7 +131,7 @@ async def test_apply_tool_approval_falls_back_when_viewer_raises() -> None:
     from inspect_ai.approval._apply import _tool_approver
 
     token = _tool_approver.set(capture_approver)
-    handler = _attach("inspect_ai.approval._apply")
+    handler = _attach("inspect_ai.tool._tool_call")
     try:
         approved, _ = await apply_tool_approval(
             "msg",
@@ -141,7 +141,7 @@ async def test_apply_tool_approval_falls_back_when_viewer_raises() -> None:
         )
     finally:
         _tool_approver.reset(token)
-        logging.getLogger("inspect_ai.approval._apply").removeHandler(handler)
+        logging.getLogger("inspect_ai.tool._tool_call").removeHandler(handler)
 
     assert approved is True
     view = captured["view"]

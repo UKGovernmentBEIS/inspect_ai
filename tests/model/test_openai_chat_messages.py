@@ -270,18 +270,17 @@ async def test_assistant_message_preserves_multiple_internal_text_blocks(
     ] == [("first", {"a": 1}), ("second", {"b": 2})]
 
 
-@pytest.mark.parametrize("double_wrapped", [False, True])
+@pytest.mark.parametrize(
+    "serialized",
+    [
+        "\nassistant output\n<content-internal>eyJrIjogInYifQ==</content-internal>\n",
+        "\nassistant output\n<<content-internal>eyJrIjogInYifQ==</content-internal>>\n",
+    ],
+    ids=["single-wrapped", "double-wrapped"],
+)
 async def test_assistant_message_preserves_single_internal_text_block(
-    double_wrapped: bool,
+    serialized: str,
 ) -> None:
-    capsule = content_internal_tag({"provider_state": "opaque"})
-    serialized = "\n".join(
-        [
-            "assistant output",
-            f"<{capsule}>" if double_wrapped else capsule,
-        ]
-    )
-
     [message] = await messages_from_openai(
         [
             cast(
@@ -296,7 +295,7 @@ async def test_assistant_message_preserves_single_internal_text_block(
     [content] = message.content
     assert isinstance(content, ContentText)
     assert content.text == "assistant output"
-    assert content.internal == {"provider_state": "opaque"}
+    assert content.internal == {"k": "v"}
 
 
 async def test_assistant_message_preserves_internal_and_plain_text_blocks() -> None:

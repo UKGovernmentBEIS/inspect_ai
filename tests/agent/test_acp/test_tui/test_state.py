@@ -1954,19 +1954,18 @@ def test_resolve_approval_notifies_subscribers() -> None:
     assert fired[0] == 1
 
 
-def test_decision_label_modify_maps_to_approved() -> None:
-    """``modify`` (approve-with-modification) is treated as the ``approved`` label.
+def test_decision_label_modify_maps_to_denied() -> None:
+    """``modify`` is not an allow: the human approver never offers it.
 
-    Pinned so the ``_APPROVE_OPTION_IDS`` set in state.py stays in
-    sync with the server's ``_KIND_BY_DECISION`` mapping in the
-    approval shim (both treat ``modify`` as the allow half).
+    A ``modify`` with no modified call is rejected server-side, so the
+    label must not read ``approved``.
     """
     state = SessionState()
     state.consume_approval_request(_pending(_permission_request("tc-1")))
     state.resolve_approval("tc-1", option_id="modify")
 
     tc = state._tool_calls_by_id["tc-1"]
-    assert tc.last_approval_decision == "approved"
+    assert tc.last_approval_decision == "denied"
 
 
 def test_decision_label_unknown_option_id_defaults_to_denied() -> None:
