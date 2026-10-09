@@ -17,7 +17,9 @@ import shutil
 import subprocess
 import sys
 import tarfile
+import urllib.error
 import zipfile
+from email.message import Message
 from pathlib import Path
 from types import ModuleType
 from typing import Iterator
@@ -545,6 +547,103 @@ def test_pypi_prepare_fails_on_digest_mismatch(
     assert list(binaries.iterdir()) == []
 
 
+_PUBLISHED = {
+    "inspect-sandbox-tools-amd64-v9": b"amd64 bytes",
+    "inspect-sandbox-tools-arm64-v9": b"arm64 bytes",
+    "inspect-sandbox-tools-amd64-musl-v9": b"amd64 musl bytes",
+    "inspect-sandbox-tools-arm64-musl-v9": b"arm64 musl bytes",
+}
+
+
+def _serve(
+    pypi_release: ModuleType,
+    monkeypatch: pytest.MonkeyPatch,
+    published: dict[str, bytes],
+) -> list[str]:
+    requested: list[str] = []
+
+    def urlopen(url: str, timeout: float) -> _FakeUrlResponse:
+        requested.append(url)
+        name = url.rsplit("/", 1)[1]
+        if name not in published:
+            raise urllib.error.HTTPError(url, 403, "Forbidden", Message(), None)
+        return _FakeUrlResponse(published[name])
+
+    monkeypatch.setattr(pypi_release.urllib.request, "urlopen", urlopen)
+    return requested
+
+
+def test_pypi_verify_sandbox_tools_published_checks_every_pinned_artifact(
+    pypi_release: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    requested = _serve(pypi_release, monkeypatch, _PUBLISHED)
+    digests = {name: _sha256(content) for name, content in _PUBLISHED.items()}
+
+    pypi_release.verify_sandbox_tools_published("9", digests, tmp_path)
+
+    assert sorted(requested) == sorted(
+        f"{pypi_release.SANDBOX_TOOLS_BASE_URL}/{name}" for name in _PUBLISHED
+    )
+
+
+@pytest.mark.parametrize(
+    "published",
+    [
+        # musl build never uploaded (the #5685/#5716 class)
+        {k: v for k, v in _PUBLISHED.items() if "arm64-musl" not in k},
+        # uploaded, but not the build SHA256SUMS pins
+        {**_PUBLISHED, "inspect-sandbox-tools-amd64-v9": b"rebuilt"},
+    ],
+    ids=["missing", "digest-mismatch"],
+)
+def test_pypi_verify_sandbox_tools_published_rejects(
+    pypi_release: ModuleType,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    published: dict[str, bytes],
+) -> None:
+    requested = _serve(pypi_release, monkeypatch, published)
+    digests = {name: _sha256(content) for name, content in _PUBLISHED.items()}
+
+    with pytest.raises(RuntimeError, match="Not published") as error:
+        pypi_release.verify_sandbox_tools_published("9", digests, tmp_path)
+    (bad,) = set(_PUBLISHED) - {
+        k for k, v in published.items() if _PUBLISHED.get(k) == v
+    }
+    assert repr([bad]) in str(error.value)
+    # keeps checking after a failure, so one run reports every bad artifact
+    assert len(requested) == len(_PUBLISHED)
+
+
+def test_pypi_verify_sandbox_tools_published_requires_pinned_version(
+    pypi_release: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    requested = _serve(pypi_release, monkeypatch, _PUBLISHED)
+    digests = {"inspect-sandbox-tools-amd64-v8": _sha256(b"old")}
+
+    with pytest.raises(RuntimeError, match="has no digest for"):
+        pypi_release.verify_sandbox_tools_published("9", digests, tmp_path)
+    assert requested == []
+
+
+def test_pypi_verify_sandbox_tools_published_command(
+    pypi_release: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _prepare_repo(
+        tmp_path, {name: _sha256(content) for name, content in _PUBLISHED.items()}
+    )
+    monkeypatch.chdir(tmp_path)
+    _serve(pypi_release, monkeypatch, _PUBLISHED)
+    pypi_release.verify_sandbox_tools_published_command(argparse.Namespace())
+
+    _serve(pypi_release, monkeypatch, {})
+    with pytest.raises(SystemExit) as exit_info:
+        pypi_release.verify_sandbox_tools_published_command(argparse.Namespace())
+    assert exit_info.value.code == 1
+    # nothing downloaded into the tree
+    assert not (tmp_path / "src" / "inspect_ai" / "binaries").exists()
+
+
 def _write_sdist(path: Path, members: dict[str, bytes]) -> Path:
     with tarfile.open(path, "w:gz") as sdist:
         for name, content in members.items():
@@ -678,6 +777,7 @@ _COMMANDS = [
     "prepare",
     "verify-dist",
     "verify-parity",
+    "verify-sandbox-tools-published",
 ]
 
 

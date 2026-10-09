@@ -19,6 +19,9 @@ Usage:
     python pypi-release.py prepare
     python pypi-release.py verify-dist <version>
     python pypi-release.py verify-parity <version>
+
+    # Release PR check (.github/workflows/release-pr-checks.yml)
+    python pypi-release.py verify-sandbox-tools-published
 """
 
 import argparse
@@ -41,6 +44,7 @@ from typing import Callable, Dict, List, NamedTuple, Optional, Tuple
 
 SANDBOX_TOOLS_UTILS_DIR = Path("src/inspect_ai/tool/_sandbox_tools_utils")
 SHA256SUMS_FILE = SANDBOX_TOOLS_UTILS_DIR / "SHA256SUMS"
+SANDBOX_TOOLS_BASE_URL = "https://inspect-sandbox-tools.s3.us-east-2.amazonaws.com"
 
 
 def setup_logging(name: str) -> None:
@@ -261,7 +265,6 @@ def download_sandbox_tools(
     version: str, digests: Dict[str, str], dry_run: bool = False
 ) -> bool:
     """Download sandbox tools for both platforms from S3, digest-verified."""
-    base_url = "https://inspect-sandbox-tools.s3.us-east-2.amazonaws.com"
     binaries_dir = Path("src/inspect_ai/binaries")
 
     platforms = ["amd64", "arm64"]
@@ -277,7 +280,7 @@ def download_sandbox_tools(
         if expected is None:
             logging.error(f"No digest entry for {filename} in {SHA256SUMS_FILE}")
             return False
-        url = f"{base_url}/{filename}"
+        url = f"{SANDBOX_TOOLS_BASE_URL}/{filename}"
         dest_path = binaries_dir / filename
 
         if not download_file(url, dest_path, expected, dry_run):
@@ -285,6 +288,41 @@ def download_sandbox_tools(
             break
 
     return success
+
+
+def verify_sandbox_tools_published(
+    version: str, digests: Dict[str, str], download_dir: Path
+) -> None:
+    """Release PR gate: every SHA256SUMS artifact is on S3 with its digest.
+
+    Covers the musl builds as well as the bundled glibc ones, since the
+    package downloads those at runtime.
+
+    Raises:
+        RuntimeError: If SHA256SUMS does not pin the glibc builds of
+            `version`, or an artifact is missing or does not match.
+    """
+    required = {
+        f"inspect-sandbox-tools-{platform}-v{version}"
+        for platform in ("amd64", "arm64")
+    }
+    unpinned = sorted(required - digests.keys())
+    if unpinned:
+        raise RuntimeError(f"{SHA256SUMS_FILE} has no digest for {unpinned}")
+
+    failed = [
+        filename
+        for filename, digest in sorted(digests.items())
+        if not download_file(
+            f"{SANDBOX_TOOLS_BASE_URL}/{filename}", download_dir / filename, digest
+        )
+    ]
+    if failed:
+        raise RuntimeError(
+            f"Not published at {SANDBOX_TOOLS_BASE_URL} with the digest pinned "
+            f"in {SHA256SUMS_FILE}: {failed}"
+        )
+    logging.info(f"✓ All {len(digests)} pinned sandbox tools artifacts are published")
 
 
 def verify_sandbox_tools_bundle(
@@ -1112,6 +1150,20 @@ def prepare_command(args: argparse.Namespace) -> None:
         sys.exit(1)
 
 
+def verify_sandbox_tools_published_command(args: argparse.Namespace) -> None:
+    """Execute the verify-sandbox-tools-published command."""
+    setup_logging("verify_sandbox_tools_published")
+
+    version = get_sandbox_tools_version()
+    digests = read_pinned_digests()
+    with tempfile.TemporaryDirectory() as download_dir:
+        try:
+            verify_sandbox_tools_published(version, digests, Path(download_dir))
+        except RuntimeError as e:
+            logging.error(f"Sandbox tools publication check failed: {e}")
+            sys.exit(1)
+
+
 def verify_dist_command(args: argparse.Namespace) -> None:
     """Execute the verify-dist command: version and wheel-contents gate."""
     setup_logging("verify_dist")
@@ -1181,6 +1233,10 @@ def main():
         "prepare",
         help="Download sandbox tools and run the pre-build digest gate",
     )
+    subparsers.add_parser(
+        "verify-sandbox-tools-published",
+        help="Check every sandbox tools artifact in SHA256SUMS is on S3 with its digest",
+    )
     verify_dist_parser = subparsers.add_parser(
         "verify-dist",
         help="Check built distributions match a version and run the wheel gate",
@@ -1216,6 +1272,8 @@ def main():
         sandbox_tools_download_command(args)
     elif args.command == "prepare":
         prepare_command(args)
+    elif args.command == "verify-sandbox-tools-published":
+        verify_sandbox_tools_published_command(args)
     elif args.command == "verify-dist":
         verify_dist_command(args)
     elif args.command == "verify-parity":

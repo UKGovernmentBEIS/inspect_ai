@@ -133,6 +133,21 @@ If any tests are failing, fix the code and run both commands again to verify. On
 
 ## Creating a pull request
 
+Title the PR with a [Conventional Commits](https://www.conventionalcommits.org/)
+type, then the user-facing outcome: `type: description` or
+`type(scope): description`, for example `fix: eval hang when resuming with S3
+logs` or `feat(anthropic): support Claude Haiku 5.5`. PRs are squash-merged, so
+the title becomes the commit that sets the next release's version:
+
+- `fix`, `feat`, `perf` and `revert` make a patch release (0.3.x).
+- `!` after the type or scope (`feat!: ...`) marks a breaking change and makes
+  a minor release (0.x.0).
+- `docs`, `refactor`, `test`, `build`, `ci`, `chore` and `style` do not make a
+  release on their own.
+
+The PR Title Lint check fails until the title follows this format; editing the
+title re-runs it.
+
 Fill in the PR template and, when addressing an accepted issue, reference it
 (`Fixes #NNN`). Explain the user-facing problem and result. In
 "Compatibility and migration," describe any impact on existing code,

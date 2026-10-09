@@ -1,9 +1,19 @@
 name: Publish React Viewer Lib
 
+# Normal releases: release.yml calls this workflow after Release Please
+# creates the release (a release created with GITHUB_TOKEN triggers no other
+# workflows). A release published by a person (break-glass) triggers it
+# directly, as it does publish.yml. npm's trusted publisher is matched against
+# the calling workflow, so release.yml and this file each need one.
 on:
-  push:
-    tags:
-      - "[0-9]+.[0-9]+.[0-9]+"
+  release:
+    types: [published]
+  workflow_call:
+    inputs:
+      tag:
+        description: "Release tag to publish"
+        required: true
+        type: string
   workflow_dispatch:
     inputs:
       dry-run:
@@ -20,6 +30,8 @@ on:
 jobs:
   publish:
     name: Publish to NPM
+    # publish.yml likewise refuses pre-release GitHub Releases.
+    if: ${{ !github.event.release.prerelease }}
     runs-on: ubuntu-latest
     environment: npm
     defaults:
@@ -32,6 +44,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          # empty (the triggering ref) except when called from release.yml
+          ref: ${{ inputs.tag }}
           fetch-depth: 0
           submodules: recursive
 

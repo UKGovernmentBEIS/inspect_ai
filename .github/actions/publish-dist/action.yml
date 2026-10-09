@@ -1,0 +1,36 @@
+name: Publish inspect_ai distributions
+description: >-
+  Download the `dist` artifact from the build job, re-run the version and
+  wheel gate on those exact files, and upload them to PyPI with trusted
+  publishing. Shared by publish.yml and release.yml. The calling job needs
+  `id-token: write`, the `pypi` environment, and a checkout holding scripts/
+  and src/inspect_ai/tool/_sandbox_tools_utils; nothing is installed or built.
+  PyPI matches its trusted publisher against the workflow file that runs the
+  job, so each workflow using this action needs its own publisher on PyPI.
+
+inputs:
+  version:
+    description: Version the distributions must have (the release tag)
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+      with:
+        name: dist
+        path: dist/
+
+    - name: Set up Python
+      uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+      with:
+        python-version: "3.11"
+
+    - name: Verify distributions
+      shell: bash
+      env:
+        VERSION: ${{ inputs.version }}
+      run: python scripts/pypi-release.py verify-dist "$VERSION"
+
+    - name: Publish to PyPI
+      uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2

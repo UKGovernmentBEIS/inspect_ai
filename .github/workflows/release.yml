@@ -1,0 +1,192 @@
+name: Release
+
+# Release Please keeps a release PR (head branch release-please--branches--main)
+# open against main, versioned from the Conventional Commit PR titles merged
+# since the last release. Merging that PR tags the release and creates the
+# GitHub Release; this workflow then sets the release notes from CHANGELOG.md
+# and publishes to PyPI and npm, each behind its environment's approval.
+#
+# Everything runs with GITHUB_TOKEN. Releases, tags and pushes made with it
+# trigger no other workflows, so this workflow runs the publish jobs itself
+# and dispatches the release PR's checks. publish.yml and npm-publish.yml keep
+# their own triggers for break-glass releases.
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  RELEASE_BRANCH: release-please--branches--main
+
+jobs:
+  release-please:
+    name: Release Please
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    concurrency:
+      group: release-please
+      cancel-in-progress: false
+    permissions:
+      contents: write # release PR branch, tag and GitHub Release
+      pull-requests: write
+      issues: write # release PR labels
+      actions: write # dispatch checks on the release PR
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
+    steps:
+      - id: release
+        uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
+        with:
+          # No release-type input: with a manifest it would override the
+          # config file's package options.
+          config-file: .release-please-config.json
+          manifest-file: .release-please-manifest.json
+          target-branch: main
+
+      - name: Find open release PR
+        id: pr
+        if: steps.release.outputs.release_created != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          COUNT=$(gh pr list --repo "$GITHUB_REPOSITORY" --head "$RELEASE_BRANCH" \
+            --base main --state open --json number --jq length)
+          if [ "$COUNT" -gt 0 ]; then OPEN=true; else OPEN=false; fi
+          echo "open=$OPEN" >> "$GITHUB_OUTPUT"
+
+      # Default credentials: the next step pushes to the release branch.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: steps.pr.outputs.open == 'true'
+        with:
+          ref: ${{ env.RELEASE_BRANCH }}
+
+      - name: Release CHANGELOG.md entries on the release PR
+        id: changelog
+        if: steps.pr.outputs.open == 'true'
+        run: |
+          VERSION=$(jq -r '."."' .release-please-manifest.json)
+          python3 .github/scripts/release_changelog.py prepare "$VERSION"
+          if git diff --quiet; then
+            echo "pushed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -am "chore: move Unreleased changelog entries to $VERSION"
+          git push origin "HEAD:$RELEASE_BRANCH"
+          echo "pushed=true" >> "$GITHUB_OUTPUT"
+
+      # Includes build.yml for the required status checks. If these runs are
+      # missing, a maintainer can close and reopen the release PR instead.
+      - name: Run checks on the release PR
+        if: steps.changelog.outputs.pushed == 'true' || steps.release.outputs.pr != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for workflow in build.yml release-pr-checks.yml; do
+            gh workflow run "$workflow" --repo "$GITHUB_REPOSITORY" --ref "$RELEASE_BRANCH"
+          done
+
+  release-notes:
+    name: Set release notes from CHANGELOG.md
+    needs: release-please
+    if: needs.release-please.outputs.release_created == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write # edit the GitHub Release
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.release-please.outputs.tag_name }}
+          sparse-checkout: .github/scripts
+          persist-credentials: false
+
+      - name: Set release notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.release-please.outputs.tag_name }}
+        run: |
+          python3 .github/scripts/release_changelog.py notes "$TAG" > "$RUNNER_TEMP/notes.md"
+          gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --notes-file "$RUNNER_TEMP/notes.md"
+
+  # The build and publish jobs match publish.yml's: the build holds no
+  # id-token, and both use the shared build-dist and publish-dist actions.
+  build:
+    name: Build and verify
+    needs: release-please
+    if: needs.release-please.outputs.release_created == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: refs/tags/${{ needs.release-please.outputs.tag_name }}
+          fetch-depth: 0
+          filter: "blob:none"
+          submodules: true
+          persist-credentials: false
+
+      - name: Check release tag
+        env:
+          TAG: ${{ needs.release-please.outputs.tag_name }}
+        run: |
+          fail() { echo "::error::$1"; exit 1; }
+          [[ "$TAG" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] ||
+            fail "Tag '$TAG' is not a release version (X.Y.Z)"
+          git merge-base --is-ancestor HEAD origin/main ||
+            fail "Tag $TAG is not on main"
+
+      - uses: ./.github/actions/build-dist
+        with:
+          version: ${{ needs.release-please.outputs.tag_name }}
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: dist
+          path: dist/
+          if-no-files-found: error
+
+  publish-pypi:
+    name: Publish to PyPI
+    needs: [release-please, build]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      id-token: write # trusted publishing
+    environment:
+      name: pypi
+      url: https://pypi.org/p/inspect-ai
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: refs/tags/${{ needs.release-please.outputs.tag_name }}
+          sparse-checkout: |
+            .github/actions
+            scripts
+            src/inspect_ai/tool/_sandbox_tools_utils
+          persist-credentials: false
+
+      - uses: ./.github/actions/publish-dist
+        with:
+          version: ${{ needs.release-please.outputs.tag_name }}
+
+  # Waits for the build so npm never gets a version that failed the PyPI gates.
+  publish-npm:
+    name: Publish to npm
+    needs: [release-please, build]
+    permissions:
+      contents: read
+      id-token: write # trusted publishing
+    uses: ./.github/workflows/npm-publish.yml
+    with:
+      tag: ${{ needs.release-please.outputs.tag_name }}
