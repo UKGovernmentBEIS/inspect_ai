@@ -25,6 +25,7 @@ if TYPE_CHECKING:
 from pydantic import BaseModel
 from typing_extensions import TypedDict, Unpack
 
+from inspect_ai._sentinel._config import SentinelSpec, resolve_sentinel_spec
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.notgiven import NOT_GIVEN, NotGiven
 from inspect_ai._util.registry import (
@@ -121,6 +122,9 @@ class Task:
         tags: list[str] | None = None,
         viewer: ViewerConfig | None = None,
         headline_metric: HeadlineMetric | str | None = None,
+        sentinel: SentinelSpec | None = None,
+        *,
+        description: str | None = None,
         **kwargs: Unpack[TaskDeprecatedArgs],
     ) -> None:
         """Create a task.
@@ -191,6 +195,8 @@ class Task:
             name: Task name. If not specified is automatically
                 determined based on the registered name of the task.
             display_name: Task display name (e.g. for plotting). If not specified then defaults to the registered task name.
+            description: Short statement of what the task asks of the agent
+                (recorded in the eval log).
             version: Version of task (to distinguish evolutions
                 of the task spec or breaking changes to it)
             metadata:  Additional metadata to associate with the task.
@@ -206,6 +212,8 @@ class Task:
                 convention, so `HeadlineMetric(metric="accuracy")` takes that
                 metric from the first score reporting it; the default is the
                 first metric of the first score.
+            sentinel: Monitors and protocols that watch the agent's steps (requires the `inspect_sentinel` package). Experimental: not yet a stable API; may change without notice.
+                A protocol, a list or mapping of monitors and protocols with at least one protocol, a config file path or registered protocol name, or a parsed configuration. Monitors alone are an error: wrap them in `observe_only()` to record without acting. Defaults to no sentinel.
             **kwargs: Deprecated arguments.
         """
         # handle deprecated args
@@ -249,6 +257,9 @@ class Task:
         self.checkpoint = normalize_checkpoint(checkpoint)
         self.approval = resolve_approval(approval)
         self.review = resolve_review(review)
+        self.sentinel = (
+            resolve_sentinel_spec(sentinel) if sentinel is not None else None
+        )
         epochs = resolve_epochs(epochs)
         self.epochs = epochs.epochs if epochs else None
         self.epochs_reducer = epochs.reducer if epochs else None
@@ -265,6 +276,7 @@ class Task:
         self.version = version
         self._display_name = display_name
         self._name = name
+        self.description = description
         self.metadata = metadata
         self.tags = tags
         self.viewer = viewer
@@ -330,6 +342,7 @@ def task_with(
     | None
     | NotGiven = NOT_GIVEN,
     review: str | ReviewPolicyConfig | list[ReviewPolicy] | None | NotGiven = NOT_GIVEN,
+    sentinel: SentinelSpec | None | NotGiven = NOT_GIVEN,
     epochs: int | Epochs | None | NotGiven = NOT_GIVEN,
     fail_on_error: bool | float | None | NotGiven = NOT_GIVEN,
     continue_on_fail: bool | None | NotGiven = NOT_GIVEN,
@@ -342,6 +355,7 @@ def task_with(
     cost_limit: float | None | NotGiven = NOT_GIVEN,
     early_stopping: EarlyStopping | None | NotGiven = NOT_GIVEN,
     name: str | None | NotGiven = NOT_GIVEN,
+    description: str | None | NotGiven = NOT_GIVEN,
     version: int | str | NotGiven = NOT_GIVEN,
     metadata: dict[str, Any] | None | NotGiven = NOT_GIVEN,
     tags: list[str] | None | NotGiven = NOT_GIVEN,
@@ -393,6 +407,8 @@ def task_with(
             Either a path to an approval policy config file, an ApprovalPolicyConfig, or a list of approval policies. Defaults to no approval policy.
         review: Tool result review policies.
             Either a path to a review policy config file, a ReviewPolicyConfig, or a list of review policies. Defaults to no review policy.
+        sentinel: Monitors and protocols that watch the agent's steps (requires the `inspect_sentinel` package). Experimental: not yet a stable API; may change without notice.
+            A protocol, a list or mapping of monitors and protocols with at least one protocol, a config file path or registered protocol name, or a parsed configuration. Monitors alone are an error: wrap them in `observe_only()` to record without acting. Defaults to no sentinel.
         epochs: Epochs to repeat samples for and optional score
             reducer function(s) used to combine sample scores (defaults to "mean")
         fail_on_error: `True` to fail on first sample error
@@ -424,6 +440,8 @@ def task_with(
             determined based on the name of the task directory (or "task")
             if its anonymous task (e.g. created in a notebook and passed to
             eval() directly)
+        description: Short statement of what the task asks of the agent
+            (recorded in the eval log).
         version: Version of task (to distinguish evolutions
             of the task spec or breaking changes to it)
         metadata:  Additional metadata to associate with the task.
@@ -469,6 +487,10 @@ def task_with(
         task.approval = resolve_approval(approval)
     if not isinstance(review, NotGiven):
         task.review = resolve_review(review)
+    if not isinstance(sentinel, NotGiven):
+        task.sentinel = (
+            resolve_sentinel_spec(sentinel) if sentinel is not None else None
+        )
     if not isinstance(epochs, NotGiven):
         epochs = resolve_epochs(epochs)
         task.epochs = epochs.epochs if epochs else None
@@ -497,6 +519,8 @@ def task_with(
         task.version = version
     if not isinstance(name, NotGiven):
         task._name = name
+    if not isinstance(description, NotGiven):
+        task.description = description
     if not isinstance(metadata, NotGiven):
         task.metadata = metadata
     if not isinstance(tags, NotGiven):

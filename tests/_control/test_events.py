@@ -239,6 +239,7 @@ async def test_tail_scan_is_page_bounded(
 
 def test_filter_default_is_high_signal() -> None:
     assert "error" in HIGH_SIGNAL_EVENT_TYPES and "info" in HIGH_SIGNAL_EVENT_TYPES
+    assert "sentinel" in HIGH_SIGNAL_EVENT_TYPES
     events: list[Event] = [_info_at("a", _now()), _error_event("boom")]
     assert [e.event for e in _filter(events, None, None, None)] == ["info", "error"]
 
