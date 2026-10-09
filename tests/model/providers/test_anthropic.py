@@ -1252,7 +1252,7 @@ async def test_anthropic_pause_turn_bound_keeps_pending_server_tool_call(
 async def test_anthropic_pause_turn_resumed_twice_replays_each_call_once(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A turn paused at the bound twice replays each use block before its result."""
+    """A turn paused at the bound twice resumes in its latest container, calls intact."""
     from anthropic._models import construct_type
     from anthropic.types import Message
 
@@ -1264,8 +1264,13 @@ async def test_anthropic_pause_turn_resumed_twice_replays_each_call_once(
     init_sample_anthropic_assistant_internal()
     monkeypatch.setattr(anthropic_provider, "MAX_PAUSE_TURN_CONTINUATIONS", 1)
 
-    def message(id: str, content: list[dict[str, Any]], stop_reason: str) -> Message:
-        data = {
+    def message(
+        id: str,
+        content: list[dict[str, Any]],
+        stop_reason: str,
+        container: str | None = None,
+    ) -> Message:
+        data: dict[str, Any] = {
             "id": id,
             "type": "message",
             "role": "assistant",
@@ -1274,6 +1279,8 @@ async def test_anthropic_pause_turn_resumed_twice_replays_each_call_once(
             "stop_reason": stop_reason,
             "usage": {"input_tokens": 1, "output_tokens": 1},
         }
+        if container is not None:
+            data["container"] = {"id": container, "expires_at": "2026-12-01T00:00:00Z"}
         return cast(Message, construct_type(value=data, type_=Message))
 
     def use(id: str) -> dict[str, Any]:
@@ -1300,10 +1307,10 @@ async def test_anthropic_pause_turn_resumed_twice_replays_each_call_once(
         side_effect=[
             # first generate: paused at the bound with call A running
             message("msg_1", [text], "pause_turn"),
-            message("msg_2", [use("srvtoolu_a")], "pause_turn"),
+            message("msg_2", [use("srvtoolu_a")], "pause_turn", "cntr_a"),
             # resumed: A completes, then paused again with call B running
             message("msg_3", [result("srvtoolu_a"), text], "pause_turn"),
-            message("msg_4", [use("srvtoolu_b")], "pause_turn"),
+            message("msg_4", [use("srvtoolu_b")], "pause_turn", "cntr_b"),
             # resumed again: B completes
             message("msg_5", [result("srvtoolu_b"), text], "end_turn"),
             message("msg_6", [text], "end_turn"),
@@ -1326,6 +1333,13 @@ async def test_anthropic_pause_turn_resumed_twice_replays_each_call_once(
         output = await model.generate(messages)
         messages.append(output.message)
     await model.generate(messages + [ChatMessageUser(content="next")])
+
+    # each resumption names the container of the call it resumes; the request
+    # after the completed turn names none
+    requests = [call.kwargs for call in create.call_args_list]
+    assert requests[2].get("container") == "cntr_a"
+    assert requests[4].get("container") == "cntr_b"
+    assert "container" not in requests[5]
 
     history = [
         (b["type"], b.get("id") or b.get("tool_use_id"))

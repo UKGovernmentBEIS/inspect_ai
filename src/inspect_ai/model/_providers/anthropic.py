@@ -4369,17 +4369,26 @@ def _pending_container_for_input(input: list[ChatMessage]) -> str | None:
     is not replayed, since unconditionally reusing containers across turns
     would change behavior (state carry-over) and risk naming an expired
     container.
+
+    When the last assistant message combines several (a paused turn and the
+    turns that resumed it), only the latest of them can have work pending.
     """
     last_assistant = next(
         (m for m in reversed(input) if isinstance(m, ChatMessageAssistant)), None
     )
-    if last_assistant is None or last_assistant.id is None:
+    if last_assistant is None:
+        return None
+    message_ids = (last_assistant.metadata or {}).get("combined_from") or [
+        last_assistant.id
+    ]
+    latest_id = message_ids[-1]
+    if latest_id is None:
         return None
     internal = assistant_internal()
-    container = internal.containers.get(last_assistant.id)
+    container = internal.containers.get(latest_id)
     if container is None:
         return None
-    spans = internal.server_tool_spans.get(last_assistant.id, [])
+    spans = internal.server_tool_spans.get(latest_id, [])
     if any(span.open_use_ids for span in spans):
         return container
     return None
