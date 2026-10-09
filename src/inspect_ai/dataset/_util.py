@@ -105,6 +105,9 @@ def record_to_sample_fn(
                 target=read_target(record.get(sample_fields.target)),
                 choices=choices,
                 id=sample_id,
+                description=read_description(record.get(sample_fields.description))
+                if sample_fields.description is not None
+                else None,
                 metadata=metadata,
                 sandbox=read_sandbox(record.get(sample_fields.sandbox)),
                 files=read_files(record.get(sample_fields.files)),
@@ -254,6 +257,17 @@ def _drop_trailing_blank_choices(choices: list[str], source: object) -> list[str
             "or use a custom sample_fields function to keep the blank."
         )
     return kept
+
+
+def read_description(description: Any | None) -> str | None:
+    if is_none_or_nan(description):
+        return None
+    if not isinstance(description, str):
+        raise ValueError(
+            f"Sample 'description' field must be a string (got {type(description).__name__})"
+        )
+    # empty CSV cells read as "" (no description)
+    return description or None
 
 
 def read_setup(setup: Any | None) -> str | None:

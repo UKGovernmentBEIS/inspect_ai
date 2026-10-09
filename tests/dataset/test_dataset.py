@@ -12,6 +12,7 @@ import pytest
 from pydantic import BaseModel
 from test_helpers.utils import skip_if_github_action
 
+from inspect_ai._eval.task.hf import HFFieldSpec
 from inspect_ai._util.content import ContentImage
 from inspect_ai._util.file import exists
 from inspect_ai.dataset import (
@@ -27,6 +28,38 @@ from inspect_ai.dataset._util import read_choices
 from inspect_ai.model._chat_message import ChatMessageUser
 
 T_ds = TypeVar("T_ds")
+
+
+def test_sample_positional_metadata_compatibility() -> None:
+    sample = Sample("x", None, "y", 1, {"difficulty": "easy"})
+
+    assert sample.metadata == {"difficulty": "easy"}
+
+
+def test_sample_description_is_keyword_only() -> None:
+    assert (
+        inspect.signature(Sample).parameters["description"].kind
+        == inspect.Parameter.KEYWORD_ONLY
+    )
+
+
+def test_field_spec_positional_metadata_compatibility() -> None:
+    fields = ["difficulty"]
+
+    assert FieldSpec("input", "target", "choices", "id", fields).metadata is fields
+    assert HFFieldSpec("input", "target", "choices", "id", fields).metadata is fields
+
+
+def test_field_descriptions_are_keyword_only() -> None:
+    assert (
+        inspect.signature(FieldSpec).parameters["description"].kind
+        == inspect.Parameter.KEYWORD_ONLY
+    )
+    assert (
+        inspect.signature(HFFieldSpec).parameters["description"].kind
+        == inspect.Parameter.KEYWORD_ONLY
+    )
+
 
 # test functions are parameterized by dataset type and input file
 csv = (csv_dataset, "samples.csv")
@@ -1024,3 +1057,60 @@ def test_custom_mapper_can_keep_a_blank_choice(tmp_path: Path) -> None:
 
     assert sample.choices == ["", "Paris", "Rome"]
     assert sample.target == "B"
+
+
+def test_sample_description() -> None:
+    assert Sample(input="x").description is None
+    sample = Sample(input="x", description="Add two numbers.")
+    assert sample.description == "Add two numbers."
+    assert Sample.model_validate(sample.model_dump()).description == "Add two numbers."
+
+
+@pytest.mark.parametrize("suffix", [".csv", ".json"])
+def test_dataset_field_spec_description(tmp_path: Path, suffix: str) -> None:
+    records = [
+        {"question": "1+1", "answer": "2", "summary": "Add two numbers."},
+        {"question": "2*3", "answer": "6", "summary": ""},
+    ]
+    dataset_file = tmp_path / f"dataset{suffix}"
+    if suffix == ".csv":
+        with open(dataset_file, "w", newline="") as f:
+            writer = csv_module.DictWriter(f, fieldnames=list(records[0].keys()))
+            writer.writeheader()
+            writer.writerows(records)
+    else:
+        dataset_file.write_text(json_module.dumps(records))
+
+    def read(fields: FieldSpec) -> Dataset:
+        if suffix == ".csv":
+            return csv_dataset(dataset_file.as_posix(), fields)
+        return json_dataset(dataset_file.as_posix(), fields)
+
+    dataset = read(FieldSpec(input="question", target="answer", description="summary"))
+    assert dataset[0].description == "Add two numbers."
+    # an empty value (e.g. an empty CSV cell) is no description
+    assert dataset[1].description is None
+
+    # descriptions are only read when the field is named
+    unmapped = read(FieldSpec(input="question", target="answer"))
+    assert all(sample.description is None for sample in unmapped)
+
+
+def test_dataset_description_column_not_read_by_default() -> None:
+    from inspect_ai.dataset._util import record_to_sample_fn
+
+    rec2sample = record_to_sample_fn(FieldSpec())
+    sample = rec2sample({"input": "x", "description": 42})
+    assert not isinstance(sample, list)
+    assert sample.description is None
+
+
+def test_dataset_description_must_be_string() -> None:
+    from inspect_ai.dataset._util import record_to_sample_fn
+
+    rec2sample = record_to_sample_fn(FieldSpec(description="description"))
+    with pytest.raises(ValueError, match="'description' field must be a string"):
+        rec2sample({"input": "x", "description": 42})
+    sample = rec2sample({"input": "x", "description": float("nan")})
+    assert not isinstance(sample, list)
+    assert sample.description is None

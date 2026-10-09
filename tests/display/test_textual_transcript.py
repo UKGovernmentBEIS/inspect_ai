@@ -3,10 +3,14 @@ from contextlib import asynccontextmanager
 from typing import cast
 
 import pytest
+from rich.console import Console, Group
 
-from inspect_ai._display.textual.widgets.transcript import TranscriptView
+from inspect_ai._display.textual.widgets.transcript import (
+    TranscriptView,
+    render_sentinel_event,
+)
 from inspect_ai.dataset import Sample
-from inspect_ai.event import Event, InfoEvent
+from inspect_ai.event import Event, InfoEvent, SentinelEvent
 from inspect_ai.event._sample_init import SampleInitEvent
 from inspect_ai.log._samples import ActiveSample
 from inspect_ai.log._transcript import Transcript
@@ -90,3 +94,60 @@ def test_render_tool_event_hides_only_operator_cancelled_events() -> None:
     )
     assert render_tool_event(operator_cancelled) is None
     assert render_tool_event(skipped) is not None
+
+
+def _sentinel_text(event: SentinelEvent) -> str:
+    display = render_sentinel_event(event)
+    assert isinstance(display.content, Group)
+    console = Console(width=500, no_color=True)
+    with console.capture() as capture:
+        console.print(display.content)
+    return capture.get().strip()
+
+
+def test_render_sentinel_event_shows_monitor_text_literally() -> None:
+    event = SentinelEvent(
+        factory="d4_rule",
+        path="[bold]guard[/bold]",
+        function="check",
+        step_id="call_1",
+        conversation="c",
+        stage="tool_call",
+        kind="decision",
+        status="reported",
+        action="reject",
+        message="no [red]rm[/red]",
+        explanation="flagged [italic]this[/italic]",
+    )
+    assert _sentinel_text(event) == (
+        "[bold]guard[/bold]: reject (flagged [italic]this[/italic]), "
+        "told the agent: no [red]rm[/red]"
+    )
+
+
+@pytest.mark.parametrize(
+    "suspicion,shown",
+    [
+        (0.75, "suspicion 0.75"),
+        (1 / 3, "suspicion 0.33"),
+        (
+            {"exfiltration": 0.8, "sabotage": 0.1},
+            "suspicion exfiltration 0.80, sabotage 0.10",
+        ),
+    ],
+)
+def test_render_sentinel_event_formats_suspicion(
+    suspicion: float | dict[str, float], shown: str
+) -> None:
+    event = SentinelEvent(
+        factory="d4_score",
+        path="score",
+        function="check",
+        step_id="call_1",
+        conversation="c",
+        stage="tool_call",
+        kind="observation",
+        status="reported",
+        suspicion=suspicion,
+    )
+    assert _sentinel_text(event) == f"score: observation, {shown}"
