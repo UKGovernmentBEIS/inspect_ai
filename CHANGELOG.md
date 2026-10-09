@@ -24,7 +24,6 @@
 - Agent Bridge: A bridged Anthropic client now sees conflict, timeout, and billing errors as such instead of as generic server errors.
 - Agent Bridge: Sandboxed agents now receive exhausted provider errors with their original status and error details.
 - Dependencies: Require `nest_asyncio2` >= 1.7.4, fixing cancel scope errors (e.g. from Mistral streaming) after Inspect is called synchronously from a notebook or another running event loop.
-- Agent Bridge: `sandbox_agent_bridge()` now forwards the client's `Accept-Encoding` header and the headers listed in its new `forward_client_headers` option, bridged Brotli responses are decoded, and with `forward_generation_config=True` `reasoning` fields Inspect does not model, such as `context`, reach OpenAI Responses models.
 
 ## 0.3.277 (06 October 2026)
 
