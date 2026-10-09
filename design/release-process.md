@@ -89,7 +89,7 @@ Re-running the Release workflow is safe at any point.
   release itself. A lookup failure fails the job too. Other active runs are
   found by status on the server, so a run waiting for approval counts however
   many runs came after it. Two limits: if the release's `CHANGELOG.md`
-  section is empty, absent or unparseable, the notes check is skipped with a
+  section is empty, absent or unparsable, the notes check is skipped with a
   notice (the release-notes job reports the error, and re-running cannot fix
   a tagged file), so a passing check does not by itself prove the curated
   notes are present. And only the latest release is checked: an older
