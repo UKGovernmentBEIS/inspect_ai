@@ -659,10 +659,10 @@ async with sandbox_agent_bridge(
     ...
 ```
 
-`CHANGELOG.md`, under `## Unreleased`: "Agent Bridge: `sandbox_agent_bridge()`
-now serves requests for model names it does not recognise with the eval's
-model instead of the provider the name implies, and records the requested
-name on the `ModelEvent`; map names to other models with `model_aliases`."
+PR title (the changelog line): "fix(bridge): `sandbox_agent_bridge()` serves
+unrecognised model names with the eval's model instead of the provider the
+name implies; map names with `model_aliases`". The description adds that the
+requested name is recorded on the `ModelEvent`.
 
 ## Alternatives considered
 
@@ -746,7 +746,8 @@ names to collapse onto *its* model, it pins `model=str(model)` as the ACP
 Gemini agent already does (`acp/_agents/gemini_cli/gemini_cli.py:70-76`).
 That is a one-line follow-up in inspect_swe, not a prerequisite. Anyone else
 who relied on a name reaching its own model aliases that name; the warning
-names each one. The CHANGELOG entry and the docs section carry the change.
+names each one. The changelog line (the PR title) and the docs section carry
+the change.
 
 **Model roles.** Unreachable by name from a sandbox by default. To expose
 one: `model_aliases={"grader": get_model(role="grader")}`.
@@ -982,8 +983,8 @@ an implementer can land in order:
 5. **Sandbox surface and Docker test.** `sandbox_agent_bridge()`
    docstrings (`sandbox/bridge.py`); the Docker test in
    `tests/tools/test_tools_bridge.py`.
-6. **Docs and CHANGELOG.** `docs/agent-bridge.qmd` Models section and the
-   alias example; the `## Unreleased` entry.
+6. **Docs and PR title.** `docs/agent-bridge.qmd` Models section and the
+   alias example; the PR title above is the changelog line.
 
 Follow-up outside this repo (not blocking): inspect_swe's ACP Claude Code
 and Codex agents pin `model=str(model)` when the agent's model may differ
