@@ -569,6 +569,98 @@ async def test_bridge_pause_turn_replay_continues_the_turn(
     assert outputs[-1].input_context_tokens == 110 * (requests + 1)
 
 
+@pytest.mark.anyio
+async def test_bridge_pause_turn_at_bound_keeps_pending_server_tool_call(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A server tool call still running at the bound survives the resumed turn."""
+    from anthropic.types import (
+        Message,
+        ServerToolUseBlock,
+        TextBlock,
+        Usage,
+        WebSearchToolResultBlock,
+        WebSearchToolResultError,
+    )
+
+    import inspect_ai.model._providers.anthropic as anthropic_provider
+    from inspect_ai.model._providers.anthropic import (
+        init_sample_anthropic_assistant_internal,
+    )
+
+    init_sample_anthropic_assistant_internal()
+    monkeypatch.setattr(anthropic_provider, "MAX_PAUSE_TURN_CONTINUATIONS", 1)
+
+    pending = Message(
+        id="msg_pending",
+        type="message",
+        role="assistant",
+        model="claude-sonnet-4-6",
+        stop_reason="pause_turn",
+        content=[
+            TextBlock(type="text", text="searching again"),
+            ServerToolUseBlock(
+                id="srvtoolu_pending",
+                type="server_tool_use",
+                name="web_search",
+                input={"query": "still running"},
+            ),
+        ],
+        usage=Usage(input_tokens=20, output_tokens=2),
+    )
+    resumed = Message(
+        id="msg_resumed",
+        type="message",
+        role="assistant",
+        model="claude-sonnet-4-6",
+        stop_reason="end_turn",
+        content=[
+            WebSearchToolResultBlock(
+                type="web_search_tool_result",
+                tool_use_id="srvtoolu_pending",
+                content=WebSearchToolResultError(
+                    type="web_search_tool_result_error", error_code="unavailable"
+                ),
+            ),
+            TextBlock(type="text", text="done"),
+        ],
+        usage=Usage(input_tokens=30, output_tokens=3),
+    )
+    bridge, create, outputs = _anthropic_bridge([_paused_head(1), pending, resumed])
+    user = {"role": "user", "content": "search"}
+
+    paused = await _bridge_request(monkeypatch, bridge, outputs, [user], False)
+
+    assert create.await_count == 2
+    assert paused.stop_reason == "pause_turn"
+    assert [block.type for block in paused.content] == [
+        "text",
+        "server_tool_use",
+        "web_search_tool_result",
+        "text",
+        "server_tool_use",
+    ]
+    assert paused.content[-1].id == "srvtoolu_pending"
+
+    # the client resends the paused turn, and the response that completes the
+    # pending call parses (its use block is found in the paused turn's span)
+    partial = {
+        "role": "assistant",
+        "content": [block.model_dump(exclude_none=True) for block in paused.content],
+    }
+    message = await _bridge_request(
+        monkeypatch, bridge, outputs, [user, partial], False
+    )
+
+    assert create.await_count == 3
+    assert message.stop_reason == "end_turn"
+    assert [block.type for block in message.content] == [
+        "web_search_tool_result",
+        "text",
+    ]
+    assert message.content[0].tool_use_id == "srvtoolu_pending"
+
+
 def test_anthropic_stop_reason_pause_turn_only_from_stop_details() -> None:
     from inspect_ai.agent._bridge.anthropic_api_impl import anthropic_stop_reason
     from inspect_ai.model._model_output import StopDetails

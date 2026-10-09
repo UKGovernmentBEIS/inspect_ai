@@ -14,7 +14,7 @@
 - Bugfix: `inspect log convert --stream` (and `convert_eval_logs(stream=...)`) no longer drops the error message and traceback from logs of failed evals.
 - Fixed `StoreModel` skipping field validation when constructed with an empty `instance` string.
 - Fixed the human reviewer filling in tool arguments inside tool output that contains `{{{...}}}` (three or more braces).
-- Bugfix: Model usage now counts every billed request in a generate call (Anthropic pause_turn continuations, Gemini malformed tool call retries, OpenAI's reasoning summary check); Anthropic continues a paused turn at most 10 times, then returns it as paused (`pause_turn` to bridged clients).
+- Bugfix: Model usage now counts every billed request in a generate call (Anthropic pause_turn continuations, Gemini malformed tool call retries); Anthropic continues a paused turn at most 10 times, then returns it as paused (`pause_turn` to bridged clients).
 - Model output: New `input_context_tokens` field gives the input's size in the context window, which compaction, the ACP context display and the viewer's activity view now use instead of billed usage.
 
 - Tools: Tools with `*args` or `**kwargs` no longer advertise required `args`/`kwargs` parameters to models; declare model-chosen arguments with an explicit `ToolParams` schema instead.

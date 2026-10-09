@@ -341,6 +341,54 @@ class _ContinuationChain:
     Later requests also carry the partial turn, which the returned message holds.
     """
 
+    served: list[ServedModelUsage] = field(default_factory=list)
+    """Usage of each request, attributed to the model that served it."""
+
+    fallbacks: list[ModelFallback] = field(default_factory=list)
+    """Refusal fallbacks of the requests that had one, in request order."""
+
+    def add(self, output: ModelOutput, served: list[ServedModelUsage]) -> None:
+        """Add a request's output, and its usage attributed by serving model."""
+        self.requests += 1
+        self.usage = sum_usage(self.usage, output.usage)
+        if self.requests == 1:
+            self.input_context_tokens = usage_input_tokens(output.usage)
+        self.served.extend(served)
+        if output.fallback is not None:
+            self.fallbacks.append(output.fallback)
+
+    def report(self, output: ModelOutput) -> None:
+        """Give the output returned for the generate call the chain's totals.
+
+        When a request fell back and the output does not describe that one
+        request alone, `output.fallback` describes the chain: its metadata
+        joins every fallback's `handoffs` and `iterations`, and its
+        `served_usage` attributes each request's usage to the model that
+        served it (see `AnthropicAPI.served_model_usage`).
+        """
+        output.usage = self.usage
+        output.input_context_tokens = self.input_context_tokens
+        if not self.fallbacks or (self.requests == 1 and output.fallback is not None):
+            return
+        output.fallback = ModelFallback(
+            model=self.fallbacks[0].model,
+            fallback_model=self.fallbacks[-1].fallback_model,
+            metadata={
+                key: [
+                    item
+                    for fallback in self.fallbacks
+                    for item in (fallback.metadata or {}).get(key) or []
+                ]
+                for key in ("handoffs", "iterations")
+            }
+            | {
+                "served_usage": [
+                    {"model": part.model, "usage": part.usage.model_dump()}
+                    for part in self.served
+                ]
+            },
+        )
+
 
 @dataclass
 class _SampleCacheTtlState:
@@ -760,6 +808,16 @@ class AnthropicAPI(ModelAPI):
             ):
                 return [ServedModelUsage(f"anthropic/{output.model}", output.usage)]
             return None
+        # a pause_turn chain in which some request fell back (see
+        # `_ContinuationChain.report`)
+        served_usage = (fallback.metadata or {}).get("served_usage")
+        if isinstance(served_usage, list):
+            return [
+                ServedModelUsage(
+                    part["model"], ModelUsage.model_validate(part["usage"])
+                )
+                for part in served_usage
+            ]
         iterations = (fallback.metadata or {}).get("iterations")
         if isinstance(iterations, list) and any(
             isinstance(it, dict) and it.get("type") == "fallback_message"
@@ -767,6 +825,14 @@ class AnthropicAPI(ModelAPI):
         ):
             return _fallback_attempts_usage(iterations, self.service_model_name())
         return [ServedModelUsage(f"anthropic/{fallback.fallback_model}", output.usage)]
+
+    def _request_served_usage(self, output: ModelOutput) -> list[ServedModelUsage]:
+        """Usage of one request's output, attributed to the model that served it."""
+        if output.usage is None:
+            return []
+        return self.served_model_usage(output) or [
+            ServedModelUsage(f"anthropic/{self.service_model_name()}", output.usage)
+        ]
 
     @override
     def cache_write_ttl(self) -> str | None:
@@ -996,8 +1062,7 @@ class AnthropicAPI(ModelAPI):
             except BadRequestError as ex:
                 handled = self.handle_bad_request(ex)
                 if isinstance(handled, ModelOutput):
-                    handled.usage = chain.usage
-                    handled.input_context_tokens = chain.input_context_tokens
+                    chain.report(handled)
                 return handled, model_call or ModelCall(request={})
 
             except APIStatusError as ex:
@@ -1008,8 +1073,7 @@ class AnthropicAPI(ModelAPI):
                         stop_reason="model_length",
                         error=ex.message,
                     )
-                    too_large.usage = chain.usage
-                    too_large.input_context_tokens = chain.input_context_tokens
+                    chain.report(too_large)
                     return too_large, model_call or ModelCall(request={})
                 # Content-filter errors that arrive mid-stream surface as a plain
                 # APIStatusError (the SDK can't infer the 400 subclass once the
@@ -1017,8 +1081,7 @@ class AnthropicAPI(ModelAPI):
                 # convert them into a content_filter refusal.
                 handled = self.handle_bad_request(ex)
                 if isinstance(handled, ModelOutput):
-                    handled.usage = chain.usage
-                    handled.input_context_tokens = chain.input_context_tokens
+                    chain.report(handled)
                     return handled, model_call or ModelCall(request={})
                 raise ex
 
@@ -1250,10 +1313,7 @@ class AnthropicAPI(ModelAPI):
             cache_diagnostics=self.cache_diagnostics_enabled(config),
             span_recorder=span_recorder,
         )
-        chain.requests += 1
-        chain.usage = sum_usage(chain.usage, head_model_output.usage)
-        if chain.requests == 1:
-            chain.input_context_tokens = usage_input_tokens(head_model_output.usage)
+        chain.add(head_model_output, self._request_served_usage(head_model_output))
         continuations = chain.requests - 1
 
         if continuation_required and continuations >= MAX_PAUSE_TURN_CONTINUATIONS:
@@ -1268,6 +1328,13 @@ class AnthropicAPI(ModelAPI):
                     "(the continuation limit)."
                 ),
             )
+            # no continuation will complete a server tool call still in
+            # flight, so record its open span with this message: replay then
+            # sends its use block, and the result that arrives when the turn
+            # is resumed finds it
+            open_spans = span_recorder.take_spans(include_open=True)
+            if open_spans and head_model_output.message.id is not None:
+                record_server_tool_spans(head_model_output.message.id, open_spans)
         elif continuation_required:
             tail_request = dict(request)
             tail_request["messages"] = request["messages"] + [
@@ -1307,8 +1374,7 @@ class AnthropicAPI(ModelAPI):
             return head_message.model_dump(warnings="none"), tail_model_output
 
         # the last request of the chain reports the usage of all of them
-        head_model_output.usage = chain.usage
-        head_model_output.input_context_tokens = chain.input_context_tokens
+        chain.report(head_model_output)
 
         # NOTE: we do warnings="none" here because we are including beta API message
         # params (for MCP tool use/result) in the payload which causes Message to emit
