@@ -3,7 +3,6 @@
   "release-type": "python",
   "packages": {
     ".": {
-      "package-name": "inspect-ai",
       "include-component-in-tag": false,
       "include-v-in-tag": false,
       "bump-minor-pre-major": true,
