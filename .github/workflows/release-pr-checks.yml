@@ -11,7 +11,7 @@ name: Release PR checks
 #
 # Release Please pushes the release PR with GITHUB_TOKEN, which does not
 # trigger pull_request workflows, so release.yml dispatches this workflow
-# (and build.yml) on the release branch after each update. The pull_request
+# (with build.yml and changelog-lint.yml) on the release branch after each update. The pull_request
 # trigger covers pushes by people to that branch. On other PRs the jobs skip.
 on:
   pull_request:

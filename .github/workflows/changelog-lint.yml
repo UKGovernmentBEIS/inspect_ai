@@ -29,7 +29,8 @@ jobs:
           # The pull_request checkout is the merge commit, so depth 2 brings in
           # HEAD^1 (the base branch tip). A dispatched run diffs against its
           # merge base with main, which needs the history.
-          fetch-depth: ${{ github.event_name == 'workflow_dispatch' && 0 || 2 }}
+          # Quoted: 0 is falsy in expressions, so `&& 0 || 2` gives 2.
+          fetch-depth: ${{ github.event_name == 'workflow_dispatch' && '0' || '2' }}
           persist-credentials: false
 
       - name: Check CHANGELOG.md is not edited

@@ -46,22 +46,29 @@ Performance Improvements, `revert` under Reverts. Other types are hidden
 (`changelog-sections` in `.release-please-config.json`). Sections before
 0.3.279 were curated by hand and keep their format.
 
-Release Please also reads the commit body, which is the PR description (the
-squash merge default commit message setting is "Pull request title" and
-"Pull request description"):
+Release Please also reads the commit body. The repository's squash merge
+default commit message must be "Pull request title and description"
+(`squash_merge_commit_title=PR_TITLE`, `squash_merge_commit_message=PR_BODY`,
+as in `inspect_scout`), so the commit title is the linted PR title and the
+body is the PR description. With GitHub's default, a single-commit PR squashes
+to its commit message instead. With the setting:
 
-- a `BREAKING CHANGE:` paragraph is listed under "⚠ BREAKING CHANGES";
+- a `BREAKING CHANGE:` paragraph is listed under "⚠ BREAKING CHANGES"; it
+  runs to the next blank line, so it needs a blank line after it;
 - a paragraph that starts with a Conventional Commits header (`fix: ...`) adds
   an entry of its own;
 - `BEGIN_COMMIT_OVERRIDE` ... `END_COMMIT_OVERRIDE` in a merged PR's
   description replaces that commit's message, which is how an entry is
   reworded before the release. Release Please reads it when it next updates
-  the release PR.
+  the release PR. It matches the bare word anywhere in the description and
+  takes the text after it, so a description that only mentions it loses its
+  entry.
 
 PRs do not edit `CHANGELOG.md`: `changelog-lint.yml` (check
 `no-changelog-edits`) runs on every PR and fails one that changes the file,
 except the release PR (head branch `release-please--branches--main` in this
-repository, or a dispatched run on that branch). Edits made to the release
+repository, or a dispatched run on that branch). Its check is required on
+`main`. Edits made to the release
 PR's `CHANGELOG.md` are lost the next time Release Please updates the PR.
 
 ## Why everything runs in `release.yml`

@@ -708,6 +708,12 @@ def test_changelog_lint_runs_on_every_pr_and_on_dispatch() -> None:
     triggers = workflow[True]
     assert triggers["pull_request"] is None
     assert "workflow_dispatch" in triggers
+    # A dispatched run needs main's history for the merge base. 0 is falsy in
+    # expressions, so the depths must be quoted.
+    checkout = workflow["jobs"]["lint"]["steps"][0]
+    assert checkout["with"]["fetch-depth"] == (
+        "${{ github.event_name == 'workflow_dispatch' && '0' || '2' }}"
+    )
     # The required check's name: a fixed string, with no matrix or job `if`.
     job = workflow["jobs"]["lint"]
     assert job["name"] == "no-changelog-edits"
@@ -860,13 +866,13 @@ def test_release_please_config_invariants() -> None:
     assert re.fullmatch(r"\d+\.\d+\.\d+", manifest["."])
 
 
-def test_changelog_md_starts_with_the_title_and_the_latest_release() -> None:
+def test_changelog_md_starts_with_the_title_and_a_release_section() -> None:
     """Release Please inserts each release's section after the `# Changelog` line."""
-    manifest = json.loads((REPO / ".release-please-manifest.json").read_text())
     lines = (REPO / "CHANGELOG.md").read_text(encoding="utf-8").splitlines()
     assert lines[0] == "# Changelog"
     first_section = next(line for line in lines[1:] if line.strip())
-    assert re.match(rf"## \[?{re.escape(manifest['.'])}\b", first_section)
+    # Not necessarily the manifest version: a break-glass release adds none.
+    assert re.match(r"## \[?\d+\.\d+\.\d+\b", first_section)
 
 
 def test_release_workflow_passes_no_release_type() -> None:

@@ -270,7 +270,7 @@ When asked to open a PR, don't stop at creation — monitor it afterward: watch 
 
 Don't edit `CHANGELOG.md`; the Changelog Lint check (`no-changelog-edits`) fails any PR that does, except the release PR. Release Please writes the changelog and the GitHub Release notes at release time from the squash-merged PR titles: `feat`, `fix`, `perf` and `revert` titles become entries, and other types are left out. The PR title is therefore the changelog line, so keep it short (~25 words), state the user-visible behavior change, and leave out internal names and issue numbers (Release Please links the PR). The squash commit's message is the PR description, which Release Please also reads:
 
-- For a breaking change, use `feat!:` (or `fix!:`) and add a paragraph to the PR description starting with `BREAKING CHANGE:` that says what users must change.
+- For a breaking change, use `feat!:` (or `fix!:`) and add a paragraph to the PR description starting with `BREAKING CHANGE:` that says what users must change, followed by a blank line (the note runs to the next blank line).
 - A description paragraph that starts with a type and colon (e.g. `fix: ...`) adds its own changelog entry; indent it or put it in a code block.
 - To reword a merged PR's entry before the release, put `BEGIN_COMMIT_OVERRIDE`, the corrected title with ` (#NNN)` (the PR number) appended, and `END_COMMIT_OVERRIDE`, each on its own line, at the top of the merged PR's description. Edits to `CHANGELOG.md` in the release PR do not last: Release Please rewrites that PR on every push to `main`.
 
