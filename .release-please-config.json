@@ -7,8 +7,7 @@
       "include-v-in-tag": false,
       "bump-minor-pre-major": true,
       "bump-patch-for-minor-pre-major": true,
-      "skip-changelog": true,
-      "pull-request-header": "Merging this PR tags the release and starts the PyPI and npm publish jobs, each of which waits for environment approval. The GitHub Release notes are this version's CHANGELOG.md section; the commit list below is for reference only.",
+      "pull-request-header": "Merging this PR tags the release and starts the PyPI and npm publish jobs, each of which waits for environment approval. The notes below become this version's CHANGELOG.md section and its GitHub Release notes.",
       "changelog-sections": [
         {
           "type": "feat",
