@@ -784,13 +784,13 @@ async def bridge_generate(
             model_input=None if generated_by_filter else input_messages,
         )
         if reviewed.rejection is None:
-            granted = bridge._register_tool_execution_grants(
+            bridge._register_tool_execution_grants(
                 reviewed.output.message.tool_calls or [],
                 declarations,
                 reviewed.sentinel,
             )
             if reviewed.sentinel is not None:
-                track_sentinel_calls(bridge, reviewed.sentinel, granted)
+                track_sentinel_calls(bridge, reviewed.sentinel)
             return reviewed.output, c_message
 
         rejections += 1

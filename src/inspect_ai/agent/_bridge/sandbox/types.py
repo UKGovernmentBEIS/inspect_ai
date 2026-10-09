@@ -153,10 +153,9 @@ class SandboxAgentBridge(AgentBridge):
         calls: Sequence[ToolCall],
         tools: Sequence[ToolInfo | Tool],
         checks: Sequence["SentinelCheck"] | None,
-    ) -> list[bool]:
+    ) -> None:
         # a call's sentinel check is held with each of its grants, so an evicted
         # grant takes the check with it and the call is denied
-        granted: list[bool] = []
         declared: dict[str, list[ToolInfo]] = {}
         for tool in tools:
             if isinstance(tool, ToolInfo):
@@ -166,7 +165,6 @@ class SandboxAgentBridge(AgentBridge):
                 self.bridged_tools, self.served_tools, call, declared
             )
             check = checks[index] if checks is not None else None
-            granted.append(False)
             if len(targets) > 1:
                 warn_once(
                     logger,
@@ -197,8 +195,6 @@ class SandboxAgentBridge(AgentBridge):
                         check=check,
                     )
                 )
-                granted[index] = True
-        return granted
 
     def warn_indistinct_tools(self) -> None:
         """Warn the eval author about bridged tools a proposal cannot single out.

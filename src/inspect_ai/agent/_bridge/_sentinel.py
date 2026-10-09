@@ -4,7 +4,6 @@ from functools import partial
 from itertools import count
 from logging import getLogger
 from typing import TYPE_CHECKING, Awaitable, Callable, NamedTuple, Sequence, TypeVar
-from weakref import WeakKeyDictionary
 
 import anyio
 from pydantic_core import to_jsonable_python
@@ -53,11 +52,6 @@ class SentinelCheck(NamedTuple):
     history: list[ChatMessage]
 
 
-class _Proposal(NamedTuple):
-    check: SentinelCheck
-    host: bool
-
-
 class _Result(NamedTuple):
     key: str
     check: SentinelCheck
@@ -85,20 +79,25 @@ class _ResultChecks:
 
     A check takes its context from the call's proposal, found by id or, for a
     dialect that mints new ids (like Google), by function and arguments. With
-    no proposal (e.g. one dropped beyond the cap), the result is checked with
-    what the request carries. Results of host calls are checked when the call
-    executes, not here.
+    no proposal (e.g. one dropped beyond the cap, or a result without an id),
+    the result is checked with what the request carries.
+
+    A host call's result is checked when the call executes, and that result,
+    as delivered, is recorded as checked; any other content the scaffold
+    reports for the call is checked here like a scaffold-run call's.
+
+    Held by its bridge, since a failure's traceback references the bridge.
     """
 
     def __init__(self) -> None:
-        self.proposals: OrderedDict[int, _Proposal] = OrderedDict()
+        self.proposals: OrderedDict[int, SentinelCheck] = OrderedDict()
         self.checked: set[str] = set()
         self.running: dict[str, anyio.Event] = {}
         self.failed: dict[str, Exception] = {}
         self._sequence = count()
 
-    def add(self, check: SentinelCheck, host: bool) -> None:
-        self.proposals[next(self._sequence)] = _Proposal(check, host)
+    def add(self, check: SentinelCheck) -> None:
+        self.proposals[next(self._sequence)] = check
         while len(self.proposals) > _MAX_PROPOSALS:
             self.proposals.popitem(last=False)
             warn_once(
@@ -121,18 +120,18 @@ class _ResultChecks:
                 for call in message.tool_calls or []:
                     calls[call.id] = _Call(call, message.text, index)
                     unanswered.setdefault(call.id, []).append(calls[call.id])
-            elif isinstance(message, ChatMessageTool) and message.tool_call_id:
-                result_id = message.tool_call_id
+            elif isinstance(message, ChatMessageTool):
+                result_id = message.tool_call_id or ""
                 found = (
                     unanswered[result_id].pop(0)
                     if unanswered.get(result_id)
                     else calls.get(result_id)
                 )
-                proposal: _Proposal | None = None
+                proposal: SentinelCheck | None = None
                 if found is None:
-                    proposal = self._proposal(result_id, None)
+                    proposal = self._proposal(result_id, None) if result_id else None
                     call = (
-                        proposal.check.handed
+                        proposal.handed
                         if proposal is not None
                         else ToolCall(
                             id=result_id, function=message.function or "", arguments={}
@@ -150,11 +149,8 @@ class _ResultChecks:
                     continue
                 if found is not None:
                     proposal = self._proposal(result_id, call)
-                if proposal is not None and proposal.host:
-                    self.checked.add(key)
-                    continue
                 if proposal is not None:
-                    check = proposal.check
+                    check = proposal
                 else:
                     context = input[: found.position if found else index]
                     check = SentinelCheck(
@@ -166,11 +162,11 @@ class _ResultChecks:
             self.running[result.key] = anyio.Event()
         return claimed
 
-    async def check(self, bridge: AgentBridge, result: _Result) -> None:
+    async def check(
+        self, bridge: AgentBridge, result: _Result, output: ToolResult
+    ) -> None:
         try:
-            await _tool_result(
-                bridge, result.check, result.message, _output(result.message)
-            )
+            await _tool_result(bridge, result.check, result.message, output)
         except Exception as ex:
             self.failed[result.key] = ex
             raise
@@ -181,15 +177,15 @@ class _ResultChecks:
         # carrying its result
         self.running.pop(result.key).set()
 
-    def _proposal(self, result_id: str, call: ToolCall | None) -> _Proposal | None:
+    def _proposal(self, result_id: str, call: ToolCall | None) -> SentinelCheck | None:
         # newest first; a known call needs a proposal of the same call, and
         # prefers one with its id
         proposals = list(reversed(self.proposals.values()))
         if call is None:
-            return next((p for p in proposals if p.check.handed.id == result_id), None)
-        same = [p for p in proposals if _same_call(p.check.handed, call)]
+            return next((p for p in proposals if p.handed.id == result_id), None)
+        same = [p for p in proposals if _same_call(p.handed, call)]
         return next(
-            (p for p in same if p.check.handed.id == result_id),
+            (p for p in same if p.handed.id == result_id),
             same[0] if same else None,
         )
 
@@ -201,6 +197,13 @@ def _same_call(handed: ToolCall, call: ToolCall) -> bool:
 
 
 def _result_key(result: ChatMessageTool, call: ToolCall) -> str:
+    # text is keyed as the content it stands for, as a dialect may report it
+    # either way
+    content = (
+        [ContentText(text=result.content)]
+        if isinstance(result.content, str)
+        else result.content
+    )
     return mm3_hash(
         json.dumps(
             to_jsonable_python(
@@ -208,7 +211,7 @@ def _result_key(result: ChatMessageTool, call: ToolCall) -> str:
                     call.id,
                     call.function,
                     call.arguments,
-                    result.content,
+                    content,
                     result.error,
                 ],
                 fallback=str,
@@ -218,7 +221,10 @@ def _result_key(result: ChatMessageTool, call: ToolCall) -> str:
     )
 
 
-_result_checks: "WeakKeyDictionary[AgentBridge, _ResultChecks]" = WeakKeyDictionary()
+def _result_checks(bridge: AgentBridge) -> _ResultChecks:
+    if bridge._sentinel_results is None:
+        bridge._sentinel_results = _ResultChecks()
+    return bridge._sentinel_results
 
 
 async def sentinel_tool_call(
@@ -247,12 +253,10 @@ def sentinel_model_input(
     return _model_input((message.tool_calls or [])[0], history)
 
 
-def track_sentinel_calls(
-    bridge: AgentBridge, checks: Sequence[SentinelCheck], granted: Sequence[bool]
-) -> None:
-    result_checks = _result_checks.setdefault(bridge, _ResultChecks())
-    for check, host in zip(checks, granted):
-        result_checks.add(check, host)
+def track_sentinel_calls(bridge: AgentBridge, checks: Sequence[SentinelCheck]) -> None:
+    result_checks = _result_checks(bridge)
+    for check in checks:
+        result_checks.add(check)
 
 
 async def sentinel_host_tool_result(
@@ -268,20 +272,27 @@ async def sentinel_host_tool_result(
         function=check.call.function,
         error=error,
     )
-    await _tool_result(bridge, check, result, output)
+    await _result_checks(bridge).check(
+        bridge, _Result(_result_key(result, check.handed), check, result), output
+    )
 
 
 async def sentinel_tool_results(bridge: AgentBridge, input: list[ChatMessage]) -> None:
     if active_sentinel() is None:
         return
-    result_checks = _result_checks.setdefault(bridge, _ResultChecks())
+    result_checks = _result_checks(bridge)
     while True:
         claimed = result_checks.claim(input)
         if claimed.owned:
             try:
                 await tg_collect(
                     [
-                        partial(result_checks.check, bridge, result)
+                        partial(
+                            result_checks.check,
+                            bridge,
+                            result,
+                            _output(result.message),
+                        )
                         for result in claimed.owned
                     ]
                 )

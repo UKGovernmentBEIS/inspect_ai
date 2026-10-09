@@ -214,8 +214,20 @@ def _mcp_tool_content_block(content: JsonValue) -> JsonValue:
             }
         case {"type": "image", "image": str() as image}:
             return {"type": "text", "text": image}
+        case {"type": "text", "text": str() as text}:
+            return {"type": "text", "text": text}
         case _:
             return content
+
+
+def _mcp_delivered_content(block: JsonValue) -> Content:
+    match block:
+        case {"type": "image", "data": str() as data, "mimeType": str() as mime}:
+            return ContentImage(image=f"data:{mime};base64,{data}")
+        case {"type": "text", "text": str() as text}:
+            return ContentText(text=text)
+        case _:
+            raise ValueError(f"Unexpected MCP tool result content: {block}")
 
 
 def _mcp_tool_result_content(
@@ -262,9 +274,10 @@ def call_tool(
 
     A call that executes against a grant goes through the sentinel's
     `tool_result` stage before its result, or a model-facing error raised once
-    the tool began executing, is returned to the scaffold. The check sees such
-    an error as the scaffold receives it: the service's error text, with the
-    type the native path gives it. As on the native path, an argument
+    the tool began executing, is returned to the scaffold. The check sees the
+    result as the scaffold receives it (the serialized text, or the text and
+    images of the MCP content), and an error as the service's error text, with
+    the type the native path gives it. As on the native path, an argument
     validation error has no `tool_result` stage, and neither does a bare
     `LimitExceededError`, which ends the sample.
     """
@@ -341,8 +354,8 @@ def call_tool(
             if check is not None:
                 await sentinel_host_tool_result(bridge, check, text, result)
             return text
-        if check is not None:
-            await sentinel_host_tool_result(bridge, check, list(contents), result)
+        delivered: JsonValue
+        checked: str | list[Content]
         if isinstance(result, ContentImage) or (
             isinstance(result, list)
             and all(
@@ -350,7 +363,13 @@ def call_tool(
             )
             and any(isinstance(content, ContentImage) for content in result)
         ):
-            return _mcp_tool_result_content(result)
-        return to_json_str_safe(result)
+            blocks = _mcp_tool_result_content(result)
+            delivered = blocks
+            checked = [_mcp_delivered_content(block) for block in blocks]
+        else:
+            delivered = checked = to_json_str_safe(result)
+        if check is not None:
+            await sentinel_host_tool_result(bridge, check, checked, result)
+        return delivered
 
     return execute

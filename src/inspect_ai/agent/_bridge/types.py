@@ -37,7 +37,7 @@ if TYPE_CHECKING:
     # `model/_call_tools.py` defers it.
     from inspect_ai.approval._policy import ApprovalPolicy
 
-    from ._sentinel import SentinelCheck
+    from ._sentinel import SentinelCheck, _ResultChecks
 
 
 class DispatchedCall(NamedTuple):
@@ -145,6 +145,7 @@ class AgentBridge:
         self._pending_operator = 0
         self._operator_keys: set[str] = set()
         self._warned_request_settings: set[str] = set()
+        self._sentinel_results: "_ResultChecks | None" = None
 
     state: AgentState
     """State updated from messages traveling over the bridge."""
@@ -267,11 +268,9 @@ class AgentBridge:
         calls: Sequence[ToolCall],
         tools: Sequence[ToolInfo | Tool],
         checks: Sequence["SentinelCheck"] | None,
-    ) -> list[bool]:
-        # whether each call was granted host execution, its sentinel check (if
-        # any) then held with its grants
+    ) -> None:
+        # a sandbox bridge holds each call's sentinel check (if any) with its grants
         self.register_tool_execution_grants(calls, tools)
-        return [False] * len(calls)
 
     def dispatched_call(self, call: ToolCall) -> DispatchedCall | None:
         """The bridged tool call that `call` makes through a dispatcher, if any.
