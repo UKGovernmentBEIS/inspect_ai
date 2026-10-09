@@ -17,6 +17,7 @@ from boto3.s3.transfer import TransferConfig
 from botocore.exceptions import ClientError, ResponseStreamingError
 from test_helpers.utils import skip_if_trio
 
+from inspect_ai._util import asyncfiles
 from inspect_ai._util._async import current_async_backend, run_coroutine, tg_collect
 from inspect_ai._util.asyncfiles import (
     AsyncFilesystem,
@@ -475,6 +476,101 @@ async def test_local_read_file_bytes_fully_empty_range():
             assert result == b""
     finally:
         Path(temp_path).unlink()
+
+
+@pytest.mark.parametrize("as_uri", [False, True])
+async def test_local_read_file_bytes_fully_one_thread_call(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, as_uri: bool
+) -> None:
+    """A local range read is a single worker-thread call, bounded or open-ended."""
+    data = b"0123456789" * 1000
+    path = tmp_path / "data file.bin"
+    path.write_bytes(data)
+    filename = path.as_uri() if as_uri else str(path)
+    calls = 0
+    real_run_sync = anyio.to_thread.run_sync
+
+    async def counting_run_sync(
+        func: Callable[..., Any], *args: Any, **kwargs: Any
+    ) -> Any:
+        nonlocal calls
+        calls += 1
+        return await real_run_sync(func, *args, **kwargs)
+
+    monkeypatch.setattr(anyio.to_thread, "run_sync", counting_run_sync)
+
+    async with AsyncFilesystem() as fs:
+        assert await fs.read_file_bytes_fully(filename, 100, 500) == data[100:500]
+        assert calls == 1
+        assert await fs.read_file_bytes_fully(filename, 9990, None) == b"0123456789"
+        assert calls == 2
+        with pytest.raises(FileNotFoundError):
+            await fs.read_file_bytes_fully(str(tmp_path / "missing"), 0, 10)
+
+
+async def test_local_read_file_bytes_fully_cancellation_closes_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Cancelling a local read stops it between chunks and closes the file."""
+    path = tmp_path / "data.bin"
+    path.write_bytes(b"x" * 4096)
+    monkeypatch.setattr(asyncfiles, "_READ_FULLY_CHUNK_SIZE", 1024)
+    reading = anyio.Event()
+    release = threading.Event()
+    opened: list[io.BufferedReader] = []
+    reads = 0
+    cancelled = False
+
+    class BlockingFile:
+        def __init__(self, f: io.BufferedReader) -> None:
+            self.f = f
+            opened.append(f)
+
+        def __enter__(self) -> "BlockingFile":
+            return self
+
+        def __exit__(self, *exc: object) -> None:
+            self.f.close()
+
+        def seek(self, pos: int) -> int:
+            return self.f.seek(pos)
+
+        def read(self, size: int) -> bytes:
+            nonlocal reads
+            reads += 1
+            anyio.from_thread.run_sync(reading.set)
+            assert release.wait(timeout=10)
+            return self.f.read(size)
+
+    monkeypatch.setattr(
+        asyncfiles,
+        "open",
+        lambda file, mode: BlockingFile(cast(io.BufferedReader, open(file, mode))),
+        raising=False,
+    )
+
+    async with AsyncFilesystem() as fs:
+
+        async def read() -> None:
+            nonlocal cancelled
+            try:
+                await fs.read_file_bytes_fully(str(path), 0, None)
+            except anyio.get_cancelled_exc_class():
+                cancelled = True
+                raise
+
+        async with anyio.create_task_group() as group:
+            group.start_soon(read)
+            try:
+                with anyio.fail_after(10):
+                    await reading.wait()
+                group.cancel_scope.cancel()
+            finally:
+                release.set()
+
+    assert cancelled
+    assert reads == 1
+    assert opened[0].closed
 
 
 async def test_local_read_file_bytes_fully_large_file():
