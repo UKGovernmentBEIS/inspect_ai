@@ -15,6 +15,8 @@
 > ancillary directories, so a log nested there is listed as an ordinary
 > log, as `eval_set()` lists it (decision: Ransom, 2026-10-05; see
 > "Walking the directory").
+> Revised on 2026-10-09: a shard set with no merged log takes the
+> `task_id` the merge will stamp, from the shared `merged_log_task_id`.
 
 ## Why
 
@@ -269,7 +271,9 @@ inventory" below.
 The merged log is `<dir>/<name>.eval`; its shards are the `.eval` files
 under `<dir>/<name>.shards/<k>/`, each with its own `.buffer` beside it.
 `<name>` has the `{created}_{task}_{id}` shape, and `{id}` becomes the
-merged log's `task_id`. Shards keep their own `task_id`s. Several files in
+merged log's `task_id` (under a custom file name pattern from which the id
+cannot be read back, an id derived from `<name>`; the shared
+`merged_log_task_id` computes either). Shards keep their own `task_id`s. Several files in
 one `<k>/` are attempts of the same shard and the newest is current. The
 merged log may lag the shards: it exists only after a merge, which runs when
 the launcher calls it or at the next `eval_set()` startup. Shards are
@@ -515,9 +519,13 @@ helper rather than re-implementing the rule).
 - Its merged log is the `.eval` in the companion's parent directory whose
   `log_basename` is `X`: `X.eval` or `X-recovered.eval`, the newest when
   both exist. It does not get a row of its own.
-- The shard set is one attempt of the logical task identified by `{id}`
-  parsed from `X` (the merged log's `task_id`), or by `X` itself when the
-  name does not parse.
+- The shard set is one attempt of the logical task identified by the
+  merged log's `eval.task_id` when the merged log exists, and otherwise by
+  `merged_log_task_id(X, task=, model=)` with the first shard's `task` and
+  `model` (`src/inspect_ai/_util/log_layout.py`, shared with the merge,
+  which stamps the same id at its first merge; sharding implementation,
+  "The merged log's `task_id`"): `{id}` parsed from `X` when `X` rebuilds
+  from it under the file name pattern, else an id derived from `X`.
 
 **Unsharded logs.** Every other `.eval` file is an attempt of the logical
 task identified by its `task_id` (from the header, or parsed from the file
@@ -527,7 +535,7 @@ them, as live `/tasks` folds attempts by `task_id`
 (`current_eval_summaries`, `state.py:190-204`).
 
 **A sharded run and an ordinary retry of it.** An unsharded log whose
-`task_id` equals a shard set's `{id}` is an `eval_set()` retry seeded from
+`task_id` equals a shard set's task id is an `eval_set()` retry seeded from
 the merged log (only that path gives an unsharded log the merged log's
 `task_id`; shards keep their own). Both fold into one logical task, and the
 unsharded log is current whatever the mtimes, following the parent's rule
@@ -1448,7 +1456,9 @@ Each step is one PR; steps 1–5 are the MVP.
    `select.py`, `consistency.py`, `samples.py`, `snapshot.py`, tests.
 4. **Shard aggregation.** The `<name>.shards/` walk rules through the
    shared `list_shard_set`, `attempt_sort_key` and `is_shard_path`
-   (sharding implementation PR 3), replacing `_attempt_order`; the
+   (sharding implementation PR 3, landed as UKGovernmentBEIS/inspect_ai#5622),
+   replacing `_attempt_order`, and the shared `merged_log_task_id` (added
+   here if the sharding merge has not landed it yet); the
    `unlisted_dirs` field added to the shared walk and the descent into
    those directories with nested companions ordinary; stray files in
    `unreadable`; logical sharded

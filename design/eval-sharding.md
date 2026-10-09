@@ -182,7 +182,9 @@ and skips no directory; it sees full paths but not the listed root. The
   so the shards are two separate entries, never compared or cleaned against
   each other;
   with `retry_cleanup=True` (the default) it deletes every non-`started` log
-  sharing a `task_id` except the newest (`evalset.py:1962-1975`).
+  sharing a `task_id` except the newest (`evalset.py:1962-1975`; since
+  UKGovernmentBEIS/inspect_ai#5396 also an older `started` log that the
+  same process ran).
 - `log_samples_complete` (`evalset.py:1837`) compares counts, not ids. With
   no selector, planned 6 ≠ 3 for both shards, so both are incomplete;
   `as_previous_tasks` pairs the task with the *first* log carrying its
@@ -283,8 +285,10 @@ Copying a shard out of its directory makes it an ordinary partial log.
   the file name as it does today (`_file.py:1178-1250`): `{created}` is the
   launcher's mint time, `{task}` the task's display name, and `{id}` a
   freshly minted task id that the merge stamps as the merged log's
-  `eval.task_id`, so file name and header agree; it is unrelated to the
-  shards' own `task_id`s. The merged log's `eval_id` is minted at the first
+  `eval.task_id`, so file name and header agree (under a custom pattern
+  from which the id cannot be read back, the merge derives the `task_id`
+  from `<name>` instead; implementation plan, "The merged log's
+  `task_id`"); it is unrelated to the shards' own `task_id`s. The merged log's `eval_id` is minted at the first
   merge and preserved by later passes, so incremental merges present as one
   log to `evals_df` and the viewer. The name-building logic in
   `FileRecorder._log_file_key` takes an `EvalSpec`; the launcher has none
@@ -581,8 +585,12 @@ recorded (decision: Ransom, 2026-09-29): nothing reads them, the companion
 is derived from the merged log's name, and a recorded location goes stale
 when the log moves. The merged log's
 own `samples/` members are the set of merged `(id, epoch)` samples. With
-this, a fully merged `success` shard is skipped without opening it, a grown
-shard is re-read only for the members the merged log lacks, and the ledger
+this, a fully merged `success` shard is skipped without opening it, a
+changed shard (one that grew, or has a newer attempt) has all its records
+in the merged log replaced by every record its current attempt holds,
+while unchanged shards' records are carried from the merged log (until the
+raw-copy CRC shortcut, the changed shard's members are all read; see the
+implementation plan's "The sample set"), and the ledger
 travels with the log, and the merged log stays the whole truth for
 `<name>`. Deleting a merged log deletes its companion `<name>.shards/` with
 it (decision: Ransom, 2026-09-22): a merged log with no shards is complete
@@ -672,9 +680,12 @@ default, and also the way to clear the extra rows once a run is done,
 because it is the one choice that cannot
 be undone after a bad merge (Ransom, 2026-09-18, restated under the companion
 layout). This is the second difference from checkpoints, whose retention
-default is to delete the companion on success (`retention:
-Literal["delete", "retain"] = "delete"`, `util/_checkpoint/config.py:233`);
-shards flip the default because re-merge after a merge bug and adding shards later
+default is documented as deleting the companion on success (`retention:
+Literal["delete", "retain"] = "delete"`, `util/_checkpoint/config.py:233`;
+not implemented on `main` as of 2026-10-09, meridianlabs-ai/inspect_ai#582,
+so checkpoint companions currently stay, and shard deletion leaves them in
+place, see the implementation plan's "Deleting shards"); shards flip the
+default because re-merge after a merge bug and adding shards later
 both need the shards to still exist. When the merged log itself is deleted,
 the shards go with it (see "Provenance and ledger"). No move is needed. For reference, an
 S3 move would be a server-side copy plus a delete, one API round trip per
