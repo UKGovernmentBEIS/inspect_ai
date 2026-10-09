@@ -29,3 +29,19 @@ def test_import_does_not_load_acp(module: str) -> None:
     assert result.stdout.strip() == "[]", (
         f"`import {module}` eagerly loaded the acp package: {result.stdout.strip()}"
     )
+
+
+@pytest.mark.parametrize("module", ["inspect_ai", "inspect_ai._cli.main"])
+def test_import_does_not_load_inspect_sentinel(module: str) -> None:
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            f"import {module}, sys; "
+            "print(sorted(m for m in sys.modules if m.startswith('inspect_sentinel')))",
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    assert result.stdout.strip() == "[]", result.stdout.strip()
