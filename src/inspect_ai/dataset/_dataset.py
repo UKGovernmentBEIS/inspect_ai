@@ -40,6 +40,8 @@ class Sample(BaseModel):
         files: dict[str, str] | None = None,
         setup: str | None = None,
         checkpoint: CheckpointSampleConfig | None = None,
+        *,
+        description: str | None = None,
     ) -> None:
         r"""Create a Sample.
 
@@ -50,6 +52,8 @@ class Sample(BaseModel):
             target: Optional. Ideal target output. May be a literal value
                 or narrative text to be used by a model grader.
             id: Optional. Unique identifier for sample.
+            description: Optional. Short statement of what the sample asks
+                of the agent (recorded in the eval log).
             metadata: Optional. Arbitrary metadata associated with the sample.
             sandbox: Optional. Sandbox specification for this sample.
             files: Optional. Files that go along with the sample (copied to
@@ -66,6 +70,7 @@ class Sample(BaseModel):
             choices=choices,
             target=target,
             id=id,
+            description=description,
             metadata=metadata,
             sandbox=resolve_sandbox_environment(sandbox),
             files=files,
@@ -84,6 +89,9 @@ class Sample(BaseModel):
 
     id: int | str | None = Field(default=None)
     """Unique identifier for sample."""
+
+    description: str | None = Field(default=None)
+    """Short statement of what the sample asks of the agent."""
 
     metadata: dict[str, Any] | None = Field(default=None)
     """Arbitrary metadata associated with the sample."""
@@ -247,6 +255,9 @@ class FieldSpec:
 
     setup: str = field(default="setup")
     """Setup script to run for sample (run within default SandboxEnvironment)."""
+
+    description: str | None = field(default=None, kw_only=True)
+    """Name of the field containing a short statement of what the sample asks of the agent (not read unless specified)."""
 
 
 RecordToSample = Callable[[DatasetRecord], Sample | list[Sample]]
