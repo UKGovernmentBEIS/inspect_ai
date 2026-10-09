@@ -4097,12 +4097,10 @@ class _AssistantInternal:
     Replayed as the `container` request param when a turn left code
     execution pending (see `_pending_container_for_input`).
 
-    Unlike `server_tool_span_index`, there is no fallback for message ids
-    rewritten by the agent bridge: a pending span has produced no content,
-    so no bridge-surviving key exists to index by. Pending-work resumption
-    therefore does not survive a bridge id rewrite (the bridge does not
-    carry server tool state in general -- its anthropic impl handles
-    neither `server_tool_use` blocks nor the `container` param)."""
+    A pending span has produced no content, so no bridge-surviving key
+    exists to index by: the agent bridge instead copies a resent turn's
+    pending spans and container to its new message id (see
+    `resume_pending_server_tool_work`)."""
 
 
 def assistant_internal() -> _AssistantInternal:
@@ -4284,6 +4282,46 @@ def merge_server_tool_spans(head_id: str | None, tail_id: str | None) -> None:
         # the tail response's own container (the same container, re-reported)
         # wins if present
         internal.containers.setdefault(tail_id, head_container)
+
+
+def resume_pending_server_tool_work(
+    message_id: str | None, blocks: Iterable[Any]
+) -> None:
+    """Record a resent turn's pending server tool work under its new message id.
+
+    A turn can end with a server tool call still running (a turn paused at
+    `MAX_PAUSE_TURN_CONTINUATIONS`, or a client tool call that cut it short).
+    The call has no content item, so its span and container are found only
+    under the id of the message that recorded them. The agent bridge parses
+    the turn its client sends back into a message with a new id; this records
+    the pending spans and the container under that id, so replay sends the
+    use block and the request names the container.
+
+    Args:
+       message_id: Id of the message parsed from `blocks`.
+       blocks: The assistant turn's content blocks (dicts or SDK blocks).
+    """
+    block_dicts = [
+        cast("dict[str, Any]", b if isinstance(b, dict) else b.model_dump())
+        for b in blocks
+    ]
+    use_ids = {b.get("id") for b in block_dicts if b.get("type") == "server_tool_use"}
+    pending_ids = use_ids - {b.get("tool_use_id") for b in block_dicts}
+    internal = assistant_internal()
+    if (
+        message_id is None
+        or not pending_ids
+        or message_id in internal.server_tool_spans
+    ):
+        return
+    for source_id, spans in list(internal.server_tool_spans.items()):
+        pending = [span for span in spans if span.open_use_ids & pending_ids]
+        if pending:
+            internal.server_tool_spans[message_id] = pending
+            container = internal.containers.get(source_id)
+            if container is not None:
+                internal.containers[message_id] = container
+            return
 
 
 def _prior_turn_server_tool_use(tool_use_id: str) -> BetaServerToolUseBlock | None:

@@ -569,19 +569,14 @@ async def test_bridge_pause_turn_replay_continues_the_turn(
     assert outputs[-1].input_context_tokens == 110 * (requests + 1)
 
 
+@pytest.mark.parametrize("beta", [False, True])
 @pytest.mark.anyio
 async def test_bridge_pause_turn_at_bound_keeps_pending_server_tool_call(
-    monkeypatch: pytest.MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch, beta: bool
 ) -> None:
-    """A server tool call still running at the bound survives the resumed turn."""
-    from anthropic.types import (
-        Message,
-        ServerToolUseBlock,
-        TextBlock,
-        Usage,
-        WebSearchToolResultBlock,
-        WebSearchToolResultError,
-    )
+    """A server tool call still running at the bound is resumed by the resent turn."""
+    from anthropic._models import construct_type
+    from anthropic.types import Message
 
     import inspect_ai.model._providers.anthropic as anthropic_provider
     from inspect_ai.model._providers.anthropic import (
@@ -591,45 +586,52 @@ async def test_bridge_pause_turn_at_bound_keeps_pending_server_tool_call(
     init_sample_anthropic_assistant_internal()
     monkeypatch.setattr(anthropic_provider, "MAX_PAUSE_TURN_CONTINUATIONS", 1)
 
-    pending = Message(
-        id="msg_pending",
-        type="message",
-        role="assistant",
-        model="claude-sonnet-4-6",
+    def message(id: str, content: list[dict[str, Any]], **fields: Any) -> Message:
+        data = {
+            "id": id,
+            "type": "message",
+            "role": "assistant",
+            "model": "claude-sonnet-4-6",
+            "content": content,
+            "usage": {"input_tokens": 20, "output_tokens": 2},
+        } | fields
+        return cast(Message, construct_type(value=data, type_=Message))
+
+    # the call runs in a code execution container (e.g. dynamic filtering)
+    pending = message(
+        "msg_pending",
+        [
+            {"type": "text", "text": "searching again"},
+            {
+                "type": "server_tool_use",
+                "id": "srvtoolu_pending",
+                "name": "web_search",
+                "input": {"query": "still running"},
+                "caller": {"type": "direct"},
+            },
+        ],
         stop_reason="pause_turn",
-        content=[
-            TextBlock(type="text", text="searching again"),
-            ServerToolUseBlock(
-                id="srvtoolu_pending",
-                type="server_tool_use",
-                name="web_search",
-                input={"query": "still running"},
-            ),
-        ],
-        usage=Usage(input_tokens=20, output_tokens=2),
+        container={"id": "cntr_pending", "expires_at": "2026-12-01T00:00:00Z"},
     )
-    resumed = Message(
-        id="msg_resumed",
-        type="message",
-        role="assistant",
-        model="claude-sonnet-4-6",
-        stop_reason="end_turn",
-        content=[
-            WebSearchToolResultBlock(
-                type="web_search_tool_result",
-                tool_use_id="srvtoolu_pending",
-                content=WebSearchToolResultError(
-                    type="web_search_tool_result_error", error_code="unavailable"
-                ),
-            ),
-            TextBlock(type="text", text="done"),
+    resumed = message(
+        "msg_resumed",
+        [
+            {
+                "type": "web_search_tool_result",
+                "tool_use_id": "srvtoolu_pending",
+                "content": {
+                    "type": "web_search_tool_result_error",
+                    "error_code": "unavailable",
+                },
+            },
+            {"type": "text", "text": "done"},
         ],
-        usage=Usage(input_tokens=30, output_tokens=3),
+        stop_reason="end_turn",
     )
     bridge, create, outputs = _anthropic_bridge([_paused_head(1), pending, resumed])
     user = {"role": "user", "content": "search"}
 
-    paused = await _bridge_request(monkeypatch, bridge, outputs, [user], False)
+    paused = await _bridge_request(monkeypatch, bridge, outputs, [user], beta)
 
     assert create.await_count == 2
     assert paused.stop_reason == "pause_turn"
@@ -642,23 +644,33 @@ async def test_bridge_pause_turn_at_bound_keeps_pending_server_tool_call(
     ]
     assert paused.content[-1].id == "srvtoolu_pending"
 
-    # the client resends the paused turn, and the response that completes the
-    # pending call parses (its use block is found in the paused turn's span)
+    # the client resends the paused turn: the resumed request carries the
+    # pending call and names its container
     partial = {
         "role": "assistant",
         "content": [block.model_dump(exclude_none=True) for block in paused.content],
     }
-    message = await _bridge_request(
-        monkeypatch, bridge, outputs, [user, partial], False
+    message_out = await _bridge_request(
+        monkeypatch, bridge, outputs, [user, partial], beta
     )
 
     assert create.await_count == 3
-    assert message.stop_reason == "end_turn"
-    assert [block.type for block in message.content] == [
+    resumed_request = create.call_args.kwargs
+    sent_blocks = [
+        block if isinstance(block, dict) else block.model_dump()
+        for block in resumed_request["messages"][-1]["content"]
+    ]
+    assert [b["id"] for b in sent_blocks if b["type"] == "server_tool_use"] == [
+        "srvtoolu_1",
+        "srvtoolu_pending",
+    ]
+    assert resumed_request.get("container") == "cntr_pending"
+    assert message_out.stop_reason == "end_turn"
+    assert [block.type for block in message_out.content] == [
         "web_search_tool_result",
         "text",
     ]
-    assert message.content[0].tool_use_id == "srvtoolu_pending"
+    assert message_out.content[0].tool_use_id == "srvtoolu_pending"
 
 
 def test_anthropic_stop_reason_pause_turn_only_from_stop_details() -> None:

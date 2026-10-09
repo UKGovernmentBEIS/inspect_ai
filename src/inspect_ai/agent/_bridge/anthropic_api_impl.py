@@ -61,6 +61,7 @@ from inspect_ai.model._providers.anthropic import (
     is_tool_param,
     is_web_fetch_tool,
     is_web_search_tool,
+    resume_pending_server_tool_work,
 )
 from inspect_ai.tool._mcp._config import MCPServerConfigHTTP
 from inspect_ai.tool._tool import Tool
@@ -185,6 +186,16 @@ async def inspect_anthropic_api_request_impl(
 
     # try to maintain id stability
     apply_message_ids(bridge, messages)
+
+    # the new ids lose a resent turn's pending server tool work (e.g. a turn
+    # paused at the continuation limit), which the provider keyed by its own
+    # message id. messages_from_anthropic_input makes one assistant message
+    # per assistant param.
+    assistant_params = [param for param in input if param["role"] == "assistant"]
+    assistant_messages = [m for m in messages if isinstance(m, ChatMessageAssistant)]
+    for param, assistant in zip(assistant_params, assistant_messages, strict=True):
+        if not isinstance(param["content"], str):
+            resume_pending_server_tool_work(assistant.id, param["content"])
 
     # give inspect-level config priority over agent default config
     config = resolve_generate_config(model, config)
