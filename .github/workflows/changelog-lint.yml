@@ -6,7 +6,9 @@
 #   itself, e.g. the first entry after a release).
 # - Edits to already-released entries (hunks that also delete lines), so typo
 #   fixes in old sections are fine.
-# - Release-prep changes that rename '## Unreleased' to a version header.
+# - Release-prep changes that rename '## Unreleased' to a version header,
+#   including the Release workflow's form, which adds the version header below
+#   a new empty '## Unreleased' (.github/scripts/release_changelog.py).
 #
 # What fails:
 # - New entries added under an already-released version header (a common slip
@@ -78,9 +80,16 @@ jobs:
           UNREL = re.compile(r"^##\s+Unreleased\s*$", re.IGNORECASE)
           VERSION = re.compile(r"^##\s+v?\d")
 
-          # Release-prep carve-out: '## Unreleased' renamed to a version header.
-          if any(UNREL.match(t) for t in deleted_all) and any(
-              VERSION.match(t) for _, t in added_all
+          # Release-prep carve-out: '## Unreleased' renamed to a version header,
+          # or (as the diff of release_changelog.py prepare usually shows) only
+          # headers and blank lines added, one of them a version header.
+          added_text = [t for _, t in added_all]
+          if any(VERSION.match(t) for t in added_text) and (
+              any(UNREL.match(t) for t in deleted_all)
+              or (
+                  not deleted_all
+                  and all(VERSION.match(t) or UNREL.match(t) or not t.strip() for t in added_text)
+              )
           ):
               print("Release-prep change (Unreleased -> version header); skipping placement lint.")
               sys.exit(0)

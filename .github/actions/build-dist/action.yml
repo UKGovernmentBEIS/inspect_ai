@@ -1,0 +1,47 @@
+name: Build inspect_ai distributions
+description: >-
+  Download and digest-gate the sandbox tools, build the sdist and wheel, and
+  check their version and contents. Shared by the publish and parity
+  workflows so both build the same way. Runs this action's revision of
+  scripts/pypi-release.py against the tree in `source`.
+
+inputs:
+  version:
+    description: Version the build must produce (the release tag)
+    required: true
+  source:
+    description: Checkout to build, with full history, tags and submodules
+    required: false
+    default: "."
+
+runs:
+  using: composite
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+      with:
+        python-version: "3.11"
+
+    - name: Install build
+      shell: bash
+      run: python -m pip install --upgrade build
+
+    - name: Download and verify sandbox tools
+      shell: bash
+      working-directory: ${{ inputs.source }}
+      env:
+        RELEASE_SCRIPT: ${{ github.action_path }}/../../../scripts/pypi-release.py
+      run: python "$RELEASE_SCRIPT" prepare
+
+    - name: Build
+      shell: bash
+      working-directory: ${{ inputs.source }}
+      run: python -m build
+
+    - name: Verify distributions
+      shell: bash
+      working-directory: ${{ inputs.source }}
+      env:
+        RELEASE_SCRIPT: ${{ github.action_path }}/../../../scripts/pypi-release.py
+        VERSION: ${{ inputs.version }}
+      run: python "$RELEASE_SCRIPT" verify-dist "$VERSION"
