@@ -2439,24 +2439,45 @@ async def test_anthropic_forced_tool_choice_request_wiring(
 
 @pytest.mark.anyio
 @pytest.mark.parametrize(
-    "model_name,expect_degraded",
+    "model_name,config_kwargs,expected_tool_choice,expect_degraded",
     [
-        # forcing is never honored on 5.1 / Opus 5.5, so record the degradation
-        ("claude-fable-5-1", True),
-        ("claude-opus-5-5", True),
-        ("claude-sonnet-5-5", True),
-        # other models keep their existing log shape on this long-standing path
-        ("claude-opus-4-8", False),
-        ("claude-haiku-5-5", False),
+        # forced tool choice is rejected on these models, so it is degraded to
+        # auto (sent) and the degradation is recorded
+        ("claude-fable-5-1", {"reasoning_effort": "high"}, "auto", True),
+        ("claude-opus-5-5", {"reasoning_effort": "high"}, "auto", True),
+        ("claude-sonnet-5-5", {"reasoning_effort": "high"}, "auto", True),
+        # adaptive thinking accepts forced tool choice
+        ("claude-opus-4-6", {"reasoning_effort": "high"}, "any", False),
+        ("claude-sonnet-4-6", {"reasoning_effort": "high"}, "any", False),
+        ("claude-opus-4-7", {"reasoning_effort": "high"}, "any", False),
+        ("claude-opus-4-8", {"reasoning_effort": "high"}, "any", False),
+        ("claude-sonnet-5", {"reasoning_effort": "high"}, "any", False),
+        ("claude-opus-5", {"reasoning_effort": "high"}, "any", False),
+        ("claude-haiku-5-5", {"reasoning_effort": "high"}, "any", False),
+        # reasoning_effort selects adaptive thinking over reasoning_tokens
+        (
+            "claude-opus-4-6",
+            {"reasoning_effort": "high", "reasoning_tokens": 2048},
+            "any",
+            False,
+        ),
+        # extended thinking (budget_tokens) rejects forced tool choice, so
+        # tool_choice is omitted (long-standing behavior, no metadata)
+        ("claude-sonnet-4-5", {"reasoning_effort": "high"}, None, False),
+        ("claude-opus-4-6", {"reasoning_tokens": 2048}, None, False),
     ],
 )
 async def test_anthropic_forced_tool_choice_with_thinking_records_metadata(
-    model_name: str, expect_degraded: bool
+    model_name: str,
+    config_kwargs: dict[str, Any],
+    expected_tool_choice: str | None,
+    expect_degraded: bool,
 ) -> None:
-    """A forced choice dropped by the thinking gate is recorded on 5.1 models.
+    """Forced tool choice with thinking: kept, degraded, or omitted by model.
 
-    With thinking active, tool_choice is omitted for all Claude models; on
-    Fable/Mythos 5.1 the degradation must still land in the output metadata.
+    Adaptive thinking keeps a forced choice (including on Claude 4.6), models
+    that reject forcing degrade it to auto with metadata, and extended thinking
+    omits tool_choice.
     """
     from inspect_ai.model._model_output import ModelOutput
     from inspect_ai.tool._tool_params import ToolParam, ToolParams
@@ -2492,10 +2513,21 @@ async def test_anthropic_forced_tool_choice_with_thinking_records_metadata(
                 )
             ],
             tool_choice="any",
-            config=GenerateConfig(max_tokens=64, reasoning_effort="high"),
+            config=GenerateConfig(
+                max_tokens=64, parallel_tool_calls=False, **config_kwargs
+            ),
         )
 
-    assert "tool_choice" not in captured
+    assert captured["thinking"]["type"] == (
+        "enabled" if expected_tool_choice is None else "adaptive"
+    )
+    if expected_tool_choice is None:
+        assert "tool_choice" not in captured
+    else:
+        assert captured["tool_choice"] == {
+            "type": expected_tool_choice,
+            "disable_parallel_tool_use": True,
+        }
     assert isinstance(output, ModelOutput)
     if expect_degraded:
         assert output.metadata is not None
@@ -2505,6 +2537,64 @@ async def test_anthropic_forced_tool_choice_with_thinking_records_metadata(
         }
     else:
         assert not (output.metadata or {}).get("tool_choice_degraded")
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    "config_kwargs,expected_thinking",
+    [
+        ({"reasoning_effort": "high"}, "adaptive"),
+        ({"reasoning_tokens": 2048}, "enabled"),
+        ({}, None),
+    ],
+)
+async def test_anthropic_tool_choice_none_with_thinking(
+    config_kwargs: dict[str, Any], expected_thinking: str | None
+) -> None:
+    """tool_choice="none" keeps the tools; only extended thinking omits it.
+
+    Anthropic requires tool definitions to validate tool history, so
+    `Model.generate` passes "none" through to the provider with the tools.
+    """
+    from inspect_ai.model._model_output import ModelOutput
+    from inspect_ai.tool._tool_params import ToolParam, ToolParams
+
+    model = get_model(
+        "anthropic/claude-sonnet-4-6",
+        api_key="test-key",
+        config=GenerateConfig(
+            max_tokens=4096, parallel_tool_calls=False, **config_kwargs
+        ),
+    )
+    captured: dict[str, Any] = {}
+
+    async def fake_perform(
+        request: dict[str, Any], *args: Any, **kwargs: Any
+    ) -> tuple[dict[str, Any], ModelOutput]:
+        captured.update(request)
+        return {}, ModelOutput.from_content(model=model.name, content="ok")
+
+    with patch.object(model.api, "_perform_request_and_continuations", fake_perform):
+        await model.generate(
+            input="What is 1 + 1?",
+            tools=[
+                ToolInfo(
+                    name="addition",
+                    description="Add two numbers.",
+                    parameters=ToolParams(
+                        properties={"x": ToolParam(type="integer")}, required=["x"]
+                    ),
+                )
+            ],
+            tool_choice="none",
+        )
+
+    assert captured.get("thinking", {}).get("type") == expected_thinking
+    assert [tool["name"] for tool in captured["tools"]] == ["addition"]
+    if expected_thinking == "enabled":
+        assert "tool_choice" not in captured
+    else:
+        assert captured["tool_choice"] == {"type": "none"}
 
 
 def _message_with_transformations(transformations: list[dict[str, Any]]) -> Any:
@@ -2840,6 +2930,55 @@ async def _check_forced_tool_choice_degrades(model_str: str) -> None:
     assert len(response.completion) >= 1 or response.message.tool_calls
     assert response.metadata is not None
     assert response.metadata["tool_choice_degraded"]["used"] == {"type": "auto"}
+
+
+@pytest.mark.anyio
+@skip_if_no_anthropic
+@pytest.mark.parametrize(
+    "model_name",
+    [
+        "claude-sonnet-4-6",
+        "claude-opus-4-8",
+        "claude-sonnet-5",
+        "claude-opus-5",
+        "claude-haiku-5-5",
+    ],
+)
+async def test_anthropic_forced_tool_choice_adaptive_thinking_live(
+    model_name: str,
+) -> None:
+    """Forced tool choice is honored with adaptive thinking (reasoning_effort)."""
+    await _check_forced_tool_choice_with_reasoning(f"anthropic/{model_name}")
+
+
+@pytest.mark.anyio
+@skip_if_no_bedrock
+@pytest.mark.parametrize(
+    "model_name", ["claude-sonnet-4-6", "claude-sonnet-5", "claude-haiku-5-5"]
+)
+async def test_anthropic_forced_tool_choice_adaptive_thinking_bedrock_live(
+    model_name: str,
+) -> None:
+    """Forced tool choice is honored with adaptive thinking on Bedrock."""
+    await _check_forced_tool_choice_with_reasoning(
+        f"anthropic/bedrock/global.anthropic.{model_name}"
+    )
+
+
+async def _check_forced_tool_choice_with_reasoning(model_str: str) -> None:
+    from test_helpers.tools import addition
+
+    model = get_model(
+        model_str, config=GenerateConfig(reasoning_effort="high", max_tokens=4096)
+    )
+    response = await model.generate(
+        input="What is 1 + 1?",
+        tools=[addition()],
+        tool_choice=ToolFunction(name="addition"),
+    )
+    assert response.message.tool_calls
+    assert response.message.tool_calls[0].function == "addition"
+    assert not (response.metadata or {}).get("tool_choice_degraded")
 
 
 # ---------------------------------------------------------------------------

@@ -16174,7 +16174,7 @@ var AutocompleteInput = (t0) => {
 		if (isBrowseMode) {
 			let t8;
 			if ($[0] !== suggestions) {
-				t8 = suggestions.filter(_temp$106);
+				t8 = suggestions.filter(_temp$109);
 				$[0] = suggestions;
 				$[1] = t8;
 			} else t8 = $[1];
@@ -16334,7 +16334,7 @@ var AutocompleteInput = (t0) => {
 					e_1.stopPropagation();
 					onCommit?.();
 				} else if (e_1.key === "ArrowDown" || e_1.key === "ArrowUp") {
-					const hasOptions = suggestions.some(_temp2$59);
+					const hasOptions = suggestions.some(_temp2$60);
 					if (filteredSuggestions.length > 0 || hasOptions) {
 						e_1.preventDefault();
 						e_1.stopPropagation();
@@ -16528,10 +16528,10 @@ var AutocompleteInput = (t0) => {
 	} else t29 = $[77];
 	return t29;
 };
-function _temp$106(s) {
+function _temp$109(s) {
 	return s !== null;
 }
-function _temp2$59(s_1) {
+function _temp2$60(s_1) {
 	return s_1 !== null;
 }
 function _temp3$41(prev) {
@@ -16580,7 +16580,7 @@ var onDemandModule = (importer) => {
 			let cancelled = false;
 			module.load().then((loaded) => {
 				if (!cancelled) setValue(() => loaded);
-			}).catch(_temp$105);
+			}).catch(_temp$108);
 			return () => {
 				cancelled = true;
 			};
@@ -16602,7 +16602,7 @@ var onDemandModule = (importer) => {
 	(0, import_react.useEffect)(t2, t3);
 	return value;
 };
-function _temp$105(error) {
+function _temp$108(error) {
 	console.error("Unable to load module", error);
 }
 var ContentTrust_module_default = {
@@ -16755,7 +16755,7 @@ var ContentTrustProvider = (t0) => {
 */ var usePlainText = () => {
 	return useHasAllContentPermissions() ? {
 		trusted: true,
-		present: _temp$104,
+		present: _temp$107,
 		className: void 0
 	} : {
 		trusted: false,
@@ -16850,7 +16850,7 @@ var UntrustedText = (t0) => {
 	} else t2 = $[4];
 	return t2;
 };
-function _temp$104(text) {
+function _temp$107(text) {
 	return text;
 }
 //#endregion
@@ -29141,7 +29141,7 @@ var usePrismHighlight = (containerRef, contentLength) => {
 					if (!cancelled) highlightCodeBlocks(container, highlightElement);
 				});
 				observer = new MutationObserver((mutations) => {
-					if (mutations.some(_temp2$58)) highlightCodeBlocks(container, highlightElement);
+					if (mutations.some(_temp2$59)) highlightCodeBlocks(container, highlightElement);
 				});
 				observer.observe(container, {
 					childList: true,
@@ -29169,12 +29169,12 @@ var usePrismHighlight = (containerRef, contentLength) => {
 	}
 	(0, import_react.useLayoutEffect)(t0, t1);
 };
-function _temp$103(node) {
+function _temp$106(node) {
 	if (node instanceof Element) return node.querySelector("pre code") || node.matches("pre code");
 	return false;
 }
-function _temp2$58(mutation) {
-	if (mutation.type === "childList") return Array.from(mutation.addedNodes).some(_temp$103);
+function _temp2$59(mutation) {
+	if (mutation.type === "childList") return Array.from(mutation.addedNodes).some(_temp$106);
 	return false;
 }
 function _temp3$40(error) {
@@ -29547,7 +29547,7 @@ var RichMarkdownDiv = /*#__PURE__*/ (0, import_react.forwardRef)((t0, ref) => {
 				(0, import_react.startTransition)(() => {
 					setRenderedHtml(applyPostProcess(sanitizedResult));
 				});
-			}).catch(_temp$102);
+			}).catch(_temp$105);
 			return () => {
 				cancel();
 			};
@@ -29666,7 +29666,7 @@ var MarkdownRenderQueue = class {
 	}
 };
 var renderQueue = new MarkdownRenderQueue(10);
-function _temp$102(error) {
+function _temp$105(error) {
 	console.error("Markdown rendering error:", error);
 }
 var NoContentsPanel_module_default = {
@@ -40057,7 +40057,7 @@ function useRevokableUrls() {
 	let t3;
 	if ($[2] === Symbol.for("react.memo_cache_sentinel")) {
 		t2 = () => () => {
-			urlsRef.current.forEach(_temp$101);
+			urlsRef.current.forEach(_temp$104);
 			urlsRef.current = [];
 		};
 		t3 = [];
@@ -40070,7 +40070,7 @@ function useRevokableUrls() {
 	(0, import_react.useEffect)(t2, t3);
 	return createRevokableUrl;
 }
-function _temp$101(url_0) {
+function _temp$104(url_0) {
 	return URL.revokeObjectURL(url_0);
 }
 //#endregion
@@ -40180,7 +40180,7 @@ var useBreadcrumbTruncation = (segments, containerRef) => {
 				testElement.style.margin = "0";
 				testElement.style.padding = "0";
 				container.appendChild(testElement);
-				replaceMeasurementItems(testElement, segments.map(_temp$100));
+				replaceMeasurementItems(testElement, segments.map(_temp$103));
 				if (testElement.scrollWidth <= containerWidth) {
 					container.removeChild(testElement);
 					setTruncatedData({
@@ -40206,7 +40206,7 @@ var useBreadcrumbTruncation = (segments, containerRef) => {
 					replaceMeasurementItems(testElement, [
 						firstSegment.text,
 						"...",
-						...segments.slice(segments.length - 1 - endCount, -1).map(_temp2$57),
+						...segments.slice(segments.length - 1 - endCount, -1).map(_temp2$58),
 						lastSegment.text
 					]);
 					if (testElement.scrollWidth <= containerWidth) {
@@ -40244,10 +40244,10 @@ var useBreadcrumbTruncation = (segments, containerRef) => {
 	(0, import_react.useEffect)(t1, t2);
 	return truncatedData;
 };
-function _temp$100(segment) {
+function _temp$103(segment) {
 	return segment.text;
 }
-function _temp2$57(segment_0) {
+function _temp2$58(segment_0) {
 	return segment_0.text;
 }
 //#endregion
@@ -40590,7 +40590,7 @@ var SCROLL_RELEASE_KEYS = /* @__PURE__ */ new Set([
 				setCopied(true);
 				window.clearTimeout(timer.current);
 				timer.current = window.setTimeout(() => setCopied(false), confirmMs);
-			}).catch(_temp$99);
+			}).catch(_temp$102);
 		};
 		$[1] = confirmMs;
 		$[2] = t2;
@@ -40608,7 +40608,7 @@ var SCROLL_RELEASE_KEYS = /* @__PURE__ */ new Set([
 	} else t3 = $[5];
 	return t3;
 }
-function _temp$99(error) {
+function _temp$102(error) {
 	console.error("Failed to copy:", error);
 }
 var SourceCodePanel_module_default = {
@@ -41559,7 +41559,7 @@ var Tab = (t0) => {
 				"aria-controls": tabContentsId,
 				"aria-selected": isActive,
 				onClick: inAppLinkClick(tab.props.onSelected),
-				onKeyDown: _temp$98,
+				onKeyDown: _temp$101,
 				children: content
 			}) : /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
 				id: tabId,
@@ -41597,7 +41597,7 @@ var TabPanels = (t0) => {
 	const t2 = `${id}-content`;
 	let t3;
 	if ($[2] !== tabs) {
-		t3 = tabs.map(_temp2$56);
+		t3 = tabs.map(_temp2$57);
 		$[2] = tabs;
 		$[3] = t3;
 	} else t3 = $[3];
@@ -41689,13 +41689,13 @@ var flattenChildren$1 = (children) => {
 		return [];
 	});
 };
-function _temp$98(e) {
+function _temp$101(e) {
 	if (e.key === " ") {
 		e.preventDefault();
 		e.currentTarget.click();
 	}
 }
-function _temp2$56(tab, index) {
+function _temp2$57(tab, index) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(TabPanel, {
 		...tab.props,
 		index
@@ -41726,7 +41726,7 @@ var FindTargetContext = /*#__PURE__*/ (0, import_react.createContext)(null);
 	const ctx = (0, import_react.useContext)(FindTargetContext);
 	let t0;
 	if ($[0] !== ctx?.setTarget) {
-		t0 = ctx?.setTarget ?? _temp$97;
+		t0 = ctx?.setTarget ?? _temp$100;
 		$[0] = ctx?.setTarget;
 		$[1] = t0;
 	} else t0 = $[1];
@@ -41759,7 +41759,7 @@ var FindTargetProvider = (t0) => {
 	} else t2 = $[4];
 	return t2;
 };
-function _temp$97() {}
+function _temp$100() {}
 //#endregion
 //#region ../../packages/react/src/components/ExpandablePanel.tsx
 var ExpandablePanel = /*#__PURE__*/ (0, import_react.memo)((t0) => {
@@ -43094,7 +43094,7 @@ var MarkdownDivWithReferences = /*#__PURE__*/ (0, import_react.forwardRef)((prop
 	const [visibleKey, setVisibleKey, clearVisibleKey] = useProperty("popover", "visibleKey");
 	let t0;
 	if ($[0] !== references) {
-		t0 = new Map(references?.map(_temp$96));
+		t0 = new Map(references?.map(_temp$99));
 		$[0] = references;
 		$[1] = t0;
 	} else t0 = $[1];
@@ -43314,7 +43314,7 @@ var popoverKey = (ref) => `markdown-ref-popover-${ref.id}`;
 	}
 	return emitted === 0 ? html : out + html.slice(emitted);
 }
-function _temp$96(r) {
+function _temp$99(r) {
 	return [r.id, r];
 }
 /**
@@ -44726,6 +44726,7 @@ var EVAL_CONFIG_KEYS = {
 	sandbox_prebuilt: true,
 	score_display: true,
 	score_on_error: true,
+	sentinel: true,
 	time_limit: true,
 	token_limit: true,
 	token_limit_type: true,
@@ -48793,7 +48794,7 @@ var TreeNode$2 = /*#__PURE__*/ (0, import_react.memo)((t0) => {
 		t3 = () => {
 			if (previousValue.current !== value) {
 				previousValue.current = value;
-				setFlashKey(_temp$95);
+				setFlashKey(_temp$98);
 			}
 		};
 		t4 = [value];
@@ -48808,7 +48809,7 @@ var TreeNode$2 = /*#__PURE__*/ (0, import_react.memo)((t0) => {
 	let t5;
 	if ($[5] !== expandable) {
 		t5 = () => {
-			if (expandable) setExpanded(_temp2$55);
+			if (expandable) setExpanded(_temp2$56);
 		};
 		$[5] = expandable;
 		$[6] = t5;
@@ -48949,10 +48950,10 @@ var TreeNode$2 = /*#__PURE__*/ (0, import_react.memo)((t0) => {
 	return t7;
 });
 TreeNode$2.displayName = "TreeNode";
-function _temp$95(k) {
+function _temp$98(k) {
 	return k + 1;
 }
-function _temp2$55(e) {
+function _temp2$56(e) {
 	return !e;
 }
 function _temp3$39(entry) {
@@ -55058,7 +55059,7 @@ var readLogsListing = async (logDir, prefix, toRow, plan) => {
 	let t2;
 	if ($[3] !== demand || $[4] !== logDir || $[5] !== logFile) {
 		t1 = () => {
-			if (logFile !== void 0) fetchLog(logDir, logFile, { passive: demand !== "active" }).catch(_temp$94);
+			if (logFile !== void 0) fetchLog(logDir, logFile, { passive: demand !== "active" }).catch(_temp$97);
 		};
 		t2 = [
 			logDir,
@@ -55147,7 +55148,7 @@ var readLogsListing = async (logDir, prefix, toRow, plan) => {
 	} else t0 = $[1];
 	return t0;
 };
-function _temp$94() {}
+function _temp$97() {}
 //#endregion
 //#region src/log_data/pendingSamples.ts
 var kDefaultRefreshSeconds = 2;
@@ -55252,7 +55253,7 @@ var logInfoSignature = (info) => `${info.size}:${info.etag ?? ""}`;
 		t4 = {
 			queryKey: t2,
 			queryFn: t3,
-			refetchInterval: _temp$93,
+			refetchInterval: _temp$96,
 			refetchIntervalInBackground: true,
 			staleTime: 0,
 			refetchOnWindowFocus: false,
@@ -55265,7 +55266,7 @@ var logInfoSignature = (info) => `${info.size}:${info.etag ?? ""}`;
 	const result = useAsyncDataFromQuery(t4);
 	let t5;
 	if ($[14] !== enabled || $[15] !== result) {
-		t5 = enabled ? map(result, _temp2$54) : data(void 0);
+		t5 = enabled ? map(result, _temp2$55) : data(void 0);
 		$[14] = enabled;
 		$[15] = result;
 		$[16] = t5;
@@ -55292,10 +55293,10 @@ var logInfoSignature = (info) => `${info.size}:${info.etag ?? ""}`;
 * finalize decision). Returns
 * `undefined` when there's no resolved dir.
 */ var getPendingSamples = (logDir, logFile) => logDir === void 0 ? void 0 : queryClient.getQueryData(pendingSamplesKey(logDir, logFile)) ?? void 0;
-function _temp$93(query) {
+function _temp$96(query) {
 	return query.state.status === "error" ? false : pendingSamplesIntervalMs(query.state.data);
 }
-function _temp2$54(data) {
+function _temp2$55(data) {
 	return data ?? void 0;
 }
 function _temp3$38(data) {
@@ -56950,7 +56951,7 @@ var mergeSampleSummaries = (logSamples, pendingSamples) => {
 		t3 = rows.data?.some((row_0) => row_0.logFile !== logKey) ? loading$2 : map(compose({
 			rows,
 			pending
-		}), _temp2$53);
+		}), _temp2$54);
 		$[8] = logKey;
 		$[9] = pending;
 		$[10] = rows;
@@ -56962,11 +56963,11 @@ var mergeSampleSummaries = (logSamples, pendingSamples) => {
 * Non-React snapshot of {@link useSampleSummaries} (for the running-sample
 * query's tick decisions). Empty when there's no resolved dir.
 */ var getSampleSummaries = async (logDir, logFile) => logDir === void 0 ? [] : mergeSampleSummaries(await readSettledSummaries(logDir, resolveLogKey(logDir, logFile)), getPendingSamples(logDir, logFile)?.samples ?? []);
-function _temp$92(row) {
+function _temp$95(row) {
 	return row.summary;
 }
-function _temp2$53(settled) {
-	return mergeSampleSummaries(settled.rows.map(_temp$92), settled.pending?.samples ?? []);
+function _temp2$54(settled) {
+	return mergeSampleSummaries(settled.rows.map(_temp$95), settled.pending?.samples ?? []);
 }
 //#endregion
 //#region src/log_data/runningSampleQuery.ts
@@ -57105,7 +57106,7 @@ var findLiveSummary = async (logDir, handle) => (await getSampleSummaries(logDir
 			queryKey: t2,
 			queryFn: t3,
 			structuralSharing: false,
-			refetchInterval: _temp$91,
+			refetchInterval: _temp$94,
 			refetchIntervalInBackground: true,
 			gcTime: kSampleGcTimeMs,
 			refetchOnWindowFocus: false,
@@ -57117,7 +57118,7 @@ var findLiveSummary = async (logDir, handle) => (await getSampleSummaries(logDir
 	} else t4 = $[13];
 	return useAsyncDataFromQuery(t4);
 };
-function _temp$91(query) {
+function _temp$94(query) {
 	return query.state.status === "error" || query.state.data?.finalized === true ? false : query.state.data?.catchup === true ? kCatchupIntervalMs : kRunningSampleIntervalMs;
 }
 //#endregion
@@ -60593,8 +60594,8 @@ var isNonEmptyObject = (v) => isRecord(v) && Object.keys(v).length > 0;
 	const depth = t1 === void 0 ? 0 : t1;
 	const baseId = id ?? "metadata-grid";
 	const allEntries = entryRecords(entries);
-	const scalars = allEntries.filter(_temp$90);
-	const groups = allEntries.filter(_temp2$52);
+	const scalars = allEntries.filter(_temp$93);
+	const groups = allEntries.filter(_temp2$53);
 	const [expanded, setExpanded] = (0, import_react.useState)(false);
 	const isCollapsible = maxRows != null && scalars.length > maxRows;
 	const visibleScalars = isCollapsible && !expanded ? scalars.slice(0, maxRows) : scalars;
@@ -60721,10 +60722,10 @@ var entryRecords = (entries) => {
 	});
 	else return entries;
 };
-function _temp$90(e) {
+function _temp$93(e) {
 	return !isNonEmptyObject(e.value) || isHtmlEscape(e.value);
 }
-function _temp2$52(e_0) {
+function _temp2$53(e_0) {
 	return isNonEmptyObject(e_0.value) && !isHtmlEscape(e_0.value);
 }
 function _temp3$37(prev) {
@@ -60773,7 +60774,7 @@ var isWebSearchValue = (v) => isRecord(v) && isOptionalString(v.query) && Array.
 		$[1] = entry;
 		$[2] = t2;
 	} else t2 = $[2];
-	const renderer_0 = Object.keys(renderers).map((key) => renderers[key]).sort(_temp$89).find(t2);
+	const renderer_0 = Object.keys(renderers).map((key) => renderers[key]).sort(_temp$92).find(t2);
 	if (renderer_0) {
 		const { rendered } = renderer_0.render(id, entry, renderOptions, references);
 		if (rendered !== void 0 && /*#__PURE__*/ (0, import_react.isValidElement)(rendered)) return rendered;
@@ -60990,7 +60991,7 @@ var isWebSearchValue = (v) => isRecord(v) && isOptionalString(v.query) && Array.
 	};
 	return contentRenderers;
 };
-function _temp$89(a, b) {
+function _temp$92(a, b) {
 	if (!a || !b) return 0;
 	return a.bucket - b.bucket;
 }
@@ -61478,7 +61479,7 @@ var WebSearchResults$1 = (t0) => {
 	}
 	let t3;
 	if ($[2] !== results) {
-		t3 = results.map(_temp$88);
+		t3 = results.map(_temp$91);
 		$[2] = results;
 		$[3] = t3;
 	} else t3 = $[3];
@@ -61493,7 +61494,7 @@ var WebSearchResults$1 = (t0) => {
 	} else t4 = $[5];
 	return t4;
 };
-function _temp$88(result, index) {
+function _temp$91(result, index) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("li", {
 		className: clsx(WebSearchResults_module_default.result, "text-style-secondary"),
 		children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ExternalLink, {
@@ -61814,7 +61815,7 @@ var MessageCitations = (t0) => {
 	} else t1 = $[0];
 	let t2;
 	if ($[1] !== citations) {
-		t2 = citations.map(_temp$87);
+		t2 = citations.map(_temp$90);
 		$[1] = citations;
 		$[2] = t2;
 	} else t2 = $[2];
@@ -61888,7 +61889,7 @@ var OtherCitation = (t0) => {
 	} else t1 = $[1];
 	return t1;
 };
-function _temp$87(citation, index) {
+function _temp$90(citation, index) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_react.Fragment, { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", { children: index + 1 }), /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MessageCitation, { citation })] }, index);
 }
 var MessageContent_module_default = {
@@ -61899,15 +61900,17 @@ var MessageContent_module_default = {
 	codePanelPre: "_codePanelPre_a1z7v_26"
 };
 var ToolBlock_module_default = {
-	block: "_block_mcsgc_5",
-	standalone: "_standalone_mcsgc_13",
-	header: "_header_mcsgc_21",
-	icon: "_icon_mcsgc_36",
-	title: "_title_mcsgc_42",
-	summary: "_summary_mcsgc_50",
-	pill: "_pill_mcsgc_61",
-	inputZone: "_inputZone_mcsgc_75",
-	outputWell: "_outputWell_mcsgc_88"
+	block: "_block_1ib8l_5",
+	standalone: "_standalone_1ib8l_13",
+	header: "_header_1ib8l_21",
+	icon: "_icon_1ib8l_36",
+	title: "_title_1ib8l_42",
+	summary: "_summary_1ib8l_50",
+	pill: "_pill_1ib8l_61",
+	inputZone: "_inputZone_1ib8l_75",
+	outputWell: "_outputWell_1ib8l_88",
+	inputInsetZone: "_inputInsetZone_1ib8l_123",
+	outputInsetZone: "_outputInsetZone_1ib8l_124"
 };
 //#endregion
 //#region ../../packages/inspect-components/src/chat/tools/ToolBlock.tsx
@@ -62038,6 +62041,23 @@ var ToolBlock_module_default = {
 		$[3] = t1;
 		$[4] = t2;
 	} else t2 = $[4];
+	return t2;
+};
+/** A region that holds tool call checks: tinted like the input zone before
+* the call, like the output well after it. */ var ToolBlockInset = (t0) => {
+	const $ = (0, import_compiler_runtime.c)(3);
+	const { region, children } = t0;
+	const t1 = region === "input" ? ToolBlock_module_default.inputInsetZone : ToolBlock_module_default.outputInsetZone;
+	let t2;
+	if ($[0] !== children || $[1] !== t1) {
+		t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+			className: t1,
+			children
+		});
+		$[0] = children;
+		$[1] = t1;
+		$[2] = t2;
+	} else t2 = $[2];
 	return t2;
 };
 var ToolCallErrorView_module_default = {
@@ -62480,7 +62500,7 @@ var WebSearchResults = (t0) => {
 	const t1 = `${id}-output`;
 	let t2;
 	if ($[0] !== results) {
-		t2 = results.map(_temp$86);
+		t2 = results.map(_temp$89);
 		$[0] = results;
 		$[1] = t2;
 	} else t2 = $[1];
@@ -62661,7 +62681,7 @@ var maybeListTools = (content) => {
 };
 /** Shallow: the list below renders title and url, and skips entries lacking them. */ var isWebResult = (value) => isRecord(value) && typeof value["title"] === "string" && typeof value["url"] === "string";
 /** Shallow: the list below keys on name and renders description. */ var isToolInfo = (value) => isRecord(value) && typeof value["name"] === "string";
-function _temp$86(result, index) {
+function _temp$89(result, index) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", { children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ExternalLink, {
 		href: result.url,
 		title: result.url,
@@ -63185,7 +63205,7 @@ function asCoordinate(value) {
 	const { contents, annotation } = t0;
 	let t1;
 	if ($[0] !== contents) {
-		t1 = contents.findLastIndex(_temp$85);
+		t1 = contents.findLastIndex(_temp$88);
 		$[0] = contents;
 		$[1] = t1;
 	} else t1 = $[1];
@@ -63359,7 +63379,7 @@ function renderHtmlAnnotation(annotation) {
 	}
 	return null;
 }
-function _temp$85(c) {
+function _temp$88(c) {
 	return c.type === "image" && isRenderableImageSource(c.image);
 }
 var customToolRendering_module_default = { submitView: "_submitView_1ru17_1" };
@@ -63384,7 +63404,7 @@ var ToolSearchView_module_default = {
 	const { namespaces } = t0;
 	let t1;
 	if ($[0] !== namespaces) {
-		t1 = namespaces.map(_temp2$51);
+		t1 = namespaces.map(_temp2$52);
 		$[0] = namespaces;
 		$[1] = t1;
 	} else t1 = $[1];
@@ -63399,7 +63419,7 @@ var ToolSearchView_module_default = {
 	} else t2 = $[3];
 	return t2;
 };
-function _temp$84(tool, toolIdx) {
+function _temp$87(tool, toolIdx) {
 	return tool.description ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("details", {
 		className: ToolSearchView_module_default.tool,
 		children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("summary", {
@@ -63414,7 +63434,7 @@ function _temp$84(tool, toolIdx) {
 		children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)("code", { children: tool.signature })
 	}, `tool-${toolIdx}`);
 }
-function _temp2$51(namespace, nsIdx) {
+function _temp2$52(namespace, nsIdx) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 		className: ToolSearchView_module_default.namespace,
 		children: [namespace.name ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
@@ -63423,7 +63443,7 @@ function _temp2$51(namespace, nsIdx) {
 		}), namespace.description ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", {
 			className: ToolSearchView_module_default.namespaceDescription,
 			children: [" — ", namespace.description]
-		}) : null] }) : null, namespace.tools.map(_temp$84)]
+		}) : null] }) : null, namespace.tools.map(_temp$87)]
 	}, `ns-${nsIdx}`);
 }
 var ToolTitle_module_default = {
@@ -63604,7 +63624,7 @@ var ToolCallView_module_default = { toolCallView: "_toolCallView_x6cus_1" };
 	const normalizedContent = t6;
 	let t7;
 	if ($[8] !== normalizedContent) {
-		t7 = normalizedContent.find(_temp$83);
+		t7 = normalizedContent.find(_temp$86);
 		$[8] = normalizedContent;
 		$[9] = t7;
 	} else t7 = $[9];
@@ -63780,7 +63800,7 @@ var ToolCallView_module_default = { toolCallView: "_toolCallView_x6cus_1" };
 	const { contents } = t0;
 	let t1;
 	if ($[0] !== contents) {
-		t1 = contents.flatMap(_temp2$50).map(_temp3$36);
+		t1 = contents.flatMap(_temp2$51).map(_temp3$36);
 		$[0] = contents;
 		$[1] = t1;
 	} else t1 = $[1];
@@ -63805,7 +63825,7 @@ var normalizeContent = (output) => {
 		}]
 	}];
 };
-function _temp$83(c) {
+function _temp$86(c) {
 	if (c.type === "tool") {
 		for (const t of c.content) if (t.type === "text") {
 			if (t.text) return true;
@@ -63813,7 +63833,7 @@ function _temp$83(c) {
 		return false;
 	} else return true;
 }
-function _temp2$50(c) {
+function _temp2$51(c) {
 	return c.type === "tool" ? c.content : [c];
 }
 function _temp3$36(item, i) {
@@ -63828,8 +63848,8 @@ var ClientToolCall_module_default = { custom: "_custom_wwbdp_4" };
 * header (terminal icon · mono tool name · args summary), the input zone
 * (e.g. code) and the output well stacked beneath.
 */ var ClientToolCall = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(54);
-	const { id, tool, title, functionCall, input, description, contentType, view, output, selfAnnotation, inputScreenshot, error, className, getCustomToolView } = t0;
+	const $ = (0, import_compiler_runtime.c)(60);
+	const { id, tool, title, functionCall, input, description, contentType, view, output, selfAnnotation, inputScreenshot, error, className, getCustomToolView, afterInput, afterOutput, outputReplacement } = t0;
 	const customContent = useCustomContent();
 	let t1;
 	let viewProps;
@@ -63874,56 +63894,64 @@ var ClientToolCall_module_default = { custom: "_custom_wwbdp_4" };
 			$[15] = t2;
 		} else t2 = $[15];
 		let t3;
-		if ($[16] !== customView || $[17] !== t2) {
-			t3 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+		if ($[16] !== afterInput || $[17] !== afterOutput || $[18] !== customView || $[19] !== outputReplacement || $[20] !== t2) {
+			t3 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 				className: t2,
-				children: customView
+				children: [
+					customView,
+					afterInput,
+					outputReplacement,
+					afterOutput
+				]
 			});
-			$[16] = customView;
-			$[17] = t2;
-			$[18] = t3;
-		} else t3 = $[18];
+			$[16] = afterInput;
+			$[17] = afterOutput;
+			$[18] = customView;
+			$[19] = outputReplacement;
+			$[20] = t2;
+			$[21] = t3;
+		} else t3 = $[21];
 		return t3;
 	}
 	const hasInput = input !== void 0 && input !== null && input !== "" || !!view?.content;
 	let argsBody;
 	let t2;
-	if ($[19] !== functionCall || $[20] !== hasInput || $[21] !== title || $[22] !== tool) {
+	if ($[22] !== functionCall || $[23] !== hasInput || $[24] !== title || $[25] !== tool) {
 		argsBody = hasInput ? void 0 : fullArgs(functionCall, title || tool);
 		t2 = argsBody?.replace(/\s+/g, " ").trim();
-		$[19] = functionCall;
-		$[20] = hasInput;
-		$[21] = title;
-		$[22] = tool;
-		$[23] = argsBody;
-		$[24] = t2;
+		$[22] = functionCall;
+		$[23] = hasInput;
+		$[24] = title;
+		$[25] = tool;
+		$[26] = argsBody;
+		$[27] = t2;
 	} else {
-		argsBody = $[23];
-		t2 = $[24];
+		argsBody = $[26];
+		t2 = $[27];
 	}
 	const argsSummary = t2;
 	const argsInInputZone = !!argsSummary && argsSummary.length > kMaxSummaryArgs;
 	const showError = !!error;
 	const showAnnotation = !!selfAnnotation && !!inputScreenshot;
 	let t3;
-	if ($[25] !== output || $[26] !== showAnnotation || $[27] !== showError) {
+	if ($[28] !== output || $[29] !== showAnnotation || $[30] !== showError) {
 		t3 = !showError && (hasOutputContent(output) || showAnnotation);
-		$[25] = output;
-		$[26] = showAnnotation;
-		$[27] = showError;
-		$[28] = t3;
-	} else t3 = $[28];
+		$[28] = output;
+		$[29] = showAnnotation;
+		$[30] = showError;
+		$[31] = t3;
+	} else t3 = $[31];
 	const showOutput = t3;
 	let t4;
-	if ($[29] !== tool) {
+	if ($[32] !== tool) {
 		t4 = iconForTool(tool);
-		$[29] = tool;
-		$[30] = t4;
-	} else t4 = $[30];
+		$[32] = tool;
+		$[33] = t4;
+	} else t4 = $[33];
 	const t5 = title || tool;
 	const t6 = description ?? (argsInInputZone ? void 0 : argsSummary);
 	let t7;
-	if ($[31] !== argsBody || $[32] !== argsInInputZone || $[33] !== contentType || $[34] !== hasInput || $[35] !== id || $[36] !== input || $[37] !== view) {
+	if ($[34] !== argsBody || $[35] !== argsInInputZone || $[36] !== contentType || $[37] !== hasInput || $[38] !== id || $[39] !== input || $[40] !== view) {
 		t7 = hasInput || argsInInputZone ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ToolBlockInput, { children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ExpandablePanel, {
 			id: `${id}-tool-input`,
 			collapse: true,
@@ -63936,51 +63964,59 @@ var ClientToolCall_module_default = { custom: "_custom_wwbdp_4" };
 				toolCallView: hasInput ? view : void 0
 			})
 		}) }) : null;
-		$[31] = argsBody;
-		$[32] = argsInInputZone;
-		$[33] = contentType;
-		$[34] = hasInput;
-		$[35] = id;
-		$[36] = input;
-		$[37] = view;
-		$[38] = t7;
-	} else t7 = $[38];
+		$[34] = argsBody;
+		$[35] = argsInInputZone;
+		$[36] = contentType;
+		$[37] = hasInput;
+		$[38] = id;
+		$[39] = input;
+		$[40] = view;
+		$[41] = t7;
+	} else t7 = $[41];
 	let t8;
-	if ($[39] !== error || $[40] !== inputScreenshot || $[41] !== selfAnnotation || $[42] !== showError || $[43] !== showOutput || $[44] !== viewProps) {
-		t8 = showError ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(ToolBlockOutput, { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)(ToolCallErrorView, { error }), selfAnnotation && inputScreenshot ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(AnnotatedScreenshotOutput, {
+	if ($[42] !== error || $[43] !== inputScreenshot || $[44] !== outputReplacement || $[45] !== selfAnnotation || $[46] !== showError || $[47] !== showOutput || $[48] !== viewProps) {
+		t8 = outputReplacement ? outputReplacement : showError ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(ToolBlockOutput, { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)(ToolCallErrorView, { error }), selfAnnotation && inputScreenshot ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(AnnotatedScreenshotOutput, {
 			contents: inputScreenshot,
 			annotation: selfAnnotation
 		}) : null] }) : showOutput ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ToolBlockOutput, { children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ToolCallView, {
 			...viewProps,
 			section: "output"
 		}) }) : null;
-		$[39] = error;
-		$[40] = inputScreenshot;
-		$[41] = selfAnnotation;
-		$[42] = showError;
-		$[43] = showOutput;
-		$[44] = viewProps;
-		$[45] = t8;
-	} else t8 = $[45];
+		$[42] = error;
+		$[43] = inputScreenshot;
+		$[44] = outputReplacement;
+		$[45] = selfAnnotation;
+		$[46] = showError;
+		$[47] = showOutput;
+		$[48] = viewProps;
+		$[49] = t8;
+	} else t8 = $[49];
 	let t9;
-	if ($[46] !== className || $[47] !== id || $[48] !== t4 || $[49] !== t5 || $[50] !== t6 || $[51] !== t7 || $[52] !== t8) {
+	if ($[50] !== afterInput || $[51] !== afterOutput || $[52] !== className || $[53] !== id || $[54] !== t4 || $[55] !== t5 || $[56] !== t6 || $[57] !== t7 || $[58] !== t8) {
 		t9 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(ToolBlock, {
 			id,
 			icon: t4,
 			title: t5,
 			summary: t6,
 			className,
-			children: [t7, t8]
+			children: [
+				t7,
+				afterInput,
+				t8,
+				afterOutput
+			]
 		});
-		$[46] = className;
-		$[47] = id;
-		$[48] = t4;
-		$[49] = t5;
-		$[50] = t6;
-		$[51] = t7;
-		$[52] = t8;
-		$[53] = t9;
-	} else t9 = $[53];
+		$[50] = afterInput;
+		$[51] = afterOutput;
+		$[52] = className;
+		$[53] = id;
+		$[54] = t4;
+		$[55] = t5;
+		$[56] = t6;
+		$[57] = t7;
+		$[58] = t8;
+		$[59] = t9;
+	} else t9 = $[59];
 	return t9;
 };
 /** Args longer than this can't meaningfully summarize on the single header
@@ -64275,7 +64311,7 @@ var ChatMessage = /*#__PURE__*/ (0, import_react.memo)(function ChatMessage(t0) 
 	const t16 = message.role === "tool" ? 30 : message.role === "assistant" ? 25 : 15;
 	let t17;
 	if ($[58] !== id || $[59] !== isNonSubagentTool || $[60] !== message || $[61] !== references || $[62] !== subagentNotifications || $[63] !== toolMarkdown || $[64] !== toolSearchNamespaces) {
-		t17 = isNonSubagentTool ? toolSearchNamespaces ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ToolSearchView, { namespaces: toolSearchNamespaces }) : toolMarkdown !== void 0 ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MarkdownDiv, { markdown: toolMarkdown }) : /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ToolOutput, { output: typeof message.content === "string" ? message.content : message.content.filter(_temp$82) }) : subagentNotifications !== void 0 ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MarkdownDiv, { markdown: subagentNotifications }) : /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MessageContents, {
+		t17 = isNonSubagentTool ? toolSearchNamespaces ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ToolSearchView, { namespaces: toolSearchNamespaces }) : toolMarkdown !== void 0 ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MarkdownDiv, { markdown: toolMarkdown }) : /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ToolOutput, { output: typeof message.content === "string" ? message.content : message.content.filter(_temp$85) }) : subagentNotifications !== void 0 ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MarkdownDiv, { markdown: subagentNotifications }) : /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MessageContents, {
 			message,
 			references
 		}, `${id}-contents`);
@@ -64351,7 +64387,7 @@ var ChatMessage = /*#__PURE__*/ (0, import_react.memo)(function ChatMessage(t0) 
 	}
 	return segments;
 };
-function _temp$82(c) {
+function _temp$85(c) {
 	return c.type === "text" || c.type === "image";
 }
 var ChatMessageRow_module_default = {
@@ -64587,7 +64623,7 @@ var MessageLabel_module_default = {
 		viewKinds = $[14];
 		views = $[15];
 	}
-	const hasTools = viewKinds.some(_temp$81);
+	const hasTools = viewKinds.some(_temp$84);
 	if (useLabels || hasTools) {
 		let t1;
 		if ($[37] !== hasTools || $[38] !== highlightLabeled || $[39] !== highlightUserMessage || $[40] !== index || $[41] !== messageChip || $[42] !== resolvedMessage || $[43] !== viewChips || $[44] !== viewKinds || $[45] !== views) {
@@ -64737,7 +64773,7 @@ var ToolCallViewCompact = (t0) => {
 	} else t4 = $[5];
 	return t4;
 };
-function _temp$81(k) {
+function _temp$84(k) {
 	return k !== "message";
 }
 //#endregion
@@ -65187,7 +65223,7 @@ var kLoadMoreMarginRows = 20;
 		$[30] = t10;
 	} else t10 = $[30];
 	const renderRow = t10;
-	const rowSearchText = _temp$80;
+	const rowSearchText = _temp$83;
 	if (rows.length === 0) {
 		if (backfilling) {
 			let t11;
@@ -65252,7 +65288,7 @@ var kLoadMoreMarginRows = 20;
 	} else t13 = $[48];
 	return t13;
 });
-function _temp$80(item_0) {
+function _temp$83(item_0) {
 	return messageSearchText(item_0.resolved);
 }
 //#endregion
@@ -65615,7 +65651,7 @@ var kLoadingFeed = unpagedFeed(loading$2);
 			queryKey: t4,
 			queryFn: t5,
 			initialPageParam: 0,
-			getNextPageParam: _temp$79,
+			getNextPageParam: _temp$82,
 			gcTime: kSampleGcTimeMs,
 			staleTime: Infinity,
 			retry: false,
@@ -65631,7 +65667,7 @@ var kLoadingFeed = unpagedFeed(loading$2);
 	const pages = data?.pages;
 	let t7;
 	if ($[14] !== pages) {
-		t7 = pages?.flatMap(_temp2$49);
+		t7 = pages?.flatMap(_temp2$50);
 		$[14] = pages;
 		$[15] = t7;
 	} else t7 = $[15];
@@ -65739,10 +65775,10 @@ var kLoadingFeed = unpagedFeed(loading$2);
 	}
 	return t12;
 };
-function _temp$79(last) {
+function _temp$82(last) {
 	return last.nextCursor?.offset;
 }
-function _temp2$49(page) {
+function _temp2$50(page) {
 	return page.rows;
 }
 function _temp3$35() {}
@@ -66041,7 +66077,7 @@ var useScoreSchema = (logDir, scopeDir) => {
 	if ($[0] !== config) {
 		t0 = () => {
 			activateFetchEngine(config);
-			return _temp$78;
+			return _temp$81;
 		};
 		t1 = [config];
 		$[0] = config;
@@ -66054,7 +66090,7 @@ var useScoreSchema = (logDir, scopeDir) => {
 	(0, import_react.useEffect)(t0, t1);
 	return null;
 };
-function _temp$78() {
+function _temp$81() {
 	return deactivateFetchEngine();
 }
 //#endregion
@@ -69502,7 +69538,7 @@ function useRouteSelection(pathname) {
 	const { children } = t0;
 	const { pathname } = useLocation();
 	const { logFile, sample } = useRouteSelection(pathname);
-	useMirrorToStore(sample, _temp$77);
+	useMirrorToStore(sample, _temp$80);
 	let t1;
 	if ($[0] !== logFile || $[1] !== sample) {
 		t1 = {
@@ -69525,7 +69561,7 @@ function useRouteSelection(pathname) {
 	} else t2 = $[5];
 	return t2;
 }
-function _temp$77(handle) {
+function _temp$80(handle) {
 	return highlightSample(handle.id, handle.epoch, handle.logFile);
 }
 function useCurrentSelection() {
@@ -70963,8 +70999,8 @@ var kDefaultScorePanelSort = {
 * own default (typically `chips` for ≤ 6 scores, `grid` for 7+).
 */ var useScorePanelView = () => {
 	const $ = (0, import_compiler_runtime.c)(5);
-	const stored = useStore(_temp$76);
-	const setPropertyValue = useStore(_temp2$48);
+	const stored = useStore(_temp$79);
+	const setPropertyValue = useStore(_temp2$49);
 	let t0;
 	if ($[0] !== setPropertyValue) {
 		t0 = (view) => {
@@ -71485,11 +71521,11 @@ var useLogsListing = () => {
 	} else t0 = $[3];
 	return t0;
 };
-function _temp$76(state) {
+function _temp$79(state) {
 	const value = state.app.propertyBags[kScorePanelViewBag]?.[kScorePanelViewKey];
 	return isScoreView(value) ? value : void 0;
 }
-function _temp2$48(state_0) {
+function _temp2$49(state_0) {
 	return state_0.appActions.setPropertyValue;
 }
 function _temp3$34(state) {
@@ -71806,7 +71842,7 @@ var FlowButton = () => {
 		t2 = {
 			queryKey: t0,
 			queryFn: t1,
-			select: _temp$75,
+			select: _temp$78,
 			staleTime: Infinity
 		};
 		$[6] = t0;
@@ -71815,7 +71851,7 @@ var FlowButton = () => {
 	} else t2 = $[8];
 	return useAsyncDataFromQuery(t2);
 };
-function _temp$75(flow) {
+function _temp$78(flow) {
 	return flow ?? void 0;
 }
 var ThemeToggle_module_default = {
@@ -72111,9 +72147,9 @@ var subscribe = (onChange) => {
 		$[0] = preference;
 		$[1] = t0;
 	} else t0 = $[1];
-	return (0, import_react.useSyncExternalStore)(subscribe, t0, _temp$74);
+	return (0, import_react.useSyncExternalStore)(subscribe, t0, _temp$77);
 };
-function _temp$74() {
+function _temp$77() {
 	return false;
 }
 //#endregion
@@ -72750,8 +72786,8 @@ var ApplicationNavbar = (t0) => {
 	const { currentPath, fnNavigationUrl, backUrl, homeUrl, bordered, children, breadcrumbsEnabled, loading: t1 } = t0;
 	const loadingProp = t1 === void 0 ? false : t1;
 	const [optionsEl, setOptionsEl] = (0, import_react.useState)(null);
-	const themePreference = useUserSettings(_temp$73);
-	const setThemePreference = useUserSettings(_temp2$47);
+	const themePreference = useUserSettings(_temp$76);
+	const setThemePreference = useUserSettings(_temp2$48);
 	const isDark = useResolvedIsDark(themePreference);
 	const loading = useSelectedLogLoading() || loadingProp;
 	const isShowing = useStore(_temp3$33);
@@ -72840,10 +72876,10 @@ var ApplicationNavbar = (t0) => {
 	} else t8 = $[27];
 	return t8;
 };
-function _temp$73(s) {
+function _temp$76(s) {
 	return s.themePreference;
 }
-function _temp2$47(s_0) {
+function _temp2$48(s_0) {
 	return s_0.setThemePreference;
 }
 function _temp3$33(state) {
@@ -73035,7 +73071,7 @@ var ViewSegmentedControl = (t0) => {
 		t2 = {
 			queryKey: t0,
 			queryFn: t1,
-			select: _temp$72,
+			select: _temp$75,
 			staleTime: Infinity
 		};
 		$[6] = t0;
@@ -73044,7 +73080,7 @@ var ViewSegmentedControl = (t0) => {
 	} else t2 = $[8];
 	return useAsyncDataFromQuery(t2);
 };
-function _temp$72(evalSet) {
+function _temp$75(evalSet) {
 	return evalSet ?? void 0;
 }
 //#endregion
@@ -73153,13 +73189,13 @@ var ColumnSelectorPopover = (t0) => {
 		}
 		let t10;
 		if ($[13] !== columns) {
-			t10 = columns.filter(_temp$71);
+			t10 = columns.filter(_temp$74);
 			$[13] = columns;
 			$[14] = t10;
 		} else t10 = $[14];
 		let t11;
 		if ($[15] !== columns) {
-			t11 = columns.filter(_temp2$46);
+			t11 = columns.filter(_temp2$47);
 			$[15] = columns;
 			$[16] = t11;
 		} else t11 = $[16];
@@ -73474,10 +73510,10 @@ var ColumnSelectorPopover = (t0) => {
 	} else t32 = $[88];
 	return t32;
 };
-function _temp$71(col_0) {
+function _temp$74(col_0) {
 	return !isScoreField(getFieldKey(col_0));
 }
-function _temp2$46(col_1) {
+function _temp2$47(col_1) {
 	return isScoreField(getFieldKey(col_1));
 }
 function _temp3$32(col_2) {
@@ -80174,7 +80210,7 @@ var isConditionShaped = (value) => {
 	const t3 = `${columnId}-op${idSuffix}`;
 	let t4;
 	if ($[2] !== operatorOptions) {
-		t4 = operatorOptions.map(_temp$70);
+		t4 = operatorOptions.map(_temp$73);
 		$[2] = operatorOptions;
 		$[3] = t4;
 	} else t4 = $[3];
@@ -80432,7 +80468,7 @@ var ColumnFilterEditor = (t0) => {
 	} else t10 = $[32];
 	return t10;
 };
-function _temp$70(option) {
+function _temp$73(option) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("option", {
 		value: option,
 		children: OPERATOR_LABELS[option]
@@ -82064,7 +82100,7 @@ function GridRowInner(t0) {
 		t18 = columnDef.meta?.filterable && filterType && !hideColumnFilters && /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
 			className: DataGrid_module_default.rotatedFilter,
 			role: "presentation",
-			onClick: _temp$69,
+			onClick: _temp$72,
 			children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ColumnFilterControl, {
 				columnId: header.column.id,
 				filterType,
@@ -82165,7 +82201,7 @@ function GridRowInner(t0) {
 	} else t22 = $[62];
 	return t22;
 }
-function _temp$69(e_2) {
+function _temp$72(e_2) {
 	return e_2.stopPropagation();
 }
 //#endregion
@@ -82748,7 +82784,7 @@ var LogListGrid = (t0) => {
 	const searchColumns = t10;
 	let t11;
 	if ($[26] !== searchColumns) {
-		t11 = searchColumns.map(_temp$68);
+		t11 = searchColumns.map(_temp$71);
 		$[26] = searchColumns;
 		$[27] = t11;
 	} else t11 = $[27];
@@ -82760,7 +82796,7 @@ var LogListGrid = (t0) => {
 		$[29] = t12;
 	} else t12 = $[29];
 	const rowText = t12;
-	const getRowId = _temp2$45;
+	const getRowId = _temp2$46;
 	let t13;
 	if ($[30] !== accessorsKey || $[31] !== filter || $[32] !== findTerm || $[33] !== getComparator || $[34] !== getFilterType || $[35] !== getValue || $[36] !== listing || $[37] !== orderBy || $[38] !== rowText || $[39] !== searchKey || $[40] !== showFind) {
 		t13 = {
@@ -83039,10 +83075,10 @@ var LogListGrid = (t0) => {
 	} else t32 = $[108];
 	return t32;
 };
-function _temp$68(col_0) {
+function _temp$71(col_0) {
 	return col_0.id ?? "";
 }
-function _temp2$45(row_2) {
+function _temp2$46(row_2) {
 	return row_2.id;
 }
 function _temp3$31(row_3) {
@@ -83168,7 +83204,7 @@ var kNoRows = [];
 	const $ = (0, import_compiler_runtime.c)(45);
 	const { overlayItems, scopeKey, getValue, getComparator, getFilterType, accessorsKey, listing } = t0;
 	const { gridStateByScope } = useLogsListing();
-	const overlayData = useKeyedMemo(overlayItems, _temp$67, _temp2$44, _temp3$30);
+	const overlayData = useKeyedMemo(overlayItems, _temp$70, _temp2$45, _temp3$30);
 	let t1;
 	if ($[0] !== overlayData) {
 		const folders = [];
@@ -83307,10 +83343,10 @@ var kNoRows = [];
 	} else t12 = $[44];
 	return t12;
 };
-function _temp$67(item) {
+function _temp$70(item) {
 	return item.id;
 }
-function _temp2$44(item_0) {
+function _temp2$45(item_0) {
 	return [
 		item_0.id,
 		item_0.type,
@@ -83484,8 +83520,8 @@ var LogsPanel = (t0) => {
 	const mode = t1 === void 0 ? "logs" : t1;
 	const [showColumnSelector, setShowColumnSelector] = (0, import_react.useState)(false);
 	const [columnButtonEl, setColumnButtonEl] = (0, import_react.useState)(null);
-	const showRetriedLogs = useUserSettings(_temp$66);
-	const setShowRetriedLogs = useUserSettings(_temp2$43);
+	const showRetriedLogs = useUserSettings(_temp$69);
+	const setShowRetriedLogs = useUserSettings(_temp2$44);
 	const logDir = useLogDir();
 	const { gridStateByScope, patchGridState } = useLogsListing();
 	const { logPath } = useLogRouteParams();
@@ -83952,10 +83988,10 @@ var appendPendingItems = (evalSet, tasksWithLogFiles, items) => {
 	items.push(...pendingTasks);
 	return items;
 };
-function _temp$66(state) {
+function _temp$69(state) {
 	return state.showRetriedLogs;
 }
-function _temp2$43(state_0) {
+function _temp2$44(state_0) {
 	return state_0.setShowRetriedLogs;
 }
 function _temp3$29(state_1) {
@@ -85443,7 +85479,7 @@ var Grid = (t0) => {
 	const { rows } = t0;
 	let t1;
 	if ($[0] !== rows) {
-		t1 = rows.slice(0, 4).map(_temp$65);
+		t1 = rows.slice(0, 4).map(_temp$68);
 		$[0] = rows;
 		$[1] = t1;
 	} else t1 = $[1];
@@ -85838,7 +85874,7 @@ var BurstBody = (t0) => {
 			$[20] = t10;
 		} else t10 = $[20];
 		members = row.spans.filter(t10);
-		const firstUuid = members.find(_temp2$42)?.uuid;
+		const firstUuid = members.find(_temp2$43)?.uuid;
 		T0 = Card;
 		let t11;
 		if ($[21] !== burst.label) {
@@ -86724,7 +86760,7 @@ var CurveBody = (t0) => {
 	} else t3 = $[43];
 	return t3;
 };
-function _temp$65(row) {
+function _temp$68(row) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_react.Fragment, { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
 		className: ActivityTooltip_module_default.key,
 		children: row.key
@@ -86733,7 +86769,7 @@ function _temp$65(row) {
 		children: row.value
 	})] }, row.key);
 }
-function _temp2$42(m) {
+function _temp2$43(m) {
 	return m.uuid !== void 0;
 }
 function _temp3$28(p) {
@@ -88593,8 +88629,8 @@ var ModelTokenTable = (t0) => {
 								(() => {
 									const cfg = model_configs?.[modelId];
 									const args = model_args?.[modelId];
-									const cfgEntries = cfg ? Object.entries(cfg).filter(_temp$64) : [];
-									const argEntries = args ? Object.entries(args).filter(_temp2$41) : [];
+									const cfgEntries = cfg ? Object.entries(cfg).filter(_temp$67) : [];
+									const argEntries = args ? Object.entries(args).filter(_temp2$42) : [];
 									if (cfgEntries.length === 0 && argEntries.length === 0) return null;
 									const renderSection = _temp4$21;
 									return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
@@ -88708,11 +88744,11 @@ var ModelTokenTable = (t0) => {
 	} else t11 = $[37];
 	return t11;
 };
-function _temp$64(t0) {
+function _temp$67(t0) {
 	const [, v] = t0;
 	return v != null;
 }
-function _temp2$41(t0) {
+function _temp2$42(t0) {
 	const [, v_0] = t0;
 	return v_0 != null;
 }
@@ -88886,7 +88922,7 @@ var ModelUsagePanel = (t0) => {
 	let t7;
 	if ($[0] !== className || $[1] !== timing || $[2] !== usage) {
 		const categories = buildCategories(usage);
-		const composeTotal = categories.reduce(_temp$63, 0);
+		const composeTotal = categories.reduce(_temp$66, 0);
 		const total = usage.total_tokens || composeTotal;
 		const inputAll = (usage.input_tokens ?? 0) + (usage.input_tokens_cache_read ?? 0) + (usage.input_tokens_cache_write ?? 0);
 		const denom = inputAll + ((usage.output_tokens ?? 0) + (usage.reasoning_tokens ?? 0)) || total || 1;
@@ -88963,7 +88999,7 @@ var ModelUsagePanel = (t0) => {
 			}, c_0.key))
 		});
 		t1 = ModelUsagePanel_module_default.breakdown;
-		t2 = categories.map(_temp2$40);
+		t2 = categories.map(_temp2$41);
 		$[0] = className;
 		$[1] = timing;
 		$[2] = usage;
@@ -89074,10 +89110,10 @@ var ModelUsagePanel = (t0) => {
 	} else t11 = $[40];
 	return t11;
 };
-function _temp$63(a, c) {
+function _temp$66(a, c) {
 	return a + c.value;
 }
-function _temp2$40(c_1) {
+function _temp2$41(c_1) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", { children: [
 		/*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", { className: clsx(ModelUsagePanel_module_default.swatch, c_1.swatchClass) }),
 		/*#__PURE__*/ (0, import_jsx_runtime.jsx)("b", { children: formatNumber(c_1.value) }),
@@ -89740,7 +89776,7 @@ var ProvenanceGrid = (t0) => {
 	} else t4 = $[3];
 	let t5;
 	if ($[4] !== changes) {
-		t5 = changes.map(_temp$62);
+		t5 = changes.map(_temp$65);
 		$[4] = changes;
 		$[5] = t5;
 	} else t5 = $[5];
@@ -89787,7 +89823,7 @@ var ProvenanceGrid = (t0) => {
 	} else t9 = $[17];
 	return t9;
 };
-function _temp$62(change) {
+function _temp$65(change) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", { children: [
 		change.name,
 		" ",
@@ -89950,7 +89986,7 @@ var ConnectionLogModal = (t0) => {
 			$[3] = retunes;
 			$[4] = t2;
 		} else t2 = $[4];
-		t1 = [...events.map(_temp$61), ...t2.map(_temp2$39)].sort(_temp3$26);
+		t1 = [...events.map(_temp$64), ...t2.map(_temp2$40)].sort(_temp3$26);
 		$[0] = events;
 		$[1] = retunes;
 		$[2] = t1;
@@ -90089,14 +90125,14 @@ var ConnectionLogModal = (t0) => {
 	} else t12 = $[35];
 	return t12;
 };
-function _temp$61(event) {
+function _temp$64(event) {
 	return {
 		kind: "controller",
 		time: event.timestamp,
 		event
 	};
 }
-function _temp2$39(retune) {
+function _temp2$40(retune) {
 	return {
 		kind: "config",
 		time: retune.timestamp,
@@ -90304,7 +90340,7 @@ var ConnectionsView_module_default = {
 									children: model_0
 								}), roles.length > 0 && /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", {
 									className: ConnectionsView_module_default.roles,
-									children: [roles.length > 1 ? "shared by" : "used by", roles.map(_temp$60)]
+									children: [roles.length > 1 ? "shared by" : "used by", roles.map(_temp$63)]
 								})]
 							}),
 							/*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
@@ -90464,7 +90500,7 @@ var kBaselineY = 60;
 					y1: y(seg.value),
 					y2: y(seg.value)
 				}, `cap-${i}`)),
-				data.events.filter(_temp2$38).map((e_1, i_0) => /*#__PURE__*/ (0, import_jsx_runtime.jsx)("line", {
+				data.events.filter(_temp2$39).map((e_1, i_0) => /*#__PURE__*/ (0, import_jsx_runtime.jsx)("line", {
 					className: ConnectionsView_module_default.rateLimitLine,
 					x1: x(e_1.timestamp),
 					x2: x(e_1.timestamp),
@@ -90588,13 +90624,13 @@ var kBaselineY = 60;
 	} else t2 = $[3];
 	return t2;
 };
-function _temp$60(role) {
+function _temp$63(role) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
 		className: ConnectionsView_module_default.roleChip,
 		children: role
 	}, role);
 }
-function _temp2$38(e_0) {
+function _temp2$39(e_0) {
 	return e_0.reason === "rate_limit";
 }
 var UsagePanel_module_default = {
@@ -91616,6 +91652,7 @@ var eventTypeValues = [
 	"anchor",
 	"approval",
 	"review",
+	"sentinel",
 	"branch",
 	"checkpoint",
 	"compaction",
@@ -92069,7 +92106,7 @@ var StoreSpecificRenderableTypes = [human_baseline_session];
 	const { toolDefinitions } = t0;
 	let t1;
 	if ($[0] !== toolDefinitions) {
-		t1 = toolDefinitions.map(_temp$59);
+		t1 = toolDefinitions.map(_temp$62);
 		$[0] = toolDefinitions;
 		$[1] = t1;
 	} else t1 = $[1];
@@ -92113,7 +92150,7 @@ var StoreSpecificRenderableTypes = [human_baseline_session];
 	} else t3 = $[5];
 	return t3;
 };
-function _temp$59(toolDefinition, idx) {
+function _temp$62(toolDefinition, idx) {
 	const name = toolDefinition.name;
 	const toolArgs = toolDefinition.parameters?.properties ? Object.keys(toolDefinition.parameters.properties) : [];
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Tool, {
@@ -92132,6 +92169,13 @@ function _temp$59(toolDefinition, idx) {
 */ var dynamicDefaultExcludeEvents = (events) => {
 	return events?.some((event) => event.event === "store" && storeEventHasDefaultVisiblePreview(event.changes)) ? kDefaultExcludeEvents.filter((type) => type !== "store") : [...kDefaultExcludeEvents];
 };
+//#endregion
+//#region ../../packages/inspect-components/src/transcript/citeReferences.ts
+/** References as markdown cite links; one with no cite has nothing in the text to link. */ var citeReferences = (references, makeCiteUrl) => references.flatMap((ref) => ref.cite ? [{
+	id: ref.id,
+	cite: ref.cite,
+	citeUrl: makeCiteUrl?.(ref.id, ref.type)
+}] : []);
 //#endregion
 //#region ../../packages/inspect-components/src/transcript/transform/fixups.ts
 var kSandboxSignalName = "53787D8A-D3FC-426D-B383-9F880B70E4AA";
@@ -92391,7 +92435,7 @@ var GoToTurnBar_module_default = {
 			} else if (prefillTurn !== void 0) setValue(String(prefillTurn));
 			openRef.current = true;
 			setOpen(true);
-			setFocusEpoch(_temp$58);
+			setFocusEpoch(_temp$61);
 		};
 		$[0] = t2;
 	} else t2 = $[0];
@@ -92595,7 +92639,7 @@ var GoToTurnBar_module_default = {
 	} else t15 = $[32];
 	return t15;
 });
-function _temp$58(epoch) {
+function _temp$61(epoch) {
 	return epoch + 1;
 }
 var TimelineSelector_module_default = {
@@ -92656,6 +92700,7 @@ var TranscriptIcons = {
 	model: "bi bi-grid-3x3-gap",
 	sample: "bi bi-database",
 	sandbox: "bi bi-box-seam",
+	sentinel: "bi bi-binoculars",
 	scorer: "bi bi-calculator",
 	solvers: { use_tools: "bi bi-tools" }
 };
@@ -92737,7 +92782,7 @@ var EventSelectCheckbox_module_default = {
 			"aria-label": t1,
 			title: t2,
 			className: t4,
-			onMouseDown: _temp$57,
+			onMouseDown: _temp$60,
 			onClick: t5,
 			children: t6
 		});
@@ -92751,7 +92796,7 @@ var EventSelectCheckbox_module_default = {
 	} else t7 = $[13];
 	return t7;
 };
-function _temp$57(e) {
+function _temp$60(e) {
 	if (e.shiftKey) e.preventDefault();
 }
 var EventRow_module_default = {
@@ -92858,10 +92903,362 @@ var AnchorEventView = (t0) => {
 	return t3;
 };
 var ApprovalEventView_module_default = {
-	headline: "_headline_1l22a_1",
-	inlineExplanation: "_inlineExplanation_1l22a_6",
-	rejected: "_rejected_1l22a_10"
+	headline: "_headline_etmzh_1",
+	inlineExplanation: "_inlineExplanation_etmzh_6",
+	rejected: "_rejected_etmzh_10",
+	chain: "_chain_etmzh_14",
+	chainIndex: "_chainIndex_etmzh_25",
+	chainApprover: "_chainApprover_etmzh_32",
+	chainDecision: "_chainDecision_etmzh_38",
+	chainExplanation: "_chainExplanation_etmzh_45"
 };
+var ToolCheckInset_module_default = {
+	inset: "_inset_1g4dt_1",
+	output: "_output_1g4dt_14",
+	reject: "_reject_1g4dt_18",
+	modify: "_modify_1g4dt_23",
+	summary: "_summary_1g4dt_28",
+	icon: "_icon_1g4dt_36",
+	verdict: "_verdict_1g4dt_40",
+	who: "_who_1g4dt_44",
+	mono: "_mono_1g4dt_48",
+	reasonWrap: "_reasonWrap_1g4dt_52",
+	error: "_error_1g4dt_53",
+	reason: "_reason_1g4dt_52",
+	more: "_more_1g4dt_78",
+	clamped: "_clamped_1g4dt_94",
+	scores: "_scores_1g4dt_102",
+	approveIcon: "_approveIcon_1g4dt_109",
+	approveText: "_approveText_1g4dt_113",
+	rejectIcon: "_rejectIcon_1g4dt_117",
+	rejectText: "_rejectText_1g4dt_121",
+	rejectReason: "_rejectReason_1g4dt_125",
+	modifyIcon: "_modifyIcon_1g4dt_129",
+	modifyText: "_modifyText_1g4dt_133",
+	chip: "_chip_1g4dt_137",
+	pill: "_pill_1g4dt_138",
+	trailing: "_trailing_1g4dt_164",
+	pillChevron: "_pillChevron_1g4dt_189",
+	label: "_label_1g4dt_193",
+	replaced: "_replaced_1g4dt_200",
+	code: "_code_1g4dt_211",
+	struck: "_struck_1g4dt_233",
+	notRun: "_notRun_1g4dt_240",
+	notRunBody: "_notRunBody_1g4dt_251",
+	message: "_message_1g4dt_259",
+	messageText: "_messageText_1g4dt_275"
+};
+//#endregion
+//#region ../../packages/inspect-components/src/transcript/ToolCheckInset.tsx
+/** The panel that holds one stage's checks inside a tool block region. */ var CheckInset = (t0) => {
+	const $ = (0, import_compiler_runtime.c)(7);
+	const { region, tone, children } = t0;
+	const t1 = region === "output" && ToolCheckInset_module_default.output;
+	const t2 = tone === "reject" && ToolCheckInset_module_default.reject;
+	const t3 = tone === "modify" && ToolCheckInset_module_default.modify;
+	let t4;
+	if ($[0] !== t1 || $[1] !== t2 || $[2] !== t3) {
+		t4 = clsx(ToolCheckInset_module_default.inset, t1, t2, t3);
+		$[0] = t1;
+		$[1] = t2;
+		$[2] = t3;
+		$[3] = t4;
+	} else t4 = $[3];
+	let t5;
+	if ($[4] !== children || $[5] !== t4) {
+		t5 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+			className: t4,
+			children
+		});
+		$[4] = children;
+		$[5] = t4;
+		$[6] = t5;
+	} else t5 = $[6];
+	return t5;
+};
+/** One row naming the result that took effect for a stage. */ var CheckSummary = (t0) => {
+	const $ = (0, import_compiler_runtime.c)(37);
+	const { icon, iconClassName, verdict, verdictClassName, who, whoSuffix, reason, reasonClassName, references, error, scores, flagged, failed, toggle, clampReason } = t0;
+	const [reasonOpen, setReasonOpen] = (0, import_react.useState)(false);
+	const [overflows, setOverflows] = (0, import_react.useState)(false);
+	const clamped = !!clampReason && !reasonOpen;
+	let t1;
+	if ($[0] !== clamped) {
+		t1 = (entry) => {
+			const text = entry.target.firstElementChild;
+			if (!clamped || !(text instanceof HTMLElement)) return;
+			setOverflows(text.scrollHeight - text.clientHeight > 1);
+		};
+		$[0] = clamped;
+		$[1] = t1;
+	} else t1 = $[1];
+	const reasonRef = useResizeObserver(t1);
+	const clampable = !!clampReason && overflows;
+	let t2;
+	if ($[2] !== icon || $[3] !== iconClassName) {
+		t2 = clsx(icon, ToolCheckInset_module_default.icon, iconClassName);
+		$[2] = icon;
+		$[3] = iconClassName;
+		$[4] = t2;
+	} else t2 = $[4];
+	let t3;
+	if ($[5] !== t2) {
+		t3 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("i", {
+			className: t2,
+			"aria-hidden": "true"
+		});
+		$[5] = t2;
+		$[6] = t3;
+	} else t3 = $[6];
+	let t4;
+	if ($[7] !== verdictClassName) {
+		t4 = clsx(ToolCheckInset_module_default.verdict, verdictClassName);
+		$[7] = verdictClassName;
+		$[8] = t4;
+	} else t4 = $[8];
+	let t5;
+	if ($[9] !== t4 || $[10] !== verdict) {
+		t5 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+			className: t4,
+			children: verdict
+		});
+		$[9] = t4;
+		$[10] = verdict;
+		$[11] = t5;
+	} else t5 = $[11];
+	let t6;
+	if ($[12] !== who || $[13] !== whoSuffix) {
+		t6 = who ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", {
+			className: ToolCheckInset_module_default.who,
+			children: [
+				"by ",
+				/*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+					className: ToolCheckInset_module_default.mono,
+					children: who
+				}),
+				whoSuffix
+			]
+		}) : null;
+		$[12] = who;
+		$[13] = whoSuffix;
+		$[14] = t6;
+	} else t6 = $[14];
+	let t7;
+	if ($[15] !== scores) {
+		t7 = scores?.map(_temp$59);
+		$[15] = scores;
+		$[16] = t7;
+	} else t7 = $[16];
+	let t8;
+	if ($[17] !== clampable || $[18] !== clamped || $[19] !== error || $[20] !== reason || $[21] !== reasonClassName || $[22] !== reasonOpen || $[23] !== reasonRef || $[24] !== references) {
+		t8 = error ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("pre", {
+			className: clsx(ToolCheckInset_module_default.reason, ToolCheckInset_module_default.error),
+			children: error
+		}) : reason ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+			ref: reasonRef,
+			className: ToolCheckInset_module_default.reasonWrap,
+			children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)(MarkdownDivWithReferences, {
+				markdown: reason,
+				references,
+				className: clsx(ToolCheckInset_module_default.reason, clamped && ToolCheckInset_module_default.clamped, reasonClassName)
+			}), clampable ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
+				type: "button",
+				className: ToolCheckInset_module_default.more,
+				"aria-expanded": reasonOpen,
+				onClick: () => setReasonOpen(!reasonOpen),
+				children: reasonOpen ? "less" : "more"
+			}) : null]
+		}) : null;
+		$[17] = clampable;
+		$[18] = clamped;
+		$[19] = error;
+		$[20] = reason;
+		$[21] = reasonClassName;
+		$[22] = reasonOpen;
+		$[23] = reasonRef;
+		$[24] = references;
+		$[25] = t8;
+	} else t8 = $[25];
+	let t9;
+	if ($[26] !== failed || $[27] !== flagged || $[28] !== toggle) {
+		t9 = flagged || failed || toggle ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", {
+			className: ToolCheckInset_module_default.trailing,
+			children: [
+				flagged ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", {
+					className: ToolCheckInset_module_default.chip,
+					children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("i", {
+						className: "bi bi-flag-fill",
+						"aria-hidden": "true"
+					}), "flagged"]
+				}) : null,
+				failed ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", {
+					className: ToolCheckInset_module_default.chip,
+					children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("i", {
+						className: "bi bi-exclamation-triangle",
+						"aria-hidden": "true"
+					}), `${failed} failed`]
+				}) : null,
+				toggle ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("button", {
+					type: "button",
+					className: ToolCheckInset_module_default.pill,
+					"aria-expanded": toggle.open,
+					onClick: toggle.onToggle,
+					children: [toggle.label, /*#__PURE__*/ (0, import_jsx_runtime.jsx)("i", {
+						className: clsx(toggle.open ? "bi bi-chevron-down" : "bi bi-chevron-right", ToolCheckInset_module_default.pillChevron),
+						"aria-hidden": "true"
+					})]
+				}) : null
+			]
+		}) : null;
+		$[26] = failed;
+		$[27] = flagged;
+		$[28] = toggle;
+		$[29] = t9;
+	} else t9 = $[29];
+	let t10;
+	if ($[30] !== t3 || $[31] !== t5 || $[32] !== t6 || $[33] !== t7 || $[34] !== t8 || $[35] !== t9) {
+		t10 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+			className: ToolCheckInset_module_default.summary,
+			children: [
+				t3,
+				t5,
+				t6,
+				t7,
+				t8,
+				t9
+			]
+		});
+		$[30] = t3;
+		$[31] = t5;
+		$[32] = t6;
+		$[33] = t7;
+		$[34] = t8;
+		$[35] = t9;
+		$[36] = t10;
+	} else t10 = $[36];
+	return t10;
+};
+/** Whether two tool call argument values are equal, key order aside. */ var sameArguments = (a, b) => {
+	if (a === b) return true;
+	if (Array.isArray(a) || Array.isArray(b)) return Array.isArray(a) && Array.isArray(b) && a.length === b.length && a.every((value, i) => sameArguments(value, b[i]));
+	if (!isRecord(a) || !isRecord(b)) return false;
+	const keys = Object.keys(a);
+	return keys.length === Object.keys(b).length && keys.every((key) => Object.hasOwn(b, key) && sameArguments(a[key], b[key]));
+};
+/** A call as the check was given it, struck through: the call that ran is the tool's input. */ var ReplacedCall = (t0) => {
+	const $ = (0, import_compiler_runtime.c)(16);
+	const { call, label: t1 } = t0;
+	const label = t1 === void 0 ? "proposed" : t1;
+	let t2;
+	if ($[0] !== call.arguments || $[1] !== call.function) {
+		t2 = resolveToolInput(call.function, call.arguments);
+		$[0] = call.arguments;
+		$[1] = call.function;
+		$[2] = t2;
+	} else t2 = $[2];
+	const { input, contentType, functionCall } = t2;
+	let t3;
+	if ($[3] === Symbol.for("react.memo_cache_sentinel")) {
+		t3 = clsx(ToolCheckInset_module_default.label, ToolCheckInset_module_default.modifyText);
+		$[3] = t3;
+	} else t3 = $[3];
+	let t4;
+	if ($[4] !== label) {
+		t4 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+			className: t3,
+			children: label
+		});
+		$[4] = label;
+		$[5] = t4;
+	} else t4 = $[5];
+	let t5;
+	if ($[6] === Symbol.for("react.memo_cache_sentinel")) {
+		t5 = clsx(ToolCheckInset_module_default.code, ToolCheckInset_module_default.struck);
+		$[6] = t5;
+	} else t5 = $[6];
+	let t6;
+	if ($[7] !== contentType || $[8] !== functionCall || $[9] !== input) {
+		t6 = input !== void 0 && input !== null && input !== "" ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ToolInput, {
+			contentType,
+			contents: input
+		}) : functionCall;
+		$[7] = contentType;
+		$[8] = functionCall;
+		$[9] = input;
+		$[10] = t6;
+	} else t6 = $[10];
+	let t7;
+	if ($[11] !== t6) {
+		t7 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+			className: t5,
+			children: t6
+		});
+		$[11] = t6;
+		$[12] = t7;
+	} else t7 = $[12];
+	let t8;
+	if ($[13] !== t4 || $[14] !== t7) {
+		t8 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+			className: ToolCheckInset_module_default.replaced,
+			children: [t4, t7]
+		});
+		$[13] = t4;
+		$[14] = t7;
+		$[15] = t8;
+	} else t8 = $[15];
+	return t8;
+};
+/** Stands in for the result region of a call that never ran. */ var NotRunWell = (t0) => {
+	const $ = (0, import_compiler_runtime.c)(3);
+	const { message } = t0;
+	let t1;
+	if ($[0] === Symbol.for("react.memo_cache_sentinel")) {
+		t1 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("i", {
+			className: "bi bi-slash-circle",
+			"aria-hidden": "true"
+		});
+		$[0] = t1;
+	} else t1 = $[0];
+	let t2;
+	if ($[1] !== message) {
+		t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+			className: ToolCheckInset_module_default.notRun,
+			children: [t1, /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+				className: ToolCheckInset_module_default.notRunBody,
+				children: message !== void 0 ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", { children: "Did not run. The model received this as the tool result:" }), /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+					className: ToolCheckInset_module_default.message,
+					children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+						className: ToolCheckInset_module_default.label,
+						children: "error"
+					}), /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+						className: ToolCheckInset_module_default.messageText,
+						children: message
+					})]
+				})] }) : /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", { children: "Did not run. The sample was terminated." })
+			})]
+		});
+		$[1] = message;
+		$[2] = t2;
+	} else t2 = $[2];
+	return t2;
+};
+/** Verdict colours and shared type styles for the check views. */ var checkClasses = {
+	approveIcon: ToolCheckInset_module_default.approveIcon,
+	approveText: ToolCheckInset_module_default.approveText,
+	rejectIcon: ToolCheckInset_module_default.rejectIcon,
+	rejectText: ToolCheckInset_module_default.rejectText,
+	rejectReason: ToolCheckInset_module_default.rejectReason,
+	modifyIcon: ToolCheckInset_module_default.modifyIcon,
+	modifyText: ToolCheckInset_module_default.modifyText,
+	label: ToolCheckInset_module_default.label,
+	mono: ToolCheckInset_module_default.mono
+};
+function _temp$59(score, i) {
+	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+		className: ToolCheckInset_module_default.scores,
+		children: score
+	}, i);
+}
 //#endregion
 //#region ../../packages/inspect-components/src/transcript/ApprovalEventView.tsx
 /**
@@ -92999,6 +93396,111 @@ var decisionIcon$1 = (decision) => {
 		default: return TranscriptIcons.approve;
 	}
 };
+/**
+* The approvals of a tool call as an inset in its input region: one summary
+* row for the decision that took effect, expanding to the escalation chain.
+* A modify shows the call the approver was given, struck through.
+*/ var ApprovalInset = (t0) => {
+	const $ = (0, import_compiler_runtime.c)(7);
+	const { chain } = t0;
+	const final = chain.at(-1);
+	const [collapsed, setCollapsed] = useCollapsedState(`${chain[0].id}-approval-chain`, true);
+	const event = final.event;
+	const look = decisionLook(event.decision);
+	const escalated = chain.slice(0, -1).some(_temp$58);
+	let t1;
+	if ($[0] !== chain.length || $[1] !== collapsed || $[2] !== setCollapsed) {
+		t1 = chain.length > 1 ? {
+			label: `${chain.length} checks`,
+			open: !collapsed,
+			onToggle: () => setCollapsed(!collapsed)
+		} : void 0;
+		$[0] = chain.length;
+		$[1] = collapsed;
+		$[2] = setCollapsed;
+		$[3] = t1;
+	} else t1 = $[3];
+	let t2;
+	if ($[4] !== chain || $[5] !== collapsed) {
+		t2 = chain.length > 1 && !collapsed ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+			className: ApprovalEventView_module_default.chain,
+			children: chain.map(_temp2$38)
+		}) : null;
+		$[4] = chain;
+		$[5] = collapsed;
+		$[6] = t2;
+	} else t2 = $[6];
+	return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(CheckInset, {
+		region: "input",
+		tone: look.tone,
+		children: [
+			/*#__PURE__*/ (0, import_jsx_runtime.jsx)(CheckSummary, {
+				icon: decisionIcon$1(event.decision),
+				iconClassName: look.icon,
+				verdict: decisionLabel$1(event.decision),
+				verdictClassName: look.text,
+				who: event.approver,
+				whoSuffix: escalated ? ", after escalation" : void 0,
+				reason: event.explanation?.trim() || void 0,
+				reasonClassName: look.reason,
+				clampReason: chain.length > 1 && collapsed,
+				toggle: t1
+			}),
+			event.decision === "modify" && event.modified && !sameArguments(event.call.arguments, event.modified.arguments) ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ReplacedCall, { call: event.call }) : null,
+			t2
+		]
+	});
+};
+var decisionLook = (decision) => {
+	switch (decision) {
+		case "approve": return {
+			tone: "neutral",
+			icon: checkClasses.approveIcon,
+			text: checkClasses.approveText
+		};
+		case "reject":
+		case "terminate": return {
+			tone: "reject",
+			icon: checkClasses.rejectIcon,
+			text: checkClasses.rejectText,
+			reason: checkClasses.rejectReason
+		};
+		case "modify":
+		case "escalate": return {
+			tone: decision === "modify" ? "modify" : "neutral",
+			icon: checkClasses.modifyIcon,
+			text: checkClasses.modifyText
+		};
+	}
+};
+function _temp$58(n) {
+	return n.event.decision === "escalate";
+}
+function _temp2$38(node, index) {
+	const step = decisionLook(node.event.decision);
+	const explanation = node.event.explanation?.trim();
+	return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_react.Fragment, { children: [
+		/*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+			className: ApprovalEventView_module_default.chainIndex,
+			children: index + 1
+		}),
+		/*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+			className: ApprovalEventView_module_default.chainApprover,
+			children: node.event.approver
+		}),
+		/*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", {
+			className: clsx(ApprovalEventView_module_default.chainDecision, step.text),
+			children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("i", {
+				className: decisionIcon$1(node.event.decision),
+				"aria-hidden": "true"
+			}), node.event.decision]
+		}),
+		explanation ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MarkdownDiv, {
+			markdown: explanation,
+			className: ApprovalEventView_module_default.chainExplanation
+		}) : /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {})
+	] }, node.id);
+}
 var BranchEventView_module_default = { panel: "_panel_8zdtn_1" };
 //#endregion
 //#region ../../packages/inspect-components/src/transcript/EventLabelContext.ts
@@ -93220,7 +93722,7 @@ var EventNavsPicker_module_default = {
 	let t8;
 	if ($[9] === Symbol.for("react.memo_cache_sentinel")) {
 		t7 = clsx("nav-link", "active", "text-style-label", "text-size-small", EventNavsPicker_module_default.trigger);
-		t8 = () => setOpen(_temp$56);
+		t8 = () => setOpen(_temp$57);
 		$[9] = t7;
 		$[10] = t8;
 	} else {
@@ -93313,7 +93815,7 @@ var EventNavsPicker_module_default = {
 	} else t15 = $[28];
 	return t15;
 };
-function _temp$56(v) {
+function _temp$57(v) {
 	return !v;
 }
 //#endregion
@@ -93407,7 +93909,7 @@ var SWITCH_TOLERANCE = 4;
 	} else t5 = $[10];
 	let t6;
 	if ($[11] !== navs) {
-		t6 = navs.map(_temp$55);
+		t6 = navs.map(_temp$56);
 		$[11] = navs;
 		$[12] = t6;
 	} else t6 = $[12];
@@ -93436,7 +93938,7 @@ var SWITCH_TOLERANCE = 4;
 	} else t8 = $[18];
 	return t8;
 };
-function _temp$55(nav_1) {
+function _temp$56(nav_1) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("li", {
 		className: "nav-item",
 		children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
@@ -93718,6 +94220,318 @@ function hasDataDefault(node) {
 	return /*#__PURE__*/ (0, import_react.isValidElement)(node) && node.props !== null && typeof node.props === "object" && "data-default" in node.props;
 }
 //#endregion
+//#region ../../packages/inspect-components/src/transcript/transform/toolSentinels.ts
+/** The span a sentinel's dispatch runs in; it holds the step's events and the model calls its monitors made. */ var isSentinelSpan = (node) => node.event.event === "span_begin" && node.event.type === "sentinel";
+var reported = (node, kind) => node.event.status === "reported" && node.event.kind === kind;
+var pathSegments = (path) => path === "" ? [] : path.split("/");
+var isAncestorPath = (ancestor, path) => ancestor === "" ? path !== "" : path.startsWith(`${ancestor}/`);
+/**
+* Orders a step's events so a nested configuration reads top to bottom: each
+* layer above its children, siblings in the order they were first recorded.
+*/ var pathOrderKeys = (nodes) => {
+	const firstSeen = /* @__PURE__ */ new Map();
+	nodes.forEach((node, index) => {
+		const segments = pathSegments(node.event.path);
+		for (let i = 1; i <= segments.length; i++) {
+			const prefix = segments.slice(0, i).join("/");
+			if (!firstSeen.has(prefix)) firstSeen.set(prefix, index);
+		}
+	});
+	const keys = /* @__PURE__ */ new Map();
+	for (const node of nodes) {
+		const segments = pathSegments(node.event.path);
+		keys.set(node, segments.map((_, i) => firstSeen.get(segments.slice(0, i + 1).join("/"))));
+	}
+	return keys;
+};
+var compareKeys = (a, b) => {
+	for (let i = 0; i < Math.min(a.length, b.length); i++) {
+		const diff = a[i] - b[i];
+		if (diff !== 0) return diff;
+	}
+	return a.length - b.length;
+};
+/** Links each check to the nearest recorded check above it by path. */ var buildTree$2 = (ordered) => {
+	const tree = [];
+	for (const node of ordered) {
+		const parent = tree.findLast((candidate) => isAncestorPath(candidate.node.event.path, node.event.path));
+		const entry = {
+			node,
+			parent,
+			children: [],
+			depth: parent ? parent.depth + 1 : 0
+		};
+		parent?.children.push(entry);
+		tree.push(entry);
+	}
+	return tree;
+};
+var guidesFor = (entry) => {
+	const isLast = (e) => !e.parent || e.parent.children.at(-1) === e;
+	if (!entry.parent) return "";
+	let prefix = isLast(entry) ? "└─ " : "├─ ";
+	for (let up = entry.parent; up.parent; up = up.parent) prefix = (isLast(up) ? "   " : "│  ") + prefix;
+	return prefix;
+};
+var explanationOf = (node) => node?.event.explanation?.trim() || void 0;
+/**
+* The check that made the step's decision: from the outcome, descend to the
+* child that made the same decision, to the lowest such descendant.
+* Explanations and replacements may differ, since combinators reword what
+* they pass up.
+*/ var creditDecision = (tree, outcome) => {
+	let current = tree.find((e) => e.node === outcome);
+	let reason = explanationOf(outcome);
+	let reasonSource = reason ? outcome : void 0;
+	for (;;) {
+		const matching = current.children.filter((c) => reported(c.node, "decision") && c.node.event.action === outcome.event.action);
+		const next = matching.length === 1 ? matching[0] : passedUp(matching, reason);
+		if (!next) return {
+			node: current.node,
+			reason,
+			reasonSource
+		};
+		current = next;
+		const own = explanationOf(next.node);
+		if (own) {
+			reason = own;
+			reasonSource = next.node;
+		}
+	}
+};
+/**
+* Of several children that made the same decision, the one whose explanation
+* the explanation above begins with. Children record in completion order,
+* while combinators break ties by configuration order (`concurrent`) or take
+* the last (`sequential`), so recording order cannot tell; an explanation
+* passed up names its source. Unset when none or several match.
+*/ var passedUp = (children, reason) => {
+	if (!reason) return void 0;
+	const [first, second] = children.map((child) => ({
+		child,
+		text: explanationOf(child.node)
+	})).filter(({ text }) => text !== void 0 && reason.startsWith(text)).sort((a, b) => b.text.length - a.text.length);
+	if (!first || second && second.text.length === first.text.length) return;
+	return first.child;
+};
+/**
+* The decision the runner returned for the step: the root's, or, when a
+* `decide_final()` bypassed the root, the one recorded after the bypassed layers.
+*/ var outcomeOf = (nodes) => {
+	const root = nodes.find((n) => n.event.path === "" && reported(n, "decision"));
+	if (root) return root;
+	const bypassed = nodes.findIndex((n) => n.event.path === "" && n.event.status === "bypassed");
+	if (bypassed === -1) return void 0;
+	return nodes.slice(bypassed + 1).findLast((n) => reported(n, "decision"));
+};
+var isInactive$1 = (status) => status !== "reported";
+/**
+* The verdict of a step the runner returned no decision for: observed when
+* only monitors reported, continued when a protocol reported but the root
+* returned nothing, and the recorded status when the root or every check was
+* cancelled or bypassed.
+*/ var quietVerdict = (checks) => {
+	const rootStatus = checks.find((n) => n.event.path === "")?.event.status;
+	if (rootStatus && isInactive$1(rootStatus)) return rootStatus;
+	if (checks.some((n) => reported(n, "decision"))) return "continue";
+	if (checks.some((n) => reported(n, "observation"))) return "observe";
+	const firstStatus = checks[0]?.event.status;
+	return firstStatus && isInactive$1(firstStatus) ? firstStatus : "continue";
+};
+/**
+* Builds the check tree for one step's events, given in recording order. A
+* decision that a later `superseded` event names shares that event's row.
+*/ function buildSentinelStep(nodes, modelCalls = []) {
+	const first = nodes[0];
+	const replaced = /* @__PURE__ */ new Set();
+	nodes.forEach((loser, at) => {
+		if (loser.event.status !== "superseded") return;
+		for (const report of nodes.slice(0, at)) if (reported(report, "decision") && report.event.path === loser.event.path && report.event.function === loser.event.function) replaced.add(report);
+	});
+	const checks = nodes.filter((n) => !replaced.has(n));
+	const keys = pathOrderKeys(checks);
+	const tree = buildTree$2(checks.map((node, index) => ({
+		node,
+		index
+	})).sort((a, b) => compareKeys(keys.get(a.node), keys.get(b.node)) || a.index - b.index).map(({ node }) => node));
+	const outcome = outcomeOf(checks);
+	const acted = !!outcome && outcome.event.action !== "continue";
+	const credit = acted ? creditDecision(tree, outcome) : void 0;
+	const effective = credit?.node;
+	const single = checks.length === 1 ? checks[0] : void 0;
+	const observations = checks.filter((n) => reported(n, "observation") && n.event.suspicion != null);
+	const scores = acted ? [] : single?.event.suspicion != null ? [formatSuspicion(single.event.suspicion)].filter(Boolean) : observations.flatMap((n) => {
+		const top = topScore(n.event.suspicion);
+		if (!top.value) return [];
+		return [`${top.dimension ?? n.event.factory.split("/").at(-1)} ${top.value}`];
+	});
+	return {
+		id: first?.id ?? "",
+		stage: first?.event.stage ?? "tool_call",
+		stepId: first?.event.step_id ?? "",
+		rows: tree.map((entry) => ({
+			node: entry.node,
+			depth: entry.depth,
+			guides: guidesFor(entry),
+			tookEffect: entry.node === effective
+		})),
+		verdict: outcome ? outcome.event.action ?? "continue" : quietVerdict(checks),
+		outcome,
+		returned: !!outcome,
+		decider: effective ?? outcome,
+		effective,
+		reason: credit ? credit.reason : explanationOf(single),
+		error: single?.event.error || void 0,
+		reasonReferences: credit ? credit.reasonSource?.event.references ?? [] : explanationOf(single) ? single.event.references : [],
+		scores,
+		audit: nodes.some((n) => n.event.audit),
+		failed: checks.filter((n) => n.event.status === "error").length,
+		modelCalls
+	};
+}
+/**
+* The step of one event shown without the rest of its step (e.g. in the
+* chunked transcript), whose verdict is the event's own result.
+*/ function buildLoneSentinelStep(node) {
+	const step = buildSentinelStep([node]);
+	const event = node.event;
+	if (!reported(node, "decision") || step.outcome) return step;
+	const verdict = event.action ?? "continue";
+	const acted = verdict !== "continue";
+	return {
+		...step,
+		verdict,
+		outcome: node,
+		returned: event.path === "",
+		decider: node,
+		effective: acted ? node : void 0,
+		rows: step.rows.map((row) => ({
+			...row,
+			tookEffect: acted
+		})),
+		reason: explanationOf(node),
+		reasonReferences: explanationOf(node) ? event.references : []
+	};
+}
+var kToolStages = /* @__PURE__ */ new Set(["tool_call", "tool_result"]);
+/**
+* The ToolEvent a tool-stage step judged: the first one with the step's id
+* recorded after a `tool_call` step (none when no such tool follows), the last
+* one before a `tool_result` step, skipping tools that already host a step of
+* the same stage.
+*/ var hostTool = (tools, step, order, claimed) => {
+	const candidates = tools.filter((t) => t.node.event.id === step.stepId && !claimed.has(`${step.stage}\u0000${t.node.id}`));
+	const after = candidates.find((t) => t.order > order);
+	if (step.stage === "tool_call") return after;
+	return candidates.findLast((t) => t.order < order) ?? after;
+};
+/**
+* Groups SentinelEvents by the step they judged and pairs tool-stage steps to
+* their ToolEvent (`step_id == ToolEvent.id`), so the tool panel renders them
+* inline. Each sentinel span holds one step; events outside a span group by
+* stage and step id. Steps with no tool render as one row at their span or
+* first event.
+*/ function pairToolSentinels(eventNodes) {
+	const tools = [];
+	const proposals = /* @__PURE__ */ new Map();
+	const steps = /* @__PURE__ */ new Map();
+	const seen = /* @__PURE__ */ new Set();
+	let order = 0;
+	const walk = (nodes, span) => {
+		for (const n of nodes) {
+			if (seen.has(n.id)) continue;
+			seen.add(n.id);
+			const at = order++;
+			span?.members.push(n);
+			if (n.event.event === "tool") tools.push({
+				node: eventNodeOf(n, "tool"),
+				order: at,
+				proposed: proposals.get(n.event.id)?.shift()
+			});
+			else if (n.event.event === "sentinel") {
+				const key = span ? span.node.id : `${n.event.stage}\u0000${n.event.step_id}`;
+				const step = steps.get(key) ?? {
+					nodes: [],
+					order: span?.order ?? at,
+					span
+				};
+				step.nodes.push(eventNodeOf(n, "sentinel"));
+				steps.set(key, step);
+			} else if (n.event.event === "model") {
+				if (span) span.modelCalls.push(eventNodeOf(n, "model"));
+				else {
+					const proposed = n.event.output.choices.flatMap((choice) => choice.message.tool_calls ?? []);
+					for (const id of new Set(proposed.map((call) => call.id))) proposals.set(id, proposed.filter((call) => call.id === id));
+				}
+			}
+			let inner = span;
+			if (isSentinelSpan(n)) inner = {
+				node: n,
+				members: [],
+				modelCalls: [],
+				order: at
+			};
+			if (n.children.length) walk(n.children, inner);
+		}
+	};
+	walk(eventNodes, void 0);
+	const toolSentinels = /* @__PURE__ */ new Map();
+	const standaloneSentinels = /* @__PURE__ */ new Map();
+	const hiddenSentinelIds = /* @__PURE__ */ new Set();
+	const sentinelScrollRedirects = /* @__PURE__ */ new Map();
+	const claimed = /* @__PURE__ */ new Set();
+	const ordered = [...steps.values()].sort((a, b) => a.order - b.order);
+	for (const { nodes, order: at, span } of ordered) {
+		const step = buildSentinelStep(nodes, span?.modelCalls);
+		const tool = kToolStages.has(step.stage) ? hostTool(tools, step, at, claimed) : void 0;
+		const hostId = tool?.node.id ?? span?.node.id ?? nodes[0].id;
+		if (tool) {
+			claimed.add(`${step.stage}\u0000${tool.node.id}`);
+			const paired = toolSentinels.get(tool.node.id) ?? { proposed: tool.proposed };
+			if (step.stage === "tool_call") paired.before = step;
+			else paired.after = step;
+			toolSentinels.set(tool.node.id, paired);
+		} else standaloneSentinels.set(hostId, step);
+		const hidden = span ? [span.node, ...span.members] : nodes;
+		for (const node of hidden) {
+			if (node.id === hostId) continue;
+			hiddenSentinelIds.add(node.id);
+			sentinelScrollRedirects.set(node.id, hostId);
+		}
+	}
+	return {
+		toolSentinels,
+		standaloneSentinels,
+		hiddenSentinelIds,
+		sentinelScrollRedirects
+	};
+}
+/** The instance path, or the factory's registry name at the root. */ var instanceLabel = (event) => event.path || event.factory;
+var formatSuspicion = (suspicion) => {
+	if (typeof suspicion === "number") return formatScore(suspicion);
+	return Object.entries(suspicion).map(([dimension, value]) => `${dimension} ${formatScore(value)}`).join(", ");
+};
+var formatScore = (value) => String(Math.round(value * 100) / 100);
+/** The highest score of a suspicion, which stands for it where space is short; an empty value for a suspicion with no scores. */ var topScore = (suspicion) => {
+	if (typeof suspicion === "number") return {
+		value: formatScore(suspicion),
+		more: 0
+	};
+	const top = sortedScores(suspicion)[0];
+	if (!top) return {
+		value: "",
+		more: 0
+	};
+	const [dimension, value] = top;
+	return {
+		dimension,
+		value: formatScore(value),
+		more: Object.keys(suspicion).length - 1
+	};
+};
+/** A suspicion's dimensions, highest score first. */ var sortedScores = (suspicion) => Object.entries(suspicion).sort(([, a], [, b]) => b - a);
+/** A modify decision's replacement call, with every argument spelled out. */ var formatModifiedCall = (call) => `${call.function}(${Object.entries(call.arguments).map(([key, value]) => `${key}=${JSON.stringify(value)}`).join(", ")})`;
+//#endregion
 //#region ../../packages/inspect-components/src/transcript/event/utils.ts
 var sampleLimitTitles = {
 	custom: "Custom Limit Exceeded",
@@ -93784,6 +94598,7 @@ var reviewDecisionLabels = {
 		case "input": return "Input";
 		case "approval": return approvalDecisionLabels[event.decision] ?? event.decision;
 		case "review": return reviewDecisionLabels[event.decision] ?? event.decision;
+		case "sentinel": return event.status === "reported" ? `Sentinel ${toTitleCase(event.kind)}: ${instanceLabel(event)}` : `Sentinel ${toTitleCase(event.kind)} (${event.status}): ${instanceLabel(event)}`;
 		case "sandbox": return `Sandbox: ${event.action}`;
 		default: return "";
 	}
@@ -94115,7 +94930,7 @@ var Snapshot = (t0) => {
 	if ($[7] !== details.additional_files || $[8] !== details.files) {
 		t4 = details.files && details.files.length > 0 ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 			className: CheckpointEventView_module_default.files,
-			children: [details.files.map(_temp$54), details.additional_files ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+			children: [details.files.map(_temp$55), details.additional_files ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 				className: CheckpointEventView_module_default.fileOverflow,
 				children: [
 					"+",
@@ -94270,7 +95085,7 @@ var CheckpointEventView = (t0) => {
 	} else t19 = $[32];
 	return t19;
 };
-function _temp$54(file) {
+function _temp$55(file) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 		className: CheckpointEventView_module_default.file,
 		children: file
@@ -94893,7 +95708,7 @@ var RetryChip = (t0) => {
 	let t10;
 	let t9;
 	if ($[15] === Symbol.for("react.memo_cache_sentinel")) {
-		t9 = () => setOpen(_temp$53);
+		t9 = () => setOpen(_temp$54);
 		t10 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("i", {
 			className: clsx("bi", "bi-arrow-repeat", RetryChip_module_default.chipIcon),
 			"aria-hidden": "true"
@@ -94997,7 +95812,7 @@ function formatAttemptDuration(event) {
 	const sec = attemptDurationSec(event);
 	return sec != null ? formatTime$1(sec) : null;
 }
-function _temp$53(v) {
+function _temp$54(v) {
 	return !v;
 }
 var StopReasonBadge_module_default = {
@@ -95278,7 +96093,7 @@ var ModelEventView = (t0) => {
 	const callTime = event.output.time;
 	let t4;
 	if ($[6] !== event.output.choices) {
-		t4 = event.output.choices.map(_temp$52);
+		t4 = event.output.choices.map(_temp$53);
 		$[6] = event.output.choices;
 		$[7] = t4;
 	} else t4 = $[7];
@@ -95974,7 +96789,7 @@ var ToolChoiceView = (t0) => {
 		return t1;
 	}
 };
-function _temp$52(choice) {
+function _temp$53(choice) {
 	return choice.message;
 }
 function _temp2$37(m) {
@@ -96154,7 +96969,7 @@ var SampleInitEventView = (t0) => {
 			const t3 = `event-${eventNode.id}`;
 			let t4;
 			if ($[8] !== event.sample.files) {
-				t4 = Object.keys(event.sample.files).map(_temp$51);
+				t4 = Object.keys(event.sample.files).map(_temp$52);
 				$[8] = event.sample.files;
 				$[9] = t4;
 			} else t4 = $[9];
@@ -96293,7 +97108,7 @@ var SampleInitEventView = (t0) => {
 	} else t11 = $[42];
 	return t11;
 };
-function _temp$51(file) {
+function _temp$52(file) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("pre", {
 		className: SampleInitEventView_module_default.noMargin,
 		children: file
@@ -96317,7 +97132,7 @@ function _temp3$24(target) {
 var SampleLimitEventView = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(14);
 	const { eventNode, className } = t0;
-	const resolve_title = _temp$50;
+	const resolve_title = _temp$51;
 	const resolve_icon = _temp2$35;
 	const baseTitle = resolve_title(eventNode.event.type);
 	let t1;
@@ -96368,7 +97183,7 @@ var SampleLimitEventView = (t0) => {
 	} else t6 = $[13];
 	return t6;
 };
-function _temp$50(type) {
+function _temp$51(type) {
 	switch (type) {
 		case "custom": return "Custom Limit Exceeded";
 		case "time": return "Time Limit Exceeded";
@@ -97157,6 +97972,921 @@ var ScoreEventView = (t0) => {
 	} else t25 = $[42];
 	return t25;
 };
+var SentinelEventView_module_default = {
+	tree: "_tree_1ww9u_1",
+	reject: "_reject_1ww9u_15",
+	modify: "_modify_1ww9u_19",
+	row: "_row_1ww9u_23",
+	open: "_open_1ww9u_42",
+	inactive: "_inactive_1ww9u_46",
+	rowLabel: "_rowLabel_1ww9u_50",
+	guides: "_guides_1ww9u_56",
+	name: "_name_1ww9u_60",
+	result: "_result_1ww9u_68",
+	"continue": "_continue_1ww9u_74",
+	failed: "_failed_1ww9u_82",
+	kindIcon: "_kindIcon_1ww9u_86",
+	rowChevron: "_rowChevron_1ww9u_96",
+	flag: "_flag_1ww9u_101",
+	moreScores: "_moreScores_1ww9u_106",
+	detailWrap: "_detailWrap_1ww9u_117",
+	detail: "_detail_1ww9u_117",
+	afterDetail: "_afterDetail_1ww9u_133",
+	rejectDetail: "_rejectDetail_1ww9u_137",
+	modifyDetail: "_modifyDetail_1ww9u_141",
+	meta: "_meta_1ww9u_145",
+	scoreGrid: "_scoreGrid_1ww9u_150",
+	scoreName: "_scoreName_1ww9u_159",
+	explanation: "_explanation_1ww9u_163",
+	errorText: "_errorText_1ww9u_173",
+	noExplanation: "_noExplanation_1ww9u_178",
+	labelled: "_labelled_1ww9u_183",
+	foldedToggle: "_foldedToggle_1ww9u_196",
+	chevron: "_chevron_1ww9u_211",
+	modelCalls: "_modelCalls_1ww9u_215"
+};
+//#endregion
+//#region ../../packages/inspect-components/src/transcript/SentinelEventView.tsx
+/**
+* One step's sentinel checks: a summary row naming the result that took
+* effect, expanding to the tree of every check (or a lone check's detail).
+*/ var SentinelInset = (t0) => {
+	const $ = (0, import_compiler_runtime.c)(53);
+	const { step, region, context, judged, judgedReplaced } = t0;
+	const [collapsed, setCollapsed] = useCollapsedState(`${step.id}-sentinel-checks`, true);
+	let t1;
+	if ($[0] !== step) {
+		t1 = lookOf(step);
+		$[0] = step;
+		$[1] = t1;
+	} else t1 = $[1];
+	const look = t1;
+	const tone = step.effective ? look.tone : "neutral";
+	const single = step.rows.length === 1 ? step.rows[0] : void 0;
+	const who = (single?.node ?? step.decider)?.event.path || void 0;
+	const modified = step.effective ? step.outcome?.event.modified : void 0;
+	const makeCiteUrl = context?.makeCiteUrl;
+	const t2 = look.icon;
+	const t3 = look.iconClass;
+	const t4 = look.word;
+	const t5 = look.textClass;
+	const t6 = step.scores;
+	const t7 = step.reason;
+	const t8 = look.reasonClass;
+	let t9;
+	if ($[2] !== makeCiteUrl || $[3] !== step.reasonReferences) {
+		t9 = citeReferences(step.reasonReferences, makeCiteUrl);
+		$[2] = makeCiteUrl;
+		$[3] = step.reasonReferences;
+		$[4] = t9;
+	} else t9 = $[4];
+	const t10 = single ? 0 : step.failed;
+	const t11 = single ? "details" : `${step.rows.length} checks`;
+	const t12 = !collapsed;
+	let t13;
+	if ($[5] !== collapsed || $[6] !== setCollapsed) {
+		t13 = () => setCollapsed(!collapsed);
+		$[5] = collapsed;
+		$[6] = setCollapsed;
+		$[7] = t13;
+	} else t13 = $[7];
+	let t14;
+	if ($[8] !== t11 || $[9] !== t12 || $[10] !== t13) {
+		t14 = {
+			label: t11,
+			open: t12,
+			onToggle: t13
+		};
+		$[8] = t11;
+		$[9] = t12;
+		$[10] = t13;
+		$[11] = t14;
+	} else t14 = $[11];
+	let t15;
+	if ($[12] !== collapsed || $[13] !== look.icon || $[14] !== look.iconClass || $[15] !== look.reasonClass || $[16] !== look.textClass || $[17] !== look.word || $[18] !== step.audit || $[19] !== step.error || $[20] !== step.reason || $[21] !== step.scores || $[22] !== t10 || $[23] !== t14 || $[24] !== t9 || $[25] !== who) {
+		t15 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(CheckSummary, {
+			icon: t2,
+			iconClassName: t3,
+			verdict: t4,
+			verdictClassName: t5,
+			who,
+			scores: t6,
+			reason: t7,
+			reasonClassName: t8,
+			references: t9,
+			error: step.error,
+			flagged: step.audit,
+			failed: t10,
+			clampReason: collapsed,
+			toggle: t14
+		});
+		$[12] = collapsed;
+		$[13] = look.icon;
+		$[14] = look.iconClass;
+		$[15] = look.reasonClass;
+		$[16] = look.textClass;
+		$[17] = look.word;
+		$[18] = step.audit;
+		$[19] = step.error;
+		$[20] = step.reason;
+		$[21] = step.scores;
+		$[22] = t10;
+		$[23] = t14;
+		$[24] = t9;
+		$[25] = who;
+		$[26] = t15;
+	} else t15 = $[26];
+	let t16;
+	if ($[27] !== judged || $[28] !== judgedReplaced || $[29] !== modified || $[30] !== step.verdict) {
+		t16 = step.verdict === "modify" && modified && judged && !sameArguments(judged.arguments, modified.arguments) ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ReplacedCall, {
+			call: judged,
+			label: judgedReplaced ? "replaced" : "proposed"
+		}) : null;
+		$[27] = judged;
+		$[28] = judgedReplaced;
+		$[29] = modified;
+		$[30] = step.verdict;
+		$[31] = t16;
+	} else t16 = $[31];
+	let t17;
+	if ($[32] !== collapsed || $[33] !== makeCiteUrl || $[34] !== single) {
+		t17 = !collapsed && single ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(CheckDetail, {
+			row: single,
+			showFunction: false,
+			makeCiteUrl
+		}) : null;
+		$[32] = collapsed;
+		$[33] = makeCiteUrl;
+		$[34] = single;
+		$[35] = t17;
+	} else t17 = $[35];
+	let t18;
+	if ($[36] !== collapsed || $[37] !== makeCiteUrl || $[38] !== single || $[39] !== step || $[40] !== tone) {
+		t18 = !collapsed && !single ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(CheckTree, {
+			step,
+			tone,
+			makeCiteUrl
+		}) : null;
+		$[36] = collapsed;
+		$[37] = makeCiteUrl;
+		$[38] = single;
+		$[39] = step;
+		$[40] = tone;
+		$[41] = t18;
+	} else t18 = $[41];
+	let t19;
+	if ($[42] !== context || $[43] !== step.modelCalls) {
+		t19 = step.modelCalls[0] ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ModelCallsNote, {
+			id: step.modelCalls[0].id,
+			modelCalls: step.modelCalls,
+			context
+		}) : null;
+		$[42] = context;
+		$[43] = step.modelCalls;
+		$[44] = t19;
+	} else t19 = $[44];
+	let t20;
+	if ($[45] !== region || $[46] !== t15 || $[47] !== t16 || $[48] !== t17 || $[49] !== t18 || $[50] !== t19 || $[51] !== tone) {
+		t20 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(CheckInset, {
+			region,
+			tone,
+			children: [
+				t15,
+				t16,
+				t17,
+				t18,
+				t19
+			]
+		});
+		$[45] = region;
+		$[46] = t15;
+		$[47] = t16;
+		$[48] = t17;
+		$[49] = t18;
+		$[50] = t19;
+		$[51] = tone;
+		$[52] = t20;
+	} else t20 = $[52];
+	return t20;
+};
+var CheckTree = (t0) => {
+	const $ = (0, import_compiler_runtime.c)(8);
+	const { step, tone, makeCiteUrl } = t0;
+	const grouped = groupedPaths(step.rows);
+	const t1 = step.effective?.id ?? null;
+	let t2;
+	if ($[0] !== t1) {
+		t2 = { defaultValue: t1 };
+		$[0] = t1;
+		$[1] = t2;
+	} else t2 = $[1];
+	const [openRow, setOpenRow] = useProperty(step.id, "sentinel-open-row", t2);
+	const t3 = tone === "reject" && SentinelEventView_module_default.reject;
+	const t4 = tone === "modify" && SentinelEventView_module_default.modify;
+	let t5;
+	if ($[2] !== t3 || $[3] !== t4) {
+		t5 = clsx(SentinelEventView_module_default.tree, t3, t4);
+		$[2] = t3;
+		$[3] = t4;
+		$[4] = t5;
+	} else t5 = $[4];
+	const t6 = step.rows.map((row) => {
+		const open = openRow === row.node.id;
+		return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_react.Fragment, { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)(CheckRowView, {
+			row,
+			open,
+			onToggle: () => setOpenRow(open ? null : row.node.id)
+		}), open ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(CheckDetail, {
+			row,
+			showFunction: grouped.has(row.node.event.path),
+			makeCiteUrl
+		}) : null] }, row.node.id);
+	});
+	let t7;
+	if ($[5] !== t5 || $[6] !== t6) {
+		t7 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+			className: t5,
+			children: t6
+		});
+		$[5] = t5;
+		$[6] = t6;
+		$[7] = t7;
+	} else t7 = $[7];
+	return t7;
+};
+var CheckRowView = (t0) => {
+	const $ = (0, import_compiler_runtime.c)(33);
+	const { row, open, onToggle } = t0;
+	const event = row.node.event;
+	const t1 = open && SentinelEventView_module_default.open;
+	let t2;
+	if ($[0] !== event || $[1] !== t1) {
+		t2 = clsx(SentinelEventView_module_default.row, t1, isInactive(event) && SentinelEventView_module_default.inactive);
+		$[0] = event;
+		$[1] = t1;
+		$[2] = t2;
+	} else t2 = $[2];
+	let t3;
+	if ($[3] !== row.guides) {
+		t3 = row.guides ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+			className: SentinelEventView_module_default.guides,
+			children: row.guides
+		}) : null;
+		$[3] = row.guides;
+		$[4] = t3;
+	} else t3 = $[4];
+	const t4 = event.kind === "observation" ? "bi bi-activity" : "bi bi-signpost-split";
+	let t5;
+	if ($[5] !== t4) {
+		t5 = clsx(t4, SentinelEventView_module_default.kindIcon);
+		$[5] = t4;
+		$[6] = t5;
+	} else t5 = $[6];
+	let t6;
+	if ($[7] !== t5) {
+		t6 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("i", {
+			className: t5,
+			"aria-hidden": "true"
+		});
+		$[7] = t5;
+		$[8] = t6;
+	} else t6 = $[8];
+	const t7 = event.path || "(top)";
+	let t8;
+	if ($[9] !== t7) {
+		t8 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("b", { children: t7 });
+		$[9] = t7;
+		$[10] = t8;
+	} else t8 = $[10];
+	let t9;
+	if ($[11] !== event.factory) {
+		t9 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+			className: SentinelEventView_module_default.name,
+			children: event.factory
+		});
+		$[11] = event.factory;
+		$[12] = t9;
+	} else t9 = $[12];
+	let t10;
+	if ($[13] !== t3 || $[14] !== t6 || $[15] !== t8 || $[16] !== t9) {
+		t10 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", {
+			className: SentinelEventView_module_default.rowLabel,
+			children: [
+				t3,
+				t6,
+				t8,
+				" ",
+				t9
+			]
+		});
+		$[13] = t3;
+		$[14] = t6;
+		$[15] = t8;
+		$[16] = t9;
+		$[17] = t10;
+	} else t10 = $[17];
+	let t11;
+	if ($[18] !== row) {
+		t11 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(CheckResult, { row });
+		$[18] = row;
+		$[19] = t11;
+	} else t11 = $[19];
+	const t12 = open ? "bi bi-chevron-down" : "bi bi-chevron-right";
+	let t13;
+	if ($[20] !== t12) {
+		t13 = clsx(t12, SentinelEventView_module_default.rowChevron);
+		$[20] = t12;
+		$[21] = t13;
+	} else t13 = $[21];
+	let t14;
+	if ($[22] !== t13) {
+		t14 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("i", {
+			className: t13,
+			"aria-hidden": "true"
+		});
+		$[22] = t13;
+		$[23] = t14;
+	} else t14 = $[23];
+	let t15;
+	if ($[24] !== t11 || $[25] !== t14) {
+		t15 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", {
+			className: SentinelEventView_module_default.result,
+			children: [t11, t14]
+		});
+		$[24] = t11;
+		$[25] = t14;
+		$[26] = t15;
+	} else t15 = $[26];
+	let t16;
+	if ($[27] !== onToggle || $[28] !== open || $[29] !== t10 || $[30] !== t15 || $[31] !== t2) {
+		t16 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("button", {
+			type: "button",
+			"aria-expanded": open,
+			className: t2,
+			onClick: onToggle,
+			children: [t10, t15]
+		});
+		$[27] = onToggle;
+		$[28] = open;
+		$[29] = t10;
+		$[30] = t15;
+		$[31] = t2;
+		$[32] = t16;
+	} else t16 = $[32];
+	return t16;
+};
+var CheckResult = (t0) => {
+	const $ = (0, import_compiler_runtime.c)(26);
+	const { row } = t0;
+	const event = row.node.event;
+	let t1;
+	if ($[0] !== event.audit) {
+		t1 = event.audit ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("i", {
+			className: clsx("bi bi-flag-fill", SentinelEventView_module_default.flag),
+			role: "img",
+			"aria-label": "flagged"
+		}) : null;
+		$[0] = event.audit;
+		$[1] = t1;
+	} else t1 = $[1];
+	const flag = t1;
+	if (event.status === "bypassed" || event.status === "cancelled") {
+		let t2;
+		if ($[2] !== event.status) {
+			t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", { children: event.status });
+			$[2] = event.status;
+			$[3] = t2;
+		} else t2 = $[3];
+		return t2;
+	}
+	if (event.status === "error") {
+		let t2;
+		if ($[4] === Symbol.for("react.memo_cache_sentinel")) {
+			t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+				className: SentinelEventView_module_default.failed,
+				children: "failed"
+			});
+			$[4] = t2;
+		} else t2 = $[4];
+		return t2;
+	}
+	if (event.status === "superseded") {
+		let t2;
+		if ($[5] !== event.action) {
+			t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("s", { children: event.action }), " · superseded"] });
+			$[5] = event.action;
+			$[6] = t2;
+		} else t2 = $[6];
+		return t2;
+	}
+	if (event.suspicion !== void 0 && event.suspicion !== null) {
+		let t2;
+		if ($[7] !== event.suspicion) {
+			t2 = topScore(event.suspicion);
+			$[7] = event.suspicion;
+			$[8] = t2;
+		} else t2 = $[8];
+		const top = t2;
+		const t3 = top.dimension ? `${top.dimension} ` : "";
+		let t4;
+		if ($[9] !== t3 || $[10] !== top.value) {
+			t4 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", { children: [t3, top.value] });
+			$[9] = t3;
+			$[10] = top.value;
+			$[11] = t4;
+		} else t4 = $[11];
+		let t5;
+		if ($[12] !== top.more) {
+			t5 = top.more > 0 ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+				className: SentinelEventView_module_default.moreScores,
+				children: top.more === 1 ? "1 more score" : `${top.more} more scores`
+			}) : null;
+			$[12] = top.more;
+			$[13] = t5;
+		} else t5 = $[13];
+		let t6;
+		if ($[14] !== flag || $[15] !== t4 || $[16] !== t5) {
+			t6 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
+				flag,
+				t4,
+				t5
+			] });
+			$[14] = flag;
+			$[15] = t4;
+			$[16] = t5;
+			$[17] = t6;
+		} else t6 = $[17];
+		return t6;
+	}
+	if (!event.action) return flag;
+	let t2;
+	if ($[18] !== event.action) {
+		t2 = decisionClass(event.action);
+		$[18] = event.action;
+		$[19] = t2;
+	} else t2 = $[19];
+	let t3;
+	if ($[20] !== event.action || $[21] !== t2) {
+		t3 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+			className: t2,
+			children: event.action
+		});
+		$[20] = event.action;
+		$[21] = t2;
+		$[22] = t3;
+	} else t3 = $[22];
+	let t4;
+	if ($[23] !== flag || $[24] !== t3) {
+		t4 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [flag, t3] });
+		$[23] = flag;
+		$[24] = t3;
+		$[25] = t4;
+	} else t4 = $[25];
+	return t4;
+};
+var CheckDetail = (t0) => {
+	const $ = (0, import_compiler_runtime.c)(51);
+	const { row, showFunction, makeCiteUrl } = t0;
+	const event = row.node.event;
+	let t1;
+	if ($[0] !== event.explanation) {
+		t1 = event.explanation?.trim();
+		$[0] = event.explanation;
+		$[1] = t1;
+	} else t1 = $[1];
+	const explanation = t1;
+	let t2;
+	if ($[2] !== event.action || $[3] !== row.tookEffect) {
+		t2 = row.tookEffect ? toneOfDecision(event.action) : null;
+		$[2] = event.action;
+		$[3] = row.tookEffect;
+		$[4] = t2;
+	} else t2 = $[4];
+	const effectTone = t2;
+	const t3 = event.audit ? "flagged" : null;
+	const t4 = event.status === "superseded" ? "superseded" : null;
+	let t5;
+	if ($[5] !== t3 || $[6] !== t4) {
+		t5 = [t3, t4].filter(Boolean);
+		$[5] = t3;
+		$[6] = t4;
+		$[7] = t5;
+	} else t5 = $[7];
+	const status = t5;
+	const reportedBy = showFunction ? event.function : null;
+	let t10;
+	let t6;
+	let t7;
+	let t8;
+	let t9;
+	if ($[8] !== effectTone || $[9] !== event.stage || $[10] !== event.suspicion || $[11] !== reportedBy || $[12] !== row || $[13] !== status) {
+		const scores = event.suspicion !== null && typeof event.suspicion === "object" && Object.keys(event.suspicion).length > 1 ? sortedScores(event.suspicion) : void 0;
+		t9 = SentinelEventView_module_default.detailWrap;
+		let t11;
+		if ($[19] !== row) {
+			t11 = indent(row);
+			$[19] = row;
+			$[20] = t11;
+		} else t11 = $[20];
+		if ($[21] !== t11) {
+			t10 = { paddingLeft: t11 };
+			$[21] = t11;
+			$[22] = t10;
+		} else t10 = $[22];
+		const t12 = effectTone === "reject" && SentinelEventView_module_default.rejectDetail;
+		const t13 = effectTone === "modify" && SentinelEventView_module_default.modifyDetail;
+		const t14 = !effectTone && event.stage === "tool_result" && SentinelEventView_module_default.afterDetail;
+		if ($[23] !== t12 || $[24] !== t13 || $[25] !== t14) {
+			t6 = clsx(SentinelEventView_module_default.detail, t12, t13, t14);
+			$[23] = t12;
+			$[24] = t13;
+			$[25] = t14;
+			$[26] = t6;
+		} else t6 = $[26];
+		if ($[27] !== reportedBy || $[28] !== status) {
+			t7 = status.length || reportedBy ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+				className: SentinelEventView_module_default.meta,
+				children: [status.join(" · "), reportedBy ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
+					status.length ? " · " : null,
+					"function:",
+					" ",
+					/*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+						className: checkClasses.mono,
+						children: reportedBy
+					})
+				] }) : null]
+			}) : null;
+			$[27] = reportedBy;
+			$[28] = status;
+			$[29] = t7;
+		} else t7 = $[29];
+		t8 = scores ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+			className: SentinelEventView_module_default.scoreGrid,
+			children: scores.map(_temp$50)
+		}) : null;
+		$[8] = effectTone;
+		$[9] = event.stage;
+		$[10] = event.suspicion;
+		$[11] = reportedBy;
+		$[12] = row;
+		$[13] = status;
+		$[14] = t10;
+		$[15] = t6;
+		$[16] = t7;
+		$[17] = t8;
+		$[18] = t9;
+	} else {
+		t10 = $[14];
+		t6 = $[15];
+		t7 = $[16];
+		t8 = $[17];
+		t9 = $[18];
+	}
+	let t11;
+	if ($[30] !== effectTone || $[31] !== event.error || $[32] !== event.references || $[33] !== explanation || $[34] !== makeCiteUrl) {
+		t11 = event.error ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+			className: clsx(SentinelEventView_module_default.errorText, checkClasses.mono),
+			children: event.error
+		}) : explanation ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MarkdownDivWithReferences, {
+			markdown: explanation,
+			references: citeReferences(event.references, makeCiteUrl),
+			className: clsx(SentinelEventView_module_default.explanation, effectTone === "reject" && checkClasses.rejectReason)
+		}) : /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+			className: SentinelEventView_module_default.noExplanation,
+			children: "No explanation recorded."
+		});
+		$[30] = effectTone;
+		$[31] = event.error;
+		$[32] = event.references;
+		$[33] = explanation;
+		$[34] = makeCiteUrl;
+		$[35] = t11;
+	} else t11 = $[35];
+	let t12;
+	if ($[36] !== event.message) {
+		t12 = event.message ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+			className: SentinelEventView_module_default.labelled,
+			children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+				className: clsx(checkClasses.label, checkClasses.rejectText),
+				children: "told the agent"
+			}), /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", { children: event.message })]
+		}) : null;
+		$[36] = event.message;
+		$[37] = t12;
+	} else t12 = $[37];
+	let t13;
+	if ($[38] !== event.modified) {
+		t13 = event.modified ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+			className: SentinelEventView_module_default.labelled,
+			children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+				className: clsx(checkClasses.label, checkClasses.modifyText),
+				children: "modified"
+			}), /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+				className: checkClasses.mono,
+				children: replacementText(event.modified)
+			})]
+		}) : null;
+		$[38] = event.modified;
+		$[39] = t13;
+	} else t13 = $[39];
+	let t14;
+	if ($[40] !== t11 || $[41] !== t12 || $[42] !== t13 || $[43] !== t6 || $[44] !== t7 || $[45] !== t8) {
+		t14 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+			className: t6,
+			children: [
+				t7,
+				t8,
+				t11,
+				t12,
+				t13
+			]
+		});
+		$[40] = t11;
+		$[41] = t12;
+		$[42] = t13;
+		$[43] = t6;
+		$[44] = t7;
+		$[45] = t8;
+		$[46] = t14;
+	} else t14 = $[46];
+	let t15;
+	if ($[47] !== t10 || $[48] !== t14 || $[49] !== t9) {
+		t15 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+			className: t9,
+			style: t10,
+			children: t14
+		});
+		$[47] = t10;
+		$[48] = t14;
+		$[49] = t9;
+		$[50] = t15;
+	} else t15 = $[50];
+	return t15;
+};
+/** Paths of the instances that reported from more than one function on this step. */ var groupedPaths = (rows) => {
+	const functions = /* @__PURE__ */ new Map();
+	for (const { node } of rows) {
+		if (!node.event.function) continue;
+		const seen = functions.get(node.event.path) ?? /* @__PURE__ */ new Set();
+		seen.add(node.event.function);
+		functions.set(node.event.path, seen);
+	}
+	return new Set([...functions].filter(([, seen]) => seen.size > 1).map(([path]) => path));
+};
+var indent = (row) => `calc(8px + ${row.depth * 3}ch)`;
+var replacementText = (call) => {
+	const { input, functionCall } = resolveToolInput(call.function, call.arguments);
+	return typeof input === "string" && input ? input : functionCall;
+};
+var isInactive = (event) => event.status !== "reported";
+/** The step's monitor model calls, collapsed to a count that expands to the model call views. */ var ModelCallsNote = (t0) => {
+	const $ = (0, import_compiler_runtime.c)(22);
+	const { id, modelCalls, context } = t0;
+	const [collapsed, setCollapsed] = useCollapsedState(`${id}-sentinel-model-calls`, true);
+	const t1 = context?.retryAttempts;
+	let t2;
+	if ($[0] !== t1) {
+		t2 = { retryAttempts: t1 };
+		$[0] = t1;
+		$[1] = t2;
+	} else t2 = $[1];
+	const callContext = t2;
+	let t3;
+	if ($[2] === Symbol.for("react.memo_cache_sentinel")) {
+		t3 = clsx(SentinelEventView_module_default.foldedToggle, "text-style-secondary");
+		$[2] = t3;
+	} else t3 = $[2];
+	const t4 = !collapsed;
+	let t5;
+	if ($[3] !== collapsed || $[4] !== setCollapsed) {
+		t5 = () => setCollapsed(!collapsed);
+		$[3] = collapsed;
+		$[4] = setCollapsed;
+		$[5] = t5;
+	} else t5 = $[5];
+	const t6 = collapsed ? "bi bi-chevron-right" : "bi bi-chevron-down";
+	let t7;
+	if ($[6] !== t6) {
+		t7 = clsx(t6, SentinelEventView_module_default.chevron);
+		$[6] = t6;
+		$[7] = t7;
+	} else t7 = $[7];
+	let t8;
+	if ($[8] !== t7) {
+		t8 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("i", {
+			className: t7,
+			"aria-hidden": "true"
+		});
+		$[8] = t7;
+		$[9] = t8;
+	} else t8 = $[9];
+	const t9 = `${modelCalls.length} monitor model call${modelCalls.length === 1 ? "" : "s"}`;
+	let t10;
+	if ($[10] !== t4 || $[11] !== t5 || $[12] !== t8 || $[13] !== t9) {
+		t10 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("button", {
+			type: "button",
+			className: t3,
+			"aria-expanded": t4,
+			onClick: t5,
+			children: [t8, t9]
+		});
+		$[10] = t4;
+		$[11] = t5;
+		$[12] = t8;
+		$[13] = t9;
+		$[14] = t10;
+	} else t10 = $[14];
+	let t11;
+	if ($[15] !== callContext || $[16] !== collapsed || $[17] !== modelCalls) {
+		t11 = collapsed ? null : /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+			className: SentinelEventView_module_default.modelCalls,
+			children: modelCalls.map((node) => /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ModelEventView, {
+				eventNode: node,
+				showToolCalls: true,
+				context: callContext
+			}, node.id))
+		});
+		$[15] = callContext;
+		$[16] = collapsed;
+		$[17] = modelCalls;
+		$[18] = t11;
+	} else t11 = $[18];
+	let t12;
+	if ($[19] !== t10 || $[20] !== t11) {
+		t12 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", { children: [t10, t11] });
+		$[19] = t10;
+		$[20] = t11;
+		$[21] = t12;
+	} else t12 = $[21];
+	return t12;
+};
+/** A step outside any tool panel, e.g. a model-stage step, as an event row. */ var SentinelStepRow = (t0) => {
+	const $ = (0, import_compiler_runtime.c)(10);
+	const { step, context, eventNodeId, className } = t0;
+	let t1;
+	if ($[0] !== context || $[1] !== step) {
+		t1 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(SentinelInset, {
+			step,
+			region: "output",
+			context
+		});
+		$[0] = context;
+		$[1] = step;
+		$[2] = t1;
+	} else t1 = $[2];
+	const t2 = stageLabels[step.stage];
+	let t3;
+	if ($[3] !== t2) {
+		t3 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+			className: "text-style-secondary",
+			children: t2
+		});
+		$[3] = t2;
+		$[4] = t3;
+	} else t3 = $[4];
+	let t4;
+	if ($[5] !== className || $[6] !== eventNodeId || $[7] !== t1 || $[8] !== t3) {
+		t4 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(EventRow, {
+			eventNodeId,
+			title: "Sentinel",
+			icon: TranscriptIcons.sentinel,
+			className,
+			below: t1,
+			children: t3
+		});
+		$[5] = className;
+		$[6] = eventNodeId;
+		$[7] = t1;
+		$[8] = t3;
+		$[9] = t4;
+	} else t4 = $[9];
+	return t4;
+};
+/** A sentinel step outside any tool panel, e.g. a model-stage step. */ var SentinelEventView = (t0) => {
+	const $ = (0, import_compiler_runtime.c)(8);
+	const { eventNode, step, context, className } = t0;
+	let t1;
+	if ($[0] !== eventNode || $[1] !== step) {
+		t1 = step ?? buildLoneSentinelStep(eventNode);
+		$[0] = eventNode;
+		$[1] = step;
+		$[2] = t1;
+	} else t1 = $[2];
+	let t2;
+	if ($[3] !== className || $[4] !== context || $[5] !== eventNode.id || $[6] !== t1) {
+		t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(SentinelStepRow, {
+			step: t1,
+			eventNodeId: eventNode.id,
+			context,
+			className
+		});
+		$[3] = className;
+		$[4] = context;
+		$[5] = eventNode.id;
+		$[6] = t1;
+		$[7] = t2;
+	} else t2 = $[7];
+	return t2;
+};
+var stageLabels = {
+	model_input: "model input",
+	model_output: "model output",
+	tool_call: "before call",
+	tool_result: "after call"
+};
+var rejectLook = {
+	icon: "bi bi-binoculars-fill",
+	tone: "reject",
+	iconClass: checkClasses.rejectIcon,
+	textClass: checkClasses.rejectText,
+	reasonClass: checkClasses.rejectReason
+};
+var verdictLooks = {
+	continue: {
+		icon: TranscriptIcons.sentinel,
+		word: "Continued",
+		tone: "neutral"
+	},
+	observe: {
+		icon: TranscriptIcons.sentinel,
+		word: "Observed",
+		tone: "neutral"
+	},
+	bypassed: {
+		icon: TranscriptIcons.sentinel,
+		word: "Bypassed",
+		tone: "neutral"
+	},
+	cancelled: {
+		icon: TranscriptIcons.sentinel,
+		word: "Cancelled",
+		tone: "neutral"
+	},
+	superseded: {
+		icon: TranscriptIcons.sentinel,
+		word: "Superseded",
+		tone: "neutral"
+	},
+	error: {
+		icon: "bi bi-exclamation-triangle",
+		word: "Failed",
+		tone: "neutral",
+		textClass: SentinelEventView_module_default.failed
+	},
+	reject: {
+		...rejectLook,
+		word: "Rejected"
+	},
+	terminate: {
+		...rejectLook,
+		word: "Terminated"
+	},
+	modify: {
+		icon: "bi bi-binoculars-fill",
+		word: "Modified",
+		tone: "modify",
+		iconClass: checkClasses.modifyIcon,
+		textClass: checkClasses.modifyText
+	},
+	escalate: {
+		icon: TranscriptIcons.approvals.escalate,
+		word: "Escalated",
+		tone: "modify",
+		iconClass: checkClasses.modifyIcon,
+		textClass: checkClasses.modifyText
+	}
+};
+/** An escalate the runner returned had no handler above it, so the call proceeded. */ var unhandledEscalateLook = {
+	icon: TranscriptIcons.approvals.escalate,
+	word: "Escalated (no handler; proceeded)",
+	tone: "neutral"
+};
+var lookOf = (step) => step.verdict === "escalate" && step.returned ? unhandledEscalateLook : verdictLooks[step.verdict];
+var toneOfDecision = (decision) => {
+	switch (decision) {
+		case "reject":
+		case "terminate": return "reject";
+		case "modify":
+		case "escalate": return "modify";
+		default: return null;
+	}
+};
+var decisionClass = (decision) => {
+	switch (decision) {
+		case "reject":
+		case "terminate": return checkClasses.rejectText;
+		case "escalate":
+		case "modify": return checkClasses.modifyText;
+		case "continue": return SentinelEventView_module_default.continue;
+	}
+};
+function _temp$50(t0) {
+	const [dimension, value] = t0;
+	return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_react.Fragment, { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+		className: SentinelEventView_module_default.scoreName,
+		children: dimension
+	}), /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", { children: Math.round(value * 100) / 100 })] }, dimension);
+}
 //#endregion
 //#region ../../packages/inspect-components/src/transcript/SpanEventView.tsx
 /**
@@ -99660,21 +101390,71 @@ function useTimelineRowSelect() {
 	return (0, import_react.useContext)(TimelineRowSelectContext);
 }
 var ToolEventView_module_default = {
-	summary: "_summary_1mtn2_1",
-	labeledToolCall: "_labeledToolCall_1mtn2_6",
-	label: "_label_1mtn2_6",
-	labeledToolContent: "_labeledToolContent_1mtn2_19",
-	approvalWrap: "_approvalWrap_1mtn2_23",
-	approval: "_approval_1mtn2_23",
-	progress: "_progress_1mtn2_33"
+	summary: "_summary_ddafu_1",
+	labeledToolCall: "_labeledToolCall_ddafu_6",
+	label: "_label_ddafu_6",
+	labeledToolContent: "_labeledToolContent_ddafu_19",
+	progress: "_progress_ddafu_23"
 };
 //#endregion
 //#region ../../packages/inspect-components/src/transcript/ToolEventView.tsx
+/** The check that stopped the call: the final approval, else the sentinel outcome. */ var blockerOf = (approval, before) => {
+	if (approval?.decision === "reject" || approval?.decision === "terminate") return {
+		decision: approval.decision,
+		message: approval.explanation
+	};
+	const verdict = before?.verdict;
+	if (before?.outcome && (verdict === "reject" || verdict === "terminate")) return {
+		decision: verdict,
+		message: before.outcome.event.message
+	};
+};
+var hasResult = (result) => Array.isArray(result) ? result.length > 0 : result !== "";
+/**
+* The call that ran. The ToolEvent records it, except in logs written before
+* it recorded an approver's modify (inspect_ai #5651): those kept the
+* proposal's arguments and view, while the approver's replacement is what ran.
+* Limitation: an approver's modify that a sentinel modify reverts to the
+* proposal reads as such a log.
+*/ var ranCall = (event, approval) => {
+	const replacement = approval?.decision === "modify" ? approval.modified : void 0;
+	return !!replacement && sameArguments(event.arguments, approval?.call.arguments) && !sameArguments(event.arguments, replacement.arguments) ? { arguments: replacement.arguments } : {
+		arguments: event.arguments,
+		view: event.view
+	};
+};
 var ToolEventView = ({ eventNode, childNodes, className, context, eventCallbacks }) => {
 	const event = eventNode.event;
-	const { name, input, description, functionCall, contentType, title } = (0, import_react.useMemo)(() => resolveToolInput(event.function, event.arguments), [event.function, event.arguments]);
-	const resolvedView = (0, import_react.useMemo)(() => event.view ? substituteToolCallContent(event.view, event.arguments) : void 0, [event.view, event.arguments]);
-	const approvalNode = context?.toolApprovals?.get(event.id);
+	const approvals = context?.toolApprovals?.get(eventNode.id);
+	const sentinels = context?.toolSentinels?.get(eventNode.id);
+	const finalApproval = approvals?.at(-1)?.event;
+	const ran = ranCall(event, finalApproval);
+	const { name, input, description, functionCall, contentType, title } = resolveToolInput(event.function, ran.arguments);
+	const resolvedView = ran.view ? substituteToolCallContent(ran.view, ran.arguments) : void 0;
+	const before = sentinels?.before;
+	const blocker = blockerOf(finalApproval, before);
+	const didRun = event.error?.type !== "approval" && !(blocker && !hasResult(event.result));
+	const approverReplacement = finalApproval?.decision === "modify" ? finalApproval.modified ?? void 0 : void 0;
+	const judged = approverReplacement ?? sentinels?.proposed;
+	const beforeInsets = approvals || before ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(ToolBlockInset, {
+		region: "input",
+		children: [approvals ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ApprovalInset, { chain: approvals }) : null, before ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(SentinelInset, {
+			step: before,
+			region: "input",
+			context,
+			judged,
+			judgedReplaced: !!approverReplacement
+		}) : null]
+	}) : void 0;
+	const afterInset = sentinels?.after ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ToolBlockInset, {
+		region: "output",
+		children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(SentinelInset, {
+			step: sentinels.after,
+			region: "output",
+			context
+		})
+	}) : void 0;
+	const notRun = didRun ? void 0 : /*#__PURE__*/ (0, import_jsx_runtime.jsx)(NotRunWell, { message: event.error?.type === "approval" ? event.error.message : blocker?.decision === "reject" ? blocker.message?.trim() || "Tool call not approved." : void 0 });
 	const lastModelNode = (0, import_react.useMemo)(() => {
 		const lastModel = childNodes.findLast((e) => e.event.event === "model");
 		return lastModel ? eventNodeOf(lastModel, "model") : void 0;
@@ -99712,7 +101492,10 @@ var ToolEventView = ({ eventNode, childNodes, className, context, eventCallbacks
 		selfAnnotation: context?.selfAnnotation,
 		inputScreenshot: context?.inputScreenshot,
 		error: showError && event.error ? event.error : void 0,
-		view: resolvedView
+		view: resolvedView,
+		afterInput: beforeInsets,
+		afterOutput: afterInset,
+		outputReplacement: notRun
 	});
 	const toolLabel = toolLabels.messageLabels?.[event.id];
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(EventPanel, {
@@ -99745,13 +101528,6 @@ var ToolEventView = ({ eventNode, childNodes, className, context, eventCallbacks
 					messages: lastModelNode.event.output.choices.map((m) => m.message),
 					tools: { callStyle: "compact" }
 				}) : void 0,
-				approvalNode ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
-					className: ToolEventView_module_default.approvalWrap,
-					children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ApprovalEventView, {
-						eventNode: approvalNode,
-						className: ToolEventView_module_default.approval
-					})
-				}) : "",
 				event.pending ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 					className: clsx(ToolEventView_module_default.progress),
 					children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(GeneratingIndicator, { label: "running" })
@@ -99946,6 +101722,23 @@ var sanitizeStringify = (v) => {
 			fields.push(["decision", reviewEvent.decision]);
 			if (reviewEvent.explanation) fields.push(["explanation", reviewEvent.explanation]);
 			fields.push(["reviewer", reviewEvent.reviewer]);
+			break;
+		}
+		case "sentinel": {
+			const sentinelEvent = event;
+			fields.push(["kind", sentinelEvent.kind]);
+			fields.push(["status", sentinelEvent.status]);
+			if (sentinelEvent.path) fields.push(["path", sentinelEvent.path]);
+			fields.push(["factory", sentinelEvent.factory]);
+			if (sentinelEvent.function) fields.push(["function", sentinelEvent.function]);
+			fields.push(["stage", sentinelEvent.stage]);
+			if (sentinelEvent.suspicion !== void 0 && sentinelEvent.suspicion !== null) fields.push(["suspicion", formatSuspicion(sentinelEvent.suspicion)]);
+			if (sentinelEvent.action) fields.push(["action", sentinelEvent.action]);
+			if (sentinelEvent.modified) fields.push(["modified", formatModifiedCall(sentinelEvent.modified)]);
+			if (sentinelEvent.audit) fields.push(["audit", "true"]);
+			if (sentinelEvent.message) fields.push(["message", sentinelEvent.message]);
+			if (sentinelEvent.explanation) fields.push(["explanation", sentinelEvent.explanation]);
+			if (sentinelEvent.error) fields.push(["error", sentinelEvent.error]);
 			break;
 		}
 		case "sandbox": {
@@ -100712,6 +102505,7 @@ var removeNodeVisitor = (event) => {
 		return [node];
 	} };
 };
+/** Drops a sentinel's span with its contents; the monitor model calls in it are not agent turns. */ var removeSentinelSpanVisitor = () => ({ visit: (node) => isSentinelSpan(node) ? [] : [node] });
 var removeStepSpanNameVisitor = (name) => {
 	return { visit: (node) => {
 		if ((node.event.event === "step" || node.event.event === "span_begin") && node.event.name === name) return [];
@@ -100730,6 +102524,8 @@ var removeStepSpanNameVisitor = (name) => {
 	removeNodeVisitor("store"),
 	removeNodeVisitor("approval"),
 	removeNodeVisitor("review"),
+	removeNodeVisitor("sentinel"),
+	removeSentinelSpanVisitor(),
 	removeNodeVisitor("input"),
 	removeNodeVisitor("sandbox"),
 	removeStepSpanNameVisitor(kSandboxSignalName)
@@ -100964,15 +102760,18 @@ var kFocusExcludedEvents = /* @__PURE__ */ new Set([
 */ function resolveEventTurnAnchor(flattenedNodes, eventId) {
 	const stack = [];
 	const lastAnchorByLane = /* @__PURE__ */ new Map();
+	let sentinelDepth;
 	for (const node of flattenedNodes) {
 		while (stack.length > 0 && node.depth <= stack[stack.length - 1].depth) stack.pop();
+		if (sentinelDepth !== void 0 && node.depth <= sentinelDepth) sentinelDepth = void 0;
 		const laneId = stack.length > 0 ? stack[stack.length - 1].laneId : null;
-		if (node.event.event === "model") lastAnchorByLane.set(laneId, node.id);
+		if (node.event.event === "model" && sentinelDepth === void 0) lastAnchorByLane.set(laneId, node.id);
 		if (node.id === eventId) return lastAnchorByLane.get(laneId);
 		if (agentBoundaryName(node) !== void 0) stack.push({
 			depth: node.depth,
 			laneId: node.id
 		});
+		if (sentinelDepth === void 0 && isSentinelSpan(node)) sentinelDepth = node.depth;
 	}
 }
 /** Events that close out a sample: they trail the last turn OUTSIDE every
@@ -100985,14 +102784,15 @@ var kFocusExcludedEvents = /* @__PURE__ */ new Set([
 * Focus-page nodes for `eventId`: its turn slice minus structural/noise
 * events. Takes the *unfiltered* flat list (`flatTree(eventNodes, null)`) —
 * filtering spans out first would drop the span_begin that ends a turn and
-* run the slice into later turns.
-*/ function focusedTurnNodes(flat, eventId) {
+* run the slice into later turns. `keep` retains structural nodes that host a
+* row of their own (e.g. a sentinel span standing in for its step).
+*/ function focusedTurnNodes(flat, eventId, keep) {
 	const slice = turnSlice(flat, eventId);
 	const target = slice[0];
 	if (!target) return [];
 	const end = flat.indexOf(slice[slice.length - 1]) + 1;
 	const trailing = target.event.event === "model" && !flat.slice(end).some((n) => n.event.event === "model") ? flat.slice(end).filter((n) => kSampleTerminalEvents.has(n.event.event)) : [];
-	return [...slice, ...trailing].filter((n) => !kFocusExcludedEvents.has(n.event.event));
+	return [...slice, ...trailing].filter((n) => !kFocusExcludedEvents.has(n.event.event) || !!keep?.(n));
 }
 /**
 * Flat-list slice for a focused event: a model's whole turn (up to the next
@@ -101290,7 +103090,7 @@ function transcriptToolsRunning(eventNodes) {
 /**
 * Renders the event based on its type.
 */ var RenderedEventNodeInner = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(152);
+	const $ = (0, import_compiler_runtime.c)(170);
 	const { node, next, className, context, onAutoCollapse, renderAgentCard, eventCallbacks } = t0;
 	const selectRow = useTimelineRowSelect();
 	switch (node.event.event) {
@@ -101551,154 +103351,154 @@ function transcriptToolsRunning(eventNodes) {
 				} else t3 = $[68];
 				return t3;
 			}
-			if (node.event.type === "empty_branch") {
-				let t1;
-				if ($[69] !== node) {
-					t1 = eventNodeOf(node, "span_begin");
-					$[69] = node;
-					$[70] = t1;
-				} else t1 = $[70];
+			let t1;
+			if ($[69] !== context?.standaloneSentinels || $[70] !== node.id) {
+				t1 = context?.standaloneSentinels?.get(node.id);
+				$[69] = context?.standaloneSentinels;
+				$[70] = node.id;
+				$[71] = t1;
+			} else t1 = $[71];
+			const sentinelStep = t1;
+			if (sentinelStep) {
 				let t2;
-				if ($[71] !== className || $[72] !== t1) {
-					t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(EmptyBranchView, {
-						eventNode: t1,
+				if ($[72] !== className || $[73] !== context || $[74] !== node.id || $[75] !== sentinelStep) {
+					t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(SentinelStepRow, {
+						step: sentinelStep,
+						eventNodeId: node.id,
+						context,
 						className
 					});
-					$[71] = className;
-					$[72] = t1;
-					$[73] = t2;
-				} else t2 = $[73];
+					$[72] = className;
+					$[73] = context;
+					$[74] = node.id;
+					$[75] = sentinelStep;
+					$[76] = t2;
+				} else t2 = $[76];
 				return t2;
+			}
+			if (node.event.type === "empty_branch") {
+				let t2;
+				if ($[77] !== node) {
+					t2 = eventNodeOf(node, "span_begin");
+					$[77] = node;
+					$[78] = t2;
+				} else t2 = $[78];
+				let t3;
+				if ($[79] !== className || $[80] !== t2) {
+					t3 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(EmptyBranchView, {
+						eventNode: t2,
+						className
+					});
+					$[79] = className;
+					$[80] = t2;
+					$[81] = t3;
+				} else t3 = $[81];
+				return t3;
 			}
 			if (renderAgentCard && node.sourceSpan) {
 				const spanType = node.sourceSpan.spanType;
 				if (spanType === "agent" || spanType === "branch") {
-					let t1;
-					if ($[74] !== className || $[75] !== node || $[76] !== renderAgentCard) {
-						t1 = renderAgentCard(node, className);
-						$[74] = className;
-						$[75] = node;
-						$[76] = renderAgentCard;
-						$[77] = t1;
-					} else t1 = $[77];
 					let t2;
-					if ($[78] !== t1) {
-						t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(import_jsx_runtime.Fragment, { children: t1 });
-						$[78] = t1;
-						$[79] = t2;
-					} else t2 = $[79];
-					return t2;
+					if ($[82] !== className || $[83] !== node || $[84] !== renderAgentCard) {
+						t2 = renderAgentCard(node, className);
+						$[82] = className;
+						$[83] = node;
+						$[84] = renderAgentCard;
+						$[85] = t2;
+					} else t2 = $[85];
+					let t3;
+					if ($[86] !== t2) {
+						t3 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(import_jsx_runtime.Fragment, { children: t2 });
+						$[86] = t2;
+						$[87] = t3;
+					} else t3 = $[87];
+					return t3;
 				}
 			}
-			let t1;
-			if ($[80] !== node) {
-				t1 = eventNodeOf(node, "span_begin");
-				$[80] = node;
-				$[81] = t1;
-			} else t1 = $[81];
 			let t2;
-			if ($[82] !== className || $[83] !== eventCallbacks || $[84] !== node.children || $[85] !== t1) {
-				t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(SpanEventView, {
-					eventNode: t1,
+			if ($[88] !== node) {
+				t2 = eventNodeOf(node, "span_begin");
+				$[88] = node;
+				$[89] = t2;
+			} else t2 = $[89];
+			let t3;
+			if ($[90] !== className || $[91] !== eventCallbacks || $[92] !== node.children || $[93] !== t2) {
+				t3 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(SpanEventView, {
+					eventNode: t2,
 					childNodes: node.children,
 					className,
 					eventCallbacks
 				});
-				$[82] = className;
-				$[83] = eventCallbacks;
-				$[84] = node.children;
-				$[85] = t1;
-				$[86] = t2;
-			} else t2 = $[86];
-			return t2;
+				$[90] = className;
+				$[91] = eventCallbacks;
+				$[92] = node.children;
+				$[93] = t2;
+				$[94] = t3;
+			} else t3 = $[94];
+			return t3;
 		}
 		case "step": {
 			let t1;
-			if ($[87] !== node) {
+			if ($[95] !== node) {
 				t1 = eventNodeOf(node, "step");
-				$[87] = node;
-				$[88] = t1;
-			} else t1 = $[88];
+				$[95] = node;
+				$[96] = t1;
+			} else t1 = $[96];
 			let t2;
-			if ($[89] !== className || $[90] !== eventCallbacks || $[91] !== node.children || $[92] !== t1) {
+			if ($[97] !== className || $[98] !== eventCallbacks || $[99] !== node.children || $[100] !== t1) {
 				t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(SpanEventView, {
 					eventNode: t1,
 					childNodes: node.children,
 					className,
 					eventCallbacks
 				});
-				$[89] = className;
-				$[90] = eventCallbacks;
-				$[91] = node.children;
-				$[92] = t1;
-				$[93] = t2;
-			} else t2 = $[93];
+				$[97] = className;
+				$[98] = eventCallbacks;
+				$[99] = node.children;
+				$[100] = t1;
+				$[101] = t2;
+			} else t2 = $[101];
 			return t2;
 		}
 		case "store": {
 			let t1;
-			if ($[94] !== node) {
+			if ($[102] !== node) {
 				t1 = eventNodeOf(node, "store");
-				$[94] = node;
-				$[95] = t1;
-			} else t1 = $[95];
+				$[102] = node;
+				$[103] = t1;
+			} else t1 = $[103];
 			let t2;
-			if ($[96] !== className || $[97] !== eventCallbacks || $[98] !== onAutoCollapse || $[99] !== t1) {
+			if ($[104] !== className || $[105] !== eventCallbacks || $[106] !== onAutoCollapse || $[107] !== t1) {
 				t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(StateEventView, {
 					eventNode: t1,
 					className,
 					onAutoCollapse,
 					eventCallbacks
 				});
-				$[96] = className;
-				$[97] = eventCallbacks;
-				$[98] = onAutoCollapse;
-				$[99] = t1;
-				$[100] = t2;
-			} else t2 = $[100];
+				$[104] = className;
+				$[105] = eventCallbacks;
+				$[106] = onAutoCollapse;
+				$[107] = t1;
+				$[108] = t2;
+			} else t2 = $[108];
 			return t2;
 		}
 		case "subtask": {
 			let t1;
-			if ($[101] !== node) {
+			if ($[109] !== node) {
 				t1 = eventNodeOf(node, "subtask");
-				$[101] = node;
-				$[102] = t1;
-			} else t1 = $[102];
+				$[109] = node;
+				$[110] = t1;
+			} else t1 = $[110];
 			let t2;
-			if ($[103] !== className || $[104] !== eventCallbacks || $[105] !== node.children || $[106] !== t1) {
+			if ($[111] !== className || $[112] !== eventCallbacks || $[113] !== node.children || $[114] !== t1) {
 				t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(SubtaskEventView, {
 					eventNode: t1,
 					className,
 					childNodes: node.children,
 					eventCallbacks
 				});
-				$[103] = className;
-				$[104] = eventCallbacks;
-				$[105] = node.children;
-				$[106] = t1;
-				$[107] = t2;
-			} else t2 = $[107];
-			return t2;
-		}
-		case "tool": {
-			let t1;
-			if ($[108] !== node) {
-				t1 = eventNodeOf(node, "tool");
-				$[108] = node;
-				$[109] = t1;
-			} else t1 = $[109];
-			let t2;
-			if ($[110] !== className || $[111] !== context || $[112] !== eventCallbacks || $[113] !== node.children || $[114] !== t1) {
-				t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ToolEventView, {
-					eventNode: t1,
-					className,
-					childNodes: node.children,
-					context,
-					eventCallbacks
-				});
-				$[110] = className;
-				$[111] = context;
+				$[111] = className;
 				$[112] = eventCallbacks;
 				$[113] = node.children;
 				$[114] = t1;
@@ -101706,139 +103506,194 @@ function transcriptToolsRunning(eventNodes) {
 			} else t2 = $[115];
 			return t2;
 		}
-		case "input": {
+		case "tool": {
 			let t1;
 			if ($[116] !== node) {
-				t1 = eventNodeOf(node, "input");
+				t1 = eventNodeOf(node, "tool");
 				$[116] = node;
 				$[117] = t1;
 			} else t1 = $[117];
 			let t2;
-			if ($[118] !== className || $[119] !== t1) {
+			if ($[118] !== className || $[119] !== context || $[120] !== eventCallbacks || $[121] !== node.children || $[122] !== t1) {
+				t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ToolEventView, {
+					eventNode: t1,
+					className,
+					childNodes: node.children,
+					context,
+					eventCallbacks
+				});
+				$[118] = className;
+				$[119] = context;
+				$[120] = eventCallbacks;
+				$[121] = node.children;
+				$[122] = t1;
+				$[123] = t2;
+			} else t2 = $[123];
+			return t2;
+		}
+		case "input": {
+			let t1;
+			if ($[124] !== node) {
+				t1 = eventNodeOf(node, "input");
+				$[124] = node;
+				$[125] = t1;
+			} else t1 = $[125];
+			let t2;
+			if ($[126] !== className || $[127] !== t1) {
 				t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(InputEventView, {
 					eventNode: t1,
 					className
 				});
-				$[118] = className;
-				$[119] = t1;
-				$[120] = t2;
-			} else t2 = $[120];
+				$[126] = className;
+				$[127] = t1;
+				$[128] = t2;
+			} else t2 = $[128];
 			return t2;
 		}
 		case "interrupt": {
 			let t1;
-			if ($[121] !== node) {
+			if ($[129] !== node) {
 				t1 = eventNodeOf(node, "interrupt");
-				$[121] = node;
-				$[122] = t1;
-			} else t1 = $[122];
+				$[129] = node;
+				$[130] = t1;
+			} else t1 = $[130];
 			let t2;
-			if ($[123] !== className || $[124] !== t1) {
+			if ($[131] !== className || $[132] !== t1) {
 				t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(InterruptEventView, {
 					eventNode: t1,
 					className
 				});
-				$[123] = className;
-				$[124] = t1;
-				$[125] = t2;
-			} else t2 = $[125];
+				$[131] = className;
+				$[132] = t1;
+				$[133] = t2;
+			} else t2 = $[133];
 			return t2;
 		}
 		case "error": {
 			let t1;
-			if ($[126] !== node) {
+			if ($[134] !== node) {
 				t1 = eventNodeOf(node, "error");
-				$[126] = node;
-				$[127] = t1;
-			} else t1 = $[127];
+				$[134] = node;
+				$[135] = t1;
+			} else t1 = $[135];
 			let t2;
-			if ($[128] !== className || $[129] !== t1) {
+			if ($[136] !== className || $[137] !== t1) {
 				t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ErrorEventView, {
 					eventNode: t1,
 					className
 				});
-				$[128] = className;
-				$[129] = t1;
-				$[130] = t2;
-			} else t2 = $[130];
+				$[136] = className;
+				$[137] = t1;
+				$[138] = t2;
+			} else t2 = $[138];
 			return t2;
 		}
 		case "approval": {
 			let t1;
-			if ($[131] !== node) {
+			if ($[139] !== node) {
 				t1 = eventNodeOf(node, "approval");
-				$[131] = node;
-				$[132] = t1;
-			} else t1 = $[132];
+				$[139] = node;
+				$[140] = t1;
+			} else t1 = $[140];
 			let t2;
-			if ($[133] !== className || $[134] !== t1) {
+			if ($[141] !== className || $[142] !== t1) {
 				t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ApprovalEventView, {
 					eventNode: t1,
 					className
 				});
-				$[133] = className;
-				$[134] = t1;
-				$[135] = t2;
-			} else t2 = $[135];
+				$[141] = className;
+				$[142] = t1;
+				$[143] = t2;
+			} else t2 = $[143];
 			return t2;
 		}
 		case "review": {
 			let t1;
-			if ($[136] !== node) {
+			if ($[144] !== node) {
 				t1 = eventNodeOf(node, "review");
-				$[136] = node;
-				$[137] = t1;
-			} else t1 = $[137];
+				$[144] = node;
+				$[145] = t1;
+			} else t1 = $[145];
 			let t2;
-			if ($[138] !== className || $[139] !== t1) {
+			if ($[146] !== className || $[147] !== t1) {
 				t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ReviewEventView, {
 					eventNode: t1,
 					className
 				});
-				$[138] = className;
-				$[139] = t1;
-				$[140] = t2;
-			} else t2 = $[140];
+				$[146] = className;
+				$[147] = t1;
+				$[148] = t2;
+			} else t2 = $[148];
 			return t2;
+		}
+		case "sentinel": {
+			let t1;
+			if ($[149] !== node) {
+				t1 = eventNodeOf(node, "sentinel");
+				$[149] = node;
+				$[150] = t1;
+			} else t1 = $[150];
+			let t2;
+			if ($[151] !== context?.standaloneSentinels || $[152] !== node.id) {
+				t2 = context?.standaloneSentinels?.get(node.id);
+				$[151] = context?.standaloneSentinels;
+				$[152] = node.id;
+				$[153] = t2;
+			} else t2 = $[153];
+			let t3;
+			if ($[154] !== className || $[155] !== context || $[156] !== t1 || $[157] !== t2) {
+				t3 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(SentinelEventView, {
+					eventNode: t1,
+					step: t2,
+					context,
+					className
+				});
+				$[154] = className;
+				$[155] = context;
+				$[156] = t1;
+				$[157] = t2;
+				$[158] = t3;
+			} else t3 = $[158];
+			return t3;
 		}
 		case "sandbox": {
 			let t1;
-			if ($[141] !== node) {
+			if ($[159] !== node) {
 				t1 = eventNodeOf(node, "sandbox");
-				$[141] = node;
-				$[142] = t1;
-			} else t1 = $[142];
+				$[159] = node;
+				$[160] = t1;
+			} else t1 = $[160];
 			let t2;
-			if ($[143] !== className || $[144] !== t1) {
+			if ($[161] !== className || $[162] !== t1) {
 				t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(SandboxEventView, {
 					eventNode: t1,
 					className
 				});
-				$[143] = className;
-				$[144] = t1;
-				$[145] = t2;
-			} else t2 = $[145];
+				$[161] = className;
+				$[162] = t1;
+				$[163] = t2;
+			} else t2 = $[163];
 			return t2;
 		}
 		case "checkpoint": {
 			let t1;
-			if ($[146] !== node) {
+			if ($[164] !== node) {
 				t1 = eventNodeOf(node, "checkpoint");
-				$[146] = node;
-				$[147] = t1;
-			} else t1 = $[147];
+				$[164] = node;
+				$[165] = t1;
+			} else t1 = $[165];
 			let t2;
-			if ($[148] !== className || $[149] !== eventCallbacks || $[150] !== t1) {
+			if ($[166] !== className || $[167] !== eventCallbacks || $[168] !== t1) {
 				t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(CheckpointEventView, {
 					eventNode: t1,
 					className,
 					eventCallbacks
 				});
-				$[148] = className;
-				$[149] = eventCallbacks;
-				$[150] = t1;
-				$[151] = t2;
-			} else t2 = $[151];
+				$[166] = className;
+				$[167] = eventCallbacks;
+				$[168] = t1;
+				$[169] = t2;
+			} else t2 = $[169];
 			return t2;
 		}
 		default: return null;
@@ -101860,7 +103715,7 @@ var kExitFocusIcon = "bi bi-arrows-angle-contract";
 * card/gutter chrome. Shared by the inspect and scout focus pages, which
 * supply their own loading/error chrome.
 */ var FocusTurnView = ({ nav, eventId, header, className, onExit, exitHref, error }) => {
-	const { scrollRef, listHandle, slice, turnInfo, totalTurns, onPrev, onNext, canStepNext, canStepPrev, goToTurn, laneCrumbs, laneOptions, focusTab } = nav;
+	const { scrollRef, listHandle, slice, checks, turnInfo, totalTurns, onPrev, onNext, canStepNext, canStepPrev, goToTurn, laneCrumbs, laneOptions, focusTab } = nav;
 	const [laneMenuOpen, setLaneMenuOpen] = (0, import_react.useState)(false);
 	const handleExit = (0, import_react.useMemo)(() => {
 		if (!onExit) return void 0;
@@ -102022,7 +103877,10 @@ var kExitFocusIcon = "bi bi-arrows-angle-contract";
 						disableVirtualization: true,
 						relativeIndent: true,
 						eventCallbacks,
-						eventNodeContext: { hasToolEvents: true }
+						eventNodeContext: {
+							hasToolEvents: true,
+							...checks
+						}
 					})]
 				})
 			})
@@ -102400,6 +104258,68 @@ var PRIORITY_MODEL_INPUT = 4;
 	return t3;
 }
 //#endregion
+//#region ../../packages/inspect-components/src/transcript/transform/toolApprovals.ts
+/**
+* Pairs ApprovalEvents to their ToolEvents so the tool panel can render the
+* approvals inline (every approver the call escalated through), and maps
+* hidden approval node ids to their host tool node so deep links targeting an
+* approval still scroll somewhere.
+*/
+/**
+* Pairs each approval chain to a ToolEvent with its call id. A chain is the
+* escalations up to the decision that ends them, and is recorded before its
+* ToolEvent, so each ToolEvent takes the oldest chain still waiting for its
+* id; a call id reused by several calls pairs each call with its own chain.
+* Approvals recorded after every ToolEvent of their id go to the last one.
+*/ function pairToolApprovals(eventNodes) {
+	const chains = /* @__PURE__ */ new Map();
+	const lastTool = /* @__PURE__ */ new Map();
+	const waiting = /* @__PURE__ */ new Map();
+	const seen = /* @__PURE__ */ new Set();
+	const walk = (nodes) => {
+		for (const n of nodes) {
+			if (seen.has(n.id)) continue;
+			seen.add(n.id);
+			if (n.event.event === "approval") {
+				const queue = waiting.get(n.event.call.id) ?? [];
+				queue.push(eventNodeOf(n, "approval"));
+				waiting.set(n.event.call.id, queue);
+			} else if (n.event.event === "tool") {
+				const queue = waiting.get(n.event.id) ?? [];
+				const end = queue.findIndex((a) => a.event.decision !== "escalate");
+				const chain = queue.splice(0, end === -1 ? queue.length : end + 1);
+				if (chain.length) chains.set(n.id, chain);
+				lastTool.set(n.event.id, n.id);
+			}
+			if (n.children.length) walk(n.children);
+		}
+	};
+	walk(eventNodes);
+	const unpaired = [];
+	for (const [callId, queue] of waiting) {
+		const toolNodeId = lastTool.get(callId);
+		if (!toolNodeId) unpaired.push(...queue);
+		else if (queue.length) chains.set(toolNodeId, [...chains.get(toolNodeId) ?? [], ...queue]);
+	}
+	const toolApprovals = /* @__PURE__ */ new Map();
+	const hiddenApprovalIds = /* @__PURE__ */ new Set();
+	const approvalScrollRedirects = /* @__PURE__ */ new Map();
+	for (const [toolNodeId, chain] of chains) {
+		if (!chain.every(isAutoApprove)) toolApprovals.set(toolNodeId, chain);
+		for (const node of chain) {
+			hiddenApprovalIds.add(node.id);
+			approvalScrollRedirects.set(node.id, toolNodeId);
+		}
+	}
+	for (const node of unpaired) if (isAutoApprove(node)) hiddenApprovalIds.add(node.id);
+	return {
+		toolApprovals,
+		hiddenApprovalIds,
+		approvalScrollRedirects
+	};
+}
+var isAutoApprove = (node) => node.event.approver === "auto" && node.event.decision === "approve";
+//#endregion
 //#region ../../packages/inspect-components/src/transcript/hooks/useTranscriptKeyboardNavigation.ts
 /**
 * Transcript keyboard navigation: the vim-style turn/agent keys (j/k, h/l,
@@ -102545,7 +104465,7 @@ var PRIORITY_MODEL_INPUT = 4;
 * → `useEventNodes`) so "turn N/M" always agrees with the transcript view of
 * that swimlane.
 */ function useFocusTurnNavigation(eventNodes, eventId, tab, setParams, defaultCollapsedIds, laneScope, options) {
-	const $ = (0, import_compiler_runtime.c)(110);
+	const $ = (0, import_compiler_runtime.c)(131);
 	const scrollRef = (0, import_react.useRef)(null);
 	const listHandle = (0, import_react.useRef)(null);
 	let t0;
@@ -102587,58 +104507,114 @@ var PRIORITY_MODEL_INPUT = 4;
 	} else t4 = $[12];
 	const resolvedEventId = t4;
 	let t5;
-	if ($[13] !== flat || $[14] !== resolvedEventId) {
-		t5 = resolvedEventId ? focusedTurnNodes(flat, resolvedEventId) : [];
+	if ($[13] !== flat) {
+		t5 = pairToolApprovals(flat);
 		$[13] = flat;
-		$[14] = resolvedEventId;
-		$[15] = t5;
-	} else t5 = $[15];
-	const slice = t5;
+		$[14] = t5;
+	} else t5 = $[14];
 	let t6;
-	let turnInfo;
-	if ($[16] !== anchorIds || $[17] !== resolvedEventId || $[18] !== turnMap) {
-		turnInfo = resolvedEventId ? turnMap.get(resolvedEventId) : void 0;
-		t6 = turnInfo ? anchorIndexForTurn(anchorIds, turnMap, turnInfo.turnNumber) : -1;
-		$[16] = anchorIds;
-		$[17] = resolvedEventId;
-		$[18] = turnMap;
-		$[19] = t6;
-		$[20] = turnInfo;
-	} else {
-		t6 = $[19];
-		turnInfo = $[20];
-	}
-	const turnIndex = t6;
+	if ($[15] !== flat) {
+		t6 = pairToolSentinels(flat);
+		$[15] = flat;
+		$[16] = t6;
+	} else t6 = $[16];
 	let t7;
-	if ($[21] !== anchorIds[0] || $[22] !== anchorIds.length || $[23] !== turnMap) {
-		t7 = (anchorIds[0] ? turnMap.get(anchorIds[0])?.totalTurns : void 0) ?? anchorIds.length;
-		$[21] = anchorIds[0];
-		$[22] = anchorIds.length;
-		$[23] = turnMap;
-		$[24] = t7;
-	} else t7 = $[24];
-	const totalTurns = t7;
+	if ($[17] !== t5 || $[18] !== t6) {
+		t7 = {
+			...t5,
+			...t6
+		};
+		$[17] = t5;
+		$[18] = t6;
+		$[19] = t7;
+	} else t7 = $[19];
+	const { toolApprovals, hiddenApprovalIds, toolSentinels, standaloneSentinels, hiddenSentinelIds } = t7;
+	let t8;
+	if ($[20] !== flat || $[21] !== hiddenApprovalIds || $[22] !== hiddenSentinelIds || $[23] !== resolvedEventId || $[24] !== standaloneSentinels) {
+		const nodes = resolvedEventId ? focusedTurnNodes(flat, resolvedEventId, (n) => standaloneSentinels.has(n.id)) : [];
+		let t9;
+		if ($[26] !== hiddenApprovalIds || $[27] !== hiddenSentinelIds) {
+			t9 = (n_0) => !hiddenSentinelIds.has(n_0.id) && !hiddenApprovalIds.has(n_0.id);
+			$[26] = hiddenApprovalIds;
+			$[27] = hiddenSentinelIds;
+			$[28] = t9;
+		} else t9 = $[28];
+		t8 = nodes.filter(t9);
+		$[20] = flat;
+		$[21] = hiddenApprovalIds;
+		$[22] = hiddenSentinelIds;
+		$[23] = resolvedEventId;
+		$[24] = standaloneSentinels;
+		$[25] = t8;
+	} else t8 = $[25];
+	let t9;
+	if ($[29] !== standaloneSentinels || $[30] !== toolApprovals || $[31] !== toolSentinels) {
+		t9 = {
+			toolApprovals,
+			toolSentinels,
+			standaloneSentinels
+		};
+		$[29] = standaloneSentinels;
+		$[30] = toolApprovals;
+		$[31] = toolSentinels;
+		$[32] = t9;
+	} else t9 = $[32];
+	let t10;
+	if ($[33] !== t8 || $[34] !== t9) {
+		t10 = {
+			slice: t8,
+			checks: t9
+		};
+		$[33] = t8;
+		$[34] = t9;
+		$[35] = t10;
+	} else t10 = $[35];
+	const { slice, checks } = t10;
+	let t11;
+	let turnInfo;
+	if ($[36] !== anchorIds || $[37] !== resolvedEventId || $[38] !== turnMap) {
+		turnInfo = resolvedEventId ? turnMap.get(resolvedEventId) : void 0;
+		t11 = turnInfo ? anchorIndexForTurn(anchorIds, turnMap, turnInfo.turnNumber) : -1;
+		$[36] = anchorIds;
+		$[37] = resolvedEventId;
+		$[38] = turnMap;
+		$[39] = t11;
+		$[40] = turnInfo;
+	} else {
+		t11 = $[39];
+		turnInfo = $[40];
+	}
+	const turnIndex = t11;
+	let t12;
+	if ($[41] !== anchorIds[0] || $[42] !== anchorIds.length || $[43] !== turnMap) {
+		t12 = (anchorIds[0] ? turnMap.get(anchorIds[0])?.totalTurns : void 0) ?? anchorIds.length;
+		$[41] = anchorIds[0];
+		$[42] = anchorIds.length;
+		$[43] = turnMap;
+		$[44] = t12;
+	} else t12 = $[44];
+	const totalTurns = t12;
 	const running = !!options?.running;
 	const following = !!options?.following;
 	const followingRef = (0, import_react.useRef)(following);
-	let t8;
-	let t9;
-	if ($[25] !== following) {
-		t8 = () => {
+	let t13;
+	let t14;
+	if ($[45] !== following) {
+		t13 = () => {
 			followingRef.current = following;
 		};
-		t9 = [following];
-		$[25] = following;
-		$[26] = t8;
-		$[27] = t9;
+		t14 = [following];
+		$[45] = following;
+		$[46] = t13;
+		$[47] = t14;
 	} else {
-		t8 = $[26];
-		t9 = $[27];
+		t13 = $[46];
+		t14 = $[47];
 	}
-	(0, import_react.useEffect)(t8, t9);
-	let t10;
-	if ($[28] !== anchorIds || $[29] !== running || $[30] !== setParams || $[31] !== turnIndex) {
-		t10 = (delta) => {
+	(0, import_react.useEffect)(t13, t14);
+	let t15;
+	if ($[48] !== anchorIds || $[49] !== running || $[50] !== setParams || $[51] !== turnIndex) {
+		t15 = (delta) => {
 			const isFollowing = followingRef.current;
 			const next = anchorIds[turnIndex + delta];
 			if (delta === 1 && next === void 0 && running && !isFollowing) {
@@ -102659,32 +104635,32 @@ var PRIORITY_MODEL_INPUT = 4;
 				follow: null
 			} : { event: next });
 		};
-		$[28] = anchorIds;
-		$[29] = running;
-		$[30] = setParams;
-		$[31] = turnIndex;
-		$[32] = t10;
-	} else t10 = $[32];
-	const stepTurn = t10;
-	let t11;
-	if ($[33] !== stepTurn) {
-		t11 = () => stepTurn(-1);
-		$[33] = stepTurn;
-		$[34] = t11;
-	} else t11 = $[34];
-	const onPrev = t11;
-	let t12;
-	if ($[35] !== stepTurn) {
-		t12 = () => stepTurn(1);
-		$[35] = stepTurn;
-		$[36] = t12;
-	} else t12 = $[36];
-	const onNext = t12;
+		$[48] = anchorIds;
+		$[49] = running;
+		$[50] = setParams;
+		$[51] = turnIndex;
+		$[52] = t15;
+	} else t15 = $[52];
+	const stepTurn = t15;
+	let t16;
+	if ($[53] !== stepTurn) {
+		t16 = () => stepTurn(-1);
+		$[53] = stepTurn;
+		$[54] = t16;
+	} else t16 = $[54];
+	const onPrev = t16;
+	let t17;
+	if ($[55] !== stepTurn) {
+		t17 = () => stepTurn(1);
+		$[55] = stepTurn;
+		$[56] = t17;
+	} else t17 = $[56];
+	const onNext = t17;
 	const canStepNext = turnIndex !== -1 && anchorIds[turnIndex + 1] !== void 0 || anchorIds[turnIndex + 1] === void 0 && running && !following;
 	const canStepPrev = turnIndex !== -1 && anchorIds[turnIndex - 1] !== void 0 || anchorIds[turnIndex - 1] === void 0 && following;
-	let t13;
-	if ($[37] !== anchorIds || $[38] !== following || $[39] !== setParams || $[40] !== turnMap) {
-		t13 = (turnNumber) => {
+	let t18;
+	if ($[57] !== anchorIds || $[58] !== following || $[59] !== setParams || $[60] !== turnMap) {
+		t18 = (turnNumber) => {
 			if (anchorIds.length === 0) return;
 			const anchor = anchorIds[anchorIndexForTurn(anchorIds, turnMap, turnNumber)];
 			if (anchor !== void 0) setParams(following ? {
@@ -102693,210 +104669,211 @@ var PRIORITY_MODEL_INPUT = 4;
 			} : { event: anchor });
 			else if (following) setParams({ follow: null });
 		};
-		$[37] = anchorIds;
-		$[38] = following;
-		$[39] = setParams;
-		$[40] = turnMap;
-		$[41] = t13;
-	} else t13 = $[41];
-	const goToTurn = t13;
-	let t14;
-	if ($[42] !== laneScope?.lanes) {
-		t14 = laneScope?.lanes ?? [];
-		$[42] = laneScope?.lanes;
-		$[43] = t14;
-	} else t14 = $[43];
-	const lanes = t14;
+		$[57] = anchorIds;
+		$[58] = following;
+		$[59] = setParams;
+		$[60] = turnMap;
+		$[61] = t18;
+	} else t18 = $[61];
+	const goToTurn = t18;
+	let t19;
+	if ($[62] !== laneScope?.lanes) {
+		t19 = laneScope?.lanes ?? [];
+		$[62] = laneScope?.lanes;
+		$[63] = t19;
+	} else t19 = $[63];
+	const lanes = t19;
 	const laneIndex = laneScope?.laneIndex ?? 0;
-	let t15;
-	if ($[44] !== following || $[45] !== setParams) {
-		t15 = (lane) => {
+	let t20;
+	if ($[64] !== following || $[65] !== setParams) {
+		t20 = (lane) => {
 			if (!lane?.firstAnchorId) return;
 			setParams(following ? {
 				event: lane.firstAnchorId,
 				follow: null
 			} : { event: lane.firstAnchorId });
 		};
-		$[44] = following;
-		$[45] = setParams;
-		$[46] = t15;
-	} else t15 = $[46];
-	const goToLane = t15;
-	let t16;
-	if ($[47] !== laneIndex || $[48] !== lanes) {
-		t16 = (delta_0) => {
+		$[64] = following;
+		$[65] = setParams;
+		$[66] = t20;
+	} else t20 = $[66];
+	const goToLane = t20;
+	let t21;
+	if ($[67] !== laneIndex || $[68] !== lanes) {
+		t21 = (delta_0) => {
 			for (let i = laneIndex + delta_0; i >= 0 && i < lanes.length; i = i + delta_0) if (lanes[i]?.firstAnchorId) return lanes[i];
 		};
-		$[47] = laneIndex;
-		$[48] = lanes;
-		$[49] = t16;
-	} else t16 = $[49];
-	const nextLane = t16;
-	let t17;
-	if ($[50] !== goToLane || $[51] !== nextLane) {
-		t17 = () => goToLane(nextLane(-1));
-		$[50] = goToLane;
-		$[51] = nextLane;
-		$[52] = t17;
-	} else t17 = $[52];
-	const onPrevAgent = t17;
-	let t18;
-	if ($[53] !== goToLane || $[54] !== nextLane) {
-		t18 = () => goToLane(nextLane(1));
-		$[53] = goToLane;
-		$[54] = nextLane;
-		$[55] = t18;
-	} else t18 = $[55];
-	const onNextAgent = t18;
-	let t19;
+		$[67] = laneIndex;
+		$[68] = lanes;
+		$[69] = t21;
+	} else t21 = $[69];
+	const nextLane = t21;
+	let t22;
+	if ($[70] !== goToLane || $[71] !== nextLane) {
+		t22 = () => goToLane(nextLane(-1));
+		$[70] = goToLane;
+		$[71] = nextLane;
+		$[72] = t22;
+	} else t22 = $[72];
+	const onPrevAgent = t22;
+	let t23;
+	if ($[73] !== goToLane || $[74] !== nextLane) {
+		t23 = () => goToLane(nextLane(1));
+		$[73] = goToLane;
+		$[74] = nextLane;
+		$[75] = t23;
+	} else t23 = $[75];
+	const onNextAgent = t23;
+	let t24;
 	bb0: {
-		let t20;
-		if ($[56] !== laneScope?.lanePath) {
-			t20 = laneScope?.lanePath ?? [];
-			$[56] = laneScope?.lanePath;
-			$[57] = t20;
-		} else t20 = $[57];
-		const path = t20;
+		let t25;
+		if ($[76] !== laneScope?.lanePath) {
+			t25 = laneScope?.lanePath ?? [];
+			$[76] = laneScope?.lanePath;
+			$[77] = t25;
+		} else t25 = $[77];
+		const path = t25;
 		if (path.length === 0) {
-			let t21;
-			if ($[58] === Symbol.for("react.memo_cache_sentinel")) {
-				t21 = [{ label: "main" }];
-				$[58] = t21;
-			} else t21 = $[58];
-			t19 = t21;
+			let t26;
+			if ($[78] === Symbol.for("react.memo_cache_sentinel")) {
+				t26 = [{ label: "main" }];
+				$[78] = t26;
+			} else t26 = $[78];
+			t24 = t26;
 			break bb0;
 		}
-		let t21;
-		if ($[59] !== goToLane || $[60] !== path) {
-			let t22;
-			if ($[62] !== goToLane || $[63] !== path.length) {
-				t22 = (lane_0, i_0) => {
+		let t26;
+		if ($[79] !== goToLane || $[80] !== path) {
+			let t27;
+			if ($[82] !== goToLane || $[83] !== path.length) {
+				t27 = (lane_0, i_0) => {
 					return !(i_0 === path.length - 1) && lane_0.firstAnchorId ? {
 						label: lane_0.label,
 						onSelect: () => goToLane(lane_0)
 					} : { label: lane_0.label };
 				};
-				$[62] = goToLane;
-				$[63] = path.length;
-				$[64] = t22;
-			} else t22 = $[64];
-			t21 = path.map(t22);
-			$[59] = goToLane;
-			$[60] = path;
-			$[61] = t21;
-		} else t21 = $[61];
-		t19 = t21;
+				$[82] = goToLane;
+				$[83] = path.length;
+				$[84] = t27;
+			} else t27 = $[84];
+			t26 = path.map(t27);
+			$[79] = goToLane;
+			$[80] = path;
+			$[81] = t26;
+		} else t26 = $[81];
+		t24 = t26;
 	}
-	const laneCrumbs = t19;
-	let t20;
-	if ($[65] !== goToLane || $[66] !== lanes) {
-		let t21;
-		if ($[68] !== goToLane) {
-			t21 = (lane_2) => ({
+	const laneCrumbs = t24;
+	let t25;
+	if ($[85] !== goToLane || $[86] !== lanes) {
+		let t26;
+		if ($[88] !== goToLane) {
+			t26 = (lane_2) => ({
 				label: lane_2.label,
 				depth: lane_2.depth,
 				isCurrent: lane_2.isCurrent,
 				onSelect: () => goToLane(lane_2)
 			});
-			$[68] = goToLane;
-			$[69] = t21;
-		} else t21 = $[69];
-		t20 = lanes.filter(_temp$46).map(t21);
-		$[65] = goToLane;
-		$[66] = lanes;
-		$[67] = t20;
-	} else t20 = $[67];
-	const laneOptions = t20;
-	let t21;
-	if ($[70] !== goToTurn) {
-		t21 = () => goToTurn(1);
-		$[70] = goToTurn;
-		$[71] = t21;
-	} else t21 = $[71];
-	const onFirst = t21;
-	let t22;
-	if ($[72] !== goToTurn || $[73] !== totalTurns) {
-		t22 = () => goToTurn(totalTurns);
-		$[72] = goToTurn;
-		$[73] = totalTurns;
-		$[74] = t22;
-	} else t22 = $[74];
-	const onLast = t22;
-	const t23 = lanes.length > 1 ? onPrevAgent : void 0;
-	const t24 = lanes.length > 1 ? onNextAgent : void 0;
-	const t25 = anchorIds.length > 0 ? onFirst : void 0;
-	const t26 = anchorIds.length > 0 ? onLast : void 0;
+			$[88] = goToLane;
+			$[89] = t26;
+		} else t26 = $[89];
+		t25 = lanes.filter(_temp$46).map(t26);
+		$[85] = goToLane;
+		$[86] = lanes;
+		$[87] = t25;
+	} else t25 = $[87];
+	const laneOptions = t25;
+	let t26;
+	if ($[90] !== goToTurn) {
+		t26 = () => goToTurn(1);
+		$[90] = goToTurn;
+		$[91] = t26;
+	} else t26 = $[91];
+	const onFirst = t26;
 	let t27;
-	if ($[75] !== onNext || $[76] !== onPrev || $[77] !== slice.length || $[78] !== t23 || $[79] !== t24 || $[80] !== t25 || $[81] !== t26) {
-		t27 = {
+	if ($[92] !== goToTurn || $[93] !== totalTurns) {
+		t27 = () => goToTurn(totalTurns);
+		$[92] = goToTurn;
+		$[93] = totalTurns;
+		$[94] = t27;
+	} else t27 = $[94];
+	const onLast = t27;
+	const t28 = lanes.length > 1 ? onPrevAgent : void 0;
+	const t29 = lanes.length > 1 ? onNextAgent : void 0;
+	const t30 = anchorIds.length > 0 ? onFirst : void 0;
+	const t31 = anchorIds.length > 0 ? onLast : void 0;
+	let t32;
+	if ($[95] !== onNext || $[96] !== onPrev || $[97] !== slice.length || $[98] !== t28 || $[99] !== t29 || $[100] !== t30 || $[101] !== t31) {
+		t32 = {
 			listHandle,
 			scrollRef,
 			itemCount: slice.length,
 			onPrev,
 			onNext,
-			onPrevAgent: t23,
-			onNextAgent: t24,
-			onFirst: t25,
-			onLast: t26
+			onPrevAgent: t28,
+			onNextAgent: t29,
+			onFirst: t30,
+			onLast: t31
 		};
-		$[75] = onNext;
-		$[76] = onPrev;
-		$[77] = slice.length;
-		$[78] = t23;
-		$[79] = t24;
-		$[80] = t25;
-		$[81] = t26;
-		$[82] = t27;
-	} else t27 = $[82];
-	useTranscriptKeyboardNavigation(t27);
+		$[95] = onNext;
+		$[96] = onPrev;
+		$[97] = slice.length;
+		$[98] = t28;
+		$[99] = t29;
+		$[100] = t30;
+		$[101] = t31;
+		$[102] = t32;
+	} else t32 = $[102];
+	useTranscriptKeyboardNavigation(t32);
 	const lastAnchor = anchorIds[anchorIds.length - 1];
-	let t28;
-	let t29;
-	if ($[83] !== eventId || $[84] !== following || $[85] !== lastAnchor || $[86] !== setParams) {
-		t28 = () => {
+	let t33;
+	let t34;
+	if ($[103] !== eventId || $[104] !== following || $[105] !== lastAnchor || $[106] !== setParams) {
+		t33 = () => {
 			if (following && lastAnchor && eventId !== lastAnchor) setParams({ event: lastAnchor });
 		};
-		t29 = [
+		t34 = [
 			following,
 			lastAnchor,
 			eventId,
 			setParams
 		];
-		$[83] = eventId;
-		$[84] = following;
-		$[85] = lastAnchor;
-		$[86] = setParams;
-		$[87] = t28;
-		$[88] = t29;
+		$[103] = eventId;
+		$[104] = following;
+		$[105] = lastAnchor;
+		$[106] = setParams;
+		$[107] = t33;
+		$[108] = t34;
 	} else {
-		t28 = $[87];
-		t29 = $[88];
+		t33 = $[107];
+		t34 = $[108];
 	}
-	(0, import_react.useEffect)(t28, t29);
+	(0, import_react.useEffect)(t33, t34);
 	const followingLatest = following && running;
-	let t30;
-	if ($[89] !== setParams) {
-		t30 = (next_0) => setParams({ tab: next_0 });
-		$[89] = setParams;
-		$[90] = t30;
-	} else t30 = $[90];
-	let t31;
-	if ($[91] !== t30 || $[92] !== tab) {
-		t31 = {
+	let t35;
+	if ($[109] !== setParams) {
+		t35 = (next_0) => setParams({ tab: next_0 });
+		$[109] = setParams;
+		$[110] = t35;
+	} else t35 = $[110];
+	let t36;
+	if ($[111] !== t35 || $[112] !== tab) {
+		t36 = {
 			tab,
-			setTab: t30
+			setTab: t35
 		};
-		$[91] = t30;
-		$[92] = tab;
-		$[93] = t31;
-	} else t31 = $[93];
-	const focusTab = t31;
-	let t32;
-	if ($[94] !== anchorIds.length || $[95] !== canStepNext || $[96] !== canStepPrev || $[97] !== focusTab || $[98] !== followingLatest || $[99] !== goToTurn || $[100] !== laneCrumbs || $[101] !== laneOptions || $[102] !== onNext || $[103] !== onPrev || $[104] !== resolvedEventId || $[105] !== slice || $[106] !== totalTurns || $[107] !== turnIndex || $[108] !== turnInfo) {
-		t32 = {
+		$[111] = t35;
+		$[112] = tab;
+		$[113] = t36;
+	} else t36 = $[113];
+	const focusTab = t36;
+	let t37;
+	if ($[114] !== anchorIds.length || $[115] !== canStepNext || $[116] !== canStepPrev || $[117] !== checks || $[118] !== focusTab || $[119] !== followingLatest || $[120] !== goToTurn || $[121] !== laneCrumbs || $[122] !== laneOptions || $[123] !== onNext || $[124] !== onPrev || $[125] !== resolvedEventId || $[126] !== slice || $[127] !== totalTurns || $[128] !== turnIndex || $[129] !== turnInfo) {
+		t37 = {
 			scrollRef,
 			listHandle,
 			slice,
+			checks,
 			resolvedEventId,
 			followingLatest,
 			turnInfo,
@@ -102912,24 +104889,25 @@ var PRIORITY_MODEL_INPUT = 4;
 			laneOptions,
 			focusTab
 		};
-		$[94] = anchorIds.length;
-		$[95] = canStepNext;
-		$[96] = canStepPrev;
-		$[97] = focusTab;
-		$[98] = followingLatest;
-		$[99] = goToTurn;
-		$[100] = laneCrumbs;
-		$[101] = laneOptions;
-		$[102] = onNext;
-		$[103] = onPrev;
-		$[104] = resolvedEventId;
-		$[105] = slice;
-		$[106] = totalTurns;
-		$[107] = turnIndex;
-		$[108] = turnInfo;
-		$[109] = t32;
-	} else t32 = $[109];
-	return t32;
+		$[114] = anchorIds.length;
+		$[115] = canStepNext;
+		$[116] = canStepPrev;
+		$[117] = checks;
+		$[118] = focusTab;
+		$[119] = followingLatest;
+		$[120] = goToTurn;
+		$[121] = laneCrumbs;
+		$[122] = laneOptions;
+		$[123] = onNext;
+		$[124] = onPrev;
+		$[125] = resolvedEventId;
+		$[126] = slice;
+		$[127] = totalTurns;
+		$[128] = turnIndex;
+		$[129] = turnInfo;
+		$[130] = t37;
+	} else t37 = $[130];
+	return t37;
 }
 function _temp$46(lane_1) {
 	return lane_1.firstAnchorId;
@@ -108173,6 +110151,7 @@ var labelForNode = (node) => {
 			escalate: "escalated",
 			terminate: "terminated"
 		}[node.event.decision];
+		case "sentinel": return `sentinel ${node.event.status === "reported" ? node.event.action ?? node.event.kind : node.event.status}`;
 		case "model": return `model${node.event.role ? ` (${node.event.role})` : ""}`;
 		case "score": return "scoring";
 		case "step":
@@ -109326,47 +111305,6 @@ var TranscriptLayout_module_default = {
 	eventsList: "_eventsList_sou2s_45"
 };
 //#endregion
-//#region ../../packages/inspect-components/src/transcript/transform/toolApprovals.ts
-/**
-* Pairs ApprovalEvents to their ToolEvents by call id so the tool panel can
-* render the approval inline, and maps hidden approval node ids to their
-* host tool node so deep links targeting an approval still scroll somewhere.
-*/ function pairToolApprovals(eventNodes) {
-	const toolNodeIdsByCallId = /* @__PURE__ */ new Map();
-	const walkTools = (nodes) => {
-		for (const n of nodes) {
-			if (n.event.event === "tool" && !toolNodeIdsByCallId.has(n.event.id)) toolNodeIdsByCallId.set(n.event.id, n.id);
-			if (n.children.length) walkTools(n.children);
-		}
-	};
-	walkTools(eventNodes);
-	const toolApprovals = /* @__PURE__ */ new Map();
-	const hiddenApprovalIds = /* @__PURE__ */ new Set();
-	const approvalScrollRedirects = /* @__PURE__ */ new Map();
-	const walkApprovals = (nodes) => {
-		for (const n of nodes) {
-			if (n.event.event === "approval") {
-				const toolNodeId = toolNodeIdsByCallId.get(n.event.call.id);
-				if (n.event.approver === "auto" && n.event.decision === "approve") {
-					hiddenApprovalIds.add(n.id);
-					if (toolNodeId) approvalScrollRedirects.set(n.id, toolNodeId);
-				} else if (toolNodeId) {
-					toolApprovals.set(n.event.call.id, eventNodeOf(n, "approval"));
-					hiddenApprovalIds.add(n.id);
-					approvalScrollRedirects.set(n.id, toolNodeId);
-				}
-			}
-			if (n.children.length) walkApprovals(n.children);
-		}
-	};
-	walkApprovals(eventNodes);
-	return {
-		toolApprovals,
-		hiddenApprovalIds,
-		approvalScrollRedirects
-	};
-}
-//#endregion
 //#region ../../packages/inspect-components/src/transcript/TranscriptViewNodes.tsx
 /**
 * Shared component that wraps TranscriptVirtualList with tree flattening,
@@ -109381,20 +111319,30 @@ var TranscriptViewNodes = /*#__PURE__*/ (0, import_react.forwardRef)(function Tr
 		return (collapsedTranscript || defaultCollapsedIds)[nodeId] === true;
 	}, [collapsedTranscript, defaultCollapsedIds]);
 	const { toolApprovals, hiddenApprovalIds, approvalScrollRedirects } = (0, import_react.useMemo)(() => pairToolApprovals(eventNodes), [eventNodes]);
-	const scrollEventId = initialEventId ? approvalScrollRedirects.get(initialEventId) ?? initialEventId : initialEventId;
+	const { toolSentinels, standaloneSentinels, hiddenSentinelIds, sentinelScrollRedirects } = (0, import_react.useMemo)(() => pairToolSentinels(eventNodes), [eventNodes]);
+	const redirectEventId = (0, import_react.useCallback)((eventId) => approvalScrollRedirects.get(eventId) ?? sentinelScrollRedirects.get(eventId) ?? eventId, [approvalScrollRedirects, sentinelScrollRedirects]);
+	const scrollEventId = initialEventId ? redirectEventId(initialEventId) : initialEventId;
 	const flattenedNodes = (0, import_react.useMemo)(() => {
 		const all = flatTree(eventNodes, collapsedTranscript || defaultCollapsedIds);
-		return hiddenApprovalIds.size === 0 ? all : all.filter((n) => !hiddenApprovalIds.has(n.id));
+		return hiddenApprovalIds.size === 0 && hiddenSentinelIds.size === 0 ? all : all.filter((n) => !hiddenApprovalIds.has(n.id) && !hiddenSentinelIds.has(n.id));
 	}, [
 		eventNodes,
 		collapsedTranscript,
 		defaultCollapsedIds,
-		hiddenApprovalIds
+		hiddenApprovalIds,
+		hiddenSentinelIds
 	]);
 	const mergedEventNodeContext = (0, import_react.useMemo)(() => ({
 		...eventNodeContext,
-		toolApprovals
-	}), [eventNodeContext, toolApprovals]);
+		toolApprovals,
+		toolSentinels,
+		standaloneSentinels
+	}), [
+		eventNodeContext,
+		toolApprovals,
+		toolSentinels,
+		standaloneSentinels
+	]);
 	const selectionLatest = useLatestRef({
 		selection,
 		flattenedNodes
@@ -109460,7 +111408,8 @@ var TranscriptViewNodes = /*#__PURE__*/ (0, import_react.forwardRef)(function Tr
 			onDone
 		});
 	}, [onProgrammaticScroll]);
-	const scrollToEvent = (0, import_react.useCallback)((eventId) => {
+	const scrollToEvent = (0, import_react.useCallback)((targetId) => {
+		const eventId = redirectEventId(targetId);
 		onHeadroomSetHidden?.(true);
 		const tryScroll = (idx) => {
 			if (listHandle.current) scrollRowToTop(idx);
@@ -109497,6 +111446,7 @@ var TranscriptViewNodes = /*#__PURE__*/ (0, import_react.forwardRef)(function Tr
 			behavior: "auto"
 		});
 	}, [
+		redirectEventId,
 		flattenedNodes,
 		eventNodes,
 		collapsedTranscript,
@@ -115136,10 +117086,8 @@ var TranscriptPreview = (t0) => {
 //#endregion
 //#region src/app/samples/scans/scanReferences.ts
 function buildScoreMarkdownRefs(metadata, makeUrl, previewTable) {
-	return readScannerReferences(metadata).map((ref) => ({
-		id: ref.id,
-		cite: ref.cite,
-		citeUrl: makeUrl(ref.id, ref.type),
+	return citeReferences(readScannerReferences(metadata), makeUrl).map((ref) => ({
+		...ref,
 		citePreview: previewTable?.get(ref.id)
 	}));
 }
@@ -116270,6 +118218,7 @@ var eventTypes = {
 	tool: "Tool",
 	approval: "Approval",
 	review: "Review",
+	sentinel: "Sentinel",
 	input: "Input",
 	interrupt: "Interrupt",
 	score: "Score",
@@ -117490,7 +119439,14 @@ var SampleDisplayContent = ({ id, scrollRef, showActivity, focusOnLoad }) => {
 	});
 	const transcriptSearchLabels = searchScope === "events" ? searchReferenceLabels : void 0;
 	const messagesSearchLabels = searchScope === "messages" ? searchReferenceLabels : void 0;
-	const transcriptEventNodeContext = (0, import_react.useMemo)(() => mergeTranscriptLabelContext(scans.eventNodeContext, transcriptSearchLabels), [scans.eventNodeContext, transcriptSearchLabels]);
+	const transcriptEventNodeContext = (0, import_react.useMemo)(() => ({
+		...mergeTranscriptLabelContext(scans.eventNodeContext, transcriptSearchLabels),
+		makeCiteUrl: scans.makeCiteUrl
+	}), [
+		scans.eventNodeContext,
+		transcriptSearchLabels,
+		scans.makeCiteUrl
+	]);
 	const tools = [];
 	if (effectiveSelectedTab === kSampleTranscriptTabId) {
 		const label = isNoneFilter ? "None" : isDebugFilter ? "Debug" : isDefaultFilter ? "Default" : "Custom";
