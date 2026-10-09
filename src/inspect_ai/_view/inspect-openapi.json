@@ -3544,6 +3544,17 @@
             ],
             "title": "Completed At"
           },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
           "epoch": {
             "title": "Epoch",
             "type": "integer"
@@ -4270,6 +4281,17 @@
               }
             ],
             "title": "Completed At"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
           },
           "epoch": {
             "title": "Epoch",
@@ -5224,6 +5246,17 @@
             "additionalProperties": true,
             "title": "Task Attribs",
             "type": "object"
+          },
+          "task_description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Task Description"
           },
           "task_display_name": {
             "anyOf": [
@@ -8650,6 +8683,17 @@
               }
             ],
             "title": "Choices"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
           },
           "files": {
             "anyOf": [
