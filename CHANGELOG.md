@@ -39,7 +39,6 @@
 - OpenAI: OpenAI: The OpenAI providers, message and output converters, and agent bridge now require openai >= 3.4.0.
 - Bugfix: Tool events now record the arguments an approver's `modify` decision substituted, and a `modify` that changes the function now fails the sample instead of running the wrong call.
 - Agent Bridge: `sandbox_agent_bridge()` now serves a request for an unknown model name with the eval's model and logs a warning; add the name to `model_aliases` to send it to another model.
-- Anthropic: `web_search()` now accepts `allowed_callers`, allowing native search and fetch without their accompanying hosted code execution.
 
 ## 0.3.276 (02 October 2026)
 
