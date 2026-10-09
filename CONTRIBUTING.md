@@ -148,6 +148,11 @@ the title becomes the commit that sets the next release's version:
 The PR Title Lint check fails until the title follows this format; editing the
 title re-runs it.
 
+If your change needs a CHANGELOG entry, add it under `## Unreleased` at the top
+of `CHANGELOG.md`. Don't rename that heading, edit release headings, or add a
+version section: the release PR renames `## Unreleased` to the version heading
+when it releases.
+
 Fill in the PR template and, when addressing an accepted issue, reference it
 (`Fixes #NNN`). Explain the user-facing problem and result. In
 "Compatibility and migration," describe any impact on existing code,

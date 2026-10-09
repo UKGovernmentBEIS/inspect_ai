@@ -110,6 +110,19 @@ jobs:
         if: ${{ inputs.dry-run }}
         run: npm publish --dry-run --access public ${{ inputs.prerelease && '--tag beta --ignore-scripts' || '' }}
 
+      # npm never accepts a version twice, so a retried release skips the
+      # publish once the version exists.
+      - name: Check npm for this version
+        id: npm-version
+        if: ${{ !inputs.dry-run && !inputs.prerelease }}
+        run: |
+          NAME=$(node -p "require('./package.json').name")
+          VERSION=$(node -p "require('./package.json').version")
+          if [ -n "$(npm view "$NAME@$VERSION" version 2>/dev/null)" ]; then
+            echo "::notice::$NAME@$VERSION is already on npm; not publishing it again"
+            echo "published=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Publish to NPM
-        if: ${{ !inputs.dry-run }}
+        if: ${{ !inputs.dry-run && steps.npm-version.outputs.published != 'true' }}
         run: npm publish --access public ${{ inputs.prerelease && '--tag beta --ignore-scripts' || '' }}

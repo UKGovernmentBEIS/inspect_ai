@@ -10,11 +10,22 @@ name: Release
 # trigger no other workflows, so this workflow runs the publish jobs itself
 # and dispatches the release PR's checks. publish.yml and npm-publish.yml keep
 # their own triggers for break-glass releases.
+#
+# Retries: re-running this workflow (all jobs, or the failed ones) finishes
+# the release on the run's own commit, and dispatches any release PR checks
+# that have not run on its head. To finish a release from a later commit,
+# dispatch this workflow on main with `tag`. Publishing skips what PyPI and
+# npm already have. See design/release-process.md.
 on:
   push:
     branches:
       - main
   workflow_dispatch:
+    inputs:
+      tag:
+        description: "Finish publishing this existing release (X.Y.Z); leave empty for a normal run"
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -37,8 +48,7 @@ jobs:
       issues: write # release PR labels
       actions: write # dispatch checks on the release PR
     outputs:
-      release_created: ${{ steps.release.outputs.release_created }}
-      tag_name: ${{ steps.release.outputs.tag_name }}
+      tag: ${{ steps.resolve.outputs.tag }}
     steps:
       - id: release
         uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
@@ -49,9 +59,27 @@ jobs:
           manifest-file: .release-please-manifest.json
           target-branch: main
 
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          sparse-checkout: .github/scripts
+          persist-credentials: false
+
+      # Release Please reports a release only in the run that creates it, so
+      # a retry looks the release up by this run's commit (or the `tag` input).
+      - name: Resolve release to publish
+        id: resolve
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CREATED_TAG: ${{ steps.release.outputs.release_created == 'true' && steps.release.outputs.tag_name || '' }}
+          REQUESTED_TAG: ${{ inputs.tag }}
+        run: |
+          TAG=$(python3 .github/scripts/release_workflow.py --repo "$GITHUB_REPOSITORY" \
+            resolve-release --sha "$GITHUB_SHA" \
+            --created-tag "$CREATED_TAG" --requested-tag "$REQUESTED_TAG")
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
       - name: Find open release PR
         id: pr
-        if: steps.release.outputs.release_created != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -65,38 +93,38 @@ jobs:
         if: steps.pr.outputs.open == 'true'
         with:
           ref: ${{ env.RELEASE_BRANCH }}
+          path: release-pr
 
       - name: Release CHANGELOG.md entries on the release PR
-        id: changelog
         if: steps.pr.outputs.open == 'true'
+        working-directory: release-pr
         run: |
           VERSION=$(jq -r '."."' .release-please-manifest.json)
           python3 .github/scripts/release_changelog.py prepare "$VERSION"
           if git diff --quiet; then
-            echo "pushed=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git commit -am "chore: move Unreleased changelog entries to $VERSION"
           git push origin "HEAD:$RELEASE_BRANCH"
-          echo "pushed=true" >> "$GITHUB_OUTPUT"
 
-      # Includes build.yml for the required status checks. If these runs are
-      # missing, a maintainer can close and reopen the release PR instead.
+      # Dispatches only the workflows with no run on the release PR's current
+      # head, so re-running this job retries a failed dispatch. build.yml
+      # provides the required status checks; if they are missing, a
+      # maintainer can also close and reopen the release PR.
       - name: Run checks on the release PR
-        if: steps.changelog.outputs.pushed == 'true' || steps.release.outputs.pr != ''
+        if: steps.pr.outputs.open == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          for workflow in build.yml release-pr-checks.yml; do
-            gh workflow run "$workflow" --repo "$GITHUB_REPOSITORY" --ref "$RELEASE_BRANCH"
-          done
+          python3 .github/scripts/release_workflow.py --repo "$GITHUB_REPOSITORY" \
+            dispatch-checks --branch "$RELEASE_BRANCH" build.yml release-pr-checks.yml
 
   release-notes:
     name: Set release notes from CHANGELOG.md
     needs: release-please
-    if: needs.release-please.outputs.release_created == 'true'
+    if: needs.release-please.outputs.tag != ''
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
@@ -104,14 +132,14 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ needs.release-please.outputs.tag_name }}
+          ref: ${{ needs.release-please.outputs.tag }}
           sparse-checkout: .github/scripts
           persist-credentials: false
 
       - name: Set release notes
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ needs.release-please.outputs.tag_name }}
+          TAG: ${{ needs.release-please.outputs.tag }}
         run: |
           python3 .github/scripts/release_changelog.py notes "$TAG" > "$RUNNER_TEMP/notes.md"
           gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --notes-file "$RUNNER_TEMP/notes.md"
@@ -121,7 +149,7 @@ jobs:
   build:
     name: Build and verify
     needs: release-please
-    if: needs.release-please.outputs.release_created == 'true'
+    if: needs.release-please.outputs.tag != ''
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -129,7 +157,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: refs/tags/${{ needs.release-please.outputs.tag_name }}
+          ref: refs/tags/${{ needs.release-please.outputs.tag }}
           fetch-depth: 0
           filter: "blob:none"
           submodules: true
@@ -137,7 +165,7 @@ jobs:
 
       - name: Check release tag
         env:
-          TAG: ${{ needs.release-please.outputs.tag_name }}
+          TAG: ${{ needs.release-please.outputs.tag }}
         run: |
           fail() { echo "::error::$1"; exit 1; }
           [[ "$TAG" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] ||
@@ -147,7 +175,7 @@ jobs:
 
       - uses: ./.github/actions/build-dist
         with:
-          version: ${{ needs.release-please.outputs.tag_name }}
+          version: ${{ needs.release-please.outputs.tag }}
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
@@ -169,7 +197,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: refs/tags/${{ needs.release-please.outputs.tag_name }}
+          ref: refs/tags/${{ needs.release-please.outputs.tag }}
           sparse-checkout: |
             .github/actions
             scripts
@@ -178,7 +206,7 @@ jobs:
 
       - uses: ./.github/actions/publish-dist
         with:
-          version: ${{ needs.release-please.outputs.tag_name }}
+          version: ${{ needs.release-please.outputs.tag }}
 
   # Waits for the build so npm never gets a version that failed the PyPI gates.
   publish-npm:
@@ -189,4 +217,4 @@ jobs:
       id-token: write # trusted publishing
     uses: ./.github/workflows/npm-publish.yml
     with:
-      tag: ${{ needs.release-please.outputs.tag_name }}
+      tag: ${{ needs.release-please.outputs.tag }}

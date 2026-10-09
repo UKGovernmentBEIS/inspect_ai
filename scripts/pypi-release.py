@@ -19,6 +19,7 @@ Usage:
     python pypi-release.py prepare
     python pypi-release.py verify-dist <version>
     python pypi-release.py verify-parity <version>
+    python pypi-release.py skip-published <version>
 
     # Release PR check (.github/workflows/release-pr-checks.yml)
     python pypi-release.py verify-sandbox-tools-published
@@ -635,6 +636,46 @@ def download_published_dists(version: str, dest_dir: Path) -> List[str]:
     return sorted(f["filename"] for f in files)
 
 
+def skip_published_dists(
+    dist_dir: Path, version: str, published_dir: Path
+) -> List[str]:
+    """Move files PyPI already has out of `dist_dir`, so a retry uploads the rest.
+
+    Returns:
+        The moved filenames.
+
+    Raises:
+        RuntimeError: If PyPI has a file of the same name with a different
+            SHA256, which PyPI would refuse to replace.
+    """
+    url = PYPI_JSON_URL.format(version=version)
+    try:
+        with urllib.request.urlopen(url, timeout=60) as response:
+            release = json.load(response)
+    except urllib.error.HTTPError as e:
+        if e.code == 404:
+            logging.info(f"{version} is not on PyPI yet; nothing to skip")
+            return []
+        raise
+
+    published = {f["filename"]: f["digests"]["sha256"] for f in release["urls"]}
+    skipped: List[str] = []
+    for path in sorted(p for p in dist_dir.iterdir() if p.is_file()):
+        digest = published.get(path.name)
+        if digest is None:
+            continue
+        if sha256_of_file(path) != digest:
+            raise RuntimeError(
+                f"PyPI already has {path.name} with a different SHA256 ({digest}); "
+                f"this build does not match the published file"
+            )
+        published_dir.mkdir(parents=True, exist_ok=True)
+        shutil.move(str(path), str(published_dir / path.name))
+        skipped.append(path.name)
+        logging.info(f"✓ {path.name} is already on PyPI with the same SHA256; skipping")
+    return skipped
+
+
 def verify_parity(dist_dir: Path, version: str) -> None:
     """Compare locally built distributions with the ones published on PyPI.
 
@@ -1175,6 +1216,19 @@ def verify_dist_command(args: argparse.Namespace) -> None:
         sys.exit(1)
 
 
+def skip_published_command(args: argparse.Namespace) -> None:
+    """Execute the skip-published command."""
+    setup_logging("skip_published")
+
+    try:
+        skip_published_dists(
+            Path(args.dist_dir), args.version, Path(args.published_dir)
+        )
+    except (RuntimeError, urllib.error.URLError) as e:
+        logging.error(f"PyPI already-published check failed: {e}")
+        sys.exit(1)
+
+
 def verify_parity_command(args: argparse.Namespace) -> None:
     """Execute the verify-parity command: compare the build with PyPI."""
     setup_logging("verify_parity")
@@ -1246,6 +1300,20 @@ def main():
         "--dist-dir", default="dist", help="Distribution directory (default: dist)"
     )
 
+    skip_published_parser = subparsers.add_parser(
+        "skip-published",
+        help="Move distributions PyPI already has (same SHA256) out of the dist dir",
+    )
+    skip_published_parser.add_argument("version", help="Version being published")
+    skip_published_parser.add_argument(
+        "--dist-dir", default="dist", help="Distribution directory (default: dist)"
+    )
+    skip_published_parser.add_argument(
+        "--published-dir",
+        default="dist-published",
+        help="Where to move already-published files (default: dist-published)",
+    )
+
     verify_parity_parser = subparsers.add_parser(
         "verify-parity",
         help="Compare built distributions with the same version on PyPI",
@@ -1276,6 +1344,8 @@ def main():
         verify_sandbox_tools_published_command(args)
     elif args.command == "verify-dist":
         verify_dist_command(args)
+    elif args.command == "skip-published":
+        skip_published_command(args)
     elif args.command == "verify-parity":
         verify_parity_command(args)
     else:

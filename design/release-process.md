@@ -25,7 +25,10 @@ and published to PyPI and npm by GitHub Actions with trusted publishing.
    S3 with its digest, if the PR head fails the build gates (`build-dist`), or if
    rebuilding PyPI's latest version no longer matches PyPI (`publish-parity.yml`).
 4. **Merge on Monday** by default; merge sooner for an urgent fix. To refresh
-   the changelog date first, run the Release workflow from the Actions tab.
+   the changelog date first, run the Release workflow from the Actions tab. The
+   release PR changes `.release-please-manifest.json`, which
+   `.github/CODEOWNERS` assigns to @jjallaire, @dragonstyle and @epatey; with
+   code-owner review required on `main`, one of them must approve it.
 5. **Release.** Merging tags `X.Y.Z` and creates the GitHub Release. In the same
    `release.yml` run, `release-notes` replaces the release body with the
    changelog section, `build` builds and gates the distributions, and
@@ -38,8 +41,7 @@ The workflow uses the built-in `GITHUB_TOKEN`. Pushes, tags and releases made
 with it trigger no other workflows, so:
 
 - the release PR's checks would never run; `release.yml` dispatches them
-  (`workflow_dispatch` is exempt). If they are missing, close and reopen the
-  release PR, which runs the PR workflows as the person who reopened it;
+  (`workflow_dispatch` is exempt);
 - the GitHub Release does not trigger `publish.yml` or `npm-publish.yml`;
   `release.yml` publishes itself, with the same composite actions
   (`.github/actions/build-dist`, `.github/actions/publish-dist`) and
@@ -50,6 +52,36 @@ job, so `release.yml` and `publish.yml` each need a PyPI publisher. npm matches
 the calling workflow, so `release.yml` and `npm-publish.yml` each need an npm
 publisher. The `pypi` and `npm` environments must allow deployments from
 `main` (release.yml) and from version tags (break-glass).
+
+## Retries and recovery
+
+Re-running the Release workflow is safe at any point.
+
+- **Release PR checks missing** (a dispatch failed): re-run the failed Release
+  job, or run the Release workflow on `main`. It dispatches each check workflow
+  that has no run yet on the release PR's head commit. Closing and reopening
+  the release PR also runs them, as the person who reopened it.
+- **Release created, then a later job failed or was cancelled** (notes, build,
+  either publish):
+  - *Re-run failed jobs* keeps the original run's tag.
+  - *Re-run all jobs* (or a run that failed inside Release Please after it
+    created the release) gets no release from Release Please, which reports a
+    release only once. The run then resumes the release whose tag is on the
+    run's own commit, provided it is a published, non-pre-release GitHub
+    Release and the manifest at the tag names it. It never picks up a newer
+    release.
+  - From a later commit: Actions → Release → Run workflow on `main`, with
+    `tag` set to the release. The same checks apply, plus the tag must be on
+    `main`.
+  - A resumed release restores the release notes from `CHANGELOG.md`, rebuilds
+    from the tag (the build is reproducible, which the parity check verifies),
+    and publishes again behind the environment approvals. PyPI files that are
+    already uploaded with the same SHA256 are skipped. A file with the same
+    name but a different SHA256 fails the job, since PyPI never replaces a
+    file. npm skips a version it already has.
+- A queued Release run can be replaced by a newer push, so the run that
+  creates a release may be on a later commit than the release PR merge. To
+  resume that release, re-run that later run, or use the `tag` input.
 
 ## Break-glass
 

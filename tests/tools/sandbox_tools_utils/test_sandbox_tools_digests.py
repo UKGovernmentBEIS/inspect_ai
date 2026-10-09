@@ -698,6 +698,99 @@ def _publish(
     return dist
 
 
+def _local_build(published: Path, dist: Path, names: list[str]) -> None:
+    for name in names:
+        shutil.copy(published / name, dist / name)
+
+
+def test_pypi_skip_published_after_partial_publication(
+    pypi_release: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A retry after the wheel was uploaded leaves only the sdist to upload."""
+    dist = _publish(tmp_path, monkeypatch, pypi_release)
+    _local_build(tmp_path / "published", dist, [_WHEEL, _SDIST])
+    published = (tmp_path / "published" / _SDIST).read_bytes()
+
+    def urlopen(url: str, timeout: int) -> _FakeUrlResponse:
+        release = {
+            "urls": [
+                {
+                    "filename": _WHEEL,
+                    "packagetype": "bdist_wheel",
+                    "digests": {"sha256": _sha256((dist / _WHEEL).read_bytes())},
+                }
+            ]
+        }
+        return _FakeUrlResponse(json.dumps(release).encode())
+
+    monkeypatch.setattr(pypi_release.urllib.request, "urlopen", urlopen)
+    skipped = pypi_release.skip_published_dists(dist, "0.3.277", tmp_path / "done")
+
+    assert skipped == [_WHEEL]
+    assert [p.name for p in dist.iterdir()] == [_SDIST]
+    assert (dist / _SDIST).read_bytes() == published
+    assert [p.name for p in (tmp_path / "done").iterdir()] == [_WHEEL]
+
+
+def test_pypi_skip_published_when_everything_is_published(
+    pypi_release: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    dist = _publish(tmp_path, monkeypatch, pypi_release)
+    _local_build(tmp_path / "published", dist, [_WHEEL, _SDIST])
+
+    skipped = pypi_release.skip_published_dists(dist, "0.3.277", tmp_path / "done")
+
+    assert skipped == sorted([_WHEEL, _SDIST])
+    assert list(dist.iterdir()) == []
+
+
+def test_pypi_skip_published_keeps_everything_for_a_new_version(
+    pypi_release: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    dist = tmp_path / "dist"
+    dist.mkdir()
+    (dist / "inspect_ai-0.3.278-py3-none-any.whl").write_bytes(b"wheel")
+
+    def urlopen(url: str, timeout: int) -> _FakeUrlResponse:
+        raise urllib.error.HTTPError(url, 404, "Not Found", Message(), None)
+
+    monkeypatch.setattr(pypi_release.urllib.request, "urlopen", urlopen)
+    assert pypi_release.skip_published_dists(dist, "0.3.278", tmp_path / "done") == []
+    assert [p.name for p in dist.iterdir()] == ["inspect_ai-0.3.278-py3-none-any.whl"]
+
+
+def test_pypi_skip_published_rejects_a_different_file_with_the_same_name(
+    pypi_release: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    dist = _publish(tmp_path, monkeypatch, pypi_release)
+    _local_build(tmp_path / "published", dist, [_SDIST])
+    (dist / _WHEEL).write_bytes(b"a different build")
+
+    with pytest.raises(RuntimeError, match=f"PyPI already has {_WHEEL}"):
+        pypi_release.skip_published_dists(dist, "0.3.277", tmp_path / "done")
+    assert (dist / _WHEEL).read_bytes() == b"a different build"
+
+
+def test_pypi_skip_published_command_fails_when_pypi_is_unreachable(
+    pypi_release: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    dist = tmp_path / "dist"
+    dist.mkdir()
+
+    def urlopen(url: str, timeout: int) -> _FakeUrlResponse:
+        raise urllib.error.URLError("unreachable")
+
+    monkeypatch.setattr(pypi_release.urllib.request, "urlopen", urlopen)
+    monkeypatch.chdir(tmp_path)
+    with pytest.raises(SystemExit) as exit_info:
+        pypi_release.skip_published_command(
+            argparse.Namespace(
+                version="0.3.278", dist_dir="dist", published_dir="dist-published"
+            )
+        )
+    assert exit_info.value.code == 1
+
+
 def test_pypi_verify_parity_accepts_identical_build(
     pypi_release: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -778,6 +871,7 @@ _COMMANDS = [
     "verify-dist",
     "verify-parity",
     "verify-sandbox-tools-published",
+    "skip-published",
 ]
 
 

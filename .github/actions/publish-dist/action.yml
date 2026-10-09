@@ -1,8 +1,9 @@
 name: Publish inspect_ai distributions
 description: >-
   Download the `dist` artifact from the build job, re-run the version and
-  wheel gate on those exact files, and upload them to PyPI with trusted
-  publishing. Shared by publish.yml and release.yml. The calling job needs
+  wheel gate on those exact files, and upload to PyPI with trusted publishing
+  the files PyPI does not have yet (a file it has with a different SHA256
+  fails the step). Shared by publish.yml and release.yml. The calling job needs
   `id-token: write`, the `pypi` environment, and a checkout holding scripts/
   and src/inspect_ai/tool/_sandbox_tools_utils; nothing is installed or built.
   PyPI matches its trusted publisher against the workflow file that runs the
@@ -32,5 +33,16 @@ runs:
         VERSION: ${{ inputs.version }}
       run: python scripts/pypi-release.py verify-dist "$VERSION"
 
+    # A retried release may find some or all files already uploaded.
+    - name: Skip files already on PyPI
+      id: pending
+      shell: bash
+      env:
+        VERSION: ${{ inputs.version }}
+      run: |
+        python scripts/pypi-release.py skip-published "$VERSION"
+        echo "count=$(find dist -type f | wc -l | tr -d ' ')" >> "$GITHUB_OUTPUT"
+
     - name: Publish to PyPI
+      if: steps.pending.outputs.count != '0'
       uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2
