@@ -51,6 +51,7 @@ from inspect_ai._util.http import (
 from inspect_ai._util.images import inline_media_data_uri
 from inspect_ai._util.logger import warn_once
 from inspect_ai.log._samples import set_active_model_event_call
+from inspect_ai.model._response_headers import record_response_headers
 from inspect_ai.tool import ToolChoice, ToolInfo
 from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_choice import ToolFunction
@@ -343,6 +344,12 @@ class AzureAIAPI(ModelAPI):
             ), model_call
 
         except AzureError as ex:
+            # keep the gateway/proxy response headers available for this
+            # attempt before the error is classified (azure-core carries the
+            # raw response on the exception)
+            error_response = getattr(ex, "response", None)
+            if error_response is not None:
+                record_response_headers(error_response.headers)
             model_call.set_error({"error": {"message": str(ex.message)}})
             return self.handle_azure_error(ex), model_call
         except AzureAIStreamError as ex:

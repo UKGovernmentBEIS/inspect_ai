@@ -1,5 +1,7 @@
 ## Unreleased
 
+- Experimental: model-call HTTP response headers are recorded per attempt (`ModelCall.response_headers`, `ModelGenerateError.response_headers`, `record_response_headers()` / `current_response_headers()`), so proxies and gateways can signal decisions (e.g. `x-sentinel-*`) to the model layer. Providers on Inspect HTTP hooks record automatically; Azure AI (error path) and SageMaker record explicitly.
+
 - Tasks and samples can carry a `description` of what they ask of the agent, recorded in the eval log and in `evals_df()` and `samples_df()`.
 - Tool review now also reviews `handoff()` calls, as approval does.
 - Compaction: Fixed compaction triggering early and reporting inflated token counts on OpenAI reasoning models, which counted replayed reasoning twice.
