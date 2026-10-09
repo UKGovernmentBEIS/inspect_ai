@@ -20,6 +20,7 @@ from inspect_ai import Task, eval_set, task
 from inspect_ai.dataset import Sample
 from inspect_ai.solver import Generate, TaskState, generate, solver
 from inspect_ai.solver._solver import Solver
+from inspect_ai.viewer import ViewerConfig
 
 # inspect_scout is an optional runtime dep; skip these tests if unavailable.
 inspect_scout = pytest.importorskip("inspect_scout")
@@ -322,6 +323,39 @@ def test_scanner_writes_parquet_per_sample() -> None:
         # value column reflects scanner output
         for tid, val in zip(ids, values):
             assert val == f"scanned:{tid}"
+
+
+@pytest.mark.parametrize(
+    ("viewer", "expected"),
+    [
+        (None, None),
+        (ViewerConfig(), None),
+        (ViewerConfig(trust_content=True), True),
+        (ViewerConfig(trust_content=False), False),
+    ],
+)
+def test_scanner_results_record_the_tasks_trust_content(
+    viewer: ViewerConfig | None, expected: bool | None
+) -> None:
+    """Scout renders untrusted tasks' scan results as plain text from this column."""
+    with tempfile.TemporaryDirectory() as log_dir:
+        success, _ = eval_set(
+            tasks=Task(
+                dataset=[Sample(input=f"question {i}") for i in range(2)],
+                solver=generate(),
+                viewer=viewer,
+            ),
+            log_dir=log_dir,
+            scanner=[echo_scanner()],
+            model="mockllm/model",
+            retry_attempts=0,
+            display="none",
+        )
+        assert success
+
+        pf = _read_parquet(_scan_dir(log_dir) / "echo_scanner.parquet")
+        trust = pf.read(columns=["transcript_trust_content"]).column(0).to_pylist()
+        assert trust == [expected, expected]
 
 
 def test_scanner_summary_accurate_under_concurrency() -> None:
