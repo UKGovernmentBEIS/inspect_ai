@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import re
 import subprocess
 from pathlib import Path
 from typing import Any, Callable, Sequence
@@ -45,12 +46,13 @@ class FakeGitHub:
         self.branch_head = "c" * 40
         self.runs: dict[str, list[int]] = {}  # workflow -> run ids on branch_head
         self.fail: Callable[[Sequence[str]], bool] = lambda args: False
+        self.fail_stderr = "gh: Server Error (HTTP 502)"
         self.calls: list[list[str]] = []
         self.dispatched: list[str] = []
 
     def add_release(self, tag: str, commit: str, **flags: bool) -> None:
         self.tags[tag] = commit
-        self.releases[tag] = {"isDraft": False, "isPrerelease": False, **flags}
+        self.releases[tag] = {"draft": False, "prerelease": False, **flags}
         self.manifests[tag] = tag
         self.on_main.add(tag)
 
@@ -58,7 +60,7 @@ class FakeGitHub:
         args = list(args)
         self.calls.append(args)
         if self.fail(args):
-            raise subprocess.CalledProcessError(1, args, stderr="simulated failure")
+            raise subprocess.CalledProcessError(1, args, stderr=self.fail_stderr)
         if args[:2] == ["git", "ls-remote"]:
             lines = []
             for tag, commit in self.tags.items():
@@ -68,16 +70,20 @@ class FakeGitHub:
                 else:
                     lines.append(f"{commit}\trefs/tags/{tag}")
             return "\n".join(lines) + "\n"
-        if args[:3] == ["gh", "release", "view"]:
-            if args[3] not in self.releases:
-                raise subprocess.CalledProcessError(1, args, stderr="release not found")
-            return json.dumps(self.releases[args[3]])
         if args[:2] == ["gh", "api"]:
             path = args[2]
+            not_found = subprocess.CalledProcessError(
+                1, args, stderr="gh: Not Found (HTTP 404)"
+            )
+            if "/releases/tags/" in path:
+                tag = path.rsplit("/", 1)[1]
+                if tag not in self.releases:
+                    raise not_found
+                return json.dumps(self.releases[tag])
             if ".release-please-manifest.json?ref=" in path:
                 tag = path.rsplit("=", 1)[1]
                 if tag not in self.manifests:
-                    raise subprocess.CalledProcessError(1, args, stderr="Not Found")
+                    raise not_found
                 return json.dumps({".": self.manifests[tag]})
             if "/compare/main..." in path:
                 return (
@@ -156,7 +162,7 @@ def test_normal_push_without_a_release_resolves_nothing() -> None:
     [
         pytest.param(lambda gh: gh.releases.pop("0.3.278"), id="tag-without-release"),
         pytest.param(
-            lambda gh: gh.releases["0.3.278"].update(isPrerelease=True),
+            lambda gh: gh.releases["0.3.278"].update(prerelease=True),
             id="pre-release",
         ),
         pytest.param(
@@ -190,7 +196,7 @@ def test_requested_tag_resumes_from_a_later_commit() -> None:
         ("0.3.278", lambda gh: gh.releases.pop("0.3.278"), "No GitHub Release"),
         (
             "0.3.278",
-            lambda gh: gh.releases["0.3.278"].update(isDraft=True),
+            lambda gh: gh.releases["0.3.278"].update(draft=True),
             "draft or pre-release",
         ),
         (
@@ -209,6 +215,78 @@ def test_requested_tag_must_be_a_release_please_release(
     setup(gh)
     with pytest.raises(ReleaseError, match=error):
         _resolve(gh, sha="d" * 40, requested_tag=tag)
+
+
+READS = {
+    "release": "/releases/tags/",
+    "manifest": ".release-please-manifest.json",
+    "main-ancestry": "/compare/main...",
+}
+
+
+@pytest.mark.parametrize("read", READS)
+@pytest.mark.parametrize(
+    "stderr",
+    [
+        "gh: Server Error (HTTP 502)",
+        "gh: API rate limit exceeded for installation ID 1. (HTTP 403)",
+        "gh: Bad credentials (HTTP 401)",
+        "error connecting to api.github.com",
+    ],
+    ids=["5xx", "rate-limit", "auth", "network"],
+)
+def test_failed_lookup_fails_automatic_resolution(read: str, stderr: str) -> None:
+    """A lookup error is not evidence that the release is absent."""
+    gh = FakeGitHub()
+    gh.add_release("0.3.278", RELEASE_SHA)
+    gh.fail = lambda args: args[:2] == ["gh", "api"] and READS[read] in args[2]
+    gh.fail_stderr = stderr
+    with pytest.raises(release_workflow.LookupFailed, match=re.escape(stderr)):
+        _resolve(gh)
+
+
+def test_failed_tag_listing_fails_automatic_resolution() -> None:
+    gh = FakeGitHub()
+    gh.add_release("0.3.278", RELEASE_SHA)
+    gh.fail = lambda args: args[:2] == ["git", "ls-remote"]
+    with pytest.raises(release_workflow.LookupFailed):
+        _resolve(gh)
+
+
+def test_cli_fails_on_lookup_failure(monkeypatch: pytest.MonkeyPatch) -> None:
+    gh = FakeGitHub()
+    gh.add_release("0.3.278", RELEASE_SHA)
+    gh.fail = lambda args: args[:2] == ["gh", "api"]
+    monkeypatch.setattr(release_workflow, "run", gh)
+    assert (
+        release_workflow.main(
+            ["--repo", GH_REPO, "resolve-release", "--sha", RELEASE_SHA]
+        )
+        == 1
+    )
+
+
+def test_requested_tag_wins_over_a_release_created_in_the_same_run(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    gh = FakeGitHub()
+    gh.add_release("0.3.278", RELEASE_SHA)
+    gh.add_release("0.3.279", LATER_SHA)
+    assert (
+        _resolve(gh, sha=LATER_SHA, created_tag="0.3.279", requested_tag="0.3.278")
+        == "0.3.278"
+    )
+    assert ["gh", "api", f"repos/{GH_REPO}/releases/tags/0.3.278"] in gh.calls
+    assert "created 0.3.279 but finishes the requested 0.3.278" in (
+        capsys.readouterr().err
+    )
+
+
+def test_invalid_requested_tag_never_falls_back_to_a_created_release() -> None:
+    gh = FakeGitHub()
+    gh.add_release("0.3.279", LATER_SHA)
+    with pytest.raises(ReleaseError, match="No GitHub Release for tag 0.3.278"):
+        _resolve(gh, sha=LATER_SHA, created_tag="0.3.279", requested_tag="0.3.278")
 
 
 # ---------------------------------------------------------------------------
@@ -309,6 +387,23 @@ def test_release_jobs_follow_the_resolved_tag() -> None:
     )
     # workflow_dispatch can name a release to finish
     assert "tag" in workflow[True]["workflow_dispatch"]["inputs"]
+
+
+def test_tag_dispatch_is_recovery_only() -> None:
+    """With a `tag` input, no release is created and the release PR is untouched."""
+    job = _load(".github/workflows/release.yml")["jobs"]["release-please"]
+    steps = {s.get("id") or s.get("name"): s for s in job["steps"]}
+    assert steps["release"]["if"] == "${{ !inputs.tag }}"
+    assert steps["pr"]["if"] == "${{ !inputs.tag }}"
+    # The release PR steps run only when the (skipped) lookup found an open PR.
+    for name in (
+        "Release CHANGELOG.md entries on the release PR",
+        "Run checks on the release PR",
+    ):
+        assert steps[name]["if"] == "steps.pr.outputs.open == 'true'"
+    resolve = steps["resolve"]
+    assert resolve["env"]["REQUESTED_TAG"] == "${{ inputs.tag }}"
+    assert "--requested-tag" in resolve["run"]
 
 
 def test_release_pr_check_dispatch_does_not_depend_on_this_run_changing_the_branch() -> (

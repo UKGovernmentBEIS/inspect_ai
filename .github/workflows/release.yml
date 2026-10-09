@@ -13,9 +13,10 @@ name: Release
 #
 # Retries: re-running this workflow (all jobs, or the failed ones) finishes
 # the release on the run's own commit, and dispatches any release PR checks
-# that have not run on its head. To finish a release from a later commit,
-# dispatch this workflow on main with `tag`. Publishing skips what PyPI and
-# npm already have. See design/release-process.md.
+# that have not run on its head. Dispatching it on main with `tag` is
+# recovery only: it skips Release Please and the release PR and finishes that
+# release. Publishing skips what PyPI and npm already have. See
+# design/release-process.md.
 on:
   push:
     branches:
@@ -23,7 +24,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "Finish publishing this existing release (X.Y.Z); leave empty for a normal run"
+        description: "Recovery only: finish this existing release (X.Y.Z) without running Release Please; leave empty for a normal run"
         required: false
         type: string
 
@@ -51,6 +52,7 @@ jobs:
       tag: ${{ steps.resolve.outputs.tag }}
     steps:
       - id: release
+        if: ${{ !inputs.tag }}
         uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
         with:
           # No release-type input: with a manifest it would override the
@@ -80,6 +82,7 @@ jobs:
 
       - name: Find open release PR
         id: pr
+        if: ${{ !inputs.tag }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -182,6 +185,8 @@ jobs:
           name: dist
           path: dist/
           if-no-files-found: error
+          # a re-run of this job replaces the earlier attempt's artifact
+          overwrite: true
 
   publish-pypi:
     name: Publish to PyPI

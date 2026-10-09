@@ -641,12 +641,17 @@ def skip_published_dists(
 ) -> List[str]:
     """Move files PyPI already has out of `dist_dir`, so a retry uploads the rest.
 
+    A built file counts as published when PyPI has a file of the same name
+    with the same SHA256, or, since a rebuild of the same tag differs in
+    archive metadata, with the same members and member contents under the
+    parity rules (`compare_archives`).
+
     Returns:
         The moved filenames.
 
     Raises:
-        RuntimeError: If PyPI has a file of the same name with a different
-            SHA256, which PyPI would refuse to replace.
+        RuntimeError: If PyPI has a file of the same name with different
+            contents (PyPI never replaces a file), or it cannot be fetched.
     """
     url = PYPI_JSON_URL.format(version=version)
     try:
@@ -658,21 +663,37 @@ def skip_published_dists(
             return []
         raise
 
-    published = {f["filename"]: f["digests"]["sha256"] for f in release["urls"]}
+    published = {f["filename"]: f for f in release["urls"]}
     skipped: List[str] = []
     for path in sorted(p for p in dist_dir.iterdir() if p.is_file()):
-        digest = published.get(path.name)
-        if digest is None:
+        entry = published.get(path.name)
+        if entry is None:
             continue
-        if sha256_of_file(path) != digest:
-            raise RuntimeError(
-                f"PyPI already has {path.name} with a different SHA256 ({digest}); "
-                f"this build does not match the published file"
+        digest = entry["digests"]["sha256"]
+        if sha256_of_file(path) == digest:
+            logging.info(f"✓ {path.name} is already on PyPI (same SHA256); skipping")
+        else:
+            with tempfile.TemporaryDirectory() as tmp:
+                remote = Path(tmp) / path.name
+                if not download_file(entry["url"], remote, digest):
+                    raise RuntimeError(f"Could not download PyPI's {path.name}")
+                try:
+                    result = compare_archives(remote, path)
+                except (tarfile.TarError, zipfile.BadZipFile) as e:
+                    raise RuntimeError(f"Could not compare {path.name}: {e}") from e
+            if result.missing or result.extra or result.differing:
+                raise RuntimeError(
+                    f"PyPI already has {path.name} with different contents "
+                    f"(missing {result.missing}, extra {result.extra}, "
+                    f"differing {result.differing}); PyPI never replaces a file"
+                )
+            logging.info(
+                f"✓ {path.name} matches PyPI's file in all {result.compared} "
+                f"members; skipping"
             )
         published_dir.mkdir(parents=True, exist_ok=True)
         shutil.move(str(path), str(published_dir / path.name))
         skipped.append(path.name)
-        logging.info(f"✓ {path.name} is already on PyPI with the same SHA256; skipping")
     return skipped
 
 
@@ -1302,7 +1323,7 @@ def main():
 
     skip_published_parser = subparsers.add_parser(
         "skip-published",
-        help="Move distributions PyPI already has (same SHA256) out of the dist dir",
+        help="Move distributions PyPI already has (same contents) out of the dist dir",
     )
     skip_published_parser.add_argument("version", help="Version being published")
     skip_published_parser.add_argument(

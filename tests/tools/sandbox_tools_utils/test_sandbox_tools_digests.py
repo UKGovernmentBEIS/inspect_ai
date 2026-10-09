@@ -17,6 +17,7 @@ import shutil
 import subprocess
 import sys
 import tarfile
+import tempfile
 import urllib.error
 import zipfile
 from email.message import Message
@@ -698,77 +699,183 @@ def _publish(
     return dist
 
 
-def _local_build(published: Path, dist: Path, names: list[str]) -> None:
-    for name in names:
-        shutil.copy(published / name, dist / name)
+def _build_wheel(path: Path, members: dict[str, bytes], year: int) -> Path:
+    """A wheel whose archive metadata (timestamps) depends on `year`."""
+    with zipfile.ZipFile(path, "w") as wheel:
+        for name, content in members.items():
+            wheel.writestr(
+                zipfile.ZipInfo(name, date_time=(year, 1, 1, 0, 0, 0)), content
+            )
+    return path
 
 
-def test_pypi_skip_published_after_partial_publication(
-    pypi_release: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """A retry after the wheel was uploaded leaves only the sdist to upload."""
-    dist = _publish(tmp_path, monkeypatch, pypi_release)
-    _local_build(tmp_path / "published", dist, [_WHEEL, _SDIST])
-    published = (tmp_path / "published" / _SDIST).read_bytes()
+def _build_sdist(path: Path, members: dict[str, bytes], mtime: int) -> Path:
+    with tarfile.open(path, "w:gz") as sdist:
+        for name, content in members.items():
+            info = tarfile.TarInfo(f"inspect_ai-0.3.277/{name}")
+            info.size = len(content)
+            info.mtime = mtime
+            sdist.addfile(info, io.BytesIO(content))
+    return path
+
+
+def _sdist_members(branch: str) -> dict[str, bytes]:
+    return {
+        **_SDIST_MEMBERS,
+        "src/inspect_ai.egg-info/scm_version.json": _scm_version(branch),
+    }
+
+
+def _serve_pypi(
+    pypi_release: ModuleType,
+    monkeypatch: pytest.MonkeyPatch,
+    files: dict[str, bytes],
+) -> list[str]:
+    """Serve `files` as PyPI's release of 0.3.277; return downloaded filenames."""
+    downloaded: list[str] = []
+    release = {
+        "urls": [
+            {
+                "filename": name,
+                "url": f"https://files.example/{name}",
+                "digests": {"sha256": _sha256(content)},
+            }
+            for name, content in files.items()
+        ]
+    }
 
     def urlopen(url: str, timeout: int) -> _FakeUrlResponse:
-        release = {
-            "urls": [
-                {
-                    "filename": _WHEEL,
-                    "packagetype": "bdist_wheel",
-                    "digests": {"sha256": _sha256((dist / _WHEEL).read_bytes())},
-                }
-            ]
-        }
-        return _FakeUrlResponse(json.dumps(release).encode())
+        if url == pypi_release.PYPI_JSON_URL.format(version="0.3.277"):
+            if not files:
+                raise urllib.error.HTTPError(url, 404, "Not Found", Message(), None)
+            return _FakeUrlResponse(json.dumps(release).encode())
+        name = url.rsplit("/", 1)[1]
+        downloaded.append(name)
+        return _FakeUrlResponse(files[name])
 
     monkeypatch.setattr(pypi_release.urllib.request, "urlopen", urlopen)
-    skipped = pypi_release.skip_published_dists(dist, "0.3.277", tmp_path / "done")
-
-    assert skipped == [_WHEEL]
-    assert [p.name for p in dist.iterdir()] == [_SDIST]
-    assert (dist / _SDIST).read_bytes() == published
-    assert [p.name for p in (tmp_path / "done").iterdir()] == [_WHEEL]
+    return downloaded
 
 
-def test_pypi_skip_published_when_everything_is_published(
+def _rebuild(tmp_path: Path) -> Path:
+    """The release rebuilt on retry: same contents, different archive metadata.
+
+    The sdist also records the CI checkout's branch, which parity ignores.
+    """
+    dist = tmp_path / "dist"
+    dist.mkdir()
+    _build_wheel(dist / _WHEEL, _wheel_members(), 2027)
+    _build_sdist(dist / _SDIST, _sdist_members("HEAD"), 1_800_000_000)
+    return dist
+
+
+def _original() -> dict[str, bytes]:
+    with tempfile.TemporaryDirectory() as tmp:
+        return {
+            _WHEEL: _build_wheel(
+                Path(tmp) / _WHEEL, _wheel_members(), 2026
+            ).read_bytes(),
+            _SDIST: _build_sdist(
+                Path(tmp) / _SDIST, _sdist_members("main"), 1_700_000_000
+            ).read_bytes(),
+        }
+
+
+def test_pypi_skip_published_accepts_a_rebuild_with_different_archive_metadata(
     pypi_release: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    dist = _publish(tmp_path, monkeypatch, pypi_release)
-    _local_build(tmp_path / "published", dist, [_WHEEL, _SDIST])
+    original = _original()
+    downloaded = _serve_pypi(pypi_release, monkeypatch, original)
+    dist = _rebuild(tmp_path)
+    for name, content in original.items():
+        assert _sha256((dist / name).read_bytes()) != _sha256(content)
 
     skipped = pypi_release.skip_published_dists(dist, "0.3.277", tmp_path / "done")
 
     assert skipped == sorted([_WHEEL, _SDIST])
     assert list(dist.iterdir()) == []
+    assert sorted(downloaded) == sorted([_WHEEL, _SDIST])
+
+
+def test_pypi_skip_published_partial_publication_leaves_the_rest_to_upload(
+    pypi_release: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The wheel was uploaded before the failure; the rebuilt sdist still goes up."""
+    _serve_pypi(pypi_release, monkeypatch, {_WHEEL: _original()[_WHEEL]})
+    dist = _rebuild(tmp_path)
+
+    skipped = pypi_release.skip_published_dists(dist, "0.3.277", tmp_path / "done")
+
+    assert skipped == [_WHEEL]
+    assert [p.name for p in dist.iterdir()] == [_SDIST]
+
+
+def test_pypi_skip_published_identical_file_is_not_downloaded(
+    pypi_release: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    original = _original()
+    downloaded = _serve_pypi(pypi_release, monkeypatch, original)
+    dist = tmp_path / "dist"
+    dist.mkdir()
+    for name, content in original.items():
+        (dist / name).write_bytes(content)
+
+    skipped = pypi_release.skip_published_dists(dist, "0.3.277", tmp_path / "done")
+
+    assert skipped == sorted([_WHEEL, _SDIST])
+    assert downloaded == []
+
+
+@pytest.mark.parametrize(
+    "members,difference",
+    [
+        (
+            {**_wheel_members(), "inspect_ai/_view/dist/index.html": b"<html>v2"},
+            "differing ['inspect_ai/_view/dist/index.html']",
+        ),
+        (
+            {**_wheel_members(), "inspect_ai/new.py": b"x"},
+            "extra ['inspect_ai/new.py']",
+        ),
+    ],
+    ids=["changed-member", "extra-member"],
+)
+def test_pypi_skip_published_rejects_different_contents(
+    pypi_release: ModuleType,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    members: dict[str, bytes],
+    difference: str,
+) -> None:
+    _serve_pypi(pypi_release, monkeypatch, _original())
+    dist = _rebuild(tmp_path)
+    _build_wheel(dist / _WHEEL, members, 2027)
+
+    with pytest.raises(RuntimeError, match="different contents") as error:
+        pypi_release.skip_published_dists(dist, "0.3.277", tmp_path / "done")
+    assert difference in str(error.value)
+    assert (dist / _WHEEL).exists()
+
+
+def test_pypi_skip_published_rejects_an_unreadable_build(
+    pypi_release: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _serve_pypi(pypi_release, monkeypatch, _original())
+    dist = tmp_path / "dist"
+    dist.mkdir()
+    (dist / _WHEEL).write_bytes(b"not a zip")
+
+    with pytest.raises(RuntimeError, match="Could not compare"):
+        pypi_release.skip_published_dists(dist, "0.3.277", tmp_path / "done")
 
 
 def test_pypi_skip_published_keeps_everything_for_a_new_version(
     pypi_release: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    dist = tmp_path / "dist"
-    dist.mkdir()
-    (dist / "inspect_ai-0.3.278-py3-none-any.whl").write_bytes(b"wheel")
-
-    def urlopen(url: str, timeout: int) -> _FakeUrlResponse:
-        raise urllib.error.HTTPError(url, 404, "Not Found", Message(), None)
-
-    monkeypatch.setattr(pypi_release.urllib.request, "urlopen", urlopen)
-    assert pypi_release.skip_published_dists(dist, "0.3.278", tmp_path / "done") == []
-    assert [p.name for p in dist.iterdir()] == ["inspect_ai-0.3.278-py3-none-any.whl"]
-
-
-def test_pypi_skip_published_rejects_a_different_file_with_the_same_name(
-    pypi_release: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    dist = _publish(tmp_path, monkeypatch, pypi_release)
-    _local_build(tmp_path / "published", dist, [_SDIST])
-    (dist / _WHEEL).write_bytes(b"a different build")
-
-    with pytest.raises(RuntimeError, match=f"PyPI already has {_WHEEL}"):
-        pypi_release.skip_published_dists(dist, "0.3.277", tmp_path / "done")
-    assert (dist / _WHEEL).read_bytes() == b"a different build"
+    _serve_pypi(pypi_release, monkeypatch, {})
+    dist = _rebuild(tmp_path)
+    assert pypi_release.skip_published_dists(dist, "0.3.277", tmp_path / "done") == []
+    assert sorted(p.name for p in dist.iterdir()) == sorted([_WHEEL, _SDIST])
 
 
 def test_pypi_skip_published_command_fails_when_pypi_is_unreachable(

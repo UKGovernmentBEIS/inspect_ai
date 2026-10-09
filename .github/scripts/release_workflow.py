@@ -1,13 +1,15 @@
 """Retry-safe steps of the Release workflow (.github/workflows/release.yml).
 
   resolve-release  Prints the release tag this run should finish, or nothing.
-                   A release Release Please created in this run comes first.
-                   Otherwise an explicitly requested tag (workflow_dispatch
-                   input `tag`) or a tag on this run's own commit is resumed
-                   when it is a published, non-pre-release GitHub Release whose
-                   manifest names it and whose commit is on main. Re-running a
-                   Release run therefore finishes the release it started and
-                   never picks up a newer one.
+                   An explicitly requested tag (workflow_dispatch input `tag`,
+                   the recovery path) wins; otherwise the release Release
+                   Please created in this run; otherwise a tag on this run's
+                   own commit. A requested or found tag must be a published,
+                   non-pre-release GitHub Release whose manifest names it and
+                   whose commit is on main, so a re-run finishes the release it
+                   started and never picks up a newer one. A failed GitHub
+                   lookup fails the command rather than counting as "no
+                   release", so the job can be retried.
   dispatch-checks  Dispatches each workflow that has no run yet for the
                    branch's current head commit. Safe to repeat: workflows
                    that already ran (or are running) on that commit are
@@ -32,7 +34,11 @@ Run = Callable[[Sequence[str]], str]
 
 
 class ReleaseError(Exception):
-    pass
+    """The tag is not a release this workflow may publish."""
+
+
+class LookupFailed(Exception):
+    """GitHub could not be asked (network, rate limit, auth, server error)."""
 
 
 def run(args: Sequence[str]) -> str:
@@ -43,8 +49,22 @@ def _notice(message: str) -> None:
     print(f"::notice::{message}", file=sys.stderr)
 
 
+def _api(run_: Run, *args: str) -> str | None:
+    """Return `gh api` output, or None when GitHub answers 404."""
+    try:
+        return run_(["gh", "api", *args])
+    except subprocess.CalledProcessError as e:
+        stderr = (e.stderr or "").strip()
+        if "(HTTP 404)" in stderr:
+            return None
+        raise LookupFailed(f"gh api {args[0]} failed: {stderr or e}") from e
+
+
 def _tags_at(run_: Run, repo: str, sha: str) -> list[str]:
-    output = run_(["git", "ls-remote", "--tags", f"https://github.com/{repo}.git"])
+    try:
+        output = run_(["git", "ls-remote", "--tags", f"https://github.com/{repo}.git"])
+    except subprocess.CalledProcessError as e:
+        raise LookupFailed(f"Could not list tags: {(e.stderr or e)}") from e
     commits: dict[str, str] = {}
     for line in output.splitlines():
         commit, _, ref = line.partition("\t")
@@ -57,40 +77,48 @@ def _tags_at(run_: Run, repo: str, sha: str) -> list[str]:
 
 
 def check_release(run_: Run, repo: str, tag: str) -> None:
-    """Raise unless `tag` is a published Release Please release on main."""
+    """Raise unless `tag` is a published Release Please release on main.
+
+    Raises:
+        ReleaseError: If GitHub shows `tag` is not such a release.
+        LookupFailed: If GitHub could not be queried.
+    """
     if not VERSION_RE.match(tag):
         raise ReleaseError(f"'{tag}' is not a release version (X.Y.Z)")
+    release = _api(run_, f"repos/{repo}/releases/tags/{tag}")
+    if release is None:
+        raise ReleaseError(f"No GitHub Release for tag {tag}")
     try:
-        release = json.loads(
-            run_(
-                ["gh", "release", "view", tag, "--repo", repo]
-                + ["--json", "isDraft,isPrerelease"]
-            )
-        )
-    except subprocess.CalledProcessError as e:
-        raise ReleaseError(f"No GitHub Release for tag {tag}") from e
-    if release["isDraft"] or release["isPrerelease"]:
+        flags = json.loads(release)
+        draft, prerelease = flags["draft"], flags["prerelease"]
+    except (ValueError, KeyError) as e:
+        raise LookupFailed(f"Unexpected release response for {tag}: {e}") from e
+    if draft or prerelease:
         raise ReleaseError(f"Release {tag} is a draft or pre-release")
+
+    manifest_text = _api(
+        run_,
+        f"repos/{repo}/contents/.release-please-manifest.json?ref={tag}",
+        "-H",
+        "Accept: application/vnd.github.raw",
+    )
+    if manifest_text is None:
+        raise ReleaseError(f"{tag} has no .release-please-manifest.json")
     try:
-        manifest = json.loads(
-            run_(
-                ["gh", "api"]
-                + [f"repos/{repo}/contents/.release-please-manifest.json?ref={tag}"]
-                + ["-H", "Accept: application/vnd.github.raw"]
-            )
-        )
-        status = run_(
-            ["gh", "api", f"repos/{repo}/compare/main...{tag}", "--jq", ".status"]
-        ).strip()
-    except subprocess.CalledProcessError as e:
-        raise ReleaseError(f"Could not read {tag}'s manifest or history: {e}") from e
-    if manifest.get(".") != tag:
+        version = json.loads(manifest_text).get(".")
+    except (ValueError, AttributeError) as e:
+        raise ReleaseError(f"{tag} has an unreadable manifest: {e}") from e
+    if version != tag:
         raise ReleaseError(
-            f"The manifest at {tag} says {manifest.get('.')!r}, so Release Please "
-            f"did not release {tag}"
+            f"The manifest at {tag} says {version!r}, so Release Please did not "
+            f"release {tag}"
         )
-    if status not in ("identical", "behind"):
-        raise ReleaseError(f"Tag {tag} is not on main (compare status '{status}')")
+
+    status = _api(run_, f"repos/{repo}/compare/main...{tag}", "--jq", ".status")
+    if status is None or status.strip() not in ("identical", "behind"):
+        raise ReleaseError(
+            f"Tag {tag} is not on main (compare status {status and status.strip()!r})"
+        )
 
 
 def resolve_release(
@@ -101,14 +129,21 @@ def resolve_release(
     requested_tag: str = "",
 ) -> str:
     """Return the tag whose release this run should finish, or ""."""
+    if requested_tag:
+        if created_tag and created_tag != requested_tag:
+            print(
+                f"::warning::This run created {created_tag} but finishes the "
+                f"requested {requested_tag}; run the Release workflow again "
+                f"for {created_tag}",
+                file=sys.stderr,
+            )
+        check_release(run_, repo, requested_tag)
+        _notice(f"Resuming requested release {requested_tag}")
+        return requested_tag
     if created_tag:
         if not VERSION_RE.match(created_tag):
             raise ReleaseError(f"Release Please created '{created_tag}', not X.Y.Z")
         return created_tag
-    if requested_tag:
-        check_release(run_, repo, requested_tag)
-        _notice(f"Resuming requested release {requested_tag}")
-        return requested_tag
     for tag in _tags_at(run_, repo, sha):
         try:
             check_release(run_, repo, tag)
@@ -192,7 +227,7 @@ def main(argv: list[str] | None = None) -> int:
             )
         else:
             dispatch_checks(run, args.repo, args.branch, args.workflows)
-    except ReleaseError as e:
+    except (ReleaseError, LookupFailed) as e:
         print(f"::error::{e}", file=sys.stderr)
         return 1
     return 0

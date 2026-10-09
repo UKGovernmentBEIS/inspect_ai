@@ -73,6 +73,8 @@ jobs:
           name: dist
           path: dist/
           if-no-files-found: error
+          # a re-run of this job replaces the earlier attempt's artifact
+          overwrite: true
 
   publish:
     name: Publish to PyPI
