@@ -3,6 +3,7 @@ import os
 import subprocess
 import sys
 import textwrap
+import threading
 import weakref
 
 import anyio.to_thread
@@ -83,17 +84,20 @@ def test_run_coroutine_releases_result() -> None:
     class Payload:
         pass
 
-    async def make_payload() -> Payload:
-        await anyio.to_thread.run_sync(lambda: None)
+    async def make_payload(workers: list[threading.Thread]) -> Payload:
+        workers.append(await anyio.to_thread.run_sync(threading.current_thread))
         return Payload()
 
     def released_result_ref() -> "weakref.ref[Payload]":
-        result = run_coroutine(make_payload())
+        workers: list[threading.Thread] = []
+        result = run_coroutine(make_payload(workers))
+        # The worker retains the root task and its result until it exits.
+        # Keep thread references in this helper so they are released before GC.
+        for worker in workers:
+            worker.join(timeout=10)
+            assert not worker.is_alive(), "AnyIO worker did not exit"
         return weakref.ref(result)
 
     ref = released_result_ref()
-    for _ in range(3):
-        gc.collect()
-        if ref() is None:
-            break
+    gc.collect()
     assert ref() is None, "result still referenced after release"
