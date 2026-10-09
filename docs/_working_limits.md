@@ -15,5 +15,5 @@ Work done while any wait is in progress is not charged. While one part of a samp
 :::
 
 ::: {.callout-note appearance="simple"}
-In order to distinguish successful generate requests from rate limited and retried requests, Inspect installs hooks into the HTTP client of various model packages. This is not possible for some models (`azureai` and `grok`) and in these cases the `working_time` will include any internal retries that the model client performs.
+To tell a successful request apart from retries inside the model client, Inspect measures the request through hooks into the HTTP client of most model packages. When a provider reports no request time (for example `azureai`, `sagemaker` and in-process providers such as `hf`), or measures the whole call (`grok`), the `working_time` includes any retries the model client performs.
 :::

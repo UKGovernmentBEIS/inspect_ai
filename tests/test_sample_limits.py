@@ -33,7 +33,13 @@ from inspect_ai.dataset import Sample
 from inspect_ai.event import ModelEvent, SubtaskEvent, ToolEvent
 from inspect_ai.log._log import EvalLog, EvalSample
 from inspect_ai.log._samples import awaiting_human
-from inspect_ai.model import ChatMessage, ChatMessageAssistant, GenerateConfig, ModelAPI
+from inspect_ai.model import (
+    ChatMessage,
+    ChatMessageAssistant,
+    ChatMessageTool,
+    GenerateConfig,
+    ModelAPI,
+)
 from inspect_ai.model._call_tools import execute_tools
 from inspect_ai.model._chat_message import ChatMessageUser
 from inspect_ai.model._model import Model, get_model
@@ -45,6 +51,7 @@ from inspect_ai.model._model_output import (
     ModelUsage,
 )
 from inspect_ai.model._registry import modelapi
+from inspect_ai.review import Review, Reviewer, ReviewPolicy, reviewer
 from inspect_ai.scorer import match
 from inspect_ai.scorer._metric import Score
 from inspect_ai.scorer._metrics import mean
@@ -52,7 +59,15 @@ from inspect_ai.scorer._scorer import Scorer, scorer
 from inspect_ai.scorer._target import Target
 from inspect_ai.solver import Generate, TaskState, solver, use_tools
 from inspect_ai.solver._solver import Solver, generate
-from inspect_ai.tool import Tool, ToolCall, ToolCallView, ToolChoice, ToolInfo, tool
+from inspect_ai.tool import (
+    Tool,
+    ToolCall,
+    ToolCallView,
+    ToolChoice,
+    ToolInfo,
+    ToolResult,
+    tool,
+)
 from inspect_ai.util import subtask
 from inspect_ai.util._concurrency import concurrency
 from inspect_ai.util._limit import TokenLimit, sample_limits, suspend_working_limit
@@ -1272,6 +1287,39 @@ def test_approval_is_waiting() -> None:
     assert _waiting(sample) >= 0.35
     (event,) = [e for e in sample.events if isinstance(e, ToolEvent)]
     assert event.working_time is not None and event.working_time < 0.3
+
+
+@reviewer(name="working_time_slow_reviewer")
+def _slow_reviewer() -> Reviewer:
+    async def review(
+        message: str,
+        call: ToolCall,
+        result: ChatMessageTool,
+        output: ToolResult,
+        view: ToolCallView,
+        history: list[ChatMessage],
+    ) -> Review:
+        await anyio.sleep(0.4)
+        return Review(decision="continue")
+
+    return review
+
+
+def test_review_is_waiting() -> None:
+    @solver
+    def reviewed_tool() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            await execute_tools(
+                _tool_calls("_fast_tool"),
+                [_fast_tool()],
+                review=[ReviewPolicy(_slow_reviewer(), "*")],
+            )
+            return state
+
+        return solve
+
+    sample = _run_timing_solver(reviewed_tool())
+    assert _waiting(sample) >= 0.35
 
 
 def test_human_input_is_waiting() -> None:

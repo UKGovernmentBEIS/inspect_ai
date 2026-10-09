@@ -652,9 +652,8 @@ async def wait_generate_dispatch(
     parked-call count, a grader on the same pool would starve behind the
     park (the release-and-reacquire escape hatch ``pause-resume.md`` names).
     The slot is released only when the attempt actually parks (the common
-    no-pause path never touches it), and reacquired before returning — with
-    the reacquire wait reported through ``report_waiting_time`` like the
-    held span itself. A cancellation during the reacquire leaves the slot
+    no-pause path never touches it), and reacquired before returning. A
+    cancellation during the reacquire leaves the slot
     un-held, which the slot's own held flag makes safe for the owning
     context's final release (see ``ConnectionSlot``). The reacquire wait is
     part of the held wait.
