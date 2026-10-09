@@ -12,7 +12,6 @@
 - Anthropic: Support for Claude Haiku 5.5 (`claude-haiku-5-5`): `reasoning_effort="none"` disables thinking, computer use uses the computer toolset on the Claude API and Vertex, and `fallback_models` is ignored with a warning.
 - Anthropic: With `reasoning_effort` on Claude 4.6+, forced tool choice (except on Fable/Mythos 5.1, Opus 5.5, Sonnet 5.5), `tool_choice="none"` and `parallel_tool_calls=False` are now honored; forced turns skip thinking.
 - Bugfix: `inspect log convert --stream` (and `convert_eval_logs(stream=...)`) no longer drops the error message and traceback from logs of failed evals.
-- Working time: Overlapping waits in a sample now count once, so `working_time` can no longer go negative or exceed clock time; approval and human input count as waiting, and `suspend_working_limit()` marks other waits.
 - Fixed `StoreModel` skipping field validation when constructed with an empty `instance` string.
 - Fixed the human reviewer filling in tool arguments inside tool output that contains `{{{...}}}` (three or more braces).
 
