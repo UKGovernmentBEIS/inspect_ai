@@ -1,7 +1,5 @@
 ## Unreleased
 
-- Agent Bridge: Legacy filters defined with postponed annotations now receive the model name and emit their deprecation warning.
-
 ## 0.3.278 (09 October 2026)
 
 - Tasks and samples can carry a `description` of what they ask of the agent, recorded in the eval log and in `evals_df()` and `samples_df()`.
