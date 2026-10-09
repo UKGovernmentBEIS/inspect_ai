@@ -1,7 +1,3 @@
-## Unreleased
-
-- Sandboxes: Requesting an unknown environment name now raises an error even when only one sandbox is available.
-
 ## 0.3.277 (06 October 2026)
 
 - Fixed trace logs growing to many gigabytes when model output caching is enabled.
