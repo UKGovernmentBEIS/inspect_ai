@@ -1275,6 +1275,41 @@ async def test_score_dict_name_with_no_scores_in_log_is_error() -> None:
         )
 
 
+async def test_score_dict_name_of_unscored_header_scorer_is_allowed(
+    tmp_path: pathlib.Path,
+) -> None:
+    """A dict key naming a header scorer that produced no scores is free when appending."""
+    task = Task(
+        dataset=[
+            Sample(input="a", target="a", id=1),
+            Sample(input="b", target="b", id=2),
+        ],
+        scorer=match(),
+    )
+    (unscored,) = await eval_async(
+        task, model="mockllm/model", log_dir=str(tmp_path), score=False
+    )
+
+    scored = await score_async(unscored, {"match": match()})
+
+    assert _sample_score_keys(scored) == [["match"], ["match"]]
+    entries = _score_entries(scored)
+    assert [(entry["name"], entry["scorer"]) for entry in entries] == [
+        ("match", "match")
+    ]
+    # the eval's unscored header entry stays; its generated name avoids the recorded one
+    assert score_names_from_log_header(scored) == ["match1", "match"]
+    assert list(named_scorers_from_log_header(scored, resolve_scorers(scored))) == [
+        "match1",
+        "match",
+    ]
+
+    recompute_metrics(scored)
+    assert [
+        entry for entry in _score_entries(scored) if entry["name"] == "match"
+    ] == entries
+
+
 @scorer(metrics=[accuracy()])
 def _counting_scorer(scored_samples: list[int | str]) -> Scorer:
     async def score(state: TaskState, target: Target) -> Score:

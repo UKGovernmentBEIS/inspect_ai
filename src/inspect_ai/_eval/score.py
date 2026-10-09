@@ -265,14 +265,15 @@ async def score_async(
         raise ValueError("There are no samples to score in the log.")
 
     # Resolve scorers and their score names once, before any sample is scored.
-    # When appending, the header's names count as taken (validating any it
-    # records), and a header that records names keeps recording them, so a list
+    # When appending, the header is validated and the names it records count as
+    # taken, and a header that records names keeps recording them, so a list
     # appended to it gets generated names chosen once for the whole run.
     appending = (action or "append") == "append"
     header = log.eval.scorers or []
-    existing = (
-        _existing_score_names(log, _header_score_names(header)) if appending else set()
-    )
+    existing: set[str] = set()
+    if appending:
+        _header_score_names(header)
+        existing = _existing_score_names(log, header)
     if isinstance(scorers, Mapping):
         score_names: list[str] | None = list(scorers.keys())
         resolved_scorers = resolve_scorer(list(scorers.values()))
@@ -816,15 +817,20 @@ def score_names_from_log_header(log: EvalLog) -> list[str] | None:
 def _header_score_names(eval_scorers: list[EvalScorer]) -> list[str]:
     """Score name of each log header scorer: recorded, or generated in header order.
 
+    Generated names avoid every recorded name as well as the names before them: a
+    recorded name is the one its scores carry, while a scorer without one may have
+    recorded no scores at all (a `--no-score` eval rescored under its own name).
+
     Raises `ValueError` if a recorded name is invalid or the names aren't unique.
     """
+    recorded = [_score_name(eval_scorer) for eval_scorer in eval_scorers]
+    reserved = [score_name for score_name in recorded if score_name is not None]
     score_names: list[str] = []
-    for eval_scorer in eval_scorers:
-        score_name = _score_name(eval_scorer)
+    for eval_scorer, score_name in zip(eval_scorers, recorded, strict=True):
         score_names.append(
             score_name
             if score_name is not None
-            else unique_scorer_name(eval_scorer.name, score_names)
+            else unique_scorer_name(eval_scorer.name, [*reserved, *score_names])
         )
     duplicates = sorted({name for name in score_names if score_names.count(name) > 1})
     if duplicates:
@@ -834,14 +840,21 @@ def _header_score_names(eval_scorers: list[EvalScorer]) -> list[str]:
     return score_names
 
 
-def _existing_score_names(log: EvalLog, header_names: list[str]) -> set[str]:
+def _existing_score_names(log: EvalLog, header: list[EvalScorer]) -> set[str]:
     """Names a new score can't take when appending to `log`.
 
-    The header's score names, the name and scorer of each result (which cover
+    The names the header records, the name and scorer of each result (which cover
     scores without a scorer and dict-valued scores), and the score names on
-    loaded samples. Streamed samples are checked as each is scored.
+    loaded samples. A header scorer without a recorded name reserves nothing by
+    itself: its scores, if any, are on the results or samples, so a scorer that
+    never scored (a `--no-score` eval) leaves its name free. Streamed samples are
+    checked as each is scored.
     """
-    existing = set(header_names)
+    existing: set[str] = set()
+    for eval_scorer in header:
+        score_name = _score_name(eval_scorer)
+        if score_name is not None:
+            existing.add(score_name)
     if log.results is not None:
         for eval_score in log.results.scores:
             existing.update((eval_score.name, eval_score.scorer))
