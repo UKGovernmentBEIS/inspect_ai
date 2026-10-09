@@ -5,8 +5,6 @@
 - Control Channel: `inspect ctl ... --log-dir` now shows running and completed-but-unflushed samples, with current counts and their events, for evals run with `--log-shared`.
 - OpenAI Compatible: Fixed concurrent sample failures during credential refresh, including OpenRouter evaluations on Hawk, and added an overridable `ModelAPI.refresh_credentials()` for model API extensions.
 - OpenAI: Biological-risk policy responses now produce content-filter stops instead of failing samples.
-- Approval: Approvers and tool viewers now see only calls whose arguments passed validation; a Pydantic model argument is shown as the constructed model serializes, so it is approved as it will run.
-- Tools: Arguments that need a lossy conversion, such as `"false"` for a `bool` or `1.5` for an `int`, are now parsing errors.
 
 ## 0.3.273 (29 September 2026)
 
