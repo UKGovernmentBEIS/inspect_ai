@@ -87,8 +87,13 @@ def test_run_coroutine_releases_result() -> None:
         await anyio.to_thread.run_sync(lambda: None)
         return Payload()
 
-    result = run_coroutine(make_payload())
-    ref = weakref.ref(result)
-    del result
-    gc.collect()
+    def released_result_ref() -> "weakref.ref[Payload]":
+        result = run_coroutine(make_payload())
+        return weakref.ref(result)
+
+    ref = released_result_ref()
+    for _ in range(3):
+        gc.collect()
+        if ref() is None:
+            break
     assert ref() is None, "result still referenced after release"
