@@ -1,5 +1,19 @@
 # Eval sharding, Step 1: API and implementation plan
 
+## Overview
+
+Inspect will merge per-worker eval logs ("shards", written under
+`<name>.shards/<k>/` beside the log they belong to) into one canonical
+`<name>.eval` with whole-task results. A Python API and an `inspect log
+merge-shards` command validate the shards, merge only what changed since
+the last pass, record which shard attempts the merged log holds, publish
+it with a guard against overlapping merges, and optionally delete the
+shard files afterwards while keeping their checkpoints. `eval_set()` runs
+the same merge at startup and then resumes the task from the merged log
+like any other. The work is split into eight PRs, two of them already
+landed, and shares its layout and directory-walk helpers with the
+read-only `inspect ctl --log-dir` mode.
+
 Status: proposed, 2026-09-24; revised the same day after Ransom removed
 viewer changes from Step 1 and asked for simple shard deletion. Issue:
 https://github.com/meridianlabs-ai/inspect_ai/issues/529 (part of #509).
@@ -29,7 +43,9 @@ UKGovernmentBEIS/inspect_ai#5396 and PR 3 is marked landed
 (UKGovernmentBEIS/inspect_ai#5622), both now on `main`; the merged log's
 `task_id` is derived from `<name>` when `<name>` does not carry it; an
 eval set whose selection is narrower than its shards, or empty, stops
-with `PrerequisiteError` (decision: Ransom, 2026-10-09).
+with `PrerequisiteError` (decision: Ransom, 2026-10-09). A companion with no
+attempt, such as the checkpoint-only remnant a deletion leaves, holds no
+shard set for the merge, eval-set and ctl alike.
 
 This is the follow-on document that [`eval-sharding.md`](eval-sharding.md)
 ("the parent design") names: the public surface, the shape of the stored
@@ -1238,8 +1254,12 @@ holding only checkpoint directories. Nothing treats that as a shard set:
 it has no attempt and no stray file, so the merge counts the companion as
 gone (step 5 of "The merge") and returns the merged log as it is; eval-set
 discovery finds no shard path in it (the checkpoint files lie below a
-`<k>/`, "Eval-set integration" step 2); and the viewer has no shard to
-hide.
+`<k>/`, "Eval-set integration" step 2); ctl log-dir mode drops a
+companion with no attempt before grouping, so the merged log is an
+ordinary row there (its "Logical tasks"); and the viewer has no shard to
+hide. The shared walk does return such a `<k>/`, as a `ShardDir` with no
+attempts and the checkpoint directory in `ancillary`, so each consumer
+applies the no-attempt rule itself.
 
 Why the merged log goes first when it is removed too: if the routine is
 interrupted, what remains is part of a companion with no merged log. The
@@ -1679,7 +1699,12 @@ The shard-set rules, one implementation for both consumers:
   descended, so its `<stem>/` directories and segments are not listed;
   every other `.buffer/` (in a `<k>/`) is not listed at all. Shards with all-digit names sort
   first, numerically, then the rest by name; a `<k>/` with nothing in it
-  is left out. `stray` holds every log file the walk sees that is not an
+  is left out, while one holding only ancillary entries (for example the
+  checkpoint directories a shard deletion leaves) is kept with no
+  attempts. The merge, eval-set and ctl all treat a companion with no
+  attempt in any `<k>/` as holding no shard set; the merge also refuses
+  one with stray files rather than counting it as gone ("The merge" step
+  5; ctl's "Logical tasks"). `stray` holds every log file the walk sees that is not an
   attempt, each a `StrayFile(path, reason)`, sorted by path: a log
   (`.eval` or `.json`) directly in `<name>.shards/`, a log directly in a
   directory whose name starts with `.`, and a `.json` log in a `<k>/`. The

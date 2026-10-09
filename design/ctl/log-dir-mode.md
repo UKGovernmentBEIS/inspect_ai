@@ -1,5 +1,16 @@
 # Read-only log mode for `inspect ctl` (`--log-dir`)
 
+## Overview
+
+`inspect ctl --log-dir <dir>` answers ctl's read commands (`task list`,
+`sample list`, `sample show` and the other sample reads) from a log
+directory, local or on S3, instead of from a running eval process. It
+walks the directory once, groups logs into logical tasks (retries folded
+together, a sharded run's shards shown as one task beside its merged log),
+and reads each sample from the newest source that holds it: a finished
+log, a running log's journal, or a shared sample buffer. It never writes,
+and commands that change a running eval are unavailable in the mode.
+
 > **Status: proposed, 2026-09-23; open questions resolved by Ransom the
 > same day (see "Open questions").** Companion to the eval sharding design
 > ([`../eval-sharding.md`](../eval-sharding.md)), which defines the `<name>.shards/<k>/` layout this mode
@@ -16,7 +27,9 @@
 > log, as `eval_set()` lists it (decision: Ransom, 2026-10-05; see
 > "Walking the directory").
 > Revised on 2026-10-09: a shard set with no merged log takes the
-> `task_id` the merge will stamp, from the shared `merged_log_task_id`.
+> `task_id` the merge will stamp, from the shared `merged_log_task_id`, and
+> a companion with no attempt (the checkpoint-only remnant a shard deletion
+> leaves) is dropped before grouping.
 
 ## Why
 
@@ -512,6 +525,23 @@ basename the parent design derives with `log_basename` (which strips
 parent design moves it to a neutral module, and this mode calls the moved
 helper rather than re-implementing the rule).
 
+A companion whose listing has no attempt in any `<k>/` holds no shard set,
+whatever else it holds. This is the shape a successful shard deletion
+leaves, since deletion keeps each shard's `<shard>.checkpoints/` (sharding
+implementation, "Deleting shards"), and the shared walk still returns
+those `<k>/` directories, each a `ShardDir` with no attempts and the
+checkpoint directory in `ancillary` (it leaves out only an empty `<k>/`).
+Before pairing or aggregation, ctl drops such a companion: it gets no row
+and no attempt, its merged log, when present, is an ordinary unsharded
+attempt (below), and with no merged log nothing is shown for it. Its stray
+files, if any, are still reported in `unreadable`, and the walk still
+descends its `unlisted_dirs`, so an ordinary log nested there is listed as
+before. This matches the merge, which counts a companion with no attempt
+and no stray file as gone and returns the merged log as it is (and refuses
+one with stray files), and `eval_set()`, whose discovery finds no shard
+path in it. Every rule below applies only to a companion with at least
+one attempt.
+
 - Its shards are, for each `<k>/`, the newest `.eval` in it. Older files in
   the same `<k>/` (a retry, or an original beside its `-recovered` copy)
   are superseded: counted in the shard's `attempts`, otherwise ignored,
@@ -547,7 +577,8 @@ by `--shards` rows, and not used for sample rows. With `retry_cleanup` on,
 and the task is an ordinary unsharded row.
 
 **A merged log whose companion is gone** (shards deleted after a verified
-merge) is an ordinary unsharded attempt.
+merge, including a companion left holding only checkpoint directories, or
+one with no attempt at all, above) is an ordinary unsharded attempt.
 
 Identity fields for a row whose current attempt is a shard set: `task_id`
 as above; `task`, `model`, `solver` and `epochs` from the first shard's
@@ -1308,7 +1339,18 @@ real moto server on an ephemeral port). New tests go in a new
 - **Rows.** Unsharded, retried and sharded rows have every live key; counts,
   `in_flight`, `unfinished`, `conflicted`, `total_final`, `live_samples`,
   `shards` and `merged` match the fixture; mismatched shards are counted; a
-  merged log whose companion is gone is an ordinary row. With step 6, a
+  merged log whose companion is gone is an ordinary row. After a shard
+  deletion that kept checkpoints, local and on `mock_s3` (a sharded run
+  with checkpointing on, merged and then deleted with `delete_shards`, and
+  separately removed by a successful unsharded retry's retry cleanup, both
+  leaving `<k>/<shard>.checkpoints/` with files in it): `task list` shows
+  the merged log as an ordinary row in the first case and only the
+  unsharded retry's row in the second, with no shard attempt, no `shards`
+  block and nothing in `unreadable`; `sample list` and `sample show` read
+  the merged log (first case) or the retry (second); and the checkpoint
+  files are byte-identical after the walk. A companion with no attempt and
+  one stray `.eval` reports the stray in `unreadable` and adds no shard
+  attempt. With step 6, a
   cold `task list` row equals the row built from every shard in each of
   these cases: a complete `success` snapshot with an id, a count and no
   selection (the merged summaries are read and no shard is); and, reading
@@ -1461,7 +1503,8 @@ Each step is one PR; steps 1–5 are the MVP.
    here if the sharding merge has not landed it yet); the
    `unlisted_dirs` field added to the shared walk and the descent into
    those directories with nested companions ordinary; stray files in
-   `unreadable`; logical sharded
+   `unreadable`; companions with no attempt (the checkpoint-only remnant a
+   shard deletion leaves) dropped before pairing; logical sharded
    rows, newest-attempt selection per `<k>/`, the recovered-merged-log
    mapping, folding an ordinary retry with its shard set, the `shards`
    block, conflicts (counts, rows, `ambiguous` per-sample reads) and

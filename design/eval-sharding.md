@@ -1,5 +1,17 @@
 # Eval sharding with per-worker log files
 
+## Overview
+
+A large eval can be split across workers that each run a disjoint subset
+of the samples and write their own ordinary `.eval` log, a shard, into a
+companion directory `<name>.shards/<k>/` beside the log the run will end
+up as. A trusted, incremental merge combines the shards into the canonical
+`<name>.eval`, recomputing whole-task metrics and recording which shards it
+merged, so the result reads like an unsharded log. Merging is done through
+a Python API, a CLI command, or by `eval_set()` at startup, which then
+retries anything missing as an ordinary run. Later steps add live
+whole-task metrics and viewer support for shards.
+
 Status: design direction chosen, last revised 2026-09-23. Phase 1 compared
 the options (now under "Alternatives not taken"); the phased direction below
 was agreed by Ransom and JJ Allaire on 2026-09-18 and refined by Ransom on
