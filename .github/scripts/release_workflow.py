@@ -7,9 +7,9 @@
                    own commit. A requested or found tag must be a published,
                    non-pre-release GitHub Release whose manifest names it and
                    whose commit is on main. A re-run therefore finishes a
-                   release tagged on its own commit and never picks another. A failed GitHub
-                   lookup fails the command rather than counting as "no
-                   release", so the job can be retried.
+                   release tagged on its own commit and never picks another.
+                   A failed GitHub lookup fails the command rather than
+                   counting as "no release", so the job can be retried.
   check-latest-published
                    Run when resolve-release found nothing. Fails if the latest
                    Release Please release on main is not fully published (no
