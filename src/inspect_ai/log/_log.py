@@ -15,6 +15,7 @@ from pydantic import (
 from shortuuid import uuid
 from typing_extensions import TypedDict
 
+from inspect_ai._sentinel._config import SentinelConfig
 from inspect_ai._util.constants import DESERIALIZING
 from inspect_ai._util.dateutil import UtcDatetimeStr
 from inspect_ai._util.error import EvalError, exception_message
@@ -22,6 +23,7 @@ from inspect_ai._util.hash import base57_id_hash
 from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.metadata import MT, metadata_as
+from inspect_ai._util.model_validator import model_wrap_validator
 from inspect_ai._util.rich import format_traceback
 from inspect_ai.approval._policy import ApprovalPolicyConfig
 from inspect_ai.event._timeline import Timeline
@@ -116,6 +118,14 @@ class EvalConfig(BaseModel):
 
     review: ReviewPolicyConfig | None = Field(default=None)
     """Review policy for tool results."""
+
+    sentinel: SentinelConfig | None = Field(default=None)
+    """Sentinel monitors and protocols, as the configuration that rebuilds them.
+
+    One entry (a lone monitor or protocol, which is the root itself), a list of entries, or a mapping of instance names to entries. Logs load without `inspect_sentinel` installed.
+
+    Experimental: not yet a stable API; may change without notice.
+    """
 
     notification: bool | str | None = Field(default=None)
     """Notification routing for human-in-the-loop interactions.
@@ -301,6 +311,9 @@ class EvalSampleSummary(BaseModel):
     target: str | list[str]
     """Sample target value(s)"""
 
+    description: str | None = Field(default=None)
+    """Short statement of what the sample asks of the agent."""
+
     metadata: dict[str, Any] = Field(default_factory=dict)
     """Sample metadata (only fields < 1k; strings truncated to 1k)."""
 
@@ -437,6 +450,9 @@ class EvalSample(BaseModel):
 
     target: str | list[str]
     """Sample target value(s)"""
+
+    description: str | None = Field(default=None)
+    """Short statement of what the sample asks of the agent."""
 
     sandbox: SandboxEnvironmentSpec | None = Field(default=None)
     """Sandbox environment type and optional config file."""
@@ -591,6 +607,7 @@ class EvalSample(BaseModel):
             input=self.input,
             choices=self.choices,
             target=self.target,
+            description=self.description,
             metadata=self.metadata,
             scores=self.scores,
             model_usage=self.model_usage,
@@ -667,7 +684,7 @@ class EvalSample(BaseModel):
 
         return migrate_values(values)
 
-    @model_validator(mode="wrap")
+    @model_wrap_validator
     @classmethod
     def _resolve_timelines(
         cls, data: Any, handler: Any, info: ValidationInfo
@@ -1010,6 +1027,68 @@ class EvalRevision(BaseModel):
     """Working tree has uncommitted changes or untracked files."""
 
 
+class EvalShardEntry(BaseModel):
+    """Ledger entry for one shard, as of the merge that last read it."""
+
+    shard: str
+    """Name of the shard's directory (`<k>`) in the companion."""
+
+    log: str
+    """File name of the shard's current attempt (the newest `.eval` in `<k>/`)."""
+
+    eval_set_id: str | None = Field(default=None)
+    """`eval_set_id` of the current attempt."""
+
+    status: EvalStatus
+    """Status of the current attempt when it was read."""
+
+    error: EvalError | None = Field(default=None)
+    """Error of the current attempt when its status is `error` or `cancelled`."""
+
+    samples: int
+    """Number of `(id, epoch)` records the current attempt held when read (all merged)."""
+
+    selected: int
+    """Number of distinct ids in the current attempt's selection (its `eval.dataset.sample_ids`)."""
+
+    selection_digest: str
+    """SHA-256 (hex) of the current attempt's selection."""
+
+    started_at: UtcDatetimeStr | Literal[""] = Field(default_factory=str)
+    """`stats.started_at` of the current attempt."""
+
+    completed_at: UtcDatetimeStr | Literal[""] = Field(default_factory=str)
+    """`stats.completed_at` of the current attempt (empty while it runs)."""
+
+    model_usage: dict[str, ModelUsage] = Field(default_factory=dict)
+    """`stats.model_usage` of the current attempt."""
+
+    role_usage: dict[str, ModelUsage] = Field(default_factory=dict)
+    """`stats.role_usage` of the current attempt."""
+
+    size: int
+    """Size in bytes of the current attempt when it was read."""
+
+    etag: str | None = Field(default=None)
+    """ETag of the bytes read (object stores that report one)."""
+
+    mtime: float | None = Field(default=None)
+    """Modification time of the current attempt when it was read."""
+
+
+class EvalShards(BaseModel):
+    """Provenance of a merged log: its shards and the ledger of the last merge."""
+
+    selection: Literal["ids", "count", "none"]
+    """Form of the intended selection the last merge had; the ids are `eval.dataset.sample_ids`."""
+
+    sample_count: int | None = Field(default=None)
+    """Intended selection as a count, when `selection` is `"count"`."""
+
+    ledger: list[EvalShardEntry]
+    """One entry per shard with a current attempt, in shard order."""
+
+
 class EvalSpec(BaseModel):
     """Eval target and configuration."""
 
@@ -1039,6 +1118,9 @@ class EvalSpec(BaseModel):
 
     task_display_name: str | None = Field(default=None)
     """Task display name."""
+
+    task_description: str | None = Field(default=None)
+    """Short statement of what the task asks of the agent."""
 
     task_registry_name: str | None = Field(default=None)
     """Task registry name."""
@@ -1115,6 +1197,9 @@ class EvalSpec(BaseModel):
     """Headline metric declared by the task — which score/metric best summarises
     this eval. Authored via `Task(headline_metric=...)`. When unset, readers fall
     back to the first metric of the first score."""
+
+    shards: EvalShards | None = Field(default=None)
+    """Shards merged into this log (merged logs only)."""
 
     # allow field model_args
     model_config = ConfigDict(protected_namespaces=())

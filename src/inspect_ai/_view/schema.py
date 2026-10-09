@@ -11,6 +11,7 @@ import json
 import os
 import subprocess
 from pathlib import Path
+from typing import Any
 
 from pydantic import RootModel
 
@@ -54,6 +55,43 @@ TS_MONO_DIR = os.path.abspath((VIEW_DIR / "ts-mono").as_posix())
 OUTPUT_PATH = VIEW_DIR / "inspect-openapi.json"
 
 
+# Pydantic module-qualifies classes that share a name (e.g. Scout's `Reference`);
+# merge same-shape ones under the bare name so generated type names stay stable.
+def _merge_same_shape_models(schema: dict[str, Any]) -> dict[str, Any]:
+    components: dict[str, Any] = schema["components"]["schemas"]
+    groups: dict[str, list[str]] = {}
+    for key, model in components.items():
+        title = model.get("title")
+        if isinstance(title, str) and key != title and key.endswith(f"__{title}"):
+            groups.setdefault(title, []).append(key)
+
+    renames: dict[str, str] = {}
+    for title, keys in groups.items():
+        shapes = [
+            {k: v for k, v in components[key].items() if k != "description"}
+            for key in keys
+        ]
+        if title in components or any(shape != shapes[0] for shape in shapes):
+            continue
+        keys.sort(key=lambda key: not key.startswith("inspect_ai__"))
+        components[title] = components[keys[0]]
+        for key in keys:
+            del components[key]
+            renames[f"#/components/schemas/{key}"] = f"#/components/schemas/{title}"
+
+    def rewrite(node: Any) -> Any:
+        if isinstance(node, dict):
+            return {
+                k: renames.get(v, v) if k == "$ref" else rewrite(v)
+                for k, v in node.items()
+            }
+        if isinstance(node, list):
+            return [rewrite(item) for item in node]
+        return node
+
+    return rewrite(schema) if renames else schema
+
+
 def _generate_new() -> None:
     """Generate OpenAPI schema and TypeScript types for inspect_ai.
 
@@ -89,7 +127,7 @@ def _generate_new() -> None:
     def _tool_choice() -> ToolChoice:
         raise NotImplementedError
 
-    schema = build_openapi_schema(app)
+    schema = _merge_same_shape_models(build_openapi_schema(app))
 
     with OUTPUT_PATH.open("w") as f:
         json.dump(schema, f, indent=2, sort_keys=True)

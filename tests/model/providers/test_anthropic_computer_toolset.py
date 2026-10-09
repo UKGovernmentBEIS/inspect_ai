@@ -95,6 +95,11 @@ def first_block(param: MessageParam) -> dict[str, Any]:
         ("vertex/claude-sonnet-5-5", TOOLSET),
         ("azure/claude-sonnet-5-5", LEGACY),
         ("bedrock/anthropic.claude-sonnet-5-5", LEGACY),
+        # Haiku 5.5 follows Opus 5.5
+        ("claude-haiku-5-5", TOOLSET),
+        ("vertex/claude-haiku-5-5", TOOLSET),
+        ("azure/claude-haiku-5-5", LEGACY),
+        ("bedrock/anthropic.claude-haiku-5-5", LEGACY),
         # Fable/Mythos 5.x default to the toolset where it is offered
         ("claude-fable-5", TOOLSET),
         ("claude-fable-5-1", TOOLSET),
@@ -201,6 +206,8 @@ def test_computer_toolset_false_keeps_legacy_where_supported(
         "vertex/claude-opus-5-5",
         "claude-sonnet-5-5",
         "vertex/claude-sonnet-5-5",
+        "claude-haiku-5-5",
+        "vertex/claude-haiku-5-5",
     ],
 )
 def test_computer_toolset_false_rejected_where_legacy_unsupported(
@@ -531,6 +538,73 @@ async def test_toolset_request_wiring() -> None:
     assert [b["tool_use_id"] for b in blocks] == ["toolu_1", "toolu_2"]
     assert all(b["toolset_name"] == "computer" for b in blocks)
     assert blocks[1]["content"][0]["type"] == "image"
+
+
+async def test_toolset_replay_with_explicit_cache_breakpoint() -> None:
+    """The explicit-cache-breakpoint path threads computer_toolset_call_ids too.
+
+    `_resolve_chat_input_explicit` builds message_params independently of the
+    automatic path's `resolve_chat_input`; a caller mark must not drop
+    toolset_name replay for a request that also uses the computer toolset.
+    """
+    captured: dict[str, Any] = {}
+    api = anthropic_api("claude-opus-5-5")
+
+    async def fake_perform(
+        request: dict[str, Any],
+        streaming: bool,
+        tools: list[Any],
+        config: GenerateConfig,
+        pending_tool_uses: Any = None,
+        pending_mcp_tool_uses: Any = None,
+        span_recorder: Any = None,
+    ) -> tuple[dict[str, Any], ModelOutput]:
+        captured.update(request)
+        return {}, ModelOutput.from_content(
+            model=api.service_model_name(), content="ok"
+        )
+
+    init_sample_anthropic_assistant_internal()
+    with patch.object(api, "_perform_request_and_continuations", fake_perform):
+        await api.generate(
+            input=[
+                ChatMessageUser(
+                    content=[
+                        ContentText(text="Open the browser.", cache_breakpoint=True)
+                    ]
+                ),
+                ChatMessageAssistant(
+                    content="",
+                    tool_calls=[
+                        ToolCall(
+                            id="toolu_1",
+                            function="computer",
+                            arguments={"action": "screenshot"},
+                        ),
+                    ],
+                ),
+                ChatMessageTool(
+                    content=[ContentImage(image=PNG_DATA_URI)],
+                    tool_call_id="toolu_1",
+                    function="computer",
+                ),
+            ],
+            tools=[computer_tool_info()],
+            tool_choice="auto",
+            config=GenerateConfig(max_tokens=64),
+        )
+
+    assistant = captured["messages"][1]
+    tool_uses = [b for b in assistant["content"] if b["type"] == "tool_use"]
+    assert tool_uses[0]["toolset_name"] == "computer"
+
+    results = captured["messages"][2]
+    blocks = [b for b in results["content"] if b["type"] == "tool_result"]
+    assert blocks[0]["toolset_name"] == "computer"
+
+    assert captured["messages"][0]["content"][0]["cache_control"] == {
+        "type": "ephemeral"
+    }
 
 
 async def test_legacy_request_wiring_unchanged() -> None:

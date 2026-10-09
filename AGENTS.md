@@ -203,6 +203,17 @@ keep their commands and counts here.
 Additional files provide context when working in specific areas:
 
 - [Sandbox tools: build process, container injection, RPC communication, design patterns](src/inspect_sandbox_tools/AGENTS.md)
+- When adding or changing code that creates, adopts or trusts a directory
+  inside a sandbox for Inspect's own use (tools, services, checkpoints,
+  agent installs), start from the
+  [sandbox trust model](design/sandbox-trust-model.md): its principals,
+  boundaries and guarantees, and the verified-directory and verify-before-use
+  contracts implemented by the
+  [host directory helper](src/inspect_ai/util/_sandbox/_framework_directory.py)
+  and the [injected `inspect_sandbox_tools` helper](src/inspect_sandbox_tools/src/inspect_sandbox_tools/_util/server_dir.py),
+  including their ownership, ancestor and verification-before-use requirements.
+  Update the document in the same PR when a change alters a principal,
+  boundary or contract it describes.
 
 ## Design Documentation
 

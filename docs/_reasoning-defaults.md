@@ -2,6 +2,7 @@
 |---|---|
 | anthropic/claude-fable-5 | high |
 | anthropic/claude-fable-5-1 | high |
+| anthropic/claude-haiku-5-5 | medium |
 | anthropic/claude-mythos-5 | high |
 | anthropic/claude-mythos-5-1 | high |
 | anthropic/claude-opus-4-6 | adaptive |
@@ -60,6 +61,7 @@
 | openai/gpt-6-astra | medium |
 | openai/gpt-6-luna | medium |
 | openai/gpt-6-sol | medium |
+| openai/gpt-6.1-sol | medium |
 | z-ai/glm-5.3 | max |
 | z-ai/glm-5.3-flash | max |
 | zai-org/GLM-5.3-FP8 | max |

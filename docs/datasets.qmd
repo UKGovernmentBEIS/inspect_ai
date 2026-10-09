@@ -29,6 +29,7 @@ The core data type underlying the use of datasets with Inspect is the `Sample`, 
 | `choices` | `list[str] | None` | Optional. Multiple choice answer list. |
 | `target` | `str | list[str] | None` | Optional. Ideal target output. May be a literal value or narrative text to be used by a model grader. |
 | `id` | `str | None` | Optional. Unique identifier for sample. |
+| `description` | `str | None` | Optional. Short statement of what the sample asks of the agent (recorded in the eval log). |
 | `metadata` | `dict[str | Any] | None` | Optional. Arbitrary metadata associated with the sample. |
 | `sandbox` | `str | tuple[str,str]` | Optional. Sandbox environment type (or optionally a tuple with type and config file) | 
 | `files` | `dict[str | str] | None` | Optional. Files that go along with the sample (copied to sandbox environments). |
@@ -94,6 +95,8 @@ dataset = json_dataset(
     ),
 )
 ```
+
+To read `Sample.description` (a short statement of what the sample asks of the agent) from a dataset field, name the field with `FieldSpec(description=...)`. Descriptions are not read unless the field is named, so existing datasets with a `description` column are unaffected. The description is recorded with the sample in the eval log and appears as the `description` column of `samples_df()`.
 
 If you need to do more than just map field names and actually do custom processing of the data, you can instead pass a function which takes a `record` (represented as a `dict`) from the underlying file and returns a `Sample`. For example:
 
@@ -170,6 +173,9 @@ dataset = dataset.shuffle()
 
 # shuffle on load
 dataset = json_dataset("data.jsonl", shuffle=True)
+
+# shuffle on load with a seed
+dataset = json_dataset("data.jsonl", shuffle=42)
 ```
 
 Note that both of these methods optionally support specifying a random seed for shuffling.

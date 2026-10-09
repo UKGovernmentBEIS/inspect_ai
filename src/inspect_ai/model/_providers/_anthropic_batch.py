@@ -37,8 +37,8 @@ from .util.batch import (
     BatchCheckResult,
     Batcher,
     BatchRequest,
+    pop_batch_headers,
 )
-from .util.hooks import HttpxHooks
 
 CompletedBatchInfo: TypeAlias = bool
 
@@ -63,12 +63,8 @@ class AnthropicBatcher(Batcher[Message, CompletedBatchInfo]):
     @override
     async def _create_batch(self, batch: list[BatchRequest[Message]]) -> str:
         requests: list[AnthropicBatchRequest] = []
-        extra_headers: dict[str, str] = {}
+        extra_headers = pop_batch_headers(batch)
         for request in batch:
-            extra_headers = request.request.pop("extra_headers", {})
-            request_id = extra_headers.pop(HttpxHooks.REQUEST_ID_HEADER, None)
-            if request_id is not None:
-                request.custom_id = request_id
             # the Batches API has no extra_body: merge it into the request
             # body root, which is where the SDK would put it on the direct
             # path (e.g. temperature/top_p/top_k, which anthropic >= 1.0
