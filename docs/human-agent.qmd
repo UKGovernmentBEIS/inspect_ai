@@ -93,6 +93,32 @@ The Human agent installs agent task tools in the default sandbox and presents th
 
 Note that the instructions are also copied to an `instructions.txt` file in the container user's working directory.
 
+### Tools
+
+Pass `tools` to give the human the same [tools](tools.qmd) a model agent would get — useful for human baselining, where the comparison is only valid if humans and models share an action space:
+
+``` python
+human_cli(tools=[search_incidents(), get_incident()])
+```
+
+Each tool becomes a `task tool <name>` subcommand with named arguments generated from the tool's schema (run `task tool` to list tools, `task tool <name> --help` for a tool's arguments; names beginning with a dash are rejected, as argparse cannot route them):
+
+``` bash
+task tool search_incidents --query checkout --limit 3
+```
+
+Boolean parameters map to `--<flag>` / `--no-<flag>` pairs; when neither is passed the tool's own default applies. Structured parameters (arrays, nested objects, unions) are ordinary named arguments whose values are JSON — their `--help` shows an example instance validated against the schema (when no valid example can be generated, it is labeled an illustrative shape instead). Every nullable parameter gets a dedicated `--null-<name>` flag that sends an explicit JSON null (mutually exclusive with the value flag; leaving both off sends nothing, so the tool's default applies). Value tokens are always literal — `--name null` sends the string "null":
+
+``` bash
+task tool annotate_incident --incident-id INC-1042 --annotation '{"root_cause": true}'
+```
+
+Tool calls execute in the main evaluation process (not the sandbox), are validated against the tool's signature exactly as model tool calls are, and record a `ToolEvent` in the sample transcript — so a human run's tool usage is analyzable with the same machinery as a model run's. Note that human-invoked tools do not pass through [approval policies](approval.qmd): the human operator is the oversight in this configuration. [`handoff()`](agents.qmd#handoffs) agent tools are not supported and are rejected at task definition time.
+
+Tools that return non-text content (images, audio, video) display an omission marker in the terminal; the full result is preserved in the transcript.
+
+The generated `task tool` command requires Python 3.9 or later in the sandbox (any maintained base image qualifies).
+
 ### Answer Submission
 
 When the human agent has completed the task, they submit their answer using the `task submit`command. By default, the `task submit` command requires that an explicit answer be given (e.g. `task submit picoCTF{73bfc85c1ba7}`).
