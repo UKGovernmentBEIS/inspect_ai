@@ -1,7 +1,5 @@
 ## Unreleased
 
-- Logging: Reduced memory usage and event-loop stalls when finalizing long samples; hooks can opt out of receiving full event histories.
-
 - Tasks and samples can carry a `description` of what they ask of the agent, recorded in the eval log and in `evals_df()` and `samples_df()`.
 - Tool review now also reviews `handoff()` calls, as approval does.
 - Compaction: Fixed compaction triggering early and reporting inflated token counts on OpenAI reasoning models, which counted replayed reasoning twice.
