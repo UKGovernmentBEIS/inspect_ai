@@ -1,12 +1,30 @@
 ## Unreleased
 
+- Tasks and samples can carry a `description` of what they ask of the agent, recorded in the eval log and in `evals_df()` and `samples_df()`.
+- Tool review now also reviews `handoff()` calls, as approval does.
+- Compaction: Fixed compaction triggering early and reporting inflated token counts on OpenAI reasoning models, which counted replayed reasoning twice.
+- Compaction: Removed `ModelAPI.apply_redacted_reasoning_tokens_to_input()` and stopped adding `redacted_reasoning_tokens` to assistant message metadata.
+- Compaction: Overflow recovery in `react()` no longer forces compaction again when the retry after a forced compaction also overflows, which could resend the same request indefinitely.
+- Grok: Fixed batch mode failing after a credential refresh (e.g. on an expired API key), including batches already in progress.
 - Models: Setting `text` on a `ChatMessage` with a list of content now replaces the existing text in place instead of moving it after images and other media; a message with no text still gets the new text appended. `prompt_template()`, `chain_of_thought()` and `multiple_choice()` set `text`, so multimodal evals that put text before media now send the prompt in the order they wrote it, and their baselines may shift on rerun. (#4770)
 - Solver: `TaskState.input_text` no longer raises when the last user message has no text; image-only and other non-text messages return placeholders such as `[image]`, and an empty message returns `""`.
 - Bugfix: Hugging Face task loading reads the Hub-delivered `eval.yaml` in UTF-8 rather than the locale default, so task configs with non-ASCII characters no longer crash or silently corrupt on Windows with a non-UTF-8 code page (or on a C-locale system).
 - Anthropic: Support for Claude Haiku 5.5 (`claude-haiku-5-5`): `reasoning_effort="none"` disables thinking, computer use uses the computer toolset on the Claude API and Vertex, and `fallback_models` is ignored with a warning.
+- Anthropic: With `reasoning_effort` on Claude 4.6+, forced tool choice (except on Fable/Mythos 5.1, Opus 5.5, Sonnet 5.5), `tool_choice="none"` and `parallel_tool_calls=False` are now honored; forced turns skip thinking.
 - Bugfix: `inspect log convert --stream` (and `convert_eval_logs(stream=...)`) no longer drops the error message and traceback from logs of failed evals.
+- Fixed `StoreModel` skipping field validation when constructed with an empty `instance` string.
+- Fixed the human reviewer filling in tool arguments inside tool output that contains `{{{...}}}` (three or more braces).
 
 - Tools: Tools with `*args` or `**kwargs` no longer advertise required `args`/`kwargs` parameters to models; declare model-chosen arguments with an explicit `ToolParams` schema instead.
+- Control Channel: `inspect ctl model throughput` now reports each model's input, output and cache read/write tokens per minute, in the table and in `--json` output; the table's output column is now per minute instead of per second.
+- Bugfix: An approver's `modify` decision with no modified call now rejects the tool call instead of running the original, and the human approver no longer offers Modify.
+- Deep Agent: `deepagent(background=True)` run from a scorer can now dispatch background subagents instead of failing.
+- Anthropic: Forced web searches now work on Claude 4.6+, and `web_search()` now honors `allowed_callers` and `type` in its `anthropic` options.
+- Agent Bridge: Web search from a bridged Anthropic client, such as Claude Code's WebSearch, now uses the tool version the client declared unless the eval sets one.
+- Agent Bridge: A provider error delivered during a streamed response now reaches the bridged agent as an error instead of a malformed HTTP 200 success.
+- Agent Bridge: A bridged Anthropic client now sees conflict, timeout, and billing errors as such instead of as generic server errors.
+- Agent Bridge: Sandboxed agents now receive exhausted provider errors with their original status and error details.
+- Dependencies: Require `nest_asyncio2` >= 1.7.4, fixing cancel scope errors (e.g. from Mistral streaming) after Inspect is called synchronously from a notebook or another running event loop.
 - Analysis: Dataframe imports now treat a timezone-less timestamp as UTC instead of shifting it by the host timezone.
 
 ## 0.3.277 (06 October 2026)

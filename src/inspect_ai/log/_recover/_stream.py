@@ -159,6 +159,7 @@ def _write_sample_streaming(
             _write_json_field(stream, "epoch", summary.epoch, comma=True)
             _write_json_field(stream, "choices", summary.choices, comma=True)
             _write_json_field(stream, "target", summary.target, comma=True)
+            _write_json_field(stream, "description", summary.description, comma=True)
 
             collapser = EventVersionCollapser()
             read_count = 0

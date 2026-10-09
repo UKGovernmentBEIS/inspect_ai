@@ -20,6 +20,7 @@ from ._sample_init import SampleInitEvent
 from ._sample_limit import SampleLimitEvent
 from ._sandbox import SandboxEvent
 from ._score import ScoreEvent
+from ._sentinel import SentinelEvent
 from ._span import SpanBeginEvent, SpanEndEvent
 from ._state import StateEvent
 from ._step import StepEvent
@@ -38,6 +39,7 @@ Event: TypeAlias = Union[
     AnchorEvent,
     ApprovalEvent,
     ReviewEvent,
+    SentinelEvent,
     BranchEvent,
     CheckpointEvent,
     CompactionEvent,
@@ -67,7 +69,7 @@ DiscriminatedEvent: TypeAlias = Annotated[Event, Field(discriminator="event")]
 """`Event` tagged with a pydantic discriminator for fast validation.
 
 Every member carries a unique ``event`` Literal, so validating against this
-alias is a single keyed lookup instead of pydantic trying all 23 union
+alias is a single keyed lookup instead of pydantic trying all 25 union
 members in turn (and re-running each candidate's validators — including the
 timestamp ``BeforeValidator`` — on every rejected branch).
 
