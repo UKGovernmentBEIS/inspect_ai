@@ -25,7 +25,7 @@ from inspect_ai.util._limit import LimitExceededError
 from inspect_ai.util._sandbox import SandboxEnvironment, sandbox_service
 
 from .._errors import PROVIDER_ERROR_KEY, provider_error_payload
-from .._sentinel import discard_sentinel_call, sentinel_host_tool_result
+from .._sentinel import sentinel_host_tool_result
 from ..anthropic_api import inspect_anthropic_api_request
 from ..completions import inspect_completions_api_request
 from ..google_api import inspect_google_api_request
@@ -226,6 +226,11 @@ def _mcp_tool_result_content(
             return [_mcp_tool_content_block(content)]
 
 
+def _truncated(tool: str, text: str, max_output: int | None) -> str:
+    truncated = truncate_tool_output(tool, text, max_output)
+    return truncated.output if truncated else text
+
+
 def call_tool(
     bridge: SandboxAgentBridge,
 ) -> Callable[[str, str, dict[str, JsonValue]], Awaitable[JsonValue]]:
@@ -253,7 +258,10 @@ def call_tool(
     (`truncate_tool_output`).
 
     A call that executes against a grant goes through the sentinel's
-    `tool_result` stage before its result is returned to the scaffold.
+    `tool_result` stage before its result, or a model-facing error raised once
+    the tool began executing, is returned to the scaffold. As on the native
+    path, an argument validation error has no `tool_result` stage, and neither
+    does a bare `LimitExceededError`, which ends the sample.
     """
 
     async def execute(
@@ -284,14 +292,15 @@ def call_tool(
                 "proposed call)"
             )
 
+        check = grant.check if grant is not None else None
         tool_fn = server_tools[tool]
+        executing: ToolDef | None = None
         try:
             tool_def = ToolDef(tool_fn)
             validation_errors = validate_tool_input(arguments, tool_def.parameters)
             if validation_errors:
-                if grant is not None:
-                    discard_sentinel_call(bridge, grant.call_id)
                 raise ToolParsingError(validation_errors)
+            executing = tool_def
             result = await tool_fn(**arguments)
         except Exception as ex:
             # classify the unwrapped exception, but let the original propagate:
@@ -299,8 +308,22 @@ def call_tool(
             # (ending the sample), and unwrapping a grouped one would newly
             # route it there
             inner_ex = inner_exception(ex)
-            if tool_call_error(inner_ex, tool) is None:
+            mapped = tool_call_error(inner_ex, tool)
+            if mapped is None:
                 bridge.request_fail(inner_ex)
+            elif (
+                check is not None
+                and executing is not None
+                and not isinstance(ex, LimitExceededError)
+            ):
+                output = mapped.result if mapped.result is not None else ""
+                await sentinel_host_tool_result(
+                    bridge,
+                    check,
+                    _truncated(tool, str(output), executing.max_output),
+                    output,
+                    mapped.error,
+                )
             raise
 
         # Plain strings are returned verbatim (the MCP `tools/call` text part
@@ -310,15 +333,12 @@ def call_tool(
         contents = tool_result_content_list(result)
         if contents is None:
             text = result if isinstance(result, str) else to_json_str_safe(result)
-            truncated = truncate_tool_output(tool, text, tool_def.max_output)
-            text = truncated.output if truncated else text
-            if grant is not None:
-                await sentinel_host_tool_result(bridge, grant.call_id, text, result)
+            text = _truncated(tool, text, tool_def.max_output)
+            if check is not None:
+                await sentinel_host_tool_result(bridge, check, text, result)
             return text
-        if grant is not None:
-            await sentinel_host_tool_result(
-                bridge, grant.call_id, list(contents), result
-            )
+        if check is not None:
+            await sentinel_host_tool_result(bridge, check, list(contents), result)
         if isinstance(result, ContentImage) or (
             isinstance(result, list)
             and all(

@@ -31,6 +31,8 @@ if TYPE_CHECKING:
     # initializing. Same reason `model/_call_tools.py` defers it.
     from inspect_ai.approval._policy import ApprovalPolicy
 
+    from .._sentinel import SentinelCheck
+
 
 logger = getLogger(__name__)
 
@@ -144,14 +146,27 @@ class SandboxAgentBridge(AgentBridge):
         the response never reached the scaffold, but only ever authorizes the
         exact proposed action.
         """
+        self._register_tool_execution_grants(calls, tools, None)
+
+    def _register_tool_execution_grants(
+        self,
+        calls: Sequence[ToolCall],
+        tools: Sequence[ToolInfo | Tool],
+        checks: Sequence["SentinelCheck"] | None,
+    ) -> list[bool]:
+        # a call's sentinel check is held with each of its grants, so an evicted
+        # grant takes the check with it and the call is denied
+        granted: list[bool] = []
         declared: dict[str, list[ToolInfo]] = {}
         for tool in tools:
             if isinstance(tool, ToolInfo):
                 declared.setdefault(tool.name, []).append(tool)
-        for call in calls:
+        for index, call in enumerate(calls):
             targets, arguments = _proposed_call(
                 self.bridged_tools, self.served_tools, call, declared
             )
+            check = checks[index] if checks is not None else None
+            granted.append(False)
             if len(targets) > 1:
                 warn_once(
                     logger,
@@ -179,9 +194,11 @@ class SandboxAgentBridge(AgentBridge):
                         server=target.server,
                         tool=target.tool,
                         arguments=to_jsonable_python(arguments, fallback=str),
-                        call_id=call.id,
+                        check=check,
                     )
                 )
+                granted[index] = True
+        return granted
 
     def warn_indistinct_tools(self) -> None:
         """Warn the eval author about bridged tools a proposal cannot single out.
@@ -300,8 +317,8 @@ class _ToolExecutionGrant(NamedTuple):
     arguments: dict[str, Any]
     """The arguments handed to the scaffold, JSON-normalized and matched via `_json_equal`."""
 
-    call_id: str
-    """Id of the proposed call the grant was minted for."""
+    check: "SentinelCheck | None"
+    """The sentinel's `tool_result` check for the proposed call, if one is active."""
 
 
 class _BridgedToolId(NamedTuple):

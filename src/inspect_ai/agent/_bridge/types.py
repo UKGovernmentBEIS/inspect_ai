@@ -37,6 +37,8 @@ if TYPE_CHECKING:
     # `model/_call_tools.py` defers it.
     from inspect_ai.approval._policy import ApprovalPolicy
 
+    from ._sentinel import SentinelCheck
+
 
 class DispatchedCall(NamedTuple):
     """A bridged tool call the model made through a scaffold's dispatcher function."""
@@ -259,6 +261,17 @@ class AgentBridge:
         Sandbox bridges override this to bind later service requests to the calls
         the model actually made.
         """
+
+    def _register_tool_execution_grants(
+        self,
+        calls: Sequence[ToolCall],
+        tools: Sequence[ToolInfo | Tool],
+        checks: Sequence["SentinelCheck"] | None,
+    ) -> list[bool]:
+        # whether each call was granted host execution, its sentinel check (if
+        # any) then held with its grants
+        self.register_tool_execution_grants(calls, tools)
+        return [False] * len(calls)
 
     def dispatched_call(self, call: ToolCall) -> DispatchedCall | None:
         """The bridged tool call that `call` makes through a dispatcher, if any.

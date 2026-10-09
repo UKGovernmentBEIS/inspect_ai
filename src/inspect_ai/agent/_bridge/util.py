@@ -38,7 +38,10 @@ from inspect_ai.agent._bridge._approval import (
     terminate_for_repeated_rejections,
 )
 from inspect_ai.agent._bridge._errors import BridgePolicyError
-from inspect_ai.agent._bridge._sentinel import sentinel_tool_results
+from inspect_ai.agent._bridge._sentinel import (
+    sentinel_tool_results,
+    track_sentinel_calls,
+)
 from inspect_ai.agent._bridge.types import AgentBridge, message_json_hash
 from inspect_ai.model._agent_message import validate_agent_message
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageUser
@@ -691,6 +694,7 @@ async def bridge_generate(
         with _routing_context(routing):
             # Apply filter if we have it (can either return output or alternate inputs)
             output: ModelOutput | None = None
+            generated_by_filter = False
             if bridge.filter:
                 # tool_to_tool_info (via ToolDef) preserves `options` — including
                 # the INTERNAL_TOOL_TYPE marker — so the filter sees the same
@@ -712,6 +716,7 @@ async def bridge_generate(
                         )
                 if isinstance(result, ModelOutput):
                     output = result
+                    generated_by_filter = True
                 elif isinstance(result, GenerateInput):
                     # Update the inputs that will be used for generation
                     input_messages, tools, tool_choice, config = result
@@ -771,12 +776,21 @@ async def bridge_generate(
         if declared_in_input is not None:
             declarations.extend(declared_in_input(input_messages))
         reviewed = await apply_bridge_tool_approval(
-            bridge, output, input_messages, input + replayed, declarations
+            bridge,
+            output,
+            input_messages,
+            input + replayed,
+            declarations,
+            model_input=None if generated_by_filter else input_messages,
         )
         if reviewed.rejection is None:
-            bridge.register_tool_execution_grants(
-                reviewed.output.message.tool_calls or [], declarations
+            granted = bridge._register_tool_execution_grants(
+                reviewed.output.message.tool_calls or [],
+                declarations,
+                reviewed.sentinel,
             )
+            if reviewed.sentinel is not None:
+                track_sentinel_calls(bridge, reviewed.sentinel, granted)
             return reviewed.output, c_message
 
         rejections += 1
