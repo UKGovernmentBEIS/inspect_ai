@@ -1,7 +1,6 @@
 ## Unreleased
 
 - Timestamps and times ending in a lowercase `z` are now parsed as UTC on Python 3.11 and later, as they already were on Python 3.10.
-- Agent Bridge: Antigravity's MCP tool calls, proposed by the model, now execute instead of being denied as unproposed.
 
 ## 0.3.276 (02 October 2026)
 
