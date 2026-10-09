@@ -112,9 +112,13 @@ Under the rule:
   eventually runs out of retries, which today are charged.
 - **SDK-internal retries are a known wait.** When an attempt succeeds, the
   part of it before `attempt end - call.time` is added as a wait interval:
-  the SDK's failed requests and sleeps before its last request. Providers
-  that record no `call.time` (`azureai`, `grok`) credit nothing here, as
-  today.
+  the SDK's failed requests and sleeps before its last request. The split
+  needs a positive `call.time`. A missing `call.time` (`azureai`, in-process
+  providers such as `hf`) and a zero `call.time` (SageMaker's placeholder,
+  and the HTTP-hook fallback for a request id that was never registered)
+  mean the request was not measured, so nothing is credited and the whole
+  successful attempt is charged. `grok` times the whole call, so its split
+  is empty.
 - **The reconciliation is removed.** Both of its parts are now intervals.
   Cache hits open no attempt and credit nothing.
 
@@ -198,12 +202,16 @@ covers the whole sample while it is open (see "Accepted limitations").
   removed. An attempt in flight is charged until it is known to have been
   retried, as it is today.
 - **Event durations.** Tool and subtask durations use the same interval
-  formula. Each producer keeps its start time instead of a waiting
-  baseline, and passes `waiting_time = waiting(start, end)` to the
-  existing setters. The producers are the tool-stage baselines and every
-  completion and cancellation path in `src/inspect_ai/model/_call_tools.py`
-  (`:503`, `:591`, `:631`, `:699`, `:787`), and the subtask in
-  `src/inspect_ai/util/_subtask.py` (`:128`–`:143`). An event's duration
+  formula. Each producer keeps its start time on the sample clock instead
+  of a waiting baseline, and sets the event's working time from
+  `sample_working_time_since(start)`, which reads elapsed and waiting time
+  over one window, so the result lies in `[0, now - start]`.
+  `ToolEvent._set_result` takes that `working_time` directly
+  (`src/inspect_ai/event/_tool.py`). The producers are the tool-stage
+  baselines and every completion and cancellation path in
+  `src/inspect_ai/model/_call_tools.py`, and the subtask in
+  `src/inspect_ai/util/_subtask.py`, which sets `SubtaskEvent.working_time`
+  the same way. An event's duration
   uses the waits known when the event completes. A retried attempt
   classified after that does not change an event that is already
   published; this is a stated approximation of the heuristic.
@@ -402,7 +410,7 @@ block on `anyio.Event`s, so ordering is fixed.
 4. **`_eval/task/run.py` and `util/_checkpoint/sample_runtime.py`.** Use the
    logged value and add the resume formulas with `sample_elapsed`. Switch
    the event producers in `_call_tools.py` and `_subtask.py` to
-   `waiting(start, end)`.
+   `sample_working_time_since(start)`.
 5. **Docs, CHANGELOG and the tests above.**
 
 ## Alternatives considered

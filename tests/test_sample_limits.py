@@ -947,15 +947,35 @@ class _FlakyAPI(ModelAPI):
         tool_choice: ToolChoice,
         config: GenerateConfig,
     ) -> ModelOutput | tuple[ModelOutput, ModelCall]:
-        key = input[-1].text
-        self.attempts[key] = self.attempts.get(key, 0) + 1
-        await anyio.sleep(self.attempt_seconds)
-        if self.attempts[key] <= self.fail_times:
-            raise _FlakyError(f"attempt {self.attempts[key]} failed")
+        await self._attempt(input[-1].text)
         output = ModelOutput.from_content(model=self.model_name, content="ok")
         if self.call_time is not None or self.return_call:
             return output, ModelCall.create({}, {}, time=self.call_time)
         return output
+
+    async def count_tokens(
+        self,
+        input: str | list[ChatMessage],
+        config: GenerateConfig | None = None,
+    ) -> int:
+        await self._attempt(input if isinstance(input, str) else input[-1].text)
+        return 1
+
+    async def compact(
+        self,
+        input: list[ChatMessage],
+        tools: list[ToolInfo],
+        config: GenerateConfig,
+        instructions: str | None = None,
+    ) -> tuple[list[ChatMessage], ModelUsage | None]:
+        await self._attempt(input[-1].text)
+        return input, None
+
+    async def _attempt(self, key: str) -> None:
+        self.attempts[key] = self.attempts.get(key, 0) + 1
+        await anyio.sleep(self.attempt_seconds)
+        if self.attempts[key] <= self.fail_times:
+            raise _FlakyError(f"attempt {self.attempts[key]} failed")
 
     def should_retry(self, ex: Exception) -> bool:
         return isinstance(ex, _FlakyError)
@@ -1079,6 +1099,32 @@ def test_attempts_of_call_that_runs_out_of_retries_are_waiting(
     sample = _run_timing_solver(exhausted())
     # two retryable attempts and one backoff
     assert _waiting(sample) >= 2 * 0.2 + _BACKOFF - 0.05
+
+
+@pytest.mark.parametrize("operation", ["count_tokens", "compact"])
+def test_token_count_and_compact_retries_are_waiting(
+    flaky_model: None, operation: str
+) -> None:
+    """Retried count_tokens and compact attempts and their backoff are waiting."""
+
+    @solver
+    def retried_operation() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            model = get_model(
+                "flakytiming/m", fail_times=2, attempt_seconds=0.2, memoize=False
+            )
+            if operation == "count_tokens":
+                await model.count_tokens("count")
+            else:
+                await model.compact([ChatMessageUser(content="compact")], [])
+            return state
+
+        return solve
+
+    sample = _run_timing_solver(retried_operation())
+    # two failed 0.2 s attempts and two backoffs; the successful attempt is working
+    assert _waiting(sample) >= 2 * (0.2 + _BACKOFF) - 0.05
+    assert sample.working_time is not None and sample.working_time >= 0.15
 
 
 def test_sdk_internal_retries_are_waiting(flaky_model: None) -> None:
