@@ -123,6 +123,11 @@ from ._generate_config import (
 from ._model_call import ModelCall, as_error_response
 from ._model_data.model_data import ModelCost, ModelInfo
 from ._model_output import ModelFallback, ModelOutput, ModelUsage, ServedModelUsage
+from ._response_headers import (
+    begin_attempt_response_headers,
+    current_response_headers,
+    finish_attempt_response_headers,
+)
 from ._stream import (
     ModelStreamObserver,
     NoStreamDataError,
@@ -1442,6 +1447,10 @@ class Model:
             )
         )
         async def generate() -> tuple[ModelOutput, BaseModel]:
+            # fresh per-attempt recording scope for response headers (see
+            # _response_headers.py); retries must not see the failed
+            # attempt's headers
+            begin_attempt_response_headers()
             # report_waiting_time (not report_sample_waiting_time): held time
             # must also accumulate into this call's reconciliation below
             await wait_generate_dispatch(self, report_waiting_time, connection)
@@ -1506,6 +1515,9 @@ class Model:
                     from inspect_ai.util._concurrency import _request_was_cache_hit
 
                     _request_was_cache_hit.set(True)
+                    # no provider HTTP runs on a cache hit: close the attempt
+                    # scope so nothing later records into it
+                    finish_attempt_response_headers()
                     if existing.usage:
                         await emit_model_cache_usage(
                             model_name=str(self), usage=existing.usage
@@ -1629,12 +1641,23 @@ class Model:
                     raise
                 finally:
                     time_elapsed = time.monotonic() - time_start
+                    # snapshot this attempt's recorded headers (if any) and
+                    # close the recording scope on every exit — success,
+                    # provider error, cancellation — so HTTP traffic after
+                    # the attempt can never be mis-attributed to it
+                    finish_attempt_response_headers()
 
             if isinstance(result, tuple):
                 output, call = result
             else:
                 output = result
                 call = None
+
+            # attach this attempt's recorded HTTP response headers (if any)
+            # to the call before it completes the transcript event
+            attempt_headers = current_response_headers()
+            if attempt_headers is not None and call is not None:
+                call.response_headers = attempt_headers
 
             # raise error
             if isinstance(output, Exception):
@@ -1661,6 +1684,7 @@ class Model:
                     error_message,
                     status_code=status_code_of(output),
                     provider_message=str(output),
+                    response_headers=attempt_headers,
                 ) from output
 
             # update output with time (call.time captures time spent
@@ -2134,10 +2158,12 @@ class ModelGenerateError(RuntimeError):
         *,
         status_code: int | None = None,
         provider_message: str | None = None,
+        response_headers: dict[str, str] | None = None,
     ) -> None:
         super().__init__(message)
         self.status_code = status_code
         self.provider_message = provider_message
+        self.response_headers = response_headers
 
 
 class ModelRefusalError(Exception):
