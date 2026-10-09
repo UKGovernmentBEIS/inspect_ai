@@ -18,7 +18,7 @@ Libc: TypeAlias = Literal[
 
 class SupportedContainerOSInfo(TypedDict, total=False):
     os: Literal["Linux"]
-    distribution: Literal["Ubuntu", "Debian", "Kali Linux", "Alpine", "Debian-based"]
+    distribution: Literal["Ubuntu", "Debian", "Kali Linux", "Alpine", "Debian-based", "NixOS", "Unknown"]
     version: str
     version_info: str
     architecture: Architecture
@@ -141,7 +141,9 @@ fi
                 if distro_id == "debian"
                 else "Alpine"
                 if distro_id == "alpine"
-                else "Kali Linux"
+                else "NixOS"
+                if distro_id == "nixos"
+                else "Unknown"
             ),
             version=os_info.get("VERSION", "Unknown"),
             architecture=architecture,
