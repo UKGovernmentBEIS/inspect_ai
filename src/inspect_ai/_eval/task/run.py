@@ -175,6 +175,7 @@ from inspect_ai.util._limit import (
     Limit,
     LimitExceededError,
     monitor_working_limit,
+    propagating_error,
     record_sample_limit_data,
     reset_sample_limit_data,
     token_limit_usage,
@@ -2980,7 +2981,9 @@ async def _task_run_sample_attempt(
                                         "interrupt, or an eval cancel)"
                                     ) from solver_cancel
                             except Exception as ex:
-                                raise inner_exception(ex)
+                                # background work shares this group, so its
+                                # failures can arrive together with others
+                                raise propagating_error(ex) or inner_exception(ex)
                             finally:
                                 # capture sample limits
                                 record_sample_limit_data(

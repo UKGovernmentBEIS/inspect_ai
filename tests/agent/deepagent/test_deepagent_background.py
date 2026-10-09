@@ -11,7 +11,7 @@ background, abandon-on-exit, timeout partials).
 from __future__ import annotations
 
 import sys
-from typing import Any, Awaitable, Callable
+from typing import Any, Awaitable, Callable, cast
 
 import anyio
 import pytest
@@ -1858,6 +1858,147 @@ class TestBackgroundLimits:
             with pytest.raises(TerminateSampleError):
                 async with registry.owned_task_group():
                     await exceed_token_limit_and_terminate_in_child_tasks()
+
+
+@pytest.mark.parametrize("ending", ["terminate", "refusal"])
+def test_background_sibling_ending_error_wins_over_grouped_agent_limit(
+    ending: str,
+) -> None:
+    # Two background subagents run in the sample's task group while solving.
+    # One raises its parent's limit from a child task, so it arrives grouped;
+    # the other ends the sample. The sample must end with the second error.
+    from inspect_ai.agent._agent import Agent, AgentState
+    from inspect_ai.agent._deepagent.agent_tool import _run_background
+    from inspect_ai.agent._deepagent.subagent import subagent as subagent_factory
+    from inspect_ai.agent._run import run
+    from inspect_ai.model import GenerateConfig
+    from inspect_ai.util import background
+    from inspect_ai.util._limit import check_message_limit
+
+    @solver
+    def solve_with_background_siblings() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            arrived = 0
+            both_arrived = anyio.Event()
+            limited_future = AgentFuture(
+                agent_id="AGENT-1",
+                span_id="limited-span",
+                subagent_name="limited",
+                cancel_scope=anyio.CancelScope(),
+            )
+            ending_future = AgentFuture(
+                agent_id="AGENT-2",
+                span_id="ending-span",
+                subagent_name="ending",
+                cancel_scope=anyio.CancelScope(),
+            )
+
+            async def barrier() -> None:
+                nonlocal arrived
+                arrived += 1
+                if arrived == 2:
+                    both_arrived.set()
+                await both_arrived.wait()
+
+            async def limited(agent_state: AgentState) -> AgentState:
+                try:
+                    check_message_limit(11, raise_for_equal=False)
+                except LimitExceededError as ex:
+                    error = ex
+                else:
+                    raise AssertionError("the parent's limit was not exceeded")
+
+                async def over() -> None:
+                    raise error
+
+                with anyio.CancelScope(shield=True):
+                    await barrier()
+                    async with anyio.create_task_group() as tg:
+                        tg.start_soon(over)
+                return agent_state
+
+            async def ending_agent(agent_state: AgentState) -> AgentState:
+                error: Exception = TerminateSampleError("operator stop")
+                if ending == "refusal":
+                    model = get_model(
+                        "mockllm/model",
+                        custom_outputs=[
+                            ModelOutput.from_content(
+                                "mockllm/model", "refused", stop_reason="content_filter"
+                            )
+                        ],
+                    )
+                    try:
+                        await model.generate(
+                            agent_state.messages,
+                            config=GenerateConfig(fail_on_refusal=True),
+                        )
+                    except Exception as ex:
+                        error = ex
+                    else:
+                        raise AssertionError("the model did not refuse")
+                with anyio.CancelScope(shield=True):
+                    await barrier()
+                    # raise after the limit has reached the sample's group
+                    await limited_future.done.wait()
+                    raise error
+                raise AssertionError("unreachable")
+
+            async def parent(agent_state: AgentState) -> AgentState:
+                children = [
+                    (cast(Agent, limited), limited_future),
+                    (cast(Agent, ending_agent), ending_future),
+                ]
+                # alternate the order, since the first child is started first
+                if state.epoch % 2 == 0:
+                    children.reverse()
+                for child, future in children:
+                    sa = subagent_factory(
+                        name=future.subagent_name, description="Worker.", prompt="Work."
+                    )
+                    background(
+                        _run_background,
+                        future,
+                        child,
+                        sa,
+                        "go",
+                        future.span_id,
+                        False,
+                        None,
+                    )
+                await anyio.sleep_forever()
+                return agent_state
+
+            await run(
+                cast(Agent, parent), "go", limits=[message_limit(10)], name="parent"
+            )
+            return state
+
+        return solve
+
+    log = eval(
+        Task(
+            dataset=[Sample(input="go")],
+            solver=solve_with_background_siblings(),
+            epochs=6,
+            message_limit=100,
+            time_limit=30,
+        ),
+        model="mockllm/model",
+        max_samples=1,
+        fail_on_error=False,
+    )[0]
+
+    assert log.samples is not None and len(log.samples) == 6
+    for sample in log.samples:
+        if ending == "terminate":
+            assert sample.error is None
+            assert sample.limit is not None
+            assert sample.limit.type == "operator"
+        else:
+            assert sample.error is not None
+            assert "Model refusal" in sample.error.message
+            assert sample.limit is None
 
 
 class TestBackgroundErrors:
