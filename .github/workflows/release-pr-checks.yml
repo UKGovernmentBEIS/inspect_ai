@@ -2,8 +2,7 @@ name: Release PR checks
 
 # Checks the Release Please release PR (head branch
 # release-please--branches--main) before it is merged:
-#   - CHANGELOG.md has the dated section for the manifest version, and the
-#     version is newer than PyPI's latest and not yet tagged;
+#   - the manifest version is newer than PyPI's latest and not yet tagged;
 #   - every sandbox-tools artifact pinned in SHA256SUMS is published on S3
 #     with its pinned digest;
 #   - the release PR head builds, and passes the pre-build sandbox tools gate
@@ -31,7 +30,7 @@ concurrency:
 
 jobs:
   checks:
-    name: Changelog, sandbox tools and build gate
+    name: Version, sandbox tools and build gate
     if: github.event_name == 'workflow_dispatch' || github.head_ref == 'release-please--branches--main'
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -46,7 +45,7 @@ jobs:
           submodules: true
           persist-credentials: false
 
-      - name: Check version and changelog
+      - name: Check version
         run: |
           fail() { echo "::error::$1"; exit 1; }
           VERSION=$(jq -r '."."' .release-please-manifest.json)
@@ -60,7 +59,6 @@ jobs:
           if [ "$LATEST" = "$VERSION" ] || [ "$NEWEST" != "$VERSION" ]; then
             fail "Manifest version $VERSION is not newer than PyPI's latest ($LATEST)"
           fi
-          python3 .github/scripts/release_changelog.py check "$VERSION"
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
 
       - name: Check sandbox tools are published

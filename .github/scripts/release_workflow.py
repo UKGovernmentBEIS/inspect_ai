@@ -13,12 +13,12 @@
   check-latest-published
                    Run when resolve-release found nothing. Fails if the latest
                    Release Please release on main is not fully published (no
-                   PyPI wheel and sdist, no npm version, or release notes
-                   without its CHANGELOG.md section) and no other Release run
-                   is still active. A re-run cannot find a release created on
-                   an earlier commit, so this tells the maintainer to dispatch
-                   Release with that tag instead of finishing green. It never
-                   resumes or picks a release itself.
+                   PyPI wheel and sdist, or no npm version) and no other
+                   Release run is still active. A re-run cannot find a
+                   release created on an earlier commit, so this tells the
+                   maintainer to dispatch Release with that tag instead of
+                   finishing green. It never resumes or picks a release
+                   itself.
   dispatch-checks  Dispatches each workflow that has no run yet for the
                    branch's current head commit. Safe to repeat: workflows
                    that already ran (or are running) on that commit are
@@ -31,15 +31,12 @@ Runs `gh` and `git` and reads PyPI and npm; stdlib only.
 from __future__ import annotations
 
 import argparse
-import importlib.util
 import json
 import re
 import subprocess
 import sys
 import urllib.error
 import urllib.request
-from pathlib import Path
-from types import ModuleType
 from typing import Any, Callable, Sequence
 
 VERSION_RE = re.compile(r"^\d+\.\d+\.\d+$")
@@ -82,16 +79,6 @@ def fetch_json(url: str) -> dict[str, Any] | None:
     if not isinstance(data, dict):
         raise LookupFailed(f"Unexpected response from {url}")
     return data
-
-
-def _release_changelog() -> ModuleType:
-    spec = importlib.util.spec_from_file_location(
-        "release_changelog", Path(__file__).with_name("release_changelog.py")
-    )
-    assert spec is not None and spec.loader is not None
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
 
 
 def _notice(message: str) -> None:
@@ -238,9 +225,9 @@ def check_latest_published(run_: Run, fetch: Fetch, repo: str, run_id: str) -> s
         Release Please release to check.
 
     Raises:
-        IncompleteRelease: If PyPI or npm lacks the version, or the release
-            notes lack its CHANGELOG.md section, and no other Release run is
-            active (one may still be waiting for publish approval).
+        IncompleteRelease: If PyPI or npm lacks the version and no other
+            Release run is active (one may still be waiting for publish
+            approval).
         LookupFailed: If GitHub, PyPI or npm could not be queried.
     """
     latest = _api(run_, f"repos/{repo}/releases/latest")
@@ -248,7 +235,7 @@ def check_latest_published(run_: Run, fetch: Fetch, repo: str, run_id: str) -> s
         return ""
     try:
         release = json.loads(latest)
-        tag, body = release["tag_name"], release.get("body") or ""
+        tag = release["tag_name"]
     except (ValueError, KeyError) as e:
         raise LookupFailed(f"Unexpected latest-release response: {e}") from e
     try:
@@ -264,21 +251,6 @@ def check_latest_published(run_: Run, fetch: Fetch, repo: str, run_id: str) -> s
         missing.append("its PyPI wheel and sdist")
     if fetch(NPM_URL.format(version=tag)) is None:
         missing.append("its npm package")
-    changelog = _api(
-        run_,
-        f"repos/{repo}/contents/CHANGELOG.md?ref={tag}",
-        "-H",
-        "Accept: application/vnd.github.raw",
-    )
-    release_changelog = _release_changelog()
-    try:
-        notes = release_changelog.notes(changelog or "", tag).strip()
-    except release_changelog.ChangelogError as e:
-        # The release-notes job fails on this itself; republishing can't fix it.
-        _notice(f"Not checking release notes for {tag}: {e}")
-    else:
-        if notes not in body.replace("\r\n", "\n"):
-            missing.append("its CHANGELOG.md release notes")
     if not missing:
         return tag
 
