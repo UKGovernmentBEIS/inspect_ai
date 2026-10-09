@@ -25,7 +25,6 @@
 - Agent Bridge: A bridged Anthropic client now sees conflict, timeout, and billing errors as such instead of as generic server errors.
 - Agent Bridge: Sandboxed agents now receive exhausted provider errors with their original status and error details.
 - Dependencies: Require `nest_asyncio2` >= 1.7.4, fixing cancel scope errors (e.g. from Mistral streaming) after Inspect is called synchronously from a notebook or another running event loop.
-- A single-epoch task with no epoch reducer now lets each metric convert score values itself, so custom pass/fail accuracy is no longer forced to zero.
 
 ## 0.3.277 (06 October 2026)
 
