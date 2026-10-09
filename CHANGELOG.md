@@ -3,7 +3,6 @@
 - Realtime logging: Fixed live sample reads occasionally showing model calls with empty inputs when the sample finished while being read.
 - Bedrock: Unsupported Amazon Nova models now ignore reasoning effort with a warning instead of failing every request.
 - Timestamps and times ending in a lowercase `z` are now parsed as UTC on Python 3.11 and later, as they already were on Python 3.10.
-- Agent bridge: `fallbacks` directives from bridged agents now reach Anthropic models (a model list only when the agent's named model serves it), never other providers.
 
 ## 0.3.276 (02 October 2026)
 
