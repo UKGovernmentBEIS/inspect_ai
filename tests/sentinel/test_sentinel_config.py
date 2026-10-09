@@ -4,13 +4,21 @@ import subprocess
 import sys
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any
+from typing import Any, get_type_hints
 
 import pytest
 import yaml
 from pydantic import ValidationError
 
-from inspect_ai import Task, eval, eval_retry, eval_set, task, task_with
+from inspect_ai import (
+    Task,
+    eval,
+    eval_async,
+    eval_retry,
+    eval_set,
+    task,
+    task_with,
+)
 from inspect_ai._display.core.config import task_config_str
 from inspect_ai._display.core.display import TaskProfile
 from inspect_ai._eval.eval_set_manifest import INSPECT_EVAL_SET_CAPTURE, EvalSetCapture
@@ -351,6 +359,25 @@ def test_entry_without_version_omits_it() -> None:
 def test_entry_version_must_be_an_int(version: object) -> None:
     with pytest.raises(ValidationError):
         SentinelEntry.model_validate({"name": "d2_rule", "version": version})
+
+
+@pytest.mark.parametrize(
+    "config",
+    [
+        [],
+        {},
+        {"name": "threshold", "monitors": []},
+        {"name": "threshold", "monitors": {}},
+    ],
+)
+def test_empty_layer_is_rejected(config: Any) -> None:
+    with pytest.raises(ValidationError, match="at least 1 item"):
+        SentinelConfig.model_validate(config)
+
+
+@pytest.mark.parametrize("fn", [eval, eval_async, eval_set])
+def test_eval_type_hints_resolve(fn: Callable[..., Any]) -> None:
+    assert "sentinel" in get_type_hints(fn)
 
 
 def test_entry_meta_round_trips_and_is_not_nested() -> None:

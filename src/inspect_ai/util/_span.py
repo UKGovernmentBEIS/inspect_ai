@@ -108,11 +108,17 @@ async def span(
         # send end event
         transcript()._event(SpanEndEvent(id=id))
 
+        foreign = False
         try:
-            if agent_token is not None:
-                _current_agent_span_id.reset(agent_token)
             _current_span_id.reset(token)
         except ValueError:
+            foreign = True
+        if agent_token is not None:
+            try:
+                _current_agent_span_id.reset(agent_token)
+            except ValueError:
+                foreign = True
+        if foreign:
             frame = inspect.stack()[1]
             caller = f"{frame.function}() [{frame.filename}:{frame.lineno}]"
             logger.warning(f"Exiting span created in another context: {caller}")

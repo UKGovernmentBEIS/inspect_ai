@@ -54,6 +54,9 @@ registered using a decorator (e.g. `@task`, `@solver`). The "monitor" and
 `inspect_ai._util.registry`.
 Registered objects can in turn be created dynamically using
 the `registry_create()` function.
+
+The "monitor" and "protocol" types are experimental: not yet a stable API;
+may change without notice.
 """
 
 _REGISTRY_TYPE_VALUES: frozenset[str] = frozenset(get_args(RegistryType))

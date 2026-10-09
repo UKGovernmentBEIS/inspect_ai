@@ -11,7 +11,15 @@ from inspect_ai import Task, eval
 from inspect_ai._sentinel._config import resolve_sentinel_root, resolve_sentinel_spec
 from inspect_ai._sentinel._context import init_sentinel
 from inspect_ai._util.exception import TerminateSampleError
-from inspect_ai.agent import as_solver, as_tool, deepagent, handoff, react, subagent
+from inspect_ai.agent import (
+    agent_bridge,
+    as_solver,
+    as_tool,
+    deepagent,
+    handoff,
+    react,
+    subagent,
+)
 from inspect_ai.approval import Approval, ApprovalPolicy, Approver, approver
 from inspect_ai.dataset import Sample
 from inspect_ai.event import (
@@ -38,8 +46,16 @@ from inspect_ai.model import (
 from inspect_ai.model._call_tools import execute_tools
 from inspect_ai.review import Review, Reviewer, ReviewPolicy, reviewer
 from inspect_ai.scorer import Reference, Score, Scorer, Target, scorer
-from inspect_ai.solver import TaskState, generate, use_tools
-from inspect_ai.tool import Tool, ToolCall, ToolCallView, ToolResult, tool
+from inspect_ai.solver import Generate, Solver, TaskState, generate, solver, use_tools
+from inspect_ai.tool import (
+    Tool,
+    ToolCall,
+    ToolCallView,
+    ToolFunction,
+    ToolInfo,
+    ToolResult,
+    tool,
+)
 from inspect_ai.util import StoreModel
 from inspect_ai.util._limit import LimitExceededError
 
@@ -193,10 +209,23 @@ def d3_asks_model() -> Monitor:
 
 
 @monitor
-def d3_asks_with(model: str | None = None) -> Monitor:
+def d3_asks_with(model: str | None = None, role: str | None = None) -> Monitor:
     async def ask(context: Context, step: BeforeToolCall) -> Observation | None:
         output = await context.host.generate(
-            "How suspicious is this call?", model=model
+            "How suspicious is this call?", model=model, role=role
+        )
+        return Observation.score(float(output.completion))
+
+    return ask
+
+
+@monitor
+def d3_asks_with_tools() -> Monitor:
+    async def ask(context: Context, step: BeforeToolCall) -> Observation | None:
+        output = await context.host.generate(
+            "How suspicious is this call?",
+            tools=[ToolInfo(name="flag", description="Flag the call.")],
+            tool_choice=ToolFunction(name="flag"),
         )
         return Observation.score(float(output.completion))
 
@@ -632,6 +661,39 @@ def test_an_escalate_at_the_root_proceeds_and_warns_once(
     assert "sequential([..., human()])" in warnings[0].message
 
 
+@solver
+def bridged() -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        async with agent_bridge():
+            pass
+        return state
+
+    return solve
+
+
+@pytest.mark.parametrize("sentinel", [True, False])
+def test_bridged_agent_warns_once_that_sentinels_do_not_run(
+    sentinel: bool,
+    caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from inspect_ai._util import logger as logger_module
+
+    monkeypatch.setattr(logger_module, "_warned", [])
+    task = Task(
+        dataset=[Sample(input="a"), Sample(input="b")],
+        solver=bridged(),
+        sentinel=d3_continue() if sentinel else None,
+    )
+    with caplog.at_level(logging.WARNING):
+        [log] = eval(task, model="mockllm/model")
+    assert log.status == "success", log.error
+    warnings = [r for r in caplog.records if "bridged agents" in r.message]
+    assert len(warnings) == (1 if sentinel else 0)
+    if sentinel:
+        assert "issues/5759" in warnings[0].message
+
+
 def test_multi_function_monitor_shares_state_across_calls() -> None:
     log = run(observe_only([d3_trajectory()]), turns=2)
     assert log.status == "success", log.error
@@ -645,15 +707,15 @@ def test_multi_function_monitor_shares_state_across_calls() -> None:
     assert log.samples[0].store["Trajectory:d3_trajectory:calls"] == 2
 
 
-@pytest.mark.parametrize("model", [None, "monitor"])
-def test_host_generate_uses_the_monitor_role(model: str | None) -> None:
+@pytest.mark.parametrize("role", [None, "monitor"])
+def test_host_generate_uses_the_monitor_role(role: str | None) -> None:
     monitor_model = get_model(
         "mockllm/model",
         custom_outputs=[ModelOutput.from_content("mockllm/model", content="0.75")],
         memoize=False,
     )
     log = run(
-        observe_only([d3_asks_with(model=model)]),
+        observe_only([d3_asks_with(role=role)]),
         model_roles={"monitor": monitor_model},
     )
     assert log.status == "success", log.error
@@ -1093,7 +1155,7 @@ def test_sentinel_errors_in_a_background_sub_agent_fail_the_sample() -> None:
 
 
 @scorer(metrics=[])
-def adds_with_tools() -> Scorer:
+def adds_with_tools(grouped: bool = False) -> Scorer:
     async def score(state: TaskState, target: Target) -> Score:
         message = ChatMessageAssistant(
             content="",
@@ -1103,17 +1165,28 @@ def adds_with_tools() -> Scorer:
                 )
             ],
         )
-        await execute_tools([message], [addition()])
+
+        async def run_tools() -> None:
+            await execute_tools([message], [addition()])
+
+        if grouped:
+            async with anyio.create_task_group() as tg:
+                tg.start_soon(run_tools)
+        else:
+            await run_tools()
         return Score(value=1)
 
     return score
 
 
-def test_sentinel_errors_in_a_scorer_report_the_original_exception() -> None:
+@pytest.mark.parametrize("grouped", [False, True])
+def test_sentinel_errors_in_a_scorer_report_the_original_exception(
+    grouped: bool,
+) -> None:
     task = Task(
         dataset=[Sample(input="What is 1 + 1?", target="2")],
         solver=generate(),
-        scorer=adds_with_tools(),
+        scorer=adds_with_tools(grouped),
         sentinel=[d3_raising(PermissionError("sentinel denied"))],
     )
     log = eval(task, model="mockllm/model")[0]
@@ -1189,7 +1262,7 @@ def _scoring_model(score: str) -> Model:
 
 def test_host_generate_uses_a_named_role() -> None:
     log = run(
-        observe_only([d3_asks_with(model="judge")]),
+        observe_only([d3_asks_with(role="judge")]),
         model_roles={"judge": _scoring_model("0.25")},
     )
     assert log.status == "success", log.error
@@ -1207,7 +1280,7 @@ def test_sentinel_inference_is_not_charged_to_the_sample_limits() -> None:
     )
     judge = get_model("mockllm/model", custom_outputs=[expensive], memoize=False)
     log = run(
-        observe_only([d3_asks_with(model="judge")]),
+        observe_only([d3_asks_with(role="judge")]),
         model_roles={"judge": judge},
         token_limit=10_000,
         turn_limit=2,
@@ -1221,27 +1294,88 @@ def test_sentinel_inference_is_not_charged_to_the_sample_limits() -> None:
     assert [m.text for m in sample.messages][-1] == "done"
 
 
-def test_host_generate_uses_a_name_with_a_slash_as_a_model(
+def monitor_calls(log: EvalLog) -> list[tuple[str, str | None]]:
+    assert log.samples
+    events = log.samples[0].events
+    return [
+        (e.model, e.role)
+        for e in events
+        if isinstance(e, ModelEvent) and e.span_id in sentinel_span_ids(events)
+    ]
+
+
+def test_host_generate_passes_tools_and_tool_choice() -> None:
+    log = run(
+        observe_only([d3_asks_with_tools()]),
+        model_roles={"monitor": _scoring_model("0.25")},
+    )
+    assert log.status == "success", log.error
+    assert log.samples
+    events = log.samples[0].events
+    [model_event] = [
+        e
+        for e in events
+        if isinstance(e, ModelEvent) and e.span_id in sentinel_span_ids(events)
+    ]
+    assert [t.name for t in model_event.tools] == ["flag"]
+    assert model_event.tool_choice == ToolFunction(name="flag")
+
+
+def role_warnings(caplog: pytest.LogCaptureFixture) -> list[str]:
+    return [r.getMessage() for r in caplog.records if "sentinel role" in r.getMessage()]
+
+
+def test_host_generate_with_only_a_model_labels_it_sentinel(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    # a role named like the model must not shadow it
     with caplog.at_level(logging.WARNING):
         log = run(
             observe_only([d3_asks_with(model="mockllm/model")]),
-            model_roles={"mockllm/model": _scoring_model("0.9")},
+            model_roles={"monitor": _scoring_model("0.9")},
         )
     [event] = sentinel_events(log)
     assert event.error is not None
-    assert "could not convert string to float" in event.error
+    assert "Default output from mockllm/model" in event.error
+    assert monitor_calls(log) == [("mockllm/model", "sentinel")]
+    assert not role_warnings(caplog)
+    assert "sentinel" in log.stats.role_usage
     assert log.samples
-    assert not [r for r in caplog.records if "sentinel role" in r.getMessage()]
-    monitor_calls = [
+    events = log.samples[0].events
+    agent_calls = [
         e
-        for e in log.samples[0].events
-        if isinstance(e, ModelEvent)
-        and e.span_id in sentinel_span_ids(log.samples[0].events)
+        for e in events
+        if isinstance(e, ModelEvent) and e.span_id not in sentinel_span_ids(events)
     ]
-    assert [(e.model, e.role) for e in monitor_calls] == [("mockllm/model", None)]
+    assert agent_calls
+    assert all(e.model == "mockllm/model" and e.role is None for e in agent_calls)
+    assert get_model("mockllm/model").role is None
+
+
+def test_host_generate_falls_back_to_the_model_for_an_unconfigured_role(
+    caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import inspect_ai._util.logger as logger_module
+
+    monkeypatch.setattr(logger_module, "_warned", [])
+    with caplog.at_level(logging.WARNING):
+        log = run(observe_only([d3_asks_with(model="mockllm/model", role="judge")]))
+    [event] = sentinel_events(log)
+    assert event.error is not None
+    assert "Default output from mockllm/model" in event.error
+    assert monitor_calls(log) == [("mockllm/model", "judge")]
+    assert not role_warnings(caplog)
+
+
+def test_host_generate_prefers_a_configured_role_to_the_model() -> None:
+    log = run(
+        observe_only([d3_asks_with(model="mockllm/model", role="judge")]),
+        model_roles={"judge": _scoring_model("0.25")},
+    )
+    assert log.status == "success", log.error
+    [event] = sentinel_events(log)
+    assert event.suspicion == 0.25
+    assert monitor_calls(log) == [("mockllm/model", "judge")]
 
 
 def test_host_generate_rejects_a_model_instance() -> None:
@@ -1253,26 +1387,29 @@ def test_host_generate_rejects_a_model_instance() -> None:
     assert "model_roles" in event.error
 
 
-def test_host_generate_rejects_an_empty_model() -> None:
-    log = run(observe_only([d3_asks_with(model="")]))
+@pytest.mark.parametrize("model,role", [("", None), (None, "")])
+def test_host_generate_rejects_an_empty_model_or_role(
+    model: str | None, role: str | None
+) -> None:
+    log = run(observe_only([d3_asks_with(model=model, role=role)]))
     [event] = sentinel_events(log)
     assert event.error is not None
     assert "ValueError" in event.error
     assert "not an empty string" in event.error
 
 
-@pytest.mark.parametrize("model,role", [(None, "monitor"), ("judge", "judge")])
+@pytest.mark.parametrize("given,role", [(None, "monitor"), ("judge", "judge")])
 def test_host_generate_warns_once_without_the_role(
     caplog: pytest.LogCaptureFixture,
     monkeypatch: pytest.MonkeyPatch,
-    model: str | None,
+    given: str | None,
     role: str,
 ) -> None:
     import inspect_ai._util.logger as logger_module
 
     monkeypatch.setattr(logger_module, "_warned", [])
     with caplog.at_level(logging.WARNING):
-        log = run(observe_only([d3_asks_with(model=model)]))
+        log = run(observe_only([d3_asks_with(role=given)]))
     warnings = [
         r.getMessage()
         for r in caplog.records
@@ -1280,11 +1417,7 @@ def test_host_generate_warns_once_without_the_role(
     ]
     assert len(warnings) == 1
     assert f"--model-role {role}=" in warnings[0]
-    assert log.samples
-    monitor_calls = [
-        e for e in log.samples[0].events if isinstance(e, ModelEvent) and e.role == role
-    ]
-    assert len(monitor_calls) == 1
+    assert [r for _, r in monitor_calls(log)] == [role]
 
 
 async def test_missing_model_event_falls_back_to_the_prior_conversation(

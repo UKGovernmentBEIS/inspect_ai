@@ -2532,8 +2532,9 @@ async def _task_run_sample_attempt(
         # helper to handle exceptions (will throw if we've exceeded the limit)
         def handle_error(ex: BaseException) -> tuple[EvalError, BaseException | None]:
             # report the sentinel's own error, from the solver or scorers
-            if isinstance(ex, SentinelFailure):
-                ex = inner_exception(ex.error)
+            failure = inner_exception(ex) if isinstance(ex, Exception) else ex
+            if isinstance(failure, SentinelFailure):
+                ex = inner_exception(failure.error)
 
             # helper to log sample error
             def log_sample_error() -> None:

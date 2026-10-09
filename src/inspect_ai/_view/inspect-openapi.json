@@ -4796,6 +4796,179 @@
         "title": "EvalSetTask",
         "type": "object"
       },
+      "EvalShardEntry": {
+        "description": "Ledger entry for one shard, as of the merge that last read it.",
+        "properties": {
+          "completed_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "const": "",
+                "type": "string"
+              }
+            ],
+            "title": "Completed At"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EvalError"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "etag": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Etag"
+          },
+          "eval_set_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Eval Set Id"
+          },
+          "log": {
+            "title": "Log",
+            "type": "string"
+          },
+          "model_usage": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/ModelUsage"
+            },
+            "title": "Model Usage",
+            "type": "object"
+          },
+          "mtime": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mtime"
+          },
+          "role_usage": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/ModelUsage"
+            },
+            "title": "Role Usage",
+            "type": "object"
+          },
+          "samples": {
+            "title": "Samples",
+            "type": "integer"
+          },
+          "selected": {
+            "title": "Selected",
+            "type": "integer"
+          },
+          "selection_digest": {
+            "title": "Selection Digest",
+            "type": "string"
+          },
+          "shard": {
+            "title": "Shard",
+            "type": "string"
+          },
+          "size": {
+            "title": "Size",
+            "type": "integer"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "const": "",
+                "type": "string"
+              }
+            ],
+            "title": "Started At"
+          },
+          "status": {
+            "enum": [
+              "started",
+              "success",
+              "cancelled",
+              "error"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "shard",
+          "log",
+          "status",
+          "samples",
+          "selected",
+          "selection_digest",
+          "started_at",
+          "completed_at",
+          "model_usage",
+          "role_usage",
+          "size"
+        ],
+        "title": "EvalShardEntry",
+        "type": "object"
+      },
+      "EvalShards": {
+        "description": "Provenance of a merged log: its shards and the ledger of the last merge.",
+        "properties": {
+          "ledger": {
+            "items": {
+              "$ref": "#/components/schemas/EvalShardEntry"
+            },
+            "title": "Ledger",
+            "type": "array"
+          },
+          "sample_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sample Count"
+          },
+          "selection": {
+            "enum": [
+              "ids",
+              "count",
+              "none"
+            ],
+            "title": "Selection",
+            "type": "string"
+          }
+        },
+        "required": [
+          "selection",
+          "ledger"
+        ],
+        "title": "EvalShards",
+        "type": "object"
+      },
       "EvalSpec": {
         "description": "Eval target and configuration.",
         "properties": {
@@ -4973,6 +5146,16 @@
               }
             ],
             "title": "Scorers"
+          },
+          "shards": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EvalShards"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "solver": {
             "anyOf": [
@@ -9872,12 +10055,14 @@
             "items": {
               "$ref": "#/components/schemas/SentinelEntry"
             },
+            "minItems": 1,
             "type": "array"
           },
           {
             "additionalProperties": {
               "$ref": "#/components/schemas/SentinelEntry"
             },
+            "minProperties": 1,
             "type": "object"
           }
         ],
@@ -9887,7 +10072,7 @@
         "additionalProperties": {
           "$ref": "#/components/schemas/SentinelConfig"
         },
-        "description": "One configured monitor or protocol.\n\nAny key besides `name`, `params`, `version` and `meta` names a parameter of the factory whose value is nested monitors or protocols, such as `monitors` for `threshold` or `children` for `concurrent`; it holds a list or a mapping of entries, and `nested` returns them.\n\nExperimental: not yet a stable API; may change without notice.",
+        "description": "One configured monitor or protocol.\n\nAny key besides `name`, `params`, `version` and `meta` names a parameter of the factory whose value is nested monitors or protocols, such as `monitors` for `threshold` or `children` for `concurrent`; it holds an entry, a list of entries, or a mapping of instance names to entries, and `nested` returns them.\n\nExperimental: not yet a stable API; may change without notice.",
         "properties": {
           "meta": {
             "anyOf": [

@@ -202,7 +202,8 @@ def registry_create(type: Literal["scanner"], name: str, **kwargs: Any) -> Any: 
 def registry_create(type: Literal["scanjob"], name: str, **kwargs: Any) -> Any: ...
 
 
-# No "monitor"/"protocol" overloads: they are built with create_registry_object(), so registry_create() is a type error.
+# No "monitor"/"protocol" overloads: they are built with
+# create_registry_object(), so registry_create() is a type error.
 
 
 def registry_create(type: RegistryType, name: str, **kwargs: Any) -> object:  # type: ignore[return]

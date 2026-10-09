@@ -1,4 +1,5 @@
 from collections.abc import Sequence
+from copy import copy
 from logging import getLogger
 from typing import Any, Literal, cast
 from weakref import WeakKeyDictionary
@@ -56,6 +57,7 @@ from inspect_ai.tool._tool_call import (
     ToolCallViewer,
     resolve_tool_call_view,
 )
+from inspect_ai.tool._tool_choice import ToolChoice
 from inspect_ai.tool._tool_info import ToolInfo
 from inspect_ai.util._limit import suspend_token_limit, suspend_turn_limit
 from inspect_ai.util._span import current_agent_span_id, span
@@ -287,33 +289,44 @@ class _Host:
         input: str | list[ChatMessage],
         *,
         model: str | None = None,
+        role: str | None = None,
         tools: list[ToolInfo] | None = None,
+        tool_choice: ToolChoice | None = None,
         config: GenerateConfig | None = None,
     ) -> ModelOutput:
         if isinstance(cast(object, model), Model):
             raise TypeError(
-                "Host.generate() takes a model role or a model name, not a Model. "
+                "Host.generate() takes a model name, not a Model. "
                 "Configure the Model for a role with Task(model_roles={'<role>': model}) "
-                "or --model-role, and pass the role name."
+                "or --model-role, and pass role='<role>'."
             )
         if model == "":
             raise ValueError(
-                "Host.generate() model must be a model role or a model name, "
-                "not an empty string. Pass None for the 'monitor' role."
+                "Host.generate() model must be a model name, not an empty string. "
+                "Pass None to use a role."
             )
-        if model is not None and "/" in model:
-            resolved = get_model(model)
+        if role == "":
+            raise ValueError(
+                "Host.generate() role must be a model role, not an empty string. "
+                "Pass None for the 'monitor' role."
+            )
+        if model is not None and role is None:
+            resolved = copy(get_model(model))
+            resolved._set_role("sentinel")
         else:
-            role = "monitor" if model is None else model
-            if role not in model_roles():
+            role = role or "monitor"
+            if model is None and role not in model_roles():
                 warn_once(
                     logger,
                     f"No model is configured for the sentinel role '{role}', so monitor calls use the agent's own model. "
                     f"Set one with Task(model_roles={{'{role}': ...}}) or --model-role {role}=<model>.",
                 )
-            resolved = get_model(role=role, default=active_model())
+            resolved = get_model(model, role=role, default=active_model())
         return await resolved.generate(
-            input, tools=tools or [], config=config or GenerateConfig()
+            input,
+            tools=tools or [],
+            tool_choice=tool_choice,
+            config=config or GenerateConfig(),
         )
 
     async def ask_human(self, step: Step, choices: Sequence[str]) -> HumanAnswer:
@@ -434,11 +447,9 @@ class _Recorder:
 
 
 def _factory_kind(factory: str) -> _Kind:
-    if registry_lookup("monitor", factory) is not None:
-        return "observation"
     if registry_lookup("protocol", factory) is not None:
         return "decision"
-    raise RuntimeError(f"{factory!r} is not a registered monitor or protocol.")
+    return "observation"
 
 
 def _emit_decision(

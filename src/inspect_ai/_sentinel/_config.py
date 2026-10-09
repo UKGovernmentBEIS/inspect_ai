@@ -22,13 +22,15 @@ from inspect_ai.core._sentinel import _layer_kind as _layer_kind
 if TYPE_CHECKING:
     from inspect_sentinel import Protocol
     from inspect_sentinel._integration import Sentinels
+else:
+    Sentinels: TypeAlias = Any
 
 
 SentinelRoot: TypeAlias = "Protocol"
 
 SentinelSpec: TypeAlias = Union[
     str,
-    "Sentinels",
+    Sentinels,
     SentinelConfig,
     Sequence[Mapping[str, Any]],
     Mapping[str, Mapping[str, Any]],

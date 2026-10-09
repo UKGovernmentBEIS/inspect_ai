@@ -33,7 +33,7 @@ Experimental: not yet a stable API; may change without notice.
 class SentinelEntry(BaseModel):
     """One configured monitor or protocol.
 
-    Any key besides `name`, `params`, `version` and `meta` names a parameter of the factory whose value is nested monitors or protocols, such as `monitors` for `threshold` or `children` for `concurrent`; it holds a list or a mapping of entries, and `nested` returns them.
+    Any key besides `name`, `params`, `version` and `meta` names a parameter of the factory whose value is nested monitors or protocols, such as `monitors` for `threshold` or `children` for `concurrent`; it holds an entry, a list of entries, or a mapping of instance names to entries, and `nested` returns them.
 
     Experimental: not yet a stable API; may change without notice.
     """
@@ -81,8 +81,8 @@ def _layer_kind(value: object) -> str | None:
 
 SentinelLayer: TypeAlias = Annotated[
     Annotated[SentinelEntry, Tag("entry")]
-    | Annotated[list[SentinelEntry], Tag("list")]
-    | Annotated[dict[str, SentinelEntry], Tag("mapping")],
+    | Annotated[list[SentinelEntry], Field(min_length=1), Tag("list")]
+    | Annotated[dict[str, SentinelEntry], Field(min_length=1), Tag("mapping")],
     Discriminator(
         _layer_kind,
         custom_error_type="sentinel_layer",
