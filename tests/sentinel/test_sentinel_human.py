@@ -3,7 +3,6 @@ from typing import Any
 import pytest
 
 from inspect_ai import Task, eval
-from inspect_ai._sentinel._dispatch import _Host
 from inspect_ai.approval._approval import Approval, ApprovalDecision
 from inspect_ai.approval._human import acp as acp_module
 from inspect_ai.approval._human import approver as approver_module
@@ -36,6 +35,8 @@ try:
         protocol,
         sequential,
     )
+
+    from inspect_ai._sentinel._dispatch import _Host
 except ImportError:
     pytest.skip("inspect_sentinel is not installed", allow_module_level=True)
 
