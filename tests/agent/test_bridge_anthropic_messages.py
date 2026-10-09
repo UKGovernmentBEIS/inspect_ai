@@ -569,10 +569,11 @@ async def test_bridge_pause_turn_replay_continues_the_turn(
     assert outputs[-1].input_context_tokens == 110 * (requests + 1)
 
 
+@pytest.mark.parametrize("client_turns", ["combined", "separate"])
 @pytest.mark.parametrize("beta", [False, True])
 @pytest.mark.anyio
 async def test_bridge_pause_turn_at_bound_keeps_pending_server_tool_call(
-    monkeypatch: pytest.MonkeyPatch, beta: bool
+    monkeypatch: pytest.MonkeyPatch, beta: bool, client_turns: str
 ) -> None:
     """A server tool call still running at the bound is resumed by the resent turn."""
     from anthropic._models import construct_type
@@ -628,7 +629,12 @@ async def test_bridge_pause_turn_at_bound_keeps_pending_server_tool_call(
         ],
         stop_reason="end_turn",
     )
-    bridge, create, outputs = _anthropic_bridge([_paused_head(1), pending, resumed])
+    after = message(
+        "msg_after", [{"type": "text", "text": "ok"}], stop_reason="end_turn"
+    )
+    bridge, create, outputs = _anthropic_bridge(
+        [_paused_head(1), pending, resumed, after]
+    )
     user = {"role": "user", "content": "search"}
 
     paused = await _bridge_request(monkeypatch, bridge, outputs, [user], beta)
@@ -646,10 +652,8 @@ async def test_bridge_pause_turn_at_bound_keeps_pending_server_tool_call(
 
     # the client resends the paused turn: the resumed request carries the
     # pending call and names its container
-    partial = {
-        "role": "assistant",
-        "content": [block.model_dump(exclude_none=True) for block in paused.content],
-    }
+    partial_blocks = [block.model_dump(exclude_none=True) for block in paused.content]
+    partial = {"role": "assistant", "content": partial_blocks}
     message_out = await _bridge_request(
         monkeypatch, bridge, outputs, [user, partial], beta
     )
@@ -671,6 +675,44 @@ async def test_bridge_pause_turn_at_bound_keeps_pending_server_tool_call(
         "text",
     ]
     assert message_out.content[0].tool_use_id == "srvtoolu_pending"
+
+    # the next user request: the client sends the paused and resumed turns
+    # back as one assistant turn or as two, and the upstream history holds
+    # each server tool use and result once, the use first
+    resumed_blocks = [b.model_dump(exclude_none=True) for b in message_out.content]
+    if client_turns == "combined":
+        history: list[dict[str, Any]] = [
+            {"role": "assistant", "content": partial_blocks + resumed_blocks}
+        ]
+    else:
+        history = [partial, {"role": "assistant", "content": resumed_blocks}]
+    await _bridge_request(
+        monkeypatch,
+        bridge,
+        outputs,
+        [user, *history, {"role": "user", "content": "thanks"}],
+        beta,
+    )
+
+    assert create.await_count == 4
+    sent = [
+        block if isinstance(block, dict) else block.model_dump()
+        for m in create.call_args.kwargs["messages"]
+        if m["role"] == "assistant"
+        for block in m["content"]
+    ]
+    server_blocks = [
+        (b["type"], b.get("id") or b.get("tool_use_id"))
+        for b in sent
+        if b["type"] in ("server_tool_use", "web_search_tool_result")
+    ]
+    assert server_blocks == [
+        ("server_tool_use", "srvtoolu_1"),
+        ("web_search_tool_result", "srvtoolu_1"),
+        ("server_tool_use", "srvtoolu_pending"),
+        ("web_search_tool_result", "srvtoolu_pending"),
+    ]
+    assert "container" not in create.call_args.kwargs
 
 
 def test_anthropic_stop_reason_pause_turn_only_from_stop_details() -> None:

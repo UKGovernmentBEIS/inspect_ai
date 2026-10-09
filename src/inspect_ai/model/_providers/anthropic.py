@@ -3825,11 +3825,7 @@ async def assistant_message_block_params(
         # links, nesting) so they are replayed verbatim as a unit, while the
         # editable content (text, reasoning, client tool calls) is still
         # rendered from the content list so that scaffold edits surface.
-        record = (
-            assistant_internal().server_tool_spans.get(message.id)
-            if message.id is not None
-            else None
-        )
+        record = _message_server_tool_spans(message)
         emitted: set[int] = set()
         for content in message.content:
             segment: list[MessageBlockParam] = []
@@ -3839,6 +3835,13 @@ async def assistant_message_block_params(
                 # content item (subsequent items of the same span emit nothing)
                 if id(span) not in emitted:
                     emitted.add(id(span))
+                    # a result whose use block ended an earlier turn that this
+                    # message also holds (a resumed turn combined with the
+                    # paused one) needs that use block first
+                    use_span = _earlier_turn_use_span(content, span, record)
+                    if use_span is not None and id(use_span) not in emitted:
+                        emitted.add(id(use_span))
+                        segment.extend(_span_block_params(use_span, message))
                     segment.extend(_span_block_params(span, message))
             else:
                 segment.extend(await message_block_params(content))
@@ -4287,15 +4290,17 @@ def merge_server_tool_spans(head_id: str | None, tail_id: str | None) -> None:
 def resume_pending_server_tool_work(
     message_id: str | None, blocks: Iterable[Any]
 ) -> None:
-    """Record a resent turn's pending server tool work under its new message id.
+    """Record a resent turn's unfinished server tool calls under its new message id.
 
     A turn can end with a server tool call still running (a turn paused at
     `MAX_PAUSE_TURN_CONTINUATIONS`, or a client tool call that cut it short).
     The call has no content item, so its span and container are found only
     under the id of the message that recorded them. The agent bridge parses
     the turn its client sends back into a message with a new id; this records
-    the pending spans and the container under that id, so replay sends the
-    use block and the request names the container.
+    those spans under that id, so replay sends the use block (before the
+    call's result, when the client sends the result in the same turn). The
+    container is recorded too when a call is still pending, so the request
+    names it.
 
     Args:
        message_id: Id of the message parsed from `blocks`.
@@ -4308,20 +4313,21 @@ def resume_pending_server_tool_work(
     use_ids = {b.get("id") for b in block_dicts if b.get("type") == "server_tool_use"}
     pending_ids = use_ids - {b.get("tool_use_id") for b in block_dicts}
     internal = assistant_internal()
-    if (
-        message_id is None
-        or not pending_ids
-        or message_id in internal.server_tool_spans
-    ):
+    if message_id is None or not use_ids or message_id in internal.server_tool_spans:
         return
+    resumed: list[_ServerToolSpan] = []
     for source_id, spans in list(internal.server_tool_spans.items()):
-        pending = [span for span in spans if span.open_use_ids & pending_ids]
-        if pending:
-            internal.server_tool_spans[message_id] = pending
-            container = internal.containers.get(source_id)
-            if container is not None:
-                internal.containers[message_id] = container
-            return
+        unfinished = [span for span in spans if span.open_use_ids & use_ids]
+        resumed.extend(
+            span for span in unfinished if all(span is not r for r in resumed)
+        )
+        container = internal.containers.get(source_id)
+        if container is not None and any(
+            span.open_use_ids & pending_ids for span in unfinished
+        ):
+            internal.containers[message_id] = container
+    if resumed:
+        internal.server_tool_spans[message_id] = resumed
 
 
 def _prior_turn_server_tool_use(tool_use_id: str) -> BetaServerToolUseBlock | None:
@@ -4377,6 +4383,44 @@ def _pending_container_for_input(input: list[ChatMessage]) -> str | None:
     if any(span.open_use_ids for span in spans):
         return container
     return None
+
+
+def _message_server_tool_spans(
+    message: ChatMessageAssistant,
+) -> list[_ServerToolSpan] | None:
+    """Server tool spans recorded for a message, or for the messages it combines.
+
+    Consecutive assistant messages are combined before a request (e.g. a
+    paused turn and the turn that resumed it), and the combined message has
+    a new id; `metadata["combined_from"]` names the messages it holds.
+    """
+    message_ids = (message.metadata or {}).get("combined_from") or [message.id]
+    internal = assistant_internal()
+    spans: list[_ServerToolSpan] = []
+    for message_id in message_ids:
+        for span in internal.server_tool_spans.get(message_id, []):
+            if all(span is not other for other in spans):
+                spans.append(span)
+    return spans or None
+
+
+def _earlier_turn_use_span(
+    content: Content, span: _ServerToolSpan, record: list[_ServerToolSpan] | None
+) -> _ServerToolSpan | None:
+    """The span in `record` holding the use block of a result recorded without it.
+
+    A result that arrives in a later turn than its use block is recorded
+    alone (see `_ServerToolSpanRecorder.add_prior_turn_result`).
+    """
+    if not isinstance(content, ContentToolUse) or any(
+        cast("dict[str, Any]", block).get("type") == "server_tool_use"
+        and cast("dict[str, Any]", block).get("id") == content.id
+        for block in span.blocks
+    ):
+        return None
+    return next(
+        (other for other in record or [] if content.id in other.open_use_ids), None
+    )
 
 
 def _server_tool_span_for_content(
