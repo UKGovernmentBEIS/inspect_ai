@@ -558,8 +558,10 @@ class SandboxService:
                     limit_error = enclosing_limit_error(ex) or inner_exception(ex)
                     if not isinstance(limit_error, LimitExceededError):
                         raise
-                    # a limit still open here belongs to the sample or an
-                    # enclosing agent, which this task cannot raise into
+                    # A limit still open here belongs to the sample or an
+                    # enclosing agent. This task cannot raise into either, so
+                    # it ends the sample, even for an agent's limit: the agent
+                    # would otherwise run past it.
                     if limit_error_scope(limit_error) != "inner":
                         active = sample_active()
                         if active is not None:

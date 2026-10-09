@@ -664,15 +664,17 @@ async def test_handle_request_bridged_tool_limit_keeps_service_handling(
     assert active.limit_exceeded.call_count == (0 if case == "inner" else 1)
 
 
+@pytest.mark.parametrize("scope", ["sample", "agent"])
 @pytest.mark.parametrize("grouped", [False, True], ids=["bare", "grouped"])
 async def test_handle_request_bridged_generate_limit_ends_sample(
-    grouped: bool,
+    grouped: bool, scope: str
 ) -> None:
-    """A sample limit exceeded by a bridged generate ends the sample.
+    """A sample or agent limit exceeded by a bridged generate ends the sample.
 
     This holds when the generate raises the error from a child task, so it
-    arrives wrapped in an `ExceptionGroup`. The sandboxed agent still gets an
-    RPC error reply.
+    arrives wrapped in an `ExceptionGroup`. The service cannot raise into an
+    enclosing agent, so an agent's limit ends the sample too. The sandboxed
+    agent still gets an RPC error reply.
     """
     from inspect_ai.agent._agent import AgentState
     from inspect_ai.agent._bridge.sandbox.service import _forward_provider_errors
@@ -718,16 +720,18 @@ async def test_handle_request_bridged_generate_limit_ends_sample(
     active = MagicMock()
     with (
         patch("inspect_ai.log._samples.sample_active", return_value=active),
-        token_limit(1) as sample_limit,
+        token_limit(1 if scope == "sample" else None) as sample_limit,
+        token_limit(None if scope == "sample" else 1) as agent_limit,
     ):
         await service._handle_request(request_file)
+    exceeded = sample_limit if scope == "sample" else agent_limit
 
     response = json.loads(fake.writes[f"{service._responses_dir}/{request_id}.json"])
     assert response["result"] is None
     assert response["error"].startswith("Limit exceeded calling method")
     assert not bridge._failure_requested.is_set()
     active.limit_exceeded.assert_called_once()
-    assert active.limit_exceeded.call_args.args[0].source is sample_limit
+    assert active.limit_exceeded.call_args.args[0].source is exceeded
 
 
 async def test_write_response_goes_through_the_verified_responses_dir() -> None:

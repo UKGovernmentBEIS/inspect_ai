@@ -15,12 +15,16 @@ from typing import Any, Awaitable, Callable
 
 import anyio
 import pytest
-from test_helpers.limits import exceed_token_limit_in_child_task
+from test_helpers.limits import (
+    exceed_token_limit_and_terminate_in_child_tasks,
+    exceed_token_limit_in_child_task,
+)
 
 if sys.version_info < (3, 11):
     from exceptiongroup import ExceptionGroup
 
 from inspect_ai import Task, eval
+from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai.agent import deepagent, subagent
 from inspect_ai.agent._deepagent.agent_tool import (
     AgentFuture,
@@ -1815,6 +1819,45 @@ class TestBackgroundLimits:
             assert future.status == "cancelled"
         # waiters are woken either way
         assert future.done.is_set()
+
+    async def test_sample_ending_error_from_background_child_wins_over_agent_limit(
+        self,
+    ) -> None:
+        from inspect_ai.agent._agent import AgentState
+        from inspect_ai.agent._deepagent.agent_tool import _run_background
+        from inspect_ai.agent._deepagent.subagent import subagent as subagent_factory
+
+        async def child_agent(state: AgentState) -> AgentState:
+            await exceed_token_limit_and_terminate_in_child_tasks()
+            return state
+
+        sa = subagent_factory(name="worker", description="Worker.", prompt="Work.")
+        future = AgentFuture(
+            agent_id="AGENT-1",
+            span_id="span",
+            subagent_name="worker",
+            cancel_scope=anyio.CancelScope(),
+        )
+
+        # the sample's limit and an enclosing agent's
+        with token_limit(None), token_limit(1):
+            with pytest.raises(TerminateSampleError):
+                await _run_background(
+                    future, child_agent, sa, "go", "span", False, None
+                )
+        assert future.status == "cancelled"
+        assert future.done.is_set()
+
+    async def test_owned_task_group_sample_ending_error_wins_over_agent_limit(
+        self,
+    ) -> None:
+        # outside a sample there is no live sample task group, so the
+        # registry owns one
+        registry = BackgroundRegistry(max_background=8)
+        with token_limit(None), token_limit(1):
+            with pytest.raises(TerminateSampleError):
+                async with registry.owned_task_group():
+                    await exceed_token_limit_and_terminate_in_child_tasks()
 
 
 class TestBackgroundErrors:

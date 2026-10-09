@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import abc
 import ast
+import itertools
 import logging
 import math
 import operator
@@ -21,6 +22,7 @@ from typing import (
     Mapping,
     NamedTuple,
     TypeVar,
+    cast,
 )
 
 import anyio
@@ -225,9 +227,16 @@ def limit_error_scope(
        sample's own limit, inside a sample), or the error has no source (a
        custom limit, which the sample enforces).
     """
-    source = error.source
-    if source is None:
+    if error.source is None:
         return "sample"
+    node = _open_limit_node(error.source)
+    if node is None:
+        return "inner"
+    return "sample" if node.parent is None else "enclosing"
+
+
+def _open_limit_node(source: Limit) -> _Node | None:
+    """The tree node of `source` if it is open in the current context."""
     trees: tuple[_Tree[Any], ...] = (
         token_limit_tree,
         cost_limit_tree,
@@ -239,11 +248,10 @@ def limit_error_scope(
     for tree in trees:
         node = tree.get()
         while node is not None:
-            parent = node.parent
             if node is source:
-                return "sample" if parent is None else "enclosing"
-            node = parent
-    return "inner"
+                return cast(_Node, node)
+            node = node.parent
+    return None
 
 
 def enclosing_limit_error(ex: BaseException) -> LimitExceededError | None:
@@ -256,18 +264,75 @@ def enclosing_limit_error(ex: BaseException) -> LimitExceededError | None:
        ex: The exception that was caught.
 
     Returns:
-       The first `LimitExceededError` found whose `limit_error_scope()` is
-       not `"inner"`, or `None`. A handler that recovers from errors must
-       raise this instead.
+       The `LimitExceededError` whose `limit_error_scope()` is not `"inner"`
+       and whose limit is the outermost one, or `None`. A handler that
+       recovers from errors must raise this instead.
     """
-    if isinstance(ex, LimitExceededError):
-        return ex if limit_error_scope(ex) != "inner" else None
-    if isinstance(ex, BaseExceptionGroup):
-        for child in ex.exceptions:
-            found = enclosing_limit_error(child)
-            if found is not None:
-                return found
-    return None
+    return _outermost_limit_error(ex)
+
+
+def _outermost_limit_error(*errors: BaseException) -> LimitExceededError | None:
+    outermost: LimitExceededError | None = None
+    outermost_order = 0
+    for error in _leaf_errors(*errors):
+        if isinstance(error, LimitExceededError):
+            order = _limit_error_order(error)
+            if order is not None and (outermost is None or order < outermost_order):
+                outermost, outermost_order = error, order
+    return outermost
+
+
+def propagating_error(*errors: BaseException) -> Exception | None:
+    """Find the error in `errors` that must propagate past an error handler.
+
+    Searches the errors and any exception groups they contain. A limit of the
+    sample comes first, then an error that ends the sample
+    (`TerminateSampleError`, `ModelRefusalError` or a sentinel failure), then
+    the outermost enclosing limit (see `enclosing_limit_error()`). An enclosing
+    agent catches its own limit, so raising that one instead would lose an
+    error that ends the sample.
+
+    Args:
+       *errors: The exceptions that were caught.
+
+    Returns:
+       The error to raise, or `None` when there is none: the errors are inner
+       limits or ones the handler may recover from.
+    """
+    from inspect_ai._sentinel._context import SentinelFailure
+    from inspect_ai._util.exception import TerminateSampleError
+    from inspect_ai.model._model import ModelRefusalError
+
+    limit_error = _outermost_limit_error(*errors)
+    if limit_error is not None and limit_error_scope(limit_error) == "sample":
+        return limit_error
+    for error in _leaf_errors(*errors):
+        if isinstance(
+            error, (TerminateSampleError, ModelRefusalError, SentinelFailure)
+        ):
+            return error
+    return limit_error
+
+
+def _leaf_errors(*errors: BaseException) -> Iterator[BaseException]:
+    for error in errors:
+        if isinstance(error, BaseExceptionGroup):
+            yield from _leaf_errors(*error.exceptions)
+        else:
+            yield error
+
+
+def _limit_error_order(error: LimitExceededError) -> int | None:
+    """Order in which the error's limit was opened, or `None` if it is not open.
+
+    Limits open in the current context enclose one another, so a smaller order
+    is an outer limit. An error with no source is the sample's (see
+    `limit_error_scope()`), so it comes first.
+    """
+    if error.source is None:
+        return -1
+    node = _open_limit_node(error.source)
+    return None if node is None else node._open_order
 
 
 @dataclass
@@ -1048,6 +1113,7 @@ class _Tree(Generic[TNode]):
     def push(self, new_node: TNode) -> None:
         current_leaf = self._leaf_node.get()
         new_node.parent = current_leaf
+        new_node._open_order = next(_open_order)
         self._leaf_node.set(new_node)
 
     def pop(self) -> TNode:
@@ -1069,6 +1135,7 @@ class _Tree(Generic[TNode]):
             self._suspended.reset(token)
 
 
+_open_order = itertools.count()
 token_limit_tree: _Tree[_TokenLimit] = _Tree("token_limit_tree")
 cost_limit_tree: _Tree[_CostLimit] = _Tree("cost_limit_tree")
 message_limit_tree: _Tree[_MessageLimit] = _Tree("message_limit_tree")
@@ -1085,6 +1152,8 @@ class _Node:
     """
 
     parent: Self | None
+    _open_order: int
+    """When the node was pushed onto its tree, across all trees."""
 
     def _pop_and_check_identity(self, tree: _Tree[TNode]) -> None:
         popped = tree.pop()

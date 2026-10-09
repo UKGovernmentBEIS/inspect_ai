@@ -2,6 +2,7 @@ from typing import Callable
 
 import anyio
 
+from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai.event._base import BaseEvent
 from inspect_ai.event._sample_limit import SampleLimitEvent
 from inspect_ai.event._subtask import (
@@ -71,6 +72,30 @@ async def exceed_token_limit_in_child_task(
 
     async with anyio.create_task_group() as tg:
         tg.start_soon(exceed)
+
+
+async def exceed_token_limit_and_terminate_in_child_tasks(
+    tokens: int = 1_000_000,
+) -> None:
+    """Exceed the open token limits in one child task and end the sample in another.
+
+    Both raise before either can be cancelled, so the errors arrive together
+    in one exception group.
+
+    Args:
+        tokens: Tokens to record against the open token limits.
+    """
+
+    async def exceed() -> None:
+        record_model_usage(ModelUsage(total_tokens=tokens))
+        check_token_limit()
+
+    async def terminate() -> None:
+        raise TerminateSampleError("terminated")
+
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(exceed)
+        tg.start_soon(terminate)
 
 
 async def generate_with_retry_boundary(

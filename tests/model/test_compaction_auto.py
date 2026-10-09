@@ -1,9 +1,13 @@
 """Tests for the CompactionAuto strategy."""
 
 import pytest
-from test_helpers.limits import exceed_token_limit_in_child_task
+from test_helpers.limits import (
+    exceed_token_limit_and_terminate_in_child_tasks,
+    exceed_token_limit_in_child_task,
+)
 from test_helpers.utils import skip_if_no_anthropic, skip_if_no_openai
 
+from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai.model import (
     ChatMessage,
     ChatMessageAssistant,
@@ -223,6 +227,48 @@ async def test_auto_native_grouped_limit_error(
                 await strategy.compact(model, _sample_messages(), [])
         assert exc_info.value.source is limit
         assert summary_calls == 0
+
+
+async def test_auto_native_sample_ending_error_propagates(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An error that ends the sample propagates instead of falling back."""
+    strategy = CompactionAuto()
+    model = get_model("mockllm/model")
+
+    async def terminating_compact(m, msgs, t):
+        raise TerminateSampleError("terminated")
+
+    async def summary_compact(m, msgs, t):
+        pytest.fail("summary compaction should not run")
+
+    monkeypatch.setattr(strategy._native, "compact", terminating_compact)
+    monkeypatch.setattr(strategy._summary, "compact", summary_compact)
+
+    with pytest.raises(TerminateSampleError):
+        await strategy.compact(model, _sample_messages(), [])
+
+
+async def test_auto_native_sample_ending_error_wins_over_agent_limit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An error that ends the sample propagates over an agent limit raised with it."""
+    strategy = CompactionAuto()
+    model = get_model("mockllm/model")
+
+    async def limited_compact(m, msgs, t):
+        await exceed_token_limit_and_terminate_in_child_tasks()
+
+    async def summary_compact(m, msgs, t):
+        pytest.fail("summary compaction should not run")
+
+    monkeypatch.setattr(strategy._native, "compact", limited_compact)
+    monkeypatch.setattr(strategy._summary, "compact", summary_compact)
+
+    # the sample's limit and an agent's
+    with token_limit(None), token_limit(1):
+        with pytest.raises(TerminateSampleError):
+            await strategy.compact(model, _sample_messages(), [])
 
 
 @skip_if_no_openai

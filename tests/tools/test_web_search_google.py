@@ -3,10 +3,14 @@ from unittest.mock import AsyncMock, patch
 
 import httpx
 import pytest
-from test_helpers.limits import exceed_token_limit_in_child_task
+from test_helpers.limits import (
+    exceed_token_limit_and_terminate_in_child_tasks,
+    exceed_token_limit_in_child_task,
+)
 
 from inspect_ai._util.citation import UrlCitation
 from inspect_ai._util.content import ContentText
+from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai.tool._tools._web_search._google import google_search_provider
 from inspect_ai.util._anyio import inner_exception
 from inspect_ai.util._limit import (
@@ -185,6 +189,41 @@ class TestGoogleSearchRendering:
             assert found is not None and found.source is limit
         # the first page's two relevance calls, and no further pages
         assert mock_model.generate.await_count <= 2
+
+    async def test_search_relevance_sample_ending_error_wins_over_agent_limit(
+        self,
+    ) -> None:
+        """An error that ends the sample propagates over an agent limit raised with it."""
+        mock_client = httpx.AsyncClient(transport=create_mock_transport())
+
+        async def generate(*args, **kwargs):
+            await exceed_token_limit_and_terminate_in_child_tasks()
+
+        mock_model = AsyncMock()
+        mock_model.generate.side_effect = generate
+
+        with (
+            patch("httpx.AsyncClient") as mock_async_client_cls,
+            patch("inspect_ai.model._model.get_model") as mock_get_model,
+            patch(
+                "inspect_ai.tool._tools._web_search._google.maybe_get_google_api_keys"
+            ) as mock_get_keys,
+            # the sample's limit and an agent's
+            token_limit(None),
+            token_limit(1),
+        ):
+            mock_async_client_cls.return_value = mock_client
+            mock_get_model.return_value = mock_model
+            mock_get_keys.return_value = ("dummy-key", "dummy-cse-id")
+
+            search = google_search_provider()
+
+            with pytest.raises(Exception) as exc_info:
+                await search("test query")
+
+        # each relevance call raised both; only the sample-ending error is kept
+        assert exc_info.group_contains(TerminateSampleError, depth=None)
+        assert not exc_info.group_contains(LimitExceededError, depth=None)
 
     async def test_search_url_encodes_non_printable_characters(self):
         """Test that search queries with non-printable characters are properly URL-encoded."""

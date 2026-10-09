@@ -6,11 +6,14 @@ from typing import Any, Literal
 import httpx2
 import pytest
 from openai import DefaultAsyncHttpxClient
-from test_helpers.limits import exceed_token_limit_in_child_task
+from test_helpers.limits import (
+    exceed_token_limit_and_terminate_in_child_tasks,
+    exceed_token_limit_in_child_task,
+)
 from typing_extensions import override
 
 from inspect_ai import Task, eval
-from inspect_ai.agent import Agent, AgentState, react
+from inspect_ai.agent import Agent, AgentState, react, run
 from inspect_ai.dataset import Sample
 from inspect_ai.event import CompactionEvent
 from inspect_ai.model import (
@@ -27,9 +30,10 @@ from inspect_ai.model._compaction.auto import CompactionAuto
 from inspect_ai.model._compaction.edit import CompactionEdit
 from inspect_ai.model._compaction.summary import CompactionSummary
 from inspect_ai.model._compaction.trim import CompactionTrim
+from inspect_ai.solver import Generate, Solver, TaskState, solver
 from inspect_ai.tool import Tool, tool
 from inspect_ai.tool._tool_info import ToolInfo
-from inspect_ai.util._limit import LimitExceededError
+from inspect_ai.util._limit import LimitExceededError, token_limit
 
 
 @tool
@@ -370,6 +374,70 @@ def test_model_length_with_compaction_grouped_limit_error(own_limit: bool) -> No
         assert sample.limit is not None
         assert sample.limit.type == "token"
         assert sample.limit.limit == 100_000
+
+
+class _LimitAndTerminateCompaction(_AlwaysRaisesCompaction):
+    """Test-only strategy whose compaction exceeds a limit and ends the sample."""
+
+    @override
+    async def compact(
+        self, model: Model, messages: list[ChatMessage], tools: list[ToolInfo]
+    ) -> tuple[list[ChatMessage], ChatMessageUser | None]:
+        await exceed_token_limit_and_terminate_in_child_tasks()
+        raise RuntimeError("unreachable")
+
+
+@solver
+def _react_with_agent_limit(compaction: CompactionStrategy) -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        agent_state, _ = await run(
+            react(compaction=compaction, truncation="auto"),
+            state.messages,
+            limits=[token_limit(100_000)],
+        )
+        state.messages = agent_state.messages
+        state.messages.append(ChatMessageUser(content="continued"))
+        return state
+
+    return solve
+
+
+def test_model_length_with_compaction_sample_ending_error_wins_over_agent_limit() -> (
+    None
+):
+    """An error that ends the sample wins over the agent's limit raised with it."""
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.from_content(
+                model="mockllm/model",
+                content="Failed turn (overflow)",
+                stop_reason="model_length",
+            ),
+            ModelOutput.from_content(
+                model="mockllm/model",
+                content="Recovered after truncation",
+            ),
+        ],
+    )
+
+    task = Task(
+        dataset=[Sample(input="Test", target="done")],
+        solver=_react_with_agent_limit(_LimitAndTerminateCompaction()),
+        token_limit=100_000_000,
+    )
+
+    log = eval(task, model=model)[0]
+    assert log.status == "success"
+    assert log.samples
+    sample = log.samples[0]
+    assert sample.error is None
+    assert sample.limit is not None
+    assert sample.limit.type == "operator"
+    assert all(
+        m.text not in ("Recovered after truncation", "continued")
+        for m in sample.messages
+    )
 
 
 def test_model_length_without_recovery_terminates() -> None:

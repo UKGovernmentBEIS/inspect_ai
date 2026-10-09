@@ -6,6 +6,7 @@ from test_helpers.limits import check_limit_event, exceed_token_limit_in_child_t
 
 from inspect_ai import eval
 from inspect_ai._eval.task.task import Task
+from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai._util.registry import registry_create
 from inspect_ai.agent import Agent, AgentState, agent, as_solver, as_tool
 from inspect_ai.agent._handoff import handoff
@@ -418,6 +419,153 @@ def test_parallel_tool_sample_limit_wins_over_sibling_error() -> None:
         tool_events = [e for e in sample.events if isinstance(e, ToolEvent)]
         assert len(tool_events) == 2
         assert all(not e.pending for e in tool_events)
+
+
+def _token_limit_error(tokens: int) -> LimitExceededError:
+    record_model_usage(ModelUsage(total_tokens=tokens))
+    try:
+        check_token_limit()
+    except LimitExceededError as ex:
+        return ex
+    raise AssertionError("no limit was exceeded")
+
+
+@solver
+def run_agent_hitting_its_limit_with(sibling: str, grouped: bool) -> Solver:
+    """Run an agent whose tool call hits the agent's limit while `sibling` happens.
+
+    `sibling` is "sample_limit" (the sample's token limit of 100 is exceeded)
+    or "terminate" (a `TerminateSampleError`). It happens in a parallel tool
+    call, or with `grouped` in a sibling child task of the same tool call.
+    """
+
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        arrived = 0
+        both_arrived = anyio.Event()
+
+        async def barrier() -> None:
+            nonlocal arrived
+            arrived += 1
+            if arrived == 2:
+                both_arrived.set()
+            await both_arrived.wait()
+
+        def end_sample() -> Exception:
+            if sibling == "sample_limit":
+                # with the agent's 60 tokens, exceeds the sample's limit
+                return _token_limit_error(60)
+            return TerminateSampleError("terminated")
+
+        @tool(parallel=True)
+        def over_agent_limit() -> Tool:
+            async def execute() -> str:
+                """Exceed the agent's token limit."""
+                error = _token_limit_error(60)
+                await barrier()
+                raise error
+
+            return execute
+
+        @tool(parallel=True)
+        def ending_sibling() -> Tool:
+            async def execute() -> str:
+                """End the sample."""
+                await barrier()
+                raise end_sample()
+
+            return execute
+
+        @tool
+        def over_agent_limit_with_ending_child() -> Tool:
+            async def execute() -> str:
+                """Exceed the agent's limit and end the sample, in child tasks."""
+
+                async def over() -> None:
+                    raise _token_limit_error(60)
+
+                async def ending() -> None:
+                    raise end_sample()
+
+                children = [over, ending]
+                # alternate the order, since the first child is started first
+                if state.epoch % 2 == 0:
+                    children.reverse()
+                async with anyio.create_task_group() as tg:
+                    for child in children:
+                        tg.start_soon(child)
+                return "done"
+
+            return execute
+
+        if grouped:
+            tools = [over_agent_limit_with_ending_child()]
+            calls = [
+                ToolCall(
+                    id="1",
+                    function="over_agent_limit_with_ending_child",
+                    arguments={},
+                )
+            ]
+        else:
+            tools = [over_agent_limit(), ending_sibling()]
+            calls = [
+                ToolCall(id="1", function="over_agent_limit", arguments={}),
+                ToolCall(id="2", function="ending_sibling", arguments={}),
+            ]
+            if state.epoch % 2 == 0:
+                calls.reverse()
+
+        @agent
+        def tool_calling_agent() -> Agent:
+            async def execute(state: AgentState) -> AgentState:
+                """Call the tools, then carry on.
+
+                Args:
+                    state: Input state (conversation)
+                """
+                state.messages.append(
+                    ChatMessageAssistant(content="", tool_calls=calls)
+                )
+                result = await execute_tools(state.messages, tools)
+                state.messages.extend(result.messages)
+                state.messages.append(ChatMessageUser(content="agent continued"))
+                return state
+
+            return execute
+
+        await run(tool_calling_agent(), "input", limits=[token_limit(50)])
+        state.messages.append(ChatMessageUser(content="continued"))
+        return state
+
+    return solve
+
+
+@pytest.mark.parametrize("grouped", [False, True], ids=["parallel", "grouped"])
+@pytest.mark.parametrize("sibling", ["sample_limit", "terminate"])
+def test_agent_limit_loses_to_sample_ending_sibling(
+    sibling: str, grouped: bool
+) -> None:
+    log = eval(
+        Task(
+            solver=run_agent_hitting_its_limit_with(sibling, grouped),
+            token_limit=100,
+            epochs=6,
+        )
+    )[0]
+
+    # the agent's apply_limits() must not catch its own limit and lose the
+    # sibling's, which ends the sample
+    assert log.status == "success"
+    assert log.samples and len(log.samples) == 6
+    for sample in log.samples:
+        assert sample.error is None
+        assert sample.limit is not None
+        if sibling == "sample_limit":
+            assert sample.limit.type == "token"
+            assert sample.limit.limit == 100
+        else:
+            assert sample.limit.type == "operator"
+        assert sample.messages[-1].text != "continued"
 
 
 def test_tool_model_call_tool_limit_returns_tool_error() -> None:

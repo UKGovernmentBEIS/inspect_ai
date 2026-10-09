@@ -75,8 +75,8 @@ from inspect_ai.util._anyio import inner_exception
 from inspect_ai.util._limit import (
     LimitExceededError,
     apply_limits,
-    enclosing_limit_error,
     limit_error_scope,
+    propagating_error,
 )
 from inspect_ai.util._sandbox.environment import SandboxUnavailableError
 from inspect_ai.util._sandbox.events import SandboxTimeoutError
@@ -290,15 +290,10 @@ async def _execute_tools_impl(
         tool_calls = message.tool_calls
         tdefs = await tool_defs(tools)
 
-        # Enclosing limits hit by the current stage's calls. Recorded when
-        # caught, so one is not lost if a sibling's failure cancels its call
-        # before the limit reaches run_one.
-        stage_limit_errors: list[LimitExceededError] = []
-
-        def record_stage_limit_error(ex: Exception) -> None:
-            limit_error = enclosing_limit_error(ex)
-            if limit_error is not None:
-                stage_limit_errors.append(limit_error)
+        # Limits and other errors that must propagate from the current stage's
+        # calls. Recorded when caught, so one is not lost if a sibling's
+        # failure cancels its call before the error reaches run_one.
+        stage_errors: list[Exception] = []
 
         async def call_tool_task(
             call: ToolCall,
@@ -359,12 +354,12 @@ async def _execute_tools_impl(
                         agent_span_id = called.agent_span_id
                 # unwrap exception group
                 except Exception as ex:
-                    inner_ex = enclosing_limit_error(ex) or inner_exception(ex)
+                    inner_ex = propagating_error(ex) or inner_exception(ex)
                     raise inner_ex.with_traceback(inner_ex.__traceback__)
 
             except SentinelFailure as ex:
                 tool_exception = _sentinel_exception(ex)
-                record_stage_limit_error(tool_exception)
+                stage_errors.append(tool_exception)
             except Exception as ex:
                 mapped = tool_call_error(ex, call.function)
                 if mapped is not None:
@@ -378,13 +373,14 @@ async def _execute_tools_impl(
                         and limit_error_scope(ex) != "inner"
                     ):
                         tool_exception = ex
-                        record_stage_limit_error(ex)
+                        stage_errors.append(ex)
                 elif isinstance(ex, ValueError):
                     # pre-existing: a ValueError other than the null-byte case
                     # escapes the per-call handler rather than being captured
                     raise
                 else:
                     tool_exception = ex
+                    stage_errors.append(ex)
 
             # massage result, leave list[Content] alone, convert all other
             # types to string as that is what the model APIs accept
@@ -459,10 +455,10 @@ async def _execute_tools_impl(
                     raise
                 except SentinelFailure as ex:
                     tool_exception = _sentinel_exception(ex)
-                    record_stage_limit_error(tool_exception)
+                    stage_errors.append(tool_exception)
                 except Exception as ex:
                     tool_exception = ex
-                    record_stage_limit_error(ex)
+                    stage_errors.append(ex)
 
             # yield message and event
             async with send_stream:
@@ -608,6 +604,7 @@ async def _execute_tools_impl(
                     review_cancellation = TerminateSampleError(
                         "Tool result review was cancelled before a decision."
                     )
+                    stage_errors.append(review_cancellation)
                     results[idx] = (result, result_event, review_cancellation)
                     event._set_result(
                         result=result_event.result,
@@ -749,7 +746,7 @@ async def _execute_tools_impl(
                     )
 
             stage_exception: Exception | None = None
-            stage_limit_errors.clear()
+            stage_errors.clear()
             try:
                 async with anyio.create_task_group() as outer_tg:
                     for idx in stage:
@@ -764,9 +761,9 @@ async def _execute_tools_impl(
                         )
             except Exception as ex:
                 stage_exception = inner_exception(ex)
-            # an enclosing limit wins over other failures in the stage
-            if stage_limit_errors:
-                stage_exception = stage_limit_errors[0]
+                stage_errors.append(ex)
+            # a limit or an error that ends the sample wins over other failures
+            stage_exception = propagating_error(*stage_errors) or stage_exception
 
             # Splice results into `result_messages` in declared order so the
             # message list matches the order of tool_calls (Anthropic and

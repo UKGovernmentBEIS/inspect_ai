@@ -1,8 +1,12 @@
+import sys
+
 import anyio
 import pytest
 
 from inspect_ai._eval.eval import eval
 from inspect_ai._eval.task.task import Task
+from inspect_ai._sentinel._context import SentinelFailure
+from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai.dataset._dataset import Sample
 from inspect_ai.model._model_output import ModelUsage
 from inspect_ai.solver._solver import Generate, solver
@@ -12,13 +16,18 @@ from inspect_ai.util._limit import (
     apply_limits,
     check_message_limit,
     check_token_limit,
+    enclosing_limit_error,
     limit_error_scope,
     message_limit,
+    propagating_error,
     record_model_usage,
     sample_limits,
     time_limit,
     token_limit,
 )
+
+if sys.version_info < (3, 11):
+    from exceptiongroup import ExceptionGroup
 
 
 def test_can_use_deprecated_sample_limit_exceeded_error() -> None:
@@ -202,6 +211,53 @@ async def test_limit_error_scope_from_child_task() -> None:
             async with anyio.create_task_group() as tg:
                 tg.start_soon(child)
             assert limit_error_scope(errors[0]) == "enclosing"
+
+
+def test_enclosing_limit_error_picks_outermost_limit() -> None:
+    with token_limit(None), message_limit(None):
+        with message_limit(100) as outer:
+            with token_limit(500) as inner:
+                outer_error = LimitExceededError(
+                    "message", value=101, limit=100, source=outer
+                )
+                inner_error = LimitExceededError(
+                    "token", value=501, limit=500, source=inner
+                )
+                # the limits are in different trees at the same depth
+                for errors in ([inner_error, outer_error], [outer_error, inner_error]):
+                    group = ExceptionGroup("", errors)
+                    assert enclosing_limit_error(group) is outer_error
+
+
+@pytest.mark.parametrize(
+    "ending",
+    [TerminateSampleError("stop"), SentinelFailure(RuntimeError("sentinel"))],
+    ids=["terminate", "sentinel"],
+)
+def test_propagating_error_ranks_by_scope(ending: Exception) -> None:
+    with token_limit(1000) as sample:
+        with token_limit(10) as agent:
+            sample_error = LimitExceededError(
+                "token", value=1001, limit=1000, source=sample
+            )
+            agent_error = LimitExceededError("token", value=11, limit=10, source=agent)
+            other = RuntimeError("other")
+            assert propagating_error(agent_error, ending) is ending
+            assert propagating_error(ExceptionGroup("", [ending, agent_error])) is (
+                ending
+            )
+            assert (
+                propagating_error(
+                    ExceptionGroup("", [agent_error, ending, sample_error])
+                )
+                is sample_error
+            )
+            assert propagating_error(agent_error, other) is agent_error
+            assert propagating_error(other) is None
+            with token_limit(5) as closed:
+                pass
+            closed_error = LimitExceededError("token", value=6, limit=5, source=closed)
+            assert propagating_error(closed_error, other) is None
 
 
 def test_get_sample_limits_when_no_sample_running() -> None:

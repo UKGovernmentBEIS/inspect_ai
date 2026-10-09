@@ -41,7 +41,7 @@ from inspect_ai.tool._tool_call import (
     ToolCallViewer,
 )
 from inspect_ai.tool._tool_def import ToolDef
-from inspect_ai.util._limit import enclosing_limit_error
+from inspect_ai.util._limit import propagating_error
 
 from .prompt import SUBAGENT_SUBMIT_PROMPT
 from .subagent import Subagent
@@ -172,12 +172,12 @@ class BackgroundRegistry:
                     task_group.cancel_scope.cancel()
         except ExceptionGroup as ex:
             # The task group wraps whatever ends it. Undo that wrapper when
-            # it holds one exception, so the caller sees what was raised. An
-            # enclosing limit, which a child and its parent can both raise,
-            # comes out bare so its owner's apply_limits() catches it.
-            limit_error = enclosing_limit_error(ex)
-            if limit_error is not None:
-                unwrapped = limit_error
+            # it holds one exception, so the caller sees what was raised. A
+            # limit or an error that ends the sample, which a child and its
+            # parent can raise together, comes out bare so its owner sees it.
+            error = propagating_error(ex)
+            if error is not None:
+                unwrapped = error
             elif len(ex.exceptions) != 1:
                 raise
             else:
@@ -799,11 +799,11 @@ async def _run_background(
         future.status = "cancelled"
         raise
     except Exception as ex:
-        # an outer limit raised from a child task, as above
-        limit_error = enclosing_limit_error(ex)
-        if limit_error is not None:
+        # an outer limit or sample-level error raised from a child task
+        error = propagating_error(ex)
+        if error is not None:
             future.status = "cancelled"
-            raise limit_error
+            raise error
         # A background subagent failure is captured on the future and
         # surfaced via agent_status / agent_wait — it must NOT propagate
         # to the task group running it (that would fail the whole sample, or
