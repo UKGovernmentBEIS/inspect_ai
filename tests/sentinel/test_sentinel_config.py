@@ -1,3 +1,4 @@
+import inspect
 import json
 import os
 import subprocess
@@ -743,3 +744,14 @@ def test_cli_sentinel(tmp_path: Path, via: str) -> None:
     log = read_eval_log(str(log_file))
     assert config_data(log) == [{"name": "cli_rule", "params": {"reason": "cli"}}]
     assert active_root(log) == "inspect_sentinel/concurrent"
+
+
+@pytest.mark.parametrize("fn", [Task.__init__, eval, eval_async, eval_set])
+def test_sentinel_is_the_last_positional_parameter(fn: Callable[..., Any]) -> None:
+    # added after the other parameters, so it must not shift their positions
+    names = [
+        p.name
+        for p in inspect.signature(fn).parameters.values()
+        if p.kind is inspect.Parameter.POSITIONAL_OR_KEYWORD
+    ]
+    assert names[-1] == "sentinel"

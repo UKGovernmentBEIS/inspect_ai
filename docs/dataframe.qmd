@@ -413,7 +413,7 @@ if len(errors) > 0:
 | Type | Description |
 |------------------------|------------------------------------------------|
 | `EvalInfo` | Descriptive information (e.g. created, tags, metadata, git commit, etc.) |
-| `EvalTask` | Task configuration (name, file, args, solver, etc.) |
+| `EvalTask` | Task configuration (name, description, file, args, solver, etc.) |
 | `EvalModel` | Model name, args, generation config, etc. |
 | `EvalDataset` | Dataset name, location, sample ids, etc. |
 | `EvalConfiguration` | Epochs, approval, sample limits, etc. |
@@ -488,6 +488,7 @@ SampleSummary: list[Column] = [
     SampleColumn("input", path=sample_input_as_str, required=True),
     SampleColumn("choices", path="choices", full=False),
     SampleColumn("target", path="target", required=True, value=list_as_str),
+    SampleColumn("description", path="description"),
     SampleColumn("metadata_*", path="metadata"),
     SampleColumn("score_*", path="scores", value=score_values),
     SampleColumn("model_usage", path="model_usage"),
@@ -504,6 +505,8 @@ SampleSummary: list[Column] = [
     SampleColumn("fallbacks", path=sample_total_fallbacks),
 ]
 ```
+
+The `description` column is the sample's `description` (`None` when the sample has none, including logs written by older versions of Inspect).
 
 The `turn_count` column is the number of turns (top-level model generations) used by the sample, and `token_limit_usage` is the metered value of the sample's token limit, respecting the limit's type (`None` when no token limit was configured). Both are `None` for logs written by older versions of Inspect.
 
