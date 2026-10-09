@@ -1,3 +1,7 @@
+<!-- Title: a Conventional Commits type and the user-facing outcome, e.g.
+"fix: eval hang when resuming with S3 logs" or "feat(anthropic): ...". Use
+"feat!:" for breaking changes. See CONTRIBUTING.md. -->
+
 ### Problem or current behavior
 <!-- What does a user encounter or need? Link the relevant issue or give a reproduction when applicable. -->
 
