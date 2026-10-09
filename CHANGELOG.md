@@ -1,7 +1,3 @@
-## Unreleased
-
-- Agent bridge: A Responses API response cut off by the output-token limit or a content filter now reports `status="incomplete"` (streamed as `response.incomplete`), so scaffolds may now retry or stop; by default, retries still get the eval's `max_tokens`.
-
 ## 0.3.277 (06 October 2026)
 
 - Fixed trace logs growing to many gigabytes when model output caching is enabled.
