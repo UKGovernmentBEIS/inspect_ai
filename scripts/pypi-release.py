@@ -516,12 +516,22 @@ def archive_member_digests(path: Path) -> Dict[str, str]:
     sdist member paths drop the top-level `<name>-<version>/` directory and
     have PARITY_NORMALIZERS applied. Directories and links are recorded by
     type so the member lists still compare.
+
+    Raises:
+        RuntimeError: If two members share a path, since one digest per path
+            would hide the other entry from the comparison.
     """
     digests: Dict[str, str] = {}
+
+    def add(name: str, digest: str) -> None:
+        if name in digests:
+            raise RuntimeError(f"{path.name} has duplicate member {name!r}")
+        digests[name] = digest
+
     if path.name.endswith(".whl"):
         with zipfile.ZipFile(path) as wheel:
-            for name in wheel.namelist():
-                digests[name] = hashlib.sha256(wheel.read(name)).hexdigest()
+            for info in wheel.infolist():
+                add(info.filename, hashlib.sha256(wheel.read(info)).hexdigest())
         return digests
 
     with tarfile.open(path) as sdist:
@@ -534,11 +544,11 @@ def archive_member_digests(path: Path) -> Dict[str, str]:
                 normalize = PARITY_NORMALIZERS.get(name)
                 if normalize:
                     content = normalize(content)
-                digests[name] = hashlib.sha256(content).hexdigest()
+                add(name, hashlib.sha256(content).hexdigest())
             elif member.isdir():
-                digests[name] = "<dir>"
+                add(name, "<dir>")
             else:
-                digests[name] = f"<link {member.linkname}>"
+                add(name, f"<link {member.linkname}>")
     return digests
 
 

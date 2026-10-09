@@ -717,3 +717,40 @@ def test_pypi_release_script_runs_on_bare_python_310(command: str) -> None:
         text=True,
     )
     assert result.returncode == 0, result.stderr
+
+
+def test_pypi_verify_parity_rejects_duplicate_wheel_members(
+    pypi_release: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    dist = _publish(tmp_path, monkeypatch, pypi_release)
+    members = _wheel_members()
+    with zipfile.ZipFile(dist / _WHEEL, "w") as wheel:
+        # an earlier entry with the same name is shadowed by the later one
+        wheel.writestr("inspect_ai/_util/config.yml", b"extra different entry")
+        with pytest.warns(UserWarning, match="Duplicate name"):
+            for name, content in members.items():
+                wheel.writestr(name, content)
+    _write_sdist(dist / _SDIST, _SDIST_MEMBERS)
+
+    with pytest.raises(
+        RuntimeError, match="duplicate member 'inspect_ai/_util/config.yml'"
+    ):
+        pypi_release.verify_parity(dist, "0.3.277")
+
+
+def test_pypi_verify_parity_rejects_duplicate_sdist_members(
+    pypi_release: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    dist = _publish(tmp_path, monkeypatch, pypi_release)
+    _write_wheel(dist / _WHEEL, _wheel_members())
+    with tarfile.open(dist / _SDIST, "w:gz") as sdist:
+        for name, content in [
+            ("PKG-INFO", b"extra different entry"),
+            *_SDIST_MEMBERS.items(),
+        ]:
+            info = tarfile.TarInfo(f"inspect_ai-0.3.277/{name}")
+            info.size = len(content)
+            sdist.addfile(info, io.BytesIO(content))
+
+    with pytest.raises(RuntimeError, match="duplicate member 'PKG-INFO'"):
+        pypi_release.verify_parity(dist, "0.3.277")
