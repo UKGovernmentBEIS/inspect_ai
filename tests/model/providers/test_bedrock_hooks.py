@@ -21,10 +21,6 @@ from inspect_ai.model._providers.util.hooks import (  # noqa: E402
     ConverseHooks,
     HttpHooks,
 )
-from inspect_ai.model._response_headers import (  # noqa: E402
-    ResponseHeaders,
-    track_response_headers,
-)
 
 
 def _make_hooks() -> ConverseHooks:
@@ -435,6 +431,11 @@ async def test_restarted_request_is_not_counted_as_a_retry() -> None:
 
 def test_response_received_keeps_the_response_headers() -> None:
     """Each attempt's headers reach the model call in progress, the latest replacing the last."""
+    from inspect_ai.model._response_headers import (
+        ResponseHeaders,
+        track_response_headers,
+    )
+
     hooks = _make_hooks()
     request_id = hooks._start_request()
     request = _make_aws_request(f"ins/rid#{request_id}")
