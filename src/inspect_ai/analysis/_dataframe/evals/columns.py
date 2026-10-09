@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Any, Callable, Mapping, Type
+from typing import Any, Callable, Mapping, Type, cast
 
 from jsonpath_ng import JSONPath  # type: ignore
 from pydantic import JsonValue
@@ -7,7 +7,7 @@ from typing_extensions import override
 
 from inspect_ai.log._log import EvalLog
 
-from ..columns import Column, ColumnType
+from ..columns import Column, ColumnType, JsonLike
 from ..extract import list_as_str, remove_namespace
 from ..validate import resolved_schema
 from .extract import (
@@ -29,7 +29,7 @@ class EvalColumn(Column):
         self,
         name: str,
         *,
-        path: str | JSONPath | Callable[[EvalLog], JsonValue],
+        path: str | JSONPath | Callable[[EvalLog], JsonLike],
         required: bool = False,
         default: JsonValue | None = None,
         type: Type[ColumnType] | None = None,
@@ -43,7 +43,9 @@ class EvalColumn(Column):
             type=type,
             value=value,
         )
-        self._extract_eval = path if callable(path) else None
+        self._extract_eval = (
+            cast(Callable[[EvalLog], JsonValue], path) if callable(path) else None
+        )
 
     @override
     def path_schema(self) -> Mapping[str, Any]:
@@ -79,6 +81,7 @@ EvalInfo: list[Column] = [
 EvalTask: list[Column] = [
     EvalColumn("task_name", path="eval.task", required=True, value=remove_namespace),
     EvalColumn("task_display_name", path=eval_log_task_display_name),
+    EvalColumn("task_description", path="eval.task_description"),
     EvalColumn("task_version", path="eval.task_version", required=True),
     EvalColumn("task_file", path="eval.task_file"),
     EvalColumn("task_attribs", path="eval.task_attribs"),
@@ -113,6 +116,7 @@ EvalConfiguration: list[Column] = [
     EvalColumn("epochs_reducer", path="eval.config.epochs_reducer"),
     EvalColumn("approval", path="eval.config.approval"),
     EvalColumn("review", path="eval.config.review"),
+    EvalColumn("sentinel", path="eval.config.sentinel"),
     EvalColumn("message_limit", path="eval.config.message_limit"),
     EvalColumn("token_limit", path="eval.config.token_limit"),
     EvalColumn("token_limit_type", path="eval.config.token_limit_type"),

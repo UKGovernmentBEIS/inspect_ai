@@ -389,6 +389,13 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         help="Config file for tool result review.",
     )
     @click.option(
+        "--sentinel",
+        type=str,
+        envvar="INSPECT_EVAL_SENTINEL",
+        hidden=True,
+        help="Config file or registered protocol name of the monitors and protocols that watch the agent's steps (requires inspect_sentinel).",
+    )
+    @click.option(
         "--notification",
         "notification",
         is_flag=False,
@@ -1141,6 +1148,7 @@ def _eval_command_impl(
     trace: bool | None,
     approval: str | None,
     review: str | None,
+    sentinel: str | None,
     notification: bool | str | None,
     sandbox: str | None,
     no_sandbox_cleanup: bool | None,
@@ -1278,6 +1286,7 @@ def _eval_command_impl(
         trace=trace,
         approval=approval,
         review=review,
+        sentinel=sentinel,
         notification=notification,
         sandbox=sandbox,
         no_sandbox_cleanup=no_sandbox_cleanup,
@@ -1438,6 +1447,7 @@ def eval_set_command(
     trace: bool | None,
     approval: str | None,
     review: str | None,
+    sentinel: str | None,
     notification: bool | str | None,
     model: str | None,
     model_base_url: str | None,
@@ -1621,6 +1631,7 @@ def eval_set_command(
             trace=trace,
             approval=approval,
             review=review,
+            sentinel=sentinel,
             notification=notification,
             sandbox=sandbox,
             no_sandbox_cleanup=no_sandbox_cleanup,
@@ -1782,6 +1793,18 @@ class RunConfigInput(BaseModel):
         epochs_reducer = ec.pop("epochs_reducer", None)
         if epochs is not None:
             ec["epochs"] = Epochs(epochs, create_reducers(epochs_reducer))
+        # token_limit_type is stored beside token_limit on EvalConfig, but
+        # eval() takes a single token_limit (int or TokenLimit). Leaving the
+        # type in the flattened kwargs makes GenerateConfig reject it.
+        token_limit = ec.pop("token_limit", None)
+        token_limit_type = ec.pop("token_limit_type", None)
+        if token_limit is not None:
+            if token_limit_type not in (None, "all"):
+                ec["token_limit"] = TokenLimit(
+                    tokens=token_limit, type=token_limit_type
+                )
+            else:
+                ec["token_limit"] = token_limit
         params.update(ec)
 
         # Tags and metadata
@@ -1946,6 +1969,7 @@ def eval_exec(
     trace: bool | None,
     approval: str | None,
     review: str | None,
+    sentinel: str | None,
     notification: bool | str | None,
     sandbox: str | None,
     no_sandbox_cleanup: bool | None,
@@ -2129,6 +2153,7 @@ def eval_exec(
             trace=trace,
             approval=approval,
             review=review,
+            sentinel=sentinel,
             notification=notification,
             sandbox=parse_sandbox(sandbox),
             sandbox_cleanup=sandbox_cleanup,

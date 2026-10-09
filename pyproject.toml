@@ -44,7 +44,6 @@ inspect_ai = [
     "**/*.yml",
     "_view/dist/**/*",
     "**/*.jsonl",
-    "_view/log-schema.json",
     "py.typed",
 ]
 

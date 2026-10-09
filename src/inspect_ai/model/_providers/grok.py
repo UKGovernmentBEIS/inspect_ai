@@ -242,6 +242,7 @@ class GrokAPI(ModelAPI):
         # initialize batcher
         self._batcher: GrokBatcher | None = None
         self._batch_client: AsyncClient | None = None
+        self._batch_api_key: str | None = None
 
         # create client
         self.initialize()
@@ -313,6 +314,17 @@ class GrokAPI(ModelAPI):
                 text=text, model=self.service_model_name()
             )
             return len(tokens)
+
+    @override
+    async def refresh_credentials(self) -> None:
+        # Other requests build a client per call. The batcher shares one
+        # client that its in-flight batch operations are using, so it gets a
+        # new client rather than having this one closed under it.
+        self.initialize()
+        if self._batcher and self.api_key != self._batch_api_key:
+            self._batch_client = self.model_client()
+            self._batch_api_key = self.api_key
+            await self._batcher.replace_client(self._batch_client)
 
     @override
     async def aclose(self) -> None:
@@ -453,6 +465,7 @@ class GrokAPI(ModelAPI):
 
         if not self._batch_client:
             self._batch_client = self.model_client()
+            self._batch_api_key = self.api_key
 
         self._batcher = GrokBatcher(
             self._batch_client,
@@ -673,6 +686,7 @@ class GrokAPI(ModelAPI):
             choices=[self._completion_choice_from_response(response, tools)],
             completion=response.content,
             usage=_model_usage_from_sampling_usage(response.usage),
+            response_id=response.id or None,
         )
 
     def _completion_choice_from_response(

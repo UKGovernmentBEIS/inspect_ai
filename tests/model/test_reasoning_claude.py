@@ -7,7 +7,6 @@ from inspect_ai.dataset import Sample
 from inspect_ai.model import get_model
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.tool._tool import tool
-from inspect_ai.tool._tool_choice import ToolFunction
 
 from .test_reasoning_content import check_reasoning_content
 
@@ -108,6 +107,22 @@ async def test_reasoning_claude_sonnet_5_5():
 
 @pytest.mark.anyio
 @skip_if_no_anthropic
+async def test_reasoning_claude_haiku_5_5():
+    # same shape as the Opus 5.5 test above
+    model = get_model("anthropic/claude-haiku-5-5")
+    output = await model.generate(
+        "Solve 3*x^3-5*x=1",
+        config=GenerateConfig(reasoning_effort="high", max_tokens=8192),
+    )
+    assert "<think>" not in output.completion
+    content = output.choices[0].message.content
+    assert isinstance(content, list)
+    assert isinstance(content[0], ContentReasoning)
+    assert content[0].reasoning.strip()
+
+
+@pytest.mark.anyio
+@skip_if_no_anthropic
 async def test_reasoning_claude_fable_5_1():
     # Fable 5.1 (like Fable 5) always thinks and rejects an explicit
     # reasoning_tokens budget, so drive thinking via reasoning_effort only. It
@@ -148,11 +163,11 @@ async def test_reasoning_claude_ignore_unsupported():
 
         return execute
 
+    # no forced tool choice: under adaptive thinking a forced turn has no reasoning
     await check_reasoning_content(
         "anthropic/claude-sonnet-4-6",
         config=GenerateConfig(temperature=0.9, top_p=3, top_k=3),
         tools=[addition()],
-        tool_choice=ToolFunction("addition"),
     )
 
 

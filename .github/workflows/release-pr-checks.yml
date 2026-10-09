@@ -1,0 +1,82 @@
+name: Release PR checks
+
+# Checks the Release Please release PR (head branch
+# release-please--branches--main) before it is merged:
+#   - CHANGELOG.md has the dated section for the manifest version, and the
+#     version is newer than PyPI's latest and not yet tagged;
+#   - every sandbox-tools artifact pinned in SHA256SUMS is published on S3
+#     with its pinned digest;
+#   - the release PR head builds, and passes the pre-build sandbox tools gate
+#     and the post-build wheel gate (the shared build-dist action);
+#   - the publish-parity rebuild of PyPI's latest version still matches PyPI.
+#
+# Release Please pushes the release PR with GITHUB_TOKEN, which does not
+# trigger pull_request workflows, so release.yml dispatches this workflow
+# (and build.yml) on the release branch after each update. The pull_request
+# trigger covers pushes by people to that branch. On other PRs the jobs skip.
+on:
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Distinct from publish-parity.yml's group: a called workflow sees this
+# workflow's name in github.workflow, and equal groups would deadlock.
+concurrency:
+  group: release-pr-checks-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    name: Changelog, sandbox tools and build gate
+    if: github.event_name == 'workflow_dispatch' || github.head_ref == 'release-please--branches--main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      # Same checkout settings as publish.yml's build job.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          filter: "blob:none"
+          submodules: true
+          persist-credentials: false
+
+      - name: Check version and changelog
+        run: |
+          fail() { echo "::error::$1"; exit 1; }
+          VERSION=$(jq -r '."."' .release-please-manifest.json)
+          [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] ||
+            fail "Manifest version '$VERSION' is not a release version (X.Y.Z)"
+          if git rev-parse -q --verify "refs/tags/$VERSION" >/dev/null; then
+            fail "Tag $VERSION already exists"
+          fi
+          LATEST=$(curl -fsSL https://pypi.org/pypi/inspect-ai/json | jq -r .info.version)
+          NEWEST=$(printf '%s\n%s\n' "$LATEST" "$VERSION" | sort -V | tail -n1)
+          if [ "$LATEST" = "$VERSION" ] || [ "$NEWEST" != "$VERSION" ]; then
+            fail "Manifest version $VERSION is not newer than PyPI's latest ($LATEST)"
+          fi
+          python3 .github/scripts/release_changelog.py check "$VERSION"
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+
+      - name: Check sandbox tools are published
+        run: python3 scripts/pypi-release.py verify-sandbox-tools-published
+
+      # Untagged until the merge, so the build takes the manifest version.
+      - name: Build at the manifest version
+        run: echo "SETUPTOOLS_SCM_PRETEND_VERSION=$VERSION" >> "$GITHUB_ENV"
+
+      - uses: ./.github/actions/build-dist
+        with:
+          version: ${{ env.VERSION }}
+
+  parity:
+    name: Publish parity
+    if: github.event_name == 'workflow_dispatch' || github.head_ref == 'release-please--branches--main'
+    permissions:
+      contents: read
+    uses: ./.github/workflows/publish-parity.yml

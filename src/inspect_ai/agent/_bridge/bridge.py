@@ -17,6 +17,7 @@ from typing import (
 from pydantic import BaseModel, Field, ValidationError
 from pydantic_core import to_json
 
+from inspect_ai._sentinel._context import warn_sentinel_bridged
 from inspect_ai._util._async import is_callable_coroutine
 from inspect_ai.agent._agent import Agent, AgentState, agent
 from inspect_ai.agent._bridge.types import AgentBridge
@@ -118,6 +119,10 @@ async def agent_bridge(
     to redirect any model named "inspect" (or prefaced with
     "inspect/" for non-default models) into the Inspect model API.
 
+    The eval's configuration, not the agent's request, governs `service_tier`,
+    `store`, `truncation` and the options of provider tools the agent declares;
+    requests with `previous_response_id` are refused.
+
     See the [Agent Bridge](https://inspect.aisi.org.uk/agent-bridge.html)
     documentation for additional details.
 
@@ -164,6 +169,7 @@ async def agent_bridge(
     """
     # ensure one time init
     init_bridge_request_patch()
+    warn_sentinel_bridged()
 
     # resolve granted capabilities (in-process bridges grant by default: the
     # scaffold already shares the host's network, so withholding buys nothing)
@@ -187,6 +193,7 @@ async def agent_bridge(
         approval=approval,
         allow_remote_mcp=allow_remote_mcp,
         allow_remote_media=True,
+        allow_client_model_names=True,
     )
 
     # set the patch config for this context and child coroutines
@@ -561,6 +568,7 @@ def init_google_request_patch() -> None:
                     config.web_search,
                     config.code_execution,
                     config.bridge,
+                    requested_model=_google_api_requested_model(path),
                 )
                 import json
 
@@ -608,6 +616,16 @@ def init_google_request_patch() -> None:
 def _google_api_model_name(path: str) -> str | None:
     """Extract model name from Google API path like 'models/inspect:generateContent'."""
     match = re.search(r"models/([^/:]+)", path)
+    return match.group(1) if match else None
+
+
+def _google_api_requested_model(path: str) -> str | None:
+    """Extract the whole model name from a Google API generateContent path.
+
+    Anchored on the operation rather than the first colon, since a model name
+    may contain colons (e.g. 'models/inspect/ollama/llama3:8b:generateContent').
+    """
+    match = re.search(r"models/(.+):generateContent(?:\?.*)?$", path)
     return match.group(1) if match else None
 
 

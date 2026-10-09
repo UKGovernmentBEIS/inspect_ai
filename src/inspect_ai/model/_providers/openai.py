@@ -35,7 +35,7 @@ from .._chat_message import ChatMessage
 from .._generate_config import GenerateConfig
 from .._model import ModelAPI, RetryDecision
 from .._model_call import ModelCall
-from .._model_output import ModelOutput, ModelUsage
+from .._model_output import ModelOutput, ModelUsage, ServedModelUsage
 from .._openai import (
     always_reasons_model,
     is_gpt_5_model,
@@ -355,6 +355,19 @@ class OpenAIAPI(ModelAPI):
         self._completions_batcher: OpenAIBatcher[ChatCompletion] | None = None
         self._responses_batcher: OpenAIBatcher[Response] | None = None
         self._http_hooks = HttpxHooks(self.client._client, api=self)
+
+    @override
+    async def refresh_credentials(self) -> None:
+        # In-flight requests and SDK retries share this client; closing it
+        # during credential refresh would also fail other samples. Bedrock
+        # fixes its auth when the client is built, so it keeps the default
+        # rebuild. Token providers run per request and need no update.
+        if self.is_bedrock():
+            await super().refresh_credentials()
+            return
+        super().initialize()
+        if self.api_key:
+            self.client.api_key = self.api_key
 
     @override
     async def count_text_tokens(self, text: str) -> int:
@@ -687,6 +700,19 @@ class OpenAIAPI(ModelAPI):
         return f"openai/{self.service_model_name()}"
 
     @override
+    def served_model_usage(self, output: ModelOutput) -> list[ServedModelUsage] | None:
+        # an Azure model name is a deployment name, which need not name the
+        # model the deployment serves
+        if (
+            self.is_azure()
+            and output.usage is not None
+            and output.model
+            and output.model != self.service_model_name()
+        ):
+            return [ServedModelUsage(f"openai/{output.model}", output.usage)]
+        return None
+
+    @override
     def input_tokens_name(self) -> str:
         """Model name used for looking up model input tokens (context window)."""
         # codename/predeployment models alias to the current frontier so the
@@ -723,14 +749,6 @@ class OpenAIAPI(ModelAPI):
         when models actually share an upstream rate-limit budget.
         """
         return f"{self.initial_api_key}:{self.model_name}"
-
-    @override
-    def apply_redacted_reasoning_tokens_to_input(self) -> bool:
-        # Responses API with store=false + include=encrypted_content re-injects
-        # encrypted reasoning blocks on every turn but excludes them from
-        # usage.input_tokens. Compaction's threshold check needs the count
-        # added back. Chat Completions is unaffected.
-        return self.responses_api
 
     async def reasoning_summaries(self) -> bool:
         # validate that reasoning summaries are supported for this account

@@ -196,6 +196,7 @@ class TaskLogger:
         task_file: str | None,
         task_registry_name: str | None,
         task_display_name: str | None,
+        task_description: str | None,
         task_id: str | None,
         eval_set_id: str | None,
         run_id: str,
@@ -288,6 +289,7 @@ class TaskLogger:
             task_file=task_file,
             task_registry_name=task_registry_name,
             task_display_name=task_display_name,
+            task_description=task_description,
             task_attribs=task_attribs,
             task_args=task_args,
             task_args_passed=task_args_passed,
@@ -529,6 +531,8 @@ class TaskLogger:
         self,
         prior: "str | list[EvalSample]",
         keep: set[tuple[str | int, int]] | None,
+        *,
+        prior_epochs: int | None = None,
     ) -> None:
         """Seed this retry attempt's log with the prior attempt's sample records.
 
@@ -539,7 +543,10 @@ class TaskLogger:
         re-logs samples otherwise (see ``Recorder.log_seed``). Restricted to
         the planned ``keep`` keys. With no upfront plan, sample ID and epoch
         filters still restrict the seed, including samples produced later by
-        a dynamic feed. A limited dynamic feed supplies its initial plan and
+        a dynamic feed. Epochs above the attempt's epoch count are dropped,
+        except those above the prior's own count (``prior_epochs``, when
+        given), which only an explicit ``enqueue_sample(..., epoch=)`` can
+        have produced. A limited dynamic feed supplies its initial plan and
         calls :meth:`seed_added_samples` as it admits further samples.
 
         Afterwards the log holds every prior record in the upfront selection,
@@ -564,7 +571,8 @@ class TaskLogger:
         try:
             if keep is None:
                 # a dynamic feed has no upfront plan: seed every prior record
-                # within the explicit sample-id filter and the epoch count
+                # within the explicit sample-id filter and the epoch count,
+                # plus explicit epochs above the prior's own count
                 from .util import sample_id_filter
 
                 source = await self.recorder.seed_source(self.eval, prior)
@@ -573,11 +581,18 @@ class TaskLogger:
                     if self.eval.config.sample_id is not None
                     else None
                 )
+                epochs = self.eval.config.epochs or 1
+                explicit_above = (
+                    max(epochs, prior_epochs) if prior_epochs is not None else None
+                )
                 keep = {
                     (id, epoch)
                     for id, epoch in source.keys
                     if (matcher is None or matcher.matches(id))
-                    and epoch <= (self.eval.config.epochs or 1)
+                    and (
+                        epoch <= epochs
+                        or (explicit_above is not None and epoch > explicit_above)
+                    )
                 }
             await self.recorder.log_seed(self.eval, prior, keep)
         except FileNotFoundError:
@@ -771,7 +786,7 @@ class TaskLogger:
 
             if threshold_reached:
                 await self._stop_stale_flush_timer()
-                await self._flush_pending_samples()
+                await self._flush_pending_samples(require_threshold=True)
             elif was_empty:
                 await self._start_stale_flush_timer_if_needed()
 
@@ -794,7 +809,10 @@ class TaskLogger:
             self._samples_completed += 1
 
     async def _flush_pending_samples(
-        self, *, stale_flush_generation: int | None = None
+        self,
+        *,
+        stale_flush_generation: int | None = None,
+        require_threshold: bool = False,
     ) -> int:
         """Flush buffered completed samples to the log; return the count written.
 
@@ -803,6 +821,12 @@ class TaskLogger:
         Serialized via :attr:`_flush_lock`; a no-op returning 0 once the eval
         has finished or been discarded (the recorder has been torn down,
         so reaching into it would raise) or when nothing is pending.
+
+        ``require_threshold`` (the buffer-full flush) re-checks the threshold
+        once the lock is held. A caller queued behind a flush that drained the
+        batch it saw may find fewer than ``flush_buffer`` samples pending; it
+        then arms the stale-flush timer for them rather than writing the whole
+        log again for a small remainder.
         """
         reschedule_stale_flush = False
         flushed = 0
@@ -813,21 +837,25 @@ class TaskLogger:
                 pending = list(self.flush_pending)
                 if not pending:
                     return 0
+                below_threshold = require_threshold and len(pending) < self.flush_buffer
 
-            await self.recorder.flush(self.eval)
-            flushed = len(pending)
+            if below_threshold:
+                reschedule_stale_flush = True
+            else:
+                await self.recorder.flush(self.eval)
+                flushed = len(pending)
 
-            async with self._flush_pending_lock:
-                if self._buffer_db is not None:
-                    self._buffer_db.remove_samples(pending)
+                async with self._flush_pending_lock:
+                    if self._buffer_db is not None:
+                        self._buffer_db.remove_samples(pending)
 
-                # Items appended during the flush are at the tail; drop the flushed prefix.
-                del self.flush_pending[: len(pending)]
-                current_generation = self._stale_flush_generation
-                reschedule_stale_flush = bool(self.flush_pending) and (
-                    stale_flush_generation is None
-                    or stale_flush_generation == current_generation
-                )
+                    # Items appended during the flush are at the tail; drop the flushed prefix.
+                    del self.flush_pending[: len(pending)]
+                    current_generation = self._stale_flush_generation
+                    reschedule_stale_flush = bool(self.flush_pending) and (
+                        stale_flush_generation is None
+                        or stale_flush_generation == current_generation
+                    )
 
         if reschedule_stale_flush:
             await self._arm_stale_flush_timer(generation=stale_flush_generation)

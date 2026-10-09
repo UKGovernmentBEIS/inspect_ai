@@ -142,8 +142,8 @@ async def read_eval_set_info_async(
     Returns None when the manifest is absent, or (matching `read_eval_set_info`)
     when the check/read fails with an Azure auth error.
     """
-    sep = filesystem(eval_set_dir).sep
-    manifest = f"{eval_set_dir.rstrip('/').rstrip(sep)}{sep}eval-set.json"
+    fs = filesystem(eval_set_dir)
+    manifest = f"{fs.dir_location(eval_set_dir)}{fs.sep}eval-set.json"
     try:
         if not await afs.exists(manifest):
             return None

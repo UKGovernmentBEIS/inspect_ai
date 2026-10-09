@@ -4,6 +4,7 @@ import logging
 import os
 import threading
 from collections.abc import Callable, Iterator
+from collections.abc import Set as AbstractSet
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Literal, NamedTuple, Set, TypeVar, cast
 
@@ -53,6 +54,7 @@ from inspect_ai._eval.task.scan import (
     serialized_scan,
     verify_selection_scan_dir,
 )
+from inspect_ai._sentinel._config import SentinelSpec, resolve_sentinel_spec
 from inspect_ai._util._async import run_coroutine
 from inspect_ai._util.azure import call_with_azure_auth_fallback
 from inspect_ai._util.dotenv import init_dotenv
@@ -79,6 +81,8 @@ from inspect_ai.log._file import (
     write_log_listing,
 )
 from inspect_ai.log._log import EvalConfig
+from inspect_ai.log._recorders.buffer.buffer import cleanup_sample_buffers_for_log
+from inspect_ai.log._recorders.buffer.database import sample_buffer_shutdown_pending
 from inspect_ai.model import (
     GenerateConfigArgs,
     Model,
@@ -177,6 +181,12 @@ def _applied(value: _T, override: "_T | None") -> _T:
     `None` on an override field means *keep what the definition chose*, which is what makes an omitted field and an absent document mean the same thing. Written as a function so that thirty-odd applications read as a list of names rather than as thirty-odd conditionals, and so that a mistyped pairing is a type error.
     """
     return value if override is None else override
+
+
+def _validate_sentinel(sentinel: SentinelSpec | None) -> None:
+    # after task resolution, so names registered by task files resolve
+    if sentinel is not None:
+        resolve_sentinel_spec(sentinel)
 
 
 def _overridden_selection(
@@ -294,6 +304,7 @@ def eval_set(
     log_dir_allow_dirty: bool | None = None,
     eval_set_id: str | None = None,
     embed_viewer: bool = False,
+    sentinel: SentinelSpec | None = None,
     **kwargs: Unpack[GenerateConfigArgs],
 ) -> tuple[bool, list[EvalLog]]:
     r"""Evaluate a set of tasks.
@@ -457,6 +468,9 @@ def eval_set(
             for tasks in this eval set (defaults to False).
         eval_set_id: ID for the eval set. If not specified, a unique ID will be generated.
         embed_viewer: If True, embed a log viewer into the log directory.
+        sentinel: Monitors and protocols that watch the agent's steps (requires the `inspect_sentinel` package). Experimental: not yet a stable API; may change without notice.
+            A protocol, a list or mapping of monitors and protocols with at least one protocol, a config file path or registered protocol name, or a parsed configuration. Monitors alone are an error: wrap them in `observe_only()` to record without acting.
+            Overrides the task's sentinel. Defaults to no sentinel.
         **kwargs: Model generation options.
 
     Returns:
@@ -517,6 +531,11 @@ def eval_set(
         request_keep_alive()
 
     # helper function to run a set of evals
+    # run ids of every eval() this call has made. A `started` log carrying one
+    # of them is an attempt this process ran and knows has ended, which is what
+    # lets the retry-cleanup sweep remove it (see latest_completed_task_eval_logs)
+    run_ids: set[str] = set()
+
     def run_eval(
         eval_set_id: str,
         tasks: list[ResolvedTask]
@@ -546,6 +565,7 @@ def eval_set(
             display=display,
             approval=approval,
             review=review,
+            sentinel=sentinel,
             notification=notification,
             log_level=log_level,
             log_level_transcript=log_level_transcript,
@@ -603,6 +623,7 @@ def eval_set(
             ctl_server=ctl.enabled,
             **kwargs,
         )
+        run_ids.update(log.eval.run_id for log in results)
 
         # check for cancelled
         if evals_cancelled(results):
@@ -716,6 +737,7 @@ def eval_set(
         checkpoint = _applied(checkpoint, overrides.checkpoint)
         approval = _applied(approval, overrides.approval)
         review = _applied(review, overrides.review)
+        sentinel = _applied(sentinel, overrides.sentinel)
         retry_on_error = _applied(retry_on_error, overrides.retry_on_error)
         score_on_error = _applied(score_on_error, overrides.score_on_error)
         debug_errors = _applied(debug_errors, overrides.debug_errors)
@@ -754,7 +776,6 @@ def eval_set(
         log_refusals=log_refusals,
         **kwargs,
     )
-
     # capture mode: resolve tasks, write the manifest, and exit the process
     # without running anything. deliberately placed before any log_dir side
     # effects (mkdir, .eval-set-id, eval-set.json) and before eval-set hooks.
@@ -782,6 +803,7 @@ def eval_set(
             raise PrerequisiteError(
                 "Error: No inspect tasks were found at the specified paths."
             )
+        _validate_sentinel(sentinel)
         # the definition's scanner configuration, serialized so a runner can
         # own the scan directory's lifecycle without executing the definition
         # (workers scan record-only in selection mode).
@@ -873,6 +895,7 @@ def eval_set(
                 raise PrerequisiteError(
                     "Error: No inspect tasks were found at the specified paths."
                 )
+            _validate_sentinel(sentinel)
             return resolved
 
         selection_args = EvalSetArgsInTaskIdentifier(
@@ -1038,6 +1061,7 @@ def eval_set(
             raise PrerequisiteError(
                 "Error: No inspect tasks were found at the specified paths."
             )
+        _validate_sentinel(sentinel)
 
         # list all logs currently in the log directory (update manifest if there are some)
         all_logs = list_all_eval_logs(log_dir)
@@ -1103,6 +1127,7 @@ def eval_set(
                 cleanup_older=retry_cleanup,
                 incomplete_action=incomplete_action,
                 incomplete_max=incomplete_max,
+                owned_run_ids=run_ids,
             )
             if not failed_logs:
                 failed_tasks = []
@@ -1188,7 +1213,7 @@ def eval_set(
             # final sweep to remove failed log files
             if retry_cleanup:
                 task_ids = {result.eval.task_id for result in results}
-                cleanup_older_eval_logs(log_dir, task_ids)
+                cleanup_older_eval_logs(log_dir, task_ids, run_ids)
 
         # if specified, bundle the output directory
         if bundle_dir:
@@ -1779,9 +1804,10 @@ def list_latest_eval_logs(
     cleanup_older: bool,
     incomplete_action: IncompleteAction = "retry",
     incomplete_max: int | float | None = None,
+    owned_run_ids: AbstractSet[str] = frozenset(),
 ) -> tuple[list[Log], list[Log]]:
     latest_logs = latest_completed_task_eval_logs(
-        logs=logs, cleanup_older=cleanup_older
+        logs=logs, cleanup_older=cleanup_older, owned_run_ids=owned_run_ids
     )
 
     # a resolving disposition recovers crashed logs *before* the completeness
@@ -1927,18 +1953,48 @@ def epochs_changed(epochs: Epochs | None, config: EvalConfig) -> bool:
 
 
 # cleanup logs that aren't the latest
-def cleanup_older_eval_logs(log_dir: str, task_ids: set[str]) -> None:
+def cleanup_older_eval_logs(
+    log_dir: str, task_ids: set[str], owned_run_ids: AbstractSet[str] = frozenset()
+) -> None:
     logs = [
         log
         for log in list_all_eval_logs(log_dir)
         if log.header.eval.task_id in task_ids
     ]
-    latest_completed_task_eval_logs(logs=logs, cleanup_older=True)
+    latest_completed_task_eval_logs(
+        logs=logs, cleanup_older=True, owned_run_ids=owned_run_ids
+    )
 
 
 def latest_completed_task_eval_logs(
-    logs: list[Log], cleanup_older: bool = False
+    logs: list[Log],
+    cleanup_older: bool = False,
+    owned_run_ids: AbstractSet[str] = frozenset(),
 ) -> list[Log]:
+    """Select each task's newest log, optionally removing the older ones.
+
+    Every attempt's log is seeded from the task's prior log, so an older log
+    holds nothing the newest lacks; with ``cleanup_older`` the older logs are
+    removed. That includes a `started` log an interrupted attempt left
+    behind, together with the sample buffer it never cleaned up, but only
+    when the attempt is one this process ran and so knows has ended: its
+    ``eval.run_id`` is in ``owned_run_ids``. Nothing on disk can show that
+    another process has stopped writing a `started` log (its buffer database
+    may live in another data directory or pid namespace, and a recovered
+    snapshot carries the crashed log's run id), so `started` logs from other
+    runs stay. So does an owned `started` log whose sample buffer has not
+    finished shutting down (its sync worker outlived the close timeout, or a
+    sample reader still holds it): the buffer's files are still in use.
+
+    Args:
+        logs: Logs of the tasks to select from.
+        cleanup_older: Remove every log that is not its task's newest.
+        owned_run_ids: Run ids of the ``eval()`` calls the current process
+            has made; a `started` log from any other run is never removed.
+
+    Returns:
+        The newest log for each task.
+    """
     # collect logs by id
     logs_by_id: dict[str, list[Log]] = {}
     for log in logs:
@@ -1963,16 +2019,28 @@ def latest_completed_task_eval_logs(
         latest_completed_logs.append(id_logs[0])
 
         # remove the rest if requested
-        # (don't remove 'started' in case its needed for post-mortum debugging)
         if cleanup_older:
             fs = filesystem(id_logs[0][0].name)
             for id_log in id_logs[1:]:
                 try:
-                    if id_log.header.status != "started":
-                        fs.rm(id_log.info.name)
-                        # the attempt's EvalState may have memoized this log's
-                        # sample summaries; the memo must not outlive the file
-                        invalidate_log_sample_summaries(id_log.header.eval.eval_id)
+                    if id_log.header.status == "started":
+                        if id_log.header.eval.run_id not in owned_run_ids:
+                            logger.info(
+                                f"Not removing '{id_log.info.name}': another "
+                                "run wrote it and may still be writing it"
+                            )
+                            continue
+                        if sample_buffer_shutdown_pending(id_log.info.name):
+                            logger.info(
+                                f"Not removing '{id_log.info.name}': its sample "
+                                "buffer has not finished shutting down"
+                            )
+                            continue
+                        cleanup_sample_buffers_for_log(id_log.info.name)
+                    fs.rm(id_log.info.name)
+                    # the attempt's EvalState may have memoized this log's
+                    # sample summaries; the memo must not outlive the file
+                    invalidate_log_sample_summaries(id_log.header.eval.eval_id)
                 except Exception as ex:
                     logger.warning(f"Error attempt to remove '{id_log[0].name}': {ex}")
 
@@ -2352,7 +2420,7 @@ def write_eval_set_info(
 ) -> None:
     # resolve log dir to full path
     fs = filesystem(log_dir)
-    log_dir = _resolve_log_dir(fs, log_dir)
+    log_dir = fs.dir_location(log_dir)
 
     # get info
     eval_set_info = to_eval_set(eval_set_id, tasks, all_logs, eval_set_args)
@@ -2367,7 +2435,7 @@ def write_eval_set_info(
 def read_eval_set_info(log_dir: str, fs_options: dict[str, Any] = {}) -> EvalSet | None:
     # resolve log dir to full path
     fs = filesystem(log_dir)
-    log_dir = _resolve_log_dir(fs, log_dir)
+    log_dir = fs.dir_location(log_dir)
 
     # form target path and read
     manifest = f"{log_dir}{fs.sep}eval-set.json"
@@ -2382,12 +2450,6 @@ def read_eval_set_info(log_dir: str, fs_options: dict[str, Any] = {}) -> EvalSet
 
     # parse and return
     return EvalSet.model_validate_json(eval_set_json)
-
-
-def _resolve_log_dir(fs: FileSystem, log_dir: str) -> str:
-    return call_with_azure_auth_fallback(
-        lambda: fs.info(log_dir).name, fallback_return_value=log_dir
-    )
 
 
 def _read_manifest_bytes(manifest: str, fs_options: dict[str, Any]) -> bytes | None:

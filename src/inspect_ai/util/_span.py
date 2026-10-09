@@ -84,6 +84,9 @@ async def span(
 
     # set new current span (reset at the end)
     token = _current_span_id.set(id)
+    agent_token = (
+        _current_agent_span_id.set(id) if (type or name) == AGENT_SPAN_TYPE else None
+    )
 
     # run the span
     try:
@@ -105,9 +108,17 @@ async def span(
         # send end event
         transcript()._event(SpanEndEvent(id=id))
 
+        foreign = False
         try:
             _current_span_id.reset(token)
         except ValueError:
+            foreign = True
+        if agent_token is not None:
+            try:
+                _current_agent_span_id.reset(agent_token)
+            except ValueError:
+                foreign = True
+        if foreign:
             frame = inspect.stack()[1]
             caller = f"{frame.function}() [{frame.filename}:{frame.lineno}]"
             logger.warning(f"Exiting span created in another context: {caller}")
@@ -117,6 +128,10 @@ def current_span_id() -> str | None:
     """Return the current span id (if any)."""
     current = _current_span_id.get()
     return current.id if isinstance(current, _SpanCell) else current
+
+
+def current_agent_span_id() -> str | None:
+    return _current_agent_span_id.get()
 
 
 @contextlib.contextmanager
@@ -263,6 +278,11 @@ class SpanRotationScope:
 _current_span_id: ContextVar[str | _SpanCell | None] = ContextVar(
     "_current_span_id", default=None
 )
+
+_current_agent_span_id: ContextVar[str | None] = ContextVar(
+    "_current_agent_span_id", default=None
+)
+
 _span_id_provider: ContextVar[SpanIdProvider | None] = ContextVar(
     "_span_id_provider", default=None
 )
