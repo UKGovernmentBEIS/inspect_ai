@@ -21,6 +21,10 @@ from inspect_ai.model._providers.util.hooks import (  # noqa: E402
     ConverseHooks,
     HttpHooks,
 )
+from inspect_ai.model._response_headers import (  # noqa: E402
+    ResponseHeaders,
+    track_response_headers,
+)
 
 
 def _make_hooks() -> ConverseHooks:
@@ -427,3 +431,27 @@ async def test_restarted_request_is_not_counted_as_a_retry() -> None:
         ModelRequestId(id="denied", header="x-amzn-requestid", status=403),
         ModelRequestId(id="ok", header="x-amzn-requestid", status=200),
     ]
+
+
+def test_response_received_keeps_the_response_headers() -> None:
+    """Each attempt's headers reach the model call in progress, the latest replacing the last."""
+    hooks = _make_hooks()
+    request_id = hooks._start_request()
+    request = _make_aws_request(f"ins/rid#{request_id}")
+    headers = ResponseHeaders()
+
+    with (
+        track_response_headers(headers),
+        patch("inspect_ai.model._providers.util.hooks.report_http_retry"),
+    ):
+        for status, amzn_id in ((429, "first"), (200, "second")):
+            hooks.converse_request_created(request=request)
+            hooks.converse_response_received(
+                response_dict={
+                    "status_code": status,
+                    "headers": {"X-Amzn-RequestId": amzn_id},
+                    "url": "",
+                },
+                context=request.context,
+            )
+            assert headers.latest == {"x-amzn-requestid": amzn_id}

@@ -163,8 +163,10 @@ class HttpHooks:
             return
         if headers is not None:
             from inspect_ai.log._samples import report_active_model_request_id
+            from inspect_ai.model._response_headers import record_response_headers
 
             lowered = {name.lower(): value for name, value in headers.items()}
+            record_response_headers(lowered)
             for header in _REQUEST_ID_HEADERS:
                 if value := lowered.get(header):
                     report_active_model_request_id(value, header, status)

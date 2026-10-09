@@ -97,6 +97,17 @@ model_call = ModelCall.create(
 )
 ```
 
+### Recording Response Headers
+
+A proxy in front of a model can tell Inspect things in its response headers. If your provider makes its own HTTP calls, pass the headers of each response to `record_response_headers()` so that Inspect can read them:
+
+``` python
+from inspect_ai.model import record_response_headers
+
+response = await self.client.post(url, json=request)
+record_response_headers(response.headers)
+```
+
 ## Provider Options {#sec-provider-options}
 
 The `ModelAPI` base class defines a number of properties and methods you can override to adapt Inspect's behaviour to your provider's requirements. All have sensible defaults, so you only need to override the ones relevant to your provider. The most frequently used are:
