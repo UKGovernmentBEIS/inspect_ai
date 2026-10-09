@@ -17,12 +17,14 @@ from inspect_ai.model._call_tools import (
 )
 from inspect_ai.model._model import ModelRefusalError
 from inspect_ai.tool._tool import ToolParsingError
+from inspect_ai.tool._tool_call import ToolCallError
 from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.tool._tools._code_execution import CodeExecutionProviders
 from inspect_ai.tool._tools._web_search._web_search import WebSearchProviders
 from inspect_ai.util._anyio import inner_exception
 from inspect_ai.util._limit import LimitExceededError
 from inspect_ai.util._sandbox import SandboxEnvironment, sandbox_service
+from inspect_ai.util._sandbox.service import _method_error
 
 from .._errors import PROVIDER_ERROR_KEY, provider_error_payload
 from .._sentinel import sentinel_host_tool_result
@@ -35,6 +37,7 @@ from .types import SandboxAgentBridge
 logger = getLogger(__name__)
 
 MODEL_SERVICE = "bridge_model_service"
+_CALL_TOOL = "call_tool"
 JSON_VALUE_ADAPTER: TypeAdapter[JsonValue] = TypeAdapter(JsonValue)
 
 GenerateMethod = Callable[[dict[str, JsonValue]], Awaitable[dict[str, JsonValue]]]
@@ -114,7 +117,7 @@ async def run_model_service(
                 generate_google(web_search, code_execution, bridge), bridge
             ),
             "list_tools": list_tools(bridge),
-            "call_tool": call_tool(bridge),
+            _CALL_TOOL: call_tool(bridge),
         },
         until=lambda: False,
         sandbox=sandbox,
@@ -259,9 +262,11 @@ def call_tool(
 
     A call that executes against a grant goes through the sentinel's
     `tool_result` stage before its result, or a model-facing error raised once
-    the tool began executing, is returned to the scaffold. As on the native
-    path, an argument validation error has no `tool_result` stage, and neither
-    does a bare `LimitExceededError`, which ends the sample.
+    the tool began executing, is returned to the scaffold. The check sees such
+    an error as the scaffold receives it: the service's error text, with the
+    type the native path gives it. As on the native path, an argument
+    validation error has no `tool_result` stage, and neither does a bare
+    `LimitExceededError`, which ends the sample.
     """
 
     async def execute(
@@ -294,13 +299,13 @@ def call_tool(
 
         check = grant.check if grant is not None else None
         tool_fn = server_tools[tool]
-        executing: ToolDef | None = None
+        executing = False
         try:
             tool_def = ToolDef(tool_fn)
             validation_errors = validate_tool_input(arguments, tool_def.parameters)
             if validation_errors:
                 raise ToolParsingError(validation_errors)
-            executing = tool_def
+            executing = True
             result = await tool_fn(**arguments)
         except Exception as ex:
             # classify the unwrapped exception, but let the original propagate:
@@ -313,16 +318,15 @@ def call_tool(
                 bridge.request_fail(inner_ex)
             elif (
                 check is not None
-                and executing is not None
+                and executing
                 and not isinstance(ex, LimitExceededError)
             ):
-                output = mapped.result if mapped.result is not None else ""
                 await sentinel_host_tool_result(
                     bridge,
                     check,
-                    _truncated(tool, str(output), executing.max_output),
-                    output,
-                    mapped.error,
+                    "",
+                    mapped.result if mapped.result is not None else "",
+                    ToolCallError(mapped.error.type, _method_error(_CALL_TOOL, ex)),
                 )
             raise
 

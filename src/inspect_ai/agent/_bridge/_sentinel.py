@@ -1,4 +1,5 @@
-from collections import Counter, OrderedDict
+import json
+from collections import OrderedDict
 from functools import partial
 from itertools import count
 from logging import getLogger
@@ -19,6 +20,7 @@ from inspect_ai._util.content import (
     ContentVideo,
 )
 from inspect_ai._util.exception import TerminateSampleError
+from inspect_ai._util.hash import mm3_hash
 from inspect_ai._util.logger import warn_once
 from inspect_ai.agent._bridge.sandbox.types import _json_equal
 from inspect_ai.agent._bridge.types import AgentBridge
@@ -39,7 +41,7 @@ logger = getLogger(__name__)
 
 T = TypeVar("T")
 
-_MAX_PENDING_CALLS = 1000
+_MAX_PROPOSALS = 1000
 
 
 class SentinelCheck(NamedTuple):
@@ -51,111 +53,169 @@ class SentinelCheck(NamedTuple):
     history: list[ChatMessage]
 
 
-class _Invocation:
-    def __init__(self, check: SentinelCheck) -> None:
-        self.check: SentinelCheck | None = check
-        self.running: anyio.Event | None = None
-        self.done = False
-        self.error: Exception | None = None
+class _Proposal(NamedTuple):
+    check: SentinelCheck
+    host: bool
 
-    def release(self) -> None:
-        if self.running is not None:
-            running, self.running = self.running, None
-            running.set()
 
-    def finish(self, error: Exception | None) -> None:
-        self.check = None
-        self.done = True
-        self.error = error
-        self.release()
+class _Result(NamedTuple):
+    key: str
+    check: SentinelCheck
+    message: ChatMessageTool
 
 
 class _Claimed(NamedTuple):
-    owned: list[tuple[_Invocation, ChatMessageTool]]
+    owned: list[_Result]
     waiting: list[anyio.Event]
 
 
-class _ResultChecks:
-    """The `tool_result` checks for calls whose results the scaffold reports.
+class _Call(NamedTuple):
+    call: ToolCall
+    text: str
+    position: int
 
-    A result is matched to one invocation: the n-th result carrying an id in a
-    conversation is the result of the n-th invocation bound to that id, so a
-    result already seen never takes the check of a later call. A new result is
-    bound to the oldest unbound call handed over with its id or, for an id no
-    handed call had (a dialect that mints new ids, like Google), with its
-    function and arguments.
+
+class _ResultChecks:
+    """The `tool_result` checks for the results the scaffold reports.
+
+    Each distinct result is checked once, the first time a request carries it.
+    A result is identified by its call's id, function and arguments and by its
+    content and error, so the same result repeated in later history is not
+    checked again, while a changed result or a later call reusing an id is.
+
+    A check takes its context from the call's proposal, found by id or, for a
+    dialect that mints new ids (like Google), by function and arguments. With
+    no proposal (e.g. one dropped beyond the cap), the result is checked with
+    what the request carries. Results of host calls are checked when the call
+    executes, not here.
     """
 
     def __init__(self) -> None:
-        self.unbound: OrderedDict[int, _Invocation] = OrderedDict()
-        self.bound: dict[str, list[_Invocation | None]] = {}
-        self.handed_ids: set[str] = set()
+        self.proposals: OrderedDict[int, _Proposal] = OrderedDict()
+        self.checked: set[str] = set()
+        self.running: dict[str, anyio.Event] = {}
+        self.failed: dict[str, Exception] = {}
         self._sequence = count()
 
-    def add(self, check: SentinelCheck) -> None:
-        self.unbound[next(self._sequence)] = _Invocation(check)
-        while len(self.unbound) > _MAX_PENDING_CALLS:
-            self.unbound.popitem(last=False)
+    def add(self, check: SentinelCheck, host: bool) -> None:
+        self.proposals[next(self._sequence)] = _Proposal(check, host)
+        while len(self.proposals) > _MAX_PROPOSALS:
+            self.proposals.popitem(last=False)
             warn_once(
                 logger,
-                f"More than {_MAX_PENDING_CALLS} bridged tool calls run by the "
-                "scaffold are awaiting their results; the oldest was dropped, so "
-                "the sentinel's tool_result check may be skipped for calls handed "
-                f"to the scaffold more than {_MAX_PENDING_CALLS} calls ago.",
+                f"More than {_MAX_PROPOSALS} bridged tool calls have been handed "
+                "to the scaffold; the oldest was dropped, so the sentinel's "
+                "tool_result check of a call handed over more than "
+                f"{_MAX_PROPOSALS} calls ago sees only the conversation that "
+                "carries its result.",
             )
 
     def claim(self, input: list[ChatMessage]) -> _Claimed:
-        calls: dict[str, ToolCall] = {}
-        occurrences: Counter[str] = Counter()
-        bound: list[tuple[_Invocation, ChatMessageTool]] = []
-        for message in input:
+        claimed = _Claimed([], [])
+        keys: set[str] = set()
+        calls: dict[str, _Call] = {}
+        unanswered: dict[str, list[_Call]] = {}
+        for index, message in enumerate(input):
             if isinstance(message, ChatMessageAssistant):
-                calls.update({call.id: call for call in message.tool_calls or []})
+                unanswered = {}
+                for call in message.tool_calls or []:
+                    calls[call.id] = _Call(call, message.text, index)
+                    unanswered.setdefault(call.id, []).append(calls[call.id])
             elif isinstance(message, ChatMessageTool) and message.tool_call_id:
                 result_id = message.tool_call_id
-                occurrence = occurrences[result_id]
-                occurrences[result_id] += 1
-                slots = self.bound.setdefault(result_id, [])
-                if occurrence < len(slots):
-                    invocation = slots[occurrence]
+                found = (
+                    unanswered[result_id].pop(0)
+                    if unanswered.get(result_id)
+                    else calls.get(result_id)
+                )
+                proposal: _Proposal | None = None
+                if found is None:
+                    proposal = self._proposal(result_id, None)
+                    call = (
+                        proposal.check.handed
+                        if proposal is not None
+                        else ToolCall(
+                            id=result_id, function=message.function or "", arguments={}
+                        )
+                    )
                 else:
-                    invocation = self._take(result_id, calls.get(result_id))
-                    slots.append(invocation)
-                if invocation is not None:
-                    bound.append((invocation, message))
-
-        claimed = _Claimed([], [])
-        for invocation, message in bound:
-            if invocation.error is not None:
-                raise invocation.error
-            if invocation.running is not None:
-                claimed.waiting.append(invocation.running)
-            elif not invocation.done:
-                claimed.owned.append((invocation, message))
-        for invocation, _ in claimed.owned:
-            invocation.running = anyio.Event()
+                    call = found.call
+                key = _result_key(message, call)
+                if key in keys or key in self.checked:
+                    continue
+                if key in self.failed:
+                    raise self.failed[key]
+                if key in self.running:
+                    claimed.waiting.append(self.running[key])
+                    continue
+                if found is not None:
+                    proposal = self._proposal(result_id, call)
+                if proposal is not None and proposal.host:
+                    self.checked.add(key)
+                    continue
+                if proposal is not None:
+                    check = proposal.check
+                else:
+                    context = input[: found.position if found else index]
+                    check = SentinelCheck(
+                        call, call, None, found.text if found else "", context, context
+                    )
+                keys.add(key)
+                claimed.owned.append(_Result(key, check, message))
+        for result in claimed.owned:
+            self.running[result.key] = anyio.Event()
         return claimed
 
-    def _take(self, result_id: str, call: ToolCall | None) -> _Invocation | None:
-        by_id = result_id in self.handed_ids
-        for key, invocation in self.unbound.items():
-            assert invocation.check is not None
-            handed = invocation.check.handed
-            if by_id:
-                matches = handed.id == result_id
-            else:
-                matches = (
-                    call is not None
-                    and handed.function == call.function
-                    and _json_equal(
-                        to_jsonable_python(handed.arguments, fallback=str),
-                        call.arguments,
-                    )
-                )
-            if matches:
-                del self.unbound[key]
-                return invocation
-        return None
+    async def check(self, bridge: AgentBridge, result: _Result) -> None:
+        try:
+            await _tool_result(
+                bridge, result.check, result.message, _output(result.message)
+            )
+        except Exception as ex:
+            self.failed[result.key] = ex
+            raise
+        self.checked.add(result.key)
+
+    def release(self, result: _Result) -> None:
+        # a check that did not finish is claimed again by the next request
+        # carrying its result
+        self.running.pop(result.key).set()
+
+    def _proposal(self, result_id: str, call: ToolCall | None) -> _Proposal | None:
+        # newest first; a known call needs a proposal of the same call, and
+        # prefers one with its id
+        proposals = list(reversed(self.proposals.values()))
+        if call is None:
+            return next((p for p in proposals if p.check.handed.id == result_id), None)
+        same = [p for p in proposals if _same_call(p.check.handed, call)]
+        return next(
+            (p for p in same if p.check.handed.id == result_id),
+            same[0] if same else None,
+        )
+
+
+def _same_call(handed: ToolCall, call: ToolCall) -> bool:
+    return handed.function == call.function and _json_equal(
+        to_jsonable_python(handed.arguments, fallback=str), call.arguments
+    )
+
+
+def _result_key(result: ChatMessageTool, call: ToolCall) -> str:
+    return mm3_hash(
+        json.dumps(
+            to_jsonable_python(
+                [
+                    call.id,
+                    call.function,
+                    call.arguments,
+                    result.content,
+                    result.error,
+                ],
+                fallback=str,
+            ),
+            sort_keys=True,
+        )
+    )
 
 
 _result_checks: "WeakKeyDictionary[AgentBridge, _ResultChecks]" = WeakKeyDictionary()
@@ -192,11 +252,7 @@ def track_sentinel_calls(
 ) -> None:
     result_checks = _result_checks.setdefault(bridge, _ResultChecks())
     for check, host in zip(checks, granted):
-        result_checks.handed_ids.add(check.handed.id)
-        # a host call is checked against its execution grant, never against a
-        # result the scaffold reports
-        if not host:
-            result_checks.add(check)
+        result_checks.add(check, host)
 
 
 async def sentinel_host_tool_result(
@@ -218,40 +274,24 @@ async def sentinel_host_tool_result(
 async def sentinel_tool_results(bridge: AgentBridge, input: list[ChatMessage]) -> None:
     if active_sentinel() is None:
         return
-    result_checks = _result_checks.get(bridge)
-    if result_checks is None:
-        return
+    result_checks = _result_checks.setdefault(bridge, _ResultChecks())
     while True:
         claimed = result_checks.claim(input)
         if claimed.owned:
             try:
                 await tg_collect(
                     [
-                        partial(_claimed_result, bridge, invocation, result)
-                        for invocation, result in claimed.owned
+                        partial(result_checks.check, bridge, result)
+                        for result in claimed.owned
                     ]
                 )
             finally:
-                # an interrupted check is claimed again by the next request
-                # carrying its result
-                for invocation, _ in claimed.owned:
-                    invocation.release()
+                for result in claimed.owned:
+                    result_checks.release(result)
         if not claimed.waiting:
             return
         for running in claimed.waiting:
             await running.wait()
-
-
-async def _claimed_result(
-    bridge: AgentBridge, invocation: _Invocation, result: ChatMessageTool
-) -> None:
-    assert invocation.check is not None
-    try:
-        await _tool_result(bridge, invocation.check, result, _output(result))
-    except Exception as ex:
-        invocation.finish(ex)
-        raise
-    invocation.finish(None)
 
 
 def _output(result: ChatMessageTool) -> ToolResult:
