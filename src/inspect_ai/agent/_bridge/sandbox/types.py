@@ -87,6 +87,11 @@ class SandboxAgentBridge(AgentBridge):
         self._tool_execution_grants: deque[_ToolExecutionGrant] = deque(
             maxlen=_MAX_TOOL_EXECUTION_GRANTS
         )
+        # proposals of calls to proposal-exempt servers, held only for their
+        # sentinel check's context; an evicted one is checked without it
+        self._exempt_proposals: deque[_ToolExecutionGrant] = deque(
+            maxlen=_MAX_TOOL_EXECUTION_GRANTS
+        )
         self._failure_requested = anyio.Event()
         self._failure: Exception | None = None
 
@@ -175,6 +180,15 @@ class SandboxAgentBridge(AgentBridge):
                 )
             for target in targets:
                 if target.server in self.proposal_exempt_servers:
+                    if check is not None:
+                        self._exempt_proposals.append(
+                            _ToolExecutionGrant(
+                                server=target.server,
+                                tool=target.tool,
+                                arguments=to_jsonable_python(arguments, fallback=str),
+                                check=check,
+                            )
+                        )
                     continue
                 if (
                     len(self._tool_execution_grants)
@@ -232,17 +246,12 @@ class SandboxAgentBridge(AgentBridge):
     def _consume_grant(
         self, server: str, tool: str, arguments: dict[str, Any]
     ) -> "_ToolExecutionGrant | None":
-        # newest first, so a result is attributed to the latest matching proposal
-        for index in range(len(self._tool_execution_grants) - 1, -1, -1):
-            grant = self._tool_execution_grants[index]
-            if (
-                grant.server == server
-                and grant.tool == tool
-                and _json_equal(grant.arguments, arguments)
-            ):
-                del self._tool_execution_grants[index]
-                return grant
-        return None
+        return _consume(self._tool_execution_grants, server, tool, arguments)
+
+    def _consume_exempt_proposal(
+        self, server: str, tool: str, arguments: dict[str, Any]
+    ) -> "_ToolExecutionGrant | None":
+        return _consume(self._exempt_proposals, server, tool, arguments)
 
     def dispatched_call(self, call: ToolCall) -> DispatchedCall | None:
         """The bridged tool call `call` makes through a dispatcher (`_dispatched_call`)."""
@@ -315,6 +324,25 @@ class _ToolExecutionGrant(NamedTuple):
 
     check: "SentinelCheck | None"
     """The sentinel's `tool_result` check for the proposed call, if one is active."""
+
+
+def _consume(
+    grants: deque[_ToolExecutionGrant],
+    server: str,
+    tool: str,
+    arguments: dict[str, Any],
+) -> _ToolExecutionGrant | None:
+    # newest first, so a result is attributed to the latest matching proposal
+    for index in range(len(grants) - 1, -1, -1):
+        grant = grants[index]
+        if (
+            grant.server == server
+            and grant.tool == tool
+            and _json_equal(grant.arguments, arguments)
+        ):
+            del grants[index]
+            return grant
+    return None
 
 
 class _BridgedToolId(NamedTuple):

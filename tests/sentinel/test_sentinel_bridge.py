@@ -2103,6 +2103,49 @@ def mcp_block(content: Any) -> dict[str, Any]:
     return {"type": "text", "text": content.text}
 
 
+async def test_without_a_sentinel_host_content_is_delivered_unchanged() -> None:
+    result = [
+        ContentText(text="caption", internal={"marker": "expected"}),
+        ContentImage(image=PNG),
+    ]
+    bridge = sandbox_bridge(AsyncMock(return_value=result))
+    bridge.proposal_exempt_servers.add("host")
+
+    delivered = await call_host_tool(bridge)("host", "read_file", READ.arguments)
+
+    assert delivered == [
+        {"internal": {"marker": "expected"}, "type": "text", "text": "caption"},
+        {"type": "image", "data": "iVBORw0KGgo=", "mimeType": "image/png"},
+    ]
+
+
+@pytest.mark.parametrize("proposed", [False, True])
+async def test_an_exempt_host_result_is_checked(proposed: bool) -> None:
+    seen: Steps = []
+    call = replace(READ, function="mcp__host__read_file")
+    bridge = sandbox_bridge(AsyncMock(return_value="secret"))
+    bridge.proposal_exempt_servers.add("host")
+    bridge.state.messages = [ChatMessageUser(content=TASK)]
+
+    with active(recording_terminate_on_secret(seen)):
+        if proposed:
+            await generate(
+                bridge,
+                Scripted(calls_output(call)),
+                [ChatMessageUser(content=TASK)],
+                declare_read_file(),
+            )
+        with pytest.raises(TerminateSampleError, match="blocked secret"):
+            await call_host_tool(bridge)("host", "read_file", READ.arguments)
+
+    (after,) = seen
+    assert isinstance(after, AfterToolCall)
+    assert after.call.function == (call.function if proposed else "read_file")
+    assert after.call.arguments == READ.arguments
+    assert [m.text for m in after.input] == [TASK]
+    assert after.result.text == "secret"
+
+
 async def test_serialized_host_content_terminates_on_what_is_delivered() -> None:
     call = replace(READ, function="mcp__host__read_file")
     model = Scripted(calls_output(call))

@@ -3,10 +3,19 @@ from collections import OrderedDict
 from functools import partial
 from itertools import count
 from logging import getLogger
-from typing import TYPE_CHECKING, Awaitable, Callable, NamedTuple, Sequence, TypeVar
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Awaitable,
+    Callable,
+    NamedTuple,
+    Sequence,
+    TypeVar,
+)
 
 import anyio
 from pydantic_core import to_jsonable_python
+from shortuuid import uuid
 
 from inspect_ai._sentinel._context import SentinelFailure, active_sentinel
 from inspect_ai._util._async import tg_collect
@@ -28,8 +37,9 @@ from inspect_ai.model._chat_message import (
     ChatMessageAssistant,
     ChatMessageTool,
 )
-from inspect_ai.tool._tool import ToolResult
+from inspect_ai.tool._tool import Tool, ToolResult
 from inspect_ai.tool._tool_call import ToolCall, ToolCallError, ToolCallViewer
+from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.util._anyio import inner_exception
 from inspect_ai.util._limit import LimitExceededError
 
@@ -257,6 +267,18 @@ def track_sentinel_calls(bridge: AgentBridge, checks: Sequence[SentinelCheck]) -
     result_checks = _result_checks(bridge)
     for check in checks:
         result_checks.add(check)
+
+
+def sentinel_unproposed_host_check(
+    bridge: AgentBridge, tool: str, arguments: dict[str, Any], tool_fn: Tool
+) -> SentinelCheck | None:
+    # a host call no proposal accounts for is checked with the conversation the
+    # bridge last saw, as a scaffold-reported result without a proposal is
+    if active_sentinel() is None:
+        return None
+    call = ToolCall(id=f"call_{tool}_{uuid()[:8]}", function=tool, arguments=arguments)
+    context = list(bridge.state.messages)
+    return SentinelCheck(call, call, ToolDef(tool_fn).viewer, "", context, context)
 
 
 async def sentinel_host_tool_result(

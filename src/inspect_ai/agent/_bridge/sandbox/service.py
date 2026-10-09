@@ -27,7 +27,7 @@ from inspect_ai.util._sandbox import SandboxEnvironment, sandbox_service
 from inspect_ai.util._sandbox.service import _method_error
 
 from .._errors import PROVIDER_ERROR_KEY, provider_error_payload
-from .._sentinel import sentinel_host_tool_result
+from .._sentinel import sentinel_host_tool_result, sentinel_unproposed_host_check
 from ..anthropic_api import inspect_anthropic_api_request
 from ..completions import inspect_completions_api_request
 from ..google_api import inspect_google_api_request
@@ -204,7 +204,7 @@ def list_tools(
     return execute
 
 
-def _mcp_tool_content_block(content: JsonValue) -> JsonValue:
+def _mcp_tool_content_block(content: JsonValue, checked: bool) -> JsonValue:
     match content:
         case {"type": "image", "image": str() as image} if is_data_uri(image):
             return {
@@ -214,7 +214,7 @@ def _mcp_tool_content_block(content: JsonValue) -> JsonValue:
             }
         case {"type": "image", "image": str() as image}:
             return {"type": "text", "text": image}
-        case {"type": "text", "text": str() as text}:
+        case {"type": "text", "text": str() as text} if checked:
             return {"type": "text", "text": text}
         case _:
             return content
@@ -231,14 +231,16 @@ def _mcp_delivered_content(block: JsonValue) -> Content:
 
 
 def _mcp_tool_result_content(
-    result: ContentImage | Sequence[Content],
+    result: ContentImage | Sequence[Content], checked: bool
 ) -> list[JsonValue]:
+    # a checked result's text blocks carry only their text, so the sentinel
+    # sees exactly what is delivered
     content = JSON_VALUE_ADAPTER.validate_json(to_json_str_safe(result))
     match content:
         case list():
-            return [_mcp_tool_content_block(block) for block in content]
+            return [_mcp_tool_content_block(block, checked) for block in content]
         case _:
-            return [_mcp_tool_content_block(content)]
+            return [_mcp_tool_content_block(content, checked)]
 
 
 def _truncated(tool: str, text: str, max_output: int | None) -> str:
@@ -272,14 +274,16 @@ def call_tool(
     content) is truncated to the same output limit, in the same format
     (`truncate_tool_output`).
 
-    A call that executes against a grant goes through the sentinel's
-    `tool_result` stage before its result, or a model-facing error raised once
-    the tool began executing, is returned to the scaffold. The check sees the
-    result as the scaffold receives it (the serialized text, or the text and
-    images of the MCP content), and an error as the service's error text, with
-    the type the native path gives it. As on the native path, an argument
-    validation error has no `tool_result` stage, and neither does a bare
-    `LimitExceededError`, which ends the sample.
+    With a sentinel active, a call goes through the sentinel's `tool_result`
+    stage before its result, or a model-facing error raised once the tool began
+    executing, is returned to the scaffold. That includes a call to a
+    `require_proposal=False` server, checked with its proposal's context if the
+    model proposed it, and otherwise with the conversation the bridge last saw.
+    The check sees the result as the scaffold receives it (the serialized text,
+    or the text and images of the MCP content), and an error as the service's
+    error text, with the type the native path gives it. As on the native path,
+    an argument validation error has no `tool_result` stage, and neither does a
+    bare `LimitExceededError`, which ends the sample.
     """
 
     async def execute(
@@ -293,7 +297,11 @@ def call_tool(
             raise ValueError(f"Unknown tool '{tool}' in server '{server}'")
 
         exempt = server in bridge.proposal_exempt_servers
-        grant = None if exempt else bridge._consume_grant(server, tool, arguments)
+        grant = (
+            bridge._consume_exempt_proposal(server, tool, arguments)
+            if exempt
+            else bridge._consume_grant(server, tool, arguments)
+        )
         if not exempt and grant is None:
             warn_once(
                 logger,
@@ -310,8 +318,12 @@ def call_tool(
                 "proposed call)"
             )
 
-        check = grant.check if grant is not None else None
         tool_fn = server_tools[tool]
+        check = (
+            grant.check
+            if grant is not None
+            else sentinel_unproposed_host_check(bridge, tool, arguments, tool_fn)
+        )
         executing = False
         try:
             tool_def = ToolDef(tool_fn)
@@ -363,7 +375,7 @@ def call_tool(
             )
             and any(isinstance(content, ContentImage) for content in result)
         ):
-            blocks = _mcp_tool_result_content(result)
+            blocks = _mcp_tool_result_content(result, check is not None)
             delivered = blocks
             checked = [_mcp_delivered_content(block) for block in blocks]
         else:
