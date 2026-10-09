@@ -24,10 +24,14 @@ def test_sentinel_tests_skip_without_inspect_sentinel() -> None:
         "sys.exit(pytest.main(['--collect-only', '-q', '-rs', '-p', 'no:cacheprovider', 'tests/sentinel']))\n"
     )
     assert result.returncode == 0, result.stdout + result.stderr
-    for module in sorted(Path(__file__).parent.glob("test_sentinel_*.py")):
+    skipped = [
+        line
+        for line in result.stdout.splitlines()
+        if "inspect_sentinel is not installed" in line
+    ]
+    for module in sorted(Path(__file__).parent.glob("test_*.py")):
         if module.name != Path(__file__).name:
-            assert f"{module.name}:" in result.stdout, module.name
-    assert "inspect_sentinel is not installed" in result.stdout
+            assert any(f"{module.name}:" in line for line in skipped), module.name
 
 
 def test_eval_with_tool_calls_runs_without_inspect_sentinel(tmp_path: Path) -> None:
@@ -66,7 +70,7 @@ task = Task(
     solver=[use_tools(addition()), generate()],
 )
 log = eval(task, model=model, log_dir={str(tmp_path)!r}, display="none")[0]
-assert log.status == "success", log.error
+assert log.status == "success", log.error.traceback if log.error else None
 assert log.samples is not None
 assert [m.text for m in log.samples[0].messages if m.role == "tool"] == ["3"]
 """
