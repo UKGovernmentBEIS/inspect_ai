@@ -205,20 +205,29 @@ def resolve_release(
 
 
 def _active_release_runs(run_: Run, repo: str, run_id: str) -> list[str]:
-    try:
-        runs = json.loads(
-            run_(
-                ["gh", "run", "list", "--repo", repo, "--workflow", "release.yml"]
-                + ["--limit", "50", "--json", "databaseId,status"]
+    """Return IDs of Release runs other than `run_id` that are still active.
+
+    Filters by status on the server, one query per active status, so older
+    active runs are not hidden behind newer completed ones. The current run
+    is the only one excluded, so a full page (the limit is at least 2) always
+    holds another active run, and a partial page is complete.
+    """
+    active: list[str] = []
+    for status in sorted(ACTIVE_RUN_STATUSES):
+        try:
+            runs = json.loads(
+                run_(
+                    ["gh", "run", "list", "--repo", repo, "--workflow", "release.yml"]
+                    + ["--status", status, "--limit", "20", "--json", "databaseId"]
+                )
             )
-        )
-    except subprocess.CalledProcessError as e:
-        raise LookupFailed(f"Could not list Release runs: {e.stderr or e}") from e
-    return [
-        str(r["databaseId"])
-        for r in runs
-        if r["status"] in ACTIVE_RUN_STATUSES and str(r["databaseId"]) != run_id
-    ]
+        except (subprocess.CalledProcessError, ValueError) as e:
+            raise LookupFailed(
+                f"Could not list {status} Release runs: "
+                f"{getattr(e, 'stderr', None) or e}"
+            ) from e
+        active += [str(r["databaseId"]) for r in runs if str(r["databaseId"]) != run_id]
+    return active
 
 
 def check_latest_published(run_: Run, fetch: Fetch, repo: str, run_id: str) -> str:

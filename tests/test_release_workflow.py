@@ -53,7 +53,7 @@ class FakeGitHub:
         self.latest: str | None = None  # tag of releases/latest
         self.bodies: dict[str, str] = {}  # tag -> GitHub Release body
         self.changelogs: dict[str, str] = {}  # tag -> CHANGELOG.md at the tag
-        self.release_runs: list[dict[str, Any]] = []  # release.yml runs
+        self.release_runs: list[dict[str, Any]] = []  # release.yml runs, newest first
 
     def add_release(self, tag: str, commit: str, **flags: bool) -> None:
         self.tags[tag] = commit
@@ -112,7 +112,15 @@ class FakeGitHub:
         if args[:3] == ["gh", "run", "list"]:
             workflow = args[args.index("--workflow") + 1]
             if workflow == "release.yml":
-                return json.dumps(self.release_runs)
+                # Like GitHub: filter by --status on the server, then apply --limit.
+                status = (
+                    args[args.index("--status") + 1] if "--status" in args else None
+                )
+                limit = int(args[args.index("--limit") + 1])
+                matching = [
+                    r for r in self.release_runs if status in (None, r["status"])
+                ]
+                return json.dumps(matching[:limit])
             assert args[args.index("--commit") + 1] == self.branch_head
             return json.dumps(
                 [{"databaseId": i} for i in self.runs.get(workflow, [])][:1]
@@ -446,6 +454,45 @@ def test_incomplete_release_is_not_reported_while_another_release_run_is_active(
     gh.release_runs[-1]["status"] = "completed"
     with pytest.raises(release_workflow.IncompleteRelease):
         _check(gh, registries)
+
+
+def test_waiting_run_older_than_50_completed_runs_still_suppresses_the_failure() -> (
+    None
+):
+    """V-A: run 950 waits for approval behind 49 completed runs and this run."""
+    gh, registries = _published_release()
+    registries.npm = None
+    gh.release_runs = (
+        [{"databaseId": int(THIS_RUN), "status": "in_progress"}]
+        + [{"databaseId": i, "status": "completed"} for i in range(999, 950, -1)]
+        + [{"databaseId": 950, "status": "waiting"}]
+    )
+    assert len(gh.release_runs) == 51
+    assert _check(gh, registries) == "0.3.278"
+    # Without the waiting run, the same history fails.
+    gh.release_runs[-1]["status"] = "completed"
+    with pytest.raises(release_workflow.IncompleteRelease):
+        _check(gh, registries)
+
+
+@pytest.mark.parametrize("status", sorted(release_workflow.ACTIVE_RUN_STATUSES))
+def test_every_active_status_suppresses_the_failure(status: str) -> None:
+    gh, registries = _published_release()
+    registries.pypi = None
+    gh.release_runs.append({"databaseId": 999, "status": status})
+    assert _check(gh, registries) == "0.3.278"
+
+
+def test_active_runs_are_queried_by_status_on_the_server() -> None:
+    gh, registries = _published_release()
+    registries.pypi = None
+    with pytest.raises(release_workflow.IncompleteRelease):
+        _check(gh, registries)
+    queries = [c for c in gh.calls if c[:3] == ["gh", "run", "list"]]
+    assert sorted(q[q.index("--status") + 1] for q in queries) == sorted(
+        release_workflow.ACTIVE_RUN_STATUSES
+    )
+    assert all(int(q[q.index("--limit") + 1]) >= 2 for q in queries)
 
 
 @pytest.mark.parametrize(

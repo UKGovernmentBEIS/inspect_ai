@@ -86,9 +86,15 @@ Re-running the Release workflow is safe at any point.
   Release run is active (one may be waiting for publish approval), the job
   fails with `Release X.Y.Z exists but is not fully published (missing ...);
   re-run the Release workflow with tag=X.Y.Z`. It never resumes or picks a
-  release itself. A lookup failure fails the job too. This check covers only
-  the latest release: an older release left incomplete behind a newer one
-  has to be found and dispatched by hand.
+  release itself. A lookup failure fails the job too. Other active runs are
+  found by status on the server, so a run waiting for approval counts however
+  many runs came after it. Two limits: if the release's `CHANGELOG.md`
+  section is empty, absent or unparseable, the notes check is skipped with a
+  notice (the release-notes job reports the error, and re-running cannot fix
+  a tagged file), so a passing check does not by itself prove the curated
+  notes are present. And only the latest release is checked: an older
+  release left incomplete behind a newer one has to be found and dispatched
+  by hand.
 - **A resumed release**:
   - restores the release notes from `CHANGELOG.md`;
   - rebuilds from the tag (except when only a publish job is re-run);
