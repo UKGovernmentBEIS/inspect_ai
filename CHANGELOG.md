@@ -13,8 +13,6 @@
 - Tools: Tools with `*args` or `**kwargs` no longer advertise required `args`/`kwargs` parameters to models; declare model-chosen arguments with an explicit `ToolParams` schema instead.
 - Control Channel: `inspect ctl model throughput` now reports each model's input, output and cache read/write tokens per minute, in the table and in `--json` output; the table's output column is now per minute instead of per second.
 - Bugfix: An approver's `modify` decision with no modified call now rejects the tool call instead of running the original, and the human approver no longer offers Modify.
-- Approval: Policy tool patterns now match the function name and each argument separately, so argument text can't change which policy matches; name globs like `*_click` no longer match argument text, argument order no longer matters, `'` and `\` inside string values need a backslash, and argument items that aren't `name=value` or `*` are errors.
-- Approval: Memory tool calls are approved on the canonical path they act on, and a tool viewer that raises now rejects the call instead of approving it on a fallback rendering.
 - Deep Agent: `deepagent(background=True)` run from a scorer can now dispatch background subagents instead of failing.
 - Anthropic: Forced web searches now work on Claude 4.6+, and `web_search()` now honors `allowed_callers` and `type` in its `anthropic` options.
 - Agent Bridge: Web search from a bridged Anthropic client, such as Claude Code's WebSearch, now uses the tool version the client declared unless the eval sets one.
