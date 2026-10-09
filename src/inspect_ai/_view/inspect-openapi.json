@@ -2799,6 +2799,16 @@
             ],
             "title": "Score On Error"
           },
+          "sentinel": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SentinelConfig"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "time_limit": {
             "anyOf": [
               {
@@ -3345,6 +3355,7 @@
                       "sandbox": "#/components/schemas/SandboxEvent",
                       "score": "#/components/schemas/ScoreEvent",
                       "score_edit": "#/components/schemas/ScoreEditEvent",
+                      "sentinel": "#/components/schemas/SentinelEvent",
                       "span_begin": "#/components/schemas/SpanBeginEvent",
                       "span_end": "#/components/schemas/SpanEndEvent",
                       "state": "#/components/schemas/StateEvent",
@@ -3385,6 +3396,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/ReviewEvent"
+                    },
+                    {
+                      "$ref": "#/components/schemas/SentinelEvent"
                     },
                     {
                       "$ref": "#/components/schemas/BranchEvent"
@@ -3530,6 +3544,17 @@
             ],
             "title": "Completed At"
           },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
           "epoch": {
             "title": "Epoch",
             "type": "integer"
@@ -3579,6 +3604,7 @@
                   "sandbox": "#/components/schemas/SandboxEvent",
                   "score": "#/components/schemas/ScoreEvent",
                   "score_edit": "#/components/schemas/ScoreEditEvent",
+                  "sentinel": "#/components/schemas/SentinelEvent",
                   "span_begin": "#/components/schemas/SpanBeginEvent",
                   "span_end": "#/components/schemas/SpanEndEvent",
                   "state": "#/components/schemas/StateEvent",
@@ -3619,6 +3645,9 @@
                 },
                 {
                   "$ref": "#/components/schemas/ReviewEvent"
+                },
+                {
+                  "$ref": "#/components/schemas/SentinelEvent"
                 },
                 {
                   "$ref": "#/components/schemas/BranchEvent"
@@ -4253,6 +4282,17 @@
             ],
             "title": "Completed At"
           },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
           "epoch": {
             "title": "Epoch",
             "type": "integer"
@@ -4778,6 +4818,179 @@
         "title": "EvalSetTask",
         "type": "object"
       },
+      "EvalShardEntry": {
+        "description": "Ledger entry for one shard, as of the merge that last read it.",
+        "properties": {
+          "completed_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "const": "",
+                "type": "string"
+              }
+            ],
+            "title": "Completed At"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EvalError"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "etag": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Etag"
+          },
+          "eval_set_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Eval Set Id"
+          },
+          "log": {
+            "title": "Log",
+            "type": "string"
+          },
+          "model_usage": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/ModelUsage"
+            },
+            "title": "Model Usage",
+            "type": "object"
+          },
+          "mtime": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mtime"
+          },
+          "role_usage": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/ModelUsage"
+            },
+            "title": "Role Usage",
+            "type": "object"
+          },
+          "samples": {
+            "title": "Samples",
+            "type": "integer"
+          },
+          "selected": {
+            "title": "Selected",
+            "type": "integer"
+          },
+          "selection_digest": {
+            "title": "Selection Digest",
+            "type": "string"
+          },
+          "shard": {
+            "title": "Shard",
+            "type": "string"
+          },
+          "size": {
+            "title": "Size",
+            "type": "integer"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "const": "",
+                "type": "string"
+              }
+            ],
+            "title": "Started At"
+          },
+          "status": {
+            "enum": [
+              "started",
+              "success",
+              "cancelled",
+              "error"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "shard",
+          "log",
+          "status",
+          "samples",
+          "selected",
+          "selection_digest",
+          "started_at",
+          "completed_at",
+          "model_usage",
+          "role_usage",
+          "size"
+        ],
+        "title": "EvalShardEntry",
+        "type": "object"
+      },
+      "EvalShards": {
+        "description": "Provenance of a merged log: its shards and the ledger of the last merge.",
+        "properties": {
+          "ledger": {
+            "items": {
+              "$ref": "#/components/schemas/EvalShardEntry"
+            },
+            "title": "Ledger",
+            "type": "array"
+          },
+          "sample_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sample Count"
+          },
+          "selection": {
+            "enum": [
+              "ids",
+              "count",
+              "none"
+            ],
+            "title": "Selection",
+            "type": "string"
+          }
+        },
+        "required": [
+          "selection",
+          "ledger"
+        ],
+        "title": "EvalShards",
+        "type": "object"
+      },
       "EvalSpec": {
         "description": "Eval target and configuration.",
         "properties": {
@@ -4956,6 +5169,16 @@
             ],
             "title": "Scorers"
           },
+          "shards": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EvalShards"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "solver": {
             "anyOf": [
               {
@@ -5023,6 +5246,17 @@
             "additionalProperties": true,
             "title": "Task Attribs",
             "type": "object"
+          },
+          "task_description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Task Description"
           },
           "task_display_name": {
             "anyOf": [
@@ -5194,6 +5428,9 @@
           },
           {
             "$ref": "#/components/schemas/ReviewEvent"
+          },
+          {
+            "$ref": "#/components/schemas/SentinelEvent"
           },
           {
             "$ref": "#/components/schemas/BranchEvent"
@@ -8085,7 +8322,7 @@
         "type": "object"
       },
       "Reference": {
-        "description": "Reference to scanned content.",
+        "description": "Reference from a score to content in the scored transcript.\n\nReferences are stored as a list of dicts under a score's\n`metadata[\"scanner_references\"]` key. Inspect View identifies scanner\nscores by the presence of that key and renders cites in the score's\nexplanation (e.g. `[M22]`) as links to the referenced content.",
         "properties": {
           "cite": {
             "anyOf": [
@@ -8446,6 +8683,17 @@
               }
             ],
             "title": "Choices"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
           },
           "files": {
             "anyOf": [
@@ -9839,6 +10087,304 @@
           "member_name"
         ],
         "title": "SegmentRef",
+        "type": "object"
+      },
+      "SentinelConfig": {
+        "description": "A sentinel configuration: one entry, a list of entries, or a mapping of instance names to entries.\n\nThe value of the `sentinel:` key in a configuration file, and what the eval log records. A mapping is one entry when its `name` is a string, and a mapping of instance names when every value is an entry, so an instance named `name` still configures a mapping.\n\nExperimental: not yet a stable API; may change without notice.",
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/SentinelEntry"
+          },
+          {
+            "items": {
+              "$ref": "#/components/schemas/SentinelEntry"
+            },
+            "minItems": 1,
+            "type": "array"
+          },
+          {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/SentinelEntry"
+            },
+            "minProperties": 1,
+            "type": "object"
+          }
+        ],
+        "title": "SentinelConfig"
+      },
+      "SentinelEntry": {
+        "additionalProperties": {
+          "$ref": "#/components/schemas/SentinelConfig"
+        },
+        "description": "One configured monitor or protocol.\n\nAny key besides `name`, `params`, `version` and `meta` names a parameter of the factory whose value is nested monitors or protocols, such as `monitors` for `threshold` or `children` for `concurrent`; it holds an entry, a list of entries, or a mapping of instance names to entries, and `nested` returns them.\n\nExperimental: not yet a stable API; may change without notice.",
+        "properties": {
+          "meta": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/JsonValue"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Meta"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "params": {
+            "additionalProperties": true,
+            "title": "Params",
+            "type": "object"
+          },
+          "version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version"
+          }
+        },
+        "required": [
+          "name",
+          "params"
+        ],
+        "title": "SentinelEntry",
+        "type": "object"
+      },
+      "SentinelEvent": {
+        "description": "Report from a sentinel monitor or protocol about one step.\n\nA report's metadata is recorded in the event's `metadata` field.\n\nExperimental: not yet a stable API; may change without notice.",
+        "properties": {
+          "action": {
+            "anyOf": [
+              {
+                "enum": [
+                  "continue",
+                  "modify",
+                  "reject",
+                  "terminate",
+                  "escalate"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Action"
+          },
+          "audit": {
+            "default": false,
+            "title": "Audit",
+            "type": "boolean"
+          },
+          "conversation": {
+            "title": "Conversation",
+            "type": "string"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "event": {
+            "const": "sentinel",
+            "default": "sentinel",
+            "title": "Event",
+            "type": "string"
+          },
+          "explanation": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Explanation"
+          },
+          "factory": {
+            "title": "Factory",
+            "type": "string"
+          },
+          "function": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Function"
+          },
+          "kind": {
+            "enum": [
+              "observation",
+              "decision"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message"
+          },
+          "metadata": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Metadata"
+          },
+          "modified": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ToolCall"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          },
+          "pending": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pending"
+          },
+          "references": {
+            "items": {
+              "$ref": "#/components/schemas/Reference"
+            },
+            "title": "References",
+            "type": "array"
+          },
+          "span_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Span Id"
+          },
+          "stage": {
+            "enum": [
+              "model_input",
+              "model_output",
+              "tool_call",
+              "tool_result"
+            ],
+            "title": "Stage",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "reported",
+              "cancelled",
+              "bypassed",
+              "superseded",
+              "error"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "step_id": {
+            "title": "Step Id",
+            "type": "string"
+          },
+          "suspicion": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "additionalProperties": {
+                  "type": "number"
+                },
+                "minProperties": 1,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Suspicion"
+          },
+          "timestamp": {
+            "title": "Timestamp",
+            "type": "string"
+          },
+          "uuid": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Uuid"
+          },
+          "working_start": {
+            "title": "Working Start",
+            "type": "number"
+          }
+        },
+        "required": [
+          "timestamp",
+          "working_start",
+          "event",
+          "factory",
+          "path",
+          "step_id",
+          "conversation",
+          "stage",
+          "kind",
+          "status",
+          "audit",
+          "references"
+        ],
+        "title": "SentinelEvent",
         "type": "object"
       },
       "SnapshotDetails": {

@@ -37,6 +37,8 @@ from inspect_ai._display import (
 )
 from inspect_ai._display.core.display import TaskCancel, TaskDisplayMetric
 from inspect_ai._eval.task.scan import Scanners
+from inspect_ai._sentinel._config import SentinelRoot
+from inspect_ai._sentinel._context import SentinelFailure
 from inspect_ai._util._async import Wake, aexit_shielded_when
 from inspect_ai._util.async_zip import AsyncZipReader
 from inspect_ai._util.asyncfiles import get_async_filesystem
@@ -632,6 +634,8 @@ class TaskRunOptions:
     logger: TaskLogger
     eval_wd: str
     config: EvalConfig = field(default_factory=EvalConfig)
+    sentinel: "SentinelRoot | None" = field(default=None)
+    """Resolved root protocol of the task's sentinel."""
     solver: Solver | None = field(default=None)
     scanner: "Scanners | None" = field(default=None)
     scan_id: str | None = field(default=None)
@@ -775,6 +779,8 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
         generate_config,
         options.task.approval,
         options.task.review,
+        options.sentinel,
+        options.task.metadata,
     )
 
     # track stats, results, and log. progress results are keyed by
@@ -2525,6 +2531,11 @@ async def _task_run_sample_attempt(
 
         # helper to handle exceptions (will throw if we've exceeded the limit)
         def handle_error(ex: BaseException) -> tuple[EvalError, BaseException | None]:
+            # report the sentinel's own error, from the solver or scorers
+            failure = inner_exception(ex) if isinstance(ex, Exception) else ex
+            if isinstance(failure, SentinelFailure):
+                ex = inner_exception(failure.error)
+
             # helper to log sample error
             def log_sample_error() -> None:
                 msg = f"Sample error (id: {sample.id}, epoch: {state.epoch}): {exception_message(ex)})"
@@ -2631,6 +2642,7 @@ async def _task_run_sample_attempt(
                     input=sample.input,
                     choices=sample.choices,
                     target=sample.target,
+                    description=sample.description,
                     metadata=sample.metadata or {},
                     started_at=sample_admitted_at.isoformat(),
                 )
@@ -3461,6 +3473,7 @@ def create_eval_sample(
         input=sample.input,
         choices=sample.choices,
         target=sample.target,
+        description=sample.description,
         metadata=state.metadata or {},
         sandbox=sample.sandbox,
         files=list(sample.files.keys()) if sample.files else None,
