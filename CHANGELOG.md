@@ -1,6 +1,5 @@
 ## Unreleased
 
-- Preserve each text block’s internal provider state when converting multi-block assistant messages.
 - Tasks and samples can carry a `description` of what they ask of the agent, recorded in the eval log and in `evals_df()` and `samples_df()`.
 - Tool review now also reviews `handoff()` calls, as approval does.
 - Compaction: Fixed compaction triggering early and reporting inflated token counts on OpenAI reasoning models, which counted replayed reasoning twice.
