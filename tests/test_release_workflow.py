@@ -12,6 +12,7 @@ import importlib.util
 import json
 import re
 import subprocess
+from email.message import Message
 from pathlib import Path
 from typing import Any, Callable, Sequence
 
@@ -49,6 +50,10 @@ class FakeGitHub:
         self.fail_stderr = "gh: Server Error (HTTP 502)"
         self.calls: list[list[str]] = []
         self.dispatched: list[str] = []
+        self.latest: str | None = None  # tag of releases/latest
+        self.bodies: dict[str, str] = {}  # tag -> GitHub Release body
+        self.changelogs: dict[str, str] = {}  # tag -> CHANGELOG.md at the tag
+        self.release_runs: list[dict[str, Any]] = []  # release.yml runs
 
     def add_release(self, tag: str, commit: str, **flags: bool) -> None:
         self.tags[tag] = commit
@@ -91,10 +96,23 @@ class FakeGitHub:
                     if path.rsplit("...", 1)[1] in self.on_main
                     else ("ahead\n")
                 )
+            if path.endswith("/releases/latest"):
+                if self.latest is None:
+                    raise not_found
+                return json.dumps(
+                    {"tag_name": self.latest, "body": self.bodies.get(self.latest)}
+                )
+            if "/contents/CHANGELOG.md?ref=" in path:
+                tag = path.rsplit("=", 1)[1]
+                if tag not in self.changelogs:
+                    raise not_found
+                return self.changelogs[tag]
             if path.endswith(f"/branches/{BRANCH}"):
                 return self.branch_head + "\n"
         if args[:3] == ["gh", "run", "list"]:
             workflow = args[args.index("--workflow") + 1]
+            if workflow == "release.yml":
+                return json.dumps(self.release_runs)
             assert args[args.index("--commit") + 1] == self.branch_head
             return json.dumps(
                 [{"databaseId": i} for i in self.runs.get(workflow, [])][:1]
@@ -290,6 +308,206 @@ def test_invalid_requested_tag_never_falls_back_to_a_created_release() -> None:
 
 
 # ---------------------------------------------------------------------------
+# check-latest-published: fail closed when a re-run cannot find its release
+# ---------------------------------------------------------------------------
+
+NOTES = "- Fixed a thing.\n"
+CHANGELOG_0_3_278 = f"## Unreleased\n\n## 0.3.278 (12 October 2026)\n\n{NOTES}"
+PYPI_FILES = {
+    "urls": [{"packagetype": "bdist_wheel"}, {"packagetype": "sdist"}],
+}
+THIS_RUN = "1000"
+
+
+class FakeRegistries:
+    """PyPI and npm JSON for check_latest_published; None means 404."""
+
+    def __init__(self) -> None:
+        self.pypi: dict[str, Any] | None = PYPI_FILES
+        self.npm: dict[str, Any] | None = {"version": "0.3.278"}
+        self.fail: str | None = None  # "pypi" or "npm"
+
+    def __call__(self, url: str) -> dict[str, Any] | None:
+        registry = "pypi" if url.startswith("https://pypi.org/") else "npm"
+        assert url.endswith(("/0.3.278/json", "/0.3.278"))
+        if self.fail == registry:
+            raise release_workflow.LookupFailed(f"{url} answered HTTP 503")
+        return self.pypi if registry == "pypi" else self.npm
+
+
+def _published_release() -> tuple[FakeGitHub, FakeRegistries]:
+    """0.3.278, tagged on RELEASE_SHA and fully published."""
+    gh = FakeGitHub()
+    gh.add_release("0.3.278", RELEASE_SHA)
+    gh.latest = "0.3.278"
+    gh.changelogs["0.3.278"] = CHANGELOG_0_3_278
+    gh.bodies["0.3.278"] = NOTES
+    gh.release_runs = [{"databaseId": int(THIS_RUN), "status": "in_progress"}]
+    return gh, FakeRegistries()
+
+
+def _check(gh: FakeGitHub, registries: FakeRegistries) -> str:
+    return release_workflow.check_latest_published(gh, registries, GH_REPO, THIS_RUN)
+
+
+def test_all_jobs_retry_of_a_release_created_on_an_earlier_commit_fails() -> None:
+    """The pass-3 sequence: created on an earlier merge SHA, retried on a later one."""
+    gh, registries = _published_release()
+    # Attempt 1 ran on LATER_SHA and created 0.3.278 on the release PR's merge
+    # commit (RELEASE_SHA); its build failed, so nothing was published and the
+    # release keeps Release Please's generated notes.
+    assert _resolve(gh, sha=LATER_SHA, created_tag="0.3.278") == "0.3.278"
+    registries.pypi = None
+    registries.npm = None
+    gh.bodies["0.3.278"] = "## 0.3.278\n\n### Bug Fixes\n\n* generated"
+
+    # Attempt 2 (Re-run all jobs): Release Please reports nothing.
+    assert _resolve(gh, sha=LATER_SHA) == ""
+    with pytest.raises(release_workflow.IncompleteRelease) as error:
+        _check(gh, registries)
+    assert str(error.value) == (
+        "Release 0.3.278 exists but is not fully published (missing its PyPI "
+        "wheel and sdist, its npm package, its CHANGELOG.md release notes); "
+        "re-run the Release workflow with tag=0.3.278"
+    )
+
+    # The named recovery path resolves exactly that release.
+    assert _resolve(gh, sha=LATER_SHA, requested_tag="0.3.278") == "0.3.278"
+
+
+@pytest.mark.parametrize(
+    "break_it,missing",
+    [
+        (lambda gh, r: setattr(r, "pypi", None), "its PyPI wheel and sdist"),
+        (
+            lambda gh, r: setattr(
+                r, "pypi", {"urls": [{"packagetype": "bdist_wheel"}]}
+            ),
+            "its PyPI wheel and sdist",
+        ),
+        (lambda gh, r: setattr(r, "npm", None), "its npm package"),
+        (
+            lambda gh, r: gh.bodies.update({"0.3.278": "generated notes"}),
+            "its CHANGELOG.md release notes",
+        ),
+    ],
+    ids=["pypi-missing", "sdist-missing", "npm-missing", "notes-missing"],
+)
+def test_each_missing_part_makes_the_latest_release_incomplete(
+    break_it: Callable[[FakeGitHub, FakeRegistries], Any], missing: str
+) -> None:
+    gh, registries = _published_release()
+    break_it(gh, registries)
+    with pytest.raises(
+        release_workflow.IncompleteRelease, match=f"missing {missing}\\)"
+    ):
+        _check(gh, registries)
+
+
+def test_complete_latest_release_is_a_no_op() -> None:
+    gh, registries = _published_release()
+    assert _resolve(gh, sha=LATER_SHA) == ""
+    assert _check(gh, registries) == "0.3.278"
+
+
+def test_release_notes_with_crlf_line_endings_count_as_curated() -> None:
+    gh, registries = _published_release()
+    gh.bodies["0.3.278"] = NOTES.replace("\n", "\r\n")
+    assert _check(gh, registries) == "0.3.278"
+
+
+def test_no_release_or_a_non_release_please_release_is_not_checked() -> None:
+    gh, registries = _published_release()
+    gh.latest = None
+    assert _check(gh, registries) == ""
+    gh, registries = _published_release()
+    gh.manifests["0.3.278"] = "0.3.277"  # e.g. a break-glass release
+    registries.pypi = None
+    assert _check(gh, registries) == ""
+
+
+def test_unreadable_changelog_section_does_not_block_every_run() -> None:
+    """An empty section fails the release-notes job, which no retry can fix."""
+    gh, registries = _published_release()
+    gh.changelogs["0.3.278"] = "## Unreleased\n\n## 0.3.278 (12 October 2026)\n"
+    gh.bodies["0.3.278"] = "generated"
+    assert _check(gh, registries) == "0.3.278"
+
+
+def test_incomplete_release_is_not_reported_while_another_release_run_is_active() -> (
+    None
+):
+    """The creating run may still be waiting for publish approval."""
+    gh, registries = _published_release()
+    registries.pypi = None
+    gh.release_runs.append({"databaseId": 999, "status": "waiting"})
+    assert _check(gh, registries) == "0.3.278"
+    # Completed runs and this run itself do not count.
+    gh.release_runs[-1]["status"] = "completed"
+    with pytest.raises(release_workflow.IncompleteRelease):
+        _check(gh, registries)
+
+
+@pytest.mark.parametrize(
+    "fail",
+    [
+        "latest-release",
+        "release-manifest",
+        "changelog",
+        "pypi",
+        "npm",
+        "release-runs",
+    ],
+)
+def test_lookup_failure_while_checking_completeness_fails(fail: str) -> None:
+    gh, registries = _published_release()
+    registries.pypi = None  # incomplete, so the run list is read too
+    paths = {
+        "latest-release": "/releases/latest",
+        "release-manifest": ".release-please-manifest.json",
+        "changelog": "/contents/CHANGELOG.md",
+    }
+    if fail in paths:
+        gh.fail = lambda args: args[:2] == ["gh", "api"] and paths[fail] in args[2]
+    elif fail == "release-runs":
+        gh.fail = lambda args: args[:3] == ["gh", "run", "list"]
+    else:
+        registries.fail = fail
+    with pytest.raises(release_workflow.LookupFailed):
+        _check(gh, registries)
+
+
+def test_fetch_json_separates_404_from_failures(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def urlopen(url: str, timeout: int) -> Any:
+        code = int(url.rsplit("/", 1)[1])
+        raise release_workflow.urllib.error.HTTPError(url, code, "x", Message(), None)
+
+    monkeypatch.setattr(release_workflow.urllib.request, "urlopen", urlopen)
+    assert release_workflow.fetch_json("https://pypi.org/x/404") is None
+    for code in (403, 429, 500, 503):
+        with pytest.raises(release_workflow.LookupFailed, match=f"HTTP {code}"):
+            release_workflow.fetch_json(f"https://pypi.org/x/{code}")
+
+
+def test_cli_fails_with_the_recovery_instruction(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    gh, registries = _published_release()
+    registries.npm = None
+    monkeypatch.setattr(release_workflow, "run", gh)
+    monkeypatch.setattr(release_workflow, "fetch_json", registries)
+    assert (
+        release_workflow.main(
+            ["--repo", GH_REPO, "check-latest-published", "--run-id", THIS_RUN]
+        )
+        == 1
+    )
+    assert "re-run the Release workflow with tag=0.3.278" in capsys.readouterr().err
+
+
+# ---------------------------------------------------------------------------
 # dispatch-checks: retrying the release PR's checks
 # ---------------------------------------------------------------------------
 
@@ -387,6 +605,14 @@ def test_release_jobs_follow_the_resolved_tag() -> None:
     )
     # workflow_dispatch can name a release to finish
     assert "tag" in workflow[True]["workflow_dispatch"]["inputs"]
+
+
+def test_completeness_check_runs_last_when_nothing_was_resolved() -> None:
+    steps = _load(".github/workflows/release.yml")["jobs"]["release-please"]["steps"]
+    last = steps[-1]
+    assert last["name"] == "Check the latest release is fully published"
+    assert last["if"] == "steps.resolve.outputs.tag == ''"
+    assert 'check-latest-published --run-id "$GITHUB_RUN_ID"' in last["run"]
 
 
 def test_tag_dispatch_is_recovery_only() -> None:

@@ -12,11 +12,12 @@ name: Release
 # their own triggers for break-glass releases.
 #
 # Retries: re-running this workflow (all jobs, or the failed ones) finishes
-# the release on the run's own commit, and dispatches any release PR checks
-# that have not run on its head. Dispatching it on main with `tag` is
-# recovery only: it skips Release Please and the release PR and finishes that
-# release. Publishing skips what PyPI and npm already have. See
-# design/release-process.md.
+# a release tagged on the run's own commit, and dispatches any release PR
+# checks that have not run on its head. A run that finds no release to finish
+# fails if the latest release is not fully published, naming the tag to
+# dispatch with. Dispatching on main with `tag` is recovery only: it skips
+# Release Please and the release PR and finishes that release. Publishing
+# skips what PyPI and npm already have. See design/release-process.md.
 on:
   push:
     branches:
@@ -123,6 +124,17 @@ jobs:
         run: |
           python3 .github/scripts/release_workflow.py --repo "$GITHUB_REPOSITORY" \
             dispatch-checks --branch "$RELEASE_BRANCH" build.yml release-pr-checks.yml
+
+      # Last, so the release PR steps still run. A re-run cannot find a release
+      # created on an earlier commit; fail and name the tag to dispatch with
+      # rather than finish green without publishing it.
+      - name: Check the latest release is fully published
+        if: steps.resolve.outputs.tag == ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 .github/scripts/release_workflow.py --repo "$GITHUB_REPOSITORY" \
+            check-latest-published --run-id "$GITHUB_RUN_ID"
 
   release-notes:
     name: Set release notes from CHANGELOG.md

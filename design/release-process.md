@@ -66,16 +66,29 @@ Re-running the Release workflow is safe at any point.
   1. *Re-run failed jobs.* This keeps the original run's tag, and when only a
      publish job failed, it re-publishes the build job's original artifact.
   2. *Re-run all jobs*, or re-run a run that failed inside Release Please
-     after it created the release. Release Please reports a release only once,
-     so the run resumes the release whose tag is on the run's own commit,
+     after it created the release. This is supported only when the release
+     was created on that run's own commit, which is the normal case: the run
+     triggered by merging the release PR. Release Please reports a release
+     only once, so the run resumes the release whose tag is on its own commit,
      provided it is a published, non-pre-release GitHub Release and the
-     manifest at the tag names it. It never picks up a newer release. If a
-     GitHub lookup fails (network, rate limit, auth, server error), the job
-     fails rather than finishing green without publishing; re-run it.
+     manifest at the tag names it. If a GitHub lookup fails (network, rate
+     limit, auth, server error), the job fails rather than finishing green
+     without publishing; re-run it.
   3. *Recovery dispatch:* Actions → Release → Run workflow on `main` with `tag`
      set to the release. This skips Release Please and the release PR
      entirely and finishes only that release. The same checks apply, plus the
-     tag must be on `main`; a failed check or lookup fails the run.
+     tag must be on `main`; a failed check or lookup fails the run. Use this
+     whenever the release is not on the re-run's commit.
+- **A run that finds no release to finish fails closed.** When nothing is
+  resolved, the job's last step checks the latest Release Please release on
+  `main`: PyPI must have its wheel and sdist, npm its version, and the GitHub
+  Release body its `CHANGELOG.md` section. If any is missing and no other
+  Release run is active (one may be waiting for publish approval), the job
+  fails with `Release X.Y.Z exists but is not fully published (missing ...);
+  re-run the Release workflow with tag=X.Y.Z`. It never resumes or picks a
+  release itself. A lookup failure fails the job too. This check covers only
+  the latest release: an older release left incomplete behind a newer one
+  has to be found and dispatched by hand.
 - **A resumed release**:
   - restores the release notes from `CHANGELOG.md`;
   - rebuilds from the tag (except when only a publish job is re-run);
@@ -87,8 +100,10 @@ Re-running the Release workflow is safe at any point.
   branch). A same-named file with different contents fails the job, since
   PyPI never replaces a file. npm skips a version it already has.
 - **A queued Release run can be replaced by a newer push**, so the run that
-  creates a release may be on a later commit than the release PR merge. To
-  resume that release, re-run that later run, or use the `tag` input.
+  creates a release may be on a later commit than the release PR merge. If
+  that run fails after creating the release, *Re-run all jobs* cannot find
+  it; the re-run fails with the message above, and the `tag` dispatch is the
+  recovery. *Re-run failed jobs* still works, because it keeps the tag.
 
 ## Break-glass
 

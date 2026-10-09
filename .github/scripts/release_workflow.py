@@ -6,31 +6,50 @@
                    Please created in this run; otherwise a tag on this run's
                    own commit. A requested or found tag must be a published,
                    non-pre-release GitHub Release whose manifest names it and
-                   whose commit is on main, so a re-run finishes the release it
-                   started and never picks up a newer one. A failed GitHub
+                   whose commit is on main. A re-run therefore finishes a
+                   release tagged on its own commit and never picks another. A failed GitHub
                    lookup fails the command rather than counting as "no
                    release", so the job can be retried.
+  check-latest-published
+                   Run when resolve-release found nothing. Fails if the latest
+                   Release Please release on main is not fully published (no
+                   PyPI wheel and sdist, no npm version, or release notes
+                   without its CHANGELOG.md section) and no other Release run
+                   is still active. A re-run cannot find a release created on
+                   an earlier commit, so this tells the maintainer to dispatch
+                   Release with that tag instead of finishing green. It never
+                   resumes or picks a release itself.
   dispatch-checks  Dispatches each workflow that has no run yet for the
                    branch's current head commit. Safe to repeat: workflows
                    that already ran (or are running) on that commit are
                    skipped, and every workflow is attempted even if an
                    earlier dispatch fails.
 
-Runs `gh` and `git`; stdlib only.
+Runs `gh` and `git` and reads PyPI and npm; stdlib only.
 """
 
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
 import re
 import subprocess
 import sys
-from typing import Callable, Sequence
+import urllib.error
+import urllib.request
+from pathlib import Path
+from types import ModuleType
+from typing import Any, Callable, Sequence
 
 VERSION_RE = re.compile(r"^\d+\.\d+\.\d+$")
 
+PYPI_URL = "https://pypi.org/pypi/inspect-ai/{version}/json"
+NPM_URL = "https://registry.npmjs.org/@meridianlabs%2flog-viewer/{version}"
+ACTIVE_RUN_STATUSES = {"queued", "in_progress", "waiting", "requested", "pending"}
+
 Run = Callable[[Sequence[str]], str]
+Fetch = Callable[[str], "dict[str, Any] | None"]
 
 
 class ReleaseError(Exception):
@@ -41,8 +60,38 @@ class LookupFailed(Exception):
     """GitHub could not be asked (network, rate limit, auth, server error)."""
 
 
+class IncompleteRelease(Exception):
+    """The latest release is not fully published and needs a tag dispatch."""
+
+
 def run(args: Sequence[str]) -> str:
     return subprocess.run(list(args), check=True, capture_output=True, text=True).stdout
+
+
+def fetch_json(url: str) -> dict[str, Any] | None:
+    """Return the JSON at `url`, or None when it answers 404."""
+    try:
+        with urllib.request.urlopen(url, timeout=60) as response:
+            data = json.load(response)
+    except urllib.error.HTTPError as e:
+        if e.code == 404:
+            return None
+        raise LookupFailed(f"{url} answered HTTP {e.code}") from e
+    except (urllib.error.URLError, OSError, ValueError) as e:
+        raise LookupFailed(f"Could not read {url}: {e}") from e
+    if not isinstance(data, dict):
+        raise LookupFailed(f"Unexpected response from {url}")
+    return data
+
+
+def _release_changelog() -> ModuleType:
+    spec = importlib.util.spec_from_file_location(
+        "release_changelog", Path(__file__).with_name("release_changelog.py")
+    )
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 def _notice(message: str) -> None:
@@ -155,6 +204,88 @@ def resolve_release(
     return ""
 
 
+def _active_release_runs(run_: Run, repo: str, run_id: str) -> list[str]:
+    try:
+        runs = json.loads(
+            run_(
+                ["gh", "run", "list", "--repo", repo, "--workflow", "release.yml"]
+                + ["--limit", "50", "--json", "databaseId,status"]
+            )
+        )
+    except subprocess.CalledProcessError as e:
+        raise LookupFailed(f"Could not list Release runs: {e.stderr or e}") from e
+    return [
+        str(r["databaseId"])
+        for r in runs
+        if r["status"] in ACTIVE_RUN_STATUSES and str(r["databaseId"]) != run_id
+    ]
+
+
+def check_latest_published(run_: Run, fetch: Fetch, repo: str, run_id: str) -> str:
+    """Raise IncompleteRelease if the latest release was never finished.
+
+    Returns:
+        The latest release's tag when it is complete, or "" when there is no
+        Release Please release to check.
+
+    Raises:
+        IncompleteRelease: If PyPI or npm lacks the version, or the release
+            notes lack its CHANGELOG.md section, and no other Release run is
+            active (one may still be waiting for publish approval).
+        LookupFailed: If GitHub, PyPI or npm could not be queried.
+    """
+    latest = _api(run_, f"repos/{repo}/releases/latest")
+    if latest is None:
+        return ""
+    try:
+        release = json.loads(latest)
+        tag, body = release["tag_name"], release.get("body") or ""
+    except (ValueError, KeyError) as e:
+        raise LookupFailed(f"Unexpected latest-release response: {e}") from e
+    try:
+        check_release(run_, repo, tag)
+    except ReleaseError as e:
+        _notice(f"Not checking latest release {tag}: {e}")
+        return ""
+
+    missing: list[str] = []
+    pypi = fetch(PYPI_URL.format(version=tag))
+    types = {f.get("packagetype") for f in (pypi or {}).get("urls", [])}
+    if not {"bdist_wheel", "sdist"} <= types:
+        missing.append("its PyPI wheel and sdist")
+    if fetch(NPM_URL.format(version=tag)) is None:
+        missing.append("its npm package")
+    changelog = _api(
+        run_,
+        f"repos/{repo}/contents/CHANGELOG.md?ref={tag}",
+        "-H",
+        "Accept: application/vnd.github.raw",
+    )
+    release_changelog = _release_changelog()
+    try:
+        notes = release_changelog.notes(changelog or "", tag).strip()
+    except release_changelog.ChangelogError as e:
+        # The release-notes job fails on this itself; republishing can't fix it.
+        _notice(f"Not checking release notes for {tag}: {e}")
+    else:
+        if notes not in body.replace("\r\n", "\n"):
+            missing.append("its CHANGELOG.md release notes")
+    if not missing:
+        return tag
+
+    active = _active_release_runs(run_, repo, run_id)
+    if active:
+        _notice(
+            f"Release {tag} is not fully published yet; Release runs {active} "
+            f"may still be publishing it"
+        )
+        return tag
+    raise IncompleteRelease(
+        f"Release {tag} exists but is not fully published (missing "
+        f"{', '.join(missing)}); re-run the Release workflow with tag={tag}"
+    )
+
+
 def dispatch_checks(
     run_: Run, repo: str, branch: str, workflows: Sequence[str]
 ) -> list[str]:
@@ -213,6 +344,8 @@ def main(argv: list[str] | None = None) -> int:
     resolve.add_argument("--sha", required=True)
     resolve.add_argument("--created-tag", default="")
     resolve.add_argument("--requested-tag", default="")
+    latest = commands.add_parser("check-latest-published")
+    latest.add_argument("--run-id", required=True)
     dispatch = commands.add_parser("dispatch-checks")
     dispatch.add_argument("--branch", required=True)
     dispatch.add_argument("workflows", nargs="+")
@@ -225,9 +358,12 @@ def main(argv: list[str] | None = None) -> int:
                     run, args.repo, args.sha, args.created_tag, args.requested_tag
                 )
             )
+        elif args.command == "check-latest-published":
+            tag = check_latest_published(run, fetch_json, args.repo, args.run_id)
+            print(f"Nothing to finish (latest release: {tag or 'none'})")
         else:
             dispatch_checks(run, args.repo, args.branch, args.workflows)
-    except (ReleaseError, LookupFailed) as e:
+    except (ReleaseError, LookupFailed, IncompleteRelease) as e:
         print(f"::error::{e}", file=sys.stderr)
         return 1
     return 0
