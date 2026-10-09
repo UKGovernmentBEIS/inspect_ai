@@ -9,7 +9,6 @@
 
 - Tools: Tools with `*args` or `**kwargs` no longer advertise required `args`/`kwargs` parameters to models; declare model-chosen arguments with an explicit `ToolParams` schema instead.
 - Control Channel: `inspect ctl model throughput` now reports each model's input, output and cache read/write tokens per minute, in the table and in `--json` output; the table's output column is now per minute instead of per second.
-- Control Channel: `inspect ctl ... --log-dir` caches what it reads locally, so repeated polls read only the logs that changed since the last one.
 - Bugfix: An approver's `modify` decision with no modified call now rejects the tool call instead of running the original, and the human approver no longer offers Modify.
 - Deep Agent: `deepagent(background=True)` run from a scorer can now dispatch background subagents instead of failing.
 - Anthropic: Forced web searches now work on Claude 4.6+, and `web_search()` now honors `allowed_callers` and `type` in its `anthropic` options.
