@@ -129,11 +129,11 @@ version and its checks fail.
 
 ## Bootstrap
 
-The repository has version tags but no GitHub Releases. Release Please finds
-no release, falls back to the tag matching the manifest version, and reads
-commits from there. The manifest must therefore equal the latest released tag
-when this flow is enabled. A release PR opens on the first push to `main` with
-a `fix`, `feat`, `perf` or `revert` commit since that tag; PRs merged with
-their branch history already brought some after 0.3.277, so the merge that
-enables this flow opens one. It releases everything under `## Unreleased`,
-including entries from PRs merged before titles were linted.
+0.3.278 was released by hand through `publish.yml`, with a GitHub Release on
+its tag; earlier versions have tags but no GitHub Releases. Release Please
+finds the 0.3.278 release and reads commits from there, so the manifest must
+equal 0.3.278 when this flow is enabled. A release PR opens on the first push
+to `main` with a `fix`, `feat`, `perf` or `revert` commit after 0.3.278, and
+it releases everything under `## Unreleased`, including entries from PRs
+merged before titles were linted. Commits without a Conventional Commits type
+do not open one.
