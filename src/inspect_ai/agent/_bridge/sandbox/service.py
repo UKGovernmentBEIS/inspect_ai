@@ -6,6 +6,7 @@ from pydantic import JsonValue, TypeAdapter
 
 from inspect_ai._sentinel._scope import AgentScope, sentinel_scope
 from inspect_ai._util.content import Content, ContentImage, ContentText
+from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.url import data_uri_mime_type, data_uri_to_base64, is_data_uri
@@ -53,7 +54,8 @@ def _forward_provider_errors(
     `LimitExceededError` is deliberately excluded so message/token/cost limit
     hit during generation properly end the sample.
 
-    A `ModelRefusalError` (`fail_on_refusal`) must also end the sample, but the
+    A `ModelRefusalError` (`fail_on_refusal`) or a `TerminateSampleError` (a
+    sentinel's decision) must also end the sample, but the
     sandbox service dispatcher would swallow a re-raise into an RPC error, so it
     is signalled through `bridge.request_fail` (raised on the agent's side by the
     bridge's monitor task) while the scaffold still gets an error reply.
@@ -66,7 +68,7 @@ def _forward_provider_errors(
             return await generate(json_data)
         except LimitExceededError:
             raise
-        except ModelRefusalError as ex:
+        except (ModelRefusalError, TerminateSampleError) as ex:
             bridge.request_fail(ex)
             # no non-provider-error warning: the failure is reported once, by
             # the sample error the monitor task raises

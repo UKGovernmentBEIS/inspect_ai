@@ -19,6 +19,7 @@ from anthropic import APIStatusError
 from pydantic import JsonValue
 
 import inspect_ai
+from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai._util.http import status_code_of
 from inspect_ai._util.registry import _registry
 from inspect_ai.agent._agent import AgentState
@@ -577,6 +578,20 @@ async def test_bridge_forwards_retry_exhausted_anthropic_http_error(
 
     assert attempts == 2
     assert result == {PROVIDER_ERROR_KEY: {"status": status, "message": message}}
+
+
+async def test_forward_provider_errors_signals_termination_to_bridge() -> None:
+    """A sentinel's terminate ends the sample via the bridge, as a refusal does."""
+    terminate = TerminateSampleError("A sentinel ended this run.")
+
+    async def boom(json_data: dict[str, Any]) -> dict[str, Any]:
+        raise terminate
+
+    bridge = _bridge()
+    result = await _forward_provider_errors(boom, bridge)({})
+    assert result == {PROVIDER_ERROR_KEY: {"status": None, "message": str(terminate)}}
+    assert bridge._failure_requested.is_set()
+    assert bridge._failure is terminate
 
 
 # ---------- _model.py wrap path (end to end) ----------
