@@ -22,7 +22,7 @@ from inspect_ai.log._log import EvalSample, EvalSpec
 _INSPECT_CONFIG_HASH_KEY = "__inspect_scan_config_hash__"
 
 
-_REQUIRED_SCOUT_VERSION = "0.4.37"
+_REQUIRED_SCOUT_VERSION = "0.5.5"
 
 
 def verify_scout_prerequisites() -> None:
@@ -326,11 +326,24 @@ async def scan_eval_sample(
 
     _install_scan_model_context(scanner)
     scanners_dict = _normalize_scanners(scanner)
+    trust_content = (
+        eval_spec.viewer.trust_content
+        if eval_spec is not None and eval_spec.viewer is not None
+        else None
+    )
     info = transcript_info_from_eval_sample(
-        eval_sample, eval_id=eval_id, log_location=log_location, model=model
+        eval_sample,
+        eval_id=eval_id,
+        log_location=log_location,
+        model=model,
+        trust_content=trust_content,
     )
     transcript = transcript_from_eval_sample(
-        eval_sample, eval_id=eval_id, log_location=log_location, model=model
+        eval_sample,
+        eval_id=eval_id,
+        log_location=log_location,
+        model=model,
+        trust_content=trust_content,
     )
 
     from inspect_ai._eval.task.scan_display import push_results
