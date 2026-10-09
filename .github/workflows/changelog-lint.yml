@@ -1,5 +1,9 @@
 # Lints CHANGELOG.md placement on PRs: new entries must land under the
-# '## Unreleased' section. Runs only when CHANGELOG.md is modified.
+# '## Unreleased' section. Runs on every PR, passing when CHANGELOG.md is
+# untouched, so it can be a required status check on main. release.yml
+# dispatches it on the Release Please PR, which GITHUB_TOKEN pushes and which
+# therefore gets no pull_request runs; a dispatched run diffs the branch
+# against its merge base with main.
 #
 # What passes:
 # - Pure additions inside '## Unreleased' (including creating the header
@@ -22,8 +26,7 @@ name: Changelog Lint
 
 on:
   pull_request:
-    paths:
-      - "CHANGELOG.md"
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -37,11 +40,20 @@ jobs:
         with:
           # The pull_request checkout is the merge commit; depth 2 brings in
           # both parents so HEAD^1 (the base branch tip) is available to diff.
-          fetch-depth: 2
+          # A dispatched run needs main's history to find the merge base.
+          fetch-depth: ${{ github.event_name == 'workflow_dispatch' && 0 || 2 }}
+          persist-credentials: false
 
       - name: Check new entries are under '## Unreleased'
+        env:
+          EVENT_NAME: ${{ github.event_name }}
         run: |
-          python3 - HEAD^1 <<'PY'
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            BASE=$(git merge-base origin/main HEAD)
+          else
+            BASE=HEAD^1
+          fi
+          python3 - "$BASE" <<'PY'
           import re
           import subprocess
           import sys

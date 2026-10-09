@@ -17,8 +17,10 @@ and published to PyPI and npm by GitHub Actions with trusted publishing.
    PR bumps the manifest only; Release Please does not touch `CHANGELOG.md`.
    `release.yml` then runs `.github/scripts/release_changelog.py prepare` on the
    branch, which renames `## Unreleased` to `## X.Y.Z (DD Month YYYY)` (today,
-   UTC) and adds an empty `## Unreleased` above it, and dispatches `build.yml`
-   and `release-pr-checks.yml` on the branch.
+   UTC) and adds an empty `## Unreleased` above it, and dispatches `build.yml`,
+   `changelog-lint.yml` and `release-pr-checks.yml` on the branch. `build.yml`
+   and `changelog-lint.yml` provide `main`'s required status checks, which
+   every release PR needs.
 3. **Checks.** `release-pr-checks.yml` fails the release PR if the changelog
    section is missing, undated or empty, if the version is not newer than
    PyPI's latest, if any sandbox-tools artifact pinned in `SHA256SUMS` is not on

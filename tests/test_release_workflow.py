@@ -688,6 +688,24 @@ def test_release_pr_check_dispatch_does_not_depend_on_this_run_changing_the_bran
     assert "dispatch-checks" in dispatch["run"]
 
 
+def test_release_pr_gets_every_required_check() -> None:
+    # Release Please pushes the release PR with GITHUB_TOKEN, so it gets no
+    # pull_request runs; each workflow providing a required status check on
+    # main must be dispatched on it.
+    steps = _load(".github/workflows/release.yml")["jobs"]["release-please"]["steps"]
+    dispatch = next(s for s in steps if s.get("name") == "Run checks on the release PR")
+    for workflow in ["build.yml", "changelog-lint.yml"]:
+        assert workflow in dispatch["run"].split()
+
+
+def test_changelog_lint_runs_on_every_pr_and_on_dispatch() -> None:
+    # A required check filtered by path would leave PRs that don't touch
+    # CHANGELOG.md waiting for a check that never runs.
+    triggers = _load(".github/workflows/changelog-lint.yml")[True]
+    assert triggers["pull_request"] is None
+    assert "workflow_dispatch" in triggers
+
+
 def test_publish_steps_skip_what_the_registries_already_have() -> None:
     action = _load(".github/actions/publish-dist/action.yml")
     steps = action["runs"]["steps"]

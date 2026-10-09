@@ -114,16 +114,16 @@ jobs:
           git push origin "HEAD:$RELEASE_BRANCH"
 
       # Dispatches only the workflows with no run on the release PR's current
-      # head, so re-running this job retries a failed dispatch. build.yml
-      # provides the required status checks; if they are missing, a
-      # maintainer can also close and reopen the release PR.
+      # head, so re-running this job retries a failed dispatch. build.yml and
+      # changelog-lint.yml provide the required status checks; if they are
+      # missing, a maintainer can also close and reopen the release PR.
       - name: Run checks on the release PR
         if: steps.pr.outputs.open == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           python3 .github/scripts/release_workflow.py --repo "$GITHUB_REPOSITORY" \
-            dispatch-checks --branch "$RELEASE_BRANCH" build.yml release-pr-checks.yml
+            dispatch-checks --branch "$RELEASE_BRANCH" build.yml changelog-lint.yml release-pr-checks.yml
 
       # Last, so the release PR steps still run. A re-run cannot find a release
       # created on an earlier commit; fail and name the tag to dispatch with
