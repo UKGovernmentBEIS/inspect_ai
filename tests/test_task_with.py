@@ -1,6 +1,7 @@
 import inspect
 from typing import Any
 
+import pytest
 from test_helpers.tasks import minimal_task
 
 from inspect_ai import task_with
@@ -8,6 +9,7 @@ from inspect_ai._eval.task.task import Task
 from inspect_ai.agent import Agent, AgentState, agent
 from inspect_ai.approval._policy import ApprovalPolicyConfig, ApproverPolicyConfig
 from inspect_ai.log import HeadlineMetric
+from inspect_ai.scorer import match
 
 
 def test_task_with_add_options():
@@ -126,3 +128,15 @@ def test_task_with_description() -> None:
     # unspecified leaves the description in place
     task = task_with(Task(description="Kept."), time_limit=30)
     assert task.description == "Kept."
+
+
+def test_task_scorer_dict_is_type_error() -> None:
+    scorers: Any = {"accuracy_strict": match(location="end")}
+    with pytest.raises(TypeError, match="dict of scorers"):
+        Task(scorer=scorers)
+
+
+def test_task_with_scorer_dict_is_type_error() -> None:
+    scorers: Any = {"accuracy_strict": match(location="end")}
+    with pytest.raises(TypeError, match="dict of scorers"):
+        task_with(Task(), scorer=scorers)

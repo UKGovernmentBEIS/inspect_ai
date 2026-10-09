@@ -20,6 +20,7 @@ def recompute_metrics(log: EvalLog) -> None:
         metrics_from_log_header,
         reducers_from_log_header,
         resolve_scorers_info,
+        score_names_from_log_header,
     )
 
     if log.samples is None:
@@ -57,6 +58,7 @@ def recompute_metrics(log: EvalLog) -> None:
         # len(scores) (which is scorer-order dependent)
         completed_samples=sum(1 for s in log.samples if s.error is None),
         headline_metric=log.eval.headline_metric,
+        scorer_names=score_names_from_log_header(log),
     )
 
     # Update the log's results and reductions

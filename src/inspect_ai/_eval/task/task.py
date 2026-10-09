@@ -7,6 +7,7 @@ from typing import (
     Any,
     Awaitable,
     Callable,
+    Mapping,
     NamedTuple,
     Sequence,
     cast,
@@ -681,6 +682,11 @@ def resolve_scorer(
 ) -> list[Scorer] | None:
     if scorer is None:
         return scorer
+    if isinstance(scorer, Mapping):
+        raise TypeError(
+            "A dict of scorers is only supported by score() and score_async(); "
+            "pass a scorer or a list of scorers."
+        )
 
     scorers = list(scorer) if isinstance(scorer, Sequence) else [scorer]
     return [to_scorer(s) for s in scorers]

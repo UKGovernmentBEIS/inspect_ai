@@ -14,8 +14,10 @@ from inspect_ai.log import read_eval_log_async
 from inspect_ai.log._log import (
     EvalConfig,
     EvalDataset,
+    EvalMetricDefinition,
     EvalPlan,
     EvalSample,
+    EvalScorer,
     EvalSpec,
 )
 from inspect_ai.log._recorders.eval import LogStart
@@ -33,7 +35,10 @@ def _to_json(obj: object) -> str:
 
 
 def _make_crashed_log(
-    temp_dir: str, task: str = "test_task", samples: list[EvalSample] | None = None
+    temp_dir: str,
+    task: str = "test_task",
+    samples: list[EvalSample] | None = None,
+    scorers: list[EvalScorer] | None = None,
 ) -> CrashedEvalLog:
     """Create a CrashedEvalLog backed by an actual .eval ZIP file."""
     eval_spec = EvalSpec(
@@ -42,6 +47,7 @@ def _make_crashed_log(
         model="mockllm/model",
         dataset=EvalDataset(name="test", samples=4),
         config=EvalConfig(),
+        scorers=scorers,
     )
     plan = EvalPlan()
     log_start = LogStart(version=LOG_SCHEMA_VERSION, eval=eval_spec, plan=plan)
@@ -209,3 +215,32 @@ async def test_write_recovered_eval_log_empty() -> None:
             assert log.status == "error"
             read_log = await read_eval_log_async(output)
             assert read_log.status == "error"
+
+
+async def test_write_recovered_eval_log_keeps_recorded_score_names() -> None:
+    """Recovered metrics use the score names recorded in the log header."""
+    async with AsyncFilesystem():
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output = os.path.join(temp_dir, "recovered.eval")
+            sample = _make_sample(1)
+            sample.scores = {"strict": Score(value="C"), "loose": Score(value="I")}
+            crashed = _make_crashed_log(
+                temp_dir,
+                samples=[sample],
+                scorers=[
+                    EvalScorer(
+                        name="match",
+                        metrics=[EvalMetricDefinition(name="inspect_ai/accuracy")],
+                        metadata={"__score_name__": score_name},
+                    )
+                    for score_name in ["strict", "loose"]
+                ],
+            )
+
+            await write_recovered_eval_log(crashed, iter([]), output)
+
+            read_log = await read_eval_log_async(output)
+            assert read_log.results is not None
+            assert [
+                (score.name, list(score.metrics)) for score in read_log.results.scores
+            ] == [("strict", ["accuracy"]), ("loose", ["accuracy"])]
