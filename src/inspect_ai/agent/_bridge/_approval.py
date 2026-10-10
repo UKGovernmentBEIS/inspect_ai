@@ -22,15 +22,24 @@ dispatcher call the scaffold receives.
 
 import sys
 from contextlib import AbstractContextManager, nullcontext
+from dataclasses import replace
 from logging import getLogger
-from typing import TYPE_CHECKING, Any, NamedTuple, NoReturn
+from typing import TYPE_CHECKING, Any, NamedTuple, NoReturn, Sequence
 
+from inspect_ai._sentinel._context import active_sentinel
 from inspect_ai._util.format import format_function_call
 from inspect_ai._util.logger import warn_once
-from inspect_ai.agent._bridge.types import AgentBridge
+from inspect_ai.agent._bridge._sentinel import (
+    SentinelCheck,
+    sentinel_model_input,
+    sentinel_tool_call,
+)
+from inspect_ai.agent._bridge.types import AgentBridge, DispatchedCall
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageTool
 from inspect_ai.model._model_output import ModelOutput
+from inspect_ai.tool._tool import Tool, ToolApprovalError
 from inspect_ai.tool._tool_call import ToolCall, ToolCallError
+from inspect_ai.tool._tool_info import ToolInfo
 
 if TYPE_CHECKING:
     from inspect_ai.approval._policy import ApprovalPolicy
@@ -83,11 +92,17 @@ class BridgeApproval(NamedTuple):
     rejection: list[ChatMessage] | None
     """When set, the response was rejected: replay these and generate again."""
 
+    sentinel: list[SentinelCheck] | None = None
+    """With an active sentinel, the `tool_result` check for each call handed over."""
+
 
 async def apply_bridge_tool_approval(
     bridge: AgentBridge,
     output: ModelOutput,
     history: list[ChatMessage],
+    conversation: list[ChatMessage] | None = None,
+    tools: Sequence[ToolInfo | Tool] = (),
+    model_input: list[ChatMessage] | None = None,
 ) -> BridgeApproval:
     """Approve the tool calls in a bridged model response.
 
@@ -95,6 +110,11 @@ async def apply_bridge_tool_approval(
     human isn't asked to decide on calls that are about to be discarded anyway.
     `terminate` doesn't return, and neither does a `modify` decision that changes the
     function called: that is an error in the approver, and fails the sample.
+
+    When a sentinel is active, once every call is approved each goes through its
+    `tool_call` stage in order, as on the native path: its `reject`, `modify` and
+    `terminate` take effect like an approver's. The response carries the
+    `tool_result` check for each call handed to the scaffold (`_sentinel.py`).
 
     A multi-choice response whose alternate choices carry tool calls is reduced to
     the primary choice (with a warning) when approval is active, since only the
@@ -107,7 +127,14 @@ async def apply_bridge_tool_approval(
     Args:
         bridge: Bridge whose `approval` policies (if any) apply for this call.
         output: Model output about to be handed to the scaffold.
-        history: Conversation that produced `output`.
+        history: Conversation that produced `output`: the model's input.
+        conversation: The scaffold's conversation before compaction, for the
+            sentinel's step history (defaults to `history`).
+        tools: The declarations the scaffold made to the model, which identify
+            the host tools (and so the registered viewers) the calls denote.
+        model_input: What the model was sent, for the sentinel's step input, or
+            `None` when a filter generated `output` itself (its `ModelEvent` then
+            supplies the input).
 
     Returns:
         The response for the scaffold, plus the messages to replay to the model when
@@ -121,7 +148,8 @@ async def apply_bridge_tool_approval(
 
     with bridge_approval_scope(bridge.approval):
         approval_active = have_tool_approval()
-        if (approval_active or bridge.grants_tool_execution) and any(
+        sentinel_active = active_sentinel() is not None
+        if (approval_active or sentinel_active or bridge.grants_tool_execution) and any(
             choice.message.tool_calls for choice in output.choices[1:]
         ):
             warn_once(
@@ -132,7 +160,7 @@ async def apply_bridge_tool_approval(
             )
             output = output.model_copy(update={"choices": output.choices[:1]})
 
-        if not approval_active:
+        if not approval_active and not sentinel_active:
             return BridgeApproval(output, None)
 
         tool_calls = output.message.tool_calls
@@ -145,53 +173,109 @@ async def apply_bridge_tool_approval(
         # the caller hands to `_track_state` is untouched.
         approval_history = history + [output.message]
         message = output.message.text
-        modified: dict[str, dict[str, Any]] = {}
-        for call in tool_calls:
+        modified: dict[int, dict[str, Any]] = {}
+        reviewed_calls: list[ToolCall] = []
+        for index, call in enumerate(tool_calls):
             dispatched = bridge.dispatched_call(call)
             reviewed = dispatched.target if dispatched else call
-            # no viewer: bridged tools reach us as ToolInfo from the scaffold's
-            # request, not as ToolDef, so there is no registered viewer to resolve.
-            # apply_tool_approval falls back to its default rendering.
-            approved, approval = await apply_tool_approval(
-                message, reviewed, None, approval_history
-            )
-            if not approved:
-                explanation = (approval.explanation if approval else None) or (
-                    f"Tool call '{reviewed.function}' was rejected by the approval "
-                    "policy."
+            if approval_active:
+                # no viewer: bridged tools reach us as ToolInfo from the scaffold's
+                # request, not as ToolDef, so there is no registered viewer to
+                # resolve. apply_tool_approval falls back to its default rendering.
+                approved, approval = await apply_tool_approval(
+                    message, reviewed, None, approval_history
                 )
-                if approval is not None and approval.decision == "terminate":
-                    bridge.request_terminate(
-                        f"Tool call approver requested termination: {explanation}"
+                if not approved:
+                    explanation = (approval.explanation if approval else None) or (
+                        f"Tool call '{reviewed.function}' was rejected by the "
+                        "approval policy."
                     )
-                return BridgeApproval(
-                    output, rejection_messages(output, call, explanation)
-                )
+                    if approval is not None and approval.decision == "terminate":
+                        bridge.request_terminate(
+                            f"Tool call approver requested termination: {explanation}"
+                        )
+                    return BridgeApproval(
+                        output, rejection_messages(output, call, explanation)
+                    )
 
-            if approval is not None and approval.modified is not None:
-                error = modified_function_error(reviewed, approval.modified)
-                if error is not None:
-                    failure = RuntimeError(error)
-                    bridge.request_fail(failure)
-                    raise failure
-                arguments = approval.modified.arguments
-                modified[call.id] = (
-                    dispatched.dispatch(arguments) if dispatched else arguments
+                if approval is not None and approval.modified is not None:
+                    error = modified_function_error(reviewed, approval.modified)
+                    if error is not None:
+                        failure = RuntimeError(error)
+                        bridge.request_fail(failure)
+                        raise failure
+                    reviewed = replace(reviewed, arguments=approval.modified.arguments)
+                    modified[index] = _handed_arguments(dispatched, reviewed)
+            reviewed_calls.append(reviewed)
+
+        # the sentinel runs once the whole response is approved, so an approval
+        # rejection never discards sentinel work (or a person's answer to human())
+        checks: list[SentinelCheck] | None = None
+        if sentinel_active:
+            sentinel_history = (conversation or history) + [output.message]
+            step_input = (
+                model_input
+                if model_input is not None
+                else sentinel_model_input(output.message, sentinel_history)
+            )
+            checks = []
+            for index, (call, reviewed) in enumerate(zip(tool_calls, reviewed_calls)):
+                viewer = bridge._host_tool_viewer(call, tools)
+                decision = await sentinel_tool_call(
+                    bridge, message, reviewed, viewer, step_input, sentinel_history
+                )
+                if decision is not None and decision.action == "reject":
+                    explanation = ToolApprovalError(decision.message).message
+                    return BridgeApproval(
+                        output, rejection_messages(output, call, explanation)
+                    )
+                if decision is not None and decision.action == "terminate":
+                    bridge.request_terminate(
+                        decision.explanation or "Sentinel requested termination."
+                    )
+                if (
+                    decision is not None
+                    and decision.action == "modify"
+                    and decision.modified is not None
+                ):
+                    reviewed = decision.modified
+                    modified[index] = _handed_arguments(
+                        bridge.dispatched_call(call), reviewed
+                    )
+                checks.append(
+                    SentinelCheck(
+                        handed=replace(
+                            call, arguments=modified.get(index, call.arguments)
+                        ),
+                        call=reviewed,
+                        viewer=viewer,
+                        message=message,
+                        input=step_input,
+                        history=sentinel_history,
+                    )
                 )
 
     # modifications are adopted only now that the whole response is approved: a later
     # rejection discards every call, and rewriting an earlier one as we went would
     # leave the turn we replay to the model claiming arguments it never produced.
     if modified:
-        return BridgeApproval(with_modified_arguments(output, modified), None)
+        output = with_modified_arguments(output, modified)
 
-    return BridgeApproval(output, None)
+    return BridgeApproval(output, None, checks)
+
+
+def _handed_arguments(
+    dispatched: DispatchedCall | None, reviewed: ToolCall
+) -> dict[str, Any]:
+    return dispatched.dispatch(reviewed.arguments) if dispatched else reviewed.arguments
 
 
 def with_modified_arguments(
-    output: ModelOutput, modified: dict[str, dict[str, Any]]
+    output: ModelOutput, modified: dict[int, dict[str, Any]]
 ) -> ModelOutput:
-    """Copy of `output` with approved argument rewrites applied, keyed by call id.
+    """Copy of `output` with approved argument rewrites applied, by call position.
+
+    By position rather than id, since a response may carry calls sharing an id.
 
     A copy, because `output` is the object the `ModelEvent` already recorded and its
     tool calls are the ones each `ApprovalEvent` holds — pydantic stores both by
@@ -204,9 +288,9 @@ def with_modified_arguments(
     (`apply_bridge_tool_approval` fails the sample if it does).
     """
     result = output.model_copy(deep=True)
-    for call in result.message.tool_calls or []:
-        if call.id in modified:
-            call.arguments = modified[call.id]
+    for index, call in enumerate(result.message.tool_calls or []):
+        if index in modified:
+            call.arguments = modified[index]
     return result
 
 
@@ -261,6 +345,6 @@ def rejection_messages(
 def terminate_for_repeated_rejections(bridge: AgentBridge, rejections: int) -> NoReturn:
     """Terminate the sample after too many consecutive rejected generations."""
     bridge.request_terminate(
-        f"Tool call approver rejected {rejections} consecutive generations "
-        "from the bridged agent."
+        f"Tool call approval or the sentinel rejected {rejections} consecutive "
+        "generations from the bridged agent."
     )

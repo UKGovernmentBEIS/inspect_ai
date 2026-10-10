@@ -20,7 +20,8 @@ from inspect_ai.model._model import (
 )
 from inspect_ai.tool import Tool
 from inspect_ai.tool._mcp._config import MCPServerConfigHTTP
-from inspect_ai.tool._tool_call import ToolCall
+from inspect_ai.tool._tool_call import ToolCall, ToolCallViewer
+from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.tool._tool_info import ToolInfo
 from inspect_ai.util._checkpoint.checkpointer import Checkpointer
 
@@ -29,6 +30,8 @@ if TYPE_CHECKING:
     # through approval -> event -> scorer while `inspect_ai.agent` is still
     # initializing. Same reason `model/_call_tools.py` defers it.
     from inspect_ai.approval._policy import ApprovalPolicy
+
+    from .._sentinel import SentinelCheck
 
 
 logger = getLogger(__name__)
@@ -82,6 +85,11 @@ class SandboxAgentBridge(AgentBridge):
         for server, tools in (bridged_tools or {}).items():
             self.register_bridged_tools(server, tools)
         self._tool_execution_grants: deque[_ToolExecutionGrant] = deque(
+            maxlen=_MAX_TOOL_EXECUTION_GRANTS
+        )
+        # proposals of calls to proposal-exempt servers, held only for their
+        # sentinel check's context; an evicted one is checked without it
+        self._exempt_proposals: deque[_ToolExecutionGrant] = deque(
             maxlen=_MAX_TOOL_EXECUTION_GRANTS
         )
         self._failure_requested = anyio.Event()
@@ -143,14 +151,25 @@ class SandboxAgentBridge(AgentBridge):
         the response never reached the scaffold, but only ever authorizes the
         exact proposed action.
         """
+        self._register_tool_execution_grants(calls, tools, None)
+
+    def _register_tool_execution_grants(
+        self,
+        calls: Sequence[ToolCall],
+        tools: Sequence[ToolInfo | Tool],
+        checks: Sequence["SentinelCheck"] | None,
+    ) -> None:
+        # a call's sentinel check is held with each of its grants, so an evicted
+        # grant takes the check with it and the call is denied
         declared: dict[str, list[ToolInfo]] = {}
         for tool in tools:
             if isinstance(tool, ToolInfo):
                 declared.setdefault(tool.name, []).append(tool)
-        for call in calls:
+        for index, call in enumerate(calls):
             targets, arguments = _proposed_call(
                 self.bridged_tools, self.served_tools, call, declared
             )
+            check = checks[index] if checks is not None else None
             if len(targets) > 1:
                 warn_once(
                     logger,
@@ -161,6 +180,15 @@ class SandboxAgentBridge(AgentBridge):
                 )
             for target in targets:
                 if target.server in self.proposal_exempt_servers:
+                    if check is not None:
+                        self._exempt_proposals.append(
+                            _ToolExecutionGrant(
+                                server=target.server,
+                                tool=target.tool,
+                                arguments=to_jsonable_python(arguments, fallback=str),
+                                check=check,
+                            )
+                        )
                     continue
                 if (
                     len(self._tool_execution_grants)
@@ -178,6 +206,7 @@ class SandboxAgentBridge(AgentBridge):
                         server=target.server,
                         tool=target.tool,
                         arguments=to_jsonable_python(arguments, fallback=str),
+                        check=check,
                     )
                 )
 
@@ -212,19 +241,41 @@ class SandboxAgentBridge(AgentBridge):
         JSON round-trip cannot turn a proposed call into a denial; any other
         difference (including bool vs number) is denied.
         """
-        for index, grant in enumerate(self._tool_execution_grants):
-            if (
-                grant.server == server
-                and grant.tool == tool
-                and _json_equal(grant.arguments, arguments)
-            ):
-                del self._tool_execution_grants[index]
-                return True
-        return False
+        return self._consume_grant(server, tool, arguments) is not None
+
+    def _consume_grant(
+        self, server: str, tool: str, arguments: dict[str, Any]
+    ) -> "_ToolExecutionGrant | None":
+        return _consume(self._tool_execution_grants, server, tool, arguments)
+
+    def _consume_exempt_proposal(
+        self, server: str, tool: str, arguments: dict[str, Any]
+    ) -> "_ToolExecutionGrant | None":
+        return _consume(self._exempt_proposals, server, tool, arguments)
 
     def dispatched_call(self, call: ToolCall) -> DispatchedCall | None:
         """The bridged tool call `call` makes through a dispatcher (`_dispatched_call`)."""
         return _dispatched_call(self.bridged_tools, call)
+
+    def _host_tool_viewer(
+        self, call: ToolCall, tools: Sequence[ToolInfo | Tool]
+    ) -> ToolCallViewer | None:
+        dispatched = self.dispatched_call(call)
+        if dispatched is not None:
+            target = _BridgedToolId(
+                server=dispatched.server, tool=dispatched.target.function
+            )
+        else:
+            declarations = [
+                tool
+                for tool in tools
+                if isinstance(tool, ToolInfo) and tool.name == call.function
+            ]
+            targets = _resolve_by_served_content(self.served_tools, declarations)
+            if len(targets) != 1:
+                return None
+            target = targets[0]
+        return ToolDef(self.bridged_tools[target.server][target.tool]).viewer
 
     def request_fail(self, error: Exception) -> None:
         """Fail the sample with `error` from a bridged generation or tool call.
@@ -270,6 +321,28 @@ class _ToolExecutionGrant(NamedTuple):
 
     arguments: dict[str, Any]
     """The arguments handed to the scaffold, JSON-normalized and matched via `_json_equal`."""
+
+    check: "SentinelCheck | None"
+    """The sentinel's `tool_result` check for the proposed call, if one is active."""
+
+
+def _consume(
+    grants: deque[_ToolExecutionGrant],
+    server: str,
+    tool: str,
+    arguments: dict[str, Any],
+) -> _ToolExecutionGrant | None:
+    # newest first, so a result is attributed to the latest matching proposal
+    for index in range(len(grants) - 1, -1, -1):
+        grant = grants[index]
+        if (
+            grant.server == server
+            and grant.tool == tool
+            and _json_equal(grant.arguments, arguments)
+        ):
+            del grants[index]
+            return grant
+    return None
 
 
 class _BridgedToolId(NamedTuple):

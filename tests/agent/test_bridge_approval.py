@@ -366,6 +366,23 @@ async def test_modify_rewrites_arguments_handed_to_the_scaffold() -> None:
     assert run.output.message.tool_calls[0].arguments == {"cmd": "ls"}
 
 
+async def test_modify_rewrites_only_its_call_when_ids_are_shared() -> None:
+    risky = ToolCall(id="1", function="bash", arguments={"cmd": "rm -rf /"})
+    read = ToolCall(id="1", function="read_file", arguments={"path": "a.txt"})
+    run = await run_bridge(
+        [tool_calls_output(risky, read)],
+        approval=[
+            ApprovalPolicy(modifying_approver({"cmd": "ls"}), "bash"),
+            ApprovalPolicy(auto_approver(), "*"),
+        ],
+    )
+
+    assert run.output.message.tool_calls == [
+        ToolCall(id="1", function="bash", arguments={"cmd": "ls"}),
+        read,
+    ]
+
+
 async def test_modify_preserves_the_original_call_in_the_transcript() -> None:
     """The log must still show what the model proposed, not what was approved.
 

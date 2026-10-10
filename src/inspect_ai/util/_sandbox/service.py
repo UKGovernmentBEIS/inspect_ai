@@ -575,10 +575,7 @@ class SandboxService:
                     exc_info=True,
                 )
                 await self._write_response(
-                    request_file,
-                    request_id,
-                    None,
-                    f"Error calling method {method_name}: {err}",
+                    request_file, request_id, None, _method_error(method_name, err)
                 )
 
     async def _write_response(
@@ -876,3 +873,7 @@ async def validate_sandbox_python(
         raise PrerequisiteError(
             f"The {service_name} requires that Python be installed in the sandbox."
         )
+
+
+def _method_error(method: str, error: Exception) -> str:
+    return f"Error calling method {method}: {error}"

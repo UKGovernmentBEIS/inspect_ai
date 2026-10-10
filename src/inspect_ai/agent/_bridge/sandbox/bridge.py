@@ -6,7 +6,6 @@ from typing import TYPE_CHECKING, AsyncIterator
 import anyio
 from shortuuid import uuid
 
-from inspect_ai._sentinel._context import warn_sentinel_bridged
 from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai.model._compaction.types import CompactionStrategy
 from inspect_ai.model._model import (
@@ -172,8 +171,6 @@ async def sandbox_agent_bridge(
             and restore, so a checkpointed run survives resume. Defaults to
             `None` (no checkpointing).
     """
-    warn_sentinel_bridged()
-
     # instance id for this bridge
     instance = f"proxy_{uuid()}"
 
