@@ -263,7 +263,12 @@ class ModelUsageData:
     task_name: str | None = None
     """The name of the task that generated this usage (if any)."""
     retries: int = 0
-    """The number of HTTP retries made before the successful call."""
+    """The number of HTTP retries made within the successful model call.
+
+    Retries made by Inspect's outer retry loop, and those made within
+    attempts that failed, are not counted -- so this plus the number of
+    `on_model_retry` firings is not the call's total.
+    """
 
 
 @dataclass(frozen=True)
@@ -937,7 +942,7 @@ async def emit_sample_attempt_end(
 
 
 async def emit_model_usage(
-    model_name: str, usage: ModelUsage, call_duration: float
+    model_name: str, usage: ModelUsage, call_duration: float, retries: int
 ) -> None:
     from inspect_ai.log._samples import sample_active
 
@@ -947,19 +952,11 @@ async def emit_model_usage(
     run_id: str | None = None
     eval_id: str | None = None
     task_name: str | None = None
-    retries: int = 0
     if active is not None:
         eval_set_id = active.eval_set_id
         run_id = active.run_id
         eval_id = active.eval_id
         task_name = active.task
-
-    # Read retry count from the active model event (if available).
-    from inspect_ai.log._samples import _active_model_event
-
-    model_event = _active_model_event.get()
-    if model_event is not None and model_event.retries is not None:
-        retries = model_event.retries
 
     data = ModelUsageData(
         model_name=model_name,
