@@ -10,6 +10,7 @@ from typing import (
     AsyncContextManager,
     AsyncGenerator,
     Callable,
+    Iterable,
     Literal,
     NamedTuple,
     Sequence,
@@ -25,6 +26,7 @@ from inspect_ai._display import display as display_manager
 from inspect_ai._eval.context import init_task_context
 from inspect_ai._eval.loader import load_file_tasks, scorer_from_spec
 from inspect_ai._eval.task.task import resolve_scorer, resolve_scorer_metrics
+from inspect_ai._eval.task.util import sample_id_filter
 from inspect_ai._util._async import configured_async_backend, run_coroutine, tg_collect
 from inspect_ai._util.platform import platform_init, running_in_notebook
 from inspect_ai._util.registry import (
@@ -46,7 +48,7 @@ from inspect_ai.log import (
 )
 from inspect_ai.log._condense import resolve_sample_attachments
 from inspect_ai.log._headline import headline_metric_ref, resolve_headline_metric
-from inspect_ai.log._log import EvalMetricDefinition, EvalSample
+from inspect_ai.log._log import EvalMetricDefinition, EvalSample, EvalScorer
 from inspect_ai.log._resolve import rebind_sample_timelines
 from inspect_ai.log._score import _find_scorers_span
 from inspect_ai.log._transcript import Transcript, init_transcript, transcript
@@ -90,6 +92,7 @@ def score(
     action: ScoreAction | None = None,
     display: DisplayType | None = None,
     copy: bool = True,
+    sample_ids: str | int | list[str] | list[int] | list[str | int] | None = None,
 ) -> EvalLog:
     """Score an evaluation log.
 
@@ -109,6 +112,9 @@ def score(
        action: Whether to append or overwrite this score
        display: Progress/status display
        copy: Whether to deepcopy the log before scoring.
+       sample_ids: Score only the sample(s) with these ids (glob patterns
+         are matched as for `eval(sample_id=...)`); every other sample
+         keeps its existing scores. An id that matches no sample is an error.
 
     Returns:
        Log with scores yielded by scorer.
@@ -133,6 +139,7 @@ def score(
                 model_roles=model_roles,
                 action=action,
                 copy=copy,
+                sample_ids=sample_ids,
             )
         )
     else:
@@ -143,6 +150,7 @@ def score(
                 model_roles=model_roles,
                 action=action,
                 copy=copy,
+                sample_ids=sample_ids,
             ),
             log,
             scorers,
@@ -210,6 +218,29 @@ def _get_updated_events(
     return list(event_sequence(sample_event_tree))
 
 
+def check_sample_ids(
+    sample_ids: str | int | list[str] | list[int] | list[str | int],
+    present: Iterable[str | int],
+) -> None:
+    """Raise `ValueError` if any requested id (or pattern) matches none of `present`.
+
+    A filter with no hits would otherwise make a pass that scored nothing
+    look like a success.
+    """
+    requested = sample_ids if isinstance(sample_ids, list) else [sample_ids]
+    if not requested:
+        raise ValueError("sample_ids is empty")
+    present = list(present)
+    matchers = [(str(id), sample_id_filter(id)) for id in requested]
+    unmatched = [
+        text
+        for text, matcher in matchers
+        if not any(matcher.matches(sid) for sid in present)
+    ]
+    if unmatched:
+        raise ValueError(f"sample_ids not found in log: {', '.join(unmatched)}")
+
+
 async def score_async(
     log: EvalLog,
     scorers: "Scorers",
@@ -223,6 +254,7 @@ async def score_async(
     display: DisplayType | None = None,
     copy: bool = True,
     samples: Callable[[int], AsyncContextManager[EvalSample]] | None = None,
+    sample_ids: str | int | list[str] | list[int] | list[str | int] | None = None,
 ) -> EvalLog:
     """Score an evaluation log.
 
@@ -248,12 +280,20 @@ async def score_async(
          Function to read samples from the log, which accepts the
          sample index and async yields an EvalSample. Can be used to
          stream samples without loading the entire log into memory.
+       sample_ids:
+         Score only the sample(s) with these ids (glob patterns are matched
+         as for `eval(sample_id=...)`); every other sample keeps its existing
+         scores. An id that matches no sample is an error.
 
     Returns:
        Log with scores yielded by scorer.
     """
     if samples is None and log.samples is None:
         raise ValueError("There are no samples to score in the log.")
+
+    matcher = sample_id_filter(sample_ids) if sample_ids is not None else None
+    if sample_ids is not None and log.samples is not None:
+        check_sample_ids(sample_ids, [sample.id for sample in log.samples])
 
     # resolve scorers
     resolved_scorers = resolve_scorer(scorers)
@@ -307,30 +347,52 @@ async def score_async(
         # tally the per-sample error state as we go so an overwrite can restate
         # completed_samples exactly rather than falling back to len(scores)
         sample_completed: list[bool] = [False] * total_samples
+        scored_ids: list[str | int] = []
+        untouched_names: set[str] = set()
 
         async def _score_sample(idx_sample: int) -> None:
             nonlocal scorer_names
             sample_score: dict[str, SampleScore] = {}
 
             async with samples(idx_sample) as sample:
-                # run the task, capturing the resulting sample scores
-                # and sample names for later use. The sample scores
-                # returned here are only the _newly created_ scores
-                # which means that metrics below are being computed
-                # only for the new scores (not all scores on the sample)
-                #
-                # We need to capture the the full sample score here
-                # since the sample score carries the scorer name that generated
-                # it (so using sample.scores directly isn't enough)
-                sample_score, names = await _run_score_task(
-                    log, sample, resolved_scorers, active_model, active_roles, action
-                )
+                if matcher is None or matcher.matches(sample.id):
+                    # run the task, capturing the resulting sample scores
+                    # and sample names for later use. The sample scores
+                    # returned here are only the _newly created_ scores
+                    # which means that metrics below are being computed
+                    # only for the new scores (not all scores on the sample)
+                    #
+                    # We need to capture the the full sample score here
+                    # since the sample score carries the scorer name that generated
+                    # it (so using sample.scores directly isn't enough)
+                    sample_score, names = await _run_score_task(
+                        log,
+                        sample,
+                        resolved_scorers,
+                        active_model,
+                        active_roles,
+                        action,
+                    )
+                    scored_ids.append(sample.id)
+                    if scorer_names is None:
+                        scorer_names = names
+                elif action == "overwrite":
+                    # an overwrite rebuilds results from the scores gathered in
+                    # this pass, so a sample the filter left alone contributes
+                    # the scores it already has (an append only extends results
+                    # with the new scorer, which this sample did not receive)
+                    sample_score = {
+                        name: SampleScore(
+                            score=score,
+                            sample_id=sample.id,
+                            sample_metadata=sample.metadata,
+                        )
+                        for name, score in (sample.scores or {}).items()
+                    }
+                    untouched_names.update(sample_score)
 
-            assert sample.scores is not None
             scores[idx_sample] = sample_score
             sample_completed[idx_sample] = sample.error is None
-            if scorer_names is None:
-                scorer_names = names
             p.update(1)
 
         await tg_collect(
@@ -339,6 +401,27 @@ async def score_async(
                 for idx_sample in range(total_samples)
             )
         )
+
+        # streamed samples (header-only log) could only be checked as they
+        # were read (an in-memory log was checked before any scoring above)
+        if sample_ids is not None and log.samples is None:
+            check_sample_ids(sample_ids, scored_ids)
+
+        # an overwrite rebuilds results and the header's scorer list from this
+        # pass. Scorers whose scores survive on samples the filter left alone
+        # must stay described (metrics, params), or results would fall back to
+        # registry defaults and a later recompute_metrics() / `inspect score`
+        # would no longer know about them
+        retained_names = untouched_names - set(scorer_names or [])
+        retained_scorers: list[EvalScorer] = []
+        retained_info: list[ScorerInfo] = []
+        if retained_names:
+            retained_scorers = [
+                s for s in (log.eval.scorers or []) if s.name in retained_names
+            ]
+            retained_info = [
+                i for i in resolve_scorers_info(log) if i.name in retained_names
+            ]
 
         # collect metrics from EvalLog (they may overlap w/ the scorer metrics,
         # that will be taken care of in eval_results). For append, the new scorer
@@ -359,11 +442,16 @@ async def score_async(
             epochs_reducer = reducers_from_log_header(log)
 
         # compute metrics
+        scorers_info: list[Scorer] | list[ScorerInfo] = (
+            [ScorerInfo.from_scorer(s) for s in resolved_scorers] + retained_info
+            if retained_info
+            else resolved_scorers
+        )
         results, reductions = eval_results(
             total_samples,
             list(filter(None, scores)),
             epochs_reducer,
-            resolved_scorers,
+            scorers_info,
             log_metrics,
             scorer_names,
             early_stopping=log.results.early_stopping if log.results else None,
@@ -392,7 +480,7 @@ async def score_async(
             # Completely replace the results (and reductions) with the new ones
             log.reductions = reductions
             log.results = results
-            log.eval.scorers = applied_eval_scorers
+            log.eval.scorers = applied_eval_scorers + retained_scorers
         else:
             # Only update the results with the new scores, leaving the rest
             # of the results as they were. The reductions computed here cover
