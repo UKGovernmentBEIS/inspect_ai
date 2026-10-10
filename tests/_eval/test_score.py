@@ -1,19 +1,23 @@
 import contextlib
 import functools
 import pathlib
-from typing import Any
+from typing import Any, AsyncIterator
 
+import anyio
 import pydantic
 import pytest
 from test_helpers.utils import skip_if_no_openai
 
-from inspect_ai import score
+from inspect_ai import Task, eval, eval_async, score
 from inspect_ai._eval.score import (
     ScoreAction,
     _get_updated_events,
     _get_updated_scores,
+    _score_name,
+    named_scorers_from_log_header,
     resolve_scorers,
     score_async,
+    score_names_from_log_header,
 )
 from inspect_ai.dataset import Sample
 from inspect_ai.event._event import Event
@@ -22,8 +26,10 @@ from inspect_ai.event._model import ModelEvent
 from inspect_ai.event._sample_init import SampleInitEvent
 from inspect_ai.event._score import ScoreEvent
 from inspect_ai.log import (
+    EvalLog,
     EvalSample,
     Transcript,
+    recompute_metrics,
 )
 from inspect_ai.log._file import read_eval_log, read_eval_log_async
 from inspect_ai.log._transcript import init_transcript
@@ -32,7 +38,7 @@ from inspect_ai.model._chat_message import (
     ChatMessageAssistant,
     ChatMessageUser,
 )
-from inspect_ai.scorer import accuracy
+from inspect_ai.scorer import accuracy, exact, match
 from inspect_ai.scorer._metric import SampleScore, Score
 from inspect_ai.scorer._scorer import Scorer, scorer
 from inspect_ai.scorer._target import Target
@@ -979,3 +985,456 @@ def test_scorer_from_spec_preserves_scorer_name_argument() -> None:
     )
     assert callable(resolved)
     assert received_names == ["custom"]
+
+
+def _named_scorers() -> dict[str, Scorer]:
+    """Two `match` scorers under caller-chosen names."""
+    return {
+        "accuracy_strict": match(location="end"),
+        "accuracy_loose": match(location="begin"),
+    }
+
+
+def _score_with_named_scorers() -> EvalLog:
+    """`LOG_SCORED` rescored by `_named_scorers()`."""
+    # match never calls a model, so name mockllm to keep this running without an
+    # API key (score() otherwise resolves the header model and would raise).
+    return score(
+        log=read_eval_log(LOG_SCORED),
+        scorers=_named_scorers(),
+        model="mockllm/model",
+    )
+
+
+async def _score_async_with_named_scorers() -> EvalLog:
+    """`LOG_SCORED` rescored by `_named_scorers()` through `score_async()`."""
+    return await score_async(
+        await read_eval_log_async(LOG_SCORED),
+        _named_scorers(),
+        model="mockllm/model",
+    )
+
+
+def _score_entries(log: EvalLog) -> list[dict[str, Any]]:
+    """Name, scorer, params, reducer, metrics and metadata of each result entry."""
+    assert log.results is not None
+    return [
+        entry.model_dump(
+            include={"name", "scorer", "params", "reducer", "metrics", "metadata"}
+        )
+        for entry in log.results.scores
+    ]
+
+
+def _reductions(log: EvalLog) -> list[dict[str, Any]]:
+    """Each sample reduction, with its score name and reduced values."""
+    assert log.reductions is not None
+    return [reduction.model_dump() for reduction in log.reductions]
+
+
+def _sample_score_keys(log: EvalLog) -> list[list[str]]:
+    """Score names on each sample."""
+    assert log.samples is not None
+    keys: list[list[str]] = []
+    for sample in log.samples:
+        assert sample.scores is not None
+        keys.append(list(sample.scores))
+    return keys
+
+
+def test_score_dict_uses_keys_as_score_names() -> None:
+    """Dict keys name the scores, next to existing scores of the same scorer."""
+    expected = ["match", "accuracy_strict", "accuracy_loose"]
+
+    log = read_eval_log(LOG_SCORED)
+    scorers = {
+        "accuracy_strict": match(location="end"),
+        "accuracy_loose": match(location="begin"),
+    }
+
+    # match never calls a model, so name mockllm to keep this running without an
+    # API key (score() otherwise resolves the header model and would raise).
+    scored_log = score(log=log, scorers=scorers, model="mockllm/model")
+
+    assert scored_log.samples is not None
+    for sample in scored_log.samples:
+        assert sample.scores is not None
+        assert list(sample.scores) == expected
+
+    assert scored_log.results is not None
+    assert [(s.name, s.scorer) for s in scored_log.results.scores] == [
+        (name, name) for name in expected
+    ]
+
+    assert scored_log.eval.scorers is not None
+    header = scored_log.eval.scorers
+    assert [s.name for s in header] == ["match"] * len(expected)
+    assert [_score_name(s) or s.name for s in header] == expected
+
+
+async def test_score_dict_names_survive_recompute_metrics() -> None:
+    """Recomputing metrics keeps the score names a dict of scorers gave."""
+    scored = await _score_async_with_named_scorers()
+    entries = _score_entries(scored)
+    reductions = _reductions(scored)
+    keys = _sample_score_keys(scored)
+
+    recompute_metrics(scored)
+
+    assert _score_entries(scored) == entries
+    assert _reductions(scored) == reductions
+    assert _sample_score_keys(scored) == keys
+
+
+async def test_score_dict_names_survive_rescoring_from_log() -> None:
+    """Rescoring a log with scorers rebuilt from its header keeps the score names."""
+    scored = await _score_async_with_named_scorers()
+    rebuilt = named_scorers_from_log_header(scored, resolve_scorers(scored))
+    rescored = await score_async(
+        scored, rebuilt, action="overwrite", model="mockllm/model"
+    )
+    assert [entry["name"] for entry in _score_entries(rescored)] == [
+        "match",
+        "accuracy_strict",
+        "accuracy_loose",
+    ]
+
+
+async def test_score_dict_name_already_in_log_is_error() -> None:
+    """A dict key naming a score already in the log is an error when appending."""
+    with pytest.raises(ValueError, match="already in the log: match"):
+        await score_async(
+            log=await read_eval_log_async(LOG_SCORED),
+            scorers={"match": match(location="begin")},
+            model="mockllm/model",
+            action="append",
+        )
+
+
+async def test_score_dict_empty_name_is_error() -> None:
+    """An empty dict key is an error."""
+    with pytest.raises(ValueError, match="must be non-empty strings: ''"):
+        await score_async(
+            log=await read_eval_log_async(LOG_SCORED),
+            scorers={"": match(location="begin")},
+            model="mockllm/model",
+        )
+
+
+@scorer(metrics=[accuracy()], **{"__score_name__": "taken"})
+def _reserved_key_scorer(scored_samples: list[int | str]) -> Scorer:
+    async def score(state: TaskState, target: Target) -> Score:
+        scored_samples.append(state.sample_id)
+        return Score(value=1)
+
+    return score
+
+
+@pytest.mark.parametrize("as_dict", [True, False])
+async def test_score_reserved_metadata_key_is_error(as_dict: bool) -> None:
+    """A scorer using the metadata key reserved for score names fails before scoring."""
+    scored_samples: list[int | str] = []
+    reserved = _reserved_key_scorer(scored_samples)
+
+    with pytest.raises(ValueError, match="reserved metadata key '__score_name__'"):
+        await score_async(
+            await read_eval_log_async(LOG_SCORED),
+            {"reserved": reserved} if as_dict else [reserved],
+            model="mockllm/model",
+        )
+    assert scored_samples == []
+
+
+def test_eval_reserved_metadata_key_is_error() -> None:
+    """An eval whose scorer uses the reserved metadata key fails before running."""
+    task = Task(
+        dataset=[Sample(input="Say hello", target="hello")],
+        scorer=_reserved_key_scorer([]),
+    )
+    with pytest.raises(ValueError, match="reserved metadata key '__score_name__'"):
+        eval(task, model="mockllm/model", display="none")
+
+
+@pytest.mark.parametrize(
+    ("recorded", "error"),
+    [
+        ("accuracy_strict", "duplicate score names: accuracy_strict"),
+        ("", "Invalid '__score_name__'"),
+        (None, "Invalid '__score_name__'"),
+    ],
+)
+def test_score_dict_invalid_recorded_name_is_error(
+    recorded: str | None, error: str
+) -> None:
+    """An invalid name recorded in the log header is an error on recompute."""
+    scored = _score_with_named_scorers()
+    assert scored.eval.scorers is not None
+    loose = scored.eval.scorers[2]
+    loose.metadata = {**(loose.metadata or {}), "__score_name__": recorded}
+
+    with pytest.raises(ValueError, match=error):
+        recompute_metrics(scored)
+
+
+async def test_score_dict_name_of_existing_scorer_is_error() -> None:
+    """A dict key naming an existing scorer whose scores have other names is an error."""
+
+    @scorer(metrics={"helpful": [accuracy()], "harmless": [accuracy()]})
+    def rubric() -> Scorer:
+        async def score(state: TaskState, target: Target) -> Score:
+            return Score(value={"helpful": 1, "harmless": 0})
+
+        return score
+
+    log = await score_async(
+        await read_eval_log_async(LOG_SCORED), [rubric()], model="mockllm/model"
+    )
+    assert log.results is not None
+    assert {"helpful", "harmless"} <= {s.name for s in log.results.scores}
+
+    with pytest.raises(ValueError, match="already in the log: rubric"):
+        await score_async(
+            log,
+            {"rubric": match(location="begin")},
+            model="mockllm/model",
+            action="append",
+        )
+
+
+async def test_score_list_appended_to_named_log_records_its_names() -> None:
+    """Scorers appended as a list to a log that records names record theirs too."""
+    scored = await _score_async_with_named_scorers()
+    assert scored.samples is not None
+    for sample in scored.samples:
+        assert sample.scores is not None
+        # a score a solver set without a scorer takes the next generated name
+        sample.scores["match1"] = Score(value="C")
+
+    appended = await score_async(scored, [match()], model="mockllm/model")
+
+    assert score_names_from_log_header(appended) == [
+        "match",
+        "accuracy_strict",
+        "accuracy_loose",
+        "match2",
+    ]
+
+
+@scorer(metrics=[accuracy()])
+def _first_sample_only() -> Scorer:
+    async def score(state: TaskState, target: Target) -> Score | None:
+        return Score(value=1) if state.sample_id == 1 else None
+
+    return score
+
+
+async def test_score_list_appended_to_named_log_uses_one_name_per_scorer(
+    tmp_path: pathlib.Path,
+) -> None:
+    """A scorer appended to a log that records names gets one name on every sample."""
+    task = Task(
+        dataset=[
+            Sample(input="a", target="a", id=1),
+            Sample(input="b", target="b", id=2),
+        ],
+        scorer=exact(),
+    )
+    logs = await eval_async(task, model="mockllm/model", log_dir=str(tmp_path))
+    named = await score_async(logs[0], {"match": _first_sample_only()})
+
+    appended = await score_async(named, [match()])
+
+    assert appended.samples is not None
+    assert [sorted(sample.scores or {}) for sample in appended.samples] == [
+        ["exact", "match", "match1"],
+        ["exact", "match1"],
+    ]
+
+
+async def test_score_dict_name_with_no_scores_in_log_is_error() -> None:
+    """A dict key naming a recorded scorer that produced no scores is an error."""
+
+    @scorer(metrics=[])
+    def never_scores() -> Scorer:
+        async def score(state: TaskState, target: Target) -> Score | None:
+            return None
+
+        return score
+
+    log = await score_async(
+        await read_eval_log_async(LOG_SCORED),
+        {"silent": never_scores()},
+        model="mockllm/model",
+    )
+    assert log.results is not None
+    assert "silent" not in {eval_score.name for eval_score in log.results.scores}
+
+    with pytest.raises(ValueError, match="already in the log: silent"):
+        await score_async(
+            log, {"silent": match()}, model="mockllm/model", action="append"
+        )
+
+
+async def _unscored_log(tmp_path: pathlib.Path) -> EvalLog:
+    """A two-sample log of a `match()` task evaluated without scoring."""
+    task = Task(
+        dataset=[
+            Sample(input="a", target="a", id=1),
+            Sample(input="b", target="b", id=2),
+        ],
+        scorer=match(),
+    )
+    (unscored,) = await eval_async(
+        task, model="mockllm/model", log_dir=str(tmp_path), score=False
+    )
+    return unscored
+
+
+async def test_score_dict_name_of_unscored_header_scorer_is_allowed(
+    tmp_path: pathlib.Path,
+) -> None:
+    """A dict key naming a header scorer that produced no scores is free when appending."""
+    scored = await score_async(await _unscored_log(tmp_path), {"match": match()})
+
+    assert _sample_score_keys(scored) == [["match"], ["match"]]
+    assert [(entry["name"], entry["scorer"]) for entry in _score_entries(scored)] == [
+        ("match", "match")
+    ]
+
+
+@pytest.mark.parametrize("score_name", ["match", "strict"])
+async def test_score_dict_on_unscored_log_survives_recompute_metrics(
+    tmp_path: pathlib.Path, score_name: str
+) -> None:
+    """Recomputing a log a dict scored after `--no-score` keeps its results and headline."""
+    scored = await score_async(await _unscored_log(tmp_path), {score_name: match()})
+    assert scored.results is not None
+    entries = _score_entries(scored)
+    reductions = _reductions(scored)
+    headline = scored.results.headline
+
+    recompute_metrics(scored)
+
+    assert _score_entries(scored) == entries
+    assert _reductions(scored) == reductions
+    assert scored.results.headline == headline
+    assert score_names_from_log_header(scored) == [score_name]
+
+
+@scorer(metrics=[accuracy()])
+def _counting_scorer(scored_samples: list[int | str]) -> Scorer:
+    async def score(state: TaskState, target: Target) -> Score:
+        scored_samples.append(state.sample_id)
+        return Score(value=1)
+
+    return score
+
+
+@pytest.mark.parametrize("as_dict", [True, False])
+async def test_score_invalid_recorded_name_fails_before_scoring(as_dict: bool) -> None:
+    """An invalid name recorded in the header fails an append before any scoring."""
+    scored = await _score_async_with_named_scorers()
+    assert scored.eval.scorers is not None
+    loose = scored.eval.scorers[2]
+    loose.metadata = {**(loose.metadata or {}), "__score_name__": ""}
+    scored_samples: list[int | str] = []
+    counting = _counting_scorer(scored_samples)
+
+    with pytest.raises(ValueError, match="Invalid '__score_name__'"):
+        await score_async(
+            scored,
+            {"counted": counting} if as_dict else [counting],
+            model="mockllm/model",
+        )
+    assert scored_samples == []
+
+
+async def test_score_dict_names_with_no_samples() -> None:
+    """With no samples to score, results still use the dict keys as score names."""
+    log = await read_eval_log_async(LOG_SCORED)
+    log.samples = []
+
+    scored = await score_async(log, _named_scorers(), model="mockllm/model")
+
+    assert scored.results is not None
+    assert [eval_score.name for eval_score in scored.results.scores][-2:] == [
+        "accuracy_strict",
+        "accuracy_loose",
+    ]
+
+
+async def test_score_streamed_sample_name_conflict_fails_before_its_scorers() -> None:
+    """A chosen name already on a streamed sample is an error before its scorers run."""
+    scored = await _score_async_with_named_scorers()
+    samples = scored.samples
+    assert samples is not None
+    for sample in samples:
+        assert sample.scores is not None
+        # on the samples only: not in the header or the results
+        sample.scores["_counting_scorer"] = Score(value="C")
+    header = scored.model_copy(update={"samples": None})
+
+    @contextlib.asynccontextmanager
+    async def read_sample(index: int) -> AsyncIterator[EvalSample]:
+        yield samples[index]
+
+    scored_samples: list[int | str] = []
+    with pytest.raises(ValueError, match="already on sample"):
+        await score_async(
+            header,
+            [_counting_scorer(scored_samples)],
+            model="mockllm/model",
+            samples=read_sample,
+        )
+    assert scored_samples == []
+
+
+@scorer(metrics=[accuracy()])
+def _blocking_scorer(started: anyio.Event, cancelled: list[int | str]) -> Scorer:
+    async def score(state: TaskState, target: Target) -> Score:
+        started.set()
+        try:
+            await anyio.sleep_forever()
+        except anyio.get_cancelled_exc_class():
+            cancelled.append(state.sample_id)
+            raise
+        return Score(value=1)
+
+    return score
+
+
+async def test_score_streamed_name_conflict_cancels_running_scorers() -> None:
+    """A streamed name conflict cancels scorers running on other samples; readers close."""
+    scored = await _score_async_with_named_scorers()
+    samples = scored.samples
+    assert samples is not None and samples[1].scores is not None
+    # on the second sample only, so other samples' scorers are already running
+    samples[1].scores["_blocking_scorer"] = Score(value="C")
+    header = scored.model_copy(update={"samples": None})
+
+    started = anyio.Event()
+    opened: list[int] = []
+    closed: list[int] = []
+
+    @contextlib.asynccontextmanager
+    async def read_sample(index: int) -> AsyncIterator[EvalSample]:
+        if index == 1:
+            await started.wait()
+        opened.append(index)
+        try:
+            yield samples[index]
+        finally:
+            closed.append(index)
+
+    cancelled: list[int | str] = []
+    with anyio.fail_after(30), pytest.raises(ValueError, match="already on sample"):
+        await score_async(
+            header,
+            [_blocking_scorer(started, cancelled)],
+            model="mockllm/model",
+            samples=read_sample,
+        )
+    assert cancelled
+    assert samples[1].id not in cancelled
+    assert 1 in opened
+    assert sorted(closed) == sorted(opened)

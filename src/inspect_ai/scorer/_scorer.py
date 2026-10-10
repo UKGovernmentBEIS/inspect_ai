@@ -216,6 +216,10 @@ def as_scorer_spec(scorer: Scorer) -> ScorerSpec:
     args = registry_params(scorer)
     metadata = deepcopy(registry_info(scorer).metadata)
     del metadata[SCORER_METRICS]
+    if SCORER_SCORE_NAME in metadata:
+        raise ValueError(
+            f"Scorer '{name}' uses the reserved metadata key '{SCORER_SCORE_NAME}'."
+        )
 
     return ScorerSpec(
         scorer=name, args=args, metadata=metadata, metrics=resolved_metrics
@@ -270,3 +274,6 @@ def unique_scorer_name(scorer: Scorer | str, already_used_names: list[str]) -> s
 
 
 SCORER_METRICS = "metrics"
+
+SCORER_SCORE_NAME = "__score_name__"
+"""Log header scorer metadata key holding a caller-chosen score name."""
