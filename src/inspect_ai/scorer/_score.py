@@ -1,6 +1,7 @@
 from contextvars import ContextVar
 from copy import copy
 
+from inspect_ai._sentinel._context import not_agent_generates
 from inspect_ai._util.registry import has_registry_params, registry_params
 from inspect_ai.model._conversation import ModelConversation
 from inspect_ai.model._model import sample_model_usage, sample_role_usage
@@ -60,7 +61,8 @@ async def score(conversation: ModelConversation) -> list[Score]:
     for scorer in scorers:
         scorer_name = unique_scorer_name(scorer, used_names)
         used_names.append(scorer_name)
-        score = await scorer(state, target)
+        with not_agent_generates():
+            score = await scorer(state, target)
         if score is not None:
             scores.append(score)
             transcript()._event(

@@ -41,6 +41,7 @@ from tenacity import (
 )
 from tenacity.wait import WaitBaseT
 
+from inspect_ai._sentinel._context import is_agent_generate
 from inspect_ai._util.constants import (
     DEFAULT_MAX_CONNECTIONS,
     DEFAULT_MAX_CONNECTIONS_BATCH,
@@ -216,6 +217,13 @@ class GenerateInput(NamedTuple):
 
     config: GenerateConfig
     """Model configuration."""
+
+
+class _PreparedInput(NamedTuple):
+    input: list[ChatMessage]
+    tdefs: list[ToolDef]
+    tools: list[ToolInfo]
+    tool_choice: ToolChoice
 
 
 @dataclasses.dataclass(frozen=True)
@@ -998,10 +1006,27 @@ class Model:
         # normalize input to chat
         if isinstance(input, str):
             input = [ChatMessageUser(content=input)]
+        history = input
 
         # insert any system message provided in config
         if config.system_message:
             input = [ChatMessageSystem(content=config.system_message)] + input
+
+        prepared = await self._prepare_input(input, tools, tool_choice, config)
+
+        # outside the connection slot, since a monitor may call this model too
+        generate_step = None
+        if is_agent_generate(is_active_model):
+            from inspect_ai._sentinel._dispatch import sentinel_before_generate
+
+            generate_step = await sentinel_before_generate(
+                model=str(self),
+                input=prepared.input,
+                history=history,
+                tools=prepared.tools,
+                tool_choice=prepared.tool_choice,
+                config=config,
+            )
 
         # enforce concurrency limits
         start_time = datetime.now(timezone.utc)
@@ -1009,9 +1034,7 @@ class Model:
         async with self._connection_concurrency(config) as connection:
             # generate
             output, event = await self._generate(
-                input=input,
-                tools=tools,
-                tool_choice=tool_choice,
+                prepared=prepared,
                 config=config,
                 cache=cache,
                 connection=connection,
@@ -1051,8 +1074,12 @@ class Model:
             ):
                 raise ModelRefusalError(output, str(self), self.role)
 
-            # return output
-            return output
+        if generate_step is not None:
+            from inspect_ai._sentinel._dispatch import sentinel_after_generate
+
+            await sentinel_after_generate(generate_step, output)
+
+        return output
 
     async def generate_loop(
         self,
@@ -1309,30 +1336,13 @@ class Model:
 
             return compacted_messages, usage
 
-    async def _generate(
+    async def _prepare_input(
         self,
         input: list[ChatMessage],
         tools: Sequence[Tool | ToolDef | ToolInfo | ToolSource] | ToolSource,
         tool_choice: ToolChoice | None,
         config: GenerateConfig,
-        cache: bool | CachePolicy | NotGiven = NOT_GIVEN,
-        connection: ConnectionSlot | None = None,
-        on_stream: StreamHandler | None = None,
-    ) -> tuple[ModelOutput, BaseModel]:
-        from inspect_ai.event._model import ModelEvent
-        from inspect_ai.hooks._hooks import (
-            emit_before_model_generate,
-            emit_model_cache_usage,
-            emit_model_usage,
-            get_all_hooks,
-        )
-        from inspect_ai.hooks._legacy import send_telemetry_legacy
-        from inspect_ai.log._refusal import report_refusal
-        from inspect_ai.log._samples import (
-            cleared_retry_wait,
-            track_active_model_event,
-        )
-
+    ) -> "_PreparedInput":
         # default to 'auto' for tool_choice (same as underlying model apis)
         tool_choice = tool_choice if tool_choice is not None else "auto"
 
@@ -1390,6 +1400,31 @@ class Model:
 
         input = collapse_consecutive_messages_for_api(input, self.api)
         _validate_model_input_media(input)
+        return _PreparedInput(input, tdefs, base_tools, tool_choice)
+
+    async def _generate(
+        self,
+        prepared: "_PreparedInput",
+        config: GenerateConfig,
+        cache: bool | CachePolicy | NotGiven = NOT_GIVEN,
+        connection: ConnectionSlot | None = None,
+        on_stream: StreamHandler | None = None,
+    ) -> tuple[ModelOutput, BaseModel]:
+        from inspect_ai.event._model import ModelEvent
+        from inspect_ai.hooks._hooks import (
+            emit_before_model_generate,
+            emit_model_cache_usage,
+            emit_model_usage,
+            get_all_hooks,
+        )
+        from inspect_ai.hooks._legacy import send_telemetry_legacy
+        from inspect_ai.log._refusal import report_refusal
+        from inspect_ai.log._samples import (
+            cleared_retry_wait,
+            track_active_model_event,
+        )
+
+        input, tdefs, base_tools, tool_choice = prepared
 
         # resolve cache policy
         if isinstance(cache, NotGiven):
