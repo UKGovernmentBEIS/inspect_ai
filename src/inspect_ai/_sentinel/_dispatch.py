@@ -63,7 +63,12 @@ from inspect_ai.util._limit import suspend_token_limit, suspend_turn_limit
 from inspect_ai.util._span import current_agent_span_id, span
 from inspect_ai.util._store import store
 
-from ._context import SentinelFailure, active_sentinel, active_task_metadata
+from ._context import (
+    SentinelFailure,
+    active_sentinel,
+    active_task_description,
+    active_task_metadata,
+)
 
 logger = getLogger(__name__)
 
@@ -185,10 +190,10 @@ def _eval_context() -> EvalContext | None:
         return None
     return EvalContext(
         task=active.task,
-        task_description=None,
+        task_description=active_task_description(),
         sample_id=state.sample_id,
         epoch=state.epoch,
-        sample_description=None,
+        sample_description=active.sample.description,
         sample_input=state.input,
         metadata={**active_task_metadata(), **state.metadata},
     )
