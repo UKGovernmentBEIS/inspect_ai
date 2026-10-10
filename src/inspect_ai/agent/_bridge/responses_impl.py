@@ -367,16 +367,18 @@ async def inspect_responses_api_request_impl(
     await bridge._track_state(messages, output)
 
     # return response
+    incomplete_details = responses_incomplete_details(output.stop_reason)
     response = Response(
         id=output.message.id or uuid(),
         created_at=int(time()),
-        incomplete_details=responses_incomplete_details(output.stop_reason),
+        incomplete_details=incomplete_details,
         model=model_name,
         object="response",
         output=responses_output_items_from_assistant_message(
-            output.message, tool_namespaces
+            output.message, tool_namespaces, incomplete=incomplete_details is not None
         ),
         parallel_tool_calls=parallel_tool_calls,
+        status="incomplete" if incomplete_details is not None else "completed",
         tool_choice=responses_tool_choice_param_to_tool_choice(responses_tool_choice),
         tools=responses_tool_params_to_tools(responses_tools),
         usage=responses_model_usage(output.usage),
@@ -1386,7 +1388,18 @@ mcp_tool_adapter = TypeAdapter(list[McpListToolsTool])
 def responses_output_items_from_assistant_message(
     message: ChatMessageAssistant,
     tool_namespaces: dict[str, str] | None = None,
+    incomplete: bool = False,
 ) -> list[ResponseOutputItem]:
+    """Convert an assistant message into Responses output items.
+
+    Args:
+        message: Assistant message to convert.
+        tool_namespaces: Namespace of each namespaced tool, by tool name.
+        incomplete: Generation stopped early (the response has
+            `incomplete_details`). The last item is the one that was cut
+            short, so it is marked `"incomplete"` if it is a message item;
+            earlier items are complete.
+    """
     output: list[ResponseOutputItem] = []
     # normalize message content to list
     message_content = (
@@ -1531,5 +1544,9 @@ def responses_output_items_from_assistant_message(
                     namespace=namespace,
                 )
             )
+
+    last_item = output[-1] if output else None
+    if incomplete and isinstance(last_item, ResponseOutputMessage):
+        last_item.status = "incomplete"
 
     return output

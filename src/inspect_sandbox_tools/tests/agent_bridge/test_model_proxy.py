@@ -1279,6 +1279,78 @@ async def test_model_proxy_responses_streaming_output_item_done_is_completed(
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("incomplete_details", "terminal_event", "status"),
+    [
+        ({"reason": "max_output_tokens"}, "response.incomplete", "incomplete"),
+        ({"reason": "content_filter"}, "response.incomplete", "incomplete"),
+        (None, "response.completed", "completed"),
+    ],
+    ids=["max_output_tokens", "content_filter", "completed"],
+)
+async def test_model_proxy_responses_streaming_terminal_event_reflects_status(
+    incomplete_details: dict[str, str] | None,
+    terminal_event: str,
+    status: str,
+) -> None:
+    """A truncated response streams as `response.incomplete`, not `response.completed`."""
+
+    async def mock_service(method: str, **params: Any) -> dict[str, Any]:
+        # the shape the host bridge returns for this generation
+        return {
+            "id": "resp_1",
+            "object": "response",
+            "created_at": 1234567890,
+            "model": "gpt-4o",
+            "status": status,
+            "incomplete_details": incomplete_details,
+            "output": [
+                {
+                    "id": "msg_1",
+                    "type": "message",
+                    "role": "assistant",
+                    "status": status,
+                    "content": [
+                        {"type": "output_text", "text": "partial", "annotations": []}
+                    ],
+                }
+            ],
+            "parallel_tool_calls": False,
+            "tool_choice": "auto",
+            "tools": [],
+        }
+
+    async with _proxy_with_service(mock_service) as base_url:
+        async with ClientSession() as session:
+            async with session.post(
+                f"{base_url}/v1/responses",
+                json={"model": "gpt-4o", "input": "hi", "stream": True},
+            ) as response:
+                assert response.status == 200
+                body = await response.text()
+
+    events = _parse_sse_events(body)
+    assert [e["type"] for e in events[:2]] == [
+        "response.created",
+        "response.in_progress",
+    ]
+    assert [e["response"]["status"] for e in events[:2]] == ["in_progress"] * 2
+
+    done_items = [e["item"] for e in events if e["type"] == "response.output_item.done"]
+    assert [item["status"] for item in done_items] == [status]
+
+    terminal = [
+        e for e in events if e["type"] in ("response.completed", "response.incomplete")
+    ]
+    assert terminal == [events[-1]]
+    assert terminal[0]["type"] == terminal_event
+    assert f"event: {terminal_event}\n" in body
+    assert terminal[0]["response"]["status"] == status
+    assert terminal[0]["response"]["incomplete_details"] == incomplete_details
+    assert terminal[0]["response"]["output"][-1]["status"] == status
+
+
+@pytest.mark.asyncio
 async def test_model_proxy_responses_web_search(
     proxy_server: tuple[AsyncHTTPServer, str],
 ) -> None:

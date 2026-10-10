@@ -800,13 +800,15 @@ async def model_proxy_server(
                         )
 
                     seq_num = 0
+                    in_progress_resp = dict(resp)
+                    in_progress_resp["status"] = "in_progress"
 
                     # 1. response.created event
                     seq_num += 1
                     yield _sse_event(
                         "response.created",
                         {
-                            "response": resp,
+                            "response": in_progress_resp,
                             "sequence_number": seq_num,
                             "type": "response.created",
                         },
@@ -815,8 +817,6 @@ async def model_proxy_server(
 
                     # 2. response.in_progress event
                     seq_num += 1
-                    in_progress_resp = dict(resp)
-                    in_progress_resp["status"] = "in_progress"
                     yield _sse_event(
                         "response.in_progress",
                         {
@@ -1439,18 +1439,22 @@ async def model_proxy_server(
 
                         # 3d. response.output_item.done
                         seq_num += 1
-                        # Update status to completed. custom_tool_call is a
-                        # special case: the installed OpenAI SDK's
-                        # ResponseCustomToolCall model omits "status" from its
-                        # dict entirely, even though clients such as opencode's
-                        # AI SDK require it on the done item to dispatch the
-                        # call, so it's added even when not already present.
+                        # Restore the item's final status from the host (e.g.
+                        # "incomplete" for a truncated message), or "completed"
+                        # when it has none. custom_tool_call is a special case:
+                        # the installed OpenAI SDK's ResponseCustomToolCall
+                        # model omits "status" from its dict entirely, even
+                        # though clients such as opencode's AI SDK require it
+                        # on the done item to dispatch the call, so it's added
+                        # even when not already present.
                         item_dict_completed = dict(output_item)
                         if (
                             "status" in item_dict_completed
                             or item_type == "custom_tool_call"
                         ):
-                            item_dict_completed["status"] = "completed"
+                            item_dict_completed["status"] = (
+                                output_item.get("status") or "completed"
+                            )
 
                         yield _sse_event(
                             "response.output_item.done",
@@ -1463,16 +1467,21 @@ async def model_proxy_server(
                             seq_num,
                         )
 
-                    # 4. response.completed event
+                    # 4. response.incomplete event if the host reported
+                    # incomplete_details (e.g. max_output_tokens), otherwise
+                    # response.completed
                     seq_num += 1
-                    completed_resp = dict(resp)
-                    completed_resp["status"] = "completed"
+                    final_status = (
+                        "incomplete" if resp.get("incomplete_details") else "completed"
+                    )
+                    final_resp = dict(resp)
+                    final_resp["status"] = final_status
                     yield _sse_event(
-                        "response.completed",
+                        f"response.{final_status}",
                         {
-                            "response": completed_resp,
+                            "response": final_resp,
                             "sequence_number": seq_num,
-                            "type": "response.completed",
+                            "type": f"response.{final_status}",
                         },
                         seq_num,
                     )
