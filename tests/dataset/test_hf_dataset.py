@@ -1,3 +1,4 @@
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
@@ -303,6 +304,62 @@ def test_hf_dataset_limit(limit, expected, tmp_path, monkeypatch) -> None:
     )
 
     assert len(dataset) == expected
+
+
+def test_hf_dataset_preserves_checkpoint_default_mapping(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from inspect_ai.dataset import hf_dataset
+    from inspect_ai.util import CheckpointSampleConfig
+
+    records = [
+        {
+            "input": "a",
+            "target": "1",
+            "checkpoint": {"max_consecutive_failures": 0, "sandbox_paths": {}},
+        }
+    ]
+
+    def fake_load_dataset(*_a: object, **_k: object) -> _FakeHFDataset:
+        return _FakeHFDataset(records)
+
+    _install_fake_datasets_full(
+        monkeypatch, tmp_path, fake_load_dataset, lambda *_a, **_k: None
+    )
+
+    dataset = hf_dataset(path="org/ds", split="test", cached=False, retry=False)
+
+    assert dataset[0].checkpoint == CheckpointSampleConfig(
+        max_consecutive_failures=0, sandbox_paths={}
+    )
+
+
+def test_hf_dataset_custom_converter_owns_checkpoint(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from inspect_ai.dataset import Sample, hf_dataset
+    from inspect_ai.util import CheckpointSampleConfig
+
+    records = [
+        {"input": "a", "target": "1", "checkpoint": {"max_consecutive_failures": 0}}
+    ]
+
+    def fake_load_dataset(*_a: object, **_k: object) -> _FakeHFDataset:
+        return _FakeHFDataset(records)
+
+    _install_fake_datasets_full(
+        monkeypatch, tmp_path, fake_load_dataset, lambda *_a, **_k: None
+    )
+
+    dataset = hf_dataset(
+        path="org/ds",
+        split="test",
+        sample_fields=Sample.model_validate,
+        cached=False,
+        retry=False,
+    )
+
+    assert dataset[0].checkpoint == CheckpointSampleConfig(max_consecutive_failures=0)
 
 
 def test_hf_dataset_shuffle_sets_shuffled_flag(tmp_path, monkeypatch):
