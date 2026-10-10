@@ -25,6 +25,7 @@ from inspect_ai.dataset import Sample
 from inspect_ai.event import (
     Event,
     ModelEvent,
+    SampleLimitEvent,
     SentinelEvent,
     SpanBeginEvent,
     SpanEndEvent,
@@ -76,6 +77,7 @@ try:
         monitor,
         observe_only,
         protocol,
+        sequential,
         threshold,
     )
 except ImportError:
@@ -135,6 +137,14 @@ def d3_terminate_after() -> Protocol:
 def d3_escalate() -> Protocol:
     async def unsure(context: Context, step: BeforeToolCall) -> Decision | None:
         return Decision.escalate("not sure")
+
+    return unsure
+
+
+@protocol
+def d3_escalate_after() -> Protocol:
+    async def unsure(context: Context, step: AfterToolCall) -> Decision | None:
+        return Decision.escalate(f"unsure about {step.result.text}")
 
     return unsure
 
@@ -642,23 +652,70 @@ def test_final_from_a_nested_protocol() -> None:
     assert all(e.references == [] for e in sentinel_events(log))
 
 
-def test_an_escalate_at_the_root_proceeds_and_warns_once(
-    caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    from inspect_ai._util import logger as logger_module
+def assert_unhandled_escalation(log: EvalLog, stage: str) -> None:
+    assert log.samples
+    sample = log.samples[0]
+    assert sample.limit is not None
+    assert sample.limit.type == "operator"
+    reason = sample.limit.reason
+    assert reason is not None
+    assert "nothing handled the escalation" in reason
+    assert "human()" in reason and "handle_escalation(" in reason
+    [limit_event] = [e for e in sample.events if isinstance(e, SampleLimitEvent)]
+    assert limit_event.message == reason
+    [root] = [e for e in sentinel_events(log) if e.path == ""]
+    assert (root.stage, root.status, root.action) == (stage, "reported", "escalate")
 
-    monkeypatch.setattr(logger_module, "_warned", [])
+
+def test_an_unhandled_escalate_before_the_call_terminates(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
     with caplog.at_level(logging.WARNING):
         log = run({"unsure": d3_escalate(), "fine": d3_continue()}, turns=2)
-    assert log.status == "success", log.error
+    assert_unhandled_escalation(log, "tool_call")
+    assert tool_messages(log) == []
+    assert log.samples
+    tool_events = [e for e in log.samples[0].events if isinstance(e, ToolEvent)]
+    assert [e.failed for e in tool_events] == [True]
+    assert not any("nothing to escalate to" in r.message for r in caplog.records)
 
-    assert [m.text for m in tool_messages(log)] == ["2", "3"]
-    assert all(m.error is None for m in tool_messages(log))
+
+def test_an_unhandled_escalate_after_the_call_terminates() -> None:
+    log = run(d3_escalate_after(), turns=2)
+    assert_unhandled_escalation(log, "tool_result")
+    assert log.samples
+    tool_events = [e for e in log.samples[0].events if isinstance(e, ToolEvent)]
+    assert [(e.result, e.failed) for e in tool_events] == [("2", True)]
+
+
+def test_an_unhandled_escalate_is_told_apart_from_a_terminate() -> None:
+    terminated = run(d3_terminate())
+    escalated = run(d3_escalate())
+    assert terminated.samples and escalated.samples
+    assert terminated.samples[0].limit is not None
+    assert terminated.samples[0].limit.reason == "too risky"
+    assert [e.action for e in sentinel_events(terminated)] == ["terminate"]
+    assert [e.action for e in sentinel_events(escalated)] == ["escalate"]
+    assert_unhandled_escalation(escalated, "tool_call")
+
+
+def test_an_escalate_handled_by_a_terminating_link_uses_its_reason() -> None:
+    log = run(sequential([d3_escalate(), d3_terminate()]))
+    assert log.samples
+    sample = log.samples[0]
+    assert sample.limit is not None
+    assert sample.limit.reason == "too risky"
     root = [e for e in sentinel_events(log) if e.path == ""]
-    assert [e.action for e in root] == ["escalate", "escalate"]
-    warnings = [r for r in caplog.records if "nothing to escalate to" in r.message]
-    assert len(warnings) == 1
-    assert "sequential([..., human()])" in warnings[0].message
+    assert [e.action for e in root] == ["terminate"]
+
+
+def test_an_escalate_handled_by_a_continuing_link_proceeds() -> None:
+    log = run(sequential([d3_escalate(), d3_continue()]), turns=2)
+    assert log.status == "success", log.error
+    assert log.samples and log.samples[0].limit is None
+    assert [m.text for m in tool_messages(log)] == ["2", "3"]
+    root = [e for e in sentinel_events(log) if e.path == ""]
+    assert [e.action for e in root] == ["continue", "continue"]
 
 
 @solver

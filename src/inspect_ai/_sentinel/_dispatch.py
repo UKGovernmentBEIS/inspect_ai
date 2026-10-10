@@ -147,14 +147,20 @@ async def _run(step: Step) -> Decision | None:
     except Exception as ex:
         raise SentinelFailure(ex) from ex
     if decision is not None and decision.action == "escalate":
-        # recorded as the root's decision; with nobody above to take it, the call proceeds
-        warn_once(
-            logger,
-            "A sentinel escalated a tool call with nothing to escalate to, so it proceeded; "
-            "add sequential([..., human()]) to send escalations to a person.",
-        )
-        return Decision.proceed()
+        # fails closed; the root's recorded escalate tells it apart from a terminate
+        raise TerminateSampleError(_unhandled_escalation(step))
     return decision
+
+
+def _unhandled_escalation(step: Step) -> str:
+    subject = "tool call" if isinstance(step, BeforeToolCall) else "tool result"
+    return (
+        f"A sentinel escalated the {subject} and nothing handled the escalation, "
+        "so the sample was terminated. End the sentinel configuration with "
+        "human() to ask a person, or with handle_escalation('terminate') or "
+        "handle_escalation('continue') to apply a fixed policy, e.g. "
+        "sequential([..., human()])."
+    )
 
 
 def _stage(step: Step) -> Literal["tool_call", "tool_result"]:
