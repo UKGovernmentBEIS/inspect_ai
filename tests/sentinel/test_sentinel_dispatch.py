@@ -166,6 +166,15 @@ def d3_final() -> Protocol:
     return veto
 
 
+@protocol
+def d3_final_escalate() -> Protocol:
+    async def unsure(context: Context, step: BeforeToolCall) -> Decision | None:
+        decide_final(Decision.escalate("not sure"))
+        return None
+
+    return unsure
+
+
 @monitor
 def d3_suspicion(score: float = 0.25) -> Monitor:
     async def check(context: Context, step: BeforeToolCall) -> Observation | None:
@@ -652,32 +661,37 @@ def test_final_from_a_nested_protocol() -> None:
     assert all(e.references == [] for e in sentinel_events(log))
 
 
-def assert_unhandled_escalation(log: EvalLog, stage: str) -> None:
+def assert_unhandled_escalation(
+    log: EvalLog, stage: str, recorded_at: str = ""
+) -> None:
+    assert log.status == "success", log.error
     assert log.samples
     sample = log.samples[0]
+    assert sample.error is None
     assert sample.limit is not None
     assert sample.limit.type == "operator"
     reason = sample.limit.reason
     assert reason is not None
     assert "nothing handled the escalation" in reason
-    assert "human()" in reason and "handle_escalation(" in reason
+    assert f"human(stages=['{stage}'])" in reason
+    assert "handle_escalation(" in reason
     [limit_event] = [e for e in sample.events if isinstance(e, SampleLimitEvent)]
     assert limit_event.message == reason
-    [root] = [e for e in sentinel_events(log) if e.path == ""]
-    assert (root.stage, root.status, root.action) == (stage, "reported", "escalate")
+    [escalated] = [e for e in sentinel_events(log) if e.path == recorded_at]
+    assert (escalated.stage, escalated.status, escalated.action) == (
+        stage,
+        "reported",
+        "escalate",
+    )
 
 
-def test_an_unhandled_escalate_before_the_call_terminates(
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    with caplog.at_level(logging.WARNING):
-        log = run({"unsure": d3_escalate(), "fine": d3_continue()}, turns=2)
+def test_an_unhandled_escalate_before_the_call_terminates() -> None:
+    log = run({"unsure": d3_escalate(), "fine": d3_continue()}, turns=2)
     assert_unhandled_escalation(log, "tool_call")
     assert tool_messages(log) == []
     assert log.samples
     tool_events = [e for e in log.samples[0].events if isinstance(e, ToolEvent)]
     assert [e.failed for e in tool_events] == [True]
-    assert not any("nothing to escalate to" in r.message for r in caplog.records)
 
 
 def test_an_unhandled_escalate_after_the_call_terminates() -> None:
@@ -686,6 +700,13 @@ def test_an_unhandled_escalate_after_the_call_terminates() -> None:
     assert log.samples
     tool_events = [e for e in log.samples[0].events if isinstance(e, ToolEvent)]
     assert [(e.result, e.failed) for e in tool_events] == [("2", True)]
+
+
+def test_an_unhandled_final_escalate_terminates() -> None:
+    log = run(sequential({"veto": d3_final_escalate(), "fine": d3_continue()}))
+    assert_unhandled_escalation(log, "tool_call", recorded_at="veto")
+    [root] = [e for e in sentinel_events(log) if e.path == ""]
+    assert (root.status, root.action) == ("bypassed", None)
 
 
 def test_an_unhandled_escalate_is_told_apart_from_a_terminate() -> None:
