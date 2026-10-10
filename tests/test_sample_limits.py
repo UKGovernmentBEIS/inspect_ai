@@ -1,6 +1,8 @@
+import functools
 import tempfile
+from pathlib import Path
 from random import randint
-from typing import Generator
+from typing import Any, Generator
 
 import anyio
 import pytest
@@ -8,24 +10,48 @@ from test_helpers.limits import check_limit_event, find_limit_event
 from test_helpers.tools import addition
 from test_helpers.utils import (
     flaky_retry,
+    skip_if_no_anthropic,
     skip_if_no_docker,
+    skip_if_no_google,
     skip_if_no_openai,
     sleep_for_solver,
 )
 
 from inspect_ai import Task, eval
+from inspect_ai._util._async import tg_collect
 from inspect_ai._util.error import PrerequisiteError
-from inspect_ai.approval import ApprovalPolicy, auto_approver
+from inspect_ai._util.registry import _registry
+from inspect_ai._util.working import add_sample_wait, sample_clock
+from inspect_ai.approval import (
+    Approval,
+    ApprovalPolicy,
+    Approver,
+    approver,
+    auto_approver,
+)
 from inspect_ai.dataset import Sample
-from inspect_ai.log._log import EvalLog
+from inspect_ai.event import ModelEvent, SubtaskEvent, ToolEvent
+from inspect_ai.log._log import EvalLog, EvalSample
+from inspect_ai.log._samples import awaiting_human
+from inspect_ai.model import (
+    ChatMessage,
+    ChatMessageAssistant,
+    ChatMessageTool,
+    GenerateConfig,
+    ModelAPI,
+)
+from inspect_ai.model._call_tools import execute_tools
 from inspect_ai.model._chat_message import ChatMessageUser
 from inspect_ai.model._model import Model, get_model
+from inspect_ai.model._model_call import ModelCall
 from inspect_ai.model._model_data.model_data import ModelCost, ModelInfo
 from inspect_ai.model._model_info import clear_model_info_cache, set_model_info
 from inspect_ai.model._model_output import (
     ModelOutput,
     ModelUsage,
 )
+from inspect_ai.model._registry import modelapi
+from inspect_ai.review import Review, Reviewer, ReviewPolicy, reviewer
 from inspect_ai.scorer import match
 from inspect_ai.scorer._metric import Score
 from inspect_ai.scorer._metrics import mean
@@ -33,8 +59,18 @@ from inspect_ai.scorer._scorer import Scorer, scorer
 from inspect_ai.scorer._target import Target
 from inspect_ai.solver import Generate, TaskState, solver, use_tools
 from inspect_ai.solver._solver import Solver, generate
+from inspect_ai.tool import (
+    Tool,
+    ToolCall,
+    ToolCallView,
+    ToolChoice,
+    ToolInfo,
+    ToolResult,
+    tool,
+)
+from inspect_ai.util import subtask
 from inspect_ai.util._concurrency import concurrency
-from inspect_ai.util._limit import TokenLimit, sample_limits
+from inspect_ai.util._limit import TokenLimit, sample_limits, suspend_working_limit
 
 
 @pytest.fixture(autouse=True)
@@ -528,7 +564,7 @@ def check_working_limit_event(log: EvalLog, working_limit: int):
     assert log.samples
     assert log.samples[0].total_time
     assert log.samples[0].working_time
-    assert log.samples[0].total_time > log.samples[0].working_time
+    assert log.samples[0].total_time >= log.samples[0].working_time
     check_limit_event(log, "working")
 
 
@@ -863,3 +899,526 @@ def test_operator_limit_records_reason() -> None:
     summary = log.samples[0].summary()
     assert summary.limit == "operator"
     assert summary.limit_reason == "Tool call approver requested termination."
+
+
+# Working time under concurrent and late-known waits
+# (design/working-time-concurrency.md). These run real samples with short
+# real sleeps; the retry backoff sleep is shortened through `_sleep`.
+
+_BACKOFF = 0.3
+
+
+class _FlakyError(Exception):
+    pass
+
+
+class _FlakyAPI(ModelAPI):
+    """Fails each distinct input `fail_times` times, then succeeds."""
+
+    def __init__(
+        self,
+        model_name: str,
+        base_url: str | None = None,
+        api_key: str | None = None,
+        config: GenerateConfig = GenerateConfig(),
+        fail_times: int = 0,
+        attempt_seconds: float = 0.1,
+        call_time: float | None = None,
+        return_call: bool = False,
+        **model_args: object,
+    ) -> None:
+        super().__init__(
+            model_name=model_name,
+            base_url=base_url,
+            api_key="flaky",
+            api_key_vars=[],
+            config=config,
+        )
+        self.fail_times = fail_times
+        self.attempt_seconds = attempt_seconds
+        self.call_time = call_time
+        self.return_call = return_call
+        self.attempts: dict[str, int] = {}
+
+    async def generate(
+        self,
+        input: list[ChatMessage],
+        tools: list[ToolInfo],
+        tool_choice: ToolChoice,
+        config: GenerateConfig,
+    ) -> ModelOutput | tuple[ModelOutput, ModelCall]:
+        await self._attempt(input[-1].text)
+        output = ModelOutput.from_content(model=self.model_name, content="ok")
+        if self.call_time is not None or self.return_call:
+            return output, ModelCall.create({}, {}, time=self.call_time)
+        return output
+
+    async def count_tokens(
+        self,
+        input: str | list[ChatMessage],
+        config: GenerateConfig | None = None,
+    ) -> int:
+        await self._attempt(input if isinstance(input, str) else input[-1].text)
+        return 1
+
+    async def compact(
+        self,
+        input: list[ChatMessage],
+        tools: list[ToolInfo],
+        config: GenerateConfig,
+        instructions: str | None = None,
+    ) -> tuple[list[ChatMessage], ModelUsage | None]:
+        await self._attempt(input[-1].text)
+        return input, None
+
+    async def _attempt(self, key: str) -> None:
+        self.attempts[key] = self.attempts.get(key, 0) + 1
+        await anyio.sleep(self.attempt_seconds)
+        if self.attempts[key] <= self.fail_times:
+            raise _FlakyError(f"attempt {self.attempts[key]} failed")
+
+    def should_retry(self, ex: Exception) -> bool:
+        return isinstance(ex, _FlakyError)
+
+
+@pytest.fixture
+def flaky_model(monkeypatch: pytest.MonkeyPatch) -> Generator[None, None, None]:
+    async def short_sleep(seconds: float) -> None:
+        await anyio.sleep(_BACKOFF)
+
+    monkeypatch.setattr("inspect_ai.model._retry._sleep", short_sleep)
+
+    @modelapi(name="flakytiming")
+    def flakytiming() -> type[ModelAPI]:
+        return _FlakyAPI
+
+    yield
+    del _registry["modelapi:flakytiming"]
+
+
+def _run_timing_solver(solver: Solver, **eval_args: Any) -> EvalSample:
+    log = eval(Task(solver=solver), model="mockllm/model", **eval_args)[0]
+    assert log.status == "success", log.error
+    assert log.samples
+    sample = log.samples[0]
+    assert sample.total_time is not None and sample.working_time is not None
+    assert 0 <= sample.working_time <= sample.total_time
+    return sample
+
+
+def _waiting(sample: EvalSample) -> float:
+    assert sample.total_time is not None and sample.working_time is not None
+    return sample.total_time - sample.working_time
+
+
+def test_concurrent_retries_working_time_not_negative(flaky_model: None) -> None:
+    """Concurrent retries merge their waits instead of adding them."""
+
+    @solver
+    def concurrent_retries() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            model = get_model("flakytiming/m", fail_times=2, memoize=False)
+            await tg_collect(
+                [functools.partial(model.generate, f"call {i}") for i in range(4)]
+            )
+            return state
+
+        return solve
+
+    sample = _run_timing_solver(concurrent_retries())
+    # each call: two failed 0.1 s attempts and two backoffs, then success
+    assert _waiting(sample) >= 2 * (0.1 + _BACKOFF) - 0.05
+
+
+def test_semaphore_waiter_merges() -> None:
+    """A task waiting on a semaphore makes the whole sample wait."""
+
+    @solver
+    def semaphore_wait() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            held = anyio.Event()
+
+            async def holder() -> None:
+                async with concurrency("working-time-k", 1):
+                    held.set()
+                    await anyio.sleep(0.5)
+
+            async def waiter() -> None:
+                await held.wait()
+                async with concurrency("working-time-k", 1):
+                    pass
+
+            await tg_collect([holder, waiter])
+            return state
+
+        return solve
+
+    sample = _run_timing_solver(semaphore_wait())
+    assert _waiting(sample) >= 0.4
+
+
+def test_cache_hit_adds_no_waiting(
+    flaky_model: None, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A cache hit credits nothing (it used to credit the original call's time)."""
+    monkeypatch.setenv("INSPECT_CACHE_DIR", str(tmp_path))
+
+    @solver
+    def cached_twice() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            model = get_model("flakytiming/m", attempt_seconds=0.3, memoize=False)
+            await model.generate("same", cache=True)
+            await model.generate("same", cache=True)
+            return state
+
+        return solve
+
+    sample = _run_timing_solver(cached_twice())
+    assert _waiting(sample) < 0.1
+
+
+def test_attempts_of_call_that_runs_out_of_retries_are_waiting(
+    flaky_model: None,
+) -> None:
+    @solver
+    def exhausted() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            model = get_model(
+                "flakytiming/m",
+                fail_times=100,
+                attempt_seconds=0.2,
+                config=GenerateConfig(max_retries=1),
+                memoize=False,
+            )
+            with pytest.raises(Exception):
+                await model.generate("fails")
+            return state
+
+        return solve
+
+    sample = _run_timing_solver(exhausted())
+    # two retryable attempts and one backoff
+    assert _waiting(sample) >= 2 * 0.2 + _BACKOFF - 0.05
+
+
+@pytest.mark.parametrize("operation", ["count_tokens", "compact"])
+def test_token_count_and_compact_retries_are_waiting(
+    flaky_model: None, operation: str
+) -> None:
+    """Retried count_tokens and compact attempts and their backoff are waiting."""
+
+    @solver
+    def retried_operation() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            model = get_model(
+                "flakytiming/m", fail_times=2, attempt_seconds=0.2, memoize=False
+            )
+            if operation == "count_tokens":
+                await model.count_tokens("count")
+            else:
+                await model.compact([ChatMessageUser(content="compact")], [])
+            return state
+
+        return solve
+
+    sample = _run_timing_solver(retried_operation())
+    # two failed 0.2 s attempts and two backoffs; the successful attempt is working
+    assert _waiting(sample) >= 2 * (0.2 + _BACKOFF) - 0.05
+    assert sample.working_time is not None and sample.working_time >= 0.15
+
+
+def test_sdk_internal_retries_are_waiting(flaky_model: None) -> None:
+    """An attempt's time before its successful request is waiting."""
+
+    @solver
+    def sdk_retry() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            model = get_model(
+                "flakytiming/m", attempt_seconds=0.5, call_time=0.1, memoize=False
+            )
+            await model.generate("sdk")
+            return state
+
+        return solve
+
+    sample = _run_timing_solver(sdk_retry())
+    assert _waiting(sample) >= 0.35
+    # the successful 0.1 s request is working time
+    assert sample.working_time is not None and sample.working_time >= 0.09
+
+
+@pytest.mark.parametrize(
+    "call_args",
+    [
+        {"call_time": 0.0},  # placeholder used by SageMaker and hook fallbacks
+        {"return_call": True},  # a ModelCall with no time
+        {},  # no ModelCall
+    ],
+)
+def test_unmeasured_successful_request_is_working(
+    flaky_model: None, call_args: dict[str, Any]
+) -> None:
+    """Without a positive request time the whole successful attempt is working."""
+
+    @solver
+    def unmeasured() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            model = get_model(
+                "flakytiming/m", attempt_seconds=0.4, memoize=False, **call_args
+            )
+            await model.generate("unmeasured")
+            return state
+
+        return solve
+
+    sample = _run_timing_solver(unmeasured())
+    assert _waiting(sample) < 0.1
+    assert sample.working_time is not None and sample.working_time >= 0.39
+
+
+def test_events_inside_suspension_have_zero_working_time() -> None:
+    """Tools and subtasks wholly inside `suspend_working_limit()` log 0, never less."""
+
+    @subtask
+    async def quick_subtask() -> str:
+        await anyio.sleep(0.001)
+        return "done"
+
+    @solver
+    def suspended() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            with suspend_working_limit():
+                for _ in range(30):
+                    await execute_tools(_tool_calls("_quick_tool"), [_quick_tool()])
+                    await quick_subtask()
+            return state
+
+        return solve
+
+    sample = _run_timing_solver(suspended())
+    events = [e for e in sample.events if isinstance(e, ToolEvent | SubtaskEvent)]
+    assert len(events) == 60
+    for event in events:
+        assert event.working_time == 0
+
+
+@tool
+def _quick_tool() -> Tool:
+    async def execute() -> str:
+        """Quick tool."""
+        await anyio.sleep(0.001)
+        return "quick"
+
+    return execute
+
+
+@tool
+def _fast_tool() -> Tool:
+    async def execute() -> str:
+        """Fast tool."""
+        await anyio.sleep(0.1)
+        return "fast"
+
+    return execute
+
+
+def _tool_calls(*functions: str) -> list[ChatMessage]:
+    return [
+        ChatMessageAssistant(
+            content="",
+            tool_calls=[
+                ToolCall(id=function, function=function, arguments={})
+                for function in functions
+            ],
+        )
+    ]
+
+
+def test_events_use_waits_inside_their_own_interval() -> None:
+    """Tools and subtasks charge only the waits inside their own interval.
+
+    A wait from the solver's start is known only once the slow tool and the
+    subtask are running and the fast tool has completed. The fast tool keeps
+    its published duration; the slow tool and the subtask subtract the part
+    of the wait inside their own interval.
+    """
+    slow_started = anyio.Event()
+    sub_started = anyio.Event()
+
+    @tool
+    def slow_tool() -> Tool:
+        async def execute() -> str:
+            """Slow tool."""
+            slow_started.set()
+            await anyio.sleep(0.8)
+            return "slow"
+
+        return execute
+
+    @subtask
+    async def slow_subtask() -> str:
+        sub_started.set()
+        await anyio.sleep(0.8)
+        return "done"
+
+    @solver
+    def straddle() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            start = sample_clock()
+            fast_done = anyio.Event()
+
+            async def classify_late() -> None:
+                await slow_started.wait()
+                await sub_started.wait()
+                await fast_done.wait()
+                await anyio.sleep(0.3)
+                add_sample_wait(start, sample_clock())
+
+            async def run_slow() -> None:
+                await execute_tools(_tool_calls("slow_tool"), [slow_tool()])
+
+            async def run_fast() -> None:
+                await execute_tools(_tool_calls("_fast_tool"), [_fast_tool()])
+                fast_done.set()
+
+            await tg_collect([classify_late, run_slow, run_fast, slow_subtask])
+            return state
+
+        return solve
+
+    sample = _run_timing_solver(straddle())
+    tools = {e.id: e for e in sample.events if isinstance(e, ToolEvent)}
+    (sub,) = [e for e in sample.events if isinstance(e, SubtaskEvent)]
+    slow, fast = tools["slow_tool"], tools["_fast_tool"]
+    # the fast tool completed before the wait was known
+    assert _event_waiting(fast) == pytest.approx(0, abs=0.01)
+    # the slow tool and the subtask subtract at least the 0.3 s after they started
+    assert 0.25 <= _event_waiting(slow) <= 0.8
+    assert 0.25 <= _event_waiting(sub) <= 0.8
+
+
+def _event_waiting(event: ToolEvent | SubtaskEvent) -> float:
+    assert event.completed is not None and event.working_time is not None
+    return (event.completed - event.timestamp).total_seconds() - event.working_time
+
+
+@approver(name="working_time_slow_approver")
+def _slow_approver() -> Approver:
+    async def approve(
+        message: str,
+        call: ToolCall,
+        view: ToolCallView,
+        history: list[ChatMessage],
+    ) -> Approval:
+        await anyio.sleep(0.4)
+        return Approval(decision="approve")
+
+    return approve
+
+
+def test_approval_is_waiting() -> None:
+    @solver
+    def approved_tool() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            await execute_tools(
+                _tool_calls("_fast_tool"),
+                [_fast_tool()],
+                approval=[ApprovalPolicy(approver=_slow_approver(), tools="*")],
+            )
+            return state
+
+        return solve
+
+    sample = _run_timing_solver(approved_tool())
+    assert _waiting(sample) >= 0.35
+    (event,) = [e for e in sample.events if isinstance(e, ToolEvent)]
+    assert event.working_time is not None and event.working_time < 0.3
+
+
+@reviewer(name="working_time_slow_reviewer")
+def _slow_reviewer() -> Reviewer:
+    async def review(
+        message: str,
+        call: ToolCall,
+        result: ChatMessageTool,
+        output: ToolResult,
+        view: ToolCallView,
+        history: list[ChatMessage],
+    ) -> Review:
+        await anyio.sleep(0.4)
+        return Review(decision="continue")
+
+    return review
+
+
+def test_review_is_waiting() -> None:
+    @solver
+    def reviewed_tool() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            await execute_tools(
+                _tool_calls("_fast_tool"),
+                [_fast_tool()],
+                review=[ReviewPolicy(_slow_reviewer(), "*")],
+            )
+            return state
+
+        return solve
+
+    sample = _run_timing_solver(reviewed_tool())
+    assert _waiting(sample) >= 0.35
+
+
+def test_human_input_is_waiting() -> None:
+    @solver
+    def ask_human() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            with awaiting_human("question"):
+                await anyio.sleep(0.4)
+            return state
+
+        return solve
+
+    sample = _run_timing_solver(ask_human())
+    assert _waiting(sample) >= 0.35
+
+
+def _check_live_working_time(model: str) -> None:
+    """Successful live requests stay charged and working time stays in range.
+
+    The sample's waiting time may only include what the provider SDK spent
+    outside the successful request, so it can't exceed the clock time left
+    after the model events' request times.
+    """
+
+    @solver
+    def two_generates() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            for prompt in ("Say hello.", "Say goodbye."):
+                await get_model(model).generate(prompt)
+            return state
+
+        return solve
+
+    sample = _run_timing_solver(two_generates())
+    model_events = [e for e in sample.events if isinstance(e, ModelEvent)]
+    assert len(model_events) == 2
+    request_time = sum(e.working_time or 0 for e in model_events)
+    assert request_time > 0
+    assert sample.working_time is not None and sample.working_time >= request_time
+    assert sample.total_time is not None
+    assert _waiting(sample) <= sample.total_time - request_time
+
+
+@skip_if_no_openai
+def test_live_openai_working_time() -> None:
+    _check_live_working_time("openai/gpt-4o-mini")
+
+
+@skip_if_no_anthropic
+def test_live_anthropic_working_time() -> None:
+    _check_live_working_time("anthropic/claude-haiku-4-5")
+
+
+@skip_if_no_google
+def test_live_google_working_time() -> None:
+    _check_live_working_time("google/gemini-2.5-flash")

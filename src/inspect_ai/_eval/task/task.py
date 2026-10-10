@@ -186,7 +186,9 @@ class Task:
             time_limit: Limit on clock time (in seconds) for samples.
             working_limit: Limit on working time (in seconds) for sample. Working
                 time includes model generation, tool calls, etc. but does not include
-                time spent waiting on retries or shared resources.
+                time spent waiting on retries or shared resources. Work done while
+                any wait is open is not charged, so working time can undercount;
+                set `time_limit` as well to bound wall clock time.
             cost_limit: Limit on total cost (in dollars) for each sample.
                 Requires model cost data via set_model_cost() or --model-cost-config.
             early_stopping: Early stopping callbacks.
@@ -428,7 +430,9 @@ def task_with(
         time_limit: Limit on clock time (in seconds) for samples.
         working_limit: Limit on working time (in seconds) for sample. Working
             time includes model generation, tool calls, etc. but does not include
-            time spent waiting on retries or shared resources.
+            time spent waiting on retries or shared resources. Work done while
+            any wait is open is not charged, so working time can undercount;
+            set `time_limit` as well to bound wall clock time.
         cost_limit: Limit on total cost (in dollars) for each sample.
             Requires model cost data via set_model_cost() or --model-cost-config.
         early_stopping: Early stopping callbacks.

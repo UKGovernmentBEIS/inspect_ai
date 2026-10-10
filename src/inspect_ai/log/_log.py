@@ -181,7 +181,11 @@ class EvalConfig(BaseModel):
     """Maximum clock time per sample."""
 
     working_limit: int | None = Field(default=None)
-    """Meximum working time per sample."""
+    """Maximum working time per sample.
+
+    Work done while any wait is open is not charged, so working time can
+    undercount; set `time_limit` as well to bound clock time.
+    """
 
     cost_limit: float | None = Field(default=None)
     """Maximum cost (in dollars) per sample."""
@@ -339,7 +343,13 @@ class EvalSampleSummary(BaseModel):
     """Total time that the sample was running."""
 
     working_time: float | None = Field(default=None)
-    """Time spent working (model generation, sandbox calls, etc.)"""
+    """Time spent working (model generation, sandbox calls, etc.)
+
+    Clock time minus the time when any wait (retries, rate limits, shared
+    resources, approval, human input) was open in the sample. Other work done
+    during a wait, such as concurrent tool calls or sub-agents, is not counted,
+    so set `time_limit` alongside `working_limit` to bound clock time.
+    """
 
     uuid: str | None = Field(default=None)
     """Globally unique identifier for sample run (exists for samples created in Inspect >= 0.3.70)"""
@@ -544,7 +554,13 @@ class EvalSample(BaseModel):
     """Total time that the sample was running."""
 
     working_time: float | None = Field(default=None)
-    """Time spent working (model generation, sandbox calls, etc.)"""
+    """Time spent working (model generation, sandbox calls, etc.)
+
+    Clock time minus the time when any wait (retries, rate limits, shared
+    resources, approval, human input) was open in the sample. Other work done
+    during a wait, such as concurrent tool calls or sub-agents, is not counted,
+    so set `time_limit` alongside `working_limit` to bound clock time.
+    """
 
     uuid: str | None = Field(default=None)
     """Globally unique identifier for sample run (exists for samples created in Inspect >= 0.3.70)"""

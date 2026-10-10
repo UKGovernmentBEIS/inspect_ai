@@ -9,7 +9,11 @@ from inspect_ai.tool._tool_call import (
     ToolCallViewer,
     resolve_tool_call_view,
 )
-from inspect_ai.util._limit import suspend_token_limit, suspend_turn_limit
+from inspect_ai.util._limit import (
+    suspend_token_limit,
+    suspend_turn_limit,
+    suspend_working_limit,
+)
 
 from ._approver import Approver
 from ._policy import ApprovalPolicy, policy_approver
@@ -31,8 +35,9 @@ async def apply_tool_approval(
         view = resolve_tool_call_view(call, viewer)
 
         # call approver (approvers which use model inference — e.g. LLM monitors —
-        # shouldn't have that inference charged to the agent's own budget)
-        with suspend_token_limit(), suspend_turn_limit():
+        # shouldn't have that inference charged to the agent's own budget, and
+        # time spent approving, by a person or a model, counts as waiting)
+        with suspend_token_limit(), suspend_turn_limit(), suspend_working_limit():
             approval = await approver(
                 message=message,
                 call=call,

@@ -5,7 +5,6 @@ import functools
 import json
 import logging
 import os
-import time
 from contextvars import ContextVar
 from copy import copy, deepcopy
 from datetime import datetime, timezone
@@ -71,8 +70,9 @@ from inspect_ai._util.retry import report_http_retry
 from inspect_ai._util.rich import format_traceback
 from inspect_ai._util.trace import trace_action
 from inspect_ai._util.working import (
-    report_sample_waiting_time,
-    sample_waiting,
+    add_sample_wait,
+    sample_clock,
+    sample_wait,
     sample_working_time,
 )
 from inspect_ai.model._generate_overrides import generate_config_override_for_attempt
@@ -790,7 +790,7 @@ class ConnectionSlot:
     async def acquire(self) -> None:
         """Acquire the slot, tracking the wait as sample waiting time."""
         if not self._held:
-            async with sample_waiting():
+            with sample_wait():
                 await self._semaphore.__aenter__()
             self._held = True
 
@@ -1143,8 +1143,8 @@ class Model:
                     log_model_retry,
                     qualified_model_name=self.api.qualified_model_name,
                 ),
-                report_sample_waiting_time,
-                self.api.retry_wait(),
+                sample_waits=True,
+                wait=self.api.retry_wait(),
                 qualified_model_name=self.api.qualified_model_name,
             )
         )
@@ -1284,17 +1284,15 @@ class Model:
                         log_model_retry,
                         qualified_model_name=self.api.qualified_model_name,
                     ),
-                    report_sample_waiting_time,
-                    self.api.retry_wait(),
+                    sample_waits=True,
+                    wait=self.api.retry_wait(),
                     qualified_model_name=self.api.qualified_model_name,
                 )
             )
             async def _compact(
                 messages: list[ChatMessage],
             ) -> tuple[list[ChatMessage], ModelUsage | None]:
-                # report_sample_waiting_time directly: unlike generate,
-                # compact has no post-call waiting reconciliation to feed
-                await wait_generate_dispatch(self, report_sample_waiting_time, slot)
+                await wait_generate_dispatch(self, slot)
                 return await self.api.compact(messages, tools, config, instructions)
 
             from inspect_ai.log._samples import cleared_retry_wait
@@ -1413,14 +1411,6 @@ class Model:
             publish_partial=_model_event_sink.get() is None,
         )
 
-        # track reported waiting time during this generate call
-        reported_waiting_time = 0.0
-
-        def report_waiting_time(waiting_time: float) -> None:
-            nonlocal reported_waiting_time
-            report_sample_waiting_time(waiting_time)
-            reported_waiting_time += waiting_time
-
         # Local import: model is imported very early and the pause gate is
         # only consulted per attempt (see wait_generate_dispatch's fast path).
         from inspect_ai._control.pause import wait_generate_dispatch
@@ -1436,15 +1426,13 @@ class Model:
                     log_model_retry,
                     qualified_model_name=self.api.qualified_model_name,
                 ),
-                report_waiting_time,
-                self.api.retry_wait(),
+                sample_waits=True,
+                wait=self.api.retry_wait(),
                 qualified_model_name=self.api.qualified_model_name,
             )
         )
         async def generate() -> tuple[ModelOutput, BaseModel]:
-            # report_waiting_time (not report_sample_waiting_time): held time
-            # must also accumulate into this call's reconciliation below
-            await wait_generate_dispatch(self, report_waiting_time, connection)
+            await wait_generate_dispatch(self, connection)
 
             # type-checker can't see that we made sure tool_choice is not none in the outer frame
             assert tool_choice is not None
@@ -1554,7 +1542,7 @@ class Model:
             idle_cm = idle_scope if idle_scope is not None else contextlib.nullcontext()
 
             with trace_action(logger, "Model", f"generate ({str(self)})"):
-                time_start = time.monotonic()
+                time_start = sample_clock()
                 try:
                     assert isinstance(event, ModelEvent)
                     # Local import to avoid an import cycle (agent → model → agent).
@@ -1628,7 +1616,8 @@ class Model:
                     stream_observer.discard_partial_output()
                     raise
                 finally:
-                    time_elapsed = time.monotonic() - time_start
+                    time_end = sample_clock()
+                    time_elapsed = time_end - time_start
 
             if isinstance(result, tuple):
                 output, call = result
@@ -1667,6 +1656,11 @@ class Model:
             # on the actual request that succeeds w/ status 200)
             if call and call.time is not None:
                 output.time = call.time
+                # the attempt's time before its successful request went to
+                # the provider SDK's own failed requests and retry sleeps
+                # (zero means the provider did not measure the request)
+                if call.time > 0:
+                    add_sample_wait(time_start, time_end - call.time)
             else:
                 output.time = time_elapsed
 
@@ -1698,12 +1692,9 @@ class Model:
 
             return output, event
 
-        # call the model (this will do retries, etc., so report waiting time
-        # as elapsed time - actual time for successful model call)
-        time_start = time.monotonic()
+        # call the model (this will do retries, etc.)
         with cleared_retry_wait():
             model_output, event = await generate()
-        total_time = time.monotonic() - time_start
 
         # record any model fallback against the active sample (here in the
         # outer frame rather than alongside usage recording so that cache
@@ -1748,14 +1739,6 @@ class Model:
             and not _request_was_cache_hit.get()
         ):
             controller.notify_success()
-        if model_output.time:
-            # we've already reported some of the waiting time in tenacity callbacks
-            # any remaining waiting time will have been due to internal retry within
-            # model providers, which we can get from:
-            #    total_time - reported_waiting_time - model_call_time
-            report_sample_waiting_time(
-                total_time - reported_waiting_time - model_output.time
-            )
 
         # report refusal
         if not model_output.empty and model_output.stop_reason == "content_filter":

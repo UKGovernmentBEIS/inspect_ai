@@ -5,7 +5,7 @@ import sys
 import time
 import uuid
 from abc import abstractmethod
-from typing import Any, Generic, TypeVar
+from typing import Any, Callable, Generic, TypeVar
 
 import anyio
 import anyio.abc
@@ -15,6 +15,7 @@ from inspect_ai._util._async import tg_collect
 from inspect_ai._util.background import run_in_background
 from inspect_ai._util.constants import DEFAULT_BATCH_SIZE, DEFAULT_MAX_CONNECTIONS
 from inspect_ai._util.notgiven import sanitize_notgiven
+from inspect_ai._util.working import SampleWait
 from inspect_ai.model._generate_config import BatchConfig
 from inspect_ai.model._retry import ModelRetryConfig
 
@@ -54,6 +55,8 @@ class BatchRequest(Generic[ResponseT]):
     Captured at construction, so a retried batch submission still has them
     after `pop_batch_headers` removes `extra_headers` from `request`.
     """
+    on_submitted: Callable[[], None] | None = None
+    """Called when the request's batch is submitted, or before it gets a result."""
 
     def __post_init__(self) -> None:
         self.headers = {
@@ -61,6 +64,10 @@ class BatchRequest(Generic[ResponseT]):
             for k, v in (self.request.get("extra_headers") or {}).items()
             if k.lower() != HttpxHooks.REQUEST_ID_HEADER
         }
+
+    def submitted(self) -> None:
+        if self.on_submitted is not None:
+            self.on_submitted()
 
 
 @dataclasses.dataclass
@@ -125,8 +132,10 @@ class Batcher(Generic[ResponseT, CompletedBatchInfoT]):
         send_stream, receive_stream = anyio.create_memory_object_stream[
             ResponseT | Exception
         ](1)
+        # the sample waits while the request sits in the local queue
+        queued = SampleWait()
         batch_request = BatchRequest[ResponseT](
-            request=request, result_stream=send_stream
+            request=request, result_stream=send_stream, on_submitted=queued.close
         )
         self._intake_queue.append(batch_request)
 
@@ -134,7 +143,10 @@ class Batcher(Generic[ResponseT, CompletedBatchInfoT]):
             self._is_batch_worker_running = True
             run_in_background(self._batch_worker)
 
-        result = await receive_stream.receive()
+        try:
+            result = await receive_stream.receive()
+        finally:
+            queued.close()
         if isinstance(result, Exception):
             raise result
         return result
@@ -213,6 +225,7 @@ class Batcher(Generic[ResponseT, CompletedBatchInfoT]):
     ) -> None:
         log_batch(message)
         for request in batch_requests:
+            request.submitted()
             try:
                 await request.result_stream.send(error)
             except anyio.BrokenResourceError:
@@ -266,6 +279,8 @@ class Batcher(Generic[ResponseT, CompletedBatchInfoT]):
             batch_requests = self._next_batches.pop(key).requests
 
             batch_id = await self._wrapped_create_batch(batch_requests)
+            for request in batch_requests:
+                request.submitted()
 
             self._inflight_batches[batch_id] = Batch(
                 id=batch_id,
@@ -380,6 +395,7 @@ class Batcher(Generic[ResponseT, CompletedBatchInfoT]):
         # call it, and we need to ensure exceptions do not escape
         try:
             for request_id, response in results.items():
+                batch.requests[request_id].submitted()
                 await batch.requests[request_id].result_stream.send(response)
         except Exception as e:
             await self._fail_and_cleanup_inflight_batch("sending results", batch, e)

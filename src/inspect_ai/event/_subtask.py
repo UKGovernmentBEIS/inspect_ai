@@ -46,7 +46,11 @@ class SubtaskEvent(BaseEvent):
     """Time that subtask completed (see `timestamp` for started)"""
 
     working_time: float | None = Field(default=None)
-    """Working time for subtask (i.e. time not spent waiting on semaphores or model retries)."""
+    """Working time for subtask (clock time minus time when any wait was open in the sample).
+
+    Work done during a wait, such as concurrent tool calls or sub-agents, is not
+    counted, so set `time_limit` alongside `working_limit` to bound clock time.
+    """
 
     @field_serializer("completed")
     def serialize_completed(self, dt: datetime | None) -> str | None:

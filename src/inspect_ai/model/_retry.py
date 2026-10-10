@@ -1,5 +1,6 @@
 from typing import TYPE_CHECKING, Awaitable, Callable
 
+import anyio
 from tenacity import (
     RetryCallState,
     retry_if_exception,
@@ -8,8 +9,9 @@ from tenacity import (
 from tenacity.retry import RetryBaseT
 from tenacity.stop import StopBaseT
 from tenacity.wait import WaitBaseT
-from typing_extensions import TypedDict
+from typing_extensions import NotRequired, TypedDict
 
+from inspect_ai._util.working import add_sample_wait, sample_clock, sample_wait
 from inspect_ai.model._generate_overrides import generate_config_override
 
 if TYPE_CHECKING:
@@ -22,6 +24,19 @@ class ModelRetryConfig(TypedDict):
     retry: RetryBaseT
     before_sleep: Callable[[RetryCallState], (Awaitable[None] | None)]
     stop: StopBaseT
+    before: NotRequired[Callable[[RetryCallState], None]]
+    after: NotRequired[Callable[[RetryCallState], None]]
+    sleep: NotRequired[Callable[[float], Awaitable[None]]]
+
+
+async def _sleep(seconds: float) -> None:
+    await anyio.sleep(seconds)
+
+
+async def _sample_wait_sleep(seconds: float) -> None:
+    """Retry backoff sleep, open as a known wait of the sample."""
+    with sample_wait():
+        await _sleep(seconds)
 
 
 def model_retry_config(
@@ -31,7 +46,7 @@ def model_retry_config(
     should_retry: "Callable[[BaseException], bool | RetryDecision]",
     before_retry: Callable[[BaseException], (Awaitable[None] | None)],
     log_model_retry: Callable[[str, RetryCallState], Awaitable[None] | None],
-    report_waiting_time: Callable[[float], None] | None = None,
+    sample_waits: bool = False,
     wait: WaitBaseT | None = None,
     live_overrides: bool = True,
     report_retry_wait: bool = True,
@@ -59,13 +74,14 @@ def model_retry_config(
     # convert one transient poll error into a whole-batch failure. The
     # incident lever still reaches batch-mode generates: each request's
     # retries run in `Model._generate`'s own (live) retry loop.
+    #
+    # `sample_waits` records the backoff sleep and each retried attempt as
+    # known waits of the active sample (see design/working-time-concurrency.md).
+    # Batchers leave it off: their admin-op loops run on a worker task that
+    # inherits an arbitrary sample's context. A config with it on serves a
+    # single retry loop, since the attempt start is kept here.
 
     async def on_before_sleep(rs: RetryCallState) -> None:
-        # report the upcoming sleep as waiting time (that way the working time can't
-        # expire while we are waiting b/c we've already offset it)
-        if report_waiting_time is not None:
-            report_waiting_time(rs.upcoming_sleep)
-
         # `report_retry_wait` gates the per-sample record rather than relying
         # on sample_active() alone: a batcher's admin-op retry loop runs on a
         # worker task that inherits the context of whichever sample first
@@ -165,12 +181,32 @@ def model_retry_config(
             return True
         return False
 
-    return {
+    config: ModelRetryConfig = {
         "wait": wait,
         "retry": retry_if_exception(_retry_predicate),
         "before_sleep": on_before_sleep,
         "stop": stop,
     }
+
+    if sample_waits:
+        attempt_start = sample_clock()
+
+        def before_attempt(rs: RetryCallState) -> None:
+            nonlocal attempt_start
+            attempt_start = sample_clock()
+
+        # tenacity calls `after` only for an outcome the retry policy
+        # classified as retryable (before the stop check), so this credits
+        # every retried attempt, including the last one of a call that runs
+        # out of retries
+        def after_retryable_attempt(rs: RetryCallState) -> None:
+            add_sample_wait(attempt_start, sample_clock())
+
+        config["before"] = before_attempt
+        config["after"] = after_retryable_attempt
+        config["sleep"] = _sample_wait_sleep
+
+    return config
 
 
 def batch_admin_retry_config(

@@ -53,6 +53,7 @@ import anyio
 from anyio.abc import TaskGroup
 from shortuuid import uuid
 
+from inspect_ai._util.working import sample_wait
 from inspect_ai.dataset._dataset import Sample
 from inspect_ai.util._checkpoint.checkpointer import CheckpointerSetup, ResumeCheckpoint
 from inspect_ai.util._checkpoint.checkpointer_factory import create_checkpointer
@@ -604,7 +605,8 @@ def awaiting_human(
     one surface that serves it — an approval is a wait whether it is answered
     in an editor over ACP, in the Textual panel, or at the console, and a
     record that only one of the three kept would report an attended run as
-    idle for as long as somebody was looking at the prompt.
+    idle for as long as somebody was looking at the prompt. The wait also
+    counts as sample waiting time, so it is not charged as working time.
 
     A no-op outside a sample (a scorer, a bare `ask_user` in a script), which
     is why callers can wrap unconditionally.
@@ -617,7 +619,7 @@ def awaiting_human(
     if sample is None:
         yield
         return
-    with sample.awaiting_human(kind, subject):
+    with sample.awaiting_human(kind, subject), sample_wait():
         yield
 
 

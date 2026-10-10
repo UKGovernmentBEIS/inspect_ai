@@ -1,8 +1,11 @@
+import contextlib
 import json
 import sys
-from typing import Any
+import time
+from typing import Any, AsyncIterator
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import anyio
 import pytest
 from botocore.exceptions import (
     ClientError,
@@ -12,11 +15,18 @@ from botocore.exceptions import (
     ReadTimeoutError,
 )
 
+from inspect_ai._util.registry import RegistryInfo, set_registry_info
+from inspect_ai._util.working import (
+    init_sample_working_time,
+    sample_waiting_time,
+    sample_working_time,
+)
 from inspect_ai.model import ChatMessageAssistant, ChatMessageUser, GenerateConfig
 from inspect_ai.model._chat_message import (
     ChatMessageSystem,
     ChatMessageTool,
 )
+from inspect_ai.model._model import Model
 from inspect_ai.model._providers.sagemaker import (
     collapse_consecutive_messages,
     model_output_from_response,
@@ -2041,3 +2051,54 @@ class TestCompletionModePromptLogprobs:
         assert model_output.choices[0].prompt_logprobs.content[0].logprob == -0.4
         assert model_output.choices[0].prompt_logprobs.content[1].token == "great"
         assert model_output.choices[0].prompt_logprobs.content[1].logprob == -0.9
+
+
+# -- Working time ------------------------------------------------------------
+
+
+WORKING_TIME_COMPLETION_RESPONSE = {
+    "choices": [{"text": "Hello world", "finish_reason": "stop"}],
+    "usage": {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},
+}
+
+
+@pytest.mark.parametrize(
+    "model_args,response",
+    [
+        ({"stream": False}, OPENAI_RESPONSE),
+        ({"stream": True}, OPENAI_RESPONSE),
+        ({"completion_mode": True}, WORKING_TIME_COMPLETION_RESPONSE),
+    ],
+)
+async def test_successful_request_is_working_time(
+    model_args: dict[str, Any], response: dict[str, Any]
+) -> None:
+    """SageMaker reports no request time, so a successful call is all working time."""
+    api = _make_api(**model_args)
+    set_registry_info(api, RegistryInfo(type="modelapi", name="sagemaker"))
+
+    @contextlib.asynccontextmanager
+    async def client() -> AsyncIterator[Any]:
+        yield MagicMock()
+
+    async def invoke(client: Any, request_body: dict[str, Any]) -> bytes:
+        await anyio.sleep(0.3)
+        return json.dumps(response).encode()
+
+    async def invoke_streaming(
+        client: Any, request_body: dict[str, Any]
+    ) -> tuple[bytes, dict[str, Any]]:
+        await anyio.sleep(0.3)
+        return b"", response
+
+    init_sample_working_time(time.monotonic())
+    with (
+        patch.object(api, "_create_client", client),
+        patch.object(api, "_invoke_endpoint", invoke),
+        patch.object(api, "_invoke_endpoint_streaming", invoke_streaming),
+    ):
+        output = await Model(api, GenerateConfig()).generate("hi")
+
+    assert output.completion == "Hello world"
+    assert sample_waiting_time() < 0.05
+    assert sample_working_time() >= 0.3
