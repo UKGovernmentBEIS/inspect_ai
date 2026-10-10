@@ -5522,6 +5522,8 @@ var getMathjaxPlugin = () => {
 	}
 	return mathjaxPluginPromise;
 };
+var MATHJAX_STYLE = /^(\s*<span id="mjx-[a-f0-9]+">\s*)<style>[\s\S]*?<\/style>/i;
+var withoutMathJaxStyle = (html) => html.replace(MATHJAX_STYLE, "$1");
 var hasMathContent = (text) => text.includes("$") || text.includes("\\(") || text.includes("\\[");
 var mdInstanceCache = {};
 /** Unescape HTML entities within math token content before MathJax processing.
@@ -5572,12 +5574,12 @@ var getMarkdownInstance = async (renderer, contentHasMath) => {
 		if (origInline) md.renderer.rules.math_inline = (tokens, idx, options, env, self) => {
 			const token = tokens[idx];
 			if (token) token.content = unescapeHtmlForMath(token.content);
-			return origInline(tokens, idx, options, env, self);
+			return withoutMathJaxStyle(origInline(tokens, idx, options, env, self));
 		};
 		if (origBlock) md.renderer.rules.math_block = (tokens, idx, options, env, self) => {
 			const token = tokens[idx];
 			if (token) token.content = unescapeHtmlForMath(token.content);
-			return origBlock(tokens, idx, options, env, self);
+			return withoutMathJaxStyle(origBlock(tokens, idx, options, env, self));
 		};
 	}
 	mdInstanceCache[cacheKey] = md;
@@ -8308,93 +8310,6 @@ function createDOMPurify() {
 }
 var purify_default = createDOMPurify();
 //#endregion
-//#region ../../packages/react/src/components/mathjaxStyles.ts
-var MATHJAX_STYLES = `
-:scope {
-  display: contents;
-}
-:scope mjx-container[jax="SVG"] {
-  direction: ltr;
-  position: relative;
-}
-:scope mjx-container[jax="SVG"] > svg {
-  /* WebKit ignores overflow-clip-margin and clips at the SVG box. */
-  overflow: clip;
-  overflow-clip-margin: 1em;
-  min-height: 1px;
-  min-width: 1px;
-}
-:scope mjx-container[jax="SVG"] > svg a {
-  fill: blue;
-  stroke: blue;
-}
-:scope mjx-assistive-mml {
-  top: 0px;
-  left: 0px;
-  clip: rect(1px, 1px, 1px, 1px) !important;
-  user-select: text !important;
-  position: absolute !important;
-  padding: 1px 0px 0px !important;
-  border: 0px !important;
-  display: block !important;
-  width: auto !important;
-  overflow: hidden !important;
-}
-:scope mjx-assistive-mml[display="block"] {
-  width: 100% !important;
-}
-:scope mjx-container[jax="SVG"][display="true"] {
-  display: block;
-  text-align: center;
-  margin: 1em 0px;
-}
-:scope mjx-container[jax="SVG"][display="true"][width="full"] {
-  display: flex;
-}
-:scope mjx-container[jax="SVG"][justify="left"] {
-  text-align: left;
-}
-:scope mjx-container[jax="SVG"][justify="right"] {
-  text-align: right;
-}
-:scope g[data-mml-node="merror"] > g {
-  fill: red;
-  stroke: red;
-}
-:scope g[data-mml-node="merror"] > rect[data-background] {
-  fill: yellow;
-  stroke: none;
-}
-:scope g[data-mml-node="mtable"] > line[data-line], :scope svg[data-table] > g > line[data-line] {
-  stroke-width: 70px;
-  fill: none;
-}
-:scope g[data-mml-node="mtable"] > rect[data-frame], :scope svg[data-table] > g > rect[data-frame] {
-  stroke-width: 70px;
-  fill: none;
-}
-:scope g[data-mml-node="mtable"] > .mjx-dashed, :scope svg[data-table] > g > .mjx-dashed {
-  stroke-dasharray: 140;
-}
-:scope g[data-mml-node="mtable"] > .mjx-dotted, :scope svg[data-table] > g > .mjx-dotted {
-  stroke-linecap: round;
-  stroke-dasharray: 0, 140;
-}
-:scope g[data-mml-node="mtable"] > g > svg {
-  overflow: visible;
-}
-:scope g[data-mml-node="maction"][data-toggle] {
-  cursor: pointer;
-}
-:scope mjx-container[jax="SVG"] path[data-c], :scope mjx-container[jax="SVG"] use[data-c] {
-  stroke-width: 3;
-}
-:scope g[data-mml-node="xypic"] path {
-  stroke-width: inherit;
-}
-`;
-var mathJaxStyles = (scopeId) => MATHJAX_STYLES.replaceAll(":scope", `#${scopeId}`).trim();
-//#endregion
 //#region ../../packages/react/src/components/renderedHtmlSanitizer.ts
 var FORBIDDEN_TAGS = [
 	"animate",
@@ -8419,15 +8334,12 @@ var FORBIDDEN_TAGS = [
 	"select",
 	"set",
 	"source",
+	"style",
 	"textarea",
 	"track",
 	"video"
 ];
-var MATHJAX_TAGS = [
-	"mjx-assistive-mml",
-	"mjx-container",
-	"style"
-];
+var MATHJAX_TAGS = ["mjx-assistive-mml", "mjx-container"];
 var MATHJAX_ATTRS = [
 	"display",
 	"focusable",
@@ -8503,7 +8415,6 @@ var SAFE_CSS_FUNCTIONS = /* @__PURE__ */ new Set([
 ]);
 var UNSAFE_CSS_PATTERN = /@import|behavior\s*:|binding\s*:|expression\s*\(|javascript\s*:|vbscript\s*:|url\s*\(/i;
 var RAW_CSS_REJECT_PATTERN = /[\\@<]/;
-var MATHJAX_WRAPPER_ID = /^mjx-[a-f0-9]+$/i;
 var PURIFY_CONFIG = {
 	ADD_ATTR: [...MATHJAX_ATTRS, "target"],
 	ADD_DATA_URI_TAGS: ["img"],
@@ -8539,12 +8450,6 @@ var getPurify = () => {
 var installHooks = (purify) => {
 	if (hooksInstalled) return;
 	hooksInstalled = true;
-	purify.addHook("uponSanitizeElement", (node, hookEvent) => {
-		if (hookEvent.tagName !== "style" || !(node instanceof Element)) return;
-		const css = sanitizeMathJaxStyleElement(node);
-		if (css) node.textContent = css;
-		else node.remove();
-	});
 	purify.addHook("uponSanitizeAttribute", (node, hookEvent) => {
 		if (hookEvent.attrName === "style") {
 			if (node.tagName.toLowerCase() === "mjx-assistive-mml") {
@@ -8630,12 +8535,6 @@ var isSafeStyleValue = (property, value) => {
 	if (property.startsWith("overflow") && /\bvisible\b/.test(value)) return false;
 	if (property.startsWith("margin") && /(?:^|\s)-/.test(value)) return false;
 	return true;
-};
-var sanitizeMathJaxStyleElement = (element) => {
-	const parent = element.parentElement;
-	const scopeId = parent?.getAttribute("id") ?? "";
-	if (parent?.tagName.toLowerCase() !== "span" || !MATHJAX_WRAPPER_ID.test(scopeId)) return "";
-	return mathJaxStyles(scopeId);
 };
 //#endregion
 export { renderMarkdown, sanitizeRenderedHtml, truncateMarkdown };
