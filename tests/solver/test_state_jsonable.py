@@ -122,3 +122,16 @@ def test_solver_transcript_uses_state_jsonable_for_state_changes() -> None:
         assert events[0].changes == expected_changes
     else:
         assert events == []
+
+
+def test_solver_transcript_unchanged_nan_emits_no_state_event() -> None:
+    state = _make_state()
+    state.metadata["values"] = [float("nan"), 1.0]
+    state.store.set("values", [float("nan")])
+
+    transcript = Transcript()
+    init_transcript(transcript)
+
+    SolverTranscript("test-solver", state).complete(state)
+
+    assert [e for e in transcript.events if isinstance(e, StateEvent)] == []

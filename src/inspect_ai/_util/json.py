@@ -1,3 +1,4 @@
+import math
 import re
 from copy import deepcopy
 from typing import (
@@ -361,6 +362,41 @@ def _apply_fast_list_op(target: list[Any], op: dict[str, Any], rel_path: str) ->
         target[:] = jsonpatch.apply_patch(target, [{**op, "path": "/" + rel_path}])  # type: ignore
 
 
+def _is_nan(value: Any) -> bool:
+    return isinstance(value, float) and math.isnan(value)
+
+
+def _drop_unchanged_nan(
+    before: dict[str, Any] | list[Any],
+    patch_list: list[Any],
+    changes: list[JsonChange],
+) -> list[JsonChange]:
+    """Drop the changes that replace a NaN with a NaN, for a patch with moves.
+
+    `json_changes()` drops these itself, but its shadow tracking does not
+    follow move or copy ops, so for such a patch this applies the patch to a
+    copy of `before` to read the value each replace actually overwrites. If
+    jsonpatch produced a patch that cannot be applied, the changes are
+    returned unfiltered.
+    """
+    doc: Any = deepcopy(before)
+    kept: list[JsonChange] = []
+    try:
+        for op, change in zip(patch_list, changes, strict=True):
+            if (
+                op["op"] == "replace"
+                and _is_nan(op["value"])
+                and _is_nan(resolve_pointer(doc, op["path"]))
+            ):
+                continue
+            # copy the op so later ops never mutate the caller's `after`
+            doc = jsonpatch.apply_patch(doc, [deepcopy(op)], in_place=True)
+            kept.append(change)
+    except (jsonpatch.JsonPatchException, JsonPointerException):
+        return changes
+    return kept
+
+
 def json_changes(
     before: dict[str, Any] | list[Any], after: dict[str, Any] | list[Any]
 ) -> list[JsonChange] | None:
@@ -399,6 +435,11 @@ def json_changes(
     }
 
     changes: list[JsonChange] = []
+    # Snapshots serialized separately hold distinct NaN objects, and NaN != NaN,
+    # so jsonpatch reports an unchanged NaN in a list as replaced. `kept` leaves
+    # those replaces out.
+    kept: list[JsonChange] = []
+    nan_replace = moves = False
 
     for op in patch_list:
         container, rel_path = _get_active_container(op["path"], tracked_paths)
@@ -429,8 +470,16 @@ def json_changes(
 
         # Build Result
         change = JsonChange(**op)
+        changes.append(change)
+        moves = moves or op["op"] in ("move", "copy")
         if op["op"] == "replace":
             change.replaced = replaced_val
-        changes.append(change)
+            if _is_nan(op["value"]):
+                nan_replace = True
+                if _is_nan(replaced_val):
+                    continue
+        kept.append(change)
 
-    return changes
+    if nan_replace and moves:
+        return _drop_unchanged_nan(before, patch_list, changes) or None
+    return kept or None
