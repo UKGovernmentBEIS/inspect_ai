@@ -45,7 +45,11 @@ from inspect_ai._eval.handoff import (
     print_ctl_pointer,
     reset_launch_handoff_emitted,
 )
-from inspect_ai._eval.task.log import plan_to_eval_plan
+from inspect_ai._eval.task.log import (
+    plan_to_eval_plan,
+    resolve_eval_metrics,
+    resolve_eval_scorers,
+)
 from inspect_ai._eval.task.run import eval_plan_agent_name, resolve_plan
 from inspect_ai._eval.task.scan import (
     Scanners,
@@ -67,6 +71,7 @@ from inspect_ai._util.file import (
 )
 from inspect_ai._util.json import to_json_safe
 from inspect_ai._util.notgiven import NOT_GIVEN, NotGiven
+from inspect_ai._util.registry import is_model_dict
 from inspect_ai.agent._agent import Agent, is_agent
 from inspect_ai.agent._as_solver import as_solver
 from inspect_ai.approval._policy import ApprovalPolicy, ApprovalPolicyConfig
@@ -80,7 +85,7 @@ from inspect_ai.log._file import (
     write_log_dir_manifest,
     write_log_listing,
 )
-from inspect_ai.log._log import EvalConfig
+from inspect_ai.log._log import EvalConfig, EvalMetricDefinition, EvalScorer
 from inspect_ai.log._recorders.buffer.buffer import cleanup_sample_buffers_for_log
 from inspect_ai.log._recorders.buffer.database import sample_buffer_shutdown_pending
 from inspect_ai.model import (
@@ -96,7 +101,9 @@ from inspect_ai.model._model_config import (
 )
 from inspect_ai.model._model_data.model_data import ModelCost
 from inspect_ai.review._policy import ReviewPolicy, ReviewPolicyConfig
+from inspect_ai.scorer._metric import to_metric_specs
 from inspect_ai.scorer._reducer import reducer_log_name
+from inspect_ai.scorer._scorer import as_scorer_spec
 from inspect_ai.solver._chain import chain
 from inspect_ai.solver._solver import Solver, SolverSpec
 from inspect_ai.util import DisplayType, SandboxEnvironmentType
@@ -145,7 +152,7 @@ from .loader import resolve_task_args, solver_from_spec
 from .task import Epochs
 from .task.resolved import ResolvedTask, resolved_task_names
 from .task.scan import scan_context
-from .task.task import PreviousTask, resolve_epochs, resolve_task_epochs
+from .task.task import PreviousTask, Task, resolve_epochs, resolve_task_epochs
 from .task.task_source import TaskSource
 from .task.tasks import Tasks
 
@@ -2113,6 +2120,75 @@ def resolve_solver(
         return cast(Solver | None, solver)
 
 
+class _LoggedScorerIdentity(NamedTuple):
+    """Scorers and task metrics in the form written on an eval log."""
+
+    scorers: list[EvalScorer] | None
+    metrics: (
+        list[EvalMetricDefinition | dict[str, list[EvalMetricDefinition]]]
+        | dict[str, list[EvalMetricDefinition]]
+        | None
+    )
+
+
+def _logged_scorer_identity(task: Task) -> _LoggedScorerIdentity:
+    """Scorers and task metrics as an eval log records them.
+
+    `eval()` converts live scorers with `as_scorer_spec` and task metrics
+    with `to_metric_specs`, then `resolve_eval_scorers` and
+    `resolve_eval_metrics`, before writing `EvalSpec`. `task_identifier()`
+    hashes that form from a `ResolvedTask` and from the log so the two
+    identifiers stay equal. A task with no scorer, or no task-level
+    metrics, contributes `None`, which is what the log stores in that case.
+    """
+    scorer_specs = (
+        [as_scorer_spec(scorer) for scorer in task.scorer]
+        if task.scorer is not None
+        else None
+    )
+    metric_specs = to_metric_specs(task.metrics) if task.metrics is not None else None
+    return _LoggedScorerIdentity(
+        scorers=resolve_eval_scorers(scorer_specs),
+        metrics=resolve_eval_metrics(metric_specs),
+    )
+
+
+def _scorers_for_identifier(
+    scorers: list[EvalScorer] | None,
+) -> list[EvalScorer] | None:
+    """Scorers with grader model transport settings removed.
+
+    A `Model` scorer argument is recorded with its full generate config and
+    `base_url`. Strip the same fields excluded for model roles, so changing a
+    grader's `max_connections` or an env-derived `base_url` keeps the identifier.
+    """
+    if scorers is None:
+        return None
+    return [
+        scorer.model_copy(update={"options": _strip_model_transport(scorer.options)})
+        for scorer in scorers
+    ]
+
+
+def _strip_model_transport(value: Any) -> Any:
+    if isinstance(value, list):
+        return [_strip_model_transport(item) for item in value]
+    if is_model_dict(value):
+        config = value["config"] or {}
+        return {
+            **value,
+            "base_url": None,
+            "config": {
+                key: item
+                for key, item in config.items()
+                if key not in GENERATE_CONFIG_FIELDS_TO_EXCLUDE
+            },
+        }
+    if isinstance(value, dict):
+        return {key: _strip_model_transport(item) for key, item in value.items()}
+    return value
+
+
 # Version of the task_identifier computation. Bump this only when the computed
 # identifier values change, so that persisted identifiers (e.g. in inspect_flow)
 # can be recomputed. A logic change that provably preserves every identifier
@@ -2120,7 +2196,7 @@ def resolve_solver(
 # set) does not warrant a bump — prove it by exercising the new field in
 # tests/test_task_identifier_version.py against the current version's pinned
 # hash.
-TASK_IDENTIFIER_VERSION = 3
+TASK_IDENTIFIER_VERSION = 4
 
 
 def task_identifier(
@@ -2133,11 +2209,12 @@ def task_identifier(
     (the `{task_file}@` prefix is omitted for tasks without a source file).
     The additional hash covers the remaining fields that distinguish tasks
     within an eval set (solver plan, generate config, model args, model roles,
-    task version, and execution limits), excluding runtime/transport options
-    that don't affect model output (e.g. `max_retries`, `max_connections`).
+    task version, execution limits, scorers, and task metrics), excluding
+    runtime/transport options that don't affect model output (e.g.
+    `max_retries`, `max_connections`).
 
     The same identifier is computed from a `ResolvedTask` (before running) and
-    from the `EvalLog` that running it produces — `eval_set()` uses this to
+    from the `EvalLog` that running it produces. `eval_set()` uses this to
     pair tasks with their existing log files across retries, and external
     runners can correlate enumerated tasks with logs the same way. The
     computation is versioned by `TASK_IDENTIFIER_VERSION`: persisted
@@ -2167,6 +2244,12 @@ def task_identifier(
         time_limit: int | None
         working_limit: int | None
         cost_limit: float | None
+        scorers: list[EvalScorer] | None
+        metrics: (
+            list[EvalMetricDefinition | dict[str, list[EvalMetricDefinition]]]
+            | dict[str, list[EvalMetricDefinition]]
+            | None
+        )
 
     def token_limit_hash_value(
         tokens: int | None, type: str | None
@@ -2194,6 +2277,7 @@ def task_identifier(
         eval_plan = plan_to_eval_plan(
             plan, task.task.config.merge(eval_set_args.config)
         )
+        scorer_identity = _logged_scorer_identity(task.task)
         additional_hash_fields = AdditionalHashFields(
             model_args=model_args_for_log(task.model.model_args),
             version=task.task.version,
@@ -2217,6 +2301,8 @@ def task_identifier(
             cost_limit=task.task.cost_limit
             if eval_set_args.cost_limit is None
             else eval_set_args.cost_limit,
+            scorers=_scorers_for_identifier(scorer_identity.scorers),
+            metrics=scorer_identity.metrics,
         )
     else:
         task_file = task.eval.task_file or ""
@@ -2237,6 +2323,8 @@ def task_identifier(
             time_limit=task.eval.config.time_limit,
             working_limit=task.eval.config.working_limit,
             cost_limit=task.eval.config.cost_limit,
+            scorers=_scorers_for_identifier(task.eval.scorers),
+            metrics=task.eval.metrics,
         )
 
     # strip args from eval_plan as we've changed the way this is serialized

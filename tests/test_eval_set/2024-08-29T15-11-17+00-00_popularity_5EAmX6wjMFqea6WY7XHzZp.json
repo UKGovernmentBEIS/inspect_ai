@@ -20,7 +20,24 @@
     "model_args": {},
     "config": {
       "limit": 1
-    }
+    },
+    "scorers": [
+      {
+        "name": "match",
+        "options": {},
+        "metrics": [
+          {
+            "name": "inspect_ai/accuracy",
+            "options": {}
+          },
+          {
+            "name": "inspect_ai/stderr",
+            "options": {}
+          }
+        ],
+        "metadata": {}
+      }
+    ]
   },
   "plan": {
     "name": "plan",
