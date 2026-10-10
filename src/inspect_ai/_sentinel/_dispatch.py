@@ -156,12 +156,10 @@ async def _run(step: Step) -> Decision | None:
         # return it as a terminate
         warn_once(
             logger,
-            "inspect_sentinel returned an unhandled escalate, which the host "
-            "treated as terminate; upgrade inspect_sentinel.",
+            "inspect_sentinel returned an unhandled escalate, so inspect_ai "
+            "terminated the sample; upgrade inspect_sentinel.",
         )
-        return Decision.terminate(
-            _unhandled_escalation(step, decision), references=decision.references
-        )
+        return Decision.terminate(_unhandled_escalation(step, decision))
     return decision
 
 
@@ -170,7 +168,8 @@ def _unhandled_escalation(step: Step, decision: Decision) -> str:
     reason = f": {decision.explanation}" if decision.explanation else ""
     return (
         f"unhandled escalation at the {stage} stage{reason}; end the configuration "
-        f"with human(stages=['{stage}']) or handle_escalation(...)"
+        f"with human(stages=['{stage}']), e.g. sequential([..., human(...)]), or "
+        "upgrade inspect_sentinel for handle_escalation(...)"
     )
 
 
