@@ -35,6 +35,38 @@ class ServedModelUsage(NamedTuple):
     """Cost data for `model`, when the provider has it (otherwise looked up by `model`)."""
 
 
+def usage_input_tokens(usage: ModelUsage | None) -> int | None:
+    """All input tokens of one request's usage: full rate, cache read and cache write."""
+    if usage is None:
+        return None
+    return (
+        usage.input_tokens
+        + (usage.input_tokens_cache_read or 0)
+        + (usage.input_tokens_cache_write or 0)
+    )
+
+
+def sum_usage(*usages: ModelUsage | None) -> ModelUsage | None:
+    """Sum the usage of several billed requests, skipping any without usage.
+
+    Returns `None` when no request reported usage.
+    """
+    reported = [usage for usage in usages if usage is not None]
+    if not reported:
+        return None
+    total = reported[0]
+    for usage in reported[1:]:
+        total = total + usage
+    return total
+
+
+def output_input_context_tokens(output: ModelOutput) -> int | None:
+    """The input's context size: `input_context_tokens`, else the input side of usage."""
+    if output.input_context_tokens is not None:
+        return output.input_context_tokens
+    return usage_input_tokens(output.usage)
+
+
 def collect_stop_details(
     provider: str,
     logger: Logger,

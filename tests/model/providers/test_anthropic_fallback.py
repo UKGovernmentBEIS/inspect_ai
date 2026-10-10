@@ -699,3 +699,85 @@ async def test_no_fallback_priced_at_requested_model(fallback_costs: None) -> No
 
     assert output.fallback is None
     assert _recorded_cost(output) == pytest.approx((412 + 264) * REQUESTED_RATE / 1e6)
+
+
+def _chain_request(
+    id: str,
+    stop_reason: str,
+    fallback: bool,
+    iterations: list[dict[str, Any]] | None = None,
+) -> Message:
+    content: list[dict[str, Any]] = [{"type": "text", "text": id}]
+    if fallback:
+        content.insert(0, _fallback_block())
+    message = _fallback_message(
+        content,
+        model=FALLBACK_MODEL if fallback else REQUESTED_MODEL,
+        iterations=iterations,
+    )
+    message.id = id
+    message.stop_reason = cast(Any, stop_reason)
+    return message
+
+
+_DECLINED_THEN_SERVED = [
+    _iteration("message", REQUESTED_MODEL, 535, 120),
+    _iteration("fallback_message", FALLBACK_MODEL, 412, 264),
+]
+_REQUEST_COST = {
+    "requested": (412 + 264) * REQUESTED_RATE / 1e6,
+    "fallback": (412 + 264) * FALLBACK_RATE / 1e6,
+    "fallback_attempts": (535 + 120) * REQUESTED_RATE / 1e6
+    + (412 + 264) * FALLBACK_RATE / 1e6,
+}
+
+
+@pytest.mark.parametrize(
+    ("head", "tail"),
+    [
+        ("fallback_attempts", "requested"),
+        ("requested", "fallback_attempts"),
+        ("requested", "fallback"),
+        ("fallback", "fallback_attempts"),
+    ],
+)
+@pytest.mark.anyio
+async def test_pause_turn_chain_priced_per_request(
+    fallback_costs: None, head: str, tail: str
+) -> None:
+    """Each request of a pause_turn chain is priced by the model that served it."""
+    from unittest.mock import AsyncMock, create_autospec
+
+    from anthropic import AsyncAnthropic
+
+    def request(id: str, stop_reason: str, kind: str) -> Message:
+        return _chain_request(
+            id,
+            stop_reason,
+            fallback=kind != "requested",
+            iterations=_DECLINED_THEN_SERVED if kind == "fallback_attempts" else None,
+        )
+
+    init_sample_anthropic_assistant_internal()
+    api = AnthropicAPI(model_name=REQUESTED_MODEL, api_key="test-key")
+    client = create_autospec(AsyncAnthropic, instance=True)
+    client.messages.create = AsyncMock(
+        side_effect=[
+            request("msg_head", "pause_turn", head),
+            request("msg_tail", "end_turn", tail),
+        ]
+    )
+    api.client = client
+
+    _, output = await api._perform_request_and_continuations(
+        request={"messages": []}, streaming=False, tools=[], config=GenerateConfig()
+    )
+
+    assert output.usage is not None
+    assert output.usage.input_tokens == 412 * 2
+    assert output.fallback is not None
+    assert output.fallback.model == REQUESTED_MODEL
+    assert output.fallback.fallback_model == FALLBACK_MODEL
+    assert _recorded_cost(output) == pytest.approx(
+        _REQUEST_COST[head] + _REQUEST_COST[tail]
+    )

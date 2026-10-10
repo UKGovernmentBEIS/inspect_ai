@@ -47,7 +47,7 @@ from .._chat_message import (
     ChatMessageSystem,
     ChatMessageUser,
 )
-from .._model_output import ChatCompletionChoice, ModelOutput, ModelUsage
+from .._model_output import ChatCompletionChoice, ModelOutput
 from ._gemini_function_calling import (
     DEFAULT_MALFORMED_FUNCTION_MESSAGE,
     FUNCTION_CALLING_HINT,
@@ -209,10 +209,3 @@ def with_malformed_function_apology(output: ModelOutput, message: str) -> ModelO
         update={"message": assistant.model_copy(update={"content": content})}
     )
     return output.model_copy(update={"choices": [choice, *output.choices[1:]]})
-
-
-def add_usage(total: ModelUsage | None, usage: ModelUsage | None) -> ModelUsage | None:
-    """Token usage of all attempts, so discarded attempts are still counted."""
-    if total is None or usage is None:
-        return usage if total is None else total
-    return total + usage

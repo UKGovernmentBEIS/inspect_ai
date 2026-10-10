@@ -18,7 +18,7 @@ from .._model import (
     get_model,
 )
 from .._model_info import get_model_input_tokens
-from .._model_output import ModelOutput
+from .._model_output import ModelOutput, output_input_context_tokens
 from .memory import MEMORY_TOOL, memory_warning_message
 from .types import Compact, CompactionStrategy
 
@@ -126,17 +126,11 @@ def compaction(
 
     async def record_output_fn(input: list[ChatMessage], output: ModelOutput) -> None:
         """Record output from generate call to calibrate token baseline."""
-        if output.usage is None:
+        input_tokens = output_input_context_tokens(output)
+        if input_tokens is None:
             return
 
         async with _lock:
-            # Compute total input tokens including cached tokens
-            input_tokens = output.usage.input_tokens
-            if output.usage.input_tokens_cache_read:
-                input_tokens += output.usage.input_tokens_cache_read
-            if output.usage.input_tokens_cache_write:
-                input_tokens += output.usage.input_tokens_cache_write
-
             # `input` is the messages that produced output.usage; under
             # concurrent bridge use `state.compacted_input` may already
             # reflect a later call

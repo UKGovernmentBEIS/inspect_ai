@@ -217,7 +217,16 @@ class ModelOutput(BaseModel):
     """Model completion."""
 
     usage: ModelUsage | None = Field(default=None)
-    """Model token usage"""
+    """Token usage billed for this generate call, summed over every request it made."""
+
+    input_context_tokens: int | None = Field(default=None)
+    """Tokens the input occupied in the model's context window.
+
+    Counts the system prompt, tools and input messages, cached tokens included.
+    For a call that made several requests, this is the size of the request built
+    from the input, not a sum. None when not known (e.g. logs written before
+    this field existed); readers then use the input side of `usage`.
+    """
 
     fallback: ModelFallback | None = Field(default=None)
     """Model fallback that served this output (None if served by the requested model)."""
@@ -255,6 +264,12 @@ class ModelOutput(BaseModel):
                 self.choices[0].message.text if len(self.choices) > 0 else ""
             )
         return self
+
+    def __setstate__(self, state: dict[Any, Any]) -> None:
+        super().__setstate__(state)
+        # pickles from before input_context_tokens existed (model cache
+        # entries) restore without the attribute, which would raise on access
+        self.__dict__.setdefault("input_context_tokens", None)
 
     @staticmethod
     def from_message(

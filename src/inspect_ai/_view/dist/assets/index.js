@@ -84531,11 +84531,17 @@ var scoreText = (score) => {
 *  this bound (or non-finite / negative) a count is corrupt and reads as
 *  missing — the call renders without curves, like one with no usage. */ var kMaxTokenCount = Number.MAX_SAFE_INTEGER;
 /** A token count that is safe to accumulate and divide by, else undefined. */ var tokenCount = (value) => typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= kMaxTokenCount ? value : void 0;
-/** Input-side tokens for one model call (context occupancy): the shared
-*  total minus the output side. Summing input + cache categories directly
-*  would double-count on providers whose input_tokens already includes
-*  cached reads (OpenAI) — deriving from usageTotal keeps this surface
-*  consistent with the Usage tab. */ var inputSideTokens = (event) => {
+/** The call's recorded input_context_tokens, when it is a valid count. */ var recordedContextTokens = (event) => tokenCount(event.output.input_context_tokens);
+/** Input-side tokens for one model call (context occupancy). Prefers the
+*  recorded input_context_tokens: usage is billed, and for a call that made
+*  several requests it sums them. When it is null, absent or invalid (not
+*  known, or a log from before the field) this falls back to the shared total
+*  minus the output side: summing
+*  input + cache categories directly would double-count on providers whose
+*  input_tokens already includes cached reads (OpenAI), and deriving from
+*  usageTotal keeps this surface consistent with the Usage tab. */ var inputSideTokens = (event) => {
+	const context = recordedContextTokens(event);
+	if (context !== void 0) return context;
 	const usage = event.output.usage;
 	if (!usage) return void 0;
 	const total = tokenCount(usageTotal(usage));
@@ -84782,8 +84788,8 @@ var inertData = (inputs) => ({
 					working: Math.min(workingTime ?? end - t, end - t),
 					retries: event.retries ?? void 0,
 					uuid,
-					inputTokens: usage ? inputSideTokens(event) : void 0,
-					cachedTokens: tokenCount(usage?.input_tokens_cache_read),
+					inputTokens: inputSideTokens(event),
+					cachedTokens: recordedContextTokens(event) !== void 0 ? void 0 : tokenCount(usage?.input_tokens_cache_read),
 					outputTokens: tokenCount(usage?.output_tokens),
 					stopReason,
 					toolCalls

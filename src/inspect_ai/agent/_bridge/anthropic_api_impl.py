@@ -45,7 +45,7 @@ from inspect_ai.model._generate_config import (
 )
 from inspect_ai.model._internal import CONTENT_INTERNAL_TAG, parse_content_with_internal
 from inspect_ai.model._model import Model, ModelName
-from inspect_ai.model._model_output import ModelUsage, StopReason
+from inspect_ai.model._model_output import ModelUsage, StopDetails, StopReason
 from inspect_ai.model._providers._anthropic_citations import to_inspect_citation
 from inspect_ai.model._providers.anthropic import (
     _WEB_SEARCH_TOOL_TYPES,
@@ -61,6 +61,7 @@ from inspect_ai.model._providers.anthropic import (
     is_tool_param,
     is_web_fetch_tool,
     is_web_search_tool,
+    resume_pending_server_tool_work,
 )
 from inspect_ai.tool._mcp._config import MCPServerConfigHTTP
 from inspect_ai.tool._tool import Tool
@@ -186,6 +187,16 @@ async def inspect_anthropic_api_request_impl(
     # try to maintain id stability
     apply_message_ids(bridge, messages)
 
+    # the new ids lose a resent turn's pending server tool work (e.g. a turn
+    # paused at the continuation limit), which the provider keyed by its own
+    # message id. messages_from_anthropic_input makes one assistant message
+    # per assistant param.
+    assistant_params = [param for param in input if param["role"] == "assistant"]
+    assistant_messages = [m for m in messages if isinstance(m, ChatMessageAssistant)]
+    for param, assistant in zip(assistant_params, assistant_messages, strict=True):
+        if not isinstance(param["content"], str):
+            resume_pending_server_tool_work(assistant.id, param["content"])
+
     # give inspect-level config priority over agent default config
     config = resolve_generate_config(model, config)
 
@@ -208,7 +219,9 @@ async def inspect_anthropic_api_request_impl(
         content=await assistant_message_blocks(output.message, beta=beta),
         model=output.model,
         role="assistant",
-        stop_reason=anthropic_stop_reason(output.stop_reason),
+        stop_reason=anthropic_stop_reason(
+            output.stop_reason, output.choices[0].stop_details
+        ),
         type="message",
         usage=anthropic_usage(output.usage or ModelUsage(), beta=beta),
     )
@@ -700,7 +713,17 @@ def base_64_data(data: str | IO[bytes] | PathLike[str]) -> str:
         raise RuntimeError(f"Unsupported image content type: {data}")
 
 
-def anthropic_stop_reason(stop_reason: StopReason) -> AnthropicStopReason:
+def anthropic_stop_reason(
+    stop_reason: StopReason, stop_details: StopDetails | None = None
+) -> AnthropicStopReason:
+    # a turn the provider stopped continuing (its pause_turn continuation
+    # bound) goes back as pause_turn, so the client resends it to continue
+    if (
+        stop_reason == "unknown"
+        and stop_details is not None
+        and stop_details.type == "pause_turn"
+    ):
+        return "pause_turn"
     match stop_reason:
         case "stop":
             return "end_turn"

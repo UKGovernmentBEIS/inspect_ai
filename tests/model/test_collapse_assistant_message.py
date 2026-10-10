@@ -93,3 +93,13 @@ def test_collapse_assistant_messages_preserves_fields():
     assert combined.metadata["key2"] == "val2"
     assert combined.metadata["shared"] == "from_b"
     assert combined.metadata["combined_from"] == [msg_a.id, msg_b.id]
+
+
+def test_collapse_three_assistant_messages_names_every_original():
+    messages = [ChatMessageAssistant(content=f"part {i}") for i in range(3)]
+
+    result = collapse_consecutive_assistant_messages(messages)
+
+    assert len(result) == 1
+    assert result[0].metadata is not None
+    assert result[0].metadata["combined_from"] == [m.id for m in messages]

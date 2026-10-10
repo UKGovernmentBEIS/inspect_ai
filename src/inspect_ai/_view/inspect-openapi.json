@@ -8066,6 +8066,17 @@
               }
             ]
           },
+          "input_context_tokens": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Input Context Tokens"
+          },
           "metadata": {
             "anyOf": [
               {

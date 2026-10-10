@@ -1536,7 +1536,36 @@ async def proxy_server_anthropic() -> AsyncGenerator[tuple[AsyncHTTPServer, str]
                             break
 
             # Generate different responses based on content
-            if "test_web_search" in last_message_content:
+            if "test_pause_turn" in last_message_content:
+                # A turn the bridge stopped continuing: paused, with a
+                # complete web search call
+                return {
+                    "id": "msg_pause_turn_test",
+                    "type": "message",
+                    "role": "assistant",
+                    "model": json_data.get("model", "claude-opus-4-1-20250805"),
+                    "content": [
+                        {"type": "text", "text": "Searching."},
+                        {
+                            "type": "server_tool_use",
+                            "id": "srvtoolu_paused",
+                            "name": "web_search",
+                            "input": {"query": "paused query"},
+                        },
+                        {
+                            "type": "web_search_tool_result",
+                            "tool_use_id": "srvtoolu_paused",
+                            "content": {
+                                "type": "web_search_tool_result_error",
+                                "error_code": "unavailable",
+                            },
+                        },
+                    ],
+                    "stop_reason": "pause_turn",
+                    "stop_sequence": None,
+                    "usage": {"input_tokens": 12, "output_tokens": 3},
+                }
+            elif "test_web_search" in last_message_content:
                 # Return a web search tool use response
                 return {
                     "id": "msg_web_search_test",
@@ -2155,6 +2184,32 @@ async def test_anthropic_messages_streaming_web_search(
     # Verify the content
     assert "search" in collected_text.lower()
     assert "latest AI news" in collected_json
+
+
+@pytest.mark.asyncio
+async def test_anthropic_messages_streaming_pause_turn(
+    proxy_server_anthropic: tuple[AsyncHTTPServer, str],
+) -> None:
+    """A paused turn streams with stop_reason pause_turn and its blocks intact."""
+    _server, base_url = proxy_server_anthropic
+
+    client = AsyncAnthropic(base_url=base_url, api_key="test")
+
+    async with client.messages.stream(
+        model="claude-opus-4-1-20250805",
+        messages=[{"role": "user", "content": "test_pause_turn"}],
+        max_tokens=256,
+    ) as stream:
+        message = await stream.get_final_message()
+
+    assert message.stop_reason == "pause_turn"
+    assert [block.type for block in message.content] == [
+        "text",
+        "server_tool_use",
+        "web_search_tool_result",
+    ]
+    assert message.content[1].id == "srvtoolu_paused"
+    assert message.content[2].tool_use_id == "srvtoolu_paused"
 
 
 @pytest.mark.asyncio

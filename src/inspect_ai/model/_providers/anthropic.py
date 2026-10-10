@@ -198,6 +198,8 @@ from .._model_output import (
     StopDetails,
     StopReason,
     collect_stop_details,
+    sum_usage,
+    usage_input_tokens,
 )
 from .._providers._anthropic_citations import (
     to_anthropic_citation,
@@ -298,6 +300,11 @@ _REMINDER_SYSTEM_HOISTED_WARNING = (
 # rest of the sample from further expiry.
 CACHE_TTL_ESCALATION_GAP = 300.0  # seconds (= the default 5m cache TTL)
 
+# Most pause_turn continuations sent for one generate call. Each pause_turn ends
+# a server-side tool loop, so this allows a long turn while bounding a chain of
+# billed requests that never finishes.
+MAX_PAUSE_TURN_CONTINUATIONS = 10
+
 # TTL sent on the request whose usage is currently being recorded, read back by
 # cache_write_ttl() for cost accounting: escalation state is sticky and shared,
 # so a sibling that escalates mid-flight (or a batched call, which never
@@ -316,6 +323,71 @@ _cache_write_ttl: ContextVar[Literal["5m", "1h"] | None] = ContextVar(
 _last_request_start: ContextVar[float | None] = ContextVar(
     "anthropic_last_request_start", default=None
 )
+
+
+@dataclass
+class _ContinuationChain:
+    """The requests sent so far for one generate call (a head and its continuations)."""
+
+    requests: int = 0
+    """Number of requests that returned a response."""
+
+    usage: ModelUsage | None = None
+    """Usage summed over those requests (each one is billed)."""
+
+    input_context_tokens: int | None = None
+    """Input size of the head request, the one built from the generate input.
+
+    Later requests also carry the partial turn, which the returned message holds.
+    """
+
+    served: list[ServedModelUsage] = field(default_factory=list)
+    """Usage of each request, attributed to the model that served it."""
+
+    fallbacks: list[ModelFallback] = field(default_factory=list)
+    """Refusal fallbacks of the requests that had one, in request order."""
+
+    def add(self, output: ModelOutput, served: list[ServedModelUsage]) -> None:
+        """Add a request's output, and its usage attributed by serving model."""
+        self.requests += 1
+        self.usage = sum_usage(self.usage, output.usage)
+        if self.requests == 1:
+            self.input_context_tokens = usage_input_tokens(output.usage)
+        self.served.extend(served)
+        if output.fallback is not None:
+            self.fallbacks.append(output.fallback)
+
+    def report(self, output: ModelOutput) -> None:
+        """Give the output returned for the generate call the chain's totals.
+
+        When a request fell back and the output does not describe that one
+        request alone, `output.fallback` describes the chain: its metadata
+        joins every fallback's `handoffs` and `iterations`, and its
+        `served_usage` attributes each request's usage to the model that
+        served it (see `AnthropicAPI.served_model_usage`).
+        """
+        output.usage = self.usage
+        output.input_context_tokens = self.input_context_tokens
+        if not self.fallbacks or (self.requests == 1 and output.fallback is not None):
+            return
+        output.fallback = ModelFallback(
+            model=self.fallbacks[0].model,
+            fallback_model=self.fallbacks[-1].fallback_model,
+            metadata={
+                key: [
+                    item
+                    for fallback in self.fallbacks
+                    for item in (fallback.metadata or {}).get(key) or []
+                ]
+                for key in ("handoffs", "iterations")
+            }
+            | {
+                "served_usage": [
+                    {"model": part.model, "usage": part.usage.model_dump()}
+                    for part in self.served
+                ]
+            },
+        )
 
 
 @dataclass
@@ -736,6 +808,16 @@ class AnthropicAPI(ModelAPI):
             ):
                 return [ServedModelUsage(f"anthropic/{output.model}", output.usage)]
             return None
+        # a pause_turn chain in which some request fell back (see
+        # `_ContinuationChain.report`)
+        served_usage = (fallback.metadata or {}).get("served_usage")
+        if isinstance(served_usage, list):
+            return [
+                ServedModelUsage(
+                    part["model"], ModelUsage.model_validate(part["usage"])
+                )
+                for part in served_usage
+            ]
         iterations = (fallback.metadata or {}).get("iterations")
         if isinstance(iterations, list) and any(
             isinstance(it, dict) and it.get("type") == "fallback_message"
@@ -743,6 +825,14 @@ class AnthropicAPI(ModelAPI):
         ):
             return _fallback_attempts_usage(iterations, self.service_model_name())
         return [ServedModelUsage(f"anthropic/{fallback.fallback_model}", output.usage)]
+
+    def _request_served_usage(self, output: ModelOutput) -> list[ServedModelUsage]:
+        """Usage of one request's output, attributed to the model that served it."""
+        if output.usage is None:
+            return []
+        return self.served_model_usage(output) or [
+            ServedModelUsage(f"anthropic/{self.service_model_name()}", output.usage)
+        ]
 
     @override
     def cache_write_ttl(self) -> str | None:
@@ -765,6 +855,10 @@ class AnthropicAPI(ModelAPI):
         # allocate request_id (so we can see it from ModelCall)
         with self._http_hooks.request() as request_id:
             model_call: ModelCall | None = None
+
+            # an error converted to an output below still reports the usage of
+            # the requests that succeeded before it
+            chain = _ContinuationChain()
 
             # generate
             try:
@@ -940,7 +1034,7 @@ class AnthropicAPI(ModelAPI):
 
                 try:
                     response, output = await self._perform_request_and_continuations(
-                        request, streaming, tools, config
+                        request, streaming, tools, config, chain=chain
                     )
                 except (BadRequestError, APIStatusError) as ex:
                     ex = _normalize_stream_error(ex)
@@ -966,22 +1060,28 @@ class AnthropicAPI(ModelAPI):
                 return output, model_call
 
             except BadRequestError as ex:
-                return self.handle_bad_request(ex), model_call or ModelCall(request={})
+                handled = self.handle_bad_request(ex)
+                if isinstance(handled, ModelOutput):
+                    chain.report(handled)
+                return handled, model_call or ModelCall(request={})
 
             except APIStatusError as ex:
                 if ex.status_code == 413:
-                    return ModelOutput.from_content(
+                    too_large = ModelOutput.from_content(
                         model=self.service_model_name(),
                         content=ex.message,
                         stop_reason="model_length",
                         error=ex.message,
-                    ), model_call or ModelCall(request={})
+                    )
+                    chain.report(too_large)
+                    return too_large, model_call or ModelCall(request={})
                 # Content-filter errors that arrive mid-stream surface as a plain
                 # APIStatusError (the SDK can't infer the 400 subclass once the
                 # HTTP response was 200), so route through handle_bad_request to
                 # convert them into a content_filter refusal.
                 handled = self.handle_bad_request(ex)
                 if isinstance(handled, ModelOutput):
+                    chain.report(handled)
                     return handled, model_call or ModelCall(request={})
                 raise ex
 
@@ -1147,12 +1247,22 @@ class AnthropicAPI(ModelAPI):
         | None = None,
         pending_mcp_tool_uses: dict[str, BetaMCPToolUseBlock] | None = None,
         span_recorder: "_ServerToolSpanRecorder | None" = None,
+        chain: _ContinuationChain | None = None,
     ) -> tuple[dict[str, Any], ModelOutput]:
         """
         This helper function is split out so that it can be easily call itself recursively in cases where the model requires a continuation
 
         It considers the result from the initial request the "head" and the result
-        from the continuation the "tail".
+        from the continuation the "tail". The returned output's usage is the sum
+        over the head and every continuation, since each one is billed; `chain`
+        holds that sum as requests complete, so a caller can still report it
+        when a later continuation raises.
+
+        After `MAX_PAUSE_TURN_CONTINUATIONS` continuations a further pause_turn
+        is not continued: the content generated so far is returned with stop
+        reason "unknown" and `stop_details.type` "pause_turn". Returning it
+        rather than raising keeps the usage of the billed requests, and matches
+        Anthropic's contract that a paused turn can be resumed by sending it back.
         """
         # each continuation re-sends the same cache_control, so it refreshes the
         # cache entry at its own prefill -- record it as the gap baseline
@@ -1166,6 +1276,8 @@ class AnthropicAPI(ModelAPI):
             # block in the head message, result in the tail) so the recorder
             # is threaded through continuations like pending_tool_uses
             span_recorder = _ServerToolSpanRecorder()
+        if chain is None:
+            chain = _ContinuationChain()
 
         # TODO: Bogus that we have to do this on each call. Ideally, it would be
         # done only once and ideally by non-provider specific code.
@@ -1201,8 +1313,29 @@ class AnthropicAPI(ModelAPI):
             cache_diagnostics=self.cache_diagnostics_enabled(config),
             span_recorder=span_recorder,
         )
+        chain.add(head_model_output, self._request_served_usage(head_model_output))
+        continuations = chain.requests - 1
 
-        if continuation_required:
+        if continuation_required and continuations >= MAX_PAUSE_TURN_CONTINUATIONS:
+            logger.warning(
+                f"{self.model_name}: stopped after {continuations} pause_turn "
+                "continuations; returning the paused turn."
+            )
+            head_model_output.choices[0].stop_details = StopDetails(
+                type="pause_turn",
+                explanation=(
+                    f"Turn still paused after {continuations} continuations "
+                    "(the continuation limit)."
+                ),
+            )
+            # no continuation will complete a server tool call still in
+            # flight, so record its open span with this message: replay then
+            # sends its use block, and the result that arrives when the turn
+            # is resumed finds it
+            open_spans = span_recorder.take_spans(include_open=True)
+            if open_spans and head_model_output.message.id is not None:
+                record_server_tool_spans(head_model_output.message.id, open_spans)
+        elif continuation_required:
             tail_request = dict(request)
             tail_request["messages"] = request["messages"] + [
                 MessageParam(role=head_message.role, content=head_message.content)
@@ -1219,6 +1352,7 @@ class AnthropicAPI(ModelAPI):
                 pending_tool_uses=pending_tool_uses,
                 pending_mcp_tool_uses=pending_mcp_tool_uses,
                 span_recorder=span_recorder,
+                chain=chain,
             )
 
             head_content = _content_list(head_model_output.message.content)
@@ -1238,6 +1372,9 @@ class AnthropicAPI(ModelAPI):
             # even when it has needed to recurse. This is because model_call()
             # above doesn't currently support multiple requests
             return head_message.model_dump(warnings="none"), tail_model_output
+
+        # the last request of the chain reports the usage of all of them
+        chain.report(head_model_output)
 
         # NOTE: we do warnings="none" here because we are including beta API message
         # params (for MCP tool use/result) in the payload which causes Message to emit
@@ -3688,11 +3825,7 @@ async def assistant_message_block_params(
         # links, nesting) so they are replayed verbatim as a unit, while the
         # editable content (text, reasoning, client tool calls) is still
         # rendered from the content list so that scaffold edits surface.
-        record = (
-            assistant_internal().server_tool_spans.get(message.id)
-            if message.id is not None
-            else None
-        )
+        record = _message_server_tool_spans(message)
         emitted: set[int] = set()
         for content in message.content:
             segment: list[MessageBlockParam] = []
@@ -3702,6 +3835,13 @@ async def assistant_message_block_params(
                 # content item (subsequent items of the same span emit nothing)
                 if id(span) not in emitted:
                     emitted.add(id(span))
+                    # a result whose use block ended an earlier turn that this
+                    # message also holds (a resumed turn combined with the
+                    # paused one) needs that use block first
+                    use_span = _earlier_turn_use_span(content, span, record)
+                    if use_span is not None and id(use_span) not in emitted:
+                        emitted.add(id(use_span))
+                        segment.extend(_span_block_params(use_span, message))
                     segment.extend(_span_block_params(span, message))
             else:
                 segment.extend(await message_block_params(content))
@@ -3960,12 +4100,10 @@ class _AssistantInternal:
     Replayed as the `container` request param when a turn left code
     execution pending (see `_pending_container_for_input`).
 
-    Unlike `server_tool_span_index`, there is no fallback for message ids
-    rewritten by the agent bridge: a pending span has produced no content,
-    so no bridge-surviving key exists to index by. Pending-work resumption
-    therefore does not survive a bridge id rewrite (the bridge does not
-    carry server tool state in general -- its anthropic impl handles
-    neither `server_tool_use` blocks nor the `container` param)."""
+    A pending span has produced no content, so no bridge-surviving key
+    exists to index by: the agent bridge instead copies a resent turn's
+    pending spans and container to its new message id (see
+    `resume_pending_server_tool_work`)."""
 
 
 def assistant_internal() -> _AssistantInternal:
@@ -4149,6 +4287,49 @@ def merge_server_tool_spans(head_id: str | None, tail_id: str | None) -> None:
         internal.containers.setdefault(tail_id, head_container)
 
 
+def resume_pending_server_tool_work(
+    message_id: str | None, blocks: Iterable[Any]
+) -> None:
+    """Record a resent turn's unfinished server tool calls under its new message id.
+
+    A turn can end with a server tool call still running (a turn paused at
+    `MAX_PAUSE_TURN_CONTINUATIONS`, or a client tool call that cut it short).
+    The call has no content item, so its span and container are found only
+    under the id of the message that recorded them. The agent bridge parses
+    the turn its client sends back into a message with a new id; this records
+    those spans under that id, so replay sends the use block (before the
+    call's result, when the client sends the result in the same turn). The
+    container is recorded too when a call is still pending, so the request
+    names it.
+
+    Args:
+       message_id: Id of the message parsed from `blocks`.
+       blocks: The assistant turn's content blocks (dicts or SDK blocks).
+    """
+    block_dicts = [
+        cast("dict[str, Any]", b if isinstance(b, dict) else b.model_dump())
+        for b in blocks
+    ]
+    use_ids = {b.get("id") for b in block_dicts if b.get("type") == "server_tool_use"}
+    pending_ids = use_ids - {b.get("tool_use_id") for b in block_dicts}
+    internal = assistant_internal()
+    if message_id is None or not use_ids or message_id in internal.server_tool_spans:
+        return
+    resumed: list[_ServerToolSpan] = []
+    for source_id, spans in list(internal.server_tool_spans.items()):
+        unfinished = [span for span in spans if span.open_use_ids & use_ids]
+        resumed.extend(
+            span for span in unfinished if all(span is not r for r in resumed)
+        )
+        container = internal.containers.get(source_id)
+        if container is not None and any(
+            span.open_use_ids & pending_ids for span in unfinished
+        ):
+            internal.containers[message_id] = container
+    if resumed:
+        internal.server_tool_spans[message_id] = resumed
+
+
 def _prior_turn_server_tool_use(tool_use_id: str) -> BetaServerToolUseBlock | None:
     """Server tool use block recorded in a prior turn's span (if any).
 
@@ -4188,20 +4369,67 @@ def _pending_container_for_input(input: list[ChatMessage]) -> str | None:
     is not replayed, since unconditionally reusing containers across turns
     would change behavior (state carry-over) and risk naming an expired
     container.
+
+    When the last assistant message combines several (a paused turn and the
+    turns that resumed it), only the latest of them can have work pending.
     """
     last_assistant = next(
         (m for m in reversed(input) if isinstance(m, ChatMessageAssistant)), None
     )
-    if last_assistant is None or last_assistant.id is None:
+    if last_assistant is None:
+        return None
+    message_ids = (last_assistant.metadata or {}).get("combined_from") or [
+        last_assistant.id
+    ]
+    latest_id = message_ids[-1]
+    if latest_id is None:
         return None
     internal = assistant_internal()
-    container = internal.containers.get(last_assistant.id)
+    container = internal.containers.get(latest_id)
     if container is None:
         return None
-    spans = internal.server_tool_spans.get(last_assistant.id, [])
+    spans = internal.server_tool_spans.get(latest_id, [])
     if any(span.open_use_ids for span in spans):
         return container
     return None
+
+
+def _message_server_tool_spans(
+    message: ChatMessageAssistant,
+) -> list[_ServerToolSpan] | None:
+    """Server tool spans recorded for a message, or for the messages it combines.
+
+    Consecutive assistant messages are combined before a request (e.g. a
+    paused turn and the turn that resumed it), and the combined message has
+    a new id; `metadata["combined_from"]` names the messages it holds.
+    """
+    message_ids = (message.metadata or {}).get("combined_from") or [message.id]
+    internal = assistant_internal()
+    spans: list[_ServerToolSpan] = []
+    for message_id in message_ids:
+        for span in internal.server_tool_spans.get(message_id, []):
+            if all(span is not other for other in spans):
+                spans.append(span)
+    return spans or None
+
+
+def _earlier_turn_use_span(
+    content: Content, span: _ServerToolSpan, record: list[_ServerToolSpan] | None
+) -> _ServerToolSpan | None:
+    """The span in `record` holding the use block of a result recorded without it.
+
+    A result that arrives in a later turn than its use block is recorded
+    alone (see `_ServerToolSpanRecorder.add_prior_turn_result`).
+    """
+    if not isinstance(content, ContentToolUse) or any(
+        cast("dict[str, Any]", block).get("type") == "server_tool_use"
+        and cast("dict[str, Any]", block).get("id") == content.id
+        for block in span.blocks
+    ):
+        return None
+    return next(
+        (other for other in record or [] if content.id in other.open_use_ids), None
+    )
 
 
 def _server_tool_span_for_content(

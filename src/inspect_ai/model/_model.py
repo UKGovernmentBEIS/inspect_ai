@@ -122,7 +122,13 @@ from ._generate_config import (
 )
 from ._model_call import ModelCall, as_error_response
 from ._model_data.model_data import ModelCost, ModelInfo
-from ._model_output import ModelFallback, ModelOutput, ModelUsage, ServedModelUsage
+from ._model_output import (
+    ModelFallback,
+    ModelOutput,
+    ModelUsage,
+    ServedModelUsage,
+    usage_input_tokens,
+)
 from ._stream import (
     ModelStreamObserver,
     NoStreamDataError,
@@ -1663,6 +1669,11 @@ class Model:
                     provider_message=str(output),
                 ) from output
 
+            # a provider whose generate makes one request leaves the context
+            # size to be read from its usage
+            if output.input_context_tokens is None:
+                output.input_context_tokens = usage_input_tokens(output.usage)
+
             # update output with time (call.time captures time spent
             # on the actual request that succeeds w/ status 200)
             if call and call.time is not None:
@@ -2757,8 +2768,12 @@ def combine_messages(
     if b.metadata:
         merged_metadata.update(b.metadata)
 
-    # track which messages were combined
-    merged_metadata["combined_from"] = [a.id, b.id]
+    # track which messages were combined (flattened, so a message combined
+    # again still names every original)
+    merged_metadata["combined_from"] = [
+        *((a.metadata or {}).get("combined_from") or [a.id]),
+        *((b.metadata or {}).get("combined_from") or [b.id]),
+    ]
 
     # type-specific field merging
     if isinstance(a, ChatMessageAssistant) and isinstance(b, ChatMessageAssistant):

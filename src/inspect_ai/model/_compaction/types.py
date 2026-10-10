@@ -99,13 +99,14 @@ class Compact(Protocol):
         """Record the output from a generate call.
 
         Calibrates the compaction's token estimation against the actual
-        input token count from `output.usage`. This captures API-level
+        input token count from `output.input_context_tokens` (or
+        `output.usage` when that is None). This captures API-level
         overhead (tool definitions, system messages, thinking configuration)
         that per-message counting cannot.
 
         `input` must be the messages that were passed to `model.generate`
         — it determines the baseline message ids that produced
-        `output.usage`. This matters when one `Compact` instance is shared
+        that count. This matters when one `Compact` instance is shared
         across concurrent callers (e.g. via AgentBridge).
 
         Args:

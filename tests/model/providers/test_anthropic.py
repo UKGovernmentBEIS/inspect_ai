@@ -662,6 +662,7 @@ async def test_anthropic_generate_handles_midstream_content_filter(
         pending_tool_uses: Any = None,
         pending_mcp_tool_uses: Any = None,
         span_recorder: Any = None,
+        chain: Any = None,
     ) -> tuple[dict[str, Any], ModelOutput]:
         raise APIStatusError(
             "Output blocked by content filtering policy",
@@ -1028,6 +1029,433 @@ async def test_anthropic_continuation_preserves_server_tool_pairing() -> None:
     assert tool_uses[0].id == "toolu_1"
 
 
+def _pause_turn_chain_api(messages: list[Any]) -> tuple[AnthropicAPI, AsyncMock]:
+    """An API whose client returns `messages` in turn, for continuation tests."""
+    from anthropic import AsyncAnthropic
+
+    api = create_autospec(AnthropicAPI, instance=True)
+    api._batcher = None
+    api.model_name = "claude-sonnet-4-6"
+    api.service_model_name.return_value = "claude-sonnet-4-6"
+    api.cache_diagnostics_enabled.return_value = False
+
+    client = create_autospec(AsyncAnthropic, instance=True)
+    create = AsyncMock(side_effect=messages)
+    client.messages.create = create
+    api.client = client
+
+    # Bind the real method so recursive continuation calls work
+    api._perform_request_and_continuations = types.MethodType(
+        AnthropicAPI._perform_request_and_continuations, api
+    )
+    return api, create
+
+
+def _chain_message(index: int, stop_reason: str) -> Any:
+    from anthropic.types import Message, TextBlock, Usage
+    from anthropic.types.output_tokens_details import OutputTokensDetails
+
+    return Message(
+        id=f"msg_{index}",
+        type="message",
+        role="assistant",
+        model="claude-sonnet-4-6",
+        stop_reason=cast(Any, stop_reason),
+        content=[TextBlock(type="text", text=f"part {index}")],
+        usage=Usage(
+            input_tokens=10 * index,
+            output_tokens=index,
+            cache_creation_input_tokens=100 * index,
+            cache_read_input_tokens=1000 * index,
+            output_tokens_details=OutputTokensDetails(thinking_tokens=index),
+        ),
+    )
+
+
+async def test_anthropic_pause_turn_chain_sums_usage() -> None:
+    """Usage covers the head request and every pause_turn continuation."""
+    api, create = _pause_turn_chain_api(
+        [
+            _chain_message(1, "pause_turn"),
+            _chain_message(2, "pause_turn"),
+            _chain_message(3, "end_turn"),
+        ]
+    )
+
+    _, output = await api._perform_request_and_continuations(
+        request={"messages": []},
+        streaming=False,
+        tools=[],
+        config=GenerateConfig(),
+    )
+
+    assert create.await_count == 3
+    assert output.stop_reason == "stop"
+    assert output.message.text == "part 1\npart 2\npart 3"
+    assert output.usage is not None
+    assert output.usage.input_tokens == 10 + 20 + 30
+    assert output.usage.output_tokens == 1 + 2 + 3
+    assert output.usage.input_tokens_cache_write == 100 + 200 + 300
+    assert output.usage.input_tokens_cache_read == 1000 + 2000 + 3000
+    assert output.usage.reasoning_tokens == 1 + 2 + 3
+    assert output.usage.total_tokens == 1111 * (1 + 2 + 3)
+    # the context size is the head request's input, not the sum
+    assert output.input_context_tokens == 10 + 100 + 1000
+
+
+async def test_anthropic_pause_turn_continuations_are_bounded() -> None:
+    """A turn still paused at the continuation limit is returned, with its usage."""
+    from inspect_ai.model._providers.anthropic import MAX_PAUSE_TURN_CONTINUATIONS
+
+    requests = MAX_PAUSE_TURN_CONTINUATIONS + 1
+    api, create = _pause_turn_chain_api(
+        # one extra response that must never be requested
+        [_chain_message(i, "pause_turn") for i in range(1, requests + 2)]
+    )
+
+    _, output = await api._perform_request_and_continuations(
+        request={"messages": []},
+        streaming=False,
+        tools=[],
+        config=GenerateConfig(),
+    )
+
+    assert create.await_count == requests
+    assert output.stop_reason == "unknown"
+    assert output.choices[0].stop_details is not None
+    assert output.choices[0].stop_details.type == "pause_turn"
+    assert output.message.text == "\n".join(f"part {i}" for i in range(1, requests + 1))
+    assert output.usage is not None
+    assert output.usage.input_tokens == sum(10 * i for i in range(1, requests + 1))
+    assert output.usage.output_tokens == sum(range(1, requests + 1))
+    assert output.input_context_tokens == 10 + 100 + 1000
+
+
+async def test_anthropic_pause_turn_bound_keeps_pending_server_tool_call(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A server tool call still running at the bound is replayed when the turn resumes."""
+    from anthropic._models import construct_type
+    from anthropic.types import Message
+
+    from inspect_ai.model import ModelOutput
+    from inspect_ai.model._providers import anthropic as anthropic_provider
+    from inspect_ai.model._providers.anthropic import (
+        assistant_message_block_params,
+        init_sample_anthropic_assistant_internal,
+    )
+
+    init_sample_anthropic_assistant_internal()
+    monkeypatch.setattr(anthropic_provider, "MAX_PAUSE_TURN_CONTINUATIONS", 1)
+
+    def message(id: str, content: list[dict[str, Any]], stop_reason: str) -> Message:
+        data = {
+            "id": id,
+            "type": "message",
+            "role": "assistant",
+            "model": "claude-sonnet-4-6",
+            "content": content,
+            "stop_reason": stop_reason,
+            "usage": {"input_tokens": 1, "output_tokens": 1},
+        }
+        return cast(Message, construct_type(value=data, type_=Message))
+
+    pending_use = {
+        "type": "server_tool_use",
+        "id": "srvtoolu_pending",
+        "name": "web_search",
+        "input": {"query": "still running"},
+        "caller": {"type": "direct"},
+    }
+    create = AsyncMock(
+        side_effect=[
+            message("msg_1", [{"type": "text", "text": "part 1"}], "pause_turn"),
+            message(
+                "msg_2",
+                [{"type": "text", "text": "part 2"}, pending_use],
+                "pause_turn",
+            ),
+            message(
+                "msg_3",
+                [
+                    {
+                        "type": "web_search_tool_result",
+                        "tool_use_id": "srvtoolu_pending",
+                        "content": {
+                            "type": "web_search_tool_result_error",
+                            "error_code": "unavailable",
+                        },
+                    },
+                    {"type": "text", "text": "done"},
+                ],
+                "end_turn",
+            ),
+            message("msg_4", [{"type": "text", "text": "next"}], "end_turn"),
+        ]
+    )
+    model = get_model(
+        "anthropic/claude-sonnet-4-6",
+        api_key="test-key",
+        streaming=False,
+        memoize=False,
+        config=GenerateConfig(max_retries=0),
+    )
+    api = model.api
+    assert isinstance(api, AnthropicAPI)
+    monkeypatch.setattr(api.client.messages, "create", create)
+    user = ChatMessageUser(content="search")
+
+    paused, _ = await api.generate([user], [], "auto", GenerateConfig())
+    assert isinstance(paused, ModelOutput)
+    assert paused.stop_reason == "unknown"
+    replayed = await assistant_message_block_params(paused.message)
+    assert [(b["type"], b.get("id")) for b in replayed] == [
+        ("text", None),
+        ("text", None),
+        ("server_tool_use", "srvtoolu_pending"),
+    ]
+
+    # resuming the paused turn sends the pending call, and its result parses
+    resumed, _ = await api.generate(
+        [user, paused.message], [], "auto", GenerateConfig()
+    )
+    assert isinstance(resumed, ModelOutput)
+    sent = create.call_args.kwargs["messages"][-1]
+    assert sent["role"] == "assistant"
+    assert ("server_tool_use", "srvtoolu_pending") in [
+        (b["type"], b.get("id")) for b in sent["content"]
+    ]
+    assert resumed.stop_reason == "stop"
+    tool_uses = [c for c in resumed.message.content if isinstance(c, ContentToolUse)]
+    assert [c.id for c in tool_uses] == ["srvtoolu_pending"]
+
+    # the next request (through Model.generate, which combines the paused and
+    # resumed turns) sends the call's use block once, before its result
+    await model.generate(
+        [user, paused.message, resumed.message, ChatMessageUser(content="next")]
+    )
+    history = [
+        (b["type"], b.get("id") or b.get("tool_use_id"))
+        for m in create.call_args.kwargs["messages"]
+        if m["role"] == "assistant"
+        for b in m["content"]
+    ]
+    assert history == [
+        ("text", None),
+        ("text", None),
+        ("server_tool_use", "srvtoolu_pending"),
+        ("web_search_tool_result", "srvtoolu_pending"),
+        ("text", None),
+    ]
+
+
+async def test_anthropic_pause_turn_resumed_twice_replays_each_call_once(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A turn paused at the bound twice resumes in its latest container, calls intact."""
+    from anthropic._models import construct_type
+    from anthropic.types import Message
+
+    from inspect_ai.model._providers import anthropic as anthropic_provider
+    from inspect_ai.model._providers.anthropic import (
+        init_sample_anthropic_assistant_internal,
+    )
+
+    init_sample_anthropic_assistant_internal()
+    monkeypatch.setattr(anthropic_provider, "MAX_PAUSE_TURN_CONTINUATIONS", 1)
+
+    def message(
+        id: str,
+        content: list[dict[str, Any]],
+        stop_reason: str,
+        container: str | None = None,
+    ) -> Message:
+        data: dict[str, Any] = {
+            "id": id,
+            "type": "message",
+            "role": "assistant",
+            "model": "claude-sonnet-4-6",
+            "content": content,
+            "stop_reason": stop_reason,
+            "usage": {"input_tokens": 1, "output_tokens": 1},
+        }
+        if container is not None:
+            data["container"] = {"id": container, "expires_at": "2026-12-01T00:00:00Z"}
+        return cast(Message, construct_type(value=data, type_=Message))
+
+    def use(id: str) -> dict[str, Any]:
+        return {
+            "type": "server_tool_use",
+            "id": id,
+            "name": "web_search",
+            "input": {"query": id},
+            "caller": {"type": "direct"},
+        }
+
+    def result(id: str) -> dict[str, Any]:
+        return {
+            "type": "web_search_tool_result",
+            "tool_use_id": id,
+            "content": {
+                "type": "web_search_tool_result_error",
+                "error_code": "unavailable",
+            },
+        }
+
+    text = {"type": "text", "text": "text"}
+    create = AsyncMock(
+        side_effect=[
+            # first generate: paused at the bound with call A running
+            message("msg_1", [text], "pause_turn"),
+            message("msg_2", [use("srvtoolu_a")], "pause_turn", "cntr_a"),
+            # resumed: A completes, then paused again with call B running
+            message("msg_3", [result("srvtoolu_a"), text], "pause_turn"),
+            message("msg_4", [use("srvtoolu_b")], "pause_turn", "cntr_b"),
+            # resumed again: B completes
+            message("msg_5", [result("srvtoolu_b"), text], "end_turn"),
+            message("msg_6", [text], "end_turn"),
+        ]
+    )
+    model = get_model(
+        "anthropic/claude-sonnet-4-6",
+        api_key="test-key",
+        streaming=False,
+        memoize=False,
+        config=GenerateConfig(max_retries=0),
+    )
+    api = model.api
+    assert isinstance(api, AnthropicAPI)
+    monkeypatch.setattr(api.client.messages, "create", create)
+
+    # the paused turn, its resumption (paused again) and the second resumption
+    messages: list[ChatMessage] = [ChatMessageUser(content="search")]
+    for _ in range(3):
+        output = await model.generate(messages)
+        messages.append(output.message)
+    await model.generate(messages + [ChatMessageUser(content="next")])
+
+    # each resumption names the container of the call it resumes; the request
+    # after the completed turn names none
+    requests = [call.kwargs for call in create.call_args_list]
+    assert requests[2].get("container") == "cntr_a"
+    assert requests[4].get("container") == "cntr_b"
+    assert "container" not in requests[5]
+
+    history = [
+        (b["type"], b.get("id") or b.get("tool_use_id"))
+        for m in create.call_args.kwargs["messages"]
+        if m["role"] == "assistant"
+        for b in m["content"]
+        if b["type"] != "text"
+    ]
+    assert history == [
+        ("server_tool_use", "srvtoolu_a"),
+        ("web_search_tool_result", "srvtoolu_a"),
+        ("server_tool_use", "srvtoolu_b"),
+        ("web_search_tool_result", "srvtoolu_b"),
+    ]
+
+
+def _handled_continuation_error(kind: str) -> Exception:
+    """An API error that generate() converts into a ModelOutput."""
+    import httpx2
+    from anthropic import APIStatusError, BadRequestError
+
+    request = httpx2.Request("POST", "https://api.anthropic.com/v1/messages")
+    if kind == "too_large":
+        return APIStatusError(
+            "Request too large",
+            response=httpx2.Response(status_code=413, request=request),
+            body=None,
+        )
+    message = {
+        "prompt_too_long": "prompt is too long: 250000 tokens > 200000 maximum",
+        "content_filter": "Output blocked by content filtering policy",
+    }[kind]
+    return BadRequestError(
+        message,
+        response=httpx2.Response(status_code=400, request=request),
+        body={
+            "type": "error",
+            "error": {"type": "invalid_request_error", "message": message},
+        },
+    )
+
+
+_HANDLED_ERROR_STOP_REASONS = {
+    "prompt_too_long": "model_length",
+    "content_filter": "content_filter",
+    "too_large": "model_length",
+}
+
+
+@pytest.mark.parametrize("kind", list(_HANDLED_ERROR_STOP_REASONS))
+async def test_anthropic_continuation_error_keeps_earlier_usage(kind: str) -> None:
+    """A continuation error converted to an output keeps the billed heads' usage."""
+    from anthropic import AsyncAnthropic
+
+    from inspect_ai.model._model_output import ModelOutput
+
+    api = AnthropicAPI(
+        model_name="claude-sonnet-4-6", api_key="test-key", streaming=False
+    )
+    client = create_autospec(AsyncAnthropic, instance=True)
+    create = AsyncMock(
+        side_effect=[
+            _chain_message(1, "pause_turn"),
+            _chain_message(2, "pause_turn"),
+            _handled_continuation_error(kind),
+        ]
+    )
+    client.messages.create = create
+    api.client = client
+
+    output, _ = await api.generate(
+        input=[ChatMessageUser(content="hello")],
+        tools=[],
+        tool_choice="auto",
+        config=GenerateConfig(max_tokens=64),
+    )
+
+    assert create.await_count == 3
+    assert isinstance(output, ModelOutput)
+    assert output.stop_reason == _HANDLED_ERROR_STOP_REASONS[kind]
+    assert output.usage is not None
+    assert output.usage.input_tokens == 10 + 20
+    assert output.usage.output_tokens == 1 + 2
+    assert output.usage.input_tokens_cache_write == 100 + 200
+    assert output.usage.input_tokens_cache_read == 1000 + 2000
+    assert output.usage.reasoning_tokens == 1 + 2
+    assert output.input_context_tokens == 10 + 100 + 1000
+
+
+@pytest.mark.parametrize("kind", list(_HANDLED_ERROR_STOP_REASONS))
+async def test_anthropic_initial_request_error_reports_no_usage(kind: str) -> None:
+    """A rejected first request was not billed, so its output has no usage."""
+    from anthropic import AsyncAnthropic
+
+    from inspect_ai.model._model_output import ModelOutput
+
+    api = AnthropicAPI(
+        model_name="claude-sonnet-4-6", api_key="test-key", streaming=False
+    )
+    client = create_autospec(AsyncAnthropic, instance=True)
+    client.messages.create = AsyncMock(side_effect=[_handled_continuation_error(kind)])
+    api.client = client
+
+    output, _ = await api.generate(
+        input=[ChatMessageUser(content="hello")],
+        tools=[],
+        tool_choice="auto",
+        config=GenerateConfig(max_tokens=64),
+    )
+
+    assert isinstance(output, ModelOutput)
+    assert output.stop_reason == _HANDLED_ERROR_STOP_REASONS[kind]
+    assert output.usage is None
+    assert output.input_context_tokens is None
+
+
 @pytest.mark.anyio
 @skip_if_no_anthropic
 async def test_anthropic_prompt_caching() -> None:
@@ -1199,6 +1627,7 @@ async def test_anthropic_top_level_cache_control_skipped_on_bedrock_vertex(
         pending_tool_uses: Any = None,
         pending_mcp_tool_uses: Any = None,
         span_recorder: Any = None,
+        chain: Any = None,
     ) -> tuple[dict[str, Any], ModelOutput]:
         captured.update(request)
         return {}, ModelOutput.from_content(
@@ -2196,6 +2625,7 @@ async def test_anthropic_forced_tool_choice_request_wiring(
         pending_tool_uses: Any = None,
         pending_mcp_tool_uses: Any = None,
         span_recorder: Any = None,
+        chain: Any = None,
     ) -> tuple[dict[str, Any], ModelOutput]:
         captured.update(request)
         return {}, ModelOutput.from_content(
@@ -2288,6 +2718,7 @@ async def test_anthropic_forced_tool_choice_with_thinking_records_metadata(
         pending_tool_uses: Any = None,
         pending_mcp_tool_uses: Any = None,
         span_recorder: Any = None,
+        chain: Any = None,
     ) -> tuple[dict[str, Any], ModelOutput]:
         captured.update(request)
         return {}, ModelOutput.from_content(

@@ -379,6 +379,471 @@ def test_anthropic_usage_omits_thinking_tokens_when_absent_beta() -> None:
     assert usage.output_tokens_details is None
 
 
+# --- pause_turn at the provider's continuation bound -------------------------
+
+
+def _paused_head(index: int, stop_reason: str = "pause_turn") -> Any:
+    """A head message carrying text and a complete web search call."""
+    from anthropic.types import (
+        Message,
+        ServerToolUseBlock,
+        TextBlock,
+        Usage,
+        WebSearchToolResultBlock,
+        WebSearchToolResultError,
+    )
+
+    return Message(
+        id=f"msg_{index}",
+        type="message",
+        role="assistant",
+        model="claude-sonnet-4-6",
+        stop_reason=cast(Any, stop_reason),
+        content=[
+            TextBlock(type="text", text=f"part {index}"),
+            ServerToolUseBlock(
+                id=f"srvtoolu_{index}",
+                type="server_tool_use",
+                name="web_search",
+                input={"query": f"query {index}"},
+            ),
+            WebSearchToolResultBlock(
+                type="web_search_tool_result",
+                tool_use_id=f"srvtoolu_{index}",
+                content=WebSearchToolResultError(
+                    type="web_search_tool_result_error", error_code="unavailable"
+                ),
+            ),
+        ],
+        usage=Usage(
+            input_tokens=10 * index,
+            output_tokens=index,
+            cache_read_input_tokens=100 * index,
+        ),
+    )
+
+
+def _anthropic_bridge(responses: list[Any]) -> tuple[Any, Any, list[Any]]:
+    """A bridge whose "claude-test" model is a real Anthropic provider on a mock client.
+
+    Returns the bridge, the mocked `messages.create`, and a list that collects
+    each ModelOutput the bridge generated.
+    """
+    from unittest.mock import AsyncMock, create_autospec
+
+    from anthropic import AsyncAnthropic
+
+    from inspect_ai.agent._agent import AgentState
+    from inspect_ai.agent._bridge.types import AgentBridge
+    from inspect_ai.model import GenerateConfig, get_model
+
+    model = get_model(
+        "anthropic/claude-sonnet-4-6",
+        api_key="test-key",
+        streaming=False,
+        memoize=False,
+        config=GenerateConfig(max_retries=0),
+    )
+    client = create_autospec(AsyncAnthropic, instance=True)
+    create = AsyncMock(side_effect=responses)
+    client.messages.create = create
+    setattr(model.api, "client", client)
+    bridge = AgentBridge(
+        state=AgentState(messages=[]), model_aliases={"claude-test": model}
+    )
+    return bridge, create, []
+
+
+async def _bridge_request(
+    monkeypatch: pytest.MonkeyPatch,
+    bridge: Any,
+    outputs: list[Any],
+    messages: list[dict[str, Any]],
+    beta: bool,
+) -> Any:
+    import inspect_ai.agent._bridge.anthropic_api_impl as impl
+    from inspect_ai.agent._bridge.util import bridge_generate
+
+    async def recording_generate(*args: Any, **kwargs: Any) -> Any:
+        output, c_message = await bridge_generate(*args, **kwargs)
+        outputs.append(output)
+        return output, c_message
+
+    monkeypatch.setattr(impl, "bridge_generate", recording_generate)
+    return await impl.inspect_anthropic_api_request_impl(
+        {"model": "claude-test", "max_tokens": 1024, "messages": messages},
+        headers=None,
+        web_search=None,
+        code_execution=None,
+        bridge=bridge,
+        beta=beta,
+    )
+
+
+@pytest.mark.parametrize("beta", [False, True])
+@pytest.mark.anyio
+async def test_bridge_returns_pause_turn_at_continuation_bound(
+    monkeypatch: pytest.MonkeyPatch, beta: bool
+) -> None:
+    """A turn still paused at the bound reaches the client as pause_turn, intact."""
+    from inspect_ai.model._providers.anthropic import MAX_PAUSE_TURN_CONTINUATIONS
+
+    requests = MAX_PAUSE_TURN_CONTINUATIONS + 1
+    bridge, create, outputs = _anthropic_bridge(
+        [_paused_head(i) for i in range(1, requests + 1)]
+    )
+
+    message = await _bridge_request(
+        monkeypatch, bridge, outputs, [{"role": "user", "content": "search"}], beta
+    )
+
+    assert create.await_count == requests
+    assert message.stop_reason == "pause_turn"
+    assert [block.type for block in message.content] == [
+        "text",
+        "server_tool_use",
+        "web_search_tool_result",
+    ] * requests
+    assert [b.id for b in message.content if b.type == "server_tool_use"] == [
+        f"srvtoolu_{i}" for i in range(1, requests + 1)
+    ]
+    assert [
+        b.tool_use_id for b in message.content if b.type == "web_search_tool_result"
+    ] == [f"srvtoolu_{i}" for i in range(1, requests + 1)]
+    assert message.usage.input_tokens == sum(10 * i for i in range(1, requests + 1))
+    assert message.usage.cache_read_input_tokens == sum(
+        100 * i for i in range(1, requests + 1)
+    )
+    assert outputs[0].input_context_tokens == 10 + 100
+
+
+@pytest.mark.anyio
+async def test_bridge_pause_turn_replay_continues_the_turn(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Resending the paused turn continues it without duplicating server tool blocks."""
+    from inspect_ai.model._providers.anthropic import MAX_PAUSE_TURN_CONTINUATIONS
+
+    requests = MAX_PAUSE_TURN_CONTINUATIONS + 1
+    tail = _paused_head(requests + 1, stop_reason="end_turn")
+    bridge, create, outputs = _anthropic_bridge(
+        [_paused_head(i) for i in range(1, requests + 1)] + [tail]
+    )
+    user = {"role": "user", "content": "search"}
+    paused = await _bridge_request(monkeypatch, bridge, outputs, [user], False)
+    assert paused.stop_reason == "pause_turn"
+
+    # the client resends with the partial assistant turn as the last message
+    partial = {
+        "role": "assistant",
+        "content": [block.model_dump(exclude_none=True) for block in paused.content],
+    }
+    message = await _bridge_request(
+        monkeypatch, bridge, outputs, [user, partial], False
+    )
+
+    assert create.await_count == requests + 1
+    sent = create.call_args.kwargs["messages"]
+    assert sent[-1]["role"] == "assistant"
+    sent_blocks = [
+        block if isinstance(block, dict) else block.model_dump()
+        for block in sent[-1]["content"]
+    ]
+    server_tool_ids = [b["id"] for b in sent_blocks if b["type"] == "server_tool_use"]
+    result_ids = [
+        b["tool_use_id"] for b in sent_blocks if b["type"] == "web_search_tool_result"
+    ]
+    expected = [f"srvtoolu_{i}" for i in range(1, requests + 1)]
+    assert server_tool_ids == expected
+    assert result_ids == expected
+
+    assert message.stop_reason == "end_turn"
+    assert [block.type for block in message.content] == [
+        "text",
+        "server_tool_use",
+        "web_search_tool_result",
+    ]
+    # usage and context are the continuation request's own
+    assert message.usage.input_tokens == 10 * (requests + 1)
+    assert outputs[-1].usage.input_tokens == 10 * (requests + 1)
+    assert outputs[-1].input_context_tokens == 110 * (requests + 1)
+
+
+@pytest.mark.parametrize("client_turns", ["combined", "separate"])
+@pytest.mark.parametrize("beta", [False, True])
+@pytest.mark.anyio
+async def test_bridge_pause_turn_at_bound_keeps_pending_server_tool_call(
+    monkeypatch: pytest.MonkeyPatch, beta: bool, client_turns: str
+) -> None:
+    """A server tool call still running at the bound is resumed by the resent turn."""
+    from anthropic._models import construct_type
+    from anthropic.types import Message
+
+    import inspect_ai.model._providers.anthropic as anthropic_provider
+    from inspect_ai.model._providers.anthropic import (
+        init_sample_anthropic_assistant_internal,
+    )
+
+    init_sample_anthropic_assistant_internal()
+    monkeypatch.setattr(anthropic_provider, "MAX_PAUSE_TURN_CONTINUATIONS", 1)
+
+    def message(id: str, content: list[dict[str, Any]], **fields: Any) -> Message:
+        data = {
+            "id": id,
+            "type": "message",
+            "role": "assistant",
+            "model": "claude-sonnet-4-6",
+            "content": content,
+            "usage": {"input_tokens": 20, "output_tokens": 2},
+        } | fields
+        return cast(Message, construct_type(value=data, type_=Message))
+
+    # the call runs in a code execution container (e.g. dynamic filtering)
+    pending = message(
+        "msg_pending",
+        [
+            {"type": "text", "text": "searching again"},
+            {
+                "type": "server_tool_use",
+                "id": "srvtoolu_pending",
+                "name": "web_search",
+                "input": {"query": "still running"},
+                "caller": {"type": "direct"},
+            },
+        ],
+        stop_reason="pause_turn",
+        container={"id": "cntr_pending", "expires_at": "2026-12-01T00:00:00Z"},
+    )
+    resumed = message(
+        "msg_resumed",
+        [
+            {
+                "type": "web_search_tool_result",
+                "tool_use_id": "srvtoolu_pending",
+                "content": {
+                    "type": "web_search_tool_result_error",
+                    "error_code": "unavailable",
+                },
+            },
+            {"type": "text", "text": "done"},
+        ],
+        stop_reason="end_turn",
+    )
+    after = message(
+        "msg_after", [{"type": "text", "text": "ok"}], stop_reason="end_turn"
+    )
+    bridge, create, outputs = _anthropic_bridge(
+        [_paused_head(1), pending, resumed, after]
+    )
+    user = {"role": "user", "content": "search"}
+
+    paused = await _bridge_request(monkeypatch, bridge, outputs, [user], beta)
+
+    assert create.await_count == 2
+    assert paused.stop_reason == "pause_turn"
+    assert [block.type for block in paused.content] == [
+        "text",
+        "server_tool_use",
+        "web_search_tool_result",
+        "text",
+        "server_tool_use",
+    ]
+    assert paused.content[-1].id == "srvtoolu_pending"
+
+    # the client resends the paused turn: the resumed request carries the
+    # pending call and names its container
+    partial_blocks = [block.model_dump(exclude_none=True) for block in paused.content]
+    partial = {"role": "assistant", "content": partial_blocks}
+    message_out = await _bridge_request(
+        monkeypatch, bridge, outputs, [user, partial], beta
+    )
+
+    assert create.await_count == 3
+    resumed_request = create.call_args.kwargs
+    sent_blocks = [
+        block if isinstance(block, dict) else block.model_dump()
+        for block in resumed_request["messages"][-1]["content"]
+    ]
+    assert [b["id"] for b in sent_blocks if b["type"] == "server_tool_use"] == [
+        "srvtoolu_1",
+        "srvtoolu_pending",
+    ]
+    assert resumed_request.get("container") == "cntr_pending"
+    assert message_out.stop_reason == "end_turn"
+    assert [block.type for block in message_out.content] == [
+        "web_search_tool_result",
+        "text",
+    ]
+    assert message_out.content[0].tool_use_id == "srvtoolu_pending"
+
+    # the next user request: the client sends the paused and resumed turns
+    # back as one assistant turn or as two, and the upstream history holds
+    # each server tool use and result once, the use first
+    resumed_blocks = [b.model_dump(exclude_none=True) for b in message_out.content]
+    if client_turns == "combined":
+        history: list[dict[str, Any]] = [
+            {"role": "assistant", "content": partial_blocks + resumed_blocks}
+        ]
+    else:
+        history = [partial, {"role": "assistant", "content": resumed_blocks}]
+    await _bridge_request(
+        monkeypatch,
+        bridge,
+        outputs,
+        [user, *history, {"role": "user", "content": "thanks"}],
+        beta,
+    )
+
+    assert create.await_count == 4
+    sent = [
+        block if isinstance(block, dict) else block.model_dump()
+        for m in create.call_args.kwargs["messages"]
+        if m["role"] == "assistant"
+        for block in m["content"]
+    ]
+    server_blocks = [
+        (b["type"], b.get("id") or b.get("tool_use_id"))
+        for b in sent
+        if b["type"] in ("server_tool_use", "web_search_tool_result")
+    ]
+    assert server_blocks == [
+        ("server_tool_use", "srvtoolu_1"),
+        ("web_search_tool_result", "srvtoolu_1"),
+        ("server_tool_use", "srvtoolu_pending"),
+        ("web_search_tool_result", "srvtoolu_pending"),
+    ]
+    assert "container" not in create.call_args.kwargs
+
+
+@pytest.mark.parametrize("client_turns", ["combined", "separate"])
+@pytest.mark.parametrize("beta", [False, True])
+@pytest.mark.anyio
+async def test_bridge_pause_turn_resumed_twice_names_latest_container(
+    monkeypatch: pytest.MonkeyPatch, beta: bool, client_turns: str
+) -> None:
+    """A turn paused at the bound twice resumes in the latest container."""
+    from anthropic._models import construct_type
+    from anthropic.types import Message
+
+    import inspect_ai.model._providers.anthropic as anthropic_provider
+    from inspect_ai.model._providers.anthropic import (
+        init_sample_anthropic_assistant_internal,
+    )
+
+    init_sample_anthropic_assistant_internal()
+    monkeypatch.setattr(anthropic_provider, "MAX_PAUSE_TURN_CONTINUATIONS", 1)
+
+    def message(
+        id: str,
+        content: list[dict[str, Any]],
+        stop_reason: str,
+        container: str | None = None,
+    ) -> Message:
+        data: dict[str, Any] = {
+            "id": id,
+            "type": "message",
+            "role": "assistant",
+            "model": "claude-sonnet-4-6",
+            "content": content,
+            "stop_reason": stop_reason,
+            "usage": {"input_tokens": 20, "output_tokens": 2},
+        }
+        if container is not None:
+            data["container"] = {"id": container, "expires_at": "2026-12-01T00:00:00Z"}
+        return cast(Message, construct_type(value=data, type_=Message))
+
+    def use(id: str) -> dict[str, Any]:
+        return {
+            "type": "server_tool_use",
+            "id": id,
+            "name": "web_search",
+            "input": {"query": id},
+            "caller": {"type": "direct"},
+        }
+
+    def result(id: str) -> dict[str, Any]:
+        return {
+            "type": "web_search_tool_result",
+            "tool_use_id": id,
+            "content": {
+                "type": "web_search_tool_result_error",
+                "error_code": "unavailable",
+            },
+        }
+
+    text = {"type": "text", "text": "text"}
+    bridge, create, outputs = _anthropic_bridge(
+        [
+            # paused at the bound with call A running in container A
+            message("msg_1", [text], "pause_turn"),
+            message("msg_2", [use("srvtoolu_a")], "pause_turn", "cntr_a"),
+            # resumed: A completes, then paused again with call B in container B
+            message("msg_3", [result("srvtoolu_a"), text], "pause_turn"),
+            message("msg_4", [use("srvtoolu_b")], "pause_turn", "cntr_b"),
+            # resumed again: B completes
+            message("msg_5", [result("srvtoolu_b"), text], "end_turn"),
+            message("msg_6", [text], "end_turn"),
+        ]
+    )
+    user = {"role": "user", "content": "search"}
+
+    def blocks(response: Any) -> list[dict[str, Any]]:
+        return [block.model_dump(exclude_none=True) for block in response.content]
+
+    def history(turns: list[list[dict[str, Any]]]) -> list[dict[str, Any]]:
+        if client_turns == "combined":
+            return [{"role": "assistant", "content": [b for t in turns for b in t]}]
+        return [{"role": "assistant", "content": turn} for turn in turns]
+
+    turns: list[list[dict[str, Any]]] = []
+    for _ in range(3):
+        response = await _bridge_request(
+            monkeypatch, bridge, outputs, [user, *history(turns)], beta
+        )
+        turns.append(blocks(response))
+    await _bridge_request(
+        monkeypatch,
+        bridge,
+        outputs,
+        [user, *history(turns), {"role": "user", "content": "thanks"}],
+        beta,
+    )
+
+    requests = [call.kwargs for call in create.call_args_list]
+    assert len(requests) == 6
+    assert requests[2].get("container") == "cntr_a"
+    assert requests[4].get("container") == "cntr_b"
+    assert "container" not in requests[5]
+    sent = [
+        block if isinstance(block, dict) else block.model_dump()
+        for m in requests[5]["messages"]
+        if m["role"] == "assistant"
+        for block in m["content"]
+    ]
+    assert [
+        (b["type"], b.get("id") or b.get("tool_use_id"))
+        for b in sent
+        if b["type"] != "text"
+    ] == [
+        ("server_tool_use", "srvtoolu_a"),
+        ("web_search_tool_result", "srvtoolu_a"),
+        ("server_tool_use", "srvtoolu_b"),
+        ("web_search_tool_result", "srvtoolu_b"),
+    ]
+
+
+def test_anthropic_stop_reason_pause_turn_only_from_stop_details() -> None:
+    from inspect_ai.agent._bridge.anthropic_api_impl import anthropic_stop_reason
+    from inspect_ai.model._model_output import StopDetails
+
+    assert (
+        anthropic_stop_reason("unknown", StopDetails(type="pause_turn")) == "pause_turn"
+    )
+    assert anthropic_stop_reason("unknown") == "end_turn"
+    assert anthropic_stop_reason("unknown", StopDetails(type="other")) == "end_turn"
+    assert anthropic_stop_reason("stop", StopDetails(type="pause_turn")) == "end_turn"
+
+
 # the providers a bridge resolves by default, and the raw default before resolution
 DEFAULT_WEB_SEARCH = pytest.mark.parametrize(
     "providers",
