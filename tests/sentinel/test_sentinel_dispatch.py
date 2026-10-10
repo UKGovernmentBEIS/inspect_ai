@@ -265,12 +265,26 @@ def agent_model(turns: int = 1) -> Any:
     return get_model("mockllm/model", custom_outputs=outputs, memoize=False)
 
 
-def run(sentinel: Any, turns: int = 1, **kwargs: Any) -> EvalLog:
+def run(
+    sentinel: Any,
+    turns: int = 1,
+    task_description: str | None = None,
+    sample_description: str | None = None,
+    **kwargs: Any,
+) -> EvalLog:
     task = Task(
-        dataset=[Sample(input="What is 1 + 1?", target="2", metadata={"s": 1})],
+        dataset=[
+            Sample(
+                input="What is 1 + 1?",
+                target="2",
+                metadata={"s": 1},
+                description=sample_description,
+            )
+        ],
         solver=[use_tools(addition()), generate()],
         metadata={"t": 1},
         sentinel=sentinel,
+        description=task_description,
     )
     return eval(task, model=agent_model(turns), **kwargs)[0]
 
@@ -841,6 +855,21 @@ def test_context_and_step_come_from_the_sample(
     assert step.history[-1].role == "assistant"
     model_events = [e for e in sample.events if isinstance(e, ModelEvent)]
     assert [m.text for m in step.input] == [m.text for m in model_events[0].input]
+
+
+def test_context_has_the_task_and_sample_descriptions() -> None:
+    seen: Seen = []
+    log = run(
+        observe_only([d3_recording(seen)]),
+        task_description="Add numbers with the tool.",
+        sample_description="Add one and one.",
+    )
+    assert log.status == "success", log.error
+
+    [(context, _)] = seen
+    assert context.eval is not None
+    assert context.eval.task_description == "Add numbers with the tool."
+    assert context.eval.sample_description == "Add one and one."
 
 
 @contextmanager
