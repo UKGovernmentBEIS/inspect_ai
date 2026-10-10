@@ -1,19 +1,63 @@
 import contextlib
 import time
+from bisect import bisect_left
 from contextvars import ContextVar
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Any, AsyncIterator
+from typing import Any, AsyncIterator, Iterator
+
+
+class WaitingTime:
+    """Union of completed and ongoing waits on the monotonic clock."""
+
+    def __init__(self) -> None:
+        self._spans: list[tuple[float, float]] = []
+        self._active: list[float] = []
+        self._total = 0.0
+
+    def record(self, start: float, end: float) -> None:
+        if end <= start:
+            return
+        first = bisect_left(self._spans, (start, end))
+        if first and self._spans[first - 1][1] >= start:
+            first -= 1
+        last = first
+        while last < len(self._spans) and self._spans[last][0] <= end:
+            previous_start, previous_end = self._spans[last]
+            start, end = min(start, previous_start), max(end, previous_end)
+            self._total -= previous_end - previous_start
+            last += 1
+        self._spans[first:last] = [(start, end)]
+        self._total += end - start
+
+    def elapsed(self, now: float | None = None) -> float:
+        if not self._active:
+            return self._total
+        start = min(self._active)
+        end = time.monotonic() if now is None else now
+        first = max(0, bisect_left(self._spans, (start, start)) - 1)
+        overlap = sum(
+            max(0.0, min(previous_end, end) - max(previous_start, start))
+            for previous_start, previous_end in self._spans[first:]
+        )
+        return self._total + end - start - overlap
+
+    @contextlib.contextmanager
+    def track(self) -> Iterator[None]:
+        start = time.monotonic()
+        self._active.append(start)
+        try:
+            yield
+        finally:
+            self._active.remove(start)
+            self.record(start, time.monotonic())
 
 
 @dataclass
 class SampleTiming:
     start_time: float = 0.0
-    waiting_time: float = 0.0
+    waiting: WaitingTime = field(default_factory=WaitingTime)
     start_datetime: datetime | None = None
-    # Track concurrent waiting to avoid double-counting overlapping waits
-    concurrent_wait_count: int = 0
-    concurrent_wait_start: float | None = None
 
 
 def init_sample_working_time(start_time: float) -> None:
@@ -26,26 +70,39 @@ def init_sample_working_time(start_time: float) -> None:
 
 
 def sample_waiting_time() -> float:
-    return _sample_timing.get().waiting_time
+    return _sample_timing.get().waiting.elapsed()
 
 
 def sample_working_time() -> float:
     timing = _sample_timing.get()
-    return time.monotonic() - timing.start_time - timing.waiting_time
+    now = time.monotonic()
+    return now - timing.start_time - timing.waiting.elapsed(now)
 
 
 def sample_start_datetime() -> datetime | None:
     return _sample_timing.get().start_datetime
 
 
-def report_sample_waiting_time(waiting_time: float) -> None:
-    # record waiting time
-    from inspect_ai.util._limit import record_waiting_time
+def report_sample_waiting_time(
+    waiting_time: float, start_time: float | None = None
+) -> None:
+    if waiting_time <= 0:
+        return
+    start = time.monotonic() - waiting_time if start_time is None else start_time
+    for waiting in _waiting_times():
+        waiting.record(start, start + waiting_time)
 
-    record_waiting_time(waiting_time)
 
-    # record sample-level limits
-    _sample_timing.get().waiting_time = _sample_timing.get().waiting_time + waiting_time
+def _waiting_times() -> Iterator[WaitingTime]:
+    from inspect_ai.util._limit import working_limit_tree
+
+    timing = _sample_timing.get()
+    if timing.start_datetime is not None:
+        yield timing.waiting
+    node = working_limit_tree.get()
+    while node is not None:
+        yield node._waits
+        node = node.parent
 
 
 _sample_timing: ContextVar[SampleTiming] = ContextVar(
@@ -62,14 +119,10 @@ async def sample_waiting() -> AsyncIterator[None]:
     concurrent-wait dedup so overlapping waits within one sample aren't
     double-counted.
     """
-    timing = _sample_timing.get()
-    if timing.concurrent_wait_count == 0:
-        timing.concurrent_wait_start = time.monotonic()
-    timing.concurrent_wait_count += 1
-    try:
+    with contextlib.ExitStack() as stack:
+        for waiting in _waiting_times():
+            stack.enter_context(waiting.track())
         yield
-    finally:
-        _end_sample_wait()
 
 
 @contextlib.asynccontextmanager
@@ -85,29 +138,8 @@ async def sample_waiting_for(
     Args:
         semaphore: The semaphore to acquire (as an async context manager)
     """
-    timing = _sample_timing.get()
-
-    # Start waiting - record start time if we're the first waiter
-    if timing.concurrent_wait_count == 0:
-        timing.concurrent_wait_start = time.monotonic()
-    timing.concurrent_wait_count += 1
-
-    acquired = False
-    try:
+    async with contextlib.AsyncExitStack() as stack:
+        await stack.enter_async_context(sample_waiting())
         async with semaphore:
-            acquired = True
-            _end_sample_wait()
+            await stack.aclose()
             yield
-    finally:
-        if not acquired:
-            _end_sample_wait()
-
-
-def _end_sample_wait() -> None:
-    """Internal: decrement wait count and report time if this was the last waiter."""
-    timing = _sample_timing.get()
-    timing.concurrent_wait_count -= 1
-    if timing.concurrent_wait_count == 0 and timing.concurrent_wait_start is not None:
-        waiting_time = time.monotonic() - timing.concurrent_wait_start
-        timing.concurrent_wait_start = None
-        report_sample_waiting_time(waiting_time)
