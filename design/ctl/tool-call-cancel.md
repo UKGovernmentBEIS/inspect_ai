@@ -111,4 +111,4 @@ Today ctl can show *that* a sample is stuck on a tool and *which function* — b
 - `_control/state.py` / `_control/events.py`: the read-surface additions (activity per-call list; `id` in the compact tool projection).
 - `agent/_acp/connection.py`: optionally refactor `cancel_tool_call`'s scan to share the new resolver's core (both are pending-scan + `_cancel()`; keep the return contracts distinct).
 - Tests: `tests/_control/test_cancel.py` additions (decision table rows, sole-pending fallback, ambiguity 409, idempotent repeat, dry-run enumeration) — resolver rows against fake active samples as that file already does, plus a live-eval case (a genuinely pending tool call needs a running sample; the `control_probe` harness used by the eval-set integration tests is the fit). The ACP behavioral tests (`tests/agent/test_acp/test_action_methods.py`) pin the shared primitive's contract and stay untouched.
-- Docs: `docs/control-channel.qmd`; CHANGELOG entry when the implementation lands.
+- Docs: `docs/control-channel.qmd`. The `feat(ctl):` PR title is the changelog line.

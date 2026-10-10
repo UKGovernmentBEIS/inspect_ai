@@ -511,8 +511,8 @@ by awaits.
   complete and eval-set never re-runs the remainder).
 - `GET /tasks` `resolving` field + `will_retry` clear on non-`"retry"`
   stamps; docs
-  (`docs/control-channel.qmd` drain section) and CHANGELOG at
-  implementation time.
+  (`docs/control-channel.qmd` drain section) at implementation time; the PR
+  title is the changelog line.
 
 ## Alternatives considered
 

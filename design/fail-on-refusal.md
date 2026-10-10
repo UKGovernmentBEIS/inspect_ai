@@ -445,7 +445,7 @@ per-sample failure.
 - Docs: `docs/fallbacks.qmd` (the refusals page), `docs/react-agent.qmd`
   (refusals section), `docs/eval-logs.qmd` next to `--log-refusals`,
   `docs/options.qmd`, `docs/handling-errors.qmd`.
-- `CHANGELOG.md` entry under Unreleased.
+- A `feat:` PR title naming the new option (the changelog line).
 - The `GenerateConfig` change regenerates `inspect-openapi.json` and the
   ts-mono types, so landing follows the `land-ts-mono` skill.
 

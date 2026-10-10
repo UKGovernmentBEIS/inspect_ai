@@ -548,10 +548,7 @@ def test_missing_package_error(monkeypatch: pytest.MonkeyPatch) -> None:
     with pytest.raises(PrerequisiteError) as raised:
         sentinel_task(RULE_CONFIG)
     message = str(raised.value.message)
-    assert "not released yet" in message
-    assert (
-        "pip install git+https://github.com/meridianlabs-ai/inspect_sentinel" in message
-    )
+    assert "pip install inspect-sentinel" in message
     with pytest.raises(
         PrerequisiteError, match="requires the inspect_sentinel package"
     ):
