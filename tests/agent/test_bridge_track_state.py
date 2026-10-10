@@ -40,10 +40,15 @@ def task_bridge() -> AgentBridge:
 
 
 async def track(
-    bridge: AgentBridge, input: list[ChatMessage], completion: str
+    bridge: AgentBridge,
+    input: list[ChatMessage],
+    completion: str,
+    model: str | None = None,
 ) -> ModelOutput:
-    output = ModelOutput.from_content(model="mockllm/model", content=completion)
-    await bridge._track_state(input, output)
+    output = ModelOutput.from_content(
+        model=model or "mockllm/model", content=completion
+    )
+    await bridge._track_state(input, output, model)
     return output
 
 
@@ -116,6 +121,377 @@ async def test_side_call_after_main_loop_does_not_displace_task_thread() -> None
 
     assert bridge.state.output.completion == "Castle"
     assert len(bridge.state.messages) == len(turn2) + 1
+
+
+# ---------------------------------------------------------------------------
+# Model-identity arbitration (the `model` parameter to `_track_state`)
+# ---------------------------------------------------------------------------
+
+
+async def test_track_state_adopts_main_model_after_side_model_arrives_first() -> None:
+    """Explicit model identifiers do not interfere with descent-based arbitration.
+
+    Same shape as `test_side_call_arriving_first_does_not_displace_task_thread`,
+    with `model` supplied on both calls: the main call's `EXACT` descent still
+    displaces the non-descending side call from a different model.
+    """
+    bridge = task_bridge()
+
+    await track(
+        bridge, title_generation_input(), "Doctor Who Series 9 setting", "openai/title"
+    )
+    await track(
+        bridge, [TASK_SYSTEM, ChatMessageUser(content=TASK)], "Castle", "openai/agent"
+    )
+
+    assert bridge.state.output.completion == "Castle"
+
+
+async def test_track_state_does_not_replace_primary_with_longer_side_model() -> None:
+    """A longer side call from a different model must not hijack tracking.
+
+    With no initial input to anchor descent on, the legacy length heuristic
+    alone would let any longer call take over (see
+    `test_length_heuristic_fallback_without_initial_input`). A single longer
+    call for a model whose thread has never been tracked doesn't win that
+    comparison.
+    """
+    bridge = AgentBridge(AgentState(messages=[]))
+
+    primary_input: list[ChatMessage] = [
+        ChatMessageUser(content="primary 0"),
+        ChatMessageUser(content="primary 1"),
+    ]
+    await track(bridge, primary_input, "primary response", "openai/agent")
+
+    side_input: list[ChatMessage] = [
+        ChatMessageUser(content=f"reviewer {i}") for i in range(8)
+    ]
+    await track(bridge, side_input, "reviewer verdict", "openai/codex-auto-review")
+
+    assert bridge.state.output.completion == "primary response"
+
+
+async def test_track_state_adopts_growing_primary_model_conversation() -> None:
+    """The legacy length heuristic still promotes a growing same-model thread.
+
+    Non-extending messages (a scaffold that rewrites its history each call)
+    still win by length against the previous call from the same model, now
+    that the comparison is keyed per model rather than a single global count.
+    """
+    bridge = AgentBridge(AgentState(messages=[]))
+
+    await track(
+        bridge,
+        [ChatMessageUser(content="primary 0")],
+        "initial response",
+        "openai/agent",
+    )
+
+    growing_input: list[ChatMessage] = [
+        ChatMessageUser(content="primary 0"),
+        ChatMessageUser(content="primary 1"),
+    ]
+    await track(bridge, growing_input, "growing response", "openai/agent")
+
+    assert bridge.state.output.completion == "growing response"
+
+
+async def test_track_state_recovers_compacted_primary_model_conversation() -> None:
+    """Per-model message counts still recover tracking after a rejected candidate.
+
+    A same-model call shorter than the tracked thread is parked (not
+    adopted) but still updates that model's own last-seen length; a
+    subsequent same-model call longer than *that* recovers tracking via the
+    legacy heuristic.
+    """
+    bridge = AgentBridge(AgentState(messages=[]))
+
+    original_input: list[ChatMessage] = [
+        ChatMessageUser(content=f"primary {i}") for i in range(4)
+    ]
+    await track(bridge, original_input, "original response", "openai/agent")
+
+    compacted_input: list[ChatMessage] = [ChatMessageUser(content="primary 0")]
+    await track(bridge, compacted_input, "compacted response", "openai/agent")
+
+    recovered_input: list[ChatMessage] = [
+        ChatMessageUser(content="primary 0"),
+        ChatMessageUser(content="primary 1"),
+    ]
+    await track(bridge, recovered_input, "recovered response", "openai/agent")
+
+    assert bridge.state.output.completion == "recovered response"
+
+
+async def test_track_state_follows_conversation_continued_on_another_model() -> None:
+    """A call that extends the tracked thread is adopted whatever its model.
+
+    Scaffolds can continue one conversation on more than one model (Claude
+    Code's `opusplan` plans on one model and executes on another). A side
+    call to a third model in between must not stop the state following it.
+    """
+    bridge = task_bridge()
+
+    turn1: list[ChatMessage] = [TASK_SYSTEM, ChatMessageUser(content=TASK)]
+    plan = await track(bridge, turn1, "let me look into that", "anthropic/opus")
+    await track(
+        bridge,
+        title_generation_input(),
+        "Doctor Who Series 9 setting",
+        "anthropic/haiku",
+    )
+    turn2 = turn1 + [plan.message, ChatMessageTool(content="tool result")]
+    await track(bridge, turn2, "Castle", "anthropic/sonnet")
+
+    assert bridge.state.output.completion == "Castle"
+
+
+async def test_track_state_other_model_fed_the_conversation_does_not_displace() -> None:
+    """A longer call to another model that reads the conversation is not adopted.
+
+    A reviewer or classifier gets the agent's messages under its own system
+    prompt plus an instruction, so it descends from the initial input as
+    strongly as the main loop and has more messages: the length heuristic
+    alone would adopt it.
+    """
+    bridge = task_bridge()
+
+    turn1: list[ChatMessage] = [TASK_SYSTEM, ChatMessageUser(content=TASK)]
+    out1 = await track(bridge, turn1, "let me look into that", "openai/agent")
+    turn2 = turn1 + [out1.message, ChatMessageTool(content="tool result")]
+    out2 = await track(bridge, turn2, "Castle", "openai/agent")
+
+    await track(bridge, classifier_input(turn2, out2), "SAFE", "openai/classifier")
+
+    assert bridge.state.output.completion == "Castle"
+
+
+async def test_track_state_other_model_landing_first_is_displaced() -> None:
+    """A side call to another model that lands first doesn't keep the state.
+
+    A topic detector resends the prompt verbatim, so it anchors as strongly
+    as the main loop and descent can't separate them; the main loop's
+    continuation still takes over tracking.
+    """
+    bridge = task_bridge()
+
+    await track(
+        bridge,
+        [
+            ChatMessageSystem(content="Is this a new topic? ..."),
+            ChatMessageUser(content=TASK),
+        ],
+        "new topic",
+        "anthropic/haiku",
+    )
+    turn1: list[ChatMessage] = [TASK_SYSTEM, ChatMessageUser(content=TASK)]
+    out1 = await track(bridge, turn1, "let me look into that", "anthropic/sonnet")
+    turn2 = turn1 + [out1.message, ChatMessageTool(content="tool result")]
+    await track(bridge, turn2, "Castle", "anthropic/sonnet")
+
+    assert bridge.state.output.completion == "Castle"
+
+
+async def test_track_state_other_model_landing_first_without_initial_input() -> None:
+    """Without initial input, a side call that lands first is displaced too.
+
+    The main loop's first call is longer but can't win on length against a
+    different model's thread; it is promoted once its next call extends it.
+    """
+    bridge = AgentBridge(AgentState(messages=[]))
+
+    await track(bridge, [ChatMessageUser(content="quota")], "quota", "anthropic/haiku")
+    turn1: list[ChatMessage] = [TASK_SYSTEM, ChatMessageUser(content=TASK)]
+    out1 = await track(bridge, turn1, "let me look into that", "anthropic/sonnet")
+    turn2 = turn1 + [out1.message, ChatMessageTool(content="tool result")]
+    await track(bridge, turn2, "Castle", "anthropic/sonnet")
+
+    assert bridge.state.output.completion == "Castle"
+
+
+async def rewriting_loop(bridge: AgentBridge, models: list[str]) -> list[str]:
+    """Drive a scaffold that rewrites its prompt every call, one call per model.
+
+    Its calls never extend each other or descend from the input, so only the
+    length heuristic can adopt them. Returns the tracked completion after
+    each call.
+    """
+    completions: list[str] = []
+    history: list[ChatMessage] = []
+    for i, model in enumerate(models, start=1):
+        messages: list[ChatMessage] = [TASK_SYSTEM, rewritten_task(i), *history]
+        output = await track(bridge, messages, f"step {i}", model)
+        completions.append(bridge.state.output.completion)
+        history = history + [
+            ChatMessageAssistant(content=output.message.text),
+            ChatMessageTool(content=f"result {i}"),
+        ]
+    return completions
+
+
+async def test_track_state_rewriting_scaffold_displaces_other_model_side_call() -> None:
+    """A rewriting loop takes over from a side call to another model.
+
+    Its first longer call may be held like a one-off side call to another
+    model; by its second call the loop is tracked.
+    """
+    bridge = task_bridge()
+
+    await track(bridge, [ChatMessageUser(content="quota")], "quota", "anthropic/haiku")
+
+    completions = await rewriting_loop(bridge, ["anthropic/sonnet"] * 3)
+
+    assert completions[1:] == ["step 2", "step 3"]
+
+
+async def test_track_state_rewriting_scaffold_switching_model_is_followed() -> None:
+    """A rewriting loop that moves to another model is followed."""
+    bridge = task_bridge()
+
+    models = ["anthropic/opus"] * 2 + ["anthropic/sonnet"] * 3
+
+    completions = await rewriting_loop(bridge, models)
+
+    assert completions[3:] == ["step 4", "step 5"]
+
+
+async def test_track_state_agent_reclaims_state_from_other_model_sub_agent() -> None:
+    """A model whose thread was tracked before can win it back on length.
+
+    Without initial input, a sub-agent loop on another model is promoted
+    once it extends itself; the agent's single final call must still become
+    the state.
+    """
+    bridge = AgentBridge(AgentState(messages=[]))
+
+    agent: list[ChatMessage] = [TASK_SYSTEM, ChatMessageUser(content=TASK)]
+    for i in range(3):
+        output = await track(bridge, agent, f"step {i}", "anthropic/sonnet")
+        agent = agent + [output.message, ChatMessageTool(content=f"result {i}")]
+
+    sub_agent: list[ChatMessage] = [
+        ChatMessageSystem(content="You are a file search sub-agent ..."),
+        ChatMessageUser(content="Find the castle file."),
+    ]
+    for i in range(3):
+        output = await track(bridge, sub_agent, f"sub step {i}", "anthropic/haiku")
+        sub_agent = sub_agent + [
+            output.message,
+            ChatMessageTool(content=f"sub result {i}"),
+        ]
+
+    await track(bridge, agent, "Castle", "anthropic/sonnet")
+
+    assert bridge.state.output.completion == "Castle"
+
+
+def classifier_input(
+    conversation: list[ChatMessage], output: ModelOutput
+) -> list[ChatMessage]:
+    """A classifier request: the agent's messages under its own system prompt."""
+    return [
+        ChatMessageSystem(content="You are a safety classifier ..."),
+        *conversation[1:],
+        output.message,
+        ChatMessageUser(content="Classify the agent's last action."),
+    ]
+
+
+async def classified_loop(
+    bridge: AgentBridge, calls: int, rewrite: bool = False
+) -> list[str]:
+    """Drive an agent loop with a classifier on another model after each call.
+
+    The classifier is fed the conversation, so its call is longer than the
+    agent's. With `rewrite` the agent rewrites its prompt every call (see
+    `rewriting_loop`). Returns the tracked completion after each classifier
+    call.
+    """
+    completions: list[str] = []
+    history: list[ChatMessage] = []
+    for i in range(1, calls + 1):
+        task = rewritten_task(i) if rewrite else ChatMessageUser(content=TASK)
+        messages: list[ChatMessage] = [TASK_SYSTEM, task, *history]
+        output = await track(bridge, messages, f"step {i}", "anthropic/sonnet")
+        await track(
+            bridge, classifier_input(messages, output), "SAFE", "openai/classifier"
+        )
+        completions.append(bridge.state.output.completion)
+        history = history + [output.message, ChatMessageTool(content=f"result {i}")]
+    return completions
+
+
+async def test_track_state_side_call_first_then_classified_agent_loop() -> None:
+    """A classifier after every agent call doesn't keep a side call tracked.
+
+    The agent's first call is parked behind a topic detector that landed
+    first, and the classifier's longer call is held; the agent's next call
+    must still be promoted by extending its own parked call.
+    """
+    bridge = task_bridge()
+
+    await track(
+        bridge,
+        [
+            ChatMessageSystem(content="Is this a new topic? ..."),
+            ChatMessageUser(content=TASK),
+        ],
+        "new topic",
+        "anthropic/haiku",
+    )
+
+    completions = await classified_loop(bridge, 4)
+
+    assert completions[1:] == ["step 2", "step 3", "step 4"]
+
+
+async def test_track_state_side_call_first_then_classified_agent_loop_no_input() -> (
+    None
+):
+    """Same, with no initial input and a side call that doesn't resend it."""
+    bridge = AgentBridge(AgentState(messages=[]))
+
+    await track(bridge, [ChatMessageUser(content="quota")], "quota", "anthropic/haiku")
+
+    completions = await classified_loop(bridge, 4)
+
+    assert completions[1:] == ["step 2", "step 3", "step 4"]
+
+
+async def test_track_state_side_call_first_then_classified_rewriting_loop() -> None:
+    """Same, for a scaffold that rewrites its prompt every call.
+
+    Its calls never extend each other, so it takes over on length: its
+    second call is longer than its first, while every classifier hold is
+    dropped once the agent's thread is adopted.
+    """
+    bridge = task_bridge()
+
+    await track(bridge, [ChatMessageUser(content="quota")], "quota", "anthropic/haiku")
+
+    completions = await classified_loop(bridge, 4, rewrite=True)
+
+    assert completions[1:] == ["step 2", "step 3", "step 4"]
+
+
+async def test_track_state_repeated_classifier_call_does_not_displace() -> None:
+    """A held model called again with the same input stays held.
+
+    It wins on length only with a call longer than its previous one; a
+    classifier reviewing two tool calls against the same conversation sends
+    the same request twice.
+    """
+    bridge = task_bridge()
+
+    turn1: list[ChatMessage] = [TASK_SYSTEM, ChatMessageUser(content=TASK)]
+    out1 = await track(bridge, turn1, "let me look into that", "anthropic/sonnet")
+    turn2 = turn1 + [out1.message, ChatMessageTool(content="tool result")]
+    out2 = await track(bridge, turn2, "Castle", "anthropic/sonnet")
+    for verdict in ("SAFE", "SAFE again"):
+        await track(bridge, classifier_input(turn2, out2), verdict, "openai/classifier")
+
+    assert bridge.state.output.completion == "Castle"
 
 
 # ---------------------------------------------------------------------------
