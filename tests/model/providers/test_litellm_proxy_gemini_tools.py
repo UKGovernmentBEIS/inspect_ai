@@ -1,6 +1,6 @@
 """Gemini tool calling through the LiteLLM proxy.
 
-Thought signatures on replayed tool calls, the function-calling hint,
+Thought signatures on replayed tool calls, no function-calling hint,
 recovery from MALFORMED_FUNCTION_CALL, which LiteLLM reports as a plain `stop`,
 and tool results that are JSON objects, which LiteLLM would otherwise send as
 the function response itself (see
@@ -49,7 +49,6 @@ from inspect_ai.model import (
 from inspect_ai.model._model_output import ChatCompletionChoice
 from inspect_ai.model._providers._gemini_function_calling import (
     DEFAULT_MALFORMED_FUNCTION_MESSAGE,
-    FUNCTION_CALLING_HINT,
     MALFORMED_FUNCTION_RETRY_PROMPT,
 )
 from inspect_ai.model._providers._litellm_proxy_gemini import (
@@ -437,7 +436,7 @@ async def test_json_object_tool_result_is_sent_under_content(
 
 @skip_if_no_openai_package
 @skip_if_no_litellm_proxy
-async def test_function_calling_hint_sent_with_tools(gemini_proxy: GeminiProxy) -> None:
+async def test_no_function_calling_hint_with_tools(gemini_proxy: GeminiProxy) -> None:
     model = gemini_model(gemini_proxy.proxy, stream=False)
     system = ChatMessageSystem(content="Be brief.")
     user = ChatMessageUser(content="Weather in Paris?")
@@ -446,12 +445,10 @@ async def test_function_calling_hint_sent_with_tools(gemini_proxy: GeminiProxy) 
     )
     # where the system text lands (system_instruction, or the first user turn
     # on LiteLLM 1.96 for a model its map doesn't know) is LiteLLM's business
-    hint = FUNCTION_CALLING_HINT.strip()
-    assert f"Be brief.\n{FUNCTION_CALLING_HINT}" in all_text(with_tools)
+    assert "Be brief." in all_text(with_tools)
+    assert "default_api" not in all_text(with_tools)
     _, (no_system,) = await generate(gemini_proxy, model, [user], [get_weather()])
-    assert hint in all_text(no_system)
-    _, (without_tools,) = await generate(gemini_proxy, model, [system, user], [])
-    assert "default_api" not in all_text(without_tools)
+    assert all_text(no_system) == "Weather in Paris?"
 
 
 @skip_if_no_openai_package
