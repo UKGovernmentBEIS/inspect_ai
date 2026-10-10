@@ -1,7 +1,7 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date, datetime, time
 from enum import Enum
-from typing import Any, Dict, List, Literal, Optional, Set, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Literal, Optional, Set, Union
 
 from pydantic import BaseModel, Field
 from test_helpers.tools import addition
@@ -15,6 +15,9 @@ from inspect_ai.tool._tool_info import (
     parse_tool_info,
 )
 from inspect_ai.util._json import JSONSchema, cls_json_schema, json_schema
+
+if TYPE_CHECKING:
+    from decimal import Decimal
 
 
 # Test helper functions
@@ -149,6 +152,49 @@ def test_dataclass_parameter() -> None:
     assert info.parameters.properties["data"].properties
     assert "field1" in info.parameters.properties["data"].properties
     assert "field2" in info.parameters.properties["data"].properties
+
+
+def test_dataclass_parameter_string_annotations() -> None:
+    # string annotations are what `from __future__ import annotations`
+    # (PEP 563) leaves in `field.type`; the schema must resolve them
+    @dataclass
+    class TestDataclass:
+        field1: "int"
+        field2: "list[str]" = field(default_factory=list)
+
+    def dataclass_func(data: TestDataclass):
+        """A function with a dataclass parameter."""
+        pass
+
+    info = parse_tool_info(dataclass_func)
+    properties = info.parameters.properties["data"].properties
+    assert properties
+    assert properties["field1"].type == "integer"
+    assert properties["field2"].type == "array"
+    assert properties["field2"].items
+    assert properties["field2"].items.type == "string"
+    assert info.parameters.properties["data"].required == ["field1"]
+
+
+def test_dataclass_parameter_unresolvable_annotation() -> None:
+    # an annotation naming a type imported only under TYPE_CHECKING cannot be
+    # resolved at runtime; the dataclass keeps producing untyped properties
+    # rather than failing at tool definition
+    @dataclass
+    class TestDataclass:
+        field1: "int"
+        field2: "Decimal"
+
+    def dataclass_func(data: TestDataclass):
+        """A function with a dataclass parameter."""
+        pass
+
+    info = parse_tool_info(dataclass_func)
+    properties = info.parameters.properties["data"].properties
+    assert properties
+    assert properties["field1"].type is None
+    assert properties["field2"].type is None
+    assert info.parameters.properties["data"].required == ["field1", "field2"]
 
 
 def test_pydantic_parameter() -> None:

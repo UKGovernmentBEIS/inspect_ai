@@ -1,3 +1,4 @@
+import dataclasses
 import types
 import typing
 from copy import deepcopy
@@ -9,6 +10,7 @@ from typing import (
     Dict,
     List,
     Literal,
+    NamedTuple,
     Optional,
     Set,
     Tuple,
@@ -215,9 +217,8 @@ def cls_json_schema(cls: Type[Any]) -> JSONSchema:
     required: List[str] = []
 
     if is_dataclass(cls):
-        fields = cls.__dataclass_fields__  # type: ignore
-        for name, field in fields.items():
-            properties[name] = json_schema(field.type)  # type: ignore
+        for name, (field, field_type) in dataclass_fields(cls).items():
+            properties[name] = json_schema(field_type)
             if field.default is MISSING and field.default_factory is MISSING:
                 required.append(name)
     elif isinstance(cls, type) and issubclass(cls, BaseModel):
@@ -239,6 +240,32 @@ def cls_json_schema(cls: Type[Any]) -> JSONSchema:
         required=required if required else None,
         additionalProperties=False,
     )
+
+
+class DataclassField(NamedTuple):
+    field: dataclasses.Field[Any]
+    type: Any
+    """The field's annotation, resolved where possible (see `dataclass_fields`)."""
+
+
+def dataclass_fields(cls: Type[Any]) -> dict[str, DataclassField]:
+    """Every entry in ``cls.__dataclass_fields__`` with its resolved annotation.
+
+    ``field.type`` is the unevaluated string under PEP 563 (``from __future__
+    import annotations``), so annotations are resolved with ``get_type_hints``
+    as the TypedDict code paths already do. If they cannot be resolved (e.g. a
+    forward reference to a name only imported under ``TYPE_CHECKING``) the raw
+    ``field.type`` values are used so the dataclass is handled as before.
+    """
+    fields: dict[str, dataclasses.Field[Any]] = cls.__dataclass_fields__  # type: ignore
+    try:
+        type_hints = get_type_hints(cls)
+    except (NameError, TypeError):
+        type_hints = {}
+    return {
+        name: DataclassField(field, type_hints.get(name, field.type))
+        for name, field in fields.items()
+    }
 
 
 def python_type_to_json_type(python_type: str | None) -> JSONType:

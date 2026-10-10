@@ -72,6 +72,7 @@ from inspect_ai.tool._tool_info import parse_docstring
 from inspect_ai.tool._tool_params import ToolParams
 from inspect_ai.util import OutputLimitExceededError
 from inspect_ai.util._anyio import inner_exception
+from inspect_ai.util._json import dataclass_fields
 from inspect_ai.util._limit import LimitExceededError, apply_limits
 from inspect_ai.util._sandbox.environment import SandboxUnavailableError
 from inspect_ai.util._sandbox.events import SandboxTimeoutError
@@ -1428,9 +1429,8 @@ def tool_param(type_hint: Type[Any], input: Any) -> Any:
             return typeddict_data
         elif is_dataclass(type_hint):
             dataclass_data: dict[str, Any] = {}
-            fields = type_hint.__dataclass_fields__  # type: ignore
-            for name, field in fields.items():
-                dataclass_data[name] = tool_param(field.type, input.get(name))  # type: ignore
+            for name, (_, field_type) in dataclass_fields(type_hint).items():
+                dataclass_data[name] = tool_param(field_type, input.get(name))
             return type_hint(**dataclass_data)
         elif issubclass(type_hint, BaseModel):
             return type_hint(**input)
