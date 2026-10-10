@@ -4,7 +4,7 @@ import json as json_module
 import os
 import random
 from pathlib import Path
-from typing import Type, TypeVar
+from typing import Any, Type, TypeVar
 from unittest.mock import Mock
 
 import numpy as np
@@ -809,15 +809,254 @@ def example_path(*paths: str) -> str:
     return os.path.join("examples", "/".join(paths))
 
 
-def test_read_choices_drops_empty_entries() -> None:
+_BLANK_CHOICE_BEFORE_LATER_OPTION = (
+    "contain a blank before a later option. "
+    "Removing it would change answer labels; correct the choices and target, "
+    "or use a custom sample_fields function to keep the blank."
+)
+
+
+def test_read_choices_drops_trailing_blank_entries() -> None:
     assert read_choices("Paris,London,") == ["Paris", "London"]
-    assert read_choices("Paris,,London") == ["Paris", "London"]
     assert read_choices("Paris, London") == ["Paris", "London"]
     assert read_choices("Paris London") == ["Paris", "London"]
+    assert read_choices(" Paris , London ") == ["Paris", "London"]
     assert read_choices(",,") == []
+    assert read_choices(["", ""]) == []
+    assert read_choices([" ", ""]) == []
     assert read_choices(None) is None
-    assert read_choices(["Paris", "", "London"]) == ["Paris", "London"]
-    assert read_choices(["Paris", " ", "London"]) == ["Paris", "London"]
+    assert read_choices(float("nan")) is None
+    assert read_choices(5) == ["5"]
+    assert read_choices(["Paris", "London", ""]) == ["Paris", "London"]
+    assert read_choices(["Paris", "London", " "]) == ["Paris", "London"]
+    assert read_choices(["Paris", "", " "]) == ["Paris"]
+    # list entries keep their own surrounding whitespace
+    assert read_choices([" Paris ", "London"]) == [" Paris ", "London"]
+
+
+@pytest.mark.parametrize(
+    "choices",
+    [
+        "Paris,,London",
+        ",Paris",
+        "Paris, ,Rome",
+        ["", "Paris", "Rome"],
+        ["Paris", "", "Rome"],
+        ["Paris", " ", "Rome"],
+        ["Paris", "\n", "Rome"],
+    ],
+)
+def test_read_choices_rejects_blank_before_later_option(
+    choices: str | list[str],
+) -> None:
+    with pytest.raises(ValueError) as exc_info:
+        read_choices(choices)
+    assert str(exc_info.value) == (
+        f"Choices {choices!r} {_BLANK_CHOICE_BEFORE_LATER_OPTION}"
+    )
+
+
+@pytest.mark.parametrize(
+    ("suffix", "contents"),
+    [
+        (
+            ".json",
+            json_module.dumps(
+                [
+                    {
+                        "input": "What is the capital of France?",
+                        "choices": ["", "Paris", "Rome"],
+                        "target": "B",
+                    }
+                ]
+            ),
+        ),
+        (
+            ".jsonl",
+            json_module.dumps(
+                {
+                    "input": "What is the capital of France?",
+                    "choices": ["Paris", "", "Rome"],
+                    "target": "B",
+                }
+            )
+            + "\n",
+        ),
+        (
+            ".json",
+            json_module.dumps(
+                [
+                    {
+                        "input": "What is the capital of France?",
+                        "choices": ["Paris", " ", "Rome"],
+                        "target": "B",
+                    }
+                ]
+            ),
+        ),
+        (
+            ".csv",
+            'input,target,choices\n"What is the capital of France?","B","Paris,,London"\n',
+        ),
+        (
+            ".csv",
+            'input,target,choices\n"What is the capital of France?","B",",Paris"\n',
+        ),
+    ],
+    ids=[
+        "json-leading",
+        "jsonl-interior",
+        "json-whitespace",
+        "csv-interior",
+        "csv-leading",
+    ],
+)
+def test_dataset_loaders_reject_blank_choice_before_later_option(
+    tmp_path: Path, suffix: str, contents: str
+) -> None:
+    dataset_file = tmp_path / f"choices{suffix}"
+    dataset_file.write_text(contents)
+    loader = csv_dataset if suffix == ".csv" else json_dataset
+
+    with pytest.raises(ValueError) as exc_info:
+        loader(dataset_file.as_posix())
+
+    assert _BLANK_CHOICE_BEFORE_LATER_OPTION in str(exc_info.value)
+
+
+@pytest.mark.parametrize(
+    ("suffix", "contents", "expected_target"),
+    [
+        (
+            ".json",
+            json_module.dumps(
+                [
+                    {
+                        "input": "What is the capital of France?",
+                        "choices": ["Paris", "London", ""],
+                        "target": "B",
+                    }
+                ]
+            ),
+            "B",
+        ),
+        (
+            ".json",
+            json_module.dumps(
+                [
+                    {
+                        "input": "What is the capital of France?",
+                        "choices": ["Paris", "London", " "],
+                        "target": "B",
+                    }
+                ]
+            ),
+            "B",
+        ),
+        (
+            ".jsonl",
+            json_module.dumps(
+                {
+                    "input": "What is the capital of France?",
+                    "choices": "Paris,London,",
+                    "target": "A",
+                }
+            )
+            + "\n",
+            "A",
+        ),
+        (
+            ".csv",
+            'input,target,choices\n"What is the capital of France?","A","Paris,London,"\n',
+            "A",
+        ),
+    ],
+    ids=["json-empty", "json-whitespace", "jsonl-string", "csv-string"],
+)
+def test_dataset_loaders_drop_trailing_blank_choices(
+    tmp_path: Path, suffix: str, contents: str, expected_target: str
+) -> None:
+    dataset_file = tmp_path / f"choices{suffix}"
+    dataset_file.write_text(contents)
+    loader = csv_dataset if suffix == ".csv" else json_dataset
+
+    sample = loader(dataset_file.as_posix())[0]
+
+    assert sample.choices == ["Paris", "London"]
+    assert sample.target == expected_target
+
+
+def test_field_spec_renamed_choices_rejects_blank_before_later_option(
+    tmp_path: Path,
+) -> None:
+    dataset_file = tmp_path / "choices.json"
+    dataset_file.write_text(
+        json_module.dumps(
+            [
+                {
+                    "input": "What is the capital of France?",
+                    "options": ["", "Paris", "Rome"],
+                    "target": "B",
+                }
+            ]
+        )
+    )
+
+    with pytest.raises(ValueError) as exc_info:
+        json_dataset(
+            dataset_file.as_posix(),
+            sample_fields=FieldSpec(choices="options"),
+        )
+
+    assert _BLANK_CHOICE_BEFORE_LATER_OPTION in str(exc_info.value)
+
+
+def test_blank_choice_error_names_the_sample(tmp_path: Path) -> None:
+    dataset_file = tmp_path / "choices.json"
+    dataset_file.write_text(
+        json_module.dumps(
+            [
+                {"id": "q-ok", "input": "q", "choices": ["a", "b"], "target": "A"},
+                {"id": "q-bad", "input": "q", "choices": ["a", "", "b"], "target": "A"},
+            ]
+        )
+    )
+
+    with pytest.raises(ValueError) as exc_info:
+        json_dataset(dataset_file.as_posix())
+
+    assert str(exc_info.value) == (
+        f"Sample 'q-bad': Choices ['a', '', 'b'] {_BLANK_CHOICE_BEFORE_LATER_OPTION}"
+    )
+
+
+def test_custom_mapper_can_keep_a_blank_choice(tmp_path: Path) -> None:
+    dataset_file = tmp_path / "choices.json"
+    dataset_file.write_text(
+        json_module.dumps(
+            [
+                {
+                    "input": "What is the capital of France?",
+                    "choices": ["", "Paris", "Rome"],
+                    "target": "B",
+                }
+            ]
+        )
+    )
+
+    def keep_blank(record: dict[str, Any]) -> Sample:
+        raw_choices = record["choices"]
+        assert isinstance(raw_choices, list)
+        return Sample(
+            input=str(record["input"]),
+            target=str(record["target"]),
+            choices=[str(choice) for choice in raw_choices],
+        )
+
+    sample = json_dataset(dataset_file.as_posix(), sample_fields=keep_blank)[0]
+
+    assert sample.choices == ["", "Paris", "Rome"]
+    assert sample.target == "B"
 
 
 def test_sample_description() -> None:
