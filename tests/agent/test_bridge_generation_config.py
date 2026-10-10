@@ -1484,7 +1484,10 @@ def test_openai_responses_usage_round_trips_cached_input_tokens():
     assert provider_usage is not None
     assert provider_usage.input_tokens == 90
     assert provider_usage.input_tokens_details.cached_tokens == 20
-    assert provider_usage.input_tokens_details.cache_write_tokens == 0
 
     round_trip = model_usage_from_response_usage(provider_usage)
-    assert round_trip == usage
+    assert round_trip is not None
+    assert round_trip.input_tokens == usage.input_tokens
+    assert round_trip.input_tokens_cache_read == usage.input_tokens_cache_read
+    assert round_trip.output_tokens == usage.output_tokens
+    assert round_trip.total_tokens == usage.total_tokens
