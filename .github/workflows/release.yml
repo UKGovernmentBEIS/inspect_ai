@@ -2,9 +2,10 @@ name: Release
 
 # Release Please keeps a release PR (head branch release-please--branches--main)
 # open against main, versioned from the Conventional Commit PR titles merged
-# since the last release. Merging that PR tags the release and creates the
-# GitHub Release; this workflow then sets the release notes from CHANGELOG.md
-# and publishes to PyPI and npm, each behind its environment's approval.
+# since the last release, and writes their titles into CHANGELOG.md and the
+# release notes. Merging that PR tags the release and creates the GitHub
+# Release; this workflow then publishes to PyPI and npm, each behind its
+# environment's approval.
 #
 # Everything runs with GITHUB_TOKEN. Releases, tags and pushes made with it
 # trigger no other workflows, so this workflow runs the publish jobs itself
@@ -92,38 +93,17 @@ jobs:
           if [ "$COUNT" -gt 0 ]; then OPEN=true; else OPEN=false; fi
           echo "open=$OPEN" >> "$GITHUB_OUTPUT"
 
-      # Default credentials: the next step pushes to the release branch.
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        if: steps.pr.outputs.open == 'true'
-        with:
-          ref: ${{ env.RELEASE_BRANCH }}
-          path: release-pr
-
-      - name: Release CHANGELOG.md entries on the release PR
-        if: steps.pr.outputs.open == 'true'
-        working-directory: release-pr
-        run: |
-          VERSION=$(jq -r '."."' .release-please-manifest.json)
-          python3 .github/scripts/release_changelog.py prepare "$VERSION"
-          if git diff --quiet; then
-            exit 0
-          fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -am "chore: move Unreleased changelog entries to $VERSION"
-          git push origin "HEAD:$RELEASE_BRANCH"
-
       # Dispatches only the workflows with no run on the release PR's current
-      # head, so re-running this job retries a failed dispatch. build.yml
-      # provides the required status checks; if they are missing, a
-      # maintainer can also close and reopen the release PR.
+      # head, so re-running this job retries a failed dispatch. build.yml and
+      # changelog-lint.yml provide the required status checks; if they are
+      # missing, a maintainer can also close and reopen the release PR.
       - name: Run checks on the release PR
         if: steps.pr.outputs.open == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           python3 .github/scripts/release_workflow.py --repo "$GITHUB_REPOSITORY" \
-            dispatch-checks --branch "$RELEASE_BRANCH" build.yml release-pr-checks.yml
+            dispatch-checks --branch "$RELEASE_BRANCH" build.yml changelog-lint.yml release-pr-checks.yml
 
       # Last, so the release PR steps still run. A re-run cannot find a release
       # created on an earlier commit; fail and name the tag to dispatch with
@@ -135,29 +115,6 @@ jobs:
         run: |
           python3 .github/scripts/release_workflow.py --repo "$GITHUB_REPOSITORY" \
             check-latest-published --run-id "$GITHUB_RUN_ID"
-
-  release-notes:
-    name: Set release notes from CHANGELOG.md
-    needs: release-please
-    if: needs.release-please.outputs.tag != ''
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    permissions:
-      contents: write # edit the GitHub Release
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ needs.release-please.outputs.tag }}
-          sparse-checkout: .github/scripts
-          persist-credentials: false
-
-      - name: Set release notes
-        env:
-          GH_TOKEN: ${{ github.token }}
-          TAG: ${{ needs.release-please.outputs.tag }}
-        run: |
-          python3 .github/scripts/release_changelog.py notes "$TAG" > "$RUNNER_TEMP/notes.md"
-          gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --notes-file "$RUNNER_TEMP/notes.md"
 
   # The build and publish jobs match publish.yml's: the build holds no
   # id-token, and both use the shared build-dist and publish-dist actions.

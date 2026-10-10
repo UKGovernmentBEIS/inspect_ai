@@ -148,10 +148,31 @@ the title becomes the commit that sets the next release's version:
 The PR Title Lint check fails until the title follows this format; editing the
 title re-runs it.
 
-If your change needs a CHANGELOG entry, add it under `## Unreleased` at the top
-of `CHANGELOG.md`. Don't rename that heading, edit release headings, or add a
-version section: the release PR renames `## Unreleased` to the version heading
-when it releases.
+Don't edit `CHANGELOG.md`; the Changelog Lint check fails PRs that do.
+Release Please writes the changelog and the GitHub Release notes from the
+squash-merged PR titles, so your PR title is the changelog line. `feat`, `fix`,
+`perf` and `revert` titles are listed under Features, Bug Fixes, Performance
+Improvements and Reverts; other types are left out. The squash commit's message
+is the PR description, which Release Please also reads:
+
+- For a breaking change, use `feat!:` (or `fix!:`) and add a paragraph to the
+  PR description starting with `BREAKING CHANGE:` that says what users must
+  change, with a blank line after it. It is listed under "⚠ BREAKING CHANGES".
+- A paragraph in the description that starts with a type and colon (such as
+  `fix: ...`) adds its own changelog entry. Indent it or put it in a code block
+  if you don't want that.
+- To reword the entry after the PR is merged, before the release, edit the
+  merged PR's description to start with:
+
+  ```
+  BEGIN_COMMIT_OVERRIDE
+  fix: the corrected outcome (#NNN)
+  END_COMMIT_OVERRIDE
+  ```
+
+  Include `(#NNN)`, the PR number, to keep the link to the PR. The release PR
+  picks up the change on the next push to `main`. Editing `CHANGELOG.md` in
+  the release PR does not last: Release Please rewrites the release PR.
 
 Fill in the PR template and, when addressing an accepted issue, reference it
 (`Fixes #NNN`). Explain the user-facing problem and result. In
