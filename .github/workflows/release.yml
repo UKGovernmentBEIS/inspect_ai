@@ -1,0 +1,194 @@
+name: Release
+
+# Release Please keeps a release PR (head branch release-please--branches--main)
+# open against main, versioned from the Conventional Commit PR titles merged
+# since the last release, and writes their titles into CHANGELOG.md and the
+# release notes. Merging that PR tags the release and creates the GitHub
+# Release; this workflow then publishes to PyPI and npm, each behind its
+# environment's approval.
+#
+# Everything runs with GITHUB_TOKEN. Releases, tags and pushes made with it
+# trigger no other workflows, so this workflow runs the publish jobs itself
+# and dispatches the release PR's checks. publish.yml and npm-publish.yml keep
+# their own triggers for break-glass releases.
+#
+# Retries: re-running this workflow (all jobs, or the failed ones) finishes
+# a release tagged on the run's own commit, and dispatches any release PR
+# checks that have not run on its head. A run that finds no release to finish
+# fails if the latest release is not fully published, naming the tag to
+# dispatch with. Dispatching on main with `tag` is recovery only: it skips
+# Release Please and the release PR and finishes that release. Publishing
+# skips what PyPI and npm already have. See design/release-process.md.
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Recovery only: finish this existing release (X.Y.Z) without running Release Please; leave empty for a normal run"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+env:
+  RELEASE_BRANCH: release-please--branches--main
+
+jobs:
+  release-please:
+    name: Release Please
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    concurrency:
+      group: release-please
+      cancel-in-progress: false
+    permissions:
+      contents: write # release PR branch, tag and GitHub Release
+      pull-requests: write
+      issues: write # release PR labels
+      actions: write # dispatch checks on the release PR
+    outputs:
+      tag: ${{ steps.resolve.outputs.tag }}
+    steps:
+      - id: release
+        if: ${{ !inputs.tag }}
+        uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
+        with:
+          # No release-type input: with a manifest it would override the
+          # config file's package options.
+          config-file: .release-please-config.json
+          manifest-file: .release-please-manifest.json
+          target-branch: main
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          sparse-checkout: .github/scripts
+          persist-credentials: false
+
+      # Release Please reports a release only in the run that creates it, so
+      # a retry looks the release up by this run's commit (or the `tag` input).
+      - name: Resolve release to publish
+        id: resolve
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CREATED_TAG: ${{ steps.release.outputs.release_created == 'true' && steps.release.outputs.tag_name || '' }}
+          REQUESTED_TAG: ${{ inputs.tag }}
+        run: |
+          TAG=$(python3 .github/scripts/release_workflow.py --repo "$GITHUB_REPOSITORY" \
+            resolve-release --sha "$GITHUB_SHA" \
+            --created-tag "$CREATED_TAG" --requested-tag "$REQUESTED_TAG")
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Find open release PR
+        id: pr
+        if: ${{ !inputs.tag }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          COUNT=$(gh pr list --repo "$GITHUB_REPOSITORY" --head "$RELEASE_BRANCH" \
+            --base main --state open --json number --jq length)
+          if [ "$COUNT" -gt 0 ]; then OPEN=true; else OPEN=false; fi
+          echo "open=$OPEN" >> "$GITHUB_OUTPUT"
+
+      # Dispatches only the workflows with no run on the release PR's current
+      # head, so re-running this job retries a failed dispatch. build.yml and
+      # changelog-lint.yml provide the required status checks; if they are
+      # missing, a maintainer can also close and reopen the release PR.
+      - name: Run checks on the release PR
+        if: steps.pr.outputs.open == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 .github/scripts/release_workflow.py --repo "$GITHUB_REPOSITORY" \
+            dispatch-checks --branch "$RELEASE_BRANCH" build.yml changelog-lint.yml release-pr-checks.yml
+
+      # Last, so the release PR steps still run. A re-run cannot find a release
+      # created on an earlier commit; fail and name the tag to dispatch with
+      # rather than finish green without publishing it.
+      - name: Check the latest release is fully published
+        if: steps.resolve.outputs.tag == ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 .github/scripts/release_workflow.py --repo "$GITHUB_REPOSITORY" \
+            check-latest-published --run-id "$GITHUB_RUN_ID"
+
+  # The build and publish jobs match publish.yml's: the build holds no
+  # id-token, and both use the shared build-dist and publish-dist actions.
+  build:
+    name: Build and verify
+    needs: release-please
+    if: needs.release-please.outputs.tag != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: refs/tags/${{ needs.release-please.outputs.tag }}
+          fetch-depth: 0
+          filter: "blob:none"
+          submodules: true
+          persist-credentials: false
+
+      - name: Check release tag
+        env:
+          TAG: ${{ needs.release-please.outputs.tag }}
+        run: |
+          fail() { echo "::error::$1"; exit 1; }
+          [[ "$TAG" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] ||
+            fail "Tag '$TAG' is not a release version (X.Y.Z)"
+          git merge-base --is-ancestor HEAD origin/main ||
+            fail "Tag $TAG is not on main"
+
+      - uses: ./.github/actions/build-dist
+        with:
+          version: ${{ needs.release-please.outputs.tag }}
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: dist
+          path: dist/
+          if-no-files-found: error
+          # a re-run of this job replaces the earlier attempt's artifact
+          overwrite: true
+
+  publish-pypi:
+    name: Publish to PyPI
+    needs: [release-please, build]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      id-token: write # trusted publishing
+    environment:
+      name: pypi
+      url: https://pypi.org/p/inspect-ai
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: refs/tags/${{ needs.release-please.outputs.tag }}
+          sparse-checkout: |
+            .github/actions
+            scripts
+            src/inspect_ai/tool/_sandbox_tools_utils
+          persist-credentials: false
+
+      - uses: ./.github/actions/publish-dist
+        with:
+          version: ${{ needs.release-please.outputs.tag }}
+
+  # Waits for the build so npm never gets a version that failed the PyPI gates.
+  publish-npm:
+    name: Publish to npm
+    needs: [release-please, build]
+    permissions:
+      contents: read
+      id-token: write # trusted publishing
+    uses: ./.github/workflows/npm-publish.yml
+    with:
+      tag: ${{ needs.release-please.outputs.tag }}
