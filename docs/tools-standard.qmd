@@ -96,9 +96,13 @@ Note that when using the "grok" provider, you should also specify a fallback ext
 
 ### Perplexity Options
 
-The `web_search()` tool can use Perplexity's built-in search capability when running on Perplexity models. This provider does not require any API keys beyond what's needed for the model itself. Search parameters can be passed using the `perplexity` provider options and will be forwarded to the model API.
+The `web_search()` tool can use Perplexity's built-in search capability when running on Perplexity models. This provider does not require any API keys beyond what's needed for the model itself. Perplexity models do not search without the `web_search()` tool, including `perplexity/sonar`. The `perplexity` provider options are the fields of the Agent API's `web_search` tool, such as `filters`, `search_type`, `max_results`, and the search token budgets `max_tokens` and `max_tokens_per_page`. For example:
 
-For more details, see [Perplexity API Documentation](https://docs.perplexity.ai/api-reference/chat-completions-post).
+``` python
+web_search({"perplexity": {"filters": {"search_domain_filter": ["arxiv.org"]}}})
+```
+
+For all the options, see Perplexity's [Web Search](https://docs.perplexity.ai/docs/agent-api/tools/web-search) documentation. Sonar search parameters such as `search_mode` and `search_context_size` are not accepted. Use the token budgets in place of `search_context_size`; Perplexity's [migration guide](https://docs.perplexity.ai/docs/agent-api/migrate-from-sonar/how-to#parameter-reference) lists the other replacements.
 
 Note that when using the "perplexity" provider, you should also specify a fallback external provider (like "tavily", "exa", or "google") if you are also running the evaluation with non-Perplexity models.
 

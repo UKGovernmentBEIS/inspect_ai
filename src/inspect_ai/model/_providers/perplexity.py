@@ -1,34 +1,46 @@
-from contextvars import ContextVar
-from typing import Any, cast
+from typing import Any
 
-from openai.types.chat import ChatCompletion
+from openai._types import NOT_GIVEN
+from openai.types.responses import Response, ResponseOutputItem
 from typing_extensions import override
 
 from inspect_ai._util.citation import UrlCitation
 from inspect_ai._util.content import ContentText
 from inspect_ai.model._generate_config import GenerateConfig
-from inspect_ai.model._model_output import ModelOutput, ModelUsage
-from inspect_ai.model._openai import chat_choices_from_openai
+from inspect_ai.model._model_output import ModelOutput
+from inspect_ai.model._openai_responses import responses_extra_body_fields
 from inspect_ai.model._providers.openai_compatible import OpenAICompatibleAPI
-from inspect_ai.model._reasoning import (
-    clamp_reasoning_effort_to_minimal_low_medium_high,
-)
+from inspect_ai.model._providers.openai_responses import generate_responses
 from inspect_ai.tool import ToolChoice, ToolInfo
 
 from .._chat_message import ChatMessage
 from .._model_call import ModelCall
-from .._model_output import ChatCompletionChoice
 
-# A context variable rather than an instance field so that concurrent generate
-# calls on one model instance (each in its own task) never see each other's
-# response.
-_response: ContextVar[dict[str, Any] | None] = ContextVar(
-    "perplexity_response", default=None
-)
+# Sonar models that Perplexity retired with Sonar Chat Completions. Only
+# `sonar` is still served, through the Agent API as `perplexity/sonar`.
+RETIRED_SONAR_MODELS = ["sonar-pro", "sonar-reasoning-pro", "sonar-deep-research"]
+
+# Sonar search parameters. The Agent API's web_search tool ignores them, so
+# passing one as a web_search option would silently drop it. (`search_type` is
+# not listed: the tool takes it, and rejects Sonar's values for it.)
+SONAR_SEARCH_OPTIONS = [
+    "search_mode",
+    "web_search_options",
+    "search_context_size",
+    "search_domain_filter",
+    "search_recency_filter",
+    "search_after_date_filter",
+    "search_before_date_filter",
+    "last_updated_after_filter",
+    "last_updated_before_filter",
+    "num_search_results",
+    "disable_search",
+    "enable_search_classifier",
+]
 
 
 class PerplexityAPI(OpenAICompatibleAPI):
-    """Model provider for Perplexity AI."""
+    """Model provider for Perplexity AI (Agent API)."""
 
     def __init__(
         self,
@@ -38,55 +50,53 @@ class PerplexityAPI(OpenAICompatibleAPI):
         config: GenerateConfig = GenerateConfig(),
         **model_args: Any,
     ) -> None:
+        if model_name in RETIRED_SONAR_MODELS:
+            raise ValueError(
+                f"Perplexity retired the '{model_name}' model along with Sonar Chat "
+                "Completions. Use 'perplexity/sonar' or another Agent API model, "
+                "named 'perplexity/<provider>/<model>' (for example "
+                "'perplexity/openai/gpt-5.6-luna'). See "
+                "https://docs.perplexity.ai/docs/agent-api/models"
+            )
+
         super().__init__(
             model_name=model_name,
             base_url=base_url,
             api_key=api_key,
             config=config,
             service="Perplexity",
-            service_base_url="https://api.perplexity.ai",
+            service_base_url="https://api.perplexity.ai/v1",
             **model_args,
         )
 
     @override
-    def completion_params(self, config: GenerateConfig, tools: bool) -> dict[str, Any]:
-        params = super().completion_params(config, tools)
+    def service_model_name(self) -> str:
+        """Agent API model id.
 
-        # Perplexity's API accepts `minimal`/`low`/`medium`/`high`; clamp the
-        # extended top-end values (`xhigh`/`max`) to `high` while preserving
-        # `minimal`. `none` isn't supported and is omitted, so the provider/model
-        # default applies -- reasoning is not disabled.
-        if "reasoning_effort" in params:
-            clamped = clamp_reasoning_effort_to_minimal_low_medium_high(
-                params["reasoning_effort"]
-            )
-            if clamped is not None:
-                params["reasoning_effort"] = clamped
-            else:
-                del params["reasoning_effort"]
-
-        return params
-
-    def on_response(self, response: dict[str, Any]) -> None:
-        """Capture the raw response of the current generate call for post-processing."""
-        _response.set(response)
+        Agent API ids name the model's provider (`openai/gpt-5.6-luna`). A name
+        without one (`sonar`) is one of Perplexity's own models.
+        """
+        return (
+            self.model_name
+            if "/" in self.model_name
+            else f"perplexity/{self.model_name}"
+        )
 
     @override
-    def auto_streamable(self, config: GenerateConfig) -> bool:
-        # Perplexity attaches citations and usage extras via top-level
-        # response fields (search_results etc.) that can arrive on late
-        # chunks, and the SDK stream accumulator drops top-level extra
-        # fields — so citations would silently vanish under streaming.
-        return False
+    def supports_max_reasoning_effort(self) -> bool:
+        # the Agent API accepts `max` for every model
+        return True
 
     async def generate(
         self,
-        input: list["ChatMessage"],
-        tools: list["ToolInfo"],
-        tool_choice: "ToolChoice",
+        input: list[ChatMessage],
+        tools: list[ToolInfo],
+        tool_choice: ToolChoice,
         config: GenerateConfig,
-    ) -> tuple[ModelOutput | Exception, "ModelCall"]:
-        search_options: dict[str, Any] | None = None
+    ) -> tuple[ModelOutput | Exception, ModelCall]:
+        # the Agent API searches only when the request includes its web_search
+        # tool, which is sent only for Inspect's web_search() tool
+        web_search: dict[str, Any] | None = None
         for tool in tools:
             if (
                 tool.name == "web_search"
@@ -94,96 +104,135 @@ class PerplexityAPI(OpenAICompatibleAPI):
                 and "perplexity" in tool.options
             ):
                 maybe_opts = tool.options["perplexity"]
-                if maybe_opts is not None:
-                    if maybe_opts is True:
-                        search_options = {}
-                    elif isinstance(maybe_opts, dict):
-                        search_options = maybe_opts
-                    else:
-                        raise TypeError(
-                            f"Expected a dictionary or True for perplexity_options, got {type(maybe_opts)}"
+                if isinstance(maybe_opts, dict):
+                    sonar_options = [k for k in maybe_opts if k in SONAR_SEARCH_OPTIONS]
+                    if sonar_options:
+                        budgets = (
+                            " Use the token budgets max_tokens and "
+                            "max_tokens_per_page in place of search_context_size."
+                            if "search_context_size" in sonar_options
+                            else ""
                         )
+                        raise ValueError(
+                            f"Perplexity web_search options {sonar_options} are Sonar "
+                            f"parameters, which the Agent API does not accept.{budgets} "
+                            "See https://docs.perplexity.ai/docs/agent-api/migrate-from-sonar/how-to#parameter-reference"
+                        )
+                    web_search = {"type": "web_search", **maybe_opts}
+                elif maybe_opts is True:
+                    web_search = {"type": "web_search"}
+                elif maybe_opts is not None:
+                    raise TypeError(
+                        f"Expected a dictionary or True for perplexity_options, got {type(maybe_opts)}"
+                    )
             else:
                 raise ValueError(
                     "Perplexity does not support tools other than web_search with perplexity options"
                 )
 
-        if search_options:
-            extra_body = {**(config.extra_body or {}), **search_options}
-            config = config.merge(GenerateConfig(extra_body=extra_body))
+        # generate_responses applies the Responses fields it knows from
+        # extra_body; send the rest (Agent API fields) as given
+        extra_body = {
+            k: v
+            for k, v in (config.extra_body or {}).items()
+            if k not in responses_extra_body_fields() and k != "background"
+        }
+        if web_search is not None:
+            extra_body["tools"] = [web_search]
 
-        token = _response.set(None)
-        try:
-            result = await super().generate(input, [], tool_choice, config)
-            response = _response.get()
-        finally:
-            _response.reset(token)
-        output, call = cast(tuple[ModelOutput, "ModelCall"], result)
+        search_results: list[dict[str, Any]] = []
 
-        if response:
-            # attach citations if search results are returned
-            search_results = response.get("search_results")
-            if isinstance(search_results, list):
-                citations = [
-                    UrlCitation(title=sr.get("title"), url=sr.get("url", ""))
-                    for sr in search_results
-                    if isinstance(sr, dict) and sr.get("url") is not None
-                ]
-                if citations:
-                    for choice in output.choices:
-                        msg = choice.message
-                        if isinstance(msg.content, str):
-                            msg.content = [
-                                ContentText(text=msg.content, citations=citations)
-                            ]
-                        else:
-                            added = False
-                            for content in msg.content:
-                                if (
-                                    isinstance(content, ContentText)
-                                    and getattr(content, "citations", None) is None
-                                ):
-                                    content.citations = citations
-                                    added = True
-                                    break
-                            if not added:
-                                msg.content.append(
-                                    ContentText(text="", citations=citations)
-                                )
+        def take_search_results(response: Response) -> Response:
+            return _take_search_results(response, search_results)
 
-            # update usage with additional metrics
-            usage_data = response.get("usage")
-            if isinstance(usage_data, dict):
-                extra_usage = {
-                    k: usage_data.get(k)
-                    for k in [
-                        "search_context_size",
-                        "citation_tokens",
-                        "num_search_queries",
-                    ]
-                    if k in usage_data
-                }
-                if output.usage:
-                    output.usage.reasoning_tokens = usage_data.get("reasoning_tokens")
-                else:
-                    output.usage = ModelUsage(
-                        input_tokens=usage_data.get("prompt_tokens", 0),
-                        output_tokens=usage_data.get("completion_tokens", 0),
-                        total_tokens=usage_data.get("total_tokens", 0),
-                        reasoning_tokens=usage_data.get("reasoning_tokens"),
-                    )
-                if extra_usage:
-                    output.metadata = output.metadata or {}
-                    output.metadata.update(extra_usage)
+        result = await generate_responses(
+            client=self.client,
+            http_hooks=self._http_hooks,
+            model_name=self.service_model_name(),
+            model_family=self.model_family(),
+            input=input,
+            tools=[],
+            tool_choice=tool_choice,
+            config=config,
+            background=None,
+            service_tier=None,
+            prompt_cache_key=NOT_GIVEN,
+            prompt_cache_retention=NOT_GIVEN,
+            safety_identifier=NOT_GIVEN,
+            responses_store=self.responses_store,
+            synthesize_phase=self.responses_phase,
+            model_info=self.responses_model_info(),
+            batcher=None,
+            handle_bad_request=self.handle_bad_request,
+            handle_stream_error=self.handle_stream_error,
+            streaming=self.resolve_stream(config),
+            extra_body=extra_body,
+            process_response=take_search_results,
+        )
+        assert isinstance(result, tuple)
+        output, call = result
 
-            # keep search_results for reference
-            if search_results:
-                output.metadata = output.metadata or {}
-                output.metadata["search_results"] = search_results
+        if isinstance(output, ModelOutput) and search_results:
+            _attach_citations(output, search_results)
+            output.metadata = output.metadata or {}
+            output.metadata["search_results"] = search_results
 
         return output, call
 
-    def chat_choices_from_completion(
-        self, completion: ChatCompletion, tools: list[ToolInfo]
-    ) -> list[ChatCompletionChoice]:
-        return chat_choices_from_openai(completion, tools)
+
+def _take_search_results(
+    response: Response, search_results: list[dict[str, Any]]
+) -> Response:
+    """Move the Agent API's search results out of a response.
+
+    The Agent API returns sources as `search_results` output items, which the
+    OpenAI SDK does not know and the Responses conversion cannot read. Their
+    results are appended to `search_results`, and the response is returned
+    without them.
+
+    Perplexity also reports prompt cache writes as `cache_creation_input_tokens`
+    rather than `cache_write_tokens`; these are moved so that usage separates
+    them from uncached input tokens.
+    """
+    output: list[ResponseOutputItem] = []
+    for item in response.output:
+        # the SDK parses an item type it does not know as an output message
+        item_type: str = item.type
+        if item_type == "search_results":
+            results = (item.model_extra or {}).get("results")
+            if isinstance(results, list):
+                search_results.extend(r for r in results if isinstance(r, dict))
+        else:
+            output.append(item)
+    response.output = output
+
+    details = response.usage.input_tokens_details if response.usage else None
+    if details is not None and details.cache_write_tokens is None:
+        cache_creation = (details.model_extra or {}).get("cache_creation_input_tokens")
+        if isinstance(cache_creation, int):
+            details.cache_write_tokens = cache_creation
+
+    return response
+
+
+def _attach_citations(
+    output: ModelOutput, search_results: list[dict[str, Any]]
+) -> None:
+    citations = [
+        UrlCitation(title=sr.get("title"), url=sr["url"])
+        for sr in search_results
+        if isinstance(sr.get("url"), str)
+    ]
+    if not citations:
+        return
+    for choice in output.choices:
+        msg = choice.message
+        if isinstance(msg.content, str):
+            msg.content = [ContentText(text=msg.content, citations=citations)]
+        else:
+            for content in msg.content:
+                if isinstance(content, ContentText) and content.citations is None:
+                    content.citations = citations
+                    break
+            else:
+                msg.content.append(ContentText(text="", citations=citations))
