@@ -56,7 +56,9 @@ to its commit message instead. With the setting:
 - a `BREAKING CHANGE:` paragraph is listed under "⚠ BREAKING CHANGES"; it
   runs to the next blank line, so it needs a blank line after it;
 - a paragraph that starts with a Conventional Commits header (`fix: ...`) adds
-  an entry of its own;
+  an entry of its own. Indenting the line prevents that; a code fence does
+  not, since the parser splits on a blank line followed by a header wherever
+  it is;
 - `BEGIN_COMMIT_OVERRIDE` ... `END_COMMIT_OVERRIDE` in a merged PR's
   description replaces that commit's message, which is how an entry is
   reworded before the release. Release Please reads it when it next updates

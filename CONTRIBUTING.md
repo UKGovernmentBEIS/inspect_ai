@@ -159,8 +159,9 @@ is the PR description, which Release Please also reads:
   PR description starting with `BREAKING CHANGE:` that says what users must
   change, with a blank line after it. It is listed under "⚠ BREAKING CHANGES".
 - A paragraph in the description that starts with a type and colon (such as
-  `fix: ...`) adds its own changelog entry. Indent it or put it in a code block
-  if you don't want that.
+  `fix: ...`) adds its own changelog entry. To show such a line without adding
+  an entry, indent it (four spaces also renders it as code). A code fence alone
+  does not prevent the entry.
 - To reword the entry after the PR is merged, before the release, edit the
   merged PR's description to start with:
 
