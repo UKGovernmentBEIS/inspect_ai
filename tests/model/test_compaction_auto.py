@@ -1,5 +1,7 @@
 """Tests for the CompactionAuto strategy."""
 
+from collections.abc import Awaitable, Callable
+
 import pytest
 from test_helpers.utils import skip_if_no_anthropic, skip_if_no_openai
 
@@ -10,8 +12,17 @@ from inspect_ai.model import (
     ChatMessageUser,
     GenerateConfig,
 )
+from inspect_ai.model._compaction._compaction import compaction
 from inspect_ai.model._compaction.auto import CompactionAuto
-from inspect_ai.model._model import get_model
+from inspect_ai.model._compaction.native import CompactionNative
+from inspect_ai.model._model import Model, get_model
+from inspect_ai.tool._tool_info import ToolInfo
+
+# Signature of CompactionStrategy.compact, for stubs that stand in for it.
+_CompactFn = Callable[
+    [Model, list[ChatMessage], list[ToolInfo]],
+    Awaitable[tuple[list[ChatMessage], ChatMessageUser | None]],
+]
 
 
 def _sample_messages() -> list[ChatMessage]:
@@ -226,3 +237,222 @@ def _long_messages() -> list[ChatMessage]:
     # End with user message so API can respond
     messages.append(ChatMessageUser(content="Please continue.", id="final_user"))
     return messages
+
+
+async def test_auto_outcome_native_path(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Native success reports CompactionNative and its prefix rule."""
+    strategy = CompactionAuto()
+    model = get_model("mockllm/model")
+
+    async def fake_native(
+        m: Model, msgs: list[ChatMessage], t: list[ToolInfo]
+    ) -> tuple[list[ChatMessage], ChatMessageUser | None]:
+        return [ChatMessageAssistant(content="[COMPACTED BLOCK]", id="block")], None
+
+    monkeypatch.setattr(strategy._native, "compact", fake_native)
+
+    outcome = await strategy.compact_outcome(model, _sample_messages(), [])
+
+    assert outcome.applied == "CompactionNative"
+    assert outcome.preserve_prefix is False
+    assert outcome.fallback_reason is None
+    assert [m.id for m in outcome.input] == ["block"]
+
+
+@pytest.mark.parametrize(
+    ("native_error", "reason_fragment", "expected_warnings"),
+    [
+        pytest.param(
+            NotImplementedError("provider does not support native compaction"),
+            "not supported",
+            0,
+            id="unsupported-provider",
+        ),
+        pytest.param(RuntimeError("kaboom"), "kaboom", 1, id="native-error"),
+    ],
+)
+async def test_auto_outcome_falls_back_to_summary(
+    native_error: Exception,
+    reason_fragment: str,
+    expected_warnings: int,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Both fallback paths record why they fell back; only one of them warns.
+
+    An unsupported provider is a correctly-configured steady state, so it must
+    stay silent or it would warn on every compaction. A native error is
+    unexpected and must reach the operator.
+    """
+    import inspect_ai.model._compaction.auto as auto_module
+
+    warnings: list[str] = []
+    monkeypatch.setattr(
+        auto_module.logger, "warning", lambda msg, *a, **kw: warnings.append(str(msg))
+    )
+
+    strategy = CompactionAuto()
+    model = get_model("mockllm/model")
+
+    async def failing_native(
+        m: Model, msgs: list[ChatMessage], t: list[ToolInfo]
+    ) -> tuple[list[ChatMessage], ChatMessageUser | None]:
+        raise native_error
+
+    monkeypatch.setattr(strategy._native, "compact", failing_native)
+
+    outcome = await strategy.compact_outcome(model, _sample_messages(), [])
+
+    assert outcome.applied == "CompactionSummary"
+    assert outcome.preserve_prefix is True
+    assert reason_fragment in (outcome.fallback_reason or "")
+    assert len(warnings) == expected_warnings
+
+
+async def test_auto_compact_still_returns_two_tuple() -> None:
+    """compact() keeps its public 2-tuple signature and its summary message."""
+    strategy = CompactionAuto()
+    model = get_model("mockllm/model")
+
+    result, summary = await strategy.compact(model, _sample_messages(), [])
+
+    assert isinstance(result, list)
+    assert len(result) > 0
+    # mockllm has no native compaction, so this took the summary fallback,
+    # which returns its summary as the supplemental message. Asserting it
+    # keeps this from duplicating test_auto_uses_fallback_on_unsupported_provider.
+    assert summary is not None
+
+
+def _anthropic_shaped_compact() -> _CompactFn:
+    """A stub native compact() returning Anthropic's compaction shape."""
+
+    async def compact(
+        m: Model, msgs: list[ChatMessage], t: list[ToolInfo]
+    ) -> tuple[list[ChatMessage], ChatMessageUser | None]:
+        return [
+            ChatMessageAssistant(content="[COMPACTED BLOCK]", id="block"),
+            ChatMessageUser(content="Please continue working.", id="continue"),
+        ], None
+
+    return compact
+
+
+def _prefix() -> list[ChatMessage]:
+    return [
+        ChatMessageSystem(content="System prompt", id="sys1"),
+        ChatMessageUser(content="Initial input", id="input1", source="input"),
+    ]
+
+
+async def test_auto_native_matches_plain_native(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """CompactionAuto on its native path must equal plain CompactionNative."""
+    model = get_model("mockllm/model")
+    messages: list[ChatMessage] = [
+        *_prefix(),
+        ChatMessageAssistant(content="A" * 200, id="msg1"),
+        ChatMessageUser(content="Q" * 200, id="msg2"),
+    ]
+
+    auto = CompactionAuto(threshold=100)
+    monkeypatch.setattr(auto._native, "compact", _anthropic_shaped_compact())
+    auto_handler = compaction(auto, prefix=_prefix(), tools=None, model=model)
+
+    native = CompactionNative(threshold=100)
+    monkeypatch.setattr(native, "compact", _anthropic_shaped_compact())
+    native_handler = compaction(native, prefix=_prefix(), tools=None, model=model)
+
+    auto_result, _ = await auto_handler.compact_input(list(messages))
+    native_result, _ = await native_handler.compact_input(list(messages))
+
+    assert [m.id for m in auto_result] == [m.id for m in native_result]
+    assert not any(m.id == "input1" for m in auto_result)
+
+
+async def test_auto_native_then_summary_fallback_restores_prompt_once(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """After native drops the input, a later summary fallback restores it once."""
+    model = get_model("mockllm/model")
+    auto = CompactionAuto(threshold=100)
+
+    calls = {"n": 0}
+
+    async def flaky_native(
+        m: Model, msgs: list[ChatMessage], t: list[ToolInfo]
+    ) -> tuple[list[ChatMessage], ChatMessageUser | None]:
+        calls["n"] += 1
+        if calls["n"] == 1:
+            return [
+                ChatMessageAssistant(content="[COMPACTED BLOCK]", id="block"),
+                ChatMessageUser(content="Please continue working.", id="continue"),
+            ], None
+        raise NotImplementedError("native compaction did not trigger")
+
+    monkeypatch.setattr(auto._native, "compact", flaky_native)
+    handler = compaction(auto, prefix=_prefix(), tools=None, model=model)
+
+    # Content must be long enough that [sys1, input1, msg1] alone exceeds the
+    # threshold=100 on the very first call (200 chars only counts ~34 tokens
+    # with mockllm's tokenizer and never triggers compaction at all).
+    first, _ = await handler.compact_input(
+        [*_prefix(), ChatMessageAssistant(content="A" * 800, id="msg1")]
+    )
+    assert first[0].role == "system"
+    assert not any(m.id == "input1" for m in first)
+
+    second, _ = await handler.compact_input(
+        [*first, ChatMessageAssistant(content="B" * 800, id="msg2")]
+    )
+
+    assert second[0].role == "system"
+    assert sum(1 for m in second if m.role == "system") == 1
+    assert sum(1 for m in second if m.id == "input1") == 1
+
+
+class _MarkerAuto(CompactionAuto):
+    """A CompactionAuto subclass overriding compact() with a post-processing step.
+
+    Third-party shape: this is the pattern the orchestrator's per-call switch
+    to compact_outcome() must not silently bypass.
+    """
+
+    async def compact(
+        self, model: Model, messages: list[ChatMessage], tools: list[ToolInfo]
+    ) -> tuple[list[ChatMessage], ChatMessageUser | None]:
+        result, message = await super().compact(model, messages, tools)
+        marker = ChatMessageUser(content="MARKER", id="marker")
+        return [*result, marker], message
+
+
+async def test_auto_subclass_compact_override_runs_through_orchestrator() -> None:
+    """A subclass overriding compact() is not bypassed by compact_outcome()."""
+    model = get_model("mockllm/model")
+    strategy = _MarkerAuto(threshold=100)
+    handler = compaction(strategy, prefix=_prefix(), tools=None, model=model)
+
+    messages: list[ChatMessage] = [
+        *_prefix(),
+        ChatMessageAssistant(content="A" * 200, id="msg1"),
+        ChatMessageUser(content="Q" * 200, id="msg2"),
+    ]
+
+    result, _ = await handler.compact_input(messages)
+
+    assert any(m.id == "marker" for m in result)
+
+
+async def test_auto_subclass_compact_outcome_direct_call_terminates() -> None:
+    """compact_outcome() on a compact()-overriding subclass must not recurse.
+
+    Reports `applied` as the subclass name since the subclass has replaced
+    the delegation logic and per-delegate provenance can't be known.
+    """
+    model = get_model("mockllm/model")
+    strategy = _MarkerAuto(threshold=100)
+
+    outcome = await strategy.compact_outcome(model, _sample_messages(), [])
+
+    assert any(m.id == "marker" for m in outcome.input)
+    assert outcome.applied == "_MarkerAuto"
