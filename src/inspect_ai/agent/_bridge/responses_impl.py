@@ -990,7 +990,7 @@ def messages_from_responses_input(
 
         if len(pending_assistant_message_params) > 0:
             content: list[Content] = []
-            content_groups: list[list[Content]] = []
+            content_groups: list[tuple[str | None, list[Content]]] = []
             tool_calls: list[ToolCall] = []
             for param in pending_assistant_message_params:
                 content_start = len(content)
@@ -1170,7 +1170,13 @@ def messages_from_responses_input(
                         f"Unexpected assitant message type: {param['type']}"
                     )
 
-                content_groups.append(content[content_start:])
+                item_id = param.get("id")
+                content_groups.append(
+                    (
+                        item_id if isinstance(item_id, str) else None,
+                        content[content_start:],
+                    )
+                )
 
             # some scaffolds (e.g. codex) can present duplicate assistant content
             content = filter_duplicate_assistant_content(content_groups)
@@ -1362,18 +1368,30 @@ def _tool_content_from_openai_tool_output(
 
 
 def filter_duplicate_assistant_content(
-    input: list[list[Content]],
+    input: list[tuple[str | None, list[Content]]],
 ) -> list[Content]:
-    """Remove duplicate state-bearing input items without dropping their blocks.
+    """Remove copied input items while preserving distinct output items.
 
-    Compare complete items so plain text and reasoning stay with their provider
-    state, and repeated text within one item remains in order.
+    Output item IDs distinguish repeated text runs separated by reasoning or
+    tool use. For input without IDs, remove repeated copies of the complete
+    sequence rather than comparing individual text runs.
     """
+    if all(item_id is None and group for item_id, group in input) and any(
+        c.type == "text" and c.internal for _, group in input for c in group
+    ):
+        group_keys = [tuple(c.model_dump_json() for c in group) for _, group in input]
+        for size in range(1, len(input) // 2 + 1):
+            if len(input) % size == 0 and group_keys == group_keys[:size] * (
+                len(input) // size
+            ):
+                input = input[:size]
+                break
+
     filtered_groups: list[list[Content]] = []
     seen_groups: set[tuple[str, ...]] = set()
-    for group in reversed(input):
-        if any(c.type == "text" and c.internal for c in group):
-            key = tuple(c.model_dump_json() for c in group)
+    for item_id, group in reversed(input):
+        if item_id is not None:
+            key = (item_id or "", *(c.model_dump_json() for c in group))
             if key in seen_groups:
                 continue
             seen_groups.add(key)

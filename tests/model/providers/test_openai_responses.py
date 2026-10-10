@@ -2951,6 +2951,47 @@ def test_responses_bridge_replays_distinct_blocks_with_shared_state(
     assert [part["text"] for part in replayed["content"]] == texts
 
 
+@pytest.mark.parametrize("text", ["first", ""])
+@pytest.mark.parametrize("duplicate", [False, True])
+@pytest.mark.parametrize("with_ids", [False, True])
+def test_responses_bridge_replay_preserves_text_separated_by_reasoning(
+    text: str, duplicate: bool, with_ids: bool
+) -> None:
+    from typing import cast
+
+    from openai.types.responses import ResponseInputItemParam
+
+    from inspect_ai.agent._bridge.responses_impl import (
+        messages_from_responses_input,
+        responses_output_items_from_assistant_message,
+    )
+
+    original = ChatMessageAssistant(
+        content=[
+            ContentText(text=text, internal={MESSAGE_ID: "msg_shared"}),
+            ContentReasoning(reasoning="middle"),
+            ContentText(text=text, internal={MESSAGE_ID: "msg_shared"}),
+        ]
+    )
+    items = [
+        cast(ResponseInputItemParam, output.model_dump())
+        for output in responses_output_items_from_assistant_message(original)
+    ]
+    assert len(items) == 3
+    if not with_ids:
+        items = [
+            cast(
+                ResponseInputItemParam,
+                {key: value for key, value in item.items() if key != "id"},
+            )
+            for item in items
+        ]
+    [restored] = messages_from_responses_input(
+        items * 2 if duplicate else items, tools=[]
+    )
+    assert restored.content == original.content
+
+
 @pytest.mark.parametrize("duplicate", [False, True])
 def test_responses_bridge_replay_preserves_trailing_plain_text(duplicate: bool) -> None:
     from typing import cast
@@ -3053,3 +3094,70 @@ def test_responses_api_provider_ids_logged_without_raw_calls(tmp_path) -> None:
         ModelRequestId(id="req_rate_limited", header="x-request-id", status=429),
         ModelRequestId(id="req_ok", header="x-request-id", status=200),
     ]
+
+
+@pytest.mark.parametrize("duplicate", [False, True])
+def test_responses_bridge_preserves_idless_text_around_reasoning(
+    duplicate: bool,
+) -> None:
+    from typing import cast
+
+    from openai.types.responses import ResponseInputItemParam
+    from pydantic import JsonValue
+
+    from inspect_ai.agent._bridge.responses_impl import messages_from_responses_input
+    from inspect_ai.model._internal import content_internal_tag
+
+    state: dict[str, JsonValue] = {MESSAGE_ID: "msg_shared"}
+    items = cast(
+        list[ResponseInputItemParam],
+        [
+            {"role": "assistant", "content": "first" + content_internal_tag(state)},
+            {"role": "assistant", "content": "<think>middle</think>"},
+            {"role": "assistant", "content": "first" + content_internal_tag(state)},
+        ],
+    )
+    [restored] = messages_from_responses_input(
+        items * 2 if duplicate else items, tools=[]
+    )
+    assert restored.content == [
+        ContentText(text="first", internal=state),
+        ContentReasoning(reasoning="middle"),
+        ContentText(text="first", internal=state),
+    ]
+
+
+def test_responses_bridge_preserves_idless_text_around_distinct_tool_calls() -> None:
+    from typing import cast
+
+    from openai.types.responses import ResponseInputItemParam
+    from pydantic import JsonValue
+
+    from inspect_ai.agent._bridge.responses_impl import messages_from_responses_input
+    from inspect_ai.model._internal import content_internal_tag
+
+    state: dict[str, JsonValue] = {MESSAGE_ID: "msg_shared"}
+    items = cast(
+        list[ResponseInputItemParam],
+        [
+            {"role": "assistant", "content": "first" + content_internal_tag(state)},
+            {
+                "type": "function_call",
+                "call_id": "call1",
+                "name": "one",
+                "arguments": "{}",
+            },
+            {"role": "assistant", "content": "first" + content_internal_tag(state)},
+            {
+                "type": "function_call",
+                "call_id": "call2",
+                "name": "two",
+                "arguments": "{}",
+            },
+        ],
+    )
+    [restored] = messages_from_responses_input(items, tools=[])
+    assert restored.content == [ContentText(text="first", internal=state)] * 2
+    assert isinstance(restored, ChatMessageAssistant)
+    assert restored.tool_calls is not None
+    assert [call.id for call in restored.tool_calls] == ["call1", "call2"]
