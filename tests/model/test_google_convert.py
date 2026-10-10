@@ -1,5 +1,6 @@
 """Tests for Google GenAI model API conversion functions."""
 
+import pytest
 from google.genai.types import (
     Candidate,
     Content,
@@ -127,6 +128,59 @@ async def test_messages_from_google_with_tool_response() -> None:
     assert isinstance(message, ChatMessageTool)
     assert message.function == "get_weather"
     assert "Sunny" in message.content
+
+
+@pytest.mark.parametrize(
+    "response",
+    [
+        {"output": "Sunny, 72°F"},
+        {"result": "Sunny, 72°F"},
+        {"content": "Sunny, 72°F", "safety_acknowledgement": "true"},
+    ],
+)
+async def test_messages_from_google_tool_response_keys(
+    response: dict[str, object],
+) -> None:
+    contents = [
+        Content(
+            role="user",
+            parts=[
+                Part(
+                    function_response=FunctionResponse(
+                        name="get_weather", response=response
+                    )
+                )
+            ],
+        ),
+    ]
+
+    (message,) = await messages_from_google(contents)
+
+    assert isinstance(message, ChatMessageTool)
+    assert message.content == "Sunny, 72°F"
+    assert message.error is None
+
+
+async def test_messages_from_google_tool_response_error() -> None:
+    contents = [
+        Content(
+            role="user",
+            parts=[
+                Part(
+                    function_response=FunctionResponse(
+                        name="get_weather", response={"error": "City not found"}
+                    )
+                )
+            ],
+        ),
+    ]
+
+    (message,) = await messages_from_google(contents)
+
+    assert isinstance(message, ChatMessageTool)
+    assert message.content == "City not found"
+    assert message.error is not None
+    assert message.error.message == "City not found"
 
 
 async def test_messages_from_google_with_reasoning() -> None:

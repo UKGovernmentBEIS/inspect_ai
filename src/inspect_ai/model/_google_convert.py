@@ -26,7 +26,7 @@ from inspect_ai.model._chat_message import (
 )
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.model._providers.providers import validate_google_client
-from inspect_ai.tool import ToolCall
+from inspect_ai.tool import ToolCall, ToolCallError
 
 if TYPE_CHECKING:
     from google.genai.types import Content, ContentDict, GenerateContentResponse, Part
@@ -327,9 +327,26 @@ async def tool_message_from_parts(parts: "list[Part]") -> ChatMessageTool:
             function_name = part.function_response.name
             response_content = part.function_response.response
 
-            # Extract text from response dict
+            # Gemini documents `output` and `error`; the SDK sends `result`, and
+            # older Inspect requests sent `content`
+            error: ToolCallError | None = None
             if isinstance(response_content, dict):
-                text = response_content.get("content", str(response_content))
+                key = next(
+                    (
+                        k
+                        for k in ("output", "result", "content")
+                        if k in response_content
+                    ),
+                    None,
+                )
+                if "error" in response_content:
+                    error = ToolCallError("unknown", str(response_content["error"]))
+                if key is not None:
+                    text = str(response_content[key])
+                elif error is not None:
+                    text = error.message
+                else:
+                    text = str(response_content)
             else:
                 text = str(response_content)
 
@@ -337,6 +354,7 @@ async def tool_message_from_parts(parts: "list[Part]") -> ChatMessageTool:
                 function=function_name,
                 content=text,
                 tool_call_id=f"{function_name}_{uuid()}",
+                error=error,
             )
 
     # Shouldn't happen if caller checks properly
