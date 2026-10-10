@@ -124,7 +124,10 @@ def _fail_from(ex: BaseException, *, walking: bool) -> NoReturn:
         SampleNotFoundError,
         SampleUnsupportedError,
     )
-    from inspect_ai._control.log_dir.snapshot import UnsupportedLogFormatError
+    from inspect_ai._control.log_dir.snapshot import (
+        StrayLogError,
+        UnsupportedLogFormatError,
+    )
 
     root = _log_dir_root()
     kind: Literal[
@@ -137,7 +140,7 @@ def _fail_from(ex: BaseException, *, walking: bool) -> NoReturn:
         kind, message = "not_found", f"{ex} (the log changed during the read)."
     elif isinstance(ex, SampleAmbiguousError):
         kind, message = "ambiguous", str(ex)
-    elif isinstance(ex, UnsupportedLogFormatError):
+    elif isinstance(ex, (UnsupportedLogFormatError, StrayLogError)):
         kind, message = "unsupported", str(ex)
     elif isinstance(ex, SampleUnsupportedError):
         events = " ".join(
@@ -259,18 +262,30 @@ class _TaskRows(NamedTuple):
     """Every log the rows do not cover (row-level entries included)."""
 
 
-def _task_rows() -> _TaskRows:
-    """Full task rows, one per logical task, for ``task list``."""
-    from inspect_ai._control.log_dir.snapshot import read_task_views, task_row
+def _task_rows(*, shards: bool = False) -> _TaskRows:
+    """Full task rows, one per logical task, for ``task list``.
+
+    With ``shards``, each task with a shard set is followed by one row per
+    shard.
+    """
+    from inspect_ai._control.log_dir.snapshot import (
+        read_task_views,
+        shard_rows,
+        task_row,
+    )
 
     index = _index()
-    views = _run_reader(lambda fs: read_task_views(fs, index.tasks))
-    rows = [task_row(view) for view in views]
+    views = _run_reader(lambda fs: read_task_views(fs, index.tasks, shards=shards))
+    rows: list[dict[str, Any]] = []
+    for view in views:
+        rows.append(task_row(view))
+        rows.extend(shard_rows(view))
     unreadable = _merge_unreadable(
         [u.as_dict() for u in index.unattributed],
         *(row["unreadable"] for row in rows),
     )
-    _warn_unreadable([u for row in rows for u in row["unreadable"]])
+    # a shard row repeats its logical row's failure for that shard
+    _warn_unreadable(_merge_unreadable(*(row["unreadable"] for row in rows)))
     return _TaskRows(rows=rows, unreadable=unreadable)
 
 
@@ -504,3 +519,25 @@ def _print_quiet_footer(rows: list[dict[str, Any]]) -> None:
             f"not changed for {_format_duration(idle)} — its eval process may have "
             "stopped."
         )
+
+
+def _print_sharded_totals_note(rows: list[dict[str, Any]]) -> None:
+    """Say that a sharded task's sample total covers only the shards found.
+
+    Shards that have not started are not in the directory, so the total is a
+    lower bound. Human output only: the JSON rows carry ``total_final``.
+    """
+    sharded = [
+        row
+        for row in rows
+        if row.get("current_attempt") == "shards"
+        and not (row.get("samples") or {}).get("total_final")
+    ]
+    if not sharded:
+        return
+    ids = ", ".join(_short_id(str(row.get("task_id") or "")) for row in sharded)
+    _echo()
+    _echo(
+        f"{ids}: sharded; the sample totals cover the shards found in the "
+        "directory so far."
+    )
