@@ -80,6 +80,28 @@ def _map_missing_s3_object(filename: str) -> Iterator[None]:
         raise
 
 
+class ObjectChangedError(Exception):
+    """An S3 object no longer has the ETag a read was pinned to (``if_match``)."""
+
+    def __init__(self, filename: str, etag: str) -> None:
+        super().__init__(f"{filename} changed: it no longer has ETag {etag}")
+        self.filename = filename
+
+
+@contextmanager
+def _map_changed_s3_object(filename: str, if_match: str | None) -> Iterator[None]:
+    """Raise ``ObjectChangedError`` for a read whose ``IfMatch`` failed."""
+    try:
+        yield
+    except ClientError as ex:
+        if if_match is not None and ex.response.get("Error", {}).get("Code") in (
+            "PreconditionFailed",
+            "412",
+        ):
+            raise ObjectChangedError(filename, if_match) from ex
+        raise
+
+
 class _BytesByteReceiveStream(ByteReceiveStream):
     """
     Adapt bytes into an AnyIO ByteReceiveStream
@@ -590,20 +612,43 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
         return FileContent(data=data, etag=info.etag, mtime=info.mtime)
 
     async def read_file_bytes(
-        self, filename: str, start: int, end: int | None
+        self,
+        filename: str,
+        start: int,
+        end: int | None,
+        *,
+        if_match: str | None = None,
     ) -> ByteReceiveStream:
-        """Stream the byte range [start, end) of a file (end=None reads to EOF)."""
+        """Stream the byte range [start, end) of a file (end=None reads to EOF).
+
+        ``if_match`` pins an S3 read to that ETag: if the object has changed,
+        the read raises :class:`ObjectChangedError`. Other backends ignore it.
+        """
         if is_s3_filename(filename):
             bucket, key = s3_bucket_and_key(filename)
-            with _map_missing_s3_object(filename):
+            with (
+                _map_missing_s3_object(filename),
+                _map_changed_s3_object(filename, if_match),
+            ):
                 if current_async_backend() == "asyncio":
                     response = await (await self.s3_client_async()).get_object(
-                        Bucket=bucket, Key=key, Range=s3_range_header(start, end)
+                        Bucket=bucket,
+                        Key=key,
+                        Range=s3_range_header(start, end),
+                        **({"IfMatch": if_match} if if_match is not None else {}),
                     )
                     return _StreamingBodyByteReceiveStream(response["Body"])
                 return _BytesByteReceiveStream(
                     await anyio.to_thread.run_sync(
-                        s3_read_file_bytes, self.s3_client(), bucket, key, start, end
+                        functools.partial(
+                            s3_read_file_bytes,
+                            self.s3_client(),
+                            bucket,
+                            key,
+                            start,
+                            end,
+                            if_match=if_match,
+                        )
                     )
                 )
         else:
@@ -618,10 +663,18 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
                 )
 
     async def read_file_bytes_fully(
-        self, filename: str, start: int, end: int | None
+        self,
+        filename: str,
+        start: int,
+        end: int | None,
+        *,
+        if_match: str | None = None,
     ) -> bytes:
-        """Read the byte range [start, end) of a file into bytes (end=None reads to EOF)."""
-        stream = await self.read_file_bytes(filename, start, end)
+        """Read the byte range [start, end) of a file into bytes (end=None reads to EOF).
+
+        ``if_match`` is as for :meth:`read_file_bytes`.
+        """
+        stream = await self.read_file_bytes(filename, start, end, if_match=if_match)
         chunks: list[bytes] = []
         try:
             # Pull in large chunks rather than the stream's default
@@ -1339,9 +1392,20 @@ def s3_range_header(start: int, end: int | None) -> str:
 
 
 def s3_read_file_bytes(
-    s3: Any, bucket: str, key: str, start: int, end: int | None
+    s3: Any,
+    bucket: str,
+    key: str,
+    start: int,
+    end: int | None,
+    *,
+    if_match: str | None = None,
 ) -> bytes:
-    response = s3.get_object(Bucket=bucket, Key=key, Range=s3_range_header(start, end))
+    response = s3.get_object(
+        Bucket=bucket,
+        Key=key,
+        Range=s3_range_header(start, end),
+        **({"IfMatch": if_match} if if_match is not None else {}),
+    )
     return cast(bytes, response["Body"].read())
 
 

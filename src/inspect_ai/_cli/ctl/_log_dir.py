@@ -25,12 +25,14 @@ from ._failure import _CtlFailure, _exception_name, _fail
 from ._render import _echo, _format_duration, _short_id
 
 if TYPE_CHECKING:
+    from inspect_ai._control.log_dir.cache import LogDirCache
     from inspect_ai._control.log_dir.snapshot import LogDirIndex, LogicalTask
     from inspect_ai._util.asyncfiles import AsyncFilesystem
 
 _LOG_DIR_META_KEY = "inspect_ai.ctl.log_dir"
 _INDEX_META_KEY = "inspect_ai.ctl.log_dir_index"
 _BANNER_META_KEY = "inspect_ai.ctl.log_dir_banner"
+_CACHE_META_KEY = "inspect_ai.ctl.log_dir_cache"
 
 # A running task whose current log has not changed for this long is flagged
 # in the human table footer: a crashed worker leaves its log `started`, so a
@@ -96,14 +98,19 @@ def _run_reader(
 ) -> _T:
     """Run one reader coroutine on a fresh filesystem, mapping its failures.
 
-    ``walking`` marks a read that lists the root, where a missing object is
-    the directory itself rather than a log removed during the read.
+    The read uses the invocation's local cache. ``walking`` marks a read that
+    lists the root, where a missing object is the directory itself rather
+    than a log removed during the read.
     """
+    from inspect_ai._control.log_dir.cache import use_cache
     from inspect_ai._util.asyncfiles import AsyncFilesystem
+
+    cache = _cache()
 
     async def run() -> _T:
         async with AsyncFilesystem() as fs:
-            return await read(fs)
+            with use_cache(cache):
+                return await read(fs)
 
     try:
         return _http._run_async(run)
@@ -111,6 +118,17 @@ def _run_reader(
         raise
     except Exception as ex:
         _fail_from(ex, walking=walking)
+
+
+def _cache() -> LogDirCache | None:
+    """The invocation's log-dir cache, opened once and shared by its reads."""
+    from inspect_ai._control.log_dir.cache import open_cache
+
+    ctx = click.get_current_context()
+    if _CACHE_META_KEY not in ctx.meta:
+        ctx.meta[_CACHE_META_KEY] = open_cache()
+    cache: LogDirCache | None = ctx.meta[_CACHE_META_KEY]
+    return cache
 
 
 def _fail_from(ex: BaseException, *, walking: bool) -> NoReturn:
