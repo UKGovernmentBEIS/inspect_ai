@@ -73,6 +73,7 @@ from inspect_ai.approval._policy import (
 )
 from inspect_ai.log import EvalConfig, EvalLog, EvalLogInfo, IncompleteAction
 from inspect_ai.log._file import read_eval_log_async
+from inspect_ai.log._log import EvalReducerDefinition
 from inspect_ai.log._recorders import create_recorder_for_format
 from inspect_ai.log._recorders.buffer import cleanup_sample_buffers
 from inspect_ai.model import (
@@ -94,7 +95,12 @@ from inspect_ai.review._policy import (
     config_from_review_policies,
     review_policies_from_config,
 )
-from inspect_ai.scorer._reducer import reducer_log_names
+from inspect_ai.scorer._reducer import (
+    ReducerSpec,
+    create_reducers_from_specs,
+    reducer_log_names,
+    reducer_specs,
+)
 from inspect_ai.solver._chain import chain
 from inspect_ai.solver._solver import Solver, SolverSpec
 from inspect_ai.util import SandboxEnvironmentType
@@ -948,6 +954,12 @@ async def _eval_async_inner(
             sample_shuffle=sample_shuffle,
             epochs=epochs.epochs if epochs else None,
             epochs_reducer=reducer_log_names(epochs_reducer)
+            if epochs_reducer is not None
+            else None,
+            epochs_reducer_specs=[
+                EvalReducerDefinition(name=spec.name, options=spec.args or None)
+                for spec in reducer_specs(epochs_reducer) or []
+            ]
             if epochs_reducer is not None
             else None,
             approval=config_from_approval_policies(approval) if approval else None,
@@ -1819,8 +1831,19 @@ async def eval_retry_async(
             eval_log.eval.task, eval_log.eval.config.sample_id
         )
         sample_shuffle = eval_log.eval.config.sample_shuffle
+        log_reducer_specs = eval_log.eval.config.epochs_reducer_specs
         epochs = (
-            Epochs(eval_log.eval.config.epochs, eval_log.eval.config.epochs_reducer)
+            Epochs(
+                eval_log.eval.config.epochs,
+                create_reducers_from_specs(
+                    [
+                        ReducerSpec(name=spec.name, args=spec.options or {})
+                        for spec in log_reducer_specs
+                    ]
+                )
+                if log_reducer_specs
+                else eval_log.eval.config.epochs_reducer,
+            )
             if eval_log.eval.config.epochs
             else None
         )

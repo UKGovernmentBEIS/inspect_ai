@@ -93,6 +93,14 @@ def eval_config_defaults() -> EvalConfigDefaults:
     }
 
 
+class EvalReducerDefinition(BaseModel):
+    name: str
+    """Reducer name"""
+
+    options: dict[str, Any] | None = Field(default=None)
+    """Reducer arguments"""
+
+
 class EvalConfig(BaseModel):
     """Configuration used for evaluation."""
 
@@ -112,6 +120,9 @@ class EvalConfig(BaseModel):
 
     epochs_reducer: list[str] | None = Field(default=None)
     """Reducers for aggregating per-sample scores."""
+
+    epochs_reducer_specs: list[EvalReducerDefinition] | None = Field(default=None)
+    """Epochs reducers with their arguments (names are in `epochs_reducer`)."""
 
     approval: ApprovalPolicyConfig | None = Field(default=None)
     """Approval policy for tool use."""

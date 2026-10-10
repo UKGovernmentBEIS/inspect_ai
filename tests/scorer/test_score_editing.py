@@ -1,16 +1,26 @@
 """Tests for score editing functionality."""
 
+import copy
 from pathlib import Path
 
 import pytest
 
-from inspect_ai import Task, eval_async, task
+from inspect_ai import Epochs, Task, eval_async, task
+from inspect_ai._eval.score import score_async
 from inspect_ai.dataset import MemoryDataset, Sample
 from inspect_ai.event._score_edit import ScoreEditEvent
 from inspect_ai.log._edit import ProvenanceData
 from inspect_ai.log._metric import recompute_metrics
 from inspect_ai.log._score import edit_score
-from inspect_ai.scorer import Score, Target, accuracy, mean, scorer
+from inspect_ai.scorer import (
+    Score,
+    Target,
+    accuracy,
+    at_least,
+    mean,
+    pass_at,
+    scorer,
+)
 from inspect_ai.scorer._metric import ScoreEdit
 from inspect_ai.scorer._scorer import Scorer
 from inspect_ai.solver import Generate, TaskState, solver
@@ -264,6 +274,97 @@ async def test_recompute_custom_reducers():
     # Mean = (0.5 + 2.0 + 1.5 + 7*1.0) / 10 = 11.0 / 10 = 1.1
     # Max reducer on single epoch: max([1.1]) = 1.1
     assert log.results.scores[0].metrics["mean"].value == 1.1
+
+
+@pytest.mark.anyio
+async def test_recompute_preserves_reducer_arguments():
+    """Recomputing metrics uses the reducer arguments recorded in the log."""
+    # per-sample scores for epochs 1..3 (C=1.0, P=0.5, I=0.0)
+    plan = {1: ["P", "P", "I"], 2: ["C", "I", "I"], 3: ["C", "P", "I"]}
+
+    @scorer(metrics=[accuracy()])
+    def scripted_scorer() -> Scorer:
+        async def score(state: TaskState, target: Target):
+            return Score(value=plan[state.sample_id][state.epoch - 1])
+
+        return score
+
+    task = Task(
+        dataset=MemoryDataset([Sample(input="q", id=i) for i in plan]),
+        plan=[],
+        scorer=scripted_scorer(),
+        epochs=Epochs(3, [at_least(2, value=0.5), pass_at(1, value=0.5)]),
+    )
+    log = (await eval_async(task))[0]
+
+    def metrics_by_reducer(lg):
+        return {
+            s.reducer: s.metrics["accuracy"].value
+            for s in lg.results.scores
+            if s.reducer is not None
+        }
+
+    # reducer arguments were recorded alongside their names
+    assert log.eval.config.epochs_reducer == ["at_least_2", "pass_at_1"]
+    specs = log.eval.config.epochs_reducer_specs
+    assert [(s.name, s.options) for s in specs or []] == [
+        ("at_least", {"k": 2, "value": 0.5}),
+        ("pass_at", {"k": 1, "value": 0.5}),
+    ]
+
+    original = metrics_by_reducer(log)
+    assert original == pytest.approx({"at_least_2": 2 / 3, "pass_at_1": 5 / 9})
+
+    recomputed = copy.deepcopy(log)
+    recompute_metrics(recomputed)
+    assert metrics_by_reducer(recomputed) == original
+
+
+@pytest.mark.anyio
+async def test_rescore_reducer_override_updates_recorded_specs():
+    """A reducer override during re-scoring replaces the recorded specs."""
+    # per-sample scores for epochs 1..3 (C=1.0, P=0.5, I=0.0)
+    plan = {1: ["P", "P", "I"], 2: ["C", "I", "I"], 3: ["C", "P", "I"]}
+
+    @scorer(metrics=[accuracy()])
+    def scripted_scorer() -> Scorer:
+        async def score(state: TaskState, target: Target):
+            return Score(value=plan[state.sample_id][state.epoch - 1])
+
+        return score
+
+    task = Task(
+        dataset=MemoryDataset([Sample(input="q", id=i) for i in plan]),
+        plan=[],
+        scorer=scripted_scorer(),
+        epochs=Epochs(3, [mean()]),
+    )
+    log = (await eval_async(task))[0]
+
+    rescored = await score_async(
+        log, [scripted_scorer()], epochs_reducer=[at_least(2, value=0.5)]
+    )
+
+    # names and recorded specs describe the override, not the original eval
+    assert rescored.eval.config.epochs_reducer == ["at_least_2"]
+    specs = rescored.eval.config.epochs_reducer_specs
+    assert [(s.name, s.options) for s in specs or []] == [
+        ("at_least", {"k": 2, "value": 0.5})
+    ]
+
+    def metrics_by_reducer(lg):
+        return {
+            s.reducer: s.metrics["accuracy"].value
+            for s in lg.results.scores
+            if s.reducer is not None
+        }
+
+    assert metrics_by_reducer(rescored) == pytest.approx({"at_least_2": 2 / 3})
+
+    # recomputing from the saved header uses the override's arguments
+    recomputed = copy.deepcopy(rescored)
+    recompute_metrics(recomputed)
+    assert metrics_by_reducer(recomputed) == metrics_by_reducer(rescored)
 
 
 @pytest.mark.anyio

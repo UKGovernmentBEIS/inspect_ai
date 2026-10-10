@@ -46,7 +46,7 @@ from inspect_ai.log import (
 )
 from inspect_ai.log._condense import resolve_sample_attachments
 from inspect_ai.log._headline import headline_metric_ref, resolve_headline_metric
-from inspect_ai.log._log import EvalMetricDefinition, EvalSample
+from inspect_ai.log._log import EvalMetricDefinition, EvalReducerDefinition, EvalSample
 from inspect_ai.log._resolve import rebind_sample_timelines
 from inspect_ai.log._score import _find_scorers_span
 from inspect_ai.log._transcript import Transcript, init_transcript, transcript
@@ -57,10 +57,13 @@ from inspect_ai.model._util import resolve_model_roles
 from inspect_ai.scorer import Metric, Scorer, Target
 from inspect_ai.scorer._metric import SampleScore, Score, metric_create
 from inspect_ai.scorer._reducer import (
+    ReducerSpec,
     ScoreReducer,
     ScoreReducers,
     create_reducers,
+    create_reducers_from_specs,
     reducer_log_names,
+    reducer_specs,
 )
 from inspect_ai.scorer._scorer import ScorerSpec, as_scorer_spec, unique_scorer_name
 from inspect_ai.solver import TaskState
@@ -355,6 +358,10 @@ async def score_async(
         epochs_reducer = create_reducers(epochs_reducer)
         if epochs_reducer is not None:
             log.eval.config.epochs_reducer = reducer_log_names(epochs_reducer)
+            log.eval.config.epochs_reducer_specs = [
+                EvalReducerDefinition(name=spec.name, options=spec.args or None)
+                for spec in reducer_specs(epochs_reducer) or []
+            ]
         else:
             epochs_reducer = reducers_from_log_header(log)
 
@@ -592,6 +599,11 @@ def metric_from_log(metric: EvalMetricDefinition) -> Metric:
 
 
 def reducers_from_log_header(log: EvalLog) -> list[ScoreReducer] | None:
+    specs = log.eval.config.epochs_reducer_specs
+    if specs:
+        return create_reducers_from_specs(
+            [ReducerSpec(name=spec.name, args=spec.options or {}) for spec in specs]
+        )
     return create_reducers(log.eval.config.epochs_reducer)
 
 

@@ -10,9 +10,12 @@ from .reducer import (
     pass_k,
 )
 from .registry import (
+    ReducerSpec,
     create_reducers,
+    create_reducers_from_specs,
     reducer_log_name,
     reducer_log_names,
+    reducer_specs,
     score_reducer,
     validate_reducer,
 )
@@ -23,6 +26,9 @@ __all__ = [
     "ScoreReducers",
     "score_reducer",
     "create_reducers",
+    "create_reducers_from_specs",
+    "ReducerSpec",
+    "reducer_specs",
     "reducer_log_name",
     "reducer_log_names",
     "collect_score",

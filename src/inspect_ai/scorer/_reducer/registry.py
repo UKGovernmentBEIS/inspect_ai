@@ -1,4 +1,5 @@
 import re
+from dataclasses import dataclass, field
 from typing import Any, Callable, TypeVar, cast, overload
 
 from inspect_ai._util.error import PrerequisiteError
@@ -120,6 +121,43 @@ def reducer_log_name(reducer: ScoreReducer) -> str:
         if not name.endswith(suffix):
             name = f"{name}{suffix}"
     return name
+
+
+@dataclass(frozen=True)
+class ReducerSpec:
+    """Score reducer specification used to (re-)create reducers."""
+
+    name: str
+    """Reducer name"""
+
+    args: dict[str, Any] = field(default_factory=dict)
+    """Reducer arguments."""
+
+
+def reducer_specs(
+    reducer: ScoreReducer | list[ScoreReducer] | None,
+) -> list[ReducerSpec] | None:
+    # Arguments are recorded in the eval log, so only JSON-serializable values
+    # round-trip; non-serializable values (e.g. callables) do not. This is the
+    # same limitation as metric options (EvalMetricDefinition).
+    reducer = [reducer] if isinstance(reducer, ScoreReducer) else reducer
+    if reducer is not None:
+        return [
+            ReducerSpec(name=registry_log_name(r), args=registry_params(r))
+            for r in reducer
+        ]
+    else:
+        return None
+
+
+def create_reducers_from_specs(specs: list[ReducerSpec]) -> list[ScoreReducer]:
+    return [
+        cast(
+            ScoreReducer,
+            create_registry_object("score_reducer", spec.name, dict(spec.args)),
+        )
+        for spec in specs
+    ]
 
 
 @overload

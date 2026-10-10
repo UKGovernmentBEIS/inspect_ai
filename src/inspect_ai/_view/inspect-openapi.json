@@ -2497,6 +2497,20 @@
             ],
             "title": "Epochs Reducer"
           },
+          "epochs_reducer_specs": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/EvalReducerDefinition"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Epochs Reducer Specs"
+          },
           "fail_on_error": {
             "anyOf": [
               {
@@ -3254,6 +3268,31 @@
           "params_passed"
         ],
         "title": "EvalPlanStep",
+        "type": "object"
+      },
+      "EvalReducerDefinition": {
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "options": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Options"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "EvalReducerDefinition",
         "type": "object"
       },
       "EvalResults": {

@@ -44704,6 +44704,7 @@ var EVAL_CONFIG_KEYS = {
 	cost_limit: true,
 	epochs: true,
 	epochs_reducer: true,
+	epochs_reducer_specs: true,
 	fail_on_error: true,
 	limit: true,
 	log_buffer: true,
