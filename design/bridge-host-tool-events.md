@@ -1167,14 +1167,11 @@ viewer it is a failed tool panel; in `events_df` it is a row with
   `tests/tools/test_tools_bridge.py` keep passing because RPC behaviour for
   those calls is unchanged; the transport-level tests #5428 opted out with
   `require_proposal=False` now also see an `exempt` event each.
-- **Changelog.** Three entries, from the PR titles (see the implementation
-  plan): PR B "fix: images in tool results follow `log_images` like images in
-  messages"; PR C "feat(bridge): host tools executed through
-  `sandbox_agent_bridge(bridged_tools=...)` are recorded as tool events in
-  the transcript, including denied calls". PR C's description adds the third
-  as its own paragraph, which Release Please lists as a separate entry: "fix:
-  an explicitly configured `max_tool_output` or a tool's `max_output` applies
-  to bridged host tool results as it does to native tool results".
+- **Changelog.** PR B's change (images in tool results follow `log_images`)
+  and the output limit for bridged tool results shipped in 0.3.277 with their
+  own entries. PR C's title is its entry: "feat(bridge): host tools executed
+  through `sandbox_agent_bridge(bridged_tools=...)` are recorded as tool
+  events in the transcript, including denied calls".
 
 ## Security
 

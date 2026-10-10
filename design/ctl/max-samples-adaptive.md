@@ -267,8 +267,8 @@ work once the view carries `limit`.
   case now has an operator remedy).
 - `design/ctl/control-channel.md`: update the phase-3 `max_samples`
   description.
-- PR title (the changelog line): e.g. "feat(ctl): inspect ctl config can now
-  change max_samples for tasks using adaptive connections (pass 'clear' to
+- PR title (the changelog line): e.g. "feat(ctl): `inspect ctl config` can now
+  change `max_samples` for tasks using adaptive connections (pass `clear` to
   resume adaptive tracking)".
 
 ### 7. Tests
