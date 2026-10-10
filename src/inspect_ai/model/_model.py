@@ -1351,22 +1351,9 @@ class Model:
 
         _check_remote_mcp_approval(base_tools)
 
-        # if we have a specific tool selected then filter out the others
-        if isinstance(tool_choice, ToolFunction):
-            base_tools = [tool for tool in base_tools if tool.name == tool_choice.name]
-
-        # if tool_choice is "none" or if there are no tools then fully purge
-        # the tools (as some models (e.g. openai and mistral) get confused
-        # if you pass them tool definitions along with tool_choice == "none"
-        # (they both 'semi' use the tool by placing the arguments in JSON
-        # in their output!). on the other hand, anthropic actually errors if
-        # there are tools anywhere in the message stream and no tools defined.
-        if tool_choice == "none" or len(base_tools) == 0:
-            # allow model providers to implement a tools_required() method to
-            # force tools to be passed (we need this for anthropic)
-            if not self.api.tools_required():
-                base_tools = []
-            tool_choice = "none"
+        base_tools, tool_choice = tools_for_tool_choice(
+            self.api, base_tools, tool_choice
+        )
 
         # handle reasoning history
         input = resolve_reasoning_history(input, config, self.api)
@@ -2657,6 +2644,27 @@ def _make_content_reducer(
 
 
 # Functions to reduce consecutive user messages to a single user message -> required for some models
+def tools_for_tool_choice(
+    api: ModelAPI, tools: list[ToolInfo], tool_choice: ToolChoice
+) -> tuple[list[ToolInfo], ToolChoice]:
+    """The tools and tool choice `Model.generate()` sends to the provider.
+
+    A `ToolFunction` choice keeps only the selected tool. With `"none"`, or no
+    tools left, the tools are purged (unless the provider's `tools_required()`
+    says otherwise) and the choice becomes `"none"`: some models (e.g. OpenAI
+    and Mistral) get confused by tool definitions alongside `"none"` and 'semi'
+    use them by placing the arguments in JSON in their output, while Anthropic
+    errors if there are tools anywhere in the message stream and none defined.
+    """
+    if isinstance(tool_choice, ToolFunction):
+        tools = [tool for tool in tools if tool.name == tool_choice.name]
+    if tool_choice == "none" or len(tools) == 0:
+        if not api.tools_required():
+            tools = []
+        tool_choice = "none"
+    return tools, tool_choice
+
+
 def collapse_consecutive_messages_for_api(
     messages: list[ChatMessage], api: ModelAPI
 ) -> list[ChatMessage]:

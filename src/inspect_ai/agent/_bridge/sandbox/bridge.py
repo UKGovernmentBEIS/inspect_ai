@@ -1,5 +1,5 @@
 import contextlib
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from logging import getLogger
 from typing import TYPE_CHECKING, AsyncIterator
 
@@ -68,6 +68,7 @@ async def sandbox_agent_bridge(
     forward_generation_config: bool = False,
     approval: list["ApprovalPolicy"] | None = None,
     checkpointer: Checkpointer | None = None,
+    forward_client_headers: Mapping[str, Sequence[str]] | None = None,
 ) -> AsyncIterator[SandboxAgentBridge]:
     """Sandbox agent bridge.
 
@@ -83,8 +84,9 @@ async def sandbox_agent_bridge(
 
     The eval's configuration, not the agent's request, governs `service_tier`,
     `store`, `truncation` and the options of provider tools the agent declares;
-    requests with `previous_response_id` are refused, and the agent's HTTP
-    headers are not forwarded.
+    requests with `previous_response_id` are refused, and of the agent's HTTP
+    headers only `Accept-Encoding` and those listed in `forward_client_headers`
+    are forwarded.
 
     Args:
         state: Initial state for agent bridge. Used as a basis for yielding
@@ -171,6 +173,16 @@ async def sandbox_agent_bridge(
             state (messages, output, compaction prefix) for checkpoint backup
             and restore, so a checkpointed run survives resume. Defaults to
             `None` (no checkpointing).
+        forward_client_headers: Client request headers the sandboxed agent may
+            send to the model provider, mapping each header name
+            (case-insensitive) to its allowed values, e.g.
+            `{"anthropic-beta": ["context-management-2025-06-27"]}`. A
+            comma-separated value is matched one item at a time; items not
+            listed are dropped with a warning, and the header is dropped when
+            none remain. Defaults to `None`: no client header is forwarded
+            except `Accept-Encoding`. Credential and transport headers (e.g.
+            `Authorization`, `api-key`, `x-goog-api-key`, `x-amz-*`, `Host`,
+            `Content-Type`) cannot be listed.
     """
     warn_sentinel_bridged()
 
@@ -217,6 +229,7 @@ async def sandbox_agent_bridge(
                 approval=approval,
                 checkpointer=checkpointer,
                 allow_remote_mcp=allow_remote_mcp,
+                forward_client_headers=forward_client_headers,
             )
 
             # register bridged tools with the bridge

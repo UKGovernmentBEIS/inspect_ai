@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import ast
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import httpx2
 import pytest
@@ -19,6 +19,7 @@ from anthropic import APIStatusError
 from pydantic import JsonValue
 
 import inspect_ai
+from inspect_ai._util import logger as inspect_logger
 from inspect_ai._util.http import status_code_of
 from inspect_ai._util.registry import _registry
 from inspect_ai.agent._agent import AgentState
@@ -38,6 +39,8 @@ from inspect_ai.model._providers.anthropic import (
     _UnclassifiedStreamError,
 )
 from inspect_ai.model._registry import modelapi
+from inspect_ai.tool._tools._code_execution import CodeExecutionProviders
+from inspect_ai.tool._tools._web_search._web_search import WebSearchProviders
 from inspect_ai.util._limit import LimitExceededError
 
 
@@ -395,7 +398,9 @@ def test_provider_error_payload_handles_retry_error_with_successful_attempt() ->
 # ---------- _forward_provider_errors (service.py) ----------
 
 
-def _bridge() -> SandboxAgentBridge:
+def _bridge(
+    forward_client_headers: dict[str, list[str]] | None = None,
+) -> SandboxAgentBridge:
     return SandboxAgentBridge(
         state=AgentState(messages=[]),
         filter=None,
@@ -403,11 +408,14 @@ def _bridge() -> SandboxAgentBridge:
         compaction=None,
         port=13131,
         model=None,
+        forward_client_headers=forward_client_headers,
     )
 
 
 async def test_forward_provider_errors_passes_success_through() -> None:
-    async def ok(json_data: dict[str, Any]) -> dict[str, Any]:
+    async def ok(
+        json_data: dict[str, Any], headers: dict[str, str] | None = None
+    ) -> dict[str, Any]:
         return {"id": "x", "choices": []}
 
     wrapped = _forward_provider_errors(ok, _bridge())
@@ -415,7 +423,9 @@ async def test_forward_provider_errors_passes_success_through() -> None:
 
 
 async def test_forward_provider_errors_returns_marker_on_exception() -> None:
-    async def boom(json_data: dict[str, Any]) -> dict[str, Any]:
+    async def boom(
+        json_data: dict[str, Any], headers: dict[str, str] | None = None
+    ) -> dict[str, Any]:
         raise ModelGenerateError(
             "debug", status_code=503, provider_message="overloaded"
         )
@@ -434,7 +444,9 @@ async def test_forward_provider_errors_warns_on_non_provider_error(
         bridge_service.logger, "warning", lambda *a, **k: warnings.append((a, k))
     )
 
-    async def boom(json_data: dict[str, Any]) -> dict[str, Any]:
+    async def boom(
+        json_data: dict[str, Any], headers: dict[str, str] | None = None
+    ) -> dict[str, Any]:
         raise ValueError("our own translation bug")
 
     result = await _forward_provider_errors(boom, _bridge())({})
@@ -453,12 +465,198 @@ async def test_forward_provider_errors_no_warn_on_provider_error(
         bridge_service.logger, "warning", lambda *a, **k: warnings.append((a, k))
     )
 
-    async def boom(json_data: dict[str, Any]) -> dict[str, Any]:
+    async def boom(
+        json_data: dict[str, Any], headers: dict[str, str] | None = None
+    ) -> dict[str, Any]:
         raise ModelGenerateError("debug", status_code=503, provider_message="x")
 
     result = await _forward_provider_errors(boom, _bridge())({})
     assert result == {PROVIDER_ERROR_KEY: {"status": 503, "message": "x"}}
     assert warnings == []
+
+
+class _SandboxCompletion:
+    def model_dump(self, *, mode: str, warnings: bool) -> dict[str, JsonValue]:
+        return {"id": "completion"}
+
+
+async def test_sandbox_generation_filters_and_forwards_client_headers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    received_headers: list[dict[str, str] | None] = []
+
+    async def request(
+        json_data: dict[str, JsonValue],
+        headers: dict[str, str] | None,
+        bridge: SandboxAgentBridge,
+    ) -> _SandboxCompletion:
+        received_headers.append(headers)
+        return _SandboxCompletion()
+
+    monkeypatch.setattr(bridge_service, "inspect_completions_api_request", request)
+    generate = bridge_service.generate_completions(
+        _bridge({"anthropic-beta": ["code-execution-2025-08-25"]})
+    )
+
+    await generate(
+        {"model": "inspect"},
+        {
+            "authorization": "Bearer secret",
+            "anthropic-beta": "code-execution-2025-08-25",
+            "x-claude-code-agent-id": "toolu_x",
+        },
+    )
+
+    assert received_headers == [{"anthropic-beta": "code-execution-2025-08-25"}]
+
+
+async def test_sandbox_responses_filters_and_forwards_client_headers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    received_headers: list[dict[str, str] | None] = []
+
+    async def request(
+        json_data: dict[str, JsonValue],
+        headers: dict[str, str] | None,
+        web_search: WebSearchProviders,
+        code_execution: CodeExecutionProviders,
+        bridge: SandboxAgentBridge,
+    ) -> _SandboxCompletion:
+        received_headers.append(headers)
+        return _SandboxCompletion()
+
+    monkeypatch.setattr(bridge_service, "inspect_responses_api_request", request)
+    generate = bridge_service.generate_responses(
+        cast(WebSearchProviders, None),
+        cast(CodeExecutionProviders, None),
+        _bridge({"anthropic-beta": ["code-execution-2025-08-25"]}),
+    )
+
+    await generate(
+        {"model": "inspect"},
+        {
+            "authorization": "Bearer secret",
+            "anthropic-beta": "code-execution-2025-08-25",
+            "x-claude-code-agent-id": "toolu_x",
+        },
+    )
+
+    assert received_headers == [{"anthropic-beta": "code-execution-2025-08-25"}]
+
+
+async def test_sandbox_anthropic_filters_and_forwards_client_headers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    received_headers: list[dict[str, str] | None] = []
+
+    async def request(
+        json_data: dict[str, JsonValue],
+        headers: dict[str, str] | None,
+        web_search: WebSearchProviders,
+        code_execution: CodeExecutionProviders,
+        bridge: SandboxAgentBridge,
+    ) -> _SandboxCompletion:
+        received_headers.append(headers)
+        return _SandboxCompletion()
+
+    monkeypatch.setattr(bridge_service, "inspect_anthropic_api_request", request)
+    generate = bridge_service.generate_anthropic(
+        cast(WebSearchProviders, None),
+        cast(CodeExecutionProviders, None),
+        _bridge({"anthropic-beta": ["code-execution-2025-08-25"]}),
+    )
+
+    await generate(
+        {"model": "inspect"},
+        {
+            "authorization": "Bearer secret",
+            "anthropic-beta": "code-execution-2025-08-25",
+            "x-claude-code-agent-id": "toolu_x",
+        },
+    )
+
+    assert received_headers == [{"anthropic-beta": "code-execution-2025-08-25"}]
+
+
+async def test_sandbox_anthropic_forwards_only_allowed_client_betas(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Client headers reach the host request only when the eval author lists them."""
+    inspect_logger._warned.clear()
+    received_headers: list[dict[str, str] | None] = []
+
+    async def request(
+        json_data: dict[str, JsonValue],
+        headers: dict[str, str] | None,
+        web_search: WebSearchProviders,
+        code_execution: CodeExecutionProviders,
+        bridge: SandboxAgentBridge,
+    ) -> _SandboxCompletion:
+        received_headers.append(headers)
+        return _SandboxCompletion()
+
+    monkeypatch.setattr(bridge_service, "inspect_anthropic_api_request", request)
+    client_headers = {
+        "accept-encoding": "gzip, br",
+        "anthropic-beta": "allowed-beta-2026-01-01,unlisted-beta-2026-01-01",
+    }
+
+    # default: the sandboxed client cannot choose any beta
+    default_generate = bridge_service.generate_anthropic(
+        cast(WebSearchProviders, None),
+        cast(CodeExecutionProviders, None),
+        _bridge(),
+    )
+    await default_generate({"model": "inspect"}, client_headers)
+
+    # listed betas are forwarded, the others are dropped
+    listed_generate = bridge_service.generate_anthropic(
+        cast(WebSearchProviders, None),
+        cast(CodeExecutionProviders, None),
+        _bridge({"anthropic-beta": ["allowed-beta-2026-01-01"]}),
+    )
+    await listed_generate({"model": "inspect"}, client_headers)
+
+    assert received_headers == [
+        {"accept-encoding": "gzip, br"},
+        {"accept-encoding": "gzip, br", "anthropic-beta": "allowed-beta-2026-01-01"},
+    ]
+    assert [m for m in inspect_logger._warned if "unlisted-beta" in m] == [
+        "Agent bridge dropped 'unlisted-beta-2026-01-01' from the sandboxed "
+        "agent's 'anthropic-beta' header. To forward it, add it to "
+        "sandbox_agent_bridge(forward_client_headers=...)."
+    ]
+
+
+def test_sandbox_bridge_validates_forward_client_headers() -> None:
+    """Invalid allowlists fail when the bridge is constructed."""
+    with pytest.raises(TypeError, match="forward_client_headers"):
+        _bridge({"anthropic-beta": cast(list[str], "context-1m-2025-08-07")})
+    with pytest.raises(ValueError, match="Authorization"):
+        _bridge({"Authorization": ["Bearer x"]})
+
+
+async def test_sandbox_google_generation_accepts_service_headers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def request(
+        json_data: dict[str, JsonValue],
+        web_search: WebSearchProviders,
+        code_execution: CodeExecutionProviders,
+        bridge: SandboxAgentBridge,
+    ) -> dict[str, JsonValue]:
+        return {"id": "completion"}
+
+    monkeypatch.setattr(bridge_service, "inspect_google_api_request", request)
+    generate = bridge_service.generate_google(
+        cast(WebSearchProviders, None),
+        cast(CodeExecutionProviders, None),
+        cast(SandboxAgentBridge, None),
+    )
+
+    result = await generate({"model": "inspect"}, {"x-claude-code-agent-id": "toolu_x"})
+
+    assert result == {"id": "completion"}
 
 
 async def test_forward_provider_errors_reraises_limit_exceeded_error() -> None:
@@ -469,7 +667,9 @@ async def test_forward_provider_errors_reraises_limit_exceeded_error() -> None:
     never terminated the sample.
     """
 
-    async def boom(json_data: dict[str, Any]) -> dict[str, Any]:
+    async def boom(
+        json_data: dict[str, Any], headers: dict[str, str] | None = None
+    ) -> dict[str, Any]:
         raise LimitExceededError("message", value=2, limit=1)
 
     with pytest.raises(LimitExceededError):
@@ -498,7 +698,9 @@ async def test_forward_provider_errors_signals_refusal_to_bridge(
         "mockllm/model",
     )
 
-    async def boom(json_data: dict[str, Any]) -> dict[str, Any]:
+    async def boom(
+        json_data: dict[str, Any], headers: dict[str, str] | None = None
+    ) -> dict[str, Any]:
         raise refusal
 
     bridge = _bridge()

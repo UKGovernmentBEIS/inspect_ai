@@ -135,6 +135,20 @@ Ordinary function tools are never withheld — those are executed by the bridged
 
 For the same reason, all media content (images, audio, video, and documents) in a request to a sandbox bridge must be an inline `data:` URI. A remote URL or host path would otherwise be dereferenced outside the sandbox, on the agent's behalf.
 
+Request headers are granted the same way. Apart from `Accept-Encoding`, `sandbox_agent_bridge()` drops every header the agent's SDK sends, since a header can change the billing, limits, or behavior of the host's requests (for example `anthropic-beta`, which turns on Anthropic beta features). To forward one, list the header and the values the agent may send for it:
+
+``` python
+async with sandbox_agent_bridge(
+    state,
+    forward_client_headers={"anthropic-beta": ["context-management-2025-06-27"]},
+) as bridge:
+    ...
+```
+
+Header names are case-insensitive. A comma-separated value is checked one item at a time: items you did not list are dropped with a warning, and the header is dropped if none remain. A header you did not list is logged once by name. Credentials (such as `Authorization`, `x-api-key`, `api-key`, `x-goog-api-key`, and AWS `x-amz-` headers) and transport headers (such as `Host` and `Content-Type`) cannot be forwarded. On both bridges, a forwarded `Accept-Encoding` keeps only the encodings Inspect can decode (`zstd` needs Python 3.14 or the `backports.zstd` package).
+
+Headers configured on the Inspect model itself (e.g. the Anthropic `betas` model arg or `extra_headers`) are not affected.
+
 None of this restricts the in-process `agent_bridge()`, where the scaffold
 already runs with the host's network and filesystem and there is no boundary to
 defend. Inspect explicitly materializes its non-inline media before model
@@ -268,7 +282,7 @@ Bridged agents typically tune their requests (e.g. `max_tokens`, `temperature`, 
 
 For this reason, by default the bridge does not forward client generation parameters. Instead, the resolved Inspect model configuration and the provider's defaults govern generation. Structural parameters that express the agent's intent — the system prompt, tools, tool choice, response format, `stop` sequences, and `seed` — are always forwarded.
 
-The generation parameters dropped by default are: `max_tokens`, `temperature`, `top_p`, `top_k`, `frequency_penalty`, `presence_penalty`, `n`/`num_choices`, `logprobs`, `top_logprobs`, `logit_bias`, and reasoning effort/tokens/summary.
+The generation parameters dropped by default are: `max_tokens`, `temperature`, `top_p`, `top_k`, `frequency_penalty`, `presence_penalty`, `n`/`num_choices`, `logprobs`, `top_logprobs`, `logit_bias`, and reasoning effort/tokens/summary/mode.
 
 If you want the bridge to act as a faithful proxy where the agent's generation parameters are authoritative, pass `forward_generation_config=True`:
 
@@ -277,7 +291,7 @@ async with agent_bridge(state, forward_generation_config=True) as bridge:
     ...
 ```
 
-This option is available on both `agent_bridge()` and `sandbox_agent_bridge()`.
+This option is available on both `agent_bridge()` and `sandbox_agent_bridge()`. Values set in the Inspect model's own configuration still take precedence over the agent's. When the model uses the OpenAI Responses API, `reasoning` fields that Inspect does not model (e.g. `context`) are passed through as the agent sent them. They go only on the bridge's own generation: a bridge `filter` that calls `generate()` itself gets the effort, summary, and mode in `config` but not these fields, so return `GenerateInput` from the filter to have them sent.
 
 ## Request Settings
 
@@ -301,7 +315,7 @@ Some request fields and tool options change billing, storage at the model provid
 
 OpenAI Chat Completions and Google requests forward none of these fields, and Google tool declarations carry no options into the request.
 
-HTTP headers an agent sends to the sandbox bridge's proxy are not forwarded; only the request body reaches the model provider. The in-process `agent_bridge()` forwards the agent's headers other than credentials and SDK-managed ones.
+HTTP headers an agent sends to the sandbox bridge's proxy are forwarded only as described in [Sandbox Bridge](#sandbox-bridge): `Accept-Encoding` and the headers listed in `forward_client_headers`. In-process, request body settings follow the eval as above, while the agent's headers are forwarded as before, apart from credential, transport and SDK headers.
 
 ## Tool Approval
 

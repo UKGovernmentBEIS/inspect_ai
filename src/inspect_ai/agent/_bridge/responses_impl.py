@@ -1,7 +1,7 @@
 import json
 from logging import getLogger
 from time import time
-from typing import Any, Iterable, Set, cast
+from typing import Any, Iterable, Sequence, Set, cast
 
 from openai.types.responses import (
     Response,
@@ -88,7 +88,7 @@ from inspect_ai.model._internal import (
     content_internal_tag,
     parse_content_with_internal,
 )
-from inspect_ai.model._model import Model, ModelName
+from inspect_ai.model._model import Model, ModelName, tools_for_tool_choice
 from inspect_ai.model._model_output import StopReason
 from inspect_ai.model._openai_responses import (
     RESPONSES_NAMESPACE,
@@ -207,6 +207,38 @@ def _is_openai_responses_provider(model: Model) -> bool:
     except Exception:
         return ModelName(model).api == "openai"
     return isinstance(model.api, OpenAIAPI)
+
+
+def _sends_responses_requests(
+    model: Model,
+    tools: Sequence[ToolInfo | Tool],
+    tool_choice: ToolChoice | None,
+    config: GenerateConfig,
+) -> bool:
+    """Whether the resolved model sends this request to the OpenAI Responses API.
+
+    Only those requests carry the fields of a forwarded client `reasoning`
+    object that `GenerateConfig` does not model (e.g. `context`); other
+    providers receive its effort and summary through `GenerateConfig`. The
+    provider decides on the tools `Model.generate()` sends it, so the tool
+    choice narrows them first (`tools_for_tool_choice`).
+    """
+    try:
+        from inspect_ai.model._providers.openai import OpenAIAPI
+        from inspect_ai.model._providers.openai_compatible import OpenAICompatibleAPI
+    except Exception:
+        return False
+    if not isinstance(model.api, OpenAIAPI | OpenAICompatibleAPI):
+        return False
+    tool_infos, _ = tools_for_tool_choice(
+        model.api,
+        [
+            tool if isinstance(tool, ToolInfo) else tool_to_tool_info(tool)
+            for tool in tools
+        ],
+        tool_choice if tool_choice is not None else "auto",
+    )
+    return model.api.uses_responses_api(tool_infos, config)
 
 
 async def inspect_responses_api_request_impl(
@@ -345,6 +377,26 @@ async def inspect_responses_api_request_impl(
     # give inspect-level config priority over agent default config
     config = resolve_generate_config(model, config)
 
+    client_reasoning = json_data.get("reasoning", None)
+
+    def with_client_reasoning(
+        model: Model,
+        tools: Sequence[ToolInfo | Tool],
+        tool_choice: ToolChoice | None,
+        config: GenerateConfig,
+    ) -> GenerateConfig:
+        # the Responses provider takes the reasoning fields GenerateConfig does
+        # not model from extra_body (other providers would send them on as they
+        # are); a `reasoning` object in the Inspect model's own extra_body wins
+        if (
+            bridge.forward_generation_config
+            and isinstance(client_reasoning, dict)
+            and _sends_responses_requests(model, tools, tool_choice, config)
+        ):
+            extra_body = {"reasoning": client_reasoning} | (config.extra_body or {})
+            return config.model_copy(update={"extra_body": extra_body})
+        return config
+
     # if there is a bridge filter give it a shot first
     output, c_message = await bridge_generate(
         bridge,
@@ -357,6 +409,7 @@ async def inspect_responses_api_request_impl(
             messages, web_search, code_execution, bridge
         ),
         routing=routing,
+        finalize_config=with_client_reasoning,
     )
     if c_message is not None:
         messages.append(c_message)
@@ -906,6 +959,11 @@ def generate_config_from_openai_responses(json_data: dict[str, Any]) -> Generate
             config.reasoning_effort = reasoning["effort"]
         if "summary" in reasoning:
             config.reasoning_summary = reasoning["summary"]
+        elif "generate_summary" in reasoning:
+            # deprecated name for `summary`
+            config.reasoning_summary = reasoning["generate_summary"]
+        if "mode" in reasoning:
+            config.reasoning_mode = reasoning["mode"]
     config.temperature = json_data.get("temperature", None)
     config.top_p = json_data.get("top_p", None)
 

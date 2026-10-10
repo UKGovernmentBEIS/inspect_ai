@@ -1769,3 +1769,128 @@ def test_google_sdk_request_records_full_requested_model(requested: str) -> None
     assert [(e.model, e.requested_model) for e in events] == [
         ("mockllm/model", requested)
     ]
+
+
+@skip_if_no_anthropic
+async def test_sandbox_bridge_live_anthropic_allowed_beta_and_brotli() -> None:
+    """A listed beta and `Accept-Encoding: br` reach Anthropic; the reply decodes."""
+    import anthropic
+
+    from inspect_ai.agent._bridge.sandbox.service import generate_anthropic
+    from inspect_ai.agent._bridge.sandbox.types import SandboxAgentBridge
+
+    beta = "context-management-2025-06-27"
+    request_headers: list[dict[str, str]] = []
+    response_encodings: list[str | None] = []
+
+    async def on_request(request: Any) -> None:
+        request_headers.append(dict(request.headers))
+
+    async def on_response(response: Any) -> None:
+        response_encodings.append(response.headers.get("content-encoding"))
+
+    model = get_model(
+        "anthropic/claude-haiku-4-5",
+        memoize=False,
+        streaming=False,
+        config=GenerateConfig(max_tokens=32),
+        http_client=anthropic.DefaultAsyncHttpxClient(
+            event_hooks={"request": [on_request], "response": [on_response]}
+        ),
+    )
+    bridge = SandboxAgentBridge(
+        state=AgentState(messages=[]),
+        filter=None,
+        retry_refusals=None,
+        compaction=None,
+        port=13131,
+        model=None,
+        model_aliases={"agent-model": model},
+        forward_client_headers={"anthropic-beta": [beta]},
+    )
+    try:
+        response: Any = await generate_anthropic(None, None, bridge)(
+            {
+                "model": "agent-model",
+                "max_tokens": 32,
+                "messages": [{"role": "user", "content": "Say hello."}],
+            },
+            {
+                "anthropic-beta": f"{beta},unlisted-beta-2026-01-01",
+                "accept-encoding": "br",
+            },
+        )
+    finally:
+        await model.api.aclose()
+
+    assert response["content"][0]["text"]
+    [headers] = request_headers
+    assert headers["anthropic-beta"] == beta
+    assert headers["accept-encoding"] == "br"
+    assert response_encodings == ["br"]
+
+
+@skip_if_no_openai
+@pytest.mark.parametrize(
+    "client_reasoning,model_config,expected_reasoning,sampling_sent",
+    [
+        # enabled: the model's configured effort and summary win; `context` stays
+        (
+            {"effort": "high", "summary": "auto", "context": "all_turns"},
+            GenerateConfig(reasoning_effort="low", reasoning_summary="none"),
+            {"effort": "low", "context": "all_turns"},
+            False,
+        ),
+        # disabled: sampling params are still sent
+        (
+            {"effort": "none", "context": "current_turn"},
+            GenerateConfig(reasoning_summary="none"),
+            {"effort": "none", "context": "current_turn"},
+            True,
+        ),
+    ],
+    ids=["enabled-with-override", "disabled"],
+)
+async def test_bridged_responses_reasoning_live_openai(
+    client_reasoning: dict[str, Any],
+    model_config: GenerateConfig,
+    expected_reasoning: dict[str, Any],
+    sampling_sent: bool,
+) -> None:
+    from inspect_ai.agent._bridge.responses_impl import (
+        inspect_responses_api_request_impl,
+    )
+
+    model = get_model("openai/gpt-5.4", memoize=False, config=model_config)
+    api: Any = model.api
+    requests: list[dict[str, Any]] = []
+    create = api.client.responses.create
+
+    async def capture_create(**kwargs: Any) -> Any:
+        requests.append(kwargs)
+        return await create(**kwargs)
+
+    api.client.responses.create = capture_create
+    bridge = AgentBridge(state=AgentState(messages=[]), forward_generation_config=True)
+    bridge.model_aliases = {"agent-model": model}
+    try:
+        response = await inspect_responses_api_request_impl(
+            json_data={
+                "model": "agent-model",
+                "input": "Say hello.",
+                "reasoning": client_reasoning,
+                "temperature": 0.2,
+                "max_output_tokens": 256,
+            },
+            headers=None,
+            web_search=None,
+            code_execution=None,
+            bridge=bridge,
+        )
+    finally:
+        await model.api.aclose()
+
+    assert response.output_text
+    [request] = requests
+    assert request["reasoning"] == expected_reasoning
+    assert ("temperature" in request) is sampling_sent

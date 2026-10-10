@@ -95,6 +95,7 @@ _GENERATION_PARAM_FIELDS: tuple[str, ...] = (
     "reasoning_effort",
     "reasoning_tokens",
     "reasoning_summary",
+    "reasoning_mode",
     "verbosity",
 )
 
@@ -621,6 +622,11 @@ async def bridge_generate(
     declared_in_input: Callable[[list[ChatMessage]], Sequence[ToolInfo]] | None = None,
     *,
     routing: "BridgeModelResolution | None" = None,
+    finalize_config: Callable[
+        [Model, Sequence[ToolInfo | Tool], ToolChoice | None, GenerateConfig],
+        GenerateConfig,
+    ]
+    | None = None,
 ) -> tuple[ModelOutput, ChatMessageUser | None]:
     """Generate model output through the agent bridge.
 
@@ -648,6 +654,10 @@ async def bridge_generate(
     on the `ModelEvent` of the client's request (whether the filter or the default
     generation makes it), and a redirect is warned about once per name. Compaction
     and approval calls are not the client's request and are not labelled.
+
+    `finalize_config` adjusts the config of the bridge's own generation call for
+    the model, tools, tool choice and config it is made with, after any filter
+    rewrite. It is not applied to a generation the filter makes itself.
     """
     if routing is not None and routing.redirected:
         _warn_redirect(routing, bridge.model)
@@ -727,7 +737,9 @@ async def bridge_generate(
                             input=input_messages,
                             tool_choice=tool_choice,
                             tools=tools,
-                            config=config,
+                            config=finalize_config(model, tools, tool_choice, config)
+                            if finalize_config is not None
+                            else config,
                         )
                     except ModelRefusalError:
                         if (

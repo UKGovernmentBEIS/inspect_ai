@@ -9,7 +9,7 @@ docstring-parser>=0.16
 exceptiongroup>=1.0.2; python_version < '3.11'
 fastapi>=0.119.0
 fsspec>=2023.1.0,<=2026.6.0 # align with hf datasets to prevent pip errors
-httpx
+httpx[brotli] # the brotli decoder httpx and the provider SDKs' httpx2 use: the agent bridge forwards a client's Accept-Encoding: br
 ijson>=3.2.0
 jsonlines>=3.0.0
 jsonpatch>=1.32

@@ -558,6 +558,20 @@ class OpenAIAPI(ModelAPI):
         # support image truncation.
         return True
 
+    def uses_responses_api(self, tools: list[ToolInfo], config: GenerateConfig) -> bool:
+        """Whether `generate()` sends a request with these tools to the Responses API.
+
+        Image output and native tools need the Responses API even when
+        `responses_api` is off.
+        """
+        return (
+            self.responses_api
+            or has_image_output(config.modalities)
+            or is_native_tool_configured(
+                tools, self.model_family(), config, is_latest=self.is_latest()
+            )
+        )
+
     async def generate(
         self,
         input: list[ChatMessage],
@@ -565,13 +579,7 @@ class OpenAIAPI(ModelAPI):
         tool_choice: ToolChoice,
         config: GenerateConfig,
     ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
-        use_responses = (
-            self.responses_api
-            or has_image_output(config.modalities)
-            or is_native_tool_configured(
-                tools, self.model_family(), config, is_latest=self.is_latest()
-            )
-        )
+        use_responses = self.uses_responses_api(tools, config)
         self._resolve_batcher(config, use_responses)
 
         # if reasoning summaries are unset then try to auto-detect

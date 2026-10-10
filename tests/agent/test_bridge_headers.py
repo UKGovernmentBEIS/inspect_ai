@@ -1,10 +1,43 @@
 """Tests for bridge header extraction and filtering."""
 
+import importlib
+import importlib.util
+import json
+import sys
+from typing import Any, cast
+
+import httpx
+import httpx2
+import pytest
+
+from inspect_ai._util import logger as inspect_logger
+from inspect_ai.agent._agent import AgentState
+from inspect_ai.agent._bridge import bridge as bridge_module
 from inspect_ai.agent._bridge.bridge import (
     _BLOCKED_BRIDGE_HEADER_PREFIXES,
     _BLOCKED_BRIDGE_HEADERS,
     filter_bridge_headers,
+    filter_sandbox_client_headers,
+    resolve_forward_client_headers,
 )
+from inspect_ai.agent._bridge.sandbox.service import (
+    generate_anthropic,
+    generate_completions,
+    generate_responses,
+)
+from inspect_ai.agent._bridge.sandbox.types import SandboxAgentBridge
+from inspect_ai.model import GenerateConfig, get_model
+from inspect_ai.tool._tools._code_execution import CodeExecutionProviders
+from inspect_ai.tool._tools._web_search._web_search import WebSearchProviders
+
+# brotli ships no type stubs; binding it via importlib keeps mypy clean without a
+# suppression, and still fails loudly if httpx[brotli] stops pulling it in. PyPy
+# gets brotlicffi instead, as httpx does.
+try:
+    brotli = importlib.import_module("brotli")
+except ImportError:
+    brotli = importlib.import_module("brotlicffi")
+zstandard = importlib.import_module("zstandard")
 
 
 class TestFilterBridgeHeaders:
@@ -145,6 +178,48 @@ class TestFilterBridgeHeaders:
             "x-request-source": "agent",
         }
 
+    def test_tenant_and_custom_headers_pass_through(self):
+        """In-process, the scaffold is the eval's own code: its headers are kept."""
+        headers = {
+            "OpenAI-Organization": "org-123",
+            "OpenAI-Project": "proj-456",
+            "x-custom-header": "value",
+            "Accept-Encoding": "gzip, br",
+            "anthropic-beta": "beta-a-2026-01-01,beta-b-2026-01-01",
+            "Authorization": "Bearer secret",
+        }
+        result = filter_bridge_headers(headers)
+        assert result == {
+            "OpenAI-Organization": "org-123",
+            "OpenAI-Project": "proj-456",
+            "x-custom-header": "value",
+            "Accept-Encoding": "gzip, br",
+            "anthropic-beta": "beta-a-2026-01-01,beta-b-2026-01-01",
+        }
+
+    def test_httpx_decodes_forwarded_brotli_response(self):
+        """The bridge transport decodes any encoding it advertises.
+
+        Forwarding Accept-Encoding is only faithful to the client if the
+        transport can also read what the provider sends back: once `br` is
+        forwarded, Anthropic actually responds brotli-encoded.
+        """
+        payload = {"model": "claude-fable-5", "type": "message"}
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            assert "br" in request.headers["accept-encoding"].split(", ")
+            return httpx.Response(
+                200,
+                content=brotli.compress(json.dumps(payload).encode()),
+                headers={
+                    "content-encoding": "br",
+                    "content-type": "application/json",
+                },
+            )
+
+        with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+            assert client.get("https://api.anthropic.com/v1/messages").json() == payload
+
 
 class TestBlockedHeadersConfiguration:
     """Test the blocked headers configuration."""
@@ -178,3 +253,533 @@ class TestBlockedHeadersConfiguration:
     def test_anthropic_beta_not_blocked(self):
         """Verify anthropic-beta is NOT in the blocklist."""
         assert "anthropic-beta" not in _BLOCKED_BRIDGE_HEADERS
+
+
+def _sandbox_filter(
+    headers: dict[str, str], forward_client_headers: dict[str, list[str]] | None
+) -> dict[str, str] | None:
+    return filter_sandbox_client_headers(
+        headers, resolve_forward_client_headers(forward_client_headers)
+    )
+
+
+class TestForwardClientHeaders:
+    """The sandbox bridge's `forward_client_headers` allowlist."""
+
+    def setup_method(self) -> None:
+        inspect_logger._warned.clear()
+        bridge_module._logged_unlisted_client_headers.clear()
+
+    def test_default_forwards_only_accept_encoding(self) -> None:
+        headers = {
+            "anthropic-beta": "context-1m-2025-08-07",
+            "Accept-Encoding": "gzip, br",
+            "x-custom-header": "value",
+        }
+        assert _sandbox_filter(headers, None) == {"Accept-Encoding": "gzip, br"}
+        assert bridge_module._logged_unlisted_client_headers == {
+            "anthropic-beta",
+            "x-custom-header",
+        }
+
+    def test_unlisted_and_blocked_headers_not_warned(self) -> None:
+        headers = {
+            "x-stainless-os": "Linux",
+            "authorization": "Bearer secret",
+            "x-custom-header": "value",
+        }
+        assert _sandbox_filter(headers, None) is None
+        _sandbox_filter(headers, None)
+        # unlisted names are logged once each at info level; blocked ones never
+        assert bridge_module._logged_unlisted_client_headers == {"x-custom-header"}
+        assert inspect_logger._warned == []
+
+    def test_tenant_headers_dropped_unless_listed(self) -> None:
+        """Sandbox code must not choose another org or project on the host key."""
+        headers = {
+            "OpenAI-Organization": "org-attacker-controlled",
+            "OpenAI-Project": "proj-attacker-controlled",
+            "x-goog-user-project": "attacker-controlled-project",
+            "Accept-Encoding": "gzip",
+        }
+        assert _sandbox_filter(headers, None) == {"Accept-Encoding": "gzip"}
+
+    def test_listed_values_forwarded_and_others_dropped_with_warning(self) -> None:
+        """Only listed tokens survive; whitespace around them is tolerated."""
+        headers = {"Anthropic-Beta": "beta-a-2026-01-01, beta-b-2026-01-01,beta-c"}
+        result = _sandbox_filter(
+            headers, {"anthropic-beta": ["beta-a-2026-01-01", "beta-c"]}
+        )
+        assert result == {"Anthropic-Beta": "beta-a-2026-01-01,beta-c"}
+        assert inspect_logger._warned == [
+            "Agent bridge dropped 'beta-b-2026-01-01' from the sandboxed agent's "
+            "'anthropic-beta' header. To forward it, add it to "
+            "sandbox_agent_bridge(forward_client_headers=...)."
+        ]
+
+    def test_header_dropped_when_no_values_remain(self) -> None:
+        result = _sandbox_filter(
+            {"anthropic-beta": "beta-d-2026-01-01", "Accept-Encoding": "br"},
+            {"anthropic-beta": ["beta-a-2026-01-01"]},
+        )
+        assert result == {"Accept-Encoding": "br"}
+        assert any("beta-d-2026-01-01" in m for m in inspect_logger._warned)
+
+    def test_header_names_case_insensitive(self) -> None:
+        result = _sandbox_filter(
+            {"X-MY-HEADER": "on"}, {"x-My-Header": ["on"], "X-Other": ["1"]}
+        )
+        assert result == {"X-MY-HEADER": "on"}
+
+    def test_listing_accept_encoding_narrows_it(self) -> None:
+        result = _sandbox_filter(
+            {"accept-encoding": "gzip, br, zstd"}, {"Accept-Encoding": ["br"]}
+        )
+        assert result == {"accept-encoding": "br"}
+
+    def test_bare_string_mapping_rejected(self) -> None:
+        with pytest.raises(TypeError, match="forward_client_headers"):
+            resolve_forward_client_headers(cast(Any, "anthropic-beta"))
+
+    def test_non_mapping_rejected(self) -> None:
+        with pytest.raises(TypeError, match="forward_client_headers"):
+            resolve_forward_client_headers(cast(Any, ["anthropic-beta"]))
+
+    def test_bare_string_values_rejected(self) -> None:
+        """A bare string would otherwise become a set of its characters."""
+        with pytest.raises(TypeError, match="anthropic-beta"):
+            resolve_forward_client_headers(
+                cast(Any, {"anthropic-beta": "context-1m-2025-08-07"})
+            )
+
+    @pytest.mark.parametrize(
+        "forward_client_headers,match",
+        [
+            ({"anthropic-beta": None}, "anthropic-beta"),
+            ({"anthropic-beta": 5}, "anthropic-beta"),
+            ({"anthropic-beta": [None]}, "None"),
+            ({"anthropic-beta": ["beta-a", 5]}, "5"),
+            ({5: ["on"]}, "names must be strings"),
+            ({None: ["on"]}, "names must be strings"),
+        ],
+    )
+    def test_non_string_names_and_values_rejected(
+        self, forward_client_headers: Any, match: str
+    ) -> None:
+        with pytest.raises(TypeError, match=match):
+            resolve_forward_client_headers(forward_client_headers)
+
+    def test_names_and_values_stripped(self) -> None:
+        resolved = resolve_forward_client_headers(
+            {" Anthropic-Beta ": [" beta-a-2026-01-01 "]}
+        )
+        assert resolved == {"anthropic-beta": frozenset({"beta-a-2026-01-01"})}
+        assert _sandbox_filter(
+            {"anthropic-beta": "beta-a-2026-01-01"},
+            {" Anthropic-Beta ": [" beta-a-2026-01-01 "]},
+        ) == {"anthropic-beta": "beta-a-2026-01-01"}
+
+    @pytest.mark.parametrize(
+        "name",
+        [
+            "Authorization",
+            "x-api-key",
+            "Host",
+            "content-type",
+            "Content-Length",
+            "transfer-encoding",
+            "connection",
+            "anthropic-version",
+            "User-Agent",
+            "x-irid",
+            "X-Stainless-Lang",
+            "Api-Key",
+            "x-goog-api-key",
+            "X-Amz-Security-Token",
+            "x-amz-date",
+            "Proxy-Authorization",
+            "Cookie",
+        ],
+    )
+    def test_blocked_header_names_rejected(self, name: str) -> None:
+        with pytest.raises(ValueError, match=name):
+            resolve_forward_client_headers({name: ["anything"]})
+
+
+def _zstd_decodable() -> bool:
+    """Whether httpx2 (the OpenAI and Anthropic SDKs' client) can decode zstd."""
+    return sys.version_info >= (3, 14) or (
+        importlib.util.find_spec("backports") is not None
+        and importlib.util.find_spec("backports.zstd") is not None
+    )
+
+
+class TestDecodableAcceptEncoding:
+    """A forwarded `Accept-Encoding` lists only codings the host can decode."""
+
+    def test_installed_decoders(self) -> None:
+        codings = bridge_module._decodable_content_codings()
+        assert {"gzip", "deflate", "br"} <= codings
+        assert ("zstd" in codings) is _zstd_decodable()
+
+    @pytest.mark.parametrize("sandbox", [False, True], ids=["in-process", "sandbox"])
+    def test_undecodable_codings_dropped(
+        self, monkeypatch: pytest.MonkeyPatch, sandbox: bool
+    ) -> None:
+        monkeypatch.setattr(
+            bridge_module,
+            "_decodable_content_codings",
+            lambda: frozenset({"identity", "gzip", "deflate", "br"}),
+        )
+        headers = {"Accept-Encoding": "gzip, deflate, br, zstd, *;q=0.1"}
+        result = (
+            _sandbox_filter(headers, None)
+            if sandbox
+            else filter_bridge_headers(headers)
+        )
+        assert result == {"Accept-Encoding": "gzip, deflate, br"}
+
+        only_zstd = {"Accept-Encoding": "zstd", "x-custom-header": "value"}
+        result = (
+            _sandbox_filter(only_zstd, None)
+            if sandbox
+            else filter_bridge_headers(only_zstd)
+        )
+        assert result == (None if sandbox else {"x-custom-header": "value"})
+
+    @pytest.mark.anyio
+    async def test_zstd_advertising_client_gets_a_decoded_response(self) -> None:
+        """A Bun-based client (e.g. Claude Code) advertises zstd alongside br."""
+        provider_requests: list[httpx2.Request] = []
+        message = {
+            "id": "msg_1",
+            "type": "message",
+            "role": "assistant",
+            "model": "claude-sonnet-4-5",
+            "content": [{"type": "text", "text": "decoded"}],
+            "stop_reason": "end_turn",
+            "stop_sequence": None,
+            "usage": {"input_tokens": 3, "output_tokens": 1},
+        }
+
+        def handler(request: httpx2.Request) -> httpx2.Response:
+            provider_requests.append(request)
+            body = json.dumps(message).encode()
+            # a provider prefers zstd when the client offers it
+            if "zstd" in request.headers["accept-encoding"]:
+                content, encoding = zstandard.ZstdCompressor().compress(body), "zstd"
+            else:
+                content, encoding = brotli.compress(body), "br"
+            return httpx2.Response(
+                200,
+                content=content,
+                headers={
+                    "content-encoding": encoding,
+                    "content-type": "application/json",
+                },
+            )
+
+        model = get_model(
+            "anthropic/claude-sonnet-4-5",
+            api_key="host-key",
+            memoize=False,
+            streaming=False,
+            config=GenerateConfig(max_tokens=64),
+            http_client=httpx2.AsyncClient(transport=httpx2.MockTransport(handler)),
+        )
+        try:
+            response: Any = await generate_anthropic(
+                cast(WebSearchProviders, None),
+                cast(CodeExecutionProviders, None),
+                _route_bridge(model),
+            )(
+                {
+                    "model": "agent-model",
+                    "max_tokens": 64,
+                    "messages": [{"role": "user", "content": "hi"}],
+                },
+                {"accept-encoding": "gzip, deflate, br, zstd"},
+            )
+        finally:
+            await model.api.aclose()
+
+        assert response["content"][0]["text"] == "decoded"
+        [request] = provider_requests
+        assert request.headers["accept-encoding"] == (
+            "gzip, deflate, br, zstd" if _zstd_decodable() else "gzip, deflate, br"
+        )
+
+
+class TestSandboxAnthropicRequest:
+    """Client headers through the sandbox service to the Anthropic provider."""
+
+    @pytest.mark.anyio
+    async def test_allowed_beta_reaches_provider_and_brotli_response_decodes(
+        self,
+    ) -> None:
+        inspect_logger._warned.clear()
+        provider_requests: list[httpx2.Request] = []
+        message = {
+            "id": "msg_1",
+            "type": "message",
+            "role": "assistant",
+            "model": "claude-sonnet-4-5",
+            "content": [{"type": "text", "text": "decoded"}],
+            "stop_reason": "end_turn",
+            "stop_sequence": None,
+            "usage": {"input_tokens": 3, "output_tokens": 1},
+        }
+
+        def handler(request: httpx2.Request) -> httpx2.Response:
+            provider_requests.append(request)
+            return httpx2.Response(
+                200,
+                content=brotli.compress(json.dumps(message).encode()),
+                headers={"content-encoding": "br", "content-type": "application/json"},
+            )
+
+        model = get_model(
+            "anthropic/claude-sonnet-4-5",
+            api_key="test-key",
+            memoize=False,
+            streaming=False,
+            config=GenerateConfig(max_tokens=64),
+            http_client=httpx2.AsyncClient(transport=httpx2.MockTransport(handler)),
+        )
+        bridge = SandboxAgentBridge(
+            state=AgentState(messages=[]),
+            filter=None,
+            retry_refusals=None,
+            compaction=None,
+            port=13131,
+            model=None,
+            model_aliases={"agent-model": model},
+            forward_client_headers={"anthropic-beta": ["allowed-beta-2026-01-01"]},
+        )
+        generate = generate_anthropic(
+            cast(WebSearchProviders, None), cast(CodeExecutionProviders, None), bridge
+        )
+
+        try:
+            response: Any = await generate(
+                {
+                    "model": "agent-model",
+                    "max_tokens": 64,
+                    "messages": [{"role": "user", "content": "hi"}],
+                },
+                {
+                    "anthropic-beta": "allowed-beta-2026-01-01,unlisted-beta-2026-01-01",
+                    "accept-encoding": "br",
+                    "authorization": "Bearer sandbox-token",
+                },
+            )
+        finally:
+            await model.api.aclose()
+
+        assert response["content"][0]["text"] == "decoded"
+        [request] = provider_requests
+        assert request.headers["anthropic-beta"] == "allowed-beta-2026-01-01"
+        assert request.headers["accept-encoding"] == "br"
+        assert request.headers["x-api-key"] == "test-key"
+        assert "authorization" not in request.headers
+        assert any("unlisted-beta-2026-01-01" in m for m in inspect_logger._warned)
+
+
+# Headers a sandboxed client sends: credentials no `forward_client_headers` can
+# list (host keys for OpenAI and Azure OpenAI, Anthropic and Foundry, Google,
+# and an AWS session token for a SigV4-signed request), tenant and custom
+# headers the eval did not list, and the two headers that do pass.
+_CLIENT_CREDENTIALS = {
+    "Authorization": "Bearer sandbox-token",
+    "x-api-key": "sandbox-key",
+    "Api-Key": "sandbox-key",
+    "x-goog-api-key": "sandbox-key",
+    "X-Amz-Security-Token": "sandbox-token",
+    "OpenAI-Organization": "org-from-sandbox",
+    "OpenAI-Project": "proj-from-sandbox",
+    "X-Client-Header": "client-header-value",
+    "Accept-Encoding": "br",
+    "x-feature": "on",
+}
+
+_SANDBOX_CREDENTIAL_NAMES = {
+    name.lower()
+    for name in _CLIENT_CREDENTIALS
+    if name not in ("x-feature", "Accept-Encoding")
+}
+
+
+def _route_bridge(model: Any) -> SandboxAgentBridge:
+    return SandboxAgentBridge(
+        state=AgentState(messages=[]),
+        filter=None,
+        retry_refusals=None,
+        compaction=None,
+        port=13131,
+        model=None,
+        model_aliases={"agent-model": model},
+        forward_client_headers={"x-feature": ["on"]},
+    )
+
+
+def _capturing_client(
+    requests: list[httpx2.Request], body: dict[str, Any]
+) -> httpx2.AsyncClient:
+    def handler(request: httpx2.Request) -> httpx2.Response:
+        requests.append(request)
+        return httpx2.Response(200, json=body)
+
+    return httpx2.AsyncClient(transport=httpx2.MockTransport(handler))
+
+
+class TestSandboxRoutesKeepHostCredentials:
+    """A sandboxed client's credential and unlisted headers never reach the SDK."""
+
+    def _assert_host_credentials(
+        self, request: httpx2.Request, host: dict[str, str]
+    ) -> None:
+        assert request.headers["x-feature"] == "on"
+        assert request.headers["accept-encoding"] == "br"
+        for name, value in host.items():
+            assert request.headers.get_list(name) == [value]
+        for name in _SANDBOX_CREDENTIAL_NAMES - set(host):
+            assert name not in request.headers
+
+    @pytest.mark.anyio
+    async def test_completions_route_to_azure_openai(self) -> None:
+        requests: list[httpx2.Request] = []
+        model = get_model(
+            "openai/azure/gpt-4o",
+            api_key="host-key",
+            base_url="https://example.openai.azure.com",
+            memoize=False,
+            responses_api=False,
+            streaming=False,
+            http_client=_capturing_client(
+                requests,
+                {
+                    "id": "chatcmpl-1",
+                    "object": "chat.completion",
+                    "created": 0,
+                    "model": "gpt-4o",
+                    "choices": [
+                        {
+                            "index": 0,
+                            "message": {"role": "assistant", "content": "ok"},
+                            "finish_reason": "stop",
+                        }
+                    ],
+                    "usage": {
+                        "prompt_tokens": 1,
+                        "completion_tokens": 1,
+                        "total_tokens": 2,
+                    },
+                },
+            ),
+        )
+        try:
+            await generate_completions(_route_bridge(model))(
+                {
+                    "model": "agent-model",
+                    "messages": [{"role": "user", "content": "hi"}],
+                },
+                _CLIENT_CREDENTIALS,
+            )
+        finally:
+            await model.api.aclose()
+
+        [request] = requests
+        self._assert_host_credentials(request, {"api-key": "host-key"})
+
+    @pytest.mark.anyio
+    async def test_responses_route_to_azure_openai(self) -> None:
+        requests: list[httpx2.Request] = []
+        model = get_model(
+            "openai/azure/gpt-4o",
+            api_key="host-key",
+            base_url="https://example.openai.azure.com",
+            memoize=False,
+            responses_api=True,
+            streaming=False,
+            http_client=_capturing_client(
+                requests,
+                {
+                    "id": "resp_1",
+                    "object": "response",
+                    "created_at": 0,
+                    "model": "gpt-4o",
+                    "status": "completed",
+                    "output": [
+                        {
+                            "type": "message",
+                            "id": "msg_1",
+                            "role": "assistant",
+                            "status": "completed",
+                            "content": [
+                                {
+                                    "type": "output_text",
+                                    "text": "ok",
+                                    "annotations": [],
+                                }
+                            ],
+                        }
+                    ],
+                    "parallel_tool_calls": True,
+                    "tool_choice": "auto",
+                    "tools": [],
+                },
+            ),
+        )
+        try:
+            await generate_responses(
+                cast(WebSearchProviders, None),
+                cast(CodeExecutionProviders, None),
+                _route_bridge(model),
+            )({"model": "agent-model", "input": "hi"}, _CLIENT_CREDENTIALS)
+        finally:
+            await model.api.aclose()
+
+        [request] = [r for r in requests if r.url.path.endswith("/responses")]
+        self._assert_host_credentials(request, {"api-key": "host-key"})
+
+    @pytest.mark.anyio
+    async def test_anthropic_route_to_anthropic(self) -> None:
+        requests: list[httpx2.Request] = []
+        model = get_model(
+            "anthropic/claude-sonnet-4-5",
+            api_key="host-key",
+            memoize=False,
+            streaming=False,
+            config=GenerateConfig(max_tokens=64),
+            http_client=_capturing_client(
+                requests,
+                {
+                    "id": "msg_1",
+                    "type": "message",
+                    "role": "assistant",
+                    "model": "claude-sonnet-4-5",
+                    "content": [{"type": "text", "text": "ok"}],
+                    "stop_reason": "end_turn",
+                    "stop_sequence": None,
+                    "usage": {"input_tokens": 1, "output_tokens": 1},
+                },
+            ),
+        )
+        try:
+            await generate_anthropic(
+                cast(WebSearchProviders, None),
+                cast(CodeExecutionProviders, None),
+                _route_bridge(model),
+            )(
+                {
+                    "model": "agent-model",
+                    "max_tokens": 64,
+                    "messages": [{"role": "user", "content": "hi"}],
+                },
+                _CLIENT_CREDENTIALS,
+            )
+        finally:
+            await model.api.aclose()
+
+        [request] = requests
+        self._assert_host_credentials(request, {"x-api-key": "host-key"})
