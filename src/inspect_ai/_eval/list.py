@@ -59,11 +59,17 @@ def task_files(globs: list[str] = [], root_dir: Path | None = None) -> list[Path
     # resolve the first level of globs
     paths: list[Path] = []
     for glob in globs:
+        glob_root = root_dir
+        glob_path = Path(glob)
+        if glob_path.is_absolute():
+            glob_root = Path(glob_path.anchor)
+            glob = str(glob_path.relative_to(glob_root))
+
         # we will have matched a set of directories and files
         # (depending on how the user wrote the globs). for
         # each file, add it to to our list if its a task file;
         # for each dir, recursively search it for task files
-        expanded = list(root_dir.glob(glob))
+        expanded = [glob_root] if glob == "." else list(glob_root.glob(glob))
         for path in expanded:
             if path.is_dir():
                 paths.extend(tasks_in_dir(path))
@@ -128,4 +134,7 @@ def task_path(path: Path, root_dir: Path, absolute: bool) -> str:
     if absolute:
         return path.resolve().as_posix()
     else:
-        return path.relative_to(root_dir.resolve()).as_posix()
+        try:
+            return path.relative_to(root_dir.resolve()).as_posix()
+        except ValueError:
+            return Path(os.path.relpath(path.resolve(), root_dir.resolve())).as_posix()
