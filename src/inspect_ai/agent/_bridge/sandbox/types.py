@@ -210,17 +210,62 @@ class SandboxAgentBridge(AgentBridge):
         Arguments match by JSON semantics (`_json_equal`): key order and
         int/float numeric equality (`5 == 5.0`) don't matter, so a scaffold's
         JSON round-trip cannot turn a proposed call into a denial; any other
-        difference (including bool vs number) is denied.
+        difference (including bool vs number) is denied -- except that, when
+        no pending grant for this (server, tool) matches exactly and the
+        served tool's schema forbids additional properties, each is compared
+        again with the granted keys that schema does not declare dropped
+        from the granted side.
+
+        A scaffold may propose bookkeeping fields alongside a tool's real
+        arguments that it never forwards when it actually dispatches the
+        call (Antigravity's `toolSummary` is the one observed in the wild).
+        Those fields are captured verbatim in the grant by
+        `register_tool_execution_grants`, so an executed call that
+        legitimately omits them would otherwise always be denied. On a
+        closed schema such a key could never be a valid argument, so
+        dropping it does not change the approved action: every declared key
+        must still be equal and present on both sides, and an executed
+        argument that is absent or changed still denies. A schema that
+        admits additional properties (`True`, a value schema, or `None`)
+        keeps exact matching, since an undeclared key there can be a real
+        argument.
         """
-        for index, grant in enumerate(self._tool_execution_grants):
-            if (
-                grant.server == server
-                and grant.tool == tool
-                and _json_equal(grant.arguments, arguments)
-            ):
-                del self._tool_execution_grants[index]
-                return True
-        return False
+        schema = self.served_tools.get(_BridgedToolId(server=server, tool=tool))
+        declared_properties = (
+            schema.parameters.properties
+            if schema is not None and schema.parameters.additionalProperties is False
+            else None
+        )
+        pending = [
+            (index, grant.arguments)
+            for index, grant in enumerate(self._tool_execution_grants)
+            if grant.server == server and grant.tool == tool
+        ]
+        matched = next(
+            (index for index, granted in pending if _json_equal(granted, arguments)),
+            None,
+        )
+        if matched is None and declared_properties is not None:
+            matched = next(
+                (
+                    index
+                    for index, granted in pending
+                    if isinstance(granted, dict)
+                    and _json_equal(
+                        {
+                            key: value
+                            for key, value in granted.items()
+                            if key in declared_properties
+                        },
+                        arguments,
+                    )
+                ),
+                None,
+            )
+        if matched is None:
+            return False
+        del self._tool_execution_grants[matched]
+        return True
 
     def dispatched_call(self, call: ToolCall) -> DispatchedCall | None:
         """The bridged tool call `call` makes through a dispatcher (`_dispatched_call`)."""
@@ -326,30 +371,40 @@ def _resolve_by_served_content(
 ) -> list[_BridgedToolId]:
     """The bridged tools a declaration denotes by what the bridge served for them.
 
-    The description is the key: the scaffolds forward the MCP description to
-    their models unchanged (verified per scaffold in the PR), so equality after
-    trimming whitespace identifies the tool whatever name it was given; an empty
-    description is matched like any other, so it identifies every bridged tool
-    served without one. Failing an exact match, a declaration that is a
-    truncation of a served description identifies it too
+    The description is the key: scaffolds forward the MCP description to their
+    models, so equality after trimming whitespace identifies the tool whatever
+    name it was given; an empty description is matched like any other, so it
+    identifies every bridged tool served without one. Failing an exact match, a
+    declaration that is a truncation of a served description identifies it too
     (`_is_truncation_of`), since a scaffold may cut a long description before
-    the model sees it. Schemas are not consulted: scaffolds rewrite them. Tools
-    that cannot be told apart are all returned, and the caller grants each. An
-    exact match wins even when that description is a prefix of another bridged
-    tool's; a truncated declaration which could refer to both denotes both.
+    the model sees it, and so does one that is a served description with a
+    short scaffold preamble in front (`_prefixed_copies`): Antigravity declares
+    every MCP tool as the sentence "This is a tool from the <server> MCP
+    server.", a blank line, then the description. Schemas are not consulted:
+    scaffolds rewrite them. Tools that cannot be told apart are all returned,
+    and the caller grants each. An exact match wins even when that description
+    is a prefix of another bridged tool's; a truncated declaration which could
+    refer to both denotes both; a prefixed declaration denotes only the tools
+    whose whole served description it ends with at the longest such length,
+    since a copy of a longer description is not also the shorter one it
+    happens to end with.
     """
     targets: list[_BridgedToolId] = []
     for declaration in declarations:
         description = declaration.description.strip()
-        matched = [
-            tool_id
-            for tool_id, info in served.items()
-            if info.description.strip() == description
-        ] or [
-            tool_id
-            for tool_id, info in served.items()
-            if _is_truncation_of(description, info.description.strip())
-        ]
+        matched = (
+            [
+                tool_id
+                for tool_id, info in served.items()
+                if info.description.strip() == description
+            ]
+            or [
+                tool_id
+                for tool_id, info in served.items()
+                if _is_truncation_of(description, info.description.strip())
+            ]
+            or _prefixed_copies(description, served)
+        )
         targets.extend(tool_id for tool_id in matched if tool_id not in targets)
     return targets
 
@@ -381,6 +436,52 @@ def _is_truncation_of(declared: str, served: str) -> bool:
     return (
         common >= _MIN_TRUNCATED_PREFIX
         and len(declared) - common <= _MAX_TRUNCATION_MARKER
+    )
+
+
+_MAX_SCAFFOLD_PREAMBLE = 96
+"""Longest text a scaffold is assumed to put in front of a served description.
+
+Antigravity's is the one known: the sentence "This is a tool from the <server>
+MCP server." and a blank line, 38 characters plus the server name, so 96
+allows a server name of up to 58 characters while keeping an accidental
+suffix match (a declaration that merely ends with another tool's description)
+bounded.
+"""
+
+
+def _prefixed_copies(
+    declared: str, served: dict[_BridgedToolId, ToolInfo]
+) -> list[_BridgedToolId]:
+    """The served tools whose whole description `declared` ends with, after a preamble.
+
+    Scaffold-agnostic: no scaffold's wording is looked for. A served description
+    qualifies when it is at least `_MIN_TRUNCATED_PREFIX` characters (so a short
+    description can never match as another tool's accidental suffix), `declared`
+    ends with all of it, and what stands in front is at most
+    `_MAX_SCAFFOLD_PREAMBLE` characters. Of the qualifying descriptions only the
+    longest are returned: a declaration carrying the whole of a longer served
+    description names that tool, not a shorter one whose description is the
+    longer one's tail. Two tools served the same description are both returned.
+    A scaffold that rewrites the description itself is not tolerated.
+    """
+    candidates = [
+        (len(info.description.strip()), tool_id)
+        for tool_id, info in served.items()
+        if _is_prefixed_copy_of(declared, info.description.strip())
+    ]
+    if not candidates:
+        return []
+    longest = max(length for length, _ in candidates)
+    return [tool_id for length, tool_id in candidates if length == longest]
+
+
+def _is_prefixed_copy_of(declared: str, served: str) -> bool:
+    """Whether `declared` is `served` with at most a scaffold preamble in front."""
+    return (
+        len(served) >= _MIN_TRUNCATED_PREFIX
+        and declared.endswith(served)
+        and 0 < len(declared) - len(served) <= _MAX_SCAFFOLD_PREAMBLE
     )
 
 
