@@ -253,7 +253,8 @@ Stop after the spike and review the results with the user before building.
 3. Streaming extras stripper, accumulators, block order, mode B replay,
    `pause_turn` continuation, caching block types.
 4. Docs (providers.qmd LiteLLM section: server tools; remove the limitation
-   note), design doc section, CHANGELOG wording, slow-tests skill.
+   note), design doc section, PR title (the changelog line), slow-tests
+   skill.
 
 ## Critical files
 

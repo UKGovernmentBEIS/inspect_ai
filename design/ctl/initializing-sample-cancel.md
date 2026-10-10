@@ -225,7 +225,7 @@ carrying one as *cancelled, absent from the log*. So the design adds no second s
 - `_cli/ctl/_sample.py`: render the deferral `reason` and the listing marker.
 - Docs: `docs/control-channel.qmd` (the two sentences describing the blind window);
   `queued-sample-cancel.md` table row and section pointer; `control-channel.md`
-  `sample/cancel` bullet; CHANGELOG.
+  `sample/cancel` bullet. The PR title is the changelog line.
 - Tests: route-level (initializing × three actions, repeat no-op, fails-on-error gate,
   dry-run; departed-but-unregistered still 409); runner-level end-to-end with a sandbox
   stub that sleeps in `sample_init` — cancel mid-init → cancelled record, not an error,
