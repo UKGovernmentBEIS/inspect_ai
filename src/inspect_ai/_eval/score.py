@@ -287,6 +287,7 @@ async def score_async(
             else None
         )
     _validate_scorer_metadata(resolved_scorers)
+    replace_header = score_names is not None and _holds_no_scores(log)
 
     # resolve the active model and model_roles for the scoring task context.
     # caller-supplied overrides win; otherwise reconstruct from the log header
@@ -431,7 +432,7 @@ async def score_async(
         # Since the metrics calculation above is only be done using the scorers
         # and scores that were generated during this scoring run, we need to process
         # the results carefully, depending upon whether the action was "append" or "overwrite"
-        if action == "overwrite" or log.results is None:
+        if action == "overwrite" or log.results is None or replace_header:
             # Completely replace the results (and reductions) with the new ones
             log.reductions = reductions
             log.results = results
@@ -838,6 +839,21 @@ def _header_score_names(eval_scorers: list[EvalScorer]) -> list[str]:
             f"Log header records duplicate score names: {', '.join(duplicates)}."
         )
     return score_names
+
+
+def _holds_no_scores(log: EvalLog) -> bool:
+    """Whether `log` holds no scores at all, as after an eval run without scoring.
+
+    Appending recorded names to such a log replaces its header, as appending to a
+    log without results does: its scorers never ran, and replaying them next to
+    the recorded names would add an empty result before the new scores. Streamed
+    samples aren't loaded, so a log scored from a stream never qualifies.
+    """
+    return (
+        not (log.results and log.results.scores)
+        and log.samples is not None
+        and not any(sample.scores for sample in log.samples)
+    )
 
 
 def _existing_score_names(log: EvalLog, header: list[EvalScorer]) -> set[str]:
