@@ -104,9 +104,11 @@ def _ensure_patched() -> None:
     _patch_installed = True
     _orig_create_s3_client_async = AsyncFilesystem._create_s3_client_async
 
-    async def _wrapped(anonymous: bool = False, region_name: str | None = None) -> Any:
+    async def _wrapped(
+        anonymous: bool = False, region_name: str | None = None, max_attempts: int = 10
+    ) -> Any:
         client = await _orig_create_s3_client_async(
-            anonymous=anonymous, region_name=region_name
+            anonymous=anonymous, region_name=region_name, max_attempts=max_attempts
         )
         if _current_stats is not None:
             _attach_hooks(client, _current_stats)
