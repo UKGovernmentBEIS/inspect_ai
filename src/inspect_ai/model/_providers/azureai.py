@@ -80,6 +80,7 @@ from .._openai import (
     openai_media_filter,
     openai_stop_details,
 )
+from .._response_headers import record_response_headers
 from .._stream import (
     StreamTextEvent,
     StreamToolCallEvent,
@@ -300,18 +301,25 @@ class AzureAIAPI(ModelAPI):
             filter=openai_media_filter,
         )
 
+        def record_headers(response: Any) -> None:
+            record_response_headers(response.http_response.headers)
+
         # make call
         try:
             if streaming:
                 updates = cast(
-                    AsyncStreamingChatCompletions, await client.complete(**request)
+                    AsyncStreamingChatCompletions,
+                    await client.complete(**request, raw_response_hook=record_headers),
                 )
                 try:
                     response = await azureai_completion_from_stream(updates)
                 finally:
                     await updates.aclose()
             else:
-                response = cast(ChatCompletions, await client.complete(**request))
+                response = cast(
+                    ChatCompletions,
+                    await client.complete(**request, raw_response_hook=record_headers),
+                )
 
             model_call.set_response(response.as_dict())
 

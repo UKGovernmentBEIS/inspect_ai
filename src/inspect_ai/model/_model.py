@@ -123,6 +123,7 @@ from ._generate_config import (
 from ._model_call import ModelCall, as_error_response
 from ._model_data.model_data import ModelCost, ModelInfo
 from ._model_output import ModelFallback, ModelOutput, ModelUsage, ServedModelUsage
+from ._response_headers import ResponseHeaders, track_response_headers
 from ._stream import (
     ModelStreamObserver,
     NoStreamDataError,
@@ -1552,6 +1553,7 @@ class Model:
                 anyio.CancelScope() if stream_idle_timeout is not None else None
             )
             idle_cm = idle_scope if idle_scope is not None else contextlib.nullcontext()
+            response_headers = ResponseHeaders()
 
             with trace_action(logger, "Model", f"generate ({str(self)})"):
                 time_start = time.monotonic()
@@ -1578,6 +1580,7 @@ class Model:
 
                     with (
                         track_active_model_event(event),
+                        track_response_headers(response_headers),
                         _observer.track_model_event(event),
                         model_stream_observer(stream_observer),
                     ):

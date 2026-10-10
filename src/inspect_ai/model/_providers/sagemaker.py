@@ -35,6 +35,7 @@ from .._model import ModelAPI, RetryDecision
 from .._model_call import ModelCall
 from .._model_output import ModelOutput
 from .._reasoning import clamp_reasoning_effort_to_low_medium_high
+from .._response_headers import record_response_headers
 from .._stream import (
     NoStreamDataError,
     StreamContentEvent,
@@ -146,6 +147,11 @@ class SagemakerAPI(ModelAPI):
 
             # Create a shared session to be used when generating
             self.session = get_session()
+            for operation in ("InvokeEndpoint", "InvokeEndpointWithResponseStream"):
+                self.session.register(
+                    f"response-received.sagemaker-runtime.{operation}",
+                    self._response_received,
+                )
 
         except ImportError:
             raise pip_dependency_error("Sagemaker API", ["aiobotocore"])
@@ -428,6 +434,14 @@ class SagemakerAPI(ModelAPI):
             input, self.collapse_user_messages(), self.collapse_assistant_messages()
         )
         return [await process_chat_message(message) for message in collapsed]
+
+    def _response_received(
+        self, response_dict: dict[str, Any] | None = None, **kwargs: Any
+    ) -> None:
+        if response_dict is not None:
+            headers = response_dict.get("headers")
+            if headers is not None:
+                record_response_headers(headers)
 
     def _create_client(self) -> Any:
         """Create SageMaker runtime client with proper configuration."""
