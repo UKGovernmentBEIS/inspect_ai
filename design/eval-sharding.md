@@ -1,5 +1,17 @@
 # Eval sharding with per-worker log files
 
+## Overview
+
+A large eval can be split across workers that each run a disjoint subset
+of the samples and write their own ordinary `.eval` log, a shard, into a
+companion directory `<name>.shards/<k>/` beside the log the run will end
+up as. A trusted, incremental merge combines the shards into the canonical
+`<name>.eval`, recomputing whole-task metrics and recording which shards it
+merged, so the result reads like an unsharded log. Merging is done through
+a Python API, a CLI command, or by `eval_set()` at startup, which then
+retries anything missing as an ordinary run. Later steps add live
+whole-task metrics and viewer support for shards.
+
 Status: design direction chosen, last revised 2026-09-23. Phase 1 compared
 the options (now under "Alternatives not taken"); the phased direction below
 was agreed by Ransom and JJ Allaire on 2026-09-18 and refined by Ransom on
@@ -182,7 +194,9 @@ and skips no directory; it sees full paths but not the listed root. The
   so the shards are two separate entries, never compared or cleaned against
   each other;
   with `retry_cleanup=True` (the default) it deletes every non-`started` log
-  sharing a `task_id` except the newest (`evalset.py:1962-1975`).
+  sharing a `task_id` except the newest (`evalset.py:1962-1975`; since
+  UKGovernmentBEIS/inspect_ai#5396 also an older `started` log that the
+  same process ran).
 - `log_samples_complete` (`evalset.py:1837`) compares counts, not ids. With
   no selector, planned 6 ≠ 3 for both shards, so both are incomplete;
   `as_previous_tasks` pairs the task with the *first* log carrying its
@@ -242,12 +256,18 @@ places a log's companion at `<name>.checkpoints/` by the same rule: strip
 `.eval` from the basename, append a dotted suffix (`log_basename` and
 `eval_checkpoints_dir`,
 `src/inspect_ai/util/_checkpoint/_layout/eval_checkpoints_dir.py`). A `.eval`
-file under a `*.shards/` directory is a shard of the log named by that
-directory; a file anywhere else is an ordinary log; copying a shard out of
-its directory makes it an ordinary partial log.
+file in a `<k>/` directly under a `*.shards/` directory is a shard of the
+log named by that directory. Any other log directly in the companion or
+directly in a directory under it is a stray file, which the merge refuses.
+A log nested deeper (in a shard's ancillary directory such as `scans/`,
+including a companion nested there) is an ordinary log, as is a file
+anywhere else (decision: Ransom, 2026-10-05;
+the exact rule is `is_shard_path` in
+[`eval-sharding-implementation.md`](eval-sharding-implementation.md)).
+Copying a shard out of its directory makes it an ordinary partial log.
 
 - **The name is the identity.** There is no separate identifier: the shards
-  of `<name>.eval` are the `.eval` files under `<name>.shards/`, and the
+  of `<name>.eval` are the `.eval` files in `<name>.shards/<k>/`, and the
   merge's idempotence lookup is a name derivation in both directions (`<name>.shards/` implies
   `<name>.eval`, and `<name>.eval` implies `<name>.shards/`). Nothing else is
   written into `<name>.shards/` by the design: no manifest or index file
@@ -277,8 +297,10 @@ its directory makes it an ordinary partial log.
   the file name as it does today (`_file.py:1178-1250`): `{created}` is the
   launcher's mint time, `{task}` the task's display name, and `{id}` a
   freshly minted task id that the merge stamps as the merged log's
-  `eval.task_id`, so file name and header agree; it is unrelated to the
-  shards' own `task_id`s. The merged log's `eval_id` is minted at the first
+  `eval.task_id`, so file name and header agree (under a custom pattern
+  from which the id cannot be read back, the merge derives the `task_id`
+  from `<name>` instead; implementation plan, "The merged log's
+  `task_id`"); it is unrelated to the shards' own `task_id`s. The merged log's `eval_id` is minted at the first
   merge and preserved by later passes, so incremental merges present as one
   log to `evals_df` and the viewer. The name-building logic in
   `FileRecorder._log_file_key` takes an `EvalSpec`; the launcher has none
@@ -298,8 +320,13 @@ its directory makes it an ordinary partial log.
 - **`-recovered`.** `log_basename` strips `-recovered`, so a recovered merged
   log `<name>-recovered.eval` maps to the same companion `<name>.shards/`.
   In practice a `started` merged log is re-merged, not recovered (see
-  "Eval-set integration"), so this mapping matters for the CLI case where a
-  user has run `inspect log recover` by hand. A recovered *shard*
+  "Eval-set integration"), so this mapping matters for readers (ctl, the
+  viewer's shard hiding) after a user has run `inspect log recover` by
+  hand. The merge does not write to it: a `<name>-recovered.eval` argument
+  is refused in favour of `<name>.eval`, so one companion never gets two
+  merged logs (see
+  [`eval-sharding-implementation.md`](eval-sharding-implementation.md),
+  "Python API"). A recovered *shard*
   (`<shard>-recovered.eval` written beside the original inside `<k>/`) makes
   its directory hold two files for one shard; the merge treats the files in
   one `<k>/` as attempts of the same shard and takes the newest, the same
@@ -561,16 +588,21 @@ is what the whole-task view shows.
 **Provenance and ledger: a new header field.** Decision (Ransom,
 2026-09-21): the merged log carries a new typed `EvalSpec` field (not
 `eval.metadata`) holding the shards' provenance and the merge ledger: the
-companion directory (derivable from the name, recorded so a moved or renamed
-merged log still says where it came from), the intended selection last
-merged against,
-and one entry per shard `<k>` with its file name, `eval_id`, the number of
+intended selection last merged against,
+and one entry per shard `<k>` with its file name, the number of
 samples merged from it, its status at merge time, its error message when
 that status is `error` or `cancelled` (see "Errored shards"), and its mtime
-or ETag. The merged log's
+or ETag. The companion directory and each shard's `eval_id` are not
+recorded (decision: Ransom, 2026-09-29): nothing reads them, the companion
+is derived from the merged log's name, and a recorded location goes stale
+when the log moves. The merged log's
 own `samples/` members are the set of merged `(id, epoch)` samples. With
-this, a fully merged `success` shard is skipped without opening it, a grown
-shard is re-read only for the members the merged log lacks, and the ledger
+this, a fully merged `success` shard is skipped without opening it, a
+changed shard (one that grew, or has a newer attempt) has all its records
+in the merged log replaced by every record its current attempt holds,
+while unchanged shards' records are carried from the merged log (until the
+raw-copy CRC shortcut, the changed shard's members are all read; see the
+implementation plan's "The sample set"), and the ledger
 travels with the log, and the merged log stays the whole truth for
 `<name>`. Deleting a merged log deletes its companion `<name>.shards/` with
 it (decision: Ransom, 2026-09-22): a merged log with no shards is complete
@@ -660,9 +692,12 @@ default, and also the way to clear the extra rows once a run is done,
 because it is the one choice that cannot
 be undone after a bad merge (Ransom, 2026-09-18, restated under the companion
 layout). This is the second difference from checkpoints, whose retention
-default is to delete the companion on success (`retention:
-Literal["delete", "retain"] = "delete"`, `util/_checkpoint/config.py:233`);
-shards flip the default because re-merge after a merge bug and adding shards later
+default is documented as deleting the companion on success (`retention:
+Literal["delete", "retain"] = "delete"`, `util/_checkpoint/config.py:233`;
+not implemented on `main` as of 2026-10-09, meridianlabs-ai/inspect_ai#582,
+so checkpoint companions currently stay, and shard deletion leaves them in
+place, see the implementation plan's "Deleting shards"); shards flip the
+default because re-merge after a merge bug and adding shards later
 both need the shards to still exist. When the merged log itself is deleted,
 the shards go with it (see "Provenance and ledger"). No move is needed. For reference, an
 S3 move would be a server-side copy plus a delete, one API round trip per
@@ -675,7 +710,11 @@ and runs the incremental merge for each before any pairing, at the point
 where it lists the directory today (`evalset.py:1043-1060`). The merged log
 `<name>.eval` then takes part in pairing as an ordinary log; shards
 themselves are skipped by pairing and completeness through `eval_set()`'s
-own path-based skip of anything under a `*.shards/` component. That skip is
+own path-based skip of the files a companion's walk lists: those directly
+in the first `*.shards/` directory below the log directory or in a
+directory directly under it. A log nested deeper is an ordinary log, so
+the skip hides nothing the walk does not report (decision: Ransom,
+2026-10-05). That skip is
 required regardless of the general listing decision, or today's
 misbehaviour (first-matching pairing, count-based completeness) returns;
 `retry_cleanup` would leave shards alone in any case, since each has its
@@ -799,7 +838,7 @@ What readers that list shards pay:
   the header of every listed log before any pairing (`list_all_eval_logs`
   calls `read_eval_log_headers`, `_eval/evalset.py:1758-1769`, from `:1043`),
   so a skip applied at pairing still fetches 300 shard headers per task on
-  every restart. The path-based `*.shards/` skip (see "Eval-set
+  every restart. The path-based shard skip (see "Eval-set
   integration") therefore applies to the file list before
   `read_eval_log_headers`; the startup merge reads shard headers itself,
   through the ledger, only for shards that changed. The retry-cleanup scan
@@ -1100,7 +1139,12 @@ Kept for the record and as the rationale for the design above.
   at any depth or direct child, or one conditional only on the merged log
   existing). Rejected (Ransom, 2026-09-21): each creates a state where a
   stale merged log hides ongoing work in the shards. The viewer's rule adds
-  the mtime condition that avoids this; see "Listing".
+  the mtime condition that avoids this; see "Listing". This concerns the
+  shared listing and the viewer; `eval_set()`'s own skip ("Eval-set
+  integration") is a path rule too, but not a component rule at any depth:
+  a log nested in a shard's ancillary directory is not skipped (decision:
+  Ransom, 2026-10-05), because the merge's walk never lists it and a skip
+  would hide it unreported.
 - **A periodic full merge as originally rejected (2026-09-18).** The
   objections were a full rewrite per tick, reading running shards through
   their journals, and needing a `started` status. The incremental-merge
