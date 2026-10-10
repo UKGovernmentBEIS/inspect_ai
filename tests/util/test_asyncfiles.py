@@ -664,6 +664,23 @@ async def test_list_dir_local_lists_direct_children_only(tmp_path: Path) -> None
     assert [f.name for f in uri_listing.files] == [f"{tmp_path.as_uri()}/a.eval"]
 
 
+async def test_list_dir_file_uri_children_stay_uris_with_drive_paths(
+    tmp_path: Path,
+) -> None:
+    # #5580: on Windows the local listing hands to_uri() native child paths
+    # such as C:\dir\one.eval, whose drive parses as a urlparse "scheme".
+    # Children must still come back as file:// URIs (this test fails on
+    # Windows without the fix and passes everywhere with it).
+    (tmp_path / "one.eval").write_bytes(b"abc")
+    (tmp_path / "sub").mkdir()
+
+    async with AsyncFilesystem() as fs:
+        listing = await fs.list_dir(tmp_path.as_uri())
+
+    assert [f.name for f in listing.files] == [f"{tmp_path.as_uri()}/one.eval"]
+    assert listing.dirs == [f"{tmp_path.as_uri()}/sub"]
+
+
 async def test_list_dir_file_uri_encodes_reserved_characters(tmp_path: Path) -> None:
     from inspect_ai._util.file import local_path
 

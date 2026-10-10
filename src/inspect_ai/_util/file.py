@@ -452,7 +452,21 @@ def absolute_file_path(file: str) -> str:
     return strip_trailing_sep(file)
 
 
+# A Windows drive-letter path such as "C:\dir\log.eval" or "C:/dir/log.eval".
+# The separator after the colon distinguishes it from a URI with a
+# single-letter scheme ("x://host" has a second slash, "C:x" has none).
+WINDOWS_DRIVE_PATH = re.compile(r"^[A-Za-z]:[\\/]([^\\/].*)?$")
+
+
 def to_uri(path_or_uri: str) -> str:
+    # A Windows drive-letter path parses with the drive as its "scheme", but
+    # it is a local path, not a URI (#5580). Convert it the way Path.as_uri()
+    # would, keeping "@" and the drive colon unencoded so the result round
+    # trips through filesystem()/local_path() (see the note below).
+    if WINDOWS_DRIVE_PATH.match(path_or_uri):
+        posix_path = "/" + path_or_uri.replace("\\", "/")
+        return "file://" + quote_from_bytes(os.fsencode(posix_path), safe="/:@")
+
     # Check if it's already a URI
     parsed = urlparse(path_or_uri)
 

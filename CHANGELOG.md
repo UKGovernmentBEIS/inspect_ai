@@ -1,5 +1,7 @@
 ## Unreleased
 
+- Bugfix: `to_uri()` now converts Windows drive-letter paths (e.g. `C:\dir\log.eval`, whose drive `urlparse` mistakes for a URI scheme) to `file:///C:/...` URIs, so `AsyncFilesystem.list_dir()` given a `file://` base returns `file://` children on Windows instead of native paths. (#5580)
+
 ## 0.3.278 (09 October 2026)
 
 - Tasks and samples can carry a `description` of what they ask of the agent, recorded in the eval log and in `evals_df()` and `samples_df()`.

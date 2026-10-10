@@ -293,6 +293,17 @@ def test_absolute_file_path_resolves_relative() -> None:
         ),
         # Plain local path without special characters
         ("/tmp/simple.eval", "file:///tmp/simple.eval"),
+        # Windows drive-letter paths parse with the drive as a urlparse
+        # "scheme", but they are local paths, not URIs (#5580). They convert
+        # on any OS: the check is pure string handling.
+        ("C:\\dir\\one.eval", "file:///C:/dir/one.eval"),
+        ("C:/dir/one.eval", "file:///C:/dir/one.eval"),
+        # A URI with a genuine single-letter scheme is not a drive path:
+        # the second slash after "x:/" rules it out.
+        ("x://host/one.eval", "x://host/one.eval"),
+        # A drive-relative path (no separator after the colon) keeps the
+        # long-standing passthrough behavior.
+        ("C:one.eval", "C:one.eval"),
     ],
 )
 def test_to_uri(input_path: str, expected_suffix: str) -> None:
@@ -371,6 +382,15 @@ def test_local_path_is_the_only_file_uri_decoder() -> None:
 @pytest.mark.skipif(sys.platform != "win32", reason="Windows drive-path form")
 def test_local_path_windows_drive() -> None:
     assert local_path("file:///C:/logs/eval%20run.eval") == "C:\\logs\\eval run.eval"
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Windows drive-path form")
+def test_to_uri_windows_drive_round_trips_through_local_path() -> None:
+    # #5580: a URI to_uri() itself produces must decode back to the file it
+    # names, including the drive letter. local_path() returns the native
+    # separator form, so compare against that rather than the input spelling.
+    for path in ("C:\\logs\\eval run.eval", "C:/logs/eval run.eval"):
+        assert local_path(to_uri(path)) == str(Path(path))
 
 
 async def test_cleanup_s3_sessions_no_instances() -> None:
