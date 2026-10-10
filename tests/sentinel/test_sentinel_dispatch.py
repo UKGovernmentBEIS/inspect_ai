@@ -686,8 +686,7 @@ def assert_unhandled_escalation(
     assert sample.limit.type == "operator"
     reason = sample.limit.reason
     assert reason is not None
-    assert "nothing handled the escalation" in reason
-    assert f"human(stages=['{stage}'])" in reason
+    assert "unhandled escalation" in reason
     assert "handle_escalation(" in reason
     [limit_event] = [e for e in sample.events if isinstance(e, SampleLimitEvent)]
     assert limit_event.message == reason
@@ -751,6 +750,54 @@ def test_an_escalate_handled_by_a_continuing_link_proceeds() -> None:
     assert [m.text for m in tool_messages(log)] == ["2", "3"]
     root = [e for e in sentinel_events(log) if e.path == ""]
     assert [e.action for e in root] == ["continue", "continue"]
+
+
+def fake_run_sentinel(
+    monkeypatch: pytest.MonkeyPatch, stage: str, decision: Decision
+) -> None:
+    from inspect_ai._sentinel import _dispatch
+
+    async def run_sentinel(root: Any, host: Any, step: Any) -> Decision | None:
+        return decision if _dispatch._stage(step) == stage else None
+
+    monkeypatch.setattr(_dispatch, "run_sentinel", run_sentinel)
+
+
+@pytest.mark.parametrize("stage", ["tool_call", "tool_result"])
+def test_an_escalate_from_an_older_sentinel_terminates_and_warns_once(
+    stage: str, caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from inspect_ai._util import logger as logger_module
+
+    monkeypatch.setattr(logger_module, "_warned", [])
+    fake_run_sentinel(monkeypatch, stage, Decision.escalate("not sure"))
+    with caplog.at_level(logging.WARNING):
+        log = run(d3_continue(), turns=2, epochs=2)
+    assert log.samples and len(log.samples) == 2
+    for sample in log.samples:
+        assert sample.error is None
+        assert sample.limit is not None and sample.limit.type == "operator"
+        assert sample.limit.reason == (
+            f"unhandled escalation at the {stage} stage: not sure; end the "
+            f"configuration with human(stages=['{stage}']) or handle_escalation(...)"
+        )
+    warnings = [r for r in caplog.records if "upgrade inspect_sentinel" in r.message]
+    assert len(warnings) == 1
+
+
+def test_a_terminate_from_the_sentinel_is_applied_without_a_warning(
+    caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from inspect_ai._util import logger as logger_module
+
+    monkeypatch.setattr(logger_module, "_warned", [])
+    reason = "unhandled escalation from unsure: not sure"
+    fake_run_sentinel(monkeypatch, "tool_call", Decision.terminate(reason))
+    with caplog.at_level(logging.WARNING):
+        log = run(d3_continue())
+    assert log.samples and log.samples[0].limit is not None
+    assert log.samples[0].limit.reason == reason
+    assert not [r for r in caplog.records if "upgrade inspect_sentinel" in r.message]
 
 
 @solver
