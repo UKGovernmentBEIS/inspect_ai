@@ -402,6 +402,13 @@ class HttpxHooks(HttpHooks):
         # record status + Retry-After / x-ratelimit-reset-* for next retry classification
         request_id = response.request.headers.get(self.REQUEST_ID_HEADER, None)
         self.record_response(request_id, response.status_code, response.headers)
+        # keep the response headers available to the model layer for this
+        # attempt (no-op outside a model call); an empty Headers object is
+        # falsy and must not wipe earlier real headers in this attempt
+        from inspect_ai.model._response_headers import record_response_headers
+
+        if response.headers:
+            record_response_headers(response.headers)
 
 
 def urllib3_hooks() -> HttpHooks:

@@ -303,6 +303,19 @@ def _transport_kwargs(
     return kwargs
 
 
+async def _record_model_response_headers(response: object) -> None:
+    """Record model-call response headers (no-op outside a call attempt)."""
+    # local import: the model layer imports this module's client factory
+    from inspect_ai.model._response_headers import record_response_headers
+
+    # an empty Headers mapping is falsy: recording it would wipe real
+    # headers captured earlier in the same attempt, so only record
+    # non-empty ones
+    headers = getattr(response, "headers", None)
+    if headers:
+        record_response_headers(headers)
+
+
 def default_client_kwargs(**overrides: Any) -> dict[str, Any]:
     """`httpx.AsyncClient` kwargs carrying these defaults; caller overrides win."""
     kwargs = dict(overrides)
@@ -343,6 +356,10 @@ def default_client_kwargs(**overrides: Any) -> dict[str, Any]:
 
     hooks = dict(kwargs.get("event_hooks") or {})
     hooks["request"] = [_floor_connect_timeout, *hooks.get("request", [])]
+    hooks["response"] = [
+        _record_model_response_headers,
+        *hooks.get("response", []),
+    ]
     kwargs["event_hooks"] = hooks
     return kwargs
 
