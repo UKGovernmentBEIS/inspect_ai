@@ -163,7 +163,7 @@ from inspect_ai.model._compaction.edit import (
 from inspect_ai.model._internal import (
     CONTENT_INTERNAL_TAG,
     content_internal_tag,
-    parse_content_with_internal,
+    parse_content_with_internal_blocks,
 )
 from inspect_ai.model._retry import batch_admin_retry_config
 from inspect_ai.tool import ToolCall, ToolChoice, ToolFunction, ToolInfo
@@ -4803,26 +4803,24 @@ def content_and_tool_calls_from_assistant_content_blocks(
                     "</result>", ""
                 )
 
-            # parse out <internal> tags which might be here due to the bridge
-            content_text, content_internal = parse_content_with_internal(
+            for parsed_block in parse_content_with_internal_blocks(
                 content_text, CONTENT_INTERNAL_TAG
-            )
-
-            content.append(
-                ContentText(
-                    type="text",
-                    text=content_text,
-                    internal=content_internal,
-                    citations=(
-                        [
-                            to_inspect_citation(citation)
-                            for citation in content_block.citations
-                        ]
-                        if content_block.citations
-                        else None
-                    ),
+            ):
+                content.append(
+                    ContentText(
+                        type="text",
+                        text=parsed_block.text,
+                        internal=parsed_block.internal,
+                        citations=(
+                            [
+                                to_inspect_citation(citation)
+                                for citation in content_block.citations
+                            ]
+                            if content_block.citations
+                            else None
+                        ),
+                    )
                 )
-            )
         elif isinstance(content_block, ToolUseBlock):
             tool_calls = tool_calls or []
             arguments: dict[str, Any] = content_block.model_dump().get("input", {})
@@ -5959,11 +5957,12 @@ def model_call_filter(key: JsonValue | None, value: JsonValue) -> JsonValue:
 
 def _content_list(input: str | list[Content]) -> list[Content]:
     if isinstance(input, str):
-        # parse out <internal> tags which might be here due to the bridge
-        input, content_internal = parse_content_with_internal(
-            input, CONTENT_INTERNAL_TAG
-        )
-        return [ContentText(text=input, internal=content_internal)]
+        blocks = parse_content_with_internal_blocks(input, CONTENT_INTERNAL_TAG)
+        return [
+            ContentText(text=block.text, internal=block.internal)
+            for block in blocks
+            if block.text or block.internal is not None
+        ] or [ContentText(text="", internal=None)]
     else:
         return input
 

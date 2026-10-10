@@ -1,6 +1,10 @@
+from typing import cast
+
 import pytest
+from openai.types.chat import ChatCompletionMessageParam
 
 from inspect_ai._util.content import ContentAudio, ContentReasoning, ContentText
+from inspect_ai.model._internal import content_internal_tag
 from inspect_ai.model._openai import (
     messages_from_openai,
     messages_to_openai,
@@ -223,6 +227,143 @@ async def test_assistant_message_reasoning_content_round_trip():
     assert isinstance(content, str)
     assert "<think>" not in content
     assert "assistant output" in content
+
+
+@pytest.mark.parametrize("as_parts", [False, True])
+@pytest.mark.parametrize("double_wrapped", [False, True])
+async def test_assistant_message_preserves_multiple_internal_text_blocks(
+    as_parts: bool,
+    double_wrapped: bool,
+) -> None:
+    serialized = "\n".join(
+        [
+            "first",
+            f"<{content_internal_tag({'a': 1})}>"
+            if double_wrapped
+            else content_internal_tag({"a": 1}),
+            "second",
+            f"<{content_internal_tag({'b': 2})}>"
+            if double_wrapped
+            else content_internal_tag({"b": 2}),
+        ]
+    )
+
+    [message] = await messages_from_openai(
+        [
+            cast(
+                ChatCompletionMessageParam,
+                DummyMessage(
+                    "assistant",
+                    content=[{"type": "text", "text": serialized}]
+                    if as_parts
+                    else serialized,
+                ),
+            )
+        ]
+    )
+
+    assert isinstance(message.content, list)
+    assert [
+        (content.text, content.internal)
+        for content in message.content
+        if isinstance(content, ContentText)
+    ] == [("first", {"a": 1}), ("second", {"b": 2})]
+
+
+@pytest.mark.parametrize(
+    "serialized",
+    [
+        "\nassistant output\n<content-internal>eyJrIjogInYifQ==</content-internal>\n",
+        "\nassistant output\n<<content-internal>eyJrIjogInYifQ==</content-internal>>\n",
+    ],
+    ids=["single-wrapped", "double-wrapped"],
+)
+async def test_assistant_message_preserves_single_internal_text_block(
+    serialized: str,
+) -> None:
+    [message] = await messages_from_openai(
+        [
+            cast(
+                ChatCompletionMessageParam,
+                DummyMessage("assistant", content=serialized),
+            )
+        ]
+    )
+
+    assert isinstance(message.content, list)
+    assert len(message.content) == 1
+    [content] = message.content
+    assert isinstance(content, ContentText)
+    assert content.text == "assistant output"
+    assert content.internal == {"k": "v"}
+
+
+async def test_assistant_message_preserves_internal_and_plain_text_blocks() -> None:
+    serialized = "\n".join(
+        [
+            "first",
+            content_internal_tag({"a": 1}),
+            "second",
+        ]
+    )
+
+    [message] = await messages_from_openai(
+        [
+            cast(
+                ChatCompletionMessageParam,
+                DummyMessage("assistant", content=serialized),
+            )
+        ]
+    )
+
+    assert isinstance(message.content, list)
+    assert [
+        (content.text, content.internal)
+        for content in message.content
+        if isinstance(content, ContentText)
+    ] == [("first", {"a": 1}), ("second", None)]
+
+
+@pytest.mark.parametrize("as_parts", [False, True])
+@pytest.mark.parametrize("second_text", ["second", ""])
+async def test_assistant_message_preserves_reasoning_and_internal_block_order(
+    as_parts: bool, second_text: str
+) -> None:
+    serialized = "\n".join(
+        [
+            '<think signature="sig">reasoning</think>',
+            "first",
+            content_internal_tag({"a": 1}),
+            second_text,
+            content_internal_tag({"b": 2}),
+        ]
+    )
+
+    [message] = await messages_from_openai(
+        [
+            cast(
+                ChatCompletionMessageParam,
+                DummyMessage(
+                    "assistant",
+                    content=[{"type": "text", "text": serialized}]
+                    if as_parts
+                    else serialized,
+                ),
+            )
+        ]
+    )
+
+    assert isinstance(message.content, list)
+    assert len(message.content) == 3
+    reasoning, first, second = message.content
+    assert isinstance(reasoning, ContentReasoning)
+    assert isinstance(first, ContentText)
+    assert isinstance(second, ContentText)
+    assert reasoning.reasoning == "reasoning"
+    assert first.text == "first"
+    assert first.internal == {"a": 1}
+    assert second.text == second_text
+    assert second.internal == {"b": 2}
 
 
 async def test_user_message_passthrough():

@@ -1,7 +1,7 @@
 import json
 from logging import getLogger
 from time import time
-from typing import Any, Iterable, Set, cast
+from typing import Any, Iterable, cast
 
 from openai.types.responses import (
     Response,
@@ -87,6 +87,7 @@ from inspect_ai.model._internal import (
     CONTENT_INTERNAL_TAG,
     content_internal_tag,
     parse_content_with_internal,
+    parse_content_with_internal_blocks,
 )
 from inspect_ai.model._model import Model, ModelName
 from inspect_ai.model._model_output import StopReason
@@ -989,8 +990,10 @@ def messages_from_responses_input(
 
         if len(pending_assistant_message_params) > 0:
             content: list[Content] = []
+            content_groups: list[tuple[str | None, list[Content]]] = []
             tool_calls: list[ToolCall] = []
             for param in pending_assistant_message_params:
+                content_start = len(content)
                 # convert simple assistant message to standard format
                 if is_simple_assistant_message(param):
                     if isinstance(param["content"], str):
@@ -1003,36 +1006,33 @@ def messages_from_responses_input(
                         param_content = param["content"]
                     for c in param_content:
                         if c["type"] == "input_text":
-                            asst_content, content_internal = (
-                                parse_content_with_internal(
-                                    c["text"], CONTENT_INTERNAL_TAG
+                            for block in parse_content_with_internal_blocks(
+                                c["text"], CONTENT_INTERNAL_TAG
+                            ):
+                                asst_content, content_internal = block
+                                # Check for serialized <think> tags and restore as ContentReasoning
+                                remaining_text, reasoning_capsule = (
+                                    parse_content_with_reasoning(asst_content)
                                 )
-                            )
-                            # Check for serialized <think> tags and restore as ContentReasoning
-                            remaining_text, reasoning_capsule = (
-                                parse_content_with_reasoning(asst_content)
-                            )
-                            if reasoning_capsule is not None:
-                                content.append(
-                                    ContentReasoning(
-                                        reasoning=reasoning_capsule.reasoning,
-                                        signature=reasoning_capsule.signature,
-                                        redacted=reasoning_capsule.redacted,
-                                        summary=reasoning_capsule.summary,
-                                        # Preserve the stashed encrypted_content
-                                        # blob so it can be replayed next turn.
-                                        internal=reasoning_capsule.internal,
+                                if reasoning_capsule is not None:
+                                    content.append(
+                                        ContentReasoning(
+                                            reasoning=reasoning_capsule.reasoning,
+                                            signature=reasoning_capsule.signature,
+                                            redacted=reasoning_capsule.redacted,
+                                            summary=reasoning_capsule.summary,
+                                            # Preserve the stashed encrypted_content
+                                            # blob so it can be replayed next turn.
+                                            internal=reasoning_capsule.internal,
+                                        )
                                     )
-                                )
-                                asst_content = remaining_text
-                            if (
-                                asst_content
-                            ):  # Only add text if there's remaining content
-                                content.append(
-                                    ContentText(
-                                        text=asst_content, internal=content_internal
+                                    asst_content = remaining_text
+                                if asst_content or content_internal is not None:
+                                    content.append(
+                                        ContentText(
+                                            text=asst_content, internal=content_internal
+                                        )
                                     )
-                                )
                         elif c["type"] == "input_image" and c["image_url"] is not None:
                             content.append(
                                 ContentImage(image=c["image_url"], detail=c["detail"])
@@ -1072,9 +1072,7 @@ def messages_from_responses_input(
                                     )
                                 )
                                 asst_content = remaining_text
-                            if (
-                                asst_content
-                            ):  # Only add text if there's remaining content
+                            if asst_content or content_internal is not None:
                                 content.append(
                                     ContentText(
                                         text=asst_content,
@@ -1172,8 +1170,16 @@ def messages_from_responses_input(
                         f"Unexpected assitant message type: {param['type']}"
                     )
 
+                item_id = param.get("id")
+                content_groups.append(
+                    (
+                        item_id if isinstance(item_id, str) else None,
+                        content[content_start:],
+                    )
+                )
+
             # some scaffolds (e.g. codex) can present duplicate assistant content
-            content = filter_duplicate_assistant_content(content)
+            content = filter_duplicate_assistant_content(content_groups)
 
             messages.append(
                 ChatMessageAssistant(
@@ -1361,21 +1367,36 @@ def _tool_content_from_openai_tool_output(
         return content
 
 
-# some scaffolds (e.g. codex) can present duplciate assistant messages
 def filter_duplicate_assistant_content(
-    input: list[Content],
+    input: list[tuple[str | None, list[Content]]],
 ) -> list[Content]:
-    filtered_input: list[Content] = []
-    messages_ids: Set[str] = set()
-    for c in reversed(input):
-        if c.type == "text" and c.internal:
-            internal = to_json_str_safe(c.internal)
-            if internal not in messages_ids:
-                filtered_input.append(c)
-                messages_ids.add(internal)
-        else:
-            filtered_input.append(c)
-    return list(reversed(filtered_input))
+    """Remove copied input items while preserving distinct output items.
+
+    Output item IDs distinguish repeated text runs separated by reasoning or
+    tool use. For input without IDs, remove repeated copies of the complete
+    sequence rather than comparing individual text runs.
+    """
+    if all(item_id is None and group for item_id, group in input) and any(
+        c.type == "text" and c.internal for _, group in input for c in group
+    ):
+        group_keys = [tuple(c.model_dump_json() for c in group) for _, group in input]
+        for size in range(1, len(input) // 2 + 1):
+            if len(input) % size == 0 and group_keys == group_keys[:size] * (
+                len(input) // size
+            ):
+                input = input[:size]
+                break
+
+    filtered_groups: list[list[Content]] = []
+    seen_groups: set[tuple[str, ...]] = set()
+    for item_id, group in reversed(input):
+        if item_id is not None:
+            key = (item_id or "", *(c.model_dump_json() for c in group))
+            if key in seen_groups:
+                continue
+            seen_groups.add(key)
+        filtered_groups.append(group)
+    return [c for group in reversed(filtered_groups) for c in group]
 
 
 output_item_adapter = TypeAdapter(list[ResponseOutputItem])
@@ -1394,7 +1415,10 @@ def responses_output_items_from_assistant_message(
         if isinstance(message.content, str)
         else message.content
     )
+    pending_text_message: ResponseOutputMessage | None = None
     for content in message_content:
+        if not isinstance(content, ContentText):
+            pending_text_message = None
         if isinstance(content, ContentText):
             # check for content.internal
             if content.internal:
@@ -1405,24 +1429,26 @@ def responses_output_items_from_assistant_message(
             # apply internal to content
             content_text = f"{content.text}{internal}"
 
-            output.append(
-                ResponseOutputMessage(
+            output_content = (
+                ResponseOutputRefusal(type="refusal", refusal=content_text)
+                if content.refusal
+                else ResponseOutputText(
+                    type="output_text",
+                    text=content_text,
+                    annotations=[],
+                    logprobs=[],
+                )
+            )
+            if pending_text_message is None:
+                pending_text_message = ResponseOutputMessage(
                     type="message",
                     id=uuid(),
                     role="assistant",
-                    content=[
-                        ResponseOutputRefusal(type="refusal", refusal=content_text)
-                        if content.refusal
-                        else ResponseOutputText(
-                            type="output_text",
-                            text=content_text,
-                            annotations=[],
-                            logprobs=[],
-                        )
-                    ],
+                    content=[],
                     status="completed",
                 )
-            )
+                output.append(pending_text_message)
+            pending_text_message.content.append(output_content)
         elif isinstance(content, ContentReasoning):
             # Serialize reasoning as <think> tag with full attributes (signature, redacted, summary)
             # so it travels through the scaffold as opaque text and can be restored on the way back
