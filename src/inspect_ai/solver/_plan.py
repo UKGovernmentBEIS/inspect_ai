@@ -31,7 +31,7 @@ class Plan(Solver):
 
     def __init__(
         self,
-        steps: Solver | list[Solver],
+        steps: Solver | list[Solver] | tuple[Solver, ...],
         finish: Solver | None = None,
         cleanup: Callable[[TaskState], Awaitable[None]] | None = None,
         name: str | None = None,
@@ -52,8 +52,10 @@ class Plan(Solver):
         """
         if isinstance(steps, Solver):
             self.steps = [steps]
-        else:
+        elif isinstance(steps, list):
             self.steps = steps
+        else:
+            self.steps = list(steps)
 
         self.finish = finish
         self.cleanup = cleanup

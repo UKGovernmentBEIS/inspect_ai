@@ -51,7 +51,7 @@ class BasicAgentDeprecatedArgs(TypedDict, total=False):
 @solver
 def basic_agent(
     *,
-    init: Solver | list[Solver] | None = None,
+    init: Solver | list[Solver] | tuple[Solver, ...] | None = None,
     tools: list[Tool] | Solver | None = None,
     cache: bool | CachePolicy = False,
     max_attempts: int = 1,
@@ -127,6 +127,7 @@ def basic_agent(
     # resolve init
     if init is None:
         init = system_message(DEFAULT_SYSTEM_MESSAGE, submit=submit_name)
+    init = list(init) if isinstance(init, tuple) else init
     init = init if isinstance(init, list) else [init]
 
     # resolve tools
