@@ -164,7 +164,7 @@ Note if a provider's `config_files()` method returns `compose.yaml` in its list,
 If a provider is docker compatible, then the `config` argument passed to it's method may be one of the following (in addition to whatever native configuration the provider supports):
 
 1.  A path to a `Dockerfile`
-2.  A path to a `compose.yaml` file.
+2.  A path to a Docker Compose file (usually `compose.yaml`; a file declared for the "docker" sandbox can have any name).
 3.  An instance of the `ComposeConfig` class.
 
 These input for `config` might be handled as follows:
@@ -190,6 +190,8 @@ elif isinstance(config, ComposeConfig):
 else:
    # handle other config types (if any)
 ```
+
+Since a compose file can have any name, `is_compose_yaml()` won't recognize every compose file. A provider whose only file configs are Dockerfiles and compose files can treat any other path as a compose file.
 
 ## Sandbox Registration
 

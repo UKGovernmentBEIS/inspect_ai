@@ -497,9 +497,29 @@ def parse_compose_yaml(
     return config
 
 
-def is_docker_compatible_config(config: BaseModel | str | None) -> bool:
+def is_docker_compatible_config(
+    config: BaseModel | str | None, *, declared_type: str | None = None
+) -> bool:
+    """Check whether a config is a Dockerfile or Docker Compose configuration.
+
+    Args:
+        config: Sandbox config.
+        declared_type: Sandbox type the config was declared for. The `docker`
+            sandbox uses any file that is not a Dockerfile as a compose file, so
+            a file declared for it is accepted regardless of its name. Files
+            declared for other types are checked by name, since those types can
+            accept other files (e.g. Helm values for `k8s`).
+
+    Returns:
+        True if `config` is a path to a Dockerfile or compose file, or a
+        `ComposeConfig`, otherwise False.
+    """
     if isinstance(config, str):
-        return is_dockerfile(config) or is_compose_yaml(config)
+        return (
+            declared_type == "docker"
+            or is_dockerfile(config)
+            or is_compose_yaml(config)
+        )
     elif isinstance(config, ComposeConfig):
         return True
     else:
