@@ -10,6 +10,7 @@ griffe>=2
 groq>=0.28.0
 huggingface_hub>=1.6.0
 inspect-scout>=0.4.37
+inspect-sentinel>=0.1.0
 ipython
 jsonpath-ng
 latex2sympy2-extended==1.11.0
