@@ -15,6 +15,9 @@ from inspect_ai._util.registry import (
 )
 from inspect_ai._util.strenum import StrEnum
 from inspect_ai._util.trace import trace_action, trace_message
+
+# imported from its defining module, so the reference docs can follow it
+from inspect_ai.core._store import store
 from inspect_ai.util._limit import (
     Limit,
     LimitExceededError,
@@ -99,7 +102,7 @@ from ._sandbox import (
     sandboxenv,
 )
 from ._span import SpanIdProvider, current_span_id, span, span_id_provider
-from ._store import Store, store, store_from_events, store_from_events_as
+from ._store import Store, store_from_events, store_from_events_as
 from ._store_model import StoreModel, store_as
 from ._subprocess import (
     ExecResult,

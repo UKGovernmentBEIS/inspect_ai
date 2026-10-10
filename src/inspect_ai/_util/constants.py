@@ -5,13 +5,13 @@ from typing import Any, Literal
 # Backward-compatible re-exports of names that moved to inspect_ai.core.
 from inspect_ai.core._constants import DESERIALIZING as DESERIALIZING
 from inspect_ai.core._constants import MESSAGE_CACHE as MESSAGE_CACHE
+from inspect_ai.core._constants import PKG_NAME as PKG_NAME
 
 # End of backward-compatible re-exports.
 
 
 PKG_AUTHOR = "UK AI Security Institute"
 PKG_AUTHOR_DIR = "UK-AISI"
-PKG_NAME = Path(__file__).parent.parent.stem
 PKG_PATH = Path(__file__).parent.parent
 DEFAULT_EPOCHS = 1
 DEFAULT_MAX_CONNECTIONS = 10

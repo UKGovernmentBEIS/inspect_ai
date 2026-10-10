@@ -13,6 +13,7 @@ from ._citation import (
     CitationBase,
     ContentCitation,
     DocumentCitation,
+    DocumentRange,
     UrlCitation,
 )
 from ._content import (
@@ -35,6 +36,7 @@ from ._generate_config import (
     ResponseSchema,
 )
 from ._json import JSONSchema, JSONType
+from ._limit import LimitExceededError
 from ._model_output import (
     ChatCompletionChoice,
     Logprob,
@@ -48,7 +50,14 @@ from ._model_output import (
     TopLogprob,
 )
 from ._reference import Reference
-from ._sentinel import SentinelAction, SentinelSuspicion
+from ._sentinel import (
+    SentinelAction,
+    SentinelConfig,
+    SentinelEntry,
+    SentinelSuspicion,
+)
+from ._store import Store
+from ._store_model import StoreModel
 from ._target import Target
 from ._tool_call import (
     ToolCall,
@@ -87,6 +96,7 @@ __all__ = [
     "ContentToolUse",
     "ContentVideo",
     "DocumentCitation",
+    "DocumentRange",
     "GenerateConfig",
     "GenerateConfigArgs",
     "ImageOutput",
@@ -94,6 +104,7 @@ __all__ = [
     "internal_tool_type",
     "JSONSchema",
     "JSONType",
+    "LimitExceededError",
     "Logprob",
     "Logprobs",
     "ModelFallback",
@@ -103,10 +114,14 @@ __all__ = [
     "Reference",
     "ResponseSchema",
     "SentinelAction",
+    "SentinelConfig",
+    "SentinelEntry",
     "SentinelSuspicion",
     "StopCategory",
     "StopDetails",
     "StopReason",
+    "Store",
+    "StoreModel",
     "Target",
     "ToolCall",
     "ToolCallContent",

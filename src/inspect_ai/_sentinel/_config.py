@@ -1,20 +1,23 @@
 import importlib
-from collections.abc import Mapping, Sequence
-from typing import TYPE_CHECKING, Annotated, Any, TypeAlias, Union, cast
+import json
+from collections.abc import Callable, Hashable, Mapping, Sequence
+from typing import TYPE_CHECKING, Any, TypeAlias, Union, cast
 
-from pydantic import (
-    BaseModel,
-    ConfigDict,
-    Discriminator,
-    Field,
-    JsonValue,
-    RootModel,
-    StrictInt,
-    Tag,
-)
+import yaml
 
 from inspect_ai._util.error import PrerequisiteError
+from inspect_ai._util.file import exists, local_path
 from inspect_ai._util.registry import is_registry_object
+from inspect_ai.util._resource import resource
+
+# isort: split
+# Backward-compatible re-exports of names that moved to inspect_ai.core.
+from inspect_ai.core._sentinel import SentinelConfig as SentinelConfig
+from inspect_ai.core._sentinel import SentinelEntry as SentinelEntry
+from inspect_ai.core._sentinel import SentinelLayer as SentinelLayer
+from inspect_ai.core._sentinel import _layer_kind as _layer_kind
+
+# End of backward-compatible re-exports.
 
 if TYPE_CHECKING:
     from inspect_sentinel import Protocol
@@ -22,78 +25,6 @@ if TYPE_CHECKING:
 else:
     Sentinels: TypeAlias = Any
 
-
-class SentinelEntry(BaseModel):
-    """One configured monitor or protocol.
-
-    Any key besides `name`, `params`, `version` and `meta` names a parameter of the factory whose value is nested monitors or protocols, such as `monitors` for `threshold` or `children` for `concurrent`; it holds an entry, a list of entries, or a mapping of instance names to entries, and `nested` returns them.
-
-    Experimental: not yet a stable API; may change without notice.
-    """
-
-    model_config = ConfigDict(extra="allow")
-
-    name: str
-    """Registry name of the factory; a bare name also finds one in `inspect_sentinel`."""
-
-    params: dict[str, Any] = Field(default_factory=dict)
-    """Arguments passed to the factory, other than the nested ones."""
-
-    version: StrictInt | None = Field(default=None, exclude_if=lambda v: v is None)
-    """The factory's version as `@monitor(version=)` or `@protocol(version=)` declared it, recorded when not 0."""
-
-    meta: dict[str, JsonValue] | None = Field(
-        default=None, exclude_if=lambda v: v is None
-    )
-    """Reserved for fields added later; readers keep it without interpreting it."""
-
-    if not TYPE_CHECKING:
-        # pydantic validates each extra as a nested layer, so an error carries
-        # its location; hidden from the checker, which sees an invalid override
-        __pydantic_extra__: dict[str, "SentinelConfig"] = Field(init=False)
-
-    @property
-    def nested(self) -> dict[str, "SentinelConfig"]:
-        """Nested monitors or protocols, by the factory parameter they are passed as."""
-        return cast(dict[str, SentinelConfig], dict(self.__pydantic_extra__ or {}))
-
-
-def _layer_kind(value: object) -> str | None:
-    if isinstance(value, SentinelEntry):
-        return "entry"
-    if isinstance(value, list):
-        return "list"
-    if isinstance(value, Mapping):
-        mapping = cast(Mapping[object, object], value)
-        if isinstance(mapping.get("name"), str):
-            return "entry"
-        if all(isinstance(v, Mapping | SentinelEntry) for v in mapping.values()):
-            return "mapping"
-    return None
-
-
-SentinelLayer: TypeAlias = Annotated[
-    Annotated[SentinelEntry, Tag("entry")]
-    | Annotated[list[SentinelEntry], Field(min_length=1), Tag("list")]
-    | Annotated[dict[str, SentinelEntry], Field(min_length=1), Tag("mapping")],
-    Discriminator(
-        _layer_kind,
-        custom_error_type="sentinel_layer",
-        custom_error_message="A sentinel layer is an entry with a string 'name', a list of entries, or a mapping of instance names to entries",
-    ),
-]
-
-
-class SentinelConfig(RootModel[SentinelLayer]):
-    """A sentinel configuration: one entry, a list of entries, or a mapping of instance names to entries.
-
-    The value of the `sentinel:` key in a configuration file, and what the eval log records. A mapping is one entry when its `name` is a string, and a mapping of instance names when every value is an entry, so an instance named `name` still configures a mapping.
-
-    Experimental: not yet a stable API; may change without notice.
-    """
-
-
-SentinelEntry.model_rebuild()
 
 SentinelRoot: TypeAlias = "Protocol"
 
@@ -121,12 +52,86 @@ def resolve_sentinel_spec(spec: SentinelSpec) -> "Sentinels":
     _require_sentinel()
     from inspect_sentinel._integration import sentinel_from_config
 
-    if isinstance(spec, str | SentinelConfig) or not _is_constructed(spec):
+    if isinstance(spec, str) and exists(path := local_path(spec)):
+        sentinels = sentinel_from_config(_read_config_file(path))
+    elif isinstance(spec, str | SentinelConfig) or not _is_constructed(spec):
         sentinels = sentinel_from_config(cast(str | SentinelConfig, spec))
     else:
         sentinels = cast("Sentinels", spec)
     resolve_sentinel_root(sentinels)
     return sentinels
+
+
+def _read_config_file(path: str) -> Any:
+    """The value of the `sentinel` key in a YAML or JSON configuration file."""
+    text = resource(path, type="file")
+    try:
+        content = _unique_keys(_parse(text), path, "")
+    except (json.JSONDecodeError, yaml.YAMLError) as ex:
+        raise ValueError(f"{path}: could not parse the file: {ex}") from ex
+    if not isinstance(content, dict) or set(cast(dict[str, Any], content)) != {
+        "sentinel"
+    }:
+        raise ValueError(
+            f"{path}: a sentinel config file is a mapping whose only key is 'sentinel'."
+        )
+    value = cast(dict[str, Any], content)["sentinel"]
+    if isinstance(value, str):
+        raise ValueError(
+            f"{path}: 'sentinel' must be an entry, a list of entries, or a mapping of entries, not a string."
+        )
+    return value
+
+
+class _Pairs(list[tuple[object, object]]):
+    pass
+
+
+class _PairsLoader(yaml.SafeLoader):
+    pass
+
+
+def _construct_pairs(loader: yaml.SafeLoader, node: yaml.MappingNode) -> _Pairs:
+    loader.flatten_mapping(node)
+    construct: Callable[..., object] = cast(Any, loader).construct_object
+    return _Pairs(
+        (construct(key, deep=True), construct(value, deep=True))
+        for key, value in node.value
+    )
+
+
+_PairsLoader.add_constructor(
+    yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, _construct_pairs
+)
+
+
+def _parse(text: str) -> object:
+    # PyYAML rejects tab indentation, which JSON allows
+    try:
+        return json.loads(text, object_pairs_hook=_Pairs)
+    except json.JSONDecodeError:
+        return yaml.load(text, Loader=_PairsLoader)
+
+
+def _unique_keys(value: object, file: str, path: str) -> object:
+    if isinstance(value, _Pairs):
+        mapping: dict[object, object] = {}
+        for key, item in value:
+            where = path or "the top level"
+            if not isinstance(key, Hashable):
+                raise ValueError(f"{file}: {where}: a key must be a scalar.")
+            if key in mapping:
+                raise ValueError(f"{file}: {where}: duplicate key {key!r}.")
+            mapping[key] = _unique_keys(
+                item, file, f"{path}.{key}" if path else str(key)
+            )
+        return mapping
+    if isinstance(value, list):
+        items = cast(list[object], value)
+        return [
+            _unique_keys(item, file, f"{path}[{i}]") for i, item in enumerate(items)
+        ]
+    return value
 
 
 def _is_constructed(spec: object) -> bool:

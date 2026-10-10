@@ -619,7 +619,7 @@ def test_entry_point_hooks_load_when_a_hook_is_already_registered(
     clear_entry_points_state()
     try:
         with patch(
-            "inspect_ai._util.entrypoints.entry_points", return_value=[entry_point]
+            "inspect_ai.core._entrypoints.entry_points", return_value=[entry_point]
         ):
             loaded = _load_registry_hooks()
     finally:
@@ -644,7 +644,7 @@ def test_required_entry_point_hook_not_reported_missing_when_a_hook_is_already_r
     clear_entry_points_state()
     try:
         with patch(
-            "inspect_ai._util.entrypoints.entry_points", return_value=[entry_point]
+            "inspect_ai.core._entrypoints.entry_points", return_value=[entry_point]
         ):
             with environ_var("INSPECT_REQUIRED_HOOKS", entry_point_hook_name):
                 loaded = _load_registry_hooks()
