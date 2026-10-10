@@ -40,7 +40,11 @@ from anyio.streams.memory import MemoryObjectSendStream
 from pydantic import BaseModel
 from typing_extensions import is_typeddict
 
-from inspect_ai._sentinel._context import SentinelFailure, active_sentinel
+from inspect_ai._sentinel._context import (
+    SentinelFailure,
+    active_sentinel,
+    sentinel_tool_body,
+)
 from inspect_ai._util.content import (
     Content,
     ContentAudio,
@@ -969,7 +973,8 @@ async def call_tool(
                 transcript()._event(event)
                 if on_execute is not None:
                     on_execute(call)
-                result: ToolResult = await tool_def.tool(**arguments)
+                with sentinel_tool_body():
+                    result: ToolResult = await tool_def.tool(**arguments)
                 agent_span_id = getattr(tool_def.tool, "agent_span_id", None)
                 return CalledTool(result, [], None, None, agent_span_id)
 
