@@ -875,3 +875,60 @@ def test_dataset_description_must_be_string() -> None:
     sample = rec2sample({"input": "x", "description": float("nan")})
     assert not isinstance(sample, list)
     assert sample.description is None
+
+
+def test_json_dataset_preserves_chat_message_metadata(tmp_path: Path) -> None:
+    # Each of the four chat roles stores its own message metadata; a JSON
+    # round trip must surface it (regression for #5809).
+    record = {
+        "input": [
+            {"role": "system", "content": "sys", "metadata": {"k": "system"}},
+            {"role": "user", "content": "q", "metadata": {"nested": {"a": 1}}},
+            {"role": "assistant", "content": "a", "metadata": {}},
+            {
+                "role": "tool",
+                "content": "t",
+                "tool_call_id": "call_1",
+                "metadata": {"k": "tool"},
+            },
+        ],
+        "target": "answer",
+    }
+    json_file = tmp_path / "messages.json"
+    json_file.write_text(json_module.dumps([record]), encoding="utf-8")
+
+    dataset = json_dataset(str(json_file))
+    messages = dataset[0].input
+    assert isinstance(messages, list)
+    assert [m.metadata for m in messages] == [
+        {"k": "system"},
+        {"nested": {"a": 1}},
+        {},
+        {"k": "tool"},
+    ]
+
+
+def test_jsonl_dataset_preserves_chat_message_metadata(tmp_path: Path) -> None:
+    record = {
+        "input": [
+            {"role": "user", "content": "q", "metadata": {"k": "user"}},
+            {"role": "assistant", "content": "a", "metadata": {"k": "assistant"}},
+        ],
+        "target": "answer",
+    }
+    jsonl_file = tmp_path / "messages.jsonl"
+    jsonl_file.write_text(json_module.dumps(record) + "\n", encoding="utf-8")
+
+    dataset = json_dataset(str(jsonl_file))
+    messages = dataset[0].input
+    assert [m.metadata for m in messages] == [{"k": "user"}, {"k": "assistant"}]
+
+
+def test_json_dataset_message_without_metadata_is_none(tmp_path: Path) -> None:
+    record = {"input": [{"role": "user", "content": "q"}], "target": "answer"}
+    json_file = tmp_path / "no_metadata.json"
+    json_file.write_text(json_module.dumps([record]), encoding="utf-8")
+
+    dataset = json_dataset(str(json_file))
+    messages = dataset[0].input
+    assert messages[0].metadata is None
