@@ -50,6 +50,30 @@ def _raise_ragged_row(
     )
 
 
+def _raise_duplicate_columns(fieldnames: list[str] | None, csv_file: str) -> None:
+    """Reject a header (or explicit ``fieldnames``) that repeats a name.
+
+    ``DictReader`` folds repeated keys into a single dict entry, so the value
+    from the later column silently overwrites the earlier one. The row-width
+    validation below only checks field counts, so it cannot see this.
+    """
+    if not fieldnames:
+        return
+    seen: set[str] = set()
+    duplicates: list[str] = []
+    for name in fieldnames:
+        if name in seen and name not in duplicates:
+            duplicates.append(name)
+        seen.add(name)
+    if duplicates:
+        repeated = ", ".join(duplicates)
+        raise ValueError(
+            f"{csv_file} has duplicate column name(s): {repeated}. "
+            "A repeated column silently overwrites the earlier value; "
+            "rename or drop the duplicate column(s)."
+        )
+
+
 def csv_dataset(
     csv_file: str,
     sample_fields: FieldSpec | RecordToSample | None = None,
@@ -112,6 +136,7 @@ def csv_dataset(
         # reject ragged rows, filter out rows with empty values
         valid_data = []
         reader = csv_dataset_reader(f, dialect, fieldnames, delimiter)
+        _raise_duplicate_columns(list(reader.fieldnames or []), csv_file)
         for data in reader:
             if not data:
                 continue

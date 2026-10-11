@@ -779,6 +779,52 @@ def test_csv_well_formed_blank_row_is_still_skipped(tmp_path: Path) -> None:
     assert [sample.input for sample in dataset] == ["2+2", "3+3"]
 
 
+def test_csv_duplicate_header_columns_are_rejected(tmp_path: Path) -> None:
+    # DictReader silently folds repeated header names into one key, so the
+    # earlier value is overwritten before the row-width check ever runs.
+    csv_file = write_ragged_csv(
+        tmp_path, "input,target,target\nQuestion,correct,wrong\n"
+    )
+
+    with pytest.raises(ValueError) as info:
+        csv_dataset(csv_file)
+
+    message = str(info.value)
+    assert "target" in message
+    assert "duplicate" in message.lower() or "repeated" in message.lower()
+    # the file path should be named in the error
+    assert "data.csv" in message
+
+
+def test_csv_duplicate_fieldnames_argument_is_rejected(tmp_path: Path) -> None:
+    # duplicates supplied explicitly through fieldnames= must fail too,
+    # otherwise the caller cannot tell which target won
+    csv_file = write_ragged_csv(tmp_path, "Question,correct,wrong\n")
+
+    with pytest.raises(ValueError) as info:
+        csv_dataset(csv_file, fieldnames=["input", "target", "target"])
+
+    assert "target" in str(info.value)
+
+
+def test_csv_duplicate_id_column_is_rejected(tmp_path: Path) -> None:
+    csv_file = write_ragged_csv(tmp_path, "input,id,id\nQ1,a,b\nQ2,c,d\n")
+
+    with pytest.raises(ValueError, match="id"):
+        csv_dataset(csv_file)
+
+
+def test_csv_no_duplicate_columns_loads(tmp_path: Path) -> None:
+    # control: distinct columns behave exactly as before
+    csv_file = write_ragged_csv(tmp_path, "input,target,id\nQ,1,1\n")
+
+    dataset = csv_dataset(csv_file)
+
+    assert len(dataset) == 1
+    assert dataset[0].input == "Q"
+    assert dataset[0].target == "1"
+
+
 sample_field_spec = FieldSpec(input="input", target="label", metadata=["extra"])
 
 
