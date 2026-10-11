@@ -735,6 +735,7 @@ def test_an_escalate_handled_by_a_terminating_link_uses_its_reason() -> None:
     assert log.samples
     sample = log.samples[0]
     assert sample.limit is not None
+    assert sample.limit.type == "operator"
     assert sample.limit.reason == "too risky"
     root = [e for e in sentinel_events(log) if e.path == ""]
     assert [e.action for e in root] == ["terminate"]
@@ -773,6 +774,7 @@ def test_an_escalate_returned_to_the_host_fails_the_sample(
     assert sample.error is not None
     assert f"returned an escalate at the {stage} stage" in sample.error.message
     assert "inspect_sentinel 0.1.1 or later" in sample.error.message
+    assert tool_messages(log) == []
     [event] = [e for e in sample.events if isinstance(e, ToolEvent)]
     assert event.failed is True
 
