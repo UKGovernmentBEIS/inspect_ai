@@ -676,7 +676,7 @@ def test_final_from_a_nested_protocol() -> None:
 
 
 def assert_unhandled_escalation(
-    log: EvalLog, stage: str, recorded_at: str = ""
+    log: EvalLog, stage: str, source: str, recorded_at: str = ""
 ) -> None:
     assert log.status == "success", log.error
     assert log.samples
@@ -686,7 +686,8 @@ def assert_unhandled_escalation(
     assert sample.limit.type == "operator"
     reason = sample.limit.reason
     assert reason is not None
-    assert "unhandled escalation" in reason.lower()
+    assert reason.startswith(f"unhandled escalation from {source}: ")
+    assert "handle_escalation(" in reason
     [limit_event] = [e for e in sample.events if isinstance(e, SampleLimitEvent)]
     assert limit_event.message == reason
     assert (recorded_at, stage, "reported", "escalate") in [
@@ -696,7 +697,7 @@ def assert_unhandled_escalation(
 
 def test_an_unhandled_escalate_before_the_call_terminates() -> None:
     log = run({"unsure": d3_escalate(), "fine": d3_continue()}, turns=2)
-    assert_unhandled_escalation(log, "tool_call")
+    assert_unhandled_escalation(log, "tool_call", source="unsure")
     assert tool_messages(log) == []
     assert log.samples
     tool_events = [e for e in log.samples[0].events if isinstance(e, ToolEvent)]
@@ -705,7 +706,7 @@ def test_an_unhandled_escalate_before_the_call_terminates() -> None:
 
 def test_an_unhandled_escalate_after_the_call_terminates() -> None:
     log = run(d3_escalate_after(), turns=2)
-    assert_unhandled_escalation(log, "tool_result")
+    assert_unhandled_escalation(log, "tool_result", source="d3_escalate_after")
     assert log.samples
     tool_events = [e for e in log.samples[0].events if isinstance(e, ToolEvent)]
     assert [(e.result, e.failed) for e in tool_events] == [("2", True)]
@@ -713,7 +714,7 @@ def test_an_unhandled_escalate_after_the_call_terminates() -> None:
 
 def test_an_unhandled_final_escalate_terminates() -> None:
     log = run(sequential({"veto": d3_final_escalate(), "fine": d3_continue()}))
-    assert_unhandled_escalation(log, "tool_call", recorded_at="veto")
+    assert_unhandled_escalation(log, "tool_call", source="veto", recorded_at="veto")
     [root] = [e for e in sentinel_events(log) if e.path == ""]
     assert (root.status, root.action) == ("bypassed", None)
 
@@ -725,8 +726,8 @@ def test_an_unhandled_escalate_is_told_apart_from_a_terminate() -> None:
     assert terminated.samples[0].limit is not None
     assert terminated.samples[0].limit.reason == "too risky"
     assert [e.action for e in sentinel_events(terminated)] == ["terminate"]
-    assert "escalate" in [e.action for e in sentinel_events(escalated)]
-    assert_unhandled_escalation(escalated, "tool_call")
+    assert [e.action for e in sentinel_events(escalated)] == ["escalate"]
+    assert_unhandled_escalation(escalated, "tool_call", source="d3_escalate")
 
 
 def test_an_escalate_handled_by_a_terminating_link_uses_its_reason() -> None:
@@ -760,47 +761,20 @@ def fake_run_sentinel(
 
 
 @pytest.mark.parametrize("stage", ["tool_call", "tool_result"])
-@pytest.mark.parametrize("explanation", ["not sure", None])
-def test_an_escalate_from_an_older_sentinel_terminates_and_warns_once(
-    stage: str,
-    explanation: str | None,
-    caplog: pytest.LogCaptureFixture,
-    monkeypatch: pytest.MonkeyPatch,
+def test_an_escalate_returned_to_the_host_fails_the_sample(
+    stage: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from inspect_ai._util import logger as logger_module
-
-    monkeypatch.setattr(logger_module, "_warned", [])
-    fake_run_sentinel(monkeypatch, stage, Decision.escalate(explanation))
-    with caplog.at_level(logging.WARNING):
-        log = run(d3_continue(), turns=2, epochs=2)
-    assert log.samples and len(log.samples) == 2
-    for sample in log.samples:
-        assert sample.error is None
-        assert sample.limit is not None and sample.limit.type == "operator"
-        reason = f": {explanation}" if explanation else ""
-        assert sample.limit.reason == (
-            f"unhandled escalation at the {stage} stage{reason}; end the "
-            f"configuration with human(stages=['{stage}']), e.g. "
-            "sequential([..., human(...)]), or upgrade inspect_sentinel for "
-            "handle_escalation(...)"
-        )
-    warnings = [r for r in caplog.records if "upgrade inspect_sentinel" in r.message]
-    assert len(warnings) == 1
-
-
-def test_a_terminate_from_the_sentinel_is_applied_without_a_warning(
-    caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    from inspect_ai._util import logger as logger_module
-
-    monkeypatch.setattr(logger_module, "_warned", [])
-    reason = "unhandled escalation from unsure: not sure"
-    fake_run_sentinel(monkeypatch, "tool_call", Decision.terminate(reason))
-    with caplog.at_level(logging.WARNING):
-        log = run(d3_continue())
-    assert log.samples and log.samples[0].limit is not None
-    assert log.samples[0].limit.reason == reason
-    assert not [r for r in caplog.records if "upgrade inspect_sentinel" in r.message]
+    fake_run_sentinel(monkeypatch, stage, Decision.escalate("not sure"))
+    log = run(d3_continue())
+    assert log.status == "error"
+    assert log.samples
+    sample = log.samples[0]
+    assert sample.limit is None
+    assert sample.error is not None
+    assert f"returned an escalate at the {stage} stage" in sample.error.message
+    assert "inspect_sentinel 0.1.1 or later" in sample.error.message
+    [event] = [e for e in sample.events if isinstance(e, ToolEvent)]
+    assert event.failed is True
 
 
 @solver
