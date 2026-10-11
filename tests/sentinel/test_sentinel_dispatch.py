@@ -140,7 +140,7 @@ def d3_escalate() -> Protocol:
 
 
 @protocol
-def d3_continue() -> Protocol:
+def d3_proceed() -> Protocol:
     async def fine(context: Context, step: BeforeToolCall) -> Decision | None:
         return Decision.proceed()
 
@@ -663,7 +663,7 @@ def test_an_escalate_at_the_root_proceeds_and_warns_once(
 
     monkeypatch.setattr(logger_module, "_warned", [])
     with caplog.at_level(logging.WARNING):
-        log = run({"unsure": d3_escalate(), "fine": d3_continue()}, turns=2)
+        log = run({"unsure": d3_escalate(), "fine": d3_proceed()}, turns=2)
     assert log.status == "success", log.error
 
     assert [m.text for m in tool_messages(log)] == ["2", "3"]
@@ -697,7 +697,7 @@ def test_bridged_agent_warns_once_that_sentinels_do_not_run(
     task = Task(
         dataset=[Sample(input="a"), Sample(input="b")],
         solver=bridged(),
-        sentinel=d3_continue() if sentinel else None,
+        sentinel=d3_proceed() if sentinel else None,
     )
     with caplog.at_level(logging.WARNING):
         [log] = eval(task, model="mockllm/model")
@@ -1548,7 +1548,7 @@ def test_model_input_index_skips_monitor_calls() -> None:
     assert list(inputs._inputs) == [output_id(agent)]
 
 
-@pytest.mark.parametrize("action", ["continue", "reject", "terminate"])
+@pytest.mark.parametrize("action", ["proceed", "reject", "terminate"])
 def test_a_modified_call_on_a_non_modify_decision_is_not_dropped(
     action: Any,
 ) -> None:
