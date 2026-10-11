@@ -73,7 +73,7 @@ logger = getLogger(__name__)
 
 
 class TaskDeprecatedArgs(TypedDict, total=False):
-    plan: Plan | Solver | list[Solver]
+    plan: Plan | Solver | list[Solver] | tuple[Solver, ...]
     tool_environment: str | SandboxEnvironmentSpec | None
     epochs_reducer: ScoreReducers | None
     max_messages: int | None
@@ -88,8 +88,8 @@ class Task:
     def __init__(
         self,
         dataset: Dataset | Sequence[Sample] | SampleSource | None = None,
-        setup: Solver | list[Solver] | None = None,
-        solver: Solver | Agent | list[Solver] = generate(),
+        setup: Solver | list[Solver] | tuple[Solver, ...] | None = None,
+        solver: Solver | Agent | list[Solver] | tuple[Solver, ...] = generate(),
         cleanup: Callable[[TaskState], Awaitable[None]] | None = None,
         scorer: "Scorers" | None = None,
         metrics: list[Metric | dict[str, list[Metric]]]
@@ -133,7 +133,7 @@ class Task:
             dataset: Dataset to evaluate, or a `SampleSource` that generates
                 samples dynamically while the task runs.
             setup: Setup step (always run even when the main `solver` is replaced).
-            solver: Solver or list of solvers. Defaults to generate(), a normal call to the model.
+            solver: Solver, or a list or tuple of solvers. Defaults to generate(), a normal call to the model.
             cleanup: Optional cleanup function for task. Called after
                 all solvers and scorers have run for each sample (including if an
                 exception occurs during the run)
@@ -319,8 +319,8 @@ def task_with(
     task: Task,
     *,
     dataset: Dataset | Sequence[Sample] | SampleSource | None | NotGiven = NOT_GIVEN,
-    setup: Solver | list[Solver] | None | NotGiven = NOT_GIVEN,
-    solver: Solver | Agent | list[Solver] | NotGiven = NOT_GIVEN,
+    setup: Solver | list[Solver] | tuple[Solver, ...] | None | NotGiven = NOT_GIVEN,
+    solver: Solver | Agent | list[Solver] | tuple[Solver, ...] | NotGiven = NOT_GIVEN,
     cleanup: Callable[[TaskState], Awaitable[None]] | None | NotGiven = NOT_GIVEN,
     scorer: "Scorers" | None | NotGiven = NOT_GIVEN,
     metrics: list[Metric | dict[str, list[Metric]]]
@@ -371,7 +371,7 @@ def task_with(
         dataset: Dataset to evaluate, or a `SampleSource` that generates
             samples dynamically while the task runs.
         setup: Setup step (always run even when the main `solver` is replaced).
-        solver: Solver or list of solvers. Defaults to generate(), a normal call to the model.
+        solver: Solver, or a list or tuple of solvers. Defaults to generate(), a normal call to the model.
         cleanup: Optional cleanup function for task. Called after
             all solvers and scorers have run for each sample (including if an
             exception occurs during the run)
@@ -659,8 +659,10 @@ def resolve_dataset(dataset: Dataset | Sequence[Sample] | None) -> Dataset:
     return dataset if isinstance(dataset, Dataset) else MemoryDataset(list(dataset))
 
 
-def resolve_solver(solver: Solver | Agent | list[Solver]) -> Solver:
-    if isinstance(solver, list):
+def resolve_solver(
+    solver: Solver | Agent | list[Solver] | tuple[Solver, ...],
+) -> Solver:
+    if isinstance(solver, (list, tuple)):
         return chain(solver)
     elif is_agent(solver):
         return as_solver(solver)

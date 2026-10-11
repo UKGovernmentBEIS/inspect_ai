@@ -11,7 +11,12 @@ from ._task_state import TaskState, set_sample_state
 
 @solver
 def chain(
-    *solvers: Solver | Agent | list[Solver] | list[Solver | Agent],
+    *solvers: Solver
+    | Agent
+    | list[Solver]
+    | tuple[Solver, ...]
+    | list[Solver | Agent]
+    | tuple[Solver | Agent, ...],
 ) -> Solver:
     """Compose a solver from multiple other solvers and/or agents.
 
@@ -26,7 +31,7 @@ def chain(
     Returns:
       Solver that executes the passed solvers and agents as a chain.
     """
-    # flatten lists and chains
+    # flatten lists, tuples, and chains
     all_solvers: list[Solver] = []
     for s in solvers:
         all_solvers.extend(unroll(s))
@@ -35,9 +40,14 @@ def chain(
 
 
 def unroll(
-    solver: Solver | Agent | list[Solver] | list[Solver | Agent],
+    solver: Solver
+    | Agent
+    | list[Solver]
+    | tuple[Solver, ...]
+    | list[Solver | Agent]
+    | tuple[Solver | Agent, ...],
 ) -> list[Solver]:
-    if isinstance(solver, list):
+    if isinstance(solver, (list, tuple)):
         unrolled: list[Solver] = []
         for s in solver:
             unrolled.extend(unroll(s))
