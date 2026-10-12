@@ -756,7 +756,7 @@ def test_an_escalate_handled_by_a_continuing_link_proceeds() -> None:
     assert log.samples and log.samples[0].limit is None
     assert [m.text for m in tool_messages(log)] == ["2", "3"]
     root = [e for e in sentinel_events(log) if e.path == ""]
-    assert [e.action for e in root] == ["continue", "continue"]
+    assert [e.action for e in root] == ["proceed", "proceed"]
 
 
 def fake_run_sentinel(
@@ -1785,7 +1785,7 @@ def test_model_input_skips_monitor_calls() -> None:
     assert _model_input(addition_call(), produced_by(agent)) == agent.input
 
 
-@pytest.mark.parametrize("action", ["continue", "reject", "terminate"])
+@pytest.mark.parametrize("action", ["proceed", "reject", "terminate"])
 def test_a_modified_call_on_a_non_modify_decision_is_not_dropped(
     action: Any,
 ) -> None:
