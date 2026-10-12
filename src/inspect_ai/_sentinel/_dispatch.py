@@ -1,8 +1,7 @@
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from copy import copy
 from logging import getLogger
-from typing import Any, Literal, cast
-from weakref import WeakKeyDictionary
+from typing import Any, Literal, TypeGuard, cast
 
 from inspect_sentinel import (
     AfterToolCall,
@@ -33,7 +32,10 @@ from inspect_ai.event._sentinel import (
     SentinelSuspicion,
 )
 from inspect_ai.log._samples import sample_active
-from inspect_ai.log._transcript import Transcript, transcript
+from inspect_ai.log._transcript import (
+    TranscriptHistoryUnavailableError,
+    transcript,
+)
 from inspect_ai.model._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
@@ -152,13 +154,13 @@ async def _run(step: Step) -> Decision | None:
     except Exception as ex:
         raise SentinelFailure(ex) from ex
     if decision is not None and decision.action == "escalate":
-        # recorded as the root's decision; with nobody above to take it, the call proceeds
-        warn_once(
-            logger,
-            "A sentinel escalated a tool call with nothing to escalate to, so it proceeded; "
-            "add sequential([..., human()]) to send escalations to a person.",
+        raise SentinelFailure(
+            RuntimeError(
+                f"inspect_sentinel returned an escalate at the {_stage(step)} stage, "
+                "which it should have turned into a terminate. inspect_ai requires "
+                "inspect_sentinel 0.1.1 or later: pip install --upgrade inspect-sentinel"
+            )
         )
-        return Decision.proceed()
     return decision
 
 
@@ -208,84 +210,33 @@ def _assistant_index(call: ToolCall, history: list[ChatMessage]) -> int | None:
     return None
 
 
-def _model_input(call: ToolCall, history: list[ChatMessage]) -> list[ChatMessage]:
-    current = transcript()
-    inputs = _sample_inputs(current)
+def _model_input(
+    call: ToolCall, history: list[ChatMessage]
+) -> list[ChatMessage] | None:
     index = _assistant_index(call, history)
-    if index is None:
-        inputs.warn(
-            "no_assistant",
-            f"No assistant message with tool call {call.id} is in the conversation, "
-            "so the sentinel step's input is the whole conversation.",
+    message_id = history[index].id if index is not None else None
+    if message_id is None:
+        return None
+    try:
+        event = transcript().history.find_last(_produced_by(message_id))
+    except TranscriptHistoryUnavailableError:
+        return None
+    except Exception as ex:
+        raise SentinelFailure(ex) from ex
+    return list(event.input) if event is not None else None
+
+
+def _produced_by(message_id: str) -> Callable[[Event], TypeGuard[ModelEvent]]:
+    def produced(event: Event) -> TypeGuard[ModelEvent]:
+        return (
+            isinstance(event, ModelEvent)
+            and event.role != "monitor"
+            and not event.pending
+            and bool(event.output.choices)
+            and event.output.choices[0].message.id == message_id
         )
-        return list(history)
-    assistant_id = history[index].id
-    found = inputs.find(current, assistant_id) if assistant_id is not None else None
-    if found is None:
-        inputs.warn(
-            "no_model_event",
-            f"No ModelEvent was found for assistant message {assistant_id}, so the "
-            "sentinel step's input is the conversation before it.",
-        )
-        return history[:index]
-    return list(found)
 
-
-class _SampleInputs:
-    def __init__(self) -> None:
-        self._inputs: dict[str, ModelEvent] = {}
-        self._pending: list[ModelEvent] = []
-        self._last: Event | None = None
-        self._warned: set[str] = set()
-
-    def find(self, current: Transcript, assistant_id: str) -> list[ChatMessage] | None:
-        if assistant_id not in self._inputs:
-            self._scan(current)
-        event = self._inputs.get(assistant_id)
-        return event.input if event is not None else None
-
-    def warn(self, reason: str, message: str) -> None:
-        if reason not in self._warned:
-            self._warned.add(reason)
-            logger.warning(message)
-
-    def _scan(self, current: Transcript) -> None:
-        self._inputs = {
-            message_id: event
-            for message_id, event in self._inputs.items()
-            if current._is_resident(event)
-        }
-        resident = current.history.resident_events
-        new: list[ModelEvent] = []
-        for event in reversed(resident):
-            if event is self._last:
-                break
-            if isinstance(event, ModelEvent) and event.role != "monitor":
-                new.append(event)
-        if resident:
-            self._last = resident[-1]
-        pending: list[ModelEvent] = []
-        for event in [*self._pending, *new]:
-            if event.pending:
-                pending.append(event)
-            elif event.output.choices:
-                message_id = event.output.choices[0].message.id
-                if message_id is not None:
-                    self._inputs.setdefault(message_id, event)
-        self._pending = pending
-
-
-_inputs_by_transcript: "WeakKeyDictionary[Transcript, _SampleInputs]" = (
-    WeakKeyDictionary()
-)
-
-
-def _sample_inputs(current: Transcript) -> _SampleInputs:
-    inputs = _inputs_by_transcript.get(current)
-    if inputs is None:
-        inputs = _SampleInputs()
-        _inputs_by_transcript[current] = inputs
-    return inputs
+    return produced
 
 
 class _Host:
