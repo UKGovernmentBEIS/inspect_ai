@@ -453,15 +453,19 @@ class TranscriptHistory:
     def find_last(self, predicate: Callable[[Event], bool]) -> Event | None: ...
 
     def find_last(self, predicate: Callable[[Event], bool]) -> Event | None:
-        """Return the most recent event that matches `predicate`.
+        """Return the most recent event, by logical position, that matches `predicate`.
 
         Searches newest first and stops at the first match, so finding a
-        recent event reads only recent history. Every resident event is
-        checked first, including older ones kept in memory after eviction
-        (pinned or pending events). Evicted events are then read back from
-        the history provider in pages that grow from 16 to 256 events, newest
-        page first; no events are retained. An event may be checked twice
-        when it is both resident and in a provider page.
+        recent event reads only recent history. The search covers the history
+        as it was when `find_last` was called: events that `predicate` itself
+        adds (eg. by logging) are not searched.
+
+        With a history provider, the trailing resident window is searched
+        first, then evicted events are read back from the provider in pages
+        that grow from 16 to 256 events, strictly newest first, so older
+        events kept in memory (pinned or pending) are found in their logical
+        place. Without a provider, the resident events are searched newest
+        first. No events are retained.
 
         Args:
             predicate: Called with each event until it returns `True`.
@@ -471,22 +475,35 @@ class TranscriptHistory:
 
         Raises:
             TranscriptHistoryUnavailableError: If no resident event matches,
-                events have been evicted, and no history provider is
-                available to read them (or its backing store is gone).
+                events have been evicted, and there is no history provider to
+                read them from (or its backing store is gone).
         """
         transcript = self._transcript
-        for event in reversed(transcript._events):
-            if predicate(event):
-                return event
-        if not transcript._events_truncated:
+        events = transcript._events  # appended to, or replaced on eviction
+        resident = len(events)
+        count = transcript._event_count
+        truncated = transcript._events_truncated
+        provider = transcript._history_provider
+        trailing = max(0, min(transcript._resident_tail, resident))
+
+        if not truncated or provider is None:
+            for index in range(resident - 1, -1, -1):
+                if predicate(events[index]):
+                    return events[index]
+            if truncated:
+                raise TranscriptHistoryUnavailableError(
+                    "Full transcript history is not available from this Transcript"
+                )
             return None
-        end = transcript._event_count - max(
-            0, min(transcript._resident_tail, len(transcript._events))
-        )
+
+        for index in range(resident - 1, resident - trailing - 1, -1):
+            if predicate(events[index]):
+                return events[index]
+        end = count - trailing
         window = 16
         while end > 0:
             start = max(0, end - window)
-            for event in reversed(self.events_from(start, end - start)):
+            for event in reversed(provider.events_from(start, end - start)):
                 if predicate(event):
                     return event
             end = start
