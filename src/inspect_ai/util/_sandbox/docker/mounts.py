@@ -138,7 +138,13 @@ def _validate_bind_mount(
 
 
 async def _validate_read_only_support(bind_runtimes: dict[str | None, str]) -> None:
-    """Reject setups where Docker would silently leave nested mounts writable."""
+    """Reject setups where Docker would silently leave nested mounts writable.
+
+    Docker 25 makes read-only binds recursive on Linux 5.12+; the runtime must
+    also advertise "rro" (see Moby's supportsRecursivelyReadOnly):
+    https://docs.docker.com/engine/release-notes/25.0/#2500
+    https://github.com/moby/moby/blob/v25.0.4/daemon/daemon_linux.go#L243-L260
+    """
     result = await subprocess(["docker", "info", "--format", "{{json .}}"], timeout=30)
     if not result.success:
         raise PrerequisiteError(
