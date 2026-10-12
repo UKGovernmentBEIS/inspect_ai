@@ -13,6 +13,7 @@ from .registry import (
     create_reducers,
     reducer_log_name,
     reducer_log_names,
+    reducer_log_values,
     score_reducer,
     validate_reducer,
 )
@@ -25,6 +26,7 @@ __all__ = [
     "create_reducers",
     "reducer_log_name",
     "reducer_log_names",
+    "reducer_log_values",
     "collect_score",
     "majority_score",
     "mean_score",

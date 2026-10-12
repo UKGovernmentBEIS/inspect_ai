@@ -113,6 +113,17 @@ class EvalConfig(BaseModel):
     epochs_reducer: list[str] | None = Field(default=None)
     """Reducers for aggregating per-sample scores."""
 
+    runtime_reducer_args: list[dict[str, Any]] | None = Field(default=None)
+    """Full argument records for `epochs_reducer` (name plus the complete
+    arguments each reducer was created with).
+
+    `epochs_reducer` records reducer names only (with the `<name>_<k>`
+    shorthand), so reducer arguments other than the epoch count are lost
+    for old logs. Where available this field carries the full argument set
+    recorded at eval time, so recomputing metrics from a log reproduces
+    the original scores exactly.
+    """
+
     approval: ApprovalPolicyConfig | None = Field(default=None)
     """Approval policy for tool use."""
 

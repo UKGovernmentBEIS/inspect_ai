@@ -122,6 +122,30 @@ def reducer_log_name(reducer: ScoreReducer) -> str:
     return name
 
 
+def reducer_log_values(
+    reducer: ScoreReducer | list[ScoreReducer] | None,
+) -> list[dict[str, Any]] | None:
+    """Serializable record of each reducer: its name and full arguments.
+
+    `epochs_reducer` in a log header records only names (with the `k`
+    shorthand), so arguments like `at_least(2, value=0.5)`'s `value` are
+    lost when a log is re-read and metrics are recomputed. The parallel
+    `EvalConfig.runtime_reducer_args` field records the full argument set;
+    the names remain in `epochs_reducer` as the stable, human-readable
+    record and for canonical comparison in eval-set matching.
+    """
+    reducer = [reducer] if isinstance(reducer, ScoreReducer) else reducer
+    if reducer is None:
+        return None
+    return [
+        {
+            "name": registry_log_name(r),
+            "args": registry_params(r),
+        }
+        for r in reducer
+    ]
+
+
 @overload
 def create_reducers(reducers: ScoreReducers) -> list[ScoreReducer]: ...
 
@@ -134,22 +158,39 @@ def create_reducers(reducers: ScoreReducers | None) -> list[ScoreReducer] | None
     if reducers is None:
         return None
 
-    def create_reducer(name: str) -> ScoreReducer:
-        # special case to get digit parameters
-        params: dict[str, Any] = {}
-        # only apply the `<name>_<k>` shorthand when the literal name is
-        # not itself a registered reducer (so e.g. a custom reducer named
-        # "top_5" is not rewritten to a lookup of "top" with k=5)
-        if registry_lookup("score_reducer", name) is None:
-            match = re.match(r"^(.*?)_(\d+)$", name)
-            if match:
-                name = match.group(1)
-                params["k"] = int(match.group(2))
+    def create_reducer(reducer: str | dict[str, Any]) -> ScoreReducer:
+        if isinstance(reducer, dict):
+            # Full record from eval_config.runtime_reducer_args: the
+            # registered name plus the complete argument set the reducer
+            # was created with.
+            name = cast(str, reducer["name"])
+            params: dict[str, Any] = dict(reducer.get("args") or {})
+        else:
+            name = reducer
+            # special case to get digit parameters
+            params = {}
+            # only apply the `<name>_<k>` shorthand when the literal name is
+            # not itself a registered reducer (so e.g. a custom reducer named
+            # "top_5" is not rewritten to a lookup of "top" with k=5)
+            if registry_lookup("score_reducer", name) is None:
+                match = re.match(r"^(.*?)_(\d+)$", name)
+                if match:
+                    name = match.group(1)
+                    params["k"] = int(match.group(2))
 
         return cast(
             ScoreReducer,
             create_registry_object("score_reducer", name, params),
         )
+
+    if (
+        isinstance(reducers, list)
+        and reducers
+        and isinstance(reducers[0], dict)
+        and "name" in reducers[0]
+    ):
+        # Full records (from runtime_reducer_args): rebuild directly.
+        return [create_reducer(r) for r in reducers]
 
     if isinstance(reducers, ScoreReducer):
         return [reducers]

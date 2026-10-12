@@ -1,3 +1,5 @@
+import os
+import tempfile
 from collections import namedtuple
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -15,8 +17,10 @@ from inspect_ai.dataset import Sample
 from inspect_ai.scorer import (
     Score,
     ScoreReducer,
+    Target,
     Value,
     ValueToFloat,
+    accuracy,
     at_least,
     collect_score,
     majority_score,
@@ -25,12 +29,15 @@ from inspect_ai.scorer import (
     mean_score,
     median_score,
     mode_score,
+    pass_at,
     score_reducer,
+    scorer,
     value_to_float,
 )
 from inspect_ai.scorer._reducer import create_reducers
-from inspect_ai.scorer._reducer.reducer import pass_at, pass_k
+from inspect_ai.scorer._reducer.reducer import pass_k
 from inspect_ai.scorer._reducer.registry import reducer_log_name
+from inspect_ai.solver import TaskState
 
 avg_reducer = mean_score()
 median_reducer = median_score()
@@ -999,6 +1006,80 @@ def test_collect_preserve_metadata() -> None:
     assert reduced.answer == "1"
     assert reduced.explanation == "An explanation"
     assert reduced.metadata == {"foo": "bar"}
+
+
+def test_reducer_args_survive_log_round_trip() -> None:
+    """Non-k reducer arguments must survive a log round-trip.
+
+    Regression for #5612: `epochs_reducer` records reducer names only
+    (plus the `<name>_<k>` shorthand), so `at_least(2, value=0.5)` was
+    rebuilt after a reload with the default `value=1.0` and recomputed
+    metrics silently disagreed with the original eval.
+    """
+    from inspect_ai.log import read_eval_log, recompute_metrics, write_eval_log
+    from inspect_ai.solver import generate
+
+    # per-sample scores for epochs 1..3; value=1.0 will only be assigned
+    # when the at_least(2, value=0.5) reducer rebuild keeps its value arg
+    @scorer(metrics=[accuracy()])
+    def scripted():
+        async def score(state: TaskState, target: Target) -> Score:
+            plan = {1: [0.5, 0.5, 0.0], 2: [1.0, 0.0, 0.0], 3: [1.0, 0.5, 0.0]}
+            values = plan[int(state.sample_id)]
+            return Score(value=values[state.epoch - 1])
+
+        return score
+
+    task = Task(
+        dataset=[Sample(input="q", id=i) for i in (1, 2, 3)],
+        solver=generate(),
+        scorer=scripted(),
+        epochs=Epochs(3, [at_least(2, value=0.5), pass_at(1, value=0.5)]),
+    )
+    with tempfile.TemporaryDirectory() as log_dir:
+        log = eval(task, model="mockllm/model", log_dir=log_dir, display="none")[0]
+        assert log.results is not None
+        before = {
+            s.reducer: round(s.metrics["accuracy"].value, 6) for s in log.results.scores
+        }
+
+        path = os.path.join(log_dir, "reducer-args.eval")
+        write_eval_log(log, path)
+        reloaded = read_eval_log(path)
+        assert reloaded.eval.config.runtime_reducer_args is not None
+
+        recompute_metrics(reloaded)
+        assert reloaded.results is not None
+        after = {
+            s.reducer: round(s.metrics["accuracy"].value, 6)
+            for s in reloaded.results.scores
+        }
+
+    assert after == before
+    # the failing pre-fix behavior was exactly a disagreement here
+    assert after["at_least_2"] != 0.0
+
+
+def test_reducer_args_rebuild_from_records() -> None:
+    """create_reducers accepts full name+args records and restores params."""
+    from inspect_ai._util.registry import registry_params
+    from inspect_ai.scorer._reducer import reducer_log_values
+
+    reducers = [at_least(2, value=0.5), pass_at(1, value=0.5)]
+    records = reducer_log_values(reducers)
+    assert records is not None and len(records) == 2
+    assert records[0]["name"] == "at_least"
+    assert records[0]["args"] == {"k": 2, "value": 0.5}
+
+    rebuilt = create_reducers(records)
+    assert rebuilt is not None
+    assert registry_params(rebuilt[0])["value"] == 0.5
+    assert registry_params(rebuilt[1])["value"] == 0.5
+
+    # name-only lists still work (legacy logs) and produce the default
+    legacy = create_reducers(["at_least_2"])
+    assert legacy is not None
+    assert "k" in registry_params(legacy[0])
 
 
 def _is_nan(x: Any) -> bool:

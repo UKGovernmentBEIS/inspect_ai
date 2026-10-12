@@ -1791,8 +1791,15 @@ class RunConfigInput(BaseModel):
             ec["approval"] = ApprovalPolicyConfig.model_validate(ec["approval"])
         epochs = ec.pop("epochs", None)
         epochs_reducer = ec.pop("epochs_reducer", None)
+        runtime_reducer_args = ec.pop("runtime_reducer_args", None)
         if epochs is not None:
-            ec["epochs"] = Epochs(epochs, create_reducers(epochs_reducer))
+            # prefer the full argument records for the same reason as
+            # reducers_from_log_header: name-only lists drop every argument
+            # other than the `<name>_<k>` shorthand
+            ec["epochs"] = Epochs(
+                epochs,
+                create_reducers(runtime_reducer_args or epochs_reducer),
+            )
         # token_limit_type is stored beside token_limit on EvalConfig, but
         # eval() takes a single token_limit (int or TokenLimit). Leaving the
         # type in the flattened kwargs makes GenerateConfig reject it.

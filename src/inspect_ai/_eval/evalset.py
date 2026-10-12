@@ -96,7 +96,7 @@ from inspect_ai.model._model_config import (
 )
 from inspect_ai.model._model_data.model_data import ModelCost
 from inspect_ai.review._policy import ReviewPolicy, ReviewPolicyConfig
-from inspect_ai.scorer._reducer import reducer_log_name
+from inspect_ai.scorer._reducer import reducer_log_name, reducer_log_values
 from inspect_ai.solver._chain import chain
 from inspect_ai.solver._solver import Solver, SolverSpec
 from inspect_ai.util import DisplayType, SandboxEnvironmentType
@@ -1949,7 +1949,17 @@ def epochs_changed(epochs: Epochs | None, config: EvalConfig) -> bool:
         if epochs.reducer is not None
         else None
     )
-    return canonical(requested) != canonical(config.epochs_reducer)
+    if canonical(requested) != canonical(config.epochs_reducer):
+        return True
+    # names only carry the `<name>_<k>` shorthand, so equal names with
+    # different non-`k` arguments are only distinguishable via the full
+    # runtime records; when both sides have them, compare those too.
+    requested_args = (
+        reducer_log_values(epochs.reducer) if epochs.reducer is not None else None
+    )
+    if requested_args is not None and config.runtime_reducer_args is not None:
+        return requested_args != config.runtime_reducer_args
+    return False
 
 
 # cleanup logs that aren't the latest

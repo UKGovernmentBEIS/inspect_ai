@@ -61,6 +61,7 @@ from inspect_ai.scorer._reducer import (
     ScoreReducers,
     create_reducers,
     reducer_log_names,
+    reducer_log_values,
 )
 from inspect_ai.scorer._scorer import ScorerSpec, as_scorer_spec, unique_scorer_name
 from inspect_ai.solver import TaskState
@@ -355,6 +356,7 @@ async def score_async(
         epochs_reducer = create_reducers(epochs_reducer)
         if epochs_reducer is not None:
             log.eval.config.epochs_reducer = reducer_log_names(epochs_reducer)
+            log.eval.config.runtime_reducer_args = reducer_log_values(epochs_reducer)
         else:
             epochs_reducer = reducers_from_log_header(log)
 
@@ -592,6 +594,13 @@ def metric_from_log(metric: EvalMetricDefinition) -> Metric:
 
 
 def reducers_from_log_header(log: EvalLog) -> list[ScoreReducer] | None:
+    # Prefer the full argument records when the log has them: the
+    # name-only `epochs_reducer` list loses every argument other than the
+    # `<name>_<k>` shorthand, so recomputed metrics would silently use
+    # reducer defaults (e.g. `at_least(2, value=0.5)` collapsing to
+    # `value=1.0`).
+    if log.eval.config.runtime_reducer_args:
+        return create_reducers(log.eval.config.runtime_reducer_args)
     return create_reducers(log.eval.config.epochs_reducer)
 
 

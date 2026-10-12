@@ -94,7 +94,7 @@ from inspect_ai.review._policy import (
     config_from_review_policies,
     review_policies_from_config,
 )
-from inspect_ai.scorer._reducer import reducer_log_names
+from inspect_ai.scorer._reducer import reducer_log_names, reducer_log_values
 from inspect_ai.solver._chain import chain
 from inspect_ai.solver._solver import Solver, SolverSpec
 from inspect_ai.util import SandboxEnvironmentType
@@ -948,6 +948,9 @@ async def _eval_async_inner(
             sample_shuffle=sample_shuffle,
             epochs=epochs.epochs if epochs else None,
             epochs_reducer=reducer_log_names(epochs_reducer)
+            if epochs_reducer is not None
+            else None,
+            runtime_reducer_args=reducer_log_values(epochs_reducer)
             if epochs_reducer is not None
             else None,
             approval=config_from_approval_policies(approval) if approval else None,

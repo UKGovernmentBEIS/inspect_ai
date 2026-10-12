@@ -75,7 +75,11 @@ from inspect_ai.model import GenerateConfigArgs
 from inspect_ai.model._model import Model, ModelName, ensure_model_controller
 from inspect_ai.review._policy import ReviewPolicy, config_from_review_policies
 from inspect_ai.scorer._metric import to_metric_specs
-from inspect_ai.scorer._reducer import ScoreReducer, reducer_log_names
+from inspect_ai.scorer._reducer import (
+    ScoreReducer,
+    reducer_log_names,
+    reducer_log_values,
+)
 from inspect_ai.scorer._reducer.registry import validate_reducer
 from inspect_ai.scorer._scorer import as_scorer_spec
 from inspect_ai.solver._solver import Solver, SolverSpec
@@ -314,11 +318,15 @@ async def eval_run(
 
                 # epochs reducer
                 if epochs_reducer is not None:
-                    # override task (eval_config already reflects epochs_reducer)
+                    # override task (eval_config already reflects epochs_reducer,
+                    # including the runtime args recorded by eval())
                     task.epochs_reducer = epochs_reducer
                 else:
                     # use task (eval_config needs to be updated to reflect task reducer)
                     task_eval_config.epochs_reducer = reducer_log_names(
+                        task.epochs_reducer
+                    )
+                    task_eval_config.runtime_reducer_args = reducer_log_values(
                         task.epochs_reducer
                     )
 
