@@ -108,11 +108,11 @@ jobs:
 
       # TEMPORARY: the dispatcher requires inspect_sentinel with
       # meridianlabs-ai/inspect_sentinel#74 (an unhandled escalate terminates) and
-      # #83 (step.input may be None). Remove when a release with both is on PyPI
-      # and requirements-dev.txt requires it.
+      # #83 (step.input may be None), both on inspect_sentinel main. Remove when a
+      # release with both is on PyPI and requirements-dev.txt requires it.
       - name: Install inspect_sentinel (TEMPORARY)
         if: github.event_name != 'pull_request' || steps.filter.outputs.code == 'true'
-        run: uv pip install --no-deps "inspect_sentinel @ git+https://github.com/meridianlabs-ai/inspect_sentinel@2f64f9949c0c8f427f8c21959e21187a716b7049"
+        run: uv pip install --no-deps "inspect_sentinel @ git+https://github.com/meridianlabs-ai/inspect_sentinel@f30b236945b537f38189f458d0f22a8b428beb4e"
 
       - name: Run mypy
         if: github.event_name != 'pull_request' || steps.filter.outputs.code == 'true'
@@ -339,11 +339,11 @@ jobs:
 
       # TEMPORARY: the dispatcher requires inspect_sentinel with
       # meridianlabs-ai/inspect_sentinel#74 (an unhandled escalate terminates) and
-      # #83 (step.input may be None). Remove when a release with both is on PyPI
-      # and requirements-dev.txt requires it.
+      # #83 (step.input may be None), both on inspect_sentinel main. Remove when a
+      # release with both is on PyPI and requirements-dev.txt requires it.
       - name: Install inspect_sentinel (TEMPORARY)
         if: env.RUN_TESTS == 'true'
-        run: uv pip install --no-deps "inspect_sentinel @ git+https://github.com/meridianlabs-ai/inspect_sentinel@2f64f9949c0c8f427f8c21959e21187a716b7049"
+        run: uv pip install --no-deps "inspect_sentinel @ git+https://github.com/meridianlabs-ai/inspect_sentinel@f30b236945b537f38189f458d0f22a8b428beb4e"
 
       - name: Test with pytest
         if: env.RUN_TESTS == 'true'
