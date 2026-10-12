@@ -11934,7 +11934,7 @@ var isVscode = () => {
 	};
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+react-query@5.103.2_react@19.3.0/node_modules/@tanstack/react-query/build/modern/QueryClientProvider.js
+//#region ../../node_modules/.pnpm/@tanstack+react-query@5.104.0_react@19.3.0/node_modules/@tanstack/react-query/build/modern/QueryClientProvider.js
 var import_react = /* @__PURE__ */ __toESM(require_react(), 1);
 var import_jsx_runtime = require_jsx_runtime();
 /**
@@ -11987,7 +11987,7 @@ var QueryClientProvider = ({ client, children }) => {
 	});
 };
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.103.2/node_modules/@tanstack/query-core/build/modern/timeoutManager.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.104.0/node_modules/@tanstack/query-core/build/modern/timeoutManager.js
 var defaultTimeoutProvider = {
 	setTimeout: (callback, delay) => setTimeout(callback, delay),
 	clearTimeout: (timeoutId) => clearTimeout(timeoutId),
@@ -12135,7 +12135,7 @@ function systemSetTimeoutZero(callback) {
 	setTimeout(callback, 0);
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.103.2/node_modules/@tanstack/query-core/build/modern/utils.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.104.0/node_modules/@tanstack/query-core/build/modern/utils.js
 /** @deprecated
 * use `environmentManager.isServer()` instead.
 */
@@ -12389,19 +12389,38 @@ function addConsumeAwareSignal(object, getSignal, onCancelled) {
 	return object;
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.103.2/node_modules/@tanstack/query-core/build/modern/environmentManager.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.104.0/node_modules/@tanstack/query-core/build/modern/environmentManager.js
 var isServerFn = () => isServer$1;
 /**
 * Returns whether the current runtime should be treated as a server environment.
 */
 var isServer = () => isServerFn();
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.103.2/node_modules/@tanstack/query-core/build/modern/subscribable.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.104.0/node_modules/@tanstack/query-core/build/modern/subscribable.js
+/**
+* The base class behind everything in Query that you can subscribe to: `QueryCache`, `MutationCache`,
+* the observers, and the `FocusManager`/`OnlineManager` behind `focusManager` and `onlineManager`.
+* Subclasses decide what a listener receives and when it is called.
+*/
 var Subscribable = class {
 	constructor() {
 		this.listeners = /* @__PURE__ */ new Set();
 		this.subscribe = this.subscribe.bind(this);
 	}
+	/**
+	* Registers a listener to be called on every update this object notifies about. Returns a function
+	* that removes the listener again — call it to stop listening. The base class never drops a listener
+	* on its own, though some subclasses clear all of theirs in `destroy()`.
+	* @param listener - Called on each update, with whatever the subclass passes to its subscribers.
+	* @example
+	* ```ts
+	* const unsubscribe = subscribable.subscribe(() => {
+	*   // react to the update
+	* })
+	*
+	* unsubscribe()
+	* ```
+	*/
 	subscribe(listener) {
 		this.listeners.add(listener);
 		this.onSubscribe();
@@ -12410,6 +12429,9 @@ var Subscribable = class {
 			this.onUnsubscribe();
 		};
 	}
+	/**
+	* Returns `true` while at least one listener is registered, `false` once they have all unsubscribed.
+	*/
 	hasListeners() {
 		return this.listeners.size > 0;
 	}
@@ -12417,7 +12439,7 @@ var Subscribable = class {
 	onUnsubscribe() {}
 };
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.103.2/node_modules/@tanstack/query-core/build/modern/focusManager.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.104.0/node_modules/@tanstack/query-core/build/modern/focusManager.js
 /**
 * The `FocusManager` manages the focus state within TanStack Query.
 *
@@ -12527,7 +12549,7 @@ var FocusManager = class extends Subscribable {
 */
 var focusManager = new FocusManager();
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.103.2/node_modules/@tanstack/query-core/build/modern/notifyManager.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.104.0/node_modules/@tanstack/query-core/build/modern/notifyManager.js
 /**
 * Default scheduling function used by the notify manager.
 * Schedules the callback with the system's `setTimeout(callback, 0)`.
@@ -12644,7 +12666,7 @@ function createNotifyManager() {
 */
 var notifyManager = createNotifyManager();
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.103.2/node_modules/@tanstack/query-core/build/modern/onlineManager.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.104.0/node_modules/@tanstack/query-core/build/modern/onlineManager.js
 /**
 * The `OnlineManager` manages the online state within TanStack Query. It can
 * be used to change the default event listeners or to manually change the
@@ -12739,7 +12761,7 @@ var OnlineManager = class extends Subscribable {
 */
 var onlineManager = new OnlineManager();
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.103.2/node_modules/@tanstack/query-core/build/modern/retryer.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.104.0/node_modules/@tanstack/query-core/build/modern/retryer.js
 function defaultRetryDelay(failureCount) {
 	return Math.min(1e3 * 2 ** failureCount, 3e4);
 }
@@ -12872,9 +12894,18 @@ function createRetryer(config) {
 	};
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.103.2/node_modules/@tanstack/query-core/build/modern/removable.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.104.0/node_modules/@tanstack/query-core/build/modern/removable.js
+/**
+* The base class for cache entries that are garbage collected once nothing is using them —
+* `Query` and `Mutation` both extend it. `gcTime` controls how long an unused entry is kept.
+*/
 var Removable = class {
 	#gcTimeout;
+	/**
+	* Clears the pending garbage collection timeout, so the entry is no longer scheduled for removal.
+	* A subclass may override this to release what it holds on to as well — `Query` also cancels any
+	* in-flight fetch.
+	*/
 	destroy() {
 		this.clearGcTimeout();
 	}
@@ -12895,7 +12926,7 @@ var Removable = class {
 	}
 };
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.103.2/node_modules/@tanstack/query-core/build/modern/infiniteQueryBehavior.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.104.0/node_modules/@tanstack/query-core/build/modern/infiniteQueryBehavior.js
 function infiniteQueryBehavior(pages) {
 	return { onFetch: (context, query) => {
 		const options = context.options;
@@ -12988,7 +13019,7 @@ function hasPreviousPage(options, data) {
 	return getPreviousPageParam(options, data) != null;
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.103.2/node_modules/@tanstack/query-core/build/modern/query.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.104.0/node_modules/@tanstack/query-core/build/modern/query.js
 /**
 * Represents a single cached query. A `Query` holds the query's key, options,
 * state (data/error/status), and the observers currently subscribed to it.
@@ -13502,7 +13533,7 @@ function getDefaultState$1(options) {
 	};
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.103.2/node_modules/@tanstack/query-core/build/modern/queryObserver.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.104.0/node_modules/@tanstack/query-core/build/modern/queryObserver.js
 /**
 * A `QueryObserver` watches a single query in the `QueryCache` and computes a
 * `QueryObserverResult` from its state, recomputing and notifying subscribers
@@ -13945,7 +13976,7 @@ function isStale(query, options) {
 	return resolveQueryValue(options.enabled, query) !== false && query.isStaleByTime(resolveQueryValue(options.staleTime, query));
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.103.2/node_modules/@tanstack/query-core/build/modern/infiniteQueryObserver.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.104.0/node_modules/@tanstack/query-core/build/modern/infiniteQueryObserver.js
 /**
 * An `InfiniteQueryObserver` extends `QueryObserver` to observe and switch
 * between infinite queries. It augments the base `QueryObserverResult` with
@@ -14067,7 +14098,7 @@ var InfiniteQueryObserver = class extends QueryObserver {
 	}
 };
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.103.2/node_modules/@tanstack/query-core/build/modern/mutation.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.104.0/node_modules/@tanstack/query-core/build/modern/mutation.js
 /**
 * Represents a single mutation attempt. A `Mutation` holds the mutation's
 * options, state (data/error/status), and the `MutationObserver`s currently
@@ -14358,7 +14389,7 @@ function getDefaultState() {
 	};
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.103.2/node_modules/@tanstack/query-core/build/modern/mutationCache.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.104.0/node_modules/@tanstack/query-core/build/modern/mutationCache.js
 /**
 * The `MutationCache` is the storage for mutations.
 *
@@ -14539,7 +14570,7 @@ function scopeFor(mutation) {
 	return mutation.options.scope?.id;
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.103.2/node_modules/@tanstack/query-core/build/modern/mutationObserver.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.104.0/node_modules/@tanstack/query-core/build/modern/mutationObserver.js
 /**
 * Observes a single mutation and derives a `MutationObserverResult` from it.
 * A framework hook like `useMutation` creates one `MutationObserver` per hook
@@ -14720,7 +14751,7 @@ var MutationObserver$1 = class extends Subscribable {
 	}
 };
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.103.2/node_modules/@tanstack/query-core/build/modern/queryCache.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.104.0/node_modules/@tanstack/query-core/build/modern/queryCache.js
 /**
 * The `QueryCache` is the storage mechanism for TanStack Query. It stores all the data, meta
 * information, and state of the queries it contains.
@@ -14931,7 +14962,7 @@ var QueryCache = class extends Subscribable {
 	}
 };
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.103.2/node_modules/@tanstack/query-core/build/modern/queryClient.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.104.0/node_modules/@tanstack/query-core/build/modern/queryClient.js
 /**
 * `QueryClient` is used to interact with a cache of queries and mutations. It owns a
 * `QueryCache` and a `MutationCache` (creating default ones if none are passed in) and holds
@@ -15044,6 +15075,7 @@ var QueryClient = class {
 	* Hint: Do not use this function inside a component, because it won't receive updates.
 	* Use `useQuery` to create a `QueryObserver` that subscribes to changes.
 	*
+	* @returns The cached data for the query, or `undefined` if no query with this key has been observed yet.
 	* @see {@link QueryClient#getQueriesData}
 	*/
 	getQueryData(queryKey) {
@@ -15072,6 +15104,7 @@ var QueryClient = class {
 	* every matched query holds the same shape — it is not checked against the actual cache
 	* contents.
 	*
+	* @returns An array of query key and data pairs. The data is `undefined` for a query with no cached data.
 	* @see {@link QueryClient#getQueryData}
 	* @example
 	* ```ts
@@ -15095,6 +15128,9 @@ var QueryClient = class {
 	* @param queryKey - The query key to set data for.
 	* @param updater - Either the new data, or a function that receives the current data (which
 	* may be `undefined`) and returns the new data.
+	* @param options - Set `updatedAt` to override the timestamp the written data is recorded with.
+	* @returns The data that was written, or `undefined` if the updater returned `undefined` — in that case
+	* the write is skipped and the cache is left unchanged.
 	*
 	* @example
 	* ```ts
@@ -15120,6 +15156,8 @@ var QueryClient = class {
 	* filters are updated; no new cache entries are created. Internally this calls
 	* {@link QueryClient#setQueryData} for each matching query.
 	*
+	* @returns One `[queryKey, data]` tuple per matched query, in the same shape and with the same
+	* `undefined` case as {@link QueryClient#setQueryData}.
 	* @example
 	* ```ts
 	* queryClient.setQueriesData({ queryKey: ['posts'] }, (oldPosts) =>
@@ -15568,7 +15606,7 @@ var QueryClient = class {
 	}
 };
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+react-query@5.103.2_react@19.3.0/node_modules/@tanstack/react-query/build/modern/IsRestoringProvider.js
+//#region ../../node_modules/.pnpm/@tanstack+react-query@5.104.0_react@19.3.0/node_modules/@tanstack/react-query/build/modern/IsRestoringProvider.js
 var IsRestoringContext = import_react.createContext(false);
 /**
 * If you are using `PersistQueryClientProvider`, you can also use the `useIsRestoring` hook alongside it to
@@ -15580,7 +15618,7 @@ var IsRestoringContext = import_react.createContext(false);
 var useIsRestoring = () => import_react.useContext(IsRestoringContext);
 IsRestoringContext.Provider;
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+react-query@5.103.2_react@19.3.0/node_modules/@tanstack/react-query/build/modern/QueryErrorResetBoundary.js
+//#region ../../node_modules/.pnpm/@tanstack+react-query@5.104.0_react@19.3.0/node_modules/@tanstack/react-query/build/modern/QueryErrorResetBoundary.js
 /**
 * Resets any query errors within the boundary, so queries know they can try again.
 */
@@ -15640,7 +15678,7 @@ var QueryErrorResetBoundaryContext = import_react.createContext(createValue());
 */
 var useQueryErrorResetBoundary = () => import_react.useContext(QueryErrorResetBoundaryContext);
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+react-query@5.103.2_react@19.3.0/node_modules/@tanstack/react-query/build/modern/errorBoundaryUtils.js
+//#region ../../node_modules/.pnpm/@tanstack+react-query@5.104.0_react@19.3.0/node_modules/@tanstack/react-query/build/modern/errorBoundaryUtils.js
 var ensurePreventErrorBoundaryRetry = (options, errorResetBoundary, query) => {
 	const throwOnError = query?.state.error && typeof options.throwOnError === "function" ? shouldThrowError(options.throwOnError, [query.state.error, query]) : options.throwOnError;
 	if (options.suspense || throwOnError) {
@@ -15656,7 +15694,7 @@ var getHasError = ({ result, errorResetBoundary, throwOnError, query, suspense }
 	return result.isError && !errorResetBoundary.isReset() && !result.isFetching && query && (suspense && result.data === void 0 || shouldThrowError(throwOnError, [result.error, query]));
 };
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+react-query@5.103.2_react@19.3.0/node_modules/@tanstack/react-query/build/modern/suspense.js
+//#region ../../node_modules/.pnpm/@tanstack+react-query@5.104.0_react@19.3.0/node_modules/@tanstack/react-query/build/modern/suspense.js
 var ensureSuspenseTimers = (defaultedOptions) => {
 	if (defaultedOptions.suspense) {
 		const MIN_SUSPENSE_TIME_MS = 1e3;
@@ -15671,7 +15709,7 @@ var fetchOptimistic = (defaultedOptions, observer, errorResetBoundary) => observ
 	errorResetBoundary.clearReset();
 });
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+react-query@5.103.2_react@19.3.0/node_modules/@tanstack/react-query/build/modern/useBaseQuery.js
+//#region ../../node_modules/.pnpm/@tanstack+react-query@5.104.0_react@19.3.0/node_modules/@tanstack/react-query/build/modern/useBaseQuery.js
 function useBaseQuery(options, Observer, queryClient) {
 	const isRestoring = useIsRestoring();
 	const errorResetBoundary = useQueryErrorResetBoundary();
@@ -15705,12 +15743,12 @@ function useBaseQuery(options, Observer, queryClient) {
 	return !defaultedOptions.notifyOnChangeProps ? observer.trackResult(result) : result;
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+react-query@5.103.2_react@19.3.0/node_modules/@tanstack/react-query/build/modern/useQuery.js
+//#region ../../node_modules/.pnpm/@tanstack+react-query@5.104.0_react@19.3.0/node_modules/@tanstack/react-query/build/modern/useQuery.js
 function useQuery(options, queryClient) {
 	return useBaseQuery(options, QueryObserver, queryClient);
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+react-query@5.103.2_react@19.3.0/node_modules/@tanstack/react-query/build/modern/useMutation.js
+//#region ../../node_modules/.pnpm/@tanstack+react-query@5.104.0_react@19.3.0/node_modules/@tanstack/react-query/build/modern/useMutation.js
 /**
 * Unlike queries, mutations are typically used to create/update/delete data or perform server side-effects.
 * `useMutation` is the hook for that.
@@ -15901,7 +15939,7 @@ function useMutation(options, queryClient) {
 	};
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+react-query@5.103.2_react@19.3.0/node_modules/@tanstack/react-query/build/modern/useInfiniteQuery.js
+//#region ../../node_modules/.pnpm/@tanstack+react-query@5.104.0_react@19.3.0/node_modules/@tanstack/react-query/build/modern/useInfiniteQuery.js
 function useInfiniteQuery(options, queryClient) {
 	return useBaseQuery(options, InfiniteQueryObserver, queryClient);
 }
@@ -16136,7 +16174,7 @@ var AutocompleteInput = (t0) => {
 		if (isBrowseMode) {
 			let t8;
 			if ($[0] !== suggestions) {
-				t8 = suggestions.filter(_temp$106);
+				t8 = suggestions.filter(_temp$109);
 				$[0] = suggestions;
 				$[1] = t8;
 			} else t8 = $[1];
@@ -16296,7 +16334,7 @@ var AutocompleteInput = (t0) => {
 					e_1.stopPropagation();
 					onCommit?.();
 				} else if (e_1.key === "ArrowDown" || e_1.key === "ArrowUp") {
-					const hasOptions = suggestions.some(_temp2$59);
+					const hasOptions = suggestions.some(_temp2$60);
 					if (filteredSuggestions.length > 0 || hasOptions) {
 						e_1.preventDefault();
 						e_1.stopPropagation();
@@ -16490,10 +16528,10 @@ var AutocompleteInput = (t0) => {
 	} else t29 = $[77];
 	return t29;
 };
-function _temp$106(s) {
+function _temp$109(s) {
 	return s !== null;
 }
-function _temp2$59(s_1) {
+function _temp2$60(s_1) {
 	return s_1 !== null;
 }
 function _temp3$41(prev) {
@@ -16542,7 +16580,7 @@ var onDemandModule = (importer) => {
 			let cancelled = false;
 			module.load().then((loaded) => {
 				if (!cancelled) setValue(() => loaded);
-			}).catch(_temp$105);
+			}).catch(_temp$108);
 			return () => {
 				cancelled = true;
 			};
@@ -16564,7 +16602,7 @@ var onDemandModule = (importer) => {
 	(0, import_react.useEffect)(t2, t3);
 	return value;
 };
-function _temp$105(error) {
+function _temp$108(error) {
 	console.error("Unable to load module", error);
 }
 var ContentTrust_module_default = {
@@ -16717,7 +16755,7 @@ var ContentTrustProvider = (t0) => {
 */ var usePlainText = () => {
 	return useHasAllContentPermissions() ? {
 		trusted: true,
-		present: _temp$104,
+		present: _temp$107,
 		className: void 0
 	} : {
 		trusted: false,
@@ -16812,7 +16850,7 @@ var UntrustedText = (t0) => {
 	} else t2 = $[4];
 	return t2;
 };
-function _temp$104(text) {
+function _temp$107(text) {
 	return text;
 }
 //#endregion
@@ -29103,7 +29141,7 @@ var usePrismHighlight = (containerRef, contentLength) => {
 					if (!cancelled) highlightCodeBlocks(container, highlightElement);
 				});
 				observer = new MutationObserver((mutations) => {
-					if (mutations.some(_temp2$58)) highlightCodeBlocks(container, highlightElement);
+					if (mutations.some(_temp2$59)) highlightCodeBlocks(container, highlightElement);
 				});
 				observer.observe(container, {
 					childList: true,
@@ -29131,12 +29169,12 @@ var usePrismHighlight = (containerRef, contentLength) => {
 	}
 	(0, import_react.useLayoutEffect)(t0, t1);
 };
-function _temp$103(node) {
+function _temp$106(node) {
 	if (node instanceof Element) return node.querySelector("pre code") || node.matches("pre code");
 	return false;
 }
-function _temp2$58(mutation) {
-	if (mutation.type === "childList") return Array.from(mutation.addedNodes).some(_temp$103);
+function _temp2$59(mutation) {
+	if (mutation.type === "childList") return Array.from(mutation.addedNodes).some(_temp$106);
 	return false;
 }
 function _temp3$40(error) {
@@ -29509,7 +29547,7 @@ var RichMarkdownDiv = /*#__PURE__*/ (0, import_react.forwardRef)((t0, ref) => {
 				(0, import_react.startTransition)(() => {
 					setRenderedHtml(applyPostProcess(sanitizedResult));
 				});
-			}).catch(_temp$102);
+			}).catch(_temp$105);
 			return () => {
 				cancel();
 			};
@@ -29628,7 +29666,7 @@ var MarkdownRenderQueue = class {
 	}
 };
 var renderQueue = new MarkdownRenderQueue(10);
-function _temp$102(error) {
+function _temp$105(error) {
 	console.error("Markdown rendering error:", error);
 }
 var NoContentsPanel_module_default = {
@@ -39574,7 +39612,7 @@ var useCollapsibleIds = (key) => {
 };
 //#endregion
 //#region ../../packages/react/src/hooks/useStatefulScrollPosition.ts
-var log$7 = createLogger("scrolling");
+var log$6 = createLogger("scrolling");
 function useStatefulScrollPosition(elementRef, elementKey, t0, t1) {
 	const $ = (0, import_compiler_runtime.c)(21);
 	const delay = t0 === void 0 ? 1e3 : t0;
@@ -39599,7 +39637,7 @@ function useStatefulScrollPosition(elementRef, elementKey, t0, t1) {
 	let t4;
 	if ($[3] !== elementKey || $[4] !== setScrollPosition) {
 		t4 = (position) => {
-			log$7.debug("Storing scroll position", elementKey, position);
+			log$6.debug("Storing scroll position", elementKey, position);
 			setScrollPosition(position);
 		};
 		$[3] = elementKey;
@@ -39646,16 +39684,16 @@ function useStatefulScrollPosition(elementRef, elementKey, t0, t1) {
 		t8 = () => {
 			const element_0 = elementRef.current;
 			if (!element_0 || !scrollable) return;
-			log$7.debug("Restore Scroll Hook", elementKey);
+			log$6.debug("Restore Scroll Hook", elementKey);
 			let pollTimer;
 			const savedPosition_0 = scrollPositionRef.current;
 			if (savedPosition_0 !== void 0) {
-				log$7.debug("Restoring scroll position", savedPosition_0);
+				log$6.debug("Restoring scroll position", savedPosition_0);
 				const tryRestoreScroll = () => {
 					if (element_0.scrollHeight > element_0.clientHeight) {
 						if (element_0.scrollTop !== savedPosition_0) {
 							element_0.scrollTop = savedPosition_0;
-							log$7.debug(`Scroll position restored to ${savedPosition_0}`);
+							log$6.debug(`Scroll position restored to ${savedPosition_0}`);
 						}
 						return true;
 					}
@@ -39665,7 +39703,7 @@ function useStatefulScrollPosition(elementRef, elementKey, t0, t1) {
 					let attempts = 0;
 					const pollForRender = () => {
 						if (tryRestoreScroll() || attempts >= 20) {
-							if (attempts >= 20) log$7.debug("Failed to restore scroll after 20 attempts");
+							if (attempts >= 20) log$6.debug("Failed to restore scroll after 20 attempts");
 							return;
 						}
 						attempts = attempts + 1;
@@ -40019,7 +40057,7 @@ function useRevokableUrls() {
 	let t3;
 	if ($[2] === Symbol.for("react.memo_cache_sentinel")) {
 		t2 = () => () => {
-			urlsRef.current.forEach(_temp$101);
+			urlsRef.current.forEach(_temp$104);
 			urlsRef.current = [];
 		};
 		t3 = [];
@@ -40032,7 +40070,7 @@ function useRevokableUrls() {
 	(0, import_react.useEffect)(t2, t3);
 	return createRevokableUrl;
 }
-function _temp$101(url_0) {
+function _temp$104(url_0) {
 	return URL.revokeObjectURL(url_0);
 }
 //#endregion
@@ -40142,7 +40180,7 @@ var useBreadcrumbTruncation = (segments, containerRef) => {
 				testElement.style.margin = "0";
 				testElement.style.padding = "0";
 				container.appendChild(testElement);
-				replaceMeasurementItems(testElement, segments.map(_temp$100));
+				replaceMeasurementItems(testElement, segments.map(_temp$103));
 				if (testElement.scrollWidth <= containerWidth) {
 					container.removeChild(testElement);
 					setTruncatedData({
@@ -40168,7 +40206,7 @@ var useBreadcrumbTruncation = (segments, containerRef) => {
 					replaceMeasurementItems(testElement, [
 						firstSegment.text,
 						"...",
-						...segments.slice(segments.length - 1 - endCount, -1).map(_temp2$57),
+						...segments.slice(segments.length - 1 - endCount, -1).map(_temp2$58),
 						lastSegment.text
 					]);
 					if (testElement.scrollWidth <= containerWidth) {
@@ -40206,10 +40244,10 @@ var useBreadcrumbTruncation = (segments, containerRef) => {
 	(0, import_react.useEffect)(t1, t2);
 	return truncatedData;
 };
-function _temp$100(segment) {
+function _temp$103(segment) {
 	return segment.text;
 }
-function _temp2$57(segment_0) {
+function _temp2$58(segment_0) {
 	return segment_0.text;
 }
 //#endregion
@@ -40552,7 +40590,7 @@ var SCROLL_RELEASE_KEYS = /* @__PURE__ */ new Set([
 				setCopied(true);
 				window.clearTimeout(timer.current);
 				timer.current = window.setTimeout(() => setCopied(false), confirmMs);
-			}).catch(_temp$99);
+			}).catch(_temp$102);
 		};
 		$[1] = confirmMs;
 		$[2] = t2;
@@ -40570,7 +40608,7 @@ var SCROLL_RELEASE_KEYS = /* @__PURE__ */ new Set([
 	} else t3 = $[5];
 	return t3;
 }
-function _temp$99(error) {
+function _temp$102(error) {
 	console.error("Failed to copy:", error);
 }
 var SourceCodePanel_module_default = {
@@ -41521,7 +41559,7 @@ var Tab = (t0) => {
 				"aria-controls": tabContentsId,
 				"aria-selected": isActive,
 				onClick: inAppLinkClick(tab.props.onSelected),
-				onKeyDown: _temp$98,
+				onKeyDown: _temp$101,
 				children: content
 			}) : /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
 				id: tabId,
@@ -41559,7 +41597,7 @@ var TabPanels = (t0) => {
 	const t2 = `${id}-content`;
 	let t3;
 	if ($[2] !== tabs) {
-		t3 = tabs.map(_temp2$56);
+		t3 = tabs.map(_temp2$57);
 		$[2] = tabs;
 		$[3] = t3;
 	} else t3 = $[3];
@@ -41651,13 +41689,13 @@ var flattenChildren$1 = (children) => {
 		return [];
 	});
 };
-function _temp$98(e) {
+function _temp$101(e) {
 	if (e.key === " ") {
 		e.preventDefault();
 		e.currentTarget.click();
 	}
 }
-function _temp2$56(tab, index) {
+function _temp2$57(tab, index) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(TabPanel, {
 		...tab.props,
 		index
@@ -41688,7 +41726,7 @@ var FindTargetContext = /*#__PURE__*/ (0, import_react.createContext)(null);
 	const ctx = (0, import_react.useContext)(FindTargetContext);
 	let t0;
 	if ($[0] !== ctx?.setTarget) {
-		t0 = ctx?.setTarget ?? _temp$97;
+		t0 = ctx?.setTarget ?? _temp$100;
 		$[0] = ctx?.setTarget;
 		$[1] = t0;
 	} else t0 = $[1];
@@ -41721,7 +41759,7 @@ var FindTargetProvider = (t0) => {
 	} else t2 = $[4];
 	return t2;
 };
-function _temp$97() {}
+function _temp$100() {}
 //#endregion
 //#region ../../packages/react/src/components/ExpandablePanel.tsx
 var ExpandablePanel = /*#__PURE__*/ (0, import_react.memo)((t0) => {
@@ -43056,7 +43094,7 @@ var MarkdownDivWithReferences = /*#__PURE__*/ (0, import_react.forwardRef)((prop
 	const [visibleKey, setVisibleKey, clearVisibleKey] = useProperty("popover", "visibleKey");
 	let t0;
 	if ($[0] !== references) {
-		t0 = new Map(references?.map(_temp$96));
+		t0 = new Map(references?.map(_temp$99));
 		$[0] = references;
 		$[1] = t0;
 	} else t0 = $[1];
@@ -43276,7 +43314,7 @@ var popoverKey = (ref) => `markdown-ref-popover-${ref.id}`;
 	}
 	return emitted === 0 ? html : out + html.slice(emitted);
 }
-function _temp$96(r) {
+function _temp$99(r) {
 	return [r.id, r];
 }
 /**
@@ -44688,6 +44726,7 @@ var EVAL_CONFIG_KEYS = {
 	sandbox_prebuilt: true,
 	score_display: true,
 	score_on_error: true,
+	sentinel: true,
 	time_limit: true,
 	token_limit: true,
 	token_limit_type: true,
@@ -48734,7 +48773,7 @@ var kindClass = {
 var CHUNK_SIZE = 100;
 var COPIED_FEEDBACK_MS = 1e3;
 var classes = (...names) => names.filter((n) => typeof n === "string").join(" ");
-var TreeNode$1 = /*#__PURE__*/ (0, import_react.memo)((t0) => {
+var TreeNode$2 = /*#__PURE__*/ (0, import_react.memo)((t0) => {
 	const $ = (0, import_compiler_runtime.c)(41);
 	const { name, value, defaultExpanded: t1 } = t0;
 	const [expanded, setExpanded] = (0, import_react.useState)(t1 === void 0 ? false : t1);
@@ -48755,7 +48794,7 @@ var TreeNode$1 = /*#__PURE__*/ (0, import_react.memo)((t0) => {
 		t3 = () => {
 			if (previousValue.current !== value) {
 				previousValue.current = value;
-				setFlashKey(_temp$95);
+				setFlashKey(_temp$98);
 			}
 		};
 		t4 = [value];
@@ -48770,7 +48809,7 @@ var TreeNode$1 = /*#__PURE__*/ (0, import_react.memo)((t0) => {
 	let t5;
 	if ($[5] !== expandable) {
 		t5 = () => {
-			if (expandable) setExpanded(_temp2$55);
+			if (expandable) setExpanded(_temp2$56);
 		};
 		$[5] = expandable;
 		$[6] = t5;
@@ -48910,15 +48949,15 @@ var TreeNode$1 = /*#__PURE__*/ (0, import_react.memo)((t0) => {
 	} else t7 = $[18];
 	return t7;
 });
-TreeNode$1.displayName = "TreeNode";
-function _temp$95(k) {
+TreeNode$2.displayName = "TreeNode";
+function _temp$98(k) {
 	return k + 1;
 }
-function _temp2$55(e) {
+function _temp2$56(e) {
 	return !e;
 }
 function _temp3$39(entry) {
-	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(TreeNode$1, {
+	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(TreeNode$2, {
 		name: entry.key,
 		value: entry.value
 	}, entry.id);
@@ -49723,7 +49762,7 @@ var FetchEngine = class {
 	async updateDbStats() {
 		const deps = this._deps;
 		const database = deps?.database;
-		if (deps === void 0 || !database?.opened()) return;
+		if (!deps || !database) return;
 		try {
 			const stats = await database.getCacheStats({ prefix: deps.logDir });
 			this.setStatus({ dbStats: {
@@ -53616,59 +53655,8 @@ var AppDatabase = class extends Dexie {
 	} catch {}
 };
 //#endregion
-//#region src/client/database/manager.ts
-var log$6 = createLogger("DatabaseManager");
-/**
-* Manages the (single, per-origin) database connection. Log dirs are query
-* scopes over the unified database, not separate databases.
-*/ var DatabaseManager = class {
-	database = null;
-	/**
-	* Open the database, returning the existing connection when already open.
-	*/ async openDatabase() {
-		if (this.database) return this.database;
-		if (await AppDatabase.checkVersionMismatch()) {
-			log$6.info("Recreating database due to version mismatch");
-			await Dexie.delete(DB_NAME);
-			log$6.debug(`Deleted old database: ${DB_NAME}`);
-		}
-		this.database = new AppDatabase();
-		try {
-			await this.database.open();
-			log$6.debug("Successfully opened database");
-			deleteLegacyDatabases();
-			return this.database;
-		} catch (error) {
-			log$6.error("Failed to open database:", error);
-			this.database = null;
-			throw error;
-		}
-	}
-	/**
-	* Get the current database instance.
-	* Returns null if no database is open.
-	*/ getDatabase() {
-		return this.database;
-	}
-	/**
-	* Close the current database connection.
-	*/ close() {
-		if (this.database) {
-			log$6.debug("Closing database");
-			this.database.close();
-			this.database = null;
-		}
-		return Promise.resolve();
-	}
-	/**
-	* Check if a database is currently open.
-	*/ isOpen() {
-		return this.database !== null;
-	}
-};
-//#endregion
 //#region src/client/database/service.ts
-var log$5 = createLogger("DatabaseService");
+var log$5 = createLogger("OpenDatabase");
 var newRow$1 = (handle) => ({
 	...handle,
 	depth: "listed",
@@ -53684,40 +53672,45 @@ var newRow$1 = (handle) => ({
 	return !Number.isNaN(numeric) && String(numeric) === id ? [id, numeric] : [id];
 };
 /**
-* Database service for caching and retrieving log data.
-* Works with a DatabaseManager instance to handle database operations.
-*/ var DatabaseService = class {
-	manager;
-	constructor(manager) {
-		this.manager = manager;
+* The read/write surface over the (single, per-origin) database. Constructed
+* only with a live connection — obtaining one proves an open succeeded, so
+* consumers holding an `OpenDatabase` never need an "is it open?" check
+* (sessions without persistence hold `null` instead; see #518 for the bug
+* class this shape rules out).
+*/ var OpenDatabase = class OpenDatabase {
+	db;
+	constructor(db) {
+		this.db = db;
+	}
+	/** Open the (unified) database and wrap the live connection. */ static async open() {
+		if (await AppDatabase.checkVersionMismatch()) {
+			log$5.info("Recreating database due to version mismatch");
+			await Dexie.delete(DB_NAME);
+		}
+		const db = new AppDatabase();
+		try {
+			await db.open();
+			log$5.debug("Successfully opened database");
+			deleteLegacyDatabases();
+			return new OpenDatabase(db);
+		} catch (error) {
+			log$5.error("Failed to open database:", error);
+			throw error;
+		}
 	}
 	/**
-	* Get the current database instance.
-	* Throws an error if no database is open.
-	*/ getDb() {
-		const db = this.manager.getDatabase();
-		if (!db) throw new Error("No database initialized. Call openDatabase first.");
-		return db;
-	}
-	opened() {
-		return this.manager.getDatabase() !== null;
-	}
-	/**
-	* Open the (unified) database.
-	*/ async openDatabase() {
-		await this.manager.openDatabase();
-	}
-	/**
-	* Close the current database connection.
-	*/ async closeDatabase() {
-		await this.manager.close();
+	* Close the underlying connection. Test teardown only (a same-process
+	* `Dexie.delete` blocks on an open connection) — production never closes;
+	* a handle is valid for the life of the page.
+	*/ close() {
+		this.db.close();
 	}
 	/**
 	* Upsert the listing identity tier: new files get fresh listed-depth rows;
 	* known files update identity fields only (depth, content, and retrieval
 	* facts are preserved).
 	*/ async writeLogs(handles) {
-		const db = this.getDb();
+		const db = this.db;
 		const now = (/* @__PURE__ */ new Date()).toISOString();
 		const existingRecords = await db.logs.where("file_path").anyOf(handles.map((handle) => handle.name)).toArray();
 		const existingByPath = new Map(existingRecords.map((record) => [record.file_path, record]));
@@ -53736,11 +53729,7 @@ var newRow$1 = (handle) => ({
 	}
 	async readLogs(scope) {
 		try {
-			if (!this.opened()) {
-				log$5.debug("Database not open");
-				return null;
-			}
-			const records = await this.getDb().logs.where("file_path").startsWith(scopePrefix(scope.prefix)).toArray();
+			const records = await this.db.logs.where("file_path").startsWith(scopePrefix(scope.prefix)).toArray();
 			records.sort((a, b) => {
 				if (a.mtime != null && b.mtime != null) return b.mtime - a.mtime;
 				if (a.id != null && b.id != null) return a.id - b.id;
@@ -53755,7 +53744,7 @@ var newRow$1 = (handle) => ({
 	}
 	async readLogRow(filePath) {
 		try {
-			const record = await this.getDb().logs.where("file_path").equals(filePath).first();
+			const record = await this.db.logs.where("file_path").equals(filePath).first();
 			return record ? fromLogRecord(record) : null;
 		} catch (error) {
 			log$5.error(`Error retrieving log row for ${filePath}:`, error);
@@ -53764,7 +53753,7 @@ var newRow$1 = (handle) => ({
 	}
 	async readLogRows(filePaths) {
 		try {
-			const records = await this.getDb().logs.where("file_path").anyOf(filePaths).toArray();
+			const records = await this.db.logs.where("file_path").anyOf(filePaths).toArray();
 			const result = {};
 			for (const record of records) result[record.file_path] = fromLogRecord(record);
 			return result;
@@ -53775,7 +53764,7 @@ var newRow$1 = (handle) => ({
 	}
 	/** Merge a set of per-file row patches, creating listed-depth rows for
 	*  unknown files (e.g. single-file mode). Depth ratchets, never lowers. */ async mergeRows(patches) {
-		const db = this.getDb();
+		const db = this.db;
 		const now = (/* @__PURE__ */ new Date()).toISOString();
 		const files = Object.keys(patches);
 		const existing = await db.logs.where("file_path").anyOf(files).toArray();
@@ -53806,7 +53795,7 @@ var newRow$1 = (handle) => ({
 	* call so a reader never sees a header whose summary rows are from an
 	* older ingestion.
 	*/ async writeLogDetails(details) {
-		const db = this.getDb();
+		const db = this.db;
 		const now = (/* @__PURE__ */ new Date()).toISOString();
 		const entries = Object.entries(details);
 		log$5.debug(`Ingesting ${entries.length} log details (split)`);
@@ -53825,11 +53814,11 @@ var newRow$1 = (handle) => ({
 		});
 	}
 	async readSampleSummaries(scope) {
-		const db = this.getDb();
+		const db = this.db;
 		return ("file" in scope ? db.sample_summaries.where("file_path").equals(scope.file) : db.sample_summaries.where("file_path").startsWith(scopePrefix(scope.prefix))).toArray();
 	}
 	async hasCompletedSampleSummary(filePath, id, epoch) {
-		const db = this.getDb();
+		const db = this.db;
 		const keys = sampleIdsForLookup(id).map((sampleId) => [
 			filePath,
 			sampleId,
@@ -53846,7 +53835,7 @@ var newRow$1 = (handle) => ({
 	* retrieval facts back to listed depth; the file's sample summary rows go
 	* with it.
 	*/ async resetDepth(filePaths) {
-		const db = this.getDb();
+		const db = this.db;
 		const now = (/* @__PURE__ */ new Date()).toISOString();
 		await db.transaction("rw", db.logs, db.sample_summaries, async () => {
 			const records = await db.logs.where("file_path").anyOf(filePaths).toArray();
@@ -53860,7 +53849,7 @@ var newRow$1 = (handle) => ({
 		});
 	}
 	/** Remove a deleted file's row and its sample summaries. */ async clearCacheForFile(filePath) {
-		const db = this.getDb();
+		const db = this.db;
 		log$5.debug(`Clearing cache for file: ${filePath}`);
 		await Promise.all([db.logs.where("file_path").equals(filePath).delete(), db.sample_summaries.where("file_path").equals(filePath).delete()]);
 	}
@@ -53869,7 +53858,7 @@ var newRow$1 = (handle) => ({
 	* `clearScope`, this reaches rows persisted under names outside any synced
 	* scope's namespace (see `namesInScope` in logsContent).
 	*/ async clearAllData() {
-		const db = this.getDb();
+		const db = this.db;
 		log$5.debug("Clearing all cached data");
 		await db.transaction("rw", [
 			db.logs,
@@ -53885,7 +53874,7 @@ var newRow$1 = (handle) => ({
 	* Clear all cached data under a scope: its log rows, their sample
 	* summaries, and the scope's sync record. Other scopes' rows are untouched.
 	*/ async clearScope(scope) {
-		const db = this.getDb();
+		const db = this.db;
 		const prefix = scopePrefix(scope.prefix);
 		log$5.debug(`Clearing caches under: ${prefix}`);
 		await db.transaction("rw", [
@@ -53899,7 +53888,7 @@ var newRow$1 = (handle) => ({
 		]));
 	}
 	/** Record that a scope is active (creating its row on first contact). */ async touchSyncScope(prefix) {
-		const db = this.getDb();
+		const db = this.db;
 		const key = scopePrefix(prefix);
 		const now = (/* @__PURE__ */ new Date()).toISOString();
 		await db.transaction("rw", db.sync_scopes, async () => {
@@ -53912,10 +53901,10 @@ var newRow$1 = (handle) => ({
 		});
 	}
 	/** Read a scope's sync record (undefined when never activated). */ async getSyncScope(prefix) {
-		return this.getDb().sync_scopes.get(scopePrefix(prefix));
+		return this.db.sync_scopes.get(scopePrefix(prefix));
 	}
 	/** Record that a listing sync persisted under a scope. */ async markScopeSynced(prefix) {
-		const db = this.getDb();
+		const db = this.db;
 		const key = scopePrefix(prefix);
 		const now = (/* @__PURE__ */ new Date()).toISOString();
 		await db.transaction("rw", db.sync_scopes, async () => {
@@ -53930,7 +53919,7 @@ var newRow$1 = (handle) => ({
 	/**
 	* Get cache statistics for a scope.
 	*/ async getCacheStats(scope) {
-		const db = this.getDb();
+		const db = this.db;
 		const prefix = scopePrefix(scope.prefix);
 		const depthCount = (depth) => db.logs.where("[depth+file_path]").between([depth, prefix], [depth, prefix + "￿"]).count();
 		const [logFiles, previewed, detailed, sampleSummaries] = await Promise.all([
@@ -53947,24 +53936,31 @@ var newRow$1 = (handle) => ({
 		};
 	}
 };
-/**
-* Create a new database service instance.
-* Each service instance works with its own database manager.
-*/ function createDatabaseService() {
-	return new DatabaseService(new DatabaseManager());
-}
 //#endregion
-//#region src/log_data/databaseServiceInstance.ts
-var instance = null;
+//#region src/log_data/databaseInstance.ts
+var current$1 = null;
+var opening = null;
 /**
-* The shared DatabaseService singleton, created lazily on first use — every
-* acquisition path reaches it through `ensureFetchEngine`, so there is no
-* initialize verb to call. Construction is side-effect free; the database
-* itself opens later (`openLogDirDatabase`).
-*/ function getDatabaseService() {
-	instance ??= createDatabaseService();
-	return instance;
+* Open the app database once and share the handle; concurrent callers
+* coalesce onto the in-flight open, and a failed open clears it so the next
+* acquisition retries (activation relies on this — see `engineReady`).
+*/ async function acquireDatabase() {
+	if (current$1) return current$1;
+	opening ??= OpenDatabase.open().then((db) => {
+		current$1 = db;
+		opening = null;
+		return db;
+	}, (error) => {
+		opening = null;
+		throw error;
+	});
+	return opening;
 }
+/**
+* The shared open handle, or null when this session has none — before the
+* first successful open, and forever in single-file sessions (which never
+* open one; their reads miss and writes stay cache-only).
+*/ var currentDatabase = () => current$1;
 //#endregion
 //#region src/log_data/listingSync.ts
 /**
@@ -54081,8 +54077,8 @@ var pageOf = (rows, params) => {
 	return params.limit === void 0 && start === 0 ? rows : rows.slice(start, params.limit === void 0 ? void 0 : start + params.limit);
 };
 var readSamplesListing = async (params) => {
-	const db = getDatabaseService();
-	if (!db.opened()) return queryClient.getQueryData(samplesListingKey(params)) ?? EMPTY_ROWS;
+	const db = currentDatabase();
+	if (!db) return queryClient.getQueryData(samplesListingKey(params)) ?? EMPTY_ROWS;
 	const records = await db.readSampleSummaries(params.scope);
 	const files = [...new Set(records.map((record) => record.file_path))];
 	const rows = await db.readLogRows(files);
@@ -54133,8 +54129,8 @@ var readSamplesListing = async (params) => {
 * in db-less sessions.
 */ var readSettledSummaries = async (logDir, logFile) => {
 	const scope = { file: logFile };
-	const db = getDatabaseService();
-	if (db.opened()) return (await db.readSampleSummaries(scope)).map((record) => record.summary);
+	const db = currentDatabase();
+	if (db) return (await db.readSampleSummaries(scope)).map((record) => record.summary);
 	return queryClient.getQueryData(samplesListingKey({
 		logDir,
 		scope
@@ -54142,8 +54138,8 @@ var readSamplesListing = async (params) => {
 };
 /** Whether one settled sample is complete, without materializing its file's
 *  full summary list when IndexedDB is available. */ var hasCompletedSettledSummary = async (logDir, logFile, id, epoch) => {
-	const db = getDatabaseService();
-	if (db.opened()) return db.hasCompletedSampleSummary(logFile, id, epoch);
+	const db = currentDatabase();
+	if (db) return db.hasCompletedSampleSummary(logFile, id, epoch);
 	return (await readSettledSummaries(logDir, logFile)).some((summary) => sampleIdsEqual(summary.id, id) && summary.epoch === epoch && summary.completed !== false);
 };
 /**
@@ -54184,7 +54180,7 @@ var readSamplesListing = async (params) => {
 *
 * The invariant for this module: IndexedDB is never written without the same
 * write landing in the cache. The `write*` / `clear*` / `reset*` seam below
-* are the only callers of the `DatabaseService` mutators anywhere — each
+* are the only callers of the `OpenDatabase` mutators anywhere — each
 * pairs the persistence with its cache update. Cache-only writes (the
 * `set*`/`merge*`/`seed*` primitives) are allowed; the invariant is
 * one-directional (db ⟹ cache).
@@ -54332,7 +54328,7 @@ var namesInScope = (logDir, handles) => {
 * holds the full re-read, so the full list is read back and returned for the
 * caller's continued sync logic.
 */ var writeListing = async (db, logDir, handles) => {
-	if (db?.opened() && namesInScope(logDir, handles)) {
+	if (db && namesInScope(logDir, handles)) {
 		await db.writeLogs(handles);
 		await db.markScopeSynced(logDir);
 		const all = await db.readLogs({ prefix: logDir });
@@ -54348,7 +54344,7 @@ var namesInScope = (logDir, handles) => {
 };
 var writePreviews = async (db, logDir, previews) => {
 	mergePreviews(logDir, previews);
-	if (db?.opened()) await db.writeLogPreviews(previews);
+	if (db) await db.writeLogPreviews(previews);
 	invalidateDatabaseLogsListings();
 };
 /**
@@ -54385,7 +54381,7 @@ var writePreviews = async (db, logDir, previews) => {
 	const { prepared, failures } = prepareBatch(details);
 	await Promise.all(prepared.map(([name, file]) => pushFileSamples(logDir, name, toSamplesListingRows(name, file.header, file.summaries))));
 	mergePatches(logDir, Object.fromEntries(prepared.map(([name, file]) => [name, file.patch])));
-	if (db?.opened()) {
+	if (db) {
 		await db.writeLogDetails(Object.fromEntries(prepared));
 		invalidateSamplesListings(logDir);
 	}
@@ -54394,7 +54390,7 @@ var writePreviews = async (db, logDir, previews) => {
 };
 var writeFetchStates = async (db, logDir, states) => {
 	mergeFetchStates(logDir, states);
-	if (db?.opened()) await db.writeFetchStates(states);
+	if (db) await db.writeFetchStates(states);
 };
 /**
 * mtime invalidation: each row keeps its identity but drops content and
@@ -54411,19 +54407,19 @@ var writeFetchStates = async (db, logDir, states) => {
 	}) : row);
 	queryClient.setQueryData(logsKey(logDir), next);
 	for (const row of next) if (nameSet.has(row.name)) pushLog(logDir, row);
-	if (db?.opened()) await db.resetDepth(names);
+	if (db) await db.resetDepth(names);
 	invalidateDatabaseLogsListings();
 	invalidateSamplesListings(logDir);
 };
 var clearFile = async (db, logDir, name) => {
 	evictFile(logDir, name);
-	if (db?.opened()) await db.clearCacheForFile(name);
+	if (db) await db.clearCacheForFile(name);
 	invalidateDatabaseLogsListings();
 	invalidateSamplesListings(logDir);
 };
 var clearAll = async (db, logDir) => {
 	clearCache(logDir);
-	if (db?.opened()) await db.clearAllData();
+	if (db) await db.clearAllData();
 	invalidateDatabaseLogsListings();
 };
 /**
@@ -54492,11 +54488,10 @@ var useLogs = (logDir) => {
 //#endregion
 //#region src/log_data/replicationControl.ts
 var openLogDirDatabase = async (logDir) => {
-	const databaseService = getDatabaseService();
 	try {
-		await databaseService.openDatabase();
-		await databaseService.touchSyncScope(logDir);
-		return databaseService;
+		const database = await acquireDatabase();
+		await database.touchSyncScope(logDir);
+		return database;
 	} catch (e) {
 		console.log(e);
 		return;
@@ -54862,16 +54857,17 @@ var useLogListing = (logDir) => {
 * Where listing queries for `logDir` read their rows — an explicit,
 * scope-level decision rather than a per-query fallback:
 *
-* - "database": the normal dir-mode path; IndexedDB holds the replicated
-*   rows and is the row source.
-* - "cache": the react-query logs cache is the row source. This serves the
+* - a database handle: the normal dir-mode path; IndexedDB holds the
+*   replicated rows and is the row source.
+* - null: the react-query logs cache is the row source. This serves the
 *   out-of-namespace degrade (listing persistence skipped — see
 *   `namesInScope` in logsContent) and db-less sessions (the database
 *   failed to open; single-file mode renders no log list at all).
-*/ var logsListingSource = (logDir) => getDatabaseService().opened() && !isCacheOnlyListingScope(logDir) ? "database" : "cache";
+*/ var logsListingDatabase = (logDir) => isCacheOnlyListingScope(logDir) ? null : currentDatabase();
 var scanRows = async (logDir, prefix) => {
-	if (logsListingSource(logDir) === "database") {
-		const logs = await getDatabaseService().readLogs({ prefix });
+	const db = logsListingDatabase(logDir);
+	if (db) {
+		const logs = await db.readLogs({ prefix });
 		if (logs !== null) return logs;
 	}
 	if (isCacheOnlyListingScope(logDir)) return getLogRows(logDir);
@@ -55011,8 +55007,8 @@ var readLogsListing = async (logDir, prefix, toRow, plan) => {
 	let t2;
 	if ($[3] !== key) {
 		t2 = key === void 0 ? skipToken : async () => {
-			const db = getDatabaseService();
-			return (db.opened() ? await db.readLogRow(key) : null) ?? null;
+			const db = currentDatabase();
+			return (db ? await db.readLogRow(key) : null) ?? null;
 		};
 		$[3] = key;
 		$[4] = t2;
@@ -55063,7 +55059,7 @@ var readLogsListing = async (logDir, prefix, toRow, plan) => {
 	let t2;
 	if ($[3] !== demand || $[4] !== logDir || $[5] !== logFile) {
 		t1 = () => {
-			if (logFile !== void 0) fetchLog(logDir, logFile, { passive: demand !== "active" }).catch(_temp$94);
+			if (logFile !== void 0) fetchLog(logDir, logFile, { passive: demand !== "active" }).catch(_temp$97);
 		};
 		t2 = [
 			logDir,
@@ -55152,7 +55148,7 @@ var readLogsListing = async (logDir, prefix, toRow, plan) => {
 	} else t0 = $[1];
 	return t0;
 };
-function _temp$94() {}
+function _temp$97() {}
 //#endregion
 //#region src/log_data/pendingSamples.ts
 var kDefaultRefreshSeconds = 2;
@@ -55257,7 +55253,7 @@ var logInfoSignature = (info) => `${info.size}:${info.etag ?? ""}`;
 		t4 = {
 			queryKey: t2,
 			queryFn: t3,
-			refetchInterval: _temp$93,
+			refetchInterval: _temp$96,
 			refetchIntervalInBackground: true,
 			staleTime: 0,
 			refetchOnWindowFocus: false,
@@ -55270,7 +55266,7 @@ var logInfoSignature = (info) => `${info.size}:${info.etag ?? ""}`;
 	const result = useAsyncDataFromQuery(t4);
 	let t5;
 	if ($[14] !== enabled || $[15] !== result) {
-		t5 = enabled ? map(result, _temp2$54) : data(void 0);
+		t5 = enabled ? map(result, _temp2$55) : data(void 0);
 		$[14] = enabled;
 		$[15] = result;
 		$[16] = t5;
@@ -55297,10 +55293,10 @@ var logInfoSignature = (info) => `${info.size}:${info.etag ?? ""}`;
 * finalize decision). Returns
 * `undefined` when there's no resolved dir.
 */ var getPendingSamples = (logDir, logFile) => logDir === void 0 ? void 0 : queryClient.getQueryData(pendingSamplesKey(logDir, logFile)) ?? void 0;
-function _temp$93(query) {
+function _temp$96(query) {
 	return query.state.status === "error" ? false : pendingSamplesIntervalMs(query.state.data);
 }
-function _temp2$54(data) {
+function _temp2$55(data) {
 	return data ?? void 0;
 }
 function _temp3$38(data) {
@@ -56955,7 +56951,7 @@ var mergeSampleSummaries = (logSamples, pendingSamples) => {
 		t3 = rows.data?.some((row_0) => row_0.logFile !== logKey) ? loading$2 : map(compose({
 			rows,
 			pending
-		}), _temp2$53);
+		}), _temp2$54);
 		$[8] = logKey;
 		$[9] = pending;
 		$[10] = rows;
@@ -56967,11 +56963,11 @@ var mergeSampleSummaries = (logSamples, pendingSamples) => {
 * Non-React snapshot of {@link useSampleSummaries} (for the running-sample
 * query's tick decisions). Empty when there's no resolved dir.
 */ var getSampleSummaries = async (logDir, logFile) => logDir === void 0 ? [] : mergeSampleSummaries(await readSettledSummaries(logDir, resolveLogKey(logDir, logFile)), getPendingSamples(logDir, logFile)?.samples ?? []);
-function _temp$92(row) {
+function _temp$95(row) {
 	return row.summary;
 }
-function _temp2$53(settled) {
-	return mergeSampleSummaries(settled.rows.map(_temp$92), settled.pending?.samples ?? []);
+function _temp2$54(settled) {
+	return mergeSampleSummaries(settled.rows.map(_temp$95), settled.pending?.samples ?? []);
 }
 //#endregion
 //#region src/log_data/runningSampleQuery.ts
@@ -57110,7 +57106,7 @@ var findLiveSummary = async (logDir, handle) => (await getSampleSummaries(logDir
 			queryKey: t2,
 			queryFn: t3,
 			structuralSharing: false,
-			refetchInterval: _temp$91,
+			refetchInterval: _temp$94,
 			refetchIntervalInBackground: true,
 			gcTime: kSampleGcTimeMs,
 			refetchOnWindowFocus: false,
@@ -57122,7 +57118,7 @@ var findLiveSummary = async (logDir, handle) => (await getSampleSummaries(logDir
 	} else t4 = $[13];
 	return useAsyncDataFromQuery(t4);
 };
-function _temp$91(query) {
+function _temp$94(query) {
 	return query.state.status === "error" || query.state.data?.finalized === true ? false : query.state.data?.catchup === true ? kCatchupIntervalMs : kRunningSampleIntervalMs;
 }
 //#endregion
@@ -60598,8 +60594,8 @@ var isNonEmptyObject = (v) => isRecord(v) && Object.keys(v).length > 0;
 	const depth = t1 === void 0 ? 0 : t1;
 	const baseId = id ?? "metadata-grid";
 	const allEntries = entryRecords(entries);
-	const scalars = allEntries.filter(_temp$90);
-	const groups = allEntries.filter(_temp2$52);
+	const scalars = allEntries.filter(_temp$93);
+	const groups = allEntries.filter(_temp2$53);
 	const [expanded, setExpanded] = (0, import_react.useState)(false);
 	const isCollapsible = maxRows != null && scalars.length > maxRows;
 	const visibleScalars = isCollapsible && !expanded ? scalars.slice(0, maxRows) : scalars;
@@ -60726,10 +60722,10 @@ var entryRecords = (entries) => {
 	});
 	else return entries;
 };
-function _temp$90(e) {
+function _temp$93(e) {
 	return !isNonEmptyObject(e.value) || isHtmlEscape(e.value);
 }
-function _temp2$52(e_0) {
+function _temp2$53(e_0) {
 	return isNonEmptyObject(e_0.value) && !isHtmlEscape(e_0.value);
 }
 function _temp3$37(prev) {
@@ -60778,7 +60774,7 @@ var isWebSearchValue = (v) => isRecord(v) && isOptionalString(v.query) && Array.
 		$[1] = entry;
 		$[2] = t2;
 	} else t2 = $[2];
-	const renderer_0 = Object.keys(renderers).map((key) => renderers[key]).sort(_temp$89).find(t2);
+	const renderer_0 = Object.keys(renderers).map((key) => renderers[key]).sort(_temp$92).find(t2);
 	if (renderer_0) {
 		const { rendered } = renderer_0.render(id, entry, renderOptions, references);
 		if (rendered !== void 0 && /*#__PURE__*/ (0, import_react.isValidElement)(rendered)) return rendered;
@@ -60995,7 +60991,7 @@ var isWebSearchValue = (v) => isRecord(v) && isOptionalString(v.query) && Array.
 	};
 	return contentRenderers;
 };
-function _temp$89(a, b) {
+function _temp$92(a, b) {
 	if (!a || !b) return 0;
 	return a.bucket - b.bucket;
 }
@@ -61483,7 +61479,7 @@ var WebSearchResults$1 = (t0) => {
 	}
 	let t3;
 	if ($[2] !== results) {
-		t3 = results.map(_temp$88);
+		t3 = results.map(_temp$91);
 		$[2] = results;
 		$[3] = t3;
 	} else t3 = $[3];
@@ -61498,7 +61494,7 @@ var WebSearchResults$1 = (t0) => {
 	} else t4 = $[5];
 	return t4;
 };
-function _temp$88(result, index) {
+function _temp$91(result, index) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("li", {
 		className: clsx(WebSearchResults_module_default.result, "text-style-secondary"),
 		children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ExternalLink, {
@@ -61819,7 +61815,7 @@ var MessageCitations = (t0) => {
 	} else t1 = $[0];
 	let t2;
 	if ($[1] !== citations) {
-		t2 = citations.map(_temp$87);
+		t2 = citations.map(_temp$90);
 		$[1] = citations;
 		$[2] = t2;
 	} else t2 = $[2];
@@ -61893,7 +61889,7 @@ var OtherCitation = (t0) => {
 	} else t1 = $[1];
 	return t1;
 };
-function _temp$87(citation, index) {
+function _temp$90(citation, index) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_react.Fragment, { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", { children: index + 1 }), /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MessageCitation, { citation })] }, index);
 }
 var MessageContent_module_default = {
@@ -61904,15 +61900,17 @@ var MessageContent_module_default = {
 	codePanelPre: "_codePanelPre_a1z7v_26"
 };
 var ToolBlock_module_default = {
-	block: "_block_mcsgc_5",
-	standalone: "_standalone_mcsgc_13",
-	header: "_header_mcsgc_21",
-	icon: "_icon_mcsgc_36",
-	title: "_title_mcsgc_42",
-	summary: "_summary_mcsgc_50",
-	pill: "_pill_mcsgc_61",
-	inputZone: "_inputZone_mcsgc_75",
-	outputWell: "_outputWell_mcsgc_88"
+	block: "_block_1ib8l_5",
+	standalone: "_standalone_1ib8l_13",
+	header: "_header_1ib8l_21",
+	icon: "_icon_1ib8l_36",
+	title: "_title_1ib8l_42",
+	summary: "_summary_1ib8l_50",
+	pill: "_pill_1ib8l_61",
+	inputZone: "_inputZone_1ib8l_75",
+	outputWell: "_outputWell_1ib8l_88",
+	inputInsetZone: "_inputInsetZone_1ib8l_123",
+	outputInsetZone: "_outputInsetZone_1ib8l_124"
 };
 //#endregion
 //#region ../../packages/inspect-components/src/chat/tools/ToolBlock.tsx
@@ -62043,6 +62041,23 @@ var ToolBlock_module_default = {
 		$[3] = t1;
 		$[4] = t2;
 	} else t2 = $[4];
+	return t2;
+};
+/** A region that holds tool call checks: tinted like the input zone before
+* the call, like the output well after it. */ var ToolBlockInset = (t0) => {
+	const $ = (0, import_compiler_runtime.c)(3);
+	const { region, children } = t0;
+	const t1 = region === "input" ? ToolBlock_module_default.inputInsetZone : ToolBlock_module_default.outputInsetZone;
+	let t2;
+	if ($[0] !== children || $[1] !== t1) {
+		t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+			className: t1,
+			children
+		});
+		$[0] = children;
+		$[1] = t1;
+		$[2] = t2;
+	} else t2 = $[2];
 	return t2;
 };
 var ToolCallErrorView_module_default = {
@@ -62485,7 +62500,7 @@ var WebSearchResults = (t0) => {
 	const t1 = `${id}-output`;
 	let t2;
 	if ($[0] !== results) {
-		t2 = results.map(_temp$86);
+		t2 = results.map(_temp$89);
 		$[0] = results;
 		$[1] = t2;
 	} else t2 = $[1];
@@ -62666,7 +62681,7 @@ var maybeListTools = (content) => {
 };
 /** Shallow: the list below renders title and url, and skips entries lacking them. */ var isWebResult = (value) => isRecord(value) && typeof value["title"] === "string" && typeof value["url"] === "string";
 /** Shallow: the list below keys on name and renders description. */ var isToolInfo = (value) => isRecord(value) && typeof value["name"] === "string";
-function _temp$86(result, index) {
+function _temp$89(result, index) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", { children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ExternalLink, {
 		href: result.url,
 		title: result.url,
@@ -63190,7 +63205,7 @@ function asCoordinate(value) {
 	const { contents, annotation } = t0;
 	let t1;
 	if ($[0] !== contents) {
-		t1 = contents.findLastIndex(_temp$85);
+		t1 = contents.findLastIndex(_temp$88);
 		$[0] = contents;
 		$[1] = t1;
 	} else t1 = $[1];
@@ -63364,7 +63379,7 @@ function renderHtmlAnnotation(annotation) {
 	}
 	return null;
 }
-function _temp$85(c) {
+function _temp$88(c) {
 	return c.type === "image" && isRenderableImageSource(c.image);
 }
 var customToolRendering_module_default = { submitView: "_submitView_1ru17_1" };
@@ -63389,7 +63404,7 @@ var ToolSearchView_module_default = {
 	const { namespaces } = t0;
 	let t1;
 	if ($[0] !== namespaces) {
-		t1 = namespaces.map(_temp2$51);
+		t1 = namespaces.map(_temp2$52);
 		$[0] = namespaces;
 		$[1] = t1;
 	} else t1 = $[1];
@@ -63404,7 +63419,7 @@ var ToolSearchView_module_default = {
 	} else t2 = $[3];
 	return t2;
 };
-function _temp$84(tool, toolIdx) {
+function _temp$87(tool, toolIdx) {
 	return tool.description ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("details", {
 		className: ToolSearchView_module_default.tool,
 		children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("summary", {
@@ -63419,7 +63434,7 @@ function _temp$84(tool, toolIdx) {
 		children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)("code", { children: tool.signature })
 	}, `tool-${toolIdx}`);
 }
-function _temp2$51(namespace, nsIdx) {
+function _temp2$52(namespace, nsIdx) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 		className: ToolSearchView_module_default.namespace,
 		children: [namespace.name ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
@@ -63428,7 +63443,7 @@ function _temp2$51(namespace, nsIdx) {
 		}), namespace.description ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", {
 			className: ToolSearchView_module_default.namespaceDescription,
 			children: [" — ", namespace.description]
-		}) : null] }) : null, namespace.tools.map(_temp$84)]
+		}) : null] }) : null, namespace.tools.map(_temp$87)]
 	}, `ns-${nsIdx}`);
 }
 var ToolTitle_module_default = {
@@ -63609,7 +63624,7 @@ var ToolCallView_module_default = { toolCallView: "_toolCallView_x6cus_1" };
 	const normalizedContent = t6;
 	let t7;
 	if ($[8] !== normalizedContent) {
-		t7 = normalizedContent.find(_temp$83);
+		t7 = normalizedContent.find(_temp$86);
 		$[8] = normalizedContent;
 		$[9] = t7;
 	} else t7 = $[9];
@@ -63785,7 +63800,7 @@ var ToolCallView_module_default = { toolCallView: "_toolCallView_x6cus_1" };
 	const { contents } = t0;
 	let t1;
 	if ($[0] !== contents) {
-		t1 = contents.flatMap(_temp2$50).map(_temp3$36);
+		t1 = contents.flatMap(_temp2$51).map(_temp3$36);
 		$[0] = contents;
 		$[1] = t1;
 	} else t1 = $[1];
@@ -63810,7 +63825,7 @@ var normalizeContent = (output) => {
 		}]
 	}];
 };
-function _temp$83(c) {
+function _temp$86(c) {
 	if (c.type === "tool") {
 		for (const t of c.content) if (t.type === "text") {
 			if (t.text) return true;
@@ -63818,7 +63833,7 @@ function _temp$83(c) {
 		return false;
 	} else return true;
 }
-function _temp2$50(c) {
+function _temp2$51(c) {
 	return c.type === "tool" ? c.content : [c];
 }
 function _temp3$36(item, i) {
@@ -63833,8 +63848,8 @@ var ClientToolCall_module_default = { custom: "_custom_wwbdp_4" };
 * header (terminal icon · mono tool name · args summary), the input zone
 * (e.g. code) and the output well stacked beneath.
 */ var ClientToolCall = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(54);
-	const { id, tool, title, functionCall, input, description, contentType, view, output, selfAnnotation, inputScreenshot, error, className, getCustomToolView } = t0;
+	const $ = (0, import_compiler_runtime.c)(60);
+	const { id, tool, title, functionCall, input, description, contentType, view, output, selfAnnotation, inputScreenshot, error, className, getCustomToolView, afterInput, afterOutput, outputReplacement } = t0;
 	const customContent = useCustomContent();
 	let t1;
 	let viewProps;
@@ -63879,56 +63894,64 @@ var ClientToolCall_module_default = { custom: "_custom_wwbdp_4" };
 			$[15] = t2;
 		} else t2 = $[15];
 		let t3;
-		if ($[16] !== customView || $[17] !== t2) {
-			t3 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+		if ($[16] !== afterInput || $[17] !== afterOutput || $[18] !== customView || $[19] !== outputReplacement || $[20] !== t2) {
+			t3 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 				className: t2,
-				children: customView
+				children: [
+					customView,
+					afterInput,
+					outputReplacement,
+					afterOutput
+				]
 			});
-			$[16] = customView;
-			$[17] = t2;
-			$[18] = t3;
-		} else t3 = $[18];
+			$[16] = afterInput;
+			$[17] = afterOutput;
+			$[18] = customView;
+			$[19] = outputReplacement;
+			$[20] = t2;
+			$[21] = t3;
+		} else t3 = $[21];
 		return t3;
 	}
 	const hasInput = input !== void 0 && input !== null && input !== "" || !!view?.content;
 	let argsBody;
 	let t2;
-	if ($[19] !== functionCall || $[20] !== hasInput || $[21] !== title || $[22] !== tool) {
+	if ($[22] !== functionCall || $[23] !== hasInput || $[24] !== title || $[25] !== tool) {
 		argsBody = hasInput ? void 0 : fullArgs(functionCall, title || tool);
 		t2 = argsBody?.replace(/\s+/g, " ").trim();
-		$[19] = functionCall;
-		$[20] = hasInput;
-		$[21] = title;
-		$[22] = tool;
-		$[23] = argsBody;
-		$[24] = t2;
+		$[22] = functionCall;
+		$[23] = hasInput;
+		$[24] = title;
+		$[25] = tool;
+		$[26] = argsBody;
+		$[27] = t2;
 	} else {
-		argsBody = $[23];
-		t2 = $[24];
+		argsBody = $[26];
+		t2 = $[27];
 	}
 	const argsSummary = t2;
 	const argsInInputZone = !!argsSummary && argsSummary.length > kMaxSummaryArgs;
 	const showError = !!error;
 	const showAnnotation = !!selfAnnotation && !!inputScreenshot;
 	let t3;
-	if ($[25] !== output || $[26] !== showAnnotation || $[27] !== showError) {
+	if ($[28] !== output || $[29] !== showAnnotation || $[30] !== showError) {
 		t3 = !showError && (hasOutputContent(output) || showAnnotation);
-		$[25] = output;
-		$[26] = showAnnotation;
-		$[27] = showError;
-		$[28] = t3;
-	} else t3 = $[28];
+		$[28] = output;
+		$[29] = showAnnotation;
+		$[30] = showError;
+		$[31] = t3;
+	} else t3 = $[31];
 	const showOutput = t3;
 	let t4;
-	if ($[29] !== tool) {
+	if ($[32] !== tool) {
 		t4 = iconForTool(tool);
-		$[29] = tool;
-		$[30] = t4;
-	} else t4 = $[30];
+		$[32] = tool;
+		$[33] = t4;
+	} else t4 = $[33];
 	const t5 = title || tool;
 	const t6 = description ?? (argsInInputZone ? void 0 : argsSummary);
 	let t7;
-	if ($[31] !== argsBody || $[32] !== argsInInputZone || $[33] !== contentType || $[34] !== hasInput || $[35] !== id || $[36] !== input || $[37] !== view) {
+	if ($[34] !== argsBody || $[35] !== argsInInputZone || $[36] !== contentType || $[37] !== hasInput || $[38] !== id || $[39] !== input || $[40] !== view) {
 		t7 = hasInput || argsInInputZone ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ToolBlockInput, { children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ExpandablePanel, {
 			id: `${id}-tool-input`,
 			collapse: true,
@@ -63941,51 +63964,59 @@ var ClientToolCall_module_default = { custom: "_custom_wwbdp_4" };
 				toolCallView: hasInput ? view : void 0
 			})
 		}) }) : null;
-		$[31] = argsBody;
-		$[32] = argsInInputZone;
-		$[33] = contentType;
-		$[34] = hasInput;
-		$[35] = id;
-		$[36] = input;
-		$[37] = view;
-		$[38] = t7;
-	} else t7 = $[38];
+		$[34] = argsBody;
+		$[35] = argsInInputZone;
+		$[36] = contentType;
+		$[37] = hasInput;
+		$[38] = id;
+		$[39] = input;
+		$[40] = view;
+		$[41] = t7;
+	} else t7 = $[41];
 	let t8;
-	if ($[39] !== error || $[40] !== inputScreenshot || $[41] !== selfAnnotation || $[42] !== showError || $[43] !== showOutput || $[44] !== viewProps) {
-		t8 = showError ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(ToolBlockOutput, { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)(ToolCallErrorView, { error }), selfAnnotation && inputScreenshot ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(AnnotatedScreenshotOutput, {
+	if ($[42] !== error || $[43] !== inputScreenshot || $[44] !== outputReplacement || $[45] !== selfAnnotation || $[46] !== showError || $[47] !== showOutput || $[48] !== viewProps) {
+		t8 = outputReplacement ? outputReplacement : showError ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(ToolBlockOutput, { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)(ToolCallErrorView, { error }), selfAnnotation && inputScreenshot ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(AnnotatedScreenshotOutput, {
 			contents: inputScreenshot,
 			annotation: selfAnnotation
 		}) : null] }) : showOutput ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ToolBlockOutput, { children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ToolCallView, {
 			...viewProps,
 			section: "output"
 		}) }) : null;
-		$[39] = error;
-		$[40] = inputScreenshot;
-		$[41] = selfAnnotation;
-		$[42] = showError;
-		$[43] = showOutput;
-		$[44] = viewProps;
-		$[45] = t8;
-	} else t8 = $[45];
+		$[42] = error;
+		$[43] = inputScreenshot;
+		$[44] = outputReplacement;
+		$[45] = selfAnnotation;
+		$[46] = showError;
+		$[47] = showOutput;
+		$[48] = viewProps;
+		$[49] = t8;
+	} else t8 = $[49];
 	let t9;
-	if ($[46] !== className || $[47] !== id || $[48] !== t4 || $[49] !== t5 || $[50] !== t6 || $[51] !== t7 || $[52] !== t8) {
+	if ($[50] !== afterInput || $[51] !== afterOutput || $[52] !== className || $[53] !== id || $[54] !== t4 || $[55] !== t5 || $[56] !== t6 || $[57] !== t7 || $[58] !== t8) {
 		t9 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(ToolBlock, {
 			id,
 			icon: t4,
 			title: t5,
 			summary: t6,
 			className,
-			children: [t7, t8]
+			children: [
+				t7,
+				afterInput,
+				t8,
+				afterOutput
+			]
 		});
-		$[46] = className;
-		$[47] = id;
-		$[48] = t4;
-		$[49] = t5;
-		$[50] = t6;
-		$[51] = t7;
-		$[52] = t8;
-		$[53] = t9;
-	} else t9 = $[53];
+		$[50] = afterInput;
+		$[51] = afterOutput;
+		$[52] = className;
+		$[53] = id;
+		$[54] = t4;
+		$[55] = t5;
+		$[56] = t6;
+		$[57] = t7;
+		$[58] = t8;
+		$[59] = t9;
+	} else t9 = $[59];
 	return t9;
 };
 /** Args longer than this can't meaningfully summarize on the single header
@@ -64280,7 +64311,7 @@ var ChatMessage = /*#__PURE__*/ (0, import_react.memo)(function ChatMessage(t0) 
 	const t16 = message.role === "tool" ? 30 : message.role === "assistant" ? 25 : 15;
 	let t17;
 	if ($[58] !== id || $[59] !== isNonSubagentTool || $[60] !== message || $[61] !== references || $[62] !== subagentNotifications || $[63] !== toolMarkdown || $[64] !== toolSearchNamespaces) {
-		t17 = isNonSubagentTool ? toolSearchNamespaces ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ToolSearchView, { namespaces: toolSearchNamespaces }) : toolMarkdown !== void 0 ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MarkdownDiv, { markdown: toolMarkdown }) : /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ToolOutput, { output: typeof message.content === "string" ? message.content : message.content.filter(_temp$82) }) : subagentNotifications !== void 0 ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MarkdownDiv, { markdown: subagentNotifications }) : /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MessageContents, {
+		t17 = isNonSubagentTool ? toolSearchNamespaces ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ToolSearchView, { namespaces: toolSearchNamespaces }) : toolMarkdown !== void 0 ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MarkdownDiv, { markdown: toolMarkdown }) : /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ToolOutput, { output: typeof message.content === "string" ? message.content : message.content.filter(_temp$85) }) : subagentNotifications !== void 0 ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MarkdownDiv, { markdown: subagentNotifications }) : /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MessageContents, {
 			message,
 			references
 		}, `${id}-contents`);
@@ -64356,7 +64387,7 @@ var ChatMessage = /*#__PURE__*/ (0, import_react.memo)(function ChatMessage(t0) 
 	}
 	return segments;
 };
-function _temp$82(c) {
+function _temp$85(c) {
 	return c.type === "text" || c.type === "image";
 }
 var ChatMessageRow_module_default = {
@@ -64592,7 +64623,7 @@ var MessageLabel_module_default = {
 		viewKinds = $[14];
 		views = $[15];
 	}
-	const hasTools = viewKinds.some(_temp$81);
+	const hasTools = viewKinds.some(_temp$84);
 	if (useLabels || hasTools) {
 		let t1;
 		if ($[37] !== hasTools || $[38] !== highlightLabeled || $[39] !== highlightUserMessage || $[40] !== index || $[41] !== messageChip || $[42] !== resolvedMessage || $[43] !== viewChips || $[44] !== viewKinds || $[45] !== views) {
@@ -64742,7 +64773,7 @@ var ToolCallViewCompact = (t0) => {
 	} else t4 = $[5];
 	return t4;
 };
-function _temp$81(k) {
+function _temp$84(k) {
 	return k !== "message";
 }
 //#endregion
@@ -65192,7 +65223,7 @@ var kLoadMoreMarginRows = 20;
 		$[30] = t10;
 	} else t10 = $[30];
 	const renderRow = t10;
-	const rowSearchText = _temp$80;
+	const rowSearchText = _temp$83;
 	if (rows.length === 0) {
 		if (backfilling) {
 			let t11;
@@ -65257,7 +65288,7 @@ var kLoadMoreMarginRows = 20;
 	} else t13 = $[48];
 	return t13;
 });
-function _temp$80(item_0) {
+function _temp$83(item_0) {
 	return messageSearchText(item_0.resolved);
 }
 //#endregion
@@ -65620,7 +65651,7 @@ var kLoadingFeed = unpagedFeed(loading$2);
 			queryKey: t4,
 			queryFn: t5,
 			initialPageParam: 0,
-			getNextPageParam: _temp$79,
+			getNextPageParam: _temp$82,
 			gcTime: kSampleGcTimeMs,
 			staleTime: Infinity,
 			retry: false,
@@ -65636,7 +65667,7 @@ var kLoadingFeed = unpagedFeed(loading$2);
 	const pages = data?.pages;
 	let t7;
 	if ($[14] !== pages) {
-		t7 = pages?.flatMap(_temp2$49);
+		t7 = pages?.flatMap(_temp2$50);
 		$[14] = pages;
 		$[15] = t7;
 	} else t7 = $[15];
@@ -65744,10 +65775,10 @@ var kLoadingFeed = unpagedFeed(loading$2);
 	}
 	return t12;
 };
-function _temp$79(last) {
+function _temp$82(last) {
 	return last.nextCursor?.offset;
 }
-function _temp2$49(page) {
+function _temp2$50(page) {
 	return page.rows;
 }
 function _temp3$35() {}
@@ -66046,7 +66077,7 @@ var useScoreSchema = (logDir, scopeDir) => {
 	if ($[0] !== config) {
 		t0 = () => {
 			activateFetchEngine(config);
-			return _temp$78;
+			return _temp$81;
 		};
 		t1 = [config];
 		$[0] = config;
@@ -66059,7 +66090,7 @@ var useScoreSchema = (logDir, scopeDir) => {
 	(0, import_react.useEffect)(t0, t1);
 	return null;
 };
-function _temp$78() {
+function _temp$81() {
 	return deactivateFetchEngine();
 }
 //#endregion
@@ -69507,7 +69538,7 @@ function useRouteSelection(pathname) {
 	const { children } = t0;
 	const { pathname } = useLocation();
 	const { logFile, sample } = useRouteSelection(pathname);
-	useMirrorToStore(sample, _temp$77);
+	useMirrorToStore(sample, _temp$80);
 	let t1;
 	if ($[0] !== logFile || $[1] !== sample) {
 		t1 = {
@@ -69530,7 +69561,7 @@ function useRouteSelection(pathname) {
 	} else t2 = $[5];
 	return t2;
 }
-function _temp$77(handle) {
+function _temp$80(handle) {
 	return highlightSample(handle.id, handle.epoch, handle.logFile);
 }
 function useCurrentSelection() {
@@ -70968,8 +70999,8 @@ var kDefaultScorePanelSort = {
 * own default (typically `chips` for ≤ 6 scores, `grid` for 7+).
 */ var useScorePanelView = () => {
 	const $ = (0, import_compiler_runtime.c)(5);
-	const stored = useStore(_temp$76);
-	const setPropertyValue = useStore(_temp2$48);
+	const stored = useStore(_temp$79);
+	const setPropertyValue = useStore(_temp2$49);
 	let t0;
 	if ($[0] !== setPropertyValue) {
 		t0 = (view) => {
@@ -71490,11 +71521,11 @@ var useLogsListing = () => {
 	} else t0 = $[3];
 	return t0;
 };
-function _temp$76(state) {
+function _temp$79(state) {
 	const value = state.app.propertyBags[kScorePanelViewBag]?.[kScorePanelViewKey];
 	return isScoreView(value) ? value : void 0;
 }
-function _temp2$48(state_0) {
+function _temp2$49(state_0) {
 	return state_0.appActions.setPropertyValue;
 }
 function _temp3$34(state) {
@@ -71811,7 +71842,7 @@ var FlowButton = () => {
 		t2 = {
 			queryKey: t0,
 			queryFn: t1,
-			select: _temp$75,
+			select: _temp$78,
 			staleTime: Infinity
 		};
 		$[6] = t0;
@@ -71820,7 +71851,7 @@ var FlowButton = () => {
 	} else t2 = $[8];
 	return useAsyncDataFromQuery(t2);
 };
-function _temp$75(flow) {
+function _temp$78(flow) {
 	return flow ?? void 0;
 }
 var ThemeToggle_module_default = {
@@ -72116,9 +72147,9 @@ var subscribe = (onChange) => {
 		$[0] = preference;
 		$[1] = t0;
 	} else t0 = $[1];
-	return (0, import_react.useSyncExternalStore)(subscribe, t0, _temp$74);
+	return (0, import_react.useSyncExternalStore)(subscribe, t0, _temp$77);
 };
-function _temp$74() {
+function _temp$77() {
 	return false;
 }
 //#endregion
@@ -72755,8 +72786,8 @@ var ApplicationNavbar = (t0) => {
 	const { currentPath, fnNavigationUrl, backUrl, homeUrl, bordered, children, breadcrumbsEnabled, loading: t1 } = t0;
 	const loadingProp = t1 === void 0 ? false : t1;
 	const [optionsEl, setOptionsEl] = (0, import_react.useState)(null);
-	const themePreference = useUserSettings(_temp$73);
-	const setThemePreference = useUserSettings(_temp2$47);
+	const themePreference = useUserSettings(_temp$76);
+	const setThemePreference = useUserSettings(_temp2$48);
 	const isDark = useResolvedIsDark(themePreference);
 	const loading = useSelectedLogLoading() || loadingProp;
 	const isShowing = useStore(_temp3$33);
@@ -72845,10 +72876,10 @@ var ApplicationNavbar = (t0) => {
 	} else t8 = $[27];
 	return t8;
 };
-function _temp$73(s) {
+function _temp$76(s) {
 	return s.themePreference;
 }
-function _temp2$47(s_0) {
+function _temp2$48(s_0) {
 	return s_0.setThemePreference;
 }
 function _temp3$33(state) {
@@ -73040,7 +73071,7 @@ var ViewSegmentedControl = (t0) => {
 		t2 = {
 			queryKey: t0,
 			queryFn: t1,
-			select: _temp$72,
+			select: _temp$75,
 			staleTime: Infinity
 		};
 		$[6] = t0;
@@ -73049,7 +73080,7 @@ var ViewSegmentedControl = (t0) => {
 	} else t2 = $[8];
 	return useAsyncDataFromQuery(t2);
 };
-function _temp$72(evalSet) {
+function _temp$75(evalSet) {
 	return evalSet ?? void 0;
 }
 //#endregion
@@ -73158,13 +73189,13 @@ var ColumnSelectorPopover = (t0) => {
 		}
 		let t10;
 		if ($[13] !== columns) {
-			t10 = columns.filter(_temp$71);
+			t10 = columns.filter(_temp$74);
 			$[13] = columns;
 			$[14] = t10;
 		} else t10 = $[14];
 		let t11;
 		if ($[15] !== columns) {
-			t11 = columns.filter(_temp2$46);
+			t11 = columns.filter(_temp2$47);
 			$[15] = columns;
 			$[16] = t11;
 		} else t11 = $[16];
@@ -73479,10 +73510,10 @@ var ColumnSelectorPopover = (t0) => {
 	} else t32 = $[88];
 	return t32;
 };
-function _temp$71(col_0) {
+function _temp$74(col_0) {
 	return !isScoreField(getFieldKey(col_0));
 }
-function _temp2$46(col_1) {
+function _temp2$47(col_1) {
 	return isScoreField(getFieldKey(col_1));
 }
 function _temp3$32(col_2) {
@@ -80179,7 +80210,7 @@ var isConditionShaped = (value) => {
 	const t3 = `${columnId}-op${idSuffix}`;
 	let t4;
 	if ($[2] !== operatorOptions) {
-		t4 = operatorOptions.map(_temp$70);
+		t4 = operatorOptions.map(_temp$73);
 		$[2] = operatorOptions;
 		$[3] = t4;
 	} else t4 = $[3];
@@ -80437,7 +80468,7 @@ var ColumnFilterEditor = (t0) => {
 	} else t10 = $[32];
 	return t10;
 };
-function _temp$70(option) {
+function _temp$73(option) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("option", {
 		value: option,
 		children: OPERATOR_LABELS[option]
@@ -82069,7 +82100,7 @@ function GridRowInner(t0) {
 		t18 = columnDef.meta?.filterable && filterType && !hideColumnFilters && /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
 			className: DataGrid_module_default.rotatedFilter,
 			role: "presentation",
-			onClick: _temp$69,
+			onClick: _temp$72,
 			children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ColumnFilterControl, {
 				columnId: header.column.id,
 				filterType,
@@ -82170,7 +82201,7 @@ function GridRowInner(t0) {
 	} else t22 = $[62];
 	return t22;
 }
-function _temp$69(e_2) {
+function _temp$72(e_2) {
 	return e_2.stopPropagation();
 }
 //#endregion
@@ -82753,7 +82784,7 @@ var LogListGrid = (t0) => {
 	const searchColumns = t10;
 	let t11;
 	if ($[26] !== searchColumns) {
-		t11 = searchColumns.map(_temp$68);
+		t11 = searchColumns.map(_temp$71);
 		$[26] = searchColumns;
 		$[27] = t11;
 	} else t11 = $[27];
@@ -82765,7 +82796,7 @@ var LogListGrid = (t0) => {
 		$[29] = t12;
 	} else t12 = $[29];
 	const rowText = t12;
-	const getRowId = _temp2$45;
+	const getRowId = _temp2$46;
 	let t13;
 	if ($[30] !== accessorsKey || $[31] !== filter || $[32] !== findTerm || $[33] !== getComparator || $[34] !== getFilterType || $[35] !== getValue || $[36] !== listing || $[37] !== orderBy || $[38] !== rowText || $[39] !== searchKey || $[40] !== showFind) {
 		t13 = {
@@ -83044,10 +83075,10 @@ var LogListGrid = (t0) => {
 	} else t32 = $[108];
 	return t32;
 };
-function _temp$68(col_0) {
+function _temp$71(col_0) {
 	return col_0.id ?? "";
 }
-function _temp2$45(row_2) {
+function _temp2$46(row_2) {
 	return row_2.id;
 }
 function _temp3$31(row_3) {
@@ -83173,7 +83204,7 @@ var kNoRows = [];
 	const $ = (0, import_compiler_runtime.c)(45);
 	const { overlayItems, scopeKey, getValue, getComparator, getFilterType, accessorsKey, listing } = t0;
 	const { gridStateByScope } = useLogsListing();
-	const overlayData = useKeyedMemo(overlayItems, _temp$67, _temp2$44, _temp3$30);
+	const overlayData = useKeyedMemo(overlayItems, _temp$70, _temp2$45, _temp3$30);
 	let t1;
 	if ($[0] !== overlayData) {
 		const folders = [];
@@ -83312,10 +83343,10 @@ var kNoRows = [];
 	} else t12 = $[44];
 	return t12;
 };
-function _temp$67(item) {
+function _temp$70(item) {
 	return item.id;
 }
-function _temp2$44(item_0) {
+function _temp2$45(item_0) {
 	return [
 		item_0.id,
 		item_0.type,
@@ -83489,8 +83520,8 @@ var LogsPanel = (t0) => {
 	const mode = t1 === void 0 ? "logs" : t1;
 	const [showColumnSelector, setShowColumnSelector] = (0, import_react.useState)(false);
 	const [columnButtonEl, setColumnButtonEl] = (0, import_react.useState)(null);
-	const showRetriedLogs = useUserSettings(_temp$66);
-	const setShowRetriedLogs = useUserSettings(_temp2$43);
+	const showRetriedLogs = useUserSettings(_temp$69);
+	const setShowRetriedLogs = useUserSettings(_temp2$44);
 	const logDir = useLogDir();
 	const { gridStateByScope, patchGridState } = useLogsListing();
 	const { logPath } = useLogRouteParams();
@@ -83957,10 +83988,10 @@ var appendPendingItems = (evalSet, tasksWithLogFiles, items) => {
 	items.push(...pendingTasks);
 	return items;
 };
-function _temp$66(state) {
+function _temp$69(state) {
 	return state.showRetriedLogs;
 }
-function _temp2$43(state_0) {
+function _temp2$44(state_0) {
 	return state_0.setShowRetriedLogs;
 }
 function _temp3$29(state_1) {
@@ -85443,7 +85474,7 @@ var Grid = (t0) => {
 	const { rows } = t0;
 	let t1;
 	if ($[0] !== rows) {
-		t1 = rows.slice(0, 4).map(_temp$65);
+		t1 = rows.slice(0, 4).map(_temp$68);
 		$[0] = rows;
 		$[1] = t1;
 	} else t1 = $[1];
@@ -85838,7 +85869,7 @@ var BurstBody = (t0) => {
 			$[20] = t10;
 		} else t10 = $[20];
 		members = row.spans.filter(t10);
-		const firstUuid = members.find(_temp2$42)?.uuid;
+		const firstUuid = members.find(_temp2$43)?.uuid;
 		T0 = Card;
 		let t11;
 		if ($[21] !== burst.label) {
@@ -86724,7 +86755,7 @@ var CurveBody = (t0) => {
 	} else t3 = $[43];
 	return t3;
 };
-function _temp$65(row) {
+function _temp$68(row) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_react.Fragment, { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
 		className: ActivityTooltip_module_default.key,
 		children: row.key
@@ -86733,7 +86764,7 @@ function _temp$65(row) {
 		children: row.value
 	})] }, row.key);
 }
-function _temp2$42(m) {
+function _temp2$43(m) {
 	return m.uuid !== void 0;
 }
 function _temp3$28(p) {
@@ -88593,8 +88624,8 @@ var ModelTokenTable = (t0) => {
 								(() => {
 									const cfg = model_configs?.[modelId];
 									const args = model_args?.[modelId];
-									const cfgEntries = cfg ? Object.entries(cfg).filter(_temp$64) : [];
-									const argEntries = args ? Object.entries(args).filter(_temp2$41) : [];
+									const cfgEntries = cfg ? Object.entries(cfg).filter(_temp$67) : [];
+									const argEntries = args ? Object.entries(args).filter(_temp2$42) : [];
 									if (cfgEntries.length === 0 && argEntries.length === 0) return null;
 									const renderSection = _temp4$21;
 									return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
@@ -88708,11 +88739,11 @@ var ModelTokenTable = (t0) => {
 	} else t11 = $[37];
 	return t11;
 };
-function _temp$64(t0) {
+function _temp$67(t0) {
 	const [, v] = t0;
 	return v != null;
 }
-function _temp2$41(t0) {
+function _temp2$42(t0) {
 	const [, v_0] = t0;
 	return v_0 != null;
 }
@@ -88886,7 +88917,7 @@ var ModelUsagePanel = (t0) => {
 	let t7;
 	if ($[0] !== className || $[1] !== timing || $[2] !== usage) {
 		const categories = buildCategories(usage);
-		const composeTotal = categories.reduce(_temp$63, 0);
+		const composeTotal = categories.reduce(_temp$66, 0);
 		const total = usage.total_tokens || composeTotal;
 		const inputAll = (usage.input_tokens ?? 0) + (usage.input_tokens_cache_read ?? 0) + (usage.input_tokens_cache_write ?? 0);
 		const denom = inputAll + ((usage.output_tokens ?? 0) + (usage.reasoning_tokens ?? 0)) || total || 1;
@@ -88963,7 +88994,7 @@ var ModelUsagePanel = (t0) => {
 			}, c_0.key))
 		});
 		t1 = ModelUsagePanel_module_default.breakdown;
-		t2 = categories.map(_temp2$40);
+		t2 = categories.map(_temp2$41);
 		$[0] = className;
 		$[1] = timing;
 		$[2] = usage;
@@ -89074,10 +89105,10 @@ var ModelUsagePanel = (t0) => {
 	} else t11 = $[40];
 	return t11;
 };
-function _temp$63(a, c) {
+function _temp$66(a, c) {
 	return a + c.value;
 }
-function _temp2$40(c_1) {
+function _temp2$41(c_1) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", { children: [
 		/*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", { className: clsx(ModelUsagePanel_module_default.swatch, c_1.swatchClass) }),
 		/*#__PURE__*/ (0, import_jsx_runtime.jsx)("b", { children: formatNumber(c_1.value) }),
@@ -89740,7 +89771,7 @@ var ProvenanceGrid = (t0) => {
 	} else t4 = $[3];
 	let t5;
 	if ($[4] !== changes) {
-		t5 = changes.map(_temp$62);
+		t5 = changes.map(_temp$65);
 		$[4] = changes;
 		$[5] = t5;
 	} else t5 = $[5];
@@ -89787,7 +89818,7 @@ var ProvenanceGrid = (t0) => {
 	} else t9 = $[17];
 	return t9;
 };
-function _temp$62(change) {
+function _temp$65(change) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", { children: [
 		change.name,
 		" ",
@@ -89950,7 +89981,7 @@ var ConnectionLogModal = (t0) => {
 			$[3] = retunes;
 			$[4] = t2;
 		} else t2 = $[4];
-		t1 = [...events.map(_temp$61), ...t2.map(_temp2$39)].sort(_temp3$26);
+		t1 = [...events.map(_temp$64), ...t2.map(_temp2$40)].sort(_temp3$26);
 		$[0] = events;
 		$[1] = retunes;
 		$[2] = t1;
@@ -90089,14 +90120,14 @@ var ConnectionLogModal = (t0) => {
 	} else t12 = $[35];
 	return t12;
 };
-function _temp$61(event) {
+function _temp$64(event) {
 	return {
 		kind: "controller",
 		time: event.timestamp,
 		event
 	};
 }
-function _temp2$39(retune) {
+function _temp2$40(retune) {
 	return {
 		kind: "config",
 		time: retune.timestamp,
@@ -90304,7 +90335,7 @@ var ConnectionsView_module_default = {
 									children: model_0
 								}), roles.length > 0 && /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", {
 									className: ConnectionsView_module_default.roles,
-									children: [roles.length > 1 ? "shared by" : "used by", roles.map(_temp$60)]
+									children: [roles.length > 1 ? "shared by" : "used by", roles.map(_temp$63)]
 								})]
 							}),
 							/*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
@@ -90464,7 +90495,7 @@ var kBaselineY = 60;
 					y1: y(seg.value),
 					y2: y(seg.value)
 				}, `cap-${i}`)),
-				data.events.filter(_temp2$38).map((e_1, i_0) => /*#__PURE__*/ (0, import_jsx_runtime.jsx)("line", {
+				data.events.filter(_temp2$39).map((e_1, i_0) => /*#__PURE__*/ (0, import_jsx_runtime.jsx)("line", {
 					className: ConnectionsView_module_default.rateLimitLine,
 					x1: x(e_1.timestamp),
 					x2: x(e_1.timestamp),
@@ -90588,13 +90619,13 @@ var kBaselineY = 60;
 	} else t2 = $[3];
 	return t2;
 };
-function _temp$60(role) {
+function _temp$63(role) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
 		className: ConnectionsView_module_default.roleChip,
 		children: role
 	}, role);
 }
-function _temp2$38(e_0) {
+function _temp2$39(e_0) {
 	return e_0.reason === "rate_limit";
 }
 var UsagePanel_module_default = {
@@ -91616,6 +91647,7 @@ var eventTypeValues = [
 	"anchor",
 	"approval",
 	"review",
+	"sentinel",
 	"branch",
 	"checkpoint",
 	"compaction",
@@ -92069,7 +92101,7 @@ var StoreSpecificRenderableTypes = [human_baseline_session];
 	const { toolDefinitions } = t0;
 	let t1;
 	if ($[0] !== toolDefinitions) {
-		t1 = toolDefinitions.map(_temp$59);
+		t1 = toolDefinitions.map(_temp$62);
 		$[0] = toolDefinitions;
 		$[1] = t1;
 	} else t1 = $[1];
@@ -92113,7 +92145,7 @@ var StoreSpecificRenderableTypes = [human_baseline_session];
 	} else t3 = $[5];
 	return t3;
 };
-function _temp$59(toolDefinition, idx) {
+function _temp$62(toolDefinition, idx) {
 	const name = toolDefinition.name;
 	const toolArgs = toolDefinition.parameters?.properties ? Object.keys(toolDefinition.parameters.properties) : [];
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Tool, {
@@ -92132,6 +92164,13 @@ function _temp$59(toolDefinition, idx) {
 */ var dynamicDefaultExcludeEvents = (events) => {
 	return events?.some((event) => event.event === "store" && storeEventHasDefaultVisiblePreview(event.changes)) ? kDefaultExcludeEvents.filter((type) => type !== "store") : [...kDefaultExcludeEvents];
 };
+//#endregion
+//#region ../../packages/inspect-components/src/transcript/citeReferences.ts
+/** References as markdown cite links; one with no cite has nothing in the text to link. */ var citeReferences = (references, makeCiteUrl) => references.flatMap((ref) => ref.cite ? [{
+	id: ref.id,
+	cite: ref.cite,
+	citeUrl: makeCiteUrl?.(ref.id, ref.type)
+}] : []);
 //#endregion
 //#region ../../packages/inspect-components/src/transcript/transform/fixups.ts
 var kSandboxSignalName = "53787D8A-D3FC-426D-B383-9F880B70E4AA";
@@ -92391,7 +92430,7 @@ var GoToTurnBar_module_default = {
 			} else if (prefillTurn !== void 0) setValue(String(prefillTurn));
 			openRef.current = true;
 			setOpen(true);
-			setFocusEpoch(_temp$58);
+			setFocusEpoch(_temp$61);
 		};
 		$[0] = t2;
 	} else t2 = $[0];
@@ -92595,7 +92634,7 @@ var GoToTurnBar_module_default = {
 	} else t15 = $[32];
 	return t15;
 });
-function _temp$58(epoch) {
+function _temp$61(epoch) {
 	return epoch + 1;
 }
 var TimelineSelector_module_default = {
@@ -92656,6 +92695,7 @@ var TranscriptIcons = {
 	model: "bi bi-grid-3x3-gap",
 	sample: "bi bi-database",
 	sandbox: "bi bi-box-seam",
+	sentinel: "bi bi-binoculars",
 	scorer: "bi bi-calculator",
 	solvers: { use_tools: "bi bi-tools" }
 };
@@ -92737,7 +92777,7 @@ var EventSelectCheckbox_module_default = {
 			"aria-label": t1,
 			title: t2,
 			className: t4,
-			onMouseDown: _temp$57,
+			onMouseDown: _temp$60,
 			onClick: t5,
 			children: t6
 		});
@@ -92751,7 +92791,7 @@ var EventSelectCheckbox_module_default = {
 	} else t7 = $[13];
 	return t7;
 };
-function _temp$57(e) {
+function _temp$60(e) {
 	if (e.shiftKey) e.preventDefault();
 }
 var EventRow_module_default = {
@@ -92858,10 +92898,362 @@ var AnchorEventView = (t0) => {
 	return t3;
 };
 var ApprovalEventView_module_default = {
-	headline: "_headline_1l22a_1",
-	inlineExplanation: "_inlineExplanation_1l22a_6",
-	rejected: "_rejected_1l22a_10"
+	headline: "_headline_etmzh_1",
+	inlineExplanation: "_inlineExplanation_etmzh_6",
+	rejected: "_rejected_etmzh_10",
+	chain: "_chain_etmzh_14",
+	chainIndex: "_chainIndex_etmzh_25",
+	chainApprover: "_chainApprover_etmzh_32",
+	chainDecision: "_chainDecision_etmzh_38",
+	chainExplanation: "_chainExplanation_etmzh_45"
 };
+var ToolCheckInset_module_default = {
+	inset: "_inset_1g4dt_1",
+	output: "_output_1g4dt_14",
+	reject: "_reject_1g4dt_18",
+	modify: "_modify_1g4dt_23",
+	summary: "_summary_1g4dt_28",
+	icon: "_icon_1g4dt_36",
+	verdict: "_verdict_1g4dt_40",
+	who: "_who_1g4dt_44",
+	mono: "_mono_1g4dt_48",
+	reasonWrap: "_reasonWrap_1g4dt_52",
+	error: "_error_1g4dt_53",
+	reason: "_reason_1g4dt_52",
+	more: "_more_1g4dt_78",
+	clamped: "_clamped_1g4dt_94",
+	scores: "_scores_1g4dt_102",
+	approveIcon: "_approveIcon_1g4dt_109",
+	approveText: "_approveText_1g4dt_113",
+	rejectIcon: "_rejectIcon_1g4dt_117",
+	rejectText: "_rejectText_1g4dt_121",
+	rejectReason: "_rejectReason_1g4dt_125",
+	modifyIcon: "_modifyIcon_1g4dt_129",
+	modifyText: "_modifyText_1g4dt_133",
+	chip: "_chip_1g4dt_137",
+	pill: "_pill_1g4dt_138",
+	trailing: "_trailing_1g4dt_164",
+	pillChevron: "_pillChevron_1g4dt_189",
+	label: "_label_1g4dt_193",
+	replaced: "_replaced_1g4dt_200",
+	code: "_code_1g4dt_211",
+	struck: "_struck_1g4dt_233",
+	notRun: "_notRun_1g4dt_240",
+	notRunBody: "_notRunBody_1g4dt_251",
+	message: "_message_1g4dt_259",
+	messageText: "_messageText_1g4dt_275"
+};
+//#endregion
+//#region ../../packages/inspect-components/src/transcript/ToolCheckInset.tsx
+/** The panel that holds one stage's checks inside a tool block region. */ var CheckInset = (t0) => {
+	const $ = (0, import_compiler_runtime.c)(7);
+	const { region, tone, children } = t0;
+	const t1 = region === "output" && ToolCheckInset_module_default.output;
+	const t2 = tone === "reject" && ToolCheckInset_module_default.reject;
+	const t3 = tone === "modify" && ToolCheckInset_module_default.modify;
+	let t4;
+	if ($[0] !== t1 || $[1] !== t2 || $[2] !== t3) {
+		t4 = clsx(ToolCheckInset_module_default.inset, t1, t2, t3);
+		$[0] = t1;
+		$[1] = t2;
+		$[2] = t3;
+		$[3] = t4;
+	} else t4 = $[3];
+	let t5;
+	if ($[4] !== children || $[5] !== t4) {
+		t5 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+			className: t4,
+			children
+		});
+		$[4] = children;
+		$[5] = t4;
+		$[6] = t5;
+	} else t5 = $[6];
+	return t5;
+};
+/** One row naming the result that took effect for a stage. */ var CheckSummary = (t0) => {
+	const $ = (0, import_compiler_runtime.c)(37);
+	const { icon, iconClassName, verdict, verdictClassName, who, whoSuffix, reason, reasonClassName, references, error, scores, flagged, failed, toggle, clampReason } = t0;
+	const [reasonOpen, setReasonOpen] = (0, import_react.useState)(false);
+	const [overflows, setOverflows] = (0, import_react.useState)(false);
+	const clamped = !!clampReason && !reasonOpen;
+	let t1;
+	if ($[0] !== clamped) {
+		t1 = (entry) => {
+			const text = entry.target.firstElementChild;
+			if (!clamped || !(text instanceof HTMLElement)) return;
+			setOverflows(text.scrollHeight - text.clientHeight > 1);
+		};
+		$[0] = clamped;
+		$[1] = t1;
+	} else t1 = $[1];
+	const reasonRef = useResizeObserver(t1);
+	const clampable = !!clampReason && overflows;
+	let t2;
+	if ($[2] !== icon || $[3] !== iconClassName) {
+		t2 = clsx(icon, ToolCheckInset_module_default.icon, iconClassName);
+		$[2] = icon;
+		$[3] = iconClassName;
+		$[4] = t2;
+	} else t2 = $[4];
+	let t3;
+	if ($[5] !== t2) {
+		t3 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("i", {
+			className: t2,
+			"aria-hidden": "true"
+		});
+		$[5] = t2;
+		$[6] = t3;
+	} else t3 = $[6];
+	let t4;
+	if ($[7] !== verdictClassName) {
+		t4 = clsx(ToolCheckInset_module_default.verdict, verdictClassName);
+		$[7] = verdictClassName;
+		$[8] = t4;
+	} else t4 = $[8];
+	let t5;
+	if ($[9] !== t4 || $[10] !== verdict) {
+		t5 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+			className: t4,
+			children: verdict
+		});
+		$[9] = t4;
+		$[10] = verdict;
+		$[11] = t5;
+	} else t5 = $[11];
+	let t6;
+	if ($[12] !== who || $[13] !== whoSuffix) {
+		t6 = who ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", {
+			className: ToolCheckInset_module_default.who,
+			children: [
+				"by ",
+				/*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+					className: ToolCheckInset_module_default.mono,
+					children: who
+				}),
+				whoSuffix
+			]
+		}) : null;
+		$[12] = who;
+		$[13] = whoSuffix;
+		$[14] = t6;
+	} else t6 = $[14];
+	let t7;
+	if ($[15] !== scores) {
+		t7 = scores?.map(_temp$59);
+		$[15] = scores;
+		$[16] = t7;
+	} else t7 = $[16];
+	let t8;
+	if ($[17] !== clampable || $[18] !== clamped || $[19] !== error || $[20] !== reason || $[21] !== reasonClassName || $[22] !== reasonOpen || $[23] !== reasonRef || $[24] !== references) {
+		t8 = error ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("pre", {
+			className: clsx(ToolCheckInset_module_default.reason, ToolCheckInset_module_default.error),
+			children: error
+		}) : reason ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+			ref: reasonRef,
+			className: ToolCheckInset_module_default.reasonWrap,
+			children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)(MarkdownDivWithReferences, {
+				markdown: reason,
+				references,
+				className: clsx(ToolCheckInset_module_default.reason, clamped && ToolCheckInset_module_default.clamped, reasonClassName)
+			}), clampable ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
+				type: "button",
+				className: ToolCheckInset_module_default.more,
+				"aria-expanded": reasonOpen,
+				onClick: () => setReasonOpen(!reasonOpen),
+				children: reasonOpen ? "less" : "more"
+			}) : null]
+		}) : null;
+		$[17] = clampable;
+		$[18] = clamped;
+		$[19] = error;
+		$[20] = reason;
+		$[21] = reasonClassName;
+		$[22] = reasonOpen;
+		$[23] = reasonRef;
+		$[24] = references;
+		$[25] = t8;
+	} else t8 = $[25];
+	let t9;
+	if ($[26] !== failed || $[27] !== flagged || $[28] !== toggle) {
+		t9 = flagged || failed || toggle ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", {
+			className: ToolCheckInset_module_default.trailing,
+			children: [
+				flagged ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", {
+					className: ToolCheckInset_module_default.chip,
+					children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("i", {
+						className: "bi bi-flag-fill",
+						"aria-hidden": "true"
+					}), "flagged"]
+				}) : null,
+				failed ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", {
+					className: ToolCheckInset_module_default.chip,
+					children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("i", {
+						className: "bi bi-exclamation-triangle",
+						"aria-hidden": "true"
+					}), `${failed} failed`]
+				}) : null,
+				toggle ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("button", {
+					type: "button",
+					className: ToolCheckInset_module_default.pill,
+					"aria-expanded": toggle.open,
+					onClick: toggle.onToggle,
+					children: [toggle.label, /*#__PURE__*/ (0, import_jsx_runtime.jsx)("i", {
+						className: clsx(toggle.open ? "bi bi-chevron-down" : "bi bi-chevron-right", ToolCheckInset_module_default.pillChevron),
+						"aria-hidden": "true"
+					})]
+				}) : null
+			]
+		}) : null;
+		$[26] = failed;
+		$[27] = flagged;
+		$[28] = toggle;
+		$[29] = t9;
+	} else t9 = $[29];
+	let t10;
+	if ($[30] !== t3 || $[31] !== t5 || $[32] !== t6 || $[33] !== t7 || $[34] !== t8 || $[35] !== t9) {
+		t10 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+			className: ToolCheckInset_module_default.summary,
+			children: [
+				t3,
+				t5,
+				t6,
+				t7,
+				t8,
+				t9
+			]
+		});
+		$[30] = t3;
+		$[31] = t5;
+		$[32] = t6;
+		$[33] = t7;
+		$[34] = t8;
+		$[35] = t9;
+		$[36] = t10;
+	} else t10 = $[36];
+	return t10;
+};
+/** Whether two tool call argument values are equal, key order aside. */ var sameArguments = (a, b) => {
+	if (a === b) return true;
+	if (Array.isArray(a) || Array.isArray(b)) return Array.isArray(a) && Array.isArray(b) && a.length === b.length && a.every((value, i) => sameArguments(value, b[i]));
+	if (!isRecord(a) || !isRecord(b)) return false;
+	const keys = Object.keys(a);
+	return keys.length === Object.keys(b).length && keys.every((key) => Object.hasOwn(b, key) && sameArguments(a[key], b[key]));
+};
+/** A call as the check was given it, struck through: the call that ran is the tool's input. */ var ReplacedCall = (t0) => {
+	const $ = (0, import_compiler_runtime.c)(16);
+	const { call, label: t1 } = t0;
+	const label = t1 === void 0 ? "proposed" : t1;
+	let t2;
+	if ($[0] !== call.arguments || $[1] !== call.function) {
+		t2 = resolveToolInput(call.function, call.arguments);
+		$[0] = call.arguments;
+		$[1] = call.function;
+		$[2] = t2;
+	} else t2 = $[2];
+	const { input, contentType, functionCall } = t2;
+	let t3;
+	if ($[3] === Symbol.for("react.memo_cache_sentinel")) {
+		t3 = clsx(ToolCheckInset_module_default.label, ToolCheckInset_module_default.modifyText);
+		$[3] = t3;
+	} else t3 = $[3];
+	let t4;
+	if ($[4] !== label) {
+		t4 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+			className: t3,
+			children: label
+		});
+		$[4] = label;
+		$[5] = t4;
+	} else t4 = $[5];
+	let t5;
+	if ($[6] === Symbol.for("react.memo_cache_sentinel")) {
+		t5 = clsx(ToolCheckInset_module_default.code, ToolCheckInset_module_default.struck);
+		$[6] = t5;
+	} else t5 = $[6];
+	let t6;
+	if ($[7] !== contentType || $[8] !== functionCall || $[9] !== input) {
+		t6 = input !== void 0 && input !== null && input !== "" ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ToolInput, {
+			contentType,
+			contents: input
+		}) : functionCall;
+		$[7] = contentType;
+		$[8] = functionCall;
+		$[9] = input;
+		$[10] = t6;
+	} else t6 = $[10];
+	let t7;
+	if ($[11] !== t6) {
+		t7 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+			className: t5,
+			children: t6
+		});
+		$[11] = t6;
+		$[12] = t7;
+	} else t7 = $[12];
+	let t8;
+	if ($[13] !== t4 || $[14] !== t7) {
+		t8 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+			className: ToolCheckInset_module_default.replaced,
+			children: [t4, t7]
+		});
+		$[13] = t4;
+		$[14] = t7;
+		$[15] = t8;
+	} else t8 = $[15];
+	return t8;
+};
+/** Stands in for the result region of a call that never ran. */ var NotRunWell = (t0) => {
+	const $ = (0, import_compiler_runtime.c)(3);
+	const { message } = t0;
+	let t1;
+	if ($[0] === Symbol.for("react.memo_cache_sentinel")) {
+		t1 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("i", {
+			className: "bi bi-slash-circle",
+			"aria-hidden": "true"
+		});
+		$[0] = t1;
+	} else t1 = $[0];
+	let t2;
+	if ($[1] !== message) {
+		t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+			className: ToolCheckInset_module_default.notRun,
+			children: [t1, /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+				className: ToolCheckInset_module_default.notRunBody,
+				children: message !== void 0 ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", { children: "Did not run. The model received this as the tool result:" }), /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+					className: ToolCheckInset_module_default.message,
+					children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+						className: ToolCheckInset_module_default.label,
+						children: "error"
+					}), /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+						className: ToolCheckInset_module_default.messageText,
+						children: message
+					})]
+				})] }) : /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", { children: "Did not run. The sample was terminated." })
+			})]
+		});
+		$[1] = message;
+		$[2] = t2;
+	} else t2 = $[2];
+	return t2;
+};
+/** Verdict colours and shared type styles for the check views. */ var checkClasses = {
+	approveIcon: ToolCheckInset_module_default.approveIcon,
+	approveText: ToolCheckInset_module_default.approveText,
+	rejectIcon: ToolCheckInset_module_default.rejectIcon,
+	rejectText: ToolCheckInset_module_default.rejectText,
+	rejectReason: ToolCheckInset_module_default.rejectReason,
+	modifyIcon: ToolCheckInset_module_default.modifyIcon,
+	modifyText: ToolCheckInset_module_default.modifyText,
+	label: ToolCheckInset_module_default.label,
+	mono: ToolCheckInset_module_default.mono
+};
+function _temp$59(score, i) {
+	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+		className: ToolCheckInset_module_default.scores,
+		children: score
+	}, i);
+}
 //#endregion
 //#region ../../packages/inspect-components/src/transcript/ApprovalEventView.tsx
 /**
@@ -92999,6 +93391,111 @@ var decisionIcon$1 = (decision) => {
 		default: return TranscriptIcons.approve;
 	}
 };
+/**
+* The approvals of a tool call as an inset in its input region: one summary
+* row for the decision that took effect, expanding to the escalation chain.
+* A modify shows the call the approver was given, struck through.
+*/ var ApprovalInset = (t0) => {
+	const $ = (0, import_compiler_runtime.c)(7);
+	const { chain } = t0;
+	const final = chain.at(-1);
+	const [collapsed, setCollapsed] = useCollapsedState(`${chain[0].id}-approval-chain`, true);
+	const event = final.event;
+	const look = decisionLook(event.decision);
+	const escalated = chain.slice(0, -1).some(_temp$58);
+	let t1;
+	if ($[0] !== chain.length || $[1] !== collapsed || $[2] !== setCollapsed) {
+		t1 = chain.length > 1 ? {
+			label: `${chain.length} checks`,
+			open: !collapsed,
+			onToggle: () => setCollapsed(!collapsed)
+		} : void 0;
+		$[0] = chain.length;
+		$[1] = collapsed;
+		$[2] = setCollapsed;
+		$[3] = t1;
+	} else t1 = $[3];
+	let t2;
+	if ($[4] !== chain || $[5] !== collapsed) {
+		t2 = chain.length > 1 && !collapsed ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+			className: ApprovalEventView_module_default.chain,
+			children: chain.map(_temp2$38)
+		}) : null;
+		$[4] = chain;
+		$[5] = collapsed;
+		$[6] = t2;
+	} else t2 = $[6];
+	return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(CheckInset, {
+		region: "input",
+		tone: look.tone,
+		children: [
+			/*#__PURE__*/ (0, import_jsx_runtime.jsx)(CheckSummary, {
+				icon: decisionIcon$1(event.decision),
+				iconClassName: look.icon,
+				verdict: decisionLabel$1(event.decision),
+				verdictClassName: look.text,
+				who: event.approver,
+				whoSuffix: escalated ? ", after escalation" : void 0,
+				reason: event.explanation?.trim() || void 0,
+				reasonClassName: look.reason,
+				clampReason: chain.length > 1 && collapsed,
+				toggle: t1
+			}),
+			event.decision === "modify" && event.modified && !sameArguments(event.call.arguments, event.modified.arguments) ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ReplacedCall, { call: event.call }) : null,
+			t2
+		]
+	});
+};
+var decisionLook = (decision) => {
+	switch (decision) {
+		case "approve": return {
+			tone: "neutral",
+			icon: checkClasses.approveIcon,
+			text: checkClasses.approveText
+		};
+		case "reject":
+		case "terminate": return {
+			tone: "reject",
+			icon: checkClasses.rejectIcon,
+			text: checkClasses.rejectText,
+			reason: checkClasses.rejectReason
+		};
+		case "modify":
+		case "escalate": return {
+			tone: decision === "modify" ? "modify" : "neutral",
+			icon: checkClasses.modifyIcon,
+			text: checkClasses.modifyText
+		};
+	}
+};
+function _temp$58(n) {
+	return n.event.decision === "escalate";
+}
+function _temp2$38(node, index) {
+	const step = decisionLook(node.event.decision);
+	const explanation = node.event.explanation?.trim();
+	return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_react.Fragment, { children: [
+		/*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+			className: ApprovalEventView_module_default.chainIndex,
+			children: index + 1
+		}),
+		/*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+			className: ApprovalEventView_module_default.chainApprover,
+			children: node.event.approver
+		}),
+		/*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", {
+			className: clsx(ApprovalEventView_module_default.chainDecision, step.text),
+			children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("i", {
+				className: decisionIcon$1(node.event.decision),
+				"aria-hidden": "true"
+			}), node.event.decision]
+		}),
+		explanation ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MarkdownDiv, {
+			markdown: explanation,
+			className: ApprovalEventView_module_default.chainExplanation
+		}) : /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {})
+	] }, node.id);
+}
 var BranchEventView_module_default = { panel: "_panel_8zdtn_1" };
 //#endregion
 //#region ../../packages/inspect-components/src/transcript/EventLabelContext.ts
@@ -93220,7 +93717,7 @@ var EventNavsPicker_module_default = {
 	let t8;
 	if ($[9] === Symbol.for("react.memo_cache_sentinel")) {
 		t7 = clsx("nav-link", "active", "text-style-label", "text-size-small", EventNavsPicker_module_default.trigger);
-		t8 = () => setOpen(_temp$56);
+		t8 = () => setOpen(_temp$57);
 		$[9] = t7;
 		$[10] = t8;
 	} else {
@@ -93313,7 +93810,7 @@ var EventNavsPicker_module_default = {
 	} else t15 = $[28];
 	return t15;
 };
-function _temp$56(v) {
+function _temp$57(v) {
 	return !v;
 }
 //#endregion
@@ -93407,7 +93904,7 @@ var SWITCH_TOLERANCE = 4;
 	} else t5 = $[10];
 	let t6;
 	if ($[11] !== navs) {
-		t6 = navs.map(_temp$55);
+		t6 = navs.map(_temp$56);
 		$[11] = navs;
 		$[12] = t6;
 	} else t6 = $[12];
@@ -93436,7 +93933,7 @@ var SWITCH_TOLERANCE = 4;
 	} else t8 = $[18];
 	return t8;
 };
-function _temp$55(nav_1) {
+function _temp$56(nav_1) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("li", {
 		className: "nav-item",
 		children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
@@ -93718,6 +94215,318 @@ function hasDataDefault(node) {
 	return /*#__PURE__*/ (0, import_react.isValidElement)(node) && node.props !== null && typeof node.props === "object" && "data-default" in node.props;
 }
 //#endregion
+//#region ../../packages/inspect-components/src/transcript/transform/toolSentinels.ts
+/** The span a sentinel's dispatch runs in; it holds the step's events and the model calls its monitors made. */ var isSentinelSpan = (node) => node.event.event === "span_begin" && node.event.type === "sentinel";
+var reported = (node, kind) => node.event.status === "reported" && node.event.kind === kind;
+var pathSegments = (path) => path === "" ? [] : path.split("/");
+var isAncestorPath = (ancestor, path) => ancestor === "" ? path !== "" : path.startsWith(`${ancestor}/`);
+/**
+* Orders a step's events so a nested configuration reads top to bottom: each
+* layer above its children, siblings in the order they were first recorded.
+*/ var pathOrderKeys = (nodes) => {
+	const firstSeen = /* @__PURE__ */ new Map();
+	nodes.forEach((node, index) => {
+		const segments = pathSegments(node.event.path);
+		for (let i = 1; i <= segments.length; i++) {
+			const prefix = segments.slice(0, i).join("/");
+			if (!firstSeen.has(prefix)) firstSeen.set(prefix, index);
+		}
+	});
+	const keys = /* @__PURE__ */ new Map();
+	for (const node of nodes) {
+		const segments = pathSegments(node.event.path);
+		keys.set(node, segments.map((_, i) => firstSeen.get(segments.slice(0, i + 1).join("/"))));
+	}
+	return keys;
+};
+var compareKeys = (a, b) => {
+	for (let i = 0; i < Math.min(a.length, b.length); i++) {
+		const diff = a[i] - b[i];
+		if (diff !== 0) return diff;
+	}
+	return a.length - b.length;
+};
+/** Links each check to the nearest recorded check above it by path. */ var buildTree$2 = (ordered) => {
+	const tree = [];
+	for (const node of ordered) {
+		const parent = tree.findLast((candidate) => isAncestorPath(candidate.node.event.path, node.event.path));
+		const entry = {
+			node,
+			parent,
+			children: [],
+			depth: parent ? parent.depth + 1 : 0
+		};
+		parent?.children.push(entry);
+		tree.push(entry);
+	}
+	return tree;
+};
+var guidesFor = (entry) => {
+	const isLast = (e) => !e.parent || e.parent.children.at(-1) === e;
+	if (!entry.parent) return "";
+	let prefix = isLast(entry) ? "└─ " : "├─ ";
+	for (let up = entry.parent; up.parent; up = up.parent) prefix = (isLast(up) ? "   " : "│  ") + prefix;
+	return prefix;
+};
+var explanationOf = (node) => node?.event.explanation?.trim() || void 0;
+/**
+* The check that made the step's decision: from the outcome, descend to the
+* child that made the same decision, to the lowest such descendant.
+* Explanations and replacements may differ, since combinators reword what
+* they pass up.
+*/ var creditDecision = (tree, outcome) => {
+	let current = tree.find((e) => e.node === outcome);
+	let reason = explanationOf(outcome);
+	let reasonSource = reason ? outcome : void 0;
+	for (;;) {
+		const matching = current.children.filter((c) => reported(c.node, "decision") && c.node.event.action === outcome.event.action);
+		const next = matching.length === 1 ? matching[0] : passedUp(matching, reason);
+		if (!next) return {
+			node: current.node,
+			reason,
+			reasonSource
+		};
+		current = next;
+		const own = explanationOf(next.node);
+		if (own) {
+			reason = own;
+			reasonSource = next.node;
+		}
+	}
+};
+/**
+* Of several children that made the same decision, the one whose explanation
+* the explanation above begins with. Children record in completion order,
+* while combinators break ties by configuration order (`concurrent`) or take
+* the last (`sequential`), so recording order cannot tell; an explanation
+* passed up names its source. Unset when none or several match.
+*/ var passedUp = (children, reason) => {
+	if (!reason) return void 0;
+	const [first, second] = children.map((child) => ({
+		child,
+		text: explanationOf(child.node)
+	})).filter(({ text }) => text !== void 0 && reason.startsWith(text)).sort((a, b) => b.text.length - a.text.length);
+	if (!first || second && second.text.length === first.text.length) return;
+	return first.child;
+};
+/**
+* The decision the runner returned for the step: the root's, or, when a
+* `decide_final()` bypassed the root, the one recorded after the bypassed layers.
+*/ var outcomeOf = (nodes) => {
+	const root = nodes.find((n) => n.event.path === "" && reported(n, "decision"));
+	if (root) return root;
+	const bypassed = nodes.findIndex((n) => n.event.path === "" && n.event.status === "bypassed");
+	if (bypassed === -1) return void 0;
+	return nodes.slice(bypassed + 1).findLast((n) => reported(n, "decision"));
+};
+var isInactive$1 = (status) => status !== "reported";
+/**
+* The verdict of a step the runner returned no decision for: observed when
+* only monitors reported, continued when a protocol reported but the root
+* returned nothing, and the recorded status when the root or every check was
+* cancelled or bypassed.
+*/ var quietVerdict = (checks) => {
+	const rootStatus = checks.find((n) => n.event.path === "")?.event.status;
+	if (rootStatus && isInactive$1(rootStatus)) return rootStatus;
+	if (checks.some((n) => reported(n, "decision"))) return "continue";
+	if (checks.some((n) => reported(n, "observation"))) return "observe";
+	const firstStatus = checks[0]?.event.status;
+	return firstStatus && isInactive$1(firstStatus) ? firstStatus : "continue";
+};
+/**
+* Builds the check tree for one step's events, given in recording order. A
+* decision that a later `superseded` event names shares that event's row.
+*/ function buildSentinelStep(nodes, modelCalls = []) {
+	const first = nodes[0];
+	const replaced = /* @__PURE__ */ new Set();
+	nodes.forEach((loser, at) => {
+		if (loser.event.status !== "superseded") return;
+		for (const report of nodes.slice(0, at)) if (reported(report, "decision") && report.event.path === loser.event.path && report.event.function === loser.event.function) replaced.add(report);
+	});
+	const checks = nodes.filter((n) => !replaced.has(n));
+	const keys = pathOrderKeys(checks);
+	const tree = buildTree$2(checks.map((node, index) => ({
+		node,
+		index
+	})).sort((a, b) => compareKeys(keys.get(a.node), keys.get(b.node)) || a.index - b.index).map(({ node }) => node));
+	const outcome = outcomeOf(checks);
+	const acted = !!outcome && outcome.event.action !== "continue";
+	const credit = acted ? creditDecision(tree, outcome) : void 0;
+	const effective = credit?.node;
+	const single = checks.length === 1 ? checks[0] : void 0;
+	const observations = checks.filter((n) => reported(n, "observation") && n.event.suspicion != null);
+	const scores = acted ? [] : single?.event.suspicion != null ? [formatSuspicion(single.event.suspicion)].filter(Boolean) : observations.flatMap((n) => {
+		const top = topScore(n.event.suspicion);
+		if (!top.value) return [];
+		return [`${top.dimension ?? n.event.factory.split("/").at(-1)} ${top.value}`];
+	});
+	return {
+		id: first?.id ?? "",
+		stage: first?.event.stage ?? "tool_call",
+		stepId: first?.event.step_id ?? "",
+		rows: tree.map((entry) => ({
+			node: entry.node,
+			depth: entry.depth,
+			guides: guidesFor(entry),
+			tookEffect: entry.node === effective
+		})),
+		verdict: outcome ? outcome.event.action ?? "continue" : quietVerdict(checks),
+		outcome,
+		returned: !!outcome,
+		decider: effective ?? outcome,
+		effective,
+		reason: credit ? credit.reason : explanationOf(single),
+		error: single?.event.error || void 0,
+		reasonReferences: credit ? credit.reasonSource?.event.references ?? [] : explanationOf(single) ? single.event.references : [],
+		scores,
+		audit: nodes.some((n) => n.event.audit),
+		failed: checks.filter((n) => n.event.status === "error").length,
+		modelCalls
+	};
+}
+/**
+* The step of one event shown without the rest of its step (e.g. in the
+* chunked transcript), whose verdict is the event's own result.
+*/ function buildLoneSentinelStep(node) {
+	const step = buildSentinelStep([node]);
+	const event = node.event;
+	if (!reported(node, "decision") || step.outcome) return step;
+	const verdict = event.action ?? "continue";
+	const acted = verdict !== "continue";
+	return {
+		...step,
+		verdict,
+		outcome: node,
+		returned: event.path === "",
+		decider: node,
+		effective: acted ? node : void 0,
+		rows: step.rows.map((row) => ({
+			...row,
+			tookEffect: acted
+		})),
+		reason: explanationOf(node),
+		reasonReferences: explanationOf(node) ? event.references : []
+	};
+}
+var kToolStages = /* @__PURE__ */ new Set(["tool_call", "tool_result"]);
+/**
+* The ToolEvent a tool-stage step judged: the first one with the step's id
+* recorded after a `tool_call` step (none when no such tool follows), the last
+* one before a `tool_result` step, skipping tools that already host a step of
+* the same stage.
+*/ var hostTool = (tools, step, order, claimed) => {
+	const candidates = tools.filter((t) => t.node.event.id === step.stepId && !claimed.has(`${step.stage}\u0000${t.node.id}`));
+	const after = candidates.find((t) => t.order > order);
+	if (step.stage === "tool_call") return after;
+	return candidates.findLast((t) => t.order < order) ?? after;
+};
+/**
+* Groups SentinelEvents by the step they judged and pairs tool-stage steps to
+* their ToolEvent (`step_id == ToolEvent.id`), so the tool panel renders them
+* inline. Each sentinel span holds one step; events outside a span group by
+* stage and step id. Steps with no tool render as one row at their span or
+* first event.
+*/ function pairToolSentinels(eventNodes) {
+	const tools = [];
+	const proposals = /* @__PURE__ */ new Map();
+	const steps = /* @__PURE__ */ new Map();
+	const seen = /* @__PURE__ */ new Set();
+	let order = 0;
+	const walk = (nodes, span) => {
+		for (const n of nodes) {
+			if (seen.has(n.id)) continue;
+			seen.add(n.id);
+			const at = order++;
+			span?.members.push(n);
+			if (n.event.event === "tool") tools.push({
+				node: eventNodeOf(n, "tool"),
+				order: at,
+				proposed: proposals.get(n.event.id)?.shift()
+			});
+			else if (n.event.event === "sentinel") {
+				const key = span ? span.node.id : `${n.event.stage}\u0000${n.event.step_id}`;
+				const step = steps.get(key) ?? {
+					nodes: [],
+					order: span?.order ?? at,
+					span
+				};
+				step.nodes.push(eventNodeOf(n, "sentinel"));
+				steps.set(key, step);
+			} else if (n.event.event === "model") {
+				if (span) span.modelCalls.push(eventNodeOf(n, "model"));
+				else {
+					const proposed = n.event.output.choices.flatMap((choice) => choice.message.tool_calls ?? []);
+					for (const id of new Set(proposed.map((call) => call.id))) proposals.set(id, proposed.filter((call) => call.id === id));
+				}
+			}
+			let inner = span;
+			if (isSentinelSpan(n)) inner = {
+				node: n,
+				members: [],
+				modelCalls: [],
+				order: at
+			};
+			if (n.children.length) walk(n.children, inner);
+		}
+	};
+	walk(eventNodes, void 0);
+	const toolSentinels = /* @__PURE__ */ new Map();
+	const standaloneSentinels = /* @__PURE__ */ new Map();
+	const hiddenSentinelIds = /* @__PURE__ */ new Set();
+	const sentinelScrollRedirects = /* @__PURE__ */ new Map();
+	const claimed = /* @__PURE__ */ new Set();
+	const ordered = [...steps.values()].sort((a, b) => a.order - b.order);
+	for (const { nodes, order: at, span } of ordered) {
+		const step = buildSentinelStep(nodes, span?.modelCalls);
+		const tool = kToolStages.has(step.stage) ? hostTool(tools, step, at, claimed) : void 0;
+		const hostId = tool?.node.id ?? span?.node.id ?? nodes[0].id;
+		if (tool) {
+			claimed.add(`${step.stage}\u0000${tool.node.id}`);
+			const paired = toolSentinels.get(tool.node.id) ?? { proposed: tool.proposed };
+			if (step.stage === "tool_call") paired.before = step;
+			else paired.after = step;
+			toolSentinels.set(tool.node.id, paired);
+		} else standaloneSentinels.set(hostId, step);
+		const hidden = span ? [span.node, ...span.members] : nodes;
+		for (const node of hidden) {
+			if (node.id === hostId) continue;
+			hiddenSentinelIds.add(node.id);
+			sentinelScrollRedirects.set(node.id, hostId);
+		}
+	}
+	return {
+		toolSentinels,
+		standaloneSentinels,
+		hiddenSentinelIds,
+		sentinelScrollRedirects
+	};
+}
+/** The instance path, or the factory's registry name at the root. */ var instanceLabel = (event) => event.path || event.factory;
+var formatSuspicion = (suspicion) => {
+	if (typeof suspicion === "number") return formatScore(suspicion);
+	return Object.entries(suspicion).map(([dimension, value]) => `${dimension} ${formatScore(value)}`).join(", ");
+};
+var formatScore = (value) => String(Math.round(value * 100) / 100);
+/** The highest score of a suspicion, which stands for it where space is short; an empty value for a suspicion with no scores. */ var topScore = (suspicion) => {
+	if (typeof suspicion === "number") return {
+		value: formatScore(suspicion),
+		more: 0
+	};
+	const top = sortedScores(suspicion)[0];
+	if (!top) return {
+		value: "",
+		more: 0
+	};
+	const [dimension, value] = top;
+	return {
+		dimension,
+		value: formatScore(value),
+		more: Object.keys(suspicion).length - 1
+	};
+};
+/** A suspicion's dimensions, highest score first. */ var sortedScores = (suspicion) => Object.entries(suspicion).sort(([, a], [, b]) => b - a);
+/** A modify decision's replacement call, with every argument spelled out. */ var formatModifiedCall = (call) => `${call.function}(${Object.entries(call.arguments).map(([key, value]) => `${key}=${JSON.stringify(value)}`).join(", ")})`;
+//#endregion
 //#region ../../packages/inspect-components/src/transcript/event/utils.ts
 var sampleLimitTitles = {
 	custom: "Custom Limit Exceeded",
@@ -93784,6 +94593,7 @@ var reviewDecisionLabels = {
 		case "input": return "Input";
 		case "approval": return approvalDecisionLabels[event.decision] ?? event.decision;
 		case "review": return reviewDecisionLabels[event.decision] ?? event.decision;
+		case "sentinel": return event.status === "reported" ? `Sentinel ${toTitleCase(event.kind)}: ${instanceLabel(event)}` : `Sentinel ${toTitleCase(event.kind)} (${event.status}): ${instanceLabel(event)}`;
 		case "sandbox": return `Sandbox: ${event.action}`;
 		default: return "";
 	}
@@ -94115,7 +94925,7 @@ var Snapshot = (t0) => {
 	if ($[7] !== details.additional_files || $[8] !== details.files) {
 		t4 = details.files && details.files.length > 0 ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 			className: CheckpointEventView_module_default.files,
-			children: [details.files.map(_temp$54), details.additional_files ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+			children: [details.files.map(_temp$55), details.additional_files ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 				className: CheckpointEventView_module_default.fileOverflow,
 				children: [
 					"+",
@@ -94270,7 +95080,7 @@ var CheckpointEventView = (t0) => {
 	} else t19 = $[32];
 	return t19;
 };
-function _temp$54(file) {
+function _temp$55(file) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 		className: CheckpointEventView_module_default.file,
 		children: file
@@ -94893,7 +95703,7 @@ var RetryChip = (t0) => {
 	let t10;
 	let t9;
 	if ($[15] === Symbol.for("react.memo_cache_sentinel")) {
-		t9 = () => setOpen(_temp$53);
+		t9 = () => setOpen(_temp$54);
 		t10 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("i", {
 			className: clsx("bi", "bi-arrow-repeat", RetryChip_module_default.chipIcon),
 			"aria-hidden": "true"
@@ -94997,7 +95807,7 @@ function formatAttemptDuration(event) {
 	const sec = attemptDurationSec(event);
 	return sec != null ? formatTime$1(sec) : null;
 }
-function _temp$53(v) {
+function _temp$54(v) {
 	return !v;
 }
 var StopReasonBadge_module_default = {
@@ -95278,7 +96088,7 @@ var ModelEventView = (t0) => {
 	const callTime = event.output.time;
 	let t4;
 	if ($[6] !== event.output.choices) {
-		t4 = event.output.choices.map(_temp$52);
+		t4 = event.output.choices.map(_temp$53);
 		$[6] = event.output.choices;
 		$[7] = t4;
 	} else t4 = $[7];
@@ -95974,7 +96784,7 @@ var ToolChoiceView = (t0) => {
 		return t1;
 	}
 };
-function _temp$52(choice) {
+function _temp$53(choice) {
 	return choice.message;
 }
 function _temp2$37(m) {
@@ -96154,7 +96964,7 @@ var SampleInitEventView = (t0) => {
 			const t3 = `event-${eventNode.id}`;
 			let t4;
 			if ($[8] !== event.sample.files) {
-				t4 = Object.keys(event.sample.files).map(_temp$51);
+				t4 = Object.keys(event.sample.files).map(_temp$52);
 				$[8] = event.sample.files;
 				$[9] = t4;
 			} else t4 = $[9];
@@ -96293,7 +97103,7 @@ var SampleInitEventView = (t0) => {
 	} else t11 = $[42];
 	return t11;
 };
-function _temp$51(file) {
+function _temp$52(file) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("pre", {
 		className: SampleInitEventView_module_default.noMargin,
 		children: file
@@ -96317,7 +97127,7 @@ function _temp3$24(target) {
 var SampleLimitEventView = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(14);
 	const { eventNode, className } = t0;
-	const resolve_title = _temp$50;
+	const resolve_title = _temp$51;
 	const resolve_icon = _temp2$35;
 	const baseTitle = resolve_title(eventNode.event.type);
 	let t1;
@@ -96368,7 +97178,7 @@ var SampleLimitEventView = (t0) => {
 	} else t6 = $[13];
 	return t6;
 };
-function _temp$50(type) {
+function _temp$51(type) {
 	switch (type) {
 		case "custom": return "Custom Limit Exceeded";
 		case "time": return "Time Limit Exceeded";
@@ -97157,6 +97967,921 @@ var ScoreEventView = (t0) => {
 	} else t25 = $[42];
 	return t25;
 };
+var SentinelEventView_module_default = {
+	tree: "_tree_1ww9u_1",
+	reject: "_reject_1ww9u_15",
+	modify: "_modify_1ww9u_19",
+	row: "_row_1ww9u_23",
+	open: "_open_1ww9u_42",
+	inactive: "_inactive_1ww9u_46",
+	rowLabel: "_rowLabel_1ww9u_50",
+	guides: "_guides_1ww9u_56",
+	name: "_name_1ww9u_60",
+	result: "_result_1ww9u_68",
+	"continue": "_continue_1ww9u_74",
+	failed: "_failed_1ww9u_82",
+	kindIcon: "_kindIcon_1ww9u_86",
+	rowChevron: "_rowChevron_1ww9u_96",
+	flag: "_flag_1ww9u_101",
+	moreScores: "_moreScores_1ww9u_106",
+	detailWrap: "_detailWrap_1ww9u_117",
+	detail: "_detail_1ww9u_117",
+	afterDetail: "_afterDetail_1ww9u_133",
+	rejectDetail: "_rejectDetail_1ww9u_137",
+	modifyDetail: "_modifyDetail_1ww9u_141",
+	meta: "_meta_1ww9u_145",
+	scoreGrid: "_scoreGrid_1ww9u_150",
+	scoreName: "_scoreName_1ww9u_159",
+	explanation: "_explanation_1ww9u_163",
+	errorText: "_errorText_1ww9u_173",
+	noExplanation: "_noExplanation_1ww9u_178",
+	labelled: "_labelled_1ww9u_183",
+	foldedToggle: "_foldedToggle_1ww9u_196",
+	chevron: "_chevron_1ww9u_211",
+	modelCalls: "_modelCalls_1ww9u_215"
+};
+//#endregion
+//#region ../../packages/inspect-components/src/transcript/SentinelEventView.tsx
+/**
+* One step's sentinel checks: a summary row naming the result that took
+* effect, expanding to the tree of every check (or a lone check's detail).
+*/ var SentinelInset = (t0) => {
+	const $ = (0, import_compiler_runtime.c)(53);
+	const { step, region, context, judged, judgedReplaced } = t0;
+	const [collapsed, setCollapsed] = useCollapsedState(`${step.id}-sentinel-checks`, true);
+	let t1;
+	if ($[0] !== step) {
+		t1 = lookOf(step);
+		$[0] = step;
+		$[1] = t1;
+	} else t1 = $[1];
+	const look = t1;
+	const tone = step.effective ? look.tone : "neutral";
+	const single = step.rows.length === 1 ? step.rows[0] : void 0;
+	const who = (single?.node ?? step.decider)?.event.path || void 0;
+	const modified = step.effective ? step.outcome?.event.modified : void 0;
+	const makeCiteUrl = context?.makeCiteUrl;
+	const t2 = look.icon;
+	const t3 = look.iconClass;
+	const t4 = look.word;
+	const t5 = look.textClass;
+	const t6 = step.scores;
+	const t7 = step.reason;
+	const t8 = look.reasonClass;
+	let t9;
+	if ($[2] !== makeCiteUrl || $[3] !== step.reasonReferences) {
+		t9 = citeReferences(step.reasonReferences, makeCiteUrl);
+		$[2] = makeCiteUrl;
+		$[3] = step.reasonReferences;
+		$[4] = t9;
+	} else t9 = $[4];
+	const t10 = single ? 0 : step.failed;
+	const t11 = single ? "details" : `${step.rows.length} checks`;
+	const t12 = !collapsed;
+	let t13;
+	if ($[5] !== collapsed || $[6] !== setCollapsed) {
+		t13 = () => setCollapsed(!collapsed);
+		$[5] = collapsed;
+		$[6] = setCollapsed;
+		$[7] = t13;
+	} else t13 = $[7];
+	let t14;
+	if ($[8] !== t11 || $[9] !== t12 || $[10] !== t13) {
+		t14 = {
+			label: t11,
+			open: t12,
+			onToggle: t13
+		};
+		$[8] = t11;
+		$[9] = t12;
+		$[10] = t13;
+		$[11] = t14;
+	} else t14 = $[11];
+	let t15;
+	if ($[12] !== collapsed || $[13] !== look.icon || $[14] !== look.iconClass || $[15] !== look.reasonClass || $[16] !== look.textClass || $[17] !== look.word || $[18] !== step.audit || $[19] !== step.error || $[20] !== step.reason || $[21] !== step.scores || $[22] !== t10 || $[23] !== t14 || $[24] !== t9 || $[25] !== who) {
+		t15 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(CheckSummary, {
+			icon: t2,
+			iconClassName: t3,
+			verdict: t4,
+			verdictClassName: t5,
+			who,
+			scores: t6,
+			reason: t7,
+			reasonClassName: t8,
+			references: t9,
+			error: step.error,
+			flagged: step.audit,
+			failed: t10,
+			clampReason: collapsed,
+			toggle: t14
+		});
+		$[12] = collapsed;
+		$[13] = look.icon;
+		$[14] = look.iconClass;
+		$[15] = look.reasonClass;
+		$[16] = look.textClass;
+		$[17] = look.word;
+		$[18] = step.audit;
+		$[19] = step.error;
+		$[20] = step.reason;
+		$[21] = step.scores;
+		$[22] = t10;
+		$[23] = t14;
+		$[24] = t9;
+		$[25] = who;
+		$[26] = t15;
+	} else t15 = $[26];
+	let t16;
+	if ($[27] !== judged || $[28] !== judgedReplaced || $[29] !== modified || $[30] !== step.verdict) {
+		t16 = step.verdict === "modify" && modified && judged && !sameArguments(judged.arguments, modified.arguments) ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ReplacedCall, {
+			call: judged,
+			label: judgedReplaced ? "replaced" : "proposed"
+		}) : null;
+		$[27] = judged;
+		$[28] = judgedReplaced;
+		$[29] = modified;
+		$[30] = step.verdict;
+		$[31] = t16;
+	} else t16 = $[31];
+	let t17;
+	if ($[32] !== collapsed || $[33] !== makeCiteUrl || $[34] !== single) {
+		t17 = !collapsed && single ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(CheckDetail, {
+			row: single,
+			showFunction: false,
+			makeCiteUrl
+		}) : null;
+		$[32] = collapsed;
+		$[33] = makeCiteUrl;
+		$[34] = single;
+		$[35] = t17;
+	} else t17 = $[35];
+	let t18;
+	if ($[36] !== collapsed || $[37] !== makeCiteUrl || $[38] !== single || $[39] !== step || $[40] !== tone) {
+		t18 = !collapsed && !single ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(CheckTree, {
+			step,
+			tone,
+			makeCiteUrl
+		}) : null;
+		$[36] = collapsed;
+		$[37] = makeCiteUrl;
+		$[38] = single;
+		$[39] = step;
+		$[40] = tone;
+		$[41] = t18;
+	} else t18 = $[41];
+	let t19;
+	if ($[42] !== context || $[43] !== step.modelCalls) {
+		t19 = step.modelCalls[0] ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ModelCallsNote, {
+			id: step.modelCalls[0].id,
+			modelCalls: step.modelCalls,
+			context
+		}) : null;
+		$[42] = context;
+		$[43] = step.modelCalls;
+		$[44] = t19;
+	} else t19 = $[44];
+	let t20;
+	if ($[45] !== region || $[46] !== t15 || $[47] !== t16 || $[48] !== t17 || $[49] !== t18 || $[50] !== t19 || $[51] !== tone) {
+		t20 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(CheckInset, {
+			region,
+			tone,
+			children: [
+				t15,
+				t16,
+				t17,
+				t18,
+				t19
+			]
+		});
+		$[45] = region;
+		$[46] = t15;
+		$[47] = t16;
+		$[48] = t17;
+		$[49] = t18;
+		$[50] = t19;
+		$[51] = tone;
+		$[52] = t20;
+	} else t20 = $[52];
+	return t20;
+};
+var CheckTree = (t0) => {
+	const $ = (0, import_compiler_runtime.c)(8);
+	const { step, tone, makeCiteUrl } = t0;
+	const grouped = groupedPaths(step.rows);
+	const t1 = step.effective?.id ?? null;
+	let t2;
+	if ($[0] !== t1) {
+		t2 = { defaultValue: t1 };
+		$[0] = t1;
+		$[1] = t2;
+	} else t2 = $[1];
+	const [openRow, setOpenRow] = useProperty(step.id, "sentinel-open-row", t2);
+	const t3 = tone === "reject" && SentinelEventView_module_default.reject;
+	const t4 = tone === "modify" && SentinelEventView_module_default.modify;
+	let t5;
+	if ($[2] !== t3 || $[3] !== t4) {
+		t5 = clsx(SentinelEventView_module_default.tree, t3, t4);
+		$[2] = t3;
+		$[3] = t4;
+		$[4] = t5;
+	} else t5 = $[4];
+	const t6 = step.rows.map((row) => {
+		const open = openRow === row.node.id;
+		return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_react.Fragment, { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)(CheckRowView, {
+			row,
+			open,
+			onToggle: () => setOpenRow(open ? null : row.node.id)
+		}), open ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(CheckDetail, {
+			row,
+			showFunction: grouped.has(row.node.event.path),
+			makeCiteUrl
+		}) : null] }, row.node.id);
+	});
+	let t7;
+	if ($[5] !== t5 || $[6] !== t6) {
+		t7 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+			className: t5,
+			children: t6
+		});
+		$[5] = t5;
+		$[6] = t6;
+		$[7] = t7;
+	} else t7 = $[7];
+	return t7;
+};
+var CheckRowView = (t0) => {
+	const $ = (0, import_compiler_runtime.c)(33);
+	const { row, open, onToggle } = t0;
+	const event = row.node.event;
+	const t1 = open && SentinelEventView_module_default.open;
+	let t2;
+	if ($[0] !== event || $[1] !== t1) {
+		t2 = clsx(SentinelEventView_module_default.row, t1, isInactive(event) && SentinelEventView_module_default.inactive);
+		$[0] = event;
+		$[1] = t1;
+		$[2] = t2;
+	} else t2 = $[2];
+	let t3;
+	if ($[3] !== row.guides) {
+		t3 = row.guides ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+			className: SentinelEventView_module_default.guides,
+			children: row.guides
+		}) : null;
+		$[3] = row.guides;
+		$[4] = t3;
+	} else t3 = $[4];
+	const t4 = event.kind === "observation" ? "bi bi-activity" : "bi bi-signpost-split";
+	let t5;
+	if ($[5] !== t4) {
+		t5 = clsx(t4, SentinelEventView_module_default.kindIcon);
+		$[5] = t4;
+		$[6] = t5;
+	} else t5 = $[6];
+	let t6;
+	if ($[7] !== t5) {
+		t6 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("i", {
+			className: t5,
+			"aria-hidden": "true"
+		});
+		$[7] = t5;
+		$[8] = t6;
+	} else t6 = $[8];
+	const t7 = event.path || "(top)";
+	let t8;
+	if ($[9] !== t7) {
+		t8 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("b", { children: t7 });
+		$[9] = t7;
+		$[10] = t8;
+	} else t8 = $[10];
+	let t9;
+	if ($[11] !== event.factory) {
+		t9 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+			className: SentinelEventView_module_default.name,
+			children: event.factory
+		});
+		$[11] = event.factory;
+		$[12] = t9;
+	} else t9 = $[12];
+	let t10;
+	if ($[13] !== t3 || $[14] !== t6 || $[15] !== t8 || $[16] !== t9) {
+		t10 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", {
+			className: SentinelEventView_module_default.rowLabel,
+			children: [
+				t3,
+				t6,
+				t8,
+				" ",
+				t9
+			]
+		});
+		$[13] = t3;
+		$[14] = t6;
+		$[15] = t8;
+		$[16] = t9;
+		$[17] = t10;
+	} else t10 = $[17];
+	let t11;
+	if ($[18] !== row) {
+		t11 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(CheckResult, { row });
+		$[18] = row;
+		$[19] = t11;
+	} else t11 = $[19];
+	const t12 = open ? "bi bi-chevron-down" : "bi bi-chevron-right";
+	let t13;
+	if ($[20] !== t12) {
+		t13 = clsx(t12, SentinelEventView_module_default.rowChevron);
+		$[20] = t12;
+		$[21] = t13;
+	} else t13 = $[21];
+	let t14;
+	if ($[22] !== t13) {
+		t14 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("i", {
+			className: t13,
+			"aria-hidden": "true"
+		});
+		$[22] = t13;
+		$[23] = t14;
+	} else t14 = $[23];
+	let t15;
+	if ($[24] !== t11 || $[25] !== t14) {
+		t15 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", {
+			className: SentinelEventView_module_default.result,
+			children: [t11, t14]
+		});
+		$[24] = t11;
+		$[25] = t14;
+		$[26] = t15;
+	} else t15 = $[26];
+	let t16;
+	if ($[27] !== onToggle || $[28] !== open || $[29] !== t10 || $[30] !== t15 || $[31] !== t2) {
+		t16 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("button", {
+			type: "button",
+			"aria-expanded": open,
+			className: t2,
+			onClick: onToggle,
+			children: [t10, t15]
+		});
+		$[27] = onToggle;
+		$[28] = open;
+		$[29] = t10;
+		$[30] = t15;
+		$[31] = t2;
+		$[32] = t16;
+	} else t16 = $[32];
+	return t16;
+};
+var CheckResult = (t0) => {
+	const $ = (0, import_compiler_runtime.c)(26);
+	const { row } = t0;
+	const event = row.node.event;
+	let t1;
+	if ($[0] !== event.audit) {
+		t1 = event.audit ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("i", {
+			className: clsx("bi bi-flag-fill", SentinelEventView_module_default.flag),
+			role: "img",
+			"aria-label": "flagged"
+		}) : null;
+		$[0] = event.audit;
+		$[1] = t1;
+	} else t1 = $[1];
+	const flag = t1;
+	if (event.status === "bypassed" || event.status === "cancelled") {
+		let t2;
+		if ($[2] !== event.status) {
+			t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", { children: event.status });
+			$[2] = event.status;
+			$[3] = t2;
+		} else t2 = $[3];
+		return t2;
+	}
+	if (event.status === "error") {
+		let t2;
+		if ($[4] === Symbol.for("react.memo_cache_sentinel")) {
+			t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+				className: SentinelEventView_module_default.failed,
+				children: "failed"
+			});
+			$[4] = t2;
+		} else t2 = $[4];
+		return t2;
+	}
+	if (event.status === "superseded") {
+		let t2;
+		if ($[5] !== event.action) {
+			t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("s", { children: event.action }), " · superseded"] });
+			$[5] = event.action;
+			$[6] = t2;
+		} else t2 = $[6];
+		return t2;
+	}
+	if (event.suspicion !== void 0 && event.suspicion !== null) {
+		let t2;
+		if ($[7] !== event.suspicion) {
+			t2 = topScore(event.suspicion);
+			$[7] = event.suspicion;
+			$[8] = t2;
+		} else t2 = $[8];
+		const top = t2;
+		const t3 = top.dimension ? `${top.dimension} ` : "";
+		let t4;
+		if ($[9] !== t3 || $[10] !== top.value) {
+			t4 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", { children: [t3, top.value] });
+			$[9] = t3;
+			$[10] = top.value;
+			$[11] = t4;
+		} else t4 = $[11];
+		let t5;
+		if ($[12] !== top.more) {
+			t5 = top.more > 0 ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+				className: SentinelEventView_module_default.moreScores,
+				children: top.more === 1 ? "1 more score" : `${top.more} more scores`
+			}) : null;
+			$[12] = top.more;
+			$[13] = t5;
+		} else t5 = $[13];
+		let t6;
+		if ($[14] !== flag || $[15] !== t4 || $[16] !== t5) {
+			t6 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
+				flag,
+				t4,
+				t5
+			] });
+			$[14] = flag;
+			$[15] = t4;
+			$[16] = t5;
+			$[17] = t6;
+		} else t6 = $[17];
+		return t6;
+	}
+	if (!event.action) return flag;
+	let t2;
+	if ($[18] !== event.action) {
+		t2 = decisionClass(event.action);
+		$[18] = event.action;
+		$[19] = t2;
+	} else t2 = $[19];
+	let t3;
+	if ($[20] !== event.action || $[21] !== t2) {
+		t3 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+			className: t2,
+			children: event.action
+		});
+		$[20] = event.action;
+		$[21] = t2;
+		$[22] = t3;
+	} else t3 = $[22];
+	let t4;
+	if ($[23] !== flag || $[24] !== t3) {
+		t4 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [flag, t3] });
+		$[23] = flag;
+		$[24] = t3;
+		$[25] = t4;
+	} else t4 = $[25];
+	return t4;
+};
+var CheckDetail = (t0) => {
+	const $ = (0, import_compiler_runtime.c)(51);
+	const { row, showFunction, makeCiteUrl } = t0;
+	const event = row.node.event;
+	let t1;
+	if ($[0] !== event.explanation) {
+		t1 = event.explanation?.trim();
+		$[0] = event.explanation;
+		$[1] = t1;
+	} else t1 = $[1];
+	const explanation = t1;
+	let t2;
+	if ($[2] !== event.action || $[3] !== row.tookEffect) {
+		t2 = row.tookEffect ? toneOfDecision(event.action) : null;
+		$[2] = event.action;
+		$[3] = row.tookEffect;
+		$[4] = t2;
+	} else t2 = $[4];
+	const effectTone = t2;
+	const t3 = event.audit ? "flagged" : null;
+	const t4 = event.status === "superseded" ? "superseded" : null;
+	let t5;
+	if ($[5] !== t3 || $[6] !== t4) {
+		t5 = [t3, t4].filter(Boolean);
+		$[5] = t3;
+		$[6] = t4;
+		$[7] = t5;
+	} else t5 = $[7];
+	const status = t5;
+	const reportedBy = showFunction ? event.function : null;
+	let t10;
+	let t6;
+	let t7;
+	let t8;
+	let t9;
+	if ($[8] !== effectTone || $[9] !== event.stage || $[10] !== event.suspicion || $[11] !== reportedBy || $[12] !== row || $[13] !== status) {
+		const scores = event.suspicion !== null && typeof event.suspicion === "object" && Object.keys(event.suspicion).length > 1 ? sortedScores(event.suspicion) : void 0;
+		t9 = SentinelEventView_module_default.detailWrap;
+		let t11;
+		if ($[19] !== row) {
+			t11 = indent(row);
+			$[19] = row;
+			$[20] = t11;
+		} else t11 = $[20];
+		if ($[21] !== t11) {
+			t10 = { paddingLeft: t11 };
+			$[21] = t11;
+			$[22] = t10;
+		} else t10 = $[22];
+		const t12 = effectTone === "reject" && SentinelEventView_module_default.rejectDetail;
+		const t13 = effectTone === "modify" && SentinelEventView_module_default.modifyDetail;
+		const t14 = !effectTone && event.stage === "tool_result" && SentinelEventView_module_default.afterDetail;
+		if ($[23] !== t12 || $[24] !== t13 || $[25] !== t14) {
+			t6 = clsx(SentinelEventView_module_default.detail, t12, t13, t14);
+			$[23] = t12;
+			$[24] = t13;
+			$[25] = t14;
+			$[26] = t6;
+		} else t6 = $[26];
+		if ($[27] !== reportedBy || $[28] !== status) {
+			t7 = status.length || reportedBy ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+				className: SentinelEventView_module_default.meta,
+				children: [status.join(" · "), reportedBy ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
+					status.length ? " · " : null,
+					"function:",
+					" ",
+					/*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+						className: checkClasses.mono,
+						children: reportedBy
+					})
+				] }) : null]
+			}) : null;
+			$[27] = reportedBy;
+			$[28] = status;
+			$[29] = t7;
+		} else t7 = $[29];
+		t8 = scores ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+			className: SentinelEventView_module_default.scoreGrid,
+			children: scores.map(_temp$50)
+		}) : null;
+		$[8] = effectTone;
+		$[9] = event.stage;
+		$[10] = event.suspicion;
+		$[11] = reportedBy;
+		$[12] = row;
+		$[13] = status;
+		$[14] = t10;
+		$[15] = t6;
+		$[16] = t7;
+		$[17] = t8;
+		$[18] = t9;
+	} else {
+		t10 = $[14];
+		t6 = $[15];
+		t7 = $[16];
+		t8 = $[17];
+		t9 = $[18];
+	}
+	let t11;
+	if ($[30] !== effectTone || $[31] !== event.error || $[32] !== event.references || $[33] !== explanation || $[34] !== makeCiteUrl) {
+		t11 = event.error ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+			className: clsx(SentinelEventView_module_default.errorText, checkClasses.mono),
+			children: event.error
+		}) : explanation ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MarkdownDivWithReferences, {
+			markdown: explanation,
+			references: citeReferences(event.references, makeCiteUrl),
+			className: clsx(SentinelEventView_module_default.explanation, effectTone === "reject" && checkClasses.rejectReason)
+		}) : /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+			className: SentinelEventView_module_default.noExplanation,
+			children: "No explanation recorded."
+		});
+		$[30] = effectTone;
+		$[31] = event.error;
+		$[32] = event.references;
+		$[33] = explanation;
+		$[34] = makeCiteUrl;
+		$[35] = t11;
+	} else t11 = $[35];
+	let t12;
+	if ($[36] !== event.message) {
+		t12 = event.message ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+			className: SentinelEventView_module_default.labelled,
+			children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+				className: clsx(checkClasses.label, checkClasses.rejectText),
+				children: "told the agent"
+			}), /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", { children: event.message })]
+		}) : null;
+		$[36] = event.message;
+		$[37] = t12;
+	} else t12 = $[37];
+	let t13;
+	if ($[38] !== event.modified) {
+		t13 = event.modified ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+			className: SentinelEventView_module_default.labelled,
+			children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+				className: clsx(checkClasses.label, checkClasses.modifyText),
+				children: "modified"
+			}), /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+				className: checkClasses.mono,
+				children: replacementText(event.modified)
+			})]
+		}) : null;
+		$[38] = event.modified;
+		$[39] = t13;
+	} else t13 = $[39];
+	let t14;
+	if ($[40] !== t11 || $[41] !== t12 || $[42] !== t13 || $[43] !== t6 || $[44] !== t7 || $[45] !== t8) {
+		t14 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+			className: t6,
+			children: [
+				t7,
+				t8,
+				t11,
+				t12,
+				t13
+			]
+		});
+		$[40] = t11;
+		$[41] = t12;
+		$[42] = t13;
+		$[43] = t6;
+		$[44] = t7;
+		$[45] = t8;
+		$[46] = t14;
+	} else t14 = $[46];
+	let t15;
+	if ($[47] !== t10 || $[48] !== t14 || $[49] !== t9) {
+		t15 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+			className: t9,
+			style: t10,
+			children: t14
+		});
+		$[47] = t10;
+		$[48] = t14;
+		$[49] = t9;
+		$[50] = t15;
+	} else t15 = $[50];
+	return t15;
+};
+/** Paths of the instances that reported from more than one function on this step. */ var groupedPaths = (rows) => {
+	const functions = /* @__PURE__ */ new Map();
+	for (const { node } of rows) {
+		if (!node.event.function) continue;
+		const seen = functions.get(node.event.path) ?? /* @__PURE__ */ new Set();
+		seen.add(node.event.function);
+		functions.set(node.event.path, seen);
+	}
+	return new Set([...functions].filter(([, seen]) => seen.size > 1).map(([path]) => path));
+};
+var indent = (row) => `calc(8px + ${row.depth * 3}ch)`;
+var replacementText = (call) => {
+	const { input, functionCall } = resolveToolInput(call.function, call.arguments);
+	return typeof input === "string" && input ? input : functionCall;
+};
+var isInactive = (event) => event.status !== "reported";
+/** The step's monitor model calls, collapsed to a count that expands to the model call views. */ var ModelCallsNote = (t0) => {
+	const $ = (0, import_compiler_runtime.c)(22);
+	const { id, modelCalls, context } = t0;
+	const [collapsed, setCollapsed] = useCollapsedState(`${id}-sentinel-model-calls`, true);
+	const t1 = context?.retryAttempts;
+	let t2;
+	if ($[0] !== t1) {
+		t2 = { retryAttempts: t1 };
+		$[0] = t1;
+		$[1] = t2;
+	} else t2 = $[1];
+	const callContext = t2;
+	let t3;
+	if ($[2] === Symbol.for("react.memo_cache_sentinel")) {
+		t3 = clsx(SentinelEventView_module_default.foldedToggle, "text-style-secondary");
+		$[2] = t3;
+	} else t3 = $[2];
+	const t4 = !collapsed;
+	let t5;
+	if ($[3] !== collapsed || $[4] !== setCollapsed) {
+		t5 = () => setCollapsed(!collapsed);
+		$[3] = collapsed;
+		$[4] = setCollapsed;
+		$[5] = t5;
+	} else t5 = $[5];
+	const t6 = collapsed ? "bi bi-chevron-right" : "bi bi-chevron-down";
+	let t7;
+	if ($[6] !== t6) {
+		t7 = clsx(t6, SentinelEventView_module_default.chevron);
+		$[6] = t6;
+		$[7] = t7;
+	} else t7 = $[7];
+	let t8;
+	if ($[8] !== t7) {
+		t8 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("i", {
+			className: t7,
+			"aria-hidden": "true"
+		});
+		$[8] = t7;
+		$[9] = t8;
+	} else t8 = $[9];
+	const t9 = `${modelCalls.length} monitor model call${modelCalls.length === 1 ? "" : "s"}`;
+	let t10;
+	if ($[10] !== t4 || $[11] !== t5 || $[12] !== t8 || $[13] !== t9) {
+		t10 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("button", {
+			type: "button",
+			className: t3,
+			"aria-expanded": t4,
+			onClick: t5,
+			children: [t8, t9]
+		});
+		$[10] = t4;
+		$[11] = t5;
+		$[12] = t8;
+		$[13] = t9;
+		$[14] = t10;
+	} else t10 = $[14];
+	let t11;
+	if ($[15] !== callContext || $[16] !== collapsed || $[17] !== modelCalls) {
+		t11 = collapsed ? null : /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+			className: SentinelEventView_module_default.modelCalls,
+			children: modelCalls.map((node) => /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ModelEventView, {
+				eventNode: node,
+				showToolCalls: true,
+				context: callContext
+			}, node.id))
+		});
+		$[15] = callContext;
+		$[16] = collapsed;
+		$[17] = modelCalls;
+		$[18] = t11;
+	} else t11 = $[18];
+	let t12;
+	if ($[19] !== t10 || $[20] !== t11) {
+		t12 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", { children: [t10, t11] });
+		$[19] = t10;
+		$[20] = t11;
+		$[21] = t12;
+	} else t12 = $[21];
+	return t12;
+};
+/** A step outside any tool panel, e.g. a model-stage step, as an event row. */ var SentinelStepRow = (t0) => {
+	const $ = (0, import_compiler_runtime.c)(10);
+	const { step, context, eventNodeId, className } = t0;
+	let t1;
+	if ($[0] !== context || $[1] !== step) {
+		t1 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(SentinelInset, {
+			step,
+			region: "output",
+			context
+		});
+		$[0] = context;
+		$[1] = step;
+		$[2] = t1;
+	} else t1 = $[2];
+	const t2 = stageLabels[step.stage];
+	let t3;
+	if ($[3] !== t2) {
+		t3 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+			className: "text-style-secondary",
+			children: t2
+		});
+		$[3] = t2;
+		$[4] = t3;
+	} else t3 = $[4];
+	let t4;
+	if ($[5] !== className || $[6] !== eventNodeId || $[7] !== t1 || $[8] !== t3) {
+		t4 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(EventRow, {
+			eventNodeId,
+			title: "Sentinel",
+			icon: TranscriptIcons.sentinel,
+			className,
+			below: t1,
+			children: t3
+		});
+		$[5] = className;
+		$[6] = eventNodeId;
+		$[7] = t1;
+		$[8] = t3;
+		$[9] = t4;
+	} else t4 = $[9];
+	return t4;
+};
+/** A sentinel step outside any tool panel, e.g. a model-stage step. */ var SentinelEventView = (t0) => {
+	const $ = (0, import_compiler_runtime.c)(8);
+	const { eventNode, step, context, className } = t0;
+	let t1;
+	if ($[0] !== eventNode || $[1] !== step) {
+		t1 = step ?? buildLoneSentinelStep(eventNode);
+		$[0] = eventNode;
+		$[1] = step;
+		$[2] = t1;
+	} else t1 = $[2];
+	let t2;
+	if ($[3] !== className || $[4] !== context || $[5] !== eventNode.id || $[6] !== t1) {
+		t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(SentinelStepRow, {
+			step: t1,
+			eventNodeId: eventNode.id,
+			context,
+			className
+		});
+		$[3] = className;
+		$[4] = context;
+		$[5] = eventNode.id;
+		$[6] = t1;
+		$[7] = t2;
+	} else t2 = $[7];
+	return t2;
+};
+var stageLabels = {
+	model_input: "model input",
+	model_output: "model output",
+	tool_call: "before call",
+	tool_result: "after call"
+};
+var rejectLook = {
+	icon: "bi bi-binoculars-fill",
+	tone: "reject",
+	iconClass: checkClasses.rejectIcon,
+	textClass: checkClasses.rejectText,
+	reasonClass: checkClasses.rejectReason
+};
+var verdictLooks = {
+	continue: {
+		icon: TranscriptIcons.sentinel,
+		word: "Continued",
+		tone: "neutral"
+	},
+	observe: {
+		icon: TranscriptIcons.sentinel,
+		word: "Observed",
+		tone: "neutral"
+	},
+	bypassed: {
+		icon: TranscriptIcons.sentinel,
+		word: "Bypassed",
+		tone: "neutral"
+	},
+	cancelled: {
+		icon: TranscriptIcons.sentinel,
+		word: "Cancelled",
+		tone: "neutral"
+	},
+	superseded: {
+		icon: TranscriptIcons.sentinel,
+		word: "Superseded",
+		tone: "neutral"
+	},
+	error: {
+		icon: "bi bi-exclamation-triangle",
+		word: "Failed",
+		tone: "neutral",
+		textClass: SentinelEventView_module_default.failed
+	},
+	reject: {
+		...rejectLook,
+		word: "Rejected"
+	},
+	terminate: {
+		...rejectLook,
+		word: "Terminated"
+	},
+	modify: {
+		icon: "bi bi-binoculars-fill",
+		word: "Modified",
+		tone: "modify",
+		iconClass: checkClasses.modifyIcon,
+		textClass: checkClasses.modifyText
+	},
+	escalate: {
+		icon: TranscriptIcons.approvals.escalate,
+		word: "Escalated",
+		tone: "modify",
+		iconClass: checkClasses.modifyIcon,
+		textClass: checkClasses.modifyText
+	}
+};
+/** An escalate the runner returned had no handler above it, so the call proceeded. */ var unhandledEscalateLook = {
+	icon: TranscriptIcons.approvals.escalate,
+	word: "Escalated (no handler; proceeded)",
+	tone: "neutral"
+};
+var lookOf = (step) => step.verdict === "escalate" && step.returned ? unhandledEscalateLook : verdictLooks[step.verdict];
+var toneOfDecision = (decision) => {
+	switch (decision) {
+		case "reject":
+		case "terminate": return "reject";
+		case "modify":
+		case "escalate": return "modify";
+		default: return null;
+	}
+};
+var decisionClass = (decision) => {
+	switch (decision) {
+		case "reject":
+		case "terminate": return checkClasses.rejectText;
+		case "escalate":
+		case "modify": return checkClasses.modifyText;
+		case "continue": return SentinelEventView_module_default.continue;
+	}
+};
+function _temp$50(t0) {
+	const [dimension, value] = t0;
+	return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_react.Fragment, { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+		className: SentinelEventView_module_default.scoreName,
+		children: dimension
+	}), /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", { children: Math.round(value * 100) / 100 })] }, dimension);
+}
 //#endregion
 //#region ../../packages/inspect-components/src/transcript/SpanEventView.tsx
 /**
@@ -99660,21 +101385,71 @@ function useTimelineRowSelect() {
 	return (0, import_react.useContext)(TimelineRowSelectContext);
 }
 var ToolEventView_module_default = {
-	summary: "_summary_1mtn2_1",
-	labeledToolCall: "_labeledToolCall_1mtn2_6",
-	label: "_label_1mtn2_6",
-	labeledToolContent: "_labeledToolContent_1mtn2_19",
-	approvalWrap: "_approvalWrap_1mtn2_23",
-	approval: "_approval_1mtn2_23",
-	progress: "_progress_1mtn2_33"
+	summary: "_summary_ddafu_1",
+	labeledToolCall: "_labeledToolCall_ddafu_6",
+	label: "_label_ddafu_6",
+	labeledToolContent: "_labeledToolContent_ddafu_19",
+	progress: "_progress_ddafu_23"
 };
 //#endregion
 //#region ../../packages/inspect-components/src/transcript/ToolEventView.tsx
+/** The check that stopped the call: the final approval, else the sentinel outcome. */ var blockerOf = (approval, before) => {
+	if (approval?.decision === "reject" || approval?.decision === "terminate") return {
+		decision: approval.decision,
+		message: approval.explanation
+	};
+	const verdict = before?.verdict;
+	if (before?.outcome && (verdict === "reject" || verdict === "terminate")) return {
+		decision: verdict,
+		message: before.outcome.event.message
+	};
+};
+var hasResult = (result) => Array.isArray(result) ? result.length > 0 : result !== "";
+/**
+* The call that ran. The ToolEvent records it, except in logs written before
+* it recorded an approver's modify (inspect_ai #5651): those kept the
+* proposal's arguments and view, while the approver's replacement is what ran.
+* Limitation: an approver's modify that a sentinel modify reverts to the
+* proposal reads as such a log.
+*/ var ranCall = (event, approval) => {
+	const replacement = approval?.decision === "modify" ? approval.modified : void 0;
+	return !!replacement && sameArguments(event.arguments, approval?.call.arguments) && !sameArguments(event.arguments, replacement.arguments) ? { arguments: replacement.arguments } : {
+		arguments: event.arguments,
+		view: event.view
+	};
+};
 var ToolEventView = ({ eventNode, childNodes, className, context, eventCallbacks }) => {
 	const event = eventNode.event;
-	const { name, input, description, functionCall, contentType, title } = (0, import_react.useMemo)(() => resolveToolInput(event.function, event.arguments), [event.function, event.arguments]);
-	const resolvedView = (0, import_react.useMemo)(() => event.view ? substituteToolCallContent(event.view, event.arguments) : void 0, [event.view, event.arguments]);
-	const approvalNode = context?.toolApprovals?.get(event.id);
+	const approvals = context?.toolApprovals?.get(eventNode.id);
+	const sentinels = context?.toolSentinels?.get(eventNode.id);
+	const finalApproval = approvals?.at(-1)?.event;
+	const ran = ranCall(event, finalApproval);
+	const { name, input, description, functionCall, contentType, title } = resolveToolInput(event.function, ran.arguments);
+	const resolvedView = ran.view ? substituteToolCallContent(ran.view, ran.arguments) : void 0;
+	const before = sentinels?.before;
+	const blocker = blockerOf(finalApproval, before);
+	const didRun = event.error?.type !== "approval" && !(blocker && !hasResult(event.result));
+	const approverReplacement = finalApproval?.decision === "modify" ? finalApproval.modified ?? void 0 : void 0;
+	const judged = approverReplacement ?? sentinels?.proposed;
+	const beforeInsets = approvals || before ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(ToolBlockInset, {
+		region: "input",
+		children: [approvals ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ApprovalInset, { chain: approvals }) : null, before ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(SentinelInset, {
+			step: before,
+			region: "input",
+			context,
+			judged,
+			judgedReplaced: !!approverReplacement
+		}) : null]
+	}) : void 0;
+	const afterInset = sentinels?.after ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ToolBlockInset, {
+		region: "output",
+		children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(SentinelInset, {
+			step: sentinels.after,
+			region: "output",
+			context
+		})
+	}) : void 0;
+	const notRun = didRun ? void 0 : /*#__PURE__*/ (0, import_jsx_runtime.jsx)(NotRunWell, { message: event.error?.type === "approval" ? event.error.message : blocker?.decision === "reject" ? blocker.message?.trim() || "Tool call not approved." : void 0 });
 	const lastModelNode = (0, import_react.useMemo)(() => {
 		const lastModel = childNodes.findLast((e) => e.event.event === "model");
 		return lastModel ? eventNodeOf(lastModel, "model") : void 0;
@@ -99712,7 +101487,10 @@ var ToolEventView = ({ eventNode, childNodes, className, context, eventCallbacks
 		selfAnnotation: context?.selfAnnotation,
 		inputScreenshot: context?.inputScreenshot,
 		error: showError && event.error ? event.error : void 0,
-		view: resolvedView
+		view: resolvedView,
+		afterInput: beforeInsets,
+		afterOutput: afterInset,
+		outputReplacement: notRun
 	});
 	const toolLabel = toolLabels.messageLabels?.[event.id];
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(EventPanel, {
@@ -99745,13 +101523,6 @@ var ToolEventView = ({ eventNode, childNodes, className, context, eventCallbacks
 					messages: lastModelNode.event.output.choices.map((m) => m.message),
 					tools: { callStyle: "compact" }
 				}) : void 0,
-				approvalNode ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
-					className: ToolEventView_module_default.approvalWrap,
-					children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ApprovalEventView, {
-						eventNode: approvalNode,
-						className: ToolEventView_module_default.approval
-					})
-				}) : "",
 				event.pending ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 					className: clsx(ToolEventView_module_default.progress),
 					children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(GeneratingIndicator, { label: "running" })
@@ -99946,6 +101717,23 @@ var sanitizeStringify = (v) => {
 			fields.push(["decision", reviewEvent.decision]);
 			if (reviewEvent.explanation) fields.push(["explanation", reviewEvent.explanation]);
 			fields.push(["reviewer", reviewEvent.reviewer]);
+			break;
+		}
+		case "sentinel": {
+			const sentinelEvent = event;
+			fields.push(["kind", sentinelEvent.kind]);
+			fields.push(["status", sentinelEvent.status]);
+			if (sentinelEvent.path) fields.push(["path", sentinelEvent.path]);
+			fields.push(["factory", sentinelEvent.factory]);
+			if (sentinelEvent.function) fields.push(["function", sentinelEvent.function]);
+			fields.push(["stage", sentinelEvent.stage]);
+			if (sentinelEvent.suspicion !== void 0 && sentinelEvent.suspicion !== null) fields.push(["suspicion", formatSuspicion(sentinelEvent.suspicion)]);
+			if (sentinelEvent.action) fields.push(["action", sentinelEvent.action]);
+			if (sentinelEvent.modified) fields.push(["modified", formatModifiedCall(sentinelEvent.modified)]);
+			if (sentinelEvent.audit) fields.push(["audit", "true"]);
+			if (sentinelEvent.message) fields.push(["message", sentinelEvent.message]);
+			if (sentinelEvent.explanation) fields.push(["explanation", sentinelEvent.explanation]);
+			if (sentinelEvent.error) fields.push(["error", sentinelEvent.error]);
 			break;
 		}
 		case "sandbox": {
@@ -100712,6 +102500,7 @@ var removeNodeVisitor = (event) => {
 		return [node];
 	} };
 };
+/** Drops a sentinel's span with its contents; the monitor model calls in it are not agent turns. */ var removeSentinelSpanVisitor = () => ({ visit: (node) => isSentinelSpan(node) ? [] : [node] });
 var removeStepSpanNameVisitor = (name) => {
 	return { visit: (node) => {
 		if ((node.event.event === "step" || node.event.event === "span_begin") && node.event.name === name) return [];
@@ -100730,6 +102519,8 @@ var removeStepSpanNameVisitor = (name) => {
 	removeNodeVisitor("store"),
 	removeNodeVisitor("approval"),
 	removeNodeVisitor("review"),
+	removeNodeVisitor("sentinel"),
+	removeSentinelSpanVisitor(),
 	removeNodeVisitor("input"),
 	removeNodeVisitor("sandbox"),
 	removeStepSpanNameVisitor(kSandboxSignalName)
@@ -100964,15 +102755,18 @@ var kFocusExcludedEvents = /* @__PURE__ */ new Set([
 */ function resolveEventTurnAnchor(flattenedNodes, eventId) {
 	const stack = [];
 	const lastAnchorByLane = /* @__PURE__ */ new Map();
+	let sentinelDepth;
 	for (const node of flattenedNodes) {
 		while (stack.length > 0 && node.depth <= stack[stack.length - 1].depth) stack.pop();
+		if (sentinelDepth !== void 0 && node.depth <= sentinelDepth) sentinelDepth = void 0;
 		const laneId = stack.length > 0 ? stack[stack.length - 1].laneId : null;
-		if (node.event.event === "model") lastAnchorByLane.set(laneId, node.id);
+		if (node.event.event === "model" && sentinelDepth === void 0) lastAnchorByLane.set(laneId, node.id);
 		if (node.id === eventId) return lastAnchorByLane.get(laneId);
 		if (agentBoundaryName(node) !== void 0) stack.push({
 			depth: node.depth,
 			laneId: node.id
 		});
+		if (sentinelDepth === void 0 && isSentinelSpan(node)) sentinelDepth = node.depth;
 	}
 }
 /** Events that close out a sample: they trail the last turn OUTSIDE every
@@ -100985,14 +102779,15 @@ var kFocusExcludedEvents = /* @__PURE__ */ new Set([
 * Focus-page nodes for `eventId`: its turn slice minus structural/noise
 * events. Takes the *unfiltered* flat list (`flatTree(eventNodes, null)`) —
 * filtering spans out first would drop the span_begin that ends a turn and
-* run the slice into later turns.
-*/ function focusedTurnNodes(flat, eventId) {
+* run the slice into later turns. `keep` retains structural nodes that host a
+* row of their own (e.g. a sentinel span standing in for its step).
+*/ function focusedTurnNodes(flat, eventId, keep) {
 	const slice = turnSlice(flat, eventId);
 	const target = slice[0];
 	if (!target) return [];
 	const end = flat.indexOf(slice[slice.length - 1]) + 1;
 	const trailing = target.event.event === "model" && !flat.slice(end).some((n) => n.event.event === "model") ? flat.slice(end).filter((n) => kSampleTerminalEvents.has(n.event.event)) : [];
-	return [...slice, ...trailing].filter((n) => !kFocusExcludedEvents.has(n.event.event));
+	return [...slice, ...trailing].filter((n) => !kFocusExcludedEvents.has(n.event.event) || !!keep?.(n));
 }
 /**
 * Flat-list slice for a focused event: a model's whole turn (up to the next
@@ -101290,7 +103085,7 @@ function transcriptToolsRunning(eventNodes) {
 /**
 * Renders the event based on its type.
 */ var RenderedEventNodeInner = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(152);
+	const $ = (0, import_compiler_runtime.c)(170);
 	const { node, next, className, context, onAutoCollapse, renderAgentCard, eventCallbacks } = t0;
 	const selectRow = useTimelineRowSelect();
 	switch (node.event.event) {
@@ -101551,154 +103346,154 @@ function transcriptToolsRunning(eventNodes) {
 				} else t3 = $[68];
 				return t3;
 			}
-			if (node.event.type === "empty_branch") {
-				let t1;
-				if ($[69] !== node) {
-					t1 = eventNodeOf(node, "span_begin");
-					$[69] = node;
-					$[70] = t1;
-				} else t1 = $[70];
+			let t1;
+			if ($[69] !== context?.standaloneSentinels || $[70] !== node.id) {
+				t1 = context?.standaloneSentinels?.get(node.id);
+				$[69] = context?.standaloneSentinels;
+				$[70] = node.id;
+				$[71] = t1;
+			} else t1 = $[71];
+			const sentinelStep = t1;
+			if (sentinelStep) {
 				let t2;
-				if ($[71] !== className || $[72] !== t1) {
-					t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(EmptyBranchView, {
-						eventNode: t1,
+				if ($[72] !== className || $[73] !== context || $[74] !== node.id || $[75] !== sentinelStep) {
+					t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(SentinelStepRow, {
+						step: sentinelStep,
+						eventNodeId: node.id,
+						context,
 						className
 					});
-					$[71] = className;
-					$[72] = t1;
-					$[73] = t2;
-				} else t2 = $[73];
+					$[72] = className;
+					$[73] = context;
+					$[74] = node.id;
+					$[75] = sentinelStep;
+					$[76] = t2;
+				} else t2 = $[76];
 				return t2;
+			}
+			if (node.event.type === "empty_branch") {
+				let t2;
+				if ($[77] !== node) {
+					t2 = eventNodeOf(node, "span_begin");
+					$[77] = node;
+					$[78] = t2;
+				} else t2 = $[78];
+				let t3;
+				if ($[79] !== className || $[80] !== t2) {
+					t3 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(EmptyBranchView, {
+						eventNode: t2,
+						className
+					});
+					$[79] = className;
+					$[80] = t2;
+					$[81] = t3;
+				} else t3 = $[81];
+				return t3;
 			}
 			if (renderAgentCard && node.sourceSpan) {
 				const spanType = node.sourceSpan.spanType;
 				if (spanType === "agent" || spanType === "branch") {
-					let t1;
-					if ($[74] !== className || $[75] !== node || $[76] !== renderAgentCard) {
-						t1 = renderAgentCard(node, className);
-						$[74] = className;
-						$[75] = node;
-						$[76] = renderAgentCard;
-						$[77] = t1;
-					} else t1 = $[77];
 					let t2;
-					if ($[78] !== t1) {
-						t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(import_jsx_runtime.Fragment, { children: t1 });
-						$[78] = t1;
-						$[79] = t2;
-					} else t2 = $[79];
-					return t2;
+					if ($[82] !== className || $[83] !== node || $[84] !== renderAgentCard) {
+						t2 = renderAgentCard(node, className);
+						$[82] = className;
+						$[83] = node;
+						$[84] = renderAgentCard;
+						$[85] = t2;
+					} else t2 = $[85];
+					let t3;
+					if ($[86] !== t2) {
+						t3 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(import_jsx_runtime.Fragment, { children: t2 });
+						$[86] = t2;
+						$[87] = t3;
+					} else t3 = $[87];
+					return t3;
 				}
 			}
-			let t1;
-			if ($[80] !== node) {
-				t1 = eventNodeOf(node, "span_begin");
-				$[80] = node;
-				$[81] = t1;
-			} else t1 = $[81];
 			let t2;
-			if ($[82] !== className || $[83] !== eventCallbacks || $[84] !== node.children || $[85] !== t1) {
-				t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(SpanEventView, {
-					eventNode: t1,
+			if ($[88] !== node) {
+				t2 = eventNodeOf(node, "span_begin");
+				$[88] = node;
+				$[89] = t2;
+			} else t2 = $[89];
+			let t3;
+			if ($[90] !== className || $[91] !== eventCallbacks || $[92] !== node.children || $[93] !== t2) {
+				t3 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(SpanEventView, {
+					eventNode: t2,
 					childNodes: node.children,
 					className,
 					eventCallbacks
 				});
-				$[82] = className;
-				$[83] = eventCallbacks;
-				$[84] = node.children;
-				$[85] = t1;
-				$[86] = t2;
-			} else t2 = $[86];
-			return t2;
+				$[90] = className;
+				$[91] = eventCallbacks;
+				$[92] = node.children;
+				$[93] = t2;
+				$[94] = t3;
+			} else t3 = $[94];
+			return t3;
 		}
 		case "step": {
 			let t1;
-			if ($[87] !== node) {
+			if ($[95] !== node) {
 				t1 = eventNodeOf(node, "step");
-				$[87] = node;
-				$[88] = t1;
-			} else t1 = $[88];
+				$[95] = node;
+				$[96] = t1;
+			} else t1 = $[96];
 			let t2;
-			if ($[89] !== className || $[90] !== eventCallbacks || $[91] !== node.children || $[92] !== t1) {
+			if ($[97] !== className || $[98] !== eventCallbacks || $[99] !== node.children || $[100] !== t1) {
 				t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(SpanEventView, {
 					eventNode: t1,
 					childNodes: node.children,
 					className,
 					eventCallbacks
 				});
-				$[89] = className;
-				$[90] = eventCallbacks;
-				$[91] = node.children;
-				$[92] = t1;
-				$[93] = t2;
-			} else t2 = $[93];
+				$[97] = className;
+				$[98] = eventCallbacks;
+				$[99] = node.children;
+				$[100] = t1;
+				$[101] = t2;
+			} else t2 = $[101];
 			return t2;
 		}
 		case "store": {
 			let t1;
-			if ($[94] !== node) {
+			if ($[102] !== node) {
 				t1 = eventNodeOf(node, "store");
-				$[94] = node;
-				$[95] = t1;
-			} else t1 = $[95];
+				$[102] = node;
+				$[103] = t1;
+			} else t1 = $[103];
 			let t2;
-			if ($[96] !== className || $[97] !== eventCallbacks || $[98] !== onAutoCollapse || $[99] !== t1) {
+			if ($[104] !== className || $[105] !== eventCallbacks || $[106] !== onAutoCollapse || $[107] !== t1) {
 				t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(StateEventView, {
 					eventNode: t1,
 					className,
 					onAutoCollapse,
 					eventCallbacks
 				});
-				$[96] = className;
-				$[97] = eventCallbacks;
-				$[98] = onAutoCollapse;
-				$[99] = t1;
-				$[100] = t2;
-			} else t2 = $[100];
+				$[104] = className;
+				$[105] = eventCallbacks;
+				$[106] = onAutoCollapse;
+				$[107] = t1;
+				$[108] = t2;
+			} else t2 = $[108];
 			return t2;
 		}
 		case "subtask": {
 			let t1;
-			if ($[101] !== node) {
+			if ($[109] !== node) {
 				t1 = eventNodeOf(node, "subtask");
-				$[101] = node;
-				$[102] = t1;
-			} else t1 = $[102];
+				$[109] = node;
+				$[110] = t1;
+			} else t1 = $[110];
 			let t2;
-			if ($[103] !== className || $[104] !== eventCallbacks || $[105] !== node.children || $[106] !== t1) {
+			if ($[111] !== className || $[112] !== eventCallbacks || $[113] !== node.children || $[114] !== t1) {
 				t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(SubtaskEventView, {
 					eventNode: t1,
 					className,
 					childNodes: node.children,
 					eventCallbacks
 				});
-				$[103] = className;
-				$[104] = eventCallbacks;
-				$[105] = node.children;
-				$[106] = t1;
-				$[107] = t2;
-			} else t2 = $[107];
-			return t2;
-		}
-		case "tool": {
-			let t1;
-			if ($[108] !== node) {
-				t1 = eventNodeOf(node, "tool");
-				$[108] = node;
-				$[109] = t1;
-			} else t1 = $[109];
-			let t2;
-			if ($[110] !== className || $[111] !== context || $[112] !== eventCallbacks || $[113] !== node.children || $[114] !== t1) {
-				t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ToolEventView, {
-					eventNode: t1,
-					className,
-					childNodes: node.children,
-					context,
-					eventCallbacks
-				});
-				$[110] = className;
-				$[111] = context;
+				$[111] = className;
 				$[112] = eventCallbacks;
 				$[113] = node.children;
 				$[114] = t1;
@@ -101706,139 +103501,194 @@ function transcriptToolsRunning(eventNodes) {
 			} else t2 = $[115];
 			return t2;
 		}
-		case "input": {
+		case "tool": {
 			let t1;
 			if ($[116] !== node) {
-				t1 = eventNodeOf(node, "input");
+				t1 = eventNodeOf(node, "tool");
 				$[116] = node;
 				$[117] = t1;
 			} else t1 = $[117];
 			let t2;
-			if ($[118] !== className || $[119] !== t1) {
+			if ($[118] !== className || $[119] !== context || $[120] !== eventCallbacks || $[121] !== node.children || $[122] !== t1) {
+				t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ToolEventView, {
+					eventNode: t1,
+					className,
+					childNodes: node.children,
+					context,
+					eventCallbacks
+				});
+				$[118] = className;
+				$[119] = context;
+				$[120] = eventCallbacks;
+				$[121] = node.children;
+				$[122] = t1;
+				$[123] = t2;
+			} else t2 = $[123];
+			return t2;
+		}
+		case "input": {
+			let t1;
+			if ($[124] !== node) {
+				t1 = eventNodeOf(node, "input");
+				$[124] = node;
+				$[125] = t1;
+			} else t1 = $[125];
+			let t2;
+			if ($[126] !== className || $[127] !== t1) {
 				t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(InputEventView, {
 					eventNode: t1,
 					className
 				});
-				$[118] = className;
-				$[119] = t1;
-				$[120] = t2;
-			} else t2 = $[120];
+				$[126] = className;
+				$[127] = t1;
+				$[128] = t2;
+			} else t2 = $[128];
 			return t2;
 		}
 		case "interrupt": {
 			let t1;
-			if ($[121] !== node) {
+			if ($[129] !== node) {
 				t1 = eventNodeOf(node, "interrupt");
-				$[121] = node;
-				$[122] = t1;
-			} else t1 = $[122];
+				$[129] = node;
+				$[130] = t1;
+			} else t1 = $[130];
 			let t2;
-			if ($[123] !== className || $[124] !== t1) {
+			if ($[131] !== className || $[132] !== t1) {
 				t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(InterruptEventView, {
 					eventNode: t1,
 					className
 				});
-				$[123] = className;
-				$[124] = t1;
-				$[125] = t2;
-			} else t2 = $[125];
+				$[131] = className;
+				$[132] = t1;
+				$[133] = t2;
+			} else t2 = $[133];
 			return t2;
 		}
 		case "error": {
 			let t1;
-			if ($[126] !== node) {
+			if ($[134] !== node) {
 				t1 = eventNodeOf(node, "error");
-				$[126] = node;
-				$[127] = t1;
-			} else t1 = $[127];
+				$[134] = node;
+				$[135] = t1;
+			} else t1 = $[135];
 			let t2;
-			if ($[128] !== className || $[129] !== t1) {
+			if ($[136] !== className || $[137] !== t1) {
 				t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ErrorEventView, {
 					eventNode: t1,
 					className
 				});
-				$[128] = className;
-				$[129] = t1;
-				$[130] = t2;
-			} else t2 = $[130];
+				$[136] = className;
+				$[137] = t1;
+				$[138] = t2;
+			} else t2 = $[138];
 			return t2;
 		}
 		case "approval": {
 			let t1;
-			if ($[131] !== node) {
+			if ($[139] !== node) {
 				t1 = eventNodeOf(node, "approval");
-				$[131] = node;
-				$[132] = t1;
-			} else t1 = $[132];
+				$[139] = node;
+				$[140] = t1;
+			} else t1 = $[140];
 			let t2;
-			if ($[133] !== className || $[134] !== t1) {
+			if ($[141] !== className || $[142] !== t1) {
 				t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ApprovalEventView, {
 					eventNode: t1,
 					className
 				});
-				$[133] = className;
-				$[134] = t1;
-				$[135] = t2;
-			} else t2 = $[135];
+				$[141] = className;
+				$[142] = t1;
+				$[143] = t2;
+			} else t2 = $[143];
 			return t2;
 		}
 		case "review": {
 			let t1;
-			if ($[136] !== node) {
+			if ($[144] !== node) {
 				t1 = eventNodeOf(node, "review");
-				$[136] = node;
-				$[137] = t1;
-			} else t1 = $[137];
+				$[144] = node;
+				$[145] = t1;
+			} else t1 = $[145];
 			let t2;
-			if ($[138] !== className || $[139] !== t1) {
+			if ($[146] !== className || $[147] !== t1) {
 				t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ReviewEventView, {
 					eventNode: t1,
 					className
 				});
-				$[138] = className;
-				$[139] = t1;
-				$[140] = t2;
-			} else t2 = $[140];
+				$[146] = className;
+				$[147] = t1;
+				$[148] = t2;
+			} else t2 = $[148];
 			return t2;
+		}
+		case "sentinel": {
+			let t1;
+			if ($[149] !== node) {
+				t1 = eventNodeOf(node, "sentinel");
+				$[149] = node;
+				$[150] = t1;
+			} else t1 = $[150];
+			let t2;
+			if ($[151] !== context?.standaloneSentinels || $[152] !== node.id) {
+				t2 = context?.standaloneSentinels?.get(node.id);
+				$[151] = context?.standaloneSentinels;
+				$[152] = node.id;
+				$[153] = t2;
+			} else t2 = $[153];
+			let t3;
+			if ($[154] !== className || $[155] !== context || $[156] !== t1 || $[157] !== t2) {
+				t3 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(SentinelEventView, {
+					eventNode: t1,
+					step: t2,
+					context,
+					className
+				});
+				$[154] = className;
+				$[155] = context;
+				$[156] = t1;
+				$[157] = t2;
+				$[158] = t3;
+			} else t3 = $[158];
+			return t3;
 		}
 		case "sandbox": {
 			let t1;
-			if ($[141] !== node) {
+			if ($[159] !== node) {
 				t1 = eventNodeOf(node, "sandbox");
-				$[141] = node;
-				$[142] = t1;
-			} else t1 = $[142];
+				$[159] = node;
+				$[160] = t1;
+			} else t1 = $[160];
 			let t2;
-			if ($[143] !== className || $[144] !== t1) {
+			if ($[161] !== className || $[162] !== t1) {
 				t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(SandboxEventView, {
 					eventNode: t1,
 					className
 				});
-				$[143] = className;
-				$[144] = t1;
-				$[145] = t2;
-			} else t2 = $[145];
+				$[161] = className;
+				$[162] = t1;
+				$[163] = t2;
+			} else t2 = $[163];
 			return t2;
 		}
 		case "checkpoint": {
 			let t1;
-			if ($[146] !== node) {
+			if ($[164] !== node) {
 				t1 = eventNodeOf(node, "checkpoint");
-				$[146] = node;
-				$[147] = t1;
-			} else t1 = $[147];
+				$[164] = node;
+				$[165] = t1;
+			} else t1 = $[165];
 			let t2;
-			if ($[148] !== className || $[149] !== eventCallbacks || $[150] !== t1) {
+			if ($[166] !== className || $[167] !== eventCallbacks || $[168] !== t1) {
 				t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(CheckpointEventView, {
 					eventNode: t1,
 					className,
 					eventCallbacks
 				});
-				$[148] = className;
-				$[149] = eventCallbacks;
-				$[150] = t1;
-				$[151] = t2;
-			} else t2 = $[151];
+				$[166] = className;
+				$[167] = eventCallbacks;
+				$[168] = t1;
+				$[169] = t2;
+			} else t2 = $[169];
 			return t2;
 		}
 		default: return null;
@@ -101860,7 +103710,7 @@ var kExitFocusIcon = "bi bi-arrows-angle-contract";
 * card/gutter chrome. Shared by the inspect and scout focus pages, which
 * supply their own loading/error chrome.
 */ var FocusTurnView = ({ nav, eventId, header, className, onExit, exitHref, error }) => {
-	const { scrollRef, listHandle, slice, turnInfo, totalTurns, onPrev, onNext, canStepNext, canStepPrev, goToTurn, laneCrumbs, laneOptions, focusTab } = nav;
+	const { scrollRef, listHandle, slice, checks, turnInfo, totalTurns, onPrev, onNext, canStepNext, canStepPrev, goToTurn, laneCrumbs, laneOptions, focusTab } = nav;
 	const [laneMenuOpen, setLaneMenuOpen] = (0, import_react.useState)(false);
 	const handleExit = (0, import_react.useMemo)(() => {
 		if (!onExit) return void 0;
@@ -102022,7 +103872,10 @@ var kExitFocusIcon = "bi bi-arrows-angle-contract";
 						disableVirtualization: true,
 						relativeIndent: true,
 						eventCallbacks,
-						eventNodeContext: { hasToolEvents: true }
+						eventNodeContext: {
+							hasToolEvents: true,
+							...checks
+						}
 					})]
 				})
 			})
@@ -102400,6 +104253,68 @@ var PRIORITY_MODEL_INPUT = 4;
 	return t3;
 }
 //#endregion
+//#region ../../packages/inspect-components/src/transcript/transform/toolApprovals.ts
+/**
+* Pairs ApprovalEvents to their ToolEvents so the tool panel can render the
+* approvals inline (every approver the call escalated through), and maps
+* hidden approval node ids to their host tool node so deep links targeting an
+* approval still scroll somewhere.
+*/
+/**
+* Pairs each approval chain to a ToolEvent with its call id. A chain is the
+* escalations up to the decision that ends them, and is recorded before its
+* ToolEvent, so each ToolEvent takes the oldest chain still waiting for its
+* id; a call id reused by several calls pairs each call with its own chain.
+* Approvals recorded after every ToolEvent of their id go to the last one.
+*/ function pairToolApprovals(eventNodes) {
+	const chains = /* @__PURE__ */ new Map();
+	const lastTool = /* @__PURE__ */ new Map();
+	const waiting = /* @__PURE__ */ new Map();
+	const seen = /* @__PURE__ */ new Set();
+	const walk = (nodes) => {
+		for (const n of nodes) {
+			if (seen.has(n.id)) continue;
+			seen.add(n.id);
+			if (n.event.event === "approval") {
+				const queue = waiting.get(n.event.call.id) ?? [];
+				queue.push(eventNodeOf(n, "approval"));
+				waiting.set(n.event.call.id, queue);
+			} else if (n.event.event === "tool") {
+				const queue = waiting.get(n.event.id) ?? [];
+				const end = queue.findIndex((a) => a.event.decision !== "escalate");
+				const chain = queue.splice(0, end === -1 ? queue.length : end + 1);
+				if (chain.length) chains.set(n.id, chain);
+				lastTool.set(n.event.id, n.id);
+			}
+			if (n.children.length) walk(n.children);
+		}
+	};
+	walk(eventNodes);
+	const unpaired = [];
+	for (const [callId, queue] of waiting) {
+		const toolNodeId = lastTool.get(callId);
+		if (!toolNodeId) unpaired.push(...queue);
+		else if (queue.length) chains.set(toolNodeId, [...chains.get(toolNodeId) ?? [], ...queue]);
+	}
+	const toolApprovals = /* @__PURE__ */ new Map();
+	const hiddenApprovalIds = /* @__PURE__ */ new Set();
+	const approvalScrollRedirects = /* @__PURE__ */ new Map();
+	for (const [toolNodeId, chain] of chains) {
+		if (!chain.every(isAutoApprove)) toolApprovals.set(toolNodeId, chain);
+		for (const node of chain) {
+			hiddenApprovalIds.add(node.id);
+			approvalScrollRedirects.set(node.id, toolNodeId);
+		}
+	}
+	for (const node of unpaired) if (isAutoApprove(node)) hiddenApprovalIds.add(node.id);
+	return {
+		toolApprovals,
+		hiddenApprovalIds,
+		approvalScrollRedirects
+	};
+}
+var isAutoApprove = (node) => node.event.approver === "auto" && node.event.decision === "approve";
+//#endregion
 //#region ../../packages/inspect-components/src/transcript/hooks/useTranscriptKeyboardNavigation.ts
 /**
 * Transcript keyboard navigation: the vim-style turn/agent keys (j/k, h/l,
@@ -102545,7 +104460,7 @@ var PRIORITY_MODEL_INPUT = 4;
 * → `useEventNodes`) so "turn N/M" always agrees with the transcript view of
 * that swimlane.
 */ function useFocusTurnNavigation(eventNodes, eventId, tab, setParams, defaultCollapsedIds, laneScope, options) {
-	const $ = (0, import_compiler_runtime.c)(110);
+	const $ = (0, import_compiler_runtime.c)(131);
 	const scrollRef = (0, import_react.useRef)(null);
 	const listHandle = (0, import_react.useRef)(null);
 	let t0;
@@ -102587,58 +104502,114 @@ var PRIORITY_MODEL_INPUT = 4;
 	} else t4 = $[12];
 	const resolvedEventId = t4;
 	let t5;
-	if ($[13] !== flat || $[14] !== resolvedEventId) {
-		t5 = resolvedEventId ? focusedTurnNodes(flat, resolvedEventId) : [];
+	if ($[13] !== flat) {
+		t5 = pairToolApprovals(flat);
 		$[13] = flat;
-		$[14] = resolvedEventId;
-		$[15] = t5;
-	} else t5 = $[15];
-	const slice = t5;
+		$[14] = t5;
+	} else t5 = $[14];
 	let t6;
-	let turnInfo;
-	if ($[16] !== anchorIds || $[17] !== resolvedEventId || $[18] !== turnMap) {
-		turnInfo = resolvedEventId ? turnMap.get(resolvedEventId) : void 0;
-		t6 = turnInfo ? anchorIndexForTurn(anchorIds, turnMap, turnInfo.turnNumber) : -1;
-		$[16] = anchorIds;
-		$[17] = resolvedEventId;
-		$[18] = turnMap;
-		$[19] = t6;
-		$[20] = turnInfo;
-	} else {
-		t6 = $[19];
-		turnInfo = $[20];
-	}
-	const turnIndex = t6;
+	if ($[15] !== flat) {
+		t6 = pairToolSentinels(flat);
+		$[15] = flat;
+		$[16] = t6;
+	} else t6 = $[16];
 	let t7;
-	if ($[21] !== anchorIds[0] || $[22] !== anchorIds.length || $[23] !== turnMap) {
-		t7 = (anchorIds[0] ? turnMap.get(anchorIds[0])?.totalTurns : void 0) ?? anchorIds.length;
-		$[21] = anchorIds[0];
-		$[22] = anchorIds.length;
-		$[23] = turnMap;
-		$[24] = t7;
-	} else t7 = $[24];
-	const totalTurns = t7;
+	if ($[17] !== t5 || $[18] !== t6) {
+		t7 = {
+			...t5,
+			...t6
+		};
+		$[17] = t5;
+		$[18] = t6;
+		$[19] = t7;
+	} else t7 = $[19];
+	const { toolApprovals, hiddenApprovalIds, toolSentinels, standaloneSentinels, hiddenSentinelIds } = t7;
+	let t8;
+	if ($[20] !== flat || $[21] !== hiddenApprovalIds || $[22] !== hiddenSentinelIds || $[23] !== resolvedEventId || $[24] !== standaloneSentinels) {
+		const nodes = resolvedEventId ? focusedTurnNodes(flat, resolvedEventId, (n) => standaloneSentinels.has(n.id)) : [];
+		let t9;
+		if ($[26] !== hiddenApprovalIds || $[27] !== hiddenSentinelIds) {
+			t9 = (n_0) => !hiddenSentinelIds.has(n_0.id) && !hiddenApprovalIds.has(n_0.id);
+			$[26] = hiddenApprovalIds;
+			$[27] = hiddenSentinelIds;
+			$[28] = t9;
+		} else t9 = $[28];
+		t8 = nodes.filter(t9);
+		$[20] = flat;
+		$[21] = hiddenApprovalIds;
+		$[22] = hiddenSentinelIds;
+		$[23] = resolvedEventId;
+		$[24] = standaloneSentinels;
+		$[25] = t8;
+	} else t8 = $[25];
+	let t9;
+	if ($[29] !== standaloneSentinels || $[30] !== toolApprovals || $[31] !== toolSentinels) {
+		t9 = {
+			toolApprovals,
+			toolSentinels,
+			standaloneSentinels
+		};
+		$[29] = standaloneSentinels;
+		$[30] = toolApprovals;
+		$[31] = toolSentinels;
+		$[32] = t9;
+	} else t9 = $[32];
+	let t10;
+	if ($[33] !== t8 || $[34] !== t9) {
+		t10 = {
+			slice: t8,
+			checks: t9
+		};
+		$[33] = t8;
+		$[34] = t9;
+		$[35] = t10;
+	} else t10 = $[35];
+	const { slice, checks } = t10;
+	let t11;
+	let turnInfo;
+	if ($[36] !== anchorIds || $[37] !== resolvedEventId || $[38] !== turnMap) {
+		turnInfo = resolvedEventId ? turnMap.get(resolvedEventId) : void 0;
+		t11 = turnInfo ? anchorIndexForTurn(anchorIds, turnMap, turnInfo.turnNumber) : -1;
+		$[36] = anchorIds;
+		$[37] = resolvedEventId;
+		$[38] = turnMap;
+		$[39] = t11;
+		$[40] = turnInfo;
+	} else {
+		t11 = $[39];
+		turnInfo = $[40];
+	}
+	const turnIndex = t11;
+	let t12;
+	if ($[41] !== anchorIds[0] || $[42] !== anchorIds.length || $[43] !== turnMap) {
+		t12 = (anchorIds[0] ? turnMap.get(anchorIds[0])?.totalTurns : void 0) ?? anchorIds.length;
+		$[41] = anchorIds[0];
+		$[42] = anchorIds.length;
+		$[43] = turnMap;
+		$[44] = t12;
+	} else t12 = $[44];
+	const totalTurns = t12;
 	const running = !!options?.running;
 	const following = !!options?.following;
 	const followingRef = (0, import_react.useRef)(following);
-	let t8;
-	let t9;
-	if ($[25] !== following) {
-		t8 = () => {
+	let t13;
+	let t14;
+	if ($[45] !== following) {
+		t13 = () => {
 			followingRef.current = following;
 		};
-		t9 = [following];
-		$[25] = following;
-		$[26] = t8;
-		$[27] = t9;
+		t14 = [following];
+		$[45] = following;
+		$[46] = t13;
+		$[47] = t14;
 	} else {
-		t8 = $[26];
-		t9 = $[27];
+		t13 = $[46];
+		t14 = $[47];
 	}
-	(0, import_react.useEffect)(t8, t9);
-	let t10;
-	if ($[28] !== anchorIds || $[29] !== running || $[30] !== setParams || $[31] !== turnIndex) {
-		t10 = (delta) => {
+	(0, import_react.useEffect)(t13, t14);
+	let t15;
+	if ($[48] !== anchorIds || $[49] !== running || $[50] !== setParams || $[51] !== turnIndex) {
+		t15 = (delta) => {
 			const isFollowing = followingRef.current;
 			const next = anchorIds[turnIndex + delta];
 			if (delta === 1 && next === void 0 && running && !isFollowing) {
@@ -102659,32 +104630,32 @@ var PRIORITY_MODEL_INPUT = 4;
 				follow: null
 			} : { event: next });
 		};
-		$[28] = anchorIds;
-		$[29] = running;
-		$[30] = setParams;
-		$[31] = turnIndex;
-		$[32] = t10;
-	} else t10 = $[32];
-	const stepTurn = t10;
-	let t11;
-	if ($[33] !== stepTurn) {
-		t11 = () => stepTurn(-1);
-		$[33] = stepTurn;
-		$[34] = t11;
-	} else t11 = $[34];
-	const onPrev = t11;
-	let t12;
-	if ($[35] !== stepTurn) {
-		t12 = () => stepTurn(1);
-		$[35] = stepTurn;
-		$[36] = t12;
-	} else t12 = $[36];
-	const onNext = t12;
+		$[48] = anchorIds;
+		$[49] = running;
+		$[50] = setParams;
+		$[51] = turnIndex;
+		$[52] = t15;
+	} else t15 = $[52];
+	const stepTurn = t15;
+	let t16;
+	if ($[53] !== stepTurn) {
+		t16 = () => stepTurn(-1);
+		$[53] = stepTurn;
+		$[54] = t16;
+	} else t16 = $[54];
+	const onPrev = t16;
+	let t17;
+	if ($[55] !== stepTurn) {
+		t17 = () => stepTurn(1);
+		$[55] = stepTurn;
+		$[56] = t17;
+	} else t17 = $[56];
+	const onNext = t17;
 	const canStepNext = turnIndex !== -1 && anchorIds[turnIndex + 1] !== void 0 || anchorIds[turnIndex + 1] === void 0 && running && !following;
 	const canStepPrev = turnIndex !== -1 && anchorIds[turnIndex - 1] !== void 0 || anchorIds[turnIndex - 1] === void 0 && following;
-	let t13;
-	if ($[37] !== anchorIds || $[38] !== following || $[39] !== setParams || $[40] !== turnMap) {
-		t13 = (turnNumber) => {
+	let t18;
+	if ($[57] !== anchorIds || $[58] !== following || $[59] !== setParams || $[60] !== turnMap) {
+		t18 = (turnNumber) => {
 			if (anchorIds.length === 0) return;
 			const anchor = anchorIds[anchorIndexForTurn(anchorIds, turnMap, turnNumber)];
 			if (anchor !== void 0) setParams(following ? {
@@ -102693,210 +104664,211 @@ var PRIORITY_MODEL_INPUT = 4;
 			} : { event: anchor });
 			else if (following) setParams({ follow: null });
 		};
-		$[37] = anchorIds;
-		$[38] = following;
-		$[39] = setParams;
-		$[40] = turnMap;
-		$[41] = t13;
-	} else t13 = $[41];
-	const goToTurn = t13;
-	let t14;
-	if ($[42] !== laneScope?.lanes) {
-		t14 = laneScope?.lanes ?? [];
-		$[42] = laneScope?.lanes;
-		$[43] = t14;
-	} else t14 = $[43];
-	const lanes = t14;
+		$[57] = anchorIds;
+		$[58] = following;
+		$[59] = setParams;
+		$[60] = turnMap;
+		$[61] = t18;
+	} else t18 = $[61];
+	const goToTurn = t18;
+	let t19;
+	if ($[62] !== laneScope?.lanes) {
+		t19 = laneScope?.lanes ?? [];
+		$[62] = laneScope?.lanes;
+		$[63] = t19;
+	} else t19 = $[63];
+	const lanes = t19;
 	const laneIndex = laneScope?.laneIndex ?? 0;
-	let t15;
-	if ($[44] !== following || $[45] !== setParams) {
-		t15 = (lane) => {
+	let t20;
+	if ($[64] !== following || $[65] !== setParams) {
+		t20 = (lane) => {
 			if (!lane?.firstAnchorId) return;
 			setParams(following ? {
 				event: lane.firstAnchorId,
 				follow: null
 			} : { event: lane.firstAnchorId });
 		};
-		$[44] = following;
-		$[45] = setParams;
-		$[46] = t15;
-	} else t15 = $[46];
-	const goToLane = t15;
-	let t16;
-	if ($[47] !== laneIndex || $[48] !== lanes) {
-		t16 = (delta_0) => {
+		$[64] = following;
+		$[65] = setParams;
+		$[66] = t20;
+	} else t20 = $[66];
+	const goToLane = t20;
+	let t21;
+	if ($[67] !== laneIndex || $[68] !== lanes) {
+		t21 = (delta_0) => {
 			for (let i = laneIndex + delta_0; i >= 0 && i < lanes.length; i = i + delta_0) if (lanes[i]?.firstAnchorId) return lanes[i];
 		};
-		$[47] = laneIndex;
-		$[48] = lanes;
-		$[49] = t16;
-	} else t16 = $[49];
-	const nextLane = t16;
-	let t17;
-	if ($[50] !== goToLane || $[51] !== nextLane) {
-		t17 = () => goToLane(nextLane(-1));
-		$[50] = goToLane;
-		$[51] = nextLane;
-		$[52] = t17;
-	} else t17 = $[52];
-	const onPrevAgent = t17;
-	let t18;
-	if ($[53] !== goToLane || $[54] !== nextLane) {
-		t18 = () => goToLane(nextLane(1));
-		$[53] = goToLane;
-		$[54] = nextLane;
-		$[55] = t18;
-	} else t18 = $[55];
-	const onNextAgent = t18;
-	let t19;
+		$[67] = laneIndex;
+		$[68] = lanes;
+		$[69] = t21;
+	} else t21 = $[69];
+	const nextLane = t21;
+	let t22;
+	if ($[70] !== goToLane || $[71] !== nextLane) {
+		t22 = () => goToLane(nextLane(-1));
+		$[70] = goToLane;
+		$[71] = nextLane;
+		$[72] = t22;
+	} else t22 = $[72];
+	const onPrevAgent = t22;
+	let t23;
+	if ($[73] !== goToLane || $[74] !== nextLane) {
+		t23 = () => goToLane(nextLane(1));
+		$[73] = goToLane;
+		$[74] = nextLane;
+		$[75] = t23;
+	} else t23 = $[75];
+	const onNextAgent = t23;
+	let t24;
 	bb0: {
-		let t20;
-		if ($[56] !== laneScope?.lanePath) {
-			t20 = laneScope?.lanePath ?? [];
-			$[56] = laneScope?.lanePath;
-			$[57] = t20;
-		} else t20 = $[57];
-		const path = t20;
+		let t25;
+		if ($[76] !== laneScope?.lanePath) {
+			t25 = laneScope?.lanePath ?? [];
+			$[76] = laneScope?.lanePath;
+			$[77] = t25;
+		} else t25 = $[77];
+		const path = t25;
 		if (path.length === 0) {
-			let t21;
-			if ($[58] === Symbol.for("react.memo_cache_sentinel")) {
-				t21 = [{ label: "main" }];
-				$[58] = t21;
-			} else t21 = $[58];
-			t19 = t21;
+			let t26;
+			if ($[78] === Symbol.for("react.memo_cache_sentinel")) {
+				t26 = [{ label: "main" }];
+				$[78] = t26;
+			} else t26 = $[78];
+			t24 = t26;
 			break bb0;
 		}
-		let t21;
-		if ($[59] !== goToLane || $[60] !== path) {
-			let t22;
-			if ($[62] !== goToLane || $[63] !== path.length) {
-				t22 = (lane_0, i_0) => {
+		let t26;
+		if ($[79] !== goToLane || $[80] !== path) {
+			let t27;
+			if ($[82] !== goToLane || $[83] !== path.length) {
+				t27 = (lane_0, i_0) => {
 					return !(i_0 === path.length - 1) && lane_0.firstAnchorId ? {
 						label: lane_0.label,
 						onSelect: () => goToLane(lane_0)
 					} : { label: lane_0.label };
 				};
-				$[62] = goToLane;
-				$[63] = path.length;
-				$[64] = t22;
-			} else t22 = $[64];
-			t21 = path.map(t22);
-			$[59] = goToLane;
-			$[60] = path;
-			$[61] = t21;
-		} else t21 = $[61];
-		t19 = t21;
+				$[82] = goToLane;
+				$[83] = path.length;
+				$[84] = t27;
+			} else t27 = $[84];
+			t26 = path.map(t27);
+			$[79] = goToLane;
+			$[80] = path;
+			$[81] = t26;
+		} else t26 = $[81];
+		t24 = t26;
 	}
-	const laneCrumbs = t19;
-	let t20;
-	if ($[65] !== goToLane || $[66] !== lanes) {
-		let t21;
-		if ($[68] !== goToLane) {
-			t21 = (lane_2) => ({
+	const laneCrumbs = t24;
+	let t25;
+	if ($[85] !== goToLane || $[86] !== lanes) {
+		let t26;
+		if ($[88] !== goToLane) {
+			t26 = (lane_2) => ({
 				label: lane_2.label,
 				depth: lane_2.depth,
 				isCurrent: lane_2.isCurrent,
 				onSelect: () => goToLane(lane_2)
 			});
-			$[68] = goToLane;
-			$[69] = t21;
-		} else t21 = $[69];
-		t20 = lanes.filter(_temp$46).map(t21);
-		$[65] = goToLane;
-		$[66] = lanes;
-		$[67] = t20;
-	} else t20 = $[67];
-	const laneOptions = t20;
-	let t21;
-	if ($[70] !== goToTurn) {
-		t21 = () => goToTurn(1);
-		$[70] = goToTurn;
-		$[71] = t21;
-	} else t21 = $[71];
-	const onFirst = t21;
-	let t22;
-	if ($[72] !== goToTurn || $[73] !== totalTurns) {
-		t22 = () => goToTurn(totalTurns);
-		$[72] = goToTurn;
-		$[73] = totalTurns;
-		$[74] = t22;
-	} else t22 = $[74];
-	const onLast = t22;
-	const t23 = lanes.length > 1 ? onPrevAgent : void 0;
-	const t24 = lanes.length > 1 ? onNextAgent : void 0;
-	const t25 = anchorIds.length > 0 ? onFirst : void 0;
-	const t26 = anchorIds.length > 0 ? onLast : void 0;
+			$[88] = goToLane;
+			$[89] = t26;
+		} else t26 = $[89];
+		t25 = lanes.filter(_temp$46).map(t26);
+		$[85] = goToLane;
+		$[86] = lanes;
+		$[87] = t25;
+	} else t25 = $[87];
+	const laneOptions = t25;
+	let t26;
+	if ($[90] !== goToTurn) {
+		t26 = () => goToTurn(1);
+		$[90] = goToTurn;
+		$[91] = t26;
+	} else t26 = $[91];
+	const onFirst = t26;
 	let t27;
-	if ($[75] !== onNext || $[76] !== onPrev || $[77] !== slice.length || $[78] !== t23 || $[79] !== t24 || $[80] !== t25 || $[81] !== t26) {
-		t27 = {
+	if ($[92] !== goToTurn || $[93] !== totalTurns) {
+		t27 = () => goToTurn(totalTurns);
+		$[92] = goToTurn;
+		$[93] = totalTurns;
+		$[94] = t27;
+	} else t27 = $[94];
+	const onLast = t27;
+	const t28 = lanes.length > 1 ? onPrevAgent : void 0;
+	const t29 = lanes.length > 1 ? onNextAgent : void 0;
+	const t30 = anchorIds.length > 0 ? onFirst : void 0;
+	const t31 = anchorIds.length > 0 ? onLast : void 0;
+	let t32;
+	if ($[95] !== onNext || $[96] !== onPrev || $[97] !== slice.length || $[98] !== t28 || $[99] !== t29 || $[100] !== t30 || $[101] !== t31) {
+		t32 = {
 			listHandle,
 			scrollRef,
 			itemCount: slice.length,
 			onPrev,
 			onNext,
-			onPrevAgent: t23,
-			onNextAgent: t24,
-			onFirst: t25,
-			onLast: t26
+			onPrevAgent: t28,
+			onNextAgent: t29,
+			onFirst: t30,
+			onLast: t31
 		};
-		$[75] = onNext;
-		$[76] = onPrev;
-		$[77] = slice.length;
-		$[78] = t23;
-		$[79] = t24;
-		$[80] = t25;
-		$[81] = t26;
-		$[82] = t27;
-	} else t27 = $[82];
-	useTranscriptKeyboardNavigation(t27);
+		$[95] = onNext;
+		$[96] = onPrev;
+		$[97] = slice.length;
+		$[98] = t28;
+		$[99] = t29;
+		$[100] = t30;
+		$[101] = t31;
+		$[102] = t32;
+	} else t32 = $[102];
+	useTranscriptKeyboardNavigation(t32);
 	const lastAnchor = anchorIds[anchorIds.length - 1];
-	let t28;
-	let t29;
-	if ($[83] !== eventId || $[84] !== following || $[85] !== lastAnchor || $[86] !== setParams) {
-		t28 = () => {
+	let t33;
+	let t34;
+	if ($[103] !== eventId || $[104] !== following || $[105] !== lastAnchor || $[106] !== setParams) {
+		t33 = () => {
 			if (following && lastAnchor && eventId !== lastAnchor) setParams({ event: lastAnchor });
 		};
-		t29 = [
+		t34 = [
 			following,
 			lastAnchor,
 			eventId,
 			setParams
 		];
-		$[83] = eventId;
-		$[84] = following;
-		$[85] = lastAnchor;
-		$[86] = setParams;
-		$[87] = t28;
-		$[88] = t29;
+		$[103] = eventId;
+		$[104] = following;
+		$[105] = lastAnchor;
+		$[106] = setParams;
+		$[107] = t33;
+		$[108] = t34;
 	} else {
-		t28 = $[87];
-		t29 = $[88];
+		t33 = $[107];
+		t34 = $[108];
 	}
-	(0, import_react.useEffect)(t28, t29);
+	(0, import_react.useEffect)(t33, t34);
 	const followingLatest = following && running;
-	let t30;
-	if ($[89] !== setParams) {
-		t30 = (next_0) => setParams({ tab: next_0 });
-		$[89] = setParams;
-		$[90] = t30;
-	} else t30 = $[90];
-	let t31;
-	if ($[91] !== t30 || $[92] !== tab) {
-		t31 = {
+	let t35;
+	if ($[109] !== setParams) {
+		t35 = (next_0) => setParams({ tab: next_0 });
+		$[109] = setParams;
+		$[110] = t35;
+	} else t35 = $[110];
+	let t36;
+	if ($[111] !== t35 || $[112] !== tab) {
+		t36 = {
 			tab,
-			setTab: t30
+			setTab: t35
 		};
-		$[91] = t30;
-		$[92] = tab;
-		$[93] = t31;
-	} else t31 = $[93];
-	const focusTab = t31;
-	let t32;
-	if ($[94] !== anchorIds.length || $[95] !== canStepNext || $[96] !== canStepPrev || $[97] !== focusTab || $[98] !== followingLatest || $[99] !== goToTurn || $[100] !== laneCrumbs || $[101] !== laneOptions || $[102] !== onNext || $[103] !== onPrev || $[104] !== resolvedEventId || $[105] !== slice || $[106] !== totalTurns || $[107] !== turnIndex || $[108] !== turnInfo) {
-		t32 = {
+		$[111] = t35;
+		$[112] = tab;
+		$[113] = t36;
+	} else t36 = $[113];
+	const focusTab = t36;
+	let t37;
+	if ($[114] !== anchorIds.length || $[115] !== canStepNext || $[116] !== canStepPrev || $[117] !== checks || $[118] !== focusTab || $[119] !== followingLatest || $[120] !== goToTurn || $[121] !== laneCrumbs || $[122] !== laneOptions || $[123] !== onNext || $[124] !== onPrev || $[125] !== resolvedEventId || $[126] !== slice || $[127] !== totalTurns || $[128] !== turnIndex || $[129] !== turnInfo) {
+		t37 = {
 			scrollRef,
 			listHandle,
 			slice,
+			checks,
 			resolvedEventId,
 			followingLatest,
 			turnInfo,
@@ -102912,24 +104884,25 @@ var PRIORITY_MODEL_INPUT = 4;
 			laneOptions,
 			focusTab
 		};
-		$[94] = anchorIds.length;
-		$[95] = canStepNext;
-		$[96] = canStepPrev;
-		$[97] = focusTab;
-		$[98] = followingLatest;
-		$[99] = goToTurn;
-		$[100] = laneCrumbs;
-		$[101] = laneOptions;
-		$[102] = onNext;
-		$[103] = onPrev;
-		$[104] = resolvedEventId;
-		$[105] = slice;
-		$[106] = totalTurns;
-		$[107] = turnIndex;
-		$[108] = turnInfo;
-		$[109] = t32;
-	} else t32 = $[109];
-	return t32;
+		$[114] = anchorIds.length;
+		$[115] = canStepNext;
+		$[116] = canStepPrev;
+		$[117] = checks;
+		$[118] = focusTab;
+		$[119] = followingLatest;
+		$[120] = goToTurn;
+		$[121] = laneCrumbs;
+		$[122] = laneOptions;
+		$[123] = onNext;
+		$[124] = onPrev;
+		$[125] = resolvedEventId;
+		$[126] = slice;
+		$[127] = totalTurns;
+		$[128] = turnIndex;
+		$[129] = turnInfo;
+		$[130] = t37;
+	} else t37 = $[130];
+	return t37;
 }
 function _temp$46(lane_1) {
 	return lane_1.firstAnchorId;
@@ -108173,6 +110146,7 @@ var labelForNode = (node) => {
 			escalate: "escalated",
 			terminate: "terminated"
 		}[node.event.decision];
+		case "sentinel": return `sentinel ${node.event.status === "reported" ? node.event.action ?? node.event.kind : node.event.status}`;
 		case "model": return `model${node.event.role ? ` (${node.event.role})` : ""}`;
 		case "score": return "scoring";
 		case "step":
@@ -109326,47 +111300,6 @@ var TranscriptLayout_module_default = {
 	eventsList: "_eventsList_sou2s_45"
 };
 //#endregion
-//#region ../../packages/inspect-components/src/transcript/transform/toolApprovals.ts
-/**
-* Pairs ApprovalEvents to their ToolEvents by call id so the tool panel can
-* render the approval inline, and maps hidden approval node ids to their
-* host tool node so deep links targeting an approval still scroll somewhere.
-*/ function pairToolApprovals(eventNodes) {
-	const toolNodeIdsByCallId = /* @__PURE__ */ new Map();
-	const walkTools = (nodes) => {
-		for (const n of nodes) {
-			if (n.event.event === "tool" && !toolNodeIdsByCallId.has(n.event.id)) toolNodeIdsByCallId.set(n.event.id, n.id);
-			if (n.children.length) walkTools(n.children);
-		}
-	};
-	walkTools(eventNodes);
-	const toolApprovals = /* @__PURE__ */ new Map();
-	const hiddenApprovalIds = /* @__PURE__ */ new Set();
-	const approvalScrollRedirects = /* @__PURE__ */ new Map();
-	const walkApprovals = (nodes) => {
-		for (const n of nodes) {
-			if (n.event.event === "approval") {
-				const toolNodeId = toolNodeIdsByCallId.get(n.event.call.id);
-				if (n.event.approver === "auto" && n.event.decision === "approve") {
-					hiddenApprovalIds.add(n.id);
-					if (toolNodeId) approvalScrollRedirects.set(n.id, toolNodeId);
-				} else if (toolNodeId) {
-					toolApprovals.set(n.event.call.id, eventNodeOf(n, "approval"));
-					hiddenApprovalIds.add(n.id);
-					approvalScrollRedirects.set(n.id, toolNodeId);
-				}
-			}
-			if (n.children.length) walkApprovals(n.children);
-		}
-	};
-	walkApprovals(eventNodes);
-	return {
-		toolApprovals,
-		hiddenApprovalIds,
-		approvalScrollRedirects
-	};
-}
-//#endregion
 //#region ../../packages/inspect-components/src/transcript/TranscriptViewNodes.tsx
 /**
 * Shared component that wraps TranscriptVirtualList with tree flattening,
@@ -109381,20 +111314,30 @@ var TranscriptViewNodes = /*#__PURE__*/ (0, import_react.forwardRef)(function Tr
 		return (collapsedTranscript || defaultCollapsedIds)[nodeId] === true;
 	}, [collapsedTranscript, defaultCollapsedIds]);
 	const { toolApprovals, hiddenApprovalIds, approvalScrollRedirects } = (0, import_react.useMemo)(() => pairToolApprovals(eventNodes), [eventNodes]);
-	const scrollEventId = initialEventId ? approvalScrollRedirects.get(initialEventId) ?? initialEventId : initialEventId;
+	const { toolSentinels, standaloneSentinels, hiddenSentinelIds, sentinelScrollRedirects } = (0, import_react.useMemo)(() => pairToolSentinels(eventNodes), [eventNodes]);
+	const redirectEventId = (0, import_react.useCallback)((eventId) => approvalScrollRedirects.get(eventId) ?? sentinelScrollRedirects.get(eventId) ?? eventId, [approvalScrollRedirects, sentinelScrollRedirects]);
+	const scrollEventId = initialEventId ? redirectEventId(initialEventId) : initialEventId;
 	const flattenedNodes = (0, import_react.useMemo)(() => {
 		const all = flatTree(eventNodes, collapsedTranscript || defaultCollapsedIds);
-		return hiddenApprovalIds.size === 0 ? all : all.filter((n) => !hiddenApprovalIds.has(n.id));
+		return hiddenApprovalIds.size === 0 && hiddenSentinelIds.size === 0 ? all : all.filter((n) => !hiddenApprovalIds.has(n.id) && !hiddenSentinelIds.has(n.id));
 	}, [
 		eventNodes,
 		collapsedTranscript,
 		defaultCollapsedIds,
-		hiddenApprovalIds
+		hiddenApprovalIds,
+		hiddenSentinelIds
 	]);
 	const mergedEventNodeContext = (0, import_react.useMemo)(() => ({
 		...eventNodeContext,
-		toolApprovals
-	}), [eventNodeContext, toolApprovals]);
+		toolApprovals,
+		toolSentinels,
+		standaloneSentinels
+	}), [
+		eventNodeContext,
+		toolApprovals,
+		toolSentinels,
+		standaloneSentinels
+	]);
 	const selectionLatest = useLatestRef({
 		selection,
 		flattenedNodes
@@ -109460,7 +111403,8 @@ var TranscriptViewNodes = /*#__PURE__*/ (0, import_react.forwardRef)(function Tr
 			onDone
 		});
 	}, [onProgrammaticScroll]);
-	const scrollToEvent = (0, import_react.useCallback)((eventId) => {
+	const scrollToEvent = (0, import_react.useCallback)((targetId) => {
+		const eventId = redirectEventId(targetId);
 		onHeadroomSetHidden?.(true);
 		const tryScroll = (idx) => {
 			if (listHandle.current) scrollRowToTop(idx);
@@ -109497,6 +111441,7 @@ var TranscriptViewNodes = /*#__PURE__*/ (0, import_react.forwardRef)(function Tr
 			behavior: "auto"
 		});
 	}, [
+		redirectEventId,
 		flattenedNodes,
 		eventNodes,
 		collapsedTranscript,
@@ -115136,10 +117081,8 @@ var TranscriptPreview = (t0) => {
 //#endregion
 //#region src/app/samples/scans/scanReferences.ts
 function buildScoreMarkdownRefs(metadata, makeUrl, previewTable) {
-	return readScannerReferences(metadata).map((ref) => ({
-		id: ref.id,
-		cite: ref.cite,
-		citeUrl: makeUrl(ref.id, ref.type),
+	return citeReferences(readScannerReferences(metadata), makeUrl).map((ref) => ({
+		...ref,
 		citePreview: previewTable?.get(ref.id)
 	}));
 }
@@ -116270,6 +118213,7 @@ var eventTypes = {
 	tool: "Tool",
 	approval: "Approval",
 	review: "Review",
+	sentinel: "Sentinel",
 	input: "Input",
 	interrupt: "Interrupt",
 	score: "Score",
@@ -117490,7 +119434,14 @@ var SampleDisplayContent = ({ id, scrollRef, showActivity, focusOnLoad }) => {
 	});
 	const transcriptSearchLabels = searchScope === "events" ? searchReferenceLabels : void 0;
 	const messagesSearchLabels = searchScope === "messages" ? searchReferenceLabels : void 0;
-	const transcriptEventNodeContext = (0, import_react.useMemo)(() => mergeTranscriptLabelContext(scans.eventNodeContext, transcriptSearchLabels), [scans.eventNodeContext, transcriptSearchLabels]);
+	const transcriptEventNodeContext = (0, import_react.useMemo)(() => ({
+		...mergeTranscriptLabelContext(scans.eventNodeContext, transcriptSearchLabels),
+		makeCiteUrl: scans.makeCiteUrl
+	}), [
+		scans.eventNodeContext,
+		transcriptSearchLabels,
+		scans.makeCiteUrl
+	]);
 	const tools = [];
 	if (effectiveSelectedTab === kSampleTranscriptTabId) {
 		const label = isNoneFilter ? "None" : isDebugFilter ? "Debug" : isDefaultFilter ? "Default" : "Custom";
@@ -121611,8 +123562,8 @@ function _temp4$13(warning) {
 /**
 The default maximum length of a `TreeBuffer` node.
 */
-var DefaultBufferLength = 1024;
-var nextPropID = 0;
+var DefaultBufferLength$1 = 1024;
+var nextPropID$1 = 0;
 var Range$1 = class {
 	constructor(from, to) {
 		this.from = from;
@@ -121624,12 +123575,12 @@ Each [node type](#common.NodeType) or [individual tree](#common.Tree)
 can have metadata associated with it in props. Instances of this
 class represent prop names.
 */
-var NodeProp = class {
+var NodeProp$1 = class {
 	/**
 	Create a new node prop type.
 	*/
 	constructor(config = {}) {
-		this.id = nextPropID++;
+		this.id = nextPropID$1++;
 		this.perNode = !!config.perNode;
 		this.deserialize = config.deserialize || (() => {
 			throw new Error("This node type doesn't define a deserialize function");
@@ -121647,7 +123598,7 @@ var NodeProp = class {
 	*/
 	add(match) {
 		if (this.perNode) throw new RangeError("Can't add per-node props to node types");
-		if (typeof match != "function") match = NodeType.match(match);
+		if (typeof match != "function") match = NodeType$1.match(match);
 		return (type) => {
 			let result = match(type);
 			return result === void 0 ? null : [this, result];
@@ -121660,19 +123611,19 @@ delimiters, this holds an array of node names (written as a
 space-separated string when declaring this prop in a grammar)
 for the node types of closing delimiters that match it.
 */
-NodeProp.closedBy = new NodeProp({ deserialize: (str) => str.split(" ") });
+NodeProp$1.closedBy = new NodeProp$1({ deserialize: (str) => str.split(" ") });
 /**
 The inverse of [`closedBy`](#common.NodeProp^closedBy). This is
 attached to closing delimiters, holding an array of node names
 of types of matching opening delimiters.
 */
-NodeProp.openedBy = new NodeProp({ deserialize: (str) => str.split(" ") });
+NodeProp$1.openedBy = new NodeProp$1({ deserialize: (str) => str.split(" ") });
 /**
 Used to assign node types to groups (for example, all node
 types that represent an expression could be tagged with an
 `"Expression"` group).
 */
-NodeProp.group = new NodeProp({ deserialize: (str) => str.split(" ") });
+NodeProp$1.group = new NodeProp$1({ deserialize: (str) => str.split(" ") });
 /**
 Attached to nodes to indicate these should be
 [displayed](https://codemirror.net/docs/ref/#language.syntaxTree)
@@ -121684,7 +123635,7 @@ nodes that appear _inside_ arbitrary text, like HTML tags. When
 not given a value, in a grammar declaration, defaults to
 `"auto"`.
 */
-NodeProp.isolate = new NodeProp({ deserialize: (value) => {
+NodeProp$1.isolate = new NodeProp$1({ deserialize: (value) => {
 	if (value && value != "rtl" && value != "ltr" && value != "auto") throw new RangeError("Invalid value for isolate: " + value);
 	return value || "auto";
 } });
@@ -121693,26 +123644,26 @@ The hash of the [context](#lr.ContextTracker.constructor)
 that the node was parsed in, if any. Used to limit reuse of
 contextual nodes.
 */
-NodeProp.contextHash = new NodeProp({ perNode: true });
+NodeProp$1.contextHash = new NodeProp$1({ perNode: true });
 /**
 The distance beyond the end of the node that the tokenizer
 looked ahead for any of the tokens inside the node. (The LR
 parser only stores this when it is larger than 25, for
 efficiency reasons.)
 */
-NodeProp.lookAhead = new NodeProp({ perNode: true });
+NodeProp$1.lookAhead = new NodeProp$1({ perNode: true });
 /**
 This per-node prop is used to replace a given node, or part of a
 node, with another tree. This is useful to include trees from
 different languages in mixed-language parsers.
 */
-NodeProp.mounted = new NodeProp({ perNode: true });
+NodeProp$1.mounted = new NodeProp$1({ perNode: true });
 /**
 A mounted tree, which can be [stored](#common.NodeProp^mounted) on
 a tree node to indicate that parts of its content are
 represented by another tree.
 */
-var MountedTree = class {
+var MountedTree$1 = class {
 	constructor(tree, overlay, parser, bracketed = false) {
 		this.tree = tree;
 		this.overlay = overlay;
@@ -121723,14 +123674,14 @@ var MountedTree = class {
 	@internal
 	*/
 	static get(tree) {
-		return tree && tree.props && tree.props[NodeProp.mounted.id];
+		return tree && tree.props && tree.props[NodeProp$1.mounted.id];
 	}
 };
-var noProps = Object.create(null);
+var noProps$1 = Object.create(null);
 /**
 Each node in a syntax tree has a node type associated with it.
 */
-var NodeType = class NodeType {
+var NodeType$1 = class NodeType$1 {
 	/**
 	@internal
 	*/
@@ -121744,9 +123695,9 @@ var NodeType = class NodeType {
 	Define a node type.
 	*/
 	static define(spec) {
-		let props = spec.props && spec.props.length ? Object.create(null) : noProps;
+		let props = spec.props && spec.props.length ? Object.create(null) : noProps$1;
 		let flags = (spec.top ? 1 : 0) | (spec.skipped ? 2 : 0) | (spec.error ? 4 : 0) | (spec.name == null ? 8 : 0);
-		let type = new NodeType(spec.name || "", props, spec.id, flags);
+		let type = new NodeType$1(spec.name || "", props, spec.id, flags);
 		if (spec.props) for (let src of spec.props) {
 			if (!Array.isArray(src)) src = src(type);
 			if (src) {
@@ -121795,7 +123746,7 @@ var NodeType = class NodeType {
 	is(name) {
 		if (typeof name == "string") {
 			if (this.name == name) return true;
-			let group = this.prop(NodeProp.group);
+			let group = this.prop(NodeProp$1.group);
 			return group ? group.indexOf(name) > -1 : false;
 		}
 		return this.id == name;
@@ -121812,7 +123763,7 @@ var NodeType = class NodeType {
 		let direct = Object.create(null);
 		for (let prop in map) for (let name of prop.split(" ")) direct[name] = map[prop];
 		return (node) => {
-			for (let groups = node.prop(NodeProp.group), i = -1; i < (groups ? groups.length : 0); i++) {
+			for (let groups = node.prop(NodeProp$1.group), i = -1; i < (groups ? groups.length : 0); i++) {
 				let found = direct[i < 0 ? node.name : groups[i]];
 				if (found) return found;
 			}
@@ -121822,7 +123773,7 @@ var NodeType = class NodeType {
 /**
 An empty dummy node type to use when no actual type is available.
 */
-NodeType.none = new NodeType("", Object.create(null), 0, 8);
+NodeType$1.none = new NodeType$1("", Object.create(null), 0, 8);
 /**
 A node set holds a collection of node types. It is used to
 compactly represent trees by storing their type ids, rather than a
@@ -121859,18 +123810,18 @@ var NodeSet = class NodeSet {
 					newProps[prop.id] = value;
 				}
 			}
-			newTypes.push(newProps ? new NodeType(type.name, newProps, type.id, type.flags) : type);
+			newTypes.push(newProps ? new NodeType$1(type.name, newProps, type.id, type.flags) : type);
 		}
 		return new NodeSet(newTypes);
 	}
 };
-var CachedNode = /* @__PURE__ */ new WeakMap();
-var CachedInnerNode = /* @__PURE__ */ new WeakMap();
+var CachedNode$1 = /* @__PURE__ */ new WeakMap();
+var CachedInnerNode$1 = /* @__PURE__ */ new WeakMap();
 /**
 Options that control iteration. Can be combined with the `|`
 operator to enable multiple ones.
 */
-var IterMode;
+var IterMode$1;
 (function(IterMode) {
 	/**
 	When enabled, iteration will only visit [`Tree`](#common.Tree)
@@ -121904,7 +123855,7 @@ var IterMode;
 	[`enter`](#common.SyntaxNode.enter), not in cursors.
 	*/
 	IterMode[IterMode["EnterBracketed"] = 16] = "EnterBracketed";
-})(IterMode || (IterMode = {}));
+})(IterMode$1 || (IterMode$1 = {}));
 /**
 A piece of syntax tree. There are two ways to approach these
 trees: the way they are actually stored in memory, and the
@@ -121921,7 +123872,7 @@ use the [`TreeCursor`](#common.TreeCursor) or
 a view on some part of this data structure, and can be used to
 move around to adjacent nodes.
 */
-var Tree = class Tree {
+var Tree$1 = class Tree$1 {
 	/**
 	Construct a new tree. See also [`Tree.build`](#common.Tree^build).
 	*/
@@ -121943,7 +123894,7 @@ var Tree = class Tree {
 	@internal
 	*/
 	toString() {
-		let mounted = MountedTree.get(this);
+		let mounted = MountedTree$1.get(this);
 		if (mounted && !mounted.overlay) return mounted.tree.toString();
 		let children = "";
 		for (let ch of this.children) {
@@ -121961,7 +123912,7 @@ var Tree = class Tree {
 	nodes the cursor visits.
 	*/
 	cursor(mode = 0) {
-		return new TreeCursor(this.topNode, mode);
+		return new TreeCursor$1(this.topNode, mode);
 	}
 	/**
 	Get a [tree cursor](#common.TreeCursor) pointing into this tree
@@ -121969,9 +123920,9 @@ var Tree = class Tree {
 	[`moveTo`](#common.TreeCursor.moveTo).
 	*/
 	cursorAt(pos, side = 0, mode = 0) {
-		let cursor = new TreeCursor(CachedNode.get(this) || this.topNode);
+		let cursor = new TreeCursor$1(CachedNode$1.get(this) || this.topNode);
 		cursor.moveTo(pos, side);
-		CachedNode.set(this, cursor._tree);
+		CachedNode$1.set(this, cursor._tree);
 		return cursor;
 	}
 	/**
@@ -121979,7 +123930,7 @@ var Tree = class Tree {
 	tree.
 	*/
 	get topNode() {
-		return new TreeNode(this, 0, 0, null);
+		return new TreeNode$1(this, 0, 0, null);
 	}
 	/**
 	Get the [syntax node](#common.SyntaxNode) at the given position.
@@ -121993,8 +123944,8 @@ var Tree = class Tree {
 	[`resolveInner`](#common.Tree.resolveInner) instead.
 	*/
 	resolve(pos, side = 0) {
-		let node = resolveNode(CachedNode.get(this) || this.topNode, pos, side, false);
-		CachedNode.set(this, node);
+		let node = resolveNode$1(CachedNode$1.get(this) || this.topNode, pos, side, false);
+		CachedNode$1.set(this, node);
 		return node;
 	}
 	/**
@@ -122005,8 +123956,8 @@ var Tree = class Tree {
 	the host trees).
 	*/
 	resolveInner(pos, side = 0) {
-		let node = resolveNode(CachedInnerNode.get(this) || this.topNode, pos, side, true);
-		CachedInnerNode.set(this, node);
+		let node = resolveNode$1(CachedInnerNode$1.get(this) || this.topNode, pos, side, true);
+		CachedInnerNode$1.set(this, node);
 		return node;
 	}
 	/**
@@ -122017,7 +123968,7 @@ var Tree = class Tree {
 	position.
 	*/
 	resolveStack(pos, side = 0) {
-		return stackIterator(this, pos, side);
+		return stackIterator$1(this, pos, side);
 	}
 	/**
 	Iterate over the tree and its children, calling `enter` for any
@@ -122028,8 +123979,8 @@ var Tree = class Tree {
 	*/
 	iterate(spec) {
 		let { enter, leave, from = 0, to = this.length } = spec;
-		let mode = spec.mode || 0, anon = (mode & IterMode.IncludeAnonymous) > 0;
-		for (let c = this.cursor(mode | IterMode.IncludeAnonymous);;) {
+		let mode = spec.mode || 0, anon = (mode & IterMode$1.IncludeAnonymous) > 0;
+		for (let c = this.cursor(mode | IterMode$1.IncludeAnonymous);;) {
 			let entered = false;
 			if (c.from <= to && c.to >= from && (!anon && c.type.isAnonymous || enter(c) !== false)) {
 				if (c.firstChild()) continue;
@@ -122066,21 +124017,21 @@ var Tree = class Tree {
 	[`NodeType.none`](#common.NodeType^none).
 	*/
 	balance(config = {}) {
-		return this.children.length <= 8 ? this : balanceRange(NodeType.none, this.children, this.positions, 0, this.children.length, 0, this.length, (children, positions, length) => new Tree(this.type, children, positions, length, this.propValues), config.makeTree || ((children, positions, length) => new Tree(NodeType.none, children, positions, length)));
+		return this.children.length <= 8 ? this : balanceRange$1(NodeType$1.none, this.children, this.positions, 0, this.children.length, 0, this.length, (children, positions, length) => new Tree$1(this.type, children, positions, length, this.propValues), config.makeTree || ((children, positions, length) => new Tree$1(NodeType$1.none, children, positions, length)));
 	}
 	/**
 	Build a tree from a postfix-ordered buffer of node information,
 	or a cursor over such a buffer.
 	*/
 	static build(data) {
-		return buildTree(data);
+		return buildTree$1(data);
 	}
 };
 /**
 The empty tree
 */
-Tree.empty = new Tree(NodeType.none, [], [], 0);
-var FlatBufferCursor = class FlatBufferCursor {
+Tree$1.empty = new Tree$1(NodeType$1.none, [], [], 0);
+var FlatBufferCursor$1 = class FlatBufferCursor$1 {
 	constructor(buffer, index) {
 		this.buffer = buffer;
 		this.index = index;
@@ -122104,7 +124055,7 @@ var FlatBufferCursor = class FlatBufferCursor {
 		this.index -= 4;
 	}
 	fork() {
-		return new FlatBufferCursor(this.buffer, this.index);
+		return new FlatBufferCursor$1(this.buffer, this.index);
 	}
 };
 /**
@@ -122113,7 +124064,7 @@ node. In such a buffer, nodes are stored in prefix order (parents
 before children, with the endIndex of the parent indicating which
 children belong to it).
 */
-var TreeBuffer = class TreeBuffer {
+var TreeBuffer$1 = class TreeBuffer$1 {
 	/**
 	Create a tree buffer.
 	*/
@@ -122126,7 +124077,7 @@ var TreeBuffer = class TreeBuffer {
 	@internal
 	*/
 	get type() {
-		return NodeType.none;
+		return NodeType$1.none;
 	}
 	/**
 	@internal
@@ -122160,7 +124111,7 @@ var TreeBuffer = class TreeBuffer {
 	*/
 	findChild(startIndex, endIndex, dir, pos, side) {
 		let { buffer } = this, pick = -1;
-		for (let i = startIndex; i != endIndex; i = buffer[i + 3]) if (checkSide(side, pos, buffer[i + 1], buffer[i + 2])) {
+		for (let i = startIndex; i != endIndex; i = buffer[i + 3]) if (checkSide$1(side, pos, buffer[i + 1], buffer[i + 2])) {
 			pick = i;
 			if (dir > 0) break;
 		}
@@ -122179,10 +124130,10 @@ var TreeBuffer = class TreeBuffer {
 			copy[j++] = b[i++] - startI;
 			len = Math.max(len, to);
 		}
-		return new TreeBuffer(copy, len, this.set);
+		return new TreeBuffer$1(copy, len, this.set);
 	}
 };
-function checkSide(side, pos, from, to) {
+function checkSide$1(side, pos, from, to) {
 	switch (side) {
 		case -2: return from < pos;
 		case -1: return to >= pos && from < pos;
@@ -122192,16 +124143,16 @@ function checkSide(side, pos, from, to) {
 		case 4: return true;
 	}
 }
-function resolveNode(node, pos, side, overlays) {
+function resolveNode$1(node, pos, side, overlays) {
 	var _a;
 	while (node.from == node.to || (side < 1 ? node.from >= pos : node.from > pos) || (side > -1 ? node.to <= pos : node.to < pos)) {
-		let parent = !overlays && node instanceof TreeNode && node.index < 0 ? null : node.parent;
+		let parent = !overlays && node instanceof TreeNode$1 && node.index < 0 ? null : node.parent;
 		if (!parent) return node;
 		node = parent;
 	}
-	let mode = overlays ? 0 : IterMode.IgnoreOverlays;
+	let mode = overlays ? 0 : IterMode$1.IgnoreOverlays;
 	if (overlays) {
-		for (let scan = node, parent = scan.parent; parent; scan = parent, parent = scan.parent) if (scan instanceof TreeNode && scan.index < 0 && ((_a = parent.enter(pos, side, mode)) === null || _a === void 0 ? void 0 : _a.from) != scan.from) node = parent;
+		for (let scan = node, parent = scan.parent; parent; scan = parent, parent = scan.parent) if (scan instanceof TreeNode$1 && scan.index < 0 && ((_a = parent.enter(pos, side, mode)) === null || _a === void 0 ? void 0 : _a.from) != scan.from) node = parent;
 	}
 	for (;;) {
 		let inner = node.enter(pos, side, mode);
@@ -122209,25 +124160,25 @@ function resolveNode(node, pos, side, overlays) {
 		node = inner;
 	}
 }
-var BaseNode = class {
+var BaseNode$1 = class {
 	cursor(mode = 0) {
-		return new TreeCursor(this, mode);
+		return new TreeCursor$1(this, mode);
 	}
 	getChild(type, before = null, after = null) {
-		let r = getChildren(this, type, before, after);
+		let r = getChildren$1(this, type, before, after);
 		return r.length ? r[0] : null;
 	}
 	getChildren(type, before = null, after = null) {
-		return getChildren(this, type, before, after);
+		return getChildren$1(this, type, before, after);
 	}
 	resolve(pos, side = 0) {
-		return resolveNode(this, pos, side, false);
+		return resolveNode$1(this, pos, side, false);
 	}
 	resolveInner(pos, side = 0) {
-		return resolveNode(this, pos, side, true);
+		return resolveNode$1(this, pos, side, true);
 	}
 	matchContext(context) {
-		return matchNodeContext(this.parent, context);
+		return matchNodeContext$1(this.parent, context);
 	}
 	enterUnfinishedNodesBefore(pos) {
 		let scan = this.childBefore(pos), node = this;
@@ -122248,7 +124199,7 @@ var BaseNode = class {
 		return this.parent;
 	}
 };
-var TreeNode = class TreeNode extends BaseNode {
+var TreeNode$1 = class TreeNode$1 extends BaseNode$1 {
 	constructor(_tree, from, index, _parent) {
 		super();
 		this._tree = _tree;
@@ -122269,19 +124220,19 @@ var TreeNode = class TreeNode extends BaseNode {
 		for (let parent = this;;) {
 			for (let { children, positions } = parent._tree, e = dir > 0 ? children.length : -1; i != e; i += dir) {
 				let next = children[i], start = positions[i] + parent.from, mounted;
-				if (!(mode & IterMode.EnterBracketed && next instanceof Tree && (mounted = MountedTree.get(next)) && !mounted.overlay && mounted.bracketed && pos >= start && pos <= start + next.length) && !checkSide(side, pos, start, start + next.length)) continue;
-				if (next instanceof TreeBuffer) {
-					if (mode & IterMode.ExcludeBuffers) continue;
+				if (!(mode & IterMode$1.EnterBracketed && next instanceof Tree$1 && (mounted = MountedTree$1.get(next)) && !mounted.overlay && mounted.bracketed && pos >= start && pos <= start + next.length) && !checkSide$1(side, pos, start, start + next.length)) continue;
+				if (next instanceof TreeBuffer$1) {
+					if (mode & IterMode$1.ExcludeBuffers) continue;
 					let index = next.findChild(0, next.buffer.length, dir, pos - start, side);
-					if (index > -1) return new BufferNode(new BufferContext(parent, next, i, start), null, index);
-				} else if (mode & IterMode.IncludeAnonymous || !next.type.isAnonymous || hasChild(next)) {
+					if (index > -1) return new BufferNode$1(new BufferContext$1(parent, next, i, start), null, index);
+				} else if (mode & IterMode$1.IncludeAnonymous || !next.type.isAnonymous || hasChild$1(next)) {
 					let mounted;
-					if (!(mode & IterMode.IgnoreMounts) && (mounted = MountedTree.get(next)) && !mounted.overlay) return new TreeNode(mounted.tree, start, i, parent);
-					let inner = new TreeNode(next, start, i, parent);
-					return mode & IterMode.IncludeAnonymous || !inner.type.isAnonymous ? inner : inner.nextChild(dir < 0 ? next.children.length - 1 : 0, dir, pos, side, mode);
+					if (!(mode & IterMode$1.IgnoreMounts) && (mounted = MountedTree$1.get(next)) && !mounted.overlay) return new TreeNode$1(mounted.tree, start, i, parent);
+					let inner = new TreeNode$1(next, start, i, parent);
+					return mode & IterMode$1.IncludeAnonymous || !inner.type.isAnonymous ? inner : inner.nextChild(dir < 0 ? next.children.length - 1 : 0, dir, pos, side, mode);
 				}
 			}
-			if (mode & IterMode.IncludeAnonymous || !parent.type.isAnonymous) return null;
+			if (mode & IterMode$1.IncludeAnonymous || !parent.type.isAnonymous) return null;
 			if (parent.index >= 0) i = parent.index + dir;
 			else i = dir < 0 ? -1 : parent._parent._tree.children.length;
 			parent = parent._parent;
@@ -122305,9 +124256,9 @@ var TreeNode = class TreeNode extends BaseNode {
 	}
 	enter(pos, side, mode = 0) {
 		let mounted;
-		if (!(mode & IterMode.IgnoreOverlays) && (mounted = MountedTree.get(this._tree)) && mounted.overlay) {
-			let rPos = pos - this.from, enterBracketed = mode & IterMode.EnterBracketed && mounted.bracketed;
-			for (let { from, to } of mounted.overlay) if ((side > 0 || enterBracketed ? from <= rPos : from < rPos) && (side < 0 || enterBracketed ? to >= rPos : to > rPos)) return new TreeNode(mounted.tree, mounted.overlay[0].from + this.from, -1, this);
+		if (!(mode & IterMode$1.IgnoreOverlays) && (mounted = MountedTree$1.get(this._tree)) && mounted.overlay) {
+			let rPos = pos - this.from, enterBracketed = mode & IterMode$1.EnterBracketed && mounted.bracketed;
+			for (let { from, to } of mounted.overlay) if ((side > 0 || enterBracketed ? from <= rPos : from < rPos) && (side < 0 || enterBracketed ? to >= rPos : to > rPos)) return new TreeNode$1(mounted.tree, mounted.overlay[0].from + this.from, -1, this);
 		}
 		return this.nextChild(0, 1, pos, side, mode);
 	}
@@ -122338,7 +124289,7 @@ var TreeNode = class TreeNode extends BaseNode {
 		return this._tree.toString();
 	}
 };
-function getChildren(node, type, before, after) {
+function getChildren$1(node, type, before, after) {
 	let cur = node.cursor(), result = [];
 	if (!cur.firstChild()) return result;
 	if (before != null) for (let found = false; !found;) {
@@ -122351,7 +124302,7 @@ function getChildren(node, type, before, after) {
 		if (!cur.nextSibling()) return after == null ? result : [];
 	}
 }
-function matchNodeContext(node, context, i = context.length - 1) {
+function matchNodeContext$1(node, context, i = context.length - 1) {
 	for (let p = node; i >= 0; p = p.parent) {
 		if (!p) return false;
 		if (!p.type.isAnonymous) {
@@ -122361,7 +124312,7 @@ function matchNodeContext(node, context, i = context.length - 1) {
 	}
 	return true;
 }
-var BufferContext = class {
+var BufferContext$1 = class {
 	constructor(parent, buffer, index, start) {
 		this.parent = parent;
 		this.buffer = buffer;
@@ -122369,7 +124320,7 @@ var BufferContext = class {
 		this.start = start;
 	}
 };
-var BufferNode = class BufferNode extends BaseNode {
+var BufferNode$1 = class BufferNode$1 extends BaseNode$1 {
 	get name() {
 		return this.type.name;
 	}
@@ -122389,7 +124340,7 @@ var BufferNode = class BufferNode extends BaseNode {
 	child(dir, pos, side) {
 		let { buffer } = this.context;
 		let index = buffer.findChild(this.index + 4, buffer.buffer[this.index + 3], dir, pos - this.context.start, side);
-		return index < 0 ? null : new BufferNode(this.context, this, index);
+		return index < 0 ? null : new BufferNode$1(this.context, this, index);
 	}
 	get firstChild() {
 		return this.child(1, 0, 4);
@@ -122407,10 +124358,10 @@ var BufferNode = class BufferNode extends BaseNode {
 		return this.type.prop(prop);
 	}
 	enter(pos, side, mode = 0) {
-		if (mode & IterMode.ExcludeBuffers) return null;
+		if (mode & IterMode$1.ExcludeBuffers) return null;
 		let { buffer } = this.context;
 		let index = buffer.findChild(this.index + 4, buffer.buffer[this.index + 3], side > 0 ? 1 : -1, pos - this.context.start, side);
-		return index < 0 ? null : new BufferNode(this.context, this, index);
+		return index < 0 ? null : new BufferNode$1(this.context, this, index);
 	}
 	get parent() {
 		return this._parent || this.context.parent.nextSignificantParent();
@@ -122421,14 +124372,14 @@ var BufferNode = class BufferNode extends BaseNode {
 	get nextSibling() {
 		let { buffer } = this.context;
 		let after = buffer.buffer[this.index + 3];
-		if (after < (this._parent ? buffer.buffer[this._parent.index + 3] : buffer.buffer.length)) return new BufferNode(this.context, this._parent, after);
+		if (after < (this._parent ? buffer.buffer[this._parent.index + 3] : buffer.buffer.length)) return new BufferNode$1(this.context, this._parent, after);
 		return this.externalSibling(1);
 	}
 	get prevSibling() {
 		let { buffer } = this.context;
 		let parentStart = this._parent ? this._parent.index + 4 : 0;
 		if (this.index == parentStart) return this.externalSibling(-1);
-		return new BufferNode(this.context, this._parent, buffer.findChild(parentStart, this.index, -1, 0, 4));
+		return new BufferNode$1(this.context, this._parent, buffer.findChild(parentStart, this.index, -1, 0, 4));
 	}
 	get tree() {
 		return null;
@@ -122442,7 +124393,7 @@ var BufferNode = class BufferNode extends BaseNode {
 			children.push(buffer.slice(startI, endI, from));
 			positions.push(0);
 		}
-		return new Tree(this.type, children, positions, this.to - this.from);
+		return new Tree$1(this.type, children, positions, this.to - this.from);
 	}
 	/**
 	@internal
@@ -122451,7 +124402,7 @@ var BufferNode = class BufferNode extends BaseNode {
 		return this.context.buffer.childString(this.index);
 	}
 };
-function iterStack(heads) {
+function iterStack$1(heads) {
 	if (!heads.length) return null;
 	let pick = 0, picked = heads[0];
 	for (let i = 1; i < heads.length; i++) {
@@ -122461,41 +124412,41 @@ function iterStack(heads) {
 			pick = i;
 		}
 	}
-	let next = picked instanceof TreeNode && picked.index < 0 ? null : picked.parent;
+	let next = picked instanceof TreeNode$1 && picked.index < 0 ? null : picked.parent;
 	let newHeads = heads.slice();
 	if (next) newHeads[pick] = next;
 	else newHeads.splice(pick, 1);
-	return new StackIterator(newHeads, picked);
+	return new StackIterator$1(newHeads, picked);
 }
-var StackIterator = class {
+var StackIterator$1 = class {
 	constructor(heads, node) {
 		this.heads = heads;
 		this.node = node;
 	}
 	get next() {
-		return iterStack(this.heads);
+		return iterStack$1(this.heads);
 	}
 };
-function stackIterator(tree, pos, side) {
+function stackIterator$1(tree, pos, side) {
 	let inner = tree.resolveInner(pos, side), layers = null;
-	for (let scan = inner instanceof TreeNode ? inner : inner.context.parent; scan; scan = scan.parent) if (scan.index < 0) {
+	for (let scan = inner instanceof TreeNode$1 ? inner : inner.context.parent; scan; scan = scan.parent) if (scan.index < 0) {
 		let parent = scan.parent;
 		(layers || (layers = [inner])).push(parent.resolve(pos, side));
 		scan = parent;
 	} else {
-		let mount = MountedTree.get(scan.tree);
+		let mount = MountedTree$1.get(scan.tree);
 		if (mount && mount.overlay && mount.overlay[0].from <= pos && mount.overlay[mount.overlay.length - 1].to >= pos) {
-			let root = new TreeNode(mount.tree, mount.overlay[0].from + scan.from, -1, scan);
-			(layers || (layers = [inner])).push(resolveNode(root, pos, side, false));
+			let root = new TreeNode$1(mount.tree, mount.overlay[0].from + scan.from, -1, scan);
+			(layers || (layers = [inner])).push(resolveNode$1(root, pos, side, false));
 		}
 	}
-	return layers ? iterStack(layers) : inner;
+	return layers ? iterStack$1(layers) : inner;
 }
 /**
 A tree cursor object focuses on a given node in a syntax tree, and
 allows you to move to adjacent nodes.
 */
-var TreeCursor = class {
+var TreeCursor$1 = class {
 	/**
 	Shorthand for `.type.name`.
 	*/
@@ -122516,8 +124467,8 @@ var TreeCursor = class {
 		*/
 		this.index = 0;
 		this.bufferNode = null;
-		this.mode = mode & ~IterMode.EnterBracketed;
-		if (node instanceof TreeNode) this.yieldNode(node);
+		this.mode = mode & ~IterMode$1.EnterBracketed;
+		if (node instanceof TreeNode$1) this.yieldNode(node);
 		else {
 			this._tree = node.context.parent;
 			this.buffer = node.context;
@@ -122547,7 +124498,7 @@ var TreeCursor = class {
 	*/
 	yield(node) {
 		if (!node) return false;
-		if (node instanceof TreeNode) {
+		if (node instanceof TreeNode$1) {
 			this.buffer = null;
 			return this.yieldNode(node);
 		}
@@ -122605,15 +124556,15 @@ var TreeCursor = class {
 	*/
 	enter(pos, side, mode = this.mode) {
 		if (!this.buffer) return this.yield(this._tree.enter(pos, side, mode));
-		return mode & IterMode.ExcludeBuffers ? false : this.enterChild(1, pos, side);
+		return mode & IterMode$1.ExcludeBuffers ? false : this.enterChild(1, pos, side);
 	}
 	/**
 	Move to the node's parent node, if this isn't the top node.
 	*/
 	parent() {
-		if (!this.buffer) return this.yieldNode(this.mode & IterMode.IncludeAnonymous ? this._tree._parent : this._tree.parent);
+		if (!this.buffer) return this.yieldNode(this.mode & IterMode$1.IncludeAnonymous ? this._tree._parent : this._tree.parent);
 		if (this.stack.length) return this.yieldBuf(this.stack.pop());
-		let parent = this.mode & IterMode.IncludeAnonymous ? this.buffer.parent : this.buffer.parent.nextSignificantParent();
+		let parent = this.mode & IterMode$1.IncludeAnonymous ? this.buffer.parent : this.buffer.parent.nextSignificantParent();
 		this.buffer = null;
 		return this.yieldNode(parent);
 	}
@@ -122654,7 +124605,7 @@ var TreeCursor = class {
 		} else ({index, _parent: parent} = this._tree);
 		for (; parent; {index, _parent: parent} = parent) if (index > -1) for (let i = index + dir, e = dir < 0 ? -1 : parent._tree.children.length; i != e; i += dir) {
 			let child = parent._tree.children[i];
-			if (this.mode & IterMode.IncludeAnonymous || child instanceof TreeBuffer || !child.type.isAnonymous || hasChild(child)) return false;
+			if (this.mode & IterMode$1.IncludeAnonymous || child instanceof TreeBuffer$1 || !child.type.isAnonymous || hasChild$1(child)) return false;
 		}
 		return true;
 	}
@@ -122710,8 +124661,8 @@ var TreeCursor = class {
 			}
 			index = this.stack[--d];
 		}
-		for (let i = depth; i < this.stack.length; i++) result = new BufferNode(this.buffer, result, this.stack[i]);
-		return this.bufferNode = new BufferNode(this.buffer, result, this.index);
+		for (let i = depth; i < this.stack.length; i++) result = new BufferNode$1(this.buffer, result, this.stack[i]);
+		return this.bufferNode = new BufferNode$1(this.buffer, result, this.index);
 	}
 	/**
 	Get the [tree](#common.Tree) that represents the current node, if
@@ -122754,10 +124705,10 @@ var TreeCursor = class {
 	are treated as wildcards.
 	*/
 	matchContext(context) {
-		if (!this.buffer) return matchNodeContext(this.node.parent, context);
+		if (!this.buffer) return matchNodeContext$1(this.node.parent, context);
 		let { buffer } = this.buffer, { types } = buffer.set;
 		for (let i = context.length - 1, d = this.stack.length - 1; i >= 0; d--) {
-			if (d < 0) return matchNodeContext(this._tree, context, i);
+			if (d < 0) return matchNodeContext$1(this._tree, context, i);
 			let type = types[buffer.buffer[this.stack[d]]];
 			if (!type.isAnonymous) {
 				if (context[i] && context[i] != type.name) return false;
@@ -122767,13 +124718,13 @@ var TreeCursor = class {
 		return true;
 	}
 };
-function hasChild(tree) {
-	return tree.children.some((ch) => ch instanceof TreeBuffer || !ch.type.isAnonymous || hasChild(ch));
+function hasChild$1(tree) {
+	return tree.children.some((ch) => ch instanceof TreeBuffer$1 || !ch.type.isAnonymous || hasChild$1(ch));
 }
-function buildTree(data) {
+function buildTree$1(data) {
 	var _a;
-	let { buffer, nodeSet, maxBufferLength = DefaultBufferLength, reused = [], minRepeatType = nodeSet.types.length } = data;
-	let cursor = Array.isArray(buffer) ? new FlatBufferCursor(buffer, buffer.length) : buffer;
+	let { buffer, nodeSet, maxBufferLength = DefaultBufferLength$1, reused = [], minRepeatType = nodeSet.types.length } = data;
+	let cursor = Array.isArray(buffer) ? new FlatBufferCursor$1(buffer, buffer.length) : buffer;
 	let types = nodeSet.types;
 	let contextHash = 0, lookAhead = 0;
 	function takeNode(parentStart, minPos, children, positions, inRepeat, depth) {
@@ -122800,7 +124751,7 @@ function buildTree(data) {
 			let data = new Uint16Array(buffer.size - buffer.skip);
 			let endPos = cursor.pos - buffer.size, index = data.length;
 			while (cursor.pos > endPos) index = copyToBuffer(buffer.start, data, index);
-			node = new TreeBuffer(data, end - buffer.start, nodeSet);
+			node = new TreeBuffer$1(data, end - buffer.start, nodeSet);
 			startPos = buffer.start - parentStart;
 		} else {
 			let endPos = cursor.pos - size;
@@ -122822,7 +124773,7 @@ function buildTree(data) {
 			localPositions.reverse();
 			if (localInRepeat > -1 && lastGroup > 0) {
 				let make = makeBalanced(type, contextAtStart);
-				node = balanceRange(type, localChildren, localPositions, 0, localChildren.length, 0, end - start, make, make);
+				node = balanceRange$1(type, localChildren, localPositions, 0, localChildren.length, 0, end - start, make, make);
 			} else node = makeTree(type, localChildren, localPositions, end - start, lookAheadAtStart - end, contextAtStart);
 		}
 		children.push(node);
@@ -122851,16 +124802,16 @@ function buildTree(data) {
 				buffer[j++] = nodes[i + 2] - start;
 				buffer[j++] = j;
 			}
-			children.push(new TreeBuffer(buffer, nodes[2] - start, nodeSet));
+			children.push(new TreeBuffer$1(buffer, nodes[2] - start, nodeSet));
 			positions.push(start - parentStart);
 		}
 	}
 	function makeBalanced(type, contextHash) {
 		return (children, positions, length) => {
 			let lookAhead = 0, lastI = children.length - 1, last, lookAheadProp;
-			if (lastI >= 0 && (last = children[lastI]) instanceof Tree) {
+			if (lastI >= 0 && (last = children[lastI]) instanceof Tree$1) {
 				if (!lastI && last.type == type && last.length == length) return last;
-				if (lookAheadProp = last.prop(NodeProp.lookAhead)) lookAhead = positions[lastI] + last.length + lookAheadProp;
+				if (lookAheadProp = last.prop(NodeProp$1.lookAhead)) lookAhead = positions[lastI] + last.length + lookAheadProp;
 			}
 			return makeTree(type, children, positions, length, lookAhead, contextHash);
 		};
@@ -122876,14 +124827,14 @@ function buildTree(data) {
 	}
 	function makeTree(type, children, positions, length, lookAhead, contextHash, props) {
 		if (contextHash) {
-			let pair = [NodeProp.contextHash, contextHash];
+			let pair = [NodeProp$1.contextHash, contextHash];
 			props = props ? [pair].concat(props) : [pair];
 		}
 		if (lookAhead > 25) {
-			let pair = [NodeProp.lookAhead, lookAhead];
+			let pair = [NodeProp$1.lookAhead, lookAhead];
 			props = props ? [pair].concat(props) : [pair];
 		}
-		return new Tree(type, children, positions, length, props);
+		return new Tree$1(type, children, positions, length, props);
 	}
 	function findBufferSize(maxSize, inRepeat) {
 		let fork = cursor.fork();
@@ -122947,36 +124898,36 @@ function buildTree(data) {
 	let children = [], positions = [];
 	while (cursor.pos > 0) takeNode(data.start || 0, data.bufferStart || 0, children, positions, -1, 0);
 	let length = (_a = data.length) !== null && _a !== void 0 ? _a : children.length ? positions[0] + children[0].length : 0;
-	return new Tree(types[data.topID], children.reverse(), positions.reverse(), length);
+	return new Tree$1(types[data.topID], children.reverse(), positions.reverse(), length);
 }
-var nodeSizeCache = /* @__PURE__ */ new WeakMap();
-function nodeSize(balanceType, node) {
-	if (!balanceType.isAnonymous || node instanceof TreeBuffer || node.type != balanceType) return 1;
-	let size = nodeSizeCache.get(node);
+var nodeSizeCache$1 = /* @__PURE__ */ new WeakMap();
+function nodeSize$1(balanceType, node) {
+	if (!balanceType.isAnonymous || node instanceof TreeBuffer$1 || node.type != balanceType) return 1;
+	let size = nodeSizeCache$1.get(node);
 	if (size == null) {
 		size = 1;
 		for (let child of node.children) {
-			if (child.type != balanceType || !(child instanceof Tree)) {
+			if (child.type != balanceType || !(child instanceof Tree$1)) {
 				size = 1;
 				break;
 			}
-			size += nodeSize(balanceType, child);
+			size += nodeSize$1(balanceType, child);
 		}
-		nodeSizeCache.set(node, size);
+		nodeSizeCache$1.set(node, size);
 	}
 	return size;
 }
-function balanceRange(balanceType, children, positions, from, to, start, length, mkTop, mkTree) {
+function balanceRange$1(balanceType, children, positions, from, to, start, length, mkTop, mkTree) {
 	let total = 0;
-	for (let i = from; i < to; i++) total += nodeSize(balanceType, children[i]);
+	for (let i = from; i < to; i++) total += nodeSize$1(balanceType, children[i]);
 	let maxChild = Math.ceil(total * 1.5 / 8);
 	let localChildren = [], localPositions = [];
 	function divide(children, positions, from, to, offset) {
 		for (let i = from; i < to;) {
-			let groupFrom = i, groupStart = positions[i], groupSize = nodeSize(balanceType, children[i]);
+			let groupFrom = i, groupStart = positions[i], groupSize = nodeSize$1(balanceType, children[i]);
 			i++;
 			for (; i < to; i++) {
-				let nextSize = nodeSize(balanceType, children[i]);
+				let nextSize = nodeSize$1(balanceType, children[i]);
 				if (groupSize + nextSize >= maxChild) break;
 				groupSize += nextSize;
 			}
@@ -122989,7 +124940,7 @@ function balanceRange(balanceType, children, positions, from, to, start, length,
 				localChildren.push(children[groupFrom]);
 			} else {
 				let length = positions[i - 1] + children[i - 1].length - groupStart;
-				localChildren.push(balanceRange(balanceType, children, positions, groupFrom, i, groupStart, length, null, mkTree));
+				localChildren.push(balanceRange$1(balanceType, children, positions, groupFrom, i, groupStart, length, null, mkTree));
 			}
 			localPositions.push(groupStart + offset - start);
 		}
@@ -123125,7 +125076,7 @@ var StringInput = class {
 		return this.string.slice(from, to);
 	}
 };
-new NodeProp({ perNode: true });
+new NodeProp$1({ perNode: true });
 //#endregion
 //#region ../../node_modules/.pnpm/@marijn+find-cluster-break@1.0.4/node_modules/@marijn/find-cluster-break/src/index.js
 var rangeFrom = [];
@@ -123198,7 +125149,7 @@ function codePointSize$1(code) {
 	return code < 65536 ? 1 : 2;
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@codemirror+state@6.7.5/node_modules/@codemirror/state/dist/index.js
+//#region ../../node_modules/.pnpm/@codemirror+state@6.7.6/node_modules/@codemirror/state/dist/index.js
 /**
 The data structure for documents. @nonabstract
 */
@@ -125505,7 +127456,7 @@ var EditorState = class EditorState {
 				to: range.to,
 				insert: text
 			},
-			range: EditorSelection.cursor(range.from + text.length)
+			range: EditorSelection.cursor(range.from + text.length, -1)
 		}));
 	}
 	/**
@@ -126833,7 +128784,7 @@ function add(elt, child) {
 	else throw new RangeError("Unsupported child node: " + child);
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@codemirror+view@6.43.12/node_modules/@codemirror/view/dist/index.js
+//#region ../../node_modules/.pnpm/@codemirror+view@6.43.13/node_modules/@codemirror/view/dist/index.js
 var nav = typeof navigator != "undefined" ? navigator : {
 	userAgent: "",
 	vendor: "",
@@ -127822,8 +129773,15 @@ function trivialOrder(length) {
 var movedOver = "";
 function moveVisually(line, order, dir, start, forward) {
 	var _a;
-	let startIndex = start.head - line.from;
-	let spanI = BidiSpan.find(order, startIndex, (_a = start.bidiLevel) !== null && _a !== void 0 ? _a : -1, start.assoc);
+	if (!line.length) return null;
+	let startIndex = start.head - line.from, spanI;
+	if (start.head == line.from && start.assoc < 0) {
+		if (!forward) return null;
+		startIndex = order[spanI = 0].side(false, dir);
+	} else if (start.head == line.to && start.assoc > 0) {
+		if (forward) return null;
+		startIndex = order[spanI = order.length - 1].side(true, dir);
+	} else spanI = BidiSpan.find(order, startIndex, (_a = start.bidiLevel) !== null && _a !== void 0 ? _a : -1, start.assoc);
 	let span = order[spanI], spanEnd = span.side(forward, dir);
 	if (startIndex == spanEnd) {
 		let nextI = spanI += forward ? 1 : -1;
@@ -127836,7 +129794,10 @@ function moveVisually(line, order, dir, start, forward) {
 	if (nextIndex < span.from || nextIndex > span.to) nextIndex = spanEnd;
 	movedOver = line.text.slice(Math.min(startIndex, nextIndex), Math.max(startIndex, nextIndex));
 	let nextSpan = spanI == (forward ? order.length - 1 : 0) ? null : order[spanI + (forward ? 1 : -1)];
-	if (nextSpan && nextIndex == spanEnd && nextSpan.level + (forward ? 0 : 1) < span.level) return EditorSelection.cursor(nextSpan.side(!forward, dir) + line.from, nextSpan.forward(forward, dir) ? 1 : -1, nextSpan.level);
+	if (nextIndex == spanEnd) {
+		if (!nextSpan) return forward ? EditorSelection.cursor(line.to, 1) : EditorSelection.cursor(line.from, -1);
+		if (nextSpan.level + (forward ? 0 : 1) < span.level) return EditorSelection.cursor(nextSpan.side(!forward, dir) + line.from, nextSpan.forward(forward, dir) ? 1 : -1, nextSpan.level);
+	}
 	return EditorSelection.cursor(nextIndex + line.from, span.forward(forward, dir) ? -1 : 1, span.level);
 }
 function autoDirection(text, from, to) {
@@ -129856,8 +131817,6 @@ function moveToLineBoundary(view, start, forward, includeWrap) {
 		});
 		if (pos != null) return EditorSelection.cursor(pos, forward ? -1 : 1);
 	}
-	let line = view.state.doc.lineAt(start.head);
-	if (forward ? line.to == block.to : line.from == block.from) return view.visualLineSide(line, forward);
 	return EditorSelection.cursor(forward ? block.to : block.from, forward ? -1 : 1);
 }
 function moveByChar(view, start, forward, by) {
@@ -129870,7 +131829,7 @@ function moveByChar(view, start, forward, by) {
 			char = "\n";
 			line = view.state.doc.line(line.number + (forward ? 1 : -1));
 			spans = view.bidiSpans(line);
-			next = view.visualLineSide(line, !forward);
+			next = forward ? EditorSelection.cursor(line.from, -1) : EditorSelection.cursor(line.to, 1);
 		}
 		if (!check) {
 			if (!by) return next;
@@ -130469,7 +132428,7 @@ function selectionPoints(view) {
 function selectionFromPoints(points, base) {
 	if (points.length == 0) return null;
 	let anchor = points[0].pos, head = points.length == 2 ? points[1].pos : anchor;
-	return anchor > -1 && head > -1 ? EditorSelection.single(anchor + base, head + base) : null;
+	return anchor < 0 || head < 0 ? null : anchor == head ? EditorSelection.create([EditorSelection.cursor(head + base, -1)]) : EditorSelection.single(anchor + base, head + base);
 }
 function sameSelPos(selection, range) {
 	return range.head == selection.main.head && range.anchor == selection.main.anchor;
@@ -130563,12 +132522,14 @@ var InputState = class {
 				shiftKey: event.shiftKey
 			};
 			if (mods.shiftKey && browser.ios && !/^(off|none)$/.test(this.view.contentDOM.autocapitalize) && iosVirtualKeyboardOpen(this.view.win)) mods.shiftKey = false;
-			this.pendingIOSKey = {
+			let pending = this.pendingIOSKey = {
 				key: event.key,
 				keyCode: event.keyCode,
 				mods
 			};
-			setTimeout(() => this.flushIOSKey(), 50);
+			setTimeout(() => {
+				if (this.pendingIOSKey == pending) this.flushIOSKey();
+			}, 50);
 			return true;
 		}
 		if (event.keyCode != 229) this.view.observer.forceFlush();
@@ -130830,7 +132791,7 @@ function doPaste(view, input) {
 					from: line.from,
 					insert
 				},
-				range: EditorSelection.cursor(range.from + insert.length)
+				range: EditorSelection.cursor(range.from + insert.length, -1)
 			};
 		});
 	} else if (byLine) changes = state.changeByRange((range) => {
@@ -130841,7 +132802,7 @@ function doPaste(view, input) {
 				to: range.to,
 				insert: line.text
 			},
-			range: EditorSelection.cursor(range.from + line.length)
+			range: EditorSelection.cursor(range.from + line.length, -1)
 		};
 	});
 	else changes = state.replaceSelection(text);
@@ -131440,12 +133401,12 @@ var HeightMap = class HeightMap {
 			let next = nodes[--j];
 			if (next) after += next.size;
 		}
-		let brk = 0;
+		let brk = false;
 		if (nodes[i - 1] == null) {
-			brk = 1;
+			brk = true;
 			i--;
 		} else if (nodes[i] == null) {
-			brk = 1;
+			brk = true;
 			j++;
 		}
 		return new HeightMapBranch(HeightMap.of(nodes.slice(0, i)), brk, HeightMap.of(nodes.slice(j)));
@@ -131644,7 +133605,7 @@ var HeightMapGap = class HeightMapGap extends HeightMap {
 };
 var HeightMapBranch = class extends HeightMap {
 	constructor(left, brk, right) {
-		super(left.length + brk + right.length, left.height + right.height, brk | (left.outdated || right.outdated ? 2 : 0));
+		super(left.length + (brk ? 1 : 0) + right.length, left.height + right.height, (brk ? 1 : 0) | (left.outdated || right.outdated ? 2 : 0));
 		this.left = left;
 		this.right = right;
 		this.size = left.size + right.size;
@@ -131672,9 +133633,9 @@ var HeightMapBranch = class extends HeightMap {
 			if (to >= rightOffset) this.right.forEachLine(from, to, oracle, rightTop, rightOffset, f);
 		} else {
 			let mid = this.lineAt(rightOffset, QueryType.ByPos, oracle, top, offset);
-			if (from < mid.from) this.left.forEachLine(from, mid.from - 1, oracle, top, offset, f);
+			if (from < mid.from) this.left.forEachLine(from, Math.min(to, mid.from - 1), oracle, top, offset, f);
 			if (mid.to >= from && mid.from <= to) f(mid);
-			if (to > mid.to) this.right.forEachLine(mid.to + 1, to, oracle, rightTop, rightOffset, f);
+			if (to > mid.to) this.right.forEachLine(Math.max(from, mid.to + 1), to, oracle, rightTop, rightOffset, f);
 		}
 	}
 	replace(from, to, nodes) {
@@ -133799,15 +135760,11 @@ var EditorView = class EditorView {
 		return skipAtoms(this, start, moveByChar(this, start, forward, (initial) => byGroup(this, start.head, initial)));
 	}
 	/**
-	Get the cursor position visually at the start or end of a line.
-	Note that this may differ from the _logical_ position at its
-	start or end (which is simply at `line.from`/`line.to`) if text
-	at the start or end goes against the line's base text direction.
+	**\[DEPRECATED]** Get the cursor position visually at the start
+	or end of a line.
 	*/
 	visualLineSide(line, end) {
-		let order = this.bidiSpans(line), dir = this.textDirectionAt(line.from);
-		let span = order[end ? order.length - 1 : 0];
-		return EditorSelection.cursor(span.side(end, dir) + line.from, span.forward(!end, dir) ? 1 : -1);
+		return end ? EditorSelection.cursor(line.to, 1) : EditorSelection.cursor(line.from, -1);
 	}
 	/**
 	Move to the next line boundary in the given direction. If
@@ -133876,6 +135833,15 @@ var EditorView = class EditorView {
 		this.readMeasured();
 		let line = this.state.doc.lineAt(pos), order = this.bidiSpans(line);
 		let span = order[BidiSpan.find(order, pos - line.from, -1, side)];
+		if (line.length && (pos == line.from && side < 0 || pos == line.to && side > 0) && span.dir != this.textDirectionAt(line.from)) {
+			if (pos == line.to) {
+				pos = line.from + span.from;
+				side = 1;
+			} else {
+				pos = line.from + span.to;
+				side = -1;
+			}
+		}
 		return this.docView.coordsAt(pos, side, span.dir == Direction.RTL);
 	}
 	/**
@@ -135866,7 +137832,1352 @@ GutterMarker.prototype.mapMode = MapMode.TrackBefore;
 GutterMarker.prototype.startSide = GutterMarker.prototype.endSide = -1;
 GutterMarker.prototype.point = true;
 //#endregion
-//#region ../../node_modules/.pnpm/@lezer+highlight@1.2.3/node_modules/@lezer/highlight/dist/index.js
+//#region ../../node_modules/.pnpm/@lezer+common@1.5.3/node_modules/@lezer/common/dist/index.js
+/**
+The default maximum length of a `TreeBuffer` node.
+*/
+var DefaultBufferLength = 1024;
+var nextPropID = 0;
+/**
+Each [node type](#common.NodeType) or [individual tree](#common.Tree)
+can have metadata associated with it in props. Instances of this
+class represent prop names.
+*/
+var NodeProp = class {
+	/**
+	Create a new node prop type.
+	*/
+	constructor(config = {}) {
+		this.id = nextPropID++;
+		this.perNode = !!config.perNode;
+		this.deserialize = config.deserialize || (() => {
+			throw new Error("This node type doesn't define a deserialize function");
+		});
+		this.combine = config.combine || null;
+	}
+	/**
+	This is meant to be used with
+	[`NodeSet.extend`](#common.NodeSet.extend) or
+	[`LRParser.configure`](#lr.ParserConfig.props) to compute
+	prop values for each node type in the set. Takes a [match
+	object](#common.NodeType^match) or function that returns undefined
+	if the node type doesn't get this prop, and the prop's value if
+	it does.
+	*/
+	add(match) {
+		if (this.perNode) throw new RangeError("Can't add per-node props to node types");
+		if (typeof match != "function") match = NodeType.match(match);
+		return (type) => {
+			let result = match(type);
+			return result === void 0 ? null : [this, result];
+		};
+	}
+};
+/**
+Prop that is used to describe matching delimiters. For opening
+delimiters, this holds an array of node names (written as a
+space-separated string when declaring this prop in a grammar)
+for the node types of closing delimiters that match it.
+*/
+NodeProp.closedBy = new NodeProp({ deserialize: (str) => str.split(" ") });
+/**
+The inverse of [`closedBy`](#common.NodeProp^closedBy). This is
+attached to closing delimiters, holding an array of node names
+of types of matching opening delimiters.
+*/
+NodeProp.openedBy = new NodeProp({ deserialize: (str) => str.split(" ") });
+/**
+Used to assign node types to groups (for example, all node
+types that represent an expression could be tagged with an
+`"Expression"` group).
+*/
+NodeProp.group = new NodeProp({ deserialize: (str) => str.split(" ") });
+/**
+Attached to nodes to indicate these should be
+[displayed](https://codemirror.net/docs/ref/#language.syntaxTree)
+in a bidirectional text isolate, so that direction-neutral
+characters on their sides don't incorrectly get associated with
+surrounding text. You'll generally want to set this for nodes
+that contain arbitrary text, like strings and comments, and for
+nodes that appear _inside_ arbitrary text, like HTML tags. When
+not given a value, in a grammar declaration, defaults to
+`"auto"`.
+*/
+NodeProp.isolate = new NodeProp({ deserialize: (value) => {
+	if (value && value != "rtl" && value != "ltr" && value != "auto") throw new RangeError("Invalid value for isolate: " + value);
+	return value || "auto";
+} });
+/**
+The hash of the [context](#lr.ContextTracker.constructor)
+that the node was parsed in, if any. Used to limit reuse of
+contextual nodes.
+*/
+NodeProp.contextHash = new NodeProp({ perNode: true });
+/**
+The distance beyond the end of the node that the tokenizer
+looked ahead for any of the tokens inside the node. (The LR
+parser only stores this when it is larger than 25, for
+efficiency reasons.)
+*/
+NodeProp.lookAhead = new NodeProp({ perNode: true });
+/**
+This per-node prop is used to replace a given node, or part of a
+node, with another tree. This is useful to include trees from
+different languages in mixed-language parsers.
+*/
+NodeProp.mounted = new NodeProp({ perNode: true });
+/**
+A mounted tree, which can be [stored](#common.NodeProp^mounted) on
+a tree node to indicate that parts of its content are
+represented by another tree.
+*/
+var MountedTree = class {
+	constructor(tree, overlay, parser, bracketed = false) {
+		this.tree = tree;
+		this.overlay = overlay;
+		this.parser = parser;
+		this.bracketed = bracketed;
+	}
+	/**
+	@internal
+	*/
+	static get(tree) {
+		return tree && tree.props && tree.props[NodeProp.mounted.id];
+	}
+};
+var noProps = Object.create(null);
+/**
+Each node in a syntax tree has a node type associated with it.
+*/
+var NodeType = class NodeType {
+	/**
+	@internal
+	*/
+	constructor(name, props, id, flags = 0) {
+		this.name = name;
+		this.props = props;
+		this.id = id;
+		this.flags = flags;
+	}
+	/**
+	Define a node type.
+	*/
+	static define(spec) {
+		let props = spec.props && spec.props.length ? Object.create(null) : noProps;
+		let flags = (spec.top ? 1 : 0) | (spec.skipped ? 2 : 0) | (spec.error ? 4 : 0) | (spec.name == null ? 8 : 0);
+		let type = new NodeType(spec.name || "", props, spec.id, flags);
+		if (spec.props) for (let src of spec.props) {
+			if (!Array.isArray(src)) src = src(type);
+			if (src) {
+				if (src[0].perNode) throw new RangeError("Can't store a per-node prop on a node type");
+				props[src[0].id] = src[1];
+			}
+		}
+		return type;
+	}
+	/**
+	Retrieves a node prop for this type. Will return `undefined` if
+	the prop isn't present on this node.
+	*/
+	prop(prop) {
+		return this.props[prop.id];
+	}
+	/**
+	True when this is the top node of a grammar.
+	*/
+	get isTop() {
+		return (this.flags & 1) > 0;
+	}
+	/**
+	True when this node is produced by a skip rule.
+	*/
+	get isSkipped() {
+		return (this.flags & 2) > 0;
+	}
+	/**
+	Indicates whether this is an error node.
+	*/
+	get isError() {
+		return (this.flags & 4) > 0;
+	}
+	/**
+	When true, this node type doesn't correspond to a user-declared
+	named node, for example because it is used to cache repetition.
+	*/
+	get isAnonymous() {
+		return (this.flags & 8) > 0;
+	}
+	/**
+	Returns true when this node's name or one of its
+	[groups](#common.NodeProp^group) matches the given string.
+	*/
+	is(name) {
+		if (typeof name == "string") {
+			if (this.name == name) return true;
+			let group = this.prop(NodeProp.group);
+			return group ? group.indexOf(name) > -1 : false;
+		}
+		return this.id == name;
+	}
+	/**
+	Create a function from node types to arbitrary values by
+	specifying an object whose property names are node or
+	[group](#common.NodeProp^group) names. Often useful with
+	[`NodeProp.add`](#common.NodeProp.add). You can put multiple
+	names, separated by spaces, in a single property name to map
+	multiple node names to a single value.
+	*/
+	static match(map) {
+		let direct = Object.create(null);
+		for (let prop in map) for (let name of prop.split(" ")) direct[name] = map[prop];
+		return (node) => {
+			for (let groups = node.prop(NodeProp.group), i = -1; i < (groups ? groups.length : 0); i++) {
+				let found = direct[i < 0 ? node.name : groups[i]];
+				if (found) return found;
+			}
+		};
+	}
+};
+/**
+An empty dummy node type to use when no actual type is available.
+*/
+NodeType.none = new NodeType("", Object.create(null), 0, 8);
+var CachedNode = /* @__PURE__ */ new WeakMap();
+var CachedInnerNode = /* @__PURE__ */ new WeakMap();
+/**
+Options that control iteration. Can be combined with the `|`
+operator to enable multiple ones.
+*/
+var IterMode;
+(function(IterMode) {
+	/**
+	When enabled, iteration will only visit [`Tree`](#common.Tree)
+	objects, not nodes packed into
+	[`TreeBuffer`](#common.TreeBuffer)s.
+	*/
+	IterMode[IterMode["ExcludeBuffers"] = 1] = "ExcludeBuffers";
+	/**
+	Enable this to make iteration include anonymous nodes (such as
+	the nodes that wrap repeated grammar constructs into a balanced
+	tree).
+	*/
+	IterMode[IterMode["IncludeAnonymous"] = 2] = "IncludeAnonymous";
+	/**
+	By default, regular [mounted](#common.NodeProp^mounted) nodes
+	replace their base node in iteration. Enable this to ignore them
+	instead.
+	*/
+	IterMode[IterMode["IgnoreMounts"] = 4] = "IgnoreMounts";
+	/**
+	This option only applies in
+	[`enter`](#common.SyntaxNode.enter)-style methods. It tells the
+	library to not enter mounted overlays if one covers the given
+	position.
+	*/
+	IterMode[IterMode["IgnoreOverlays"] = 8] = "IgnoreOverlays";
+	/**
+	When set, positions on the boundary of a mounted overlay tree
+	that has its [`bracketed`](#common.NestedParse.bracketed) flag
+	set will enter that tree regardless of side. Only supported in
+	[`enter`](#common.SyntaxNode.enter), not in cursors.
+	*/
+	IterMode[IterMode["EnterBracketed"] = 16] = "EnterBracketed";
+})(IterMode || (IterMode = {}));
+/**
+A piece of syntax tree. There are two ways to approach these
+trees: the way they are actually stored in memory, and the
+convenient way.
+
+Syntax trees are stored as a tree of `Tree` and `TreeBuffer`
+objects. By packing detail information into `TreeBuffer` leaf
+nodes, the representation is made a lot more memory-efficient.
+
+However, when you want to actually work with tree nodes, this
+representation is very awkward, so most client code will want to
+use the [`TreeCursor`](#common.TreeCursor) or
+[`SyntaxNode`](#common.SyntaxNode) interface instead, which provides
+a view on some part of this data structure, and can be used to
+move around to adjacent nodes.
+*/
+var Tree = class Tree {
+	/**
+	Construct a new tree. See also [`Tree.build`](#common.Tree^build).
+	*/
+	constructor(type, children, positions, length, props) {
+		this.type = type;
+		this.children = children;
+		this.positions = positions;
+		this.length = length;
+		/**
+		@internal
+		*/
+		this.props = null;
+		if (props && props.length) {
+			this.props = Object.create(null);
+			for (let [prop, value] of props) this.props[typeof prop == "number" ? prop : prop.id] = value;
+		}
+	}
+	/**
+	@internal
+	*/
+	toString() {
+		let mounted = MountedTree.get(this);
+		if (mounted && !mounted.overlay) return mounted.tree.toString();
+		let children = "";
+		for (let ch of this.children) {
+			let str = ch.toString();
+			if (str) {
+				if (children) children += ",";
+				children += str;
+			}
+		}
+		return !this.type.name ? children : (/\W/.test(this.type.name) && !this.type.isError ? JSON.stringify(this.type.name) : this.type.name) + (children.length ? "(" + children + ")" : "");
+	}
+	/**
+	Get a [tree cursor](#common.TreeCursor) positioned at the top of
+	the tree. Mode can be used to [control](#common.IterMode) which
+	nodes the cursor visits.
+	*/
+	cursor(mode = 0) {
+		return new TreeCursor(this.topNode, mode);
+	}
+	/**
+	Get a [tree cursor](#common.TreeCursor) pointing into this tree
+	at the given position and side (see
+	[`moveTo`](#common.TreeCursor.moveTo).
+	*/
+	cursorAt(pos, side = 0, mode = 0) {
+		let cursor = new TreeCursor(CachedNode.get(this) || this.topNode);
+		cursor.moveTo(pos, side);
+		CachedNode.set(this, cursor._tree);
+		return cursor;
+	}
+	/**
+	Get a [syntax node](#common.SyntaxNode) object for the top of the
+	tree.
+	*/
+	get topNode() {
+		return new TreeNode(this, 0, 0, null);
+	}
+	/**
+	Get the [syntax node](#common.SyntaxNode) at the given position.
+	If `side` is -1, this will move into nodes that end at the
+	position. If 1, it'll move into nodes that start at the
+	position. With 0, it'll only enter nodes that cover the position
+	from both sides.
+	
+	Note that this will not enter
+	[overlays](#common.MountedTree.overlay), and you often want
+	[`resolveInner`](#common.Tree.resolveInner) instead.
+	*/
+	resolve(pos, side = 0) {
+		let node = resolveNode(CachedNode.get(this) || this.topNode, pos, side, false);
+		CachedNode.set(this, node);
+		return node;
+	}
+	/**
+	Like [`resolve`](#common.Tree.resolve), but will enter
+	[overlaid](#common.MountedTree.overlay) nodes, producing a syntax node
+	pointing into the innermost overlaid tree at the given position
+	(with parent links going through all parent structure, including
+	the host trees).
+	*/
+	resolveInner(pos, side = 0) {
+		let node = resolveNode(CachedInnerNode.get(this) || this.topNode, pos, side, true);
+		CachedInnerNode.set(this, node);
+		return node;
+	}
+	/**
+	In some situations, it can be useful to iterate through all
+	nodes around a position, including those in overlays that don't
+	directly cover the position. This method gives you an iterator
+	that will produce all nodes, from small to big, around the given
+	position.
+	*/
+	resolveStack(pos, side = 0) {
+		return stackIterator(this, pos, side);
+	}
+	/**
+	Iterate over the tree and its children, calling `enter` for any
+	node that touches the `from`/`to` region (if given) before
+	running over such a node's children, and `leave` (if given) when
+	leaving the node. When `enter` returns `false`, that node will
+	not have its children iterated over (or `leave` called).
+	*/
+	iterate(spec) {
+		let { enter, leave, from = 0, to = this.length } = spec;
+		let mode = spec.mode || 0, anon = (mode & IterMode.IncludeAnonymous) > 0;
+		for (let c = this.cursor(mode | IterMode.IncludeAnonymous);;) {
+			let entered = false;
+			if (c.from <= to && c.to >= from && (!anon && c.type.isAnonymous || enter(c) !== false)) {
+				if (c.firstChild()) continue;
+				entered = true;
+			}
+			for (;;) {
+				if (entered && leave && (anon || !c.type.isAnonymous)) leave(c);
+				if (c.nextSibling()) break;
+				if (!c.parent()) return;
+				entered = true;
+			}
+		}
+	}
+	/**
+	Get the value of the given [node prop](#common.NodeProp) for this
+	node. Works with both per-node and per-type props.
+	*/
+	prop(prop) {
+		return !prop.perNode ? this.type.prop(prop) : this.props ? this.props[prop.id] : void 0;
+	}
+	/**
+	Returns the node's [per-node props](#common.NodeProp.perNode) in a
+	format that can be passed to the [`Tree`](#common.Tree)
+	constructor.
+	*/
+	get propValues() {
+		let result = [];
+		if (this.props) for (let id in this.props) result.push([+id, this.props[id]]);
+		return result;
+	}
+	/**
+	Balance the direct children of this tree, producing a copy of
+	which may have children grouped into subtrees with type
+	[`NodeType.none`](#common.NodeType^none).
+	*/
+	balance(config = {}) {
+		return this.children.length <= 8 ? this : balanceRange(NodeType.none, this.children, this.positions, 0, this.children.length, 0, this.length, (children, positions, length) => new Tree(this.type, children, positions, length, this.propValues), config.makeTree || ((children, positions, length) => new Tree(NodeType.none, children, positions, length)));
+	}
+	/**
+	Build a tree from a postfix-ordered buffer of node information,
+	or a cursor over such a buffer.
+	*/
+	static build(data) {
+		return buildTree(data);
+	}
+};
+/**
+The empty tree
+*/
+Tree.empty = new Tree(NodeType.none, [], [], 0);
+var FlatBufferCursor = class FlatBufferCursor {
+	constructor(buffer, index) {
+		this.buffer = buffer;
+		this.index = index;
+	}
+	get id() {
+		return this.buffer[this.index - 4];
+	}
+	get start() {
+		return this.buffer[this.index - 3];
+	}
+	get end() {
+		return this.buffer[this.index - 2];
+	}
+	get size() {
+		return this.buffer[this.index - 1];
+	}
+	get pos() {
+		return this.index;
+	}
+	next() {
+		this.index -= 4;
+	}
+	fork() {
+		return new FlatBufferCursor(this.buffer, this.index);
+	}
+};
+/**
+Tree buffers contain (type, start, end, endIndex) quads for each
+node. In such a buffer, nodes are stored in prefix order (parents
+before children, with the endIndex of the parent indicating which
+children belong to it).
+*/
+var TreeBuffer = class TreeBuffer {
+	/**
+	Create a tree buffer.
+	*/
+	constructor(buffer, length, set) {
+		this.buffer = buffer;
+		this.length = length;
+		this.set = set;
+	}
+	/**
+	@internal
+	*/
+	get type() {
+		return NodeType.none;
+	}
+	/**
+	@internal
+	*/
+	toString() {
+		let result = [];
+		for (let index = 0; index < this.buffer.length;) {
+			result.push(this.childString(index));
+			index = this.buffer[index + 3];
+		}
+		return result.join(",");
+	}
+	/**
+	@internal
+	*/
+	childString(index) {
+		let id = this.buffer[index], endIndex = this.buffer[index + 3];
+		let type = this.set.types[id], result = type.name;
+		if (/\W/.test(result) && !type.isError) result = JSON.stringify(result);
+		index += 4;
+		if (endIndex == index) return result;
+		let children = [];
+		while (index < endIndex) {
+			children.push(this.childString(index));
+			index = this.buffer[index + 3];
+		}
+		return result + "(" + children.join(",") + ")";
+	}
+	/**
+	@internal
+	*/
+	findChild(startIndex, endIndex, dir, pos, side) {
+		let { buffer } = this, pick = -1;
+		for (let i = startIndex; i != endIndex; i = buffer[i + 3]) if (checkSide(side, pos, buffer[i + 1], buffer[i + 2])) {
+			pick = i;
+			if (dir > 0) break;
+		}
+		return pick;
+	}
+	/**
+	@internal
+	*/
+	slice(startI, endI, from) {
+		let b = this.buffer;
+		let copy = new Uint16Array(endI - startI), len = 0;
+		for (let i = startI, j = 0; i < endI;) {
+			copy[j++] = b[i++];
+			copy[j++] = b[i++] - from;
+			let to = copy[j++] = b[i++] - from;
+			copy[j++] = b[i++] - startI;
+			len = Math.max(len, to);
+		}
+		return new TreeBuffer(copy, len, this.set);
+	}
+};
+function checkSide(side, pos, from, to) {
+	switch (side) {
+		case -2: return from < pos;
+		case -1: return to >= pos && from < pos;
+		case 0: return from < pos && to > pos;
+		case 1: return from <= pos && to > pos;
+		case 2: return to > pos;
+		case 4: return true;
+	}
+}
+function resolveNode(node, pos, side, overlays) {
+	var _a;
+	while (node.from == node.to || (side < 1 ? node.from >= pos : node.from > pos) || (side > -1 ? node.to <= pos : node.to < pos)) {
+		let parent = !overlays && node instanceof TreeNode && node.index < 0 ? null : node.parent;
+		if (!parent) return node;
+		node = parent;
+	}
+	let mode = overlays ? 0 : IterMode.IgnoreOverlays;
+	if (overlays) {
+		for (let scan = node, parent = scan.parent; parent; scan = parent, parent = scan.parent) if (scan instanceof TreeNode && scan.index < 0 && ((_a = parent.enter(pos, side, mode)) === null || _a === void 0 ? void 0 : _a.from) != scan.from) node = parent;
+	}
+	for (;;) {
+		let inner = node.enter(pos, side, mode);
+		if (!inner) return node;
+		node = inner;
+	}
+}
+var BaseNode = class {
+	cursor(mode = 0) {
+		return new TreeCursor(this, mode);
+	}
+	getChild(type, before = null, after = null) {
+		let r = getChildren(this, type, before, after);
+		return r.length ? r[0] : null;
+	}
+	getChildren(type, before = null, after = null) {
+		return getChildren(this, type, before, after);
+	}
+	resolve(pos, side = 0) {
+		return resolveNode(this, pos, side, false);
+	}
+	resolveInner(pos, side = 0) {
+		return resolveNode(this, pos, side, true);
+	}
+	matchContext(context) {
+		return matchNodeContext(this.parent, context);
+	}
+	enterUnfinishedNodesBefore(pos) {
+		let scan = this.childBefore(pos), node = this;
+		while (scan) {
+			let last = scan.lastChild;
+			if (!last || last.to != scan.to) break;
+			if (last.type.isError && last.from == last.to) {
+				node = scan;
+				scan = last.prevSibling;
+			} else scan = last;
+		}
+		return node;
+	}
+	get node() {
+		return this;
+	}
+	get next() {
+		return this.parent;
+	}
+};
+var TreeNode = class TreeNode extends BaseNode {
+	constructor(_tree, from, index, _parent) {
+		super();
+		this._tree = _tree;
+		this.from = from;
+		this.index = index;
+		this._parent = _parent;
+	}
+	get type() {
+		return this._tree.type;
+	}
+	get name() {
+		return this._tree.type.name;
+	}
+	get to() {
+		return this.from + this._tree.length;
+	}
+	nextChild(i, dir, pos, side, mode = 0) {
+		for (let parent = this;;) {
+			for (let { children, positions } = parent._tree, e = dir > 0 ? children.length : -1; i != e; i += dir) {
+				let next = children[i], start = positions[i] + parent.from, mounted;
+				if (!(mode & IterMode.EnterBracketed && next instanceof Tree && (mounted = MountedTree.get(next)) && !mounted.overlay && mounted.bracketed && pos >= start && pos <= start + next.length) && !checkSide(side, pos, start, start + next.length)) continue;
+				if (next instanceof TreeBuffer) {
+					if (mode & IterMode.ExcludeBuffers) continue;
+					let index = next.findChild(0, next.buffer.length, dir, pos - start, side);
+					if (index > -1) return new BufferNode(new BufferContext(parent, next, i, start), null, index);
+				} else if (mode & IterMode.IncludeAnonymous || !next.type.isAnonymous || hasChild(next)) {
+					let mounted;
+					if (!(mode & IterMode.IgnoreMounts) && (mounted = MountedTree.get(next)) && !mounted.overlay) return new TreeNode(mounted.tree, start, i, parent);
+					let inner = new TreeNode(next, start, i, parent);
+					return mode & IterMode.IncludeAnonymous || !inner.type.isAnonymous ? inner : inner.nextChild(dir < 0 ? next.children.length - 1 : 0, dir, pos, side, mode);
+				}
+			}
+			if (mode & IterMode.IncludeAnonymous || !parent.type.isAnonymous) return null;
+			if (parent.index >= 0) i = parent.index + dir;
+			else i = dir < 0 ? -1 : parent._parent._tree.children.length;
+			parent = parent._parent;
+			if (!parent) return null;
+		}
+	}
+	get firstChild() {
+		return this.nextChild(0, 1, 0, 4);
+	}
+	get lastChild() {
+		return this.nextChild(this._tree.children.length - 1, -1, 0, 4);
+	}
+	childAfter(pos) {
+		return this.nextChild(0, 1, pos, 2);
+	}
+	childBefore(pos) {
+		return this.nextChild(this._tree.children.length - 1, -1, pos, -2);
+	}
+	prop(prop) {
+		return this._tree.prop(prop);
+	}
+	enter(pos, side, mode = 0) {
+		let mounted;
+		if (!(mode & IterMode.IgnoreOverlays) && (mounted = MountedTree.get(this._tree)) && mounted.overlay) {
+			let rPos = pos - this.from, enterBracketed = mode & IterMode.EnterBracketed && mounted.bracketed;
+			for (let { from, to } of mounted.overlay) if ((side > 0 || enterBracketed ? from <= rPos : from < rPos) && (side < 0 || enterBracketed ? to >= rPos : to > rPos)) return new TreeNode(mounted.tree, mounted.overlay[0].from + this.from, -1, this);
+		}
+		return this.nextChild(0, 1, pos, side, mode);
+	}
+	nextSignificantParent() {
+		let val = this;
+		while (val.type.isAnonymous && val._parent) val = val._parent;
+		return val;
+	}
+	get parent() {
+		return this._parent ? this._parent.nextSignificantParent() : null;
+	}
+	get nextSibling() {
+		return this._parent && this.index >= 0 ? this._parent.nextChild(this.index + 1, 1, 0, 4) : null;
+	}
+	get prevSibling() {
+		return this._parent && this.index >= 0 ? this._parent.nextChild(this.index - 1, -1, 0, 4) : null;
+	}
+	get tree() {
+		return this._tree;
+	}
+	toTree() {
+		return this._tree;
+	}
+	/**
+	@internal
+	*/
+	toString() {
+		return this._tree.toString();
+	}
+};
+function getChildren(node, type, before, after) {
+	let cur = node.cursor(), result = [];
+	if (!cur.firstChild()) return result;
+	if (before != null) for (let found = false; !found;) {
+		found = cur.type.is(before);
+		if (!cur.nextSibling()) return result;
+	}
+	for (;;) {
+		if (after != null && cur.type.is(after)) return result;
+		if (cur.type.is(type)) result.push(cur.node);
+		if (!cur.nextSibling()) return after == null ? result : [];
+	}
+}
+function matchNodeContext(node, context, i = context.length - 1) {
+	for (let p = node; i >= 0; p = p.parent) {
+		if (!p) return false;
+		if (!p.type.isAnonymous) {
+			if (context[i] && context[i] != p.name) return false;
+			i--;
+		}
+	}
+	return true;
+}
+var BufferContext = class {
+	constructor(parent, buffer, index, start) {
+		this.parent = parent;
+		this.buffer = buffer;
+		this.index = index;
+		this.start = start;
+	}
+};
+var BufferNode = class BufferNode extends BaseNode {
+	get name() {
+		return this.type.name;
+	}
+	get from() {
+		return this.context.start + this.context.buffer.buffer[this.index + 1];
+	}
+	get to() {
+		return this.context.start + this.context.buffer.buffer[this.index + 2];
+	}
+	constructor(context, _parent, index) {
+		super();
+		this.context = context;
+		this._parent = _parent;
+		this.index = index;
+		this.type = context.buffer.set.types[context.buffer.buffer[index]];
+	}
+	child(dir, pos, side) {
+		let { buffer } = this.context;
+		let index = buffer.findChild(this.index + 4, buffer.buffer[this.index + 3], dir, pos - this.context.start, side);
+		return index < 0 ? null : new BufferNode(this.context, this, index);
+	}
+	get firstChild() {
+		return this.child(1, 0, 4);
+	}
+	get lastChild() {
+		return this.child(-1, 0, 4);
+	}
+	childAfter(pos) {
+		return this.child(1, pos, 2);
+	}
+	childBefore(pos) {
+		return this.child(-1, pos, -2);
+	}
+	prop(prop) {
+		return this.type.prop(prop);
+	}
+	enter(pos, side, mode = 0) {
+		if (mode & IterMode.ExcludeBuffers) return null;
+		let { buffer } = this.context;
+		let index = buffer.findChild(this.index + 4, buffer.buffer[this.index + 3], side > 0 ? 1 : -1, pos - this.context.start, side);
+		return index < 0 ? null : new BufferNode(this.context, this, index);
+	}
+	get parent() {
+		return this._parent || this.context.parent.nextSignificantParent();
+	}
+	externalSibling(dir) {
+		return this._parent ? null : this.context.parent.nextChild(this.context.index + dir, dir, 0, 4);
+	}
+	get nextSibling() {
+		let { buffer } = this.context;
+		let after = buffer.buffer[this.index + 3];
+		if (after < (this._parent ? buffer.buffer[this._parent.index + 3] : buffer.buffer.length)) return new BufferNode(this.context, this._parent, after);
+		return this.externalSibling(1);
+	}
+	get prevSibling() {
+		let { buffer } = this.context;
+		let parentStart = this._parent ? this._parent.index + 4 : 0;
+		if (this.index == parentStart) return this.externalSibling(-1);
+		return new BufferNode(this.context, this._parent, buffer.findChild(parentStart, this.index, -1, 0, 4));
+	}
+	get tree() {
+		return null;
+	}
+	toTree() {
+		let children = [], positions = [];
+		let { buffer } = this.context;
+		let startI = this.index + 4, endI = buffer.buffer[this.index + 3];
+		if (endI > startI) {
+			let from = buffer.buffer[this.index + 1];
+			children.push(buffer.slice(startI, endI, from));
+			positions.push(0);
+		}
+		return new Tree(this.type, children, positions, this.to - this.from);
+	}
+	/**
+	@internal
+	*/
+	toString() {
+		return this.context.buffer.childString(this.index);
+	}
+};
+function iterStack(heads) {
+	if (!heads.length) return null;
+	let pick = 0, picked = heads[0];
+	for (let i = 1; i < heads.length; i++) {
+		let node = heads[i];
+		if (node.from > picked.from || node.to < picked.to) {
+			picked = node;
+			pick = i;
+		}
+	}
+	let next = picked instanceof TreeNode && picked.index < 0 ? null : picked.parent;
+	let newHeads = heads.slice();
+	if (next) newHeads[pick] = next;
+	else newHeads.splice(pick, 1);
+	return new StackIterator(newHeads, picked);
+}
+var StackIterator = class {
+	constructor(heads, node) {
+		this.heads = heads;
+		this.node = node;
+	}
+	get next() {
+		return iterStack(this.heads);
+	}
+};
+function stackIterator(tree, pos, side) {
+	let inner = tree.resolveInner(pos, side), layers = null;
+	for (let scan = inner instanceof TreeNode ? inner : inner.context.parent; scan; scan = scan.parent) if (scan.index < 0) {
+		let parent = scan.parent;
+		(layers || (layers = [inner])).push(parent.resolve(pos, side));
+		scan = parent;
+	} else {
+		let mount = MountedTree.get(scan.tree);
+		if (mount && mount.overlay && mount.overlay[0].from <= pos && mount.overlay[mount.overlay.length - 1].to >= pos) {
+			let root = new TreeNode(mount.tree, mount.overlay[0].from + scan.from, -1, scan);
+			(layers || (layers = [inner])).push(resolveNode(root, pos, side, false));
+		}
+	}
+	return layers ? iterStack(layers) : inner;
+}
+/**
+A tree cursor object focuses on a given node in a syntax tree, and
+allows you to move to adjacent nodes.
+*/
+var TreeCursor = class {
+	/**
+	Shorthand for `.type.name`.
+	*/
+	get name() {
+		return this.type.name;
+	}
+	/**
+	@internal
+	*/
+	constructor(node, mode = 0) {
+		/**
+		@internal
+		*/
+		this.buffer = null;
+		this.stack = [];
+		/**
+		@internal
+		*/
+		this.index = 0;
+		this.bufferNode = null;
+		this.mode = mode & ~IterMode.EnterBracketed;
+		if (node instanceof TreeNode) this.yieldNode(node);
+		else {
+			this._tree = node.context.parent;
+			this.buffer = node.context;
+			for (let n = node._parent; n; n = n._parent) this.stack.unshift(n.index);
+			this.bufferNode = node;
+			this.yieldBuf(node.index);
+		}
+	}
+	yieldNode(node) {
+		if (!node) return false;
+		this._tree = node;
+		this.type = node.type;
+		this.from = node.from;
+		this.to = node.to;
+		return true;
+	}
+	yieldBuf(index, type) {
+		this.index = index;
+		let { start, buffer } = this.buffer;
+		this.type = type || buffer.set.types[buffer.buffer[index]];
+		this.from = start + buffer.buffer[index + 1];
+		this.to = start + buffer.buffer[index + 2];
+		return true;
+	}
+	/**
+	@internal
+	*/
+	yield(node) {
+		if (!node) return false;
+		if (node instanceof TreeNode) {
+			this.buffer = null;
+			return this.yieldNode(node);
+		}
+		this.buffer = node.context;
+		return this.yieldBuf(node.index, node.type);
+	}
+	/**
+	@internal
+	*/
+	toString() {
+		return this.buffer ? this.buffer.buffer.childString(this.index) : this._tree.toString();
+	}
+	/**
+	@internal
+	*/
+	enterChild(dir, pos, side) {
+		if (!this.buffer) return this.yield(this._tree.nextChild(dir < 0 ? this._tree._tree.children.length - 1 : 0, dir, pos, side, this.mode));
+		let { buffer } = this.buffer;
+		let index = buffer.findChild(this.index + 4, buffer.buffer[this.index + 3], dir, pos - this.buffer.start, side);
+		if (index < 0) return false;
+		this.stack.push(this.index);
+		return this.yieldBuf(index);
+	}
+	/**
+	Move the cursor to this node's first child. When this returns
+	false, the node has no child, and the cursor has not been moved.
+	*/
+	firstChild() {
+		return this.enterChild(1, 0, 4);
+	}
+	/**
+	Move the cursor to this node's last child.
+	*/
+	lastChild() {
+		return this.enterChild(-1, 0, 4);
+	}
+	/**
+	Move the cursor to the first child that ends after `pos`.
+	*/
+	childAfter(pos) {
+		return this.enterChild(1, pos, 2);
+	}
+	/**
+	Move to the last child that starts before `pos`.
+	*/
+	childBefore(pos) {
+		return this.enterChild(-1, pos, -2);
+	}
+	/**
+	Move the cursor to the child around `pos`. If side is -1 the
+	child may end at that position, when 1 it may start there. This
+	will also enter [overlaid](#common.MountedTree.overlay)
+	[mounted](#common.NodeProp^mounted) trees unless `overlays` is
+	set to false.
+	*/
+	enter(pos, side, mode = this.mode) {
+		if (!this.buffer) return this.yield(this._tree.enter(pos, side, mode));
+		return mode & IterMode.ExcludeBuffers ? false : this.enterChild(1, pos, side);
+	}
+	/**
+	Move to the node's parent node, if this isn't the top node.
+	*/
+	parent() {
+		if (!this.buffer) return this.yieldNode(this.mode & IterMode.IncludeAnonymous ? this._tree._parent : this._tree.parent);
+		if (this.stack.length) return this.yieldBuf(this.stack.pop());
+		let parent = this.mode & IterMode.IncludeAnonymous ? this.buffer.parent : this.buffer.parent.nextSignificantParent();
+		this.buffer = null;
+		return this.yieldNode(parent);
+	}
+	/**
+	@internal
+	*/
+	sibling(dir) {
+		if (!this.buffer) return !this._tree._parent ? false : this.yield(this._tree.index < 0 ? null : this._tree._parent.nextChild(this._tree.index + dir, dir, 0, 4, this.mode));
+		let { buffer } = this.buffer, d = this.stack.length - 1;
+		if (dir < 0) {
+			let parentStart = d < 0 ? 0 : this.stack[d] + 4;
+			if (this.index != parentStart) return this.yieldBuf(buffer.findChild(parentStart, this.index, -1, 0, 4));
+		} else {
+			let after = buffer.buffer[this.index + 3];
+			if (after < (d < 0 ? buffer.buffer.length : buffer.buffer[this.stack[d] + 3])) return this.yieldBuf(after);
+		}
+		return d < 0 ? this.yield(this.buffer.parent.nextChild(this.buffer.index + dir, dir, 0, 4, this.mode)) : false;
+	}
+	/**
+	Move to this node's next sibling, if any.
+	*/
+	nextSibling() {
+		return this.sibling(1);
+	}
+	/**
+	Move to this node's previous sibling, if any.
+	*/
+	prevSibling() {
+		return this.sibling(-1);
+	}
+	atLastNode(dir) {
+		let index, parent, { buffer } = this;
+		if (buffer) {
+			if (dir > 0) {
+				if (this.index < buffer.buffer.buffer.length) return false;
+			} else for (let i = 0; i < this.index; i++) if (buffer.buffer.buffer[i + 3] < this.index) return false;
+			({index, parent} = buffer);
+		} else ({index, _parent: parent} = this._tree);
+		for (; parent; {index, _parent: parent} = parent) if (index > -1) for (let i = index + dir, e = dir < 0 ? -1 : parent._tree.children.length; i != e; i += dir) {
+			let child = parent._tree.children[i];
+			if (this.mode & IterMode.IncludeAnonymous || child instanceof TreeBuffer || !child.type.isAnonymous || hasChild(child)) return false;
+		}
+		return true;
+	}
+	move(dir, enter) {
+		if (enter && this.enterChild(dir, 0, 4)) return true;
+		for (;;) {
+			if (this.sibling(dir)) return true;
+			if (this.atLastNode(dir) || !this.parent()) return false;
+		}
+	}
+	/**
+	Move to the next node in a
+	[pre-order](https://en.wikipedia.org/wiki/Tree_traversal#Pre-order,_NLR)
+	traversal, going from a node to its first child or, if the
+	current node is empty or `enter` is false, its next sibling or
+	the next sibling of the first parent node that has one.
+	*/
+	next(enter = true) {
+		return this.move(1, enter);
+	}
+	/**
+	Move to the next node in a last-to-first pre-order traversal. A
+	node is followed by its last child or, if it has none, its
+	previous sibling or the previous sibling of the first parent
+	node that has one.
+	*/
+	prev(enter = true) {
+		return this.move(-1, enter);
+	}
+	/**
+	Move the cursor to the innermost node that covers `pos`. If
+	`side` is -1, it will enter nodes that end at `pos`. If it is 1,
+	it will enter nodes that start at `pos`.
+	*/
+	moveTo(pos, side = 0) {
+		while (this.from == this.to || (side < 1 ? this.from >= pos : this.from > pos) || (side > -1 ? this.to <= pos : this.to < pos)) if (!this.parent()) break;
+		while (this.enterChild(1, pos, side));
+		return this;
+	}
+	/**
+	Get a [syntax node](#common.SyntaxNode) at the cursor's current
+	position.
+	*/
+	get node() {
+		if (!this.buffer) return this._tree;
+		let cache = this.bufferNode, result = null, depth = 0;
+		if (cache && cache.context == this.buffer) scan: for (let index = this.index, d = this.stack.length; d >= 0;) {
+			for (let c = cache; c; c = c._parent) if (c.index == index) {
+				if (index == this.index) return c;
+				result = c;
+				depth = d + 1;
+				break scan;
+			}
+			index = this.stack[--d];
+		}
+		for (let i = depth; i < this.stack.length; i++) result = new BufferNode(this.buffer, result, this.stack[i]);
+		return this.bufferNode = new BufferNode(this.buffer, result, this.index);
+	}
+	/**
+	Get the [tree](#common.Tree) that represents the current node, if
+	any. Will return null when the node is in a [tree
+	buffer](#common.TreeBuffer).
+	*/
+	get tree() {
+		return this.buffer ? null : this._tree._tree;
+	}
+	/**
+	Iterate over the current node and all its descendants, calling
+	`enter` when entering a node and `leave`, if given, when leaving
+	one. When `enter` returns `false`, any children of that node are
+	skipped, and `leave` isn't called for it.
+	*/
+	iterate(enter, leave) {
+		for (let depth = 0;;) {
+			let mustLeave = false;
+			if (this.type.isAnonymous || enter(this) !== false) {
+				if (this.firstChild()) {
+					depth++;
+					continue;
+				}
+				if (!this.type.isAnonymous) mustLeave = true;
+			}
+			for (;;) {
+				if (mustLeave && leave) leave(this);
+				mustLeave = this.type.isAnonymous;
+				if (!depth) return;
+				if (this.nextSibling()) break;
+				this.parent();
+				depth--;
+				mustLeave = true;
+			}
+		}
+	}
+	/**
+	Test whether the current node matches a given context—a sequence
+	of direct parent node names. Empty strings in the context array
+	are treated as wildcards.
+	*/
+	matchContext(context) {
+		if (!this.buffer) return matchNodeContext(this.node.parent, context);
+		let { buffer } = this.buffer, { types } = buffer.set;
+		for (let i = context.length - 1, d = this.stack.length - 1; i >= 0; d--) {
+			if (d < 0) return matchNodeContext(this._tree, context, i);
+			let type = types[buffer.buffer[this.stack[d]]];
+			if (!type.isAnonymous) {
+				if (context[i] && context[i] != type.name) return false;
+				i--;
+			}
+		}
+		return true;
+	}
+};
+function hasChild(tree) {
+	return tree.children.some((ch) => ch instanceof TreeBuffer || !ch.type.isAnonymous || hasChild(ch));
+}
+function buildTree(data) {
+	var _a;
+	let { buffer, nodeSet, maxBufferLength = DefaultBufferLength, reused = [], minRepeatType = nodeSet.types.length } = data;
+	let cursor = Array.isArray(buffer) ? new FlatBufferCursor(buffer, buffer.length) : buffer;
+	let types = nodeSet.types;
+	let contextHash = 0, lookAhead = 0;
+	function takeNode(parentStart, minPos, children, positions, inRepeat, depth) {
+		let { id, start, end, size } = cursor;
+		let lookAheadAtStart = lookAhead, contextAtStart = contextHash;
+		if (size < 0) {
+			cursor.next();
+			if (size == -1) {
+				let node = reused[id];
+				children.push(node);
+				positions.push(start - parentStart);
+				return;
+			} else if (size == -3) {
+				contextHash = id;
+				return;
+			} else if (size == -4) {
+				lookAhead = id;
+				return;
+			} else throw new RangeError(`Unrecognized record size: ${size}`);
+		}
+		let type = types[id], node, buffer;
+		let startPos = start - parentStart;
+		if (end - start <= maxBufferLength && (buffer = findBufferSize(cursor.pos - minPos, inRepeat))) {
+			let data = new Uint16Array(buffer.size - buffer.skip);
+			let endPos = cursor.pos - buffer.size, index = data.length;
+			while (cursor.pos > endPos) index = copyToBuffer(buffer.start, data, index);
+			node = new TreeBuffer(data, end - buffer.start, nodeSet);
+			startPos = buffer.start - parentStart;
+		} else {
+			let endPos = cursor.pos - size;
+			cursor.next();
+			let localChildren = [], localPositions = [];
+			let localInRepeat = id >= minRepeatType ? id : -1;
+			let lastGroup = 0, lastEnd = end;
+			while (cursor.pos > endPos) if (localInRepeat >= 0 && cursor.id == localInRepeat && cursor.size >= 0) {
+				if (cursor.end <= lastEnd - maxBufferLength) {
+					makeRepeatLeaf(localChildren, localPositions, start, lastGroup, cursor.end, lastEnd, localInRepeat, lookAheadAtStart, contextAtStart);
+					lastGroup = localChildren.length;
+					lastEnd = cursor.end;
+				}
+				cursor.next();
+			} else if (depth > 2500) takeFlatNode(start, endPos, localChildren, localPositions);
+			else takeNode(start, endPos, localChildren, localPositions, localInRepeat, depth + 1);
+			if (localInRepeat >= 0 && lastGroup > 0 && lastGroup < localChildren.length) makeRepeatLeaf(localChildren, localPositions, start, lastGroup, start, lastEnd, localInRepeat, lookAheadAtStart, contextAtStart);
+			localChildren.reverse();
+			localPositions.reverse();
+			if (localInRepeat > -1 && lastGroup > 0) {
+				let make = makeBalanced(type, contextAtStart);
+				node = balanceRange(type, localChildren, localPositions, 0, localChildren.length, 0, end - start, make, make);
+			} else node = makeTree(type, localChildren, localPositions, end - start, lookAheadAtStart - end, contextAtStart);
+		}
+		children.push(node);
+		positions.push(startPos);
+	}
+	function takeFlatNode(parentStart, minPos, children, positions) {
+		let nodes = [];
+		let nodeCount = 0, stopAt = -1;
+		while (cursor.pos > minPos) {
+			let { id, start, end, size } = cursor;
+			if (size > 4) cursor.next();
+			else if (stopAt > -1 && start < stopAt) break;
+			else {
+				if (stopAt < 0) stopAt = end - maxBufferLength;
+				nodes.push(id, start, end);
+				nodeCount++;
+				cursor.next();
+			}
+		}
+		if (nodeCount) {
+			let buffer = new Uint16Array(nodeCount * 4);
+			let start = nodes[nodes.length - 2];
+			for (let i = nodes.length - 3, j = 0; i >= 0; i -= 3) {
+				buffer[j++] = nodes[i];
+				buffer[j++] = nodes[i + 1] - start;
+				buffer[j++] = nodes[i + 2] - start;
+				buffer[j++] = j;
+			}
+			children.push(new TreeBuffer(buffer, nodes[2] - start, nodeSet));
+			positions.push(start - parentStart);
+		}
+	}
+	function makeBalanced(type, contextHash) {
+		return (children, positions, length) => {
+			let lookAhead = 0, lastI = children.length - 1, last, lookAheadProp;
+			if (lastI >= 0 && (last = children[lastI]) instanceof Tree) {
+				if (!lastI && last.type == type && last.length == length) return last;
+				if (lookAheadProp = last.prop(NodeProp.lookAhead)) lookAhead = positions[lastI] + last.length + lookAheadProp;
+			}
+			return makeTree(type, children, positions, length, lookAhead, contextHash);
+		};
+	}
+	function makeRepeatLeaf(children, positions, base, i, from, to, type, lookAhead, contextHash) {
+		let localChildren = [], localPositions = [];
+		while (children.length > i) {
+			localChildren.push(children.pop());
+			localPositions.push(positions.pop() + base - from);
+		}
+		children.push(makeTree(nodeSet.types[type], localChildren, localPositions, to - from, lookAhead - to, contextHash));
+		positions.push(from - base);
+	}
+	function makeTree(type, children, positions, length, lookAhead, contextHash, props) {
+		if (contextHash) {
+			let pair = [NodeProp.contextHash, contextHash];
+			props = props ? [pair].concat(props) : [pair];
+		}
+		if (lookAhead > 25) {
+			let pair = [NodeProp.lookAhead, lookAhead];
+			props = props ? [pair].concat(props) : [pair];
+		}
+		return new Tree(type, children, positions, length, props);
+	}
+	function findBufferSize(maxSize, inRepeat) {
+		let fork = cursor.fork();
+		let size = 0, start = 0, skip = 0, minStart = fork.end - maxBufferLength;
+		let result = {
+			size: 0,
+			start: 0,
+			skip: 0
+		};
+		scan: for (let minPos = fork.pos - maxSize; fork.pos > minPos;) {
+			let nodeSize = fork.size;
+			if (fork.id == inRepeat && nodeSize >= 0) {
+				result.size = size;
+				result.start = start;
+				result.skip = skip;
+				skip += 4;
+				size += 4;
+				fork.next();
+				continue;
+			}
+			let startPos = fork.pos - nodeSize;
+			if (nodeSize < 0 || startPos < minPos || fork.start < minStart) break;
+			let localSkipped = fork.id >= minRepeatType ? 4 : 0;
+			let nodeStart = fork.start;
+			fork.next();
+			while (fork.pos > startPos) {
+				if (fork.size < 0) {
+					if (fork.size == -3 || fork.size == -4) localSkipped += 4;
+					else break scan;
+				} else if (fork.id >= minRepeatType) localSkipped += 4;
+				fork.next();
+			}
+			start = nodeStart;
+			size += nodeSize;
+			skip += localSkipped;
+		}
+		if (inRepeat < 0 || size == maxSize) {
+			result.size = size;
+			result.start = start;
+			result.skip = skip;
+		}
+		return result.size > 4 ? result : void 0;
+	}
+	function copyToBuffer(bufferStart, buffer, index) {
+		let { id, start, end, size } = cursor;
+		cursor.next();
+		if (size >= 0 && id < minRepeatType) {
+			let startIndex = index;
+			if (size > 4) {
+				let endPos = cursor.pos - (size - 4);
+				while (cursor.pos > endPos) index = copyToBuffer(bufferStart, buffer, index);
+			}
+			buffer[--index] = startIndex;
+			buffer[--index] = end - bufferStart;
+			buffer[--index] = start - bufferStart;
+			buffer[--index] = id;
+		} else if (size == -3) contextHash = id;
+		else if (size == -4) lookAhead = id;
+		return index;
+	}
+	let children = [], positions = [];
+	while (cursor.pos > 0) takeNode(data.start || 0, data.bufferStart || 0, children, positions, -1, 0);
+	let length = (_a = data.length) !== null && _a !== void 0 ? _a : children.length ? positions[0] + children[0].length : 0;
+	return new Tree(types[data.topID], children.reverse(), positions.reverse(), length);
+}
+var nodeSizeCache = /* @__PURE__ */ new WeakMap();
+function nodeSize(balanceType, node) {
+	if (!balanceType.isAnonymous || node instanceof TreeBuffer || node.type != balanceType) return 1;
+	let size = nodeSizeCache.get(node);
+	if (size == null) {
+		size = 1;
+		for (let child of node.children) {
+			if (child.type != balanceType || !(child instanceof Tree)) {
+				size = 1;
+				break;
+			}
+			size += nodeSize(balanceType, child);
+		}
+		nodeSizeCache.set(node, size);
+	}
+	return size;
+}
+function balanceRange(balanceType, children, positions, from, to, start, length, mkTop, mkTree) {
+	let total = 0;
+	for (let i = from; i < to; i++) total += nodeSize(balanceType, children[i]);
+	let maxChild = Math.ceil(total * 1.5 / 8);
+	let localChildren = [], localPositions = [];
+	function divide(children, positions, from, to, offset) {
+		for (let i = from; i < to;) {
+			let groupFrom = i, groupStart = positions[i], groupSize = nodeSize(balanceType, children[i]);
+			i++;
+			for (; i < to; i++) {
+				let nextSize = nodeSize(balanceType, children[i]);
+				if (groupSize + nextSize >= maxChild) break;
+				groupSize += nextSize;
+			}
+			if (i == groupFrom + 1) {
+				if (groupSize > maxChild) {
+					let only = children[groupFrom];
+					divide(only.children, only.positions, 0, only.children.length, positions[groupFrom] + offset);
+					continue;
+				}
+				localChildren.push(children[groupFrom]);
+			} else {
+				let length = positions[i - 1] + children[i - 1].length - groupStart;
+				localChildren.push(balanceRange(balanceType, children, positions, groupFrom, i, groupStart, length, null, mkTree));
+			}
+			localPositions.push(groupStart + offset - start);
+		}
+	}
+	divide(children, positions, from, to, 0);
+	return (mkTop || mkTree)(localChildren, localPositions, length);
+}
+new NodeProp({ perNode: true });
+//#endregion
+//#region ../../node_modules/.pnpm/@lezer+highlight@1.2.5/node_modules/@lezer/highlight/dist/index.js
 var nextTagID = 0;
 /**
 Highlighting tags are markers that denote a highlighting category.
@@ -136047,7 +139358,7 @@ function styleTags(spec) {
 var ruleNodeProp = new NodeProp({ combine(a, b) {
 	let cur, root, take;
 	while (a || b) {
-		if (!a || b && a.depth >= b.depth) {
+		if (!a || b && a.depth <= b.depth) {
 			take = b;
 			b = b.next;
 		} else {
@@ -136230,7 +139541,7 @@ and necessarily incomplete. A full ontology of syntactic
 constructs would fill a stack of books, and be impractical to
 write themes for. So try to make do with this set. If all else
 fails, [open an
-issue](https://github.com/codemirror/codemirror.next) to propose a
+issue](https://code.haverbeke.berlin/codemirror/dev/issues) to propose a
 new tag, or [define](#highlight.Tag^define) a local custom tag for
 your use case.
 
@@ -136837,7 +140148,7 @@ var _a;
 Node prop stored in a parser's top syntax node to provide the
 facet that stores language-specific data for that language.
 */
-var languageDataProp = /*@__PURE__*/ new NodeProp();
+var languageDataProp = /*@__PURE__*/ new NodeProp$1();
 /**
 Helper function to define a facet (to be added to the top syntax
 node(s) for a language via
@@ -136853,7 +140164,7 @@ function defineLanguageFacet(baseData) {
 Syntax node prop used to register sublanguages. Should be added to
 the top level node type for the language.
 */
-var sublanguageProp = /*@__PURE__*/ new NodeProp();
+var sublanguageProp = /*@__PURE__*/ new NodeProp$1();
 /**
 A language object manages parsing and per-language
 [metadata](https://codemirror.net/6/docs/ref/#state.EditorState.languageDataAt). Parse data is
@@ -136919,7 +140230,7 @@ var Language = class {
 				});
 				return;
 			}
-			let mount = tree.prop(NodeProp.mounted);
+			let mount = tree.prop(NodeProp$1.mounted);
 			if (mount) {
 				if (mount.tree.prop(languageDataProp) == this.data) {
 					if (mount.overlay) for (let r of mount.overlay) result.push({
@@ -136939,7 +140250,7 @@ var Language = class {
 			}
 			for (let i = 0; i < tree.children.length; i++) {
 				let ch = tree.children[i];
-				if (ch instanceof Tree) explore(ch, tree.positions[i] + from);
+				if (ch instanceof Tree$1) explore(ch, tree.positions[i] + from);
 			}
 		};
 		explore(syntaxTree(state), 0);
@@ -136960,7 +140271,7 @@ Language.setState = /*@__PURE__*/ StateEffect.define();
 function topNodeAt(state, pos, side) {
 	let topLang = state.facet(language$1), tree = syntaxTree(state).topNode;
 	if (!topLang || topLang.allowsNesting) {
-		for (let node = tree; node; node = node.enter(pos, side, IterMode.ExcludeBuffers | IterMode.EnterBracketed)) if (node.type.isTop) tree = node;
+		for (let node = tree; node; node = node.enter(pos, side, IterMode$1.ExcludeBuffers | IterMode$1.EnterBracketed)) if (node.type.isTop) tree = node;
 	}
 	return tree;
 }
@@ -136972,7 +140283,7 @@ language available.
 */
 function syntaxTree(state) {
 	let field = state.field(Language.state, false);
-	return field ? field.tree : Tree.empty;
+	return field ? field.tree : Tree$1.empty;
 }
 /**
 Lezer-style
@@ -137034,7 +140345,7 @@ var ParseContext = class ParseContext {
 	@internal
 	*/
 	static create(parser, state, viewport) {
-		return new ParseContext(parser, state, [], Tree.empty, 0, viewport, [], null);
+		return new ParseContext(parser, state, [], Tree$1.empty, 0, viewport, [], null);
 	}
 	startParse() {
 		return this.parser.startParse(new DocInput(this.state.doc), this.fragments);
@@ -137044,7 +140355,7 @@ var ParseContext = class ParseContext {
 	*/
 	work(until, upto) {
 		if (upto != null && upto >= this.state.doc.length) upto = void 0;
-		if (this.tree != Tree.empty && this.isDone(upto !== null && upto !== void 0 ? upto : this.state.doc.length)) {
+		if (this.tree != Tree$1.empty && this.isDone(upto !== null && upto !== void 0 ? upto : this.state.doc.length)) {
 			this.takeTree();
 			return true;
 		}
@@ -137114,7 +140425,7 @@ var ParseContext = class ParseContext {
 				toB
 			}));
 			fragments = TreeFragment.applyChanges(fragments, ranges);
-			tree = Tree.empty;
+			tree = Tree$1.empty;
 			treeLen = 0;
 			viewport = {
 				from: changes.mapPos(viewport.from, -1),
@@ -137193,7 +140504,7 @@ var ParseContext = class ParseContext {
 							if (until) cx.scheduleOn = cx.scheduleOn ? Promise.all([cx.scheduleOn, until]) : until;
 						}
 						this.parsedPos = to;
-						return new Tree(NodeType.none, [], [], to - from);
+						return new Tree$1(NodeType$1.none, [], [], to - from);
 					},
 					stoppedAt: null,
 					stopAt() {}
@@ -137511,7 +140822,7 @@ context to a column number (see also
 [`indentString`](https://codemirror.net/6/docs/ref/#language.indentString)) or null, where null
 indicates that no definitive indentation can be determined.
 */
-var indentNodeProp = /*@__PURE__*/ new NodeProp();
+var indentNodeProp = /*@__PURE__*/ new NodeProp$1();
 function syntaxIndentation(cx, ast, pos) {
 	let stack = ast.resolveStack(pos);
 	let inner = ast.resolveInner(pos, -1).resolve(pos, 0).enterUnfinishedNodesBefore(pos);
@@ -137539,7 +140850,7 @@ function indentStrategy(tree) {
 	let strategy = tree.type.prop(indentNodeProp);
 	if (strategy) return strategy;
 	let first = tree.firstChild, close;
-	if (first && (close = first.type.prop(NodeProp.closedBy))) {
+	if (first && (close = first.type.prop(NodeProp$1.closedBy))) {
 		let last = tree.lastChild, closed = last && close.indexOf(last.name) > -1;
 		return (cx) => delimitedStrategy(cx, true, 1, void 0, closed && !ignoreClosed(cx) ? last.from : void 0);
 	}
@@ -137902,9 +141213,9 @@ a node, a ‘handle’—the part of the node that is highlighted, and
 that the cursor must be on to activate highlighting in the first
 place.
 */
-var bracketMatchingHandle = /*@__PURE__*/ new NodeProp();
+var bracketMatchingHandle = /*@__PURE__*/ new NodeProp$1();
 function matchingNodes(node, dir, brackets) {
-	let byProp = node.prop(dir < 0 ? NodeProp.openedBy : NodeProp.closedBy);
+	let byProp = node.prop(dir < 0 ? NodeProp$1.openedBy : NodeProp$1.closedBy);
 	if (byProp) return byProp;
 	if (node.name.length == 1) {
 		let index = brackets.indexOf(node.name);
@@ -138213,7 +141524,7 @@ var StreamLanguage = class StreamLanguage extends Language {
 		this.topNode = docID(data, this);
 		self = this;
 		this.streamParser = p;
-		this.stateAfter = new NodeProp({ perNode: true });
+		this.stateAfter = new NodeProp$1({ perNode: true });
 		this.tokenTable = parser.tokenTable ? new TokenTable(p.tokenTable) : defaultTokenTable;
 	}
 	/**
@@ -138267,7 +141578,7 @@ function findState(lang, tree, off, startPos, before) {
 	};
 	for (let i = tree.children.length - 1; i >= 0; i--) {
 		let child = tree.children[i], pos = off + tree.positions[i];
-		let found = child instanceof Tree && pos < before && findState(lang, child, pos, startPos, before);
+		let found = child instanceof Tree$1 && pos < before && findState(lang, child, pos, startPos, before);
 		if (found) return found;
 	}
 	return null;
@@ -138277,9 +141588,9 @@ function cutTree(lang, tree, from, to, inside) {
 	if (!inside && from == 0 && tree.type == lang.topNode) inside = true;
 	for (let i = tree.children.length - 1; i >= 0; i--) {
 		let pos = tree.positions[i], child = tree.children[i], inner;
-		if (pos < to && child instanceof Tree) {
+		if (pos < to && child instanceof Tree$1) {
 			if (!(inner = cutTree(lang, child, from - pos, to - pos, inside))) break;
-			return !inside ? inner : new Tree(tree.type, tree.children.slice(0, i).concat(inner), tree.positions.slice(0, i + 1), pos + inner.length);
+			return !inside ? inner : new Tree$1(tree.type, tree.children.slice(0, i).concat(inner), tree.positions.slice(0, i + 1), pos + inner.length);
 		}
 	}
 	return null;
@@ -138295,7 +141606,7 @@ function findStartInFragments(lang, fragments, startPos, endPos, editorState) {
 	}
 	return {
 		state: lang.streamParser.startState(editorState ? getIndentUnit(editorState) : 4),
-		tree: Tree.empty
+		tree: Tree$1.empty
 	};
 }
 var Parse = class {
@@ -138410,7 +141721,7 @@ var Parse = class {
 		if (this.parsedPos < this.to) this.parsedPos++;
 	}
 	finishChunk() {
-		let tree = Tree.build({
+		let tree = Tree$1.build({
 			buffer: this.chunk,
 			start: this.chunkStart,
 			length: this.parsedPos - this.chunkStart,
@@ -138419,7 +141730,7 @@ var Parse = class {
 			maxBufferLength: 512,
 			reused: this.chunkReused
 		});
-		tree = new Tree(tree.type, tree.children, tree.positions, tree.length, [[this.lang.stateAfter, this.lang.streamParser.copyState(this.state)]]);
+		tree = new Tree$1(tree.type, tree.children, tree.positions, tree.length, [[this.lang.stateAfter, this.lang.streamParser.copyState(this.state)]]);
 		this.chunks.push(tree);
 		this.chunkPos.push(this.chunkStart - this.ranges[0].from);
 		this.chunk = [];
@@ -138427,7 +141738,7 @@ var Parse = class {
 		this.chunkStart = this.parsedPos;
 	}
 	finish() {
-		return new Tree(this.lang.topNode, this.chunks, this.chunkPos, this.parsedPos - this.ranges[0].from).balance();
+		return new Tree$1(this.lang.topNode, this.chunks, this.chunkPos, this.parsedPos - this.ranges[0].from).balance();
 	}
 };
 function readToken(token, stream, state) {
@@ -138439,7 +141750,7 @@ function readToken(token, stream, state) {
 	throw new Error("Stream parser failed to advance stream.");
 }
 var noTokens = /*@__PURE__*/ Object.create(null);
-var typeArray = [NodeType.none];
+var typeArray = [NodeType$1.none];
 var nodeSet = /*@__PURE__*/ new NodeSet(typeArray);
 var warned = [];
 var byTag = /*@__PURE__*/ Object.create(null);
@@ -138492,7 +141803,7 @@ function createTokenType(extra, tagStr) {
 	let name = tagStr.replace(/ /g, "_"), key = name + " " + tags$1.map((t) => t.id);
 	let known = byTag[key];
 	if (known) return known.id;
-	let type = byTag[key] = NodeType.define({
+	let type = byTag[key] = NodeType$1.define({
 		id: typeArray.length,
 		name,
 		props: [styleTags({ [name]: tags$1 })]
@@ -138501,7 +141812,7 @@ function createTokenType(extra, tagStr) {
 	return type.id;
 }
 function docID(data, lang) {
-	let type = NodeType.define({
+	let type = NodeType$1.define({
 		id: typeArray.length,
 		name: "Document",
 		props: [languageDataProp.add(() => data), indentNodeProp.add(() => (cx) => lang.getIndent(cx))],
@@ -141784,7 +145095,7 @@ function interestingNode(state, node, bracketProp) {
 }
 function moveBySyntax(state, start, forward) {
 	let pos = syntaxTree(state).resolveInner(start.head);
-	let bracketProp = forward ? NodeProp.closedBy : NodeProp.openedBy;
+	let bracketProp = forward ? NodeProp$1.closedBy : NodeProp$1.openedBy;
 	for (let at = start.head;;) {
 		let next = forward ? pos.childAfter(at) : pos.childBefore(at);
 		if (!next) break;
@@ -142430,7 +145741,7 @@ function isBetweenBrackets(state, pos) {
 	};
 	let context = syntaxTree(state).resolveInner(pos);
 	let before = context.childBefore(pos), after = context.childAfter(pos), closedBy;
-	if (before && after && before.to <= pos && after.from >= pos && (closedBy = before.type.prop(NodeProp.closedBy)) && closedBy.indexOf(after.name) > -1 && state.doc.lineAt(before.to).from == state.doc.lineAt(after.from).from && !/\S/.test(state.sliceDoc(before.to, after.from))) return {
+	if (before && after && before.to <= pos && after.from >= pos && (closedBy = before.type.prop(NodeProp$1.closedBy)) && closedBy.indexOf(after.name) > -1 && state.doc.lineAt(before.to).from == state.doc.lineAt(after.from).from && !/\S/.test(state.sliceDoc(before.to, after.from))) return {
 		from: before.to,
 		to: after.from
 	};

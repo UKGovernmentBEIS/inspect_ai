@@ -81,6 +81,7 @@ EvalInfo: list[Column] = [
 EvalTask: list[Column] = [
     EvalColumn("task_name", path="eval.task", required=True, value=remove_namespace),
     EvalColumn("task_display_name", path=eval_log_task_display_name),
+    EvalColumn("task_description", path="eval.task_description"),
     EvalColumn("task_version", path="eval.task_version", required=True),
     EvalColumn("task_file", path="eval.task_file"),
     EvalColumn("task_attribs", path="eval.task_attribs"),
@@ -115,6 +116,7 @@ EvalConfiguration: list[Column] = [
     EvalColumn("epochs_reducer", path="eval.config.epochs_reducer"),
     EvalColumn("approval", path="eval.config.approval"),
     EvalColumn("review", path="eval.config.review"),
+    EvalColumn("sentinel", path="eval.config.sentinel"),
     EvalColumn("message_limit", path="eval.config.message_limit"),
     EvalColumn("token_limit", path="eval.config.token_limit"),
     EvalColumn("token_limit_type", path="eval.config.token_limit_type"),
