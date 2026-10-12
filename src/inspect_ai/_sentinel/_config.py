@@ -17,7 +17,10 @@ from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.registry import is_registry_object
 
 if TYPE_CHECKING:
-    from inspect_sentinel import Protocol, Sentinels, Verdict
+    from inspect_sentinel import Protocol
+    from inspect_sentinel._integration import Sentinels
+else:
+    Sentinels: TypeAlias = Any
 
 
 class SentinelEntry(BaseModel):
@@ -94,25 +97,13 @@ SentinelEntry.model_rebuild()
 
 SentinelRoot: TypeAlias = "Protocol"
 
-# Keep the two branches the same union: inspect_sentinel is optional, so at
-# runtime Any stands in for a configuration that cannot leave an escalation
-# unhandled.
-if TYPE_CHECKING:
-    SentinelSpec: TypeAlias = Union[
-        str,
-        Sentinels[Verdict | None],
-        SentinelConfig,
-        Sequence[Mapping[str, Any]],
-        Mapping[str, Mapping[str, Any]],
-    ]
-else:
-    SentinelSpec: TypeAlias = Union[
-        str,
-        Any,
-        SentinelConfig,
-        Sequence[Mapping[str, Any]],
-        Mapping[str, Mapping[str, Any]],
-    ]
+SentinelSpec: TypeAlias = Union[
+    str,
+    Sentinels,
+    SentinelConfig,
+    Sequence[Mapping[str, Any]],
+    Mapping[str, Mapping[str, Any]],
+]
 
 
 def _require_sentinel() -> None:

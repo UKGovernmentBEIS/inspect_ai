@@ -36,12 +36,10 @@ try:
         BeforeToolCall,
         Context,
         Decision,
-        Escalate,
         Monitor,
         MonitorGroup,
         Observation,
         Protocol,
-        Reject,
         human,
         monitor,
         observe_only,
@@ -97,8 +95,8 @@ def lookup() -> Tool:
 
 
 @protocol
-def e2e_protect_etc() -> Protocol[Reject | None]:
-    async def check(context: Context, step: BeforeToolCall) -> Reject | None:
+def e2e_protect_etc() -> Protocol:
+    async def check(context: Context, step: BeforeToolCall) -> Decision | None:
         if str(step.call.arguments.get("path", "")).startswith("/etc"):
             return Decision.reject(
                 "deletes under /etc", message="Refused: /etc is protected."
@@ -109,8 +107,8 @@ def e2e_protect_etc() -> Protocol[Reject | None]:
 
 
 @protocol
-def e2e_escalate_deletes() -> Protocol[Escalate | None]:
-    async def check(context: Context, step: BeforeToolCall) -> Escalate | None:
+def e2e_escalate_deletes() -> Protocol:
+    async def check(context: Context, step: BeforeToolCall) -> Decision | None:
         if step.call.function == "delete_file":
             return Decision.escalate("deletes a file")
         return None
@@ -350,7 +348,7 @@ async def test_an_escalation_reaches_a_person_and_their_answer_applies(
         [delete_file(deleted)],
         "Call delete_file with path '/tmp/report.txt'. If the call is refused, "
         "reply with the word DONE and stop.",
-        sequential([e2e_escalate_deletes()], then=human(stages=["tool_call"])),
+        sequential([e2e_escalate_deletes(), human(stages=["tool_call"])]),
         force="delete_file",
     )
 
