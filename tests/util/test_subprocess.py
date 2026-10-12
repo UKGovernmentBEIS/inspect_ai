@@ -1,4 +1,5 @@
 import asyncio
+import gc
 import os
 import shutil
 import sys
@@ -426,6 +427,46 @@ while True:
     assert len(ex.value.stdout) == 1_000_000
     pid = int(ex.value.stdout.split(b"\n", 1)[0])
     assert not psutil.pid_exists(pid)
+
+
+@pytest.mark.anyio
+@pytest.mark.skipif(sys.platform == "win32", reason="num_fds() is POSIX only")
+async def test_run_subprocess_stdout_limit_releases_pipes():
+    """The pipes of a process stopped by `stdout_limit` are closed, not left to GC."""
+    script = "import sys\nwhile True: sys.stdout.buffer.write(b'x' * 65536)"
+    process = psutil.Process()
+    gc.disable()
+    try:
+        fds_before = process.num_fds()
+        with pytest.raises(StdoutLimitExceededError):
+            await run_subprocess(
+                ["python3", "-c", script], text=False, stdout_limit=1_000_000
+            )
+        assert process.num_fds() == fds_before
+    finally:
+        gc.enable()
+
+
+@pytest.mark.anyio
+async def test_run_subprocess_stdout_limit_keeps_output_limit_for_stderr():
+    """`output_limit` still bounds stderr when `stdout_limit` is set."""
+    script = "import sys; sys.stdout.write('out'); sys.stderr.write('e' * 1000)"
+    run = await run_subprocess(
+        ["python3", "-c", script], text=False, output_limit=100, stdout_limit=1000
+    )
+    assert run.result.stdout == b"out"
+    assert run.result.stderr == b"e" * 100
+
+
+@pytest.mark.anyio
+async def test_run_subprocess_stdout_limit_text():
+    """`stdout_limit` counts bytes and still decodes stdout in text mode."""
+    script = "import sys; sys.stdout.buffer.write('héllo'.encode())"
+    run = await run_subprocess(["python3", "-c", script], stdout_limit=6)
+    assert run.result.stdout == "héllo"
+    with pytest.raises(StdoutLimitExceededError) as ex:
+        await run_subprocess(["python3", "-c", script], stdout_limit=5)
+    assert ex.value.stdout == "héllo".encode()[:5]
 
 
 @pytest.mark.anyio

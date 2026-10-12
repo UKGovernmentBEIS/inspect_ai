@@ -319,6 +319,9 @@ async def run_subprocess(
         except anyio.get_cancelled_exc_class():
             await gracefully_terminate_cancelled_subprocess(process)
             raise
+        except StdoutLimitExceededError:
+            await _kill_and_drain(process)
+            raise
         finally:
             # Inlined process.aclose() with a bounded final wait. anyio's
             # Process.aclose() re-shields and does an unbounded
@@ -409,6 +412,9 @@ LOST_SUBPROCESS_WAIT_TIMEOUT = 60
 # path can shrink it without waiting the full production grace.
 SUBPROCESS_SIGTERM_GRACE_SECONDS = 2
 
+# Upper bound on reading a process's pipes to EOF after `stdout_limit` kills it.
+STDOUT_LIMIT_DRAIN_SECONDS = 5
+
 
 def _warn_lost_subprocess(process: Process, where: str) -> None:
     logger.warning(
@@ -447,6 +453,23 @@ async def gracefully_terminate_cancelled_subprocess(process: Process) -> None:
         # The process may have already exited, in which case we can ignore the error.
         except ProcessLookupError:
             pass
+
+
+async def _kill_and_drain(process: Process) -> None:
+    """Kill a process stopped by `stdout_limit` and read its pipes to EOF.
+
+    On asyncio a stdout pipe left unread is paused and never sees EOF, so its
+    transport (and file descriptor) stays open until garbage collection. The
+    drain is bounded because EOF never comes if a surviving grandchild still
+    holds the pipe (as with Docker CLI plugins on CLIs that do not stop them
+    when the parent is killed).
+    """
+    with contextlib.suppress(ProcessLookupError):
+        process.kill()
+    with anyio.move_on_after(STDOUT_LIMIT_DRAIN_SECONDS):
+        async with create_task_group() as tg:
+            tg.start_soon(drain_stream, process.stdout)
+            tg.start_soon(drain_stream, process.stderr)
 
 
 async def _write_stdin(stream: ByteSendStream | None, input: bytes | None) -> bool:
