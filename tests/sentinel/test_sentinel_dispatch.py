@@ -2446,7 +2446,7 @@ def d3_scores_mid_run() -> Solver:
     return solve
 
 
-def test_score_from_a_solver_runs_in_a_scorer_span_and_is_not_checked() -> None:
+def test_score_from_a_solver_is_not_checked() -> None:
     seen: GenerateSeen = []
     task = Task(
         dataset=[Sample(input="Say hi.", target="ok")],
@@ -2457,17 +2457,46 @@ def test_score_from_a_solver_runs_in_a_scorer_span_and_is_not_checked() -> None:
     log = eval(task, model="mockllm/model")[0]
     assert log.status == "success", log.error
     assert log.samples
-    events = log.samples[0].events
-    scorer_spans = {
-        e.id
-        for e in events
-        if isinstance(e, SpanBeginEvent)
-        and e.type == "scorer"
-        and e.name == "d3_model_scorer"
-    }
-    model_events = [e for e in events if isinstance(e, ModelEvent)]
-    assert [e.span_id in scorer_spans for e in model_events][:2] == [True, False]
+    model_events = [e for e in log.samples[0].events if isinstance(e, ModelEvent)]
+    # the solver's score(), the agent's generate, then the scoring phase
+    assert len(model_events) == 3
     assert len(seen) == 2
+    assert all(step.input[-1].text == "Say hi." for step in seen)
+
+
+@solver
+def d3_compacts_then_generates() -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        from inspect_ai.model._compaction.summary import CompactionSummary
+
+        await CompactionSummary().compact(
+            get_model(),
+            [
+                ChatMessageUser(content="question", source="input"),
+                ChatMessageAssistant(content="answer"),
+            ],
+            [],
+        )
+        state.output = await get_model().generate(state.messages)
+        return state
+
+    return solve
+
+
+def test_a_compaction_summary_is_not_checked() -> None:
+    seen: GenerateSeen = []
+    task = Task(
+        dataset=[Sample(input="Say hi.")],
+        solver=d3_compacts_then_generates(),
+        sentinel=observe_only([d3_generates(seen)]),
+    )
+    log = eval(task, model="mockllm/model")[0]
+    assert log.status == "success", log.error
+    assert log.samples
+    model_events = [e for e in log.samples[0].events if isinstance(e, ModelEvent)]
+    assert len(model_events) == 2
+    assert len(seen) == 2
+    assert all(step.input[-1].text == "Say hi." for step in seen)
 
 
 def test_a_monitor_on_the_agents_own_model_is_not_checked() -> None:
