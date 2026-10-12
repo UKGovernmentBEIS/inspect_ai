@@ -222,6 +222,8 @@ def _model_input(
         event = _producing_model_event(transcript().history, message_id)
     except TranscriptHistoryUnavailableError:
         return None
+    except Exception as ex:
+        raise SentinelFailure(ex) from ex
     return list(event.input) if event is not None else None
 
 
@@ -242,7 +244,7 @@ def _producing_model_event(
             if _produced(event, message_id):
                 return event
         end = start
-        window *= 2
+        window = min(window * 2, 256)
     return None
 
 

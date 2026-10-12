@@ -2,6 +2,7 @@ import logging
 from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
 from dataclasses import replace
+from pathlib import Path
 from typing import Any, cast
 
 import anyio
@@ -35,6 +36,7 @@ from inspect_ai.log import EvalLog
 from inspect_ai.log._transcript import (
     Transcript,
     TranscriptHistoryProvider,
+    TranscriptHistoryUnavailableError,
     init_transcript,
     transcript,
 )
@@ -1573,6 +1575,88 @@ def test_model_input_is_none_when_the_history_is_unavailable() -> None:
     assert not transcript().history.full_history_available
     assert _model_input(addition_call(), produced_by(first)) is None
     assert _model_input(addition_call(), produced_by(last)) == last.input
+
+
+class FailingHistoryProvider(FakeTranscriptHistoryProvider):
+    def __init__(self, events: list[Event], error: Exception) -> None:
+        super().__init__(events)
+        self.error = error
+
+    def events_from(self, start: int, limit: int | None = None) -> Sequence[Event]:
+        raise self.error
+
+
+def test_model_input_is_none_when_the_history_store_is_gone() -> None:
+    from inspect_ai._sentinel._dispatch import _model_input
+
+    events: list[Event] = [indexed_model_event(f"turn {turn}") for turn in range(10)]
+    first = cast(ModelEvent, events[0])
+    error = TranscriptHistoryUnavailableError("buffer cleaned up")
+    bounded_transcript(events, FailingHistoryProvider(events, error))
+    assert _model_input(addition_call(), produced_by(first)) is None
+
+
+def test_a_history_read_error_fails_the_sentinel() -> None:
+    from inspect_ai._sentinel._context import SentinelFailure
+    from inspect_ai._sentinel._dispatch import _model_input
+
+    events: list[Event] = [indexed_model_event(f"turn {turn}") for turn in range(10)]
+    first = cast(ModelEvent, events[0])
+    bounded_transcript(events, FailingHistoryProvider(events, ValueError("corrupt")))
+    with pytest.raises(SentinelFailure, match="corrupt"):
+        _model_input(addition_call(), produced_by(first))
+
+
+def test_model_input_skips_a_pending_model_event() -> None:
+    from inspect_ai._sentinel._dispatch import _model_input
+
+    current = Transcript()
+    init_transcript(current)
+    pending = indexed_model_event("pending")
+    pending.pending = True
+    current._event(pending)
+    assert _model_input(addition_call(), produced_by(pending)) is None
+
+
+def test_model_input_is_exact_from_the_bounded_sample_buffer(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    import inspect_ai._eval.task.run as task_run
+    from inspect_ai.log._recorders.buffer import transcript_history_provider
+
+    monkeypatch.setenv("INSPECT_TRANSCRIPT_BOUNDED", "true")
+    monkeypatch.setattr(task_run, "DEFAULT_RESIDENT_TAIL", 3)
+    provider_reads: list[int] = []
+    events_from = (
+        transcript_history_provider.BufferTranscriptHistoryProvider.events_from
+    )
+
+    def counted(self: Any, start: int, limit: int | None = None) -> Sequence[Event]:
+        provider_reads.append(start)
+        return events_from(self, start, limit)
+
+    monkeypatch.setattr(
+        transcript_history_provider.BufferTranscriptHistoryProvider,
+        "events_from",
+        counted,
+    )
+    before: Seen = []
+    after: list[AfterToolCall] = []
+    log = run(
+        observe_only([d3_recording(before), d3_recording_after(after)]),
+        turns=5,
+        log_dir=str(tmp_path),
+    )
+    assert log.status == "success", log.error
+    assert log.samples
+    model_events = [e for e in log.samples[0].events if isinstance(e, ModelEvent)]
+    assert len(before) == len(after) == 5
+    for (_, step), after_step, event in zip(before, after, model_events, strict=False):
+        expected = [m.model_dump() for m in event.input]
+        assert step.input is not None and after_step.input is not None
+        assert [m.model_dump() for m in step.input] == expected
+        assert [m.model_dump() for m in after_step.input] == expected
+    assert provider_reads
 
 
 def test_model_input_skips_monitor_calls() -> None:
