@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import hashlib
 import os
+import tempfile
 from pathlib import Path
 
 import httpx
@@ -74,7 +75,7 @@ def download(
         return dest
 
     dest.parent.mkdir(parents=True, exist_ok=True)
-    tmp = dest.with_suffix(dest.suffix + ".partial")
+    tmp = _partial_path(dest)
 
     @retry(
         wait=wait_exponential_jitter(),
@@ -141,7 +142,7 @@ def gdrive_download(file_id: str, sha256: str, dest: Path) -> Path:
         raise pip_dependency_error("Google Drive download", ["gdown"])
 
     dest.parent.mkdir(parents=True, exist_ok=True)
-    tmp = dest.with_suffix(dest.suffix + ".partial")
+    tmp = _partial_path(dest)
 
     try:
         gdown.download(id=file_id, output=str(tmp), quiet=False)
@@ -157,6 +158,16 @@ def gdrive_download(file_id: str, sha256: str, dest: Path) -> Path:
             tmp.unlink()
 
     return dest
+
+
+def _partial_path(dest: Path) -> Path:
+    # Unique per call so concurrent downloads of the same `dest` never share
+    # (and rename or unlink) each other's tempfile.
+    fd, name = tempfile.mkstemp(
+        dir=dest.parent, prefix=f"{dest.name}.", suffix=".partial"
+    )
+    os.close(fd)
+    return Path(name)
 
 
 def _sha256_of(path: Path) -> str:

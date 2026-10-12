@@ -115,7 +115,7 @@ def test_successful_download_writes_bytes_and_verifies(tmp_path: Path) -> None:
 
     assert result == dest
     assert dest.read_bytes() == content
-    assert not (tmp_path / "out.bin.partial").exists()
+    assert list(tmp_path.iterdir()) == [dest]
 
 
 def test_checksum_mismatch_raises_and_cleans_up(tmp_path: Path) -> None:
@@ -127,8 +127,7 @@ def test_checksum_mismatch_raises_and_cleans_up(tmp_path: Path) -> None:
         with pytest.raises(ValueError, match="Checksum mismatch"):
             download("http://example.com/x", "0" * 64, dest)
 
-    assert not dest.exists()
-    assert not (tmp_path / "f.bin.partial").exists()
+    assert list(tmp_path.iterdir()) == []
 
 
 def test_atomic_write_cleans_partial_on_mid_stream_failure(tmp_path: Path) -> None:
@@ -147,8 +146,7 @@ def test_atomic_write_cleans_partial_on_mid_stream_failure(tmp_path: Path) -> No
         with pytest.raises(RetryError):
             download("http://example.com/x", _sha256(b""), dest)
 
-    assert not dest.exists()
-    assert not (tmp_path / "f.bin.partial").exists()
+    assert list(tmp_path.iterdir()) == []
 
 
 def test_5xx_retried_then_succeeds(tmp_path: Path) -> None:
@@ -292,5 +290,28 @@ def test_gdrive_download_checksum_mismatch_cleans_up(tmp_path: Path) -> None:
         with pytest.raises(ValueError, match="Checksum mismatch"):
             gdrive_download("file-id", "0" * 64, dest)
 
-    assert not dest.exists()
-    assert not (tmp_path / "g.bin.partial").exists()
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_overlapping_downloads_of_same_dest_both_succeed(tmp_path: Path) -> None:
+    content = b"shared artefact" * 100
+    dest = tmp_path / "f.bin"
+    sha = _sha256(content)
+
+    class _OverlappingStream(_FakeStream):
+        """Runs a second, complete download of `dest` partway through this one."""
+
+        def iter_bytes(self, chunk_size: int | None = None) -> Iterator[bytes]:
+            chunks = super().iter_bytes(chunk_size)
+            yield next(chunks)
+            download("http://example.com/x", sha, dest)
+            yield from chunks
+
+    stream_mock = _stream_factory(
+        _OverlappingStream(200, content), _FakeStream(200, content)
+    )
+    with patch("inspect_ai._util.download.httpx.stream", stream_mock):
+        download("http://example.com/x", sha, dest)
+
+    assert dest.read_bytes() == content
+    assert list(tmp_path.iterdir()) == [dest]
