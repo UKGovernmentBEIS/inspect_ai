@@ -106,6 +106,13 @@ jobs:
         if: github.event_name != 'pull_request' || steps.filter.outputs.code == 'true'
         run: uv sync
 
+      # TEMPORARY: step.input may be None from the inspect_sentinel release after
+      # meridianlabs-ai/inspect_sentinel@dragonstyle/sentinel-r2-input. Remove
+      # when that release is on PyPI and requirements-dev.txt requires it.
+      - name: Install inspect_sentinel (TEMPORARY)
+        if: github.event_name != 'pull_request' || steps.filter.outputs.code == 'true'
+        run: uv pip install --no-deps "inspect_sentinel @ git+https://github.com/meridianlabs-ai/inspect_sentinel@4d141e37a4b3eacd023d3c6c878e009b7785ce5c"
+
       - name: Run mypy
         if: github.event_name != 'pull_request' || steps.filter.outputs.code == 'true'
         run: uv run --no-sync mypy --exclude tests/test_package src tests
@@ -328,6 +335,13 @@ jobs:
         run: |-
           uv sync
           uv pip install --no-deps ./tests/test_package
+
+      # TEMPORARY: step.input may be None from the inspect_sentinel release after
+      # meridianlabs-ai/inspect_sentinel@dragonstyle/sentinel-r2-input. Remove
+      # when that release is on PyPI and requirements-dev.txt requires it.
+      - name: Install inspect_sentinel (TEMPORARY)
+        if: env.RUN_TESTS == 'true'
+        run: uv pip install --no-deps "inspect_sentinel @ git+https://github.com/meridianlabs-ai/inspect_sentinel@4d141e37a4b3eacd023d3c6c878e009b7785ce5c"
 
       - name: Test with pytest
         if: env.RUN_TESTS == 'true'

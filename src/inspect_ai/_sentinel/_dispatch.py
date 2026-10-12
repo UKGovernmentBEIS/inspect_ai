@@ -1,8 +1,7 @@
 from collections.abc import Sequence
 from copy import copy
 from logging import getLogger
-from typing import Any, Literal, cast
-from weakref import WeakKeyDictionary
+from typing import Any, Literal, TypeGuard, cast
 
 from inspect_sentinel import (
     AfterToolCall,
@@ -33,7 +32,11 @@ from inspect_ai.event._sentinel import (
     SentinelSuspicion,
 )
 from inspect_ai.log._samples import sample_active
-from inspect_ai.log._transcript import Transcript, transcript
+from inspect_ai.log._transcript import (
+    TranscriptHistory,
+    TranscriptHistoryUnavailableError,
+    transcript,
+)
 from inspect_ai.model._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
@@ -208,84 +211,49 @@ def _assistant_index(call: ToolCall, history: list[ChatMessage]) -> int | None:
     return None
 
 
-def _model_input(call: ToolCall, history: list[ChatMessage]) -> list[ChatMessage]:
-    current = transcript()
-    inputs = _sample_inputs(current)
+def _model_input(
+    call: ToolCall, history: list[ChatMessage]
+) -> list[ChatMessage] | None:
     index = _assistant_index(call, history)
-    if index is None:
-        inputs.warn(
-            "no_assistant",
-            f"No assistant message with tool call {call.id} is in the conversation, "
-            "so the sentinel step's input is the whole conversation.",
-        )
-        return list(history)
-    assistant_id = history[index].id
-    found = inputs.find(current, assistant_id) if assistant_id is not None else None
-    if found is None:
-        inputs.warn(
-            "no_model_event",
-            f"No ModelEvent was found for assistant message {assistant_id}, so the "
-            "sentinel step's input is the conversation before it.",
-        )
-        return history[:index]
-    return list(found)
+    message_id = history[index].id if index is not None else None
+    if message_id is None:
+        return None
+    try:
+        event = _producing_model_event(transcript().history, message_id)
+    except TranscriptHistoryUnavailableError:
+        return None
+    return list(event.input) if event is not None else None
 
 
-class _SampleInputs:
-    def __init__(self) -> None:
-        self._inputs: dict[str, ModelEvent] = {}
-        self._pending: list[ModelEvent] = []
-        self._last: Event | None = None
-        self._warned: set[str] = set()
-
-    def find(self, current: Transcript, assistant_id: str) -> list[ChatMessage] | None:
-        if assistant_id not in self._inputs:
-            self._scan(current)
-        event = self._inputs.get(assistant_id)
-        return event.input if event is not None else None
-
-    def warn(self, reason: str, message: str) -> None:
-        if reason not in self._warned:
-            self._warned.add(reason)
-            logger.warning(message)
-
-    def _scan(self, current: Transcript) -> None:
-        self._inputs = {
-            message_id: event
-            for message_id, event in self._inputs.items()
-            if current._is_resident(event)
-        }
-        resident = current.history.resident_events
-        new: list[ModelEvent] = []
-        for event in reversed(resident):
-            if event is self._last:
-                break
-            if isinstance(event, ModelEvent) and event.role != "monitor":
-                new.append(event)
-        if resident:
-            self._last = resident[-1]
-        pending: list[ModelEvent] = []
-        for event in [*self._pending, *new]:
-            if event.pending:
-                pending.append(event)
-            elif event.output.choices:
-                message_id = event.output.choices[0].message.id
-                if message_id is not None:
-                    self._inputs.setdefault(message_id, event)
-        self._pending = pending
+def _producing_model_event(
+    history: TranscriptHistory, message_id: str
+) -> ModelEvent | None:
+    # newest first: the producing call is almost always recent
+    for event in reversed(history.resident_events):
+        if _produced(event, message_id):
+            return event
+    if not history.resident_events_truncated:
+        return None
+    end = history.event_count
+    window = 16
+    while end > 0:
+        start = max(0, end - window)
+        for event in reversed(history.events_from(start, end - start)):
+            if _produced(event, message_id):
+                return event
+        end = start
+        window *= 2
+    return None
 
 
-_inputs_by_transcript: "WeakKeyDictionary[Transcript, _SampleInputs]" = (
-    WeakKeyDictionary()
-)
-
-
-def _sample_inputs(current: Transcript) -> _SampleInputs:
-    inputs = _inputs_by_transcript.get(current)
-    if inputs is None:
-        inputs = _SampleInputs()
-        _inputs_by_transcript[current] = inputs
-    return inputs
+def _produced(event: Event, message_id: str) -> TypeGuard[ModelEvent]:
+    return (
+        isinstance(event, ModelEvent)
+        and event.role != "monitor"
+        and not event.pending
+        and bool(event.output.choices)
+        and event.output.choices[0].message.id == message_id
+    )
 
 
 class _Host:

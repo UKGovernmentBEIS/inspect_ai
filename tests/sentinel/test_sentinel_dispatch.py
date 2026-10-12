@@ -6,6 +6,7 @@ from typing import Any, cast
 
 import anyio
 import pytest
+from test_helpers.transcript import FakeTranscriptHistoryProvider
 
 from inspect_ai import Task, eval
 from inspect_ai._sentinel._config import resolve_sentinel_root, resolve_sentinel_spec
@@ -31,7 +32,12 @@ from inspect_ai.event import (
     ToolEvent,
 )
 from inspect_ai.log import EvalLog
-from inspect_ai.log._transcript import Transcript, init_transcript, transcript
+from inspect_ai.log._transcript import (
+    Transcript,
+    TranscriptHistoryProvider,
+    init_transcript,
+    transcript,
+)
 from inspect_ai.model import (
     ChatMessage,
     ChatMessageAssistant,
@@ -854,6 +860,7 @@ def test_context_and_step_come_from_the_sample(
     assert step.view.call is not None
     assert step.history[-1].role == "assistant"
     model_events = [e for e in sample.events if isinstance(e, ModelEvent)]
+    assert step.input is not None
     assert [m.text for m in step.input] == [m.text for m in model_events[0].input]
 
 
@@ -1449,9 +1456,7 @@ def test_host_generate_warns_once_without_the_role(
     assert [r for _, r in monitor_calls(log)] == [role]
 
 
-async def test_missing_model_event_falls_back_to_the_prior_conversation(
-    caplog: pytest.LogCaptureFixture,
-) -> None:
+async def test_a_message_no_model_call_produced_has_no_input() -> None:
     init_transcript(Transcript())
     seen: Seen = []
 
@@ -1473,29 +1478,21 @@ async def test_missing_model_event_falls_back_to_the_prior_conversation(
         ToolCall(id=id, function="parallel_addition", arguments={"x": 1, "y": 1})
         for id in ("a", "b")
     ]
-    with active(observe_only([d3_recording(seen)])), caplog.at_level(logging.WARNING):
+    with active(observe_only([d3_recording(seen)])):
         await execute_tools(
             [prompt, ChatMessageAssistant(content=[], tool_calls=calls)],
             [parallel_addition()],
         )
 
-    assert [step.input for _, step in seen] == [[prompt], [prompt]]
-    warnings = [r for r in caplog.records if "No ModelEvent was found" in r.message]
-    assert len(warnings) == 1
+    assert [step.input for _, step in seen] == [None, None]
 
 
-def test_missing_assistant_message_falls_back_to_the_whole_conversation(
-    caplog: pytest.LogCaptureFixture,
-) -> None:
+def test_a_call_with_no_assistant_message_has_no_input() -> None:
     init_transcript(Transcript())
     from inspect_ai._sentinel._dispatch import _model_input
 
     history: list[ChatMessage] = [ChatMessageUser(content="hi")]
-    with caplog.at_level(logging.WARNING):
-        assert _model_input(addition_call(), history) == history
-        assert _model_input(addition_call(), history) == history
-    warnings = [r for r in caplog.records if "No assistant message" in r.message]
-    assert len(warnings) == 1
+    assert _model_input(addition_call(), history) is None
 
 
 def indexed_model_event(input: str, role: str | None = None) -> ModelEvent:
@@ -1516,24 +1513,70 @@ def output_id(event: ModelEvent) -> str:
     return message_id
 
 
-def test_model_input_index_is_bounded_to_resident_events() -> None:
-    from inspect_ai._sentinel._dispatch import _sample_inputs
+def produced_by(event: ModelEvent) -> list[ChatMessage]:
+    message = event.output.choices[0].message
+    return [*event.input, message.model_copy(update={"tool_calls": [addition_call()]})]
 
-    current = Transcript(bounded=True, resident_tail=3)
+
+class CountingHistoryProvider(FakeTranscriptHistoryProvider):
+    def __init__(self, events: list[Event]) -> None:
+        super().__init__(events)
+        self.read = 0
+
+    def events_from(self, start: int, limit: int | None = None) -> Sequence[Event]:
+        events = super().events_from(start, limit)
+        self.read += len(events)
+        return events
+
+
+def bounded_transcript(
+    events: list[Event], provider: TranscriptHistoryProvider | None
+) -> Transcript:
+    current = Transcript(bounded=True, resident_tail=3, history_provider=provider)
     init_transcript(current)
-    inputs = _sample_inputs(current)
-    events = []
-    for turn in range(10):
-        event = indexed_model_event(f"turn {turn}")
+    for event in events:
         current._event(event)
-        events.append(event)
-        found = inputs.find(current, output_id(event))
-        assert found is not None and found[0].text == f"turn {turn}"
-    assert len(inputs._inputs) <= len(current.history.resident_events)
+    assert current.history.resident_events_truncated
+    return current
 
 
-def test_model_input_index_skips_monitor_calls() -> None:
-    from inspect_ai._sentinel._dispatch import _sample_inputs
+def test_model_input_is_exact_when_the_model_event_was_evicted() -> None:
+    from inspect_ai._sentinel._dispatch import _model_input
+
+    events: list[Event] = [indexed_model_event(f"turn {turn}") for turn in range(40)]
+    first = cast(ModelEvent, events[0])
+    bounded_transcript(events, FakeTranscriptHistoryProvider(events))
+    model_input = _model_input(addition_call(), produced_by(first))
+    assert model_input == first.input
+    assert model_input is not first.input
+
+
+def test_model_input_reads_back_only_as_far_as_the_producing_event() -> None:
+    from inspect_ai._sentinel._dispatch import _model_input
+
+    events: list[Event] = [indexed_model_event(f"turn {turn}") for turn in range(500)]
+    resident, evicted = cast(ModelEvent, events[-1]), cast(ModelEvent, events[-6])
+    provider = CountingHistoryProvider(events)
+    bounded_transcript(events, provider)
+    assert _model_input(addition_call(), produced_by(resident)) == resident.input
+    assert provider.read == 0
+    assert _model_input(addition_call(), produced_by(evicted)) == evicted.input
+    assert provider.read <= 16
+
+
+def test_model_input_is_none_when_the_history_is_unavailable() -> None:
+    from inspect_ai._sentinel._dispatch import _model_input
+
+    events: list[Event] = [indexed_model_event(f"turn {turn}") for turn in range(10)]
+    first, last = cast(ModelEvent, events[0]), cast(ModelEvent, events[-1])
+    bounded_transcript(events, None)
+    assert not transcript().history.full_history_available
+    assert _model_input(addition_call(), produced_by(first)) is None
+    assert _model_input(addition_call(), produced_by(last)) == last.input
+
+
+def test_model_input_skips_monitor_calls() -> None:
+    from inspect_ai._sentinel._dispatch import _model_input
 
     current = Transcript()
     init_transcript(current)
@@ -1541,11 +1584,8 @@ def test_model_input_index_skips_monitor_calls() -> None:
     monitor_call = indexed_model_event("monitor", role="monitor")
     current._event(agent)
     current._event(monitor_call)
-    inputs = _sample_inputs(current)
-    assert inputs.find(current, output_id(monitor_call)) is None
-    found = inputs.find(current, output_id(agent))
-    assert found is not None and found[0].text == "agent"
-    assert list(inputs._inputs) == [output_id(agent)]
+    assert _model_input(addition_call(), produced_by(monitor_call)) is None
+    assert _model_input(addition_call(), produced_by(agent)) == agent.input
 
 
 @pytest.mark.parametrize("action", ["continue", "reject", "terminate"])
@@ -1647,15 +1687,25 @@ def test_sentinel_limits_end_the_sample_before_the_call(
     assert event.failed is True
 
 
-def test_each_turn_sees_its_own_model_input(caplog: pytest.LogCaptureFixture) -> None:
-    seen: Seen = []
-    with caplog.at_level(logging.WARNING):
-        log = run(observe_only([d3_recording(seen)]), turns=3)
+@monitor
+def d3_recording_after(seen: list[AfterToolCall]) -> Monitor:
+    async def record(context: Context, step: AfterToolCall) -> Observation | None:
+        seen.append(step)
+        return None
+
+    return record
+
+
+def test_each_turn_sees_its_own_model_input() -> None:
+    before: Seen = []
+    after: list[AfterToolCall] = []
+    log = run(observe_only([d3_recording(before), d3_recording_after(after)]), turns=3)
     assert log.status == "success", log.error
-    assert not [r for r in caplog.records if "sentinel step's input" in r.message]
     assert log.samples
     model_events = [e for e in log.samples[0].events if isinstance(e, ModelEvent)]
-    assert len(seen) == 3
-    for (_, step), event in zip(seen, model_events, strict=False):
+    assert len(before) == len(after) == 3
+    for (_, step), after_step, event in zip(before, after, model_events, strict=False):
+        assert step.input is not None and after_step.input is not None
         assert [m.id for m in step.input] == [m.id for m in event.input]
-    assert len({len(step.input) for _, step in seen}) == 3
+        assert [m.id for m in after_step.input] == [m.id for m in event.input]
+    assert len({len(step.input or []) for _, step in before}) == 3
