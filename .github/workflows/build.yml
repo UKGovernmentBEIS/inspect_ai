@@ -106,11 +106,14 @@ jobs:
         if: github.event_name != 'pull_request' || steps.filter.outputs.code == 'true'
         run: uv sync
 
-      # TEMPORARY (#5811): the generate stages need an unreleased inspect_sentinel
-      # (meridianlabs-ai/inspect_sentinel#42). Remove once a release includes it.
+      # TEMPORARY: the dispatcher requires inspect_sentinel with
+      # meridianlabs-ai/inspect_sentinel#74 (an unhandled escalate terminates),
+      # #83 (step.input may be None), #84 (the proceed rename) and #42 (the generate
+      # stages). Remove when a release with all four is on PyPI and
+      # requirements-dev.txt requires it.
       - name: Install inspect_sentinel (TEMPORARY)
         if: github.event_name != 'pull_request' || steps.filter.outputs.code == 'true'
-        run: uv pip install --no-deps "inspect_sentinel @ git+https://github.com/meridianlabs-ai/inspect_sentinel@7b41b9ef0083f850d06af9c2a8fb99e00e3875e3"
+        run: uv pip install --no-deps "inspect_sentinel @ git+https://github.com/meridianlabs-ai/inspect_sentinel@438a00b811cc0efea9477f1d34b23b1739c3dcb9"
 
       - name: Run mypy
         if: github.event_name != 'pull_request' || steps.filter.outputs.code == 'true'
@@ -335,11 +338,14 @@ jobs:
           uv sync
           uv pip install --no-deps ./tests/test_package
 
-      # TEMPORARY (#5811): the generate stages need an unreleased inspect_sentinel
-      # (meridianlabs-ai/inspect_sentinel#42). Remove once a release includes it.
+      # TEMPORARY: the dispatcher requires inspect_sentinel with
+      # meridianlabs-ai/inspect_sentinel#74 (an unhandled escalate terminates),
+      # #83 (step.input may be None), #84 (the proceed rename) and #42 (the generate
+      # stages). Remove when a release with all four is on PyPI and
+      # requirements-dev.txt requires it.
       - name: Install inspect_sentinel (TEMPORARY)
         if: env.RUN_TESTS == 'true'
-        run: uv pip install --no-deps "inspect_sentinel @ git+https://github.com/meridianlabs-ai/inspect_sentinel@7b41b9ef0083f850d06af9c2a8fb99e00e3875e3"
+        run: uv pip install --no-deps "inspect_sentinel @ git+https://github.com/meridianlabs-ai/inspect_sentinel@438a00b811cc0efea9477f1d34b23b1739c3dcb9"
 
       - name: Test with pytest
         if: env.RUN_TESTS == 'true'
