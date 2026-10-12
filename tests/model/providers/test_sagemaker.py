@@ -1,5 +1,10 @@
 import json
+import struct
 import sys
+import threading
+import zlib
+from collections.abc import Iterator
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -11,13 +16,20 @@ from botocore.exceptions import (
     EndpointConnectionError,
     ReadTimeoutError,
 )
+from test_helpers.utils import skip_if_trio
 
-from inspect_ai.model import ChatMessageAssistant, ChatMessageUser, GenerateConfig
+from inspect_ai.model import (
+    ChatMessageAssistant,
+    ChatMessageUser,
+    GenerateConfig,
+    ModelOutput,
+)
 from inspect_ai.model._chat_message import (
     ChatMessageSystem,
     ChatMessageTool,
 )
 from inspect_ai.model._providers.sagemaker import (
+    SagemakerAPI,
     collapse_consecutive_messages,
     model_output_from_response,
     process_chat_message,
@@ -109,6 +121,133 @@ OPENAI_RESPONSE = {
         "total_tokens": 15,
     },
 }
+
+
+# -- Real client ---------------------------------------------------------------
+
+STREAM_CHUNK = {
+    "id": "chatcmpl-abc123",
+    "created": 1700000000,
+    "model": "default",
+    "choices": [
+        {"index": 0, "delta": {"content": "Hello world"}, "finish_reason": "stop"}
+    ],
+}
+
+
+def _payload_part(payload: bytes) -> bytes:
+    """A PayloadPart event in the AWS event stream encoding."""
+    headers = b"".join(
+        bytes([len(name)]) + name + b"\x07" + struct.pack("!H", len(value)) + value
+        for name, value in (
+            (b":message-type", b"event"),
+            (b":event-type", b"PayloadPart"),
+        )
+    )
+    prelude = struct.pack("!II", 16 + len(headers) + len(payload), len(headers))
+    message = prelude + struct.pack("!I", zlib.crc32(prelude)) + headers + payload
+    return message + struct.pack("!I", zlib.crc32(message))
+
+
+class _EndpointHandler(BaseHTTPRequestHandler):
+    protocol_version = "HTTP/1.1"
+
+    def do_POST(self) -> None:
+        self.rfile.read(int(self.headers["Content-Length"]))
+        operation = self.path.rsplit("/", 1)[-1]
+        status = 200
+        if "/refusing-endpoint/" in self.path:
+            status = 400
+            content_type = "application/json"
+            body = b'{"message": "no"}'
+        elif operation == "invocations-response-stream":
+            content_type = "application/vnd.amazon.eventstream"
+            body = _payload_part(
+                f"data: {json.dumps(STREAM_CHUNK)}\n\ndata: [DONE]\n\n".encode()
+            )
+        else:
+            content_type = "application/json"
+            body = json.dumps(OPENAI_RESPONSE).encode()
+        self.send_response(status)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("X-Served-By", operation)
+        self.end_headers()
+        self.wfile.write(body)
+
+    def log_message(self, format: str, *args: Any) -> None:
+        pass
+
+
+@pytest.fixture
+def endpoint_server(monkeypatch: pytest.MonkeyPatch) -> Iterator[str]:
+    monkeypatch.setenv("AWS_ACCESS_KEY_ID", "test")
+    monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "test")
+    monkeypatch.delenv("AWS_SESSION_TOKEN", raising=False)
+    monkeypatch.delenv("AWS_PROFILE", raising=False)
+    server = ThreadingHTTPServer(("127.0.0.1", 0), _EndpointHandler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        yield f"http://127.0.0.1:{server.server_address[1]}"
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join()
+
+
+OPERATIONS = pytest.mark.parametrize(
+    ("stream", "operation"),
+    [(False, "invocations"), (True, "invocations-response-stream")],
+)
+
+
+def _real_api(endpoint_name: str, endpoint_url: str, stream: bool) -> SagemakerAPI:
+    return SagemakerAPI(
+        model_name=endpoint_name,
+        config=GenerateConfig(),
+        region_name="us-west-2",
+        endpoint_url=endpoint_url,
+        stream=stream,
+    )
+
+
+# aiobotocore runs on asyncio only
+@skip_if_trio
+@OPERATIONS
+async def test_real_client_records_response_headers(
+    endpoint_server: str, stream: bool, operation: str
+) -> None:
+    api = _real_api("test-endpoint", endpoint_server, stream)
+    headers = ResponseHeaders()
+
+    with track_response_headers(headers):
+        result = await api.generate(
+            [ChatMessageUser(content="hello")], [], "auto", GenerateConfig()
+        )
+
+    assert isinstance(result, tuple) and isinstance(result[0], ModelOutput)
+    assert result[0].completion == "Hello world"
+    assert headers.latest is not None
+    assert headers.latest["x-served-by"] == operation
+
+
+@skip_if_trio
+@OPERATIONS
+async def test_real_client_records_a_failed_responses_headers(
+    endpoint_server: str, stream: bool, operation: str
+) -> None:
+    api = _real_api("refusing-endpoint", endpoint_server, stream)
+    headers = ResponseHeaders()
+
+    with track_response_headers(headers), pytest.raises(ClientError) as raised:
+        await api.generate(
+            [ChatMessageUser(content="hello")], [], "auto", GenerateConfig()
+        )
+
+    assert raised.value.response["ResponseMetadata"]["HTTPStatusCode"] == 400
+    assert headers.latest is not None
+    assert headers.latest["x-served-by"] == operation
 
 
 # -- Constructor / config tests ----------------------------------------------
