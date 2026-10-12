@@ -74,6 +74,7 @@ from .._openai_responses import (
     should_swap_todo_write,
     substitute_update_plan_tools,
 )
+from .._response_headers import record_response_headers
 from .._stream import (
     StreamReasoningEvent,
     StreamTextEvent,
@@ -443,7 +444,15 @@ async def wait_for_background_response(
         ),
     )
     async def check_model_response(model_response: Response) -> Response:
-        return await client.responses.retrieve(model_response.id)
+        # a poll carries no request id (each one would count as a retry), so
+        # the HTTP hooks don't record its headers
+        try:
+            raw = await client.responses.with_raw_response.retrieve(model_response.id)
+        except APIStatusError as ex:
+            record_response_headers(ex.response.headers)
+            raise
+        record_response_headers(raw.headers)
+        return raw.parse()
 
     try:
         # keep checking status until we get "complete", "incomplete", of "failed"

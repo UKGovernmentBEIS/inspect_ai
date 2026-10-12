@@ -636,10 +636,10 @@ async def test_background_response_retries_openai_connection_error() -> None:
     pending_response = completed_response.model_copy(update={"status": "in_progress"})
 
     client = MagicMock()
-    client.responses.retrieve = AsyncMock(
+    client.responses.with_raw_response.retrieve = AsyncMock(
         side_effect=[
             APIConnectionError(request=httpx2.Request("GET", "https://example.com")),
-            completed_response,
+            MagicMock(headers={}, parse=MagicMock(return_value=completed_response)),
         ]
     )
 
@@ -650,7 +650,7 @@ async def test_background_response_retries_openai_connection_error() -> None:
         response = await wait_for_background_response(client, pending_response)
 
     assert response is completed_response
-    assert client.responses.retrieve.await_count == 2
+    assert client.responses.with_raw_response.retrieve.await_count == 2
 
 
 async def test_background_response_reraises_connection_error_on_exhaustion() -> None:
@@ -671,7 +671,9 @@ async def test_background_response_reraises_connection_error_on_exhaustion() -> 
         request=httpx2.Request("GET", "https://example.com")
     )
     client = MagicMock()
-    client.responses.retrieve = AsyncMock(side_effect=connection_error)
+    client.responses.with_raw_response.retrieve = AsyncMock(
+        side_effect=connection_error
+    )
 
     with (
         patch(
@@ -683,7 +685,7 @@ async def test_background_response_reraises_connection_error_on_exhaustion() -> 
         await wait_for_background_response(client, pending_response)
 
     assert exc_info.value is connection_error
-    assert client.responses.retrieve.await_count == 5
+    assert client.responses.with_raw_response.retrieve.await_count == 5
 
 
 def test_fix_function_tool_parameters_string_to_dict():

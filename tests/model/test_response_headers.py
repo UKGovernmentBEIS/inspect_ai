@@ -5,6 +5,7 @@ from collections.abc import Callable, Iterator
 from contextlib import AbstractContextManager
 from contextvars import ContextVar
 from typing import Any
+from unittest.mock import AsyncMock, MagicMock
 
 import anyio
 import httpx2
@@ -106,6 +107,33 @@ def _openai_reply(served_by: str) -> httpx2.Response:
     )
 
 
+def _openai_background(status: str, served_by: str) -> httpx2.Response:
+    output = [
+        {
+            "type": "message",
+            "id": "msg_test",
+            "role": "assistant",
+            "status": "completed",
+            "content": [{"type": "output_text", "text": "ok", "annotations": []}],
+        }
+    ]
+    return httpx2.Response(
+        200,
+        headers={"X-Served-By": served_by},
+        json={
+            "id": "resp_test",
+            "object": "response",
+            "created_at": 0,
+            "status": status,
+            "model": "test-model",
+            "output": output if status == "completed" else [],
+            "parallel_tool_calls": True,
+            "tool_choice": "auto",
+            "tools": [],
+        },
+    )
+
+
 def _failure(status: int, served_by: str) -> httpx2.Response:
     return httpx2.Response(
         status,
@@ -125,7 +153,11 @@ PROVIDERS = pytest.mark.parametrize(
 
 
 def _model(
-    name: str, base_url: str, *responses: httpx2.Response, max_retries: int = 0
+    name: str,
+    base_url: str,
+    *responses: httpx2.Response,
+    max_retries: int = 0,
+    **model_args: Any,
 ) -> Model:
     script = list(responses)
 
@@ -140,6 +172,24 @@ def _model(
         http_client=httpx2.AsyncClient(transport=httpx2.MockTransport(respond)),
         max_retries=max_retries,
         memoize=False,
+        **model_args,
+    )
+
+
+def _background_model(*responses: httpx2.Response) -> Model:
+    return _model(
+        "openai/gpt-4o",
+        "https://example.com/v1",
+        *responses,
+        responses_api=True,
+        background=True,
+    )
+
+
+@pytest.fixture
+def no_polling_delay(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        "inspect_ai.model._providers.openai_responses.anyio.sleep", AsyncMock()
     )
 
 
@@ -258,3 +308,39 @@ async def test_side_request_does_not_replace_the_replys_headers(
 
     assert [path.rsplit("/", 1)[-1] for path in asked] == ["messages", "count_tokens"]
     assert [_served_by(headers) for _, headers in attempts] == ["reply"]
+
+
+async def test_background_call_keeps_the_headers_of_the_poll_that_completed_it(
+    attempts: list[tuple[str, ResponseHeaders]],
+    no_polling_delay: None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    report_http_retry = MagicMock()
+    monkeypatch.setattr(
+        "inspect_ai.model._providers.util.hooks.report_http_retry", report_http_retry
+    )
+    model = _background_model(
+        _openai_background("queued", "submit"),
+        _openai_background("in_progress", "poll-1"),
+        _openai_background("completed", "poll-2"),
+    )
+
+    output = await model.generate("hello")
+
+    assert output.completion == "ok"
+    assert [_served_by(headers) for _, headers in attempts] == ["poll-2"]
+    # a poll is not a retry
+    report_http_retry.assert_not_called()
+
+
+async def test_background_call_keeps_the_headers_of_the_poll_that_failed_it(
+    attempts: list[tuple[str, ResponseHeaders]], no_polling_delay: None
+) -> None:
+    model = _background_model(
+        _openai_background("queued", "submit"), _failure(500, "poll")
+    )
+
+    with pytest.raises(Exception):
+        await model.generate("hello", config=GenerateConfig(max_retries=0))
+
+    assert [_served_by(headers) for _, headers in attempts] == ["poll"]
