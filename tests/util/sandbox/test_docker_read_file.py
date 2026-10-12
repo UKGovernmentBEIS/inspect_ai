@@ -125,6 +125,8 @@ async def test_read_file_rejects_directory_archive(
     "archive",
     [
         pytest.param(_archive(), id="empty-archive"),
+        pytest.param(b"\0" * 1024, id="docker-empty-archive"),
+        pytest.param(b"", id="no-output"),
         pytest.param(_archive(("source", tarfile.SYMTYPE, b"")), id="symlink"),
         pytest.param(_archive(("source", tarfile.LNKTYPE, b"")), id="hardlink"),
         pytest.param(_archive(("source", tarfile.FIFOTYPE, b"")), id="fifo"),
@@ -211,6 +213,7 @@ async def test_read_file_enforces_size_limit_on_archived_file(
             id="file",
         ),
         pytest.param(b"", OutputLimitExceededError, id="unparseable"),
+        pytest.param(b"\0" * 1024, OutputLimitExceededError, id="zeros"),
     ],
 )
 async def test_read_file_maps_archive_over_limit(

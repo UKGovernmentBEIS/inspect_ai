@@ -237,7 +237,8 @@ async def run_subprocess(
     bytes and lets the process run to completion: once stdout exceeds
     `stdout_limit` bytes the process is killed and `StdoutLimitExceededError`
     is raised with the bytes read so far. Use it when only a complete stdout
-    is usable. Requires `capture_output`.
+    is usable. When it is set, `output_limit` applies to stderr only. Requires
+    `capture_output`.
     """
     if stdout_limit is not None and not capture_output:
         raise ValueError("stdout_limit requires capture_output.")
@@ -460,9 +461,10 @@ async def _kill_and_drain(process: Process) -> None:
 
     On asyncio a stdout pipe left unread is paused and never sees EOF, so its
     transport (and file descriptor) stays open until garbage collection. The
-    drain is bounded because EOF never comes if a surviving grandchild still
-    holds the pipe (as with Docker CLI plugins on CLIs that do not stop them
-    when the parent is killed).
+    drain is bounded because EOF never comes while a surviving grandchild holds
+    the pipe, as with Docker CLI plugins on CLIs that do not stop them when the
+    parent is killed. If the drain times out on asyncio, the pipe is left open
+    and a grandchild still writing to it blocks.
     """
     with contextlib.suppress(ProcessLookupError):
         process.kill()
@@ -535,7 +537,8 @@ async def _read_stream_head(stream: ByteReceiveStream | None, limit: int) -> byt
     async for chunk in stream:
         output += chunk
         if len(output) > limit:
-            raise StdoutLimitExceededError(bytes(output[:limit]))
+            del output[limit:]
+            raise StdoutLimitExceededError(bytes(output))
     return bytes(output)
 
 

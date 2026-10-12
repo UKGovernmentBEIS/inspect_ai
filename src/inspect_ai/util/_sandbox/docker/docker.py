@@ -633,6 +633,8 @@ def _read_archived_file(archive: bytes, original_file: str) -> bytes:
     parsed in memory and never extracted. Anything other than exactly one
     regular file is rejected.
     """
+    if _archive_is_empty(archive):
+        raise _not_regular_file_error(original_file)
     try:
         with tarfile.open(fileobj=io.BytesIO(archive), mode="r:") as tar:
             member = tar.next()
@@ -657,12 +659,24 @@ def _read_archived_file(archive: bytes, original_file: str) -> bytes:
 
 def _archive_starts_with_directory(head: bytes) -> bool:
     """Whether the first entry of a truncated `docker cp` archive is a directory."""
+    if _archive_is_empty(head):
+        return False
     try:
         with tarfile.open(fileobj=io.BytesIO(head), mode="r:") as tar:
             member = tar.next()
     except tarfile.TarError:
         return False
     return member is not None and member.isdir()
+
+
+def _archive_is_empty(archive: bytes) -> bool:
+    """Whether a tar archive has no entries (its first block is all zeros).
+
+    Docker sends an empty archive for a socket. Checked before parsing because
+    `tarfile` on Python 3.10 raises `ValueError` when asked for the next entry
+    of an empty archive.
+    """
+    return not any(archive[: tarfile.BLOCKSIZE])
 
 
 def _not_regular_file_error(file: str) -> OSError:
