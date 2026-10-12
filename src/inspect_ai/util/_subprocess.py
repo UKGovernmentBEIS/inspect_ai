@@ -69,6 +69,18 @@ class SubprocessRun(Generic[T]):
     """
 
 
+class StdoutLimitExceededError(Exception):
+    """Raised by `run_subprocess()` when stdout exceeds its `stdout_limit`.
+
+    The process has been killed. `stdout` holds the first `stdout_limit` bytes
+    it wrote.
+    """
+
+    def __init__(self, stdout: bytes) -> None:
+        super().__init__(f"Subprocess stdout exceeded {len(stdout)} bytes.")
+        self.stdout = stdout
+
+
 @overload
 # type: ignore
 async def subprocess(
@@ -166,6 +178,7 @@ async def run_subprocess(
     output_limit: int | None = None,
     timeout: int | None = None,
     concurrency: bool = True,
+    stdout_limit: int | None = None,
 ) -> SubprocessRun[str]: ...
 
 
@@ -180,6 +193,7 @@ async def run_subprocess(
     output_limit: int | None = None,
     timeout: int | None = None,
     concurrency: bool = True,
+    stdout_limit: int | None = None,
 ) -> SubprocessRun[bytes]: ...
 
 
@@ -194,6 +208,7 @@ async def run_subprocess(
     output_limit: int | None = None,
     timeout: int | None = None,
     concurrency: bool = True,
+    stdout_limit: int | None = None,
 ) -> SubprocessRun[str] | SubprocessRun[bytes]: ...
 
 
@@ -207,6 +222,7 @@ async def run_subprocess(
     output_limit: int | None = None,
     timeout: int | None = None,
     concurrency: bool = True,
+    stdout_limit: int | None = None,
 ) -> SubprocessRun[str] | SubprocessRun[bytes]:
     """`subprocess()` that also reports whether `input` was fully written to the child's stdin.
 
@@ -216,7 +232,16 @@ async def run_subprocess(
     dockerd fails the exec attach under load, and such a command should be
     retried rather than have its result believed. Same arguments, raises and
     semantics as `subprocess()`; see there.
+
+    `stdout_limit` differs from `output_limit`, which keeps the most recent
+    bytes and lets the process run to completion: once stdout exceeds
+    `stdout_limit` bytes the process is killed and `StdoutLimitExceededError`
+    is raised with the bytes read so far. Use it when only a complete stdout
+    is usable. Requires `capture_output`.
     """
+    if stdout_limit is not None and not capture_output:
+        raise ValueError("stdout_limit requires capture_output.")
+
     # resolve input
     input = (
         input.encode()
@@ -256,7 +281,9 @@ async def run_subprocess(
             # that fills its stdout pipe before reading stdin would otherwise
             # block us on the write while we block it on the read.
             io_tasks: list[Callable[[], Awaitable[bytes]]] = [
-                functools.partial(consume, process.stdout),
+                functools.partial(_read_stream_head, process.stdout, stdout_limit)
+                if stdout_limit is not None
+                else functools.partial(consume, process.stdout),
                 functools.partial(consume, process.stderr),
                 write_stdin,
             ]
@@ -476,6 +503,17 @@ async def _read_stream(
         async for chunk in stream:
             circular.write(chunk)
         return circular.getvalue()
+
+
+async def _read_stream_head(stream: ByteReceiveStream | None, limit: int) -> bytes:
+    if stream is None:
+        return bytes()
+    output = bytearray()
+    async for chunk in stream:
+        output += chunk
+        if len(output) > limit:
+            raise StdoutLimitExceededError(bytes(output[:limit]))
+    return bytes(output)
 
 
 async def _log_stream(stream: ByteReceiveStream | None) -> bytes:

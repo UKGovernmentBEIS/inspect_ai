@@ -1,11 +1,11 @@
 import base64
 import errno
+import io
 import json
-import os
 import posixpath
 import shlex
 import stat
-import tempfile
+import tarfile
 import time
 from logging import getLogger
 from pathlib import Path, PurePosixPath
@@ -15,7 +15,11 @@ from typing_extensions import override
 
 from inspect_ai._util.cpu import effective_cpu_count
 from inspect_ai._util.error import PrerequisiteError
-from inspect_ai.util._subprocess import ExecResult, subprocess
+from inspect_ai.util._subprocess import (
+    ExecResult,
+    StdoutLimitExceededError,
+    subprocess,
+)
 
 from .._privileged import pinned_command, pinned_shell_command
 from ..compose import COMPOSE_FILES, DOCKERFILE, ComposeConfig
@@ -28,10 +32,7 @@ from ..environment import (
     SandboxUnavailableError,
     sandbox_prebuilt,
 )
-from ..limits import (
-    SandboxEnvironmentLimits,
-    verify_read_file_size,
-)
+from ..limits import OutputLimitExceededError, SandboxEnvironmentLimits
 from ..registry import sandboxenv
 from .cleanup import (
     cli_cleanup,
@@ -47,7 +48,7 @@ from .compose import (
     compose_build,
     compose_check_running,
     compose_cleanup_images,
-    compose_cp,
+    compose_cp_archive,
     compose_exec,
     compose_ps,
     compose_pull,
@@ -64,7 +65,9 @@ from .util import ComposeProject, task_project_name
 
 logger = getLogger(__name__)
 
-_READ_FILE_STAGING_CANARY_BYTES = 32
+# Room for the tar headers, padding and end-of-archive blocks around a file at
+# the read size limit.
+_READ_FILE_ARCHIVE_OVERHEAD = 64 * 1024
 
 
 @sandboxenv(name="docker")
@@ -521,76 +524,44 @@ class DockerSandboxEnvironment(SandboxEnvironment):
         # resolve relative file paths
         file = self.container_file(file)
 
-        # Copy the contents to a host temp file
-        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as temp_dir:
-            temp_root = Path(temp_dir).resolve(strict=True)
-            dest_fd, dest_file = tempfile.mkstemp(dir=temp_root, prefix="read-")
-            # Keep an existing regular destination so directory copies fail, while
-            # detecting sources (such as sockets) that Docker silently skips.
-            staging_canary = os.urandom(_READ_FILE_STAGING_CANARY_BYTES)
-            with os.fdopen(dest_fd, "wb") as f:
-                f.write(staging_canary)
-            dest_path = Path(dest_file)
-            _validate_staged_read_file(temp_root, dest_path, original_file)
+        try:
+            archive = await compose_cp_archive(
+                src=f"{self._service}:{file}",
+                project=self._project,
+                limit=SandboxEnvironmentLimits.MAX_READ_FILE_SIZE
+                + _READ_FILE_ARCHIVE_OVERHEAD,
+            )
+        except StdoutLimitExceededError as ex:
+            if _archive_starts_with_directory(ex.stdout):
+                raise _is_directory_error(original_file) from None
+            raise _read_file_size_error() from None
+        except RuntimeError as ex:
+            # extract the message and normalise case
+            message = str(ex).lower()
 
-            # copy the file
-            try:
-                await compose_cp(
-                    src=f"{self._service}:{file}",
-                    dest=dest_path.name,
-                    project=self._project,
-                    cwd=temp_root,
-                    output_limit=SandboxEnvironmentLimits.MAX_READ_FILE_SIZE,
-                    # A failed copy may replace the destination with a symlink.
-                    # Never retry against a path previously exposed to Docker.
-                    timeout_retry=False,
-                )
-            except RuntimeError as ex:
-                # extract the message and normalise case
-                message = str(ex).lower()
+            # FileNotFoundError
+            if (
+                "could not find the file" in message
+                or "no such file or directory" in message
+            ):
+                raise FileNotFoundError(
+                    errno.ENOENT, "No such file or directory.", original_file
+                ) from ex
 
-                # FileNotFoundError
-                if (
-                    "could not find the file" in message
-                    or "no such file or directory" in message
-                ):
-                    raise FileNotFoundError(
-                        errno.ENOENT, "No such file or directory.", original_file
-                    ) from ex
-
-                # PermissionError
-                elif "permission denied" in message:
-                    raise PermissionError(
-                        errno.EACCES, "Permission denied.", original_file
-                    ) from ex
-
-                # IsADirectoryError
-                elif "cannot copy directory" in message or "is a directory" in message:
-                    raise _is_directory_error(original_file) from ex
-                else:
-                    raise
-
-            _validate_staged_read_file(temp_root, dest_path, original_file)
-
-            # read and return w/ appropriate encoding
-            try:
-                if _staged_read_file_matches_canary(dest_path, staging_canary):
-                    raise OSError(
-                        errno.EINVAL,
-                        "Docker read_file did not produce a regular file.",
-                        original_file,
-                    )
-                verify_read_file_size(str(dest_path))
-                if text:
-                    with open(dest_path, "r", newline="", encoding="utf-8") as f:
-                        return f.read()
-                else:
-                    with open(dest_path, "rb") as f:
-                        return f.read()
-            except PermissionError as ex:
+            # PermissionError
+            elif "permission denied" in message:
                 raise PermissionError(
                     errno.EACCES, "Permission denied.", original_file
                 ) from ex
+
+            # IsADirectoryError
+            elif "cannot copy directory" in message or "is a directory" in message:
+                raise _is_directory_error(original_file) from ex
+            else:
+                raise
+
+        contents = _read_archived_file(archive, original_file)
+        return contents.decode("utf-8") if text else contents
 
     @override
     async def connection(self, *, user: str | None = None) -> SandboxConnection:
@@ -659,33 +630,57 @@ def _is_directory_error(file: str) -> IsADirectoryError:
     return IsADirectoryError(errno.EISDIR, "Is a directory.", file)
 
 
-def _staged_read_file_matches_canary(dest_path: Path, canary: bytes) -> bool:
-    if dest_path.stat().st_size != len(canary):
-        return False
-    with dest_path.open("rb") as f:
-        return f.read() == canary
+def _read_archived_file(archive: bytes, original_file: str) -> bytes:
+    """Return the contents of the single regular file in a `docker cp` archive.
 
-
-def _validate_staged_read_file(
-    temp_root: Path, dest_path: Path, original_file: str
-) -> None:
-    if dest_path.parent.resolve(strict=True) != temp_root:
-        raise RuntimeError("Docker read_file staging path escaped its temporary root.")
-
+    The archive is built from container state the agent may control, so it is
+    parsed in memory and never extracted. Anything other than exactly one
+    regular file is rejected.
+    """
     try:
-        mode = dest_path.lstat().st_mode
-    except FileNotFoundError as ex:
-        raise RuntimeError("Docker read_file staging file is missing.") from ex
+        with tarfile.open(fileobj=io.BytesIO(archive), mode="r:") as tar:
+            member = tar.next()
+            if member is not None and member.isdir():
+                raise _is_directory_error(original_file)
+            if member is None or not member.isreg() or tar.next() is not None:
+                raise _not_regular_file_error(original_file)
+            if member.size > SandboxEnvironmentLimits.MAX_READ_FILE_SIZE:
+                raise _read_file_size_error()
+            # Report a file its owner cannot read as unreadable.
+            if not member.mode & stat.S_IRUSR:
+                raise PermissionError(errno.EACCES, "Permission denied.", original_file)
+            contents = tar.extractfile(member)
+            if contents is None:
+                raise _not_regular_file_error(original_file)
+            return contents.read()
+    except tarfile.TarError as ex:
+        raise RuntimeError(
+            f"Docker read_file received an invalid archive for '{original_file}'."
+        ) from ex
 
-    if not stat.S_ISREG(mode):
-        raise OSError(
-            errno.EINVAL,
-            "Docker read_file did not produce a regular file.",
-            original_file,
-        )
 
-    if dest_path.resolve(strict=True).parent != temp_root:
-        raise RuntimeError("Docker read_file staging file escaped its temporary root.")
+def _archive_starts_with_directory(head: bytes) -> bool:
+    """Whether the first entry of a truncated `docker cp` archive is a directory."""
+    try:
+        with tarfile.open(fileobj=io.BytesIO(head), mode="r:") as tar:
+            member = tar.next()
+    except tarfile.TarError:
+        return False
+    return member is not None and member.isdir()
+
+
+def _not_regular_file_error(file: str) -> OSError:
+    return OSError(
+        errno.EINVAL, "Docker read_file did not produce a regular file.", file
+    )
+
+
+def _read_file_size_error() -> OutputLimitExceededError:
+    return OutputLimitExceededError(
+        limit_str=SandboxEnvironmentLimits.MAX_READ_FILE_SIZE_STR,
+        # The potentially large, and potentially binary content is not included.
+        truncated_output=None,
+    )
 
 
 async def container_working_dir(

@@ -15,7 +15,11 @@ from test_helpers.utils import skip_if_trio
 
 import inspect_ai.util._subprocess as _subprocess_mod
 from inspect_ai.util import subprocess
-from inspect_ai.util._subprocess import _log_stream, run_subprocess
+from inspect_ai.util._subprocess import (
+    StdoutLimitExceededError,
+    _log_stream,
+    run_subprocess,
+)
 from inspect_ai.util._subprocess import logger as _subprocess_logger
 
 
@@ -392,6 +396,42 @@ async def test_subprocess_output_limit_no_limit():
     )
     assert result.success is True
     assert len(result.stdout.strip()) == 1000
+
+
+@pytest.mark.anyio
+async def test_run_subprocess_stdout_limit_under_limit():
+    """Stdout within `stdout_limit` is returned in full, with stderr."""
+    script = "import sys; sys.stdout.buffer.write(b'x' * 100); sys.stderr.write('err')"
+    run = await run_subprocess(["python3", "-c", script], text=False, stdout_limit=100)
+    assert run.result.success is True
+    assert run.result.stdout == b"x" * 100
+    assert run.result.stderr == b"err"
+
+
+@pytest.mark.anyio
+async def test_run_subprocess_stdout_limit_keeps_head_and_kills_process():
+    """Exceeding `stdout_limit` raises with the leading bytes and kills the child."""
+    script = """
+import os, sys
+sys.stdout.buffer.write(f"{os.getpid()}\\n".encode())
+sys.stdout.flush()
+while True:
+    sys.stdout.buffer.write(b"x" * 65536)
+"""
+    with pytest.raises(StdoutLimitExceededError) as ex:
+        await run_subprocess(
+            ["python3", "-c", script], text=False, stdout_limit=1_000_000, timeout=30
+        )
+
+    assert len(ex.value.stdout) == 1_000_000
+    pid = int(ex.value.stdout.split(b"\n", 1)[0])
+    assert not psutil.pid_exists(pid)
+
+
+@pytest.mark.anyio
+async def test_run_subprocess_stdout_limit_requires_capture_output():
+    with pytest.raises(ValueError, match="capture_output"):
+        await run_subprocess(["true"], capture_output=False, stdout_limit=10)
 
 
 @pytest.mark.anyio

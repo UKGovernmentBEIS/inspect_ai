@@ -4,7 +4,7 @@ import os
 import shlex
 from logging import getLogger
 from pathlib import Path
-from typing import Any, Literal, cast
+from typing import Any, Literal, cast, overload
 
 import yaml
 from pydantic import BaseModel
@@ -109,25 +109,29 @@ async def compose_down(project: ComposeProject, quiet: bool = True) -> None:
         )
 
 
-async def compose_cp(
-    src: str,
-    dest: str,
-    project: ComposeProject,
-    cwd: str | Path | None = None,
-    output_limit: int | None = None,
-    timeout_retry: bool = True,
-) -> None:
+async def compose_cp_archive(src: str, project: ComposeProject, limit: int) -> bytes:
+    """Copy `src` out of a service container as a tar archive.
+
+    Docker Compose writes the archive to stdout instead of extracting it on the
+    host. The archive is built from container state, so nothing from it is
+    written to the host filesystem.
+
+    Raises:
+      RuntimeError: If the copy fails.
+      StdoutLimitExceededError: If the archive exceeds `limit` bytes.
+    """
     result = await compose_command(
-        ["cp", "-L", "--", src, dest],
+        ["cp", "-L", "--", src, "-"],
         project=project,
         timeout=600,  # 10-minute timeout for file copies
-        timeout_retry=timeout_retry,
-        cwd=cwd,
-        output_limit=output_limit,
+        text=False,
+        output_limit=limit,
+        stdout_limit=limit,
     )
     if not result.success:
-        msg = f"Failed to copy file from '{src}' to '{dest}': {result.stderr}"
-        raise RuntimeError(msg)
+        stderr = result.stderr.decode(errors="replace")
+        raise RuntimeError(f"Failed to copy file from '{src}': {stderr}")
+    return result.stdout
 
 
 async def compose_check_running(
@@ -339,6 +343,7 @@ async def compose_cleanup_images(
                         logger.warning(msg)
 
 
+@overload
 async def compose_command(
     command: list[str],
     *,
@@ -352,7 +357,46 @@ async def compose_command(
     capture_output: bool = True,
     output_limit: int | None = None,
     ansi: Literal["never", "always", "auto"] | None = None,
-) -> ExecResult[str]:
+    text: Literal[True] = True,
+    stdout_limit: int | None = None,
+) -> ExecResult[str]: ...
+
+
+@overload
+async def compose_command(
+    command: list[str],
+    *,
+    project: ComposeProject,
+    timeout: int | None,
+    timeout_retry: bool = True,
+    concurrency: bool = True,
+    input: str | bytes | None = None,
+    cwd: str | Path | None = None,
+    forward_env: bool = True,
+    capture_output: bool = True,
+    output_limit: int | None = None,
+    ansi: Literal["never", "always", "auto"] | None = None,
+    text: Literal[False],
+    stdout_limit: int | None = None,
+) -> ExecResult[bytes]: ...
+
+
+async def compose_command(
+    command: list[str],
+    *,
+    project: ComposeProject,
+    timeout: int | None,
+    timeout_retry: bool = True,
+    concurrency: bool = True,
+    input: str | bytes | None = None,
+    cwd: str | Path | None = None,
+    forward_env: bool = True,
+    capture_output: bool = True,
+    output_limit: int | None = None,
+    ansi: Literal["never", "always", "auto"] | None = None,
+    text: bool = True,
+    stdout_limit: int | None = None,
+) -> ExecResult[str] | ExecResult[bytes]:
     # The base docker compose command
     compose_command = ["docker", "compose"]
 
@@ -389,7 +433,9 @@ async def compose_command(
     )
 
     # function to run command (wrapped in concurrency limiter)
-    async def run_command(command_timeout: int | None) -> SubprocessRun[str]:
+    async def run_command(
+        command_timeout: int | None,
+    ) -> SubprocessRun[str] | SubprocessRun[bytes]:
         concurrency_ctx = (
             concurrency_manager("docker-cli", docker_cli_concurrency, visible=False)
             if concurrency
@@ -398,6 +444,7 @@ async def compose_command(
         async with concurrency_ctx:
             return await run_subprocess(
                 compose_command,
+                text=text,
                 input=input,
                 cwd=cwd,
                 env=env,
@@ -405,6 +452,7 @@ async def compose_command(
                 capture_output=capture_output,
                 output_limit=output_limit,
                 concurrency=concurrency,
+                stdout_limit=stdout_limit,
             )
 
     # we have observed underlying unreliability in docker compose in some linux
