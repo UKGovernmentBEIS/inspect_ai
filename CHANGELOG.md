@@ -2,17 +2,9 @@
 
 ## [0.3.279](https://github.com/UKGovernmentBEIS/inspect_ai/compare/0.3.278...0.3.279) (2026-10-12)
 
-
-### Features
-
-* sentinel monitors can watch every agent's model calls ([#5811](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5811)) ([79663e2](https://github.com/UKGovernmentBEIS/inspect_ai/commit/79663e25740f37b9ee9cf90ba56fa868349aa9cb))
-* sentinel step.input is the exact model input even after events are evicted, or None when unavailable ([#5831](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5831)) ([a1c6e8b](https://github.com/UKGovernmentBEIS/inspect_ai/commit/a1c6e8baa8613b5f0dc397626e00ccdb21d8324c))
-
-
 ### Bug Fixes
 
-* sentinel events record the action that lets a step go ahead as proceed, and read old logs' continue as proceed ([#5822](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5822)) ([5c5e14a](https://github.com/UKGovernmentBEIS/inspect_ai/commit/5c5e14aebe9a41bdaaa3c7d17629242f9bdf6fe5))
-* **sentinel:** terminate the sample when an escalation reaches the top with nothing to handle it ([#5812](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5812)) ([eff9920](https://github.com/UKGovernmentBEIS/inspect_ai/commit/eff9920dd1cfa265d2f21f446bdb8bba720acc1d))
+* Internal improvements.
 
 ## 0.3.278 (09 October 2026)
 
