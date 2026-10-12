@@ -474,9 +474,9 @@ class TranscriptHistory:
             The most recent matching event, or `None` if no event matches.
 
         Raises:
-            TranscriptHistoryUnavailableError: If no resident event matches,
-                events have been evicted, and there is no history provider to
-                read them from (or its backing store is gone).
+            TranscriptHistoryUnavailableError: If the search requires history
+                that is unavailable; without a provider, this occurs after no
+                resident event matches and events have been evicted.
         """
         transcript = self._transcript
         events = transcript._events  # appended to, or replaced on eviction
