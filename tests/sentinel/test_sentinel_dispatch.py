@@ -1509,12 +1509,6 @@ def indexed_model_event(input: str, role: str | None = None) -> ModelEvent:
     )
 
 
-def output_id(event: ModelEvent) -> str:
-    message_id = event.output.choices[0].message.id
-    assert message_id is not None
-    return message_id
-
-
 def produced_by(event: ModelEvent) -> list[ChatMessage]:
     message = event.output.choices[0].message
     return [*event.input, message.model_copy(update={"tool_calls": [addition_call()]})]
