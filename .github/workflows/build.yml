@@ -111,7 +111,7 @@ jobs:
       # Remove when a release with it is on PyPI and requirements-dev.txt requires it.
       - name: Install inspect_sentinel (TEMPORARY)
         if: github.event_name != 'pull_request' || steps.filter.outputs.code == 'true'
-        run: uv pip install --no-deps "inspect_sentinel @ git+https://github.com/meridianlabs-ai/inspect_sentinel@f75689cea4d192bb7e17b5cab7fc0fbda98a1122"
+        run: uv pip install --no-deps "inspect_sentinel @ git+https://github.com/meridianlabs-ai/inspect_sentinel@21960f63979bdfd49c5654d71e6e6b5e55db3569"
 
       - name: Run mypy
         if: github.event_name != 'pull_request' || steps.filter.outputs.code == 'true'
@@ -341,7 +341,7 @@ jobs:
       # Remove when a release with it is on PyPI and requirements-dev.txt requires it.
       - name: Install inspect_sentinel (TEMPORARY)
         if: env.RUN_TESTS == 'true'
-        run: uv pip install --no-deps "inspect_sentinel @ git+https://github.com/meridianlabs-ai/inspect_sentinel@f75689cea4d192bb7e17b5cab7fc0fbda98a1122"
+        run: uv pip install --no-deps "inspect_sentinel @ git+https://github.com/meridianlabs-ai/inspect_sentinel@21960f63979bdfd49c5654d71e6e6b5e55db3569"
 
       - name: Test with pytest
         if: env.RUN_TESTS == 'true'
