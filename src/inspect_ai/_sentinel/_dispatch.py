@@ -154,13 +154,13 @@ async def _run(step: Step) -> Decision | None:
     except Exception as ex:
         raise SentinelFailure(ex) from ex
     if decision is not None and decision.action == "escalate":
-        # recorded as the root's decision; with nobody above to take it, the call proceeds
-        warn_once(
-            logger,
-            "A sentinel escalated a tool call with nothing to escalate to, so it proceeded; "
-            "add sequential([..., human()]) to send escalations to a person.",
+        raise SentinelFailure(
+            RuntimeError(
+                f"inspect_sentinel returned an escalate at the {_stage(step)} stage, "
+                "which it should have turned into a terminate. inspect_ai requires "
+                "inspect_sentinel 0.1.1 or later: pip install --upgrade inspect-sentinel"
+            )
         )
-        return Decision.proceed()
     return decision
 
 
