@@ -629,3 +629,18 @@ async def test_summary_repeated_compaction_replaces_prior_summary() -> None:
     assert len(captured[1]) == 4
     assert captured[1][2] is first
     assert compacted[-1] == second
+
+
+async def test_summary_model_call_runs_in_a_compaction_span() -> None:
+    from inspect_ai.event import ModelEvent, SpanBeginEvent
+    from inspect_ai.log._transcript import Transcript, init_transcript, transcript
+
+    init_transcript(Transcript())
+    strategy = CompactionSummary()
+    await strategy.compact(get_model("mockllm/model"), list(CONVERSATION), [])
+
+    events = transcript().events
+    [span] = [e for e in events if isinstance(e, SpanBeginEvent)]
+    assert (span.type, span.name) == ("compaction", "compaction")
+    [model_event] = [e for e in events if isinstance(e, ModelEvent)]
+    assert model_event.span_id == span.id

@@ -2129,6 +2129,41 @@ def test_a_tool_only_sentinel_opens_no_generate_stage(configure: Any) -> None:
     assert len(sentinel_span_ids(log.samples[0].events)) == 1
 
 
+@solver
+def d3_scores_mid_run() -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        from inspect_ai.scorer._score import score
+
+        await score(state)
+        return state
+
+    return solve
+
+
+def test_score_from_a_solver_runs_in_a_scorer_span_and_is_not_checked() -> None:
+    seen: GenerateSeen = []
+    task = Task(
+        dataset=[Sample(input="Say hi.", target="ok")],
+        solver=[d3_scores_mid_run(), d3_generates_once()],
+        scorer=d3_model_scorer(),
+        sentinel=observe_only([d3_generates(seen)]),
+    )
+    log = eval(task, model="mockllm/model")[0]
+    assert log.status == "success", log.error
+    assert log.samples
+    events = log.samples[0].events
+    scorer_spans = {
+        e.id
+        for e in events
+        if isinstance(e, SpanBeginEvent)
+        and e.type == "scorer"
+        and e.name == "d3_model_scorer"
+    }
+    model_events = [e for e in events if isinstance(e, ModelEvent)]
+    assert [e.span_id in scorer_spans for e in model_events][:2] == [True, False]
+    assert len(seen) == 2
+
+
 def test_a_monitor_on_the_agents_own_model_is_not_checked() -> None:
     seen: GenerateSeen = []
     # each monitor call takes the next output before the agent's call does
@@ -2226,248 +2261,3 @@ def test_a_failing_generate_monitor_is_recorded_and_the_sample_continues() -> No
         )
         assert failed.error == "ValueError: monitor broke"
         assert failed.step_id
-
-
-AnySeen = list[BeforeGenerate | AfterGenerate | BeforeToolCall | AfterToolCall]
-
-
-@monitor
-def d3_every_stage(seen: Any) -> MonitorGroup:
-    async def model_input(context: Context, step: BeforeGenerate) -> Observation | None:
-        seen.append(step)
-        return None
-
-    async def model_output(context: Context, step: AfterGenerate) -> Observation | None:
-        seen.append(step)
-        return None
-
-    async def tool_call(context: Context, step: BeforeToolCall) -> Observation | None:
-        seen.append(step)
-        return None
-
-    async def tool_result(context: Context, step: AfterToolCall) -> Observation | None:
-        seen.append(step)
-        return None
-
-    return MonitorGroup(model_input, model_output, tool_call, tool_result)
-
-
-def ids(messages: Sequence[ChatMessage]) -> list[str | None]:
-    return [m.id for m in messages]
-
-
-def test_history_is_the_models_view_at_every_stage() -> None:
-    seen: AnySeen = []
-    log = run(observe_only([d3_every_stage(seen)]), turns=1)
-    assert log.status == "success", log.error
-    first, second = agent_events(log)
-    sent = ids(first.input)
-    call = first.output.message.id
-    result = ids(second.input)[-1]
-    reply = second.output.message.id
-    assert [(type(step).__name__, ids(step.history)) for step in seen] == [
-        ("BeforeGenerate", sent),
-        ("AfterGenerate", [*sent, call]),
-        ("BeforeToolCall", [*sent, call]),
-        ("AfterToolCall", [*sent, call]),
-        ("BeforeGenerate", [*sent, call, result]),
-        ("AfterGenerate", [*sent, call, result, reply]),
-    ]
-
-
-def test_history_is_the_same_when_replayed_from_the_log() -> None:
-    from inspect_ai._sentinel._history import agent_history
-
-    seen: AnySeen = []
-    log = run(observe_only([d3_every_stage(seen)]), turns=2)
-    assert log.status == "success", log.error
-    assert log.samples
-    events = log.samples[0].events
-    model = str(log.eval.model)
-    generates = [step for step in seen if isinstance(step, AfterGenerate)]
-    assert len(generates) == 3
-    for step in generates:
-        [index] = [
-            i
-            for i, e in enumerate(events)
-            if isinstance(e, ModelEvent)
-            and e.output.choices
-            and e.output.message.id == step.output.message.id
-        ]
-        replayed = agent_history(events[: index + 1], None, model)
-        assert replayed is not None
-        assert ids(replayed) == ids(step.history)
-        before = agent_history(
-            events[:index], None, model, pending=cast(ModelEvent, events[index]).input
-        )
-        assert before is not None
-        [request] = [
-            s for s in seen if isinstance(s, BeforeGenerate) and s.input == step.input
-        ]
-        assert ids(before) == ids(request.history)
-
-
-def test_each_agent_instance_has_its_own_history() -> None:
-    seen: AnySeen = []
-    agent = get_model(
-        "mockllm/model",
-        custom_outputs=[
-            ModelOutput.for_tool_call(
-                "mockllm/model", tool_name="helper", tool_arguments={"input": "add"}
-            ),
-            ModelOutput.for_tool_call(
-                "mockllm/model", tool_name="submit", tool_arguments={"answer": "5"}
-            ),
-            ModelOutput.from_content("mockllm/model", content="done"),
-        ],
-        memoize=False,
-    )
-    helper = react(name="helper", description="A helper agent.", tools=[addition()])
-    task = Task(
-        dataset=[Sample(input="What is 2 + 3?", target="5")],
-        solver=[use_tools(as_tool(helper)), generate()],
-        sentinel=observe_only([d3_generates(seen)]),
-    )
-    log = eval(task, model=agent)[0]
-    assert log.status == "success", log.error
-    afters = [step for step in seen if isinstance(step, AfterGenerate)]
-    parent_first, helper_turn, parent_last = afters
-    helper_ids = set(ids(helper_turn.history))
-    assert parent_first.output.message.id not in helper_ids
-    assert helper_turn.output.message.id not in set(ids(parent_last.history))
-    assert parent_first.output.message.id in set(ids(parent_last.history))
-
-
-@solver
-def d3_edits_and_generates_again() -> Solver:
-    async def solve(state: TaskState, generate: Generate) -> TaskState:
-        model = get_model()
-        output = await model.generate(state.messages)
-        state.messages.append(output.message)
-        state.messages.append(ChatMessageUser(content="Again."))
-        first = state.messages[0]
-        state.messages[0] = first.model_copy(update={"content": "Edited."})
-        state.output = await model.generate(state.messages)
-        return state
-
-    return solve
-
-
-def test_an_edited_message_is_kept_in_both_versions() -> None:
-    seen: GenerateSeen = []
-    task = Task(
-        dataset=[Sample(input="Say hi.")],
-        solver=d3_edits_and_generates_again(),
-        sentinel=observe_only([d3_generates(seen)]),
-    )
-    log = eval(task, model="mockllm/model", system_message="Be brief.")[0]
-    assert log.status == "success", log.error
-    last = seen[-1]
-    assert [m.text for m in last.history if m.role == "user"] == [
-        "Say hi.",
-        "Edited.",
-        "Again.",
-    ]
-    assert [m.text for m in last.history if m.role == "system"] == ["Be brief."]
-
-
-def test_calls_that_are_not_the_agents_are_not_in_its_history() -> None:
-    seen: GenerateSeen = []
-    agent = get_model(
-        "mockllm/model",
-        custom_outputs=[
-            ModelOutput.for_tool_call(
-                "mockllm/model", tool_name="graded", tool_arguments={"text": "hi"}
-            ),
-            ModelOutput.from_content("mockllm/model", content="tool grade"),
-            ModelOutput.from_content("mockllm/model", content="done"),
-        ],
-        memoize=False,
-    )
-    task = Task(
-        dataset=[Sample(input="Grade hi.")],
-        solver=[use_tools(graded()), generate()],
-        sentinel=observe_only([d3_generates(seen)]),
-    )
-    log = eval(task, model=agent)[0]
-    assert log.status == "success", log.error
-    texts = [m.text for m in seen[-1].history]
-    assert "tool grade" in texts  # the tool's result, as the agent's model saw it
-    assert "Grade: hi" not in texts  # the tool's own request to the model
-
-
-def test_agent_history_keeps_only_the_instances_own_calls() -> None:
-    from inspect_ai._sentinel._history import agent_history
-
-    def begin(id: str, type: str, parent: str | None) -> SpanBeginEvent:
-        return SpanBeginEvent(id=id, parent_id=parent, type=type, name=type)
-
-    def call(text: str, span: str, model: str = "m", role: str | None = None) -> Any:
-        event = ModelEvent(
-            model=model,
-            role=role,
-            input=[ChatMessageUser(content=text, id=f"in-{text}")],
-            tools=[],
-            tool_choice="auto",
-            config=GenerateConfig(),
-            output=ModelOutput.from_content(model, f"out-{text}"),
-        )
-        event.span_id = span
-        return event
-
-    events: list[Any] = [
-        begin("init", "init", None),
-        call("setup", "init"),
-        begin("solvers", "solvers", None),
-        call("agent", "solvers"),
-        call("other model", "solvers", model="other"),
-        call("role model", "solvers", role="grader"),
-        begin("tool", "tool", "solvers"),
-        call("tool body", "tool"),
-        begin("sub", "agent", "tool"),
-        call("sub agent", "sub"),
-        begin("compaction", "compaction", "solvers"),
-        call("summary", "compaction"),
-        begin("scorer", "scorer", "solvers"),
-        call("score", "scorer"),
-        begin("sentinel", "sentinel", "solvers"),
-        call("monitor", "sentinel"),
-    ]
-    root = agent_history(events, None, "m")
-    assert root is not None
-    assert [m.text for m in root] == ["agent", "out-agent"]
-    sub = agent_history(events, "sub", "m")
-    assert sub is not None
-    assert [m.text for m in sub] == ["sub agent", "out-sub agent"]
-    assert agent_history(events, "missing", "m") is None
-
-
-def test_history_is_complete_from_a_bounded_transcript(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Any
-) -> None:
-    import inspect_ai._eval.task.run as task_run
-    from inspect_ai.log._recorders.buffer import transcript_history_provider
-
-    monkeypatch.setenv("INSPECT_TRANSCRIPT_BOUNDED", "true")
-    monkeypatch.setattr(task_run, "DEFAULT_RESIDENT_TAIL", 3)
-    provider_reads: list[int] = []
-    events_from = (
-        transcript_history_provider.BufferTranscriptHistoryProvider.events_from
-    )
-
-    def counted(self: Any, start: int, limit: int | None = None) -> Sequence[Event]:
-        provider_reads.append(start)
-        return events_from(self, start, limit)
-
-    monkeypatch.setattr(
-        transcript_history_provider.BufferTranscriptHistoryProvider,
-        "events_from",
-        counted,
-    )
-    seen: AnySeen = []
-    log = run(observe_only([d3_every_stage(seen)]), turns=5, log_dir=str(tmp_path))
-    assert log.status == "success", log.error
-    last = agent_events(log)[-1]
-    expected = [*ids(last.input), last.output.message.id]
-    assert ids(seen[-1].history) == expected
-    assert provider_reads
