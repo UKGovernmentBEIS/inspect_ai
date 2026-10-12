@@ -12,6 +12,9 @@ from inspect_ai._sentinel._config import resolve_sentinel_root, resolve_sentinel
 from inspect_ai._sentinel._context import init_sentinel
 from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai.agent import (
+    Agent,
+    AgentState,
+    agent,
     agent_bridge,
     as_solver,
     as_tool,
@@ -20,6 +23,7 @@ from inspect_ai.agent import (
     react,
     subagent,
 )
+from inspect_ai.agent import run as run_agent
 from inspect_ai.approval import Approval, ApprovalPolicy, Approver, approver
 from inspect_ai.dataset import Sample
 from inspect_ai.event import (
@@ -75,9 +79,11 @@ try:
         Reported,
         concurrent,
         decide_final,
+        handle_escalation,
         monitor,
         observe_only,
         protocol,
+        sequential,
         threshold,
     )
 except ImportError:
@@ -1683,14 +1689,16 @@ def d3_generates(seen: Any, ask: bool = False) -> MonitorGroup:
 
 
 @protocol
-def d3_generate_decides(action: Any, after: bool) -> ProtocolGroup:
+def d3_generate_decides(
+    action: Any, after: bool, any_output: bool = False
+) -> ProtocolGroup:
     async def before_generate(
         context: Context, step: BeforeGenerate
     ) -> Decision | None:
         return None if after else Decision(action=action, explanation="no generate")
 
     async def after_generate(context: Context, step: AfterGenerate) -> Decision | None:
-        if after and step.output.message.tool_calls:
+        if after and (any_output or step.output.message.tool_calls):
             return Decision(action=action, explanation="no tools")
         return None
 
@@ -1805,13 +1813,204 @@ def test_generate_stages_check_only_the_agents_own_calls() -> None:
     assert len(seen) == 4
 
 
-def test_a_sub_agent_on_another_model_is_not_checked() -> None:
+def other_model(*outputs: ModelOutput) -> Model:
+    return get_model("mockllm/other", custom_outputs=list(outputs), memoize=False)
+
+
+def checked_models(seen: GenerateSeen) -> list[tuple[str, str]]:
+    return [
+        (step.model, step.output.completion)
+        for step in seen
+        if isinstance(step, AfterGenerate)
+    ]
+
+
+def test_a_handoff_on_another_model_is_checked() -> None:
     seen: GenerateSeen = []
     log = run_handoff(observe_only([d3_generates(seen)]))
     assert log.status == "success", log.error
     afters = [step for step in seen if isinstance(step, AfterGenerate)]
-    assert [step.output.completion for step in afters][1:] == ["done"]
+    assert [step.output.completion for step in afters][2:] == ["helper done", "done"]
+    assert len(afters) == 4
+    parent, helper, helper_done, parent_done = (step.conversation for step in afters)
+    assert helper == helper_done
+    assert parent == parent_done
+    assert helper != parent
+
+
+def test_react_as_the_solver_is_checked_in_its_agent_span() -> None:
+    seen: GenerateSeen = []
+    agent_outputs = [
+        ModelOutput.for_tool_call(
+            "mockllm/model", tool_name="addition", tool_arguments={"x": 1, "y": 1}
+        ),
+        ModelOutput.for_tool_call(
+            "mockllm/model", tool_name="submit", tool_arguments={"answer": "2"}
+        ),
+    ]
+    task = Task(
+        dataset=[Sample(input="What is 1 + 1?", target="2")],
+        solver=react(tools=[addition()]),
+        sentinel=observe_only([d3_generates(seen)]),
+    )
+    model = get_model("mockllm/model", custom_outputs=agent_outputs, memoize=False)
+    log = eval(task, model=model)[0]
+    assert log.status == "success", log.error
+    afters = [step for step in seen if isinstance(step, AfterGenerate)]
     assert len(afters) == 2
+    conversations = {step.conversation for step in seen}
+    assert len(conversations) == 1
+    assert log.samples
+    assert conversations != {log.samples[0].uuid}
+
+
+@solver
+def d3_runs_an_agent(agent: Agent) -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        await run_agent(agent, "What is 2 + 3?")
+        return state
+
+    return solve
+
+
+def test_an_agent_run_on_another_model_is_checked() -> None:
+    seen: GenerateSeen = []
+    helper = react(
+        name="helper",
+        tools=[addition()],
+        model=other_model(
+            ModelOutput.for_tool_call(
+                "mockllm/other", tool_name="addition", tool_arguments={"x": 2, "y": 3}
+            ),
+            ModelOutput.for_tool_call(
+                "mockllm/other", tool_name="submit", tool_arguments={"answer": "5"}
+            ),
+        ),
+    )
+    task = Task(
+        dataset=[Sample(input="Add.")],
+        solver=d3_runs_an_agent(helper),
+        sentinel=observe_only([d3_generates(seen)]),
+    )
+    log = eval(task, model="mockllm/model")[0]
+    assert log.status == "success", log.error
+    assert [model for model, _ in checked_models(seen)] == ["mockllm/other"] * 2
+
+
+def test_a_deepagent_sub_agent_on_another_model_is_checked() -> None:
+    seen: GenerateSeen = []
+    helper = subagent(
+        name="helper",
+        description="A helper agent.",
+        prompt="You are a helper.",
+        model=other_model(
+            ModelOutput.for_tool_call(
+                "mockllm/other", tool_name="addition", tool_arguments={"x": 2, "y": 3}
+            ),
+            ModelOutput.for_tool_call(
+                "mockllm/other", tool_name="submit", tool_arguments={"answer": "5"}
+            ),
+        ),
+        extra_tools=[addition()],
+    )
+    parent_model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.for_tool_call(
+                "mockllm/model",
+                tool_name="agent",
+                tool_arguments={"prompt": "add 2 and 3"},
+            ),
+            ModelOutput.for_tool_call(
+                "mockllm/model", tool_name="submit", tool_arguments={"answer": "5"}
+            ),
+        ],
+        memoize=False,
+    )
+    task = Task(
+        dataset=[Sample(input="What is 2 + 3?", target="5")],
+        solver=deepagent(subagents=[helper]),
+        sentinel=observe_only([d3_generates(seen)]),
+        message_limit=30,
+    )
+    log = eval(task, model=parent_model)[0]
+    assert log.status == "success", log.error
+    models = [model for model, _ in checked_models(seen)]
+    assert models.count("mockllm/other") == 2
+    assert models.count("mockllm/model") == 2
+    helper_steps = {s.conversation for s in seen if s.model == "mockllm/other"}
+    parent_steps = {s.conversation for s in seen if s.model == "mockllm/model"}
+    assert len(helper_steps) == 1
+    assert helper_steps.isdisjoint(parent_steps)
+
+
+@agent
+def d3_bridged_agent() -> Agent:
+    async def execute(state: AgentState) -> AgentState:
+        from openai import AsyncOpenAI
+
+        async with agent_bridge(state) as bridge:
+            async with AsyncOpenAI(api_key="inspect") as client:
+                await client.chat.completions.create(
+                    model="inspect",
+                    messages=[{"role": "user", "content": "Say hello."}],
+                )
+            return bridge.state
+
+    return execute
+
+
+def test_a_bridged_agents_model_calls_are_checked() -> None:
+    seen: GenerateSeen = []
+    task = Task(
+        dataset=[Sample(input="Say hello.")],
+        solver=d3_bridged_agent(),
+        sentinel=observe_only([d3_generates(seen)]),
+    )
+    log = eval(task, model="mockllm/model")[0]
+    assert log.status == "success", log.error
+    assert [type(step) for step in seen] == [BeforeGenerate, AfterGenerate]
+
+
+@pytest.mark.parametrize("after", [False, True])
+def test_terminate_at_a_bridged_generate_ends_the_sample(after: bool) -> None:
+    task = Task(
+        dataset=[Sample(input="Say hello.")],
+        solver=d3_bridged_agent(),
+        sentinel=d3_generate_decides("terminate", after, any_output=True),
+    )
+    log = eval(task, model="mockllm/model")[0]
+    assert log.status == "success", log.error
+    assert log.samples
+    limit = log.samples[0].limit
+    assert limit is not None and limit.type == "operator"
+
+
+def test_a_tool_s_own_model_call_in_a_react_agent_is_not_checked() -> None:
+    seen: GenerateSeen = []
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.for_tool_call(
+                "mockllm/model", tool_name="graded", tool_arguments={"text": "hi"}
+            ),
+            ModelOutput.from_content("mockllm/model", content="tool grade"),
+            ModelOutput.for_tool_call(
+                "mockllm/model", tool_name="submit", tool_arguments={"answer": "ok"}
+            ),
+        ],
+        memoize=False,
+    )
+    task = Task(
+        dataset=[Sample(input="Grade hi.")],
+        solver=react(tools=[graded()]),
+        sentinel=observe_only([d3_generates(seen)]),
+    )
+    log = eval(task, model=model)[0]
+    assert log.status == "success", log.error
+    completions = [completion for _, completion in checked_models(seen)]
+    assert len(completions) == 2
+    assert "tool grade" not in completions
 
 
 def test_an_agent_run_as_a_tool_is_checked() -> None:
@@ -1862,17 +2061,72 @@ def test_terminate_at_a_generate_stage_ends_the_sample(after: bool) -> None:
     }
 
 
-@pytest.mark.parametrize("action", ["reject", "escalate"])
 @pytest.mark.parametrize("after", [False, True])
-def test_unsupported_actions_at_a_generate_stage_fail_the_sample(
-    action: str, after: bool
-) -> None:
-    log = run(d3_generate_decides(action, after))
+def test_reject_at_a_generate_stage_fails_the_sample(after: bool) -> None:
+    log = run(d3_generate_decides("reject", after))
     assert log.status == "error"
     assert log.samples
     error = log.samples[0].error
     assert error is not None
-    assert "only 'continue' and 'terminate' are supported" in error.message
+    assert "only 'continue', 'escalate' and 'terminate' are supported" in error.message
+
+
+@pytest.mark.parametrize("after", [False, True])
+def test_an_unhandled_escalate_at_a_generate_stage_ends_the_sample(
+    after: bool,
+) -> None:
+    log = run(d3_generate_decides("escalate", after))
+    assert log.status == "success", log.error
+    assert log.samples
+    limit = log.samples[0].limit
+    assert limit is not None and limit.type == "operator"
+    assert limit.reason is not None
+    assert limit.reason.startswith("unhandled escalation from")
+    assert not [e for e in log.samples[0].events if isinstance(e, ToolEvent)]
+    stage = "model_output" if after else "model_input"
+    assert (stage, "escalate") in {
+        (e.stage, e.action) for e in sentinel_events(log) if e.path == ""
+    }
+
+
+@pytest.mark.parametrize("after", [False, True])
+def test_a_handled_escalate_at_a_generate_stage_proceeds(after: bool) -> None:
+    log = run(
+        sequential(
+            [d3_generate_decides("escalate", after), handle_escalation("continue")]
+        )
+    )
+    assert log.status == "success", log.error
+    assert log.samples
+    assert log.samples[0].limit is None
+    assert [m.text for m in tool_messages(log)] == ["2"]
+
+
+@pytest.mark.parametrize(
+    "configure",
+    [
+        lambda: sequential(
+            [
+                threshold(d3_suspicion(0.9), escalate_at=0.5),
+                handle_escalation("continue"),
+            ]
+        ),
+        lambda: d3_returns_a_configured_root(),
+    ],
+)
+def test_a_tool_only_sentinel_opens_no_generate_stage(configure: Any) -> None:
+    log = run(configure())
+    assert log.status == "success", log.error
+    assert log.samples
+    assert {e.stage for e in sentinel_events(log)} == {"tool_call"}
+    assert len(sentinel_span_ids(log.samples[0].events)) == 1
+
+
+@protocol
+def d3_returns_a_configured_root() -> Protocol:
+    return sequential(
+        [threshold(d3_suspicion(0.9), escalate_at=0.5), handle_escalation("continue")]
+    )
 
 
 def test_a_monitor_on_the_agents_own_model_is_not_checked() -> None:

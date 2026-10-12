@@ -60,9 +60,10 @@ def warn_sentinel_bridged() -> None:
     if active_sentinel() is not None:
         warn_once(
             logger,
-            "Sentinels do not yet run for bridged agents (agent_bridge() and "
-            "sandbox_agent_bridge()), so their model calls and tool calls are not "
-            "monitored. See https://github.com/UKGovernmentBEIS/inspect_ai/issues/5759.",
+            "Sentinels do not yet run at the tool stages for bridged agents "
+            "(agent_bridge() and sandbox_agent_bridge()), so their tool calls are not "
+            "monitored; their model calls are. See "
+            "https://github.com/UKGovernmentBEIS/inspect_ai/issues/5759.",
         )
 
 
@@ -103,9 +104,11 @@ def sentinel_tool_body() -> Iterator[None]:
 
 
 def is_agent_generate(is_active_model: bool) -> bool:
-    if not is_active_model or active_sentinel() is None:
+    if active_sentinel() is None or not _solving.get() or _not_agent.get():
         return False
-    if not _solving.get() or _not_agent.get():
-        return False
+    agent_span = current_agent_span_id()
     tool_span = _tool_agent_span.get()
-    return tool_span is _NO_TOOL or tool_span != current_agent_span_id()
+    if tool_span is not _NO_TOOL and tool_span == agent_span:
+        return False
+    # any model in an agent loop; outside one, the active model's solver calls
+    return agent_span is not None or is_active_model
