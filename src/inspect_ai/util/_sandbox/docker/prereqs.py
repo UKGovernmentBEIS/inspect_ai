@@ -53,6 +53,8 @@ async def validate_docker_engine(version: str = DOCKER_ENGINE_REQUIRED_VERSION) 
 
 DOCKER_COMPOSE_REQUIRED_VERSION = "2.21.0"
 DOCKER_COMPOSE_REQUIRED_VERSION_PULL_POLICY = "2.22.0"
+# Compose 2.24 uses API 1.44, which preserves recursive read-only defaults.
+DOCKER_COMPOSE_REQUIRED_VERSION_READ_ONLY = "2.24.0"
 
 
 async def validate_docker_compose(

@@ -1,21 +1,48 @@
 import json
+import os
 import re
 from typing import Any
 
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.util._subprocess import subprocess
 
+from .prereqs import (
+    DOCKER_COMPOSE_REQUIRED_VERSION_READ_ONLY,
+    validate_docker_compose,
+)
+
 
 async def validate_compose_mounts(config: dict[str, Any], project_name: str) -> None:
-    """Reject host writes and unverifiable mounts in resolved Compose configuration.
+    """Reject host writes and unverifiable mounts across all Compose services."""
+    if _unsafe_mounts_allowed(config):
+        return
+
+    bind_runtimes: dict[str | None, str] = {}
+    for service_name, service in config["services"].items():
+        description = _validate_service_mounts(
+            service_name, service, config.get("volumes", {}), project_name
+        )
+        if description:
+            bind_runtimes[service.get("runtime")] = description
+
+    if bind_runtimes:
+        await _validate_read_only_support(bind_runtimes)
+
+
+def _unsafe_mounts_allowed(config: dict[str, Any]) -> bool:
+    """Require an explicit boolean opt-in to unsafe host access.
 
     Compose preserves extension value types: interpolation produces a string,
-    so only a literal boolean can authorize unsafe mounts. Check every service,
-    including services whose mounts are inherited by another service.
+    so only a literal boolean can authorize unsafe mounts.
     """
     settings = config.get("x-inspect_docker_sandbox", {})
     if not isinstance(settings, dict):
-        raise PrerequisiteError("x-inspect_docker_sandbox must be a mapping.")
+        raise PrerequisiteError(
+            "Invalid 'x-inspect_docker_sandbox' section in the Compose configuration. "
+            "Put its options underneath the heading, for example:\n\n"
+            "x-inspect_docker_sandbox:\n"
+            "  unsafe_allow_writable_host_mounts: false"
+        )
     allow_writes = settings.get("unsafe_allow_writable_host_mounts", False)
     if type(allow_writes) is not bool:
         raise PrerequisiteError(
@@ -23,114 +50,152 @@ async def validate_compose_mounts(config: dict[str, Any], project_name: str) -> 
             "literal boolean (true or false), without environment or sample "
             "metadata interpolation."
         )
-    if allow_writes:
-        return
+    return allow_writes
 
-    bind_runtimes: dict[str | None, str] = {}
-    volumes = config.get("volumes", {})
-    for service_name, service in config["services"].items():
-        can_remount = service.get("privileged") or any(
-            cap.upper().removeprefix("CAP_") in ("SYS_ADMIN", "ALL")
-            for cap in service.get("cap_add", [])
-        )
-        if service.get("configs") or service.get("secrets"):
-            if can_remount:
-                raise mount_error(
-                    service_name,
-                    "configs/secrets",
-                    "service privileges permit remounting host binds writable",
-                )
-            bind_runtimes[service.get("runtime")] = (
-                f"service '{service_name}' configs/secrets"
-            )
-        if service.get("volumes_from"):
+
+def _validate_service_mounts(
+    service_name: str,
+    service: dict[str, Any],
+    volumes: dict[str, Any],
+    project_name: str,
+) -> str | None:
+    """Validate a service's mounts, returning a host mount needing runtime checks."""
+    can_remount = bool(service.get("privileged")) or any(
+        cap.upper().removeprefix("CAP_") in ("SYS_ADMIN", "ALL")
+        for cap in service.get("cap_add", [])
+    )
+    description = None
+    if service.get("configs") or service.get("secrets"):
+        if can_remount:
             raise mount_error(
                 service_name,
-                str(service["volumes_from"]),
-                "volumes_from cannot be verified",
+                "configs/secrets",
+                "service privileges permit remounting host binds writable",
             )
-        if service.get("volume_driver", "local") != "local":
-            raise mount_error(
-                service_name, "volume_driver", "volume host access cannot be verified"
-            )
-        for mount in service.get("volumes", []):
-            source = mount.get("source", "(anonymous)")
-            description = f"{source} -> {mount['target']}"
-            mount_type = mount["type"]
-            if mount_type == "bind":
-                if mount.get("read_only") is not True:
-                    raise mount_error(service_name, description, "writable host bind")
-                if can_remount:
-                    raise mount_error(
-                        service_name,
-                        description,
-                        "service privileges permit remounting host binds writable",
-                    )
-                bind = mount.get("bind", {})
-                if bind.get("propagation", "rprivate") not in ("private", "rprivate"):
-                    raise mount_error(
-                        service_name,
-                        description,
-                        "bind propagation may expose writable submounts",
-                    )
-                recursive = bind.get("recursive", "enabled")
-                if recursive == "writable":
-                    raise mount_error(service_name, description, "writable submounts")
-                bind_runtimes[service.get("runtime")] = (
-                    f"service '{service_name}' mount '{description}'"
-                )
-            elif mount_type == "volume":
-                volume = volumes.get(source, {})
-                if (
-                    volume.get("external")
-                    or volume.get("driver", "local") != "local"
-                    or volume.get("driver_opts")
-                    or volume.get("name", f"{project_name}_{source}")
-                    != f"{project_name}_{source}"
-                ):
-                    raise mount_error(
-                        service_name,
-                        description,
-                        "volume host access cannot be verified",
-                    )
-            elif mount_type not in ("tmpfs", "image", "npipe"):
+        description = f"service '{service_name}' configs/secrets"
+    if service.get("volumes_from"):
+        raise mount_error(
+            service_name,
+            str(service["volumes_from"]),
+            "volumes_from cannot be verified",
+        )
+    if service.get("volume_driver", "local") != "local":
+        raise mount_error(
+            service_name, "volume_driver", "volume host access cannot be verified"
+        )
+    for mount in service.get("volumes", []):
+        source = mount.get("source", "(anonymous)")
+        mount_description = f"{source} -> {mount['target']}"
+        mount_type = mount["type"]
+        if mount_type == "bind":
+            _validate_bind_mount(service_name, mount, can_remount)
+            description = f"service '{service_name}' mount '{mount_description}'"
+        elif mount_type == "volume":
+            volume = volumes.get(source, {})
+            if (
+                volume.get("external")
+                or volume.get("driver", "local") != "local"
+                or volume.get("driver_opts")
+                or volume.get("name", f"{project_name}_{source}")
+                != f"{project_name}_{source}"
+            ):
                 raise mount_error(
                     service_name,
-                    description,
-                    f"mount type '{mount_type}' cannot be verified",
+                    mount_description,
+                    "volume host access cannot be verified",
                 )
+        elif mount_type not in ("tmpfs", "image", "npipe"):
+            raise mount_error(
+                service_name,
+                mount_description,
+                f"mount type '{mount_type}' cannot be verified",
+            )
+    return description
 
-    if bind_runtimes:
-        result = await subprocess(
-            ["docker", "info", "--format", "{{json .}}"], timeout=30
+
+def _validate_bind_mount(
+    service_name: str, mount: dict[str, Any], can_remount: bool
+) -> None:
+    """Reject binds that permit host writes, including through nested mounts."""
+    description = f"{mount['source']} -> {mount['target']}"
+    if mount.get("read_only") is not True:
+        raise mount_error(service_name, description, "writable host bind")
+    if can_remount:
+        raise mount_error(
+            service_name,
+            description,
+            "service privileges permit remounting host binds writable",
         )
-        if not result.success:
+    bind = mount.get("bind", {})
+    if bind.get("propagation", "rprivate") not in ("private", "rprivate"):
+        raise mount_error(
+            service_name,
+            description,
+            "bind propagation may expose writable submounts",
+        )
+    if bind.get("recursive") == "writable":
+        raise mount_error(service_name, description, "writable submounts")
+
+
+async def _validate_read_only_support(bind_runtimes: dict[str | None, str]) -> None:
+    """Reject setups where Docker would silently leave nested mounts writable."""
+    result = await subprocess(["docker", "info", "--format", "{{json .}}"], timeout=30)
+    if not result.success:
+        raise PrerequisiteError(
+            f"Unable to verify read-only host bind support: {result.stderr}"
+        )
+    info = json.loads(result.stdout)
+
+    def runtime_supports_read_only(runtime: str | None) -> bool:
+        status = (
+            info.get("Runtimes", {})
+            .get(runtime or info.get("DefaultRuntime"), {})
+            .get("status", {})
+        )
+        features = json.loads(
+            status.get("org.opencontainers.runtime-spec.features", "{}")
+        )
+        return "rro" in features.get("mountOptions", [])
+
+    engine = re.match(r"^(\d+)", info.get("ServerVersion", ""))
+    kernel = re.match(r"^(\d+)\.(\d+)", info.get("KernelVersion", ""))
+    engine_supported = engine is not None and int(engine[1]) >= 25
+    kernel_supported = kernel is not None and tuple(map(int, kernel.groups())) >= (
+        5,
+        12,
+    )
+    runtime_support = {
+        runtime
+        or info.get("DefaultRuntime")
+        or "(unknown)": runtime_supports_read_only(runtime)
+        for runtime in bind_runtimes
+    }
+    if not (engine_supported and kernel_supported and all(runtime_support.values())):
+        runtime_details = ", ".join(
+            f"{runtime} (recursive read-only {'supported' if supported else 'unsupported'})"
+            for runtime, supported in runtime_support.items()
+        )
+        raise PrerequisiteError(
+            f"Read-only host binds ({', '.join(bind_runtimes.values())}) require Docker Engine 25 or newer, Linux "
+            "kernel 5.12 or newer, and a runtime supporting recursive read-only "
+            "mounts.\n\n"
+            f"Detected Docker Engine: {info.get('ServerVersion', '(unknown)')} "
+            f"({'supported' if engine_supported else 'unsupported'}).\n"
+            f"Detected Linux kernel: {info.get('KernelVersion', '(unknown)')} "
+            f"({'supported' if kernel_supported else 'unsupported'}).\n"
+            f"Detected runtimes: {runtime_details}.\n\n"
+            "Upgrade Docker or copy inputs with Sample.files."
+        )
+
+    await validate_docker_compose(DOCKER_COMPOSE_REQUIRED_VERSION_READ_ONLY)
+    api_override = os.environ.get("DOCKER_API_VERSION")
+    if api_override is not None:
+        version = re.fullmatch(r"(\d+)\.(\d+)", api_override)
+        if version is None or tuple(map(int, version.groups())) < (1, 44):
             raise PrerequisiteError(
-                f"Unable to verify read-only host bind support: {result.stderr}"
-            )
-        info = json.loads(result.stdout)
-        engine = re.match(r"^(\d+)", info.get("ServerVersion", ""))
-        kernel = re.match(r"^(\d+)\.(\d+)", info.get("KernelVersion", ""))
-        runtimes = info.get("Runtimes", {})
-        if (
-            engine is None
-            or int(engine[1]) < 25
-            or kernel is None
-            or tuple(map(int, kernel.groups())) < (5, 12)
-            or any(
-                "rro"
-                not in json.loads(
-                    runtimes.get(runtime or info.get("DefaultRuntime"), {})
-                    .get("status", {})
-                    .get("org.opencontainers.runtime-spec.features", "{}")
-                ).get("mountOptions", [])
-                for runtime in bind_runtimes
-            )
-        ):
-            raise PrerequisiteError(
-                f"Read-only host binds ({', '.join(bind_runtimes.values())}) require Docker Engine 25 or newer, Linux "
-                "kernel 5.12 or newer, and a runtime supporting recursive read-only "
-                "mounts. Upgrade Docker or copy inputs with Sample.files."
+                "DOCKER_API_VERSION must be 1.44 or newer for read-only host sharing. "
+                "Older API versions leave nested mounts writable. Unset this "
+                "override or copy inputs with Sample.files."
             )
 
 

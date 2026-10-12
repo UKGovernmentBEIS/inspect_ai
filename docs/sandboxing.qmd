@@ -368,7 +368,7 @@ Inspect blocks these mounts by default, for every service in your Compose file. 
 
 Some advanced volume settings are also blocked if Inspect cannot check their access to the host. Read-only mounts are blocked on services that can make them writable. These rules also apply to Compose `configs` and `secrets`.
 
-Read-only sharing requires Docker Engine 25 or newer, Docker's Linux kernel 5.12 or newer, and support for keeping any mounts inside the shared directory read-only too. Inspect checks these requirements and asks you to upgrade Docker or copy the inputs when they aren't met.
+Read-only sharing requires Docker Engine 25 or newer, Compose 2.24 or newer, Docker's Linux kernel 5.12 or newer, and support for keeping any mounts inside the shared directory read-only too. Inspect checks these requirements and asks you to upgrade Docker or copy the inputs when they aren't met.
 
 To allow unsafe host access for all services in your Compose file, set:
 

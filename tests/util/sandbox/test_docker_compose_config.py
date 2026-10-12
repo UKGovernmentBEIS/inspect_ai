@@ -15,6 +15,7 @@ from inspect_ai.util import ComposeConfig, ComposeService, ExecResult
 from inspect_ai.util._sandbox.docker import compose as compose_module
 from inspect_ai.util._sandbox.docker import docker as docker_module
 from inspect_ai.util._sandbox.docker import mounts as mounts_module
+from inspect_ai.util._sandbox.docker import prereqs as prereqs_module
 from inspect_ai.util._sandbox.docker.compose import (
     compose_down,
     compose_exec,
@@ -88,13 +89,30 @@ def mount_daemon(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
         },
     }
 
-    async def docker_info(*args: Any, **kwargs: Any) -> ExecResult[str]:
-        return ExecResult(
-            success=True, returncode=0, stdout=json.dumps(info), stderr=""
+    async def docker_info(args: list[str], **kwargs: Any) -> ExecResult[str]:
+        stdout = (
+            json.dumps({"version": info.get("ComposeVersion", "2.24.0")})
+            if args[:3] == ["docker", "compose", "version"]
+            else json.dumps(info)
         )
+        return ExecResult(success=True, returncode=0, stdout=stdout, stderr="")
 
     monkeypatch.setattr(mounts_module, "subprocess", docker_info)
+    monkeypatch.setattr(prereqs_module, "subprocess", docker_info)
     return info
+
+
+@pytest.mark.parametrize("settings", [None, True, "true", []])
+async def test_invalid_host_mount_settings_explain_yaml(settings: Any) -> None:
+    with pytest.raises(PrerequisiteError, match="Put its options underneath") as ex:
+        await validate_compose_mounts(
+            {"x-inspect_docker_sandbox": settings, "services": {"default": {}}},
+            "inspect-test",
+        )
+    assert (
+        "x-inspect_docker_sandbox:\n  unsafe_allow_writable_host_mounts: false"
+        in str(ex.value)
+    )
 
 
 @pytest.mark.parametrize("allow", [None, "true", "false", 1, 0, "${ALLOW:-true}"])
@@ -245,23 +263,69 @@ async def test_read_only_binds_reject_writable_submounts(
 
 
 @pytest.mark.parametrize(
-    "unsupported",
+    "unsupported, expected_diagnostic",
     [
-        {"ServerVersion": "24.0.6"},
-        {"KernelVersion": "5.11.0"},
-        {"KernelVersion": "unknown"},
-        {"Runtimes": {}},
-        {"DefaultRuntime": "custom"},
+        (
+            {"ServerVersion": "24.0.6"},
+            "Detected Docker Engine: 24.0.6 (unsupported)",
+        ),
+        (
+            {"KernelVersion": "5.11.0"},
+            "Detected Linux kernel: 5.11.0 (unsupported)",
+        ),
+        (
+            {"KernelVersion": "unknown"},
+            "Detected Linux kernel: unknown (unsupported)",
+        ),
+        ({"Runtimes": {}}, "runc (recursive read-only unsupported)"),
+        ({"DefaultRuntime": "custom"}, "custom (recursive read-only unsupported)"),
     ],
 )
 async def test_read_only_binds_require_recursive_support(
     unsupported: dict[str, Any],
+    expected_diagnostic: str,
     read_only_bind: dict[str, Any],
     mount_daemon: dict[str, Any],
 ) -> None:
     mount_daemon.update(unsupported)
-    with pytest.raises(PrerequisiteError, match="supporting recursive read-only"):
+    with pytest.raises(PrerequisiteError, match="supporting recursive read-only") as ex:
         await validate_compose_mounts(read_only_bind, "inspect-test")
+    error = str(ex.value)
+    assert expected_diagnostic in error
+    assert f"Detected Docker Engine: {mount_daemon['ServerVersion']}" in error
+    assert f"Detected Linux kernel: {mount_daemon['KernelVersion']}" in error
+    assert f"Detected runtimes: {mount_daemon['DefaultRuntime']}" in error
+
+
+async def test_read_only_binds_reject_legacy_compose_api(
+    read_only_bind: dict[str, Any], mount_daemon: dict[str, Any]
+) -> None:
+    mount_daemon["ComposeVersion"] = "2.23.3"
+    with pytest.raises(PrerequisiteError, match=r"Docker Compose >= 2\.24\.0"):
+        await validate_compose_mounts(read_only_bind, "inspect-test")
+
+
+@pytest.mark.parametrize("api_version", ["1.43", "unknown"])
+async def test_read_only_binds_reject_legacy_api_override(
+    api_version: str,
+    read_only_bind: dict[str, Any],
+    mount_daemon: dict[str, Any],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("DOCKER_API_VERSION", api_version)
+    with pytest.raises(
+        PrerequisiteError, match="DOCKER_API_VERSION must be 1.44 or newer"
+    ):
+        await validate_compose_mounts(read_only_bind, "inspect-test")
+
+
+async def test_read_only_binds_accept_supported_api_override(
+    read_only_bind: dict[str, Any],
+    mount_daemon: dict[str, Any],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("DOCKER_API_VERSION", "1.44")
+    await validate_compose_mounts(read_only_bind, "inspect-test")
 
 
 @pytest.mark.parametrize(
