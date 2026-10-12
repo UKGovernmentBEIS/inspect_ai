@@ -21,6 +21,7 @@ class SentinelFailure(Exception):
 class _ActiveSentinel(NamedTuple):
     root: "SentinelRoot"
     task_metadata: dict[str, Any]
+    task_description: str | None
 
 
 _active_sentinel: "ContextVar[_ActiveSentinel | None]" = ContextVar(
@@ -29,10 +30,14 @@ _active_sentinel: "ContextVar[_ActiveSentinel | None]" = ContextVar(
 
 
 def init_sentinel(
-    root: "SentinelRoot | None", task_metadata: dict[str, Any] | None = None
+    root: "SentinelRoot | None",
+    task_metadata: dict[str, Any] | None = None,
+    task_description: str | None = None,
 ) -> None:
     _active_sentinel.set(
-        _ActiveSentinel(root, task_metadata or {}) if root is not None else None
+        _ActiveSentinel(root, task_metadata or {}, task_description)
+        if root is not None
+        else None
     )
 
 
@@ -44,6 +49,11 @@ def active_sentinel() -> "SentinelRoot | None":
 def active_task_metadata() -> dict[str, Any]:
     active = _active_sentinel.get()
     return active.task_metadata if active is not None else {}
+
+
+def active_task_description() -> str | None:
+    active = _active_sentinel.get()
+    return active.task_description if active is not None else None
 
 
 def warn_sentinel_bridged() -> None:
