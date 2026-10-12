@@ -1,4 +1,4 @@
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from copy import copy
 from logging import getLogger
 from typing import Any, Literal, TypeGuard, cast
@@ -33,7 +33,6 @@ from inspect_ai.event._sentinel import (
 )
 from inspect_ai.log._samples import sample_active
 from inspect_ai.log._transcript import (
-    TranscriptHistory,
     TranscriptHistoryUnavailableError,
     transcript,
 )
@@ -219,7 +218,7 @@ def _model_input(
     if message_id is None:
         return None
     try:
-        event = _producing_model_event(transcript().history, message_id)
+        event = transcript().history.find_last(_produced_by(message_id))
     except TranscriptHistoryUnavailableError:
         return None
     except Exception as ex:
@@ -227,35 +226,17 @@ def _model_input(
     return list(event.input) if event is not None else None
 
 
-def _producing_model_event(
-    history: TranscriptHistory, message_id: str
-) -> ModelEvent | None:
-    # newest first: the producing call is almost always recent
-    for event in reversed(history.resident_events):
-        if _produced(event, message_id):
-            return event
-    if not history.resident_events_truncated:
-        return None
-    end = history.event_count
-    window = 16
-    while end > 0:
-        start = max(0, end - window)
-        for event in reversed(history.events_from(start, end - start)):
-            if _produced(event, message_id):
-                return event
-        end = start
-        window = min(window * 2, 256)
-    return None
+def _produced_by(message_id: str) -> Callable[[Event], TypeGuard[ModelEvent]]:
+    def produced(event: Event) -> TypeGuard[ModelEvent]:
+        return (
+            isinstance(event, ModelEvent)
+            and event.role != "monitor"
+            and not event.pending
+            and bool(event.output.choices)
+            and event.output.choices[0].message.id == message_id
+        )
 
-
-def _produced(event: Event, message_id: str) -> TypeGuard[ModelEvent]:
-    return (
-        isinstance(event, ModelEvent)
-        and event.role != "monitor"
-        and not event.pending
-        and bool(event.output.choices)
-        and event.output.choices[0].message.id == message_id
-    )
+    return produced
 
 
 class _Host:

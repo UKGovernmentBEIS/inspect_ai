@@ -11,6 +11,7 @@ from typing import (
     Literal,
     NamedTuple,
     Protocol,
+    TypeGuard,
     TypeVar,
     overload,
 )
@@ -48,6 +49,7 @@ logger = getLogger(__name__)
 
 
 ET = TypeVar("ET", bound=BaseEvent)
+EV = TypeVar("EV", bound=Event)
 
 
 @dataclass(frozen=True)
@@ -443,6 +445,53 @@ class TranscriptHistory:
         if index is not None:
             return events[index:]
         return events
+
+    @overload
+    def find_last(self, predicate: Callable[[Event], TypeGuard[EV]]) -> EV | None: ...
+
+    @overload
+    def find_last(self, predicate: Callable[[Event], bool]) -> Event | None: ...
+
+    def find_last(self, predicate: Callable[[Event], bool]) -> Event | None:
+        """Return the most recent event that matches `predicate`.
+
+        Searches newest first and stops at the first match, so finding a
+        recent event reads only recent history. Every resident event is
+        checked first, including older ones kept in memory after eviction
+        (pinned or pending events). Evicted events are then read back from
+        the history provider in pages that grow from 16 to 256 events, newest
+        page first; no events are retained. An event may be checked twice
+        when it is both resident and in a provider page.
+
+        Args:
+            predicate: Called with each event until it returns `True`.
+
+        Returns:
+            The most recent matching event, or `None` if no event matches.
+
+        Raises:
+            TranscriptHistoryUnavailableError: If no resident event matches,
+                events have been evicted, and no history provider is
+                available to read them (or its backing store is gone).
+        """
+        transcript = self._transcript
+        for event in reversed(transcript._events):
+            if predicate(event):
+                return event
+        if not transcript._events_truncated:
+            return None
+        end = transcript._event_count - max(
+            0, min(transcript._resident_tail, len(transcript._events))
+        )
+        window = 16
+        while end > 0:
+            start = max(0, end - window)
+            for event in reversed(self.events_from(start, end - start)):
+                if predicate(event):
+                    return event
+            end = start
+            window = min(window * 2, 256)
+        return None
 
 
 class Transcript:
