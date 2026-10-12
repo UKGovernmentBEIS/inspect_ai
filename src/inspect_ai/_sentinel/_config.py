@@ -19,11 +19,6 @@ from inspect_ai._util.registry import is_registry_object
 if TYPE_CHECKING:
     from inspect_sentinel import Protocol, Sentinels, Verdict
 
-    # a configuration that cannot leave an escalation unhandled
-    HandledSentinels: TypeAlias = Sentinels[Verdict | None]
-else:
-    HandledSentinels: TypeAlias = Any
-
 
 class SentinelEntry(BaseModel):
     """One configured monitor or protocol.
@@ -99,13 +94,25 @@ SentinelEntry.model_rebuild()
 
 SentinelRoot: TypeAlias = "Protocol"
 
-SentinelSpec: TypeAlias = Union[
-    str,
-    HandledSentinels,
-    SentinelConfig,
-    Sequence[Mapping[str, Any]],
-    Mapping[str, Mapping[str, Any]],
-]
+# Keep the two branches the same union: inspect_sentinel is optional, so at
+# runtime Any stands in for a configuration that cannot leave an escalation
+# unhandled.
+if TYPE_CHECKING:
+    SentinelSpec: TypeAlias = Union[
+        str,
+        Sentinels[Verdict | None],
+        SentinelConfig,
+        Sequence[Mapping[str, Any]],
+        Mapping[str, Mapping[str, Any]],
+    ]
+else:
+    SentinelSpec: TypeAlias = Union[
+        str,
+        Any,
+        SentinelConfig,
+        Sequence[Mapping[str, Any]],
+        Mapping[str, Mapping[str, Any]],
+    ]
 
 
 def _require_sentinel() -> None:
