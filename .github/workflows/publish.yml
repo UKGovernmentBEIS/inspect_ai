@@ -1,0 +1,103 @@
+name: Publish to PyPI
+
+on:
+  release:
+    types: [published]
+  # Break-glass: run on the release tag (select it under "Use workflow from").
+  # Unlike a release event, this may publish a tag that is not on main.
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "Type the selected release tag (e.g. 0.3.278) to confirm PyPI publication"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  # Builds without id-token so the build never holds publish credentials; the
+  # publish job only uploads the verified artifacts.
+  build:
+    name: Build and verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # full history and tags for setuptools_scm and the main-ancestry
+          # check; blob:none skips historical file contents. The submodule
+          # is not built, but setuptools_scm records its file list in the
+          # sdist, as it does for a local release.
+          fetch-depth: 0
+          filter: "blob:none"
+          submodules: true
+          persist-credentials: false
+
+      - name: Check release tag
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          PRERELEASE: ${{ github.event.release.prerelease }}
+          CONFIRM: ${{ inputs.confirm }}
+        run: |
+          fail() { echo "::error::$1"; exit 1; }
+          [ "$GITHUB_REF_TYPE" = "tag" ] ||
+            fail "Publish must run on a release tag, not $GITHUB_REF_TYPE '$GITHUB_REF_NAME'"
+          [[ "$GITHUB_REF_NAME" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] ||
+            fail "Tag '$GITHUB_REF_NAME' is not a release version (X.Y.Z)"
+          if [ "$EVENT_NAME" = "release" ]; then
+            [ "$RELEASE_TAG" = "$GITHUB_REF_NAME" ] ||
+              fail "Release tag '$RELEASE_TAG' does not match ref '$GITHUB_REF_NAME'"
+            [ "$PRERELEASE" != "true" ] ||
+              fail "Release $GITHUB_REF_NAME is marked pre-release; not publishing to PyPI"
+            git merge-base --is-ancestor HEAD origin/main ||
+              fail "Tag $GITHUB_REF_NAME is not on main; to publish it anyway, dispatch this workflow on the tag"
+          else
+            [ "$CONFIRM" = "$GITHUB_REF_NAME" ] ||
+              fail "Confirmation '$CONFIRM' does not match the selected tag '$GITHUB_REF_NAME'"
+          fi
+
+      - uses: ./.github/actions/build-dist
+        with:
+          version: ${{ github.ref_name }}
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: dist
+          path: dist/
+          if-no-files-found: error
+          # a re-run of this job replaces the earlier attempt's artifact
+          overwrite: true
+
+  publish:
+    name: Publish to PyPI
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      id-token: write # trusted publishing
+    environment:
+      name: pypi
+      url: https://pypi.org/p/inspect-ai
+    steps:
+      # Only the stdlib-only release script and the files it reads; nothing
+      # is installed or built in the job that holds the publish token.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          sparse-checkout: |
+            .github/actions
+            scripts
+            src/inspect_ai/tool/_sandbox_tools_utils
+          persist-credentials: false
+
+      - uses: ./.github/actions/publish-dist
+        with:
+          version: ${{ github.ref_name }}
