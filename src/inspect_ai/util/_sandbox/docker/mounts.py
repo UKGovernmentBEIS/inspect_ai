@@ -213,5 +213,5 @@ def mount_error(service: str, mount: str, reason: str) -> PrerequisiteError:
         "Docker-managed volume without a custom name, driver options or external "
         "storage. To accept unsafe host access for the whole Compose project, "
         "set top-level x-inspect_docker_sandbox.unsafe_allow_writable_host_mounts "
-        "to literal true. This can compromise the host and other evaluations."
+        "to literal true. This can compromise the host."
     )

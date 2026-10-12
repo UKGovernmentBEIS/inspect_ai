@@ -360,27 +360,6 @@ volumes:
 
 See the documentation on [Docker Compose](https://docs.docker.com/compose/compose-file/) files for information on their full schema and feature set.
 
-### Sharing Files with the Host
-
-A malicious agent with write access to your host machine through a volume mount can change files outside the sandbox. For example, it could rewrite `compose.yml` to give future samples or evaluations more privileges than you intended.
-
-Inspect blocks these mounts by default, for every service in your Compose file. Share inputs read-only (`./data:/data:ro`), copy them with `Sample.files`, or use volumes managed by Docker for files the sandbox needs to write.
-
-Some advanced volume settings are also blocked if Inspect cannot check their access to the host. Read-only mounts are blocked on services that can make them writable. These rules also apply to Compose `configs` and `secrets`.
-
-Read-only sharing requires Docker Engine 25 or newer, Compose 2.24 or newer, Docker's Linux kernel 5.12 or newer, and support for keeping any mounts inside the shared directory read-only too. Inspect checks these requirements and asks you to upgrade Docker or copy the inputs when they aren't met.
-
-To allow unsafe host access for all services in your Compose file, set:
-
-```yaml
-x-inspect_docker_sandbox:
-  unsafe_allow_writable_host_mounts: true
-```
-
-Set `true` directly, without substituting environment variables or sample metadata. Programmatic `ComposeConfig` supports the same extension.
-
-Access to Docker itself from a sandbox can also give an agent control over the host, even through a read-only mount; you remain responsible for that configuration.
-
 ### Sample Metadata
 
 You might want to interpolate Sample metadata into your Docker compose files. You can do this using the standard compose environment variable syntax, where any metadata in the Sample is made available with a `SAMPLE_METADATA_` prefix. For example, you might have a per-sample memory limit (with a default value of 0.5gb if unspecified):
@@ -397,6 +376,33 @@ services:
 ```
 
 Note that `-` suffix that provides the default value of 0.5gb. This is important to include so that when the compose file is read *without* the context of a Sample (for example, when pulling/building images at startup) that a default value is available.
+
+### Mounting host directories
+
+A malicious agent with write access to your host machine through a volume mount can change files outside the sandbox. Even if it is restricted to a single directory, it could rewrite `compose.yml` to give future samples or evaluations more privileges than you intended, or use a symlink to access files on the host you did not intend it to.
+
+For security, Inspect blocks volume mounts that give Docker sandboxes write access to files or directories on the host.
+
+Read-only sharing is accepted by Inspect. Add `:ro` to the mount:
+
+```yaml
+services:
+  default:
+    image: ubuntu:24.04
+    volumes:
+      - ./host-dir:/container-dir:ro
+```
+
+::: {.callout-caution appearance="simple"}
+
+Should your eval require unsafe host write access, you may allow unsafe host access for all services in your Compose file:
+
+```yaml
+x-inspect_docker_sandbox:
+  unsafe_allow_writable_host_mounts: true
+```
+
+:::
 
 ## Environment Cleanup
 
