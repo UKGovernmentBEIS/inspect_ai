@@ -8,6 +8,7 @@ from typing import Any, cast
 import anyio
 import pytest
 from test_helpers.transcript import FakeTranscriptHistoryProvider
+from test_helpers.utils import skip_if_no_mcp_package
 from typing_extensions import assert_type
 
 from inspect_ai import Task, eval
@@ -2745,3 +2746,106 @@ def test_an_agent_run_by_a_scorer_is_not_checked(from_solver: bool) -> None:
     log = eval(task, model="mockllm/model")[0]
     assert log.status == "success", log.error
     assert [step.model for step in seen] == ["mockllm/model"] * 2
+
+
+@tool
+def ping() -> Tool:
+    async def execute() -> str:
+        """Return pong."""
+        return "pong"
+
+    return execute
+
+
+@approver
+def d3_model_judge() -> Approver:
+    async def approve(
+        message: str,
+        call: ToolCall,
+        view: ToolCallView,
+        history: list[ChatMessage],
+    ) -> Approval:
+        await get_model("mockllm/approver").generate("Judge whether ping is safe")
+        return Approval(decision="approve")
+
+    return approve
+
+
+@reviewer
+def d3_model_result_judge() -> Reviewer:
+    async def check(
+        message: str,
+        call: ToolCall,
+        result: ChatMessageTool,
+        output: ToolResult,
+        view: ToolCallView,
+        history: list[ChatMessage],
+    ) -> Review:
+        await get_model("mockllm/reviewer").generate("Judge pong output")
+        return Review(decision="continue")
+
+    return check
+
+
+def test_approver_and_reviewer_model_calls_are_not_checked() -> None:
+    seen: GenerateSeen = []
+    agent = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.for_tool_call(
+                "mockllm/model", tool_name="ping", tool_arguments={}
+            ),
+            ModelOutput.from_content("mockllm/model", content="done"),
+        ],
+        memoize=False,
+    )
+    task = Task(
+        dataset=[Sample(input="ping")],
+        solver=[use_tools(ping()), generate()],
+        sentinel=observe_only([d3_generates(seen)]),
+        approval=[ApprovalPolicy(d3_model_judge(), "*")],
+        review=[ReviewPolicy(d3_model_result_judge(), "*")],
+    )
+    log = eval(task, model=agent)[0]
+    assert log.status == "success", log.error
+    assert log.samples
+    models = {e.model for e in log.samples[0].events if isinstance(e, ModelEvent)}
+    assert {"mockllm/approver", "mockllm/reviewer"} <= models
+    assert [step.model for step in seen] == ["mockllm/model"] * 4
+
+
+@solver
+def d3_samples_for_an_mcp_server() -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        from mcp.types import CreateMessageRequestParams
+
+        from inspect_ai.tool._mcp.sampling import sampling_fn
+
+        params = CreateMessageRequestParams.model_validate(
+            {
+                "messages": [
+                    {"role": "user", "content": {"type": "text", "text": "Summarize."}}
+                ],
+                "maxTokens": 64,
+            }
+        )
+        await sampling_fn(None, params)
+        return state
+
+    return solve
+
+
+@skip_if_no_mcp_package
+def test_mcp_sampling_is_not_checked() -> None:
+    seen: GenerateSeen = []
+    task = Task(
+        dataset=[Sample(input="hi")],
+        solver=[d3_samples_for_an_mcp_server(), generate()],
+        sentinel=observe_only([d3_generates(seen)]),
+    )
+    log = eval(task, model="mockllm/model")[0]
+    assert log.status == "success", log.error
+    assert log.samples
+    model_events = [e for e in log.samples[0].events if isinstance(e, ModelEvent)]
+    assert len(model_events) == 2
+    assert len(seen) == 2
