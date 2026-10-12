@@ -86,6 +86,16 @@ with it trigger no other workflows, so:
   (`.github/actions/build-dist`, `.github/actions/publish-dist`) and
   `npm-publish.yml` as a called workflow, so the two paths cannot drift.
 
+`publish-dist` verifies the downloaded files and drops those PyPI already
+has; the upload itself, `pypa/gh-action-pypi-publish`, is a step of each
+publish job rather than of the composite. It is a Docker action, and pypa
+does not support it inside a composite action: there the image reference
+resolves against the calling repository (`ghcr.io/UKGovernmentBEIS/...`,
+which Docker rejects as uppercase), which is how the 0.3.279 publish failed.
+`release.yml`'s publish job runs `publish-dist` from the run's own commit
+(a second checkout into `.ci/`), not from the tag, so a recovery dispatch on
+`main` publishes an older tag with the current publish steps.
+
 Trusted publishers: PyPI matches the workflow file that runs the publishing
 job, so `release.yml` and `publish.yml` each need a PyPI publisher. npm matches
 the calling workflow, so `release.yml` and `npm-publish.yml` each need an npm
@@ -151,7 +161,9 @@ Re-running the Release workflow is safe at any point.
   on a version tag: `publish.yml` and `npm-publish.yml` run on the release
   event.
 - **Dispatch `publish.yml`** on the tag, typing the tag to confirm; this may
-  publish a tag that is not on `main`. Dispatch `npm-publish.yml` on the tag
+  publish a tag that is not on `main`. It runs the workflow and actions as
+  they are at the tag, so it cannot publish a tag whose publish steps are
+  broken (such as 0.3.279); use the recovery dispatch of `release.yml`. Dispatch `npm-publish.yml` on the tag
   with dry-run unchecked.
 - **Local:** `python scripts/pypi-release.py release X.Y.Z` (PyPI only; its
   tag push no longer triggers npm, so dispatch `npm-publish.yml`).
