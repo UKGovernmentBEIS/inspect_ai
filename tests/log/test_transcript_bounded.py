@@ -1,12 +1,13 @@
 import contextvars
 import dataclasses
 import json
-from typing import Any, NoReturn, Sequence, cast
+from typing import Any, NoReturn, Sequence, TypeGuard, cast
 from unittest.mock import patch
 
 import numpy as np
 import pytest
 from test_helpers.transcript import FakeTranscriptHistoryProvider, make_model_event
+from typing_extensions import assert_type
 
 from inspect_ai._util.constants import DEFAULT_LOG_MODEL_API_CALLS
 from inspect_ai.dataset._dataset import Sample
@@ -1469,6 +1470,19 @@ def _history_transcript(
 
 def _is_data(value: object) -> Any:
     return lambda event: isinstance(event, InfoEvent) and event.data == value
+
+
+def test_find_last_narrows_to_a_type_guard_predicates_type() -> None:
+    transcript = Transcript()
+    transcript._event(InfoEvent(data=1))
+
+    def is_info(event: Event) -> TypeGuard[InfoEvent]:
+        return isinstance(event, InfoEvent)
+
+    found = transcript.history.find_last(is_info)
+    assert_type(found, InfoEvent | None)
+    assert found is not None and found.data == 1
+    assert_type(transcript.history.find_last(lambda event: True), Event | None)
 
 
 def test_find_last_unbounded_returns_the_newest_match() -> None:

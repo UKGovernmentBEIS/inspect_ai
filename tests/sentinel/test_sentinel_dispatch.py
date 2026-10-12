@@ -8,6 +8,7 @@ from typing import Any, cast
 import anyio
 import pytest
 from test_helpers.transcript import FakeTranscriptHistoryProvider
+from typing_extensions import assert_type
 
 from inspect_ai import Task, eval
 from inspect_ai._sentinel._config import resolve_sentinel_root, resolve_sentinel_spec
@@ -1703,6 +1704,20 @@ def test_a_history_read_error_fails_the_sentinel() -> None:
     bounded_transcript(events, FailingHistoryProvider(events, ValueError("corrupt")))
     with pytest.raises(SentinelFailure, match="corrupt"):
         _model_input(addition_call(), produced_by(first))
+
+
+def test_produced_by_narrows_find_last_to_a_model_event() -> None:
+    from inspect_ai._sentinel._dispatch import _produced_by
+
+    current = Transcript()
+    init_transcript(current)
+    agent = indexed_model_event("agent")
+    current._event(agent)
+    message_id = agent.output.choices[0].message.id
+    assert message_id is not None
+    found = current.history.find_last(_produced_by(message_id))
+    assert_type(found, ModelEvent | None)
+    assert found is agent
 
 
 def test_model_input_skips_a_pending_model_event() -> None:

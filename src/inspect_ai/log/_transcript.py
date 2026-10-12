@@ -48,8 +48,7 @@ if TYPE_CHECKING:
 logger = getLogger(__name__)
 
 
-ET = TypeVar("ET", bound=BaseEvent)
-EV = TypeVar("EV", bound=Event)
+ET = TypeVar("ET", bound=Event)
 
 
 @dataclass(frozen=True)
@@ -447,7 +446,7 @@ class TranscriptHistory:
         return events
 
     @overload
-    def find_last(self, predicate: Callable[[Event], TypeGuard[EV]]) -> EV | None: ...
+    def find_last(self, predicate: Callable[[Event], TypeGuard[ET]]) -> ET | None: ...
 
     @overload
     def find_last(self, predicate: Callable[[Event], bool]) -> Event | None: ...
