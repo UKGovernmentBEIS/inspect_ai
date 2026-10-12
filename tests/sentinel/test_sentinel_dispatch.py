@@ -2102,6 +2102,13 @@ def test_a_handled_escalate_at_a_generate_stage_proceeds(after: bool) -> None:
     assert [m.text for m in tool_messages(log)] == ["2"]
 
 
+@protocol
+def d3_returns_a_configured_root() -> Protocol:
+    return sequential(
+        [threshold(d3_suspicion(0.9), escalate_at=0.5), handle_escalation("continue")]
+    )
+
+
 @pytest.mark.parametrize(
     "configure",
     [
@@ -2120,13 +2127,6 @@ def test_a_tool_only_sentinel_opens_no_generate_stage(configure: Any) -> None:
     assert log.samples
     assert {e.stage for e in sentinel_events(log)} == {"tool_call"}
     assert len(sentinel_span_ids(log.samples[0].events)) == 1
-
-
-@protocol
-def d3_returns_a_configured_root() -> Protocol:
-    return sequential(
-        [threshold(d3_suspicion(0.9), escalate_at=0.5), handle_escalation("continue")]
-    )
 
 
 def test_a_monitor_on_the_agents_own_model_is_not_checked() -> None:
