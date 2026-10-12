@@ -684,6 +684,50 @@ def test_scanner_resume_accumulates_summary_and_only_scans_rerun_samples(
         )
 
 
+def test_scanner_results_on_retry_keep_the_previous_runs_untrusted_content() -> None:
+    """A retried task without a viewer config still records the log's `False`.
+
+    The retry reloads the task, losing `task_with(viewer=...)`; the rescanned
+    samples must not be recorded as trusted.
+    """
+    n = 2
+    fails_first_time = _first_attempt_fails()
+
+    def make_task(viewer: ViewerConfig | None) -> Task:
+        return Task(
+            dataset=[Sample(input=f"q{i}", target=str(i)) for i in range(n)],
+            solver=[fails_first_time, generate()],
+            viewer=viewer,
+        )
+
+    with tempfile.TemporaryDirectory() as log_dir:
+        success_1, _ = eval_set(
+            tasks=make_task(ViewerConfig(trust_content=False)),
+            log_dir=log_dir,
+            scanner=[echo_scanner()],
+            model="mockllm/model",
+            retry_attempts=0,
+            continue_on_fail=True,
+            display="none",
+        )
+        assert not success_1
+
+        success_2, _ = eval_set(
+            tasks=make_task(None),
+            log_dir=log_dir,
+            scanner=[echo_scanner()],
+            model="mockllm/model",
+            retry_attempts=0,
+            continue_on_fail=True,
+            display="none",
+        )
+        assert success_2
+
+        pf = _read_parquet(_scan_dir(log_dir) / "echo_scanner.parquet")
+        trust = pf.read(columns=["transcript_trust_content"]).column(0).to_pylist()
+        assert trust == [False] * n
+
+
 def test_eval_set_resume_only_rescans_rerun_samples_keeps_run1_errors() -> None:
     """A second `eval_set` call only re-scans the samples eval_set re-runs.
 
