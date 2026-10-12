@@ -43,6 +43,21 @@ class Store:
 
     def __init__(self, data: dict[str, Any] | None = None) -> None:
         self._data = deepcopy(data) if data else {}
+        # Open change trackers (one per enclosing span). Each is snapshotted
+        # lazily the first time the store is written or a mutable value is
+        # handed out, so spans that never touch the store never serialise it.
+        self._trackers: list[StoreChangeTracker] = []
+
+    def __deepcopy__(self, memo: dict[int, Any]) -> "Store":
+        # Copy the data only. Open trackers belong to spans on the original
+        # store; carrying them over (as the default deepcopy would) leaves
+        # trackers on the copy that are never ended, so its first write would
+        # serialise it once per phantom tracker and retain those snapshots for
+        # the copy's lifetime.
+        copied = Store()
+        memo[id(self)] = copied
+        copied._data = deepcopy(self._data, memo)
+        return copied
 
     @overload
     def get(self, key: str, default: None = None) -> Any: ...
@@ -65,8 +80,13 @@ class Store:
         """
         if default is not None:
             if key not in self._data.keys():
+                self._snapshot_trackers()
                 self._data[key] = default
-        return cast(VT, self._data.get(key, default))
+        value = self._data.get(key, default)
+        # a mutable value may be modified in place by the caller
+        if not _is_immutable(value):
+            self._snapshot_trackers()
+        return cast(VT, value)
 
     def set(self, key: str, value: Any) -> None:
         """Set a value into the store.
@@ -75,6 +95,7 @@ class Store:
            key (str): Name of value to set
            value (Any): Value to set
         """
+        self._snapshot_trackers()
         self._data[key] = value
 
     def delete(self, key: str) -> None:
@@ -83,6 +104,7 @@ class Store:
         Args:
            key (str): Name of value to remove
         """
+        self._snapshot_trackers()
         del self._data[key]
 
     def keys(self) -> KeysView[str]:
@@ -91,10 +113,12 @@ class Store:
 
     def values(self) -> ValuesView[Any]:
         """View of values within the store."""
+        self._snapshot_trackers()
         return self._data.values()
 
     def items(self) -> ItemsView[str, Any]:
         """View of items within the store."""
+        self._snapshot_trackers()
         return self._data.items()
 
     def __contains__(self, key: object) -> bool:
@@ -105,6 +129,51 @@ class Store:
 
     def __ne__(self, value: object) -> bool:
         return self._data.__ne__(value)
+
+    def _snapshot_trackers(self) -> None:
+        for tracker in self._trackers:
+            tracker.snapshot()
+
+
+def _is_immutable(value: Any) -> bool:
+    return isinstance(value, str | int | float | bool | bytes | type(None))
+
+
+class StoreChangeTracker:
+    """Records the changes made to a `Store` between `begin()` and `end()`.
+
+    The "before" snapshot is deferred until the store is first written to
+    or hands out a value that could be mutated in place (any non-scalar
+    returned by `get()`, `values()` or `items()`). The store notifies every
+    open tracker before the access, so the snapshot reflects the same state
+    an eager snapshot at `begin()` would have captured. A tracker that is
+    never notified serialises nothing and reports no changes.
+
+    Limitation: a container obtained from the store before a span began and
+    mutated inside it, with no other store access in that span, is attributed
+    to the nearest enclosing span that did touch the store, and is not
+    recorded at all if there is none.
+    """
+
+    def __init__(self, store: Store) -> None:
+        self._store = store
+        self._before: dict[str, Any] | None = None
+
+    def begin(self) -> None:
+        self._store._trackers.append(self)
+
+    def end(self) -> None:
+        self._store._trackers.remove(self)
+
+    def snapshot(self) -> None:
+        if self._before is None:
+            self._before = store_jsonable(self._store)
+
+    def changes(self) -> list[JsonChange] | None:
+        """Changes since `begin()` (`None` if the store was never touched)."""
+        if self._before is None:
+            return None
+        return store_changes(self._before, self._store)
 
 
 def store() -> Store:
