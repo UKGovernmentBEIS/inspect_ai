@@ -1477,8 +1477,9 @@ def test_openai_responses_usage_round_trips_cached_input_tokens():
     usage = ModelUsage(
         input_tokens=70,
         input_tokens_cache_read=20,
+        input_tokens_cache_write=10,
         output_tokens=5,
-        total_tokens=95,
+        total_tokens=105,
     )
 
     provider_usage = responses_model_usage(usage)
