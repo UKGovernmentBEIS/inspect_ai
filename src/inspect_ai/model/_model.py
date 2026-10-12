@@ -1016,7 +1016,7 @@ class Model:
 
         # outside the connection slot, since a monitor may call this model too
         generate_step = None
-        if is_agent_generate(is_active_model):
+        if is_agent_generate():
             from inspect_ai._sentinel._dispatch import sentinel_before_generate
 
             generate_step = await sentinel_before_generate(

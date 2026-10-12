@@ -6,9 +6,8 @@ from typing import NamedTuple
 
 
 class AgentScope(Enum):
-    OFF = "off"  # not an agent turn
-    ACTIVE_MODEL = "active_model"  # an agent turn if on the sample's active model
-    ANY_MODEL = "any_model"  # an agent turn on any model
+    ON = "on"  # a model call here is an agent turn
+    OFF = "off"  # a model call here is not an agent turn
 
 
 class _Scope(NamedTuple):
@@ -16,38 +15,44 @@ class _Scope(NamedTuple):
     final: bool
 
 
-# None outside every scope, which reads as OFF
-_scope: ContextVar[_Scope | None] = ContextVar("sentinel_scope", default=None)
+# the phase fence: model calls are agent turns only while the solvers run
+_solving: ContextVar[bool] = ContextVar("sentinel_solving", default=False)
+_scope: ContextVar[_Scope] = ContextVar(
+    "sentinel_scope", default=_Scope(AgentScope.ON, False)
+)
+
+
+@contextmanager
+def sentinel_solving() -> Iterator[None]:
+    token = _solving.set(True)
+    try:
+        yield
+    finally:
+        _solving.reset(token)
+
+
+def solving() -> bool:
+    return _solving.get()
 
 
 @contextmanager
 def sentinel_scope(scope: AgentScope, *, final: bool = False) -> Iterator[None]:
-    token = _enter(scope, final)
+    token = enter_scope(scope, final=final)
     try:
         yield
     finally:
-        _scope.reset(token)
+        exit_scope(token)
 
 
 def current_scope() -> AgentScope:
-    current = _scope.get()
-    return current.scope if current is not None else AgentScope.OFF
+    return _scope.get().scope
 
 
-def enter_agent_span() -> Token[_Scope | None] | None:
-    # an agent span outside every scope (sample init, scoring) stays OFF
-    if _scope.get() is None:
-        return None
-    return _enter(AgentScope.ANY_MODEL, False)
-
-
-def exit_agent_span(token: Token[_Scope | None]) -> None:
-    _scope.reset(token)
-
-
-def _enter(scope: AgentScope, final: bool) -> Token[_Scope | None]:
+def enter_scope(scope: AgentScope, *, final: bool = False) -> Token[_Scope]:
     # innermost wins, except that nothing inside a final scope changes it
     current = _scope.get()
-    if current is not None and current.final:
-        return _scope.set(current)
-    return _scope.set(_Scope(scope, final))
+    return _scope.set(current if current.final else _Scope(scope, final))
+
+
+def exit_scope(token: Token[_Scope]) -> None:
+    _scope.reset(token)

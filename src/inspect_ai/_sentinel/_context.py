@@ -5,7 +5,7 @@ from typing import Any, NamedTuple
 from inspect_ai._util.logger import warn_once
 
 from ._config import SentinelRoot
-from ._scope import AgentScope, current_scope
+from ._scope import AgentScope, current_scope, solving
 
 logger = getLogger(__name__)
 
@@ -65,10 +65,7 @@ def warn_sentinel_bridged() -> None:
         )
 
 
-def is_agent_generate(is_active_model: bool) -> bool:
-    if active_sentinel() is None:
-        return False
-    scope = current_scope()
-    return scope is AgentScope.ANY_MODEL or (
-        scope is AgentScope.ACTIVE_MODEL and is_active_model
+def is_agent_generate() -> bool:
+    return (
+        active_sentinel() is not None and solving() and current_scope() is AgentScope.ON
     )

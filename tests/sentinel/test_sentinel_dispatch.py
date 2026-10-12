@@ -2568,47 +2568,126 @@ def test_a_failing_generate_monitor_is_recorded_and_the_sample_continues() -> No
         assert failed.step_id
 
 
-def test_sentinel_scope_defaults_to_off_and_the_innermost_wins() -> None:
+def test_sentinel_scope_defaults_to_on_and_the_innermost_wins() -> None:
     from inspect_ai._sentinel._scope import AgentScope, current_scope, sentinel_scope
 
-    assert current_scope() is AgentScope.OFF
-    with sentinel_scope(AgentScope.ACTIVE_MODEL):
-        assert current_scope() is AgentScope.ACTIVE_MODEL
-        with sentinel_scope(AgentScope.OFF):
-            assert current_scope() is AgentScope.OFF
-            with sentinel_scope(AgentScope.ANY_MODEL):
-                assert current_scope() is AgentScope.ANY_MODEL
-            assert current_scope() is AgentScope.OFF
-        assert current_scope() is AgentScope.ACTIVE_MODEL
-    assert current_scope() is AgentScope.OFF
+    assert current_scope() is AgentScope.ON
+    with sentinel_scope(AgentScope.OFF):
+        assert current_scope() is AgentScope.OFF
+        with sentinel_scope(AgentScope.ON):
+            assert current_scope() is AgentScope.ON
+        assert current_scope() is AgentScope.OFF
+    assert current_scope() is AgentScope.ON
 
 
 def test_a_final_scope_cannot_be_overridden() -> None:
     from inspect_ai._sentinel._scope import AgentScope, current_scope, sentinel_scope
 
-    with sentinel_scope(AgentScope.ACTIVE_MODEL):
-        with sentinel_scope(AgentScope.OFF, final=True):
-            with sentinel_scope(AgentScope.ANY_MODEL):
+    with sentinel_scope(AgentScope.OFF, final=True):
+        with sentinel_scope(AgentScope.ON):
+            assert current_scope() is AgentScope.OFF
+            with sentinel_scope(AgentScope.ON, final=True):
                 assert current_scope() is AgentScope.OFF
-                with sentinel_scope(AgentScope.ACTIVE_MODEL, final=True):
-                    assert current_scope() is AgentScope.OFF
-        assert current_scope() is AgentScope.ACTIVE_MODEL
+    assert current_scope() is AgentScope.ON
 
 
-async def test_an_agent_span_turns_any_model_on_only_inside_a_scope() -> None:
-    from inspect_ai._sentinel._scope import AgentScope, current_scope, sentinel_scope
+async def test_an_agent_span_turns_a_tool_s_off_back_on_but_not_the_fence() -> None:
+    from inspect_ai._sentinel._scope import (
+        AgentScope,
+        current_scope,
+        sentinel_scope,
+        sentinel_solving,
+        solving,
+    )
     from inspect_ai.util._span import span
 
     init_transcript(Transcript())
-    async with span("outside", type="agent"):
-        assert current_scope() is AgentScope.OFF
-    with sentinel_scope(AgentScope.OFF):
-        async with span("in a tool", type="agent"):
-            assert current_scope() is AgentScope.ANY_MODEL
-        assert current_scope() is AgentScope.OFF
-    with sentinel_scope(AgentScope.OFF, final=True):
-        async with span("in a sentinel run", type="agent"):
+    assert not solving()
+    async with span("outside the solvers", type="agent"):
+        assert current_scope() is AgentScope.ON
+        assert not solving()
+    with sentinel_solving():
+        with sentinel_scope(AgentScope.OFF):
+            async with span("in a tool", type="agent"):
+                assert current_scope() is AgentScope.ON
             assert current_scope() is AgentScope.OFF
+        with sentinel_scope(AgentScope.OFF, final=True):
+            async with span("in a sentinel run", type="agent"):
+                assert current_scope() is AgentScope.OFF
+        assert solving()
+    assert not solving()
+
+
+def test_an_agent_with_a_tool_agent_in_on_sample_init_is_not_checked() -> None:
+    from inspect_ai._util.registry import _registry
+    from inspect_ai.hooks import Hooks, SampleInit, hooks
+
+    seen: GenerateSeen = []
+
+    @hooks(name="d3_init_runs_an_agent", description="runs an agent at sample init")
+    class InitRunsAnAgent(Hooks):
+        async def on_sample_init(self, data: SampleInit) -> None:
+            helper = helper_agent("helper done")
+            parent = react(
+                name="init_parent",
+                submit=False,
+                tools=[as_tool(helper, description="Initialize with helper")],
+                model=get_model(
+                    "mockllm/init",
+                    custom_outputs=[
+                        ModelOutput.for_tool_call(
+                            "mockllm/init",
+                            tool_name="helper",
+                            tool_arguments={"input": "initialize"},
+                        ),
+                        ModelOutput.from_content("mockllm/init", content="init done"),
+                    ],
+                    memoize=False,
+                ),
+            )
+            await run_agent(parent, "Initialize this sample")
+
+    try:
+        task = Task(
+            dataset=[Sample(input="hi")],
+            solver=generate(),
+            sentinel=observe_only([d3_generates(seen)]),
+        )
+        log = eval(task, model="mockllm/model")[0]
+    finally:
+        _registry.pop("hooks:d3_init_runs_an_agent", None)
+    assert log.status == "success", log.error
+    assert log.samples
+    completions = {
+        e.output.completion for e in log.samples[0].events if isinstance(e, ModelEvent)
+    }
+    assert {"init done", "helper done"} <= completions
+    assert [step.model for step in seen] == ["mockllm/model"] * 2
+
+
+@solver
+def d3_calls_another_model() -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        helper = other_model(ModelOutput.from_content("mockllm/other", content="aside"))
+        await helper.generate("A side question.")
+        state.output = await get_model().generate(state.messages)
+        return state
+
+    return solve
+
+
+def test_a_solver_s_direct_call_to_another_model_is_checked() -> None:
+    seen: GenerateSeen = []
+    task = Task(
+        dataset=[Sample(input="Say hi.")],
+        solver=d3_calls_another_model(),
+        sentinel=observe_only([d3_generates(seen)]),
+    )
+    log = eval(task, model="mockllm/model")[0]
+    assert log.status == "success", log.error
+    assert [step.model for step in seen] == ["mockllm/other"] * 2 + [
+        "mockllm/model"
+    ] * 2
 
 
 def helper_agent(content: str) -> Any:
