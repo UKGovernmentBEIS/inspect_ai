@@ -742,7 +742,9 @@ def test_a_sentinel_that_can_leave_an_escalation_unhandled_is_a_type_error(
             "--config-file",
             str(pyproject),
             "--cache-dir",
-            str(tmp_path / "mypy_cache"),
+            os.devnull,
+            "--show-absolute-path",
+            "--show-error-codes",
             str(source),
         ],
         capture_output=True,
@@ -757,6 +759,8 @@ def test_a_sentinel_that_can_leave_an_escalation_unhandled_is_a_type_error(
     errors = {
         int(line.removeprefix(f"{source}:").split(":")[0])
         for line in result.stdout.splitlines()
-        if line.startswith(f"{source}:") and ": error:" in line
+        if line.startswith(f"{source}:")
+        and ": error:" in line
+        and line.endswith(("[arg-type]", "[list-item]"))
     }
     assert errors == unhandled, result.stdout
