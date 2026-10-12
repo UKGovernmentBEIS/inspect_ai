@@ -4,7 +4,7 @@ from typing import Any, NamedTuple
 
 from typing_extensions import override
 
-from inspect_ai._sentinel._context import not_agent_generates
+from inspect_ai._sentinel._scope import AgentScope, sentinel_scope
 from inspect_ai._util.content import (
     Content,
     ContentAudio,
@@ -124,7 +124,7 @@ class CompactionSummary(CompactionStrategy):
 
         # perform summary
         async with span(name="compaction", type="compaction"):
-            with not_agent_generates():
+            with sentinel_scope(AgentScope.OFF, final=True):
                 output = await model.generate(input=summarization_input)
         if output.stop_reason == "model_length":
             raise RuntimeError(

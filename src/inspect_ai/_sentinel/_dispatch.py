@@ -76,8 +76,8 @@ from ._context import (
     active_sentinel,
     active_task_description,
     active_task_metadata,
-    not_agent_generates,
 )
+from ._scope import AgentScope, sentinel_scope
 
 logger = getLogger(__name__)
 
@@ -223,7 +223,11 @@ async def _run(step: Step) -> Decision | None:
     try:
         try:
             async with span(name="sentinel", type="sentinel"):
-                with suspend_token_limit(), suspend_turn_limit(), not_agent_generates():
+                with (
+                    suspend_token_limit(),
+                    suspend_turn_limit(),
+                    sentinel_scope(AgentScope.OFF, final=True),
+                ):
                     decision = await run_sentinel(
                         root, _host_context(_step_id(step)), step
                     )

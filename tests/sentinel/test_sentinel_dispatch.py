@@ -2566,3 +2566,103 @@ def test_a_failing_generate_monitor_is_recorded_and_the_sample_continues() -> No
         )
         assert failed.error == "ValueError: monitor broke"
         assert failed.step_id
+
+
+def test_sentinel_scope_defaults_to_off_and_the_innermost_wins() -> None:
+    from inspect_ai._sentinel._scope import AgentScope, current_scope, sentinel_scope
+
+    assert current_scope() is AgentScope.OFF
+    with sentinel_scope(AgentScope.ACTIVE_MODEL):
+        assert current_scope() is AgentScope.ACTIVE_MODEL
+        with sentinel_scope(AgentScope.OFF):
+            assert current_scope() is AgentScope.OFF
+            with sentinel_scope(AgentScope.ANY_MODEL):
+                assert current_scope() is AgentScope.ANY_MODEL
+            assert current_scope() is AgentScope.OFF
+        assert current_scope() is AgentScope.ACTIVE_MODEL
+    assert current_scope() is AgentScope.OFF
+
+
+def test_a_final_scope_cannot_be_overridden() -> None:
+    from inspect_ai._sentinel._scope import AgentScope, current_scope, sentinel_scope
+
+    with sentinel_scope(AgentScope.ACTIVE_MODEL):
+        with sentinel_scope(AgentScope.OFF, final=True):
+            with sentinel_scope(AgentScope.ANY_MODEL):
+                assert current_scope() is AgentScope.OFF
+                with sentinel_scope(AgentScope.ACTIVE_MODEL, final=True):
+                    assert current_scope() is AgentScope.OFF
+        assert current_scope() is AgentScope.ACTIVE_MODEL
+
+
+async def test_an_agent_span_turns_any_model_on_only_inside_a_scope() -> None:
+    from inspect_ai._sentinel._scope import AgentScope, current_scope, sentinel_scope
+    from inspect_ai.util._span import span
+
+    init_transcript(Transcript())
+    async with span("outside", type="agent"):
+        assert current_scope() is AgentScope.OFF
+    with sentinel_scope(AgentScope.OFF):
+        async with span("in a tool", type="agent"):
+            assert current_scope() is AgentScope.ANY_MODEL
+        assert current_scope() is AgentScope.OFF
+    with sentinel_scope(AgentScope.OFF, final=True):
+        async with span("in a sentinel run", type="agent"):
+            assert current_scope() is AgentScope.OFF
+
+
+def helper_agent(content: str) -> Any:
+    return react(
+        name="helper",
+        submit=False,
+        model=other_model(ModelOutput.from_content("mockllm/other", content=content)),
+    )
+
+
+@monitor(portable=False)
+def d3_monitor_runs_an_agent(seen: Any) -> Monitor:
+    async def check(context: Context, step: BeforeGenerate) -> Observation | None:
+        seen.append(step)
+        await run_agent(helper_agent("monitor agent"), "Look at this.")
+        return Observation.score(0.0)
+
+    return check
+
+
+def test_an_agent_run_inside_a_sentinel_run_is_not_checked() -> None:
+    seen: GenerateSeen = []
+    log = run(observe_only([d3_monitor_runs_an_agent(seen)]))
+    assert log.status == "success", log.error
+    assert log.samples
+    completions = [
+        e.output.completion for e in log.samples[0].events if isinstance(e, ModelEvent)
+    ]
+    assert completions.count("monitor agent") == 2
+    assert len(seen) == 2
+    assert all(step.model == "mockllm/model" for step in seen)
+
+
+@scorer(metrics=[])
+def d3_agent_scorer() -> Scorer:
+    async def score(state: TaskState, target: Target) -> Score:
+        await run_agent(helper_agent("scorer agent"), "Grade this.")
+        return Score(value=1)
+
+    return score
+
+
+@pytest.mark.parametrize("from_solver", [False, True])
+def test_an_agent_run_by_a_scorer_is_not_checked(from_solver: bool) -> None:
+    seen: GenerateSeen = []
+    solvers: list[Solver] = [d3_generates_once()]
+    if from_solver:
+        solvers.insert(0, d3_scores_mid_run())
+    task = Task(
+        dataset=[Sample(input="Say hi.", target="ok")],
+        solver=solvers,
+        scorer=d3_agent_scorer(),
+        sentinel=observe_only([d3_generates(seen)]),
+    )
+    log = eval(task, model="mockllm/model")[0]
+    assert log.status == "success", log.error
+    assert [step.model for step in seen] == ["mockllm/model"] * 2
