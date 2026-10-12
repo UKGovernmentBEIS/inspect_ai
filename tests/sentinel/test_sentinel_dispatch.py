@@ -854,6 +854,7 @@ def test_context_and_step_come_from_the_sample(
     assert step.view.call is not None
     assert step.history[-1].role == "assistant"
     model_events = [e for e in sample.events if isinstance(e, ModelEvent)]
+    assert step.input is not None
     assert [m.text for m in step.input] == [m.text for m in model_events[0].input]
 
 
@@ -1657,5 +1658,6 @@ def test_each_turn_sees_its_own_model_input(caplog: pytest.LogCaptureFixture) ->
     model_events = [e for e in log.samples[0].events if isinstance(e, ModelEvent)]
     assert len(seen) == 3
     for (_, step), event in zip(seen, model_events, strict=False):
+        assert step.input is not None
         assert [m.id for m in step.input] == [m.id for m in event.input]
-    assert len({len(step.input) for _, step in seen}) == 3
+    assert len({len(step.input or []) for _, step in seen}) == 3
