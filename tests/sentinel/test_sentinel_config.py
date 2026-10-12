@@ -54,6 +54,7 @@ try:
         Monitor,
         Observation,
         Protocol,
+        Reject,
         monitor,
         observe_only,
         protocol,
@@ -72,8 +73,8 @@ def d2_suspicion(score: float = 0.5) -> Monitor:
 
 
 @protocol
-def d2_rule(reason: str = "no") -> Protocol:
-    async def decide(context: Context, step: BeforeToolCall) -> Decision | None:
+def d2_rule(reason: str = "no") -> Protocol[Reject]:
+    async def decide(context: Context, step: BeforeToolCall) -> Reject:
         return Decision.reject(reason)
 
     return decide
@@ -676,3 +677,86 @@ def test_sentinel_is_the_last_positional_parameter(fn: Callable[..., Any]) -> No
         if p.kind is inspect.Parameter.POSITIONAL_OR_KEYWORD
     ]
     assert names[-1] == "sentinel"
+
+
+_TYPED_SENTINELS = """
+from inspect_sentinel import (
+    BeforeToolCall,
+    Context,
+    Decision,
+    Escalate,
+    Monitor,
+    Observation,
+    Proceed,
+    Protocol,
+    Reject,
+    handle_escalation,
+    monitor,
+    observe_only,
+    protocol,
+    sequential,
+    threshold,
+)
+
+from inspect_ai import Task, eval
+
+
+@monitor
+def score() -> Monitor:
+    async def check(context: Context, step: BeforeToolCall) -> Observation | None:
+        return Observation.score(0.1)
+
+    return check
+
+
+@protocol
+def triage() -> Protocol[Reject | Escalate | Proceed]:
+    async def decide(
+        context: Context, step: BeforeToolCall
+    ) -> Reject | Escalate | Proceed:
+        return Decision.escalate("unsure")
+
+    return decide
+
+
+Task(sentinel=triage())  # unhandled
+Task(sentinel=sequential([triage()]))  # unhandled
+eval("task.py", sentinel=[threshold(score(), reject_at=0.5), triage()])  # unhandled
+Task(sentinel=sequential([triage()], then=handle_escalation("terminate")))
+Task(sentinel={"llm": threshold(score(), reject_at=0.5), "quiet": observe_only(score())})
+Task(sentinel="sentinel.yaml")
+"""
+
+
+def test_a_sentinel_that_can_leave_an_escalation_unhandled_is_a_type_error(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "typed_sentinels.py"
+    source.write_text(_TYPED_SENTINELS)
+    pyproject = Path(__file__).parents[2] / "pyproject.toml"
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "mypy",
+            "--config-file",
+            str(pyproject),
+            "--cache-dir",
+            str(tmp_path / "mypy_cache"),
+            str(source),
+        ],
+        capture_output=True,
+        text=True,
+        timeout=300,
+    )
+    unhandled = {
+        number
+        for number, line in enumerate(_TYPED_SENTINELS.splitlines(), start=1)
+        if line.endswith("# unhandled")
+    }
+    errors = {
+        int(line.removeprefix(f"{source}:").split(":")[0])
+        for line in result.stdout.splitlines()
+        if line.startswith(f"{source}:") and ": error:" in line
+    }
+    assert errors == unhandled, result.stdout

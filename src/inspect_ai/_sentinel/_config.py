@@ -17,10 +17,12 @@ from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.registry import is_registry_object
 
 if TYPE_CHECKING:
-    from inspect_sentinel import Protocol
-    from inspect_sentinel._integration import Sentinels
+    from inspect_sentinel import Protocol, Sentinels, Verdict
+
+    # a configuration that cannot leave an escalation unhandled
+    HandledSentinels: TypeAlias = Sentinels[Verdict | None]
 else:
-    Sentinels: TypeAlias = Any
+    HandledSentinels: TypeAlias = Any
 
 
 class SentinelEntry(BaseModel):
@@ -99,7 +101,7 @@ SentinelRoot: TypeAlias = "Protocol"
 
 SentinelSpec: TypeAlias = Union[
     str,
-    Sentinels,
+    HandledSentinels,
     SentinelConfig,
     Sequence[Mapping[str, Any]],
     Mapping[str, Mapping[str, Any]],

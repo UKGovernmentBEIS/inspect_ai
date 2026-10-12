@@ -65,9 +65,11 @@ try:
         BeforeToolCall,
         Context,
         Decision,
+        Modify,
         Monitor,
         MonitorGroup,
         Observation,
+        Proceed,
         Protocol,
         ProtocolGroup,
         Reported,
@@ -110,7 +112,7 @@ def d3_reject(
 def d3_modify() -> Protocol:
     async def rewrite(context: Context, step: BeforeToolCall) -> Decision | None:
         modified = replace(step.call, arguments={"x": 10, "y": 20})
-        return Decision(action="modify", modified=modified, explanation="bigger")
+        return Modify(modified=modified, explanation="bigger")
 
     return rewrite
 
@@ -140,8 +142,8 @@ def d3_escalate() -> Protocol:
 
 
 @protocol
-def d3_continue() -> Protocol:
-    async def fine(context: Context, step: BeforeToolCall) -> Decision | None:
+def d3_continue() -> Protocol[Proceed]:
+    async def fine(context: Context, step: BeforeToolCall) -> Proceed:
         return Decision.proceed()
 
     return fine
@@ -1548,9 +1550,13 @@ def test_model_input_index_skips_monitor_calls() -> None:
     assert list(inputs._inputs) == [output_id(agent)]
 
 
-@pytest.mark.parametrize("action", ["continue", "reject", "terminate"])
+@pytest.mark.parametrize(
+    "decision",
+    [Decision.proceed(), Decision.reject("why"), Decision.terminate("why")],
+    ids=lambda decision: decision.action,
+)
 def test_a_modified_call_on_a_non_modify_decision_is_not_dropped(
-    action: Any,
+    decision: Decision,
 ) -> None:
     from inspect_ai._sentinel._dispatch import _host_context, _Recorder
 
@@ -1565,7 +1571,10 @@ def test_a_modified_call_on_a_non_modify_decision_is_not_dropped(
         history=[],
     )
     reported = Reported(
-        name="p", path="p", function="f", report=Decision(action=action, modified=call)
+        name="p",
+        path="p",
+        function="f",
+        report=decision.model_copy(update={"modified": call}),
     )
     with pytest.raises(ValueError, match="modified is set only"):
         _Recorder().record(
@@ -1579,6 +1588,10 @@ def test_host_context_outside_a_sample_has_no_eval() -> None:
     assert _host_context().context.eval is None
 
 
+def modify_without_call() -> Decision:
+    return Modify(modified=addition_call()).model_copy(update={"modified": None})
+
+
 def test_apply_sentinel_decision() -> None:
     from inspect_ai._sentinel._context import SentinelFailure
     from inspect_ai._sentinel._dispatch import apply_sentinel_decision
@@ -1588,16 +1601,13 @@ def test_apply_sentinel_decision() -> None:
     modified = replace(call, arguments={"x": 5, "y": 6})
     assert apply_sentinel_decision(None, call) is call
     assert apply_sentinel_decision(Decision.proceed(), call) is call
-    assert (
-        apply_sentinel_decision(Decision(action="modify", modified=modified), call)
-        is modified
-    )
+    assert apply_sentinel_decision(Modify(modified=modified), call) is modified
     with pytest.raises(ToolApprovalError, match="use X"):
         apply_sentinel_decision(Decision.reject("why", message="use X"), call)
     with pytest.raises(TerminateSampleError, match="too risky"):
         apply_sentinel_decision(Decision.terminate("too risky"), call)
     with pytest.raises(SentinelFailure):
-        apply_sentinel_decision(Decision(action="modify"), call)
+        apply_sentinel_decision(modify_without_call(), call)
 
 
 def test_a_modify_decision_without_a_modified_call_fails_the_sample(
@@ -1605,10 +1615,10 @@ def test_a_modify_decision_without_a_modified_call_fails_the_sample(
 ) -> None:
     from inspect_ai._sentinel import _dispatch
 
-    async def modify_without_call(*args: Any) -> Decision:
-        return Decision(action="modify")
+    async def before_tool_call(*args: Any) -> Decision:
+        return modify_without_call()
 
-    monkeypatch.setattr(_dispatch, "sentinel_before_tool_call", modify_without_call)
+    monkeypatch.setattr(_dispatch, "sentinel_before_tool_call", before_tool_call)
     log = run(observe_only([d3_suspicion()]))
     assert log.status == "error"
     assert log.samples
