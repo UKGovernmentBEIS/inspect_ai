@@ -9,7 +9,9 @@ The implementations skip the network entirely when the destination already
 exists with a matching checksum, retry on transient HTTP failures (408, 429,
 5xx) using the same policy as model providers, and write atomically via a
 sibling tempfile + rename so a failed download never leaves a partial file
-in place.
+in place. Each call gets its own uniquely named `<name>.<random>.partial`
+tempfile, so concurrent calls for the same destination don't collide; a
+process killed mid-download can leave one behind, and it is safe to delete.
 """
 
 from __future__ import annotations

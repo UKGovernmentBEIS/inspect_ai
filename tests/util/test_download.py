@@ -315,3 +315,29 @@ def test_overlapping_downloads_of_same_dest_both_succeed(tmp_path: Path) -> None
 
     assert dest.read_bytes() == content
     assert list(tmp_path.iterdir()) == [dest]
+
+
+def test_overlapping_gdrive_downloads_of_same_dest_both_succeed(
+    tmp_path: Path,
+) -> None:
+    content = b"google drive bytes"
+    dest = tmp_path / "g.bin"
+    sha = _sha256(content)
+    calls = 0
+
+    def fake_download(*, id: str, output: str, quiet: bool) -> None:
+        nonlocal calls
+        calls += 1
+        Path(output).write_bytes(content)
+        if calls == 1:
+            # Second, complete download of `dest` before the first renames.
+            gdrive_download("file-id", sha, dest)
+
+    fake_gdown = MagicMock()
+    fake_gdown.download = fake_download
+
+    with patch.dict(sys.modules, {"gdown": fake_gdown}):
+        gdrive_download("file-id", sha, dest)
+
+    assert dest.read_bytes() == content
+    assert list(tmp_path.iterdir()) == [dest]
