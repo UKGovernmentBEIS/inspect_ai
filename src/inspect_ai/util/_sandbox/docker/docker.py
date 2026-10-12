@@ -553,10 +553,6 @@ class DockerSandboxEnvironment(SandboxEnvironment):
                 raise PermissionError(
                     errno.EACCES, "Permission denied.", original_file
                 ) from ex
-
-            # IsADirectoryError
-            elif "cannot copy directory" in message or "is a directory" in message:
-                raise _is_directory_error(original_file) from ex
             else:
                 raise
 

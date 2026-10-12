@@ -224,20 +224,6 @@ async def test_read_file_maps_archive_over_limit(
         await environment.read_file("source")
 
 
-async def test_read_file_maps_directory_copy_error(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    environment = _environment()
-    copy_mock = AsyncMock(side_effect=RuntimeError("cannot copy directory"))
-    monkeypatch.setattr(docker_module, "compose_cp_archive", copy_mock)
-
-    with pytest.raises(IsADirectoryError) as ex:
-        await environment.read_file("directory")
-
-    assert "directory" in str(ex.value)
-    copy_mock.assert_awaited_once()
-
-
 @pytest.mark.parametrize(
     "docker_error",
     [
