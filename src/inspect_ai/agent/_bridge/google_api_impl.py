@@ -791,7 +791,7 @@ def gemini_usage_metadata(usage: ModelUsage | None) -> dict[str, int]:
     # arithmetic sees an impossible response.
     reasoning = usage.reasoning_tokens or 0
     metadata = {
-        "promptTokenCount": usage.input_tokens,
+        "promptTokenCount": model_usage_input_tokens(usage),
         "candidatesTokenCount": max(usage.output_tokens - reasoning, 0),
         "totalTokenCount": usage.total_tokens,
     }
