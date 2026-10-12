@@ -1,5 +1,6 @@
 import base64
 import errno
+import functools
 import io
 import json
 import posixpath
@@ -11,15 +12,12 @@ from logging import getLogger
 from pathlib import Path, PurePosixPath
 from typing import Literal, NamedTuple, Union, overload
 
+from anyio.abc import ByteReceiveStream
 from typing_extensions import override
 
 from inspect_ai._util.cpu import effective_cpu_count
 from inspect_ai._util.error import PrerequisiteError
-from inspect_ai.util._subprocess import (
-    ExecResult,
-    StdoutLimitExceededError,
-    subprocess,
-)
+from inspect_ai.util._subprocess import ExecResult, subprocess
 
 from .._privileged import pinned_command, pinned_shell_command
 from ..compose import COMPOSE_FILES, DOCKERFILE, ComposeConfig
@@ -528,13 +526,13 @@ class DockerSandboxEnvironment(SandboxEnvironment):
             archive = await compose_cp_archive(
                 src=f"{self._service}:{file}",
                 project=self._project,
-                limit=SandboxEnvironmentLimits.MAX_READ_FILE_SIZE
-                + _READ_FILE_ARCHIVE_OVERHEAD,
+                read_archive=functools.partial(
+                    _read_archive,
+                    limit=SandboxEnvironmentLimits.MAX_READ_FILE_SIZE
+                    + _READ_FILE_ARCHIVE_OVERHEAD,
+                    original_file=original_file,
+                ),
             )
-        except StdoutLimitExceededError as ex:
-            if _archive_starts_with_directory(ex.stdout):
-                raise _is_directory_error(original_file) from None
-            raise _read_file_size_error() from None
         except RuntimeError as ex:
             # extract the message and normalise case
             message = str(ex).lower()
@@ -624,6 +622,21 @@ def _is_directory_alias(file: str) -> bool:
 
 def _is_directory_error(file: str) -> IsADirectoryError:
     return IsADirectoryError(errno.EISDIR, "Is a directory.", file)
+
+
+async def _read_archive(
+    stream: ByteReceiveStream, limit: int, original_file: str
+) -> bytes:
+    """Read a `docker cp` archive, stopping the copy once it exceeds `limit`."""
+    archive = bytearray()
+    async for chunk in stream:
+        archive += chunk
+        if len(archive) > limit:
+            head = bytes(archive[:_READ_FILE_ARCHIVE_OVERHEAD])
+            if _archive_starts_with_directory(head):
+                raise _is_directory_error(original_file)
+            raise _read_file_size_error()
+    return bytes(archive)
 
 
 def _read_archived_file(archive: bytes, original_file: str) -> bytes:

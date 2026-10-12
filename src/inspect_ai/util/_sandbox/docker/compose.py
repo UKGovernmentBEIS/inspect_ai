@@ -16,6 +16,7 @@ from inspect_ai.util._concurrency import concurrency as concurrency_manager
 from inspect_ai.util._display import display_type, display_type_plain
 from inspect_ai.util._subprocess import (
     ExecResult,
+    StdoutReader,
     SubprocessRun,
     run_subprocess,
     subprocess,
@@ -109,24 +110,25 @@ async def compose_down(project: ComposeProject, quiet: bool = True) -> None:
         )
 
 
-async def compose_cp_archive(src: str, project: ComposeProject, limit: int) -> bytes:
+async def compose_cp_archive(
+    src: str, project: ComposeProject, read_archive: StdoutReader
+) -> bytes:
     """Copy `src` out of a service container as a tar archive.
 
     Docker Compose writes the archive to stdout instead of extracting it on the
     host. The archive is built from container state, so nothing from it is
-    written to the host filesystem.
+    written to the host filesystem. `read_archive` reads it from stdout; if it
+    raises, the copy is stopped and the exception propagates.
 
     Raises:
       RuntimeError: If the copy fails.
-      StdoutLimitExceededError: If the archive exceeds `limit` bytes.
     """
     result = await compose_command(
         ["cp", "-L", "--", src, "-"],
         project=project,
         timeout=600,  # 10-minute timeout for file copies
         text=False,
-        output_limit=limit,
-        stdout_limit=limit,
+        stdout_reader=read_archive,
     )
     if not result.success:
         stderr = result.stderr.decode(errors="replace")
@@ -358,7 +360,7 @@ async def compose_command(
     output_limit: int | None = None,
     ansi: Literal["never", "always", "auto"] | None = None,
     text: Literal[True] = True,
-    stdout_limit: int | None = None,
+    stdout_reader: StdoutReader | None = None,
 ) -> ExecResult[str]: ...
 
 
@@ -377,7 +379,7 @@ async def compose_command(
     output_limit: int | None = None,
     ansi: Literal["never", "always", "auto"] | None = None,
     text: Literal[False],
-    stdout_limit: int | None = None,
+    stdout_reader: StdoutReader | None = None,
 ) -> ExecResult[bytes]: ...
 
 
@@ -395,7 +397,7 @@ async def compose_command(
     output_limit: int | None = None,
     ansi: Literal["never", "always", "auto"] | None = None,
     text: bool = True,
-    stdout_limit: int | None = None,
+    stdout_reader: StdoutReader | None = None,
 ) -> ExecResult[str] | ExecResult[bytes]:
     # The base docker compose command
     compose_command = ["docker", "compose"]
@@ -452,7 +454,7 @@ async def compose_command(
                 capture_output=capture_output,
                 output_limit=output_limit,
                 concurrency=concurrency,
-                stdout_limit=stdout_limit,
+                stdout_reader=stdout_reader,
             )
 
     # we have observed underlying unreliability in docker compose in some linux

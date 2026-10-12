@@ -69,16 +69,8 @@ class SubprocessRun(Generic[T]):
     """
 
 
-class StdoutLimitExceededError(Exception):
-    """Raised by `run_subprocess()` when stdout exceeds its `stdout_limit`.
-
-    The process has been killed. `stdout` holds the first `stdout_limit` bytes
-    it wrote.
-    """
-
-    def __init__(self, stdout: bytes) -> None:
-        super().__init__(f"Subprocess stdout exceeded {len(stdout)} bytes.")
-        self.stdout = stdout
+StdoutReader = Callable[[ByteReceiveStream], Awaitable[bytes]]
+"""Reads a subprocess's stdout for `run_subprocess(stdout_reader=...)`."""
 
 
 @overload
@@ -178,7 +170,7 @@ async def run_subprocess(
     output_limit: int | None = None,
     timeout: int | None = None,
     concurrency: bool = True,
-    stdout_limit: int | None = None,
+    stdout_reader: StdoutReader | None = None,
 ) -> SubprocessRun[str]: ...
 
 
@@ -193,7 +185,7 @@ async def run_subprocess(
     output_limit: int | None = None,
     timeout: int | None = None,
     concurrency: bool = True,
-    stdout_limit: int | None = None,
+    stdout_reader: StdoutReader | None = None,
 ) -> SubprocessRun[bytes]: ...
 
 
@@ -208,7 +200,7 @@ async def run_subprocess(
     output_limit: int | None = None,
     timeout: int | None = None,
     concurrency: bool = True,
-    stdout_limit: int | None = None,
+    stdout_reader: StdoutReader | None = None,
 ) -> SubprocessRun[str] | SubprocessRun[bytes]: ...
 
 
@@ -222,7 +214,7 @@ async def run_subprocess(
     output_limit: int | None = None,
     timeout: int | None = None,
     concurrency: bool = True,
-    stdout_limit: int | None = None,
+    stdout_reader: StdoutReader | None = None,
 ) -> SubprocessRun[str] | SubprocessRun[bytes]:
     """`subprocess()` that also reports whether `input` was fully written to the child's stdin.
 
@@ -233,15 +225,13 @@ async def run_subprocess(
     retried rather than have its result believed. Same arguments, raises and
     semantics as `subprocess()`; see there.
 
-    `stdout_limit` differs from `output_limit`, which keeps the most recent
-    bytes and lets the process run to completion: once stdout exceeds
-    `stdout_limit` bytes the process is killed and `StdoutLimitExceededError`
-    is raised with the bytes read so far. Use it when only a complete stdout
-    is usable. When it is set, `output_limit` applies to stderr only. Requires
-    `capture_output`.
+    `stdout_reader` replaces the default reading of stdout, and `output_limit`
+    then applies to stderr only. If the reader raises, the process is killed
+    and the exception propagates, so a reader can stop a process whose output
+    is no longer usable. Requires `capture_output`.
     """
-    if stdout_limit is not None and not capture_output:
-        raise ValueError("stdout_limit requires capture_output.")
+    if stdout_reader is not None and not capture_output:
+        raise ValueError("stdout_reader requires capture_output.")
 
     # resolve input
     input = (
@@ -282,8 +272,8 @@ async def run_subprocess(
             # that fills its stdout pipe before reading stdin would otherwise
             # block us on the write while we block it on the read.
             io_tasks: list[Callable[[], Awaitable[bytes]]] = [
-                functools.partial(_read_stream_head, process.stdout, stdout_limit)
-                if stdout_limit is not None
+                functools.partial(stdout_reader, process.stdout)
+                if stdout_reader is not None and process.stdout is not None
                 else functools.partial(consume, process.stdout),
                 functools.partial(consume, process.stderr),
                 write_stdin,
@@ -320,7 +310,7 @@ async def run_subprocess(
         except anyio.get_cancelled_exc_class():
             await gracefully_terminate_cancelled_subprocess(process)
             raise
-        except StdoutLimitExceededError:
+        except Exception:
             await _kill_and_drain(process)
             raise
         finally:
@@ -413,8 +403,8 @@ LOST_SUBPROCESS_WAIT_TIMEOUT = 60
 # path can shrink it without waiting the full production grace.
 SUBPROCESS_SIGTERM_GRACE_SECONDS = 2
 
-# Upper bound on reading a process's pipes to EOF after `stdout_limit` kills it.
-STDOUT_LIMIT_DRAIN_SECONDS = 5
+# Upper bound on reading a process's pipes to EOF after killing it on an error.
+KILLED_SUBPROCESS_DRAIN_SECONDS = 5
 
 
 def _warn_lost_subprocess(process: Process, where: str) -> None:
@@ -457,7 +447,7 @@ async def gracefully_terminate_cancelled_subprocess(process: Process) -> None:
 
 
 async def _kill_and_drain(process: Process) -> None:
-    """Kill a process stopped by `stdout_limit` and read its pipes to EOF.
+    """Kill a process whose output could not be read and read its pipes to EOF.
 
     On asyncio a stdout pipe left unread is paused and never sees EOF, so its
     transport (and file descriptor) stays open until garbage collection. The
@@ -468,7 +458,7 @@ async def _kill_and_drain(process: Process) -> None:
     """
     with contextlib.suppress(ProcessLookupError):
         process.kill()
-    with anyio.move_on_after(STDOUT_LIMIT_DRAIN_SECONDS):
+    with anyio.move_on_after(KILLED_SUBPROCESS_DRAIN_SECONDS):
         async with create_task_group() as tg:
             tg.start_soon(drain_stream, process.stdout)
             tg.start_soon(drain_stream, process.stderr)
@@ -528,18 +518,6 @@ async def _read_stream(
         async for chunk in stream:
             circular.write(chunk)
         return circular.getvalue()
-
-
-async def _read_stream_head(stream: ByteReceiveStream | None, limit: int) -> bytes:
-    if stream is None:
-        return bytes()
-    output = bytearray()
-    async for chunk in stream:
-        output += chunk
-        if len(output) > limit:
-            del output[limit:]
-            raise StdoutLimitExceededError(bytes(output))
-    return bytes(output)
 
 
 async def _log_stream(stream: ByteReceiveStream | None) -> bytes:

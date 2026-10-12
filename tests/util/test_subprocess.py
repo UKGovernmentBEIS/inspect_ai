@@ -16,11 +16,7 @@ from test_helpers.utils import skip_if_trio
 
 import inspect_ai.util._subprocess as _subprocess_mod
 from inspect_ai.util import subprocess
-from inspect_ai.util._subprocess import (
-    StdoutLimitExceededError,
-    _log_stream,
-    run_subprocess,
-)
+from inspect_ai.util._subprocess import _log_stream, run_subprocess
 from inspect_ai.util._subprocess import logger as _subprocess_logger
 
 
@@ -399,19 +395,32 @@ async def test_subprocess_output_limit_no_limit():
     assert len(result.stdout.strip()) == 1000
 
 
-@pytest.mark.anyio
-async def test_run_subprocess_stdout_limit_under_limit():
-    """Stdout within `stdout_limit` is returned in full, with stderr."""
-    script = "import sys; sys.stdout.buffer.write(b'x' * 100); sys.stderr.write('err')"
-    run = await run_subprocess(["python3", "-c", script], text=False, stdout_limit=100)
-    assert run.result.success is True
-    assert run.result.stdout == b"x" * 100
-    assert run.result.stderr == b"err"
+async def _read_all(stream: ByteReceiveStream) -> bytes:
+    return b"".join([chunk async for chunk in stream])
 
 
 @pytest.mark.anyio
-async def test_run_subprocess_stdout_limit_keeps_head_and_kills_process():
-    """Exceeding `stdout_limit` raises with the leading bytes and kills the child."""
+async def test_run_subprocess_stdout_reader():
+    """A `stdout_reader` supplies stdout; `output_limit` still bounds stderr."""
+    script = (
+        "import sys; sys.stdout.buffer.write('héllo'.encode()); "
+        "sys.stderr.write('e' * 1000)"
+    )
+    run = await run_subprocess(
+        ["python3", "-c", script], output_limit=100, stdout_reader=_read_all
+    )
+    assert run.result.stdout == "héllo"
+    assert run.result.stderr == "e" * 100
+
+
+class _StopReading(Exception):
+    pass
+
+
+@pytest.mark.anyio
+@pytest.mark.skipif(sys.platform == "win32", reason="num_fds() is POSIX only")
+async def test_run_subprocess_stdout_reader_error_stops_process():
+    """When the reader raises, the child is killed and its pipes are closed."""
     script = """
 import os, sys
 sys.stdout.buffer.write(f"{os.getpid()}\\n".encode())
@@ -419,60 +428,39 @@ sys.stdout.flush()
 while True:
     sys.stdout.buffer.write(b"x" * 65536)
 """
-    with pytest.raises(StdoutLimitExceededError) as ex:
-        await run_subprocess(
-            ["python3", "-c", script], text=False, stdout_limit=1_000_000, timeout=30
-        )
+    pid = 0
 
-    assert len(ex.value.stdout) == 1_000_000
-    pid = int(ex.value.stdout.split(b"\n", 1)[0])
-    assert not psutil.pid_exists(pid)
+    async def read_until_flooded(stream: ByteReceiveStream) -> bytes:
+        nonlocal pid
+        output = bytearray()
+        async for chunk in stream:
+            output += chunk
+            if len(output) > 1_000_000:
+                pid = int(output.split(b"\n", 1)[0])
+                raise _StopReading()
+        return bytes(output)
 
-
-@pytest.mark.anyio
-@pytest.mark.skipif(sys.platform == "win32", reason="num_fds() is POSIX only")
-async def test_run_subprocess_stdout_limit_releases_pipes():
-    """The pipes of a process stopped by `stdout_limit` are closed, not left to GC."""
-    script = "import sys\nwhile True: sys.stdout.buffer.write(b'x' * 65536)"
     process = psutil.Process()
     gc.disable()
     try:
         fds_before = process.num_fds()
-        with pytest.raises(StdoutLimitExceededError):
+        with pytest.raises(_StopReading):
             await run_subprocess(
-                ["python3", "-c", script], text=False, stdout_limit=1_000_000
+                ["python3", "-c", script],
+                text=False,
+                timeout=30,
+                stdout_reader=read_until_flooded,
             )
         assert process.num_fds() == fds_before
     finally:
         gc.enable()
+    assert not psutil.pid_exists(pid)
 
 
 @pytest.mark.anyio
-async def test_run_subprocess_stdout_limit_keeps_output_limit_for_stderr():
-    """`output_limit` still bounds stderr when `stdout_limit` is set."""
-    script = "import sys; sys.stdout.write('out'); sys.stderr.write('e' * 1000)"
-    run = await run_subprocess(
-        ["python3", "-c", script], text=False, output_limit=100, stdout_limit=1000
-    )
-    assert run.result.stdout == b"out"
-    assert run.result.stderr == b"e" * 100
-
-
-@pytest.mark.anyio
-async def test_run_subprocess_stdout_limit_text():
-    """`stdout_limit` counts bytes and still decodes stdout in text mode."""
-    script = "import sys; sys.stdout.buffer.write('héllo'.encode())"
-    run = await run_subprocess(["python3", "-c", script], stdout_limit=6)
-    assert run.result.stdout == "héllo"
-    with pytest.raises(StdoutLimitExceededError) as ex:
-        await run_subprocess(["python3", "-c", script], stdout_limit=5)
-    assert ex.value.stdout == "héllo".encode()[:5]
-
-
-@pytest.mark.anyio
-async def test_run_subprocess_stdout_limit_requires_capture_output():
+async def test_run_subprocess_stdout_reader_requires_capture_output():
     with pytest.raises(ValueError, match="capture_output"):
-        await run_subprocess(["true"], capture_output=False, stdout_limit=10)
+        await run_subprocess(["true"], capture_output=False, stdout_reader=_read_all)
 
 
 @pytest.mark.anyio

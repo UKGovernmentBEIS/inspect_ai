@@ -6,24 +6,22 @@ import tarfile
 import tempfile
 from collections.abc import AsyncIterator
 from pathlib import Path
+from typing import cast
 from unittest.mock import AsyncMock
 from uuid import uuid4
 
 import pytest
+from anyio.abc import ByteReceiveStream
 from test_helpers.utils import skip_if_no_docker
 
 from inspect_ai.util._sandbox.docker import docker as docker_module
-from inspect_ai.util._sandbox.docker.docker import (
-    _READ_FILE_ARCHIVE_OVERHEAD,
-    DockerSandboxEnvironment,
-)
+from inspect_ai.util._sandbox.docker.docker import DockerSandboxEnvironment
 from inspect_ai.util._sandbox.docker.util import ComposeProject
 from inspect_ai.util._sandbox.limits import (
     OutputLimitExceededError,
-    SandboxEnvironmentLimits,
     override_max_read_file_size,
 )
-from inspect_ai.util._subprocess import StdoutLimitExceededError
+from inspect_ai.util._subprocess import StdoutReader
 
 
 def _environment() -> DockerSandboxEnvironment:
@@ -52,7 +50,18 @@ def _archive(*members: tuple[str, bytes, bytes]) -> bytes:
 
 
 def _copy_returning(archive: bytes) -> AsyncMock:
-    return AsyncMock(return_value=archive)
+    """Fake `compose_cp_archive` that streams `archive` to its reader."""
+
+    async def chunks() -> AsyncIterator[bytes]:
+        for start in range(0, len(archive), 4096):
+            yield archive[start : start + 4096]
+
+    async def copy(
+        src: str, project: ComposeProject, read_archive: StdoutReader
+    ) -> bytes:
+        return await read_archive(cast(ByteReceiveStream, chunks()))
+
+    return AsyncMock(side_effect=copy)
 
 
 @pytest.mark.parametrize("file", [".", "./", "..", "../", "dir/.", "dir/../"])
@@ -85,11 +94,9 @@ async def test_read_file_returns_archived_file(
     assert await environment.read_file("/sandbox/source.txt", text=False) == b"hi\r\n"
     assert await environment.read_file("/sandbox/source.txt") == "hi\r\n"
 
-    copy_mock.assert_awaited_with(
-        src="default:/sandbox/source.txt",
-        project=environment._project,
-        limit=SandboxEnvironmentLimits.MAX_READ_FILE_SIZE + _READ_FILE_ARCHIVE_OVERHEAD,
-    )
+    assert copy_mock.await_args is not None
+    assert copy_mock.await_args.kwargs["src"] == "default:/sandbox/source.txt"
+    assert copy_mock.await_args.kwargs["project"] is environment._project
     exec_mock.assert_not_awaited()
 
 
@@ -189,42 +196,47 @@ async def test_read_file_enforces_size_limit_on_archived_file(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     environment = _environment()
-    copy_mock = _copy_returning(_archive(("big", tarfile.REGTYPE, b"x" * 11)))
-    monkeypatch.setattr(docker_module, "compose_cp_archive", copy_mock)
 
     with override_max_read_file_size(10):
+        over = _copy_returning(_archive(("big", tarfile.REGTYPE, b"x" * 11)))
+        monkeypatch.setattr(docker_module, "compose_cp_archive", over)
         with pytest.raises(OutputLimitExceededError):
             await environment.read_file("big")
-        copy_mock.return_value = _archive(("big", tarfile.REGTYPE, b"x" * 10))
+
+        at = _copy_returning(_archive(("big", tarfile.REGTYPE, b"x" * 10)))
+        monkeypatch.setattr(docker_module, "compose_cp_archive", at)
         assert await environment.read_file("big") == "x" * 10
 
 
 @pytest.mark.parametrize(
-    "head,expected",
+    "archive,expected",
     [
         pytest.param(
-            _archive(("directory", tarfile.DIRTYPE, b"")),
+            _archive(
+                ("directory", tarfile.DIRTYPE, b""),
+                ("directory/child", tarfile.REGTYPE, b"x" * 100_000),
+            ),
             IsADirectoryError,
             id="directory",
         ),
         pytest.param(
-            _archive(("big", tarfile.REGTYPE, b"x" * 1024))[:1024],
+            _archive(("big", tarfile.REGTYPE, b"x" * 100_000)),
             OutputLimitExceededError,
             id="file",
         ),
-        pytest.param(b"", OutputLimitExceededError, id="unparseable"),
-        pytest.param(b"\0" * 1024, OutputLimitExceededError, id="zeros"),
+        pytest.param(b"x" * 100_000, OutputLimitExceededError, id="unparseable"),
+        pytest.param(b"\0" * 100_000, OutputLimitExceededError, id="zeros"),
     ],
 )
-async def test_read_file_maps_archive_over_limit(
-    head: bytes, expected: type[Exception], monkeypatch: pytest.MonkeyPatch
+async def test_read_file_stops_archive_over_limit(
+    archive: bytes, expected: type[Exception], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     environment = _environment()
-    copy_mock = AsyncMock(side_effect=StdoutLimitExceededError(head))
-    monkeypatch.setattr(docker_module, "compose_cp_archive", copy_mock)
+    monkeypatch.setattr(docker_module, "compose_cp_archive", _copy_returning(archive))
 
-    with pytest.raises(expected):
-        await environment.read_file("source")
+    with override_max_read_file_size(10):
+        with pytest.raises(expected):
+            await environment.read_file("source")
 
 
 @pytest.mark.parametrize(
