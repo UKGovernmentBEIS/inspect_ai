@@ -169,15 +169,14 @@ async def sentinel_before_generate(
     root = active_sentinel()
     if root is None or not (watched_stages(root) & {BeforeGenerate, AfterGenerate}):
         return None
-    # copies, so a monitor cannot change the request it was only shown
     step = BeforeGenerate(
         model=model,
         conversation=_conversation(),
-        input=list(input),
+        input=input,
         history=history,
-        tools=list(tools),
+        tools=tools,
         tool_choice=tool_choice,
-        config=config.model_copy(),
+        config=config,
     )
     await _run_generate(step)
     return step
