@@ -6,6 +6,7 @@ from inspect_ai._util.registry import has_registry_params, registry_params
 from inspect_ai.model._conversation import ModelConversation
 from inspect_ai.model._model import sample_model_usage, sample_role_usage
 from inspect_ai.solver._task_state import TaskState, sample_state
+from inspect_ai.util._span import span
 
 from ._metric import Score
 from ._scorer import Scorer, unique_scorer_name
@@ -61,8 +62,9 @@ async def score(conversation: ModelConversation) -> list[Score]:
     for scorer in scorers:
         scorer_name = unique_scorer_name(scorer, used_names)
         used_names.append(scorer_name)
-        with not_agent_generates():
-            score = await scorer(state, target)
+        async with span(name=scorer_name, type="scorer"):
+            with not_agent_generates():
+                score = await scorer(state, target)
         if score is not None:
             scores.append(score)
             transcript()._event(

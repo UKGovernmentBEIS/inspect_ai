@@ -37,7 +37,11 @@ from inspect_ai.event._sentinel import (
     SentinelSuspicion,
 )
 from inspect_ai.log._samples import sample_active
-from inspect_ai.log._transcript import Transcript, transcript
+from inspect_ai.log._transcript import (
+    Transcript,
+    TranscriptHistoryUnavailableError,
+    transcript,
+)
 from inspect_ai.model._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
@@ -74,6 +78,7 @@ from ._context import (
     active_task_metadata,
     not_agent_generates,
 )
+from ._history import agent_history, instance_events
 
 logger = getLogger(__name__)
 
@@ -94,7 +99,7 @@ async def sentinel_before_tool_call(
         call=call,
         view=resolve_tool_call_view(call, viewer),
         input=_model_input(call, history),
-        history=history,
+        history=_agent_history(history),
     )
     return await _run(step)
 
@@ -135,7 +140,7 @@ async def sentinel_after_tool_call(
         output=output,
         view=resolve_tool_call_view(call, viewer),
         input=_model_input(call, history),
-        history=history,
+        history=_agent_history(history),
     )
     decision = await _run(step)
     if decision is not None and decision.action == "terminate":
@@ -170,7 +175,7 @@ async def sentinel_before_generate(
         model=model,
         conversation=_conversation(),
         input=list(input),
-        history=history,
+        history=_agent_history(history, pending=input),
         tools=list(tools),
         tool_choice=tool_choice,
         config=config.model_copy(),
@@ -190,7 +195,7 @@ async def sentinel_after_generate(before: BeforeGenerate, output: ModelOutput) -
         model=before.model,
         conversation=before.conversation,
         input=before.input,
-        history=before.history,
+        history=_agent_history(before.history),
         tools=before.tools,
         tool_choice=before.tool_choice,
         config=before.config,
@@ -205,6 +210,30 @@ async def _run_generate(step: BeforeGenerate | AfterGenerate) -> None:
         raise TerminateSampleError(
             decision.explanation or "Sentinel requested termination."
         )
+
+
+def _agent_history(
+    fallback: list[ChatMessage], pending: Sequence[ChatMessage] = ()
+) -> list[ChatMessage]:
+    # read back to the instance's start; a bounded transcript pages that from
+    # its history provider, at a cost that grows with the instance
+    agent_span = current_agent_span_id()
+    try:
+        events = instance_events(
+            reversed(transcript().history.events_from(0)), agent_span
+        )
+    except TranscriptHistoryUnavailableError:
+        return list(fallback)
+    except Exception as ex:
+        raise SentinelFailure(ex) from ex
+    model = active_model()
+    found = agent_history(
+        events,
+        agent_span,
+        str(model) if model is not None else "",
+        pending,
+    )
+    return found if found is not None else list(fallback)
 
 
 def _watches(stage: type[Step]) -> bool:

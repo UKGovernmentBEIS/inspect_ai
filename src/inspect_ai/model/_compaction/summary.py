@@ -20,6 +20,7 @@ from inspect_ai.model._model_info import get_model_input_tokens
 from inspect_ai.model._tokens import count_media_tokens
 from inspect_ai.model._trim import partition_messages
 from inspect_ai.tool._tool_info import ToolInfo
+from inspect_ai.util._span import span
 
 from .memory import has_memory_calls
 from .types import CompactionStrategy
@@ -122,8 +123,9 @@ class CompactionSummary(CompactionStrategy):
         summarization_input = await _fit_summarization_input(model, summarization_input)
 
         # perform summary
-        with not_agent_generates():
-            output = await model.generate(input=summarization_input)
+        async with span(name="compaction", type="compaction"):
+            with not_agent_generates():
+                output = await model.generate(input=summarization_input)
         if output.stop_reason == "model_length":
             raise RuntimeError(
                 "Compaction summary generation exceeded the model's context "
