@@ -88,10 +88,11 @@ with it trigger no other workflows, so:
 
 `publish-dist` verifies the downloaded files and drops those PyPI already
 has; the upload itself, `pypa/gh-action-pypi-publish`, is a step of each
-publish job rather than of the composite. It is a Docker action, and pypa
-does not support it inside a composite action: there the image reference
-resolves against the calling repository (`ghcr.io/UKGovernmentBEIS/...`,
-which Docker rejects as uppercase), which is how the 0.3.279 publish failed.
+publish job rather than of the composite. It runs its upload in a Docker
+image named from `github.action_repository`, which is empty inside a nested
+composite action (actions/runner#2473), so the name fell back to the calling
+repository (`ghcr.io/UKGovernmentBEIS/...`, which Docker rejects as
+uppercase); that is how the 0.3.279 publish failed.
 `release.yml`'s publish job runs `publish-dist` from the run's own commit
 (a second checkout into `.ci/`), not from the tag, so a recovery dispatch on
 `main` publishes an older tag with the current publish steps.

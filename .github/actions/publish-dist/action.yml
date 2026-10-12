@@ -5,9 +5,10 @@ description: >-
   has. A rebuilt file that PyPI has counts as published when its members match
   PyPI's (parity rules); different contents fail the step. Shared by
   publish.yml and release.yml. The calling job uploads what is left with
-  pypa/gh-action-pypi-publish when the `count` output is not 0: that action
-  runs in Docker, which is not supported inside a composite action, so it
-  must be a step of the job itself. The calling job needs `id-token: write`,
+  pypa/gh-action-pypi-publish when the `count` output is not 0: inside a
+  composite action that action's Docker image name resolves against the
+  calling repository and fails (actions/runner#2473), so it must be a step
+  of the job itself. The calling job needs `id-token: write`,
   the `pypi` environment, and a checkout holding scripts/ and
   src/inspect_ai/tool/_sandbox_tools_utils; nothing is installed or built.
   PyPI matches its trusted publisher against the workflow file that runs the
