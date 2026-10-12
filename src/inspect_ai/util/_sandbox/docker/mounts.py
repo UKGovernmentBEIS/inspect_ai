@@ -182,9 +182,12 @@ async def _validate_read_only_support(bind_runtimes: dict[str | None, str]) -> N
             for runtime, supported in runtime_support.items()
         )
         raise PrerequisiteError(
-            f"Read-only host binds ({', '.join(bind_runtimes.values())}) require Docker Engine 25 or newer, Linux "
+            "Inspect requires Docker Engine 25 or newer, Linux "
             "kernel 5.12 or newer, and a runtime supporting recursive read-only "
-            "mounts.\n\n"
+            "mounts before allowing read-only host sharing. These security "
+            "requirements prevent mounts inside a shared directory from being "
+            "writable.\n\n"
+            f"Affected host mounts: {', '.join(bind_runtimes.values())}.\n\n"
             f"Detected Docker Engine: {info.get('ServerVersion', '(unknown)')} "
             f"({'supported' if engine_supported else 'unsupported'}).\n"
             f"Detected Linux kernel: {info.get('KernelVersion', '(unknown)')} "
@@ -209,9 +212,11 @@ def mount_error(service: str, mount: str, reason: str) -> PrerequisiteError:
     """Describe a rejected mount and the supported migration choices."""
     return PrerequisiteError(
         f"Docker service '{service}' mount '{mount}' is not permitted: {reason}. "
-        "Use a read-only host bind, copy inputs with Sample.files, or use a "
+        "Use a read-only volume mount (add :ro, e.g. ./data:/data:ro), "
+        "copy inputs with Sample.files, or use a "
         "Docker-managed volume without a custom name, driver options or external "
         "storage. To accept unsafe host access for the whole Compose project, "
         "set top-level x-inspect_docker_sandbox.unsafe_allow_writable_host_mounts "
-        "to literal true. This can compromise the host."
+        "to literal true. This can compromise the host.\n\n"
+        "See https://inspect.aisi.org.uk/sandboxing.html#mounting-host-directories"
     )
