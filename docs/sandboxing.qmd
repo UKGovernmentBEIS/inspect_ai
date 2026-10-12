@@ -360,24 +360,26 @@ volumes:
 
 See the documentation on [Docker Compose](https://docs.docker.com/compose/compose-file/) files for information on their full schema and feature set.
 
-### Host Mounts
+### Sharing Files with the Host
 
-Docker sandboxes reject writable host bind mounts by default, across every service. Mount inputs read-only (`./data:/data:ro`), copy them into the sandbox with `Sample.files`, or use Docker-managed volumes for writable storage.
+A malicious agent with write access to your host machine through a volume mount can change files outside the sandbox. For example, it could rewrite `compose.yml` to give future samples or evaluations more privileges than you intended.
 
-Read-only binds are also rejected on services with `privileged: true` or the `SYS_ADMIN` capability, because these services can remount them writable. Compose `configs` and `secrets` use read-only binds and follow the same restrictions.
+Inspect blocks these mounts by default, for every service in your Compose file. Share inputs read-only (`./data:/data:ro`), copy them with `Sample.files`, or use volumes managed by Docker for files the sandbox needs to write.
 
-External volumes, custom volume names or drivers, volume driver options, and `volumes_from` are also rejected because their host access cannot be verified from the Compose configuration. Read-only host binds require Docker Engine 25 or newer, Linux kernel 5.12 or newer, and a runtime supporting recursive read-only mounts. This protects nested mounts as well as the parent directory. Bind propagation that can expose additional mounts is rejected.
+Some advanced volume settings are also blocked if Inspect cannot check their access to the host. Read-only mounts are blocked on services that can make them writable. These rules also apply to Compose `configs` and `secrets`.
 
-If your evaluation requires unsafe host access, explicitly authorize it for the whole Compose project:
+Read-only sharing requires Docker Engine 25 or newer, Docker's Linux kernel 5.12 or newer, and support for keeping any mounts inside the shared directory read-only too. Inspect checks these requirements and asks you to upgrade Docker or copy the inputs when they aren't met.
+
+To allow unsafe host access for all services in your Compose file, set:
 
 ```yaml
 x-inspect_docker_sandbox:
   unsafe_allow_writable_host_mounts: true
 ```
 
-This must be a literal boolean, without environment or sample metadata interpolation. For programmatic configuration, include the extension in `ComposeConfig.model_validate({...})`.
+Set `true` directly, without substituting environment variables or sample metadata. Programmatic `ComposeConfig` supports the same extension.
 
-Enabling this setting can let an agent modify trusted host files, redirect later samples' mounts, and compromise the host or other evaluations. The default restriction assumes trusted host configuration. Host sockets, including a Docker socket reachable through a read-only directory mount, remain the configuration author's responsibility.
+Access to Docker itself from a sandbox can also give an agent control over the host, even through a read-only mount; you remain responsible for that configuration.
 
 ### Sample Metadata
 
