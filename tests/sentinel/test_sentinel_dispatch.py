@@ -1988,6 +1988,54 @@ def test_terminate_at_a_bridged_generate_ends_the_sample(after: bool) -> None:
     assert limit is not None and limit.type == "operator"
 
 
+@agent
+def d3_calls_a_bridged_host_tool(host_tool: Tool, arguments: dict[str, Any]) -> Agent:
+    async def execute(state: AgentState) -> AgentState:
+        from inspect_ai.agent._bridge.sandbox.service import call_tool
+        from inspect_ai.agent._bridge.sandbox.types import SandboxAgentBridge
+
+        bridge = SandboxAgentBridge(
+            state=state,
+            filter=None,
+            retry_refusals=None,
+            compaction=None,
+            port=8080,
+            model=None,
+            bridged_tools={"server": {"host_tool": host_tool}},
+            proposal_exempt_servers={"server"},
+        )
+        await call_tool(bridge)("server", "host_tool", arguments)
+        return state
+
+    return execute
+
+
+def test_a_sandbox_bridge_host_tool_s_own_model_call_is_not_checked() -> None:
+    seen: GenerateSeen = []
+    task = Task(
+        dataset=[Sample(input="Grade hi.")],
+        solver=d3_calls_a_bridged_host_tool(graded(), {"text": "hi"}),
+        sentinel=observe_only([d3_generates(seen)]),
+    )
+    log = eval(task, model="mockllm/model")[0]
+    assert log.status == "success", log.error
+    assert any(e.input[-1].text == "Grade: hi" for e in agent_events(log))
+    assert seen == []
+
+
+def test_an_agent_run_by_a_sandbox_bridge_host_tool_is_checked() -> None:
+    seen: GenerateSeen = []
+    helper = react(name="helper", description="A helper agent.", submit=False)
+    task = Task(
+        dataset=[Sample(input="Ask the helper.")],
+        solver=d3_calls_a_bridged_host_tool(as_tool(helper), {"input": "hi"}),
+        sentinel=observe_only([d3_generates(seen)]),
+    )
+    log = eval(task, model="mockllm/model")[0]
+    assert log.status == "success", log.error
+    assert [type(step) for step in seen] == [BeforeGenerate, AfterGenerate]
+
+
 def test_a_tool_s_own_model_call_in_a_react_agent_is_not_checked() -> None:
     seen: GenerateSeen = []
     model = get_model(
