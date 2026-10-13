@@ -1,15 +1,20 @@
 import asyncio
+from collections.abc import Callable
 from dataclasses import replace
 from typing import Any
 from unittest.mock import MagicMock
 
+import anyio
 import pytest
 from acp.schema import (
     AllowedOutcome,
+    DeniedOutcome,
     RequestPermissionRequest,
     RequestPermissionResponse,
 )
+from markdown_it import MarkdownIt
 from rich.console import Console
+from rich.markdown import Markdown
 from test_helpers.utils import skip_if_trio
 
 from inspect_ai import Task, eval
@@ -41,6 +46,7 @@ from inspect_ai.model import (
 from inspect_ai.solver import generate, use_tools
 from inspect_ai.tool import Tool, ToolCall, ToolCallContent, ToolCallView, tool
 from inspect_ai.tool._tool_call import substitute_tool_call_content
+from inspect_ai.tool._tools._execute import code_viewer
 
 try:
     from inspect_sentinel import (
@@ -424,9 +430,9 @@ def test_an_escalated_turn_shows_every_call_and_approve_runs_them(
         "**Escalated by**\n\n```\n- h_escalate_turn: two calls together, { {x}}\n```"
     )
     assert content.startswith(escalated)
-    # each call as it is rendered before a call: the default view, and the
-    # tool's own viewer with its placeholders filled in
-    assert content.index("addition(x=1, y=1)") < content.index("**Shout**\n\n**hello**")
+    # each call as the transcript shows it: the default view, and the tool's
+    # own viewer with its placeholders filled in
+    assert content.index("addition(x=1, y=1)") < content.index("**hello**")
     assert [m.text for m in tool_messages(log)] == ["2", "HELLO"]
 
 
@@ -485,7 +491,7 @@ async def test_every_surface_is_handed_the_whole_turn(
     assert answer.decision == "approve"
     [kwargs] = asked
     call, view = kwargs["call"], kwargs["view"]
-    assert call.function == "Assistant turn: addition, shout"
+    assert call.function == "Assistant turn: 2 tool calls (addition, shout)"
     assert call.arguments == {}
     assert kwargs["message"] == "Adding and shouting."
 
@@ -493,7 +499,7 @@ async def test_every_surface_is_handed_the_whole_turn(
     request = acp_module._build_request(
         session_id="s", call=call, view=view, choices=kwargs["choices"]
     )
-    assert request.tool_call.title == "Assistant turn: addition, shout"
+    assert request.tool_call.title == "Assistant turn: 2 tool calls (addition, shout)"
     [block] = request.tool_call.content or []
     shown = block.content.text
     assert shown.index("together") < shown.index("addition(") < shown.index("hello")
@@ -513,7 +519,7 @@ async def test_a_turn_with_no_calls_says_so(monkeypatch: pytest.MonkeyPatch) -> 
 
     await _Host().ask_human(turn_step(), ["approve", "terminate"])
 
-    assert panel.content() == "The turn makes no tool calls."
+    assert panel.content() == "**The turn makes no tool calls.**"
 
 
 async def test_a_dismissed_turn_terminates(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -549,19 +555,103 @@ async def test_a_person_cannot_be_asked_before_a_generate() -> None:
         await _Host().ask_human(before, ["approve"])
 
 
-class TuiSession:
-    """An ACP transport with one attached client, the Inspect ACP TUI's state.
+BASH = code_viewer("bash", "cmd")
 
-    The client answers each permission request as the TUI does, and every
-    published notification reaches the same state, so the test sees the
-    cards the person would.
+
+def bash_call(id: str, cmd: str) -> ToolCall:
+    call = ToolCall(id=id, function="bash", arguments={"cmd": cmd})
+    return replace(call, view=BASH(call).call)
+
+
+NOTES = ToolCall(
+    id="c3",
+    function="notes",
+    arguments={},
+    view=ToolCallContent(format="text", content="**not bold**\n<!--"),
+)
+
+
+def code_blocks(markdown: str) -> list[str]:
+    tokens = MarkdownIt("commonmark").parse(markdown)
+    assert not [t for t in tokens if t.type == "html_block"]
+    return [t.content[:-1] for t in tokens if t.type == "fence"]
+
+
+def rendered(markdown: str) -> str:
+    console = Console(record=True, width=120)
+    console.print(Markdown(markdown))
+    return console.export_text()
+
+
+@pytest.mark.parametrize(
+    "first",
+    [
+        # closes the fence and opens an HTML comment that would swallow the rest
+        "ls -la\n```\n<!--",
+        # closes the fence and starts a link reference definition
+        "ls -la\n```\n[x]: <",
+        # closes the fence and writes a second call of its own
+        "ls -la\n````\n\n---\n\n**Call 2 of 3:** bash\n\n```bash\necho hello",
+    ],
+)
+async def test_no_call_can_hide_or_pass_for_another(
+    monkeypatch: pytest.MonkeyPatch, first: str
+) -> None:
+    asked: list[dict[str, Any]] = []
+
+    async def acp(**kwargs: Any) -> Approval | None:
+        asked.append(kwargs)
+        return Approval(decision="approve")
+
+    monkeypatch.setattr(acp_module, "request_human_approval_via_acp", acp)
+    calls = (bash_call("c1", first), bash_call("c2", "rm -rf /srv/data"), NOTES)
+
+    await _Host().ask_human(turn_step(*calls), ["approve", "terminate"])
+
+    [kwargs] = asked
+    call, view = kwargs["call"], kwargs["view"]
+    # the count comes from the turn, not from anything the agent wrote
+    assert call.function == "Assistant turn: 3 tool calls (bash ×2, notes)"
+    # each call's content is one code block of its own, whatever it contains
+    assert code_blocks(view.call.content) == [
+        first,
+        "rm -rf /srv/data",
+        "**not bold**\n<!--",
+    ]
+    request = acp_module._build_request(
+        session_id="s", call=call, view=view, choices=kwargs["choices"]
+    )
+    [block] = request.tool_call.content or []
+    assert code_blocks(block.content.text) == code_blocks(view.call.content)
+    console = Console(record=True, width=120)
+    for renderable in render_tool_approval(kwargs["message"], view, call.arguments):
+        console.print(renderable)
+    for text in [console.export_text(), rendered(block.content.text)]:
+        assert "The turn makes 3 tool calls." in text
+        assert "rm -rf /srv/data" in text
+        assert "**not bold**" in text
+        assert [line for line in text.splitlines() if "Call 3 of 3" in line]
+
+
+class TuiSession:
+    """An ACP transport with the Inspect ACP TUI attached, and an observer.
+
+    The driver answers each permission request as the TUI does: with
+    `answer`, by dismissing it when `answer` is None, or by leaving it open
+    and cancelling `scope`. Every published notification reaches both the
+    driver's state and the observer's, a second client that never sees the
+    request.
     """
 
     session_id = "s"
 
-    def __init__(self, decision: str) -> None:
+    def __init__(
+        self, answer: str | None, scope: anyio.CancelScope | None = None
+    ) -> None:
         self.state = SessionState()
-        self.decision = decision
+        self.observer = SessionState()
+        self.answer = answer
+        self.scope = scope
 
     def approver_driver_chain(self) -> list["TuiSession"]:
         return [self]
@@ -571,6 +661,7 @@ class TuiSession:
 
     def publish(self, update: Any) -> None:
         self.state.consume(update)
+        self.observer.consume(update)
 
     async def drain_notifications(self) -> None:
         pass
@@ -579,36 +670,104 @@ class TuiSession:
         self, request: RequestPermissionRequest
     ) -> RequestPermissionResponse:
         self.state.consume_approval_request(PendingApproval(request, asyncio.Event()))
-        self.state.resolve_approval(
-            request.tool_call.tool_call_id, option_id=self.decision
-        )
+        id = request.tool_call.tool_call_id
+        if self.scope is not None:
+            self.scope.cancel()
+            await anyio.sleep_forever()
+        if self.answer is None:
+            self.state.resolve_approval(id, cancelled=True)
+            return RequestPermissionResponse(outcome=DeniedOutcome(outcome="cancelled"))
+        self.state.resolve_approval(id, option_id=self.answer)
         return RequestPermissionResponse(
-            outcome=AllowedOutcome(outcome="selected", option_id=self.decision)
+            outcome=AllowedOutcome(outcome="selected", option_id=self.answer)
         )
 
 
-@pytest.mark.parametrize("decision", ["approve", "terminate"])
-@pytest.mark.parametrize("calls", [(ADD, SHOUT), ()])
-@skip_if_trio
-async def test_an_acp_turn_card_is_finished_once_the_person_answers(
-    monkeypatch: pytest.MonkeyPatch, decision: str, calls: tuple[ToolCall, ...]
-) -> None:
-    session = TuiSession(decision)
-    sample = MagicMock()
-    sample.acp_transport = session
+@pytest.fixture
+def tui(monkeypatch: pytest.MonkeyPatch) -> Callable[[TuiSession], None]:
+    def attach(session: TuiSession) -> None:
+        sample = MagicMock()
+        sample.acp_transport = session
+        monkeypatch.setattr("inspect_ai.log._samples.sample_active", lambda: sample)
+
     monkeypatch.setattr(
         "inspect_ai.agent._acp.server.acp_server_accepting_clients", lambda: True
     )
-    monkeypatch.setattr("inspect_ai.log._samples.sample_active", lambda: sample)
+    return attach
 
-    answer = await _Host().ask_human(turn_step(*calls), ["approve", "terminate"])
 
-    assert answer.decision == decision
-    [card] = session.state.items
+def only_card(state: SessionState) -> ToolCallState:
+    [card] = state.items
     assert isinstance(card, ToolCallState)
+    return card
+
+
+@pytest.mark.parametrize(
+    "answer, decision, status",
+    [
+        ("approve", "approve", "completed"),
+        ("terminate", "terminate", "completed"),
+        # a dismissed prompt fails closed
+        (None, "terminate", "failed"),
+    ],
+)
+@pytest.mark.parametrize("calls", [(ADD, SHOUT), ()])
+@skip_if_trio
+async def test_an_acp_turn_card_is_finished_once_the_prompt_ends(
+    tui: Callable[[TuiSession], None],
+    answer: str | None,
+    decision: str,
+    status: str,
+    calls: tuple[ToolCall, ...],
+) -> None:
+    session = TuiSession(answer)
+    tui(session)
+
+    result = await _Host().ask_human(turn_step(*calls), ["approve", "terminate"])
+
+    assert result.decision == decision
+    card = only_card(session.state)
     assert card.tool_call_id not in {call.id for call in calls}
-    assert card.status == "completed"
+    assert card.status == status
     assert session.state.tools_in_flight == 0
     assert session.state.cancel_tool_call_ids == []
     session.state.mark_complete()
-    assert card.status == "completed"
+    assert card.status == status
+    # a client that never saw the request gets the whole card, not an empty one
+    seen = only_card(session.observer)
+    assert (seen.tool_call_id, seen.status) == (card.tool_call_id, status)
+    assert seen.title == card.title
+    assert seen.title is not None and seen.title.startswith("Assistant turn")
+    assert seen.content
+
+
+@skip_if_trio
+async def test_an_acp_turn_card_fails_when_the_prompt_is_cancelled(
+    tui: Callable[[TuiSession], None],
+) -> None:
+    with anyio.CancelScope() as scope:
+        session = TuiSession("approve", scope)
+        tui(session)
+        await _Host().ask_human(turn_step(ADD), ["approve", "terminate"])
+
+    assert scope.cancelled_caught
+    card = only_card(session.state)
+    assert card.status == "failed"
+    assert session.state.tools_in_flight == 0
+    assert only_card(session.observer).status == "failed"
+
+
+@skip_if_trio
+async def test_each_turn_prompt_has_a_card_of_its_own(
+    tui: Callable[[TuiSession], None],
+) -> None:
+    session = TuiSession("approve")
+    tui(session)
+
+    for _ in range(2):
+        await _Host().ask_human(turn_step(ADD), ["approve", "terminate"])
+
+    first, second = session.state.items
+    assert isinstance(first, ToolCallState) and isinstance(second, ToolCallState)
+    assert first.tool_call_id != second.tool_call_id
+    assert [first.status, second.status] == ["completed", "completed"]

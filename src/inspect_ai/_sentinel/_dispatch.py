@@ -1,3 +1,4 @@
+import re
 from collections import Counter
 from collections.abc import Callable, Sequence
 from copy import copy
@@ -422,7 +423,7 @@ class _Host:
             offered.append(cast(ApprovalDecision, choice))
         approve = human_approver(choices=offered)
         if isinstance(step, AfterGenerate):
-            approval = await _ask_about_turn(approve, step)
+            approval = await _ask_about_turn(approve, step, offered)
         else:
             approval = await approve(
                 step.message, step.call, _human_view(step), step.history
@@ -477,7 +478,9 @@ def _escalation_lines(step: Step) -> str:
     )
 
 
-async def _ask_about_turn(approve: Approver, step: AfterGenerate) -> Approval:
+async def _ask_about_turn(
+    approve: Approver, step: AfterGenerate, offered: list[ApprovalDecision]
+) -> Approval:
     # deferred: the ACP shim imports `acp.schema`, which only matters once a
     # person is asked
     from inspect_ai.approval._human.acp import finish_approval_card
@@ -486,11 +489,13 @@ async def _ask_about_turn(approve: Approver, step: AfterGenerate) -> Approval:
     status: Literal["completed", "failed"] = "failed"
     try:
         approval = await approve(prompt.message, prompt.call, prompt.view, step.history)
-        status = "completed"
+        if approval.decision in offered:
+            status = "completed"
         return approval
     finally:
-        # no tool event completes the card the turn's prompt opened
-        finish_approval_card(prompt.call.id, status)
+        # no tool event completes the card the turn's prompt opened; a prompt
+        # that ended without one of the choices failed
+        finish_approval_card(prompt.call, prompt.view, status)
 
 
 class _Prompt(NamedTuple):
@@ -503,42 +508,96 @@ def _turn_prompt(step: AfterGenerate) -> _Prompt:
     """The assistant turn as one prompt for the human approval surfaces.
 
     The surfaces show one tool call, so the turn becomes a single view: the
-    escalations, then each call the turn makes as the transcript shows it
-    (`ToolCall.view`, which `Model.generate` sets from the tool's viewer). The
-    call handed to the surfaces stands for the whole turn. Its id is its own,
-    unlike any tool call's or another prompt's, since an ACP client opens a
-    card under it; its empty arguments leave the view as rendered here, each
-    call's placeholders already filled in.
+    escalations, how many calls the turn makes, then each call. The agent
+    controls each call's arguments, so a call's content is shown only inside a
+    code block it cannot close (see `_call_markdown`); everything outside the
+    code blocks is written here, so no call can hide, merge into or pass for
+    another, and the count says how many there are.
+
+    The call handed to the surfaces stands for the whole turn, and its
+    function is the turn's title, which carries the count too. Its id is its
+    own, unlike any tool call's or another prompt's, since an ACP client opens
+    a card under it; its empty arguments leave the view as rendered here.
     """
     message = step.output.message if step.output.choices else None
     calls = (message.tool_calls if message else None) or []
     blocks: list[str] = []
     if step.escalations:
         blocks.append(f"**Escalated by**\n\n{fenced(_escalation_lines(step))}")
-    if calls:
-        blocks.append("\n\n---\n\n".join(_call_markdown(call) for call in calls))
-    else:
-        blocks.append("The turn makes no tool calls.")
-    functions = ", ".join(dict.fromkeys(call.function for call in calls))
+    blocks.append(f"**The turn makes {_calls(len(calls))}.**")
+    blocks.extend(
+        _call_markdown(call, index, len(calls)) for index, call in enumerate(calls, 1)
+    )
+    tally = Counter(call.function for call in calls)
+    tools = ", ".join(
+        function if count == 1 else f"{function} ×{count}"
+        for function, count in tally.items()
+    )
     turn = ToolCall(
         id=f"turn_{shortuuid()}",
-        function=f"Assistant turn: {functions}" if functions else "Assistant turn",
+        function=f"Assistant turn: {_calls(len(calls))}"
+        + (f" ({tools})" if tools else ""),
         arguments={},
     )
     view = ToolCallView(
-        call=ToolCallContent(format="markdown", content="\n\n".join(blocks))
+        call=ToolCallContent(format="markdown", content="\n\n---\n\n".join(blocks))
     )
     return _Prompt(message.text if message else "", turn, view)
 
 
-def _call_markdown(call: ToolCall) -> str:
+def _calls(count: int) -> str:
+    if count == 0:
+        return "no tool calls"
+    return "1 tool call" if count == 1 else f"{count} tool calls"
+
+
+def _call_markdown(call: ToolCall, index: int, count: int) -> str:
+    """One call: a header written here, then its content as a code block.
+
+    The content is what the transcript shows (`ToolCall.view`, which
+    `Model.generate` sets from the tool's viewer, or the default rendering),
+    with the call's placeholders filled in. Viewers interpolate arguments into
+    markdown unescaped, so an argument could close the viewer's code fence and
+    open an HTML comment that swallows the calls after it. A viewer's single
+    code block keeps its language and is fenced again by a fence longer than
+    any backtick run in it; any other content is shown as source.
+    """
     content = substitute_tool_call_content(
         call.view or cast(ToolCallContent, default_tool_call_viewer(call).call),
         call.arguments,
     )
-    title = f"**{content.title}**\n\n" if content.title else ""
-    body = content.content if content.format == "markdown" else fenced(content.content)
-    return f"{title}{body}"
+    header = f"**Call {index} of {count}:** {_markdown_text(call.function)}"
+    if content.title and content.title != call.function:
+        header = f"{header} ({_markdown_text(content.title)})"
+    block = _CODE_BLOCK.fullmatch(content.content)
+    if content.format == "markdown" and block is not None:
+        language, code = block.group("language").strip(), block.group("code")
+    else:
+        language = "markdown" if content.format == "markdown" else ""
+        code = content.content
+    return f"{header}\n\n{_code_block(code, language)}"
+
+
+# a viewer's single fenced code block, e.g. `code_viewer`'s and the default's
+_CODE_BLOCK = re.compile(
+    r"(?P<fence>`{3,})(?P<language>[\w+.-]*)\n(?P<code>.*)\n(?P=fence)[ \t]*\n?",
+    re.DOTALL,
+)
+
+
+def _code_block(code: str, language: str) -> str:
+    # deferred: the ACP shim imports `acp.schema`, which only matters once a
+    # person is asked
+    from inspect_ai.approval._human.acp import _safe_code_fence
+
+    fence = _safe_code_fence(code)
+    return f"{fence}{language}\n{code}\n{fence}"
+
+
+def _markdown_text(text: str) -> str:
+    # one line of literal text: markdown punctuation escaped, so a function
+    # name or viewer title cannot add structure
+    return re.sub(r"([\\`*_{}\[\]()#+\-.!|<>~&])", r"\\\1", " ".join(text.split()))
 
 
 class _Recorder:
