@@ -3841,6 +3841,15 @@ async def assistant_message_block_params(
         # rendered from the content list so that scaffold edits surface.
         record = _message_server_tool_spans(message)
         emitted: set[int] = set()
+        # a paused turn's unfinished work is resumed only when the turn is
+        # last. otherwise its span is dropped whole (an unfinished outer use
+        # and the inner blocks that depend on it), unless this message also
+        # holds the results that finish it (a resumed turn combined with it)
+        content_ids = {c.id for c in message.content if isinstance(c, ContentToolUse)}
+
+        def abandoned(span: _ServerToolSpan) -> bool:
+            return span.paused and not last and not span.open_use_ids <= content_ids
+
         for content in message.content:
             segment: list[MessageBlockParam] = []
             span = _server_tool_span_for_content(content, record)
@@ -3849,6 +3858,9 @@ async def assistant_message_block_params(
                 # content item (subsequent items of the same span emit nothing)
                 if id(span) not in emitted:
                     emitted.add(id(span))
+                    if abandoned(span):
+                        segments.append(segment)
+                        continue
                     # a result whose use block ended an earlier turn that this
                     # message also holds (a resumed turn combined with the
                     # paused one) needs that use block first
@@ -3868,12 +3880,11 @@ async def assistant_message_block_params(
         # content qualify -- a span whose content items were removed by a
         # scaffold edit was deleted deliberately and stays dropped. with no
         # anchor, the span lands after the content-derived blocks rather than
-        # at its original wire position (which is not recorded). a paused
-        # turn's pending work is resumed only when the turn is last.
+        # at its original wire position (which is not recorded).
         for span in record or []:
             if not span.content_ids and id(span) not in emitted:
                 emitted.add(id(span))
-                if span.paused and not last:
+                if abandoned(span):
                     continue
                 pending_span_params.extend(_span_block_params(span, message))
 

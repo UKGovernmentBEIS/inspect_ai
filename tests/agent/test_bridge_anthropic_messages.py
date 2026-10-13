@@ -924,6 +924,121 @@ async def test_bridge_paused_turn_not_resumed_drops_pending_call(
         ]
 
 
+@pytest.mark.parametrize("beta", [False, True])
+@pytest.mark.anyio
+async def test_bridge_paused_nested_span_dropped_when_not_resumed(
+    monkeypatch: pytest.MonkeyPatch, beta: bool
+) -> None:
+    """A filtered search paused mid-execution is dropped once a user turn follows."""
+    from anthropic._models import construct_type
+    from anthropic.types import Message
+
+    import inspect_ai.model._providers.anthropic as anthropic_provider
+    from inspect_ai.model._providers.anthropic import (
+        init_sample_anthropic_assistant_internal,
+    )
+
+    init_sample_anthropic_assistant_internal()
+    monkeypatch.setattr(anthropic_provider, "MAX_PAUSE_TURN_CONTINUATIONS", 1)
+
+    def message(id: str, content: list[dict[str, Any]], **fields: Any) -> Message:
+        data = {
+            "id": id,
+            "type": "message",
+            "role": "assistant",
+            "model": "claude-sonnet-4-6",
+            "content": content,
+            "usage": {"input_tokens": 20, "output_tokens": 2},
+        } | fields
+        return cast(Message, construct_type(value=data, type_=Message))
+
+    # code execution still running, with a completed web search inside it
+    caller = {"type": "code_execution_20260120", "tool_id": "srvtoolu_ce"}
+    nested: list[dict[str, Any]] = [
+        {"type": "text", "text": "filtering"},
+        {
+            "type": "server_tool_use",
+            "id": "srvtoolu_ce",
+            "name": "code_execution",
+            "input": {"code": "web_search('nhl scores')"},
+            "caller": {"type": "direct"},
+        },
+        {
+            "type": "server_tool_use",
+            "id": "srvtoolu_ws",
+            "name": "web_search",
+            "input": {"query": "nhl scores"},
+            "caller": caller,
+        },
+        {
+            "type": "web_search_tool_result",
+            "tool_use_id": "srvtoolu_ws",
+            "content": [
+                {
+                    "type": "web_search_result",
+                    "title": "NHL Scores",
+                    "url": "https://nhl.com/scores",
+                    "encrypted_content": "ENCRYPTED",
+                }
+            ],
+            "caller": caller,
+        },
+    ]
+    text = [{"type": "text", "text": "ok"}]
+    bridge, create, outputs = _anthropic_bridge(
+        [
+            message("msg_1", text, stop_reason="pause_turn"),
+            message(
+                "msg_2",
+                nested,
+                stop_reason="pause_turn",
+                container={"id": "cntr_ce", "expires_at": "2026-12-01T00:00:00Z"},
+            ),
+            message("msg_3", text, stop_reason="end_turn"),
+            message("msg_4", text, stop_reason="end_turn"),
+        ]
+    )
+    user = {"role": "user", "content": "search"}
+
+    paused = await _bridge_request(monkeypatch, bridge, outputs, [user], beta)
+    assert paused.stop_reason == "pause_turn"
+    assert [b.type for b in paused.content if b.type != "text"] == [
+        "server_tool_use",
+        "server_tool_use",
+        "web_search_tool_result",
+    ]
+
+    # the client follows the paused turn with a user message, then another turn
+    history: list[dict[str, Any]] = [
+        user,
+        {
+            "role": "assistant",
+            "content": [b.model_dump(exclude_none=True) for b in paused.content],
+        },
+        {"role": "user", "content": "continue"},
+    ]
+    answer = await _bridge_request(monkeypatch, bridge, outputs, history, beta)
+    history += [
+        {
+            "role": "assistant",
+            "content": [b.model_dump(exclude_none=True) for b in answer.content],
+        },
+        {"role": "user", "content": "more"},
+    ]
+    await _bridge_request(monkeypatch, bridge, outputs, history, beta)
+
+    assert create.await_count == 4
+    for request in [call.kwargs for call in create.call_args_list[2:]]:
+        assert "container" not in request
+        sent = [
+            block if isinstance(block, dict) else block.model_dump()
+            for m in request["messages"]
+            if m["role"] == "assistant"
+            for block in m["content"]
+        ]
+        assert [b["type"] for b in sent if b["type"] != "text"] == []
+
+
 def test_anthropic_stop_reason_pause_turn_only_from_stop_details() -> None:
     from inspect_ai.agent._bridge.anthropic_api_impl import anthropic_stop_reason
     from inspect_ai.model._model_output import StopDetails

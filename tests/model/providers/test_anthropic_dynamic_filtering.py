@@ -13,11 +13,12 @@ import types
 from typing import Any, cast
 from unittest.mock import AsyncMock, create_autospec
 
+import pytest
 from anthropic import AsyncAnthropic
 from anthropic.types import Message
 from test_helpers.utils import skip_if_no_anthropic
 
-from inspect_ai._util.content import ContentToolUse
+from inspect_ai._util.content import ContentText, ContentToolUse
 from inspect_ai.model import (
     ChatMessage,
     ChatMessageAssistant,
@@ -466,3 +467,112 @@ async def test_anthropic_dynamic_filtering_multi_turn() -> None:
     ]
     output = await model.generate(input=messages, tools=tools)
     assert output.message.text
+
+
+@pytest.mark.parametrize("cache", ["automatic", "explicit"])
+async def test_paused_nested_span_dropped_when_not_resumed(
+    monkeypatch: pytest.MonkeyPatch, cache: str
+) -> None:
+    """A filtered search paused mid-execution is resumed only by its own turn.
+
+    At the continuation limit the turn ends with the code execution still
+    running: its use block and the completed inner web search form one open
+    span. Resuming the turn (paused message last) replays the span and names
+    the container; once a user message follows, the span is dropped whole
+    and no container is named, in generate and in count_tokens.
+    """
+    from inspect_ai.model._providers import anthropic as anthropic_provider
+
+    init_sample_anthropic_assistant_internal()
+    monkeypatch.setattr(anthropic_provider, "MAX_PAUSE_TURN_CONTINUATIONS", 1)
+
+    def message(id: str, content: list[dict[str, Any]], **fields: Any) -> Message:
+        return Message.model_validate(
+            {
+                "id": id,
+                "type": "message",
+                "role": "assistant",
+                "model": "claude-opus-4-8",
+                "content": content,
+                "usage": {"input_tokens": 1, "output_tokens": 1},
+            }
+            | fields
+        )
+
+    create = AsyncMock(
+        side_effect=[
+            message("msg_1", [_text("Searching...")], stop_reason="pause_turn"),
+            message(
+                "msg_2",
+                [_text("Filtering..."), _ce_use(), _ws_use(), _ws_result()],
+                stop_reason="pause_turn",
+                container={"id": "cntr_ce", "expires_at": "2026-12-01T00:00:00Z"},
+            ),
+            message("msg_3", [_ce_result(), _text("done")], stop_reason="end_turn"),
+            message("msg_4", [_text("ok")], stop_reason="end_turn"),
+            message("msg_5", [_text("ok")], stop_reason="end_turn"),
+        ]
+    )
+    count = AsyncMock(return_value=types.SimpleNamespace(input_tokens=10))
+    model = get_model(
+        "anthropic/claude-opus-4-8",
+        api_key="test-key",
+        streaming=False,
+        memoize=False,
+        config=GenerateConfig(max_retries=0),
+    )
+    api = model.api
+    assert isinstance(api, AnthropicAPI)
+    monkeypatch.setattr(api.client.messages, "create", create)
+    monkeypatch.setattr(api.client.messages, "count_tokens", count)
+
+    user = ChatMessageUser(content="Find last night's close NHL games.")
+    paused = await model.generate([user])
+    assert paused.stop_reason == "unknown"
+
+    def server_blocks(messages: list[Any]) -> list[tuple[Any, Any]]:
+        return [
+            (b["type"], b.get("id") or b.get("tool_use_id"))
+            for m in messages
+            if m["role"] == "assistant"
+            for b in m["content"]
+            if b["type"] != "text"
+        ]
+
+    # resuming the paused turn replays the span and names the container
+    resumed = await model.generate([user, paused.message])
+    resume = create.call_args.kwargs
+    assert server_blocks(resume["messages"]) == [
+        ("server_tool_use", CE_ID),
+        ("server_tool_use", WS_ID),
+        ("web_search_tool_result", WS_ID),
+    ]
+    assert resume.get("container") == "cntr_ce"
+
+    # a user message follows the paused turn instead
+    next_user = (
+        ChatMessageUser(content=[ContentText(text="continue", cache_breakpoint=True)])
+        if cache == "explicit"
+        else ChatMessageUser(content="continue")
+    )
+    history: list[ChatMessage] = [user, paused.message, next_user]
+    await model.generate(history)
+    request = create.call_args.kwargs
+    assert server_blocks(request["messages"]) == []
+    assert "container" not in request
+
+    await model.count_tokens(history)
+    assert server_blocks(count.call_args.kwargs["messages"]) == []
+
+    # after the turn was resumed, the completed span replays whole
+    await model.generate(
+        [user, paused.message, resumed.message, ChatMessageUser(content="thanks")]
+    )
+    request = create.call_args.kwargs
+    assert server_blocks(request["messages"]) == [
+        ("server_tool_use", CE_ID),
+        ("server_tool_use", WS_ID),
+        ("web_search_tool_result", WS_ID),
+        ("code_execution_tool_result", CE_ID),
+    ]
+    assert "container" not in request
