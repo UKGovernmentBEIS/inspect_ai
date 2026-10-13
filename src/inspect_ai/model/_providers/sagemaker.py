@@ -35,7 +35,6 @@ from .._model import ModelAPI, RetryDecision
 from .._model_call import ModelCall
 from .._model_output import ModelOutput
 from .._reasoning import clamp_reasoning_effort_to_low_medium_high
-from .._response_headers import record_response_headers
 from .._stream import (
     NoStreamDataError,
     StreamContentEvent,
@@ -48,6 +47,7 @@ from .._stream import (
     report_model_stream_start,
 )
 from .util import normalize_stream_arg
+from .util.hooks import header_recording_session
 
 logger = getLogger(__name__)
 
@@ -147,11 +147,6 @@ class SagemakerAPI(ModelAPI):
 
             # Create a shared session to be used when generating
             self.session = get_session()
-            for operation in ("InvokeEndpoint", "InvokeEndpointWithResponseStream"):
-                self.session.register(
-                    f"response-received.sagemaker-runtime.{operation}",
-                    self._response_received,
-                )
 
         except ImportError:
             raise pip_dependency_error("Sagemaker API", ["aiobotocore"])
@@ -435,14 +430,6 @@ class SagemakerAPI(ModelAPI):
         )
         return [await process_chat_message(message) for message in collapsed]
 
-    def _response_received(
-        self, response_dict: dict[str, Any] | None = None, **kwargs: Any
-    ) -> None:
-        if response_dict is not None:
-            headers = response_dict.get("headers")
-            if headers is not None:
-                record_response_headers(headers)
-
     def _create_client(self) -> Any:
         """Create SageMaker runtime client with proper configuration."""
         from aiobotocore.config import AioConfig
@@ -455,6 +442,7 @@ class SagemakerAPI(ModelAPI):
                 read_timeout=int(str(self.model_args["read_timeout"])),
                 connect_timeout=int(str(self.model_args["connect_timeout"])),
                 retries={"total_max_attempts": 1, "mode": "standard"},
+                http_session_cls=header_recording_session(),
             ),
         )
 

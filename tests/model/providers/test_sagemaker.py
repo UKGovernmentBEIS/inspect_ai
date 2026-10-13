@@ -8,6 +8,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import anyio
 import pytest
 from botocore.exceptions import (
     ClientError,
@@ -65,40 +66,6 @@ def _make_api(**model_args: Any):
         )
 
 
-@pytest.mark.parametrize(
-    "operation", ["InvokeEndpoint", "InvokeEndpointWithResponseStream"]
-)
-def test_response_received_records_each_attempts_headers(operation: str) -> None:
-    api = _make_api()
-    registrations = dict(call.args for call in api.session.register.call_args_list)
-    response_received = registrations[
-        f"response-received.sagemaker-runtime.{operation}"
-    ]
-    headers = ResponseHeaders()
-
-    with track_response_headers(headers):
-        response_received(
-            response_dict={"status_code": 503, "headers": {"X-Request-ID": "first"}}
-        )
-        assert headers.latest == {"x-request-id": "first"}
-        response_received(
-            response_dict={"status_code": 200, "headers": {"X-Request-ID": "second"}}
-        )
-        assert headers.latest == {"x-request-id": "second"}
-        response_received(response_dict={"status_code": 200, "headers": {}})
-        assert headers.latest == {}
-
-
-def test_response_received_without_http_response_records_nothing() -> None:
-    api = _make_api()
-    headers = ResponseHeaders()
-
-    with track_response_headers(headers):
-        api._response_received(response_dict=None)
-
-    assert headers.latest is None
-
-
 OPENAI_RESPONSE = {
     "id": "chatcmpl-abc123",
     "object": "chat.completion",
@@ -151,15 +118,24 @@ def _payload_part(payload: bytes) -> bytes:
 
 class _EndpointHandler(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
+    # set when a test is over, to let go of a response left unfinished
+    release = threading.Event()
 
     def do_POST(self) -> None:
         self.rfile.read(int(self.headers["Content-Length"]))
         operation = self.path.rsplit("/", 1)[-1]
         status = 200
+        unfinished = "/truncating-endpoint/" in self.path or (
+            "/stalling-endpoint/" in self.path
+        )
         if "/refusing-endpoint/" in self.path:
             status = 400
             content_type = "application/json"
             body = b'{"message": "no"}'
+        elif unfinished:
+            status = 503
+            content_type = "application/json"
+            body = b'{"message": "n'
         elif operation == "invocations-response-stream":
             content_type = "application/vnd.amazon.eventstream"
             body = _payload_part(
@@ -170,10 +146,16 @@ class _EndpointHandler(BaseHTTPRequestHandler):
             body = json.dumps(OPENAI_RESPONSE).encode()
         self.send_response(status)
         self.send_header("Content-Type", content_type)
-        self.send_header("Content-Length", str(len(body)))
+        # an unfinished response promises more body than it sends
+        self.send_header("Content-Length", str(len(body) + (100 if unfinished else 0)))
         self.send_header("X-Served-By", operation)
         self.end_headers()
         self.wfile.write(body)
+        self.wfile.flush()
+        if "/stalling-endpoint/" in self.path:
+            self.release.wait(10)
+        if unfinished:
+            self.close_connection = True
 
     def log_message(self, format: str, *args: Any) -> None:
         pass
@@ -188,9 +170,11 @@ def endpoint_server(monkeypatch: pytest.MonkeyPatch) -> Iterator[str]:
     server = ThreadingHTTPServer(("127.0.0.1", 0), _EndpointHandler)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
+    _EndpointHandler.release.clear()
     try:
         yield f"http://127.0.0.1:{server.server_address[1]}"
     finally:
+        _EndpointHandler.release.set()
         server.shutdown()
         server.server_close()
         thread.join()
@@ -246,6 +230,52 @@ async def test_real_client_records_a_failed_responses_headers(
         )
 
     assert raised.value.response["ResponseMetadata"]["HTTPStatusCode"] == 400
+    assert headers.latest is not None
+    assert headers.latest["x-served-by"] == operation
+
+
+# aiobotocore reads an error's body before it reports the response, so a body
+# that can't be read used to take the headers with it
+@skip_if_trio
+@OPERATIONS
+async def test_real_client_records_the_headers_of_a_response_cut_short(
+    endpoint_server: str, stream: bool, operation: str
+) -> None:
+    api = _real_api("truncating-endpoint", endpoint_server, stream)
+    headers = ResponseHeaders()
+
+    with track_response_headers(headers), pytest.raises(Exception) as raised:
+        await api.generate(
+            [ChatMessageUser(content="hello")], [], "auto", GenerateConfig()
+        )
+
+    assert not isinstance(raised.value, ClientError)
+    assert headers.latest is not None
+    assert headers.latest["x-served-by"] == operation
+
+
+@skip_if_trio
+@OPERATIONS
+async def test_real_client_cancelled_reading_a_body_keeps_the_headers(
+    endpoint_server: str, stream: bool, operation: str
+) -> None:
+    api = _real_api("stalling-endpoint", endpoint_server, stream)
+    headers = ResponseHeaders()
+
+    async def call() -> None:
+        await api.generate(
+            [ChatMessageUser(content="hello")], [], "auto", GenerateConfig()
+        )
+
+    with track_response_headers(headers):
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(call)
+            # the headers have arrived and the rest of the body never will
+            with anyio.fail_after(5):
+                while headers.latest is None:
+                    await anyio.sleep(0.01)
+            tg.cancel_scope.cancel()
+
     assert headers.latest is not None
     assert headers.latest["x-served-by"] == operation
 

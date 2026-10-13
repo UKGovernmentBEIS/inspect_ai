@@ -1,3 +1,4 @@
+import functools
 import re
 import time
 from contextlib import contextmanager
@@ -427,6 +428,42 @@ class HttpxHooks(HttpHooks):
         # record status + Retry-After / x-ratelimit-reset-* for next retry classification
         request_id = response.request.headers.get(self.REQUEST_ID_HEADER, None)
         self.record_response(request_id, response.status_code, response.headers)
+
+
+@functools.cache
+def header_recording_session() -> type[Any]:
+    """An aiobotocore HTTP session class that records each response's headers.
+
+    For a client that makes only the model call's requests. The headers are
+    recorded as they arrive. aiobotocore reads a response's body before it
+    returns the response or emits `response-received`, so neither happens for
+    a response whose body can't be read.
+    """
+    import aiohttp
+    from aiobotocore.httpsession import AIOHTTPSession
+
+    from inspect_ai.model._response_headers import record_response_headers
+
+    async def on_request_end(
+        session: aiohttp.ClientSession,
+        context: object,
+        params: aiohttp.TraceRequestEndParams,
+    ) -> None:
+        record_response_headers(params.response.headers)
+
+    trace_config = aiohttp.TraceConfig()
+    trace_config.on_request_end.append(on_request_end)
+    trace_config.freeze()
+
+    class HeaderRecordingSession(AIOHTTPSession):
+        async def _get_session(self, proxy_url: Any) -> Any:
+            # not in aiobotocore's type stubs
+            session = await cast(Any, super())._get_session(proxy_url)
+            if trace_config not in session.trace_configs:
+                session.trace_configs.append(trace_config)
+            return session
+
+    return HeaderRecordingSession
 
 
 def urllib3_hooks() -> HttpHooks:

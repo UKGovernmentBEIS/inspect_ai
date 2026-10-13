@@ -70,7 +70,7 @@ from .util import (
     normalize_stream_arg,
     rejects_forced_tool_choice,
 )
-from .util.hooks import ConverseHooks
+from .util.hooks import ConverseHooks, header_recording_session
 
 logger = getLogger(__name__)
 
@@ -772,6 +772,7 @@ class BedrockAPI(ModelAPI):
                     connect_timeout=self.connect_timeout,
                     retries=dict(mode="adaptive"),
                     user_agent_extra=self._http_hooks.user_agent_extra(request_id),
+                    http_session_cls=header_recording_session(),
                 ),
                 **self.model_args,
             ) as client:
