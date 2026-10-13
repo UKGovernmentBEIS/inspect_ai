@@ -1705,12 +1705,6 @@
       "undescribed": 1
     }
   },
-  "tests/model/test_redacted_reasoning_tokens.py": {
-    "type: ignore[method-assign]": {
-      "count": 1,
-      "undescribed": 1
-    }
-  },
   "tests/model/test_should_retry_classification.py": {
     "type: ignore[arg-type]": {
       "count": 2,

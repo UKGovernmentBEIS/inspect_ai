@@ -533,7 +533,7 @@ async def test_approval_rejections_are_not_reviewed() -> None:
     assert error.type == "approval"
 
 
-async def test_handoffs_are_not_reviewed() -> None:
+async def execute_handoff(policies: list[ReviewPolicy]) -> list[ChatMessage]:
     from inspect_ai.agent import Agent, AgentState, agent, handoff
 
     @agent
@@ -544,7 +544,6 @@ async def test_handoffs_are_not_reviewed() -> None:
 
         return execute
 
-    seen: list[Seen] = []
     init_transcript(Transcript())
     messages, _ = await execute_tools(
         [
@@ -556,10 +555,33 @@ async def test_handoffs_are_not_reviewed() -> None:
             )
         ],
         [handoff(helper(), description="A helper agent.")],
-        review=[ReviewPolicy(recording_reviewer(seen), "*")],
+        review=policies,
     )
+    return messages
 
-    assert seen == []
+
+async def test_handoffs_are_reviewed() -> None:
+    seen: list[Seen] = []
+    messages = await execute_handoff([ReviewPolicy(recording_reviewer(seen), "*")])
+
+    assert len(seen) == 1
+    assert seen[0].call.function == "transfer_to_helper"
+    assert seen[0].result == tool_message(messages)
+    assert "transferred to helper" in seen[0].result.text
+    assert any("helper says hi" in m.text for m in messages)
+
+
+async def test_terminate_after_a_handoff_ends_the_sample() -> None:
+    with pytest.raises(TerminateSampleError, match="reviewer requested termination"):
+        await execute_handoff([policy("terminate", tools="transfer_to_helper")])
+
+    assert review_events()[-1].decision == "terminate"
+
+
+async def test_a_policy_for_other_tools_does_not_review_a_handoff() -> None:
+    messages = await execute_handoff([policy("terminate", tools="addition")])
+
+    assert review_events() == []
     assert any("helper says hi" in m.text for m in messages)
 
 

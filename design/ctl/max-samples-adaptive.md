@@ -267,9 +267,9 @@ work once the view carries `limit`.
   case now has an operator remedy).
 - `design/ctl/control-channel.md`: update the phase-3 `max_samples`
   description.
-- `CHANGELOG.md` (`## Unreleased`): e.g. "inspect ctl config can now change
-  max_samples for tasks using adaptive connections (pass 'clear' to resume
-  adaptive tracking)."
+- PR title (the changelog line): e.g. "feat(ctl): `inspect ctl config` can now
+  change `max_samples` for tasks using adaptive connections (pass `clear` to
+  resume adaptive tracking)".
 
 ### 7. Tests
 
@@ -344,7 +344,7 @@ work once the view carries `limit`.
 
 ## Rollout
 
-Single PR touching the six areas above plus tests and CHANGELOG. No public
+Single PR touching the six areas above plus tests. No public
 Python API changes (`task_limits` is internal to `_control`).
 
 **Version skew** (policy: `design/ctl/control-channel.md`, "Version skew"):

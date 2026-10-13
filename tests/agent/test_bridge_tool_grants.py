@@ -77,6 +77,7 @@ MCP_PARAM = cast(
     },
 )
 ANTHROPIC_WEB_SEARCH = cast(Any, {"type": "web_search_20250305", "name": "web_search"})
+CLIENT_SEARCH_VERSION = {"type": "web_search_20250305"}
 ANTHROPIC_MCP_SERVER = cast(
     Any, {"type": "url", "name": "elsewhere", "url": "https://elsewhere.example/mcp"}
 )
@@ -1061,7 +1062,7 @@ def test_anthropic_web_search_location_set_by_client(
         bridge=make_bridge(),
     )
 
-    assert tool_options(tools)["anthropic"] == expected
+    assert tool_options(tools)["anthropic"] == {**CLIENT_SEARCH_VERSION, **expected}
     assert (len(bridge_warnings) == 1) is warned
 
 
@@ -1087,8 +1088,9 @@ def test_anthropic_web_search_options_follow_eval(
         bridge=make_bridge(),
     )
 
-    # the client's lower search cap applies; its allowed domains do not
+    # the client's version and lower search cap apply; its allowed domains do not
     assert tool_options(tools)["anthropic"] == {
+        **CLIENT_SEARCH_VERSION,
         "blocked_domains": ["blocked.example"],
         "max_uses": 50,
     }
@@ -1132,8 +1134,79 @@ def test_anthropic_max_uses_may_only_narrow(
         bridge=make_bridge(),
     )
 
-    assert tool_options(tools)["anthropic"] == {"max_uses": expected}
+    assert tool_options(tools)["anthropic"] == {
+        **CLIENT_SEARCH_VERSION,
+        "max_uses": expected,
+    }
     assert (len(bridge_warnings) == 1) is warned
+
+
+@pytest.mark.parametrize(
+    "eval_options,client_type,expected,warned",
+    [
+        ({}, "web_search_20250305", {"type": "web_search_20250305"}, False),
+        ({}, "web_search_20260209", {"type": "web_search_20260209"}, False),
+        ({}, "web_search_20990101", {}, False),
+        (
+            {"type": "web_search_20260209"},
+            "web_search_20250305",
+            {"type": "web_search_20260209"},
+            True,
+        ),
+    ],
+    ids=["eval-unset", "eval-unset-latest", "unsupported", "eval-set"],
+)
+@BOTH_BRIDGES
+def test_anthropic_web_search_version_set_by_client(
+    make_bridge: BridgeFactory,
+    bridge_warnings: list[str],
+    eval_options: dict[str, Any],
+    client_type: str,
+    expected: dict[str, Any],
+    warned: bool,
+) -> None:
+    """The client's supported version applies when the eval sets none."""
+    tools = tools_from_anthropic_tools(
+        [cast(Any, {"type": client_type, "name": "web_search"})],
+        None,
+        WebSearchProviders(anthropic=eval_options),
+        None,
+        allow_remote_mcp=False,
+        bridge=make_bridge(),
+    )
+
+    assert tool_options(tools)["anthropic"] == expected
+    assert (len(bridge_warnings) == 1) is warned
+    if warned:
+        assert "agent's web_search options={'type'" in bridge_warnings[0]
+
+
+@BOTH_BRIDGES
+def test_anthropic_client_options_apply_when_eval_enables_without_options(
+    make_bridge: BridgeFactory,
+    bridge_warnings: list[str],
+) -> None:
+    """`anthropic=True` sets no options, so the client's apply as under `{}`."""
+    location = {"type": "approximate", "city": "Leeds"}
+    client_search = cast(
+        Any, {**ANTHROPIC_WEB_SEARCH, "max_uses": 8, "user_location": location}
+    )
+
+    tools = tools_from_anthropic_tools(
+        [client_search],
+        None,
+        WebSearchProviders(anthropic=True),
+        None,
+        allow_remote_mcp=False,
+        bridge=make_bridge(),
+    )
+
+    assert tool_options(tools)["anthropic"] == {
+        **CLIENT_SEARCH_VERSION,
+        "max_uses": 8,
+        "user_location": location,
+    }
+    assert bridge_warnings == []
 
 
 @pytest.mark.parametrize(
@@ -1199,7 +1272,10 @@ async def test_request_path_applies_eval_tool_options(
     )
 
     assert tool_options(list(captured_tools[0]))["providers"]["openai"] == {}
-    assert tool_options(list(captured_tools[1]))["anthropic"] == {"max_uses": 50}
+    assert tool_options(list(captured_tools[1]))["anthropic"] == {
+        **CLIENT_SEARCH_VERSION,
+        "max_uses": 50,
+    }
     assert len(bridge_warnings) == 2
 
 
