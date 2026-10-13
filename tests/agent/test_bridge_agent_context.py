@@ -340,6 +340,35 @@ async def test_google_impl_reports_no_request_when_model_omitted() -> None:
     assert seen["request"] is None
 
 
+async def test_google_impl_reports_in_process_model_name() -> None:
+    """In-process, the SDK body carries no model; the name it was called with is the slug."""
+    seen: dict[str, Any] = {}
+
+    async def capture_filter(
+        model: Model,
+        messages: list[ChatMessage],
+        tools: list[ToolInfo],
+        tool_choice: ToolChoice | None,
+        config: GenerateConfig,
+    ) -> None:
+        seen["request"] = current_bridge_request()
+        return None
+
+    bridge = AgentBridge(
+        state=AgentState(messages=[]),
+        filter=capture_filter,
+        model_aliases={"inspect": "mockllm/model"},
+    )
+    await inspect_google_api_request_impl(
+        {"contents": [{"role": "user", "parts": [{"text": "hi"}]}]},
+        internal_web_search_providers(),
+        default_code_execution_providers(),
+        bridge,
+        requested_model="gemini-2.5-pro",
+    )
+    assert seen["request"] == BridgeRequest(model="gemini-2.5-pro")
+
+
 # --- public exports ----------------------------------------------------------
 
 
