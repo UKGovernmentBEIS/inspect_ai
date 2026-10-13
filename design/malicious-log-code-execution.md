@@ -343,44 +343,74 @@ def metrics_from_log_header(log: EvalLog, *, trust_log: bool = False) -> ...: ..
 def metric_from_log(metric: EvalMetricDefinition, *, trust_log: bool = False) -> Metric: ...
 ```
 
-Both metric sources are made resolvable first, by one shared function that
-`metrics_from_log_header()` and `resolve_scorers_info()` each call before
-building anything:
+Each resolver makes the metric definitions it consumes resolvable before
+building anything, through one shared implementation:
 
 ```python
-def ensure_log_metrics_registered(log: EvalLog, *, trust_log: bool) -> None:
-    """Make every metric named in the log resolvable, or raise.
+class LogTaskFileImport:
+    """The trusted task-file import for one recompute, recovery or rescore.
 
-    Collects the metric names in `eval.metrics` (task-level metrics,
-    `_eval/task/log.py:278`, `:310`) and `eval.scorers[*].metrics`, including
-    nested lists, dict groups, and metric registry dicts inside their
-    options. If any is not registered and `trust_log` is True, imports the
-    task file once; then raises the shared LookupError for any still missing.
+    Holds the log, `trust_log`, and whether the task file has been imported,
+    so callers that consume both metric sources import it at most once.
+    Created by the caller and passed to both resolvers; each resolver makes
+    its own when none is passed.
+    """
+
+def ensure_metrics_registered(
+    definitions: Iterable[tuple[EvalMetricDefinition, str]],
+    task_import: LogTaskFileImport,
+) -> None:
+    """Make every metric in `definitions` resolvable, or raise.
+
+    Each definition comes with the label used in the error ("used by scorer
+    'my_scorer'" or "a task-level metric"). Walks nested metric registry
+    dicts inside options too. If any metric is not registered and the import
+    is trusted and not yet done, imports the task file; then raises the
+    shared LookupError for any still missing.
     """
 ```
 
-The first call does the import; the second finds the metrics registered, so
-the task file is imported at most once per recompute or recovery.
-`recompute_metrics()` and recovery call `metrics_from_log_header()` before
-`resolve_scorers_info()` (`log/_metric.py:40-41`, `_write.py:273-274`), so
-a custom task-level metric defined in the task file is covered as well as a
-scorer metric. Today only scorer metrics trigger the import, and an
-unregistered task-level metric fails with the registry's generic "not found"
-`LookupError`.
+- `metrics_from_log_header()` checks only `eval.metrics` (task-level
+  metrics, `_eval/task/log.py:278`, `:310`).
+- `resolve_scorers_info()` checks only `eval.scorers[*].metrics`.
+
+Each resolver checks only what it builds, because some callers discard the
+other source. `inspect score --scorer ... --action overwrite`
+(`docs/scoring-workflow.qmd:83`) calls `metrics_from_log_header()`
+(`score.py:348`), uses the replacement scorer's metrics, and then replaces
+`eval.scorers` (`score.py:385-401`). It must keep succeeding when the old
+`eval.scorers` names a custom metric that is no longer available, without
+importing the old task file.
+
+`recompute_metrics()` and recovery consume both sources: they call
+`metrics_from_log_header()` before `resolve_scorers_info()`
+(`log/_metric.py:40-41`, `_write.py:273-274`) and pass both the same
+`LogTaskFileImport`, so the task file is imported at most once per
+recompute or recovery. A custom task-level metric defined in the task file
+is covered as well as a scorer metric. Today only scorer metrics trigger the
+import, and an unregistered task-level metric fails with the registry's
+generic "not found" `LookupError`.
+
+When the trusted import runs, `LogTaskFileImport` logs
+`Imported task file /abs/path/evals/task.py (recorded in the log) to load metric 'my_metric'.`
+at `INFO`, and the CLI commands that can trigger it (`inspect score`,
+`inspect log recover --trust-log`) print it as part of the step 7 record.
 
 `trust_log=True` means the caller trusts the log's code-selecting fields. It
 does what happens today for scorer metrics, extended to task-level metrics:
 
-- The first unregistered metric name in either source triggers
-  `load_file_tasks(Path(task_file).absolute())`, once per call, resolved
-  against the working directory, with the `@task`/`@task_source` filter.
+- The first unregistered metric name in a source a resolver consumes
+  triggers `load_file_tasks(Path(task_file).absolute())`, once per
+  `LogTaskFileImport`, resolved against the working directory, with the
+  `@task`/`@task_source` filter.
 - Metric options are rebuilt by `metric_create()` with no restriction, so a
   custom metric whose options hold a model or another registry object is
   rebuilt as it is today.
 
 With `trust_log=False`:
 
-- No import. An unregistered metric name, from either source, raises
+- No import. An unregistered metric name, in whichever source the resolver
+  consumes, raises
   `LookupError` (the type raised today when a metric cannot be found, so
   callers that catch it keep working) with one shared message that says
   what to do:
@@ -663,6 +693,9 @@ waits on it:
 - `inspect score` (`src/inspect_ai/_cli/score.py`), when `scorer_from_log()`
   imports the task file:
   `Imported task file /abs/path/evals/task.py (recorded in the log) to load scorer 'my_scorer'.`
+  When step 2's trusted import loads it for a task-level metric (an
+  overwrite with a registered scorer and an unregistered task-level metric):
+  `Imported task file /abs/path/evals/task.py (recorded in the log) to load metric 'my_metric'.`
   When the log's model is used (no `--model`) and the log records a
   `model_base_url`: `Scoring model openai/gpt-4o from the log, base URL https://...`.
 - `inspect eval-retry` (`eval_retry_async()`, one block per log, before
@@ -1000,7 +1033,13 @@ Legitimate flows:
   `--scorer path.py@name` still loads that file; `inspect score --help`
   carries the trusted-logs sentence; the import record is printed
   once with the absolute path; `--action overwrite` on a log whose
-  `eval.metrics` holds a model-option metric still computes it.
+  `eval.metrics` holds a model-option metric still computes it; an overwrite
+  with a registered scorer and a task-level metric defined only in the task
+  file imports the file and prints the metric record line; and a
+  regression test for `--scorer <registered> --action overwrite` on a log
+  with no `eval.metrics` whose old `eval.scorers` names an unavailable custom
+  metric, asserting the rescore succeeds and the old task file (a marker
+  module) is not imported.
 - `tests/scorer/test_scorer.py` (or the file holding `eval_results` tests):
   `ScorerInfo.from_name()` returns the defaults for an unregistered name, the
   scorer's own metrics for a registered no-argument scorer (`match`,
@@ -1033,7 +1072,7 @@ the PRs open, as the repo requires.
    `src/inspect_ai/_eval/task/results.py` (`from_name()`),
    `src/inspect_ai/_eval/score.py` (`resolve_scorers_info()`,
    `metrics_from_log_header()`, `metric_from_log()`,
-   `ensure_log_metrics_registered()`; `score_async()` passes
+   `LogTaskFileImport`, `ensure_metrics_registered()`; `score_async()` passes
    `trust_log=True`),
    `src/inspect_ai/log/_metric.py`, `src/inspect_ai/log/_score.py`,
    `src/inspect_ai/log/_recover/_api.py`, `src/inspect_ai/log/_recover/_write.py`,
