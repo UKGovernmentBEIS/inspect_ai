@@ -42,6 +42,14 @@ Devin, and similar) preparing contributions. Human contributors: see
    failing test)? If the need is speculative or the fix unverified, do not
    proceed. File an issue with your evidence instead.
 
+When commenting on someone else's issue or PR without an assignment
+or review request, including when posting a PR review, identify
+yourself as an AI agent. State that you are not a project maintainer
+and that your comment or review does not represent the maintainers'
+views or decisions. Do not imply that you can accept an issue,
+approve a PR, or speak for the project. This does not apply to agents
+acting for project maintainers.
+
 If you do open a PR: reference the accepted issue (`Fixes #NNN`); run
 `make check` and `make test` and report results honestly; for non-trivial
 changes, run at least one code review pass in a fresh context on a strong
