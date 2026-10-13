@@ -26,7 +26,7 @@ def sentinel_error(
     decision = headers.get(SENTINEL_DECISION_HEADER) if headers else None
     if decision == "reject":
         # A provider may have lost the status by converting the refusal into
-        # output. In that case, use the sentinel protocol's refusal status.
+        # output. In that case, fall back to Sentinel's default rejection status.
         status = status_code_of(outcome) if isinstance(outcome, Exception) else None
         return SentinelRejectedError(
             _reason(outcome), status_code=status if status is not None else 400
