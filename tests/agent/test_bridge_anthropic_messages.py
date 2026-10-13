@@ -832,6 +832,98 @@ async def test_bridge_pause_turn_resumed_twice_names_latest_container(
     ]
 
 
+@pytest.mark.parametrize("beta", [False, True])
+@pytest.mark.anyio
+async def test_bridge_paused_turn_not_resumed_drops_pending_call(
+    monkeypatch: pytest.MonkeyPatch, beta: bool
+) -> None:
+    """A paused turn the client follows with a new user turn sends no dangling use."""
+    from anthropic._models import construct_type
+    from anthropic.types import Message
+
+    import inspect_ai.model._providers.anthropic as anthropic_provider
+    from inspect_ai.model._providers.anthropic import (
+        init_sample_anthropic_assistant_internal,
+    )
+
+    init_sample_anthropic_assistant_internal()
+    monkeypatch.setattr(anthropic_provider, "MAX_PAUSE_TURN_CONTINUATIONS", 1)
+
+    def message(id: str, content: list[dict[str, Any]], **fields: Any) -> Message:
+        data = {
+            "id": id,
+            "type": "message",
+            "role": "assistant",
+            "model": "claude-sonnet-4-6",
+            "content": content,
+            "usage": {"input_tokens": 20, "output_tokens": 2},
+        } | fields
+        return cast(Message, construct_type(value=data, type_=Message))
+
+    pending = message(
+        "msg_pending",
+        [
+            {"type": "text", "text": "searching again"},
+            {
+                "type": "server_tool_use",
+                "id": "srvtoolu_pending",
+                "name": "web_search",
+                "input": {"query": "still running"},
+                "caller": {"type": "direct"},
+            },
+        ],
+        stop_reason="pause_turn",
+        container={"id": "cntr_pending", "expires_at": "2026-12-01T00:00:00Z"},
+    )
+    reply = message(
+        "msg_reply", [{"type": "text", "text": "ok"}], stop_reason="end_turn"
+    )
+    later = message(
+        "msg_later", [{"type": "text", "text": "ok"}], stop_reason="end_turn"
+    )
+    bridge, create, outputs = _anthropic_bridge(
+        [_paused_head(1), pending, reply, later]
+    )
+    user = {"role": "user", "content": "search"}
+
+    paused = await _bridge_request(monkeypatch, bridge, outputs, [user], beta)
+    assert paused.stop_reason == "pause_turn"
+    assert paused.content[-1].id == "srvtoolu_pending"
+
+    # the client moves on with a new user turn, then another turn
+    history: list[dict[str, Any]] = [
+        user,
+        {
+            "role": "assistant",
+            "content": [b.model_dump(exclude_none=True) for b in paused.content],
+        },
+        {"role": "user", "content": "continue"},
+    ]
+    answer = await _bridge_request(monkeypatch, bridge, outputs, history, beta)
+    history += [
+        {
+            "role": "assistant",
+            "content": [b.model_dump(exclude_none=True) for b in answer.content],
+        },
+        {"role": "user", "content": "more"},
+    ]
+    await _bridge_request(monkeypatch, bridge, outputs, history, beta)
+
+    assert create.await_count == 4
+    for request in [call.kwargs for call in create.call_args_list[2:]]:
+        assert "container" not in request
+        sent = [
+            block if isinstance(block, dict) else block.model_dump()
+            for m in request["messages"]
+            if m["role"] == "assistant"
+            for block in m["content"]
+        ]
+        # the completed search stays; the call that never finished is dropped
+        assert [b.get("id") for b in sent if b["type"] == "server_tool_use"] == [
+            "srvtoolu_1"
+        ]
+
+
 def test_anthropic_stop_reason_pause_turn_only_from_stop_details() -> None:
     from inspect_ai.agent._bridge.anthropic_api_impl import anthropic_stop_reason
     from inspect_ai.model._model_output import StopDetails

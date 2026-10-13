@@ -1356,6 +1356,89 @@ async def test_anthropic_pause_turn_resumed_twice_replays_each_call_once(
     ]
 
 
+async def test_anthropic_paused_turn_not_resumed_drops_pending_call(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A paused turn followed by a new user turn sends no dangling server tool use."""
+    from anthropic._models import construct_type
+    from anthropic.types import Message
+
+    from inspect_ai.model._providers import anthropic as anthropic_provider
+    from inspect_ai.model._providers.anthropic import (
+        init_sample_anthropic_assistant_internal,
+    )
+
+    init_sample_anthropic_assistant_internal()
+    monkeypatch.setattr(anthropic_provider, "MAX_PAUSE_TURN_CONTINUATIONS", 1)
+
+    def message(
+        id: str,
+        content: list[dict[str, Any]],
+        stop_reason: str,
+        container: str | None = None,
+    ) -> Message:
+        data: dict[str, Any] = {
+            "id": id,
+            "type": "message",
+            "role": "assistant",
+            "model": "claude-sonnet-4-6",
+            "content": content,
+            "stop_reason": stop_reason,
+            "usage": {"input_tokens": 1, "output_tokens": 1},
+        }
+        if container is not None:
+            data["container"] = {"id": container, "expires_at": "2026-12-01T00:00:00Z"}
+        return cast(Message, construct_type(value=data, type_=Message))
+
+    text = {"type": "text", "text": "text"}
+    pending_use = {
+        "type": "server_tool_use",
+        "id": "srvtoolu_pending",
+        "name": "web_search",
+        "input": {"query": "still running"},
+        "caller": {"type": "direct"},
+    }
+    create = AsyncMock(
+        side_effect=[
+            message("msg_1", [text], "pause_turn"),
+            message("msg_2", [text, pending_use], "pause_turn", "cntr_pending"),
+            message("msg_3", [text], "end_turn"),
+            message("msg_4", [text], "end_turn"),
+        ]
+    )
+    model = get_model(
+        "anthropic/claude-sonnet-4-6",
+        api_key="test-key",
+        streaming=False,
+        memoize=False,
+        config=GenerateConfig(max_retries=0),
+    )
+    api = model.api
+    assert isinstance(api, AnthropicAPI)
+    monkeypatch.setattr(api.client.messages, "create", create)
+
+    # the paused turn is not resumed: a new user turn follows it (as react()
+    # does when a turn ends without tool calls), then another turn
+    messages: list[ChatMessage] = [ChatMessageUser(content="search")]
+    paused = await model.generate(messages)
+    assert paused.stop_reason == "unknown"
+    messages += [paused.message, ChatMessageUser(content="continue")]
+    reply = await model.generate(messages)
+    messages += [reply.message, ChatMessageUser(content="more")]
+    await model.generate(messages)
+
+    for request in [call.kwargs for call in create.call_args_list[2:]]:
+        assert "container" not in request
+        sent = [
+            b["type"]
+            for m in request["messages"]
+            if m["role"] == "assistant"
+            for b in m["content"]
+        ]
+        assert "server_tool_use" not in sent
+        assert "text" in sent
+
+
 def _handled_continuation_error(kind: str) -> Exception:
     """An API error that generate() converts into a ModelOutput."""
     import httpx2

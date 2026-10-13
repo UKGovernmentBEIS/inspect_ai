@@ -1112,7 +1112,10 @@ class AnthropicAPI(ModelAPI):
         has_fallback = _input_has_fallback(input)
 
         # Convert to Anthropic message format
-        messages = [await message_param(m) for m in input]
+        messages = [
+            await message_param(m, last=index == len(input) - 1)
+            for index, m in enumerate(input)
+        ]
 
         # Collapse consecutive user messages (as Inspect 'tool' messages become
         # Claude 'user' messages, and multiple tool results need to be merged)
@@ -1329,10 +1332,12 @@ class AnthropicAPI(ModelAPI):
                 ),
             )
             # no continuation will complete a server tool call still in
-            # flight, so record its open span with this message: replay then
-            # sends its use block, and the result that arrives when the turn
-            # is resumed finds it
+            # flight, so record its open span with this message: a request
+            # that resumes the turn then sends its use block, and the result
+            # that arrives finds it (see `_ServerToolSpan.paused`)
             open_spans = span_recorder.take_spans(include_open=True)
+            for span in open_spans:
+                span.paused = bool(span.open_use_ids)
             if open_spans and head_model_output.message.id is not None:
                 record_server_tool_spans(head_model_output.message.id, open_spans)
         elif continuation_required:
@@ -2256,10 +2261,12 @@ class AnthropicAPI(ModelAPI):
         message_params = [
             (
                 await message_param(
-                    message, computer_toolset_call_ids=computer_toolset_call_ids
+                    message,
+                    computer_toolset_call_ids=computer_toolset_call_ids,
+                    last=index == len(messages) - 1,
                 )
             )
-            for message in messages
+            for index, message in enumerate(messages)
         ]
 
         # collapse user messages (as Inspect 'tool' messages become Claude 'user' messages)
@@ -2382,10 +2389,12 @@ class AnthropicAPI(ModelAPI):
         message_params = [
             (
                 await message_param(
-                    message, computer_toolset_call_ids=computer_toolset_call_ids
+                    message,
+                    computer_toolset_call_ids=computer_toolset_call_ids,
+                    last=index == len(messages) - 1,
                 )
             )
-            for message in messages
+            for index, message in enumerate(messages)
         ]
 
         # collapse user messages (as Inspect 'tool' messages become Claude 'user' messages)
@@ -3524,13 +3533,17 @@ def system_content_blocks(
 
 
 async def message_param(
-    message: ChatMessage, *, computer_toolset_call_ids: Collection[str] = frozenset()
+    message: ChatMessage,
+    *,
+    computer_toolset_call_ids: Collection[str] = frozenset(),
+    last: bool = True,
 ) -> MessageParam:
     """Convert a chat message to an Anthropic message param.
 
     `computer_toolset_call_ids` holds the tool call ids that replay as computer
     toolset members (their `tool_use` and `tool_result` blocks carry
     `toolset_name`); it is empty whenever the toolset is not declared.
+    `last` is False when other messages follow this one in the request.
     """
     # if content is empty that is going to result in an error when we replay
     # this message to claude, so in that case insert a NO_CONTENT message
@@ -3595,7 +3608,7 @@ async def message_param(
     # tool_calls means claude is attempting to call our tools
     elif message.role == "assistant":
         block_params = await assistant_message_block_params(
-            message, computer_toolset_call_ids=computer_toolset_call_ids
+            message, computer_toolset_call_ids=computer_toolset_call_ids, last=last
         )
 
         return MessageParam(
@@ -3808,6 +3821,7 @@ async def assistant_message_block_params(
     message: ChatMessageAssistant,
     *,
     computer_toolset_call_ids: Collection[str] = frozenset(),
+    last: bool = True,
 ) -> list[MessageBlockParam]:
     block_params: list[MessageBlockParam] = []
 
@@ -3854,10 +3868,13 @@ async def assistant_message_block_params(
         # content qualify -- a span whose content items were removed by a
         # scaffold edit was deleted deliberately and stays dropped. with no
         # anchor, the span lands after the content-derived blocks rather than
-        # at its original wire position (which is not recorded).
+        # at its original wire position (which is not recorded). a paused
+        # turn's pending work is resumed only when the turn is last.
         for span in record or []:
             if not span.content_ids and id(span) not in emitted:
                 emitted.add(id(span))
+                if span.paused and not last:
+                    continue
                 pending_span_params.extend(_span_block_params(span, message))
 
     # splice client tool_use blocks back at their recorded interleaved
@@ -3972,6 +3989,13 @@ class _ServerToolSpan:
     obligates the follow-up request to name the container (see
     `_pending_container_for_input`). Ids stay set even after a later turn's
     result arrives (see `add_prior_turn_result`)."""
+
+    paused: bool = False
+    """Left pending by a turn paused at `MAX_PAUSE_TURN_CONTINUATIONS`.
+
+    Only a request that resumes that turn (the paused message last) can
+    complete the work. A request where other messages follow it sends
+    neither the pending use block nor the container."""
 
 
 class _ServerToolSpanRecorder:
@@ -4148,6 +4172,7 @@ def init_sample_anthropic_assistant_internal(value: JsonValue | None = None) -> 
             blocks=cast("list[_ServerToolSpanBlockParam]", span["blocks"]),
             content_ids=cast("list[str]", span["content_ids"]),
             open_use_ids=set(cast("list[str]", span["open_use_ids"])),
+            paused=bool(span.get("paused", False)),
         )
         for span in cast("list[dict[str, Any]]", value.get("spans", []))
     ]
@@ -4216,6 +4241,7 @@ def dump_anthropic_assistant_internal() -> JsonValue | None:
                     "blocks": span.blocks,
                     "content_ids": span.content_ids,
                     "open_use_ids": sorted(span.open_use_ids),
+                    "paused": span.paused,
                 }
                 for span in span_table
             ],
@@ -4389,6 +4415,9 @@ def _pending_container_for_input(input: list[ChatMessage]) -> str | None:
     if container is None:
         return None
     spans = internal.server_tool_spans.get(latest_id, [])
+    if last_assistant is not input[-1]:
+        # a paused turn followed by other messages is not resumed
+        spans = [span for span in spans if not span.paused]
     if any(span.open_use_ids for span in spans):
         return container
     return None
