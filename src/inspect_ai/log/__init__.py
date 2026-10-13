@@ -1,3 +1,4 @@
+from inspect_ai._sentinel._config import SentinelConfig, SentinelEntry
 from inspect_ai._util.deprecation import relocated_module_attribute
 from inspect_ai._util.error import EvalError, WriteConflictError
 
@@ -62,6 +63,8 @@ from ._log import (
     EvalSampleScore,
     EvalSampleSummary,
     EvalScore,
+    EvalShardEntry,
+    EvalShards,
     EvalSpec,
     EvalStats,
     EvalStatus,
@@ -94,6 +97,8 @@ __all__ = [
     "effective_eval_config",
     "effective_generate_config",
     "EvalConfig",
+    "SentinelConfig",
+    "SentinelEntry",
     "EvalError",
     "EvalDataset",
     "EvalLog",
@@ -109,6 +114,8 @@ __all__ = [
     "EvalSampleReductions",
     "EvalSampleSummary",
     "EvalScore",
+    "EvalShardEntry",
+    "EvalShards",
     "EvalSpec",
     "EvalStats",
     "EvalStatus",

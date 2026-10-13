@@ -41,6 +41,7 @@ from tenacity import (
 )
 from tenacity.wait import WaitBaseT
 
+from inspect_ai._sentinel._context import is_agent_generate
 from inspect_ai._util.constants import (
     DEFAULT_MAX_CONNECTIONS,
     DEFAULT_MAX_CONNECTIONS_BATCH,
@@ -216,6 +217,13 @@ class GenerateInput(NamedTuple):
 
     config: GenerateConfig
     """Model configuration."""
+
+
+class _PreparedInput(NamedTuple):
+    input: list[ChatMessage]
+    tdefs: list[ToolDef]
+    tools: list[ToolInfo]
+    tool_choice: ToolChoice
 
 
 @dataclasses.dataclass(frozen=True)
@@ -564,20 +572,6 @@ class ModelAPI(abc.ABC):
         """
         return "default"
 
-    def apply_redacted_reasoning_tokens_to_input(self) -> bool:
-        """Whether compaction should add `redacted_reasoning_tokens` to its input estimate.
-
-        Override and return True for providers whose `usage.input_tokens`
-        omits redacted reasoning content on re-injection (e.g., OpenAI
-        Responses with `store=false` + `include=["reasoning.encrypted_content"]`).
-
-        Note: bridge-mediated workloads (`agent_bridge`) reconstruct messages
-        from provider-native input and lose this metadata, so the predictive
-        correction does not apply there. Bridge users rely on the reactive
-        `model_length` recovery.
-        """
-        return False
-
     def should_retry(self, ex: Exception) -> bool | RetryDecision:
         """Should this exception be retried?
 
@@ -683,41 +677,6 @@ class ModelAPI(abc.ABC):
         raise NotImplementedError(
             f"{self.__class__.__name__} does not support native compaction."
         )
-
-
-REDACTED_REASONING_TOKENS_METADATA_KEY = "redacted_reasoning_tokens"
-"""Metadata key for the per-message reasoning token count that an
-all-redacted-reasoning response contributes to context on re-injection but
-is omitted from `usage.input_tokens` by some providers (e.g., OpenAI
-Responses with encrypted reasoning preservation). Compaction reads this
-to correct its threshold estimate."""
-
-
-def _stamp_redacted_reasoning_tokens(output: ModelOutput) -> None:
-    """Stamp `redacted_reasoning_tokens` onto an assistant message's metadata.
-
-    Only stamps when ALL reasoning blocks in the response are redacted; mixed
-    responses (some visible, some redacted) can't be split from a single
-    `usage.reasoning_tokens` figure, and responses with only visible reasoning
-    don't have the input-counting blind spot the metadata is meant to correct.
-    """
-    if not (
-        output.usage
-        and output.usage.reasoning_tokens
-        and isinstance(output.message.content, list)
-    ):
-        return
-
-    reasoning_blocks = [
-        c for c in output.message.content if isinstance(c, ContentReasoning)
-    ]
-    if not reasoning_blocks or not all(c.redacted for c in reasoning_blocks):
-        return
-
-    output.message.metadata = {
-        **(output.message.metadata or {}),
-        REDACTED_REASONING_TOKENS_METADATA_KEY: output.usage.reasoning_tokens,
-    }
 
 
 def _check_remote_mcp_approval(tools: Sequence[ToolInfo]) -> None:
@@ -1047,10 +1006,27 @@ class Model:
         # normalize input to chat
         if isinstance(input, str):
             input = [ChatMessageUser(content=input)]
+        history = input
 
         # insert any system message provided in config
         if config.system_message:
             input = [ChatMessageSystem(content=config.system_message)] + input
+
+        prepared = await self._prepare_input(input, tools, tool_choice, config)
+
+        # outside the connection slot, since a monitor may call this model too
+        generate_step = None
+        if is_agent_generate():
+            from inspect_ai._sentinel._dispatch import sentinel_before_generate
+
+            generate_step = await sentinel_before_generate(
+                model=str(self),
+                input=prepared.input,
+                history=history,
+                tools=prepared.tools,
+                tool_choice=prepared.tool_choice,
+                config=config,
+            )
 
         # enforce concurrency limits
         start_time = datetime.now(timezone.utc)
@@ -1058,9 +1034,7 @@ class Model:
         async with self._connection_concurrency(config) as connection:
             # generate
             output, event = await self._generate(
-                input=input,
-                tools=tools,
-                tool_choice=tool_choice,
+                prepared=prepared,
                 config=config,
                 cache=cache,
                 connection=connection,
@@ -1090,8 +1064,6 @@ class Model:
             # snapshot at emission time) pick up the timing fields set above
             transcript()._event_updated(event)
 
-            _stamp_redacted_reasoning_tokens(output)
-
             # fail the sample on a refusal if requested. Raised here, after the
             # ModelEvent is complete (so the transcript shows the refusal and
             # then the error) and after usage/refusal accounting has run.
@@ -1102,8 +1074,12 @@ class Model:
             ):
                 raise ModelRefusalError(output, str(self), self.role)
 
-            # return output
-            return output
+        if generate_step is not None:
+            from inspect_ai._sentinel._dispatch import sentinel_after_generate
+
+            await sentinel_after_generate(generate_step, output)
+
+        return output
 
     async def generate_loop(
         self,
@@ -1360,30 +1336,13 @@ class Model:
 
             return compacted_messages, usage
 
-    async def _generate(
+    async def _prepare_input(
         self,
         input: list[ChatMessage],
         tools: Sequence[Tool | ToolDef | ToolInfo | ToolSource] | ToolSource,
         tool_choice: ToolChoice | None,
         config: GenerateConfig,
-        cache: bool | CachePolicy | NotGiven = NOT_GIVEN,
-        connection: ConnectionSlot | None = None,
-        on_stream: StreamHandler | None = None,
-    ) -> tuple[ModelOutput, BaseModel]:
-        from inspect_ai.event._model import ModelEvent
-        from inspect_ai.hooks._hooks import (
-            emit_before_model_generate,
-            emit_model_cache_usage,
-            emit_model_usage,
-            get_all_hooks,
-        )
-        from inspect_ai.hooks._legacy import send_telemetry_legacy
-        from inspect_ai.log._refusal import report_refusal
-        from inspect_ai.log._samples import (
-            cleared_retry_wait,
-            track_active_model_event,
-        )
-
+    ) -> "_PreparedInput":
         # default to 'auto' for tool_choice (same as underlying model apis)
         tool_choice = tool_choice if tool_choice is not None else "auto"
 
@@ -1441,6 +1400,31 @@ class Model:
 
         input = collapse_consecutive_messages_for_api(input, self.api)
         _validate_model_input_media(input)
+        return _PreparedInput(input, tdefs, base_tools, tool_choice)
+
+    async def _generate(
+        self,
+        prepared: "_PreparedInput",
+        config: GenerateConfig,
+        cache: bool | CachePolicy | NotGiven = NOT_GIVEN,
+        connection: ConnectionSlot | None = None,
+        on_stream: StreamHandler | None = None,
+    ) -> tuple[ModelOutput, BaseModel]:
+        from inspect_ai.event._model import ModelEvent
+        from inspect_ai.hooks._hooks import (
+            emit_before_model_generate,
+            emit_model_cache_usage,
+            emit_model_usage,
+            get_all_hooks,
+        )
+        from inspect_ai.hooks._legacy import send_telemetry_legacy
+        from inspect_ai.log._refusal import report_refusal
+        from inspect_ai.log._samples import (
+            cleared_retry_wait,
+            track_active_model_event,
+        )
+
+        input, tdefs, base_tools, tool_choice = prepared
 
         # resolve cache policy
         if isinstance(cache, NotGiven):

@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import sys
 import tempfile
 from pathlib import Path
@@ -190,23 +191,16 @@ def test_options_from_choices_three_includes_terminate_as_reject_always() -> Non
     assert options[2].kind == "reject_always"
 
 
-def test_options_from_choices_includes_escalate_and_modify_as_best_effort() -> None:
+def test_options_from_choices_includes_escalate_as_best_effort() -> None:
     """Unmappable Inspect choices still round-trip via optionId.
 
-    ACP has no first-class kind for modify/escalate — they map to
-    semantic neighbors (allow_once / reject_once). The optionId
-    round-trip is what actually preserves the decision; kind is
-    just a visual hint to the client.
+    ACP has no first-class kind for escalate — it maps to a semantic
+    neighbor (reject_once). The optionId round-trip is what actually
+    preserves the decision; kind is just a visual hint to the client.
     """
-    options = _options_from_choices(["approve", "modify", "reject", "escalate"])
-    assert [o.option_id for o in options] == [
-        "approve",
-        "modify",
-        "reject",
-        "escalate",
-    ]
-    assert options[1].kind == "allow_once"  # modify ≈ allow
-    assert options[3].kind == "reject_once"  # escalate ≈ reject
+    options = _options_from_choices(["approve", "reject", "escalate"])
+    assert [o.option_id for o in options] == ["approve", "reject", "escalate"]
+    assert options[2].kind == "reject_once"  # escalate ≈ reject
 
 
 # ---------------------------------------------------------------------------
@@ -1024,6 +1018,37 @@ async def test_entry_routes_to_attached_client(
     assert req.tool_call.title is not None
     assert req.tool_call.title.startswith("bash ")
     assert [o.option_id for o in req.options] == ["approve", "reject"]
+
+
+@skip_if_trio
+async def test_human_approver_offers_no_modify_over_acp(
+    monkeypatch, acp_server_running, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A human can't supply a modified call, so Modify is never offered.
+
+    Configured ``modify`` is dropped with a warning, and a client that
+    answers ``modify`` anyway gets a rejection rather than a ``modify``
+    decision with no modified call.
+    """
+    with caplog.at_level(logging.WARNING):
+        approve = human_approver(["approve", "modify", "reject"])
+    assert "'modify' choice" in caplog.text
+
+    sample = _PendingSample()
+    session = LiveAcpTransport()
+    session._attachable_override = True
+    sample.acp_transport = session
+    client = _StubClient(response=_selected("modify"))
+    session.attach_approver_client(client)
+    session.notify_approver_attach(client)
+    monkeypatch.setattr("inspect_ai.log._samples.sample_active", lambda: sample)
+
+    result = await approve("please confirm", _make_call(), _make_view(), [])
+
+    (request,) = client.received
+    assert [o.option_id for o in request.options] == ["approve", "reject"]
+    assert result.decision == "reject"
+    assert result.modified is None
 
 
 @skip_if_trio
