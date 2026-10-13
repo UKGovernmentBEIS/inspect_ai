@@ -772,10 +772,14 @@ async def test_azureai_real_client_records_response_headers(
     headers = ResponseHeaders()
 
     with track_response_headers(headers):
-        await _generate(_real_api(base_url, streaming))
+        result = await _generate(_real_api(base_url, streaming))
 
     assert headers.latest is not None
     assert headers.latest["x-served-by"] == "gateway"
+    if status == 200:
+        # streamed or not, the reply still arrives whole
+        output = result[0] if isinstance(result, tuple) else result
+        assert output.completion == "ok"
 
 
 @skip_if_trio
