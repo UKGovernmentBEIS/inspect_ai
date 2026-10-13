@@ -136,6 +136,10 @@ class _EndpointHandler(BaseHTTPRequestHandler):
             status = 503
             content_type = "application/json"
             body = b'{"message": "n'
+        elif "/redirecting-endpoint/" in self.path:
+            status = 307
+            content_type = "application/json"
+            body = b""
         elif operation == "invocations-response-stream":
             content_type = "application/vnd.amazon.eventstream"
             body = _payload_part(
@@ -149,6 +153,9 @@ class _EndpointHandler(BaseHTTPRequestHandler):
         # an unfinished response promises more body than it sends
         self.send_header("Content-Length", str(len(body) + (100 if unfinished else 0)))
         self.send_header("X-Served-By", operation)
+        if status == 307:
+            # nothing listens there
+            self.send_header("Location", "http://127.0.0.1:1/")
         self.end_headers()
         self.wfile.write(body)
         self.wfile.flush()
@@ -242,6 +249,24 @@ async def test_real_client_records_the_headers_of_a_response_cut_short(
     endpoint_server: str, stream: bool, operation: str
 ) -> None:
     api = _real_api("truncating-endpoint", endpoint_server, stream)
+    headers = ResponseHeaders()
+
+    with track_response_headers(headers), pytest.raises(Exception) as raised:
+        await api.generate(
+            [ChatMessageUser(content="hello")], [], "auto", GenerateConfig()
+        )
+
+    assert not isinstance(raised.value, ClientError)
+    assert headers.latest is not None
+    assert headers.latest["x-served-by"] == operation
+
+
+@skip_if_trio
+@OPERATIONS
+async def test_real_client_records_the_headers_of_a_redirect_it_could_not_follow(
+    endpoint_server: str, stream: bool, operation: str
+) -> None:
+    api = _real_api("redirecting-endpoint", endpoint_server, stream)
     headers = ResponseHeaders()
 
     with track_response_headers(headers), pytest.raises(Exception) as raised:

@@ -444,15 +444,17 @@ def header_recording_session() -> type[Any]:
 
     from inspect_ai.model._response_headers import record_response_headers
 
-    async def on_request_end(
+    async def on_response(
         session: aiohttp.ClientSession,
         context: object,
-        params: aiohttp.TraceRequestEndParams,
+        params: aiohttp.TraceRequestEndParams | aiohttp.TraceRequestRedirectParams,
     ) -> None:
         record_response_headers(params.response.headers)
 
     trace_config = aiohttp.TraceConfig()
-    trace_config.on_request_end.append(on_request_end)
+    trace_config.on_request_end.append(on_response)
+    # a redirect is a response too, and following it may get no response
+    trace_config.on_request_redirect.append(on_response)
     trace_config.freeze()
 
     class HeaderRecordingSession(AIOHTTPSession):
