@@ -8,6 +8,7 @@ from typing import Any
 import httpx2
 import pytest
 import tenacity
+from pydantic import JsonValue
 
 from inspect_ai import Task, eval
 from inspect_ai._sentinel._header import (
@@ -15,12 +16,18 @@ from inspect_ai._sentinel._header import (
     SentinelRejectedError,
 )
 from inspect_ai._util.exception import TerminateSampleError
+from inspect_ai.agent import AgentState
+from inspect_ai.agent._bridge._errors import PROVIDER_ERROR_KEY
+from inspect_ai.agent._bridge.sandbox.service import _forward_provider_errors
+from inspect_ai.agent._bridge.sandbox.types import SandboxAgentBridge
 from inspect_ai.dataset import Sample
 from inspect_ai.model import GenerateConfig, Model, get_model
 from inspect_ai.scorer import includes
 from inspect_ai.solver import generate
 
-# every module in tests/sentinel skips when the optional package is absent
+# These tests intentionally stay with the sentinel suite and share its
+# inspect_sentinel skip, even though header handling works without the package.
+# Please keep this convention; extra tests without the package aren't needed.
 if importlib.util.find_spec("inspect_sentinel") is None:
     pytest.skip("inspect_sentinel is not installed", allow_module_level=True)
 
@@ -153,12 +160,17 @@ async def test_reject_asks_the_model_again(
 @PROVIDERS
 @REASONS
 async def test_terminate_raises_with_the_reason(
-    name: str, base_url: str, reply: Callable[[], httpx2.Response], reason: str
+    name: str,
+    base_url: str,
+    reply: Callable[[], httpx2.Response],
+    reason: str,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    model = _model(name, base_url, _refused("terminate", reason))
+    model = _model(name, base_url, _refused("terminate", reason), reply())
+    monkeypatch.setattr(model.api, "should_retry", lambda ex: True)
 
     with pytest.raises(TerminateSampleError) as raised:
-        await model.generate("hello")
+        await model.generate("hello", config=GenerateConfig(max_retries=1))
 
     # Anthropic's provider lowercases an error it turns into output
     told = raised.value.reason
@@ -179,6 +191,49 @@ async def test_reject_stops_at_max_retries(
 
     last = raised.value.last_attempt.exception()
     assert isinstance(last, SentinelRejectedError) and str(last) == reason
+
+
+@PROVIDERS
+@pytest.mark.parametrize(
+    ("reason", "status"),
+    [
+        ("A sentinel rejected the call to bash: not allowed.", 400),
+        ("A sentinel rejected the call to bash: blocked by content filtering.", 400),
+        ("A sentinel rejected the call to bash: not allowed.", 503),
+    ],
+    ids=["plain", "worded_like_a_content_filter", "503"],
+)
+async def test_exhausted_reject_is_forwarded_without_warning(
+    name: str,
+    base_url: str,
+    reply: Callable[[], httpx2.Response],
+    reason: str,
+    status: int,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    model = _model(name, base_url, _refused("reject", reason, status=status))
+    bridge = SandboxAgentBridge(
+        state=AgentState(messages=[]),
+        filter=None,
+        retry_refusals=None,
+        compaction=None,
+        port=13131,
+        model=None,
+    )
+
+    async def request(json_data: dict[str, JsonValue]) -> dict[str, JsonValue]:
+        await model.generate("hello", config=GenerateConfig(max_retries=0))
+        raise AssertionError("rejected generation unexpectedly succeeded")
+
+    result = await _forward_provider_errors(request, bridge)({})
+
+    payload = result[PROVIDER_ERROR_KEY]
+    assert isinstance(payload, dict)
+    assert payload["status"] == status
+    message = payload["message"]
+    assert isinstance(message, str) and reason.lower() in message.lower()
+    assert not bridge._failure_requested.is_set()
+    assert not any("non-provider error" in record.message for record in caplog.records)
 
 
 @PROVIDERS

@@ -58,6 +58,7 @@ from inspect_ai._util.content import (
     ContentVideo,
 )
 from inspect_ai._util.error import PrerequisiteError, exception_message
+from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai._util.http import status_code_of
 from inspect_ai._util.images import UnresolvedMediaError, inline_media_data_uri
 from inspect_ai._util.logger import warn_once
@@ -1813,6 +1814,9 @@ class Model:
         return model_output, event
 
     def should_retry(self, ex: BaseException) -> bool:
+        if isinstance(ex, TerminateSampleError):
+            return False
+
         # `str(self)` requires registry info, which a hand-constructed
         # ModelAPI (built outside get_model()) doesn't have — use the
         # stamped qualified name, None when absent (retries then simply
