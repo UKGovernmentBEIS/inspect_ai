@@ -10,8 +10,14 @@ background, abandon-on-exit, timeout partials).
 
 from __future__ import annotations
 
+import sys
+from typing import Any, Awaitable, Callable
+
 import anyio
 import pytest
+
+if sys.version_info < (3, 11):
+    from exceptiongroup import ExceptionGroup
 
 from inspect_ai import Task, eval
 from inspect_ai.agent import deepagent, subagent
@@ -28,7 +34,10 @@ from inspect_ai.agent._deepagent.deepagent import (
 )
 from inspect_ai.dataset import Sample
 from inspect_ai.event._tool import ToolEvent
+from inspect_ai.log import EvalLog
 from inspect_ai.model import ModelOutput, get_model
+from inspect_ai.scorer import Score, Scorer, Target, accuracy, scorer
+from inspect_ai.solver import Generate, Solver, TaskState, generate, solver
 from inspect_ai.tool import Tool, tool
 from inspect_ai.util import message_limit
 
@@ -1942,6 +1951,366 @@ class TestAbandonOnExit:
         agent_events = _events_for(result, "agent")
         assert len(agent_events) == 1
         assert "AGENT-1" in str(agent_events[0].result)
+
+
+def _capture_background_registry(captured: list[BackgroundRegistry]) -> Tool:
+    """Build a parent tool that records the deepagent's background registry."""
+
+    @tool
+    def capture_background_registry() -> Tool:
+        """Record the current deepagent background registry."""
+
+        async def execute() -> str:
+            """Record the active background registry."""
+            registry = current_background_registry()
+            assert registry is not None
+            captured.append(registry)
+            return "captured"
+
+        return execute
+
+    return capture_background_registry()
+
+
+def _eval_in_scorer(
+    run_in_scorer: Callable[[TaskState], Awaitable[None]], **eval_kwargs: Any
+) -> EvalLog:
+    """Eval one sample whose scorer awaits ``run_in_scorer`` after the solver."""
+
+    @scorer(metrics=[accuracy()])
+    def run_after_solver() -> Scorer:
+        async def score(state: TaskState, target: Target) -> Score:
+            await run_in_scorer(state)
+            return Score(value=1.0)
+
+        return score
+
+    task = Task(
+        dataset=[Sample(input="Solve this.", target="done")],
+        solver=[generate()],
+        scorer=run_after_solver(),
+    )
+    solver_model = get_model(
+        "mockllm/model",
+        custom_outputs=[ModelOutput.from_content("mockllm/model", "done")],
+    )
+    return eval(task, model=solver_model, **eval_kwargs)[0]
+
+
+class TestNoLiveSampleTaskGroup:
+    """Background dispatch when the sample's task group cannot take children.
+
+    The sample runner cancels its task group when the solver chain finishes,
+    so a deepagent that starts in a scorer owns the task group its children
+    run in. Inside a solver, children keep the sample-scoped lifetime.
+    """
+
+    def test_scorer_dispatches_and_waits_for_background_agent(self) -> None:
+        from inspect_ai.agent._agent import AgentState
+
+        reviewer = _build_submit_subagent("reviewer", "reviewed")
+        reviewer_model = get_model(
+            "mockllm/model",
+            custom_outputs=[
+                _agent_call(prompt="Review the completed solver output."),
+                _tool_call("agent_wait", agent_ids=["AGENT-1"], mode="all"),
+                _submit("scorecard complete"),
+            ],
+        )
+
+        async def review(state: TaskState) -> None:
+            review_agent = deepagent(
+                subagents=[reviewer],
+                model=reviewer_model,
+                background=True,
+                submit=True,
+            )
+            await review_agent(AgentState(messages=list(state.messages)))
+
+        log = _eval_in_scorer(review)
+
+        assert log.status == "success"
+        assert log.samples is not None
+        events = log.samples[0].events
+        agent_events = [
+            e for e in events if isinstance(e, ToolEvent) and e.function == "agent"
+        ]
+        assert len(agent_events) == 1
+        assert agent_events[0].error is None
+        wait_events = [
+            e for e in events if isinstance(e, ToolEvent) and e.function == "agent_wait"
+        ]
+        assert len(wait_events) == 1
+        assert wait_events[0].error is None
+        assert "completed" in str(wait_events[0].result)
+        assert "reviewed" in str(wait_events[0].result)
+
+    def test_solver_child_outlives_parent_until_sample_teardown(self) -> None:
+        from inspect_ai.agent._agent import AgentState
+
+        captured: list[BackgroundRegistry] = []
+        status_after_return: list[str] = []
+        agent = deepagent(
+            subagents=[_build_blocking_subagent("runner")],
+            tools=[_capture_background_registry(captured)],
+            model=get_model(
+                "mockllm/model",
+                custom_outputs=[
+                    _agent_call(prompt="go"),
+                    _tool_call("capture_background_registry"),
+                    _submit("done"),
+                ],
+            ),
+            background=True,
+            submit=True,
+        )
+
+        @solver
+        def run_agent() -> Solver:
+            async def solve(state: TaskState, generate: Generate) -> TaskState:
+                await agent(AgentState(messages=list(state.messages)))
+                status_after_return.append(captured[0].futures["AGENT-1"].status)
+                return state
+
+            return solve
+
+        log = eval(
+            Task(dataset=[Sample(input="Do work.")], solver=[run_agent()]),
+            model="mockllm/model",
+        )[0]
+
+        assert log.status == "success"
+        assert status_after_return == ["running"]
+        future = captured[0].futures["AGENT-1"]
+        assert future.status == "cancelled"
+        assert future.done.is_set()
+
+    def test_scorer_parent_return_cancels_children(self) -> None:
+        from inspect_ai.agent._agent import AgentState
+
+        captured: list[BackgroundRegistry] = []
+        agent = deepagent(
+            subagents=[_build_blocking_subagent("runner")],
+            tools=[_capture_background_registry(captured)],
+            model=get_model(
+                "mockllm/model",
+                custom_outputs=[
+                    _agent_call(prompt="go"),
+                    _tool_call("capture_background_registry"),
+                    _submit("done"),
+                ],
+            ),
+            background=True,
+            submit=True,
+        )
+
+        async def run_agent(state: TaskState) -> None:
+            # The child blocks for 60s, so returning promptly proves it was
+            # cancelled rather than awaited.
+            with anyio.fail_after(30):
+                await agent(AgentState(messages=list(state.messages)))
+
+        log = _eval_in_scorer(run_agent)
+
+        assert log.status == "success"
+        assert log.samples is not None and log.samples[0].error is None
+        future = captured[0].futures["AGENT-1"]
+        assert future.status == "cancelled"
+        assert future.done.is_set()
+
+    def test_scorer_parent_failure_cancels_children_and_keeps_cause(self) -> None:
+        from inspect_ai.agent._agent import AgentState
+
+        captured: list[BackgroundRegistry] = []
+        errors: list[RuntimeError] = []
+        calls = 0
+
+        def parent_output(input, tools, tool_choice, config):
+            nonlocal calls
+            calls += 1
+            if calls == 1:
+                return _agent_call(prompt="go")
+            if calls == 2:
+                return _tool_call("capture_background_registry")
+            raise RuntimeError("root failure") from ValueError("root cause")
+
+        agent = deepagent(
+            subagents=[_build_blocking_subagent("runner")],
+            tools=[_capture_background_registry(captured)],
+            model=get_model("mockllm/model", custom_outputs=parent_output),
+            background=True,
+            submit=True,
+        )
+
+        async def run_agent(state: TaskState) -> None:
+            with anyio.fail_after(30):
+                try:
+                    await agent(AgentState(messages=list(state.messages)))
+                except RuntimeError as ex:
+                    errors.append(ex)
+
+        log = _eval_in_scorer(run_agent)
+
+        assert log.status == "success"
+        assert [str(ex) for ex in errors] == ["root failure"]
+        assert isinstance(errors[0].__cause__, ValueError)
+        future = captured[0].futures["AGENT-1"]
+        assert future.status == "cancelled"
+        assert future.done.is_set()
+
+    def test_scorer_parent_cancellation_cancels_children(self) -> None:
+        from inspect_ai.agent._agent import AgentState
+
+        captured: list[BackgroundRegistry] = []
+        cancelled: list[bool] = []
+
+        async def run_agent(state: TaskState) -> None:
+            with anyio.fail_after(30):
+                with anyio.CancelScope() as cancel_scope:
+
+                    @tool
+                    def cancel_parent() -> Tool:
+                        """Cancel the scope enclosing the deepagent."""
+
+                        async def execute() -> str:
+                            """Cancel the enclosing scope."""
+                            cancel_scope.cancel()
+                            await anyio.sleep(0)
+                            return "unreachable"
+
+                        return execute
+
+                    agent = deepagent(
+                        subagents=[_build_blocking_subagent("runner")],
+                        tools=[_capture_background_registry(captured), cancel_parent()],
+                        model=get_model(
+                            "mockllm/model",
+                            custom_outputs=[
+                                _agent_call(prompt="go"),
+                                _tool_call("capture_background_registry"),
+                                _tool_call("cancel_parent"),
+                            ],
+                        ),
+                        background=True,
+                        submit=True,
+                    )
+                    await agent(AgentState(messages=list(state.messages)))
+            cancelled.append(cancel_scope.cancel_called)
+
+        log = _eval_in_scorer(run_agent)
+
+        assert log.status == "success"
+        assert cancelled == [True]
+        future = captured[0].futures["AGENT-1"]
+        assert future.status == "cancelled"
+        assert future.done.is_set()
+
+    def test_scorer_parent_exception_group_reaches_caller_intact(self) -> None:
+        from inspect_ai.agent._agent import AgentState
+
+        errors: list[ExceptionGroup] = []
+
+        def parent_output(input, tools, tool_choice, config):
+            raise ExceptionGroup("grp", [ValueError("a"), KeyError("b")])
+
+        agent = deepagent(
+            subagents=[_build_submit_subagent("helper", "done")],
+            model=get_model("mockllm/model", custom_outputs=parent_output),
+            background=True,
+            submit=True,
+        )
+
+        async def run_agent(state: TaskState) -> None:
+            try:
+                await agent(AgentState(messages=list(state.messages)))
+            except ExceptionGroup as ex:
+                errors.append(ex)
+
+        log = _eval_in_scorer(run_agent)
+
+        assert log.status == "success"
+        assert len(errors) == 1
+        assert errors[0].message == "grp"
+        assert [type(ex) for ex in errors[0].exceptions] == [ValueError, KeyError]
+
+    @pytest.mark.parametrize("background", [False, True])
+    def test_scorer_parent_saved_cancellation_reaches_caller(
+        self, background: bool
+    ) -> None:
+        # A library may save a cancellation from a scope it cancelled itself
+        # and re-raise it after that scope exits. The owned task group's own
+        # cancel must not absorb it and turn it into a normal return.
+        from inspect_ai.agent._agent import AgentState
+
+        escaped: list[BaseException] = []
+
+        async def parent_output(input, tools, tool_choice, config):
+            saved: BaseException | None = None
+            with anyio.CancelScope() as scope:
+                scope.cancel()
+                try:
+                    await anyio.sleep(10)
+                except anyio.get_cancelled_exc_class() as ex:
+                    saved = ex
+            assert saved is not None
+            raise saved
+
+        agent = deepagent(
+            subagents=[_build_submit_subagent("helper", "done")],
+            model=get_model("mockllm/model", custom_outputs=parent_output),
+            background=background,
+            submit=True,
+        )
+
+        async def run_agent(state: TaskState) -> None:
+            try:
+                await agent(AgentState(messages=list(state.messages)))
+            except anyio.get_cancelled_exc_class() as ex:
+                escaped.append(ex)
+                raise
+
+        log = _eval_in_scorer(run_agent)
+
+        assert len(escaped) == 1
+        assert log.samples is not None
+        assert log.samples[0].error is not None
+        assert not log.samples[0].scores
+
+    def test_scorer_child_refusal_reaches_caller(self) -> None:
+        from inspect_ai.agent._agent import AgentState
+        from inspect_ai.model._model import ModelRefusalError
+
+        raised: list[BaseException] = []
+        agent = deepagent(
+            subagents=[_build_refusing_subagent("refuser")],
+            tools=[_wait_test_helper()],
+            model=get_model(
+                "mockllm/model",
+                custom_outputs=[
+                    _agent_call(prompt="go"),
+                    _tool_call("_wait_test_helper", agent_id="AGENT-1"),
+                    _submit("done"),
+                ],
+            ),
+            background=True,
+            submit=True,
+            retry_refusals=None,
+        )
+
+        async def run_agent(state: TaskState) -> None:
+            try:
+                await agent(AgentState(messages=list(state.messages)))
+            except BaseException as ex:
+                raised.append(ex)
+                raise
+
+        log = _eval_in_scorer(run_agent, fail_on_refusal=True, fail_on_error=False)
+
+        assert [type(ex) for ex in raised] == [ModelRefusalError]
+        assert log.samples is not None
+        error = log.samples[0].error
+        assert error is not None
+        assert "Model refusal (mockllm/model)" in error.message
 
 
 # ---------------------------------------------------------------------------

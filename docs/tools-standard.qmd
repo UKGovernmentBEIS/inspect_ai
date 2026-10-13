@@ -68,6 +68,8 @@ The `web_search()` tool can use Anthropic's built-in search capability when runn
 
 For more details on Anthropic's web search parameters, see [Anthropic Web Search Documentation](https://docs.anthropic.com/en/docs/agents-and-tools/tool-use/web-search-tool).
 
+On Claude 4.6 and later (except on Bedrock and Vertex), Inspect uses the dynamic filtering tool versions (`web_search_20260209` and `web_fetch_20260209`). Set `type` to `"web_search_20250305"` in the `anthropic` options to use the earlier versions. When `tool_choice` forces `web_search`, Inspect adds `"direct"` to `allowed_callers` unless you set `allowed_callers` yourself.
+
 Note that when using the "anthropic" provider, you should also specify a fallback external provider (like "tavily", "exa", or "google") if you are also running the evaluation with non-Anthropic model.
 
 ### Gemini Options

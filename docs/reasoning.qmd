@@ -5,7 +5,7 @@ llms-description: Additional options and data available for reasoning models.
 
 ## Overview
 
-Reasoning models like OpenAI GPT-5, Claude 4 and 5, and Gemini 3 have some additional options that can be used to tailor their behaviour. They also in some cases make available full or summarized reasoning traces for the chains of thought that led to their response.
+Reasoning models like OpenAI GPT-5, Claude 4 and 5, and Gemini 3 and 4 have some additional options that can be used to tailor their behaviour. They also in some cases make available full or summarized reasoning traces for the chains of thought that led to their response.
 
 ## Reasoning Effort {#reasoning-effort}
 
@@ -70,17 +70,19 @@ These models do not accept `effort` natively, so Inspect automatically bridges `
 
 Note that you can also pass `reasoning_tokens` explicitly for these models.
 
-#### Google Gemini 3
+#### Google Gemini 3 and later
 
-Gemini 3 Flash 3.0–3.6 and Flash-Lite 3.1–3.5 expose four thinking levels (`MINIMAL`, `LOW`, `MEDIUM`, `HIGH`). Gemini 3 Pro / Pro 3.1 and Gemini 3.7 Flash and later omit `MINIMAL` (the API rejects it), so Inspect maps `minimal` to `LOW` there and logs a warning. The same fail-safe applies to names without a version (rolling aliases such as `gemini-flash-latest`, predeployment codenames) and to versions newer than those listed, until Inspect has confirmed they accept `MINIMAL`.
+Gemini 3 Flash 3.0–3.6 and Flash-Lite 3.1–3.5 expose four thinking levels (`MINIMAL`, `LOW`, `MEDIUM`, `HIGH`). Gemini 3 Pro / Pro 3.1, Gemini 3.7 Flash and later, and Gemini 4 Argon omit `MINIMAL` (the API rejects it), so Inspect maps `minimal` to `LOW` there and logs a warning. The same fail-safe applies to names without a version (rolling aliases such as `gemini-flash-latest`, predeployment codenames) and to versions newer than those listed, until Inspect has confirmed they accept `MINIMAL`.
 
-| Inspect input            | API value (Flash ≤ 3.6, Flash-Lite ≤ 3.5) | API value (other Gemini 3) |
-|--------------------------|-------------------------------------------|----------------------------|
-| `none`                   | thinking disabled                         | thinking disabled          |
-| `minimal`                | `MINIMAL`                                 | `LOW`                      |
-| `low`                    | `LOW`                                     | `LOW`                      |
-| `medium`                 | `MEDIUM`                                  | `MEDIUM`                   |
-| `high` / `xhigh` / `max` | `HIGH`                                    | `HIGH`                     |
+| Inspect input            | API value (Flash ≤ 3.6, Flash-Lite ≤ 3.5) | API value (other Gemini 3+)                |
+|--------------------------|-------------------------------------------|--------------------------------------------|
+| `none`                   | thinking disabled                         | thinking disabled (Pro: stays on, warning) |
+| `minimal`                | `MINIMAL`                                 | `LOW`                                      |
+| `low`                    | `LOW`                                     | `LOW`                                      |
+| `medium`                 | `MEDIUM`                                  | `MEDIUM`                                   |
+| `high` / `xhigh` / `max` | `HIGH`                                    | `HIGH`                                     |
+
+Pro models cannot disable thinking, so for them `none` leaves thinking on and logs a warning. Inspect also treats Pro names it has not verified (such as a future Gemini 4 Pro) this way.
 
 #### Google Gemini 2.5
 
