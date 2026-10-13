@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.3.279](https://github.com/UKGovernmentBEIS/inspect_ai/compare/0.3.278...0.3.279) (2026-10-12)
+
+### Bug Fixes
+
+* Internal improvements.
+
 ## 0.3.278 (09 October 2026)
 
 - Tasks and samples can carry a `description` of what they ask of the agent, recorded in the eval log and in `evals_df()` and `samples_df()`.
