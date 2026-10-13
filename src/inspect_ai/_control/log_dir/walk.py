@@ -62,16 +62,6 @@ class LogFile(NamedTuple):
     """The shard directory name ``<k>`` of a shard attempt."""
 
 
-class ShardFiles(NamedTuple):
-    """One ``<name>.shards/<k>/`` directory's attempts."""
-
-    name: str
-    """The directory name, ``<k>``."""
-
-    attempts: list[LogFile]
-    """Its ``.eval`` files in attempt order; the last is current."""
-
-
 class ShardSetFiles(NamedTuple):
     """A ``<name>.shards/`` companion with at least one shard attempt."""
 
@@ -81,12 +71,13 @@ class ShardSetFiles(NamedTuple):
     path: str
     """The companion's path relative to the root, with ``/`` separators."""
 
-    shards: list[ShardFiles]
-    """The shard directories holding an attempt, in shard order."""
+    members: list[LogFile]
+    """The current (newest) attempt of each shard directory, in shard order.
+    Older attempts are superseded and not read."""
 
-    merged: list[LogFile]
-    """The merged logs beside the companion (``<name>.eval`` and
-    ``<name>-recovered.eval``) in attempt order; the last is current."""
+    merged: LogFile | None
+    """The newest merged log beside the companion (``<name>.eval`` or
+    ``<name>-recovered.eval``)."""
 
     stray: list[StrayFile]
     """Logs in the companion that are not shard attempts."""
@@ -108,19 +99,23 @@ class LogDirListing(NamedTuple):
     """Stray logs in companions that hold no shard attempt."""
 
 
-async def walk_log_dir(fs: AsyncFilesystem, root: str) -> LogDirListing:
+async def walk_log_dir(
+    fs: AsyncFilesystem, root: str, *, shard_sets: bool = True
+) -> LogDirListing:
     """List the logs under ``root``, one delimited listing per directory.
 
-    The first ``<name>.shards/`` directory on each path below ``root`` is a
-    shard set: its shards and stray logs come from the shared shard-set walk,
-    and the merged log beside it (``<name>.eval`` or
-    ``<name>-recovered.eval``) belongs to it rather than being an ordinary
-    log. A companion with no shard attempt is not a shard set, and its merged
+    With ``shard_sets`` (the default), the first ``<name>.shards/``
+    directory on each path below ``root`` is a shard set: its shards and
+    stray logs come from the shared shard-set walk, and the merged log beside
+    it (``<name>.eval`` or ``<name>-recovered.eval``) belongs to it rather
+    than being an ordinary log. A companion with no shard attempt is not a shard set, and its merged
     log is an ordinary log. Directories in a companion that the shard-set
     walk does not list are walked as ordinary directories, in which a nested
     ``*.shards/`` is an ordinary directory too, so every log below ``root``
     is either a shard path or an ordinary log (see
-    :func:`~inspect_ai.log._shards._walk.is_shard_path`).
+    :func:`~inspect_ai.log._shards._walk.is_shard_path`). Without it, every
+    ``*.shards/`` is an ordinary directory and every log an ordinary log
+    (``task list --shards``).
 
     Raises ``FileNotFoundError`` when a local ``root`` does not exist. A
     subdirectory that disappears during the walk is skipped: its logs are gone,
@@ -132,10 +127,10 @@ async def walk_log_dir(fs: AsyncFilesystem, root: str) -> LogDirListing:
     limiter = anyio.CapacityLimiter(_MAX_CONCURRENT_LISTINGS)
     eval_files: list[LogFile] = []
     json_logs: list[str] = []
-    shard_sets: list[ShardSetFiles] = []
+    sets: list[ShardSetFiles] = []
     stray: list[StrayFile] = []
 
-    async def visit(directory: str, is_root: bool, in_companion: bool) -> None:
+    async def visit(directory: str, is_root: bool, find_sets: bool) -> None:
         try:
             async with limiter:
                 listing = await fs.list_dir(directory)
@@ -151,9 +146,7 @@ async def walk_log_dir(fs: AsyncFilesystem, root: str) -> LogDirListing:
                 files.append(_log_file(info, buffer_dir=buffer_dir))
             elif is_log_file(name, [".json"]):
                 json_logs.append(info.name)
-        companions = (
-            [] if in_companion else [d for d in listing.dirs if _is_companion(d)]
-        )
+        companions = [d for d in listing.dirs if find_sets and _is_companion(d)]
         merged = {
             companion: [
                 f for f in files if log_basename(f.name) == _set_name(companion)
@@ -164,20 +157,20 @@ async def walk_log_dir(fs: AsyncFilesystem, root: str) -> LogDirListing:
         eval_files.extend(f for f in files if f.location not in claimed)
         subdirs = [d for d in listing.dirs if d not in merged and _descend(basename(d))]
         await tg_collect(
-            [functools.partial(visit, d, False, in_companion) for d in subdirs]
+            [functools.partial(visit, d, False, find_sets) for d in subdirs]
             + [functools.partial(visit_companion, c, merged[c]) for c in companions]
         )
 
     async def visit_companion(companion: str, merged: list[LogFile]) -> None:
         listing = await list_shard_set(fs, companion, limiter=limiter)
-        shards = [_shard_files(shard) for shard in listing.shards if shard.attempts]
-        if shards:
-            shard_sets.append(
+        members = [_member(shard) for shard in listing.shards if shard.attempts]
+        if members:
+            sets.append(
                 ShardSetFiles(
                     location=companion,
                     path=_relative(root, companion),
-                    shards=shards,
-                    merged=sorted(merged, key=attempt_order),
+                    members=members,
+                    merged=max(merged, key=attempt_order, default=None),
                     stray=listing.stray,
                 )
             )
@@ -186,19 +179,19 @@ async def walk_log_dir(fs: AsyncFilesystem, root: str) -> LogDirListing:
             stray.extend(listing.stray)
         await tg_collect(
             [
-                functools.partial(visit, d, False, True)
+                functools.partial(visit, d, False, False)
                 for d in listing.unlisted_dirs
                 if _descend(basename(d))
             ]
         )
 
-    await visit(root, True, False)
+    await visit(root, True, shard_sets)
     eval_files.sort(key=lambda f: f.location)
     json_logs.sort()
-    shard_sets.sort(key=lambda s: s.location)
+    sets.sort(key=lambda s: s.location)
     stray.sort(key=lambda s: s.path)
     return LogDirListing(
-        eval_files=eval_files, json_logs=json_logs, shard_sets=shard_sets, stray=stray
+        eval_files=eval_files, json_logs=json_logs, shard_sets=sets, stray=stray
     )
 
 
@@ -243,15 +236,11 @@ def _log_file(
     )
 
 
-def _shard_files(shard: ShardDir) -> ShardFiles:
+def _member(shard: ShardDir) -> LogFile:
+    """A shard directory's current attempt."""
+    assert shard.current is not None
     buffer_dir = f"{shard.dir}/{_BUFFER_DIR}" if shard.has_buffer else None
-    return ShardFiles(
-        name=shard.name,
-        attempts=[
-            _log_file(info, buffer_dir=buffer_dir, shard=shard.name)
-            for info in shard.attempts
-        ],
-    )
+    return _log_file(shard.current, buffer_dir=buffer_dir, shard=shard.name)
 
 
 def _relative(root: str, location: str) -> str:

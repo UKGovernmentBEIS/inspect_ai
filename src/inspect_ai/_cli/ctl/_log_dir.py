@@ -186,17 +186,24 @@ def _fail_from(ex: BaseException, *, walking: bool) -> NoReturn:
     raise _CtlFailure(kind, message, exception=exception, status=status) from ex
 
 
-def _index() -> LogDirIndex:
-    """The invocation's walk and plans, read once and shared by its later reads."""
+def _index(*, shard_sets: bool = True) -> LogDirIndex:
+    """The invocation's walk and plans, read once and shared by its later reads.
+
+    Without ``shard_sets`` (``task list --shards``), each ``<name>.shards/``
+    is walked as an ordinary directory.
+    """
     from inspect_ai._control.log_dir.snapshot import index_log_dir
 
     ctx = click.get_current_context()
-    index = ctx.meta.get(_INDEX_META_KEY)
+    meta_key = _INDEX_META_KEY if shard_sets else f"{_INDEX_META_KEY}.shards"
+    index = ctx.meta.get(meta_key)
     if index is None:
         root = _log_dir_root()
         assert root is not None
-        index = _run_reader(lambda fs: index_log_dir(fs, root), walking=True)
-        ctx.meta[_INDEX_META_KEY] = index
+        index = _run_reader(
+            lambda fs: index_log_dir(fs, root, shard_sets=shard_sets), walking=True
+        )
+        ctx.meta[meta_key] = index
         _warn_unreadable([u.as_dict() for u in index.unattributed])
     return index
 
@@ -265,27 +272,19 @@ class _TaskRows(NamedTuple):
 def _task_rows(*, shards: bool = False) -> _TaskRows:
     """Full task rows, one per logical task, for ``task list``.
 
-    With ``shards``, each task with a shard set is followed by one row per
-    shard.
+    With ``shards``, shard sets are not aggregated: each shard is a task of
+    its own (see :func:`_index`).
     """
-    from inspect_ai._control.log_dir.snapshot import (
-        read_task_views,
-        shard_rows,
-        task_row,
-    )
+    from inspect_ai._control.log_dir.snapshot import read_task_views, task_row
 
-    index = _index()
-    views = _run_reader(lambda fs: read_task_views(fs, index.tasks, shards=shards))
-    rows: list[dict[str, Any]] = []
-    for view in views:
-        rows.append(task_row(view))
-        rows.extend(shard_rows(view))
+    index = _index(shard_sets=not shards)
+    views = _run_reader(lambda fs: read_task_views(fs, index.tasks))
+    rows = [task_row(view) for view in views]
     unreadable = _merge_unreadable(
         [u.as_dict() for u in index.unattributed],
         *(row["unreadable"] for row in rows),
     )
-    # a shard row repeats its logical row's failure for that shard
-    _warn_unreadable(_merge_unreadable(*(row["unreadable"] for row in rows)))
+    _warn_unreadable([u for row in rows for u in row["unreadable"]])
     return _TaskRows(rows=rows, unreadable=unreadable)
 
 

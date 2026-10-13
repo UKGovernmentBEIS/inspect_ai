@@ -220,10 +220,9 @@ async def _locate(
         raise task.newest_unreadable.error
     members = await read_current_members(fs, task)
     # a shard set's samples are in its shards, not its merged log
+    shard_set = task.current.shard_set
     location = local_path(
-        task.shard_set.location
-        if task.sharded and task.shard_set is not None
-        else task.location
+        shard_set.location if shard_set is not None else task.current.location
     )
     key = SampleKey(sample_id, epoch)
     known = next((k for k in known_keys(members) if k.key == key), None)

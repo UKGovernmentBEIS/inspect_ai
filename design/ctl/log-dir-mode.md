@@ -315,11 +315,17 @@ inspect ctl sample events TASK SAMPLE_ID [EPOCH] --log-dir <dir> [...]
   helper `_log_dir_root() -> str | None` in a new module
   `src/inspect_ai/_cli/ctl/_log_dir.py`; the value is not passed to the
   command function.
-- `task list` gains `--shards`: expand each sharded row into one row per
-  shard after the logical row. Without it, sharded runs show one row. The
-  flag is mirrored onto the bare `task` noun by the existing
+- `task list` gains `--shards`, a boolean that turns off shard
+  aggregation: the walk treats every `<name>.shards/` as an ordinary
+  directory, so each shard is an ordinary row under its own `task_id` (its
+  retries folded by the usual newest-wins rule), the merged log is an
+  ordinary row, stray logs are ordinary logs, and there is no logical row.
+  It lists what `--log-dir` pointed at each companion would, for every
+  shard set under the root in one command. Without it, sharded runs show
+  one row. The flag is mirrored onto the bare `task` noun by the existing
   `_mirror_list_options` (`_group.py:192`). In live mode `--shards` is
-  accepted and a no-op (there are no shard rows).
+  accepted and a no-op (decision: Ransom, 2026-10-13; it replaced shard
+  rows listed after the logical row).
 - Human output starts with one stderr line naming the mode and the usual
   lag, for example: `Reading logs in s3://bucket/run (read-only, not live;
   completed samples normally reach the log within about 60 s, running
@@ -437,7 +443,8 @@ The walk produces a listing of logical tasks without paging through
     `unreadable`. The directories it does not list (its `unlisted_dirs`:
     `scans/`, a nested `*.shards/` and the like) are walked as ordinary
     directories, so a log nested there is an ordinary log, as `eval_set()`
-    treats it (`is_shard_path`; decision: Ransom, 2026-10-05).
+    treats it (`is_shard_path`; decision: Ransom, 2026-10-05). With
+    `task list --shards` it is an ordinary directory.
   - Any other subdirectory: descend, as `list_eval_logs` recurses today, so
     an eval-set directory or a directory of runs works.
 - `.eval` files only. `.json` logs are listed as unsupported rows: the
@@ -473,14 +480,18 @@ helper rather than re-implementing the rule).
 
 - Its shards are, for each `<k>/`, the newest `.eval` in it. Older files in
   the same `<k>/` (a retry, or an original beside its `-recovered` copy)
-  are superseded: counted in the shard's `attempts`, otherwise ignored,
-  matching the parent's newest-wins rule.
+  are superseded and not read, matching the parent's newest-wins rule.
 - Its merged log is the `.eval` in the companion's parent directory whose
   `log_basename` is `X`: `X.eval` or `X-recovered.eval`, the newest when
   both exist. It does not get a row of its own.
 - The shard set is one attempt of the logical task identified by `{id}`
   parsed from `X` (the merged log's `task_id`), or by `X` itself when the
   name does not parse.
+- A task id has at most one shard set: the first companion by path. A
+  second companion with the same task id is not read, nor is its merged
+  log; the companion is listed in the task row's `unreadable`, so the row
+  is `incomplete` (decision: Ransom, 2026-10-13). Shard sets with different task ids are
+  separate tasks.
 
 **Unsharded logs.** Every other `.eval` file is an attempt of the logical
 task identified by its `task_id` (from the header, or parsed from the file
@@ -496,8 +507,9 @@ the merged log (only that path gives an unsharded log the merged log's
 unsharded log is current whatever the mtimes, following the parent's rule
 that the unsharded log wins over the merged log it was seeded from: it
 holds the merged samples plus the re-runs. The shard set is a prior
-attempt: counted in `attempts`, described by the row's `shards` block and
-by `--shards` rows, and not used for sample rows. With `retry_cleanup` on,
+attempt: counted in `attempts` and not read, so the row's `shards` is null
+as for any unsharded current attempt (decision: Ransom, 2026-10-13). With
+`retry_cleanup` on,
 `eval_set()` removes the merged log and companion after a successful retry,
 and the task is an ordinary unsharded row.
 
@@ -517,8 +529,8 @@ path.
 Selector resolution runs the existing `_resolve_target_eval` over these
 rows unchanged. Because every attempt of a `task_id` is folded into one
 row, a full task id always resolves to exactly one row. Shards are not
-separately selectable; `--shards` rows carry `shard: "<k>"` and the shard's
-own `task_id`, and are informational.
+separately selectable: the sample commands always aggregate, and `task
+list --shards` rows are informational.
 
 **Carrying the target past selection.** The sample commands pass only the
 resolved row's `socket_path` and `eval_id` to the fetch functions
@@ -720,7 +732,7 @@ working. Values, over the current attempt:
 | `samples.queued` | Null: dispatch state is not in the logs. |
 | `total_tokens`, `total_messages` | Sums over the selected summaries (running samples contribute nothing until they complete, because their buffer summary is the start snapshot). |
 | `tokens_per_second` | `total_tokens` over elapsed, as live computes it. |
-| `attempts` | Number of attempts of the logical task (a shard set counts as one); per shard in `--shards` rows. |
+| `attempts` | Number of attempts of the logical task (a shard set counts as one). |
 | `paused`, `paused_now`, `quiesced`, `held`, `resolving`, `refusals`, `http_retries`, `keep_alive`, `process_paused`, `process_paused_now`, `paused_models`, `api_version`, `pid`, `socket_path` | Null (`paused_models` an empty list): live-only state. `refusals` and `http_retries` are event-derived counters not recorded in summaries. |
 
 Additive keys, present on every log-dir row and absent in live mode:
@@ -752,12 +764,9 @@ Additive keys, present on every log-dir row and absent in live mode:
   none does, `"partial"` otherwise, so a caller knows whether `in_flight`
   and running sample rows are complete.
 - `current_attempt`: `"log"` or `"shards"`.
-- `shards` (null when the task has no shard set): `{total, running,
-  success, error, cancelled, overlapping, mismatched}` over the shard set's
-  current files, by log status; for a task whose current attempt is an
-  ordinary retry, it describes the prior shard set from its plans, with
-  `overlapping` null (its samples are not read).
-- `shard`: `"<k>"` on a `--shards` row, null otherwise.
+- `shards` (null unless the current attempt is a shard set): `{total,
+  running, success, error, cancelled, overlapping, mismatched}` over the
+  shard set's current files, by log status.
 - `merged` (null when there is no merged log): see "Merged log".
 - `incomplete` and `unreadable` (see "Reading a member consistently").
 
@@ -1200,7 +1209,9 @@ real moto server on an ephemeral port). New tests go in a new
 - **Rows.** Unsharded, retried and sharded rows have every live key; counts,
   `in_flight`, `unfinished`, `conflicted`, `total_final`, `live_samples`,
   `shards` and `merged` match the fixture; mismatched shards are counted; a
-  merged log whose companion is gone is an ordinary row.
+  merged log whose companion is gone is an ordinary row; a second shard set
+  for a task id is in `unreadable`; `task list --shards` lists each shard,
+  the merged log and stray logs as ordinary rows.
 - **Sample key set.** A static selection; a `SampleSource` that adds a
   sample mid-run (the added key appears in `total`, is locatable by every
   per-sample read, and `unfinished` never goes negative); an empty seed
@@ -1322,9 +1333,10 @@ Each step is one PR; steps 1–5 are the MVP.
    `select.py`, `consistency.py`, `samples.py`, `snapshot.py`, tests.
 4. **Shard aggregation.** The `<name>.shards/` walk rules, logical sharded
    rows, newest-attempt selection per `<k>/`, the recovered-merged-log
-   mapping, folding an ordinary retry with its shard set, the `shards`
-   block, conflicts (counts, rows, `ambiguous` per-sample reads) and
-   mismatch counts, `--shards`. Depends only on the layout convention, so it
+   mapping, folding an ordinary retry with its shard set, one shard set per
+   task id, the `shards` block, conflicts (counts, rows, `ambiguous`
+   per-sample reads) and mismatch counts, `--shards` (the walk without
+   shard aggregation). Depends only on the layout convention, so it
    can land before the sharding merge exists. Files: `walk.py`,
    `snapshot.py`, `select.py`, `_cli/ctl/_task.py`, `_group.py`, tests.
 5. **Cache.** Plan, summaries, journal-member, observed-key and
@@ -1346,7 +1358,8 @@ Each step is one PR; steps 1–5 are the MVP.
 None open. Ransom resolved all three on 2026-09-23, each as recommended:
 
 1. **Default row shape for sharded runs.** One logical row per task by
-   default, with per-shard rows behind `task list --shards`. A 300-row
+   default, with per-shard rows behind `task list --shards` (since
+   2026-10-13, the walk without shard aggregation; see "CLI surface"). A 300-row
    default would flood an agent's context, which the listing cap exists
    to prevent.
 2. **Cache in the MVP.** Included (step 5). Without it every invocation

@@ -800,8 +800,8 @@ def _print_human_table(summaries: list[dict[str, Any]]) -> None:
     # (drain/score/error) — the marker that says a static-looking row is a
     # draining tail (or a stalled scorer), not a stall
     any_resolving = any(s.get("resolving") for s in summaries)
-    # `--log-dir` rows only: a sharded task's shard counts, and `--shards` rows
-    any_shards = any(s.get("shards") or s.get("shard") is not None for s in summaries)
+    # `--log-dir` rows only: a sharded task's shard counts
+    any_shards = any(s.get("shards") for s in summaries)
 
     rows = []
     for s in summaries:
@@ -809,9 +809,7 @@ def _print_human_table(summaries: list[dict[str, Any]]) -> None:
         # task_id (not eval_id): stable across retries, and the handle
         # `inspect ctl sample list` takes.
         cells = [
-            # a `--log-dir --shards` row of an unreadable shard with no
-            # task id in its file name has a null id
-            _short_id(s.get("task_id") or "?"),
+            _short_id(s.get("task_id", "")),
             s.get("task", "?") or "?",
             s.get("model", "") or "",
         ]
@@ -872,13 +870,10 @@ def _print_human_table(summaries: list[dict[str, Any]]) -> None:
 
 
 def _format_shards(summary: dict[str, Any]) -> str:
-    """A ``--log-dir`` row's shards cell.
+    """A ``--log-dir`` row's shards cell (blank for an unsharded task).
 
-    ``shard <k>`` on a ``--shards`` row, else the task's shard count with the
-    running, overlapping and mismatched ones (blank for an unsharded task).
+    The task's shard count, with the running, overlapping and mismatched ones.
     """
-    if summary.get("shard") is not None:
-        return f"shard {summary['shard']}"
     shards = summary.get("shards")
     if not shards:
         return ""

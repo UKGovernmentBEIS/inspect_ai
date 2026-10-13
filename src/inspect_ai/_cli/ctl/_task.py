@@ -403,10 +403,8 @@ def _run_task_list(as_json: bool, *, shards: bool = False) -> None:
     _print_human_table(summaries)
     if log_dir:
         _log_dir._print_quiet_footer(summaries)
-        # `--shards` rows repeat their task's samples
-        tasks = [s for s in summaries if s.get("shard") is None]
-        _log_dir._print_sharded_totals_note(tasks)
-        _print_errored_samples_footer(tasks, _log_dir._errors_command())
+        _log_dir._print_sharded_totals_note(summaries)
+        _print_errored_samples_footer(summaries, _log_dir._errors_command())
     else:
         _print_keep_alive_footer(summaries)
         _print_errored_samples_footer(summaries)
