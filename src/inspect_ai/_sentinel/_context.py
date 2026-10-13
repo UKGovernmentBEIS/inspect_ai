@@ -5,6 +5,7 @@ from typing import Any, NamedTuple
 from inspect_ai._util.logger import warn_once
 
 from ._config import SentinelRoot
+from ._scope import AgentScope, current_scope, solving
 
 logger = getLogger(__name__)
 
@@ -57,7 +58,14 @@ def warn_sentinel_bridged() -> None:
     if active_sentinel() is not None:
         warn_once(
             logger,
-            "Sentinels do not yet run for bridged agents (agent_bridge() and "
-            "sandbox_agent_bridge()), so their model calls and tool calls are not "
-            "monitored. See https://github.com/UKGovernmentBEIS/inspect_ai/issues/5759.",
+            "Sentinels do not yet run at the tool stages for bridged agents "
+            "(agent_bridge() and sandbox_agent_bridge()), so their tool calls are not "
+            "monitored; their model calls are. See "
+            "https://github.com/UKGovernmentBEIS/inspect_ai/issues/5759.",
         )
+
+
+def is_agent_generate() -> bool:
+    return (
+        active_sentinel() is not None and solving() and current_scope() is AgentScope.ON
+    )

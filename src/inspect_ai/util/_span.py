@@ -7,6 +7,8 @@ from typing import Any, AsyncIterator
 
 from shortuuid import uuid as shortuuid
 
+from inspect_ai._sentinel._scope import AgentScope, enter_scope, exit_scope
+
 logger = getLogger(__name__)
 
 
@@ -84,9 +86,9 @@ async def span(
 
     # set new current span (reset at the end)
     token = _current_span_id.set(id)
-    agent_token = (
-        _current_agent_span_id.set(id) if (type or name) == AGENT_SPAN_TYPE else None
-    )
+    is_agent = (type or name) == AGENT_SPAN_TYPE
+    agent_token = _current_agent_span_id.set(id) if is_agent else None
+    scope_token = enter_scope(AgentScope.ON) if is_agent else None
 
     # run the span
     try:
@@ -116,6 +118,11 @@ async def span(
         if agent_token is not None:
             try:
                 _current_agent_span_id.reset(agent_token)
+            except ValueError:
+                foreign = True
+        if scope_token is not None:
+            try:
+                exit_scope(scope_token)
             except ValueError:
                 foreign = True
         if foreign:
