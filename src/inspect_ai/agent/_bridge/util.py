@@ -38,11 +38,7 @@ from inspect_ai.agent._bridge._approval import (
     terminate_for_repeated_rejections,
 )
 from inspect_ai.agent._bridge._errors import BridgePolicyError
-from inspect_ai.agent._bridge._sentinel import (
-    sentinel_occurrences,
-    sentinel_tool_results,
-    track_sentinel_calls,
-)
+from inspect_ai.agent._bridge._sentinel import sentinel_tokens, sentinel_tool_results
 from inspect_ai.agent._bridge.types import AgentBridge, message_json_hash
 from inspect_ai.model._agent_message import validate_agent_message
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageUser
@@ -782,19 +778,17 @@ async def bridge_generate(
             declarations,
         )
         if reviewed.rejection is None:
-            # identified by where they occur in the conversation the scaffold
-            # sends back: its own request, then the response it is handed
-            checks = (
-                sentinel_occurrences(input, reviewed.sentinel)
+            # with a sentinel, each call is handed over under a token identifying
+            # its execution, which its result comes back under
+            output, checks = (
+                sentinel_tokens(bridge, reviewed.output, reviewed.sentinel)
                 if reviewed.sentinel is not None
-                else None
+                else (reviewed.output, None)
             )
             bridge._register_tool_execution_grants(
-                reviewed.output.message.tool_calls or [], declarations, checks
+                output.message.tool_calls or [], declarations, checks
             )
-            if checks is not None:
-                track_sentinel_calls(bridge, checks)
-            return reviewed.output, c_message
+            return output, c_message
 
         rejections += 1
         if rejections >= MAX_CONSECUTIVE_REJECTIONS:

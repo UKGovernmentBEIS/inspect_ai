@@ -150,3 +150,94 @@ def test_google_response_without_logprobs_is_unchanged(
     assert response == expected
     assert "logprobsResult" not in response["candidates"][0]
     assert "avgLogprobs" not in response["candidates"][0]
+
+
+def test_google_response_carries_each_calls_id() -> None:
+    output = ModelOutput.for_tool_call("mockllm/model", "read_file", {"path": "a"})
+    [call] = output.message.tool_calls or []
+    unnamed = ModelOutput.for_tool_call("mockllm/model", "read_file", {"path": "b"})
+    for unnamed_call in unnamed.message.tool_calls or []:
+        unnamed_call.id = ""
+
+    def function_call(output: ModelOutput) -> object:
+        parts = gemini_response_from_output(output, "model")["candidates"][0][
+            "content"
+        ]["parts"]
+        [part] = [part for part in parts if "functionCall" in part]
+        return part["functionCall"]
+
+    assert function_call(output) == {
+        "id": call.id,
+        "name": "read_file",
+        "args": {"path": "a"},
+    }
+    assert function_call(unnamed) == {"name": "read_file", "args": {"path": "b"}}
+
+
+@pytest.mark.parametrize("prefixed", [False, True])
+def test_google_ids_the_scaffold_echoes_are_kept(prefixed: bool) -> None:
+    # gemini-cli prefixes the id it is handed with `<function>__`
+    echoed = "read_file__tok_1" if prefixed else "tok_1"
+    contents: list[dict[str, object]] = [
+        {"role": "user", "parts": [{"text": "Read a."}]},
+        {
+            "role": "model",
+            "parts": [
+                {
+                    "functionCall": {
+                        "id": echoed,
+                        "name": "read_file",
+                        "args": {"path": "a"},
+                    }
+                }
+            ],
+        },
+        {
+            "role": "user",
+            "parts": [
+                {
+                    "functionResponse": {
+                        "id": echoed,
+                        "name": "read_file",
+                        "response": {"out": "x"},
+                    }
+                }
+            ],
+        },
+    ]
+
+    messages = messages_from_google_contents(contents, None)
+
+    assistant = next(m for m in messages if isinstance(m, ChatMessageAssistant))
+    tool = next(m for m in messages if isinstance(m, ChatMessageTool))
+    assert [call.id for call in assistant.tool_calls or []] == ["tok_1"]
+    assert tool.tool_call_id == "tok_1"
+
+
+def test_google_calls_without_ids_keep_their_deterministic_ids() -> None:
+    contents: list[dict[str, object]] = [
+        {"role": "user", "parts": [{"text": "Read a."}]},
+        {
+            "role": "model",
+            "parts": [{"functionCall": {"name": "read_file", "args": {"path": "a"}}}],
+        },
+        {
+            "role": "user",
+            "parts": [
+                {"functionResponse": {"name": "read_file", "response": {"out": "x"}}}
+            ],
+        },
+    ]
+
+    first = messages_from_google_contents(contents, None)
+    second = messages_from_google_contents(contents, None)
+
+    [call] = (
+        next(m for m in first if isinstance(m, ChatMessageAssistant)).tool_calls or []
+    )
+    tool = next(m for m in first if isinstance(m, ChatMessageTool))
+    assert call.id.startswith("call_read_file_")
+    assert tool.tool_call_id == call.id
+    assert [m.model_dump(exclude={"id"}) for m in first] == [
+        m.model_dump(exclude={"id"}) for m in second
+    ]

@@ -1,5 +1,6 @@
 import json
 from collections import OrderedDict
+from dataclasses import replace
 from functools import partial
 from logging import getLogger
 from typing import (
@@ -33,9 +34,9 @@ from inspect_ai.agent._bridge.types import AgentBridge
 from inspect_ai.model._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
-    ChatMessageSystem,
     ChatMessageTool,
 )
+from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.tool._tool import Tool, ToolResult
 from inspect_ai.tool._tool_call import ToolCall, ToolCallError, ToolCallViewer
 from inspect_ai.tool._tool_def import ToolDef
@@ -54,17 +55,36 @@ _MAX_PROPOSALS = 1000
 
 class SentinelCheck(NamedTuple):
     handed: ToolCall
+    """The call as handed to the scaffold (the model's id, the approved arguments)."""
+
     call: ToolCall
+    """The call the steps show (the model's id; a dispatched call's target)."""
+
     viewer: ToolCallViewer | None
     message: str
     history: list[ChatMessage]
-    occurrence: str | None = None
-    """The handed-over call's identity in the scaffold's conversation
-    (`_occurrence`), or None for a host call no proposal accounts for."""
+
+    token: str | None = None
+    """The id the scaffold was handed for the call (`sentinel_tokens`), or None
+    for a host call no proposal accounts for."""
+
+
+class _Identity(NamedTuple):
+    """What the bridge keeps for every token it has handed out, for good."""
+
+    call_id: str
+    """The model's id for the call."""
+
+    function: str
+
+    call_key: str
+    """The call's conservative identity (`_call_key`)."""
 
 
 class _Result(NamedTuple):
-    key: str
+    keys: list[str]
+    """The result's identity (first) and any it also answers for."""
+
     check: SentinelCheck
     message: ChatMessageTool
 
@@ -78,78 +98,82 @@ class _Call(NamedTuple):
     call: ToolCall
     text: str
     position: int
-    occurrence: str
 
 
 class _ResultChecks:
     """The `tool_result` checks for the results the scaffold reports.
 
-    A call is identified by where it occurs in the scaffold's conversation: the
-    conversation up to and including its assistant message, and its position in
-    that message (`_occurrence`). Ids play no part, since a dialect may mint
-    them anew (Google derives them from the call itself) or reuse them.
+    Each call handed to the scaffold gets a token, unique for the bridge, as
+    its id (`sentinel_tokens`): the model's own id when the bridge has not
+    handed that id out before, and a new one otherwise. A result reported
+    under a token is the result of that execution, however the scaffold has
+    rewritten, compacted or reformatted the rest of its conversation. Tokens
+    are kept for the life of the bridge, apart from the proposals (bounded), so
+    an evicted proposal can never make an older execution match a newer one.
 
-    Each distinct result is checked once, the first time a request carries it.
-    A result is identified by its call's occurrence and by its content and
-    error, so the same result repeated in later history is not checked again,
-    while a changed result, or an identical result of another execution of the
-    same call, is.
+    Each execution's result is checked once: a result is identified by its
+    token and its content (`_content_key`, which ignores whitespace and how
+    text is split into parts), so replays are not checked again, while
+    different content for the same execution is. A result under a token gets
+    its proposal's context; once the proposal is evicted, the request's
+    conversation and no model input.
 
-    A check takes its context from the proposal handed over at the call's
-    occurrence. With none (one dropped beyond the cap, a call the bridge never
-    handed over, a scaffold that rewrote the conversation before the call, or a
-    result without a call), the result is checked with the conversation the
-    request carries, and so usually with no model input, never with another
-    call's.
+    A result whose id the bridge never handed out (a scaffold that drops or
+    rewrites ids, or one answering no call) can't be matched to an execution.
+    It is checked once per conservative key, its call's function and arguments
+    and its content (`_call_key`), with the request's conversation and no
+    model input, never another call's context; an identical result of another
+    execution is not checked again. Every checked result also records that
+    key, so a matched result reported again without its token is not checked
+    twice.
 
     A host call's result is checked when the call executes, and that result,
-    as delivered, is recorded as checked; any other content the scaffold
-    reports for the call is checked here like a scaffold-run call's.
+    as delivered, is recorded as checked under the call's token; other content
+    the scaffold reports for the call is checked like a scaffold-run call's.
 
     Held by its bridge, since a failure's traceback references the bridge.
     """
 
     def __init__(self) -> None:
+        self.identities: dict[str, _Identity] = {}
         self.proposals: OrderedDict[str, SentinelCheck] = OrderedDict()
         self.checked: set[str] = set()
         self.running: dict[str, anyio.Event] = {}
         self.failed: dict[str, Exception] = {}
 
-    def add(self, check: SentinelCheck) -> None:
-        if check.occurrence is None:
-            return
-        self.proposals[check.occurrence] = check
-        self.proposals.move_to_end(check.occurrence)
-        while len(self.proposals) > _MAX_PROPOSALS:
-            self.proposals.popitem(last=False)
-            warn_once(
-                logger,
-                f"More than {_MAX_PROPOSALS} bridged tool calls have been handed "
-                "to the scaffold; the oldest was dropped, so the sentinel's "
-                "tool_result check of a call handed over more than "
-                f"{_MAX_PROPOSALS} calls ago sees only the conversation that "
-                "carries its result, and usually no model input (never another "
-                "call's).",
+    def issue(self, checks: Sequence[SentinelCheck]) -> list[SentinelCheck]:
+        issued: list[SentinelCheck] = []
+        for check in checks:
+            token = check.handed.id
+            while not token or token in self.identities:
+                token = f"call_{uuid()}"
+            self.identities[token] = _Identity(
+                check.call.id, check.handed.function, _call_key(check.handed)
             )
+            issued.append(check._replace(token=token))
+            self.proposals[token] = issued[-1]
+            while len(self.proposals) > _MAX_PROPOSALS:
+                self.proposals.popitem(last=False)
+                warn_once(
+                    logger,
+                    f"More than {_MAX_PROPOSALS} bridged tool calls have been "
+                    "handed to the scaffold; the oldest proposal was dropped, so "
+                    "the sentinel's tool_result check of a call handed over more "
+                    f"than {_MAX_PROPOSALS} calls ago sees only the conversation "
+                    "that carries its result, and no model input.",
+                )
+        return issued
 
     def claim(self, input: list[ChatMessage]) -> _Claimed:
         claimed = _Claimed([], [])
         keys: set[str] = set()
         calls: dict[str, _Call] = {}
         unanswered: dict[str, list[_Call]] = {}
-        conversation = ""
         for index, message in enumerate(input):
-            before = conversation
-            conversation = _extend(conversation, message)
             if isinstance(message, ChatMessageAssistant):
                 unanswered = {}
-                for position, call in enumerate(message.tool_calls or []):
-                    calls[call.id] = _Call(
-                        call,
-                        message.text,
-                        index,
-                        _occurrence(conversation, position),
-                    )
+                for call in message.tool_calls or []:
+                    calls[call.id] = _Call(call, message.text, index)
                     unanswered.setdefault(call.id, []).append(calls[call.id])
             elif isinstance(message, ChatMessageTool):
                 result_id = message.tool_call_id or ""
@@ -158,12 +182,8 @@ class _ResultChecks:
                     if unanswered.get(result_id)
                     else calls.get(result_id)
                 )
-                occurrence = (
-                    found.occurrence
-                    if found is not None
-                    else mm3_hash(f"{before}:result:{result_id}:{message.function}")
-                )
-                key = _result_key(message, occurrence)
+                result = self._result(input, index, message, found)
+                key = result.keys[0]
                 if key in keys or key in self.checked:
                     continue
                 if key in self.failed:
@@ -171,28 +191,58 @@ class _ResultChecks:
                 if key in self.running:
                     claimed.waiting.append(self.running[key])
                     continue
-                proposal = self.proposals.get(occurrence)
-                if proposal is not None:
-                    check = proposal
-                else:
-                    # the history ends with the call's assistant message, as on
-                    # the native path; an orphan result has none
-                    call = (
-                        found.call
-                        if found is not None
-                        else ToolCall(
-                            id=result_id, function=message.function or "", arguments={}
-                        )
-                    )
-                    history = input[: found.position + 1 if found else index]
-                    check = SentinelCheck(
-                        call, call, None, found.text if found else "", history
-                    )
                 keys.add(key)
-                claimed.owned.append(_Result(key, check, message))
+                claimed.owned.append(result)
         for result in claimed.owned:
-            self.running[result.key] = anyio.Event()
+            event = anyio.Event()
+            for key in result.keys:
+                self.running.setdefault(key, event)
         return claimed
+
+    def _result(
+        self,
+        input: list[ChatMessage],
+        index: int,
+        message: ChatMessageTool,
+        found: _Call | None,
+    ) -> _Result:
+        identity = self.identities.get(message.tool_call_id or "")
+        content = _content_key(message)
+        if identity is not None:
+            token = message.tool_call_id or ""
+            keys = [
+                mm3_hash(f"token:{token}:{content}"),
+                mm3_hash(f"call:{identity.call_key}:{content}"),
+            ]
+            proposal = self.proposals.get(token)
+            if proposal is not None:
+                return _Result(keys, proposal, message)
+            call = (
+                replace(found.call, id=identity.call_id)
+                if found is not None
+                else ToolCall(
+                    id=identity.call_id, function=identity.function, arguments={}
+                )
+            )
+        else:
+            call = (
+                found.call
+                if found is not None
+                else ToolCall(
+                    id=message.tool_call_id or "",
+                    function=message.function or "",
+                    arguments={},
+                )
+            )
+            orphan = None if found is not None else message.function or ""
+            keys = [mm3_hash(f"call:{_call_key(call, orphan)}:{content}")]
+        # the history ends with the call's assistant message, as on the native
+        # path; a result answering no call in the request has none
+        history = input[: found.position + 1 if found is not None else index]
+        check = SentinelCheck(
+            call, call, None, found.text if found is not None else "", history
+        )
+        return _Result(keys, check, message)
 
     async def check(
         self, bridge: AgentBridge, result: _Result, output: ToolResult
@@ -200,47 +250,49 @@ class _ResultChecks:
         try:
             await _tool_result(bridge, result.check, result.message, output)
         except Exception as ex:
-            self.failed[result.key] = ex
+            for key in result.keys:
+                self.failed.setdefault(key, ex)
             raise
-        self.checked.add(result.key)
+        self.checked.update(result.keys)
+
+    async def check_running(
+        self, bridge: AgentBridge, result: _Result, output: ToolResult
+    ) -> None:
+        """Check a result claimed outside a request (a host call's), as running."""
+        event = anyio.Event()
+        for key in result.keys:
+            self.running.setdefault(key, event)
+        try:
+            await self.check(bridge, result, output)
+        finally:
+            for key in result.keys:
+                if self.running.get(key) is event:
+                    del self.running[key]
+            event.set()
 
     def release(self, result: _Result) -> None:
         # a check that did not finish is claimed again by the next request
         # carrying its result
-        self.running.pop(result.key).set()
+        event = self.running.get(result.keys[0])
+        for key in result.keys:
+            if self.running.get(key) is event:
+                del self.running[key]
+        if event is not None:
+            event.set()
 
 
-def _extend(conversation: str, message: ChatMessage) -> str:
-    """The identity of `conversation` (an `_extend` chain) followed by `message`.
+def _call_key(call: ToolCall, orphan: str | None = None) -> str:
+    """A call's conservative identity: its function and arguments.
 
-    Built from what survives the scaffold's round trip: no ids (a dialect may
-    mint new ones), no system messages (a scaffold may vary its system prompt
-    from request to request), and of an assistant message with tool calls only
-    its calls, as the scaffold must send those back as it received them.
+    For a result answering no call in its request, `orphan` is the function the
+    result names, and the arguments are unknown.
     """
-    if isinstance(message, ChatMessageSystem):
-        return conversation
-    if isinstance(message, ChatMessageAssistant) and message.tool_calls:
-        identity: Any = [
-            "calls",
-            [
-                [call.function, _json_canonical(call.arguments)]
-                for call in message.tool_calls
-            ],
-        ]
-    elif isinstance(message, ChatMessageTool):
-        error = message.error.message if message.error else None
-        identity = ["tool", message.text, error]
-    else:
-        identity = [message.role, message.text]
-    return mm3_hash(
-        conversation + json.dumps(to_jsonable_python(identity, fallback=str))
+    identity: Any = (
+        ["orphan", orphan]
+        if orphan is not None
+        else [call.function, _json_canonical(call.arguments)]
     )
-
-
-def _occurrence(conversation: str, position: int) -> str:
-    """The call at `position` in the assistant message that ends `conversation`."""
-    return mm3_hash(f"{conversation}:call:{position}")
+    return mm3_hash(json.dumps(identity, sort_keys=True))
 
 
 def _json_canonical(value: Any) -> Any:
@@ -249,24 +301,40 @@ def _json_canonical(value: Any) -> Any:
     if isinstance(value, float) and value.is_integer():
         return int(value)
     if isinstance(value, dict):
-        return {key: _json_canonical(item) for key, item in sorted(value.items())}
+        return {key: _json_canonical(item) for key, item in value.items()}
     if isinstance(value, list):
         return [_json_canonical(item) for item in value]
     return value
 
 
-def _result_key(result: ChatMessageTool, occurrence: str) -> str:
-    # text is keyed as the content it stands for, as a dialect may report it
-    # either way
+def _content_key(result: ChatMessageTool) -> str:
+    """A result's content, as the same whatever its whitespace or text parts.
+
+    Text is compared without whitespace, so re-wrapping, trimming or splitting
+    it into parts differently is not a different result. Other content
+    compares as itself, less fields that never reach a model (`internal`).
+    """
     content = (
         [ContentText(text=result.content)]
         if isinstance(result.content, str)
         else result.content
     )
+    text = "".join(
+        "".join(part.text.split()) for part in content if isinstance(part, ContentText)
+    )
+    others = [
+        part.model_dump(exclude={"internal"}, exclude_none=True)
+        for part in content
+        if not isinstance(part, ContentText)
+    ]
+    error = (
+        [result.error.type, "".join(result.error.message.split())]
+        if result.error is not None
+        else None
+    )
     return mm3_hash(
         json.dumps(
-            to_jsonable_python([occurrence, content, result.error], fallback=str),
-            sort_keys=True,
+            to_jsonable_python([text, others, error], fallback=str), sort_keys=True
         )
     )
 
@@ -291,32 +359,23 @@ async def sentinel_tool_call(
     )
 
 
-def sentinel_occurrences(
-    input: list[ChatMessage], checks: Sequence[SentinelCheck]
-) -> list[SentinelCheck]:
-    """`checks` for the calls handed over in reply to `input`, with their occurrences.
+def sentinel_tokens(
+    bridge: AgentBridge, output: ModelOutput, checks: Sequence[SentinelCheck]
+) -> tuple[ModelOutput, list[SentinelCheck]]:
+    """Give each call handed to the scaffold its token as its id.
 
-    The scaffold's next request carries `input` followed by the response, so a
-    call's occurrence there is `input`, then the calls as handed over, then the
-    call's position among them.
+    `checks` are the `tool_result` checks for the calls in `output`, in order.
+    Returns the output to hand to the scaffold (a copy, when any id changes),
+    and the checks with their tokens.
     """
-    conversation = ""
-    for message in input:
-        conversation = _extend(conversation, message)
-    handed = ChatMessageAssistant(
-        content="", tool_calls=[check.handed for check in checks]
-    )
-    conversation = _extend(conversation, handed)
-    return [
-        check._replace(occurrence=_occurrence(conversation, position))
-        for position, check in enumerate(checks)
-    ]
-
-
-def track_sentinel_calls(bridge: AgentBridge, checks: Sequence[SentinelCheck]) -> None:
-    result_checks = _result_checks(bridge)
-    for check in checks:
-        result_checks.add(check)
+    issued = _result_checks(bridge).issue(checks)
+    if all(check.token == check.handed.id for check in issued):
+        return output, issued
+    # a copy, as `output` may be the object the ModelEvent recorded
+    output = output.model_copy(deep=True)
+    for call, check in zip(output.message.tool_calls or [], issued):
+        call.id = check.token or call.id
+    return output, issued
 
 
 def sentinel_unproposed_host_check(
@@ -338,18 +397,34 @@ async def sentinel_host_tool_result(
     content: str | list[Content],
     output: ToolResult,
     error: ToolCallError | None = None,
+    candidates: Sequence[SentinelCheck] = (),
 ) -> None:
+    """Check a host call's result as delivered, recording it for its executions.
+
+    The result is recorded as checked under the call's token, or, for a call
+    that matched proposals of several calls (`candidates`, when the service
+    can't tell which execution it is), under each of theirs, so the scaffold
+    reporting it is not checked again. A host call no proposal accounts for has
+    no token, so no result the scaffold reports can match it.
+    """
     result = ChatMessageTool(
         content=content,
         tool_call_id=check.handed.id,
         function=check.call.function,
         error=error,
     )
-    # a host call no proposal accounts for has no occurrence the scaffold could
-    # report its result under
-    occurrence = check.occurrence or f"unproposed:{uuid()}"
-    await _result_checks(bridge).check(
-        bridge, _Result(_result_key(result, occurrence), check, result), output
+    content_key = _content_key(result)
+    executions = candidates or ([check] if check.token is not None else [])
+    keys = [
+        key
+        for execution in executions
+        for key in [
+            mm3_hash(f"token:{execution.token}:{content_key}"),
+            mm3_hash(f"call:{_call_key(execution.handed)}:{content_key}"),
+        ]
+    ] or [f"unproposed:{uuid()}"]
+    await _result_checks(bridge).check_running(
+        bridge, _Result(keys, check, result), output
     )
 
 

@@ -253,6 +253,22 @@ class SandboxAgentBridge(AgentBridge):
     ) -> "_ToolExecutionGrant | None":
         return _consume(self._exempt_proposals, server, tool, arguments)
 
+    def _candidate_checks(
+        self, server: str, tool: str, arguments: dict[str, Any], exempt: bool
+    ) -> list["SentinelCheck"]:
+        """The sentinel checks of the distinct proposals a host call could execute."""
+        grants = self._exempt_proposals if exempt else self._tool_execution_grants
+        checks: dict[str | None, "SentinelCheck"] = {}
+        for grant in grants:
+            if (
+                grant.check is not None
+                and grant.server == server
+                and grant.tool == tool
+                and _json_equal(grant.arguments, arguments)
+            ):
+                checks.setdefault(grant.check.token, grant.check)
+        return list(checks.values())
+
     def dispatched_call(self, call: ToolCall) -> DispatchedCall | None:
         """The bridged tool call `call` makes through a dispatcher (`_dispatched_call`)."""
         return _dispatched_call(self.bridged_tools, call)
@@ -332,7 +348,9 @@ def _consume(
     tool: str,
     arguments: dict[str, Any],
 ) -> _ToolExecutionGrant | None:
-    # newest first, so a result is attributed to the latest matching proposal
+    # newest first; matching grants authorize the same action, and when they
+    # belong to several calls the service checks the execution with none of
+    # their contexts (`_candidate_checks`)
     for index in range(len(grants) - 1, -1, -1):
         grant = grants[index]
         if (

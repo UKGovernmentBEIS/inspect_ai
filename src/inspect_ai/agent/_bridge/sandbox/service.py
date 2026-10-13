@@ -28,7 +28,11 @@ from inspect_ai.util._sandbox import SandboxEnvironment, sandbox_service
 from inspect_ai.util._sandbox.service import _method_error
 
 from .._errors import PROVIDER_ERROR_KEY, provider_error_payload
-from .._sentinel import sentinel_host_tool_result, sentinel_unproposed_host_check
+from .._sentinel import (
+    SentinelCheck,
+    sentinel_host_tool_result,
+    sentinel_unproposed_host_check,
+)
 from ..anthropic_api import inspect_anthropic_api_request
 from ..completions import inspect_completions_api_request
 from ..google_api import inspect_google_api_request
@@ -280,6 +284,9 @@ def call_tool(
     executing, is returned to the scaffold. That includes a call to a
     `require_proposal=False` server, checked with its proposal's context if the
     model proposed it, and otherwise with the conversation the bridge last saw.
+    An MCP call carries no call id, so a call that outstanding proposals of
+    several calls could account for is checked without any of their contexts,
+    and its result recorded as checked for each of them.
     The check sees the result as the scaffold receives it (the serialized text,
     or the text and images of the MCP content), and an error as the service's
     error text, with the type the native path gives it. As on the native path,
@@ -298,6 +305,9 @@ def call_tool(
             raise ValueError(f"Unknown tool '{tool}' in server '{server}'")
 
         exempt = server in bridge.proposal_exempt_servers
+        # an MCP call carries no call id, so when proposals of several calls
+        # match it, which execution it is can't be told
+        candidates = bridge._candidate_checks(server, tool, arguments, exempt)
         grant = (
             bridge._consume_exempt_proposal(server, tool, arguments)
             if exempt
@@ -320,11 +330,14 @@ def call_tool(
             )
 
         tool_fn = server_tools[tool]
-        check = (
-            grant.check
-            if grant is not None
-            else sentinel_unproposed_host_check(bridge, tool, arguments, tool_fn)
-        )
+        check: SentinelCheck | None
+        if grant is None or grant.check is None or len(candidates) > 1:
+            # with no proposal's context; an ambiguous call's result is
+            # recorded for each execution it could be
+            check = sentinel_unproposed_host_check(bridge, tool, arguments, tool_fn)
+        else:
+            check = grant.check
+            candidates = []
         executing = False
         try:
             tool_def = ToolDef(tool_fn)
@@ -355,6 +368,7 @@ def call_tool(
                     "",
                     mapped.result if mapped.result is not None else "",
                     ToolCallError(mapped.error.type, _method_error(_CALL_TOOL, ex)),
+                    candidates,
                 )
             raise
 
@@ -367,7 +381,9 @@ def call_tool(
             text = result if isinstance(result, str) else to_json_str_safe(result)
             text = _truncated(tool, text, tool_def.max_output)
             if check is not None:
-                await sentinel_host_tool_result(bridge, check, text, result)
+                await sentinel_host_tool_result(
+                    bridge, check, text, result, candidates=candidates
+                )
             return text
         delivered: JsonValue
         checked: str | list[Content]
@@ -384,7 +400,9 @@ def call_tool(
         else:
             delivered = checked = to_json_str_safe(result)
         if check is not None:
-            await sentinel_host_tool_result(bridge, check, checked, result)
+            await sentinel_host_tool_result(
+                bridge, check, checked, result, candidates=candidates
+            )
         return delivered
 
     return execute

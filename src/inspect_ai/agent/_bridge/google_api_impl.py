@@ -506,6 +506,19 @@ def _strip_system_prompt_prefix(
     return user_content
 
 
+def _function_part_id(part: dict[str, Any], name: str) -> str | None:
+    """The id a functionCall or functionResponse carries, as the bridge handed it over.
+
+    gemini-cli prefixes the id it is handed with the function's name and
+    `__` (and keeps the prefix in its history), so that is removed.
+    """
+    part_id = part.get("id")
+    if not isinstance(part_id, str) or not part_id:
+        return None
+    prefix = f"{name.strip() or 'generic_tool'}__"
+    return part_id.removeprefix(prefix) or None
+
+
 def _is_function_response_part(part: Any) -> bool:
     return isinstance(part, dict) and (
         "functionResponse" in part or "function_response" in part
@@ -552,8 +565,15 @@ def _extract_user_parts(
             func_name = func_response.get("name", "")
             response = func_response.get("response", {})
 
-            if func_name in pending_tool_calls and pending_tool_calls[func_name]:
-                call_id = pending_tool_calls[func_name].pop(0)
+            response_id = _function_part_id(func_response, func_name)
+            pending = pending_tool_calls.get(func_name, [])
+            if response_id is not None:
+                # the id of the call it answers, as the bridge handed it over
+                call_id = response_id
+                if call_id in pending:
+                    pending.remove(call_id)
+            elif pending:
+                call_id = pending.pop(0)
             else:
                 call_id = f"call_{func_name}_{uuid()[:8]}"
                 logger.warning(
@@ -660,12 +680,15 @@ def _extract_model_parts(
             if not isinstance(args, dict):
                 args = {"value": args}
 
-            # deterministic call ID for message ID stability
-            args_str = json.dumps(args, sort_keys=True) if args else ""
-            call_hash = hashlib.md5(
-                f"{func_name}:{args_str}:{part_idx}".encode()
-            ).hexdigest()[:8]
-            call_id = f"call_{func_name}_{call_hash}"
+            # the id the bridge handed over, which the scaffold sends back;
+            # failing that, deterministic for message ID stability
+            call_id = _function_part_id(func_call, func_name) or ""
+            if not call_id:
+                args_str = json.dumps(args, sort_keys=True) if args else ""
+                call_hash = hashlib.md5(
+                    f"{func_name}:{args_str}:{part_idx}".encode()
+                ).hexdigest()[:8]
+                call_id = f"call_{func_name}_{call_hash}"
 
             tool_calls.append(
                 ToolCall(
@@ -701,9 +724,14 @@ def gemini_response_from_output(output: ModelOutput, model_name: str) -> dict[st
         for idx, tc in enumerate(output.message.tool_calls):
             if tc.function == "computer":
                 name, args = gemini_action_from_tool_call(tc)
-                fc_part: dict[str, Any] = {"functionCall": {"name": name, "args": args}}
             else:
-                fc_part = {"functionCall": {"name": tc.function, "args": tc.arguments}}
+                name, args = tc.function, tc.arguments
+            # with its id, which a scaffold that keeps it (gemini-cli) sends back
+            # with the call and its response
+            function_call: dict[str, Any] = {"name": name, "args": args}
+            if tc.id:
+                function_call = {"id": tc.id, **function_call}
+            fc_part: dict[str, Any] = {"functionCall": function_call}
 
             if idx == 0 and working_reasoning_block is not None:
                 fc_part["thoughtSignature"] = working_reasoning_block.reasoning

@@ -1004,7 +1004,9 @@ async def test_a_host_call_that_fails_validation_has_no_tool_result_stage() -> N
     assert after.result.text == "bad arguments"
 
 
-async def test_a_host_result_is_attributed_to_the_latest_matching_proposal() -> None:
+async def test_a_host_call_matching_several_proposals_gets_no_proposal_context() -> (
+    None
+):
     seen: Steps = []
     stale = ToolCall(
         id="stale", function="mcp__host__read_file", arguments=READ.arguments
@@ -1022,10 +1024,25 @@ async def test_a_host_result_is_attributed_to_the_latest_matching_proposal() -> 
             bridge, model, [ChatMessageUser(content=TASK)], declare_read_file()
         )
         await call_host_tool(bridge)("host", "read_file", READ.arguments)
+        # the scaffold reports the result under either call's id: it was
+        # checked for both
+        for call in [stale, fresh]:
+            await generate(
+                bridge,
+                model,
+                [
+                    ChatMessageUser(content=TASK),
+                    ChatMessageAssistant(content="On it.", tool_calls=[call]),
+                    ChatMessageTool(content="contents", tool_call_id=call.id),
+                ],
+                declare_read_file(),
+            )
 
-    assert [step.call.id for step in seen if isinstance(step, AfterToolCall)] == [
-        "fresh"
-    ]
+    # an MCP call carries no call id, so which execution it is can't be told
+    [after] = [step for step in seen if isinstance(step, AfterToolCall)]
+    assert after.call.id not in {"stale", "fresh"}
+    assert after.call.function == "read_file"
+    assert after.message == "" and after.input is None
 
 
 def read_file_view(call: ToolCall) -> ToolCallView:
@@ -1118,15 +1135,17 @@ def test_dropping_old_proposals_warns_once(
     monkeypatch.setattr(inspect_logger, "_warned", [])
     bridge = in_process_bridge([])
     checks = [
-        _sentinel.SentinelCheck(call, call, None, "", [], occurrence=call.id)
+        _sentinel.SentinelCheck(call, call, None, "", [])
         for call in [replace(READ, id=f"read_{i}") for i in range(4)]
     ]
 
     with caplog.at_level("WARNING"):
-        _sentinel.track_sentinel_calls(bridge, checks[:3])
-        _sentinel.track_sentinel_calls(bridge, checks[3:])
+        _sentinel._result_checks(bridge).issue(checks[:3])
+        _sentinel._result_checks(bridge).issue(checks[3:])
 
-    warnings = [r for r in caplog.records if "the oldest was dropped" in r.message]
+    warnings = [
+        r for r in caplog.records if "the oldest proposal was dropped" in r.message
+    ]
     assert len(warnings) == 1
     proposals = _sentinel._result_checks(bridge).proposals.values()
     assert [p.handed.id for p in proposals] == ["read_2", "read_3"]
@@ -1440,6 +1459,42 @@ async def test_a_result_whose_proposal_was_evicted_gets_no_other_context(
     assert after.input is None
 
 
+async def test_an_evicted_execution_never_matches_a_newer_one(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from inspect_ai.agent._bridge import _sentinel
+
+    monkeypatch.setattr(_sentinel, "_MAX_PROPOSALS", 1)
+    seen: Steps = []
+    model = Scripted(calls_output(READ), calls_output(READ), calls_output())
+    bridge = in_process_bridge([])
+    history: list[ChatMessage] = [ChatMessageUser(content=TASK)]
+
+    with active(observe_only([bridge_recording(seen)])):
+        older = await generate(bridge, model, history)
+        newer = await generate(bridge, model, history)
+        # the newer execution's result, then the older one's, identical
+        for output in [newer, older]:
+            [call] = output.message.tool_calls or []
+            await generate(
+                bridge,
+                model,
+                [
+                    *history,
+                    output.message.model_copy(update={"id": "echoed"}),
+                    ChatMessageTool(content="same", tool_call_id=call.id),
+                ],
+            )
+
+    # the older execution is still known by its token once its proposal is
+    # gone, so its result is checked, under the model's id, without context
+    afters = [s for s in seen if isinstance(s, AfterToolCall)]
+    assert [(s.call.id, s.input) for s in afters] == [
+        (READ.id, model.inputs[1]),
+        (READ.id, None),
+    ]
+
+
 async def test_a_result_keeps_its_proposal_when_the_system_prompt_changes() -> None:
     seen: Steps = []
     model = Scripted(calls_output(READ), calls_output())
@@ -1597,6 +1652,315 @@ async def test_a_result_takes_its_proposal_through_each_dialect(dialect: str) ->
     assert after.history == before.history
     assert after.input == before.input == model.inputs[0]
     assert after.input is not None and after.input[0].text == "Be careful."
+
+
+REWRITES = ["unchanged", "compaction", "whitespace", "split_text", "result_parts"]
+
+
+@pytest.mark.parametrize("rewrite", REWRITES)
+async def test_a_result_is_checked_once_however_the_scaffold_rewrites_history(
+    rewrite: str,
+) -> None:
+    seen: Steps = []
+    model = Scripted(calls_output(READ), calls_output(), calls_output())
+    bridge = in_process_bridge([])
+    history: list[ChatMessage] = [
+        ChatMessageUser(content="Old task details"),
+        ChatMessageAssistant(content="Earlier answer"),
+        ChatMessageUser(content="Read it"),
+    ]
+
+    with active(observe_only([bridge_recording(seen)])):
+        output = await generate(bridge, model, history)
+        echoed = output.message.model_copy(update={"id": "echoed"})
+        result = ChatMessageTool(content="same result", tool_call_id=READ.id)
+        await generate(bridge, model, [*history, echoed, result])
+        if rewrite == "compaction":
+            history = [ChatMessageUser(content="Summary of older turns"), history[-1]]
+        elif rewrite == "whitespace":
+            history[0] = ChatMessageUser(content="Old task details ")
+            result = ChatMessageTool(content="same  result\n", tool_call_id=READ.id)
+        elif rewrite == "split_text":
+            history[0] = ChatMessageUser(
+                content=[ContentText(text="Old task"), ContentText(text=" details")]
+            )
+        elif rewrite == "result_parts":
+            result = ChatMessageTool(
+                content=[ContentText(text="same"), ContentText(text=" result")],
+                tool_call_id=READ.id,
+            )
+        await generate(bridge, model, [*history, echoed, result])
+
+    [after] = [s for s in seen if isinstance(s, AfterToolCall)]
+    assert after.input == model.inputs[0]
+
+
+@protocol
+def terminate_on_a_second_result(seen: Any) -> Protocol:
+    async def after(context: Context, step: AfterToolCall) -> Decision | None:
+        seen.append(step)
+        if len(seen) > 1:
+            return Decision.terminate("an execution was checked twice")
+        return None
+
+    return after
+
+
+async def test_a_result_protocol_runs_once_per_execution_across_compaction() -> None:
+    seen: list[AfterToolCall] = []
+    model = Scripted(calls_output(READ), calls_output(), calls_output())
+    bridge = in_process_bridge([])
+    initial: list[ChatMessage] = [ChatMessageUser(content="Original context")]
+
+    with active(terminate_on_a_second_result(seen)):
+        output = await generate(bridge, model, initial)
+        tail: list[ChatMessage] = [
+            output.message.model_copy(update={"id": "echoed"}),
+            ChatMessageTool(content="same", tool_call_id=READ.id),
+        ]
+        await generate(bridge, model, [*initial, *tail])
+        await generate(bridge, model, [ChatMessageUser(content="Summary"), *tail])
+
+    assert len(seen) == 1
+
+
+@pytest.mark.parametrize("context", ["identical", "system", "images"])
+async def test_equal_calls_in_equal_looking_conversations_are_separate_executions(
+    context: str,
+) -> None:
+    seen: Steps = []
+    old_call, new_call = replace(READ, id="old"), replace(READ, id="new")
+    model = Scripted(
+        calls_output(old_call, content="old explanation"),
+        calls_output(new_call, content="new explanation"),
+        calls_output(),
+        calls_output(),
+    )
+    bridge = in_process_bridge([])
+
+    def conversation(system: str, image: str) -> list[ChatMessage]:
+        user = ChatMessageUser(
+            content=[ContentText(text="Read it"), ContentImage(image=image)]
+            if context == "images"
+            else "Read it"
+        )
+        if context == "system":
+            return [ChatMessageSystem(content=system), user]
+        return [user]
+
+    old_history = conversation("Old instructions", "data:image/png;base64,aGVsbG8=")
+    new_history = conversation("New instructions", "data:image/png;base64,d29ybGQ=")
+    with active(observe_only([bridge_recording(seen)])):
+        old = await generate(bridge, model, old_history)
+        new = await generate(bridge, model, new_history)
+        for history, output, call in [
+            (old_history, old, old_call),
+            (new_history, new, new_call),
+        ]:
+            await generate(
+                bridge,
+                model,
+                [
+                    *history,
+                    output.message.model_copy(update={"id": f"echoed_{call.id}"}),
+                    ChatMessageTool(content="same", tool_call_id=call.id),
+                ],
+            )
+
+    afters = [s for s in seen if isinstance(s, AfterToolCall)]
+    assert [(s.call.id, s.input) for s in afters] == [
+        ("old", model.inputs[0]),
+        ("new", model.inputs[1]),
+    ]
+
+
+async def test_calls_sharing_a_model_id_are_handed_over_under_their_own_tokens() -> (
+    None
+):
+    seen: Steps = []
+    model = Scripted(calls_output(READ), calls_output(READ), calls_output())
+    bridge = in_process_bridge([])
+    history: list[ChatMessage] = [ChatMessageUser(content=TASK)]
+
+    with active(observe_only([bridge_recording(seen)])):
+        first = await generate(bridge, model, history)
+        second = await generate(bridge, model, history)
+        [first_call] = first.message.tool_calls or []
+        [second_call] = second.message.tool_calls or []
+        for output, call in [(first, first_call), (second, second_call)]:
+            await generate(
+                bridge,
+                model,
+                [
+                    *history,
+                    output.message,
+                    ChatMessageTool(content="same", tool_call_id=call.id),
+                ],
+            )
+
+    # the first keeps the model's id; the second gets a token of its own
+    assert first_call.id == READ.id and second_call.id != READ.id
+    # the model's proposal stays on the record
+    model_events = [e for e in transcript().events if isinstance(e, ModelEvent)]
+    assert [e.output.message.tool_calls for e in model_events[:2]] == [[READ]] * 2
+    # the steps show the model's id, each with its own generation's input
+    afters = [s for s in seen if isinstance(s, AfterToolCall)]
+    assert [(s.call.id, s.input) for s in afters] == [
+        (READ.id, model.inputs[0]),
+        (READ.id, model.inputs[1]),
+    ]
+
+
+async def test_a_result_under_an_id_never_handed_out_is_checked_once() -> None:
+    seen: Steps = []
+    model = Scripted(calls_output(READ), calls_output())
+    bridge = in_process_bridge([])
+    history: list[ChatMessage] = [ChatMessageUser(content=TASK)]
+
+    with active(observe_only([bridge_recording(seen)])):
+        output = await generate(bridge, model, history)
+        # a scaffold that mints its own id for the call on every request
+        for id in ["scaffold_1", "scaffold_2"]:
+            call = replace(READ, id=id)
+            await generate(
+                bridge,
+                model,
+                [
+                    *history,
+                    ChatMessageAssistant(content="On it.", tool_calls=[call]),
+                    ChatMessageTool(content="other", tool_call_id=id),
+                ],
+            )
+        # the handed-over call's result, then the same result under an id of
+        # the scaffold's own
+        await generate(
+            bridge,
+            model,
+            [
+                *history,
+                output.message,
+                ChatMessageTool(content="same", tool_call_id=READ.id),
+            ],
+        )
+        await generate(
+            bridge,
+            model,
+            [
+                *history,
+                ChatMessageAssistant(
+                    content="On it.", tool_calls=[replace(READ, id="scaffold_3")]
+                ),
+                ChatMessageTool(content="same", tool_call_id="scaffold_3"),
+            ],
+        )
+
+    afters = [s for s in seen if isinstance(s, AfterToolCall)]
+    # the unmatched result once, with no model input; the handed-over call's
+    # result once, with its proposal, and not again without its token
+    assert [(s.call.id, s.output, s.input) for s in afters] == [
+        ("scaffold_1", "other", None),
+        (READ.id, "same", model.inputs[0]),
+    ]
+
+
+async def gemini_cli_round_trips(
+    bridge: AgentBridge,
+    outputs: list[str],
+    keep_ids: bool = True,
+    compact: bool = False,
+) -> None:
+    """A gemini-cli-like scaffold: it prefixes call ids with `name__` and echoes them."""
+    from inspect_ai.agent._bridge.google_api import inspect_google_api_request
+
+    tools: Any = [
+        {
+            "functionDeclarations": [
+                {"name": "read_file", "description": "Read", "parameters": PATH_SCHEMA}
+            ]
+        }
+    ]
+    contents: list[Any] = [{"role": "user", "parts": [{"text": TASK}]}]
+
+    async def request() -> Any:
+        return await inspect_google_api_request(
+            {"model": "inspect", "contents": contents, "tools": tools},
+            None,
+            None,
+            bridge,
+        )
+
+    for output in outputs:
+        response = await request()
+        parts = response["candidates"][0]["content"]["parts"]
+        response_part: dict[str, Any] = {
+            "name": "read_file",
+            "response": {"out": output},
+        }
+        for part in parts:
+            if "functionCall" in part:
+                call = part["functionCall"]
+                if keep_ids:
+                    call["id"] = f"read_file__{call['id']}"
+                    response_part["id"] = call["id"]
+                else:
+                    del call["id"]
+        contents += [
+            {"role": "model", "parts": parts},
+            {"role": "user", "parts": [{"functionResponse": response_part}]},
+        ]
+    await request()
+    if compact:
+        # gemini-cli's compression: a summary, then the latest pair
+        contents = [
+            {"role": "user", "parts": [{"text": "Summary of earlier turns"}]},
+            *contents[-2:],
+        ]
+        await request()
+
+
+@pytest.mark.parametrize("compact", [False, True])
+async def test_gemini_cli_results_are_matched_by_the_ids_it_echoes(
+    compact: bool,
+) -> None:
+    seen: Steps = []
+    calls = [replace(READ, id=f"read_{i}") for i in range(3)]
+    model = Scripted(*[calls_output(call) for call in calls], calls_output())
+    bridge = AgentBridge(
+        AgentState(messages=[]), model_aliases={"inspect": model.model}
+    )
+
+    with active(observe_only([bridge_recording(seen)])):
+        await gemini_cli_round_trips(bridge, ["same"] * 3, compact=compact)
+
+    afters = [s for s in seen if isinstance(s, AfterToolCall)]
+    assert [(s.call.id, s.input) for s in afters] == [
+        (call.id, input) for call, input in zip(calls, model.inputs)
+    ]
+
+
+async def test_google_results_without_ids_are_checked_once_per_call_and_result() -> (
+    None
+):
+    seen: Steps = []
+    calls = [replace(READ, id=f"read_{i}") for i in range(3)]
+    model = Scripted(*[calls_output(call) for call in calls], calls_output())
+    bridge = AgentBridge(
+        AgentState(messages=[]), model_aliases={"inspect": model.model}
+    )
+
+    with active(observe_only([bridge_recording(seen)])):
+        await gemini_cli_round_trips(
+            bridge, ["same", "same", "new"], keep_ids=False, compact=True
+        )
+
+    # without ids a result can't be matched to its execution: an identical
+    # result of an identical call is not checked again, and none gets a
+    # proposal's context
+    afters = [s for s in seen if isinstance(s, AfterToolCall)]
+    assert [(s.output, s.input) for s in afters] == [
+        ('{"out": "same"}', None),
+        ('{"out": "new"}', None),
+    ]
 
 
 async def test_google_terminates_on_a_repeated_calls_new_result() -> None:
@@ -1811,6 +2175,54 @@ def held_benign(started: Any, release: Any) -> Protocol:
     return after
 
 
+@protocol
+def counted_held(seen: Any, started: Any, release: Any) -> Protocol:
+    async def after(context: Context, step: AfterToolCall) -> Decision | None:
+        seen.append(step)
+        started.set()
+        await release.wait()
+        return None
+
+    return after
+
+
+async def test_a_host_result_reported_during_its_check_is_checked_once() -> None:
+    seen: list[AfterToolCall] = []
+    started, release = anyio.Event(), anyio.Event()
+    call = replace(READ, function="mcp__host__read_file")
+    model = Scripted(calls_output(call), calls_output())
+    bridge = sandbox_bridge(AsyncMock(return_value="contents"))
+    history: list[ChatMessage] = [ChatMessageUser(content=TASK)]
+
+    with active(counted_held(seen, started, release)):
+        output = await generate(bridge, model, history, declare_read_file())
+
+        async def execute() -> None:
+            await call_host_tool(bridge)("host", "read_file", READ.arguments)
+
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(execute)
+            await started.wait()
+
+            async def report() -> None:
+                await generate(
+                    bridge,
+                    model,
+                    [
+                        *history,
+                        output.message,
+                        ChatMessageTool(content="contents", tool_call_id=call.id),
+                    ],
+                    declare_read_file(),
+                )
+
+            tg.start_soon(report)
+            await anyio.sleep(0.05)
+            release.set()
+
+    assert len(seen) == 1
+
+
 @pytest.mark.parametrize("same_call", [True, False])
 async def test_a_concurrent_changed_result_is_checked(same_call: bool) -> None:
     started, release = anyio.Event(), anyio.Event()
@@ -1914,7 +2326,9 @@ async def test_a_google_repeated_call_is_checked_after_compaction() -> None:
             await request([user, *turn(second, "secret")])
 
 
-async def test_a_result_whose_call_was_compacted_away_is_checked_without_it() -> None:
+async def test_a_result_is_checked_with_its_proposal_once_its_call_is_compacted() -> (
+    None
+):
     seen: Steps = []
     model = Scripted(calls_output(READ, content="Reading."), calls_output())
     history: list[ChatMessage] = [ChatMessageUser(content=TASK)]
@@ -1931,12 +2345,12 @@ async def test_a_result_whose_call_was_compacted_away_is_checked_without_it() ->
             ],
         )
 
-    # the call it answers can't be identified, so it gets no proposal's context
-    _, after = seen
+    # the token identifies the execution whatever happened to its call
+    before, after = seen
     assert isinstance(after, AfterToolCall)
-    assert (after.call.id, after.message, after.output) == (READ.id, "", "contents")
-    assert [m.text for m in after.history] == ["Summary of earlier turns."]
-    assert after.input is None
+    assert (after.call, after.message, after.output) == (READ, "Reading.", "contents")
+    assert after.input == model.inputs[0]
+    assert after.history == before.history
 
 
 async def test_a_cancelled_host_result_check_consumes_the_grant() -> None:
@@ -2025,12 +2439,18 @@ async def test_calls_sharing_an_id_keep_their_own_result_checks(
             [
                 *history,
                 output.message,
-                ChatMessageTool(content="a", tool_call_id=one.id),
-                ChatMessageTool(content="b", tool_call_id=two.id),
+                *[
+                    ChatMessageTool(content=content, tool_call_id=call.id)
+                    for content, call in zip("ab", output.message.tool_calls or [])
+                ],
             ],
         )
 
-    # a response's results are checked concurrently
+    # the scaffold is handed each call under its own id
+    handed = [call.id for call in output.message.tool_calls or []]
+    assert handed[0] == "one" and handed[1] != "one"
+    assert handed[1] == ("two" if not duplicate_id else handed[1])
+    # a response's results are checked concurrently, each as its own call
     assert sorted(
         (s.call.arguments["path"], s.output)
         for s in seen
@@ -2057,10 +2477,11 @@ async def test_calls_sharing_an_id_keep_their_own_modifications() -> None:
     with active(modify_other()):
         output = await generate(bridge, model, [ChatMessageUser(content=TASK)])
 
-    assert output.message.tool_calls == [
-        one,
-        replace(two, arguments={"path": "safe.txt"}),
-    ]
+    first, second = output.message.tool_calls or []
+    assert first == one
+    # the scaffold gets the second call under an id of its own
+    assert second == replace(two, id=second.id, arguments={"path": "safe.txt"})
+    assert second.id != one.id
 
 
 async def test_a_host_call_beyond_the_scaffold_cap_is_still_checked() -> None:
