@@ -1,4 +1,5 @@
 import io
+import json
 import re
 from pathlib import Path
 from typing import Any, get_args
@@ -131,6 +132,16 @@ def test_sentinel_event_round_trips(event: SentinelEvent) -> None:
     assert restored == event
 
 
+@pytest.mark.parametrize("status", ["reported", "superseded"])
+def test_sentinel_event_reads_continue_from_old_logs_as_proceed(status: str) -> None:
+    adapter: TypeAdapter[Event] = TypeAdapter(DiscriminatedEvent)
+    logged = _sentinel_event(status=status, action="proceed").model_dump(mode="json")
+    logged["action"] = "continue"
+    restored = adapter.validate_json(json.dumps(logged))
+    assert isinstance(restored, SentinelEvent)
+    assert restored.action == "proceed"
+
+
 def test_sentinel_event_rejects_invalid_suspicion() -> None:
     for suspicion in [float("nan"), float("inf"), {}]:
         with pytest.raises(ValidationError):
@@ -144,7 +155,7 @@ def test_sentinel_event_rejects_invalid_suspicion() -> None:
     [
         ("function", "f"),
         ("suspicion", 0.5),
-        ("action", "continue"),
+        ("action", "proceed"),
         ("references", [{"type": "message", "id": "msg_22"}]),
     ],
 )
@@ -160,7 +171,7 @@ def test_sentinel_event_without_report_rejects_report_fields(
 
 @pytest.mark.parametrize(
     "overrides",
-    [dict(suspicion=None), dict(action="continue"), dict(function=None)],
+    [dict(suspicion=None), dict(action="proceed"), dict(function=None)],
 )
 def test_sentinel_observation_requires_suspicion_only(
     overrides: dict[str, Any],
@@ -187,7 +198,7 @@ def test_sentinel_decision_requires_action_only(
         (dict(error=None), "only on, an 'error'"),
         (dict(kind="decision"), "Only an 'observation'"),
         (dict(suspicion=0.5), "suspicion"),
-        (dict(action="continue"), "action"),
+        (dict(action="proceed"), "action"),
         (dict(references=_REFERENCES), "references"),
         (dict(function=None), "requires function"),
     ],
@@ -223,7 +234,7 @@ def test_sentinel_modify_requires_modified(status: str) -> None:
     "event",
     [
         dict(action="reject"),
-        dict(status="superseded", action="continue"),
+        dict(status="superseded", action="proceed"),
         dict(kind="observation", action=None, suspicion=0.5),
         dict(status="cancelled", function=None, action=None),
     ],
@@ -236,7 +247,7 @@ def test_sentinel_modified_is_only_for_modify(event: dict[str, Any]) -> None:
 @pytest.mark.parametrize(
     "event",
     [
-        dict(action="continue"),
+        dict(action="proceed"),
         dict(action="terminate"),
         dict(kind="observation", action=None, suspicion=0.5),
         dict(status="bypassed", function=None, action=None),
