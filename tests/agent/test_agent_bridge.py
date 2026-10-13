@@ -1726,7 +1726,13 @@ async def test_bridge_filter_style_detected_per_filter() -> None:
     for make_filter in [legacy_filter, model_filter] * 3:
         bridge = AgentBridge(AgentState(messages=[]), filter=make_filter())
         await bridge_generate(
-            bridge, model, [ChatMessageUser(content="hi")], [], None, GenerateConfig()
+            bridge,
+            model,
+            [ChatMessageUser(content="hi")],
+            [],
+            None,
+            GenerateConfig(),
+            None,
         )
         del bridge
 
