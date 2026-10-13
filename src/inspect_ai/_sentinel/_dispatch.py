@@ -13,6 +13,7 @@ from inspect_sentinel import (
     Context,
     Decision,
     EvalContext,
+    Excerpt,
     Failed,
     HumanAnswer,
     Observation,
@@ -371,10 +372,9 @@ class _Host:
 
     async def score(
         self,
-        step: Step,
+        step: Step | Excerpt[Step],
         dimensions: str | Mapping[str, str],
         *,
-        history: Sequence[ChatMessage] | None = None,
         template: str | None = None,
         model: str | None = None,
         role: str | None = None,
@@ -386,7 +386,6 @@ class _Host:
             step,
             dimensions,
             task=eval_context.sample_input_text if eval_context else None,
-            history=history,
             template=template,
             model=model,
             role=role,
