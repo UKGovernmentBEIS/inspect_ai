@@ -316,6 +316,45 @@ async def test_model_proxy_joins_repeated_header_lines(
     assert received[0]["anthropic-beta"] == "beta-a, beta-b, beta-c"
 
 
+@pytest.mark.parametrize("expect_lines", [1, 2])
+async def test_model_proxy_sends_100_continue_before_reading_the_body(
+    http_server: tuple[AsyncHTTPServer, str], expect_lines: int
+) -> None:
+    """A client that withholds the body until `100 Continue` is not left waiting."""
+    server, base_url = http_server
+    received: list[Any] = []
+
+    @server.route("/inspect", method="POST")
+    async def inspect_handler(request: dict[str, Any]) -> dict[str, Any]:
+        received.append(request["json"])
+        return {"status": 200, "body": {}}
+
+    host, port = base_url.removeprefix("http://").split(":")
+    reader, writer = await asyncio.open_connection(host, int(port))
+    body = b'{"a": 1}'
+    writer.write(
+        (
+            "POST /inspect HTTP/1.1\r\n"
+            "Host: localhost\r\n"
+            "Content-Type: application/json\r\n"
+            + "Expect: 100-continue\r\n" * expect_lines
+            + f"Content-Length: {len(body)}\r\n\r\n"
+        ).encode()
+    )
+    await writer.drain()
+    interim = await asyncio.wait_for(reader.readuntil(b"\r\n\r\n"), timeout=5)
+    assert interim == b"HTTP/1.1 100 Continue\r\n\r\n"
+
+    writer.write(body)
+    await writer.drain()
+    response = await asyncio.wait_for(reader.read(), timeout=5)
+    writer.close()
+    await writer.wait_closed()
+
+    assert response.startswith(b"HTTP/1.1 200")
+    assert received == [{"a": 1}]
+
+
 @pytest.mark.parametrize("name", ["Content-Length", "Host", "Content-Type"])
 async def test_model_proxy_rejects_repeated_single_value_headers(
     http_server: tuple[AsyncHTTPServer, str], name: str

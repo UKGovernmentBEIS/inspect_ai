@@ -181,8 +181,8 @@ class AsyncHTTPServer:
                 headers[key] = value
 
         # Expect: 100-continue
-        expect = headers.get("expect")
-        if expect and expect.lower() == "100-continue":
+        expectations = headers.get("expect", "").split(",")
+        if any(item.strip().lower() == "100-continue" for item in expectations):
             try:
                 writer.write(b"HTTP/1.1 100 Continue\r\n\r\n")
                 await asyncio.wait_for(writer.drain(), timeout=WRITE_TIMEOUT_S)
