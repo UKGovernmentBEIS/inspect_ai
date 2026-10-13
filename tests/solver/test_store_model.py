@@ -492,3 +492,21 @@ def test_store_model_binding_is_read_only(ambient_store: Store, name: str) -> No
     assert model.instance == "m1"
     assert backing._data == before
     assert ambient_store._data == {}
+
+
+@pytest.mark.parametrize(
+    "own_store,instance", [(False, None), (True, None), (True, "m1")]
+)
+def test_store_model_dump_restores_deleted_field_default(
+    ambient_store: Store, own_store: bool, instance: str | None
+) -> None:
+    backing = Store() if own_store else ambient_store
+    model = MyModel(store=backing, instance=instance)
+    key = "MyModel:m1:x" if instance else "MyModel:x"
+
+    model.x = 10
+    backing.delete(key)
+
+    assert model.model_dump()["x"] == 5
+    assert model.x == 5
+    assert backing.get(key) == 5

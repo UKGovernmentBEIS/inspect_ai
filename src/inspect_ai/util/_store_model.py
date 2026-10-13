@@ -91,13 +91,17 @@ class StoreModel(BaseModel):
         return super().model_dump_json(*args, **kwargs)
 
     def _sync_model(self) -> None:
-        self._validate_store()
+        validated = self._validate_store()
         for field_name in self.__class__.model_fields.keys():
             if field_name == "store":
                 continue
+            # restore the default for a field deleted from the store
+            ns_name = self._ns_name(field_name)
+            if ns_name not in self.store:
+                self.store.set(ns_name, validated.__dict__[field_name])
             self._get_and_coerce_field(field_name)
 
-    def _validate_store(self, data: dict[str, Any] | None = None) -> None:
+    def _validate_store(self, data: dict[str, Any] | None = None) -> "StoreModel":
         # validate store or custom dict
         data = data if data is not None else self.store._data
 
@@ -111,7 +115,7 @@ class StoreModel(BaseModel):
                 validate[name] = data[ns_name]
 
         # perform validation
-        self.__class__.model_validate(
+        return self.__class__.model_validate(
             validate, context={_VALIDATING: True, "instance": self.instance}
         )
 
