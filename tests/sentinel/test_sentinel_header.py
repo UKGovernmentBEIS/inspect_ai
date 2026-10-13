@@ -2,19 +2,24 @@
 
 import importlib.util
 import json
-from collections.abc import Callable
+import threading
+from collections.abc import Callable, Iterator
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
 
+import httpx
 import httpx2
 import pytest
 import tenacity
 from pydantic import JsonValue
+from test_helpers.utils import skip_if_trio
 
 from inspect_ai import Task, eval
 from inspect_ai._sentinel._header import (
     SENTINEL_DECISION_HEADER,
     SentinelRejectedError,
 )
+from inspect_ai._util._async import current_async_backend
 from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai.agent import AgentState
 from inspect_ai.agent._bridge._errors import PROVIDER_ERROR_KEY
@@ -94,6 +99,41 @@ def _openai_reply() -> httpx2.Response:
     return httpx2.Response(200, json=_OPENAI_COMPLETION)
 
 
+def _responses_reply() -> httpx2.Response:
+    return httpx2.Response(
+        200,
+        json={
+            "id": "resp_test",
+            "object": "response",
+            "created_at": 0,
+            "status": "completed",
+            "model": "test-model",
+            "parallel_tool_calls": True,
+            "tool_choice": "auto",
+            "tools": [],
+            "output": [
+                {
+                    "type": "message",
+                    "id": "msg_test",
+                    "role": "assistant",
+                    "status": "completed",
+                    "content": [
+                        {"type": "output_text", "text": "sunny", "annotations": []}
+                    ],
+                }
+            ],
+        },
+    )
+
+
+def _mistral_reply() -> httpx2.Response:
+    return httpx2.Response(
+        200,
+        json=_OPENAI_COMPLETION
+        | {"usage": {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2}},
+    )
+
+
 PROVIDERS = pytest.mark.parametrize(
     ("name", "base_url", "reply"),
     [
@@ -127,21 +167,50 @@ def _refused(decision: str | None, reason: str, status: int = 400) -> httpx2.Res
 
 
 def _model(
-    name: str, base_url: str, *responses: httpx2.Response, max_retries: int = 0
+    name: str,
+    base_url: str,
+    *responses: httpx2.Response,
+    max_retries: int = 0,
+    **model_args: Any,
 ) -> Model:
     script = list(responses)
 
     async def respond(request: httpx2.Request) -> httpx2.Response:
         return script.pop(0)
 
-    transport = httpx2.MockTransport(respond)
+    client_args: dict[str, Any]
+    if name.startswith("groq/"):
+        # Groq uses httpx rather than the other providers' httpx2 clients.
+        async def respond_httpx(request: httpx.Request) -> httpx.Response:
+            response = script.pop(0)
+            return httpx.Response(
+                response.status_code,
+                headers=dict(response.headers),
+                content=response.content,
+            )
+
+        client_args = {
+            "http_client": httpx.AsyncClient(
+                transport=httpx.MockTransport(respond_httpx)
+            ),
+            "max_retries": max_retries,
+        }
+    else:
+        if name.startswith("mistral/") and current_async_backend() == "trio":
+            pytest.skip("the Mistral SDK needs an asyncio event loop")
+        client = httpx2.AsyncClient(transport=httpx2.MockTransport(respond))
+        if name.startswith("mistral/"):
+            client_args = {"async_client": client}
+        else:
+            client_args = {"http_client": client, "max_retries": max_retries}
+
     return get_model(
         name,
         api_key="key",
-        http_client=httpx2.AsyncClient(transport=transport),
         base_url=base_url,
-        max_retries=max_retries,
         memoize=False,
+        **client_args,
+        **model_args,
     )
 
 
@@ -301,3 +370,214 @@ def test_terminated_sample_keeps_the_reason_and_is_scored(
     assert sample.limit is not None
     assert (sample.limit.type, sample.limit.reason) == ("operator", reason)
     assert sample.scores["includes"].value == "I"
+
+
+OTHER_PROVIDERS = pytest.mark.parametrize(
+    ("name", "reply", "model_args"),
+    [
+        pytest.param(
+            "openai/gpt-4o",
+            _responses_reply,
+            {"responses_api": True, "streaming": False},
+            id="openai-responses",
+        ),
+        pytest.param(
+            "openai-api/example/test-model", _openai_reply, {}, id="openai-compatible"
+        ),
+        pytest.param(
+            "openai-api/example/test-model",
+            _responses_reply,
+            {"responses_api": True, "stream": False},
+            id="openai-compatible-responses",
+        ),
+        pytest.param(
+            "litellm-proxy/test-model",
+            _openai_reply,
+            {"model_info": False, "stream": False},
+            id="litellm-proxy",
+        ),
+        pytest.param(
+            "litellm-proxy/test-model",
+            _responses_reply,
+            {"model_info": False, "responses_api": True, "stream": False},
+            id="litellm-proxy-responses",
+        ),
+        pytest.param("groq/test-model", _openai_reply, {}, id="groq"),
+        pytest.param(
+            "mistral/test-model",
+            _mistral_reply,
+            {"conversation_api": False},
+            id="mistral",
+        ),
+    ],
+)
+
+
+@OTHER_PROVIDERS
+async def test_other_provider_retries_sentinel_rejection(
+    name: str, reply: Callable[[], httpx2.Response], model_args: dict[str, Any]
+) -> None:
+    model = _model(
+        name,
+        "https://example.com/v1",
+        _refused("reject", "the sentinel rejected this reply"),
+        reply(),
+        **model_args,
+    )
+    try:
+        output = await model.generate("hello", config=GenerateConfig(max_retries=1))
+
+        assert output.completion == "sunny"
+    finally:
+        await model.api.aclose()
+
+
+@OTHER_PROVIDERS
+async def test_other_provider_terminates_with_sentinel_reason(
+    name: str, reply: Callable[[], httpx2.Response], model_args: dict[str, Any]
+) -> None:
+    reason = "the sentinel ended this run"
+    model = _model(
+        name,
+        "https://example.com/v1",
+        _refused("terminate", reason),
+        reply(),
+        **model_args,
+    )
+    try:
+        with pytest.raises(TerminateSampleError) as raised:
+            await model.generate("hello", config=GenerateConfig(max_retries=1))
+
+        assert reason in raised.value.reason
+    finally:
+        await model.api.aclose()
+
+
+@OTHER_PROVIDERS
+async def test_other_provider_preserves_exhausted_rejection_status(
+    name: str, reply: Callable[[], httpx2.Response], model_args: dict[str, Any]
+) -> None:
+    reason = "the sentinel rejected this reply"
+    model = _model(
+        name,
+        "https://example.com/v1",
+        _refused("reject", reason, status=503),
+        **model_args,
+    )
+    try:
+        with pytest.raises(tenacity.RetryError) as raised:
+            await model.generate("hello", config=GenerateConfig(max_retries=0))
+
+        last = raised.value.last_attempt.exception()
+        assert isinstance(last, SentinelRejectedError)
+        assert last.status_code == 503 and reason in str(last)
+    finally:
+        await model.api.aclose()
+
+
+@pytest.fixture
+def sentinel_provider_endpoint(
+    monkeypatch: pytest.MonkeyPatch,
+) -> Iterator[tuple[str, list[httpx2.Response]]]:
+    """Scripted replies for SDKs whose transports need a real HTTP endpoint."""
+    script: list[httpx2.Response] = []
+
+    class Handler(BaseHTTPRequestHandler):
+        protocol_version = "HTTP/1.1"
+
+        def do_POST(self) -> None:
+            self.rfile.read(int(self.headers.get("Content-Length", 0)))
+            response = script.pop(0)
+            self.send_response(response.status_code)
+            for name, value in response.headers.items():
+                self.send_header(name, value)
+            self.end_headers()
+            self.wfile.write(response.content)
+            self.wfile.flush()
+
+        def log_message(self, format: str, *args: Any) -> None:
+            pass
+
+    monkeypatch.setenv("AWS_ACCESS_KEY_ID", "test")
+    monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "test")
+    monkeypatch.setenv("AWS_DEFAULT_REGION", "us-east-1")
+    monkeypatch.setenv("AWS_MAX_ATTEMPTS", "1")
+    monkeypatch.delenv("AWS_SESSION_TOKEN", raising=False)
+    monkeypatch.delenv("AWS_PROFILE", raising=False)
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    thread = threading.Thread(
+        target=server.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True
+    )
+    thread.start()
+    try:
+        yield f"http://127.0.0.1:{server.server_address[1]}", script
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join()
+
+
+def _bedrock_reply() -> httpx2.Response:
+    return httpx2.Response(
+        200,
+        json={
+            "output": {
+                "message": {"role": "assistant", "content": [{"text": "sunny"}]}
+            },
+            "stopReason": "end_turn",
+            "usage": {"inputTokens": 1, "outputTokens": 1, "totalTokens": 2},
+            "metrics": {"latencyMs": 1},
+        },
+    )
+
+
+ENDPOINT_PROVIDERS = pytest.mark.parametrize(
+    ("name", "reply"),
+    [
+        pytest.param("azureai/test-model", _openai_reply, id="azureai"),
+        pytest.param("bedrock/amazon.nova-lite-v1:0", _bedrock_reply, id="bedrock"),
+    ],
+)
+
+
+@skip_if_trio
+@ENDPOINT_PROVIDERS
+@pytest.mark.parametrize("decision", ["reject", "terminate"])
+async def test_endpoint_provider_honors_sentinel_header(
+    sentinel_provider_endpoint: tuple[str, list[httpx2.Response]],
+    name: str,
+    reply: Callable[[], httpx2.Response],
+    decision: str,
+) -> None:
+    base_url, script = sentinel_provider_endpoint
+    reason = "the sentinel refused this reply"
+    script.extend(
+        [
+            httpx2.Response(
+                400,
+                headers={
+                    "X-Sentinel-Decision": decision,
+                    "x-amzn-ErrorType": "ValidationException",
+                },
+                json={"message": reason, "error": {"code": "no", "message": reason}},
+            ),
+            reply(),
+        ]
+    )
+    model = get_model(
+        name, base_url=base_url, api_key="test", streaming=False, memoize=False
+    )
+    try:
+        if decision == "reject":
+            output = await model.generate("hello", config=GenerateConfig(max_retries=1))
+
+            assert output.completion == "sunny"
+            assert script == []
+        else:
+            with pytest.raises(TerminateSampleError) as raised:
+                await model.generate("hello", config=GenerateConfig(max_retries=1))
+
+            assert reason in raised.value.reason
+            assert len(script) == 1
+    finally:
+        await model.api.aclose()
