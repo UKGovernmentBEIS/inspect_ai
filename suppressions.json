@@ -228,10 +228,6 @@
     }
   },
   "src/inspect_ai/_util/json.py": {
-    "type: ignore": {
-      "count": 2,
-      "undescribed": 1
-    },
     "type: ignore[import-untyped]": {
       "count": 4,
       "undescribed": 4
