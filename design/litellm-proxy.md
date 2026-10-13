@@ -948,9 +948,9 @@ Each phase ends with review and approval before the next starts.
    text-less tool call turns, the prefill error, default streaming, the
    environment variable fallbacks, the gate's `base_model` suggestion, and
    the virtual key check.
-7. **Docs, CHANGELOG, live tests.** Provider docs (including `base_model`
-   guidance for opaque deployments), the CHANGELOG entry, and adding the
-   provider to the `slow-tests` skill.
+7. **Docs, PR title, live tests.** Provider docs (including `base_model`
+   guidance for opaque deployments), the PR title (the changelog line), and
+   adding the provider to the `slow-tests` skill.
 
    **PR description:** list the LiteLLM issues filed from this work, with
    links, and the behavior each one causes (strict xfail, or covered by the

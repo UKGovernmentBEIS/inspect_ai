@@ -733,6 +733,19 @@ class TestGetModelInputTokens:
         assert str(info.knowledge_cutoff_date) == "2026-03-01"
         assert info.reasoning_effort_default == "medium"
 
+    def test_gemini_4_argon(self) -> None:
+        """Gemini 4 Argon resolves to its own entry (1M context, 64K output)."""
+        model = get_model("google/gemini-4-argon", api_key="test-key")
+        assert get_model_input_tokens(model) == 1_048_576
+        info = get_model_info("google/gemini-4-argon")
+        assert info is not None
+        assert info.model == "Gemini 4 Argon"
+        assert str(info.release_date) == "2026-10-13"
+        assert str(info.knowledge_cutoff_date) == "2026-03-01"
+        assert info.output_tokens == 65_536
+        assert info.reasoning is True
+        assert info.reasoning_effort_default == "medium"
+
     def test_claude_latest_defaults_to_1m(self):
         """An unknown/future Claude model (is_claude_latest) assumes the 1M frontier."""
         # Use a hypothetical future model name that triggers is_claude_latest()
