@@ -1,0 +1,84 @@
+name: Publish parity
+
+# Rebuilds a version already on PyPI with this revision's shared build steps
+# (.github/actions/build-dist) and release script, and compares the result
+# with PyPI's files member by member. Never publishes.
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - ".github/actions/build-dist/**"
+      - ".github/actions/publish-dist/**"
+      - ".github/workflows/publish.yml"
+      - ".github/workflows/publish-parity.yml"
+      - ".github/workflows/release.yml"
+      - ".github/workflows/release-pr-checks.yml"
+      - "scripts/pypi-release.py"
+      - "pyproject.toml"
+      - "MANIFEST.in"
+      - "requirements.txt"
+  # Called by release-pr-checks.yml on the release PR.
+  workflow_call:
+    inputs:
+      version:
+        description: "Version on PyPI to rebuild (default: latest)"
+        required: false
+        type: string
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version on PyPI to rebuild (default: latest)"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  parity:
+    name: Rebuild and compare with PyPI
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Resolve version
+        id: version
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          VERSION="${INPUT_VERSION:-$(curl -fsSL https://pypi.org/pypi/inspect-ai/json | jq -r .info.version)}"
+          [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] ||
+            { echo "::error::'$VERSION' is not a release version (X.Y.Z)"; exit 1; }
+          echo "Rebuilding $VERSION"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      # Same checkout settings as the publish job, at the shipped tag.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: refs/tags/${{ steps.version.outputs.version }}
+          path: release-source
+          fetch-depth: 0
+          filter: "blob:none"
+          submodules: true
+          persist-credentials: false
+
+      - uses: ./.github/actions/build-dist
+        with:
+          version: ${{ steps.version.outputs.version }}
+          source: release-source
+
+      - name: Compare with PyPI
+        working-directory: release-source
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: python "$GITHUB_WORKSPACE/scripts/pypi-release.py" verify-parity "$VERSION"

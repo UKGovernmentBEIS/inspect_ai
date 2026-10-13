@@ -37,7 +37,6 @@ from .tool_call import _BUTTON_ID_PREFIX, ApprovalDecisionRequested
 _LABEL_OVERRIDES: dict[str, str] = {
     "approve": "Approve",
     "reject": "Reject",
-    "modify": "Modify",
     "terminate": "Terminate",
     "escalate": "Escalate",
 }

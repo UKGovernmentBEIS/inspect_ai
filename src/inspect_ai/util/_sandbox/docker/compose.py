@@ -22,6 +22,7 @@ from inspect_ai.util._subprocess import (
 )
 
 from .config import is_auto_compose_file
+from .mounts import validate_compose_mounts
 from .prereqs import (
     DOCKER_COMPOSE_REQUIRED_VERSION_PULL_POLICY,
     validate_docker_compose,
@@ -280,7 +281,9 @@ async def compose_services(project: ComposeProject) -> dict[str, ComposeService]
     result = await compose_command(["config"], project=project, timeout=300)
     if not result.success:
         raise RuntimeError(f"Error reading docker config: {result.stderr}")
-    return cast(dict[str, ComposeService], yaml.safe_load(result.stdout)["services"])
+    config = yaml.safe_load(result.stdout)
+    await validate_compose_mounts(config, project.name)
+    return cast(dict[str, ComposeService], config["services"])
 
 
 class Project(BaseModel):

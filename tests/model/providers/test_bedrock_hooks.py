@@ -8,9 +8,12 @@ without surfacing any error. These tests catch that class of regression.
 
 from __future__ import annotations
 
+from collections.abc import Iterator
+from typing import Any
 from unittest.mock import patch
 
 import pytest
+from test_helpers.utils import skip_if_trio
 
 pytest.importorskip("aiobotocore")
 pytest.importorskip("botocore")
@@ -427,3 +430,169 @@ async def test_restarted_request_is_not_counted_as_a_retry() -> None:
         ModelRequestId(id="denied", header="x-amzn-requestid", status=403),
         ModelRequestId(id="ok", header="x-amzn-requestid", status=200),
     ]
+
+
+def test_response_received_keeps_the_response_headers() -> None:
+    """Each attempt's headers reach the model call in progress, the latest replacing the last."""
+    from inspect_ai.model._response_headers import (
+        ResponseHeaders,
+        track_response_headers,
+    )
+
+    hooks = _make_hooks()
+    request_id = hooks._start_request()
+    request = _make_aws_request(f"ins/rid#{request_id}")
+    headers = ResponseHeaders()
+
+    with (
+        track_response_headers(headers),
+        patch("inspect_ai.model._providers.util.hooks.report_http_retry"),
+    ):
+        for status, amzn_id in ((429, "first"), (200, "second")):
+            hooks.converse_request_created(request=request)
+            hooks.converse_response_received(
+                response_dict={
+                    "status_code": status,
+                    "headers": {"X-Amzn-RequestId": amzn_id},
+                    "url": "",
+                },
+                context=request.context,
+            )
+            assert headers.latest == {"x-amzn-requestid": amzn_id}
+
+
+# -- Real client ---------------------------------------------------------------
+
+_CONVERSE_REPLY = {
+    "output": {"message": {"role": "assistant", "content": [{"text": "ok"}]}},
+    "stopReason": "end_turn",
+    "usage": {"inputTokens": 1, "outputTokens": 1, "totalTokens": 2},
+    "metrics": {"latencyMs": 1},
+}
+
+
+@pytest.fixture
+def converse_server(monkeypatch: pytest.MonkeyPatch) -> Iterator[tuple[str, list[Any]]]:
+    """A local Converse endpoint that answers from a script of (status, served_by, cut_short)."""
+    import json
+    import threading
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+    script: list[Any] = []
+
+    class Handler(BaseHTTPRequestHandler):
+        protocol_version = "HTTP/1.1"
+
+        def do_POST(self) -> None:
+            self.rfile.read(int(self.headers.get("Content-Length", 0)))
+            status, served_by, cut_short = script.pop(0)
+            body = json.dumps(
+                _CONVERSE_REPLY if status == 200 else {"message": "no"}
+            ).encode()
+            self.send_response(status)
+            self.send_header("Content-Type", "application/json")
+            if status != 200:
+                self.send_header("x-amzn-ErrorType", "ValidationException")
+            # a response cut short promises more body than it sends
+            self.send_header(
+                "Content-Length", str(len(body) + (100 if cut_short else 0))
+            )
+            self.send_header("X-Served-By", served_by)
+            self.end_headers()
+            self.wfile.write(body)
+            self.wfile.flush()
+            if cut_short:
+                self.close_connection = True
+
+        def log_message(self, format: str, *args: Any) -> None:
+            pass
+
+    monkeypatch.setenv("AWS_ACCESS_KEY_ID", "test")
+    monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "test")
+    monkeypatch.setenv("AWS_DEFAULT_REGION", "us-east-1")
+    monkeypatch.delenv("AWS_SESSION_TOKEN", raising=False)
+    monkeypatch.delenv("AWS_PROFILE", raising=False)
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        yield f"http://127.0.0.1:{server.server_address[1]}", script
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join()
+
+
+async def _converse(base_url: str) -> tuple[Any, BaseException | None]:
+    """One Converse call through the real client; the headers it kept and what it raised."""
+    from inspect_ai.model import ChatMessageUser, GenerateConfig, get_model
+    from inspect_ai.model._response_headers import (
+        ResponseHeaders,
+        track_response_headers,
+    )
+
+    model = get_model(
+        "bedrock/amazon.nova-lite-v1:0",
+        base_url=base_url,
+        streaming=False,
+        memoize=False,
+    )
+    headers = ResponseHeaders()
+    raised: BaseException | None = None
+    with track_response_headers(headers):
+        try:
+            await model.api.generate(
+                [ChatMessageUser(content="hello")], [], "auto", GenerateConfig()
+            )
+        except Exception as ex:
+            raised = ex
+    return headers.latest, raised
+
+
+# aiobotocore runs on asyncio only
+@skip_if_trio
+async def test_real_client_keeps_a_replys_headers(
+    converse_server: tuple[str, list[Any]],
+) -> None:
+    base_url, script = converse_server
+    script.append((200, "reply", False))
+
+    latest, raised = await _converse(base_url)
+
+    assert raised is None
+    assert latest is not None and latest["x-served-by"] == "reply"
+
+
+# aiobotocore reads a body before it reports the response, so a body that
+# can't be read used to take the headers with it
+@skip_if_trio
+@pytest.mark.parametrize("status", [200, 400])
+async def test_real_client_keeps_the_headers_of_a_response_cut_short(
+    converse_server: tuple[str, list[Any]],
+    monkeypatch: pytest.MonkeyPatch,
+    status: int,
+) -> None:
+    monkeypatch.setenv("AWS_MAX_ATTEMPTS", "1")
+    base_url, script = converse_server
+    script.append((status, "cut-short", True))
+
+    latest, raised = await _converse(base_url)
+
+    assert raised is not None
+    assert latest is not None and latest["x-served-by"] == "cut-short"
+
+
+@skip_if_trio
+async def test_real_client_keeps_the_latest_headers_when_the_sdk_retries(
+    converse_server: tuple[str, list[Any]], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("AWS_MAX_ATTEMPTS", "2")
+    base_url, script = converse_server
+    # the SDK retries a connection that closed mid-body
+    script.extend([(400, "first", True), (200, "second", False)])
+
+    latest, raised = await _converse(base_url)
+
+    assert raised is None
+    assert script == []
+    assert latest is not None and latest["x-served-by"] == "second"

@@ -83,7 +83,7 @@ from .._stream import (
     report_model_stream_progress,
     report_model_stream_start,
 )
-from .util.hooks import HttpxHooks
+from .util.hooks import HttpxHooks, polling
 
 logger = getLogger(__name__)
 
@@ -443,7 +443,10 @@ async def wait_for_background_response(
         ),
     )
     async def check_model_response(model_response: Response) -> Response:
-        return await client.responses.retrieve(model_response.id)
+        # a poll carries no request id (each one would count as a retry), so
+        # the HTTP hooks are told to record the headers of its responses
+        with polling():
+            return await client.responses.retrieve(model_response.id)
 
     try:
         # keep checking status until we get "complete", "incomplete", of "failed"
