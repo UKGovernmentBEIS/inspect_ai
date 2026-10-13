@@ -430,16 +430,25 @@ class HttpxHooks(HttpHooks):
         self.record_response(request_id, response.status_code, response.headers)
 
 
-@functools.cache
-def header_recording_session() -> type[Any]:
-    """An aiobotocore HTTP session class that records each response's headers.
+def header_recording_config(**options: Any) -> Any:
+    """An aiobotocore config for a client that records each response's headers.
 
     For a client that makes only the model call's requests. The headers are
     recorded as they arrive. aiobotocore reads a response's body before it
     returns the response or emits `response-received`, so neither happens for
     a response whose body can't be read.
+
+    Args:
+        **options: Options for `AioConfig`.
     """
+    config_cls, session_cls = _header_recording()
+    return config_cls(http_session_cls=session_cls, **options)
+
+
+@functools.cache
+def _header_recording() -> tuple[type[Any], type[Any]]:
     import aiohttp
+    from aiobotocore.config import AioConfig
     from aiobotocore.httpsession import AIOHTTPSession
 
     from inspect_ai.model._response_headers import record_response_headers
@@ -465,7 +474,15 @@ def header_recording_session() -> type[Any]:
                 session.trace_configs.append(trace_config)
             return session
 
-    return HeaderRecordingSession
+    class HeaderRecordingConfig(AioConfig):
+        def merge(self, other_config: Any) -> Any:
+            # botocore merges configs for a FIPS region name, and aiobotocore
+            # 2.18 leaves the session class out of the result
+            merged: Any = super().merge(other_config)
+            merged.http_session_cls = HeaderRecordingSession
+            return merged
+
+    return HeaderRecordingConfig, HeaderRecordingSession
 
 
 def urllib3_hooks() -> HttpHooks:

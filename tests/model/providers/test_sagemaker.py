@@ -193,11 +193,13 @@ OPERATIONS = pytest.mark.parametrize(
 )
 
 
-def _real_api(endpoint_name: str, endpoint_url: str, stream: bool) -> SagemakerAPI:
+def _real_api(
+    endpoint_name: str, endpoint_url: str, stream: bool, region_name: str = "us-west-2"
+) -> SagemakerAPI:
     return SagemakerAPI(
         model_name=endpoint_name,
         config=GenerateConfig(),
-        region_name="us-west-2",
+        region_name=region_name,
         endpoint_url=endpoint_url,
         stream=stream,
     )
@@ -237,6 +239,25 @@ async def test_real_client_records_a_failed_responses_headers(
         )
 
     assert raised.value.response["ResponseMetadata"]["HTTPStatusCode"] == 400
+    assert headers.latest is not None
+    assert headers.latest["x-served-by"] == operation
+
+
+# botocore rebuilds the client's config for a FIPS region name, and aiobotocore
+# 2.18 leaves the HTTP session class out of the result
+@skip_if_trio
+@OPERATIONS
+async def test_real_client_records_response_headers_for_a_fips_region(
+    endpoint_server: str, stream: bool, operation: str
+) -> None:
+    api = _real_api("test-endpoint", endpoint_server, stream, "us-west-2-fips")
+    headers = ResponseHeaders()
+
+    with track_response_headers(headers):
+        await api.generate(
+            [ChatMessageUser(content="hello")], [], "auto", GenerateConfig()
+        )
+
     assert headers.latest is not None
     assert headers.latest["x-served-by"] == operation
 
