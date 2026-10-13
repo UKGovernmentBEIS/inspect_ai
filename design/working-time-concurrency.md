@@ -88,6 +88,7 @@ queue:
 | Retried model attempts and provider-SDK retries | closed intervals added when known (see "Model attempts") |
 | Hard-pause hold, and the slot reacquire after it | `wait_generate_dispatch` (`pause.py:627`) |
 | Tool approval and review, by a human or a model approver | the approver call in `src/inspect_ai/approval/_apply.py:50` and `src/inspect_ai/review/_apply.py:59` (see "Approvals and limit suspension") |
+| Sentinel monitors, at all four stages (before and after the agent's model calls and tool calls) | the monitor run in `_run()` in `src/inspect_ai/_sentinel/_dispatch.py` (see "Approvals and limit suspension") |
 | Human input | `awaiting_human("question")` (`src/inspect_ai/util/_input/request.py:53`) |
 | Batch request in the batcher's local queue, until its batch is submitted | `Batcher.generate_for_request` (`src/inspect_ai/model/_providers/util/batch.py:102`), with an `on_submitted` callback the batcher calls on submission and before delivering any result or error |
 | `report_sample_waiting_time(seconds)`, the private helper | the interval `[now - seconds, now]` (see "Compatibility") |
@@ -174,8 +175,11 @@ counts as waiting both for `working_limit` and for the logged
 `working_time`. The approval and review dispatch use it alongside the two
 existing helpers. A human approval is then waiting, whichever surface
 answers it. A model monitor's approval time is not charged to the agent,
-just as its tokens are not. Like the other known waits, the suspension
-covers the whole sample while it is open (see "Accepted limitations").
+just as its tokens are not. Sentinel monitors are treated the same way:
+`_run()` in `src/inspect_ai/_sentinel/_dispatch.py`, which runs the
+monitors at every stage, uses `suspend_working_limit()` alongside the token
+and turn suspensions. Like the other known waits, the suspension covers the
+whole sample while it is open (see "Accepted limitations").
 
 ### Scoped `working_limit()` and enforcement
 
@@ -401,8 +405,8 @@ block on `anyio.Event`s, so ordering is fixed.
 2. **`src/inspect_ai/util/_limit.py`.** Scoped nodes use deltas. Add
    `suspend_working_limit()` (exported from `inspect_ai.util`). Remove
    `record_waiting_time` and the dead model-event guard. Use it in
-   `approval/_apply.py` and `review/_apply.py`, and use `sample_wait()` in
-   `awaiting_human`.
+   `approval/_apply.py`, `review/_apply.py` and the sentinel monitor run in
+   `_sentinel/_dispatch.py`, and use `sample_wait()` in `awaiting_human`.
 3. **`model/_retry.py`, `model/_model.py`, `_control/pause.py`.** Add the
    backoff sleep span and the `after` callback for retried attempts, record
    the SDK-retry split, and remove the reconciliation and the pause credit
@@ -449,6 +453,10 @@ too risky.
    block is open, including other tasks' work, because waiting is
    sample-wide under the union rule. Its docstring says so. Only code in
    the eval process can call it, not agent code in a sandbox.
+2. **Sentinel monitors count as waiting.** Ransom, 2026-10-13: monitor
+   runs at all four sentinel stages count as waiting, as approvers and
+   reviewers do. The cost is the same as for approvals: while a monitor
+   runs, other work in the sample is not charged.
 
 ## Not this design
 
