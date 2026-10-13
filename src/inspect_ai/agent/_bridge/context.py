@@ -26,6 +26,34 @@ class AgentBridgeContext:
     - "unknown": the bridge could not determine the calling agent.
     """
 
+    subagent_id: str | None = None
+    """Identity of the sub-agent instance (only when `kind == "subagent"`).
+
+    Stable across all of one sub-agent's requests and distinct between
+    sub-agents, so filters can keep per-sub-agent state (turn counts,
+    separate steering). Its format is up to whoever sets the context (e.g.
+    a spawned thread id or the tool call id that delegated the work); treat
+    it as opaque. `None` is an honest answer, like `"unknown"`: the request
+    is known to come from a sub-agent but not which one.
+    """
+
+    subagent_type: str | None = None
+    """Kind of sub-agent (only when `kind == "subagent"`).
+
+    The scaffold's own name for it, e.g. `"explore"`, `"general"`, or a
+    custom agent's name. `None` when the scaffold doesn't say or it can't
+    be determined.
+    """
+
+    def __post_init__(self) -> None:
+        if self.kind != "subagent" and (
+            self.subagent_id is not None or self.subagent_type is not None
+        ):
+            raise ValueError(
+                "subagent_id and subagent_type are only valid when "
+                f'kind == "subagent" (kind is "{self.kind}").'
+            )
+
 
 @dataclass(frozen=True)
 class BridgeRequest:

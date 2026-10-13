@@ -346,6 +346,8 @@ async def my_filter(model, messages, tools, tool_choice, config):
 Within a bridged request, `current_agent_bridge_context()` carries:
 
 - `kind` — `"root"` (the top-level agent's own thread), `"subagent"` (a delegated agent's thread), `"utility"` (internal machinery calls such as compaction or approval review), or `"unknown"` (no attribution available).
+- `subagent_id` — for `"subagent"` requests, an opaque id that is stable across one sub-agent's requests and distinct between sub-agents, for keeping per-sub-agent state (turn counts, separate steering). `None` when the sub-agent can't be told apart from its siblings, and always `None` for other kinds.
+- `subagent_type` — for `"subagent"` requests, the scaffold's name for the kind of sub-agent (e.g. `"explore"`), or `None` when it isn't known.
 
 Outside of a bridged model request it returns `None`.
 

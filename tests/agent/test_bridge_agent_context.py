@@ -77,6 +77,38 @@ def test_set_agent_bridge_context_within_scope() -> None:
     assert current_agent_bridge_context() is None
 
 
+def test_subagent_identity_defaults_to_none() -> None:
+    context = AgentBridgeContext("subagent")
+    assert context.subagent_id is None
+    assert context.subagent_type is None
+    # positional construction of kind alone keeps working
+    assert AgentBridgeContext("root") == AgentBridgeContext(kind="root")
+
+
+def test_subagent_identity_round_trips_through_scope() -> None:
+    with bridged_request_scope("slug"):
+        set_agent_bridge_context(
+            AgentBridgeContext(
+                "subagent", subagent_id="call_123", subagent_type="explore"
+            )
+        )
+        context = current_agent_bridge_context()
+        assert context is not None
+        assert (context.subagent_id, context.subagent_type) == (
+            "call_123",
+            "explore",
+        )
+        assert is_sub_agent() is True
+
+
+@pytest.mark.parametrize("kind", ["root", "utility", "unknown"])
+def test_subagent_identity_only_for_subagent_kind(kind: Kind) -> None:
+    with pytest.raises(ValueError, match="subagent_id"):
+        AgentBridgeContext(kind, subagent_id="x")
+    with pytest.raises(ValueError, match="subagent_type"):
+        AgentBridgeContext(kind, subagent_type="explore")
+
+
 def test_is_sub_agent_only_for_subagent_kind() -> None:
     expectations: list[tuple[Kind, bool]] = [
         ("root", False),
