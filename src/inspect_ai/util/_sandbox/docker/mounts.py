@@ -17,13 +17,16 @@ async def validate_compose_mounts(config: dict[str, Any], project_name: str) -> 
     if _unsafe_mounts_allowed(config):
         return
 
-    bind_runtimes: dict[str | None, str] = {}
-    for service_name, service in config["services"].items():
-        description = _validate_service_mounts(
-            service_name, service, config.get("volumes", {}), project_name
+    volumes = config.get("volumes", {})
+    bind_runtimes: dict[str | None, str] = {
+        service.get("runtime"): description
+        for service_name, service in config["services"].items()
+        if (
+            description := _validate_service_mounts(
+                service_name, service, volumes, project_name
+            )
         )
-        if description:
-            bind_runtimes[service.get("runtime")] = description
+    }
 
     if bind_runtimes:
         await _validate_read_only_support(bind_runtimes)
