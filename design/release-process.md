@@ -7,11 +7,13 @@ and published to PyPI and npm by GitHub Actions with trusted publishing.
 
 1. **PR titles set the version.** PRs are squash-merged and their titles follow
    Conventional Commits (enforced by `pr-title-lint.yml`). Since the last
-   release, any `fix`, `feat`, `perf` or `revert` makes the next release a patch
-   (0.3.x). Other types make no release on their own. A breaking change
-   (`feat!:`) is listed under "⚠ BREAKING CHANGES" but also makes a patch: the
-   config sets `"versioning": "always-bump-patch"`, which ignores breaking
-   changes when choosing the version (see [Minor or major
+   release, any `fix`, `feat`, `perf` or `revert`, or any breaking change (`!`
+   on any type, including `chore!:`), makes the next release a patch (0.3.x).
+   Other types make no release on their own, except a commit whose message ends
+   with a `Release-As: X.Y.Z` footer, which makes a release of that version. A
+   breaking change is listed under "⚠ BREAKING CHANGES" but still makes a
+   patch: the config sets `"versioning": "always-bump-patch"`, which ignores
+   breaking changes when choosing the version (see [Minor or major
    release](#minor-or-major-release)). Config: `.release-please-config.json`;
    the last released version: `.release-please-manifest.json`.
 2. **Release PR.** On every push to `main`, `release.yml` runs Release Please,
@@ -112,9 +114,9 @@ publisher. The `pypi` and `npm` environments must allow deployments from
 releases with breaking changes, so a minor or major release must be set
 explicitly. Merge a PR that adds `"release-as": "X.Y.0"` to the `"."` package
 in `.release-please-config.json`; the release PR then proposes that version.
-`release-as` sets the version but does not create a release: with no `fix`,
-`feat`, `perf` or `revert` merged since the last release, there is no release
-PR until one merges. After it is released, merge a PR that removes
+`release-as` sets the version but does not create a release: if nothing that
+makes a release (step 1) has merged since the last release, there is no release
+PR until something does. After it is released, merge a PR that removes
 `release-as`; otherwise every later release PR proposes the same version again.
 (Temporarily switching `versioning` back to `default` makes a minor release
 only if a breaking change has merged since the last release.)
