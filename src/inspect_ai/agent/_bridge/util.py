@@ -694,7 +694,6 @@ async def bridge_generate(
         with _routing_context(routing):
             # Apply filter if we have it (can either return output or alternate inputs)
             output: ModelOutput | None = None
-            generated_by_filter = False
             if bridge.filter:
                 # tool_to_tool_info (via ToolDef) preserves `options` — including
                 # the INTERNAL_TOOL_TYPE marker — so the filter sees the same
@@ -716,7 +715,6 @@ async def bridge_generate(
                         )
                 if isinstance(result, ModelOutput):
                     output = result
-                    generated_by_filter = True
                 elif isinstance(result, GenerateInput):
                     # Update the inputs that will be used for generation
                     input_messages, tools, tool_choice, config = result
@@ -781,7 +779,6 @@ async def bridge_generate(
             input_messages,
             input + replayed,
             declarations,
-            model_input=None if generated_by_filter else input_messages,
         )
         if reviewed.rejection is None:
             bridge._register_tool_execution_grants(

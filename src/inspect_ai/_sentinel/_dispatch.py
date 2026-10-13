@@ -89,7 +89,6 @@ async def sentinel_before_tool_call(
     call: ToolCall,
     viewer: ToolCallViewer | None,
     history: list[ChatMessage],
-    input: list[ChatMessage] | None = None,
 ) -> Decision | None:
     if not _watches(BeforeToolCall):
         return None
@@ -98,7 +97,7 @@ async def sentinel_before_tool_call(
         message=message,
         call=call,
         view=resolve_tool_call_view(call, viewer),
-        input=input if input is not None else _model_input(call, history),
+        input=_model_input(call, history),
         history=history,
     )
     return await _run(step)
@@ -129,7 +128,6 @@ async def sentinel_after_tool_call(
     output: ToolResult,
     viewer: ToolCallViewer | None,
     history: list[ChatMessage],
-    input: list[ChatMessage] | None = None,
 ) -> None:
     if not _watches(AfterToolCall):
         return
@@ -140,7 +138,7 @@ async def sentinel_after_tool_call(
         result=result,
         output=output,
         view=resolve_tool_call_view(call, viewer),
-        input=input if input is not None else _model_input(call, history),
+        input=_model_input(call, history),
         history=history,
     )
     decision = await _run(step)

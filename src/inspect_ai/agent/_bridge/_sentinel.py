@@ -58,7 +58,6 @@ class SentinelCheck(NamedTuple):
     call: ToolCall
     viewer: ToolCallViewer | None
     message: str
-    input: list[ChatMessage]
     history: list[ChatMessage]
 
 
@@ -162,9 +161,11 @@ class _ResultChecks:
                 if proposal is not None:
                     check = proposal
                 else:
-                    context = input[: found.position if found else index]
+                    # the history ends with the call's assistant message, as on
+                    # the native path; an orphan result has none
+                    history = input[: found.position + 1 if found else index]
                     check = SentinelCheck(
-                        call, call, None, found.text if found else "", context, context
+                        call, call, None, found.text if found else "", history
                     )
                 keys.add(key)
                 claimed.owned.append(_Result(key, check, message))
@@ -242,25 +243,13 @@ async def sentinel_tool_call(
     message: str,
     call: ToolCall,
     viewer: ToolCallViewer | None,
-    input: list[ChatMessage],
     history: list[ChatMessage],
 ) -> "Decision | None":
     from inspect_ai._sentinel._dispatch import sentinel_before_tool_call
 
     return await _guarded(
-        bridge,
-        partial(sentinel_before_tool_call, message, call, viewer, history, input=input),
+        bridge, partial(sentinel_before_tool_call, message, call, viewer, history)
     )
-
-
-def sentinel_model_input(
-    message: ChatMessageAssistant, history: list[ChatMessage]
-) -> list[ChatMessage]:
-    # a filter that generated the output itself sent the model its own input,
-    # which only its ModelEvent records
-    from inspect_ai._sentinel._dispatch import _model_input
-
-    return _model_input((message.tool_calls or [])[0], history)
 
 
 def track_sentinel_calls(bridge: AgentBridge, checks: Sequence[SentinelCheck]) -> None:
@@ -277,8 +266,9 @@ def sentinel_unproposed_host_check(
     if active_sentinel() is None:
         return None
     call = ToolCall(id=f"call_{tool}_{uuid()[:8]}", function=tool, arguments=arguments)
-    context = list(bridge.state.messages)
-    return SentinelCheck(call, call, ToolDef(tool_fn).viewer, "", context, context)
+    return SentinelCheck(
+        call, call, ToolDef(tool_fn).viewer, "", list(bridge.state.messages)
+    )
 
 
 async def sentinel_host_tool_result(
@@ -360,7 +350,6 @@ async def _tool_result(
             output,
             check.viewer,
             check.history,
-            input=check.input,
         ),
     )
 

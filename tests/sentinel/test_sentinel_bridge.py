@@ -12,7 +12,7 @@ import pytest
 from inspect_ai import Task, eval
 from inspect_ai._sentinel._config import resolve_sentinel_root, resolve_sentinel_spec
 from inspect_ai._sentinel._context import SentinelFailure, init_sentinel
-from inspect_ai._util.content import ContentImage, ContentText
+from inspect_ai._util.content import ContentImage, ContentReasoning, ContentText
 from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai.agent import Agent, AgentState, agent, agent_bridge
 from inspect_ai.agent._bridge.sandbox.service import call_tool as call_host_tool
@@ -57,7 +57,9 @@ from inspect_ai.tool._tool_params import ToolParam, ToolParams
 
 try:
     from inspect_sentinel import (
+        AfterGenerate,
         AfterToolCall,
+        BeforeGenerate,
         BeforeToolCall,
         Context,
         Decision,
@@ -207,7 +209,9 @@ def calls_output(*calls: ToolCall, content: str = "On it.") -> ModelOutput:
 class Scripted:
     """A model that returns `outputs` in turn and records the input of each call."""
 
-    def __init__(self, *outputs: ModelOutput) -> None:
+    def __init__(
+        self, *outputs: ModelOutput, config: GenerateConfig | None = None
+    ) -> None:
         self.outputs = list(outputs)
         self.inputs: list[list[ChatMessage]] = []
 
@@ -217,7 +221,12 @@ class Scripted:
             self.inputs.append(list(input))
             return self.outputs[min(len(self.inputs), len(self.outputs)) - 1]
 
-        self.model = get_model("mockllm/model", custom_outputs=respond, memoize=False)
+        self.model = get_model(
+            "mockllm/model",
+            config=config or GenerateConfig(),
+            custom_outputs=respond,
+            memoize=False,
+        )
 
 
 async def generate(
@@ -547,9 +556,10 @@ async def test_a_result_for_a_call_never_handed_over_is_still_checked() -> None:
     assert isinstance(read, AfterToolCall) and isinstance(bash, AfterToolCall)
     assert read.input == model.inputs[1]
     # the rejected call's proposal was never handed over, so the request is
-    # the only context
+    # the only context, and no model produced the call it carries
     assert (bash.call, bash.message, bash.output) == (BASH, "Running.", "y")
-    assert bash.input[-1].text == "x"
+    assert bash.history[-1] is forged
+    assert bash.input is None
 
 
 async def test_tool_result_terminate_ends_the_sample_before_the_model_sees_it() -> None:
@@ -570,6 +580,41 @@ async def test_tool_result_terminate_ends_the_sample_before_the_model_sees_it() 
             )
 
     assert len(model.inputs) == 1
+
+
+@protocol
+def bridge_escalate(after: bool = False) -> ProtocolGroup:
+    async def before(context: Context, step: BeforeToolCall) -> Decision | None:
+        return None if after else Decision.escalate("not sure")
+
+    async def later(context: Context, step: AfterToolCall) -> Decision | None:
+        return Decision.escalate("not sure") if after else None
+
+    return ProtocolGroup(before, later)
+
+
+@pytest.mark.parametrize("after", [False, True])
+async def test_an_unhandled_escalate_terminates(after: bool) -> None:
+    model = Scripted(calls_output(READ), calls_output())
+    bridge = in_process_bridge([ChatMessageUser(content=TASK)])
+
+    with active(bridge_escalate(after)):
+        with pytest.raises(TerminateSampleError, match="unhandled escalation from"):
+            output = await generate(bridge, model, [ChatMessageUser(content=TASK)])
+            await generate(
+                bridge,
+                model,
+                [
+                    ChatMessageUser(content=TASK),
+                    output.message,
+                    ChatMessageTool(content="x", tool_call_id=READ.id),
+                ],
+            )
+
+    assert len(model.inputs) == 1
+    assert root_decisions() == [
+        (READ.id, "tool_result" if after else "tool_call", "escalate")
+    ]
 
 
 async def test_host_tool_result_is_checked_in_the_service() -> None:
@@ -758,6 +803,65 @@ def test_an_in_process_bridged_agent_runs_both_stages() -> None:
     assert after.result.text == "file contents"
     model_events = [e for e in log.samples[0].events if isinstance(e, ModelEvent)]
     assert after.input == model_events[0].input
+
+
+@monitor
+def every_stage(seen: Any) -> MonitorGroup:
+    async def model_input(context: Context, step: BeforeGenerate) -> Observation | None:
+        seen.append(step)
+        return None
+
+    async def model_output(context: Context, step: AfterGenerate) -> Observation | None:
+        seen.append(step)
+        return None
+
+    async def tool_call(context: Context, step: BeforeToolCall) -> Observation | None:
+        seen.append(step)
+        return None
+
+    async def tool_result(context: Context, step: AfterToolCall) -> Observation | None:
+        seen.append(step)
+        return None
+
+    return MonitorGroup(model_input, model_output, tool_call, tool_result)
+
+
+def test_a_bridged_agent_runs_every_stage_once_in_order() -> None:
+    model = get_model(
+        "mockllm/model",
+        config=GenerateConfig(system_message="Be careful."),
+        custom_outputs=[
+            calls_output(READ),
+            ModelOutput.from_content("mockllm/model", "done"),
+        ],
+        memoize=False,
+    )
+    seen: list[Any] = []
+    log = eval(
+        Task(
+            dataset=[Sample(input=TASK)],
+            solver=openai_scaffold(),
+            sentinel=observe_only([every_stage(seen)]),
+        ),
+        model=model,
+    )[0]
+
+    assert log.status == "success", log.error
+    # each generation is checked inside Model.generate, and its tool calls once
+    # the response comes back to the bridge, before the scaffold receives them;
+    # a call's result is checked when the scaffold reports it, before the next
+    # generation
+    assert [type(step) for step in seen] == [
+        BeforeGenerate,
+        AfterGenerate,
+        BeforeToolCall,
+        AfterToolCall,
+        BeforeGenerate,
+        AfterGenerate,
+    ]
+    generated, call, result = seen[1], seen[2], seen[3]
+    assert call.input == result.input == generated.input
+    assert call.input[0].text == "Be careful."
 
 
 async def test_a_dispatched_call_is_checked_as_its_target() -> None:
@@ -1011,7 +1115,7 @@ def test_dropping_old_proposals_warns_once(
     monkeypatch.setattr(inspect_logger, "_warned", [])
     bridge = in_process_bridge([])
     checks = [
-        _sentinel.SentinelCheck(call, call, None, "", [], [])
+        _sentinel.SentinelCheck(call, call, None, "", [])
         for call in [replace(READ, id=f"read_{i}") for i in range(4)]
     ]
 
@@ -1882,6 +1986,129 @@ async def test_both_stages_see_the_input_a_filter_sent(generates: bool) -> None:
     assert [m.text for m in before.input] == ["Filtered.", TASK]
 
 
+POLICY = "Author policy: read only safe.txt."
+
+
+def reasoned_history() -> list[ChatMessage]:
+    return [
+        ChatMessageUser(content=TASK),
+        ChatMessageAssistant(
+            content=[
+                ContentReasoning(reasoning="Earlier thoughts."),
+                ContentText(text="Looked around."),
+            ]
+        ),
+        ChatMessageUser(content="Go on."),
+    ]
+
+
+@pytest.mark.parametrize("filter", [None, "rewrites", "generates"])
+async def test_both_stages_see_the_input_the_model_was_sent(
+    filter: str | None,
+) -> None:
+    seen: Steps = []
+    # Model.generate adds the configured system message and drops reasoning
+    # history after the bridge hands over its input
+    model = Scripted(
+        calls_output(READ),
+        calls_output(),
+        config=GenerateConfig(system_message=POLICY, reasoning_history="none"),
+    )
+    history = reasoned_history()
+    bridge = in_process_bridge(history)
+
+    async def passes_through(
+        model: Model,
+        input: list[ChatMessage],
+        tools: list[ToolInfo],
+        tool_choice: ToolChoice | None,
+        config: GenerateConfig,
+    ) -> ModelOutput | GenerateInput:
+        if filter == "generates":
+            return await model.generate(
+                input=input, tools=tools, tool_choice=tool_choice, config=config
+            )
+        return GenerateInput(input, tools, tool_choice, config)
+
+    if filter is not None:
+        bridge.filter = passes_through
+    with active(observe_only([bridge_recording(seen)])):
+        output = await generate(bridge, model, history)
+        await generate(
+            bridge,
+            model,
+            [
+                *history,
+                output.message,
+                ChatMessageTool(content="x", tool_call_id=READ.id),
+            ],
+        )
+
+    before, after = seen
+    model_event = next(e for e in transcript().events if isinstance(e, ModelEvent))
+    assert before.input == model_event.input == model.inputs[0]
+    assert after.input == before.input
+    assert before.input is not None
+    assert isinstance(before.input[0], ChatMessageSystem)
+    assert before.input[0].text == POLICY
+    assert not any(
+        isinstance(content, ContentReasoning)
+        for message in before.input
+        if not isinstance(message.content, str)
+        for content in message.content
+    )
+
+
+class RecordingSink:
+    """A model event sink that keeps events, emitting them only if `forward`."""
+
+    def __init__(self, forward: bool) -> None:
+        self.forward = forward
+        self.events: list[ModelEvent] = []
+
+    def on_pending(self, event: ModelEvent) -> None:
+        self.events.append(event)
+        if self.forward:
+            transcript()._event(event)
+
+    def on_complete(self, event: ModelEvent) -> None:
+        if self.forward:
+            transcript()._event_updated(event)
+
+
+@pytest.mark.parametrize("forward", [True, False])
+async def test_step_input_with_a_model_event_sink(forward: bool) -> None:
+    seen: Steps = []
+    model = Scripted(
+        calls_output(READ), calls_output(), config=GenerateConfig(system_message=POLICY)
+    )
+    history: list[ChatMessage] = [ChatMessageUser(content=TASK)]
+    bridge = in_process_bridge(history)
+    sink = RecordingSink(forward)
+    bridge.model_event_sink = sink
+
+    with active(observe_only([bridge_recording(seen)])):
+        output = await generate(bridge, model, history)
+        await generate(
+            bridge,
+            model,
+            [
+                *history,
+                output.message,
+                ChatMessageTool(content="x", tool_call_id=READ.id),
+            ],
+        )
+
+    before, after = seen
+    if forward:
+        # a sink that emits the event (as inspect_swe's do) leaves it findable
+        assert before.input == sink.events[0].input == model.inputs[0]
+        assert after.input == before.input
+    else:
+        # one that withholds it leaves no record of what the model was sent
+        assert before.input is None and after.input is None
+
+
 @pytest.mark.parametrize("executed", [False, True])
 async def test_a_scaffold_result_for_a_host_call_is_checked(executed: bool) -> None:
     call = replace(READ, function="mcp__host__read_file")
@@ -2043,7 +2270,8 @@ async def test_a_responses_result_without_an_id_is_checked(
                 request("benign"), None, None, None, bridge
             )
         assert [step.result.text for step in seen] == ["benign"]
-        assert [m.text for m in seen[0].input] == [TASK]
+        assert [m.text for m in seen[0].history] == [TASK]
+        assert seen[0].input is None
         with pytest.raises(TerminateSampleError, match="blocked secret"):
             await inspect_responses_api_request(
                 request("secret"), None, None, None, bridge
@@ -2142,7 +2370,9 @@ async def test_an_exempt_host_result_is_checked(proposed: bool) -> None:
     assert isinstance(after, AfterToolCall)
     assert after.call.function == (call.function if proposed else "read_file")
     assert after.call.arguments == READ.arguments
-    assert [m.text for m in after.input] == [TASK]
+    assert [m.text for m in after.history] == ([TASK, "On it."] if proposed else [TASK])
+    # what the model was sent when it proposed the call, else nothing
+    assert (after.input is not None) is proposed
     assert after.result.text == "secret"
 
 

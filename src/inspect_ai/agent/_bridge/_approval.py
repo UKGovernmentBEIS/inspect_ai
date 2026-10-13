@@ -29,11 +29,7 @@ from typing import TYPE_CHECKING, Any, NamedTuple, NoReturn, Sequence
 from inspect_ai._sentinel._context import active_sentinel
 from inspect_ai._util.format import format_function_call
 from inspect_ai._util.logger import warn_once
-from inspect_ai.agent._bridge._sentinel import (
-    SentinelCheck,
-    sentinel_model_input,
-    sentinel_tool_call,
-)
+from inspect_ai.agent._bridge._sentinel import SentinelCheck, sentinel_tool_call
 from inspect_ai.agent._bridge.types import AgentBridge, DispatchedCall
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageTool
 from inspect_ai.model._model_output import ModelOutput
@@ -102,7 +98,6 @@ async def apply_bridge_tool_approval(
     history: list[ChatMessage],
     conversation: list[ChatMessage] | None = None,
     tools: Sequence[ToolInfo | Tool] = (),
-    model_input: list[ChatMessage] | None = None,
 ) -> BridgeApproval:
     """Approve the tool calls in a bridged model response.
 
@@ -115,6 +110,12 @@ async def apply_bridge_tool_approval(
     `tool_call` stage in order, as on the native path: its `reject`, `modify` and
     `terminate` take effect like an approver's. The response carries the
     `tool_result` check for each call handed to the scaffold (`_sentinel.py`).
+    The generation itself has already been through the `model_input` and
+    `model_output` stages inside `Model.generate()`. As on the native path,
+    both tool stages take their input from the `ModelEvent` that produced the
+    call, so it is what the model was actually sent, or `None` when no such
+    event is in the transcript (a filter that returned output without
+    generating, or a model event sink that withholds events).
 
     A multi-choice response whose alternate choices carry tool calls is reduced to
     the primary choice (with a warning) when approval is active, since only the
@@ -132,9 +133,6 @@ async def apply_bridge_tool_approval(
             sentinel's step history (defaults to `history`).
         tools: The declarations the scaffold made to the model, which identify
             the host tools (and so the registered viewers) the calls denote.
-        model_input: What the model was sent, for the sentinel's step input, or
-            `None` when a filter generated `output` itself (its `ModelEvent` then
-            supplies the input).
 
     Returns:
         The response for the scaffold, plus the messages to replay to the model when
@@ -213,16 +211,11 @@ async def apply_bridge_tool_approval(
         checks: list[SentinelCheck] | None = None
         if sentinel_active:
             sentinel_history = (conversation or history) + [output.message]
-            step_input = (
-                model_input
-                if model_input is not None
-                else sentinel_model_input(output.message, sentinel_history)
-            )
             checks = []
             for index, (call, reviewed) in enumerate(zip(tool_calls, reviewed_calls)):
                 viewer = bridge._host_tool_viewer(call, tools)
                 decision = await sentinel_tool_call(
-                    bridge, message, reviewed, viewer, step_input, sentinel_history
+                    bridge, message, reviewed, viewer, sentinel_history
                 )
                 if decision is not None and decision.action == "reject":
                     explanation = ToolApprovalError(decision.message).message
@@ -250,7 +243,6 @@ async def apply_bridge_tool_approval(
                         call=reviewed,
                         viewer=viewer,
                         message=message,
-                        input=step_input,
                         history=sentinel_history,
                     )
                 )
