@@ -87,8 +87,15 @@ def gemini_3_plus(family: str, latest: bool) -> bool:
 
 
 def gemini_thinking_only(family: str, latest: bool) -> bool:
-    """Whether thinking cannot be disabled (Pro models)."""
-    return (is_gemini_2_5(family) or is_gemini_3(family) or latest) and "-pro" in family
+    """Whether thinking cannot be disabled (Pro models, Gemini 2.5 and later).
+
+    Pro names newer than those verified (e.g. a future gemini-4-pro) count as
+    thinking-only, so disabling thinking warns rather than risking a 400.
+    Only the final path segment is checked, so a vertex project id such as
+    my-project does not make a model thinking-only.
+    """
+    name = family.rsplit("/", 1)[-1]
+    return gemini_has_thinking_config(family, latest) and "-pro" in name
 
 
 def gemini_supports_minimal_thinking(family: str) -> bool:
