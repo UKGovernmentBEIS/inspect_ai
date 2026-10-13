@@ -1,7 +1,6 @@
 import json
 from collections import OrderedDict
 from functools import partial
-from itertools import count
 from logging import getLogger
 from typing import (
     TYPE_CHECKING,
@@ -30,11 +29,11 @@ from inspect_ai._util.content import (
 from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai._util.hash import mm3_hash
 from inspect_ai._util.logger import warn_once
-from inspect_ai.agent._bridge.sandbox.types import _json_equal
 from inspect_ai.agent._bridge.types import AgentBridge
 from inspect_ai.model._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
+    ChatMessageSystem,
     ChatMessageTool,
 )
 from inspect_ai.tool._tool import Tool, ToolResult
@@ -59,6 +58,9 @@ class SentinelCheck(NamedTuple):
     viewer: ToolCallViewer | None
     message: str
     history: list[ChatMessage]
+    occurrence: str | None = None
+    """The handed-over call's identity in the scaffold's conversation
+    (`_occurrence`), or None for a host call no proposal accounts for."""
 
 
 class _Result(NamedTuple):
@@ -76,20 +78,29 @@ class _Call(NamedTuple):
     call: ToolCall
     text: str
     position: int
+    occurrence: str
 
 
 class _ResultChecks:
     """The `tool_result` checks for the results the scaffold reports.
 
-    Each distinct result is checked once, the first time a request carries it.
-    A result is identified by its call's id, function and arguments and by its
-    content and error, so the same result repeated in later history is not
-    checked again, while a changed result or a later call reusing an id is.
+    A call is identified by where it occurs in the scaffold's conversation: the
+    conversation up to and including its assistant message, and its position in
+    that message (`_occurrence`). Ids play no part, since a dialect may mint
+    them anew (Google derives them from the call itself) or reuse them.
 
-    A check takes its context from the call's proposal, found by id or, for a
-    dialect that mints new ids (like Google), by function and arguments. With
-    no proposal (e.g. one dropped beyond the cap, or a result without an id),
-    the result is checked with what the request carries.
+    Each distinct result is checked once, the first time a request carries it.
+    A result is identified by its call's occurrence and by its content and
+    error, so the same result repeated in later history is not checked again,
+    while a changed result, or an identical result of another execution of the
+    same call, is.
+
+    A check takes its context from the proposal handed over at the call's
+    occurrence. With none (one dropped beyond the cap, a call the bridge never
+    handed over, a scaffold that rewrote the conversation before the call, or a
+    result without a call), the result is checked with the conversation the
+    request carries, and so usually with no model input, never with another
+    call's.
 
     A host call's result is checked when the call executes, and that result,
     as delivered, is recorded as checked; any other content the scaffold
@@ -99,14 +110,16 @@ class _ResultChecks:
     """
 
     def __init__(self) -> None:
-        self.proposals: OrderedDict[int, SentinelCheck] = OrderedDict()
+        self.proposals: OrderedDict[str, SentinelCheck] = OrderedDict()
         self.checked: set[str] = set()
         self.running: dict[str, anyio.Event] = {}
         self.failed: dict[str, Exception] = {}
-        self._sequence = count()
 
     def add(self, check: SentinelCheck) -> None:
-        self.proposals[next(self._sequence)] = check
+        if check.occurrence is None:
+            return
+        self.proposals[check.occurrence] = check
+        self.proposals.move_to_end(check.occurrence)
         while len(self.proposals) > _MAX_PROPOSALS:
             self.proposals.popitem(last=False)
             warn_once(
@@ -115,7 +128,8 @@ class _ResultChecks:
                 "to the scaffold; the oldest was dropped, so the sentinel's "
                 "tool_result check of a call handed over more than "
                 f"{_MAX_PROPOSALS} calls ago sees only the conversation that "
-                "carries its result, and usually no model input.",
+                "carries its result, and usually no model input (never another "
+                "call's).",
             )
 
     def claim(self, input: list[ChatMessage]) -> _Claimed:
@@ -123,11 +137,19 @@ class _ResultChecks:
         keys: set[str] = set()
         calls: dict[str, _Call] = {}
         unanswered: dict[str, list[_Call]] = {}
+        conversation = ""
         for index, message in enumerate(input):
+            before = conversation
+            conversation = _extend(conversation, message)
             if isinstance(message, ChatMessageAssistant):
                 unanswered = {}
-                for call in message.tool_calls or []:
-                    calls[call.id] = _Call(call, message.text, index)
+                for position, call in enumerate(message.tool_calls or []):
+                    calls[call.id] = _Call(
+                        call,
+                        message.text,
+                        index,
+                        _occurrence(conversation, position),
+                    )
                     unanswered.setdefault(call.id, []).append(calls[call.id])
             elif isinstance(message, ChatMessageTool):
                 result_id = message.tool_call_id or ""
@@ -136,19 +158,12 @@ class _ResultChecks:
                     if unanswered.get(result_id)
                     else calls.get(result_id)
                 )
-                proposal: SentinelCheck | None = None
-                if found is None:
-                    proposal = self._proposal(result_id, None) if result_id else None
-                    call = (
-                        proposal.handed
-                        if proposal is not None
-                        else ToolCall(
-                            id=result_id, function=message.function or "", arguments={}
-                        )
-                    )
-                else:
-                    call = found.call
-                key = _result_key(message, call)
+                occurrence = (
+                    found.occurrence
+                    if found is not None
+                    else mm3_hash(f"{before}:result:{result_id}:{message.function}")
+                )
+                key = _result_key(message, occurrence)
                 if key in keys or key in self.checked:
                     continue
                 if key in self.failed:
@@ -156,13 +171,19 @@ class _ResultChecks:
                 if key in self.running:
                     claimed.waiting.append(self.running[key])
                     continue
-                if found is not None:
-                    proposal = self._proposal(result_id, call)
+                proposal = self.proposals.get(occurrence)
                 if proposal is not None:
                     check = proposal
                 else:
                     # the history ends with the call's assistant message, as on
                     # the native path; an orphan result has none
+                    call = (
+                        found.call
+                        if found is not None
+                        else ToolCall(
+                            id=result_id, function=message.function or "", arguments={}
+                        )
+                    )
                     history = input[: found.position + 1 if found else index]
                     check = SentinelCheck(
                         call, call, None, found.text if found else "", history
@@ -188,26 +209,53 @@ class _ResultChecks:
         # carrying its result
         self.running.pop(result.key).set()
 
-    def _proposal(self, result_id: str, call: ToolCall | None) -> SentinelCheck | None:
-        # newest first; a known call needs a proposal of the same call, and
-        # prefers one with its id
-        proposals = list(reversed(self.proposals.values()))
-        if call is None:
-            return next((p for p in proposals if p.handed.id == result_id), None)
-        same = [p for p in proposals if _same_call(p.handed, call)]
-        return next(
-            (p for p in same if p.handed.id == result_id),
-            same[0] if same else None,
-        )
 
+def _extend(conversation: str, message: ChatMessage) -> str:
+    """The identity of `conversation` (an `_extend` chain) followed by `message`.
 
-def _same_call(handed: ToolCall, call: ToolCall) -> bool:
-    return handed.function == call.function and _json_equal(
-        to_jsonable_python(handed.arguments, fallback=str), call.arguments
+    Built from what survives the scaffold's round trip: no ids (a dialect may
+    mint new ones), no system messages (a scaffold may vary its system prompt
+    from request to request), and of an assistant message with tool calls only
+    its calls, as the scaffold must send those back as it received them.
+    """
+    if isinstance(message, ChatMessageSystem):
+        return conversation
+    if isinstance(message, ChatMessageAssistant) and message.tool_calls:
+        identity: Any = [
+            "calls",
+            [
+                [call.function, _json_canonical(call.arguments)]
+                for call in message.tool_calls
+            ],
+        ]
+    elif isinstance(message, ChatMessageTool):
+        error = message.error.message if message.error else None
+        identity = ["tool", message.text, error]
+    else:
+        identity = [message.role, message.text]
+    return mm3_hash(
+        conversation + json.dumps(to_jsonable_python(identity, fallback=str))
     )
 
 
-def _result_key(result: ChatMessageTool, call: ToolCall) -> str:
+def _occurrence(conversation: str, position: int) -> str:
+    """The call at `position` in the assistant message that ends `conversation`."""
+    return mm3_hash(f"{conversation}:call:{position}")
+
+
+def _json_canonical(value: Any) -> Any:
+    # as `_json_equal`: 5 and 5.0 are the same argument, True and 1 are not
+    value = to_jsonable_python(value, fallback=str)
+    if isinstance(value, float) and value.is_integer():
+        return int(value)
+    if isinstance(value, dict):
+        return {key: _json_canonical(item) for key, item in sorted(value.items())}
+    if isinstance(value, list):
+        return [_json_canonical(item) for item in value]
+    return value
+
+
+def _result_key(result: ChatMessageTool, occurrence: str) -> str:
     # text is keyed as the content it stands for, as a dialect may report it
     # either way
     content = (
@@ -217,16 +265,7 @@ def _result_key(result: ChatMessageTool, call: ToolCall) -> str:
     )
     return mm3_hash(
         json.dumps(
-            to_jsonable_python(
-                [
-                    call.id,
-                    call.function,
-                    call.arguments,
-                    content,
-                    result.error,
-                ],
-                fallback=str,
-            ),
+            to_jsonable_python([occurrence, content, result.error], fallback=str),
             sort_keys=True,
         )
     )
@@ -250,6 +289,28 @@ async def sentinel_tool_call(
     return await _guarded(
         bridge, partial(sentinel_before_tool_call, message, call, viewer, history)
     )
+
+
+def sentinel_occurrences(
+    input: list[ChatMessage], checks: Sequence[SentinelCheck]
+) -> list[SentinelCheck]:
+    """`checks` for the calls handed over in reply to `input`, with their occurrences.
+
+    The scaffold's next request carries `input` followed by the response, so a
+    call's occurrence there is `input`, then the calls as handed over, then the
+    call's position among them.
+    """
+    conversation = ""
+    for message in input:
+        conversation = _extend(conversation, message)
+    handed = ChatMessageAssistant(
+        content="", tool_calls=[check.handed for check in checks]
+    )
+    conversation = _extend(conversation, handed)
+    return [
+        check._replace(occurrence=_occurrence(conversation, position))
+        for position, check in enumerate(checks)
+    ]
 
 
 def track_sentinel_calls(bridge: AgentBridge, checks: Sequence[SentinelCheck]) -> None:
@@ -284,8 +345,11 @@ async def sentinel_host_tool_result(
         function=check.call.function,
         error=error,
     )
+    # a host call no proposal accounts for has no occurrence the scaffold could
+    # report its result under
+    occurrence = check.occurrence or f"unproposed:{uuid()}"
     await _result_checks(bridge).check(
-        bridge, _Result(_result_key(result, check.handed), check, result), output
+        bridge, _Result(_result_key(result, occurrence), check, result), output
     )
 
 

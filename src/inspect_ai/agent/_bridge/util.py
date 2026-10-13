@@ -39,6 +39,7 @@ from inspect_ai.agent._bridge._approval import (
 )
 from inspect_ai.agent._bridge._errors import BridgePolicyError
 from inspect_ai.agent._bridge._sentinel import (
+    sentinel_occurrences,
     sentinel_tool_results,
     track_sentinel_calls,
 )
@@ -781,13 +782,18 @@ async def bridge_generate(
             declarations,
         )
         if reviewed.rejection is None:
-            bridge._register_tool_execution_grants(
-                reviewed.output.message.tool_calls or [],
-                declarations,
-                reviewed.sentinel,
+            # identified by where they occur in the conversation the scaffold
+            # sends back: its own request, then the response it is handed
+            checks = (
+                sentinel_occurrences(input, reviewed.sentinel)
+                if reviewed.sentinel is not None
+                else None
             )
-            if reviewed.sentinel is not None:
-                track_sentinel_calls(bridge, reviewed.sentinel)
+            bridge._register_tool_execution_grants(
+                reviewed.output.message.tool_calls or [], declarations, checks
+            )
+            if checks is not None:
+                track_sentinel_calls(bridge, checks)
             return reviewed.output, c_message
 
         rejections += 1

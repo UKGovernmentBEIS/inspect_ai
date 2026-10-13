@@ -1118,7 +1118,7 @@ def test_dropping_old_proposals_warns_once(
     monkeypatch.setattr(inspect_logger, "_warned", [])
     bridge = in_process_bridge([])
     checks = [
-        _sentinel.SentinelCheck(call, call, None, "", [])
+        _sentinel.SentinelCheck(call, call, None, "", [], occurrence=call.id)
         for call in [replace(READ, id=f"read_{i}") for i in range(4)]
     ]
 
@@ -1272,7 +1272,7 @@ async def google_round_trips(
             ]
 
 
-async def test_google_results_of_repeated_calls_are_checked_once_each() -> None:
+async def test_google_results_of_repeated_calls_are_each_checked() -> None:
     seen: Steps = []
     calls = [replace(READ, id=f"read_{i}") for i in range(3)]
     model = Scripted(*[calls_output(call) for call in calls], calls_output())
@@ -1283,11 +1283,320 @@ async def test_google_results_of_repeated_calls_are_checked_once_each() -> None:
     with active(observe_only([bridge_recording(seen)])):
         await google_round_trips(bridge, model, ["same", "same", "new"])
 
-    # the repeated result was checked when it first reached the bridge
+    # Google mints the same id for each call, but each is its own execution
     assert [(s.call.id, s.output) for s in seen if isinstance(s, AfterToolCall)] == [
         ("read_0", '{"out": "same"}'),
+        ("read_1", '{"out": "same"}'),
         ("read_2", '{"out": "new"}'),
     ]
+
+
+async def test_google_identical_results_of_repeated_calls_are_each_checked() -> None:
+    seen: Steps = []
+    calls = [replace(READ, id=f"read_{i}") for i in range(3)]
+    model = Scripted(*[calls_output(call) for call in calls], calls_output())
+    bridge = AgentBridge(
+        AgentState(messages=[]), model_aliases={"inspect": model.model}
+    )
+
+    with active(observe_only([bridge_recording(seen)])):
+        await google_round_trips(bridge, model, ["same", "same", "same"])
+
+    afters = [s for s in seen if isinstance(s, AfterToolCall)]
+    assert [s.call.id for s in afters] == ["read_0", "read_1", "read_2"]
+    # each with the input of the generation that proposed it
+    assert [s.input for s in afters] == model.inputs[:3]
+
+
+OLD_REQUEST = "Old request: confidential context"
+NEW_REQUEST = "New unrelated request"
+
+
+async def test_google_overlapping_requests_keep_their_own_context() -> None:
+    from inspect_ai.agent._bridge.google_api import inspect_google_api_request
+
+    seen: Steps = []
+    model = Scripted(
+        calls_output(replace(READ, id="old")),
+        calls_output(replace(READ, id="new")),
+        calls_output(),
+    )
+    bridge = AgentBridge(
+        AgentState(messages=[]), model_aliases={"inspect": model.model}
+    )
+    tools: Any = [
+        {
+            "functionDeclarations": [
+                {
+                    "name": "read_file",
+                    "description": "Read a file.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {"path": {"type": "string"}},
+                    },
+                }
+            ]
+        }
+    ]
+
+    async def request(contents: list[Any]) -> Any:
+        return await inspect_google_api_request(
+            {"model": "inspect", "contents": contents, "tools": tools},
+            None,
+            None,
+            bridge,
+        )
+
+    old_user = {"role": "user", "parts": [{"text": OLD_REQUEST}]}
+    with active(observe_only([bridge_recording(seen)])):
+        old = await request([old_user])
+        await request([{"role": "user", "parts": [{"text": NEW_REQUEST}]}])
+        # the same call, made with the same arguments in both conversations,
+        # answered first in the older one
+        await request(
+            [
+                old_user,
+                {"role": "model", "parts": old["candidates"][0]["content"]["parts"]},
+                {
+                    "role": "user",
+                    "parts": [
+                        {
+                            "functionResponse": {
+                                "name": "read_file",
+                                "response": {"out": "old result"},
+                            }
+                        }
+                    ],
+                },
+            ]
+        )
+
+    [after] = [s for s in seen if isinstance(s, AfterToolCall)]
+    assert after.call.id == "old"
+    assert after.input == model.inputs[0]
+    assert [m.text for m in after.history] == [OLD_REQUEST, "On it."]
+
+
+@pytest.mark.parametrize("same_id", [False, True])
+async def test_a_result_never_takes_another_outstanding_calls_context(
+    same_id: bool,
+) -> None:
+    seen: Steps = []
+    old_call = READ if same_id else replace(READ, id="old")
+    new_call = READ if same_id else replace(READ, id="new")
+    model = Scripted(calls_output(old_call), calls_output(new_call), calls_output())
+    bridge = in_process_bridge([])
+    old_history: list[ChatMessage] = [ChatMessageUser(content=OLD_REQUEST)]
+
+    with active(observe_only([bridge_recording(seen)])):
+        old = await generate(bridge, model, old_history)
+        await generate(bridge, model, [ChatMessageUser(content=NEW_REQUEST)])
+        await generate(
+            bridge,
+            model,
+            [
+                *old_history,
+                old.message,
+                ChatMessageTool(content="old result", tool_call_id=old_call.id),
+            ],
+        )
+
+    [after] = [s for s in seen if isinstance(s, AfterToolCall)]
+    assert after.call == old_call
+    assert after.input == model.inputs[0]
+    assert [m.text for m in after.history] == [OLD_REQUEST, "On it."]
+
+
+async def test_a_result_whose_proposal_was_evicted_gets_no_other_context(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from inspect_ai.agent._bridge import _sentinel
+
+    monkeypatch.setattr(_sentinel, "_MAX_PROPOSALS", 1)
+    seen: Steps = []
+    old_call, new_call = replace(READ, id="old"), replace(READ, id="new")
+    model = Scripted(calls_output(old_call), calls_output(new_call), calls_output())
+    bridge = in_process_bridge([])
+    old_history: list[ChatMessage] = [ChatMessageUser(content=OLD_REQUEST)]
+
+    with active(observe_only([bridge_recording(seen)])):
+        old = await generate(bridge, model, old_history)
+        await generate(bridge, model, [ChatMessageUser(content=NEW_REQUEST)])
+        # as parsed back from a dialect: the scaffold's message has a new id
+        echoed = old.message.model_copy(update={"id": "echoed"})
+        await generate(
+            bridge,
+            model,
+            [
+                *old_history,
+                echoed,
+                ChatMessageTool(content="old result", tool_call_id="old"),
+            ],
+        )
+
+    [after] = [s for s in seen if isinstance(s, AfterToolCall)]
+    assert after.call == old_call
+    assert [m.text for m in after.history] == [OLD_REQUEST, "On it."]
+    assert after.input is None
+
+
+async def test_a_result_keeps_its_proposal_when_the_system_prompt_changes() -> None:
+    seen: Steps = []
+    model = Scripted(calls_output(READ), calls_output())
+    history: list[ChatMessage] = [ChatMessageUser(content=TASK)]
+    bridge = in_process_bridge(history)
+
+    with active(observe_only([bridge_recording(seen)])):
+        output = await generate(
+            bridge, model, [ChatMessageSystem(content="Monday."), *history]
+        )
+        echoed = output.message.model_copy(update={"id": "echoed"})
+        await generate(
+            bridge,
+            model,
+            [
+                ChatMessageSystem(content="Tuesday."),
+                *history,
+                echoed,
+                ChatMessageTool(content="x", tool_call_id=READ.id),
+            ],
+        )
+
+    before, after = seen
+    assert isinstance(after, AfterToolCall)
+    assert after.history == before.history
+    assert after.input == model.inputs[0]
+
+
+PATH_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "properties": {"path": {"type": "string"}},
+}
+
+
+async def dialect_round_trip(dialect: str, bridge: AgentBridge) -> None:
+    """A scaffold sending one request, then its response and the call's result."""
+    if dialect == "completions":
+        from inspect_ai.agent._bridge.completions import (
+            inspect_completions_api_request,
+        )
+
+        messages: list[Any] = [
+            {"role": "system", "content": "Be careful."},
+            {"role": "user", "content": TASK},
+        ]
+        tools: Any = [
+            {
+                "type": "function",
+                "function": {
+                    "name": "read_file",
+                    "description": "Read a file.",
+                    "parameters": PATH_SCHEMA,
+                },
+            }
+        ]
+        completion = await inspect_completions_api_request(
+            {"model": "inspect", "messages": messages, "tools": tools}, None, bridge
+        )
+        message = completion.choices[0].message
+        assert message.tool_calls
+        messages += [
+            message.model_dump(exclude_none=True),
+            {"role": "tool", "tool_call_id": message.tool_calls[0].id, "content": "x"},
+        ]
+        await inspect_completions_api_request(
+            {"model": "inspect", "messages": messages, "tools": tools}, None, bridge
+        )
+    elif dialect == "anthropic":
+        from inspect_ai.agent._bridge.anthropic_api import (
+            inspect_anthropic_api_request,
+        )
+
+        turns: list[Any] = [{"role": "user", "content": TASK}]
+        anthropic_tools: Any = [
+            {
+                "name": "read_file",
+                "description": "Read a file.",
+                "input_schema": PATH_SCHEMA,
+            }
+        ]
+
+        def request() -> dict[str, Any]:
+            return {
+                "model": "inspect",
+                "max_tokens": 100,
+                "system": "Be careful.",
+                "messages": turns,
+                "tools": anthropic_tools,
+            }
+
+        response = await inspect_anthropic_api_request(
+            request(), None, None, None, bridge
+        )
+        content = [block.model_dump(exclude_none=True) for block in response.content]
+        [use] = [block for block in content if block["type"] == "tool_use"]
+        turns += [
+            {"role": "assistant", "content": content},
+            {
+                "role": "user",
+                "content": [
+                    {"type": "tool_result", "tool_use_id": use["id"], "content": "x"}
+                ],
+            },
+        ]
+        await inspect_anthropic_api_request(request(), None, None, None, bridge)
+    else:
+        from inspect_ai.agent._bridge.responses import inspect_responses_api_request
+
+        items: list[Any] = [{"role": "user", "content": TASK}]
+        responses_tools: Any = [
+            {
+                "type": "function",
+                "name": "read_file",
+                "description": "Read a file.",
+                "parameters": PATH_SCHEMA,
+            }
+        ]
+
+        def responses_request() -> dict[str, Any]:
+            return {
+                "model": "inspect",
+                "instructions": "Be careful.",
+                "input": items,
+                "tools": responses_tools,
+            }
+
+        result = await inspect_responses_api_request(
+            responses_request(), None, None, None, bridge
+        )
+        output = [item.model_dump(exclude_none=True) for item in result.output]
+        [call] = [item for item in output if item["type"] == "function_call"]
+        items += [
+            *output,
+            {"type": "function_call_output", "call_id": call["call_id"], "output": "x"},
+        ]
+        await inspect_responses_api_request(
+            responses_request(), None, None, None, bridge
+        )
+
+
+@pytest.mark.parametrize("dialect", ["completions", "anthropic", "responses"])
+async def test_a_result_takes_its_proposal_through_each_dialect(dialect: str) -> None:
+    seen: Steps = []
+    model = Scripted(calls_output(READ, content="Reading."), calls_output())
+    bridge = AgentBridge(
+        AgentState(messages=[]), model_aliases={"inspect": model.model}
+    )
+
+    with active(observe_only([bridge_recording(seen)])):
+        await dialect_round_trip(dialect, bridge)
+
+    before, after = seen
+    assert isinstance(before, BeforeToolCall) and isinstance(after, AfterToolCall)
+    assert after.call == before.call
+    assert after.history == before.history
+    assert after.input == before.input == model.inputs[0]
+    assert after.input is not None and after.input[0].text == "Be careful."
 
 
 async def test_google_terminates_on_a_repeated_calls_new_result() -> None:
@@ -1605,9 +1914,7 @@ async def test_a_google_repeated_call_is_checked_after_compaction() -> None:
             await request([user, *turn(second, "secret")])
 
 
-async def test_a_result_is_checked_with_its_proposal_once_its_call_is_compacted() -> (
-    None
-):
+async def test_a_result_whose_call_was_compacted_away_is_checked_without_it() -> None:
     seen: Steps = []
     model = Scripted(calls_output(READ, content="Reading."), calls_output())
     history: list[ChatMessage] = [ChatMessageUser(content=TASK)]
@@ -1624,11 +1931,12 @@ async def test_a_result_is_checked_with_its_proposal_once_its_call_is_compacted(
             ],
         )
 
-    before, after = seen
+    # the call it answers can't be identified, so it gets no proposal's context
+    _, after = seen
     assert isinstance(after, AfterToolCall)
-    assert (after.call, after.message, after.output) == (READ, "Reading.", "contents")
-    assert after.input == model.inputs[0]
-    assert after.history == before.history
+    assert (after.call.id, after.message, after.output) == (READ.id, "", "contents")
+    assert [m.text for m in after.history] == ["Summary of earlier turns."]
+    assert after.input is None
 
 
 async def test_a_cancelled_host_result_check_consumes_the_grant() -> None:
