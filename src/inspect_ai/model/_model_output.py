@@ -326,16 +326,12 @@ class ModelOutput(BaseModel):
     def from_message(
         message: ChatMessage,
         stop_reason: StopReason = "stop",
-        model: str | None = None,
     ) -> "ModelOutput":
         """Create ModelOutput from a ChatMessageAssistant.
 
         Args:
             message: Assistant message.
             stop_reason: Stop reason for generation
-            model: Model name. An empty string counts as not given. Defaults to
-                the message's `model` (kept even if empty); when neither is set,
-                the active model's name is used, otherwise `""`.
         """
         from inspect_ai.model._model import active_model
 
@@ -344,8 +340,7 @@ class ModelOutput(BaseModel):
             message = ChatMessageAssistant(content=message.content, source="generate")
 
         # try to find an active model if one not specified
-        if not model:
-            model = message.model
+        model = message.model
         if model is None:
             active = active_model()
             if active is not None:
