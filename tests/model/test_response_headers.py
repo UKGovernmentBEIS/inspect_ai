@@ -8,10 +8,12 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import anyio
+import httpx
 import httpx2
 import pytest
 
 import inspect_ai.model._model as model_module
+from inspect_ai._util._async import current_async_backend
 from inspect_ai.model import GenerateConfig, Model, get_model
 from inspect_ai.model._response_headers import (
     ResponseHeaders,
@@ -107,6 +109,27 @@ def _openai_reply(served_by: str) -> httpx2.Response:
     )
 
 
+def _mistral_reply(served_by: str) -> httpx2.Response:
+    return httpx2.Response(
+        200,
+        headers={"X-Served-By": served_by},
+        json={
+            "object": "conversation.response",
+            "conversation_id": "conv_test",
+            "outputs": [
+                {
+                    "object": "entry",
+                    "type": "message.output",
+                    "id": "msg_test",
+                    "role": "assistant",
+                    "content": "ok",
+                }
+            ],
+            "usage": {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2},
+        },
+    )
+
+
 def _openai_background(status: str, served_by: str) -> httpx2.Response:
     output = [
         {
@@ -137,19 +160,43 @@ def _openai_background(status: str, served_by: str) -> httpx2.Response:
 def _failure(status: int, served_by: str) -> httpx2.Response:
     return httpx2.Response(
         status,
-        headers={"X-Served-By": served_by},
+        # an SDK that retries waits only as long as it is told to
+        headers={"X-Served-By": served_by, "Retry-After-Ms": "1"},
         json={"type": "error", "error": {"type": "api_error", "message": "no"}},
     )
 
 
-PROVIDERS = pytest.mark.parametrize(
-    ("name", "base_url", "reply"),
-    [
-        ("anthropic/claude-sonnet-4-6", "https://example.com", _anthropic_reply),
-        ("openai/gpt-4o", "https://example.com/v1", _openai_reply),
-    ],
-    ids=["anthropic", "openai"],
-)
+_PROVIDERS = {
+    "anthropic": (
+        "anthropic/claude-sonnet-4-6",
+        "https://example.com",
+        _anthropic_reply,
+    ),
+    "openai": ("openai/gpt-4o", "https://example.com/v1", _openai_reply),
+    "openai-compatible": (
+        "openai-api/example/test-model",
+        "https://example.com/v1",
+        _openai_reply,
+    ),
+    "groq": ("groq/test-model", "https://example.com", _openai_reply),
+    "mistral": ("mistral/test-model", "https://example.com", _mistral_reply),
+}
+
+
+def _providers(*ids: str) -> pytest.MarkDecorator:
+    return pytest.mark.parametrize(
+        ("name", "base_url", "reply"), [_PROVIDERS[id] for id in ids], ids=ids
+    )
+
+
+PROVIDERS = _providers(*_PROVIDERS)
+
+# the Mistral SDK doesn't retry a response unless it is configured to
+SDK_RETRYING_PROVIDERS = _providers("anthropic", "openai", "openai-compatible", "groq")
+
+# the Groq provider returns a status error instead of raising it, and the model
+# layer then doesn't make a second attempt
+RETRIED_PROVIDERS = _providers("anthropic", "openai", "openai-compatible", "mistral")
 
 # statuses the SDKs retry themselves
 SDK_RETRIED = pytest.mark.parametrize("status", [429, 503])
@@ -171,13 +218,40 @@ def _model(
             raise response
         return response
 
+    async def respond_httpx(request: httpx.Request) -> httpx.Response:
+        await anyio.sleep(0)
+        response = script.pop(0)
+        if isinstance(response, Exception):
+            raise httpx.ConnectError(str(response))
+        return httpx.Response(
+            response.status_code,
+            headers=dict(response.headers),
+            content=response.content,
+        )
+
+    client = httpx2.AsyncClient(transport=httpx2.MockTransport(respond))
+    client_args: dict[str, Any]
+    if name.startswith("groq/"):
+        # the Groq SDK is built on httpx, the others on httpx2
+        client_args = {
+            "http_client": httpx.AsyncClient(
+                transport=httpx.MockTransport(respond_httpx)
+            ),
+            "max_retries": max_retries,
+        }
+    elif name.startswith("mistral/"):
+        if current_async_backend() == "trio":
+            pytest.skip("the Mistral SDK needs an asyncio event loop")
+        client_args = {"async_client": client}
+    else:
+        client_args = {"http_client": client, "max_retries": max_retries}
+
     return get_model(
         name,
         api_key="key",
         base_url=base_url,
-        http_client=httpx2.AsyncClient(transport=httpx2.MockTransport(respond)),
-        max_retries=max_retries,
         memoize=False,
+        **client_args,
         **model_args,
     )
 
@@ -243,7 +317,7 @@ async def test_headers_of_a_failed_call_are_kept(
     assert [_served_by(headers) for _, headers in attempts] == ["gateway-1"]
 
 
-@PROVIDERS
+@RETRIED_PROVIDERS
 async def test_each_attempt_keeps_only_its_own_headers(
     attempts: list[tuple[str, ResponseHeaders]], name: str, base_url: str, reply: Reply
 ) -> None:
@@ -254,7 +328,7 @@ async def test_each_attempt_keeps_only_its_own_headers(
     assert [_served_by(headers) for _, headers in attempts] == ["first", "second"]
 
 
-@PROVIDERS
+@SDK_RETRYING_PROVIDERS
 @SDK_RETRIED
 async def test_latest_response_of_an_attempt_wins(
     attempts: list[tuple[str, ResponseHeaders]],
@@ -273,7 +347,7 @@ async def test_latest_response_of_an_attempt_wins(
     assert [_served_by(headers) for _, headers in attempts] == ["second"]
 
 
-@PROVIDERS
+@SDK_RETRYING_PROVIDERS
 @SDK_RETRIED
 async def test_latest_response_is_kept_when_the_sdks_retry_gets_none(
     attempts: list[tuple[str, ResponseHeaders]],
