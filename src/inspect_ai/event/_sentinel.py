@@ -1,6 +1,6 @@
-from typing import Annotated, Literal, TypeAlias
+from typing import Annotated, Any, Literal, TypeAlias
 
-from pydantic import Field, FiniteFloat, model_validator
+from pydantic import Field, FiniteFloat, field_validator, model_validator
 from typing_extensions import Self
 
 from inspect_ai.event._base import BaseEvent
@@ -8,7 +8,7 @@ from inspect_ai.scorer._metric import Reference
 from inspect_ai.tool._tool_call import ToolCall
 
 SentinelAction: TypeAlias = Literal[
-    "continue", "modify", "reject", "terminate", "escalate"
+    "proceed", "modify", "reject", "terminate", "escalate"
 ]
 """What a sentinel protocol can decide about the step it examined.
 
@@ -92,6 +92,12 @@ class SentinelEvent(BaseEvent):
 
     error: str | None = Field(default=None)
     """The exception a monitor function raised, as its type and message, for an `error` event."""
+
+    @field_validator("action", mode="before")
+    @classmethod
+    def _read_continue_as_proceed(cls, action: Any) -> Any:
+        # logs written before the "continue" action was renamed "proceed"
+        return "proceed" if action == "continue" else action
 
     @model_validator(mode="after")
     def _check_report_fields(self) -> Self:
