@@ -1,5 +1,5 @@
 from collections import Counter
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from copy import copy
 from logging import getLogger
 from typing import Any, Literal, TypeGuard, cast
@@ -20,7 +20,12 @@ from inspect_sentinel import (
     Reported,
     Step,
 )
-from inspect_sentinel._integration import HostContext, run_sentinel, watched_stages
+from inspect_sentinel._integration import (
+    HostContext,
+    run_sentinel,
+    score_step,
+    watched_stages,
+)
 
 from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai._util.logger import warn_once
@@ -357,39 +362,33 @@ class _Host:
         tool_choice: ToolChoice | None = None,
         config: GenerateConfig | None = None,
     ) -> ModelOutput:
-        if isinstance(cast(object, model), Model):
-            raise TypeError(
-                "Host.generate() takes a model name, not a Model. "
-                "Configure the Model for a role with Task(model_roles={'<role>': model}) "
-                "or --model-role, and pass role='<role>'."
-            )
-        if model == "":
-            raise ValueError(
-                "Host.generate() model must be a model name, not an empty string. "
-                "Pass None to use a role."
-            )
-        if role == "":
-            raise ValueError(
-                "Host.generate() role must be a model role, not an empty string. "
-                "Pass None for the 'monitor' role."
-            )
-        if model is not None and role is None:
-            resolved = copy(get_model(model))
-            resolved._set_role("sentinel")
-        else:
-            role = role or "monitor"
-            if model is None and role not in model_roles():
-                warn_once(
-                    logger,
-                    f"No model is configured for the sentinel role '{role}', so monitor calls use the agent's own model. "
-                    f"Set one with Task(model_roles={{'{role}': ...}}) or --model-role {role}=<model>.",
-                )
-            resolved = get_model(model, role=role, default=active_model())
-        return await resolved.generate(
+        return await _monitor_model("generate", model, role).generate(
             input,
             tools=tools or [],
             tool_choice=tool_choice,
             config=config or GenerateConfig(),
+        )
+
+    async def score(
+        self,
+        step: Step,
+        dimensions: str | Mapping[str, str],
+        *,
+        history: Sequence[ChatMessage] | None = None,
+        template: str | None = None,
+        model: str | None = None,
+        role: str | None = None,
+        config: GenerateConfig | None = None,
+    ) -> Observation:
+        eval_context = _eval_context()
+        return await score_step(
+            _monitor_model("score", model, role),
+            step,
+            dimensions,
+            task=eval_context.sample_input_text if eval_context else None,
+            history=history,
+            template=template,
+            config=config,
         )
 
     async def ask_human(self, step: Step, choices: Sequence[str]) -> HumanAnswer:
@@ -426,6 +425,37 @@ class _Host:
 
 
 _HUMAN_CHOICES = ("approve", "reject", "terminate")
+
+
+def _monitor_model(method: str, model: str | None, role: str | None) -> Model:
+    if isinstance(cast(object, model), Model):
+        raise TypeError(
+            f"Host.{method}() takes a model name, not a Model. "
+            "Configure the Model for a role with Task(model_roles={'<role>': model}) "
+            "or --model-role, and pass role='<role>'."
+        )
+    if model == "":
+        raise ValueError(
+            f"Host.{method}() model must be a model name, not an empty string. "
+            "Pass None to use a role."
+        )
+    if role == "":
+        raise ValueError(
+            f"Host.{method}() role must be a model role, not an empty string. "
+            "Pass None for the 'monitor' role."
+        )
+    if model is not None and role is None:
+        resolved = copy(get_model(model))
+        resolved._set_role("sentinel")
+        return resolved
+    role = role or "monitor"
+    if model is None and role not in model_roles():
+        warn_once(
+            logger,
+            f"No model is configured for the sentinel role '{role}', so monitor calls use the agent's own model. "
+            f"Set one with Task(model_roles={{'{role}': ...}}) or --model-role {role}=<model>.",
+        )
+    return get_model(model, role=role, default=active_model())
 
 
 def _human_view(step: BeforeToolCall | AfterToolCall) -> ToolCallView:
