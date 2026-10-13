@@ -357,6 +357,19 @@ class OpenAIAPI(ModelAPI):
         self._http_hooks = HttpxHooks(self.client._client, api=self)
 
     @override
+    async def refresh_credentials(self) -> None:
+        # In-flight requests and SDK retries share this client; closing it
+        # during credential refresh would also fail other samples. Bedrock
+        # fixes its auth when the client is built, so it keeps the default
+        # rebuild. Token providers run per request and need no update.
+        if self.is_bedrock():
+            await super().refresh_credentials()
+            return
+        super().initialize()
+        if self.api_key:
+            self.client.api_key = self.api_key
+
+    @override
     async def count_text_tokens(self, text: str) -> int:
         import tiktoken
 
@@ -736,14 +749,6 @@ class OpenAIAPI(ModelAPI):
         when models actually share an upstream rate-limit budget.
         """
         return f"{self.initial_api_key}:{self.model_name}"
-
-    @override
-    def apply_redacted_reasoning_tokens_to_input(self) -> bool:
-        # Responses API with store=false + include=encrypted_content re-injects
-        # encrypted reasoning blocks on every turn but excludes them from
-        # usage.input_tokens. Compaction's threshold check needs the count
-        # added back. Chat Completions is unaffected.
-        return self.responses_api
 
     async def reasoning_summaries(self) -> bool:
         # validate that reasoning summaries are supported for this account

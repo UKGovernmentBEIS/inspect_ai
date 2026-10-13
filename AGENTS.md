@@ -205,10 +205,15 @@ Additional files provide context when working in specific areas:
 - [Sandbox tools: build process, container injection, RPC communication, design patterns](src/inspect_sandbox_tools/AGENTS.md)
 - When adding or changing code that creates, adopts or trusts a directory
   inside a sandbox for Inspect's own use (tools, services, checkpoints,
-  agent installs), review the
-  [host directory-helper contract](src/inspect_ai/util/_sandbox/_framework_directory.py)
-  and the [injected `inspect_sandbox_tools` contract](src/inspect_sandbox_tools/src/inspect_sandbox_tools/_util/server_dir.py),
+  agent installs), start from the
+  [sandbox trust model](design/sandbox-trust-model.md): its principals,
+  boundaries and guarantees, and the verified-directory and verify-before-use
+  contracts implemented by the
+  [host directory helper](src/inspect_ai/util/_sandbox/_framework_directory.py)
+  and the [injected `inspect_sandbox_tools` helper](src/inspect_sandbox_tools/src/inspect_sandbox_tools/_util/server_dir.py),
   including their ownership, ancestor and verification-before-use requirements.
+  Update the document in the same PR when a change alters a principal,
+  boundary or contract it describes.
 
 ## Design Documentation
 
@@ -255,13 +260,19 @@ current. If an agent worked on the PR, fill in `### Agent review` as described
 above. Human-only PRs may omit that section. Keep the `### Slow tests` section
 for changes in gated-test areas, as described above.
 
-Title the PR with the user-facing outcome — the bug a user hit or the capability they gain — not the mechanism of the fix: "Fix eval hang when resuming with S3 logs", not "Add AsyncFilesystem to log recorder". A good test: would a user scanning titles recognize their problem or their feature request? PRs with no user-facing outcome (refactoring, dev tooling, docs) describe the change itself instead. CHANGELOG entries follow the same outcome-not-mechanism rule; only product-functionality changes get one (see below), so the carve-out doesn't arise there.
+Title the PR with the user-facing outcome — the bug a user hit or the capability they gain — not the mechanism of the fix: "fix: eval hang when resuming with S3 logs", not "fix: add AsyncFilesystem to log recorder". A good test: would a user scanning titles recognize their problem or their feature request? PRs with no user-facing outcome (refactoring, dev tooling, docs) describe the change itself instead; their types (`refactor`, `ci`, `docs`, ...) are left out of the changelog, so the carve-out doesn't reach it.
+
+The title starts with a Conventional Commits type (enforced by the PR Title Lint check), as in "fix: eval hang when resuming with S3 logs" or "feat(anthropic): support Claude Haiku 5.5". The squash-merged title is what Release Please reads to version the next release: `fix`, `feat`, `perf` and `revert` make a patch release; `!` after the type or scope (`feat!:`) marks a breaking change and makes a minor release; `docs`, `refactor`, `test`, `build`, `ci`, `chore` and `style` make no release on their own. Pick the type from what users get, not from the files touched: a bug fix that also adds tests is `fix`.
 
 Before opening a non-trivial PR, run at least one code review pass in a fresh context — a reviewer that hasn't seen the authoring conversation (e.g. `/code-review` or a subagent) — using a strong (frontier-class) model; in our experience reviews from small fast-tier models rarely surface real issues. Fix or explicitly dismiss each finding before opening, and disclose the pass in the `### Agent review` section.
 
 When asked to open a PR, don't stop at creation — monitor it afterward: watch its CI checks (e.g. `gh pr checks <number> --repo <owner>/<repo> --watch`) until they complete, report the outcome, and investigate/fix any failures. If the branch has fallen behind its base (out of date), update it — merge or rebase the base branch in and push — so CI runs against current code.
 
-For changes to product functionality (not test-only or build-only changes), add a CHANGELOG entry: a single-line, single-sentence item in the `## Unreleased` section at the top of `CHANGELOG.md` (create that section if it doesn't exist), grouped with similar existing items when there are any, otherwise appended to the list. Keep it short (~25 words): state only the user-visible behavior change — what a user can now do or observe — not the mechanism, internal names, or design rationale (those belong in the PR description and `design/` docs). For example: "Fixed sample buffer database growing unboundedly during long evals", not "Add periodic vacuum to buffer SQLite db". Don't reference issue numbers in the entry (e.g. `(#123)` or `(owner/repo#123)`) — the PR description carries the issue link. A merge from the base can silently relocate the entry under a released heading — the merge resolves cleanly (the entry rides along with neighboring lines that the release commit moved), so nothing flags it. Verify placement mechanically after updating a branch against its base, and again before merging any PR — even when someone else updated the branch (e.g. via GitHub's "Update branch" button): run `git diff "$(git merge-base origin/main HEAD)" HEAD -- CHANGELOG.md` and confirm every added entry line sits under `## Unreleased`; move back any that don't.
+Don't edit `CHANGELOG.md`; the Changelog Lint check (`no-changelog-edits`) fails any PR that does, except the release PR. Release Please writes the changelog and the GitHub Release notes at release time from the squash-merged PR titles: `feat`, `fix`, `perf` and `revert` titles become entries, and other types are left out. The PR title is therefore the changelog line, so keep it short (~25 words), state the user-visible behavior change, and leave out internal names and issue numbers (Release Please links the PR). The squash commit's message is the PR description, which Release Please also reads:
+
+- For a breaking change, use `feat!:` (or `fix!:`) and add a paragraph to the PR description starting with `BREAKING CHANGE:` that says what users must change, followed by a blank line (the note runs to the next blank line).
+- A description line that starts with a type and colon (e.g. `fix: ...`) right after a blank line adds its own changelog entry; to show one without adding an entry, indent it (a code fence does not prevent the entry when a blank line comes before the line inside it).
+- To reword a merged PR's entry before the release, put `BEGIN_COMMIT_OVERRIDE`, the corrected title with ` (#NNN)` (the PR number) appended, and `END_COMMIT_OVERRIDE`, each on its own line, at the top of the merged PR's description. Edits to `CHANGELOG.md` in the release PR do not last: Release Please rewrites that PR on every push to `main`.
 
 Never change a submodule gitlink (e.g. `src/inspect_ai/_view/ts-mono`) unless the task is about that submodule. After any merge/rebase, check `git status`; if it shows the submodule modified, reset the pointer to the base and commit: `git checkout origin/main -- src/inspect_ai/_view/ts-mono`. (`git submodule update` will NOT fix this — it syncs the working tree to the already-recorded pointer, not the reverse.) When a change legitimately requires a coordinated ts-mono update (e.g. regenerated types), follow `.agents/skills/land-ts-mono/SKILL.md`.
 
@@ -281,7 +292,7 @@ until the author syncs the branch again.
 
 If you must open from an org fork, the following applies.
 
-Before opening the PR, sync the branch with upstream `main` (`git fetch origin main && git merge origin/main`, resolving any conflicts) and push. Otherwise the PR can open with conflicts against its base, and CHANGELOG entries in particular almost always conflict.
+Before opening the PR, sync the branch with upstream `main` (`git fetch origin main && git merge origin/main`, resolving any conflicts) and push. Otherwise the PR can open with conflicts against its base.
 
 Opening a PR from an organization fork to its upstream via the GitHub API/CLI needs an explicit `head_repo` — without it GitHub can't resolve the org fork as the PR head and rejects it with `{"field":"head","code":"invalid"}` (an org fork requires `head_repo`; a personal fork resolves without it). `gh pr create` has no `--head-repo` flag ([cli/cli#6462](https://github.com/cli/cli/issues/6462)), so use `gh api` — e.g. from the `meridianlabs-ai/inspect_ai` fork to upstream `UKGovernmentBEIS/inspect_ai`:
 

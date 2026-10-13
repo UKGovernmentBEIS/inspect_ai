@@ -1138,7 +1138,7 @@ async def test_check_action_gates_prompt_letter_outside_approval(
     """``check_action('prompt_letter', ...)`` returns False outside approval mode.
 
     The approval bar's bare-letter shortcuts (``a`` / ``r`` / ``e`` /
-    ``t`` / ``m``) are registered through the shared ``prompt_letter``
+    ``t``) are registered through the shared ``prompt_letter``
     dispatcher so they share Textual's binding table with the cancel
     bar's ``s`` / ``e``. Without the gate, typing ``r`` into the
     composer would fire the reject action instead of inserting the
@@ -1164,6 +1164,8 @@ async def test_check_action_gates_prompt_letter_outside_approval(
         )
         await pilot.pause()
         assert app.screen.check_action("prompt_letter", ("a",)) is True
+        # no ``m``: the human approver never offers ``modify``
+        assert app.screen.check_action("prompt_letter", ("m",)) is False
 
 
 @skip_if_trio
