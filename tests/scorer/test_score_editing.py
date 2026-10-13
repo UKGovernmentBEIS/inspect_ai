@@ -1,11 +1,12 @@
 """Tests for score editing functionality."""
 
 import copy
+import os
 from pathlib import Path
 
 import pytest
 
-from inspect_ai import Epochs, Task, eval_async, task
+from inspect_ai import Epochs, Task, eval_async, eval_retry_async, task
 from inspect_ai._eval.score import score_async
 from inspect_ai.dataset import MemoryDataset, Sample
 from inspect_ai.event._score_edit import ScoreEditEvent
@@ -318,6 +319,62 @@ async def test_recompute_preserves_reducer_arguments():
     recomputed = copy.deepcopy(log)
     recompute_metrics(recomputed)
     assert metrics_by_reducer(recomputed) == original
+
+
+@task
+def retry_reducer_task():
+    # per-sample scores for epochs 1..3 (C=1.0, P=0.5, I=0.0)
+    plan = {1: ["P", "P", "I"], 2: ["C", "I", "I"], 3: ["C", "P", "I"]}
+
+    @scorer(metrics=[accuracy()])
+    def scripted_scorer() -> Scorer:
+        async def score(state: TaskState, target: Target):
+            return Score(value=plan[state.sample_id][state.epoch - 1])
+
+        return score
+
+    @solver
+    def fail_when_flagged() -> Solver:
+        async def solve(state: TaskState, generate: Generate):
+            # the flag lives in the environment because eval_retry reloads
+            # the task from its file, resetting module-level state
+            if (
+                state.sample_id == 1
+                and state.epoch == 1
+                and os.environ.get("INSPECT_TEST_RETRY_FAIL") == "1"
+            ):
+                raise RuntimeError("transient sample failure")
+            return state
+
+        return solve
+
+    return Task(
+        dataset=MemoryDataset([Sample(input="q", id=i) for i in plan]),
+        plan=[fail_when_flagged()],
+        scorer=scripted_scorer(),
+        epochs=Epochs(3, [at_least(2, value=0.5), pass_at(1, value=0.5)]),
+    )
+
+
+@pytest.mark.anyio
+async def test_retry_preserves_reducer_arguments():
+    """Retrying a failed eval uses the reducer arguments recorded in the log."""
+    os.environ["INSPECT_TEST_RETRY_FAIL"] = "1"
+    try:
+        error_log = (await eval_async(retry_reducer_task(), fail_on_error=True))[0]
+    finally:
+        os.environ.pop("INSPECT_TEST_RETRY_FAIL", None)
+    assert error_log.status == "error"
+
+    retried = (await eval_retry_async(error_log))[0]
+    assert retried.status == "success"
+
+    metrics = {
+        s.reducer: s.metrics["accuracy"].value
+        for s in retried.results.scores
+        if s.reducer is not None
+    }
+    assert metrics == pytest.approx({"at_least_2": 2 / 3, "pass_at_1": 5 / 9})
 
 
 @pytest.mark.anyio
