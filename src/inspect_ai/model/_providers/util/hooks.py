@@ -412,9 +412,11 @@ class HttpxHooks(HttpHooks):
     def __init__(self, client: HttpxClientLike, api: "ModelAPI | None" = None):
         super().__init__(api)
 
-        # install hooks
+        # install hooks. the response hook goes ahead of any the caller put on
+        # the client: one of those may read the body or raise, and the
+        # response's headers are recorded either way
         client.event_hooks["request"].append(self.request_hook)
-        client.event_hooks["response"].append(self.response_hook)
+        client.event_hooks["response"].insert(0, self.response_hook)
 
     async def request_hook(self, request: HttpxRequestLike) -> None:
         # update the last request time for this request id (as there could be retries)

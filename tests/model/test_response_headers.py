@@ -1,7 +1,7 @@
 """The model layer keeps the headers of each attempt's latest HTTP response."""
 
 import json
-from collections.abc import Callable, Iterator
+from collections.abc import AsyncIterator, Callable, Iterator
 from contextlib import AbstractContextManager
 from contextvars import ContextVar
 from typing import Any
@@ -157,6 +157,24 @@ def _openai_background(status: str, served_by: str) -> httpx2.Response:
     )
 
 
+class _CutShort(httpx2.AsyncByteStream):
+    """A body the connection closes part-way through."""
+
+    async def __aiter__(self) -> AsyncIterator[bytes]:
+        yield b'{"id": "te'
+        raise httpx2.ReadError("the connection closed part-way through the body")
+
+
+class _CutShortHttpx(httpx.AsyncByteStream):
+    async def __aiter__(self) -> AsyncIterator[bytes]:
+        yield b'{"id": "te'
+        raise httpx.ReadError("the connection closed part-way through the body")
+
+
+def _cut_short_reply(served_by: str) -> httpx2.Response:
+    return httpx2.Response(200, headers={"X-Served-By": served_by}, stream=_CutShort())
+
+
 def _failure(status: int, served_by: str) -> httpx2.Response:
     return httpx2.Response(
         status,
@@ -207,9 +225,12 @@ def _model(
     base_url: str,
     *responses: httpx2.Response | Exception,
     max_retries: int = 0,
+    response_hook: Callable[[Any], Any] | None = None,
     **model_args: Any,
 ) -> Model:
     script = list(responses)
+    # a hook of the caller's own, already on the client it hands over
+    caller_hooks = {"response": [response_hook]} if response_hook else None
 
     async def respond(request: httpx2.Request) -> httpx2.Response:
         await anyio.sleep(0)
@@ -223,19 +244,28 @@ def _model(
         response = script.pop(0)
         if isinstance(response, Exception):
             raise httpx.ConnectError(str(response))
+        if isinstance(response.stream, _CutShort):
+            return httpx.Response(
+                response.status_code,
+                headers=dict(response.headers),
+                stream=_CutShortHttpx(),
+            )
         return httpx.Response(
             response.status_code,
             headers=dict(response.headers),
             content=response.content,
         )
 
-    client = httpx2.AsyncClient(transport=httpx2.MockTransport(respond))
+    client = httpx2.AsyncClient(
+        transport=httpx2.MockTransport(respond), event_hooks=caller_hooks
+    )
     client_args: dict[str, Any]
     if name.startswith("groq/"):
         # the Groq SDK is built on httpx, the others on httpx2
         client_args = {
             "http_client": httpx.AsyncClient(
-                transport=httpx.MockTransport(respond_httpx)
+                transport=httpx.MockTransport(respond_httpx),
+                event_hooks=caller_hooks,
             ),
             "max_retries": max_retries,
         }
@@ -368,6 +398,38 @@ async def test_latest_response_is_kept_when_the_sdks_retry_gets_none(
         await model.generate("hello", config=GenerateConfig(max_retries=0))
 
     assert [_served_by(headers) for _, headers in attempts] == ["first"]
+
+
+# a caller can hand over a client with hooks of its own, which run in the order
+# they were added and may read the body or raise
+@PROVIDERS
+async def test_headers_are_kept_when_the_callers_own_hook_raises(
+    attempts: list[tuple[str, ResponseHeaders]], name: str, base_url: str, reply: Reply
+) -> None:
+    async def raising(response: Any) -> None:
+        raise RuntimeError("the caller's hook")
+
+    model = _model(name, base_url, reply("gateway-1"), response_hook=raising)
+
+    with pytest.raises(Exception):
+        await model.generate("hello", config=GenerateConfig(max_retries=0))
+
+    assert [_served_by(headers) for _, headers in attempts] == ["gateway-1"]
+
+
+@PROVIDERS
+async def test_headers_are_kept_when_the_callers_own_hook_cannot_read_the_body(
+    attempts: list[tuple[str, ResponseHeaders]], name: str, base_url: str, reply: Reply
+) -> None:
+    async def reading(response: Any) -> None:
+        await response.aread()
+
+    model = _model(name, base_url, _cut_short_reply("gateway-1"), response_hook=reading)
+
+    with pytest.raises(Exception):
+        await model.generate("hello", config=GenerateConfig(max_retries=0))
+
+    assert [_served_by(headers) for _, headers in attempts] == ["gateway-1"]
 
 
 @PROVIDERS
