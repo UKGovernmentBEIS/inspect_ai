@@ -1,5 +1,5 @@
 import logging
-from collections.abc import Iterator, Sequence
+from collections.abc import Callable, Iterator, Sequence
 from contextlib import contextmanager
 from dataclasses import replace
 from pathlib import Path
@@ -49,6 +49,7 @@ from inspect_ai.log._transcript import (
     transcript,
 )
 from inspect_ai.model import (
+    ChatCompletionChoice,
     ChatMessage,
     ChatMessageAssistant,
     ChatMessageTool,
@@ -543,22 +544,96 @@ def producer_tools(log: EvalLog, call_id: str) -> list[ToolInfo]:
     raise AssertionError(f"no model call produced {call_id}")
 
 
-def test_each_step_gets_the_tools_of_the_call_that_produced_it() -> None:
-    # the handoff's after-call step comes after the sub-agent's generates, so the
-    # most recent model call's tools are the wrong ones for it
+@tool(parallel=False)
+def consult() -> Tool:
+    async def execute() -> str:
+        """Ask another model."""
+        inner = get_model(
+            "mockllm/model",
+            custom_outputs=[ModelOutput.from_content("mockllm/model", "inner")],
+            memoize=False,
+        )
+        output = await inner.generate("hi")
+        return output.completion
+
+    return execute
+
+
+def run_consult_then_add(sentinel: Any) -> EvalLog:
+    two_calls = ModelOutput(
+        model="mockllm/model",
+        choices=[
+            ChatCompletionChoice(
+                message=ChatMessageAssistant(
+                    content="",
+                    tool_calls=[
+                        ToolCall(id="c1", function="consult", arguments={}),
+                        ToolCall(
+                            id="c2", function="addition", arguments={"x": 1, "y": 2}
+                        ),
+                    ],
+                    model="mockllm/model",
+                ),
+                stop_reason="tool_calls",
+            )
+        ],
+    )
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[two_calls, ModelOutput.from_content("mockllm/model", "done")],
+        memoize=False,
+    )
+    task = Task(
+        dataset=[Sample(input="go")],
+        solver=[use_tools(consult(), addition()), generate()],
+        sentinel=sentinel,
+    )
+    return eval(task, model=model)[0]
+
+
+# In both runs another model call lands between the producing generate and a
+# later step, so the most recent model call's tools are the wrong ones for it:
+# a handoff's after-call step follows the sub-agent's generates, and addition's
+# before-call step follows the generate inside consult.
+@pytest.mark.parametrize(
+    "run_steps,expected",
+    [
+        (
+            run_handoff,
+            [
+                ("addition", ["addition"]),
+                ("addition", ["addition"]),
+                ("transfer_to_helper", ["transfer_to_helper"]),
+                ("transfer_to_helper", ["transfer_to_helper"]),
+            ],
+        ),
+        (
+            run_consult_then_add,
+            [
+                ("addition", ["addition", "consult"]),
+                ("addition", ["addition", "consult"]),
+                ("consult", ["addition", "consult"]),
+                ("consult", ["addition", "consult"]),
+            ],
+        ),
+    ],
+    ids=["handoff", "inner-generate"],
+)
+def test_each_step_gets_the_tools_of_the_call_that_produced_it(
+    run_steps: Callable[[Any], EvalLog], expected: list[tuple[str, list[str]]]
+) -> None:
     before: Seen = []
     after: list[AfterToolCall] = []
-    log = run_handoff(observe_only([d3_recording(before), d3_recording_after(after)]))
+    log = run_steps(observe_only([d3_recording(before), d3_recording_after(after)]))
     assert log.status == "success", log.error
     steps = [step for _, step in before] + after
-    assert sorted(
-        (step.call.function, [tool.name for tool in step.tools or []]) for step in steps
-    ) == [
-        ("addition", ["addition"]),
-        ("addition", ["addition"]),
-        ("transfer_to_helper", ["transfer_to_helper"]),
-        ("transfer_to_helper", ["transfer_to_helper"]),
-    ]
+    assert (
+        sorted(
+            (step.call.function, sorted(tool.name for tool in step.tools or []))
+            for step in steps
+        )
+        == expected
+    )
     for step in steps:
         assert step.tools == producer_tools(log, step.call.id)
 
