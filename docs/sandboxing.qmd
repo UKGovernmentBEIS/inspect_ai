@@ -397,9 +397,11 @@ Read-only sharing requires Docker Engine 25+, Compose 2.24+, and Linux kernel 5.
 
 Inspect also rejects read-only host mounts if the service's privileges or mount options could make them writable.
 
+These checks only cover mounts; privileged containers, host devices or Docker sockets can still give an agent access to the host.
+
 For writable data, you can copy inputs with [`Sample.files`](#files) or use a [Docker-managed volume](#infrastructure).
 
-::: {.callout-caution appearance="simple"}
+::: {.callout-caution appearance="simple" collapse="true" title="Unsafe host access"}
 
 Should your eval require unsafe host write access, you may allow unsafe host access for all services in your Compose file:
 
