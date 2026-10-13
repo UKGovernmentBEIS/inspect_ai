@@ -304,6 +304,18 @@ def test_gemini_generations(
         ("gemini-2.5-flash", "max", 24576),
         ("gemini-2.5-flash-lite", "xhigh", 24576),
         ("gemini-2.5-pro", "max", 32000),
+        ("gemini-2.5-flash", "xhigh", 24576),
+        # a project id containing "-pro" does not raise the cap
+        (
+            "projects/my-project/locations/us-central1/publishers/google/models/gemini-2.5-flash",
+            "max",
+            24576,
+        ),
+        (
+            "projects/my-project/locations/us-central1/publishers/google/models/gemini-2.5-pro",
+            "max",
+            32000,
+        ),
         ("gemini-2.5-pro", "none", None),
         ("gemini-2.5-pro", None, None),
     ],
