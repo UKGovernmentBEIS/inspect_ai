@@ -133,6 +133,49 @@ If any tests are failing, fix the code and run both commands again to verify. On
 
 ## Creating a pull request
 
+Title the PR with a [Conventional Commits](https://www.conventionalcommits.org/)
+type, then the user-facing outcome: `type: description` or
+`type(scope): description`, for example `fix: eval hang when resuming with S3
+logs` or `feat(anthropic): support Claude Haiku 5.5`. PRs are squash-merged, so
+the title becomes the commit that sets the next release's version:
+
+- `fix`, `feat`, `perf` and `revert` make a patch release (0.3.x).
+- `!` after the type or scope (`feat!: ...`) marks a breaking change and makes
+  a minor release (0.x.0).
+- `docs`, `refactor`, `test`, `build`, `ci`, `chore` and `style` do not make a
+  release on their own.
+
+The PR Title Lint check fails until the title follows this format; editing the
+title re-runs it.
+
+Don't edit `CHANGELOG.md`; the Changelog Lint check fails PRs that do.
+Release Please writes the changelog and the GitHub Release notes from the
+squash-merged PR titles, so your PR title is the changelog line. `feat`, `fix`,
+`perf` and `revert` titles are listed under Features, Bug Fixes, Performance
+Improvements and Reverts; other types are left out. The squash commit's message
+is the PR description, which Release Please also reads:
+
+- For a breaking change, use `feat!:` (or `fix!:`) and add a paragraph to the
+  PR description starting with `BREAKING CHANGE:` that says what users must
+  change, with a blank line after it. It is listed under "⚠ BREAKING CHANGES".
+- A line in the description that starts with a type and colon (such as
+  `fix: ...`) right after a blank line adds its own changelog entry. To show
+  such a line without adding an entry, indent it (four spaces also renders it
+  as code). A code fence does not prevent the entry when a blank line comes
+  before the line inside it.
+- To reword the entry after the PR is merged, before the release, edit the
+  merged PR's description to start with:
+
+  ```
+  BEGIN_COMMIT_OVERRIDE
+  fix: the corrected outcome (#NNN)
+  END_COMMIT_OVERRIDE
+  ```
+
+  Include `(#NNN)`, the PR number, to keep the link to the PR. The release PR
+  picks up the change on the next push to `main`. Editing `CHANGELOG.md` in
+  the release PR does not last: Release Please rewrites the release PR.
+
 Fill in the PR template and, when addressing an accepted issue, reference it
 (`Fixes #NNN`). Explain the user-facing problem and result. In
 "Compatibility and migration," describe any impact on existing code,

@@ -107,7 +107,7 @@ class StoreModel(BaseModel):
 
     def _un_ns_name(self, name: str) -> str:
         name = name.replace(f"{self.__class__.__name__}:", "", 1)
-        if self.instance:
+        if self.instance is not None:
             name = name.replace(f"{self.instance}:", "", 1)
         return name
 
@@ -145,6 +145,8 @@ class StoreModel(BaseModel):
 
         field_info = self.__class__.model_fields[field_name]  # pylint: disable=unsubscriptable-object
         field_type = field_info.annotation
+        if field_type is None:
+            return value
 
         # Skip coercion for scalar types (they don't need it)
         if self._is_scalar(value):
