@@ -8,9 +8,12 @@ and published to PyPI and npm by GitHub Actions with trusted publishing.
 1. **PR titles set the version.** PRs are squash-merged and their titles follow
    Conventional Commits (enforced by `pr-title-lint.yml`). Since the last
    release, any `fix`, `feat`, `perf` or `revert` makes the next release a patch
-   (0.3.x); a breaking change (`feat!:`) makes it a minor (0.x.0). Other types
-   make no release on their own. Config: `.release-please-config.json`; the
-   last released version: `.release-please-manifest.json`.
+   (0.3.x). Other types make no release on their own. A breaking change
+   (`feat!:`) is listed under "⚠ BREAKING CHANGES" but also makes a patch: the
+   config sets `"versioning": "always-bump-patch"`, which ignores breaking
+   changes when choosing the version (see [Minor or major
+   release](#minor-or-major-release)). Config: `.release-please-config.json`;
+   the last released version: `.release-please-manifest.json`.
 2. **Release PR.** On every push to `main`, `release.yml` runs Release Please,
    which opens or updates the release PR (branch
    `release-please--branches--main`, title `chore(main): release X.Y.Z`). The
@@ -102,6 +105,17 @@ job, so `release.yml` and `publish.yml` each need a PyPI publisher. npm matches
 the calling workflow, so `release.yml` and `npm-publish.yml` each need an npm
 publisher. The `pypi` and `npm` environments must allow deployments from
 `main` (release.yml) and from version tags (break-glass).
+
+## Minor or major release
+
+`"versioning": "always-bump-patch"` makes every release a patch, including
+releases with breaking changes, so a minor or major release must be set
+explicitly. Merge a PR that adds `"release-as": "X.Y.0"` to the `"."` package
+in `.release-please-config.json`; the release PR then proposes that version.
+After it is released, merge a PR that removes `release-as`; otherwise every
+later release PR proposes the same version again. (Temporarily switching
+`versioning` back to `default` makes a minor release only if a breaking change
+has merged since the last release.)
 
 ## Retries and recovery
 
