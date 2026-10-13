@@ -70,10 +70,13 @@ def grep(
         if result.returncode == 1:
             return "No matches found."
 
-        if result.returncode != 0:
-            raise ToolError(result.stderr.strip() if result.stderr else "grep failed")
-
         output = result.stdout.strip()
+
+        # If grep exited with an error code (e.g. 2 for unreadable files),
+        # but produced no stdout, raise ToolError. If stdout is non-empty,
+        # return the matches found despite unreadable paths.
+        if result.returncode != 0 and not output:
+            raise ToolError(result.stderr.strip() if result.stderr else "grep failed")
 
         # for count mode, filter out files with 0 matches
         if output_mode == "count":

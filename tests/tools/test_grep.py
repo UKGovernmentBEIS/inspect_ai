@@ -175,3 +175,55 @@ def test_grep_count_mode() -> None:
     )
     # Should show counts, not full lines
     assert ":" in content
+
+
+@pytest.mark.anyio
+async def test_grep_unreadable_paths_returns_matches(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from unittest.mock import AsyncMock
+
+    import inspect_ai.tool._tools._grep as grep_module
+    from inspect_ai.util._subprocess import ExecResult
+
+    mock_sandbox = AsyncMock()
+    mock_sandbox.exec = AsyncMock(
+        return_value=ExecResult(
+            success=False,
+            returncode=2,
+            stdout="src/file.txt:1:needle\n",
+            stderr="grep: src/locked: Permission denied\n",
+        )
+    )
+    monkeypatch.setattr(grep_module, "sandbox_env", lambda _: mock_sandbox)
+
+    tool = grep()
+    result = await tool(pattern="needle", path="src")
+    assert result == "src/file.txt:1:needle"
+
+
+@pytest.mark.anyio
+async def test_grep_unreadable_paths_no_matches_raises(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from unittest.mock import AsyncMock
+
+    import inspect_ai.tool._tools._grep as grep_module
+    from inspect_ai.tool import ToolError
+    from inspect_ai.util._subprocess import ExecResult
+
+    mock_sandbox = AsyncMock()
+    mock_sandbox.exec = AsyncMock(
+        return_value=ExecResult(
+            success=False,
+            returncode=2,
+            stdout="",
+            stderr="grep: src/nonexistent: No such file or directory\n",
+        )
+    )
+    monkeypatch.setattr(grep_module, "sandbox_env", lambda _: mock_sandbox)
+
+    tool = grep()
+    with pytest.raises(ToolError) as exc_info:
+        await tool(pattern="needle", path="src/nonexistent")
+    assert "No such file or directory" in str(exc_info.value)

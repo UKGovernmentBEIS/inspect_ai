@@ -118,3 +118,55 @@ def test_list_files_dash_path_safe() -> None:
     assert response is not None
     # Should get an error (path not found), not execute -delete
     assert response.error is not None
+
+
+@pytest.mark.anyio
+async def test_list_files_unreadable_paths_returns_files(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from unittest.mock import AsyncMock
+
+    import inspect_ai.tool._tools._list_files as list_files_module
+    from inspect_ai.util._subprocess import ExecResult
+
+    mock_sandbox = AsyncMock()
+    mock_sandbox.exec = AsyncMock(
+        return_value=ExecResult(
+            success=False,
+            returncode=1,
+            stdout="src/file.txt\nsrc/locked\n",
+            stderr="find: 'src/locked': Permission denied\n",
+        )
+    )
+    monkeypatch.setattr(list_files_module, "sandbox_env", lambda _: mock_sandbox)
+
+    tool = list_files()
+    result = await tool(path="src")
+    assert result == "src/file.txt\nsrc/locked"
+
+
+@pytest.mark.anyio
+async def test_list_files_fatal_error_no_output_raises(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from unittest.mock import AsyncMock
+
+    import inspect_ai.tool._tools._list_files as list_files_module
+    from inspect_ai.tool import ToolError
+    from inspect_ai.util._subprocess import ExecResult
+
+    mock_sandbox = AsyncMock()
+    mock_sandbox.exec = AsyncMock(
+        return_value=ExecResult(
+            success=False,
+            returncode=1,
+            stdout="",
+            stderr="find: 'nonexistent': No such file or directory\n",
+        )
+    )
+    monkeypatch.setattr(list_files_module, "sandbox_env", lambda _: mock_sandbox)
+
+    tool = list_files()
+    with pytest.raises(ToolError) as exc_info:
+        await tool(path="nonexistent")
+    assert "No such file or directory" in str(exc_info.value)

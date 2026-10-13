@@ -38,12 +38,16 @@ def list_files(
 
         result = await sandbox_env(sandbox).exec(cmd=cmd, timeout=timeout, user=user)
 
-        if not result.success:
+        output = result.stdout.strip()
+
+        # If find exited with an error code (e.g. 1 for unreadable directories),
+        # but produced no stdout, raise ToolError. If stdout is non-empty,
+        # return the paths found despite unreadable paths.
+        if not result.success and not output:
             raise ToolError(
                 result.stderr.strip() if result.stderr else f"Error listing: {path}"
             )
 
-        output = result.stdout.strip()
         if not output:
             return f"No files found in: {path}"
 
