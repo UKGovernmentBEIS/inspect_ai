@@ -1,6 +1,7 @@
 import re
 import time
 from contextlib import contextmanager
+from contextvars import ContextVar
 from logging import getLogger
 from typing import (
     TYPE_CHECKING,
@@ -40,6 +41,24 @@ _REQUEST_ID_HEADERS = (
     "x-amzn-requestid",
     "mistral-correlation-id",
 )
+
+
+_polling: ContextVar[bool] = ContextVar("_polling", default=False)
+
+
+@contextmanager
+def polling() -> Iterator[None]:
+    """Record the response headers of the requests made in the block.
+
+    For requests that fetch the result of the model call in progress and are
+    sent without its request id, as each would be counted as a retry (e.g.
+    polling for a background response).
+    """
+    token = _polling.set(True)
+    try:
+        yield
+    finally:
+        _polling.reset(token)
 
 
 class RequestInfo(NamedTuple):
@@ -157,6 +176,10 @@ class HttpHooks:
                 infers kind from `status == 429`.
         """
         if not request_id:
+            if headers is not None and _polling.get():
+                from inspect_ai.model._response_headers import record_response_headers
+
+                record_response_headers(headers)
             return
         info = self._requests.get(request_id)
         if info is None:
