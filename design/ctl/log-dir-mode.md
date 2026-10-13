@@ -30,6 +30,9 @@ and commands that change a running eval are unavailable in the mode.
 > `task_id` the merge will stamp, from the shared `merged_log_task_id`, and
 > a companion with no attempt (the checkpoint-only remnant a shard deletion
 > leaves) is dropped before grouping.
+> Revised on 2026-10-13: a `<k>/` with no attempt is not a shard, so the
+> first shard, whose `task` and `model` give the `task_id`, is the first
+> `<k>/` with an attempt, as the merge picks its template.
 
 ## Why
 
@@ -542,8 +545,14 @@ one with stray files), and `eval_set()`, whose discovery finds no shard
 path in it. Every rule below applies only to a companion with at least
 one attempt.
 
-- Its shards are, for each `<k>/`, the newest `.eval` in it. Older files in
-  the same `<k>/` (a retry, or an original beside its `-recovered` copy)
+- Its shards are, for each `<k>/` with at least one `.eval` attempt, the
+  newest `.eval` in it. A `<k>/` with no attempt (only `scans/`,
+  `.buffer/`, a `<shard>.checkpoints/` or other ancillary entries) is not
+  a shard: it gets no `--shards` row, adds nothing to the `shards` block
+  or the counts, and is never the "first shard" below, as the merge
+  ignores it and never takes its template from it (sharding
+  implementation, "The merge" step 5). Older files in the same `<k>/` (a
+  retry, or an original beside its `-recovered` copy)
   are superseded: counted in the shard's `attempts`, otherwise ignored,
   matching the parent's newest-wins rule.
 - Its merged log is the `.eval` in the companion's parent directory whose
@@ -551,8 +560,10 @@ one attempt.
   both exist. It does not get a row of its own.
 - The shard set is one attempt of the logical task identified by the
   merged log's `eval.task_id` when the merged log exists, and otherwise by
-  `merged_log_task_id(X, task=, model=)` with the first shard's `task` and
-  `model` (`src/inspect_ai/_util/log_layout.py`, shared with the merge,
+  `merged_log_task_id(X, task=, model=)` with the `task` and `model` of
+  the first shard in shard order, the first `<k>/` with an attempt and so
+  the merge's template shard (`src/inspect_ai/_util/log_layout.py`,
+  shared with the merge,
   which stamps the same id at its first merge; sharding implementation,
   "The merged log's `task_id`"): `{id}` parsed from `X` when `X` rebuilds
   from it under the file name pattern, else an id derived from `X`.
@@ -581,8 +592,9 @@ merge, including a companion left holding only checkpoint directories, or
 one with no attempt at all, above) is an ordinary unsharded attempt.
 
 Identity fields for a row whose current attempt is a shard set: `task_id`
-as above; `task`, `model`, `solver` and `epochs` from the first shard's
-header (the merge refuses shards that differ on `task_identifier`, epochs
+as above; `task`, `model`, `solver` and `epochs` from the header of the
+first shard, the first `<k>/` with an attempt (the merge refuses shards
+that differ on `task_identifier`, epochs
 or reducer; this mode only reports, so a shard whose `task`, `model` or
 `epochs` differs from the first is counted in `shards.mismatched` rather
 than hidden); `eval_id` from the merged log when present, else null;
@@ -1350,7 +1362,13 @@ real moto server on an ephemeral port). New tests go in a new
   the merged log (first case) or the retry (second); and the checkpoint
   files are byte-identical after the walk. A companion with no attempt and
   one stray `.eval` reports the stray in `unreadable` and adds no shard
-  attempt. With step 6, a
+  attempt. A companion with no merged log whose first `<k>/` in shard
+  order holds only `scans/` (and another only `.buffer/` objects) before
+  shards with attempts: the row's `task_id` is `merged_log_task_id` with
+  the first shard's `task` and `model`, under a custom pattern without
+  `{id}` equals the `task_id` the merge then stamps, and the attempt-less
+  directories add no `--shards` row and nothing to the counts. With step
+  6, a
   cold `task list` row equals the row built from every shard in each of
   these cases: a complete `success` snapshot with an id, a count and no
   selection (the merged summaries are read and no shard is); and, reading
