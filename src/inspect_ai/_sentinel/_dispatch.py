@@ -19,6 +19,7 @@ from inspect_sentinel import (
     Report,
     Reported,
     Step,
+    Truncation,
 )
 from inspect_sentinel._integration import HostContext, run_sentinel, watched_stages
 
@@ -145,7 +146,7 @@ async def sentinel_after_tool_call(
         input=list(producer.input) if producer is not None else None,
         history=history,
         tools=list(producer.tools) if producer is not None else None,
-        truncated=truncated,
+        truncated=Truncation(*truncated) if truncated is not None else False,
     )
     decision = await _run(step)
     if decision is not None and decision.action == "terminate":

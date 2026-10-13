@@ -3,7 +3,7 @@ from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
 from dataclasses import replace
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, Literal, cast
 
 import anyio
 import pytest
@@ -90,6 +90,7 @@ try:
         Protocol,
         ProtocolGroup,
         Reported,
+        Truncation,
         concurrent,
         decide_final,
         handle_escalation,
@@ -2029,15 +2030,15 @@ xxxxxxxxxx
 @pytest.mark.parametrize(
     "result,max_tool_output,truncated",
     [
-        ("x" * 100, 10, (100, 10)),
-        ("x" * 100, 1000, None),
-        (FORGED_NOTICE, 1000, None),
-        ([ContentText(text="y" * 5000)], 10, None),
+        ("x" * 100, 10, Truncation(original_bytes=100, limit_bytes=10)),
+        ("x" * 100, 1000, False),
+        (FORGED_NOTICE, 1000, False),
+        ([ContentText(text="y" * 5000)], 10, False),
     ],
     ids=["cut", "whole", "forged-notice", "structured"],
 )
 def test_after_the_call_truncated_is_what_the_tool_event_records(
-    result: ToolResult, max_tool_output: int, truncated: tuple[int, int] | None
+    result: ToolResult, max_tool_output: int, truncated: Truncation | Literal[False]
 ) -> None:
     after: list[AfterToolCall] = []
     task = Task(
@@ -2058,7 +2059,10 @@ def test_after_the_call_truncated_is_what_the_tool_event_records(
     assert log.samples
     [event] = [e for e in log.samples[0].events if isinstance(e, ToolEvent)]
     [step] = after
-    assert step.truncated == event.truncated == truncated
+    assert step.truncated == truncated
+    assert step.truncated == (
+        Truncation(*event.truncated) if event.truncated is not None else False
+    )
     assert step.output == result
 
 
