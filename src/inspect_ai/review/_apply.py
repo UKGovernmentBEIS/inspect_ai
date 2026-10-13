@@ -2,6 +2,7 @@ import contextlib
 from collections.abc import Iterator
 from contextvars import ContextVar
 
+from inspect_ai._sentinel._scope import AgentScope, sentinel_scope
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageTool
 from inspect_ai.tool._tool import ToolResult
 from inspect_ai.tool._tool_call import (
@@ -37,7 +38,11 @@ async def apply_tool_review(
 
     # reviewers which use model inference (e.g. LLM monitors) shouldn't have
     # that inference charged to the agent's own budget
-    with suspend_token_limit(), suspend_turn_limit():
+    with (
+        suspend_token_limit(),
+        suspend_turn_limit(),
+        sentinel_scope(AgentScope.OFF, final=True),
+    ):
         return await reviewer(message, call, result, output, view, history)
 
 
