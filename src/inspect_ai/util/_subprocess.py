@@ -70,7 +70,11 @@ class SubprocessRun(Generic[T]):
 
 
 StdoutReader = Callable[[ByteReceiveStream], Awaitable[bytes]]
-"""Reads a subprocess's stdout for `run_subprocess(stdout_reader=...)`."""
+"""Reads a subprocess's stdout for `run_subprocess(stdout_reader=...)`.
+
+Must read to EOF or raise: if it returns while the process is still writing,
+the process blocks on the full pipe until `timeout`, or indefinitely without one.
+"""
 
 
 @overload
@@ -310,9 +314,6 @@ async def run_subprocess(
         except anyio.get_cancelled_exc_class():
             await gracefully_terminate_cancelled_subprocess(process)
             raise
-        except Exception:
-            await _kill_and_drain(process)
-            raise
         finally:
             # Inlined process.aclose() with a bounded final wait. anyio's
             # Process.aclose() re-shields and does an unbounded
@@ -326,6 +327,8 @@ async def run_subprocess(
                     if stream is not None:
                         with contextlib.suppress(Exception):
                             await stream.aclose()
+                with contextlib.suppress(Exception):
+                    _close_pipe_transports(process)
                 # Reach here on normal return (process already exited),
                 # cancellation (gracefully_terminate already SIGKILLed), or
                 # any other exception in the body — the last case can leave a
@@ -403,9 +406,6 @@ LOST_SUBPROCESS_WAIT_TIMEOUT = 60
 # path can shrink it without waiting the full production grace.
 SUBPROCESS_SIGTERM_GRACE_SECONDS = 2
 
-# Upper bound on reading a process's pipes to EOF after killing it on an error.
-KILLED_SUBPROCESS_DRAIN_SECONDS = 5
-
 
 def _warn_lost_subprocess(process: Process, where: str) -> None:
     logger.warning(
@@ -446,22 +446,22 @@ async def gracefully_terminate_cancelled_subprocess(process: Process) -> None:
             pass
 
 
-async def _kill_and_drain(process: Process) -> None:
-    """Kill a process whose output could not be read and read its pipes to EOF.
+def _close_pipe_transports(process: Process) -> None:
+    """Close the OS pipes of a process run on anyio's asyncio backend.
 
-    On asyncio a stdout pipe left unread is paused and never sees EOF, so its
-    transport (and file descriptor) stays open until garbage collection. The
-    drain is bounded because EOF never comes while a surviving grandchild holds
-    the pipe, as with Docker CLI plugins on CLIs that do not stop them when the
-    parent is killed. If the drain times out on asyncio, the pipe is left open
-    and a grandchild still writing to it blocks.
+    Closing an asyncio stream wrapper leaves its pipe transport open, so a
+    writer blocked on a full pipe never sees a broken pipe and the file
+    descriptor stays open; that includes a grandchild still holding the pipe
+    after the process itself was killed. anyio's own `Process.aclose()` closes
+    the transports for this reason. `_transport` is private to that backend;
+    trio's streams close their pipes themselves.
     """
-    with contextlib.suppress(ProcessLookupError):
-        process.kill()
-    with anyio.move_on_after(KILLED_SUBPROCESS_DRAIN_SECONDS):
-        async with create_task_group() as tg:
-            tg.start_soon(drain_stream, process.stdout)
-            tg.start_soon(drain_stream, process.stderr)
+    transport = getattr(process, "_transport", None)
+    if transport is None:
+        return
+    for fd in (0, 1, 2):
+        if (pipe := transport.get_pipe_transport(fd)) is not None:
+            pipe.close()
 
 
 async def _write_stdin(stream: ByteSendStream | None, input: bytes | None) -> bool:

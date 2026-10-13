@@ -417,17 +417,38 @@ class _StopReading(Exception):
     pass
 
 
-@pytest.mark.anyio
-@pytest.mark.skipif(sys.platform == "win32", reason="num_fds() is POSIX only")
-async def test_run_subprocess_stdout_reader_error_stops_process():
-    """When the reader raises, the child is killed and its pipes are closed."""
-    script = """
+_FLOOD_STDOUT = """
 import os, sys
 sys.stdout.buffer.write(f"{os.getpid()}\\n".encode())
 sys.stdout.flush()
 while True:
     sys.stdout.buffer.write(b"x" * 65536)
 """
+
+
+def _wait_gone(pid: int, timeout: float) -> bool:
+    try:
+        process = psutil.Process(pid)
+    except psutil.NoSuchProcess:
+        return True
+    _, alive = psutil.wait_procs([process], timeout=timeout)
+    for survivor in alive:
+        survivor.kill()
+    return not alive
+
+
+@pytest.mark.anyio
+@pytest.mark.skipif(sys.platform == "win32", reason="num_fds() is POSIX only")
+async def test_run_subprocess_stdout_reader_error_closes_pipes():
+    """When the reader raises, the pipes close even if a grandchild holds them.
+
+    The grandchild keeps writing after its parent is killed, like a Docker CLI
+    plugin that the CLI does not stop; closing the pipes ends it with a broken pipe.
+    """
+    parent = (
+        "import subprocess, sys; "
+        "subprocess.Popen([sys.executable, '-c', sys.argv[1]]).wait()"
+    )
     pid = 0
 
     async def read_until_flooded(stream: ByteReceiveStream) -> bytes:
@@ -446,7 +467,7 @@ while True:
         fds_before = process.num_fds()
         with pytest.raises(_StopReading):
             await run_subprocess(
-                ["python3", "-c", script],
+                ["python3", "-c", parent, _FLOOD_STDOUT],
                 text=False,
                 timeout=30,
                 stdout_reader=read_until_flooded,
@@ -454,7 +475,7 @@ while True:
         assert process.num_fds() == fds_before
     finally:
         gc.enable()
-    assert not psutil.pid_exists(pid)
+    assert _wait_gone(pid, timeout=10)
 
 
 @pytest.mark.anyio
