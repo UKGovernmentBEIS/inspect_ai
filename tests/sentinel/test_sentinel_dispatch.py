@@ -985,6 +985,8 @@ def test_context_and_step_come_from_the_sample(
     assert step.conversation == sample.uuid
     assert step.call.function == "addition"
     assert step.view.call is not None
+    # in-process Inspect always provides history
+    assert step.history is not None
     assert step.history[-1].role == "assistant"
     model_events = [e for e in sample.events if isinstance(e, ModelEvent)]
     assert step.input is not None

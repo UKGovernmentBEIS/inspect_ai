@@ -411,8 +411,17 @@ class _Host:
                     f"{', '.join(repr(c) for c in _HUMAN_CHOICES)}."
                 )
             offered.append(cast(ApprovalDecision, choice))
+        # the approval surfaces show the conversation; a step whose host could
+        # not provide the scaffold's history shows what the model saw instead,
+        # and nothing when that is unknown too
+        if step.history is not None:
+            conversation = step.history
+        elif step.input is not None:
+            conversation = step.input
+        else:
+            conversation = []
         approval = await human_approver(choices=offered)(
-            step.message, step.call, _human_view(step), step.history
+            step.message, step.call, _human_view(step), conversation
         )
         if approval.decision in offered:
             return HumanAnswer(decision=approval.decision, reason=approval.explanation)
