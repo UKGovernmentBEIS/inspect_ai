@@ -55,8 +55,11 @@ to its commit message instead. With the setting:
 
 - a `BREAKING CHANGE:` paragraph is listed under "⚠ BREAKING CHANGES"; it
   runs to the next blank line, so it needs a blank line after it;
-- a paragraph that starts with a Conventional Commits header (`fix: ...`) adds
-  an entry of its own;
+- a line that starts with a Conventional Commits header (`fix: ...`) right
+  after a blank line adds an entry of its own. The parser splits on a blank
+  line followed by a header and does not track Markdown fences, so indenting
+  the line prevents the entry and a fence does not when a blank line comes
+  before the line inside it;
 - `BEGIN_COMMIT_OVERRIDE` ... `END_COMMIT_OVERRIDE` in a merged PR's
   description replaces that commit's message, which is how an entry is
   reworded before the release. Release Please reads it when it next updates
@@ -82,6 +85,17 @@ with it trigger no other workflows, so:
   `release.yml` publishes itself, with the same composite actions
   (`.github/actions/build-dist`, `.github/actions/publish-dist`) and
   `npm-publish.yml` as a called workflow, so the two paths cannot drift.
+
+`publish-dist` verifies the downloaded files and drops those PyPI already
+has; the upload itself, `pypa/gh-action-pypi-publish`, is a step of each
+publish job rather than of the composite. It runs its upload in a Docker
+image named from `github.action_repository`, which is empty inside a nested
+composite action (actions/runner#2473), so the name fell back to the calling
+repository (`ghcr.io/UKGovernmentBEIS/...`, which Docker rejects as
+uppercase); that is how the 0.3.279 publish failed.
+`release.yml`'s publish job runs `publish-dist` from the run's own commit
+(a second checkout into `.ci/`), not from the tag, so a recovery dispatch on
+`main` publishes an older tag with the current publish steps.
 
 Trusted publishers: PyPI matches the workflow file that runs the publishing
 job, so `release.yml` and `publish.yml` each need a PyPI publisher. npm matches
@@ -148,7 +162,9 @@ Re-running the Release workflow is safe at any point.
   on a version tag: `publish.yml` and `npm-publish.yml` run on the release
   event.
 - **Dispatch `publish.yml`** on the tag, typing the tag to confirm; this may
-  publish a tag that is not on `main`. Dispatch `npm-publish.yml` on the tag
+  publish a tag that is not on `main`. It runs the workflow and actions as
+  they are at the tag, so it cannot publish a tag whose publish steps are
+  broken (such as 0.3.279); use the recovery dispatch of `release.yml`. Dispatch `npm-publish.yml` on the tag
   with dry-run unchecked.
 - **Local:** `python scripts/pypi-release.py release X.Y.Z` (PyPI only; its
   tag push no longer triggers npm, so dispatch `npm-publish.yml`).

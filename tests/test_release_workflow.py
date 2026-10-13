@@ -657,18 +657,45 @@ def test_release_pr_check_dispatch_does_not_depend_on_this_run_changing_the_bran
     assert "dispatch-checks" in dispatch["run"]
 
 
+PYPI_PUBLISH = "pypa/gh-action-pypi-publish@"
+
+
 def test_publish_steps_skip_what_the_registries_already_have() -> None:
     action = _load(".github/actions/publish-dist/action.yml")
-    steps = action["runs"]["steps"]
-    names = [s.get("name") for s in steps]
-    assert (
-        names.index("Verify distributions")
-        < names.index("Skip files already on PyPI")
-        < names.index("Publish to PyPI")
+    names = [s.get("name") for s in action["runs"]["steps"]]
+    assert names.index("Verify distributions") < names.index(
+        "Skip files already on PyPI"
     )
-    assert steps[names.index("Publish to PyPI")]["if"] == (
-        "steps.pending.outputs.count != '0'"
-    )
+    assert action["outputs"]["count"]["value"] == "${{ steps.pending.outputs.count }}"
+
+    for workflow, job in [("release.yml", "publish-pypi"), ("publish.yml", "publish")]:
+        steps = _load(f".github/workflows/{workflow}")["jobs"][job]["steps"]
+        dist = next(i for i, s in enumerate(steps) if s.get("id") == "dist")
+        assert steps[dist]["uses"].endswith(".github/actions/publish-dist")
+        upload = next(
+            i for i, s in enumerate(steps) if s.get("uses", "").startswith(PYPI_PUBLISH)
+        )
+        assert dist < upload
+        assert steps[upload]["if"] == "steps.dist.outputs.count != '0'"
+
+
+def test_no_composite_action_runs_the_pypi_publish_docker_action() -> None:
+    # pypa/gh-action-pypi-publish is a Docker action, unsupported inside a
+    # composite: its image resolves against the calling repo and fails.
+    for path in (REPO / ".github" / "actions").glob("*/action.yml"):
+        steps = _load(str(path.relative_to(REPO)))["runs"].get("steps", [])
+        assert not any(s.get("uses", "").startswith(PYPI_PUBLISH) for s in steps), path
+
+
+def test_release_publishes_with_this_runs_publish_steps() -> None:
+    # A recovery dispatch on main publishes an older tag; the tag's own
+    # publish-dist may predate a fix, so the action comes from the run's commit.
+    steps = _load(".github/workflows/release.yml")["jobs"]["publish-pypi"]["steps"]
+    ci = next(s for s in steps if s.get("with", {}).get("path") == ".ci")
+    assert "ref" not in ci["with"]
+    assert ci["with"]["sparse-checkout"] == ".github/actions"
+    dist = next(s for s in steps if s.get("id") == "dist")
+    assert dist["uses"] == "./.ci/.github/actions/publish-dist"
 
     npm_steps = _load(".github/workflows/npm-publish.yml")["jobs"]["publish"]["steps"]
     publish = next(s for s in npm_steps if s.get("name") == "Publish to NPM")
