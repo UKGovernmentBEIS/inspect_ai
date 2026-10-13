@@ -63,6 +63,8 @@ DOCKER_COMPOSE_REQUIRED_VERSION_READ_ONLY = "2.24.0"
 
 async def validate_docker_compose(
     version: str = DOCKER_COMPOSE_REQUIRED_VERSION,
+    *,
+    required_for: str | None = None,
 ) -> None:
     def parse_version(stdout: str) -> semver.Version:
         version = json.loads(stdout)["version"].removeprefix("v").split("+")[0]
@@ -73,6 +75,7 @@ async def validate_docker_compose(
         parse_fn=parse_version,
         required_version=version,
         feature="Docker Compose",
+        required_for=required_for,
     )
 
 
@@ -81,6 +84,7 @@ async def validate_version(
     parse_fn: Callable[[str], semver.Version],
     required_version: str,
     feature: str,
+    required_for: str | None = None,
 ) -> None:
     # attempt to read version
     try:
@@ -110,7 +114,12 @@ async def validate_version(
 
     # validate version
     if version.compare(required_version) < 0:
+        requirement = (
+            f"{required_for} requires"
+            if required_for
+            else "Docker sandbox environments require"
+        )
         raise PrerequisiteError(
-            f"ERROR: Docker sandbox environments require {feature} >= {required_version} (current: {version})\n\n"
+            f"ERROR: {requirement} {feature} >= {required_version} (current: {version})\n\n"
             + "Upgrade: https://docs.docker.com/engine/install/"
         )

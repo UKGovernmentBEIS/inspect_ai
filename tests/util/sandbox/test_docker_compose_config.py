@@ -301,7 +301,10 @@ async def test_read_only_binds_reject_legacy_compose_api(
     read_only_bind: dict[str, Any], mount_daemon: dict[str, Any]
 ) -> None:
     mount_daemon["ComposeVersion"] = "2.23.3"
-    with pytest.raises(PrerequisiteError, match=r"Docker Compose >= 2\.24\.0"):
+    with pytest.raises(
+        PrerequisiteError,
+        match=r"Read-only host sharing requires Docker Compose >= 2\.24\.0",
+    ):
         await validate_compose_mounts(read_only_bind, "inspect-test")
 
 

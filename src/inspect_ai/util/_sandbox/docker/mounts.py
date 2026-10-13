@@ -196,7 +196,10 @@ async def _validate_read_only_support(bind_runtimes: dict[str | None, str]) -> N
             "Upgrade Docker or copy inputs with Sample.files."
         )
 
-    await validate_docker_compose(DOCKER_COMPOSE_REQUIRED_VERSION_READ_ONLY)
+    await validate_docker_compose(
+        DOCKER_COMPOSE_REQUIRED_VERSION_READ_ONLY,
+        required_for="Read-only host sharing",
+    )
     api_override = os.environ.get("DOCKER_API_VERSION")
     if api_override is not None:
         version = re.fullmatch(r"(\d+)\.(\d+)", api_override)
