@@ -273,6 +273,72 @@ async def test_model_proxy_request_headers_and_body(
             assert "content-type" in received_request["headers"]
 
 
+async def _raw_request(base_url: str, header_lines: list[str]) -> bytes:
+    host, port = base_url.removeprefix("http://").split(":")
+    reader, writer = await asyncio.open_connection(host, int(port))
+    body = b"{}"
+    request = (
+        "POST /inspect HTTP/1.1\r\n"
+        + "".join(f"{line}\r\n" for line in header_lines)
+        + f"Content-Length: {len(body)}\r\n\r\n"
+    ).encode() + body
+    writer.write(request)
+    await writer.drain()
+    response = await reader.read()
+    writer.close()
+    await writer.wait_closed()
+    return response
+
+
+async def test_model_proxy_joins_repeated_header_lines(
+    http_server: tuple[AsyncHTTPServer, str],
+) -> None:
+    """A list-valued header split across lines keeps every line's values."""
+    server, base_url = http_server
+    received: list[dict[str, str]] = []
+
+    @server.route("/inspect", method="POST")
+    async def inspect_handler(request: dict[str, Any]) -> dict[str, Any]:
+        received.append(request["headers"])
+        return {"status": 200, "body": {}}
+
+    response = await _raw_request(
+        base_url,
+        [
+            "Host: localhost",
+            "Content-Type: application/json",
+            "anthropic-beta: beta-a",
+            "Anthropic-Beta: beta-b, beta-c",
+        ],
+    )
+
+    assert response.startswith(b"HTTP/1.1 200")
+    assert received[0]["anthropic-beta"] == "beta-a, beta-b, beta-c"
+
+
+@pytest.mark.parametrize("name", ["Content-Length", "Host", "Content-Type"])
+async def test_model_proxy_rejects_repeated_single_value_headers(
+    http_server: tuple[AsyncHTTPServer, str], name: str
+) -> None:
+    server, base_url = http_server
+    received: list[dict[str, str]] = []
+
+    @server.route("/inspect", method="POST")
+    async def inspect_handler(request: dict[str, Any]) -> dict[str, Any]:
+        received.append(request["headers"])
+        return {"status": 200, "body": {}}
+
+    value = "2" if name == "Content-Length" else "x"
+    response = await _raw_request(
+        base_url,
+        ["Host: localhost", "Content-Type: application/json"] + [f"{name}: {value}"],
+    )
+
+    assert response.startswith(b"HTTP/1.1 500")
+    assert f"Repeated {name.lower()} header".encode() in response
+    assert received == []
+
+
 @pytest.mark.asyncio
 async def test_model_proxy_forwards_client_headers_to_model_service() -> None:
     calls: list[tuple[str, dict[str, Any]]] = []

@@ -130,7 +130,9 @@ def resolve_forward_client_headers(
     Raises:
         TypeError: The mapping is not a mapping, a name is not a string, or a
             value list is a bare string, not a sequence, or holds a non-string.
-        ValueError: A header that must never cross the sandbox boundary is listed.
+        ValueError: A header that must never cross the sandbox boundary, or
+            `Accept-Encoding` (which has its own policy), is listed, or a value
+            contains a comma and so could never match one item of a header.
     """
     if forward_client_headers is None:
         return {}
@@ -153,6 +155,11 @@ def resolve_forward_client_headers(
                 f"forward_client_headers cannot list '{name}': the sandboxed agent "
                 "may never set this header on the host's model request."
             )
+        if lower_name == "accept-encoding":
+            raise ValueError(
+                "forward_client_headers cannot list 'accept-encoding': the bridge "
+                "forwards the codings the host can decode."
+            )
         if isinstance(values, str) or not isinstance(values, Sequence):
             raise TypeError(
                 f"forward_client_headers['{name}'] must be a list of allowed "
@@ -163,6 +170,11 @@ def resolve_forward_client_headers(
                 raise TypeError(
                     f"forward_client_headers['{name}'] values must be strings "
                     f"(got {value!r})."
+                )
+            if "," in value:
+                raise ValueError(
+                    f"forward_client_headers['{name}'] value {value!r} contains a "
+                    "comma: list each comma-separated item as its own value."
                 )
         resolved[lower_name] = resolved.get(lower_name, frozenset()) | frozenset(
             value.strip() for value in values
@@ -177,9 +189,14 @@ def _decodable_content_codings() -> frozenset[str]:
     httpx and httpx2 (used by the OpenAI and Anthropic SDKs) each skip a content
     coding they have no decoder for and pass the body on still encoded, so a
     client may only advertise codings both decode on this host. httpx2 decodes
-    `zstd` only on Python 3.14+ or with `backports.zstd` installed.
+    `zstd` only on Python 3.14+ or with `backports.zstd` installed. If httpx's
+    private decoder table cannot be imported, no coding is treated as decodable
+    and the client's `Accept-Encoding` is dropped.
     """
-    from httpx._decoders import SUPPORTED_DECODERS as httpx_decoders
+    try:
+        from httpx._decoders import SUPPORTED_DECODERS as httpx_decoders
+    except ImportError:
+        return frozenset()
 
     codings = set(httpx_decoders)
     try:
@@ -227,7 +244,7 @@ def filter_bridge_headers(headers: dict[str, str] | None) -> dict[str, str] | No
 
 
 def filter_sandbox_client_headers(
-    headers: dict[str, str] | None,
+    headers: object,
     forward_client_headers: Mapping[str, frozenset[str]],
 ) -> dict[str, str] | None:
     """Filter a sandboxed client's headers to `forward_client_headers`.
@@ -239,17 +256,32 @@ def filter_sandbox_client_headers(
     in-process `agent_bridge()` uses `filter_bridge_headers` instead.
 
     Args:
-        headers: Headers sent by the sandboxed client.
+        headers: Headers sent by the sandboxed client, as decoded from the
+            proxy's JSON request. Anything other than string names and values
+            is dropped and logged once.
         forward_client_headers: Allowed client headers, from
-            `resolve_forward_client_headers`. `Accept-Encoding` is forwarded as
-            sent unless listed here. A listed header keeps only its listed
-            comma-separated values (the others are dropped with a warning) and
-            is removed if none remain.
+            `resolve_forward_client_headers`. A listed header keeps only its
+            listed comma-separated values (the others are dropped with a
+            warning) and is removed if none remain.
     """
     if headers is None:
         return None
+    if not isinstance(headers, dict):
+        warn_once(
+            logger,
+            "Agent bridge ignored the sandboxed agent's request headers: they "
+            "were not a mapping of names to values.",
+        )
+        return None
     filtered: dict[str, str] = {}
     for name, value in headers.items():
+        if not isinstance(name, str) or not isinstance(value, str):
+            warn_once(
+                logger,
+                "Agent bridge dropped request headers from the sandboxed agent "
+                "whose name or value was not a string.",
+            )
+            continue
         lower_name = name.lower()
         if lower_name in forward_client_headers:
             value = _allowed_header_value(
@@ -260,7 +292,12 @@ def filter_sandbox_client_headers(
         elif lower_name == "accept-encoding":
             filtered[name] = value
         elif not _is_blocked_client_header(lower_name):
-            _log_unlisted_client_header(lower_name)
+            _log_dropped_client_header(
+                f"Agent bridge did not forward the sandboxed agent's "
+                f"{_loggable(lower_name)} header. To forward it, list it in "
+                f"{_FORWARD_CLIENT_HEADERS_OPTION}.",
+                warning=False,
+            )
     return _with_decodable_accept_encoding(filtered)
 
 
@@ -273,26 +310,44 @@ def _allowed_header_value(name: str, value: str, allowed: frozenset[str]) -> str
         if token in allowed:
             kept.append(token)
         else:
-            warn_once(
-                logger,
-                f"Agent bridge dropped '{token}' from the sandboxed agent's "
-                f"'{name.lower()}' header. To forward it, add it to "
-                f"{_FORWARD_CLIENT_HEADERS_OPTION}.",
+            _log_dropped_client_header(
+                f"Agent bridge dropped {_loggable(token)} from the sandboxed "
+                f"agent's {_loggable(name.lower())} header. To forward it, add it "
+                f"to {_FORWARD_CLIENT_HEADERS_OPTION}.",
+                warning=True,
             )
     return ",".join(kept)
 
 
-_logged_unlisted_client_headers: set[str] = set()
+_MAX_LOGGED_CLIENT_HEADER_DROPS = 100
+_MAX_LOGGED_CLIENT_HEADER_TEXT = 64
+_logged_client_header_drops: set[str] = set()
 
 
-def _log_unlisted_client_header(lower_name: str) -> None:
-    """Log, once per header name, a client header the sandbox bridge dropped."""
-    if lower_name not in _logged_unlisted_client_headers:
-        _logged_unlisted_client_headers.add(lower_name)
-        logger.info(
-            f"Agent bridge did not forward the sandboxed agent's '{lower_name}' "
-            f"header. To forward it, list it in {_FORWARD_CLIENT_HEADERS_OPTION}."
-        )
+def _loggable(text: str) -> str:
+    """Quote client-chosen header text for a log message, truncated."""
+    if len(text) > _MAX_LOGGED_CLIENT_HEADER_TEXT:
+        text = text[:_MAX_LOGGED_CLIENT_HEADER_TEXT] + "..."
+    return repr(text)
+
+
+def _log_dropped_client_header(message: str, *, warning: bool) -> None:
+    """Log a dropped client header once per message, for a bounded number of messages.
+
+    The sandboxed agent chooses the header names and values, so the set of
+    distinct messages is capped rather than growing for the life of the process.
+    """
+    if message in _logged_client_header_drops:
+        return
+    if len(_logged_client_header_drops) >= _MAX_LOGGED_CLIENT_HEADER_DROPS:
+        return
+    _logged_client_header_drops.add(message)
+    if len(_logged_client_header_drops) == _MAX_LOGGED_CLIENT_HEADER_DROPS:
+        message += " Further dropped client headers will not be logged."
+    if warning:
+        logger.warning(message)
+    else:
+        logger.info(message)
 
 
 @contextlib.asynccontextmanager

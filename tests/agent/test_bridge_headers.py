@@ -26,6 +26,7 @@ from inspect_ai.agent._bridge.sandbox.service import (
     generate_responses,
 )
 from inspect_ai.agent._bridge.sandbox.types import SandboxAgentBridge
+from inspect_ai.agent._bridge.util import merge_extra_headers
 from inspect_ai.model import GenerateConfig, get_model
 from inspect_ai.tool._tools._code_execution import CodeExecutionProviders
 from inspect_ai.tool._tools._web_search._web_search import WebSearchProviders
@@ -255,6 +256,10 @@ class TestBlockedHeadersConfiguration:
         assert "anthropic-beta" not in _BLOCKED_BRIDGE_HEADERS
 
 
+def _logged_drops() -> list[str]:
+    return sorted(bridge_module._logged_client_header_drops)
+
+
 def _sandbox_filter(
     headers: dict[str, str], forward_client_headers: dict[str, list[str]] | None
 ) -> dict[str, str] | None:
@@ -268,7 +273,7 @@ class TestForwardClientHeaders:
 
     def setup_method(self) -> None:
         inspect_logger._warned.clear()
-        bridge_module._logged_unlisted_client_headers.clear()
+        bridge_module._logged_client_header_drops.clear()
 
     def test_default_forwards_only_accept_encoding(self) -> None:
         headers = {
@@ -277,22 +282,35 @@ class TestForwardClientHeaders:
             "x-custom-header": "value",
         }
         assert _sandbox_filter(headers, None) == {"Accept-Encoding": "gzip, br"}
-        assert bridge_module._logged_unlisted_client_headers == {
-            "anthropic-beta",
-            "x-custom-header",
-        }
+        assert _logged_drops() == [
+            "Agent bridge did not forward the sandboxed agent's 'anthropic-beta' "
+            "header. To forward it, list it in "
+            "sandbox_agent_bridge(forward_client_headers=...).",
+            "Agent bridge did not forward the sandboxed agent's 'x-custom-header' "
+            "header. To forward it, list it in "
+            "sandbox_agent_bridge(forward_client_headers=...).",
+        ]
 
-    def test_unlisted_and_blocked_headers_not_warned(self) -> None:
+    def test_unlisted_and_blocked_headers_not_warned(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
         headers = {
             "x-stainless-os": "Linux",
             "authorization": "Bearer secret",
             "x-custom-header": "value",
         }
-        assert _sandbox_filter(headers, None) is None
-        _sandbox_filter(headers, None)
+        with caplog.at_level("INFO", logger=bridge_module.logger.name):
+            assert _sandbox_filter(headers, None) is None
+            _sandbox_filter(headers, None)
         # unlisted names are logged once each at info level; blocked ones never
-        assert bridge_module._logged_unlisted_client_headers == {"x-custom-header"}
-        assert inspect_logger._warned == []
+        assert [(r.levelname, r.getMessage()) for r in caplog.records] == [
+            (
+                "INFO",
+                "Agent bridge did not forward the sandboxed agent's "
+                "'x-custom-header' header. To forward it, list it in "
+                "sandbox_agent_bridge(forward_client_headers=...).",
+            )
+        ]
 
     def test_tenant_headers_dropped_unless_listed(self) -> None:
         """Sandbox code must not choose another org or project on the host key."""
@@ -304,17 +322,31 @@ class TestForwardClientHeaders:
         }
         assert _sandbox_filter(headers, None) == {"Accept-Encoding": "gzip"}
 
-    def test_listed_values_forwarded_and_others_dropped_with_warning(self) -> None:
+    def test_listed_values_forwarded_and_others_dropped_with_warning(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
         """Only listed tokens survive; whitespace around them is tolerated."""
         headers = {"Anthropic-Beta": "beta-a-2026-01-01, beta-b-2026-01-01,beta-c"}
-        result = _sandbox_filter(
-            headers, {"anthropic-beta": ["beta-a-2026-01-01", "beta-c"]}
-        )
+        with caplog.at_level("WARNING", logger=bridge_module.logger.name):
+            result = _sandbox_filter(
+                headers, {"anthropic-beta": ["beta-a-2026-01-01", "beta-c"]}
+            )
+            _sandbox_filter(headers, {"anthropic-beta": ["beta-a-2026-01-01"]})
         assert result == {"Anthropic-Beta": "beta-a-2026-01-01,beta-c"}
-        assert inspect_logger._warned == [
-            "Agent bridge dropped 'beta-b-2026-01-01' from the sandboxed agent's "
-            "'anthropic-beta' header. To forward it, add it to "
-            "sandbox_agent_bridge(forward_client_headers=...)."
+        # each dropped token is warned about once
+        assert [(r.levelname, r.getMessage()) for r in caplog.records] == [
+            (
+                "WARNING",
+                "Agent bridge dropped 'beta-b-2026-01-01' from the sandboxed "
+                "agent's 'anthropic-beta' header. To forward it, add it to "
+                "sandbox_agent_bridge(forward_client_headers=...).",
+            ),
+            (
+                "WARNING",
+                "Agent bridge dropped 'beta-c' from the sandboxed agent's "
+                "'anthropic-beta' header. To forward it, add it to "
+                "sandbox_agent_bridge(forward_client_headers=...).",
+            ),
         ]
 
     def test_header_dropped_when_no_values_remain(self) -> None:
@@ -323,7 +355,67 @@ class TestForwardClientHeaders:
             {"anthropic-beta": ["beta-a-2026-01-01"]},
         )
         assert result == {"Accept-Encoding": "br"}
-        assert any("beta-d-2026-01-01" in m for m in inspect_logger._warned)
+        assert any("beta-d-2026-01-01" in m for m in _logged_drops())
+
+    def test_dropped_header_logs_are_bounded(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """Client-chosen names and values cannot grow the log or its cache."""
+        cap = bridge_module._MAX_LOGGED_CLIENT_HEADER_DROPS
+        long_token = "beta-" + "x" * 500
+        with caplog.at_level("INFO", logger=bridge_module.logger.name):
+            _sandbox_filter(
+                {"anthropic-beta": long_token}, {"anthropic-beta": ["beta-a"]}
+            )
+            for i in range(cap + 50):
+                _sandbox_filter({f"x-minted-{i}": "1"}, None)
+        assert len(bridge_module._logged_client_header_drops) == cap
+        assert len(caplog.records) == cap
+        assert "x" * 500 not in caplog.records[0].getMessage()
+        assert "'beta-" + "x" * 59 + "...'" in caplog.records[0].getMessage()
+        assert (
+            caplog.records[-1]
+            .getMessage()
+            .endswith("Further dropped client headers will not be logged.")
+        )
+
+    @pytest.mark.parametrize(
+        "headers",
+        [
+            ["anthropic-beta", "beta-a"],
+            "anthropic-beta: beta-a",
+            5,
+        ],
+    )
+    def test_non_mapping_client_headers_ignored(self, headers: Any) -> None:
+        """Headers arrive as untrusted JSON from the sandbox proxy."""
+        assert (
+            filter_sandbox_client_headers(
+                headers, resolve_forward_client_headers({"anthropic-beta": ["beta-a"]})
+            )
+            is None
+        )
+        assert len(inspect_logger._warned) == 1
+
+    def test_non_string_client_header_entries_dropped(self) -> None:
+        headers: Any = {
+            "anthropic-beta": ["beta-a"],
+            "accept-encoding": None,
+            "x-allowed": 1,
+            5: "beta-a",
+            "Anthropic-Beta": "beta-a, beta-b",
+        }
+        result = filter_sandbox_client_headers(
+            headers,
+            resolve_forward_client_headers(
+                {"anthropic-beta": ["beta-a"], "x-allowed": ["1"]}
+            ),
+        )
+        assert result == {"Anthropic-Beta": "beta-a"}
+        assert [m for m in inspect_logger._warned if "not a string" in m] == [
+            "Agent bridge dropped request headers from the sandboxed agent whose "
+            "name or value was not a string."
+        ]
 
     def test_header_names_case_insensitive(self) -> None:
         result = _sandbox_filter(
@@ -331,11 +423,16 @@ class TestForwardClientHeaders:
         )
         assert result == {"X-MY-HEADER": "on"}
 
-    def test_listing_accept_encoding_narrows_it(self) -> None:
-        result = _sandbox_filter(
-            {"accept-encoding": "gzip, br, zstd"}, {"Accept-Encoding": ["br"]}
-        )
-        assert result == {"accept-encoding": "br"}
+    def test_listing_accept_encoding_rejected(self) -> None:
+        """Its codings follow what the host can decode, not an allowlist."""
+        with pytest.raises(ValueError, match="accept-encoding"):
+            resolve_forward_client_headers({"Accept-Encoding": ["br"]})
+
+    @pytest.mark.parametrize("value", ["a, b", "a,b", ","])
+    def test_values_with_commas_rejected(self, value: str) -> None:
+        """The client's header is matched one comma-separated item at a time."""
+        with pytest.raises(ValueError, match="comma"):
+            resolve_forward_client_headers({"x-foo": [value]})
 
     def test_bare_string_mapping_rejected(self) -> None:
         with pytest.raises(TypeError, match="forward_client_headers"):
@@ -421,6 +518,24 @@ class TestDecodableAcceptEncoding:
         codings = bridge_module._decodable_content_codings()
         assert {"gzip", "deflate", "br"} <= codings
         assert ("zstd" in codings) is _zstd_decodable()
+
+    @pytest.mark.parametrize("sandbox", [False, True], ids=["in-process", "sandbox"])
+    def test_missing_httpx_decoder_table_drops_accept_encoding(
+        self, monkeypatch: pytest.MonkeyPatch, sandbox: bool
+    ) -> None:
+        """A moved private httpx table must not fail every bridged request."""
+        monkeypatch.setitem(sys.modules, "httpx._decoders", None)
+        bridge_module._decodable_content_codings.cache_clear()
+        try:
+            headers = {"Accept-Encoding": "gzip, br", "x-custom": "1"}
+            result = (
+                _sandbox_filter(headers, {"x-custom": ["1"]})
+                if sandbox
+                else filter_bridge_headers(headers)
+            )
+            assert result == {"x-custom": "1"}
+        finally:
+            bridge_module._decodable_content_codings.cache_clear()
 
     @pytest.mark.parametrize("sandbox", [False, True], ids=["in-process", "sandbox"])
     def test_undecodable_codings_dropped(
@@ -517,7 +632,7 @@ class TestSandboxAnthropicRequest:
     async def test_allowed_beta_reaches_provider_and_brotli_response_decodes(
         self,
     ) -> None:
-        inspect_logger._warned.clear()
+        bridge_module._logged_client_header_drops.clear()
         provider_requests: list[httpx2.Request] = []
         message = {
             "id": "msg_1",
@@ -582,7 +697,111 @@ class TestSandboxAnthropicRequest:
         assert request.headers["accept-encoding"] == "br"
         assert request.headers["x-api-key"] == "test-key"
         assert "authorization" not in request.headers
-        assert any("unlisted-beta-2026-01-01" in m for m in inspect_logger._warned)
+        assert any("unlisted-beta-2026-01-01" in m for m in _logged_drops())
+
+
+class TestMergeExtraHeaders:
+    """Forwarded client headers merge with model and eval `extra_headers`."""
+
+    def test_model_headers_win_per_name(self) -> None:
+        assert merge_extra_headers(
+            {"X-Feature": "client", "Accept-Encoding": "br"},
+            {"x-feature": "model", "x-model": "m"},
+        ) == {"Accept-Encoding": "br", "x-feature": "model", "x-model": "m"}
+
+    def test_anthropic_betas_combined(self) -> None:
+        assert merge_extra_headers(
+            {"Anthropic-Beta": "client-beta, shared-beta"},
+            {"anthropic-beta": "shared-beta,model-beta"},
+        ) == {"anthropic-beta": "client-beta,shared-beta,model-beta"}
+
+    def test_either_side_empty(self) -> None:
+        assert merge_extra_headers(None, None) is None
+        assert merge_extra_headers({}, {"x-model": "m"}) == {"x-model": "m"}
+        assert merge_extra_headers({"x-client": "c"}, None) == {"x-client": "c"}
+
+    @pytest.mark.anyio
+    async def test_forwarded_headers_kept_with_model_and_eval_extra_headers(
+        self,
+    ) -> None:
+        from inspect_ai.model._generate_config import (
+            active_generate_config_context_var,
+        )
+        from inspect_ai.model._model import active_model_context_var
+
+        provider_requests: list[httpx2.Request] = []
+        message = {
+            "id": "msg_1",
+            "type": "message",
+            "role": "assistant",
+            "model": "claude-sonnet-4-5",
+            "content": [{"type": "text", "text": "ok"}],
+            "stop_reason": "end_turn",
+            "stop_sequence": None,
+            "usage": {"input_tokens": 3, "output_tokens": 1},
+        }
+
+        def handler(request: httpx2.Request) -> httpx2.Response:
+            provider_requests.append(request)
+            return httpx2.Response(200, json=message)
+
+        model = get_model(
+            "anthropic/claude-sonnet-4-5",
+            api_key="test-key",
+            memoize=False,
+            streaming=False,
+            config=GenerateConfig(
+                max_tokens=64,
+                extra_headers={"anthropic-beta": "model-beta", "x-feature": "model"},
+            ),
+            http_client=httpx2.AsyncClient(transport=httpx2.MockTransport(handler)),
+        )
+        bridge = SandboxAgentBridge(
+            state=AgentState(messages=[]),
+            filter=None,
+            retry_refusals=None,
+            compaction=None,
+            port=13131,
+            model=None,
+            model_aliases={"agent-model": model},
+            forward_client_headers={
+                "anthropic-beta": ["client-beta"],
+                "x-feature": ["client"],
+            },
+        )
+        generate = generate_anthropic(
+            cast(WebSearchProviders, None), cast(CodeExecutionProviders, None), bridge
+        )
+        model_token = active_model_context_var.set(model)
+        config_token = active_generate_config_context_var.set(
+            GenerateConfig(extra_headers={"x-eval": "eval"})
+        )
+        try:
+            await generate(
+                {
+                    "model": "agent-model",
+                    "max_tokens": 64,
+                    "messages": [{"role": "user", "content": "hi"}],
+                },
+                {
+                    "anthropic-beta": "client-beta",
+                    "x-feature": "client",
+                    "accept-encoding": "br",
+                },
+            )
+        finally:
+            active_generate_config_context_var.reset(config_token)
+            active_model_context_var.reset(model_token)
+            await model.api.aclose()
+
+        [request] = provider_requests
+        assert set(request.headers["anthropic-beta"].split(",")) == {
+            "client-beta",
+            "model-beta",
+        }
+        assert request.headers["x-feature"] == "model"
+        assert request.headers["x-eval"] == "eval"
+        assert request.headers["accept-encoding"] == "br"
 
 
 # Headers a sandboxed client sends: credentials no `forward_client_headers` can

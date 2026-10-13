@@ -797,13 +797,44 @@ def resolve_generate_config(
     # give config built into the model instance priority over
     # bridged agent default
     config = bridge_config.merge(model.config)
+    extra_headers = merge_extra_headers(
+        bridge_config.extra_headers, model.config.extra_headers
+    )
 
     # apply active model config if appropriate
     is_active_model = model is active_model()
     if is_active_model:
-        config = config.merge(active_generate_config())
+        active_config = active_generate_config()
+        config = config.merge(active_config)
+        extra_headers = merge_extra_headers(extra_headers, active_config.extra_headers)
 
+    config.extra_headers = extra_headers
     return config
+
+
+def merge_extra_headers(
+    client_headers: dict[str, str] | None, headers: dict[str, str] | None
+) -> dict[str, str] | None:
+    """Merge model or eval `extra_headers` over the headers a bridged client sent.
+
+    `GenerateConfig.merge` replaces `extra_headers` whole, which would drop every
+    forwarded client header whenever the model or eval sets any. Here names are
+    matched case-insensitively and `headers` wins on the same name, except that
+    `anthropic-beta` lists are combined.
+    """
+    if not client_headers:
+        return dict(headers) if headers else None
+    merged = dict(client_headers)
+    for name, value in (headers or {}).items():
+        existing = [key for key in merged if key.lower() == name.lower()]
+        if name.lower() == "anthropic-beta":
+            betas = [beta for key in existing for beta in merged[key].split(",")]
+            betas.extend(value.split(","))
+            value = ",".join(dict.fromkeys(b.strip() for b in betas if b.strip()))
+        for key in existing:
+            del merged[key]
+        merged[name] = value
+    return merged
 
 
 BridgeModelRoute = Literal[

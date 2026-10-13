@@ -19,10 +19,10 @@ from anthropic import APIStatusError
 from pydantic import JsonValue
 
 import inspect_ai
-from inspect_ai._util import logger as inspect_logger
 from inspect_ai._util.http import status_code_of
 from inspect_ai._util.registry import _registry
 from inspect_ai.agent._agent import AgentState
+from inspect_ai.agent._bridge import bridge as bridge_module
 from inspect_ai.agent._bridge._errors import (
     PROVIDER_ERROR_KEY,
     provider_error_payload,
@@ -582,7 +582,7 @@ async def test_sandbox_anthropic_forwards_only_allowed_client_betas(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Client headers reach the host request only when the eval author lists them."""
-    inspect_logger._warned.clear()
+    bridge_module._logged_client_header_drops.clear()
     received_headers: list[dict[str, str] | None] = []
 
     async def request(
@@ -621,7 +621,9 @@ async def test_sandbox_anthropic_forwards_only_allowed_client_betas(
         {"accept-encoding": "gzip, br"},
         {"accept-encoding": "gzip, br", "anthropic-beta": "allowed-beta-2026-01-01"},
     ]
-    assert [m for m in inspect_logger._warned if "unlisted-beta" in m] == [
+    assert [
+        m for m in bridge_module._logged_client_header_drops if "unlisted-beta" in m
+    ] == [
         "Agent bridge dropped 'unlisted-beta-2026-01-01' from the sandboxed "
         "agent's 'anthropic-beta' header. To forward it, add it to "
         "sandbox_agent_bridge(forward_client_headers=...)."

@@ -177,10 +177,11 @@ async def sandbox_agent_bridge(
             send to the model provider, mapping each header name
             (case-insensitive) to its allowed values, e.g.
             `{"anthropic-beta": ["context-management-2025-06-27"]}`. A
-            comma-separated value is matched one item at a time; items not
-            listed are dropped with a warning, and the header is dropped when
-            none remain. Defaults to `None`: no client header is forwarded
-            except `Accept-Encoding`. Credential and transport headers (e.g.
+            comma-separated value is matched one item at a time, so a listed
+            value cannot contain a comma; items not listed are dropped with a
+            warning, and the header is dropped when none remain. Defaults to
+            `None`: no client header is forwarded except `Accept-Encoding`.
+            `Accept-Encoding` and credential and transport headers (e.g.
             `Authorization`, `api-key`, `x-goog-api-key`, `x-amz-*`, `Host`,
             `Content-Type`) cannot be listed.
     """
