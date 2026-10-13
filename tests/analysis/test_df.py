@@ -338,6 +338,23 @@ def test_evals_df_includes_token_limit_type_column():
     assert "token_limit_type" in df.columns
 
 
+def test_evals_df_sentinel_column(tmp_path: Path) -> None:
+    from inspect_ai.log import SentinelConfig
+
+    [plain] = eval(Task(), model="mockllm/model", log_dir=str(tmp_path / "plain"))
+    with_sentinel = plain.model_copy(deep=True)
+    with_sentinel.eval.config.sentinel = SentinelConfig.model_validate(
+        [{"name": "d4_rule", "params": {"reason": "no"}}]
+    )
+    write_eval_log(with_sentinel, str(tmp_path / "sentinel" / "log.eval"))
+
+    df = evals_df(tmp_path / "sentinel")
+    assert "d4_rule" in df["sentinel"].iloc[0]
+    df = evals_df(tmp_path / "plain")
+    assert "sentinel" in df.columns
+    assert df["sentinel"].isna().all()
+
+
 def test_messages_df():
     df = messages_df(LOGS_DIR)
     assert len(df) == 34
@@ -419,6 +436,31 @@ def test_eval_df_display_name():
         eval(Task(name="my_task"), model="mockllm/model", log_dir=log_dir)
         df = evals_df(log_dir)
         assert df["task_display_name"].to_list().sort() == ["My Task", "my_task"].sort()
+
+
+def test_df_description_columns():
+    with tempfile.TemporaryDirectory() as log_dir:
+        eval(
+            Task(
+                dataset=[
+                    Sample(id=1, input="x", description="Say x."),
+                    Sample(id=2, input="y"),
+                ],
+                description="Say the input.",
+            ),
+            model="mockllm/model",
+            log_dir=log_dir,
+        )
+        assert evals_df(log_dir)["task_description"].to_list() == ["Say the input."]
+        for full in [False, True]:
+            df = samples_df(log_dir, full=full).sort_values("id")
+            descriptions = df["description"].to_list()
+            assert descriptions[0] == "Say x."
+            assert pd.isna(descriptions[1])
+
+    # logs written before descriptions existed read as missing
+    assert evals_df(LOGS_DIR)["task_description"].isna().all()
+    assert samples_df(LOGS_DIR)["description"].isna().all()
 
 
 def test_samples_df_with_sample_scores():

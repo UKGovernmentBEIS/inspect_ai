@@ -1,10 +1,22 @@
 import math
-from typing import cast
+from typing import Iterator, cast
 from unittest import mock
+
+import pytest
 
 from inspect_ai.agent._human.state import HumanAgentState, IntermediateScoring
 from inspect_ai.scorer._metric import Score
-from inspect_ai.util._store import Store, store_jsonable
+from inspect_ai.util._store import Store, init_subtask_store, store_jsonable
+
+
+@pytest.fixture(autouse=True)
+def _isolate_store() -> Iterator[None]:
+    # HumanAgentState writes to the current store() even when given its own
+    # (field validation builds a throwaway model there). Leave a fresh store
+    # behind so a NaN score cannot make later store diffs emit StoreEvents.
+    init_subtask_store(Store())
+    yield
+    init_subtask_store(Store())
 
 
 @mock.patch("time.time", autospec=True)

@@ -1167,12 +1167,11 @@ viewer it is a failed tool panel; in `events_df` it is a row with
   `tests/tools/test_tools_bridge.py` keep passing because RPC behaviour for
   those calls is unchanged; the transport-level tests #5428 opted out with
   `require_proposal=False` now also see an `exempt` event each.
-- **CHANGELOG.** Three `## Unreleased` lines: host tools executed through
-  `sandbox_agent_bridge(bridged_tools=...)` are now recorded as tool events
-  in the transcript, including denied calls; an explicitly configured
-  `max_tool_output` or a tool's `max_output` now applies to their results
-  as it does to native tool results;
-  images in tool results now follow `log_images` like images in messages.
+- **Changelog.** PR B's change (images in tool results follow `log_images`)
+  and the output limit for bridged tool results shipped in 0.3.277 with their
+  own entries. PR C's title is its entry: "feat(bridge): host tools executed
+  through `sandbox_agent_bridge(bridged_tools=...)` are recorded as tool
+  events in the transcript, including denied calls".
 
 ## Security
 
@@ -1409,8 +1408,8 @@ tool exceptions and validating arguments; this design builds on it and adds
 nothing to it.
 
 **PR B: tool result media follow the logging policy**
-(`src/inspect_ai/log/_condense.py`, `tests/log/test_log_attachments.py`,
-`CHANGELOG.md`). Add `walk_tool_result`, call it from `walk_tool_event`,
+(`src/inspect_ai/log/_condense.py`, `tests/log/test_log_attachments.py`).
+Add `walk_tool_result`, call it from `walk_tool_event`,
 add the round-trip tests. Fixes the existing `log_images=False` gap for
 native tool events on its own.
 
@@ -1456,7 +1455,7 @@ native tool events on its own.
    `_map_tool_event`, update docstrings, add the three tests.
 5. **Docker tests and docs** (`tests/tools/test_tools_bridge.py`,
    `docs/agent-bridge.qmd` Transcript section and the bridged-tools section
-   for the argument checks and output limit, `CHANGELOG.md`).
+   for the argument checks and output limit).
 6. **Viewer companion** (ts-mono PR): coverage-keyed `showToolCalls` and
    tool-message hiding at the timeline level, with the three fixtures. Lands
    together with PR C through the submodule pointer bump, per

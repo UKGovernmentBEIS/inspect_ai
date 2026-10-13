@@ -993,28 +993,31 @@ size.
 
 1. **#480 — threshold re-check.** `src/inspect_ai/_eval/task/log.py`
    (`_flush_pending_samples`, `_finalize_sample`); tests in
-   `tests/log/test_task_log.py`; CHANGELOG: "Fewer redundant log writes when
-   samples complete during a slow log flush." One PR.
+   `tests/log/test_task_log.py`; PR title (the changelog line): "perf: fewer
+   redundant log writes when samples complete during a slow log flush". One
+   PR.
 2. **#479a — compose primitive.** `src/inspect_ai/_util/asyncfiles.py`:
    `ComposeSource`, `ComposeSourceChangedError`, `S3_COMPOSE_MIN_PREFIX`,
    `AsyncFilesystem.can_compose`/`compose_file`, `_s3_compose_async`, the
    part-pipeline helper extracted from `_s3_multipart_upload_async`,
    `read_file_into` returning the ETag; tests in
-   `tests/util/test_asyncfiles.py`. No CHANGELOG (no behaviour change yet).
+   `tests/util/test_asyncfiles.py`. No changelog line (no behaviour change
+   yet), so a `refactor:` title if it is its own PR.
 3. **#479b — seeded start flush.** `src/inspect_ai/log/_recorders/eval.py`:
    `_compose_prefix`/`_compose_disabled`, `_write_remote`, `flush()` changes,
    `_copy_prior_log` returning the ETag, `seed_from_prior_log` setting the
    prefix, `compact()` clearing it; tests in `tests/log/test_eval_log.py`;
-   CHANGELOG: "Retrying an eval whose logs are on S3 no longer re-uploads the
-   prior attempt's log before the retry starts." Steps 2 and 3 are one PR
+   PR title (the changelog line): "perf: retrying an eval whose logs are on
+   S3 no longer re-uploads the prior attempt's log before the retry starts".
+   Steps 2 and 3 are one PR
    (#479) in two commits, or two PRs if the first is wanted in isolation.
 4. **#481 — own-key flushes.** `eval.py`: record the prefix after every
    successful S3 flush (the success-path assignment in `flush()`); the
    byte-identity, compaction, changed-source, unsupported-store and
    failure tests; `docs/eval-logs.qmd`: lifecycle-rule recommendation in
-   the S3 section; CHANGELOG: "Log flushes to S3 no longer re-upload the
-   whole `.eval` file; only the samples written since the last flush are
-   uploaded." Then re-run the benchmark and add a Performance section to
+   the S3 section; PR title (the changelog line): "perf: log flushes to S3
+   upload only the samples written since the last flush, not the whole
+   `.eval` file". Then re-run the benchmark and add a Performance section to
    this document with the numbers.
 5. **#482 — measure, then decide.** Re-run the benchmark with the seed
    download split out (both links). No-go: close #482 citing the numbers.

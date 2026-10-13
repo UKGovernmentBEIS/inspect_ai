@@ -651,6 +651,24 @@ class TestGetModelInputTokens:
         assert bedrock_info is not None
         assert bedrock_info.snapshot == "20260928"
 
+    def test_claude_haiku_5_5(self):
+        """Test that Claude Haiku 5.5 reports 1MM input tokens."""
+        model = get_model("anthropic/claude-haiku-5-5")
+        tokens = get_model_input_tokens(model)
+        assert tokens == 1_000_000
+        # distinguishes the explicit entry from a fuzzy match of haiku-4-5
+        info = get_model_info("anthropic/claude-haiku-5-5")
+        assert info is not None
+        assert info.snapshot == "20261007"
+        assert str(info.release_date) == "2026-10-07"
+        assert str(info.knowledge_cutoff_date) == "2026-06-01"
+        assert info.output_tokens == 128_000
+        assert info.reasoning_effort_default == "medium"
+        # the Bedrock id resolves to the same entry via its alias
+        bedrock_info = get_model_info("bedrock/anthropic.claude-haiku-5-5")
+        assert bedrock_info is not None
+        assert bedrock_info.snapshot == "20261007"
+
     def test_claude_fable_5(self):
         """Test that Claude Fable 5 reports 1MM input tokens."""
         model = get_model("anthropic/claude-fable-5")
@@ -713,6 +731,19 @@ class TestGetModelInputTokens:
         assert info is not None
         assert str(info.release_date) == release_date
         assert str(info.knowledge_cutoff_date) == "2026-03-01"
+        assert info.reasoning_effort_default == "medium"
+
+    def test_gemini_4_argon(self) -> None:
+        """Gemini 4 Argon resolves to its own entry (1M context, 64K output)."""
+        model = get_model("google/gemini-4-argon", api_key="test-key")
+        assert get_model_input_tokens(model) == 1_048_576
+        info = get_model_info("google/gemini-4-argon")
+        assert info is not None
+        assert info.model == "Gemini 4 Argon"
+        assert str(info.release_date) == "2026-10-13"
+        assert str(info.knowledge_cutoff_date) == "2026-03-01"
+        assert info.output_tokens == 65_536
+        assert info.reasoning is True
         assert info.reasoning_effort_default == "medium"
 
     def test_claude_latest_defaults_to_1m(self):

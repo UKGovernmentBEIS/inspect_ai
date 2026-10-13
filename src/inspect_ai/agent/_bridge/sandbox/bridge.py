@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, AsyncIterator
 import anyio
 from shortuuid import uuid
 
+from inspect_ai._sentinel._context import warn_sentinel_bridged
 from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai.model._compaction.types import CompactionStrategy
 from inspect_ai.model._model import (
@@ -80,6 +81,11 @@ async def sandbox_agent_bridge(
     model names are served by the eval's model unless `model_aliases` or
     `model_resolver` maps them elsewhere.
 
+    The eval's configuration, not the agent's request, governs `service_tier`,
+    `store`, `truncation` and the options of provider tools the agent declares;
+    requests with `previous_response_id` are refused, and the agent's HTTP
+    headers are not forwarded.
+
     Args:
         state: Initial state for agent bridge. Used as a basis for yielding
             an updated state based on traffic over the bridge.
@@ -138,7 +144,9 @@ async def sandbox_agent_bridge(
             makes the specified tools available to the agent. A bridged tool
             executes only for a call the model proposed in a bridged generation,
             once per proposal, unless its spec sets `require_proposal=False`
-            (see `BridgedToolsSpec`). The resolved MCPServerConfigStdio objects
+            (see `BridgedToolsSpec`); an agent that calls host tools from
+            model-written code, such as Codex CLI in code mode, needs that
+            opt-out. The resolved MCPServerConfigStdio objects
             to pass to CLI agents are available via bridge.mcp_server_configs.
         model_event_sink: Optional sink that takes ownership of `ModelEvent`
             emission for calls routed through the bridge. When set, the bridge
@@ -164,6 +172,8 @@ async def sandbox_agent_bridge(
             and restore, so a checkpointed run survives resume. Defaults to
             `None` (no checkpointing).
     """
+    warn_sentinel_bridged()
+
     # instance id for this bridge
     instance = f"proxy_{uuid()}"
 

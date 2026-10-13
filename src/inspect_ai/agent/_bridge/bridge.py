@@ -17,6 +17,7 @@ from typing import (
 from pydantic import BaseModel, Field, ValidationError
 from pydantic_core import to_json
 
+from inspect_ai._sentinel._context import warn_sentinel_bridged
 from inspect_ai._util._async import is_callable_coroutine
 from inspect_ai.agent._agent import Agent, AgentState, agent
 from inspect_ai.agent._bridge.types import AgentBridge
@@ -118,6 +119,10 @@ async def agent_bridge(
     to redirect any model named "inspect" (or prefaced with
     "inspect/" for non-default models) into the Inspect model API.
 
+    The eval's configuration, not the agent's request, governs `service_tier`,
+    `store`, `truncation` and the options of provider tools the agent declares;
+    requests with `previous_response_id` are refused.
+
     See the [Agent Bridge](https://inspect.aisi.org.uk/agent-bridge.html)
     documentation for additional details.
 
@@ -164,6 +169,7 @@ async def agent_bridge(
     """
     # ensure one time init
     init_bridge_request_patch()
+    warn_sentinel_bridged()
 
     # resolve granted capabilities (in-process bridges grant by default: the
     # scaffold already shares the host's network, so withholding buys nothing)

@@ -3,7 +3,17 @@ import warnings
 from contextlib import AbstractContextManager, contextmanager, nullcontext
 from contextvars import ContextVar
 from logging import getLogger
-from typing import Any, Callable, Iterator, Literal, NamedTuple, Sequence, cast
+from typing import (
+    Any,
+    Callable,
+    Collection,
+    Iterator,
+    Literal,
+    Mapping,
+    NamedTuple,
+    Sequence,
+    cast,
+)
 
 from pydantic import ValidationError
 from pydantic_core import PydanticSerializationError
@@ -61,6 +71,14 @@ from inspect_ai.tool._tools._web_search._web_search import (
     _normalize_config,
 )
 from inspect_ai.util._json import JSONSchema
+
+from .context import (
+    _UNKNOWN_CONTEXT,
+    _UTILITY_CONTEXT,
+    agent_bridge_context_scope,
+    bridged_request_scope,
+    set_agent_bridge_context,
+)
 
 # Generation-tuning fields a scaffold may set on a bridged request that describe
 # *how* the underlying model generates. These are the Inspect model's province
@@ -479,6 +497,128 @@ def _routing_context(
     return requested_model(routing.requested) if routing else nullcontext()
 
 
+def withhold_client_request_settings(
+    bridge: AgentBridge, config: GenerateConfig, eval_values: dict[str, Any]
+) -> None:
+    """Remove the request fields the eval's configuration governs (in place).
+
+    These fields change billing, provider-side storage or context truncation, so
+    they are the eval author's decision, not the bridged agent's. `eval_values`
+    maps each such field of the client's API to the value the eval's
+    configuration gives it. The
+    fields are removed from `config.extra_body`, so the eval's `GenerateConfig` or
+    the provider's model args govern them. A client value that differs from the
+    eval's is logged once per field per bridge, since the client cannot otherwise
+    tell that it was ignored.
+    """
+    if config.extra_body is None:
+        return
+    for field, eval_value in eval_values.items():
+        warn_ignored_client_setting(
+            bridge,
+            field,
+            config.extra_body.pop(field, None),
+            eval_value,
+            "set it with GenerateConfig extra_body or a provider model arg",
+        )
+    if not config.extra_body:
+        config.extra_body = None
+
+
+def warn_ignored_client_setting(
+    bridge: AgentBridge | None,
+    setting: str,
+    client_value: Any,
+    eval_value: Any,
+    how_to_set: str,
+) -> None:
+    """Warn, once per setting per bridge, that the client's value was ignored.
+
+    Nothing is logged when the client sent no value or the eval's value is the
+    same, or when there is no bridge (a caller converting declarations it only
+    observes). `how_to_set` tells the eval author where the setting is
+    configured.
+    """
+    if (
+        bridge is None
+        or client_value is None
+        or client_value == eval_value
+        or setting in bridge._warned_request_settings
+    ):
+        return
+    bridge._warned_request_settings.add(setting)
+    logger.warning(
+        f"The agent bridge ignored the agent's {setting}={client_value!r}: "
+        f"the eval's configuration governs {setting} ({how_to_set})."
+    )
+
+
+def client_tool_options(tool_param: Mapping[str, Any], *keys: str) -> dict[str, Any]:
+    """The options a client set on a provider tool declaration, without `keys`."""
+    return {
+        key: value
+        for key, value in tool_param.items()
+        if key not in keys and value is not None
+    }
+
+
+ToolOptionNarrowing = Callable[[Any, Any], Any]
+"""Given the eval's value (or `None`) and the client's, the narrower value, or `None`."""
+
+
+def eval_tool_options(
+    bridge: AgentBridge | None,
+    setting: str,
+    client_options: dict[str, Any],
+    eval_options: dict[str, Any],
+    how_to_set: str,
+    defaults: Mapping[str, Any] | None = None,
+    narrowing: Mapping[str, ToolOptionNarrowing] | None = None,
+    client_settable: Collection[str] = (),
+) -> dict[str, Any]:
+    """The options to use for a provider tool the client declared.
+
+    The eval's options govern. A client option is applied only when the eval
+    leaves it unset and it is in `client_settable` (options that shape results
+    without widening what the tool may reach), or when a `narrowing` for it
+    yields a value, which it does only when the client asks for less than the
+    eval allows (fewer searches, no live web access). Every other client option
+    that differs from the eval's value, or from the provider default in
+    `defaults` when the eval sets none, is ignored and warned about once per
+    bridge (`warn_ignored_client_setting`).
+    """
+    options = dict(eval_options)
+    ignored: dict[str, Any] = {}
+    for key, value in client_options.items():
+        current = options.get(key, (defaults or {}).get(key, None))
+        if value == current:
+            continue
+        if key in client_settable and key not in eval_options:
+            options[key] = value
+            continue
+        narrow = (narrowing or {}).get(key, None)
+        narrowed = narrow(current, value) if narrow is not None else None
+        if narrowed is not None:
+            options[key] = narrowed
+        else:
+            ignored[key] = value
+    warn_ignored_client_setting(bridge, setting, ignored or None, {}, how_to_set)
+    return options
+
+
+def narrow_max_uses(current: Any, value: Any) -> Any:
+    """A client's lower cap on tool uses (Anthropic `max_uses`)."""
+    if isinstance(value, int) and not isinstance(value, bool) and value > 0:
+        if current is None or (isinstance(current, int) and value < current):
+            return value
+    return None
+
+
+def narrow_to_false(current: Any, value: Any) -> Any:
+    """A client turning an enabled option off (OpenAI `external_web_access`)."""
+    return False if value is False and current is not False else None
+
+
 async def bridge_generate(
     bridge: AgentBridge,
     model: Model,
@@ -486,6 +626,7 @@ async def bridge_generate(
     tools: Sequence[ToolInfo | Tool],
     tool_choice: ToolChoice | None,
     config: GenerateConfig,
+    requested_model: str | None,
     declared_in_input: Callable[[list[ChatMessage]], Sequence[ToolInfo]] | None = None,
     *,
     routing: "BridgeModelResolution | None" = None,
@@ -507,6 +648,12 @@ async def bridge_generate(
     retries up to bridge.retry_refusals times, with inputs reset to original values for
     each retry to ensure clean state.
 
+    The entire call executes within a `bridged_request_scope`: the ambient
+    `AgentBridgeContext` defaults to unknown, `current_bridge_request()` carries
+    `requested_model` (the scaffold's pre-alias-resolution model slug), or
+    returns None when the scaffold sent no model, and both reset when the
+    request completes.
+
     Tool calls in the output are approved before it is handed back to the scaffold. A
     rejected call is not edited out of the response — instead the model is told it was
     rejected and generation is retried, so the scaffold sees only the replacement (see
@@ -520,6 +667,30 @@ async def bridge_generate(
     if routing is not None and routing.redirected:
         _warn_redirect(routing, bridge.model)
 
+    with bridged_request_scope(requested_model):
+        return await _bridge_generate_impl(
+            bridge,
+            model,
+            input,
+            tools,
+            tool_choice,
+            config,
+            declared_in_input,
+            routing,
+        )
+
+
+async def _bridge_generate_impl(
+    bridge: AgentBridge,
+    model: Model,
+    input: list[ChatMessage],
+    tools: Sequence[ToolInfo | Tool],
+    tool_choice: ToolChoice | None,
+    config: GenerateConfig,
+    declared_in_input: Callable[[list[ChatMessage]], Sequence[ToolInfo]] | None,
+    routing: "BridgeModelResolution | None",
+) -> tuple[ModelOutput, ChatMessageUser | None]:
+    """Implementation of bridge_generate (see wrapper)."""
     # restore operator provenance lost to a bridged scaffold's round-trip (e.g.
     # claude_code re-emits an operator message as a plain user message). Done
     # before compaction/recording so the restored source persists in both the
@@ -529,7 +700,11 @@ async def bridge_generate(
     # get compaction function and run compaction once before retry loop
     compact = bridge.compaction(tools, model)
     if compact is not None:
-        input_messages, c_message = await compact.compact_input(input)
+        # compaction is the canonical "utility" kind — its own model.generate
+        # call (e.g. a summarization strategy) should read as utility rather
+        # than the ambient default.
+        with agent_bridge_context_scope(_UTILITY_CONTEXT):
+            input_messages, c_message = await compact.compact_input(input)
     else:
         input_messages = input
         c_message = None
@@ -543,6 +718,11 @@ async def bridge_generate(
     refusals = 0
     rejections = 0
     while True:
+        # Re-stamp the ambient context to the default so a filter-set context
+        # from a refused attempt doesn't leak into the next retry — attempt
+        # N+1 starts clean, same as attempt 1.
+        set_agent_bridge_context(_UNKNOWN_CONTEXT)
+
         # Reset to original inputs for each retry
         input_messages = original_input
         tools = original_tools
@@ -627,8 +807,11 @@ async def bridge_generate(
         # never sees the rejected response. The calls in the response handed over
         # are the only ones the scaffold may run as host tools, once each; they
         # resolve against the declarations this attempt generated with (tools and
-        # in-input declarations alike), which a filter may have rewritten.
-        reviewed = await apply_bridge_tool_approval(bridge, output, input_messages)
+        # in-input declarations alike), which a filter may have rewritten. Approval
+        # review is "utility" work — an approver's own model calls should read as
+        # utility, not as the agent whose calls are under review.
+        with agent_bridge_context_scope(_UTILITY_CONTEXT):
+            reviewed = await apply_bridge_tool_approval(bridge, output, input_messages)
         if reviewed.rejection is None:
             declarations: list[ToolInfo | Tool] = list(tools)
             if declared_in_input is not None:
@@ -868,14 +1051,6 @@ def _warn_redirect(routing: BridgeModelResolution, pin: str | None) -> None:
 
 def _display_model_name(name: str) -> str:
     return repr(name if len(name) <= 200 else name[:200] + "...")
-
-
-def resolve_web_search_providers(
-    providers: WebSearchProviders | None,
-) -> WebSearchProviders:
-    if providers is None:
-        providers = internal_web_search_providers()
-    return cast(WebSearchProviders, _normalize_config(providers))
 
 
 def internal_web_search_providers() -> WebSearchProviders:
