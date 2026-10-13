@@ -8,6 +8,7 @@ from typing import Any, Literal
 
 from shortuuid import uuid
 
+from inspect_ai._sentinel._context import active_sentinel
 from inspect_ai._util.content import (
     Content,
     ContentImage,
@@ -128,8 +129,14 @@ async def inspect_google_api_request_impl(
         tool_choice_from_google_tool_config(tool_config), tools
     )
 
+    # with a sentinel, calls are handed over and read back under the ids the
+    # bridge gives them, which identify each execution's result
+    call_ids = active_sentinel() is not None
+
     # translate messages
-    messages = messages_from_google_contents(contents, system_instruction)
+    messages = messages_from_google_contents(
+        contents, system_instruction, call_ids=call_ids
+    )
     await validate_bridge_media(bridge, messages)
     debug_log("INSPECT MESSAGES", messages)
 
@@ -158,7 +165,9 @@ async def inspect_google_api_request_impl(
     await bridge._track_state(messages, output)
 
     # translate response to Gemini format
-    response = gemini_response_from_output(output, model.api.model_name)
+    response = gemini_response_from_output(
+        output, model.api.model_name, call_ids=call_ids
+    )
     debug_log("SCAFFOLD RESPONSE", response)
 
     return response
@@ -353,7 +362,17 @@ def tool_choice_from_google_tool_config(
 def messages_from_google_contents(
     contents: list[dict[str, Any]],
     system_instruction: dict[str, Any] | list[Any] | None,
+    *,
+    call_ids: bool = False,
 ) -> list[ChatMessage]:
+    """Inspect messages for a Gemini request's contents.
+
+    With `call_ids` (a sentinel is active), a call takes the id its
+    `functionCall` carries and a result the id its `functionResponse` carries
+    (`_function_part_id`). Without it, ids the parts carry are ignored: a call
+    gets an id derived from itself, and a result the id of the oldest
+    unanswered call to its function.
+    """
     messages: list[ChatMessage] = []
 
     # track system prompt text so we can strip duplicate prefixes from user messages
@@ -411,7 +430,9 @@ def messages_from_google_contents(
         parts = content.get("parts", [])
 
         if role == "user":
-            user_content, tool_messages = _extract_user_parts(parts, pending_tool_calls)
+            user_content, tool_messages = _extract_user_parts(
+                parts, pending_tool_calls, call_ids
+            )
             if user_content:
                 # strip duplicate system prompt prefix
                 user_content = _strip_system_prompt_prefix(
@@ -432,12 +453,12 @@ def messages_from_google_contents(
             func_response_parts = [p for p in parts if _is_function_response_part(p)]
             if func_response_parts:
                 _, tool_messages = _extract_user_parts(
-                    func_response_parts, pending_tool_calls
+                    func_response_parts, pending_tool_calls, call_ids
                 )
                 messages.extend(tool_messages)
 
             other_parts = [p for p in parts if not _is_function_response_part(p)]
-            assistant_content, tool_calls = _extract_model_parts(other_parts)
+            assistant_content, tool_calls = _extract_model_parts(other_parts, call_ids)
 
             if tool_calls:
                 pending_tool_calls.clear()
@@ -528,6 +549,7 @@ def _is_function_response_part(part: Any) -> bool:
 def _extract_user_parts(
     parts: list[dict[str, Any]],
     pending_tool_calls: dict[str, list[str]],
+    call_ids: bool = False,
 ) -> tuple[list[Content] | str | None, list[ChatMessageTool]]:
     # pending_tool_calls maps function_name -> list of call_ids from the previous
     # model message, used to match functionResponse with the correct tool_use_id.
@@ -565,7 +587,9 @@ def _extract_user_parts(
             func_name = func_response.get("name", "")
             response = func_response.get("response", {})
 
-            response_id = _function_part_id(func_response, func_name)
+            response_id = (
+                _function_part_id(func_response, func_name) if call_ids else None
+            )
             pending = pending_tool_calls.get(func_name, [])
             if response_id is not None:
                 # the id of the call it answers, as the bridge handed it over
@@ -602,6 +626,7 @@ def _extract_user_parts(
 
 def _extract_model_parts(
     parts: list[dict[str, Any]],
+    call_ids: bool = False,
 ) -> tuple[list[Content] | None, list[ToolCall]]:
     """Extract assistant content and function calls from model parts.
 
@@ -680,9 +705,12 @@ def _extract_model_parts(
             if not isinstance(args, dict):
                 args = {"value": args}
 
-            # the id the bridge handed over, which the scaffold sends back;
-            # failing that, deterministic for message ID stability
-            call_id = _function_part_id(func_call, func_name) or ""
+            # with call ids, the id the bridge handed over, which the scaffold
+            # sends back; otherwise (or failing that), deterministic for
+            # message ID stability
+            call_id = (
+                _function_part_id(func_call, func_name) if call_ids else None
+            ) or ""
             if not call_id:
                 args_str = json.dumps(args, sort_keys=True) if args else ""
                 call_hash = hashlib.md5(
@@ -704,7 +732,9 @@ def _extract_model_parts(
     return None, tool_calls
 
 
-def gemini_response_from_output(output: ModelOutput, model_name: str) -> dict[str, Any]:
+def gemini_response_from_output(
+    output: ModelOutput, model_name: str, *, call_ids: bool = False
+) -> dict[str, Any]:
     parts: list[dict[str, Any]] = []
     working_reasoning_block: ContentReasoning | None = None
 
@@ -726,10 +756,10 @@ def gemini_response_from_output(output: ModelOutput, model_name: str) -> dict[st
                 name, args = gemini_action_from_tool_call(tc)
             else:
                 name, args = tc.function, tc.arguments
-            # with its id, which a scaffold that keeps it (gemini-cli) sends back
-            # with the call and its response
+            # with call ids, with its id, which a scaffold that keeps it
+            # (gemini-cli) sends back with the call and its response
             function_call: dict[str, Any] = {"name": name, "args": args}
-            if tc.id:
+            if call_ids and tc.id:
                 function_call = {"id": tc.id, **function_call}
             fc_part: dict[str, Any] = {"functionCall": function_call}
 

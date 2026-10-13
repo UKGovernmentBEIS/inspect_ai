@@ -17,6 +17,7 @@ turn structure and tool name, and the think-body/thoughtSignature strings still 
 
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 
@@ -159,10 +160,10 @@ def test_google_response_carries_each_calls_id() -> None:
     for unnamed_call in unnamed.message.tool_calls or []:
         unnamed_call.id = ""
 
-    def function_call(output: ModelOutput) -> object:
-        parts = gemini_response_from_output(output, "model")["candidates"][0][
-            "content"
-        ]["parts"]
+    def function_call(output: ModelOutput, call_ids: bool = True) -> object:
+        parts = gemini_response_from_output(output, "model", call_ids=call_ids)[
+            "candidates"
+        ][0]["content"]["parts"]
         [part] = [part for part in parts if "functionCall" in part]
         return part["functionCall"]
 
@@ -172,13 +173,15 @@ def test_google_response_carries_each_calls_id() -> None:
         "args": {"path": "a"},
     }
     assert function_call(unnamed) == {"name": "read_file", "args": {"path": "b"}}
+    # without a sentinel, as before
+    assert function_call(output, call_ids=False) == {
+        "name": "read_file",
+        "args": {"path": "a"},
+    }
 
 
-@pytest.mark.parametrize("prefixed", [False, True])
-def test_google_ids_the_scaffold_echoes_are_kept(prefixed: bool) -> None:
-    # gemini-cli prefixes the id it is handed with `<function>__`
-    echoed = "read_file__tok_1" if prefixed else "tok_1"
-    contents: list[dict[str, object]] = [
+def echoed_contents(echoed: str) -> list[dict[str, object]]:
+    return [
         {"role": "user", "parts": [{"text": "Read a."}]},
         {
             "role": "model",
@@ -206,7 +209,33 @@ def test_google_ids_the_scaffold_echoes_are_kept(prefixed: bool) -> None:
         },
     ]
 
-    messages = messages_from_google_contents(contents, None)
+
+def deterministic_id(name: str, args: dict[str, object], position: int) -> str:
+    # the id main derives for a call carrying no id the bridge reads
+    args_str = json.dumps(args, sort_keys=True) if args else ""
+    digest = hashlib.md5(f"{name}:{args_str}:{position}".encode()).hexdigest()[:8]
+    return f"call_{name}_{digest}"
+
+
+def test_google_ids_the_scaffold_echoes_are_ignored_without_call_ids() -> None:
+    messages = messages_from_google_contents(
+        echoed_contents("read_file__read_file_1712_0"), None
+    )
+
+    assistant = next(m for m in messages if isinstance(m, ChatMessageAssistant))
+    tool = next(m for m in messages if isinstance(m, ChatMessageTool))
+    expected = deterministic_id("read_file", {"path": "a"}, 0)
+    assert [call.id for call in assistant.tool_calls or []] == [expected]
+    assert tool.tool_call_id == expected
+
+
+@pytest.mark.parametrize("prefixed", [False, True])
+def test_google_ids_the_scaffold_echoes_are_kept(prefixed: bool) -> None:
+    # gemini-cli prefixes the id it is handed with `<function>__`
+    echoed = "read_file__tok_1" if prefixed else "tok_1"
+    contents = echoed_contents(echoed)
+
+    messages = messages_from_google_contents(contents, None, call_ids=True)
 
     assistant = next(m for m in messages if isinstance(m, ChatMessageAssistant))
     tool = next(m for m in messages if isinstance(m, ChatMessageTool))
@@ -229,8 +258,8 @@ def test_google_calls_without_ids_keep_their_deterministic_ids() -> None:
         },
     ]
 
-    first = messages_from_google_contents(contents, None)
-    second = messages_from_google_contents(contents, None)
+    first = messages_from_google_contents(contents, None, call_ids=True)
+    second = messages_from_google_contents(contents, None, call_ids=True)
 
     [call] = (
         next(m for m in first if isinstance(m, ChatMessageAssistant)).tool_calls or []
@@ -241,3 +270,94 @@ def test_google_calls_without_ids_keep_their_deterministic_ids() -> None:
     assert [m.model_dump(exclude={"id"}) for m in first] == [
         m.model_dump(exclude={"id"}) for m in second
     ]
+
+
+def test_a_google_round_trip_without_a_sentinel_keeps_mains_ids() -> None:
+    import anyio
+
+    from inspect_ai.agent import AgentState
+    from inspect_ai.agent._bridge.google_api import inspect_google_api_request
+    from inspect_ai.agent._bridge.types import AgentBridge
+    from inspect_ai.model import ChatMessage, get_model
+    from inspect_ai.tool import ToolCall
+
+    inputs: list[list[ChatMessage]] = []
+    outputs = [
+        ModelOutput.for_tool_call("mockllm/model", "read_file", {"path": "a"}),
+        ModelOutput.from_content("mockllm/model", "done"),
+    ]
+
+    def respond(input: list[ChatMessage], *_: object) -> ModelOutput:
+        inputs.append(list(input))
+        return outputs[len(inputs) - 1]
+
+    model = get_model("mockllm/model", custom_outputs=respond, memoize=False)
+    bridge = AgentBridge(AgentState(messages=[]), model_aliases={"inspect": model})
+    tools = [
+        {
+            "functionDeclarations": [
+                {
+                    "name": "read_file",
+                    "description": "Read",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {"path": {"type": "string"}},
+                    },
+                }
+            ]
+        }
+    ]
+
+    async def round_trip() -> dict[str, object]:
+        contents: list[dict[str, object]] = [
+            {"role": "user", "parts": [{"text": "Read a."}]}
+        ]
+        response = await inspect_google_api_request(
+            {"model": "inspect", "contents": contents, "tools": tools},
+            None,
+            None,
+            bridge,
+        )
+        [part] = [
+            part
+            for part in response["candidates"][0]["content"]["parts"]
+            if "functionCall" in part
+        ]
+        # gemini-cli synthesizes an id when it is handed none
+        synthesized = "read_file__read_file_1712_0"
+        call = {**part["functionCall"], "id": synthesized}
+        contents += [
+            {"role": "model", "parts": [{"functionCall": call}]},
+            {
+                "role": "user",
+                "parts": [
+                    {
+                        "functionResponse": {
+                            "id": synthesized,
+                            "name": "read_file",
+                            "response": {"out": "x"},
+                        }
+                    }
+                ],
+            },
+        ]
+        await inspect_google_api_request(
+            {"model": "inspect", "contents": contents, "tools": tools},
+            None,
+            None,
+            bridge,
+        )
+        return dict(part["functionCall"])
+
+    function_call = anyio.run(round_trip)
+
+    # the response carries no id, and the ids the scaffold sends back are not
+    # read: the call and its result get the id main derives from the call
+    assert function_call == {"name": "read_file", "args": {"path": "a"}}
+    expected = deterministic_id("read_file", {"path": "a"}, 0)
+    assistant = next(m for m in inputs[1] if isinstance(m, ChatMessageAssistant))
+    tool = next(m for m in inputs[1] if isinstance(m, ChatMessageTool))
+    assert assistant.tool_calls == [
+        ToolCall(id=expected, function="read_file", arguments={"path": "a"})
+    ]
+    assert tool.tool_call_id == expected
