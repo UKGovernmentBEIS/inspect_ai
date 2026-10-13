@@ -155,7 +155,7 @@ PROVIDERS = pytest.mark.parametrize(
 def _model(
     name: str,
     base_url: str,
-    *responses: httpx2.Response,
+    *responses: httpx2.Response | Exception,
     max_retries: int = 0,
     **model_args: Any,
 ) -> Model:
@@ -163,7 +163,10 @@ def _model(
 
     async def respond(request: httpx2.Request) -> httpx2.Response:
         await anyio.sleep(0)
-        return script.pop(0)
+        response = script.pop(0)
+        if isinstance(response, Exception):
+            raise response
+        return response
 
     return get_model(
         name,
@@ -176,11 +179,12 @@ def _model(
     )
 
 
-def _background_model(*responses: httpx2.Response) -> Model:
+def _background_model(*responses: httpx2.Response, max_retries: int = 0) -> Model:
     return _model(
         "openai/gpt-4o",
         "https://example.com/v1",
         *responses,
+        max_retries=max_retries,
         responses_api=True,
         background=True,
     )
@@ -259,6 +263,24 @@ async def test_latest_response_of_an_attempt_wins(
     await model.generate("hello")
 
     assert [_served_by(headers) for _, headers in attempts] == ["second"]
+
+
+@PROVIDERS
+async def test_latest_response_is_kept_when_the_sdks_retry_gets_none(
+    attempts: list[tuple[str, ResponseHeaders]], name: str, base_url: str, reply: Reply
+) -> None:
+    model = _model(
+        name,
+        base_url,
+        _failure(503, "first"),
+        httpx2.ConnectError("no route"),
+        max_retries=1,
+    )
+
+    with pytest.raises(Exception, match="APIConnectionError"):
+        await model.generate("hello", config=GenerateConfig(max_retries=0))
+
+    assert [_served_by(headers) for _, headers in attempts] == ["first"]
 
 
 @PROVIDERS
@@ -344,6 +366,30 @@ async def test_background_call_keeps_the_headers_of_the_poll_that_failed_it(
         await model.generate("hello", config=GenerateConfig(max_retries=0))
 
     assert [_served_by(headers) for _, headers in attempts] == ["poll"]
+
+
+async def test_background_call_keeps_the_headers_of_the_poll_an_sdk_retry_completed(
+    attempts: list[tuple[str, ResponseHeaders]],
+    no_polling_delay: None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    report_http_retry = MagicMock()
+    monkeypatch.setattr(
+        "inspect_ai.model._providers.util.hooks.report_http_retry", report_http_retry
+    )
+    model = _background_model(
+        _openai_background("queued", "submit"),
+        _failure(503, "poll-1"),
+        _openai_background("completed", "poll-2"),
+        max_retries=1,
+    )
+
+    output = await model.generate("hello")
+
+    assert output.completion == "ok"
+    assert [_served_by(headers) for _, headers in attempts] == ["poll-2"]
+    # a poll is not a retry, nor is the SDK's retry of one
+    report_http_retry.assert_not_called()
 
 
 async def test_background_call_keeps_the_headers_of_a_poll_the_sdk_retried(
