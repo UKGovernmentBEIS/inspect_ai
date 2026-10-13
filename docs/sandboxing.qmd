@@ -383,7 +383,7 @@ A malicious agent with write access to your host machine through a volume mount 
 
 For security, Inspect blocks volume mounts that give Docker sandboxes write access to files or directories on the host.
 
-Read-only sharing is accepted by Inspect. Add `:ro` to the mount:
+To share a host directory read-only, add `:ro` to the mount:
 
 ```yaml
 services:
@@ -393,6 +393,12 @@ services:
       - ./host-dir:/container-dir:ro
 ```
 
+Read-only sharing requires Docker Engine 25+, Compose 2.24+, and Linux kernel 5.12+ on the Docker host. Inspect also checks that the container runtime can keep mounts inside the shared directory read-only. These checks apply to Compose `configs` and `secrets` too.
+
+Inspect also rejects read-only host mounts if the service's privileges or mount options could make them writable.
+
+For writable data, you can copy inputs with [`Sample.files`](#files) or use a [Docker-managed volume](#infrastructure).
+
 ::: {.callout-caution appearance="simple"}
 
 Should your eval require unsafe host write access, you may allow unsafe host access for all services in your Compose file:
@@ -401,6 +407,8 @@ Should your eval require unsafe host write access, you may allow unsafe host acc
 x-inspect_docker_sandbox:
   unsafe_allow_writable_host_mounts: true
 ```
+
+This opt-in is also required for `volumes_from` and volumes with custom names or drivers, driver options, or external storage. It also bypasses the read-only compatibility checks above.
 
 :::
 
