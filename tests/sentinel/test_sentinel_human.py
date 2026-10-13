@@ -1,4 +1,5 @@
 import asyncio
+import io
 from collections.abc import Callable
 from dataclasses import replace
 from typing import Any
@@ -454,7 +455,9 @@ def test_a_terminated_turn_runs_none_of_its_calls(
 
 
 def turn_step(
-    *calls: ToolCall, escalations: tuple[Reported[Decision], ...] = ()
+    *calls: ToolCall,
+    escalations: tuple[Reported[Decision], ...] = (),
+    content: str = "Adding and shouting.",
 ) -> AfterGenerate:
     return AfterGenerate(
         model="mockllm/model",
@@ -464,7 +467,7 @@ def turn_step(
         tools=[],
         tool_choice="auto",
         config=GenerateConfig(),
-        output=turn_output(*calls),
+        output=turn_output(*calls, content=content),
         escalations=escalations,
     )
 
@@ -494,6 +497,7 @@ async def test_every_surface_is_handed_the_whole_turn(
     assert call.function == "Assistant turn: 2 tool calls (addition, shout)"
     assert call.arguments == {}
     assert kwargs["message"] == "Adding and shouting."
+    assert "hidden or control characters" not in view.call.content
 
     # ACP: one permission card for the turn
     request = acp_module._build_request(
@@ -563,11 +567,26 @@ def bash_call(id: str, cmd: str) -> ToolCall:
     return replace(call, view=BASH(call).call)
 
 
+# save the cursor, go up eight lines, wipe the line, write a benign one there,
+# and restore the cursor: on a terminal, call 3's line would read "echo done"
+COVER = "\x1b7\x1b[8A\x1b[2K\x1b[1G│  echo done\x1b8"
+# right-to-left override: what follows would read reversed
+RLO = "\u202e"
+
+# a call whose function name and viewer title try to add structure, and to
+# move the cursor
+HEADER = f"bash\n\n<!-- **x** [x](y) ``{COVER}{RLO}"
+NAMED = ToolCall(
+    id="c2",
+    function=HEADER,
+    arguments={},
+    view=ToolCallContent(title=HEADER, format="markdown", content="named"),
+)
 NOTES = ToolCall(
-    id="c3",
+    id="c4",
     function="notes",
     arguments={},
-    view=ToolCallContent(format="text", content="**not bold**\n<!--"),
+    view=ToolCallContent(format="text", content=f"**not bold**\n<!--{COVER}{RLO}"),
 )
 
 
@@ -591,7 +610,7 @@ def rendered(markdown: str) -> str:
         # closes the fence and starts a link reference definition
         "ls -la\n```\n[x]: <",
         # closes the fence and writes a second call of its own
-        "ls -la\n````\n\n---\n\n**Call 2 of 3:** bash\n\n```bash\necho hello",
+        "ls -la\n````\n\n---\n\n**Call 2 of 4:** bash\n\n```bash\necho hello",
     ],
 )
 async def test_no_call_can_hide_or_pass_for_another(
@@ -604,33 +623,58 @@ async def test_no_call_can_hide_or_pass_for_another(
         return Approval(decision="approve")
 
     monkeypatch.setattr(acp_module, "request_human_approval_via_acp", acp)
-    calls = (bash_call("c1", first), bash_call("c2", "rm -rf /srv/data"), NOTES)
+    calls = (bash_call("c1", first), NAMED, bash_call("c3", "rm -rf /srv/data"), NOTES)
+    step = turn_step(
+        *calls,
+        content=f"Tidying up.{COVER}{RLO}",
+        escalations=escalation(f"quotes the agent: {COVER}"),
+    )
 
-    await _Host().ask_human(turn_step(*calls), ["approve", "terminate"])
+    await _Host().ask_human(step, ["approve", "terminate"])
 
     [kwargs] = asked
     call, view = kwargs["call"], kwargs["view"]
-    # the count comes from the turn, not from anything the agent wrote
-    assert call.function == "Assistant turn: 3 tool calls (bash ×2, notes)"
-    # each call's content is one code block of its own, whatever it contains
+    # the count comes from the turn, not from anything the agent wrote, and
+    # the title is one line
+    assert call.function.startswith("Assistant turn: 4 tool calls (bash ×2, bash ")
+    assert "\n" not in call.function
+    assert "\x1b" not in call.function and RLO not in call.function
+    # each call's content is one code block of its own, whatever it contains,
+    # with control and bidi characters shown as escapes
+    cover = "\\x1b7\\x1b[8A\\x1b[2K\\x1b[1G│  echo done\\x1b8"
+    visible = cover + "\\u202e"
     assert code_blocks(view.call.content) == [
+        f"- monitor: quotes the agent: {cover}",
         first,
+        "named",
         "rm -rf /srv/data",
-        "**not bold**\n<!--",
+        f"**not bold**\n<!--{visible}",
     ]
+    assert kwargs["message"] == f"Tidying up.{visible}"
     request = acp_module._build_request(
         session_id="s", call=call, view=view, choices=kwargs["choices"]
     )
     [block] = request.tool_call.content or []
     assert code_blocks(block.content.text) == code_blocks(view.call.content)
-    console = Console(record=True, width=120)
+    # the panel and console write to a terminal: nothing the agent wrote may
+    # reach it as a control sequence
+    terminal = io.StringIO()
+    console = Console(file=terminal, force_terminal=True, width=120, record=True)
     for renderable in render_tool_approval(kwargs["message"], view, call.arguments):
         console.print(renderable)
+    console.print(Markdown(block.content.text))
+    for agent_sequence in ["\x1b7", "\x1b8", "\x1b[8A", "\x1b[2K", RLO]:
+        assert agent_sequence not in terminal.getvalue()
+    notice = "This turn contains hidden or control characters, shown escaped."
+    assert f"**{notice}**" in view.call.content
     for text in [console.export_text(), rendered(block.content.text)]:
-        assert "The turn makes 3 tool calls." in text
+        assert "The turn makes 4 tool calls." in text
+        assert notice in text
         assert "rm -rf /srv/data" in text
         assert "**not bold**" in text
-        assert [line for line in text.splitlines() if "Call 3 of 3" in line]
+        assert "<!-- **x** [x](y) ``" in text
+        assert [line for line in text.splitlines() if "Call 3 of 4" in line]
+        assert [line for line in text.splitlines() if "Call 4 of 4" in line]
 
 
 class TuiSession:

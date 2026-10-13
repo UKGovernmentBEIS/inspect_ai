@@ -1,7 +1,8 @@
 import pprint
+import re
 from string import Formatter
 from textwrap import indent
-from typing import Any
+from typing import Any, NamedTuple
 
 
 def format_function_call(
@@ -27,6 +28,79 @@ def format_value(value: object, width: int) -> str:
     elif isinstance(value, list | tuple | dict):
         return pprint.pformat(value, width=width)
     return str(value)
+
+
+class DisplaySafe(NamedTuple):
+    """Text made safe to show a person, and whether anything was escaped."""
+
+    text: str
+    escaped: bool
+
+
+# code points shown as escapes: C0 controls other than tab and newline, DEL,
+# C1 controls (8-bit CSI among them), zero-width characters and the word
+# joiner, bidi embeddings and overrides, bidi isolates, the zero-width
+# no-break space, and the tag block
+_UNSAFE_RANGES = [
+    (0x00, 0x08),
+    (0x0B, 0x1F),
+    (0x7F, 0x9F),
+    (0x200B, 0x200D),
+    (0x2060, 0x2060),
+    (0x202A, 0x202E),
+    (0x2066, 0x2069),
+    (0xFEFF, 0xFEFF),
+    (0xE0000, 0xE007F),
+]
+_UNSAFE = re.compile(
+    "["
+    + "".join(f"{re.escape(chr(a))}-{re.escape(chr(b))}" for a, b in _UNSAFE_RANGES)
+    + "]"
+)
+
+
+def display_safe(text: str) -> DisplaySafe:
+    r"""Text with every control and invisible character shown as an escape.
+
+    Text from a model shown to a person (a tool call's arguments, an
+    assistant message) can carry characters that act rather than show: a
+    terminal escape sequence moves the cursor and overwrites what is on
+    screen, a bidi override reorders what follows, and a zero-width or tag
+    character hides text. As OpenBSD's `vis(3)` does, each is shown as its
+    escape instead, never passed through or silently removed, so the person
+    sees it was there: `\r` for a carriage return, `\xNN` for the other C0
+    controls, DEL and the C1 controls, `\uNNNN` for the bidi and invisible
+    characters, and `\UNNNNNNNN` for the tag block. Newlines and tabs are kept.
+
+    When anything is escaped, each backslash already in the text is shown as
+    `\\`, so a backslash starts an escape everywhere in the result and the
+    six characters `\x1b` cannot pass for a real escape character, nor a real
+    one for typed text. Text with nothing to escape is returned unchanged,
+    backslashes included, so ordinary code reads as written.
+
+    Args:
+        text: The text to show.
+
+    Returns:
+        The text to show, and whether anything in it was escaped.
+    """
+    if _UNSAFE.search(text) is None:
+        return DisplaySafe(text, False)
+    return DisplaySafe(
+        _UNSAFE.sub(_escape, text.replace("\\", "\\\\")),
+        True,
+    )
+
+
+def _escape(match: re.Match[str]) -> str:
+    code = ord(match.group())
+    if code == 0x0D:
+        return "\\r"
+    if code < 0x100:
+        return f"\\x{code:02x}"
+    if code < 0x10000:
+        return f"\\u{code:04x}"
+    return f"\\U{code:08x}"
 
 
 def format_progress_time(time: float, pad_hours: bool = True) -> str:

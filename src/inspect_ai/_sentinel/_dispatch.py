@@ -25,6 +25,7 @@ from inspect_sentinel._integration import HostContext, run_sentinel, watched_sta
 from shortuuid import uuid as shortuuid
 
 from inspect_ai._util.exception import TerminateSampleError
+from inspect_ai._util.format import display_safe
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.registry import registry_lookup
 from inspect_ai.approval._approval import Approval, ApprovalDecision
@@ -508,31 +509,49 @@ def _turn_prompt(step: AfterGenerate) -> _Prompt:
     """The assistant turn as one prompt for the human approval surfaces.
 
     The surfaces show one tool call, so the turn becomes a single view: the
-    escalations, how many calls the turn makes, then each call. The agent
-    controls each call's arguments, so a call's content is shown only inside a
-    code block it cannot close (see `_call_markdown`); everything outside the
-    code blocks is written here, so no call can hide, merge into or pass for
-    another, and the count says how many there are.
+    escalations, how many calls the turn makes, then each call. Two things
+    keep a call from hiding, merging into or passing for another:
+
+    - Markdown: a call's content is shown only inside a code block it cannot
+      close (see `_call_markdown`), and everything outside the code blocks is
+      written here, so the count says how many calls there are.
+    - Characters that act rather than show (terminal escape sequences, which
+      could move the cursor over another call's lines, bidi overrides, and
+      zero-width and tag characters): everything the agent wrote, the calls,
+      the escalations quoting it, the assistant text and the title, goes
+      through `display_safe`, which shows them as escapes, and the view says
+      so when it did.
+
+    What a call's own viewer makes of its arguments inside its code block is
+    the viewer's; a call can still garble its own content there.
 
     The call handed to the surfaces stands for the whole turn, and its
     function is the turn's title, which carries the count too. Its id is its
     own, unlike any tool call's or another prompt's, since an ACP client opens
     a card under it; its empty arguments leave the view as rendered here.
     """
+    safe = _Escaped()
     message = step.output.message if step.output.choices else None
     calls = (message.tool_calls if message else None) or []
-    blocks: list[str] = []
-    if step.escalations:
-        blocks.append(f"**Escalated by**\n\n{fenced(_escalation_lines(step))}")
-    blocks.append(f"**The turn makes {_calls(len(calls))}.**")
-    blocks.extend(
-        _call_markdown(call, index, len(calls)) for index, call in enumerate(calls, 1)
-    )
-    tally = Counter(call.function for call in calls)
+    shown = [
+        _call_markdown(call, index, len(calls), safe)
+        for index, call in enumerate(calls, 1)
+    ]
+    tally = Counter(_one_line(call.function, safe) for call in calls)
     tools = ", ".join(
         function if count == 1 else f"{function} ×{count}"
         for function, count in tally.items()
     )
+    text = safe(message.text) if message else ""
+    blocks: list[str] = []
+    if step.escalations:
+        escalated = safe(_escalation_lines(step))
+        blocks.append(f"**Escalated by**\n\n{fenced(escalated)}")
+    count = f"**The turn makes {_calls(len(calls))}.**"
+    if safe.escaped:
+        count = f"{count}\n\n**{_ESCAPED_NOTICE}**"
+    blocks.append(count)
+    blocks.extend(shown)
     turn = ToolCall(
         id=f"turn_{shortuuid()}",
         function=f"Assistant turn: {_calls(len(calls))}"
@@ -542,7 +561,22 @@ def _turn_prompt(step: AfterGenerate) -> _Prompt:
     view = ToolCallView(
         call=ToolCallContent(format="markdown", content="\n\n---\n\n".join(blocks))
     )
-    return _Prompt(message.text if message else "", turn, view)
+    return _Prompt(text, turn, view)
+
+
+_ESCAPED_NOTICE = "This turn contains hidden or control characters, shown escaped."
+
+
+class _Escaped:
+    """`display_safe` for one turn, remembering whether it escaped anything."""
+
+    def __init__(self) -> None:
+        self.escaped = False
+
+    def __call__(self, text: str) -> str:
+        shown = display_safe(text)
+        self.escaped = self.escaped or shown.escaped
+        return shown.text
 
 
 def _calls(count: int) -> str:
@@ -551,7 +585,7 @@ def _calls(count: int) -> str:
     return "1 tool call" if count == 1 else f"{count} tool calls"
 
 
-def _call_markdown(call: ToolCall, index: int, count: int) -> str:
+def _call_markdown(call: ToolCall, index: int, count: int, safe: _Escaped) -> str:
     """One call: a header written here, then its content as a code block.
 
     The content is what the transcript shows (`ToolCall.view`, which
@@ -566,16 +600,16 @@ def _call_markdown(call: ToolCall, index: int, count: int) -> str:
         call.view or cast(ToolCallContent, default_tool_call_viewer(call).call),
         call.arguments,
     )
-    header = f"**Call {index} of {count}:** {_markdown_text(call.function)}"
+    header = f"**Call {index} of {count}:** {_markdown_text(call.function, safe)}"
     if content.title and content.title != call.function:
-        header = f"{header} ({_markdown_text(content.title)})"
+        header = f"{header} ({_markdown_text(content.title, safe)})"
     block = _CODE_BLOCK.fullmatch(content.content)
     if content.format == "markdown" and block is not None:
         language, code = block.group("language").strip(), block.group("code")
     else:
         language = "markdown" if content.format == "markdown" else ""
         code = content.content
-    return f"{header}\n\n{_code_block(code, language)}"
+    return f"{header}\n\n{_code_block(safe(code), language)}"
 
 
 # a viewer's single fenced code block, e.g. `code_viewer`'s and the default's
@@ -594,10 +628,14 @@ def _code_block(code: str, language: str) -> str:
     return f"{fence}{language}\n{code}\n{fence}"
 
 
-def _markdown_text(text: str) -> str:
+def _markdown_text(text: str, safe: _Escaped) -> str:
     # one line of literal text: markdown punctuation escaped, so a function
     # name or viewer title cannot add structure
-    return re.sub(r"([\\`*_{}\[\]()#+\-.!|<>~&])", r"\\\1", " ".join(text.split()))
+    return re.sub(r"([\\`*_{}\[\]()#+\-.!|<>~&])", r"\\\1", _one_line(text, safe))
+
+
+def _one_line(text: str, safe: _Escaped) -> str:
+    return " ".join(safe(text).split())
 
 
 class _Recorder:
