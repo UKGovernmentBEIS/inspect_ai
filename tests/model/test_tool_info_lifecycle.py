@@ -450,8 +450,9 @@ async def test_cache_policy_store_uses_explicit_cache_policy() -> None:
     input: list[ChatMessage] = [ChatMessageUser(content="hello")]
 
     try:
-        await model._generate(input, [], None, config)
-        await model._generate(input, [], None, config)
+        prepared = await model._prepare_input(input, [], None, config)
+        await model._generate(prepared, config)
+        await model._generate(prepared, config)
     finally:
         cache_clear("mockllm/model")
 

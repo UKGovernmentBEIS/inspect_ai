@@ -44043,7 +44043,10 @@ var normalizeScore = (raw) => {
 			if (typeof raw["id"] !== "string") fix("id", "");
 			if (typeof raw["name"] !== "string") fix("name", "");
 			break;
-		case "span_end": if (typeof raw["id"] !== "string") fix("id", "");
+		case "span_end":
+			if (typeof raw["id"] !== "string") fix("id", "");
+			break;
+		case "sentinel": if (raw["action"] === "continue") fix("action", "proceed");
 	}
 	return fixes;
 };
@@ -94322,16 +94325,16 @@ var explanationOf = (node) => node?.event.explanation?.trim() || void 0;
 var isInactive$1 = (status) => status !== "reported";
 /**
 * The verdict of a step the runner returned no decision for: observed when
-* only monitors reported, continued when a protocol reported but the root
+* only monitors reported, proceeded when a protocol reported but the root
 * returned nothing, and the recorded status when the root or every check was
 * cancelled or bypassed.
 */ var quietVerdict = (checks) => {
 	const rootStatus = checks.find((n) => n.event.path === "")?.event.status;
 	if (rootStatus && isInactive$1(rootStatus)) return rootStatus;
-	if (checks.some((n) => reported(n, "decision"))) return "continue";
+	if (checks.some((n) => reported(n, "decision"))) return "proceed";
 	if (checks.some((n) => reported(n, "observation"))) return "observe";
 	const firstStatus = checks[0]?.event.status;
-	return firstStatus && isInactive$1(firstStatus) ? firstStatus : "continue";
+	return firstStatus && isInactive$1(firstStatus) ? firstStatus : "proceed";
 };
 /**
 * Builds the check tree for one step's events, given in recording order. A
@@ -94350,7 +94353,7 @@ var isInactive$1 = (status) => status !== "reported";
 		index
 	})).sort((a, b) => compareKeys(keys.get(a.node), keys.get(b.node)) || a.index - b.index).map(({ node }) => node));
 	const outcome = outcomeOf(checks);
-	const acted = !!outcome && outcome.event.action !== "continue";
+	const acted = !!outcome && outcome.event.action !== "proceed";
 	const credit = acted ? creditDecision(tree, outcome) : void 0;
 	const effective = credit?.node;
 	const single = checks.length === 1 ? checks[0] : void 0;
@@ -94370,7 +94373,7 @@ var isInactive$1 = (status) => status !== "reported";
 			guides: guidesFor(entry),
 			tookEffect: entry.node === effective
 		})),
-		verdict: outcome ? outcome.event.action ?? "continue" : quietVerdict(checks),
+		verdict: outcome ? outcome.event.action ?? "proceed" : quietVerdict(checks),
 		outcome,
 		returned: !!outcome,
 		decider: effective ?? outcome,
@@ -94391,8 +94394,8 @@ var isInactive$1 = (status) => status !== "reported";
 	const step = buildSentinelStep([node]);
 	const event = node.event;
 	if (!reported(node, "decision") || step.outcome) return step;
-	const verdict = event.action ?? "continue";
-	const acted = verdict !== "continue";
+	const verdict = event.action ?? "proceed";
+	const acted = verdict !== "proceed";
 	return {
 		...step,
 		verdict,
@@ -97968,37 +97971,37 @@ var ScoreEventView = (t0) => {
 	return t25;
 };
 var SentinelEventView_module_default = {
-	tree: "_tree_1ww9u_1",
-	reject: "_reject_1ww9u_15",
-	modify: "_modify_1ww9u_19",
-	row: "_row_1ww9u_23",
-	open: "_open_1ww9u_42",
-	inactive: "_inactive_1ww9u_46",
-	rowLabel: "_rowLabel_1ww9u_50",
-	guides: "_guides_1ww9u_56",
-	name: "_name_1ww9u_60",
-	result: "_result_1ww9u_68",
-	"continue": "_continue_1ww9u_74",
-	failed: "_failed_1ww9u_82",
-	kindIcon: "_kindIcon_1ww9u_86",
-	rowChevron: "_rowChevron_1ww9u_96",
-	flag: "_flag_1ww9u_101",
-	moreScores: "_moreScores_1ww9u_106",
-	detailWrap: "_detailWrap_1ww9u_117",
-	detail: "_detail_1ww9u_117",
-	afterDetail: "_afterDetail_1ww9u_133",
-	rejectDetail: "_rejectDetail_1ww9u_137",
-	modifyDetail: "_modifyDetail_1ww9u_141",
-	meta: "_meta_1ww9u_145",
-	scoreGrid: "_scoreGrid_1ww9u_150",
-	scoreName: "_scoreName_1ww9u_159",
-	explanation: "_explanation_1ww9u_163",
-	errorText: "_errorText_1ww9u_173",
-	noExplanation: "_noExplanation_1ww9u_178",
-	labelled: "_labelled_1ww9u_183",
-	foldedToggle: "_foldedToggle_1ww9u_196",
-	chevron: "_chevron_1ww9u_211",
-	modelCalls: "_modelCalls_1ww9u_215"
+	tree: "_tree_74x1p_1",
+	reject: "_reject_74x1p_15",
+	modify: "_modify_74x1p_19",
+	row: "_row_74x1p_23",
+	open: "_open_74x1p_42",
+	inactive: "_inactive_74x1p_46",
+	rowLabel: "_rowLabel_74x1p_50",
+	guides: "_guides_74x1p_56",
+	name: "_name_74x1p_60",
+	result: "_result_74x1p_68",
+	proceed: "_proceed_74x1p_74",
+	failed: "_failed_74x1p_82",
+	kindIcon: "_kindIcon_74x1p_86",
+	rowChevron: "_rowChevron_74x1p_96",
+	flag: "_flag_74x1p_101",
+	moreScores: "_moreScores_74x1p_106",
+	detailWrap: "_detailWrap_74x1p_117",
+	detail: "_detail_74x1p_117",
+	afterDetail: "_afterDetail_74x1p_133",
+	rejectDetail: "_rejectDetail_74x1p_137",
+	modifyDetail: "_modifyDetail_74x1p_141",
+	meta: "_meta_74x1p_145",
+	scoreGrid: "_scoreGrid_74x1p_150",
+	scoreName: "_scoreName_74x1p_159",
+	explanation: "_explanation_74x1p_163",
+	errorText: "_errorText_74x1p_173",
+	noExplanation: "_noExplanation_74x1p_178",
+	labelled: "_labelled_74x1p_183",
+	foldedToggle: "_foldedToggle_74x1p_196",
+	chevron: "_chevron_74x1p_211",
+	modelCalls: "_modelCalls_74x1p_215"
 };
 //#endregion
 //#region ../../packages/inspect-components/src/transcript/SentinelEventView.tsx
@@ -98797,9 +98800,9 @@ var rejectLook = {
 	reasonClass: checkClasses.rejectReason
 };
 var verdictLooks = {
-	continue: {
+	proceed: {
 		icon: TranscriptIcons.sentinel,
-		word: "Continued",
+		word: "Proceeded",
 		tone: "neutral"
 	},
 	observe: {
@@ -98872,7 +98875,7 @@ var decisionClass = (decision) => {
 		case "terminate": return checkClasses.rejectText;
 		case "escalate":
 		case "modify": return checkClasses.modifyText;
-		case "continue": return SentinelEventView_module_default.continue;
+		case "proceed": return SentinelEventView_module_default.proceed;
 	}
 };
 function _temp$50(t0) {
