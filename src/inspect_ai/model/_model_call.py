@@ -66,6 +66,11 @@ class ModelCall(BaseModel):
     time: float | None = Field(default=None)
     """Time taken for underlying model call."""
 
+    response_headers: dict[str, str] | None = Field(default=None)
+    """HTTP response headers of this attempt, when a transport exposed them
+    (experimental; providers on Inspect's HTTP hooks record them
+    automatically, own-stack providers call `record_response_headers`)."""
+
     call_refs: list[tuple[int, int]] | None = Field(default=None)
     """Call pool references. Each element is a (start, end_exclusive) range."""
 

@@ -102,6 +102,10 @@ from ._openai_convert import (
 from ._prompt import user_prompt
 from ._providers.providers import *
 from ._registry import modelapi
+from ._response_headers import (
+    current_response_headers,
+    record_response_headers,
+)
 from ._stream import (
     StreamEvent,
     StreamHandler,
@@ -152,6 +156,8 @@ __all__ = [
     "messages_to_openai",
     "stable_message_ids",
     "ModelCall",
+    "current_response_headers",
+    "record_response_headers",
     "ModelRequestId",
     "ModelCost",
     "ModelOutput",

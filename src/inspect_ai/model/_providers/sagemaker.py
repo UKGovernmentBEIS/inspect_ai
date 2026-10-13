@@ -19,6 +19,7 @@ from inspect_ai._util.error import pip_dependency_error
 from inspect_ai._util.images import inline_media_data_uri
 from inspect_ai._util.version import verify_required_version
 from inspect_ai.model._openai import chat_choices_from_openai, model_output_from_openai
+from inspect_ai.model._response_headers import record_response_headers
 from inspect_ai.tool import ToolChoice, ToolInfo
 from inspect_ai.tool._tool_choice import ToolFunction
 from inspect_ai.util._json import JSON_SCHEMA_EXTENDED_FIELDS, json_schema_dump
@@ -553,8 +554,22 @@ class SagemakerAPI(ModelAPI):
         self, client: Any, request_body: dict[str, Any]
     ) -> bytes:
         """Invoke SageMaker endpoint and return response body bytes."""
-        response = await client.invoke_endpoint(
-            **self._build_invoke_kwargs(request_body)
+        try:
+            response = await client.invoke_endpoint(
+                **self._build_invoke_kwargs(request_body)
+            )
+        except ClientError as ex:
+            # botocore carries the raw response on the error: throttling and
+            # endpoint 4xx are exactly the gateway-refused case headers exist
+            # for, and they must survive into the retry/error classification
+            record_response_headers(
+                ex.response.get("ResponseMetadata", {}).get("HTTPHeaders", {})
+                if ex.response
+                else {}
+            )
+            raise
+        record_response_headers(
+            response.get("ResponseMetadata", {}).get("HTTPHeaders", {})
         )
         body: bytes = await response["Body"].read()
         return body
@@ -566,8 +581,19 @@ class SagemakerAPI(ModelAPI):
 
         https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/sagemaker-runtime/client/invoke_endpoint_with_response_stream.html
         """
-        response = await client.invoke_endpoint_with_response_stream(
-            **self._build_invoke_kwargs(request_body)
+        try:
+            response = await client.invoke_endpoint_with_response_stream(
+                **self._build_invoke_kwargs(request_body)
+            )
+        except ClientError as ex:
+            record_response_headers(
+                ex.response.get("ResponseMetadata", {}).get("HTTPHeaders", {})
+                if ex.response
+                else {}
+            )
+            raise
+        record_response_headers(
+            response.get("ResponseMetadata", {}).get("HTTPHeaders", {})
         )
 
         # Process streaming response

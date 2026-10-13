@@ -7660,6 +7660,20 @@
             ],
             "title": "Response"
           },
+          "response_headers": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Response Headers"
+          },
           "time": {
             "anyOf": [
               {

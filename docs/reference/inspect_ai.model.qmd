@@ -18,6 +18,8 @@ description: Model interface and providers.
 ### ModelConfig
 ### ModelCall
 ### ModelRequestId
+### record_response_headers
+### current_response_headers
 ### ModelConversation
 ### ModelUsage
 ### StopReason
