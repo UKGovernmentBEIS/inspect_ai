@@ -2,7 +2,7 @@ from collections import Counter
 from collections.abc import Callable, Sequence
 from copy import copy
 from logging import getLogger
-from typing import Any, Literal, TypeGuard, cast
+from typing import Any, Literal, NamedTuple, TypeGuard, cast
 from weakref import WeakKeyDictionary
 
 from inspect_sentinel import (
@@ -63,7 +63,9 @@ from inspect_ai.tool._tool_call import (
     ToolCallContent,
     ToolCallView,
     ToolCallViewer,
+    default_tool_call_viewer,
     resolve_tool_call_view,
+    substitute_tool_call_content,
 )
 from inspect_ai.tool._tool_choice import ToolChoice
 from inspect_ai.tool._tool_info import ToolInfo
@@ -393,15 +395,20 @@ class _Host:
         )
 
     async def ask_human(self, step: Step, choices: Sequence[str]) -> HumanAnswer:
-        if not isinstance(step, BeforeToolCall | AfterToolCall):
+        if isinstance(step, BeforeGenerate):
             raise NotImplementedError(
                 f"inspect_ai cannot ask a person at the {_stage(step)} stage; "
-                "its human approval surfaces show tool calls."
+                "its human approval surfaces show tool calls and assistant turns."
             )
         if "modify" in choices:
             raise NotImplementedError(
                 "human() cannot offer 'modify' in inspect_ai, since its human "
                 "approval surfaces cannot edit a tool call yet."
+            )
+        if isinstance(step, AfterGenerate) and "reject" in choices:
+            raise ValueError(
+                f"human() cannot offer 'reject' at the {_stage(step)} stage, "
+                "where a turn can only proceed or be terminated."
             )
         offered: list[ApprovalDecision] = []
         for choice in choices:
@@ -411,8 +418,13 @@ class _Host:
                     f"{', '.join(repr(c) for c in _HUMAN_CHOICES)}."
                 )
             offered.append(cast(ApprovalDecision, choice))
+        prompt = (
+            _turn_prompt(step)
+            if isinstance(step, AfterGenerate)
+            else _Prompt(step.message, step.call, _human_view(step))
+        )
         approval = await human_approver(choices=offered)(
-            step.message, step.call, _human_view(step), step.history
+            prompt.message, prompt.call, prompt.view, step.history
         )
         if approval.decision in offered:
             return HumanAnswer(decision=approval.decision, reason=approval.explanation)
@@ -431,14 +443,7 @@ _HUMAN_CHOICES = ("approve", "reject", "terminate")
 def _human_view(step: BeforeToolCall | AfterToolCall) -> ToolCallView:
     view = step.view
     if step.escalations:
-        lines = escape_placeholders(
-            "\n".join(
-                f"- {e.name}: {e.report.explanation}"
-                if e.report.explanation
-                else f"- {e.name}"
-                for e in step.escalations
-            )
-        )
+        lines = _escalation_lines(step)
         escalated = f"**Escalated by**\n\n{fenced(lines)}"
         if view.call is None:
             call = ToolCallContent(format="markdown", content=escalated)
@@ -458,6 +463,63 @@ def _human_view(step: BeforeToolCall | AfterToolCall) -> ToolCallView:
     if isinstance(step, AfterToolCall):
         view = view_with_result(view, step.result)
     return view
+
+
+def _escalation_lines(step: Step) -> str:
+    return escape_placeholders(
+        "\n".join(
+            f"- {e.name}: {e.report.explanation}"
+            if e.report.explanation
+            else f"- {e.name}"
+            for e in step.escalations
+        )
+    )
+
+
+class _Prompt(NamedTuple):
+    message: str
+    call: ToolCall
+    view: ToolCallView
+
+
+def _turn_prompt(step: AfterGenerate) -> _Prompt:
+    """The assistant turn as one prompt for the human approval surfaces.
+
+    The surfaces show one tool call, so the turn becomes a single view: the
+    escalations, then each call the turn makes as the transcript shows it
+    (`ToolCall.view`, which `Model.generate` sets from the tool's viewer). The
+    call handed to the surfaces stands for the whole turn; its empty arguments
+    leave the view as rendered here, each call's placeholders already filled in.
+    """
+    message = step.output.message if step.output.choices else None
+    calls = (message.tool_calls if message else None) or []
+    blocks: list[str] = []
+    if step.escalations:
+        blocks.append(f"**Escalated by**\n\n{fenced(_escalation_lines(step))}")
+    if calls:
+        blocks.append("\n\n---\n\n".join(_call_markdown(call) for call in calls))
+    else:
+        blocks.append("The turn makes no tool calls.")
+    functions = ", ".join(dict.fromkeys(call.function for call in calls))
+    turn = ToolCall(
+        id=(message.id if message else None) or "model_output",
+        function=f"Assistant turn: {functions}" if functions else "Assistant turn",
+        arguments={},
+    )
+    view = ToolCallView(
+        call=ToolCallContent(format="markdown", content="\n\n".join(blocks))
+    )
+    return _Prompt(message.text if message else "", turn, view)
+
+
+def _call_markdown(call: ToolCall) -> str:
+    content = substitute_tool_call_content(
+        call.view or cast(ToolCallContent, default_tool_call_viewer(call).call),
+        call.arguments,
+    )
+    title = f"**{content.title}**\n\n" if content.title else ""
+    body = content.content if content.format == "markdown" else fenced(content.content)
+    return f"{title}{body}"
 
 
 class _Recorder:

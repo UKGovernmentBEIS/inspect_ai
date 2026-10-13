@@ -1,6 +1,8 @@
+from dataclasses import replace
 from typing import Any
 
 import pytest
+from rich.console import Console
 
 from inspect_ai import Task, eval
 from inspect_ai.approval._approval import Approval, ApprovalDecision
@@ -11,11 +13,15 @@ from inspect_ai.approval._human.manager import (
     HumanApprovalManager,
     human_approval_manager,
 )
+from inspect_ai.approval._human.util import render_tool_approval
 from inspect_ai.dataset import Sample
 from inspect_ai.event import ToolEvent
 from inspect_ai.log import EvalLog
 from inspect_ai.model import (
+    ChatCompletionChoice,
+    ChatMessageAssistant,
     ChatMessageTool,
+    GenerateConfig,
     ModelOutput,
     get_model,
 )
@@ -25,7 +31,9 @@ from inspect_ai.tool._tool_call import substitute_tool_call_content
 
 try:
     from inspect_sentinel import (
+        AfterGenerate,
         AfterToolCall,
+        BeforeGenerate,
         BeforeToolCall,
         Context,
         Decision,
@@ -53,6 +61,35 @@ def addition() -> Tool:
         return str(x + y)
 
     return execute
+
+
+def shout_viewer(call: ToolCall) -> ToolCallView:
+    return ToolCallView(
+        call=ToolCallContent(title="Shout", format="markdown", content="**{{text}}**")
+    )
+
+
+@tool(viewer=shout_viewer)
+def shout() -> Tool:
+    async def execute(text: str) -> str:
+        """Shout some text.
+
+        Args:
+            text: Text to shout.
+        """
+        return text.upper()
+
+    return execute
+
+
+@protocol
+def h_escalate_turn() -> Protocol:
+    async def unsure(context: Context, step: AfterGenerate) -> Decision | None:
+        if step.output.message.tool_calls:
+            return Decision.escalate("two calls together, {{x}}")
+        return Decision.proceed()
+
+    return unsure
 
 
 @protocol
@@ -324,3 +361,176 @@ def test_a_pending_request_is_withdrawn_when_cancelled(
     assert log.samples[0].limit.type == "time"
     assert changes == ["add", "remove"]
     assert managers[0].approval_requests() == []
+
+
+ADD = ToolCall(id="c1", function="addition", arguments={"x": 1, "y": 1})
+SHOUT = ToolCall(id="c2", function="shout", arguments={"text": "hello"})
+
+
+def turn_output(*calls: ToolCall, content: str = "Adding and shouting.") -> ModelOutput:
+    message = ChatMessageAssistant(
+        content=content, model="mockllm/model", tool_calls=list(calls) or None
+    )
+    return ModelOutput(
+        model="mockllm/model",
+        choices=[ChatCompletionChoice(message=message, stop_reason="tool_calls")],
+    )
+
+
+def run_turn(sentinel: Any) -> EvalLog:
+    outputs = [
+        turn_output(ADD, SHOUT),
+        ModelOutput.from_content("mockllm/model", content="done"),
+    ]
+    task = Task(
+        dataset=[Sample(input="Add 1 and 1, and shout hello.")],
+        solver=[use_tools(addition(), shout()), generate()],
+        sentinel=sentinel,
+    )
+    model = get_model("mockllm/model", custom_outputs=outputs, memoize=False)
+    return eval(task, model=model)[0]
+
+
+def turn_escalated_to_human() -> Any:
+    return sequential([h_escalate_turn(), human(stages=["model_output"])])
+
+
+def test_an_escalated_turn_shows_every_call_and_approve_runs_them(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    panel = Panel("approve")
+    panel.install(monkeypatch)
+
+    log = run_turn(turn_escalated_to_human())
+
+    assert log.status == "success", log.error
+    assert panel.choices == [["approve", "terminate"]]
+    assert panel.messages == ["Adding and shouting."]
+    content = panel.content()
+    escalated = (
+        "**Escalated by**\n\n```\n- h_escalate_turn: two calls together, { {x}}\n```"
+    )
+    assert content.startswith(escalated)
+    # each call as it is rendered before a call: the default view, and the
+    # tool's own viewer with its placeholders filled in
+    assert content.index("addition(x=1, y=1)") < content.index("**Shout**\n\n**hello**")
+    assert [m.text for m in tool_messages(log)] == ["2", "HELLO"]
+
+
+def test_a_terminated_turn_runs_none_of_its_calls(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    Panel("terminate", "deletes the repo").install(monkeypatch)
+
+    log = run_turn(turn_escalated_to_human())
+
+    assert log.status == "success", log.error
+    assert log.samples
+    sample = log.samples[0]
+    assert sample.error is None
+    assert sample.limit is not None
+    assert sample.limit.type == "operator"
+    assert tool_messages(log) == []
+    assert not [e for e in sample.events if isinstance(e, ToolEvent)]
+
+
+def turn_step(
+    *calls: ToolCall, escalations: tuple[Reported[Decision], ...] = ()
+) -> AfterGenerate:
+    return AfterGenerate(
+        model="mockllm/model",
+        conversation="",
+        input=[],
+        history=[],
+        tools=[],
+        tool_choice="auto",
+        config=GenerateConfig(),
+        output=turn_output(*calls),
+        escalations=escalations,
+    )
+
+
+VIEWED_SHOUT = replace(SHOUT, view=shout_viewer(SHOUT).call)
+
+
+async def test_every_surface_is_handed_the_whole_turn(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    asked: list[dict[str, Any]] = []
+
+    async def acp(**kwargs: Any) -> Approval | None:
+        asked.append(kwargs)
+        return Approval(decision="approve")
+
+    monkeypatch.setattr(acp_module, "request_human_approval_via_acp", acp)
+
+    answer = await _Host().ask_human(
+        turn_step(ADD, VIEWED_SHOUT, escalations=escalation("together")),
+        ["approve", "terminate"],
+    )
+
+    assert answer.decision == "approve"
+    [kwargs] = asked
+    call, view = kwargs["call"], kwargs["view"]
+    assert call.function == "Assistant turn: addition, shout"
+    assert call.arguments == {}
+    assert kwargs["message"] == "Adding and shouting."
+
+    # ACP: one permission card for the turn
+    request = acp_module._build_request(
+        session_id="s", call=call, view=view, choices=kwargs["choices"]
+    )
+    assert request.tool_call.title == "Assistant turn: addition, shout"
+    [block] = request.tool_call.content or []
+    shown = block.content.text
+    assert shown.index("together") < shown.index("addition(") < shown.index("hello")
+
+    # the approval panel and the console render it with render_tool_approval
+    console = Console(record=True, width=80)
+    for renderable in render_tool_approval(kwargs["message"], view, call.arguments):
+        console.print(renderable)
+    text = console.export_text()
+    for expected in ["Adding and shouting.", "together", "addition(", "Shout", "hello"]:
+        assert expected in text
+
+
+async def test_a_turn_with_no_calls_says_so(monkeypatch: pytest.MonkeyPatch) -> None:
+    panel = Panel("approve")
+    panel.install(monkeypatch)
+
+    await _Host().ask_human(turn_step(), ["approve", "terminate"])
+
+    assert panel.content() == "The turn makes no tool calls."
+
+
+async def test_a_dismissed_turn_terminates(monkeypatch: pytest.MonkeyPatch) -> None:
+    Panel("reject", "dismissed").install(monkeypatch)
+
+    answer = await _Host().ask_human(turn_step(ADD), ["approve", "terminate"])
+
+    assert answer.decision == "terminate"
+    assert answer.reason is not None
+    assert "reject: dismissed" in answer.reason
+
+
+async def test_a_turn_cannot_be_rejected(monkeypatch: pytest.MonkeyPatch) -> None:
+    panel = Panel("approve")
+    panel.install(monkeypatch)
+
+    with pytest.raises(ValueError, match="cannot offer 'reject' at the model_output"):
+        await _Host().ask_human(turn_step(ADD), ["approve", "reject"])
+    assert panel.views == []
+
+
+async def test_a_person_cannot_be_asked_before_a_generate() -> None:
+    before = BeforeGenerate(
+        model="mockllm/model",
+        conversation="",
+        input=[],
+        history=[],
+        tools=[],
+        tool_choice="auto",
+        config=GenerateConfig(),
+    )
+    with pytest.raises(NotImplementedError, match="model_input"):
+        await _Host().ask_human(before, ["approve"])
