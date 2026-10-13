@@ -24,10 +24,15 @@ from inspect_ai import Task, eval, eval_async, task
 from inspect_ai._util.content import ContentToolUse
 from inspect_ai.agent import Agent, AgentState, agent, agent_bridge
 from inspect_ai.agent._bridge.types import AgentBridge
+from inspect_ai.agent._bridge.util import bridge_generate
 from inspect_ai.dataset import Sample
 from inspect_ai.event._model import ModelEvent
 from inspect_ai.log._log import EvalLog
-from inspect_ai.model._chat_message import ChatMessage, ChatMessageAssistant
+from inspect_ai.model._chat_message import (
+    ChatMessage,
+    ChatMessageAssistant,
+    ChatMessageUser,
+)
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model import GenerateFilter, GenerateInput, Model, get_model
 from inspect_ai.model._model_output import Logprob, Logprobs, ModelOutput, TopLogprob
@@ -124,13 +129,13 @@ def check_openai_responses_log_json(log_json: str, tools: bool):
     assert r'"parallel_tool_calls": true' in log_json
     assert r'"effort": "low"' in log_json
     assert r'"summary": "auto"' in log_json
-    assert r'"service_tier": "default"' in log_json
     assert r'"max_tool_calls": 5' in log_json
     assert r'"foo": "bar"' in log_json
     assert r'"prompt_cache_key": "42"' in log_json
     assert r'"prompt_cache_retention": "24h"' in log_json
     assert r'"safety_identifier": "42"' in log_json
-    assert r'"truncation": "auto"' in log_json
+    # the eval's configuration governs truncation, so the client's is withheld
+    assert r'"truncation": "auto"' not in log_json
     if tools:
         assert r'"name": "testing_tool"' in log_json
         assert r'"tool_choice": "auto"' in log_json
@@ -461,6 +466,32 @@ def anthropic_web_search_agent() -> Agent:
                         }
                     ],
                     tool_choice={"type": "any"},
+                )
+
+            return bridge.state
+
+    return execute
+
+
+@agent
+def anthropic_forced_web_search_agent(tool_type: str) -> Agent:
+    """Forces the named web_search tool, as Claude Code's WebSearch does."""
+
+    async def execute(state: AgentState) -> AgentState:
+        async with agent_bridge(state) as bridge:
+            async with AsyncAnthropic() as client:
+                tools: Any = [{"type": tool_type, "name": "web_search", "max_uses": 8}]
+                await client.messages.create(
+                    model="inspect",
+                    max_tokens=4096,
+                    messages=[
+                        {
+                            "role": "user",
+                            "content": user_prompt(state.messages).text,
+                        }
+                    ],
+                    tools=tools,
+                    tool_choice={"type": "tool", "name": "web_search"},
                 )
 
             return bridge.state
@@ -1092,6 +1123,38 @@ def test_bridged_web_search_tool_anthropic_filtering():
 
 
 @skip_if_no_anthropic
+def test_bridged_forced_web_search_keeps_client_version():
+    # Claude Code's forced WebSearch declares web_search_20250305; a frontier
+    # model would otherwise get web_search_20260209
+    log = eval(
+        web_search_task(anthropic_forced_web_search_agent("web_search_20250305")),
+        model="anthropic/claude-opus-5",
+    )[0]
+    log_json = log.model_dump_json(exclude_none=True, indent=2)
+    assert '"type": "web_search_20250305"' in log_json
+    assert '"type": "web_search_20260209"' not in log_json
+    check_server_tool_use(log, "web_search")
+
+
+@skip_if_no_anthropic
+@pytest.mark.parametrize("reasoning_effort", [None, "high"])
+def test_bridged_forced_web_search_filtering_version(
+    reasoning_effort: Literal["high"] | None,
+):
+    log = eval(
+        web_search_task(anthropic_forced_web_search_agent("web_search_20260209")),
+        model="anthropic/claude-sonnet-4-6",
+        reasoning_effort=reasoning_effort,
+    )[0]
+    log_json = log.model_dump_json(exclude_none=True, indent=2)
+    assert '"type": "web_search_20260209"' in log_json
+    assert '"direct"' in log_json
+    if reasoning_effort is not None:
+        assert '"type": "adaptive"' in log_json
+    check_server_tool_use(log, "web_search")
+
+
+@skip_if_no_anthropic
 def test_bridged_code_execution_tool_anthropic():
     log = eval(
         code_execution_task(anthropic_code_execution_agent()),
@@ -1625,6 +1688,55 @@ def test_bridge_filter_generated_event_records_requested_name() -> None:
     assert [(e.model, e.requested_model) for e in events] == [
         ("mockllm/model", "gpt-4o-mini")
     ]
+
+
+@pytest.mark.filterwarnings("ignore::DeprecationWarning")
+async def test_bridge_filter_style_detected_per_filter() -> None:
+    """Each filter gets a `Model` or a name by its own signature.
+
+    Alternating styles lets a new filter reuse a freed filter's `id()`.
+    """
+    model = get_model("mockllm/model")
+    received: list[Model | str] = []
+
+    def legacy_filter() -> GenerateFilter:
+        async def filter(
+            model: str,
+            input: list[ChatMessage],
+            tools: list[ToolInfo],
+            tool_choice: ToolChoice | None,
+            config: GenerateConfig,
+        ) -> None:
+            received.append(model)
+
+        return filter
+
+    def model_filter() -> GenerateFilter:
+        async def filter(
+            model: Model,
+            input: list[ChatMessage],
+            tools: list[ToolInfo],
+            tool_choice: ToolChoice | None,
+            config: GenerateConfig,
+        ) -> None:
+            received.append(model)
+
+        return filter
+
+    for make_filter in [legacy_filter, model_filter] * 3:
+        bridge = AgentBridge(AgentState(messages=[]), filter=make_filter())
+        await bridge_generate(
+            bridge,
+            model,
+            [ChatMessageUser(content="hi")],
+            [],
+            None,
+            GenerateConfig(),
+            None,
+        )
+        del bridge
+
+    assert received == [model.name, model] * 3
 
 
 @pytest.mark.parametrize(

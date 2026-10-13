@@ -22,6 +22,14 @@ class BridgedToolsSpec:
     the model re-propose the call. Set `require_proposal=False` for an agent
     that legitimately calls a host tool outside a model turn.
 
+    An agent that calls MCP tools from code the model writes, rather than
+    handing the model each tool to call, is outside this check: the model
+    proposes only the code-running call, so no host tool call it makes can
+    match a proposal and every one is denied. Codex CLI does this for models
+    whose catalog entry sets `tool_mode = "code_mode_only"` (its code mode: the
+    model calls `tools.mcp__<server>__<tool>(...)` from an `exec` script). Set
+    `require_proposal=False` on the servers such an agent uses.
+
     Example:
         ```python
         from inspect_ai.tool import tool
@@ -54,5 +62,8 @@ class BridgedToolsSpec:
     When `False`, any `tools/call` reaching this server executes, whether or not
     a model generation proposed it, so the bridge no longer guarantees that this
     server's tools run only for calls the model made. Use it for an agent that
-    calls a host tool programmatically outside a model turn.
+    calls a host tool programmatically outside a model turn, or from code the
+    model writes (Codex CLI's code mode). Approval policies then review only the
+    calls the model proposed (for Codex code mode, the `exec` call carrying the
+    script), never the host tool call made from inside it.
     """
