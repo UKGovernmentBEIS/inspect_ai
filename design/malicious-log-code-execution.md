@@ -2,6 +2,27 @@
 
 Status: proposed, 2026-10-06. Issue: none (task from Ransom Richardson). Author: agent (Claude), reviewed by Codex; see the PR.
 
+## Overview
+
+Reading an eval log someone else wrote should not run their code. Today
+several "read" operations can: recomputing metrics after a score edit,
+recovering a crashed log, and resuming an eval set can import a Python file
+the log names, build a model provider from values in the log, or (on
+eval-set resume) let the log pick the sandbox. This design splits Inspect's
+operations into two kinds. Run operations (`eval-retry` and `inspect score`)
+exist to run the log's task, so they keep doing that, and their docs and
+`--help` say to use them only on logs you trust. Read operations stop doing
+any of the above. A caller who trusts a log can pass `trust_log=True` to get
+today's behaviour back, which matters for custom metrics defined in a task
+file.
+
+Concretely: sample score keys are looked up only in the registry; the task
+file is imported for unregistered metrics only with `trust_log=True`;
+metric options from an untrusted log can build only metrics and reducers,
+enforced where registry objects are constructed; a resumed eval set uses the
+sandbox of the user's task; and dataframe `model_info()` stops instantiating
+providers.
+
 ## Why
 
 An eval log is data, but several Inspect operations turn fields of a log into
@@ -34,8 +55,9 @@ Goals:
   the sandbox of a task the user chose. Custom metrics that live in a task
   file keep working through an explicit opt-in.
 - Run operations load only the files their purpose requires (the recorded
-  task file, and for a retry the recorded solver file), and the docs and
-  `--help` say plainly that they run code and use settings named by the log.
+  task file, and for a retry the recorded solver file, or for a retry of an
+  `hf/` task the Hugging Face repo the log names), and the docs and `--help`
+  say plainly that they run code and use settings named by the log.
 - Malicious-log tests that prove the read operations import nothing, and tests
   that keep the legitimate flows working.
 
@@ -189,6 +211,20 @@ Solver specs are different: `--solver path.py@name` is recorded verbatim in
 `eval.solver` (`src/inspect_ai/_cli/eval.py:2137`, `_eval/task/log.py:294`),
 and `eval-retry` relies on it.
 
+A log with no `task_file` whose task name starts with `hf/` is retried
+without a registry check (`src/inspect_ai/_eval/eval.py:1746`):
+`task_create_from_hf()` downloads `eval.yaml` from the Hugging Face dataset
+repo the name selects and builds the task from it
+(`src/inspect_ai/_eval/task/hf.py:83-200`). That file chooses the dataset
+(loaded with `trust=False`, so no dataset script runs) and the arguments of
+the solvers and scorers it names, which go through `solver_from_spec()` and
+`scorer_from_spec()`. The names cannot select a file: `HFSolver.name` and
+`HFScorer.name` are `Literal` allowlists of built-in solvers and scorers
+(`hf.py:25`, `:39`), validated by `HFTask.model_validate()` (`hf.py:132`)
+before either loader sees them. The arguments are not restricted, so a model
+dict among them builds a model with a base URL the repo chooses
+(`registry.py:689-739`).
+
 `score_async()` also builds the log's model (`get_model(log.eval.model,
 base_url=log.eval.model_base_url, **log.eval.model_args)`, `score.py:263`)
 unless the caller passes one, and always builds the log's model roles
@@ -243,8 +279,8 @@ completed samples).
 | Operation | Python files the log can make Inspect import, after this design |
 |---|---|
 | read operations | none, unless the caller passes `trust_log=True` (`inspect log recover --trust-log`) to recompute or recover, which imports the recorded task file |
-| `inspect score` with the log's scorers | the recorded task file, and only when a recorded scorer name is not registered |
-| `eval-retry` | the recorded task file and the recorded solver file |
+| `inspect score` with the log's scorers | the recorded task file, and only when a recorded scorer or metric name is not registered |
+| `eval-retry` | the recorded task file and the recorded solver file. A log with no `task_file` and an `hf/` task name instead makes the retry fetch that Hugging Face repo's `eval.yaml`, which imports no local file but chooses the dataset and the arguments of the built-in solvers and scorers it names |
 
 In both classes, registry names may load installed packages' entry points and
 call their registered factories (see "Registry names" below).
@@ -307,30 +343,59 @@ def metrics_from_log_header(log: EvalLog, *, trust_log: bool = False) -> ...: ..
 def metric_from_log(metric: EvalMetricDefinition, *, trust_log: bool = False) -> Metric: ...
 ```
 
-`trust_log=True` means the caller trusts the log's code-selecting fields. It
-does exactly what happens today, in two places:
+Both metric sources are made resolvable first, by one shared function that
+`metrics_from_log_header()` and `resolve_scorers_info()` each call before
+building anything:
 
-- The first metric name in `eval.scorers[*].metrics` that is not registered
-  triggers `load_file_tasks(Path(task_file).absolute())`, once per call,
-  resolved against the working directory, with the `@task`/`@task_source`
-  filter.
+```python
+def ensure_log_metrics_registered(log: EvalLog, *, trust_log: bool) -> None:
+    """Make every metric named in the log resolvable, or raise.
+
+    Collects the metric names in `eval.metrics` (task-level metrics,
+    `_eval/task/log.py:278`, `:310`) and `eval.scorers[*].metrics`, including
+    nested lists, dict groups, and metric registry dicts inside their
+    options. If any is not registered and `trust_log` is True, imports the
+    task file once; then raises the shared LookupError for any still missing.
+    """
+```
+
+The first call does the import; the second finds the metrics registered, so
+the task file is imported at most once per recompute or recovery.
+`recompute_metrics()` and recovery call `metrics_from_log_header()` before
+`resolve_scorers_info()` (`log/_metric.py:40-41`, `_write.py:273-274`), so
+a custom task-level metric defined in the task file is covered as well as a
+scorer metric. Today only scorer metrics trigger the import, and an
+unregistered task-level metric fails with the registry's generic "not found"
+`LookupError`.
+
+`trust_log=True` means the caller trusts the log's code-selecting fields. It
+does what happens today for scorer metrics, extended to task-level metrics:
+
+- The first unregistered metric name in either source triggers
+  `load_file_tasks(Path(task_file).absolute())`, once per call, resolved
+  against the working directory, with the `@task`/`@task_source` filter.
 - Metric options are rebuilt by `metric_create()` with no restriction, so a
   custom metric whose options hold a model or another registry object is
   rebuilt as it is today.
 
 With `trust_log=False`:
 
-- No import. An unregistered metric name raises `LookupError` (the type
-  raised today when a metric cannot be found, so callers that catch it keep
-  working) with a message that says what to do:
+- No import. An unregistered metric name, from either source, raises
+  `LookupError` (the type raised today when a metric cannot be found, so
+  callers that catch it keep working) with one shared message that says
+  what to do:
 
   ```
-  Metric 'my_metric' used by scorer 'my_scorer' is not registered. If it is
+  Metric 'my_metric' (used by scorer 'my_scorer') is not registered. If it is
   defined in the task file ('evals/task.py'), import that module before
   recomputing, or pass trust_log=True (inspect log recover: --trust-log) to
   import the log's task file. This runs the file's code; do it only for logs
   you trust.
   ```
+
+  For a task-level metric the parenthesis reads "(a task-level metric)".
+  With `trust_log=True` the same message, without the `trust_log` advice,
+  is raised for a metric the task file does not define either.
 
 - Metric options are rebuilt in the restricted mode of step 3.
 
@@ -369,7 +434,9 @@ Callers inside Inspect:
   finalization identical.
 - `score_async()` passes `trust_log=True` to `metrics_from_log_header()`
   (`score.py:348`, used by `inspect score --action overwrite`): rescoring is a
-  run operation.
+  run operation. An unregistered task-level metric now makes it import the
+  recorded task file, the same file step 6 allows, where today it fails with
+  the generic `LookupError`.
 - eval-set recovery (`_recover_crashed_log()`, `evalset.py:1522`, reached
   from `as_previous_tasks()`, `list_latest_eval_logs()` and `_resumed_task()`)
   uses the default `False`. The paired task file has already been loaded to
@@ -579,9 +646,10 @@ what those commands do:
 - `inspect score --help` and `inspect eval-retry --help`
   (`src/inspect_ai/_cli/score.py`, `src/inspect_ai/_cli/eval.py`
   `eval_retry_command`) gain a sentence: "This runs code named by the log
-  (its task file and scorers; for a retry also its solver) and uses the model
-  endpoint, sandbox and other settings recorded in it. Only run it on logs
-  you trust."
+  (its task file and scorers; for a retry also its solver, or for an `hf/`
+  task the Hugging Face repo it names, whose `eval.yaml` chooses the dataset
+  and the solver and scorer arguments) and uses the model endpoint, sandbox
+  and other settings recorded in it. Only run it on logs you trust."
 - The same statement goes in `docs/scoring-workflow.qmd` (rescoring) and the
   eval-retry section of the docs, next to the "Logs from others" note in
   `docs/eval-logs.qmd` (step 2), which says that reading, viewing,
@@ -598,10 +666,12 @@ waits on it:
   When the log's model is used (no `--model`) and the log records a
   `model_base_url`: `Scoring model openai/gpt-4o from the log, base URL https://...`.
 - `inspect eval-retry` (`eval_retry_async()`, one block per log, before
-  recovery): the task file (absolute path) and task name, the solver file if
-  `eval.solver` is a file spec, the model and its base URL if recorded, the
-  sandbox type and its config file (or "inline config"), and the ACP server
-  binding if `eval.config.acp_server` is set.
+  recovery): the task file (absolute path) and task name, or for a log with
+  no task file and an `hf/` task name, the Hugging Face repo and revision
+  whose `eval.yaml` will define the task; the solver file if `eval.solver`
+  is a file spec; the model and its base URL if recorded; the sandbox type
+  and its config file (or "inline config"); and the ACP server binding if
+  `eval.config.acp_server` is set.
 
 Paths are printed resolved, so a relative `task_file` that resolved to an
 unexpected file in the working directory shows up. `score()`/`eval_retry()`
@@ -740,7 +810,9 @@ Behaviour changes, by user:
   `trust_log=True`, so it imports the task file and rebuilds metric options
   as today, and recovered results and finalization are unchanged.
 - **`inspect score`**: rebuilding `eval.metrics` for `--action overwrite`
-  passes `trust_log=True`; unchanged.
+  passes `trust_log=True`, so it behaves as today, except that a task-level
+  metric defined in the task file now resolves by importing that file
+  instead of failing.
 - **`eval_set()` resume**: recovered metrics unchanged for metrics defined in
   or imported by the task file, which eval-set has already loaded. A metric
   whose recorded options hold a model or non-metric registry object is no
@@ -806,7 +878,8 @@ an eval set resumes from. After this design:
   installed factory does with ordinary string options (a plugin that treats
   an option as a path or model name is trusted installed code).
 - What remains in run operations is the purpose of the operation: the task
-  file, the solver file (retry), the model and its base URL, the sandbox,
+  file, the solver file (retry), the Hugging Face repo and its `eval.yaml`
+  (retry of an `hf/` task), the model and its base URL, the sandbox,
   approval and review policies, and the ACP binding. The docs and `--help`
   say these commands should only be run on trusted logs; step 7's printed
   record shows what was used but is not a safeguard. The credential and
@@ -820,8 +893,10 @@ importing files that are not task files.
 
 All of these run in the default test job: no network, Docker or model
 provider. The malicious-log fixtures use a marker module that records its
-import (it appends to a file under `tmp_path`), and a spy that fails the test
-if `inspect_ai.model._model.get_model` is called.
+import (it appends to a file under `tmp_path`), and a spy on
+`inspect_ai.model._model.get_model` that fails the test if it is called with
+the fixtures' distinctive model name or base URL (eval-set legitimately calls
+`get_model()` for its own `mockllm` model).
 
 New file `tests/log/test_untrusted_logs.py` (no existing file covers
 operations across modules; it follows
@@ -837,7 +912,9 @@ path. Fixtures:
    sample score key naming a marker module as `<path>@<name>`, plus one that
    is a bare existing path.
 2. **Missing task-file metric**: `task_file` pointing at a marker module with
-   a `@task` function and a scorer whose metric is defined only there.
+   a `@task` function, a scorer whose metric is defined only there, and a
+   task-level metric in `eval.metrics` defined only there; plus one variant
+   with only the scorer metric and one with only the task-level metric.
 3. **Forbidden metric options on registered metrics**: a model dict, and a
    registry dict of a non-metric type (e.g. `solver`), each placed in
    `eval.metrics` (list form and dict-group form) and in
@@ -850,9 +927,10 @@ Assertions, for every read operation applicable to each fixture: no marker was
 written, and the `get_model` spy was not called.
 
 - `recompute_metrics()` and `edit_score()`: fixture 1 succeeds with default
-  metrics for the hostile keys; fixture 2 raises `LookupError` with the step 2
-  message; fixture 3 raises `DisallowedRegistryArg` (a `ValueError`) naming
-  the metric and the option key path.
+  metrics for the hostile keys; each fixture 2 variant raises `LookupError`
+  with the shared step 2 message naming the right metric (scorer metric or
+  task-level metric); fixture 3 raises `DisallowedRegistryArg` (a
+  `ValueError`) naming the metric and the option key path.
 - `recover_eval_log()` and `recover_eval_log_async()` on a `started` copy of
   each fixture, once with a database sample buffer and once with a filestore
   buffer (the two sources in `_recover/_api.py:110`, built the way
@@ -861,6 +939,18 @@ written, and the `get_model` spy was not called.
   results and log the warning. With a resolving `incomplete_action`, assert
   fixtures 2 and 3 do not finalize. The same through `inspect log recover`
   via `CliRunner`.
+- `eval_set()` resume over a log directory holding a `started` log with a
+  sample buffer, built by running the test's own task once with `eval_set()`
+  and then rewriting the log so its task identifier still matches: once with
+  fixture 1's score keys in the buffered samples and once with fixture 3's
+  metric definitions in the header (the identifier hashes neither). Each runs
+  on both recovery paths: the default `incomplete_action="retry"`, which
+  recovers in `as_previous_tasks()` (`evalset.py:1504`), and a resolving
+  `incomplete_action` (`"error"`), which recovers in `list_latest_eval_logs()`
+  (`evalset.py:1803`). Assert no marker, no spy hit, and that the eval set
+  completes. Fixture 3 is the one that catches a later change making
+  `_recover_crashed_log()` pass `trust_log=True`: the model dict would then
+  reach `get_model()`.
 - `evals_df()` plus `prepare(model_info())` over a directory of logs with an
   unknown model name.
 - `read_eval_log()`, `read_eval_log_headers()`, `inspect log dump`,
@@ -874,14 +964,17 @@ Legitimate flows:
 
 - `tests/scorer/test_score_editing.py`:
   `test_resolve_scorers_info_loads_task_file_metrics_once` passes
-  `trust_log=True` and keeps asserting one import; add a
-  `recompute_metrics(log, trust_log=True)` test with fixture 2's task-file
-  metric, a test that a module imported by the caller first makes the default
+  `trust_log=True` and keeps asserting one import; add
+  `recompute_metrics(log, trust_log=True)` tests with fixture 2 that compute
+  both the scorer metric and the task-level metric with a single import, one
+  with each single-metric variant, and one where the task file lacks the
+  metric (shared message); a test that a module imported by the caller first makes the default
   path work, a `grouped(accuracy(), ...)` recompute that passes step 3, and a
   registered custom metric taking a model (`mockllm/model`) that recomputes
   with `trust_log=True`.
 - `tests/log/test_recover_api.py`: recovery with `trust_log=True` (and
-  `--trust-log`) computes the task-file metric and the model-option metric,
+  `--trust-log`) computes the task-file scorer metric, the task-level metric
+  and the model-option metric,
   and a resolving recovery of such a log finalizes.
 - `tests/test_eval_set.py`: an eval set with a task-file custom metric,
   interrupted so a `started` log with a buffer remains, resumes with the
@@ -893,7 +986,9 @@ Legitimate flows:
 - `tests/test_retry.py`: retry of a crashed log with a task-file metric
   recovers its metrics through both recovery calls (the threshold fallback
   included); retry with a `--solver path.py@name` log still loads the solver;
-  the printed record lists the task file, solver file and base URL;
+  the printed record lists the task file, solver file and base URL, and for
+  an `hf/` log with no task file lists the repo and revision (tested on the
+  function that builds the record, so no Hugging Face download is needed);
   `inspect eval-retry --help` carries the trusted-logs sentence.
 - `tests/_eval/test_score.py`: a log scorer name of the form `<path>@<name>`
   is not imported and fails with the `--scorer` suggestion; an unregistered
@@ -937,7 +1032,8 @@ the PRs open, as the repo requires.
    `src/inspect_ai/_eval/loader.py` (`scorer_from_registry()`),
    `src/inspect_ai/_eval/task/results.py` (`from_name()`),
    `src/inspect_ai/_eval/score.py` (`resolve_scorers_info()`,
-   `metrics_from_log_header()`, `metric_from_log()`; `score_async()` passes
+   `metrics_from_log_header()`, `metric_from_log()`,
+   `ensure_log_metrics_registered()`; `score_async()` passes
    `trust_log=True`),
    `src/inspect_ai/log/_metric.py`, `src/inspect_ai/log/_score.py`,
    `src/inspect_ai/log/_recover/_api.py`, `src/inspect_ai/log/_recover/_write.py`,
