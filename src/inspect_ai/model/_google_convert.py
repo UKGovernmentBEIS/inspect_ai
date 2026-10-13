@@ -1,6 +1,7 @@
 """Conversion functions for Google GenAI models."""
 
 import base64
+import json
 from typing import TYPE_CHECKING, Any, Literal, Sequence, Union
 
 from shortuuid import uuid
@@ -335,18 +336,20 @@ async def tool_message_from_parts(parts: "list[Part]") -> ChatMessageTool:
                     (
                         k
                         for k in ("output", "result", "content")
-                        if k in response_content
+                        if response_content.get(k) is not None
                     ),
                     None,
                 )
-                if "error" in response_content:
-                    error = ToolCallError("unknown", str(response_content["error"]))
+                if response_content.get("error") not in (None, ""):
+                    error = ToolCallError(
+                        "unknown", _response_text(response_content["error"])
+                    )
                 if key is not None:
-                    text = str(response_content[key])
+                    text = _response_text(response_content[key])
                 elif error is not None:
                     text = error.message
                 else:
-                    text = str(response_content)
+                    text = _response_text(response_content)
             else:
                 text = str(response_content)
 
@@ -359,3 +362,10 @@ async def tool_message_from_parts(parts: "list[Part]") -> ChatMessageTool:
 
     # Shouldn't happen if caller checks properly
     raise ValueError("No function_response found in parts")
+
+
+def _response_text(value: Any) -> str:
+    """A function response value as text, with dicts and lists as JSON."""
+    if isinstance(value, dict | list):
+        return json.dumps(value)
+    return str(value)

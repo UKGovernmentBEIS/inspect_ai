@@ -392,6 +392,88 @@ async def test_result_without_safety_decision_is_not_acknowledged() -> None:
     assert _function_responses(contents) == [{"output": "2"}]
 
 
+async def test_imported_result_matches_call_of_its_own_turn() -> None:
+    """An earlier unanswered call to the same function does not take the result."""
+    messages = await messages_from_google(
+        [
+            Content(role="user", parts=[Part(text="Buy the espresso machine.")]),
+            # a call whose result was cut from the history
+            Content(
+                role="model",
+                parts=[
+                    Part(
+                        function_call=FunctionCall(
+                            name="purchase", args={"item": "grinder"}
+                        )
+                    )
+                ],
+            ),
+            Content(role="user", parts=[Part(text="Buy the machine instead.")]),
+            Content(
+                role="model",
+                parts=[
+                    Part(
+                        function_call=FunctionCall(
+                            name="purchase",
+                            args={
+                                "item": "machine",
+                                "safety_decision": SAFETY_DECISION,
+                            },
+                        )
+                    )
+                ],
+            ),
+            Content(
+                role="user",
+                parts=[
+                    Part(
+                        function_response=FunctionResponse(
+                            name="purchase", response={"output": "Order placed."}
+                        )
+                    )
+                ],
+            ),
+        ]
+    )
+
+    contents = await as_chat_messages(MagicMock(), messages)
+
+    assert _function_responses(contents) == [
+        {"output": "Order placed.", "safety_acknowledgement": "true"}
+    ]
+
+
+async def test_count_tokens_acknowledges_safety_decision() -> None:
+    mock_client = _create_mock_google_count_tokens_client()
+    messages: list[ChatMessage] = [
+        ChatMessageUser(content="Buy the espresso machine."),
+        ChatMessageAssistant(
+            content="",
+            tool_calls=[
+                ToolCall(
+                    id="purchase_1",
+                    function="purchase",
+                    arguments={"item": "machine", "safety_decision": SAFETY_DECISION},
+                )
+            ],
+        ),
+        ChatMessageTool(
+            content="Order placed.", tool_call_id="purchase_1", function="purchase"
+        ),
+    ]
+
+    with patch("inspect_ai.model._providers.google.Client", return_value=mock_client):
+        api = GoogleGenAIAPI(
+            model_name="gemini-3-flash-preview", base_url=None, api_key="test-key"
+        )
+        assert await api.count_tokens(messages) == 7
+
+    contents = mock_client.aio.models.count_tokens.call_args.kwargs["contents"]
+    assert _function_responses(contents) == [
+        {"output": "Order placed.", "safety_acknowledgement": "true"}
+    ]
+
+
 @skip_if_no_google
 async def test_replayed_safety_decision_is_acknowledged_live() -> None:
     """Gemini 3 rejects a replayed safety_decision whose result is not acknowledged."""

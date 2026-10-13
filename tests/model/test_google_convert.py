@@ -183,6 +183,40 @@ async def test_messages_from_google_tool_response_error() -> None:
     assert message.error.message == "City not found"
 
 
+@pytest.mark.parametrize(
+    "response,content,error",
+    [
+        ({"output": "42", "error": None}, "42", None),
+        ({"output": "42", "error": ""}, "42", None),
+        ({"result": {"temp": 72, "ok": True}}, '{"temp": 72, "ok": true}', None),
+        ({"result": [1, 2]}, "[1, 2]", None),
+        ({"error": {"code": 404}}, '{"code": 404}', '{"code": 404}'),
+        ({"data": {"ok": True}}, '{"data": {"ok": true}}', None),
+    ],
+)
+async def test_messages_from_google_tool_response_values(
+    response: dict[str, object], content: str, error: str | None
+) -> None:
+    contents = [
+        Content(
+            role="user",
+            parts=[
+                Part(
+                    function_response=FunctionResponse(
+                        name="get_weather", response=response
+                    )
+                )
+            ],
+        ),
+    ]
+
+    (message,) = await messages_from_google(contents)
+
+    assert isinstance(message, ChatMessageTool)
+    assert message.content == content
+    assert (message.error.message if message.error else None) == error
+
+
 async def test_messages_from_google_with_reasoning() -> None:
     """Test Content with thought parts (reasoning) conversion."""
     contents = [

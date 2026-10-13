@@ -1419,11 +1419,14 @@ def acknowledge_safety_decisions(contents: list[Content]) -> None:
     The API rejects a result without `safety_acknowledgement` when its call
     carries a `safety_decision`. Calls read from a Gemini response have it
     removed, but histories imported with `messages_from_google()` or through
-    the agent bridge keep it. Results are matched to calls by id, then by
-    name, since imported results need not carry their call's id.
+    the agent bridge keep it. Results are matched to calls of the latest
+    model turn by id, then by name, since imported results need not carry
+    their call's id.
     """
     unanswered: list[FunctionCall] = []
     for content in contents:
+        if content.role == "model":
+            unanswered = []
         for part in content.parts or []:
             if part.function_call is not None:
                 unanswered.append(part.function_call)
