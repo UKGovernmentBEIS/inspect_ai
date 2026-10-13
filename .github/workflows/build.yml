@@ -106,15 +106,14 @@ jobs:
         if: github.event_name != 'pull_request' || steps.filter.outputs.code == 'true'
         run: uv sync
 
-      # TEMPORARY: stays until inspect_sentinel is published on PyPI, then a
-      # requirements-dev.txt entry replaces it (its git-ref dependency on
-      # inspect-ai conflicts with the editable install). --no-deps so the drift
-      # test in tests/log/test_event_discriminator.py runs instead of skipping.
-      # Pinned to a commit so a sentinel change cannot break inspect_ai CI
-      # unannounced; bump it deliberately when inspect_ai needs newer sentinel code.
+      # TEMPORARY: the dispatcher requires inspect_sentinel with
+      # meridianlabs-ai/inspect_sentinel#74 (an unhandled escalate terminates),
+      # #83 (step.input may be None), #84 (the proceed rename) and #42 (the generate
+      # stages). Remove when a release with all four is on PyPI and
+      # requirements-dev.txt requires it.
       - name: Install inspect_sentinel (TEMPORARY)
         if: github.event_name != 'pull_request' || steps.filter.outputs.code == 'true'
-        run: uv pip install --no-deps "inspect_sentinel @ git+https://github.com/meridianlabs-ai/inspect_sentinel@7deac5b02780fab18eeb343395802d24db3cffcd"
+        run: uv pip install --no-deps "inspect_sentinel @ git+https://github.com/meridianlabs-ai/inspect_sentinel@20187da055386a750db3946af74a022cf858ab2c"
 
       - name: Run mypy
         if: github.event_name != 'pull_request' || steps.filter.outputs.code == 'true'
@@ -339,15 +338,14 @@ jobs:
           uv sync
           uv pip install --no-deps ./tests/test_package
 
-      # TEMPORARY: stays until inspect_sentinel is published on PyPI, then a
-      # requirements-dev.txt entry replaces it (its git-ref dependency on
-      # inspect-ai conflicts with the editable install). --no-deps so the drift
-      # test in tests/log/test_event_discriminator.py runs instead of skipping.
-      # Pinned to a commit so a sentinel change cannot break inspect_ai CI
-      # unannounced; bump it deliberately when inspect_ai needs newer sentinel code.
+      # TEMPORARY: the dispatcher requires inspect_sentinel with
+      # meridianlabs-ai/inspect_sentinel#74 (an unhandled escalate terminates),
+      # #83 (step.input may be None), #84 (the proceed rename) and #42 (the generate
+      # stages). Remove when a release with all four is on PyPI and
+      # requirements-dev.txt requires it.
       - name: Install inspect_sentinel (TEMPORARY)
         if: env.RUN_TESTS == 'true'
-        run: uv pip install --no-deps "inspect_sentinel @ git+https://github.com/meridianlabs-ai/inspect_sentinel@7deac5b02780fab18eeb343395802d24db3cffcd"
+        run: uv pip install --no-deps "inspect_sentinel @ git+https://github.com/meridianlabs-ai/inspect_sentinel@20187da055386a750db3946af74a022cf858ab2c"
 
       - name: Test with pytest
         if: env.RUN_TESTS == 'true'

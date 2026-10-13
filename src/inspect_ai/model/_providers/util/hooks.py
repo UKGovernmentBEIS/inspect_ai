@@ -1,6 +1,8 @@
+import functools
 import re
 import time
 from contextlib import contextmanager
+from contextvars import ContextVar
 from logging import getLogger
 from typing import (
     TYPE_CHECKING,
@@ -40,6 +42,24 @@ _REQUEST_ID_HEADERS = (
     "x-amzn-requestid",
     "mistral-correlation-id",
 )
+
+
+_polling: ContextVar[bool] = ContextVar("_polling", default=False)
+
+
+@contextmanager
+def polling() -> Iterator[None]:
+    """Record the response headers of the requests made in the block.
+
+    For requests that fetch the result of the model call in progress and are
+    sent without its request id, as each would be counted as a retry (e.g.
+    polling for a background response).
+    """
+    token = _polling.set(True)
+    try:
+        yield
+    finally:
+        _polling.reset(token)
 
 
 class RequestInfo(NamedTuple):
@@ -157,14 +177,20 @@ class HttpHooks:
                 infers kind from `status == 429`.
         """
         if not request_id:
+            if headers is not None and _polling.get():
+                from inspect_ai.model._response_headers import record_response_headers
+
+                record_response_headers(headers)
             return
         info = self._requests.get(request_id)
         if info is None:
             return
         if headers is not None:
             from inspect_ai.log._samples import report_active_model_request_id
+            from inspect_ai.model._response_headers import record_response_headers
 
             lowered = {name.lower(): value for name, value in headers.items()}
+            record_response_headers(lowered)
             for header in _REQUEST_ID_HEADERS:
                 if value := lowered.get(header):
                     report_active_model_request_id(value, header, status)
@@ -386,9 +412,11 @@ class HttpxHooks(HttpHooks):
     def __init__(self, client: HttpxClientLike, api: "ModelAPI | None" = None):
         super().__init__(api)
 
-        # install hooks
+        # install hooks. the response hook goes ahead of any the caller put on
+        # the client: one of those may read the body or raise, and the
+        # response's headers are recorded either way
         client.event_hooks["request"].append(self.request_hook)
-        client.event_hooks["response"].append(self.response_hook)
+        client.event_hooks["response"].insert(0, self.response_hook)
 
     async def request_hook(self, request: HttpxRequestLike) -> None:
         # update the last request time for this request id (as there could be retries)
@@ -402,6 +430,61 @@ class HttpxHooks(HttpHooks):
         # record status + Retry-After / x-ratelimit-reset-* for next retry classification
         request_id = response.request.headers.get(self.REQUEST_ID_HEADER, None)
         self.record_response(request_id, response.status_code, response.headers)
+
+
+def header_recording_config(**options: Any) -> Any:
+    """An aiobotocore config for a client that records each response's headers.
+
+    For a client that makes only the model call's requests. The headers are
+    recorded as they arrive. aiobotocore reads a response's body before it
+    returns the response or emits `response-received`, so neither happens for
+    a response whose body can't be read.
+
+    Args:
+        **options: Options for `AioConfig`.
+    """
+    config_cls, session_cls = _header_recording()
+    return config_cls(http_session_cls=session_cls, **options)
+
+
+@functools.cache
+def _header_recording() -> tuple[type[Any], type[Any]]:
+    import aiohttp
+    from aiobotocore.config import AioConfig
+    from aiobotocore.httpsession import AIOHTTPSession
+
+    from inspect_ai.model._response_headers import record_response_headers
+
+    async def on_response(
+        session: aiohttp.ClientSession,
+        context: object,
+        params: aiohttp.TraceRequestEndParams | aiohttp.TraceRequestRedirectParams,
+    ) -> None:
+        record_response_headers(params.response.headers)
+
+    trace_config = aiohttp.TraceConfig()
+    trace_config.on_request_end.append(on_response)
+    # a redirect is a response too, and following it may get no response
+    trace_config.on_request_redirect.append(on_response)
+    trace_config.freeze()
+
+    class HeaderRecordingSession(AIOHTTPSession):
+        async def _get_session(self, proxy_url: Any) -> Any:
+            # not in aiobotocore's type stubs
+            session = await cast(Any, super())._get_session(proxy_url)
+            if trace_config not in session.trace_configs:
+                session.trace_configs.append(trace_config)
+            return session
+
+    class HeaderRecordingConfig(AioConfig):
+        def merge(self, other_config: Any) -> Any:
+            # botocore merges configs for a FIPS region name, and aiobotocore
+            # 2.18 leaves the session class out of the result
+            merged: Any = super().merge(other_config)
+            merged.http_session_cls = HeaderRecordingSession
+            return merged
+
+    return HeaderRecordingConfig, HeaderRecordingSession
 
 
 def urllib3_hooks() -> HttpHooks:
