@@ -6,6 +6,7 @@ instead, and resolves a rejection by telling the model and regenerating rather
 than by editing the response the scaffold sees.
 """
 
+import inspect
 import json
 import logging
 from pathlib import PurePosixPath
@@ -1344,6 +1345,49 @@ async def test_prefixed_copy_of_a_shared_description_grants_both() -> None:
 
     assert bridge.consume_tool_execution_grant("a", "read_file", {"path": "x"})
     assert bridge.consume_tool_execution_grant("b", "read_file", {"path": "x"})
+
+
+INDENTED = """Control a browser and report what the page shows.
+
+        Use it to open pages and read their contents.
+
+        Args:
+            action: What to do.
+            url: Where to go.
+        """
+"""A served description that is a raw method docstring, as Python 3.10-3.12 keep it."""
+
+
+async def test_dedented_copy_of_an_indented_description_resolves() -> None:
+    """Antigravity declares `inspect.cleandoc` of an indented served description."""
+    bridge = sandbox_bridge_with_servers(
+        {"host": {"read_file": served_tool(AsyncMock(), INDENTED)}}
+    )
+
+    bridge.register_tool_execution_grants(
+        [ToolCall(id="proposed", function="read_file", arguments={"path": "x"})],
+        declare(
+            "read_file",
+            description=ANTIGRAVITY_PREAMBLE + inspect.cleandoc(INDENTED) + "\n",
+        ),
+    )
+
+    assert bridge.consume_tool_execution_grant("host", "read_file", {"path": "x"})
+
+
+async def test_copy_flattening_relative_indentation_does_not_resolve() -> None:
+    """Only the common indentation may be removed; nested indentation is content."""
+    bridge = sandbox_bridge_with_servers(
+        {"host": {"read_file": served_tool(AsyncMock(), INDENTED)}}
+    )
+    flattened = "\n".join(line.strip() for line in INDENTED.strip().split("\n"))
+
+    bridge.register_tool_execution_grants(
+        [ToolCall(id="proposed", function="read_file", arguments={"path": "x"})],
+        declare("read_file", description=ANTIGRAVITY_PREAMBLE + flattened),
+    )
+
+    assert len(bridge._tool_execution_grants) == 0
 
 
 # ---------------------------------------------------------------------------

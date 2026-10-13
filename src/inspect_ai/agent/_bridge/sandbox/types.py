@@ -1,3 +1,4 @@
+import inspect
 from collections import deque
 from logging import getLogger
 from os.path import commonprefix
@@ -459,21 +460,32 @@ def _prefixed_copies(
     qualifies when it is at least `_MIN_TRUNCATED_PREFIX` characters (so a short
     description can never match as another tool's accidental suffix), `declared`
     ends with all of it, and what stands in front is at most
-    `_MAX_SCAFFOLD_PREAMBLE` characters. Of the qualifying descriptions only the
-    longest are returned: a declaration carrying the whole of a longer served
-    description names that tool, not a shorter one whose description is the
-    longer one's tail. Two tools served the same description are both returned.
-    A scaffold that rewrites the description itself is not tolerated.
+    `_MAX_SCAFFOLD_PREAMBLE` characters. The served description is tried as
+    served and as `inspect.cleandoc` leaves it: Antigravity dedents what it
+    declares, and on Python before 3.13 a raw docstring keeps its source
+    indentation. Of the qualifying descriptions only the longest are returned:
+    a declaration carrying the whole of a longer served description names that
+    tool, not a shorter one whose description is the longer one's tail. Two
+    tools served the same description are both returned. A scaffold that
+    otherwise rewrites the description is not tolerated.
     """
     candidates = [
-        (len(info.description.strip()), tool_id)
+        (len(form), tool_id)
         for tool_id, info in served.items()
-        if _is_prefixed_copy_of(declared, info.description.strip())
+        for form in _served_forms(info.description)
+        if _is_prefixed_copy_of(declared, form)
     ]
     if not candidates:
         return []
     longest = max(length for length, _ in candidates)
     return [tool_id for length, tool_id in candidates if length == longest]
+
+
+def _served_forms(description: str) -> list[str]:
+    """`description` stripped, and its `inspect.cleandoc` form when that differs."""
+    stripped = description.strip()
+    dedented = inspect.cleandoc(stripped)
+    return [stripped] if dedented == stripped else [stripped, dedented]
 
 
 def _is_prefixed_copy_of(declared: str, served: str) -> bool:
