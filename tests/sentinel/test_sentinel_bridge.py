@@ -236,7 +236,13 @@ async def generate(
     tools: list[ToolInfo] | None = None,
 ) -> ModelOutput:
     output, _ = await bridge_generate(
-        bridge, model.model, list(input), list(tools or []), None, GenerateConfig()
+        bridge,
+        model.model,
+        list(input),
+        list(tools or []),
+        None,
+        GenerateConfig(),
+        requested_model=None,
     )
     return output
 
