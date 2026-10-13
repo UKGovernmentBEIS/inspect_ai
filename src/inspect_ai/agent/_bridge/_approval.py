@@ -110,8 +110,9 @@ async def apply_bridge_tool_approval(
     `tool_call` stage in order, as on the native path: its `reject`, `modify` and
     `terminate` take effect like an approver's. The response carries the
     `tool_result` check for each call handed to the scaffold (`_sentinel.py`).
-    The generation itself has already been through the `model_input` and
-    `model_output` stages inside `Model.generate()`. As on the native path,
+    A generation that is an agent turn has already been through the
+    `model_input` and `model_output` stages inside `Model.generate()`; the
+    tool stages run either way, as on the native path. Like native steps,
     both tool stages take their input from the `ModelEvent` that produced the
     call, so it is what the model was actually sent, or `None` when no such
     event is in the transcript (a filter that returned output without

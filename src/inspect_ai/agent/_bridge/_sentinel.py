@@ -115,7 +115,7 @@ class _ResultChecks:
                 "to the scaffold; the oldest was dropped, so the sentinel's "
                 "tool_result check of a call handed over more than "
                 f"{_MAX_PROPOSALS} calls ago sees only the conversation that "
-                "carries its result.",
+                "carries its result, and usually no model input.",
             )
 
     def claim(self, input: list[ChatMessage]) -> _Claimed:

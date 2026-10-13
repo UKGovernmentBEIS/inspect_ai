@@ -529,6 +529,8 @@ async def test_tool_result_stage_sees_the_call_as_modified() -> None:
         )
 
     assert [step.call.arguments for step in seen] == [{"path": "a.txt"}] * 2
+    # the modified call keeps the id of the call the model made
+    assert [step.input for step in seen] == [model.inputs[0]] * 2
 
 
 async def test_a_result_for_a_call_never_handed_over_is_still_checked() -> None:
@@ -883,6 +885,7 @@ async def test_a_dispatched_call_is_checked_as_its_target() -> None:
 
     [step] = seen
     assert (step.call.id, step.call.function) == ("d_1", "read_file")
+    assert step.input == model.inputs[0]
     assert output.message.tool_calls == [
         replace(
             call,
