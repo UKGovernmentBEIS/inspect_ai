@@ -43,7 +43,7 @@ even though the orchestration is asyncio.
 from __future__ import annotations
 
 from logging import getLogger
-from typing import TYPE_CHECKING, Any, Callable, Protocol, cast
+from typing import TYPE_CHECKING, Any, Callable, Literal, Protocol, cast
 
 import anyio
 from acp.schema import (
@@ -589,3 +589,39 @@ async def request_human_approval_via_acp(
         # which surface happens to serve it.
         return await _request_from_driver_with_fallback(session, request, choices)
     return None
+
+
+def finish_approval_card(
+    tool_call_id: str, status: Literal["completed", "failed"]
+) -> None:
+    """Finish the card an approval request opened for a call that never runs.
+
+    A permission request opens a pending tool-call card on the client,
+    which the call's own tool events later complete. An approval about
+    something other than one tool call (a sentinel asking about a whole
+    assistant turn) has no such events, so without this the card stays
+    pending: cancellable, counted as work in flight, and marked failed
+    when the session ends.
+
+    Gated as :func:`request_human_approval_via_acp` is, so it publishes
+    only when that function routed the request through ACP. Best-effort
+    like the rest of this shim: a failure is logged, never raised.
+    """
+    with acp_guard("ACP approval card completion raised; the card stays pending"):
+        from acp.helpers import session_notification, update_tool_call
+
+        from inspect_ai.agent._acp.server import acp_server_accepting_clients
+        from inspect_ai.log._samples import sample_active
+
+        if not acp_server_accepting_clients():
+            return
+        sample = sample_active()
+        if sample is None or sample.acp_transport is None:
+            return
+        session = sample.acp_transport
+        session.publish(
+            session_notification(
+                session.session_id,
+                update_tool_call(tool_call_id=tool_call_id, status=status),
+            )
+        )

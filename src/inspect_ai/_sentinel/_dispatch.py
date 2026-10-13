@@ -21,11 +21,13 @@ from inspect_sentinel import (
     Step,
 )
 from inspect_sentinel._integration import HostContext, run_sentinel, watched_stages
+from shortuuid import uuid as shortuuid
 
 from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.registry import registry_lookup
-from inspect_ai.approval._approval import ApprovalDecision
+from inspect_ai.approval._approval import Approval, ApprovalDecision
+from inspect_ai.approval._approver import Approver
 from inspect_ai.approval._human.approver import human_approver
 from inspect_ai.event._event import Event
 from inspect_ai.event._model import ModelEvent
@@ -418,14 +420,13 @@ class _Host:
                     f"{', '.join(repr(c) for c in _HUMAN_CHOICES)}."
                 )
             offered.append(cast(ApprovalDecision, choice))
-        prompt = (
-            _turn_prompt(step)
-            if isinstance(step, AfterGenerate)
-            else _Prompt(step.message, step.call, _human_view(step))
-        )
-        approval = await human_approver(choices=offered)(
-            prompt.message, prompt.call, prompt.view, step.history
-        )
+        approve = human_approver(choices=offered)
+        if isinstance(step, AfterGenerate):
+            approval = await _ask_about_turn(approve, step)
+        else:
+            approval = await approve(
+                step.message, step.call, _human_view(step), step.history
+            )
         if approval.decision in offered:
             return HumanAnswer(decision=approval.decision, reason=approval.explanation)
         return HumanAnswer(
@@ -476,6 +477,22 @@ def _escalation_lines(step: Step) -> str:
     )
 
 
+async def _ask_about_turn(approve: Approver, step: AfterGenerate) -> Approval:
+    # deferred: the ACP shim imports `acp.schema`, which only matters once a
+    # person is asked
+    from inspect_ai.approval._human.acp import finish_approval_card
+
+    prompt = _turn_prompt(step)
+    status: Literal["completed", "failed"] = "failed"
+    try:
+        approval = await approve(prompt.message, prompt.call, prompt.view, step.history)
+        status = "completed"
+        return approval
+    finally:
+        # no tool event completes the card the turn's prompt opened
+        finish_approval_card(prompt.call.id, status)
+
+
 class _Prompt(NamedTuple):
     message: str
     call: ToolCall
@@ -488,8 +505,10 @@ def _turn_prompt(step: AfterGenerate) -> _Prompt:
     The surfaces show one tool call, so the turn becomes a single view: the
     escalations, then each call the turn makes as the transcript shows it
     (`ToolCall.view`, which `Model.generate` sets from the tool's viewer). The
-    call handed to the surfaces stands for the whole turn; its empty arguments
-    leave the view as rendered here, each call's placeholders already filled in.
+    call handed to the surfaces stands for the whole turn. Its id is its own,
+    unlike any tool call's or another prompt's, since an ACP client opens a
+    card under it; its empty arguments leave the view as rendered here, each
+    call's placeholders already filled in.
     """
     message = step.output.message if step.output.choices else None
     calls = (message.tool_calls if message else None) or []
@@ -502,7 +521,7 @@ def _turn_prompt(step: AfterGenerate) -> _Prompt:
         blocks.append("The turn makes no tool calls.")
     functions = ", ".join(dict.fromkeys(call.function for call in calls))
     turn = ToolCall(
-        id=(message.id if message else None) or "model_output",
+        id=f"turn_{shortuuid()}",
         function=f"Assistant turn: {functions}" if functions else "Assistant turn",
         arguments={},
     )

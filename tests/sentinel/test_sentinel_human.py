@@ -1,10 +1,23 @@
+import asyncio
 from dataclasses import replace
 from typing import Any
+from unittest.mock import MagicMock
 
 import pytest
+from acp.schema import (
+    AllowedOutcome,
+    RequestPermissionRequest,
+    RequestPermissionResponse,
+)
 from rich.console import Console
+from test_helpers.utils import skip_if_trio
 
 from inspect_ai import Task, eval
+from inspect_ai.agent._acp.tui.state import (
+    PendingApproval,
+    SessionState,
+    ToolCallState,
+)
 from inspect_ai.approval._approval import Approval, ApprovalDecision
 from inspect_ai.approval._human import acp as acp_module
 from inspect_ai.approval._human import approver as approver_module
@@ -534,3 +547,68 @@ async def test_a_person_cannot_be_asked_before_a_generate() -> None:
     )
     with pytest.raises(NotImplementedError, match="model_input"):
         await _Host().ask_human(before, ["approve"])
+
+
+class TuiSession:
+    """An ACP transport with one attached client, the Inspect ACP TUI's state.
+
+    The client answers each permission request as the TUI does, and every
+    published notification reaches the same state, so the test sees the
+    cards the person would.
+    """
+
+    session_id = "s"
+
+    def __init__(self, decision: str) -> None:
+        self.state = SessionState()
+        self.decision = decision
+
+    def approver_driver_chain(self) -> list["TuiSession"]:
+        return [self]
+
+    def subscribe_approver_attach(self, callback: Any) -> Any:
+        return lambda: None
+
+    def publish(self, update: Any) -> None:
+        self.state.consume(update)
+
+    async def drain_notifications(self) -> None:
+        pass
+
+    async def request_permission(
+        self, request: RequestPermissionRequest
+    ) -> RequestPermissionResponse:
+        self.state.consume_approval_request(PendingApproval(request, asyncio.Event()))
+        self.state.resolve_approval(
+            request.tool_call.tool_call_id, option_id=self.decision
+        )
+        return RequestPermissionResponse(
+            outcome=AllowedOutcome(outcome="selected", option_id=self.decision)
+        )
+
+
+@pytest.mark.parametrize("decision", ["approve", "terminate"])
+@pytest.mark.parametrize("calls", [(ADD, SHOUT), ()])
+@skip_if_trio
+async def test_an_acp_turn_card_is_finished_once_the_person_answers(
+    monkeypatch: pytest.MonkeyPatch, decision: str, calls: tuple[ToolCall, ...]
+) -> None:
+    session = TuiSession(decision)
+    sample = MagicMock()
+    sample.acp_transport = session
+    monkeypatch.setattr(
+        "inspect_ai.agent._acp.server.acp_server_accepting_clients", lambda: True
+    )
+    monkeypatch.setattr("inspect_ai.log._samples.sample_active", lambda: sample)
+
+    answer = await _Host().ask_human(turn_step(*calls), ["approve", "terminate"])
+
+    assert answer.decision == decision
+    [card] = session.state.items
+    assert isinstance(card, ToolCallState)
+    assert card.tool_call_id not in {call.id for call in calls}
+    assert card.status == "completed"
+    assert session.state.tools_in_flight == 0
+    assert session.state.cancel_tool_call_ids == []
+    session.state.mark_complete()
+    assert card.status == "completed"
