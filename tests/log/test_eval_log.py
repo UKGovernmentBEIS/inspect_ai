@@ -13,7 +13,7 @@ from zipfile import ZipFile
 
 import anyio
 import pytest
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from pydantic_core import PydanticSerializationError
 from test_helpers.utils import skip_if_trio
 from typing_extensions import override
@@ -49,7 +49,7 @@ from inspect_ai.log._file import (
     write_eval_log,
 )
 from inspect_ai.log._log import EvalLog, EvalSample, EvalSpec
-from inspect_ai.model import ModelUsage, get_model
+from inspect_ai.model import ChatMessage, ModelUsage, get_model
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model import requested_model
 from inspect_ai.model._model_output import ModelOutput
@@ -70,6 +70,8 @@ from inspect_ai.solver import (
     generate,
     solver,
 )
+from inspect_ai.util import SandboxEnvironmentType
+from inspect_ai.util._checkpoint.config import CheckpointSampleConfig
 
 
 def log_path(file: str) -> str:
@@ -328,6 +330,34 @@ def test_can_round_trip_serialize_sample_init_event_with_none_state():
     deserialized = SampleInitEvent.model_validate_json(serialized)
 
     assert original == deserialized
+
+
+def test_sample_init_event_omits_description_for_older_readers():
+    original = SampleInitEvent(
+        sample=Sample(input="input", description="solve this"),
+        state=None,
+        timestamp=datetime.now(timezone.utc),
+    )
+
+    serialized = original.model_dump(mode="json", exclude_none=True)
+    legacy_sample = serialized["sample"]
+
+    class PreviousSampleReader(BaseModel):
+        model_config = ConfigDict(extra="forbid")
+
+        input: str
+        target: str | list[str]
+
+    assert "description" not in legacy_sample
+    PreviousSampleReader.model_validate(legacy_sample)
+    assert SampleInitEvent.model_validate(serialized).sample.description is None
+
+    schema = SampleInitEvent.model_json_schema(mode="serialization")
+    assert schema["$defs"]["Sample"]
+    assert schema["properties"]["sample"] == {"$ref": "#/$defs/Sample"}
+
+    # The omission is specific to the event; persisted eval samples retain it.
+    assert original.sample.model_dump(exclude_none=True)["description"] == "solve this"
 
 
 def test_can_round_trip_serialize_sandbox_event():
@@ -2570,3 +2600,107 @@ async def test_eval_recorder_seed_preserves_config_updates_and_discard(
     await recorder.log_discard(spec)
     assert not Path(location).exists()
     assert Path(local_path(prior)).exists()
+
+
+@pytest.mark.parametrize("log_format", ["eval", "json"])
+def test_log_task_and_sample_description(
+    tmp_path: Path, log_format: Literal["eval", "json"]
+) -> None:
+    from inspect_ai.log import read_eval_log_sample_summaries
+
+    task = Task(
+        dataset=[
+            Sample(id=1, input="x", description="Say x."),
+            Sample(id=2, input="y"),
+        ],
+        description="Say the input.",
+    )
+    log = eval(
+        task, model="mockllm/model", log_dir=str(tmp_path), log_format=log_format
+    )[0]
+
+    for read in [
+        read_eval_log(log.location),
+        read_eval_log(log.location, header_only=True),
+    ]:
+        assert read.eval.task_description == "Say the input."
+    samples = sorted(read_eval_log(log.location).samples or [], key=lambda s: s.id)
+    assert [s.description for s in samples] == ["Say x.", None]
+    summaries = sorted(read_eval_log_sample_summaries(log.location), key=lambda s: s.id)
+    assert [s.description for s in summaries] == ["Say x.", None]
+
+    # rewriting the log preserves both fields
+    rewritten = tmp_path / f"rewritten.{log_format}"
+    write_eval_log(read_eval_log(log.location), str(rewritten))
+    reread = read_eval_log(str(rewritten))
+    assert reread.eval.task_description == "Say the input."
+    assert reread.samples is not None
+    assert sorted(s.description or "" for s in reread.samples) == ["", "Say x."]
+
+
+@pytest.mark.parametrize("log_format", ["eval", "json"])
+def test_description_logs_are_readable_by_legacy_sample_constructor(
+    tmp_path: Path, log_format: Literal["eval", "json"]
+) -> None:
+    class LegacySample:
+        """The pre-description Sample constructor used by previous readers."""
+
+        def __init__(
+            self,
+            input: str | list[ChatMessage],
+            choices: list[str] | None = None,
+            target: str | list[str] = "",
+            id: int | str | None = None,
+            metadata: dict[str, Any] | None = None,
+            sandbox: SandboxEnvironmentType | None = None,
+            files: dict[str, str] | None = None,
+            setup: str | None = None,
+            checkpoint: CheckpointSampleConfig | None = None,
+        ) -> None:
+            self.input = input
+            self.choices = choices
+            self.target = target
+            self.id = id
+            self.metadata = metadata
+            self.sandbox = sandbox
+            self.files = files
+            self.setup = setup
+            self.checkpoint = checkpoint
+
+    from inspect_ai.log import read_eval_log_sample_summaries
+
+    task = Task(
+        dataset=[Sample(id=1, input="x", description="Say x.")],
+        description="Say the input.",
+    )
+    log = eval(
+        task, model="mockllm/model", log_dir=str(tmp_path), log_format=log_format
+    )[0]
+    full_log = read_eval_log(log.location)
+    sample_record = read_eval_log_sample(log.location, id=1)
+
+    assert full_log.eval.task_description == "Say the input."
+    assert full_log.samples is not None
+    assert full_log.samples[0].description == "Say x."
+    assert sample_record.description == "Say x."
+    assert read_eval_log_sample_summaries(log.location)[0].description == "Say x."
+
+    for record in [full_log.samples[0], sample_record]:
+        init_events = [
+            event for event in record.events if isinstance(event, SampleInitEvent)
+        ]
+        assert len(init_events) == 1
+        legacy_sample = LegacySample(
+            **init_events[0].sample.model_dump(exclude_none=True)
+        )
+        assert legacy_sample.input == "x"
+        assert "description" not in init_events[0].sample.model_dump(exclude_none=True)
+
+
+@pytest.mark.parametrize("log_file", ["log_formats.json", "log_formats.eval"])
+def test_log_without_description_reads(log_file: str) -> None:
+    log = read_eval_log(os.path.join("tests", "log", "test_eval_log", log_file))
+    assert log.eval.task_description is None
+    assert log.samples
+    assert all(sample.description is None for sample in log.samples)
+    assert all(sample.summary().description is None for sample in log.samples)

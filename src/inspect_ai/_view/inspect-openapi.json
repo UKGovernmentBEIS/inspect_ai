@@ -3544,6 +3544,17 @@
             ],
             "title": "Completed At"
           },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
           "epoch": {
             "title": "Epoch",
             "type": "integer"
@@ -4270,6 +4281,17 @@
               }
             ],
             "title": "Completed At"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
           },
           "epoch": {
             "title": "Epoch",
@@ -5225,6 +5247,17 @@
             "title": "Task Attribs",
             "type": "object"
           },
+          "task_description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Task Description"
+          },
           "task_display_name": {
             "anyOf": [
               {
@@ -6111,6 +6144,7 @@
                         "compaction",
                         "branch",
                         "approval",
+                        "sentinel",
                         "sandbox",
                         "info",
                         "store",
@@ -6984,6 +7018,7 @@
                         "compaction",
                         "branch",
                         "approval",
+                        "sentinel",
                         "sandbox",
                         "info",
                         "store",
@@ -8651,6 +8686,17 @@
             ],
             "title": "Choices"
           },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
           "files": {
             "anyOf": [
               {
@@ -10123,7 +10169,7 @@
             "anyOf": [
               {
                 "enum": [
-                  "continue",
+                  "proceed",
                   "modify",
                   "reject",
                   "terminate",

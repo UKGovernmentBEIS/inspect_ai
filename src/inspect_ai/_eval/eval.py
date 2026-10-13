@@ -147,7 +147,6 @@ def eval(
     display: DisplayType | None = None,
     approval: str | list[ApprovalPolicy] | ApprovalPolicyConfig | None = None,
     review: str | list[ReviewPolicy] | ReviewPolicyConfig | None = None,
-    sentinel: SentinelSpec | None = None,
     notification: bool | str | None = None,
     log_level: str | None = None,
     log_level_transcript: str | None = None,
@@ -189,6 +188,7 @@ def eval(
     eval_set_tasks: list[str] | None = None,
     scan_id: str | None = None,
     task_retry_attempts: int | None = None,
+    sentinel: SentinelSpec | None = None,
     **kwargs: Unpack[GenerateConfigArgs],
 ) -> list[EvalLog]:
     r"""Evaluate tasks using a Model.
@@ -244,9 +244,6 @@ def eval(
         review: Tool result review policies.
             Either a path to a review policy config file, a ReviewPolicyConfig, or a list of review policies.
             Defaults to no review policy.
-        sentinel: Monitors and protocols that watch the agent's steps (requires the `inspect_sentinel` package). Experimental: not yet a stable API; may change without notice.
-            A protocol, a list or mapping of monitors and protocols with at least one protocol, a config file path or registered protocol name, or a parsed configuration. Monitors alone are an error: wrap them in `observe_only()` to record without acting.
-            Overrides the task's sentinel. Defaults to no sentinel.
         notification: Enable out-of-band notifications when a human-in-the-loop
             interaction (`ask_user`, human approval) is posted. Pass `True` to
             send via the URL(s) in the `INSPECT_EVAL_NOTIFICATION` environment
@@ -329,6 +326,9 @@ def eval(
         eval_set_tasks: Names of every task in the eval set, so `task:id` sample selectors resolve the same way for a retried subset of tasks (this is passed from `eval_set()` and should not be specified directly).
         scan_id: Override the scan-dir identifier (defaults to `eval_set_id` or `run_id`). Set by `eval_retry` to reuse the original eval's scan dir.
         task_retry_attempts: Number of times to retry tasks (defaults to 0)
+        sentinel: Monitors and protocols that watch the agent's steps (requires the `inspect_sentinel` package). Experimental: not yet a stable API; may change without notice.
+            A protocol, a list or mapping of monitors and protocols with at least one protocol, a config file path or registered protocol name, or a parsed configuration. Monitors alone are an error: wrap them in `observe_only()` to record without acting.
+            Overrides the task's sentinel. Defaults to no sentinel.
         **kwargs: Model generation options.
 
     Returns:
@@ -453,7 +453,6 @@ async def eval_async(
     metadata: dict[str, Any] | None = None,
     approval: str | list[ApprovalPolicy] | ApprovalPolicyConfig | None = None,
     review: str | list[ReviewPolicy] | ReviewPolicyConfig | None = None,
-    sentinel: SentinelSpec | None = None,
     notification: bool | str | None = None,
     log_level: str | None = None,
     log_level_transcript: str | None = None,
@@ -495,6 +494,7 @@ async def eval_async(
     eval_set_tasks: list[str] | None = None,
     scan_id: str | None = None,
     task_retry_attempts: int | None = None,
+    sentinel: SentinelSpec | None = None,
     **kwargs: Unpack[GenerateConfigArgs],
 ) -> list[EvalLog]:
     r"""Evaluate tasks using a Model (async).
@@ -533,9 +533,6 @@ async def eval_async(
         review: Tool result review policies.
             Either a path to a review policy config file, a ReviewPolicyConfig, or a list of review policies.
             Defaults to no review policy.
-        sentinel: Monitors and protocols that watch the agent's steps (requires the `inspect_sentinel` package). Experimental: not yet a stable API; may change without notice.
-            A protocol, a list or mapping of monitors and protocols with at least one protocol, a config file path or registered protocol name, or a parsed configuration. Monitors alone are an error: wrap them in `observe_only()` to record without acting.
-            Overrides the task's sentinel. Defaults to no sentinel.
         notification: Enable out-of-band notifications when a human-in-the-loop
             interaction (`ask_user`, human approval) is posted. Pass `True` to
             send via the URL(s) in the `INSPECT_EVAL_NOTIFICATION` environment
@@ -605,6 +602,9 @@ async def eval_async(
         eval_set_tasks: Names of every task in the eval set, so `task:id` sample selectors resolve the same way for a retried subset of tasks (this is passed from `eval_set()` and should not be specified directly).
         scan_id: Override the scan-dir identifier (defaults to `eval_set_id` or `run_id`). Set by `eval_retry` to reuse the original eval's scan dir.
         task_retry_attempts: Number of times to retry tasks (defaults to 0)
+        sentinel: Monitors and protocols that watch the agent's steps (requires the `inspect_sentinel` package). Experimental: not yet a stable API; may change without notice.
+            A protocol, a list or mapping of monitors and protocols with at least one protocol, a config file path or registered protocol name, or a parsed configuration. Monitors alone are an error: wrap them in `observe_only()` to record without acting.
+            Overrides the task's sentinel. Defaults to no sentinel.
         **kwargs: Model generation options.
 
     Returns:

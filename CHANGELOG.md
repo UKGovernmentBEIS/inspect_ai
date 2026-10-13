@@ -1,5 +1,14 @@
-## Unreleased
+# Changelog
 
+## [0.3.279](https://github.com/UKGovernmentBEIS/inspect_ai/compare/0.3.278...0.3.279) (2026-10-12)
+
+### Bug Fixes
+
+* Internal improvements.
+
+## 0.3.278 (09 October 2026)
+
+- Tasks and samples can carry a `description` of what they ask of the agent, recorded in the eval log and in `evals_df()` and `samples_df()`.
 - Tool review now also reviews `handoff()` calls, as approval does.
 - Compaction: Fixed compaction triggering early and reporting inflated token counts on OpenAI reasoning models, which counted replayed reasoning twice.
 - Compaction: Removed `ModelAPI.apply_redacted_reasoning_tokens_to_input()` and stopped adding `redacted_reasoning_tokens` to assistant message metadata.
@@ -13,7 +22,6 @@
 - Bugfix: `inspect log convert --stream` (and `convert_eval_logs(stream=...)`) no longer drops the error message and traceback from logs of failed evals.
 - Fixed `StoreModel` skipping field validation when constructed with an empty `instance` string.
 - Fixed the human reviewer filling in tool arguments inside tool output that contains `{{{...}}}` (three or more braces).
-
 - Tools: Tools with `*args` or `**kwargs` no longer advertise required `args`/`kwargs` parameters to models; declare model-chosen arguments with an explicit `ToolParams` schema instead.
 - Control Channel: `inspect ctl model throughput` now reports each model's input, output and cache read/write tokens per minute, in the table and in `--json` output; the table's output column is now per minute instead of per second.
 - Bugfix: An approver's `modify` decision with no modified call now rejects the tool call instead of running the original, and the human approver no longer offers Modify.

@@ -1,3 +1,9 @@
+<!-- Title: a Conventional Commits type and the user-facing outcome, e.g.
+"fix: eval hang when resuming with S3 logs" or "feat(anthropic): ...". The
+title is the changelog line; don't edit CHANGELOG.md. For a breaking change,
+use "feat!:" and add a paragraph starting "BREAKING CHANGE:" to this
+description. See CONTRIBUTING.md. -->
+
 ### Problem or current behavior
 <!-- What does a user encounter or need? Link the relevant issue or give a reproduction when applicable. -->
 

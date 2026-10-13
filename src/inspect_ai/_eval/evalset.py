@@ -265,7 +265,6 @@ def eval_set(
     display: DisplayType | None = None,
     approval: str | list[ApprovalPolicy] | ApprovalPolicyConfig | None = None,
     review: str | list[ReviewPolicy] | ReviewPolicyConfig | None = None,
-    sentinel: SentinelSpec | None = None,
     notification: bool | str | None = None,
     score: bool = True,
     score_display: bool | None = None,
@@ -305,6 +304,7 @@ def eval_set(
     log_dir_allow_dirty: bool | None = None,
     eval_set_id: str | None = None,
     embed_viewer: bool = False,
+    sentinel: SentinelSpec | None = None,
     **kwargs: Unpack[GenerateConfigArgs],
 ) -> tuple[bool, list[EvalLog]]:
     r"""Evaluate a set of tasks.
@@ -388,9 +388,6 @@ def eval_set(
         review: Tool result review policies.
             Either a path to a review policy config file, a ReviewPolicyConfig, or a list of review policies.
             Defaults to no review policy.
-        sentinel: Monitors and protocols that watch the agent's steps (requires the `inspect_sentinel` package). Experimental: not yet a stable API; may change without notice.
-            A protocol, a list or mapping of monitors and protocols with at least one protocol, a config file path or registered protocol name, or a parsed configuration. Monitors alone are an error: wrap them in `observe_only()` to record without acting.
-            Overrides the task's sentinel. Defaults to no sentinel.
         notification: Enable out-of-band notifications when a human-in-the-loop
             interaction (`ask_user`, human approval) is posted. Pass `True` to
             send via the URL(s) in the `INSPECT_EVAL_NOTIFICATION` environment
@@ -471,6 +468,9 @@ def eval_set(
             for tasks in this eval set (defaults to False).
         eval_set_id: ID for the eval set. If not specified, a unique ID will be generated.
         embed_viewer: If True, embed a log viewer into the log directory.
+        sentinel: Monitors and protocols that watch the agent's steps (requires the `inspect_sentinel` package). Experimental: not yet a stable API; may change without notice.
+            A protocol, a list or mapping of monitors and protocols with at least one protocol, a config file path or registered protocol name, or a parsed configuration. Monitors alone are an error: wrap them in `observe_only()` to record without acting.
+            Overrides the task's sentinel. Defaults to no sentinel.
         **kwargs: Model generation options.
 
     Returns:
