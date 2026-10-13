@@ -151,6 +151,9 @@ PROVIDERS = pytest.mark.parametrize(
     ids=["anthropic", "openai"],
 )
 
+# statuses the SDKs retry themselves
+SDK_RETRIED = pytest.mark.parametrize("status", [429, 503])
+
 
 def _model(
     name: str,
@@ -252,12 +255,17 @@ async def test_each_attempt_keeps_only_its_own_headers(
 
 
 @PROVIDERS
+@SDK_RETRIED
 async def test_latest_response_of_an_attempt_wins(
-    attempts: list[tuple[str, ResponseHeaders]], name: str, base_url: str, reply: Reply
+    attempts: list[tuple[str, ResponseHeaders]],
+    name: str,
+    base_url: str,
+    reply: Reply,
+    status: int,
 ) -> None:
-    # the SDK retries the 503 itself, inside one attempt
+    # the SDK retries the failure itself, inside one attempt
     model = _model(
-        name, base_url, _failure(503, "first"), reply("second"), max_retries=1
+        name, base_url, _failure(status, "first"), reply("second"), max_retries=1
     )
 
     await model.generate("hello")
@@ -266,13 +274,18 @@ async def test_latest_response_of_an_attempt_wins(
 
 
 @PROVIDERS
+@SDK_RETRIED
 async def test_latest_response_is_kept_when_the_sdks_retry_gets_none(
-    attempts: list[tuple[str, ResponseHeaders]], name: str, base_url: str, reply: Reply
+    attempts: list[tuple[str, ResponseHeaders]],
+    name: str,
+    base_url: str,
+    reply: Reply,
+    status: int,
 ) -> None:
     model = _model(
         name,
         base_url,
-        _failure(503, "first"),
+        _failure(status, "first"),
         httpx2.ConnectError("no route"),
         max_retries=1,
     )
@@ -368,10 +381,12 @@ async def test_background_call_keeps_the_headers_of_the_poll_that_failed_it(
     assert [_served_by(headers) for _, headers in attempts] == ["poll"]
 
 
+@SDK_RETRIED
 async def test_background_call_keeps_the_headers_of_the_poll_an_sdk_retry_completed(
     attempts: list[tuple[str, ResponseHeaders]],
     no_polling_delay: None,
     monkeypatch: pytest.MonkeyPatch,
+    status: int,
 ) -> None:
     report_http_retry = MagicMock()
     monkeypatch.setattr(
@@ -379,7 +394,7 @@ async def test_background_call_keeps_the_headers_of_the_poll_an_sdk_retry_comple
     )
     model = _background_model(
         _openai_background("queued", "submit"),
-        _failure(503, "poll-1"),
+        _failure(status, "poll-1"),
         _openai_background("completed", "poll-2"),
         max_retries=1,
     )
@@ -392,17 +407,19 @@ async def test_background_call_keeps_the_headers_of_the_poll_an_sdk_retry_comple
     report_http_retry.assert_not_called()
 
 
+@SDK_RETRIED
 async def test_background_call_keeps_the_headers_of_a_poll_the_sdk_retried(
     attempts: list[tuple[str, ResponseHeaders]],
     no_polling_delay: None,
     monkeypatch: pytest.MonkeyPatch,
+    status: int,
 ) -> None:
     report_http_retry = MagicMock()
     monkeypatch.setattr(
         "inspect_ai.model._providers.util.hooks.report_http_retry", report_http_retry
     )
-    # the SDK retries the poll's 503 itself, and never gets another response
-    script = [_openai_background("queued", "submit"), _failure(503, "poll")]
+    # the SDK retries the poll's failure itself, and never gets another response
+    script = [_openai_background("queued", "submit"), _failure(status, "poll")]
 
     async def respond(request: httpx2.Request) -> httpx2.Response:
         await anyio.sleep(0)
@@ -427,3 +444,60 @@ async def test_background_call_keeps_the_headers_of_a_poll_the_sdk_retried(
     assert [_served_by(headers) for _, headers in attempts] == ["poll"]
     # a poll is not a retry, nor is the SDK's retry of one
     report_http_retry.assert_not_called()
+
+
+async def test_background_call_cancelled_in_the_sdks_backoff_keeps_the_polls_headers(
+    attempts: list[tuple[str, ResponseHeaders]], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    retry_after = 30
+    backing_off = anyio.Event()
+
+    async def sleep(delay: float) -> None:
+        # the SDK waits out the 429's Retry-After before it retries the poll
+        if delay == retry_after:
+            backing_off.set()
+            await anyio.sleep_forever()
+
+    monkeypatch.setattr(
+        "inspect_ai.model._providers.openai_responses.anyio.sleep", sleep
+    )
+    script = [
+        _openai_background("queued", "submit"),
+        httpx2.Response(
+            429,
+            headers={"X-Served-By": "poll", "Retry-After": str(retry_after)},
+            json={"error": {"type": "rate_limit_error", "message": "slow down"}},
+        ),
+        _openai_background("cancelled", "cancel"),
+    ]
+    asked: list[str] = []
+
+    async def respond(request: httpx2.Request) -> httpx2.Response:
+        asked.append(f"{request.method} {request.url.path}")
+        return script.pop(0)
+
+    model = get_model(
+        "openai/gpt-4o",
+        api_key="key",
+        base_url="https://example.com/v1",
+        http_client=httpx2.AsyncClient(transport=httpx2.MockTransport(respond)),
+        max_retries=1,
+        memoize=False,
+        responses_api=True,
+        background=True,
+    )
+
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(model.generate, "hello")
+        # fail, don't hang, if the SDK stops waiting the way this test expects
+        with anyio.fail_after(10):
+            await backing_off.wait()
+        tg.cancel_scope.cancel()
+
+    # the provider tells OpenAI to stop the work; that reply is not the call's
+    assert asked == [
+        "POST /v1/responses",
+        "GET /v1/responses/resp_test",
+        "POST /v1/responses/resp_test/cancel",
+    ]
+    assert [_served_by(headers) for _, headers in attempts] == ["poll"]
