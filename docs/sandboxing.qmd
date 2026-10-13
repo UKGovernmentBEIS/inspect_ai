@@ -379,7 +379,7 @@ Note that `-` suffix that provides the default value of 0.5gb. This is important
 
 ### Mounting host directories
 
-A malicious agent with write access to your host machine through a volume mount can change files outside the sandbox. Even if it is restricted to a single directory, it could rewrite `compose.yml` to give future samples or evaluations more privileges than you intended, or use a symlink to access files on the host you did not intend it to.
+A malicious agent with write access to your host machine through a volume mount can change files outside the sandbox. Even if it is restricted to a single directory, it could rewrite `compose.yml` to give future samples or evaluations more privileges than you intended, or redirect a later sample’s mount with a symlink, exposing host files you did not intend to share.
 
 For security, Inspect blocks volume mounts that give Docker sandboxes write access to files or directories on the host.
 
