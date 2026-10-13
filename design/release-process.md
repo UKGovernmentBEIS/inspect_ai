@@ -112,10 +112,12 @@ publisher. The `pypi` and `npm` environments must allow deployments from
 releases with breaking changes, so a minor or major release must be set
 explicitly. Merge a PR that adds `"release-as": "X.Y.0"` to the `"."` package
 in `.release-please-config.json`; the release PR then proposes that version.
-After it is released, merge a PR that removes `release-as`; otherwise every
-later release PR proposes the same version again. (Temporarily switching
-`versioning` back to `default` makes a minor release only if a breaking change
-has merged since the last release.)
+`release-as` sets the version but does not create a release: with no `fix`,
+`feat`, `perf` or `revert` merged since the last release, there is no release
+PR until one merges. After it is released, merge a PR that removes
+`release-as`; otherwise every later release PR proposes the same version again.
+(Temporarily switching `versioning` back to `default` makes a minor release
+only if a breaking change has merged since the last release.)
 
 ## Retries and recovery
 
