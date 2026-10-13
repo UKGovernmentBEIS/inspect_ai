@@ -432,12 +432,15 @@ hook in the model layer, used once by the bridge.
 ```python
 requested_model: str | None = Field(default=None)
 """Model name the client requested, for calls made through an agent bridge
-(`None` for direct calls). Differs from `model` when the bridge routed the
-request elsewhere: an alias, a resolver, a pin, or the default of serving
-an unrecognised name with the eval's model. For the Google dialect through
-the sandbox proxy this is the name as the proxy read it from the URL, which
-truncates an `inspect/`-prefixed name at its first slash."""
+(`None` for direct calls). Differs from `model` when the bridge served the
+request with a different model."""
 ```
+
+The docstring states only what the field holds. How a given route (an
+alias, a resolver, a pin, or the default of serving an unrecognised name
+with the eval's model) sets it belongs to the resolver, and the Google
+sandbox caveat below is a property of the proxy, documented in the Google
+dialect.
 
 `src/inspect_ai/model/_model.py`:
 
@@ -532,8 +535,12 @@ so that path records the name as the proxy delivered it. For bare Gemini ids,
 the only Google names a known scaffold sends (Gemini CLI's `gemini-2.5-pro`
 and its utility names), that is the full client name; for an
 `inspect/`-prefixed Google name sent through the sandbox the field holds the
-first segment. The field's docstring says so, and the proxy fix is listed
-under Not this design with the routing defect.
+first segment. A comment in `inspect_google_api_request_impl()`, where the
+dialect falls back from `requested_model` to the routing name, says so; the
+field's docstring stays dialect-neutral, since the caveat ends when the
+proxy is fixed, and the proxy source is not edited so that the change needs
+no sandbox tools release. The proxy fix is listed under Not this design
+with the routing defect.
 
 Because it is a typed field, the name is a first-class part of the log: in
 `.eval` files, through `read_eval_log()`, as a new
@@ -613,7 +620,11 @@ add `_google_api_requested_model(path)` and pass its result as
 `requested_model=` from `patched_async_request`.
 
 `src/inspect_ai/agent/_bridge/google_api.py` and `google_api_impl.py`: the
-keyword-only `requested_model` parameter, used for recording only.
+keyword-only `requested_model` parameter, used for recording only, with a
+comment at its fallback to the routing name: through the sandbox proxy that
+name is the URL segment truncated at the first slash
+(`_extract_model_from_google_path`), so an `inspect/`-prefixed name is
+recorded as its first segment.
 
 `src/inspect_ai/event/_model.py`: the `requested_model` field.
 
@@ -648,10 +659,10 @@ async with sandbox_agent_bridge(
     ...
 ```
 
-`CHANGELOG.md`, under `## Unreleased`: "Agent Bridge: `sandbox_agent_bridge()`
-now serves requests for model names it does not recognise with the eval's
-model instead of the provider the name implies, and records the requested
-name on the `ModelEvent`; map names to other models with `model_aliases`."
+PR title (the changelog line): "fix(bridge): `sandbox_agent_bridge()` serves
+unrecognised model names with the eval's model instead of the provider the
+name implies; map names with `model_aliases`". The description adds that the
+requested name is recorded on the `ModelEvent`.
 
 ## Alternatives considered
 
@@ -735,7 +746,8 @@ names to collapse onto *its* model, it pins `model=str(model)` as the ACP
 Gemini agent already does (`acp/_agents/gemini_cli/gemini_cli.py:70-76`).
 That is a one-line follow-up in inspect_swe, not a prerequisite. Anyone else
 who relied on a name reaching its own model aliases that name; the warning
-names each one. The CHANGELOG entry and the docs section carry the change.
+names each one. The changelog line (the PR title) and the docs section carry
+the change.
 
 **Model roles.** Unreachable by name from a sandbox by default. To expose
 one: `model_aliases={"grader": get_model(role="grader")}`.
@@ -971,8 +983,8 @@ an implementer can land in order:
 5. **Sandbox surface and Docker test.** `sandbox_agent_bridge()`
    docstrings (`sandbox/bridge.py`); the Docker test in
    `tests/tools/test_tools_bridge.py`.
-6. **Docs and CHANGELOG.** `docs/agent-bridge.qmd` Models section and the
-   alias example; the `## Unreleased` entry.
+6. **Docs and PR title.** `docs/agent-bridge.qmd` Models section and the
+   alias example; the PR title above is the changelog line.
 
 Follow-up outside this repo (not blocking): inspect_swe's ACP Claude Code
 and Codex agents pin `model=str(model)` when the agent's model may differ

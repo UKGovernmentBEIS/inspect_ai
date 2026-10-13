@@ -101,6 +101,53 @@ def test_max_score_empty_target_no_index_error():
     assert max_f1_score("hello", ["", "hello"]) == 1.0
 
 
+def test_max_score_blank_after_normalization_target():
+    # Targets made only of articles or punctuation normalize to the empty
+    # string and are skipped like empty targets: an answer that also
+    # normalizes to nothing must not score as a perfect match.
+    for target in ["a", "an", "the", "-"]:
+        assert max_exact_score("", [target]) == 0.0
+        assert max_f1_score("", [target]) == 0.0
+        assert max_exact_score("   ", [target]) == 0.0
+        assert max_f1_score("\n\t ", [target]) == 0.0
+        # A blank-normalizing target alongside a real one does not
+        # affect the real target's score.
+        assert max_exact_score("hello", [target, "hello"]) == 1.0
+        assert max_f1_score("hello", [target, "hello"]) == 1.0
+    # The controls named on the issue, verbatim.
+    assert max_exact_score("", ["a", "blue"]) == 0.0
+    assert max_f1_score("", ["a", "blue"]) == 0.0
+    assert max_f1_score("blue", ["a", "blue"]) == 1.0
+
+
+def test_max_f1_score_stop_words_only_target():
+    # A target whose every word is a configured stop word has no scorable
+    # content left after stop-word removal and is skipped like an empty
+    # target, even though it is non-empty before normalization.
+    assert max_f1_score("", ["Paris"], stop_words=["PARIS"]) == 0.0
+    # Targets with remaining content still score as before.
+    assert max_f1_score("", ["Paris", "Berlin"], stop_words=["PARIS"]) == 0.0
+    assert max_f1_score("Berlin", ["Paris", "Berlin"], stop_words=["PARIS"]) == 1.0
+
+
+@pytest.mark.anyio
+async def test_exact_blank_normalized_target_scores_incorrect():
+    scorer = exact()
+    state = simple_task_state(model_output="")
+    result = await scorer(state, Target(["a"]))
+
+    assert result.text == INCORRECT
+
+
+@pytest.mark.anyio
+async def test_f1_blank_normalized_target_scores_zero():
+    scorer = f1()
+    state = simple_task_state(model_output="")
+    result = await scorer(state, Target(["the"]))
+
+    assert result.text == "0.0"
+
+
 def test_f1_duplicate_tokens_pay_precision_cost():
     # SQuAD F1 is count-sensitive: repeating a target word must not score 1.0.
     assert max_f1_score("hello hello", ["hello"]) == 0.67

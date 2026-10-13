@@ -342,6 +342,48 @@ Live streaming runs can only check that the provider accepts the replayed
 turn, because LiteLLM keeps no raw streamed responses. The offline fakes check
 streamed replays exactly.
 
+### Gemini tool calls
+
+Probed 2026-10-01 with the fake Gemini upstream on LiteLLM 1.96.0 and
+`main-latest` (1.105), after a 64-sample run through a 1.96.0 proxy on a
+Gemini 3 codename spent 48% of its model turns on empty turns (reasoning
+only) and tool calls written as text (`call:default_api:bash{...}`), looping
+on the react agent's continue message until the message limit.
+
+**`MALFORMED_FUNCTION_CALL` is invisible to the client.** LiteLLM maps the
+finish reason to `stop` and never reads `finishMessage` (the attempted call).
+
+| | 1.96.0 | main-latest |
+|---|---|---|
+| Candidate with thought parts, not streamed | `stop`, `reasoning_content`, `thought_signatures`, no text, no tool calls | same, plus `choices[0].provider_specific_fields.native_finish_reason` |
+| Candidate without content, not streamed | **no choices** | `stop` with `native_finish_reason` |
+| Streamed, either way | `stop`, reasoning deltas, nothing else | same (chunks carry no `native_finish_reason`) |
+
+Usage shows what happened: `completion_tokens == reasoning_tokens`,
+`text_tokens: 0`. The provider therefore recognizes the turn by its shape
+(and by `native_finish_reason` when present) and runs the native provider's
+retry: a model-role acknowledgement, a user-role request for function call
+JSON, `tool_choice` forced to `any` when it was `auto`, three attempts in
+total, then words in the model's mouth. The function-calling hint goes in the
+system prompt. Both are in `_litellm_proxy_gemini.py`, with the texts shared
+with `google.py` through `_gemini_function_calling.py`.
+
+**The id-embedded signature is lost unless the alias says "gemini".** LiteLLM
+embeds each tool call's thought signature in its id
+(`call_x__thought__<sig>`). Before the request reaches the Gemini converter, a
+pre-call hook strips that suffix for "non-Gemini" targets, and it decides from
+the *proxy alias* (e.g. `google/boston`), not the deployment's model. The
+converter then injects `skip_thought_signature_validator`, which Google
+documents as a last resort that degrades the model. The per-call
+`tool_calls[].provider_specific_fields.thought_signature` is never stripped,
+so the provider sets it from the id on every replayed tool call. Same result
+on both versions; with an alias such as `gemini-probe` the id alone works.
+
+**Not the cause:** the 56-character signature Gemini returns on tool calls
+made without thinking (it wraps a constant UUID) was suspected of triggering
+the empty turns; across 1,795 tool-call turns, the turn after such a call was
+bad 9% of the time versus 41% after a call with a full signature.
+
 ### Working around LiteLLM behavior
 
 Users run many LiteLLM versions, and LiteLLM fixes bugs over time. Handling of
@@ -906,9 +948,9 @@ Each phase ends with review and approval before the next starts.
    text-less tool call turns, the prefill error, default streaming, the
    environment variable fallbacks, the gate's `base_model` suggestion, and
    the virtual key check.
-7. **Docs, CHANGELOG, live tests.** Provider docs (including `base_model`
-   guidance for opaque deployments), the CHANGELOG entry, and adding the
-   provider to the `slow-tests` skill.
+7. **Docs, PR title, live tests.** Provider docs (including `base_model`
+   guidance for opaque deployments), the PR title (the changelog line), and
+   adding the provider to the `slow-tests` skill.
 
    **PR description:** list the LiteLLM issues filed from this work, with
    links, and the behavior each one causes (strict xfail, or covered by the

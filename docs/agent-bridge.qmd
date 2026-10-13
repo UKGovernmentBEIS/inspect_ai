@@ -195,6 +195,8 @@ The bridge handles:
 - Writing an MCP server script to the sandbox that forwards tool calls to the host
 - Returning `MCPServerConfigStdio` configs that CLI agents can use to connect
 
+Bridged tool results are truncated in the same way as other tool results: at the tool's own `max_output` if it declares one, otherwise at `max_tool_output` from the generate config (16KB by default). Results returned as content (e.g. `list[ContentText]`) are not truncated, as for other tools.
+
 ### Execution Contract {#bridged-tools-execution}
 
 Bridged tools execute only for calls the model proposed in a bridged generation, once per proposal. Each tool call in a model response handed to the agent grants one execution of exactly that tool with exactly those arguments (as approved, or as modified by an [approval policy](#tool-approval)); a `tools/call` request with no matching grant is denied and the error is returned to the agent, which surfaces it to the model. This holds whether or not an approval policy is active. Tool discovery (`tools/list`) is unaffected.
@@ -214,21 +216,51 @@ BridgedToolsSpec(
 )
 ```
 
+Some agents call MCP tools from code the model writes instead of offering each tool to the model. Codex CLI does this for models its catalog marks `code_mode_only` (most current GPT models): the model writes JavaScript for an `exec` tool, and the script calls `tools.mcp__<server>__<tool>(...)`. The model's only proposal is the `exec` call, so the bridge has nothing to match those calls against and denies all of them. Such an agent needs `require_proposal=False` on every bridged server it uses. The bridge cannot tell these calls from any other unproposed call: it neither detects code mode nor fails the sample, and logs the opt-out guidance once per server and tool per process. With the opt-out, approval policies review the `exec` call that carries the script, not the host tool calls made from it.
+
 ### Matching a Proposal {#bridged-tools-matching}
 
-Agents rename MCP tools to their models under their own schemes (Claude Code declares `mcp__<server>__<tool>`, Codex CLI the bare name inside a Responses API namespace, Gemini CLI `mcp_<server>_<tool>`, OpenCode `<server>_<tool>`, some cut or hash long names), so the bridge does not match a proposed call by name. It matches the call's declaration in the agent's request to a bridged tool by the description the bridge itself served in `tools/list`. A declaration whose description matches no bridged tool denotes nothing and the call is denied. Tools an agent discovers through the Responses API's `tool_search` (declared to the model inside a `tool_search_output` item rather than the request's tool list) count as declarations too. Two or more bridged tools the served content cannot tell apart are each granted by a proposal for any of them: one proposal then authorizes one execution of each, still bound to the proposed arguments. An empty description is matched like any other, so an undocumented bridged tool is indistinguishable from every other undocumented tool. The bridge warns at setup, naming the tools that share a description (an empty one included); give bridged tools distinct docstrings to keep matching one-to-one. The supported agents forward the served description to their models unchanged. An agent that truncates long descriptions is tolerated: a declaration that agrees with a served description for at least 64 characters and adds at most a short trailing marker identifies that tool. An exact description match wins even when that description is a prefix of another bridged tool's; a truncated declaration that could refer to both grants both. An agent that rewrote the leading text would be denied on every call. An agent-local tool declared with a bridged tool's exact description is indistinguishable from it and would grant it.
+Agents rename MCP tools to their models under their own schemes (Claude Code declares `mcp__<server>__<tool>`, Codex CLI the bare name inside a Responses API namespace (outside code mode; see above), Gemini CLI `mcp_<server>_<tool>`, OpenCode `<server>_<tool>`, some cut or hash long names), so the bridge does not match a proposed call by name. It matches the call's declaration in the agent's request to a bridged tool by the description the bridge itself served in `tools/list`. A declaration whose description matches no bridged tool denotes nothing and the call is denied. Tools an agent discovers through the Responses API's `tool_search` (declared to the model inside a `tool_search_output` item rather than the request's tool list) count as declarations too. Two or more bridged tools the served content cannot tell apart are each granted by a proposal for any of them: one proposal then authorizes one execution of each, still bound to the proposed arguments. An empty description is matched like any other, so an undocumented bridged tool is indistinguishable from every other undocumented tool. The bridge warns at setup, naming the tools that share a description (an empty one included); give bridged tools distinct docstrings to keep matching one-to-one. The supported agents forward the served description to their models unchanged. An agent that truncates long descriptions is tolerated: a declaration that agrees with a served description for at least 64 characters and adds at most a short trailing marker identifies that tool. An exact description match wins even when that description is a prefix of another bridged tool's; a truncated declaration that could refer to both grants both. An agent that rewrote the leading text would be denied on every call. An agent-local tool declared with a bridged tool's exact description is indistinguishable from it and would grant it.
 
 One other shape is recognized: an agent that exposes every MCP tool through a single dispatcher function, Antigravity's `call_mcp_tool`, whose arguments carry string `ServerName` and `ToolName` values naming a bridged tool and an object `Arguments`. Such a call denotes that tool with those nested arguments. The dispatcher is recognized by that function name together with the argument shape, so an ordinary tool call cannot denote a bridged tool by naming it in its arguments; a dispatcher with another name or other parameter names is not supported and its calls are denied.
 
 ## Models
 
-As demonstrated above, communication with Inspect models is done by using the OpenAI API with `model="inspect"`. You can use the same technique to interface with other Inspect models. To do this, preface the model name with "inspect" followed by the rest of the fully qualified model name.
+As demonstrated above, an agent reaches the eval's model by naming the model `"inspect"`.
 
-For example, in a LangChain agent, you would do this to utilise the Inspect interface to Gemini:
+With the in-process `agent_bridge()`, you can reach other Inspect models by prefacing the fully qualified model name with `inspect/`. For example, in a LangChain agent, you would do this to use the Inspect interface to Gemini:
 
 ``` python
 model = ChatOpenAI(model="inspect/google/gemini-1.5-pro")
 ```
+
+The `sandbox_agent_bridge()` serves only models the eval chose. A request is routed as follows:
+
+1.  A name in `model_aliases` goes to the model it maps to.
+2.  A name the `model_resolver` returns a model for goes to that model.
+3.  `"inspect"`, and the eval's own model name (e.g. `claude-sonnet-4-5` for an eval on `anthropic/claude-sonnet-4-5`), go to the eval's model.
+4.  Any other name, including `inspect/<model>` names and model role names, also goes to the eval's model. The bridge logs a warning once for each such name, and the `requested_model` field of the model event in the transcript records the name the agent sent.
+
+Pass `model` to send unmatched names (and the eval's own model name) to another model instead, e.g. `model="inspect/openai/gpt-4o"`.
+
+Agents often call more than one model: Claude Code, for example, makes background calls to a smaller model. These calls are served by the eval's model unless you map the names. To send a name to another model, add it to `model_aliases`. Keys are the exact names the agent sends, as shown in the warning. To send a sub-agent tier to a model role you define for it, map the name to `get_model(role=...)`:
+
+``` python
+from inspect_ai.model import get_model
+
+async with sandbox_agent_bridge(
+    state,
+    model_aliases={
+        "claude-haiku-4-5": get_model("anthropic/claude-haiku-4-5"),
+        "subagent": get_model(role="subagent"),
+    },
+) as bridge:
+    ...
+```
+
+Every alias key is a model the agent can call, so do not alias a role the agent should not reach, such as a grader or monitor.
+
+Names for the eval's own model need no alias. They already get the eval's model with its generation config, which an alias to a model name string would not.
 
 ## Generation Config
 
@@ -246,6 +278,30 @@ async with agent_bridge(state, forward_generation_config=True) as bridge:
 ```
 
 This option is available on both `agent_bridge()` and `sandbox_agent_bridge()`.
+
+## Request Settings
+
+Some request fields and tool options change billing, storage at the model provider, how much of the conversation the provider keeps, or what provider tools may do. On both `agent_bridge()` and `sandbox_agent_bridge()` the eval's configuration decides these, not the agent:
+
+-   `service_tier`, `store` and `truncation` (OpenAI Responses) and `service_tier` (Anthropic) are not forwarded. Set them with the provider's model args (for OpenAI, `-M service_tier=flex` or `-M responses_store=true`) or with `GenerateConfig(extra_body=...)`. If the agent asks for a different value, a warning is logged once per field.
+
+-   A Responses request with `previous_response_id` is refused with a 400 error (raised as a `BridgePolicyError` from the client call for `agent_bridge()`). The bridge keeps no stored responses, so the agent must send the whole conversation in `input`.
+
+-   `metadata`, `safety_identifier`, `prompt_cache_key`, `prompt_cache_retention` and `max_tool_calls` are forwarded.
+
+-   Options the agent sets on a provider tool it declares do not replace the bridge's `web_search` and `code_execution` options. This covers the code interpreter's `container` (OpenAI), and web search filters and allowed or blocked domains (OpenAI and Anthropic). For anything that differs, a warning is logged once per tool.
+
+-   The agent may set a web search `user_location` (OpenAI and Anthropic) or `search_context_size` (OpenAI) that the bridge's `web_search` options leave unset. These shape the results but do not widen what can be searched. `search_context_size` can change cost, because OpenAI bills search content tokens; to control that cost, set it in the bridge's `web_search` option. When the eval sets one, the eval's value is used.
+
+-   The agent may choose the Anthropic web search tool version (its `type`, such as `web_search_20250305`) when the bridge's `web_search` options set none. A version Inspect does not support is dropped and Inspect picks one.
+
+-   The agent may also ask for less: a lower Anthropic `max_uses`, or OpenAI `external_web_access: false`, is applied.
+
+-   An OpenAI computer tool needs storage at the provider. If the eval turns storage off (`-M responses_store=false` or `store: False` in `GenerateConfig(extra_body=...)`), a request that declares the computer tool is refused with a 400 error. When the eval does not set storage, Inspect turns it on for these requests, as it does for any OpenAI computer tool.
+
+OpenAI Chat Completions and Google requests forward none of these fields, and Google tool declarations carry no options into the request.
+
+HTTP headers an agent sends to the sandbox bridge's proxy are not forwarded; only the request body reaches the model provider. The in-process `agent_bridge()` forwards the agent's headers other than credentials and SDK-managed ones.
 
 ## Tool Approval
 

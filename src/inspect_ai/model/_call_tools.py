@@ -42,6 +42,8 @@ from pydantic import BaseModel
 from pydantic_core import to_jsonable_python
 from typing_extensions import is_typeddict
 
+from inspect_ai._sentinel._context import SentinelFailure, active_sentinel
+from inspect_ai._sentinel._scope import AgentScope, sentinel_scope
 from inspect_ai._util.content import (
     Content,
     ContentAudio,
@@ -225,6 +227,16 @@ def tool_call_error(ex: Exception, function: str) -> MappedToolCallError | None:
         return None
 
 
+def _sentinel_exception(ex: SentinelFailure) -> Exception:
+    # A limit keeps its meaning. Any other sentinel error must fail the sample
+    # rather than become a tool error the model sees, so it stays wrapped through
+    # enclosing agents' tool calls until the sample unwraps it.
+    inner = inner_exception(ex.error)
+    if isinstance(inner, (LimitExceededError, TerminateSampleError)):
+        return inner
+    return ex
+
+
 async def execute_tools(
     messages: list[ChatMessage],
     tools: Sequence[Tool | ToolDef | ToolSource] | ToolSource,
@@ -338,6 +350,8 @@ async def _execute_tools_impl(
                     inner_ex = inner_exception(ex)
                     raise inner_ex.with_traceback(inner_ex.__traceback__)
 
+            except SentinelFailure as ex:
+                tool_exception = _sentinel_exception(ex)
             except Exception as ex:
                 mapped = tool_call_error(ex, call.function)
                 if mapped is not None:
@@ -354,36 +368,19 @@ async def _execute_tools_impl(
             # massage result, leave list[Content] alone, convert all other
             # types to string as that is what the model APIs accept
             truncated: tuple[int, int] | None = None
-            if isinstance(
-                result,
-                ContentText
-                | ContentImage
-                | ContentAudio
-                | ContentVideo
-                | ContentDocument,
-            ):
-                content: (
-                    str
-                    | list[
-                        ContentText
-                        | ContentImage
-                        | ContentAudio
-                        | ContentVideo
-                        | ContentDocument
-                    ]
-                ) = [result]
-            elif isinstance(result, list) and all(
-                isinstance(
-                    r,
+            content: (
+                str
+                | list[
                     ContentText
                     | ContentImage
                     | ContentAudio
                     | ContentVideo
-                    | ContentDocument,
-                )
-                for r in result
-            ):
-                content = result
+                    | ContentDocument
+                ]
+            )
+            result_content = tool_result_content_list(result)
+            if result_content is not None:
+                content = result_content
             else:
                 content = str(result)
 
@@ -400,14 +397,15 @@ async def _execute_tools_impl(
                         truncated_output.truncated_bytes,
                     )
 
-            # create event
+            # create event (`call_tool` records an approver's modified arguments
+            # on `event`)
             result_event = ToolEvent(
                 id=call.id,
                 function=call.function,
-                arguments=call.arguments,
+                arguments=event.arguments,
                 result=content,
                 truncated=truncated,
-                view=call.view,
+                view=event.view,
                 error=tool_error,
                 agent=agent,
                 agent_span_id=agent_span_id,
@@ -438,6 +436,8 @@ async def _execute_tools_impl(
                 except anyio.get_cancelled_exc_class():
                     on_review_cancelled(execution_result, result_event)
                     raise
+                except SentinelFailure as ex:
+                    tool_exception = _sentinel_exception(ex)
                 except Exception as ex:
                     tool_exception = ex
 
@@ -687,10 +687,10 @@ async def _execute_tools_impl(
                     op_result_event = ToolEvent(
                         id=call.id,
                         function=call.function,
-                        arguments=call.arguments,
+                        arguments=event.arguments,
                         result=tool_result_content(op_tool_message.content),
                         truncated=None,
-                        view=call.view,
+                        view=event.view,
                         error=op_tool_message.error,
                     )
                     results[idx] = (
@@ -774,10 +774,10 @@ async def _execute_tools_impl(
                     cancellation_event = ToolEvent(
                         id=call.id,
                         function=call.function,
-                        arguments=call.arguments,
+                        arguments=event.arguments,
                         result=tool_result_content(tool_message.content),
                         truncated=None,
-                        view=call.view,
+                        view=event.view,
                         error=tool_message.error,
                     )
                     transcript().info(
@@ -883,6 +883,17 @@ async def call_tool(
         await record_pending_tool_event()
         return ToolParsingError(error)
 
+    async def revalidated_tool_call(
+        selected: ToolCall, tool_def: ToolDef
+    ) -> ValidatedToolCall:
+        try:
+            return modified_tool_call(selected, tool_def)
+        except ToolParsingError as ex:
+            raise await record_tool_parsing_error(ex.message)
+        except ToolApprovalError:
+            await record_pending_tool_event()
+            raise
+
     # if there was an error parsing the ToolCall, raise that
     if call.parse_error:
         raise await record_tool_parsing_error(call.parse_error)
@@ -907,7 +918,10 @@ async def call_tool(
         raise await record_tool_parsing_error(ex.message)
 
     # if we have a tool approver, apply it now
-    from inspect_ai.approval._apply import apply_tool_approval
+    from inspect_ai.approval._apply import (
+        apply_tool_approval,
+        modified_function_error,
+    )
 
     approved, approval = await apply_tool_approval(
         message, call, tool_def.viewer, conversation
@@ -920,13 +934,34 @@ async def call_tool(
         else:
             raise ToolApprovalError(approval.explanation if approval else None)
     if approval and approval.modified:
+        error = modified_function_error(call, approval.modified)
+        if error is not None:
+            await record_pending_tool_event()
+            raise RuntimeError(error)
+        # record the arguments that run: the model's proposal stays in the
+        # ModelEvent and the ApprovalEvent
+        call, arguments = await revalidated_tool_call(approval.modified, tool_def)
+        event.arguments = call.arguments
+        event.view = tool_call_view(call, tools)
+
+    if active_sentinel() is not None:
+        from inspect_ai._sentinel._dispatch import (
+            apply_sentinel_decision,
+            sentinel_before_tool_call,
+        )
+
         try:
-            call, arguments = modified_tool_call(approval.modified, tool_def)
-        except ToolParsingError as ex:
-            raise await record_tool_parsing_error(ex.message)
-        except ToolApprovalError:
+            decision = await sentinel_before_tool_call(
+                message, call, tool_def.viewer, conversation
+            )
+            modified = apply_sentinel_decision(decision, call)
+        except (SentinelFailure, ToolApprovalError, TerminateSampleError):
             await record_pending_tool_event()
             raise
+        if modified is not call:
+            call, arguments = await revalidated_tool_call(modified, tool_def)
+            event.arguments = call.arguments
+            event.view = tool_call_view(call, tools)
 
     # call the tool
     with trace_action(
@@ -936,6 +971,8 @@ async def call_tool(
             async with span(tool_def.tool.name, type="handoff"):
                 async with span(name=call.function, type="tool"):
                     transcript()._event(event)
+                    if on_execute is not None:
+                        on_execute(call)
                     handoff_result = await agent_handoff(
                         tool_def, call, arguments, conversation
                     )
@@ -947,7 +984,8 @@ async def call_tool(
                 transcript()._event(event)
                 if on_execute is not None:
                     on_execute(call)
-                result: ToolResult = await tool_def.tool(**arguments)
+                with sentinel_scope(AgentScope.OFF):
+                    result: ToolResult = await tool_def.tool(**arguments)
                 agent_span_id = getattr(tool_def.tool, "agent_span_id", None)
                 return CalledTool(result, [], None, None, agent_span_id)
 
@@ -960,23 +998,18 @@ async def _apply_tool_review(
     output: ToolResult,
     conversation: list[ChatMessage],
 ) -> None:
-    """Give the active review policies the executed call's result.
+    """Give the active review policies and sentinel the executed call's result.
 
     Only calls that actually ran are reviewed (the caller checks this): a call
     rejected at the call stage or failed by argument parsing produced no result,
-    and the error the model receives is its feedback. Handoffs are not reviewed
-    either: their "result" is a transfer notice, and the sub-agent's own tool
-    calls are reviewed individually as they execute.
+    and the error the model receives is its feedback.
 
     Raises:
-        TerminateSampleError: A reviewer requested termination.
+        TerminateSampleError: A reviewer or the sentinel requested termination.
     """
-    from inspect_ai.agent._handoff import AgentTool
     from inspect_ai.review._apply import apply_tool_review
 
     tool_def = next((tool for tool in tools if tool.name == call.function), None)
-    if tool_def is not None and isinstance(tool_def.tool, AgentTool):
-        return
     review = await apply_tool_review(
         message,
         call,
@@ -987,6 +1020,18 @@ async def _apply_tool_review(
     )
     if review is not None and review.decision == "terminate":
         raise TerminateSampleError("Tool result reviewer requested termination.")
+
+    if active_sentinel() is not None:
+        from inspect_ai._sentinel._dispatch import sentinel_after_tool_call
+
+        await sentinel_after_tool_call(
+            message,
+            call,
+            result,
+            output,
+            tool_def.viewer if tool_def else None,
+            conversation,
+        )
 
 
 async def agent_handoff(
@@ -1292,20 +1337,22 @@ def tool_params(input: dict[str, Any], func: Callable[..., Any]) -> dict[str, An
 
     # build params
     params: dict[str, Any] = {}
+    named_params: set[str] = set()
+    var_keyword: inspect.Parameter | None = None
     for param_name, param in signature.parameters.items():
-        # Parse docstring
-        docstring_info = parse_docstring(docstring, param_name)
+        # *args can't be passed by name, so tool arguments never fill it
+        if param.kind == inspect.Parameter.VAR_POSITIONAL:
+            continue
+
+        # **kwargs receives the arguments that no named parameter takes
+        if param.kind == inspect.Parameter.VAR_KEYWORD:
+            var_keyword = param
+            continue
+
+        named_params.add(param_name)
 
         # get type hint (fallback to docstring as required)
-        type_hint: Type[Any] | None = None
-        if param_name in type_hints:
-            type_hint = type_hints[param_name]
-        # as a fallback try to parse it from the docstring
-        elif "docstring_type" in docstring_info:
-            docstring_type = docstring_info["docstring_type"]
-            import builtins
-
-            type_hint = getattr(builtins, docstring_type, None)
+        type_hint = param_type_hint(param_name, type_hints, docstring)
 
         # error if there is no type_hint
         if type_hint is None:
@@ -1323,7 +1370,41 @@ def tool_params(input: dict[str, Any], func: Callable[..., Any]) -> dict[str, An
                 f"Required parameter {param_name} not provided to tool call."
             )
 
+    # pass the remaining arguments (e.g. ones declared by an explicit tool
+    # schema) through to **kwargs, converted using its annotation or
+    # docstring type if present
+    if var_keyword is not None:
+        kwargs_type: Any = (
+            param_type_hint(var_keyword.name, type_hints, docstring) or Any
+        )
+        for name, value in input.items():
+            if name not in named_params:
+                params[name] = tool_param(kwargs_type, value)
+
     return params
+
+
+def param_type_hint(
+    param_name: str, type_hints: dict[str, Type[Any]], docstring: str | None
+) -> Type[Any] | None:
+    # prefer the annotation
+    if param_name in type_hints:
+        return type_hints[param_name]
+
+    # as a fallback try to parse it from the docstring (a documented type
+    # that can't be resolved is an error rather than missing type info)
+    docstring_info = parse_docstring(docstring, param_name)
+    if "docstring_type" in docstring_info:
+        import builtins
+
+        type_hint: Type[Any] | None = getattr(
+            builtins, docstring_info["docstring_type"], None
+        )
+        if type_hint is None:
+            raise ValueError(f"No type annotation available for parameter {param_name}")
+        return type_hint
+
+    return None
 
 
 class ValidatedToolCall(NamedTuple):
@@ -1395,7 +1476,7 @@ def modified_tool_call(selected: ToolCall, tool_def: ToolDef) -> ValidatedToolCa
         shown = modified.call.arguments.get(name)
         if not json_equal(value, to_jsonable_python(shown, fallback=str)):
             raise ToolApprovalError(
-                f"The approver's modified value for '{name}' changes when it is "
+                f"The modified value for '{name}' changes when it is "
                 "converted for the tool, so the call was not run."
             )
     return modified
@@ -1637,6 +1718,34 @@ def validate_tool_input(input: dict[str, Any], parameters: ToolParams) -> str | 
             + [f"- {error.message}" for error in errors]
         )
         return message
+    else:
+        return None
+
+
+def tool_result_content_list(
+    result: ToolResult,
+) -> (
+    list[ContentText | ContentImage | ContentAudio | ContentVideo | ContentDocument]
+    | None
+):
+    """Content a tool result is passed to the model as, if any.
+
+    Returns `None` for any other result, which is converted to a string and
+    truncated to the tool's output limit (`truncate_tool_output()`).
+    """
+    if isinstance(
+        result,
+        ContentText | ContentImage | ContentAudio | ContentVideo | ContentDocument,
+    ):
+        return [result]
+    elif isinstance(result, list) and all(
+        isinstance(
+            r,
+            ContentText | ContentImage | ContentAudio | ContentVideo | ContentDocument,
+        )
+        for r in result
+    ):
+        return result
     else:
         return None
 

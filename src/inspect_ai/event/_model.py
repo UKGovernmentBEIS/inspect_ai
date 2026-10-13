@@ -7,7 +7,7 @@ from pydantic import Field, PrivateAttr, field_serializer
 from inspect_ai._util.dateutil import UtcDatetime, datetime_to_iso_format_safe
 from inspect_ai.model._chat_message import ChatMessage
 from inspect_ai.model._generate_config import GenerateConfig
-from inspect_ai.model._model_call import ModelCall
+from inspect_ai.model._model_call import ModelCall, ModelRequestId
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.tool._tool_choice import ToolChoice
 from inspect_ai.tool._tool_info import ToolInfo
@@ -94,6 +94,11 @@ class ModelEvent(BaseEvent):
     role: str | None = Field(default=None)
     """Model role."""
 
+    requested_model: str | None = Field(default=None)
+    """Model name the client requested, for calls made through an agent bridge
+    (`None` for direct calls). Differs from `model` when the bridge served the
+    request with a different model."""
+
     input: list[ChatMessage]
     """Model input (list of messages)."""
 
@@ -114,6 +119,9 @@ class ModelEvent(BaseEvent):
 
     retries: int | None = Field(default=None)
     """Retries for the model API request."""
+
+    request_ids: list[ModelRequestId] | None = Field(default=None)
+    """Provider request ids from the responses to this call's requests (including retries)."""
 
     error: str | None = Field(default=None)
     """Error which occurred during model call."""

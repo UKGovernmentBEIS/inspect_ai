@@ -564,6 +564,7 @@ def _fake_grok_response() -> Any:
     from xai_sdk.chat import Response, chat_pb2
 
     proto = chat_pb2.GetChatCompletionResponse(
+        id="grok-response",
         outputs=[
             chat_pb2.CompletionOutput(
                 index=0,
@@ -572,7 +573,7 @@ def _fake_grok_response() -> Any:
                     role=chat_pb2.MessageRole.ROLE_ASSISTANT, content="hello"
                 ),
             )
-        ]
+        ],
     )
     proto.usage.prompt_tokens = 100
     proto.usage.cached_prompt_text_tokens = 80
@@ -1050,3 +1051,18 @@ async def test_grok_unary_call_attempt_timeout_is_retryable(
             )
         assert isinstance(excinfo.value.last_attempt.exception(), AttemptTimeoutError)
         _assert_client_closed(clients)
+
+
+@skip_if_trio
+async def test_grok_output_records_response_id(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from inspect_ai.model._providers.grok import GrokAPI
+
+    _stub_grok_client(monkeypatch)
+    _stub_active_sample(monkeypatch, None)
+
+    api = GrokAPI(model_name="grok-4.6", api_key="test-key")
+    output, _ = await _generate_once(api)
+
+    assert output.response_id == "grok-response"

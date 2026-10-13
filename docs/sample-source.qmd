@@ -3,14 +3,6 @@ title: Sample Sources
 llms-description: Generate a task's samples dynamically from code — a seed plus result-driven follow-ups — while the task runs.
 ---
 
-::: {.callout-note appearance="simple"}
-Sample sources require the development version of Inspect, which you can install from GitHub:
-
-```bash
-pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-```
-:::
-
 ## Overview
 
 The `dataset` argument to `Task` is normally static: you pass a `Dataset` (or list of samples) and the task runs exactly those. A `SampleSource` generates samples dynamically instead — a seed plus follow-ups that depend on results — all within one task and one log.
@@ -130,12 +122,37 @@ def spawn_followup():
 
 Enqueued samples share a buffer with samples returned from `sample_complete`. `enqueue_sample()` is only available inside a task driven by a `SampleSource` (a plain task's sample set is fixed) and raises otherwise.
 
+### Running a sample again as a new epoch
+
+Pass `epoch` to `enqueue_sample()` to run a sample once, as that epoch, rather than for the task's configured epochs. This lets a source run the same sample repeatedly under its own id:
+
+```python
+class Rollouts(SampleSource):
+    """Runs `groups` groups of `group_size` concurrent runs of one sample."""
+
+    def __init__(self, sample: Sample, group_size: int, groups: int) -> None:
+        self.sample = sample  # has an id: every run is logged under it
+        self.group_size = group_size
+        self.groups = groups
+        self.group = 0
+
+    async def next_samples(self) -> list[Sample] | None:
+        if self.group == self.groups:
+            return None
+        for run in range(self.group_size):
+            enqueue_sample(self.sample, epoch=self.group * self.group_size + run + 1)
+        self.group += 1
+        return []
+```
+
+Each run keeps the sample's id (`state.sample_id`) and is told apart by `state.epoch`. Each `(id, epoch)` may be added once: a sample added without `epoch` (or in the seed) takes epochs `1` to the task's `epochs`. `--limit` counts samples, not runs, so further epochs of an admitted id don't count against it (see [Limits and sample filtering](#limits-and-sample-filtering)).
+
 If samples contain media, paths and URLs in `initial_samples()` are trusted task
 input and are materialized before execution. Media added later by
-`next_samples()`, `sample_complete()`, or `enqueue_sample()` must already be an
-inline data URL. Trusted source code can explicitly opt into filesystem or
-network access with `await materialize_media(reference)` before adding the
-sample; see [Multimodal](multimodal.qmd) for the authority and MIME rules.
+`next_samples()`, `sample_complete()`, or `enqueue_sample()` (including a seed
+sample added again with `epoch`) must already be an inline data URL. Trusted
+source code can explicitly opt into filesystem or network access with
+`await materialize_media(reference)` before adding the sample; see [Multimodal](multimodal.qmd) for the authority and MIME rules.
 
 ## Concurrency
 
@@ -147,7 +164,7 @@ Samples added mid-run get the same [sandbox](sandboxing.qmd) startup as the seed
 
 ## Limits and sample filtering
 
-The `--limit` option caps the total number of samples in the task — the seed plus everything the source produces. For example, `--limit 10` on a source with 5 seed samples allows 5 more generated samples; once the cap is reached, further additions are ignored (with a warning) and the task ends when the in-flight samples finish (`next_samples()` is not consulted again). The cap counts samples, not runs: each sample within the limit still runs for the task's configured number of epochs. A *range* limit (`--limit 10,20`) is not supported for `SampleSource` tasks — it selects samples by dataset position, which generated samples don't have.
+The `--limit` option caps the total number of samples in the task — the seed plus everything the source produces. For example, `--limit 10` on a source with 5 seed samples allows 5 more generated samples; once the cap is reached, new samples are ignored (with a warning) and the task ends when the in-flight samples finish. `next_samples()` is not consulted again once the cap is reached, however it was reached. The cap counts samples, not runs: each sample within the limit still runs for the task's configured number of epochs, and further epochs of those samples added with `enqueue_sample(..., epoch=)` still run when added in the same `next_samples()` call, from `sample_complete()`, or from a solver. A *range* limit (`--limit 10,20`) is not supported for `SampleSource` tasks — it selects samples by dataset position, which generated samples don't have.
 
 The `--sample-id` option filters generated samples the same way it filters the seed: only samples whose ids match run. Since the source may produce a requested id while the task runs, it is not an error for a `--sample-id` value to be missing from the seed.
 
@@ -155,7 +172,7 @@ A *fractional* `fail_on_error` threshold (e.g. `0.5`) is evaluated at the end of
 
 ## Retries
 
-On a task retry (`eval_set` / task retry attempts), completed samples from the prior attempt are reused, and the source's `sample_complete` is called for each reused sample — so a source that derives its follow-ups from `sample_complete` (the patterns above) regenerates them naturally, and regenerated samples whose ids match the prior attempt are themselves reused rather than re-run. Note that the retry re-drives the *same source instance*: a source that instead holds internal `next_samples()` state resumes where it left off, so such sources should be written to be resumable if used with retries.
+On a task retry (`eval_set` / task retry attempts), completed samples from the prior attempt are reused, and the source's `sample_complete` is called for each reused sample — so a source that derives its follow-ups from `sample_complete` (the patterns above) regenerates them naturally, and regenerated samples whose ids (and explicit epochs) match the prior attempt are themselves reused rather than re-run. Note that the retry re-drives the *same source instance*: a source that instead holds internal `next_samples()` state resumes where it left off, so such sources should be written to be resumable if used with retries.
 
 ## Logs
 

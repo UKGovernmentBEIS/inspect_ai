@@ -78,9 +78,13 @@ class AppConfig(BaseModel):
 
     inspect_version: str
     scout_version: str | None = None
+    trust_content: bool | None = None
+    """Viewer-wide content trust (`inspect view --no-trust-content`). `False`
+    shows the content of every log as plain text; `None` or `True` defers to
+    each log's own `ViewerConfig(trust_content=...)`."""
 
 
-def get_app_config() -> AppConfig:
+def get_app_config(trust_content: bool | None = None) -> AppConfig:
     """Return app config, including installed inspect and scout versions.
 
     `inspect_scout` is an optional dependency, so `scout_version` is None when
@@ -93,6 +97,7 @@ def get_app_config() -> AppConfig:
     return AppConfig(
         inspect_version=version(PKG_NAME),
         scout_version=scout_version,
+        trust_content=trust_content,
     )
 
 
@@ -137,8 +142,8 @@ async def read_eval_set_info_async(
     Returns None when the manifest is absent, or (matching `read_eval_set_info`)
     when the check/read fails with an Azure auth error.
     """
-    sep = filesystem(eval_set_dir).sep
-    manifest = f"{eval_set_dir.rstrip('/').rstrip(sep)}{sep}eval-set.json"
+    fs = filesystem(eval_set_dir)
+    manifest = f"{fs.dir_location(eval_set_dir)}{fs.sep}eval-set.json"
     try:
         if not await afs.exists(manifest):
             return None

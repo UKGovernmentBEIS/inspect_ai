@@ -12,6 +12,7 @@ from pathlib import Path
 from random import random
 from types import FrameType
 from typing import Awaitable, Callable, Generator, ParamSpec, Sequence, TypeVar
+from unittest import mock
 
 import anyio
 import pytest
@@ -685,6 +686,26 @@ def keyboard_interrupt(seconds: int) -> Generator[None, None, None]:
     finally:
         signal.alarm(0)
         signal.signal(signal.SIGALRM, original_handler)
+
+
+@contextlib.contextmanager
+def no_network() -> Generator[tuple[mock.Mock, mock.Mock], None, None]:
+    """Fail any DNS lookup or socket connection made inside the block.
+
+    Yields the `socket.getaddrinfo` and `socket.socket.connect` mocks so a test
+    can assert that neither was called.
+    """
+    with (
+        mock.patch(
+            "socket.getaddrinfo",
+            new=mock.Mock(side_effect=AssertionError("unexpected DNS lookup")),
+        ) as getaddrinfo,
+        mock.patch(
+            "socket.socket.connect",
+            new=mock.Mock(side_effect=AssertionError("unexpected connection")),
+        ) as connect,
+    ):
+        yield getaddrinfo, connect
 
 
 async def register_adaptive_controller(

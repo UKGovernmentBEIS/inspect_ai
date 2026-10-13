@@ -1,4 +1,5 @@
 import datetime
+import glob
 import hashlib
 import json
 import os
@@ -19,6 +20,7 @@ from typing import (
     TypeAlias,
     TypeVar,
 )
+from weakref import WeakSet
 
 import anyio
 import anyio.to_thread
@@ -580,6 +582,7 @@ class SampleBufferDatabase(SampleBuffer):
         until their leases end. SQLite data and shared buffer files remain
         available for recovery.
         """
+        _unfinished_shutdowns.add(self)
         if not self._close_sync_worker_for_cleanup(drain=True):
             return
 
@@ -603,6 +606,7 @@ class SampleBufferDatabase(SampleBuffer):
         stop in time) or deferred until the last sample reader's lease ends —
         the lease release then runs :meth:`_cleanup_now`, filestore included.
         """
+        _unfinished_shutdowns.add(self)
         if not self._close_sync_worker_for_cleanup():
             return False
 
@@ -731,6 +735,11 @@ class SampleBufferDatabase(SampleBuffer):
 
         try:
             with self._get_connection() as conn:
+                # One snapshot for all the queries below: the eval process removes
+                # flushed samples concurrently, which could otherwise pair events
+                # with an already emptied message pool.
+                conn.execute("BEGIN")
+
                 # This should be checking whether the sample data actually
                 # exists in the database, otherwise once the sample is deleted
                 # this will just return no events and no attachments until the
@@ -1308,6 +1317,7 @@ class SampleBufferDatabase(SampleBuffer):
                 pass
         # clear the calling thread's handle (other threads are no longer running)
         self._local.conn = None
+        _unfinished_shutdowns.discard(self)
 
     @contextmanager
     def _get_connection(
@@ -2199,6 +2209,47 @@ def cleanup_sample_buffer_db(path: Path) -> None:
             pass
     except Exception as ex:
         logger.warning(f"Error cleaning up sample buffer database at {path}: {ex}")
+
+
+def sample_buffer_dbs(location: str, db_dir: Path | None = None) -> list[Path]:
+    """Buffer databases opened for the log at ``location``, one per process.
+
+    Args:
+        location: Eval log location the buffers belong to.
+        db_dir: Override the database directory (defaults to the inspect
+            data dir).
+
+    Returns:
+        Paths of the ``<log file>.<pid>.db`` files, in no particular order.
+    """
+    dir, file = location_dir_and_file(filesystem(location).path_as_uri(location))
+    # the log file name is a literal, not a pattern (it may contain brackets)
+    return list((resolve_db_dir(db_dir) / dir).glob(f"{glob.escape(file)}.*.db"))
+
+
+# Buffers whose close or cleanup started in this process but has not finished:
+# the sync worker outlived its join, or a sample reader's lease deferred it. A
+# buffer leaves once its connections close. Weak, so that a buffer whose owner
+# let go after a timed-out join is still finalized (by __del__) once its worker
+# and readers, which hold it while they run, are done. No lock: add/discard are
+# atomic under the GIL, and sample_buffer_shutdown_pending iterates a copy.
+_unfinished_shutdowns: WeakSet[SampleBufferDatabase] = WeakSet()
+
+
+def sample_buffer_shutdown_pending(location: str) -> bool:
+    """Whether a buffer this process opened for ``location`` is still shutting down.
+
+    Such a buffer's files are still in use (by its sync worker or a sample
+    reader), so they must not be removed by path.
+
+    Args:
+        location: Eval log location the buffer belongs to.
+
+    Returns:
+        True when a close or cleanup of the log's buffer has not finished.
+    """
+    location = filesystem(location).path_as_uri(location)
+    return any(db.location == location for db in tuple(_unfinished_shutdowns))
 
 
 def resolve_db_dir(db_dir: Path | None = None) -> Path:

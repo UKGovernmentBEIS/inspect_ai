@@ -77,6 +77,17 @@
     ]
   },
   {
+    "id": "openshell-sandbox",
+    "name": "OpenShell Sandbox",
+    "url": "https://github.com/32bitsret/inspect-openshell-sandbox",
+    "desc": "NVIDIA OpenShell sandbox environment for Inspect, with kernel-enforced filesystem and network policies per task.",
+    "author": "Retnan Daser",
+    "author_url": "https://github.com/32bitsret",
+    "categories": [
+      "Sandboxes"
+    ]
+  },
+  {
     "id": "policy-sandbox",
     "name": "Policy Sandbox",
     "url": "https://github.com/Dedulus/inspect-policy-sandbox",
@@ -116,6 +127,17 @@
     "desc": "Tools to summarize, cluster, and search over agent transcripts.",
     "author": "Transluce",
     "author_url": "https://transluce.org/introducing-docent",
+    "categories": [
+      "Analysis"
+    ]
+  },
+  {
+    "id": "probity-native-result-reader",
+    "name": "Probity native result reader",
+    "url": "https://github.com/probityai/agent-evidence-observer/blob/71ac0b2126473316655184235000647a6dd0f5cf/docs/NATIVE-CONSUMER-CI.md",
+    "desc": "Offline reader and publication gate for bounded native Inspect execution records, preserving errors and unstarted attempts.",
+    "author": "Probity",
+    "author_url": "https://github.com/probityai",
     "categories": [
       "Analysis"
     ]

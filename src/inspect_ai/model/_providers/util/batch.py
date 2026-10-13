@@ -19,6 +19,7 @@ from inspect_ai.model._generate_config import BatchConfig
 from inspect_ai.model._retry import ModelRetryConfig
 
 from .batch_log import BatchStatus, emit_batch_status, log_batch
+from .hooks import HttpxHooks
 
 DEFAULT_BATCH_TICK = 15
 DEFAULT_SEND_DELAY = DEFAULT_BATCH_TICK
@@ -36,6 +37,10 @@ Not all model providers need this
 """
 
 
+BatchHeadersKey = tuple[tuple[str, str], ...]
+"""Hashable form of the headers a request needs at batch level."""
+
+
 @dataclasses.dataclass
 class BatchRequest(Generic[ResponseT]):
     """This is a single request that is part of a batch."""
@@ -43,6 +48,19 @@ class BatchRequest(Generic[ResponseT]):
     request: dict[str, Any]
     result_stream: anyio.abc.ObjectSendStream[ResponseT | Exception]
     custom_id: str = dataclasses.field(default_factory=lambda: str(uuid.uuid4()))
+    headers: dict[str, str] = dataclasses.field(init=False)
+    """The request's `extra_headers` without the request-id header (in any case).
+
+    Captured at construction, so a retried batch submission still has them
+    after `pop_batch_headers` removes `extra_headers` from `request`.
+    """
+
+    def __post_init__(self) -> None:
+        self.headers = {
+            k: v
+            for k, v in (self.request.get("extra_headers") or {}).items()
+            if k.lower() != HttpxHooks.REQUEST_ID_HEADER
+        }
 
 
 @dataclasses.dataclass
@@ -95,7 +113,8 @@ class Batcher(Generic[ResponseT, CompletedBatchInfoT]):
         )
         self._retry_config = retry_config
         self._intake_queue: list[BatchRequest[ResponseT]] = []
-        self._next_batch: PendingBatch[ResponseT] | None = None
+        self._next_batches: dict[BatchHeadersKey, PendingBatch[ResponseT]] = {}
+        self._last_sent_at: float | None = None
         self._inflight_batches: dict[str, Batch[ResponseT]] = {}
         self._is_batch_worker_running: bool = False
 
@@ -121,15 +140,13 @@ class Batcher(Generic[ResponseT, CompletedBatchInfoT]):
         return result
 
     async def _batch_worker(self) -> None:
+        from inspect_ai.log._samples import clear_active_model_event
         from inspect_ai.log._transcript import Transcript, init_transcript
 
         init_transcript(Transcript())
+        clear_active_model_event()
 
-        while (
-            self._inflight_batches
-            or self._intake_queue
-            or (self._next_batch.requests if self._next_batch else False)
-        ):
+        while self._inflight_batches or self._intake_queue or self._next_batches:
             await self._check_inflight_batches()
 
             while await self._process_intake_queue():
@@ -204,31 +221,49 @@ class Batcher(Generic[ResponseT, CompletedBatchInfoT]):
                 pass
 
     async def _process_intake_queue(self) -> bool:
-        """Process intake queue and send next batch if conditions are met."""
-        if self._next_batch is None:
-            self._next_batch = PendingBatch(
-                time.time() + self._send_delay,
-                int(self._max_batch_size_bytes * 0.95),
+        """Process intake queue and send next batch if conditions are met.
+
+        A provider batch carries one set of headers, so requests are gathered
+        into a separate pending batch for each set of batch-level headers, each
+        with its own send timeout. A pending batch exists only while it holds
+        requests. Its timeout runs from when the last batch was sent, or from
+        its creation if no batch has been sent yet. When several are ready to
+        send, the one with the earliest timeout is sent first, so no header
+        set waits behind another for a batch slot.
+        """
+        intake_by_key: dict[BatchHeadersKey, list[BatchRequest[ResponseT]]] = {}
+        for request in self._intake_queue:
+            intake_by_key.setdefault(_batch_headers_key(request), []).append(request)
+        for key in intake_by_key:
+            if key not in self._next_batches:
+                self._next_batches[key] = self._new_pending_batch()
+
+        self._intake_queue = []
+        ready_keys: list[BatchHeadersKey] = []
+        for key, next_batch in sorted(
+            self._next_batches.items(), key=lambda item: item[1].timeout
+        ):
+            intake_queue = intake_by_key.get(key, [])
+            add_count, new_avail, should_send = _assess_intake_queue(
+                intake_queue,
+                next_batch,
+                self._min_batch_request_count,
+                self._max_batch_request_count,
             )
 
-        add_count, new_avail, should_send = _assess_intake_queue(
-            self._intake_queue,
-            self._next_batch,
-            self._min_batch_request_count,
-            self._max_batch_request_count,
-        )
+            if add_count:
+                self._next_batches[key] = PendingBatch(
+                    next_batch.timeout,
+                    new_avail,
+                    next_batch.requests + intake_queue[:add_count],
+                )
+            self._intake_queue.extend(intake_queue[add_count:])
+            if should_send:
+                ready_keys.append(key)
 
-        if add_count:
-            self._next_batch = PendingBatch(
-                self._next_batch.timeout,
-                new_avail,
-                self._next_batch.requests + self._intake_queue[:add_count],
-            )
-            self._intake_queue = self._intake_queue[add_count:]
-
-        if should_send and len(self._inflight_batches) < self._max_batches:
-            batch_requests = self._next_batch.requests
-            self._next_batch = None
+        if ready_keys and len(self._inflight_batches) < self._max_batches:
+            key = ready_keys[0]
+            batch_requests = self._next_batches.pop(key).requests
 
             batch_id = await self._wrapped_create_batch(batch_requests)
 
@@ -236,9 +271,17 @@ class Batcher(Generic[ResponseT, CompletedBatchInfoT]):
                 id=batch_id,
                 requests={request.custom_id: request for request in batch_requests},
             )
+            self._last_sent_at = time.time()
             return True
 
         return False
+
+    def _new_pending_batch(self) -> PendingBatch[ResponseT]:
+        start = time.time() if self._last_sent_at is None else self._last_sent_at
+        return PendingBatch(
+            start + self._send_delay,
+            int(self._max_batch_size_bytes * 0.95),
+        )
 
     # These _wrapped_* methods are intended to wrap the abstract methods with the
     # appropriate error handling logic consistent with the batch algorithm. This
@@ -413,6 +456,37 @@ class Batcher(Generic[ResponseT, CompletedBatchInfoT]):
                 with this exception.
         """
         pass
+
+
+def pop_batch_headers(batch: list[BatchRequest[ResponseT]]) -> dict[str, str]:
+    """Remove each request's `extra_headers` and return the batch's headers.
+
+    A provider takes headers once for a whole batch. The request-id header
+    identifies a single request, so it becomes that request's `custom_id`
+    and is never sent at batch level, in any letter case. `Batcher` only puts requests with the
+    same remaining headers in one batch.
+
+    Args:
+        batch: The requests being submitted as one batch.
+
+    Returns:
+        The headers to send on the batch's creation calls.
+
+    Raises:
+        ValueError: If the requests do not share the same headers.
+    """
+    for request in batch:
+        extra_headers = request.request.pop("extra_headers", None) or {}
+        request_id = extra_headers.get(HttpxHooks.REQUEST_ID_HEADER)
+        if request_id is not None:
+            request.custom_id = request_id
+        if request.headers != batch[0].headers:
+            raise ValueError("Requests in one batch must have the same headers.")
+    return dict(batch[0].headers) if batch else {}
+
+
+def _batch_headers_key(request: BatchRequest[ResponseT]) -> BatchHeadersKey:
+    return tuple(sorted(request.headers.items()))
 
 
 def _assess_intake_queue(

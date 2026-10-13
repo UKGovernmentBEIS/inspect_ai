@@ -39,6 +39,10 @@ from test_helpers.litellm_proxy.stubs import (
     Reply,
     StubRequest,
     fake_upstream,
+    openai_responses_response,
+    openai_responses_sse,
+    reasoning_content_chat_response,
+    reasoning_content_chat_sse,
     route,
 )
 from test_helpers.utils import skip_if_no_openai_package
@@ -2281,6 +2285,11 @@ EFFORT_DEPLOYMENTS = {
     "claude-opus-5-5": "anthropic/claude-opus-5-5",
     "gemini-2.5-pro": "gemini/gemini-2.5-pro",
     "gemini-3-pro": "gemini/gemini-3-pro-preview",
+    "gemini-3.7-flash": "gemini/gemini-3.7-flash",
+    "gemini-2.0-flash": "gemini/gemini-2.0-flash",
+    # Gemini codenames (current frontier)
+    "nimbus": "gemini/nimbus-preview",
+    "orion-pro": "gemini/orion-pro-preview",
     "gpt-5": "openai/gpt-5",
     "gpt-5.5": "openai/gpt-5.5",
     "gpt-4.1": "openai/gpt-4.1",
@@ -2404,6 +2413,41 @@ async def test_litellm_proxy_reasoning_effort_never_fails(
             "max",
             {"thinkingLevel": "high", "includeThoughts": True},
         ),
+        (
+            "gemini-3-pro",
+            False,
+            "minimal",
+            {"thinkingLevel": "low", "includeThoughts": True},
+        ),
+        (
+            "gemini-3.7-flash",
+            False,
+            "minimal",
+            {"thinkingLevel": "low", "includeThoughts": True},
+        ),
+        # codenames need the deployment (model info) to be known as Gemini
+        (
+            "nimbus",
+            None,
+            "max",
+            {"thinkingLevel": "high", "includeThoughts": True},
+        ),
+        ("gemini-3-pro", False, "none", None),
+        ("orion-pro", None, "none", None),
+        (
+            "gemini-2.5-pro",
+            False,
+            "high",
+            {"thinkingBudget": 16000, "includeThoughts": True},
+        ),
+        (
+            "gemini-2.5-pro",
+            False,
+            "max",
+            {"thinkingBudget": 32000, "includeThoughts": True},
+        ),
+        ("gemini-2.5-pro", False, "none", None),
+        ("gemini-2.0-flash", False, "high", None),
         ("gpt-5", False, "xhigh", "high"),
         ("gpt-5.5", False, "minimal", "low"),
         ("gpt-4.1", False, "high", None),
@@ -2416,7 +2460,7 @@ async def test_litellm_proxy_reasoning_effort_never_fails(
 async def test_litellm_proxy_reasoning_effort_lowered(
     effort_proxy: LiteLLMProxy,
     alias: str,
-    responses_api: bool,
+    responses_api: bool | None,
     effort: Effort,
     sent: Any,
 ) -> None:
@@ -2425,6 +2469,106 @@ async def test_litellm_proxy_reasoning_effort_lowered(
     )
     assert isinstance(output, ModelOutput), output
     assert upstream == sent
+
+
+def _gemini_request(
+    alias: str, effort: Effort, config: GenerateConfig | None = None
+) -> tuple[str | None, dict[str, Any] | None]:
+    """The effort and `thinking` the provider would first send for `alias`."""
+    api = _proxy_api(
+        get_model(
+            f"litellm-proxy/{alias}",
+            base_url="http://localhost:4000",
+            api_key="sk-test",
+            model_info=False,
+            memoize=False,
+        )
+    )
+    return _first_request(api, effort, config or GenerateConfig())
+
+
+def _first_request(
+    api: LiteLLMProxyAPI, effort: Effort, config: GenerateConfig
+) -> tuple[str | None, dict[str, Any] | None]:
+    sent = api._effort_for(api._mapped_effort(effort, config))
+    return sent, api._thinking_for(effort, sent, config)
+
+
+def _budget(tokens: int) -> dict[str, Any]:
+    return {"type": "enabled", "budget_tokens": tokens}
+
+
+@pytest.mark.parametrize(
+    "alias,effort,sent,thinking",
+    [
+        # Gemini 3+: levels, minimal only where supported
+        ("gemini-3-pro-preview", "minimal", "low", None),
+        ("gemini-3-pro-preview", "max", "high", None),
+        ("gemini-3-pro-preview", "medium", "medium", None),
+        ("gemini-3.6-flash", "minimal", "minimal", None),
+        ("gemini-3.7-flash", "minimal", "low", None),
+        ("gemini-3.7-flash", "none", "none", None),
+        # thinking-only models keep thinking
+        ("gemini-3-pro-preview", "none", None, None),
+        ("gemini-2.5-pro", "none", None, None),
+        # codenames are the current frontier
+        ("gemini/nimbus-preview", "xhigh", "high", None),
+        ("gemini/nimbus-preview", "minimal", "low", None),
+        ("gemini/orion-pro-preview", "none", None, None),
+        # Gemini 2.5: Inspect's thinking budgets
+        ("gemini-2.5-pro", "minimal", None, _budget(2048)),
+        ("gemini-2.5-pro", "high", None, _budget(16000)),
+        ("gemini-2.5-flash", "max", None, _budget(24576)),
+        ("gemini-2.5-pro", "max", None, _budget(32000)),
+        ("gemini-2.5-flash", "none", "none", None),
+        # no thinking config
+        ("gemini-2.0-flash", "high", None, None),
+        ("gemini-1.5-pro", "low", None, None),
+        # other Google models and other vendors are unchanged
+        ("google/gemma-3-27b-it", "high", "high", None),
+        ("claude-opus-4-1", "max", "max", None),
+        ("gpt-5", "minimal", "minimal", None),
+    ],
+)
+def test_litellm_proxy_gemini_effort(
+    alias: str, effort: Effort, sent: str | None, thinking: dict[str, Any] | None
+) -> None:
+    assert _gemini_request(alias, effort) == (sent, thinking)
+
+
+def test_litellm_proxy_gemini_budget_yields_to_extra_body() -> None:
+    config = GenerateConfig(extra_body={"thinking": _budget(500)})
+    assert _gemini_request("gemini-2.5-pro", "max", config) == ("high", None)
+
+
+def test_litellm_proxy_gemini_budget_rejected_sends_effort() -> None:
+    api = _proxy_api(
+        get_model(
+            "litellm-proxy/gemini-2.5-flash",
+            base_url="http://localhost:4000",
+            api_key="sk-test",
+            model_info=False,
+            memoize=False,
+        )
+    )
+    api._thinking_unsupported = True
+    assert _first_request(api, "max", GenerateConfig()) == ("high", None)
+    assert _first_request(api, "minimal", GenerateConfig()) == ("minimal", None)
+
+
+def test_litellm_proxy_gemini_effort_warnings(monkeypatch: pytest.MonkeyPatch) -> None:
+    warnings: list[str] = []
+    monkeypatch.setattr(litellm_proxy_module.logger, "warning", warnings.append)
+    monkeypatch.setattr(inspect_logger, "_warned", [])
+    _gemini_request("gemini-3-pro-preview", "minimal")
+    _gemini_request("gemini-3-pro-preview", "none")
+    _gemini_request("gemini-3-pro-preview", "max")
+    _gemini_request("gemini-2.5-pro", "high")
+    assert warnings == [
+        "Model gemini-3-pro-preview does not support minimal thinking; "
+        "using low instead.",
+        "Thinking cannot be disabled for model gemini-3-pro-preview.",
+    ]
 
 
 @skip_if_no_openai_package
@@ -2731,6 +2875,8 @@ async def test_litellm_proxy_codename_adaptive_thinking_flag(
         (["xai/mimas"], "grok"),
         (["openrouter/x-ai/grok-5"], "grok"),
         (["gemini/gemini-4-pro"], "google"),
+        (["google/nimbus-preview"], "google"),
+        (["gemini/nimbus-preview"], "google"),
         (["openai/gpt-7-preview"], "openai"),
         (["azure/o5-mini"], "openai"),
         (["bedrock/converse/us.openai.gpt-6-astra"], "openai"),
@@ -3604,3 +3750,384 @@ async def test_litellm_proxy_claude_cache_prompt_false(
         claude_proxy, "claude-metis", GenerateConfig(cache_prompt=False)
     )
     assert _anthropic_breakpoints(call.upstream) == []
+
+
+# ---------------------------------------------------------------------------
+# cost: a router fallback is priced by the model that served it
+# ---------------------------------------------------------------------------
+
+# what the fake upstream reports as the model for each upstream id (None fails)
+FALLBACK_SERVED = {
+    "fallback-primary": None,
+    "fallback-backup": "gpt-4o-mini-2024-07-18",
+    "fallback-same": "gpt-4o-2024-08-06",
+    "fallback-pool-primary": None,
+    "fallback-pool-expensive": "gpt-5-2025-08-07",
+    "fallback-pool-cheap": "gpt-4o-mini-2024-07-18",
+}
+
+
+def _fallback_route(request: StubRequest) -> Any:
+    path = request.path.split("?")[0]
+    body = request.body
+    served = FALLBACK_SERVED[body["model"]]
+    if served is None:
+        return Reply(500, {"error": {"message": "unavailable", "type": "server_error"}})
+    if path.endswith("/chat/completions"):
+        chat = reasoning_content_chat_response(body) | {"model": served}
+        return reasoning_content_chat_sse(chat) if body.get("stream") else chat
+    if path.endswith("/responses"):
+        response = openai_responses_response(body) | {"model": served}
+        return openai_responses_sse(response) if body.get("stream") else response
+    return None
+
+
+@pytest.fixture(scope="module")
+def fallback_proxy(tmp_path_factory: pytest.TempPathFactory) -> Iterator[LiteLLMProxy]:
+    with fake_upstream(_fallback_route) as upstream:
+
+        def deployment(
+            name: str, model: str, base_model: str, **model_info: Any
+        ) -> dict[str, Any]:
+            return {
+                "model_name": name,
+                "litellm_params": {
+                    "model": f"openai/{model}",
+                    "api_base": f"{upstream.docker_url}/v1",
+                    "api_key": "fake",
+                },
+                "model_info": {"base_model": base_model} | model_info,
+            }
+
+        config = {
+            "model_list": [
+                deployment("primary", "fallback-primary", "openai/gpt-4o"),
+                deployment("backup", "fallback-backup", "openai/gpt-4o-mini"),
+                deployment("same", "fallback-same", "openai/gpt-4o"),
+                deployment("pool-primary", "fallback-pool-primary", "openai/gpt-4o"),
+                # a fallback pool: an expensive deployment priced only by the
+                # proxy, and a cheap one with a native price
+                deployment(
+                    "pool",
+                    "fallback-pool-expensive",
+                    "openai/gpt-5",
+                    **_proxy_price(2000.0),
+                ),
+                deployment("pool", "fallback-pool-cheap", "openai/gpt-4o-mini"),
+            ],
+            "router_settings": {
+                "num_retries": 0,
+                "fallbacks": [{"primary": ["backup"]}, {"pool-primary": ["pool"]}],
+            },
+        }
+        with run_litellm_proxy(
+            tmp_path_factory.mktemp("litellm-fallback"), config
+        ) as proxy:
+            yield proxy
+
+
+def _cost(rate: float) -> ModelCost:
+    return ModelCost(
+        input=rate, output=rate, input_cache_write=rate, input_cache_read=rate
+    )
+
+
+@skip_if_no_openai_package
+@skip_if_no_litellm_proxy
+@pytest.mark.parametrize("stream", [False, True])
+@pytest.mark.parametrize("responses_api", [False, True])
+@pytest.mark.parametrize(
+    "alias,rate",
+    [
+        # falls back to `backup`: the fallback's base model rate
+        ("primary", 100.0),
+        # served by its own deployment: the alias's rate, not the snapshot's
+        ("same", 1000.0),
+    ],
+)
+async def test_litellm_proxy_priced_by_serving_deployment(
+    fallback_proxy: LiteLLMProxy,
+    alias: str,
+    rate: float,
+    responses_api: bool,
+    stream: bool,
+) -> None:
+    set_model_cost("openai/gpt-4o", _cost(1000.0))
+    set_model_cost("openai/gpt-4o-mini", _cost(100.0))
+    # the snapshot `same` reports when streaming Responses
+    set_model_cost("openai/gpt-4o-2024-08-06", _cost(50.0))
+    model = get_model(
+        f"litellm-proxy/{alias}",
+        base_url=fallback_proxy.base_url,
+        api_key=fallback_proxy.api_key,
+        config=GenerateConfig(max_retries=0),
+        responses_api=responses_api,
+        stream=stream,
+        memoize=False,
+    )
+    output = await model.generate("Hello")
+    # reported as an alias or an upstream id, depending on API and streaming
+    print(f"reported model: {output.model}")
+    if alias == "primary":
+        assert output.model != alias
+    assert output.usage is not None
+    assert output.usage.total_cost == pytest.approx(
+        output.usage.total_tokens * rate / 1_000_000
+    )
+
+
+@skip_if_no_openai_package
+@skip_if_no_litellm_proxy
+@pytest.mark.parametrize("stream", [False, True])
+@pytest.mark.parametrize("responses_api", [False, True])
+async def test_litellm_proxy_fallback_pool_priced_as_alias(
+    fallback_proxy: LiteLLMProxy, responses_api: bool, stream: bool
+) -> None:
+    set_model_cost("openai/gpt-4o", _cost(1000.0))
+    set_model_cost("openai/gpt-4o-mini", _cost(100.0))
+    model = get_model(
+        "litellm-proxy/pool-primary",
+        base_url=fallback_proxy.base_url,
+        api_key=fallback_proxy.api_key,
+        config=GenerateConfig(max_retries=0),
+        responses_api=responses_api,
+        stream=stream,
+        memoize=False,
+    )
+    output = await model.generate("Hello")
+    print(f"reported model: {output.model}")
+    # the pool's alias (streamed Chat Completions) does not say which
+    # deployment served, so it is priced as the alias ($2000/M, its first
+    # deployment's proxy price), never as the other deployment's native price
+    rate = {
+        "pool": 2000.0,
+        "gpt-5-2025-08-07": 2000.0,
+        "gpt-4o-mini-2024-07-18": 100.0,
+    }[output.model]
+    assert output.usage is not None
+    assert output.usage.total_cost == pytest.approx(
+        output.usage.total_tokens * rate / 1_000_000
+    )
+
+
+def _proxy_price(rate: float) -> dict[str, Any]:
+    """Proxy `model_info` pricing every token at `rate` dollars per million."""
+    return {
+        "input_cost_per_token": rate / 1_000_000,
+        "output_cost_per_token": rate / 1_000_000,
+        "max_input_tokens": 100000,
+    }
+
+
+SERVED_ROWS = [
+    # private upstreams the model database does not know, priced by the proxy
+    _row("primary", "openai/review-primary", **_proxy_price(1000.0)),
+    _row("backup", "openai/review-backup", **_proxy_price(100.0)),
+    # aliases whose deployments serve different models, in both orders
+    _row("mixed", "openai/gpt-4o"),
+    _row("mixed", "openai/gpt-4o-mini"),
+    _row("mixed-reversed", "openai/gpt-4o-mini"),
+    _row("mixed-reversed", "openai/gpt-4o"),
+    # one deployment, identified by its base model
+    _row("same", "openai/review-same", base_model="openai/gpt-4o"),
+]
+
+
+@pytest.fixture
+def served_stub(model_info_stub: ModelInfoStub) -> ModelInfoStub:
+    _serve(model_info_stub, SERVED_ROWS)
+    set_model_cost("openai/gpt-4o", _cost(1000.0))
+    set_model_cost("openai/gpt-4o-mini", _cost(100.0))
+    return model_info_stub
+
+
+def _served_cost(stub: ModelInfoStub, alias: str, reported: str) -> float | None:
+    from inspect_ai.model import ModelUsage
+    from inspect_ai.model._model import model_usage_cost
+
+    model = get_model(
+        f"litellm-proxy/{alias}", base_url=stub.url, api_key="sk-stub", memoize=False
+    )
+    usage = ModelUsage(input_tokens=10, output_tokens=10, total_tokens=20)
+    return model_usage_cost(model, usage, ModelOutput(model=reported, usage=usage))
+
+
+@skip_if_no_openai_package
+@pytest.mark.parametrize(
+    "reported", ["backup", "review-backup", "openai/review-backup"]
+)
+def test_fallback_priced_from_proxy_metadata(
+    served_stub: ModelInfoStub, reported: str
+) -> None:
+    # 20 tokens at the fallback's $100/M, not the called alias's $1000/M
+    assert _served_cost(served_stub, "primary", reported) == pytest.approx(0.002)
+    # the same once a model for the fallback alias exists
+    get_model("litellm-proxy/backup", base_url=served_stub.url, api_key="sk-stub")
+    assert _served_cost(served_stub, "primary", reported) == pytest.approx(0.002)
+
+
+@skip_if_no_openai_package
+def test_fallback_alias_price_registered_by_user_wins(
+    served_stub: ModelInfoStub,
+) -> None:
+    set_model_info("litellm-proxy/backup", ModelInfo(cost=_cost(10.0)))
+    assert _served_cost(served_stub, "primary", "backup") == pytest.approx(0.0002)
+
+
+@skip_if_no_openai_package
+@pytest.mark.parametrize("alias", ["mixed", "mixed-reversed"])
+@pytest.mark.parametrize(
+    "reported,cost",
+    [
+        ("openai/gpt-4o-mini", 0.002),
+        ("gpt-4o-mini", 0.002),
+        ("gpt-4o-mini-2024-07-18", 0.002),
+        ("openai/gpt-4o", 0.02),
+        ("gpt-4o-2024-08-06", 0.02),
+    ],
+)
+def test_deployment_named_by_response_is_priced(
+    served_stub: ModelInfoStub, alias: str, reported: str, cost: float
+) -> None:
+    # the called alias
+    assert _served_cost(served_stub, alias, reported) == pytest.approx(cost)
+    # a fallback alias (the response names one of its deployments)
+    if alias == "mixed":
+        assert _served_cost(served_stub, "primary", reported) == pytest.approx(cost)
+
+
+@skip_if_no_openai_package
+def test_called_deployment_keeps_alias_price(served_stub: ModelInfoStub) -> None:
+    # the alias's own deployment, named by its raw id or a snapshot
+    for reported in ["same", "review-same", "openai/review-same", "gpt-4o-2024-08-06"]:
+        assert _served_cost(served_stub, "same", reported) == pytest.approx(0.02)
+    # an explicit price for the alias wins over its deployment's model
+    set_model_info("litellm-proxy/same", ModelInfo(cost=_cost(10.0)))
+    assert _served_cost(served_stub, "same", "gpt-4o-2024-08-06") == pytest.approx(
+        0.0002
+    )
+
+
+@skip_if_no_openai_package
+def test_unlisted_upstream_priced_by_database_name(
+    served_stub: ModelInfoStub,
+) -> None:
+    from inspect_ai.model import ModelUsage, ServedModelUsage
+
+    usage = ModelUsage(input_tokens=10, output_tokens=10, total_tokens=20)
+    provider = _stub_provider(served_stub, "primary")
+    assert provider.served_model_usage(
+        ModelOutput(model="claude-opus-4-8", usage=usage)
+    ) == [ServedModelUsage("anthropic/claude-opus-4-8", usage)]
+
+
+UNPRICED_ROWS = [
+    _row("primary", "openai/review-primary", **_proxy_price(1000.0)),
+    # a priced first deployment and an unpriced second one
+    _row("review-mixed", "openai/gpt-5", **_proxy_price(2000.0)),
+    _row("review-mixed", "openai/gpt-4o-mini"),
+    # a private upstream with no proxy price
+    _row("private", "openai/review-private", max_input_tokens=100000),
+]
+
+
+@pytest.fixture
+def unpriced_stub(
+    model_info_stub: ModelInfoStub, monkeypatch: pytest.MonkeyPatch
+) -> tuple[ModelInfoStub, list[str]]:
+    from inspect_ai.model import _model as model_module
+
+    _serve(model_info_stub, UNPRICED_ROWS)
+    warnings: list[str] = []
+    monkeypatch.setattr(inspect_logger, "_warned", [])
+    monkeypatch.setattr(model_module.logger, "warning", warnings.append)
+    return model_info_stub, warnings
+
+
+@skip_if_no_openai_package
+def test_unpriced_deployment_priced_at_called_rate_with_warning(
+    unpriced_stub: tuple[ModelInfoStub, list[str]],
+) -> None:
+    stub, warnings = unpriced_stub
+    # a fallback to the unpriced deployment: the called alias's $1000/M
+    assert _served_cost(stub, "primary", "gpt-4o-mini-2024-07-18") == pytest.approx(
+        0.02
+    )
+    # unchanged once a model for the fallback alias exists (its registered
+    # info carries the first deployment's $2000/M)
+    get_model("litellm-proxy/review-mixed", base_url=stub.url, api_key="sk-stub")
+    assert _served_cost(stub, "primary", "gpt-4o-mini-2024-07-18") == pytest.approx(
+        0.02
+    )
+    # the called alias, served by its unpriced deployment: the alias's rate
+    assert _served_cost(
+        stub, "review-mixed", "gpt-4o-mini-2024-07-18"
+    ) == pytest.approx(0.04)
+    assert len(warnings) == 2
+    assert all("'openai/gpt-4o-mini'" in warning for warning in warnings)
+
+
+@skip_if_no_openai_package
+@pytest.mark.parametrize("alias", ["primary", "review-mixed"])
+def test_priced_snapshot_of_unpriced_deployment(
+    unpriced_stub: tuple[ModelInfoStub, list[str]], alias: str
+) -> None:
+    stub, warnings = unpriced_stub
+    set_model_cost("openai/gpt-4o-mini-2024-07-18", _cost(100.0))
+    assert _served_cost(stub, alias, "gpt-4o-mini-2024-07-18") == pytest.approx(0.002)
+    assert warnings == []
+
+
+@skip_if_no_openai_package
+@pytest.mark.parametrize(
+    "reported", ["private", "review-private", "openai/review-private"]
+)
+def test_private_upstream_priced_by_its_registration(
+    unpriced_stub: tuple[ModelInfoStub, list[str]], reported: str
+) -> None:
+    stub, warnings = unpriced_stub
+    set_model_info("openai/review-private", ModelInfo(cost=_cost(100.0)))
+    assert _served_cost(stub, "primary", reported) == pytest.approx(0.002)
+    assert warnings == []
+
+
+POOL_ROWS = [
+    _row("primary", "openai/review-primary", **_proxy_price(1000.0)),
+    # an expensive deployment priced only by the proxy, and a cheap one with
+    # a native price, in both orders
+    _row("pool", "openai/gpt-5", **_proxy_price(2000.0)),
+    _row("pool", "openai/gpt-4o-mini"),
+    _row("pool-reversed", "openai/gpt-4o-mini"),
+    _row("pool-reversed", "openai/gpt-5", **_proxy_price(2000.0)),
+]
+
+
+@pytest.fixture
+def pool_stub(model_info_stub: ModelInfoStub) -> ModelInfoStub:
+    _serve(model_info_stub, POOL_ROWS)
+    set_model_cost("openai/gpt-4o-mini", _cost(100.0))
+    return model_info_stub
+
+
+@skip_if_no_openai_package
+def test_fallback_pool_reported_by_alias_priced_as_alias(
+    pool_stub: ModelInfoStub,
+) -> None:
+    # the alias does not say which deployment served: never the cheap
+    # deployment's native price
+    assert _served_cost(pool_stub, "primary", "pool") == pytest.approx(0.04)
+    # identified deployments are priced on their own
+    assert _served_cost(pool_stub, "primary", "gpt-5-2025-08-07") == pytest.approx(0.04)
+    assert _served_cost(
+        pool_stub, "primary", "gpt-4o-mini-2024-07-18"
+    ) == pytest.approx(0.002)
+
+
+@skip_if_no_openai_package
+@pytest.mark.parametrize("pool", ["pool", "pool-reversed"])
+def test_fallback_pool_priced_as_alias_is_when_called(
+    pool_stub: ModelInfoStub, pool: str
+) -> None:
+    called = _served_cost(pool_stub, pool, pool)
+    assert called is not None
+    assert _served_cost(pool_stub, "primary", pool) == pytest.approx(called)

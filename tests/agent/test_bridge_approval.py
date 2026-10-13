@@ -14,6 +14,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
+import inspect_ai._util.logger as inspect_logger
 from inspect_ai import Task, eval
 from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai.agent._agent import Agent, AgentState, agent
@@ -149,7 +150,9 @@ def recording_approver(seen: list[tuple[str, ToolCall, list[ChatMessage]]]) -> A
 
 
 @approver(name="test_bridge_modify")
-def modifying_approver(arguments: dict[str, object]) -> Approver:
+def modifying_approver(
+    arguments: dict[str, object], function: str | None = None
+) -> Approver:
     async def approve(
         message: str,
         call: ToolCall,
@@ -159,7 +162,9 @@ def modifying_approver(arguments: dict[str, object]) -> Approver:
         return Approval(
             decision="modify",
             modified=ToolCall(
-                id=call.id, function=call.function, arguments=dict(arguments)
+                id=call.id,
+                function=function or call.function,
+                arguments=dict(arguments),
             ),
         )
 
@@ -384,6 +389,100 @@ async def test_modify_preserves_the_original_call_in_the_transcript() -> None:
     assert proposed.message.tool_calls is not None
     assert proposed.message.tool_calls[0].arguments == {"cmd": "rm -rf /"}
     assert run.output is not proposed
+
+
+async def test_modify_changing_the_function_fails_the_sample() -> None:
+    """A `modify` may change only the arguments; a new function is an approver bug."""
+    original = ToolCall(id="1", function="bash", arguments={"cmd": "rm -rf /"})
+
+    with pytest.raises(RuntimeError, match="may change only the arguments"):
+        await run_bridge(
+            [tool_calls_output(original)],
+            approval=[
+                ApprovalPolicy(
+                    modifying_approver({"path": "a.txt"}, function="read_file"), "*"
+                )
+            ],
+        )
+
+
+async def test_dispatched_call_modify_changing_the_target_fails_the_sample() -> None:
+    """For a dispatcher call the reviewed target's function may not change either."""
+    tool = AsyncMock(return_value="contents")
+    bridge = sandbox_bridge_with_tool(
+        tool,
+        [
+            ApprovalPolicy(
+                modifying_approver({"path": "b.txt"}, function="write_file"),
+                "read_file",
+            )
+        ],
+    )
+
+    with pytest.raises(
+        RuntimeError, match="call to 'write_file' for a call to 'read_file'"
+    ):
+        await run_bridge(
+            [tool_calls_output(dispatched("1", {"path": "a.txt"}))], bridge=bridge
+        )
+
+    # the sandbox bridge's monitor task fails the sample with the same error
+    assert isinstance(bridge._failure, RuntimeError)
+    assert "may change only the arguments" in str(bridge._failure)
+    # and no host tool may run for the call
+    execute = call_host_tool(bridge)
+    for path in ("a.txt", "b.txt"):
+        with pytest.raises(PermissionError, match="was not proposed by the model"):
+            await execute("host", "read_file", {"path": path})
+    tool.assert_not_awaited()
+
+
+async def test_modify_without_a_modified_call_is_rejected() -> None:
+    """A `modify` that carries no modified call never hands the original over."""
+    original = ToolCall(id="1", function="bash", arguments={"cmd": "rm -rf /"})
+    replacement = ToolCall(id="2", function="bash", arguments={"cmd": "ls"})
+    run = await run_bridge(
+        [tool_calls_output(original), tool_calls_output(replacement)],
+        approval=[
+            ApprovalPolicy(auto_approver("modify"), "bash(cmd='rm"),
+            ApprovalPolicy(auto_approver("approve"), "*"),
+        ],
+    )
+
+    # the model is told and generates again; the scaffold sees only the replacement
+    assert run.generations == 2
+    assert run.output.message.tool_calls == [replacement]
+    (result,) = run.tool_results(1)
+    assert result.tool_call_id == "1"
+    assert result.error is not None
+    assert result.error.type == "approval"
+    assert "no modified call" in result.error.message
+
+
+async def test_sandbox_modify_without_a_modified_call_grants_nothing() -> None:
+    tool = AsyncMock(return_value="contents")
+    bridge = sandbox_bridge_with_tool(
+        tool,
+        [
+            ApprovalPolicy(auto_approver("modify"), "read_file(path='secret"),
+            ApprovalPolicy(auto_approver("approve"), "*"),
+        ],
+    )
+    original = ToolCall(id="1", function="read_file", arguments={"path": "secret"})
+    replacement = ToolCall(id="2", function="read_file", arguments={"path": "a.txt"})
+
+    run = await run_bridge(
+        [tool_calls_output(original), tool_calls_output(replacement)],
+        bridge=bridge,
+        tools=declare("read_file"),
+    )
+
+    assert run.generations == 2
+    assert run.output.message.tool_calls == [replacement]
+    execute = call_host_tool(bridge)
+    with pytest.raises(PermissionError, match="was not proposed by the model"):
+        await execute("host", "read_file", {"path": "secret"})
+    tool.assert_not_awaited()
 
 
 # ---------------------------------------------------------------------------
@@ -909,20 +1008,40 @@ async def test_same_description_and_schema_grants_each_once() -> None:
     assert not bridge.consume_tool_execution_grant("b", "read_file", {"path": "x"})
 
 
-@pytest.fixture
-def capture_bridge_warnings(caplog: pytest.LogCaptureFixture) -> Iterator[None]:
-    """Route the sandbox bridge module's warnings to caplog.
+def capture_module_warnings(
+    caplog: pytest.LogCaptureFixture, module: str
+) -> Iterator[None]:
+    """Route a module's warnings to caplog.
 
     Attached directly because `init_logger` stops the inspect_ai logger
     propagating once an earlier test has triggered it.
     """
-    module_logger = logging.getLogger(SandboxAgentBridge.__module__)
+    module_logger = logging.getLogger(module)
     module_logger.addHandler(caplog.handler)
     try:
         with caplog.at_level(logging.WARNING, logger=module_logger.name):
             yield
     finally:
         module_logger.removeHandler(caplog.handler)
+
+
+@pytest.fixture
+def capture_bridge_warnings(caplog: pytest.LogCaptureFixture) -> Iterator[None]:
+    """Route the sandbox bridge module's warnings to caplog."""
+    yield from capture_module_warnings(caplog, SandboxAgentBridge.__module__)
+
+
+@pytest.fixture
+def capture_host_tool_warnings(
+    caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
+) -> Iterator[None]:
+    """Route the host tool service's warnings to caplog, with `warn_once` reset.
+
+    `warn_once` dedupes on a module-level list, so an earlier denial of the
+    same tool would otherwise suppress the warning.
+    """
+    monkeypatch.setattr(inspect_logger, "_warned", [])
+    yield from capture_module_warnings(caplog, call_host_tool.__module__)
 
 
 @pytest.mark.usefixtures("capture_bridge_warnings")
@@ -1476,6 +1595,91 @@ async def test_opted_out_server_stores_no_grants() -> None:
     )
 
     assert len(bridge._tool_execution_grants) == 0
+
+
+@pytest.mark.usefixtures("capture_host_tool_warnings")
+async def test_denial_warning_names_the_opt_out(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """The log names `require_proposal=False`; the error the model sees is unchanged."""
+    bridge = sandbox_bridge_with_tool(AsyncMock(return_value="contents"), None)
+
+    with pytest.raises(PermissionError) as denied:
+        await call_host_tool(bridge)("host", "read_file", {"path": "notes.txt"})
+
+    assert str(denied.value) == (
+        "Host tool call 'host/read_file' was not proposed by the model in a "
+        "bridged generation (a bridged host tool runs once per proposed call)"
+    )
+    warnings = [r.getMessage() for r in caplog.records]
+    assert len(warnings) == 1
+    assert warnings[0].startswith("Denied host tool call 'host/read_file'")
+    assert (
+        "set require_proposal=False on the existing BridgedToolsSpec for server "
+        "'host'" in warnings[0]
+    )
+
+
+CODE_MODE_EXEC = (
+    "Run JavaScript code to orchestrate/compose tool calls.\n\n"
+    "### `mcp__host__read_file`\n"
+    f"{READ_FILE}\n\n"
+    "```ts\n"
+    "declare function mcp__host__read_file(args: { path?: string }): "
+    "Promise<unknown>;\n"
+    "```\n"
+)
+"""Codex code mode's `exec` description with the inline nested-tool catalog."""
+
+
+async def run_code_mode_exec(bridge: SandboxAgentBridge) -> None:
+    """A code-mode turn: the model proposes only `exec`, whose script calls `read_file`."""
+    call = ToolCall(
+        id="exec",
+        function="exec",
+        arguments={"input": 'await tools.mcp__host__read_file({"path": "notes.txt"});'},
+    )
+    await run_bridge(
+        [tool_calls_output(call)],
+        bridge=bridge,
+        tools=declare("exec", description=CODE_MODE_EXEC, parameters=("input",))
+        + declare("wait", description="Wait for a running exec.", parameters=()),
+    )
+
+
+async def test_code_mode_exec_call_grants_no_nested_tool() -> None:
+    """An `exec` proposal grants nothing for the host tool calls its script makes.
+
+    The script's calls and their arguments are decided when it runs in the
+    sandbox, so a grant from the `exec` proposal would authorize whatever the
+    sandbox makes of the script; parsing literal calls out of the script would
+    bring back name matching and cover only some scripts. The bridge does not
+    detect code mode either: current Codex defers MCP tools in code mode, so the
+    `exec` declaration names none of them, and an unproposed call from a script
+    looks the same as a model probing the endpoint.
+    """
+    tool = AsyncMock(return_value="contents")
+    bridge = sandbox_bridge_with_tool(tool, None)
+
+    await run_code_mode_exec(bridge)
+
+    assert len(bridge._tool_execution_grants) == 0
+    with pytest.raises(PermissionError, match="was not proposed by the model"):
+        await call_host_tool(bridge)("host", "read_file", {"path": "notes.txt"})
+    tool.assert_not_awaited()
+
+
+async def test_code_mode_exec_call_runs_nested_tool_when_opted_out() -> None:
+    """`require_proposal=False` is the remedy the docs give for code mode."""
+    tool = AsyncMock(return_value="contents")
+    bridge = sandbox_bridge_with_tool(tool, None, require_proposal=False)
+
+    await run_code_mode_exec(bridge)
+
+    result = await call_host_tool(bridge)("host", "read_file", {"path": "notes.txt"})
+
+    assert result == "contents"
+    tool.assert_awaited_once_with(path="notes.txt")
 
 
 def multi_choice_output_with_tool_call_alternate() -> ModelOutput:

@@ -241,6 +241,17 @@ anthropic/claude-sonnet-4-5-20250514:
 
 When model cost data is configured, costs will be tracked for the sample as a whole, as well as any events within the sample that have a ModelUsage field.
 
+A request is priced at the rates of the model that served it, when the provider reports one other than the model requested: a [refusal fallback](fallbacks.qmd), an Azure OpenAI, Azure AI or Microsoft Foundry deployment, an OpenRouter, Bedrock or Fireworks router, or a LiteLLM proxy fallback. A dated snapshot of the requested model is priced at the requested model's rates. If the served model has no cost data, the request is priced at the requested model's rates and a warning names the served model (e.g. `openai/gpt-4o-mini-2024-07-18`). Set cost data under that name. `set_model_cost()` and `--model-cost-config` accept only models in Inspect's model database; for any other model, use `set_model_info()`:
+
+``` python
+from inspect_ai.model import set_model_info, ModelCost, ModelInfo
+
+set_model_info("privateorg/routed-model", ModelInfo(cost=ModelCost(
+    input=1.00, output=4.00,
+    input_cache_write=0, input_cache_read=0.10,
+)))
+```
+
 Additionally, configuring model cost data allows setting sample cost limits:
 
 ``` bash

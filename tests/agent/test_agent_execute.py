@@ -447,7 +447,7 @@ async def test_agent_run_parent_limit_hit() -> None:
             await run(looping_agent(), "This is the input", limits=[token_limit(100)])
 
     assert exc_info.value.type == "token"
-    assert exc_info.value.value == 11
+    assert exc_info.value.value == 10
     assert exc_info.value.limit == 10
 
 

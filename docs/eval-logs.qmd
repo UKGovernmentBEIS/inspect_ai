@@ -177,6 +177,11 @@ inspect eval ctf.py --log-model-api
 
 To disable model API logging entirely (errors only), use `--no-log-model-api`.
 
+Provider request and response ids are logged regardless of these options, so you can point a provider to a specific request:
+
+- `ModelEvent.request_ids`: the request id and HTTP status of each request sent to generate the response, including retries. Recorded for OpenAI and OpenAI-compatible providers, Anthropic, Groq, Mistral and Bedrock, except in batch mode.
+- `ModelOutput.response_id`: the provider's id for the response (e.g. `resp_...` or `msg_...`).
+
 ## Log File API {#sec-log-file-api}
 
 ### EvalLog

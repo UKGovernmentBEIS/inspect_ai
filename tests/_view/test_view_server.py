@@ -2,6 +2,7 @@
 
 import asyncio
 import contextlib
+import importlib
 import json
 import logging
 import math
@@ -19,6 +20,7 @@ import fsspec  # type: ignore
 import pytest
 from starlette.requests import Request
 from starlette.testclient import TestClient
+from test_helpers.utils import skip_if_trio
 
 import inspect_ai._eval.evalset
 import inspect_ai._eval.task.resolved
@@ -32,6 +34,7 @@ import inspect_ai.log._recorders.buffer.filestore
 import inspect_ai.model
 from inspect_ai._util.asyncfiles import AsyncFilesystem
 from inspect_ai._util.event_loop_monitor import event_loop_monitor
+from inspect_ai._util.file import filesystem
 from inspect_ai._util.json import to_json_safe
 from inspect_ai._view import fastapi_server
 from inspect_ai._view.common import (
@@ -44,6 +47,7 @@ from inspect_ai._view.common import (
 from inspect_ai._view.fastapi_server import AccessPolicy, FileMappingPolicy
 from inspect_ai.event import ScoreEvent
 from inspect_ai.log import list_eval_logs_async
+from inspect_ai.log._file import async_filesystem
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.scorer import Score
 
@@ -379,6 +383,19 @@ def test_api_app_config(view_client: ViewTestClient) -> None:
     # otherwise null.
     assert "scout_version" in config
     assert config["scout_version"] is None or isinstance(config["scout_version"], str)
+    # Unset unless the viewer was started with --trust-content/--no-trust-content.
+    assert config["trust_content"] is None
+
+
+@pytest.mark.parametrize("trust_content", [False, True])
+def test_api_app_config_trust_content(tmp_path: Path, trust_content: bool) -> None:
+    app = fastapi_server.view_server_app(
+        default_dir=str(tmp_path), trust_content=trust_content
+    )
+    with fastapi.testclient.TestClient(app) as client:
+        resp = client.get("/app-config")
+    resp.raise_for_status()
+    assert resp.json()["trust_content"] is trust_content
 
 
 def test_api_log_info(view_client: ViewTestClient) -> None:
@@ -1524,6 +1541,9 @@ def _patch_flat_filesystem(monkeypatch: pytest.MonkeyPatch) -> None:
     class FlatFileSystem:
         sep = "/"
 
+        def dir_location(self, path: str) -> str:
+            return path
+
     def fake_filesystem(path: str, fs_options: dict[str, Any] = {}) -> FlatFileSystem:
         return FlatFileSystem()
 
@@ -1560,6 +1580,29 @@ async def test_read_eval_set_info_async_raises_non_auth_errors(
         )
 
 
+@pytest.mark.parametrize("suffix", ["", "/"])
+async def test_read_eval_set_info_async_keeps_azure_account_in_url(
+    suffix: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv("AZURE_STORAGE_ACCOUNT_NAME", raising=False)
+    monkeypatch.delenv("AZURE_ACCOUNT_NAME", raising=False)
+    log_dir = "abfss://mycontainer@myaccount.dfs.core.windows.net/inspect-logs"
+    requested: list[str] = []
+
+    class RecordingFilesystem:
+        async def exists(self, filename: str) -> bool:
+            # AsyncFilesystem.exists opens a filesystem from the URL alone
+            filesystem(filename)
+            requested.append(filename)
+            return False
+
+    result = await read_eval_set_info_async(
+        f"{log_dir}{suffix}", cast(AsyncFilesystem, RecordingFilesystem())
+    )
+    assert result is None
+    assert requested == [f"{log_dir}/eval-set.json"]
+
+
 async def test_list_eval_logs_async_uses_fsspec_path_with_fs_options(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -1576,9 +1619,6 @@ async def test_list_eval_logs_async_uses_fsspec_path_with_fs_options(
             return True
 
         def is_async(self) -> bool:
-            return True
-
-        def exists(self, path: str) -> bool:
             return True
 
         def ls(self, path: str, recursive: bool = False) -> list[FileInfo]:
@@ -1603,9 +1643,6 @@ async def test_list_eval_logs_async_uses_fsspec_path_with_fs_options(
             )
 
     class FakeAsyncFileSystem:
-        async def _exists(self, log_dir: str) -> bool:
-            return True
-
         def invalidate_cache(self, log_dir: str) -> None:
             pass
 
@@ -1655,6 +1692,34 @@ async def test_list_eval_logs_async_uses_fsspec_path_with_fs_options(
     assert logs[0].name == "s3://bucket/logs/2026-01-01T00-00-00_task_id.eval"
     assert logs[0].task == "task"
     assert logs[0].task_id == "id"
+
+
+@skip_if_trio
+async def test_s3_listing_context_closes_on_cancellation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    closed = False
+
+    class Session:
+        async def close(self) -> None:
+            nonlocal closed
+            await anyio.lowlevel.checkpoint()
+            closed = True
+
+    class S3:
+        def __init__(self, **kwargs: Any) -> None:
+            pass
+
+        async def set_session(self) -> Session:
+            return Session()
+
+    monkeypatch.setattr(importlib.import_module("s3fs"), "S3FileSystem", S3)
+
+    with anyio.CancelScope() as scope:
+        async with async_filesystem("s3://bucket/logs", {"anon": True}):
+            scope.cancel()
+            await anyio.lowlevel.checkpoint()
+    assert closed
 
 
 async def test_list_eval_logs_async_s3_missing_bucket_returns_empty(

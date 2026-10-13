@@ -750,6 +750,14 @@ def has_active_model_event() -> bool:
     return _active_model_event.get() is not None
 
 
+def clear_active_model_event() -> None:
+    """Detach the current context from the in-flight `ModelEvent`.
+
+    For long-lived tasks spawned during a model call, which inherit its context.
+    """
+    _active_model_event.set(None)
+
+
 def set_active_model_event_call(
     request: Any,
     filter: "ModelCallFilter | None" = None,
@@ -781,6 +789,19 @@ def report_active_sample_retry() -> None:
     active = sample_active()
     if active is not None:
         active.http_retries += 1
+
+
+def report_active_model_request_id(request_id: str, header: str, status: int) -> None:
+    """Record a provider request id on the in-flight `ModelEvent`, if any."""
+    from inspect_ai.model._model_call import ModelRequestId
+
+    model_event = _active_model_event.get()
+    if model_event is not None:
+        if model_event.request_ids is None:
+            model_event.request_ids = []
+        model_event.request_ids.append(
+            ModelRequestId(id=request_id, header=header, status=status)
+        )
 
 
 def report_active_sample_refusal() -> None:

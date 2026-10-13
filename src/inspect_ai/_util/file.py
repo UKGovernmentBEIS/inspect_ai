@@ -17,8 +17,8 @@ from typing import Any, BinaryIO, Callable, Iterator, Literal, TextIO, cast, ove
 from urllib.parse import quote_from_bytes, urlparse
 from urllib.request import url2pathname
 
-import fsspec  # type: ignore  # type: ignore
-from fsspec.core import split_protocol  # type: ignore  # type: ignore
+import fsspec  # type: ignore
+from fsspec.core import split_protocol  # type: ignore
 from fsspec.implementations.local import make_path_posix  # type: ignore
 from pydantic import BaseModel, Field
 from shortuuid import uuid
@@ -254,6 +254,31 @@ class FileSystem:
 
     def path_as_uri(self, path: str) -> str:
         return str(self.fs.unstrip_protocol(path))
+
+    def dir_location(self, path: str) -> str:
+        """Return the location to address files in a directory, from the path alone.
+
+        Makes no filesystem request, so it works with credentials scoped to a
+        prefix. Trailing separators are removed (a root is kept). A local path
+        becomes an absolute `file://` URI. A remote URL otherwise keeps the form
+        given, since it can carry connection settings (e.g. the account in
+        `abfss://container@account.dfs.core.windows.net/logs`).
+        """
+        if self.is_local():
+            return self.path_as_uri(
+                _strip_trailing_sep(self.fs._strip_protocol(path), self.sep)
+            )
+        head, delim, rest = path.rpartition("://")
+        trimmed = rest.rstrip(self.sep)
+        return f"{head}{delim}{trimmed}" if trimmed else path
+
+    def dir_as_uri(self, path: str) -> str:
+        """Return a directory's URI in the form of the names `ls()` returns.
+
+        Makes no filesystem request. Use it to make listed names relative to
+        the directory; use `dir_location()` to address files in it.
+        """
+        return self.path_as_uri(self.fs._strip_protocol(self.dir_location(path)))
 
     def ls(
         self, path: str, recursive: bool = False, **kwargs: dict[str, Any]
@@ -627,14 +652,17 @@ def strip_trailing_sep(path: str) -> str:
     Matches pathlib behavior: exactly ``//`` is preserved per POSIX,
     any other all-separator path collapses to a single separator.
     """
-    fs = filesystem(path)
-    stripped = path.rstrip(fs.sep)
+    return _strip_trailing_sep(path, filesystem(path).sep)
+
+
+def _strip_trailing_sep(path: str, sep: str) -> str:
+    stripped = path.rstrip(sep)
     if stripped:
         return stripped
     # All separators — preserve exactly "//" per POSIX, otherwise collapse
-    if path == fs.sep * 2:
+    if path == sep * 2:
         return path
-    return fs.sep
+    return sep
 
 
 logger = logging.getLogger(__name__)

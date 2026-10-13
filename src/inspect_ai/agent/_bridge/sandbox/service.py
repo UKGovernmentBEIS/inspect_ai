@@ -4,6 +4,7 @@ from typing import Awaitable, Callable, Sequence, cast
 import anyio
 from pydantic import JsonValue, TypeAdapter
 
+from inspect_ai._sentinel._scope import AgentScope, sentinel_scope
 from inspect_ai._util.content import Content, ContentImage, ContentText
 from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._util.logger import warn_once
@@ -11,6 +12,8 @@ from inspect_ai._util.url import data_uri_mime_type, data_uri_to_base64, is_data
 from inspect_ai.model._call_tools import (
     get_tools_info,
     tool_call_error,
+    tool_result_content_list,
+    truncate_tool_output,
     validate_tool_input,
 )
 from inspect_ai.model._model import ModelRefusalError
@@ -244,6 +247,10 @@ def call_tool(
     the sample at once, and the original still propagates so the RPC unwinds
     with an error reply (the teardown may pre-empt its delivery; the
     scaffold's turn is over either way).
+
+    A result a native call would pass to the model as text (anything but
+    content) is truncated to the same output limit, in the same format
+    (`truncate_tool_output`).
     """
 
     async def execute(
@@ -264,7 +271,10 @@ def call_tool(
                 logger,
                 f"Denied host tool call '{server}/{tool}': the model did not "
                 "propose it in a bridged generation (or its proposal has "
-                "already executed).",
+                "already executed). An agent that calls host tools from code "
+                "the model writes (Codex CLI in code mode) can never match a "
+                "proposal; set require_proposal=False on the existing "
+                f"BridgedToolsSpec for server '{server}' for such an agent.",
             )
             raise PermissionError(
                 f"Host tool call '{server}/{tool}' was not proposed by the model "
@@ -274,12 +284,13 @@ def call_tool(
 
         tool_fn = server_tools[tool]
         try:
-            validation_errors = validate_tool_input(
-                arguments, ToolDef(tool_fn).parameters
-            )
+            tool_def = ToolDef(tool_fn)
+            validation_errors = validate_tool_input(arguments, tool_def.parameters)
             if validation_errors:
                 raise ToolParsingError(validation_errors)
-            result = await tool_fn(**arguments)
+            # as in call_tool: the tool's own model calls are not agent turns
+            with sentinel_scope(AgentScope.OFF):
+                result = await tool_fn(**arguments)
         except Exception as ex:
             # classify the unwrapped exception, but let the original propagate:
             # the service dispatcher special-cases a bare LimitExceededError
@@ -294,8 +305,10 @@ def call_tool(
         # carries them as-is). For anything else, use pydantic_core.to_json so
         # Pydantic models (e.g. list[ContentText] from real MCP tools) are
         # serialized correctly — json.dumps can't handle BaseModel.
-        if isinstance(result, str):
-            return result
+        if tool_result_content_list(result) is None:
+            text = result if isinstance(result, str) else to_json_str_safe(result)
+            truncated = truncate_tool_output(tool, text, tool_def.max_output)
+            return truncated.output if truncated else text
         if isinstance(result, ContentImage) or (
             isinstance(result, list)
             and all(

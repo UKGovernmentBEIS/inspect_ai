@@ -21,6 +21,7 @@ from .._util import (
     as_sample_list,
     data_to_samples,
     record_to_sample_fn,
+    resolve_shuffle,
     shuffle_choices_if_requested,
 )
 
@@ -127,7 +128,7 @@ def hf_dataset(
     revision: str | None = None,
     sample_fields: FieldSpec | RecordToSample | None = None,
     auto_id: bool = False,
-    shuffle: bool = False,
+    shuffle: bool | int = False,
     seed: int | None = None,
     shuffle_choices: bool | int | None = None,
     limit: int | None = None,
@@ -159,8 +160,8 @@ def hf_dataset(
         `FieldSpec` to specify mapping fields by name; Pass a `RecordToSample` to
           handle mapping with a custom function that returns one or more samples.
       auto_id: Assign an auto-incrementing ID for each sample.
-      shuffle: Randomly shuffle the dataset order.
-      seed: Seed used for random shuffle.
+      shuffle: Randomly shuffle the dataset order. An int (including 0) is used as the seed, so `shuffle=0` shuffles.
+      seed: Seed used for random shuffle. Only valid with a boolean `shuffle`.
       shuffle_choices: Whether to shuffle the choices. If an int is passed, this will be used as the seed when shuffling.
       limit: Limit the number of records to read.
       trust: Whether or not to allow for datasets defined on the Hub
@@ -180,6 +181,8 @@ def hf_dataset(
     Returns:
         Dataset read from Hugging Face
     """
+    resolved_shuffle = resolve_shuffle(shuffle, seed)
+
     # ensure we have the datasets package (>= v2.16, which supports trust_remote_code)
     FEATURE = "Hugging Face Datasets"
     PACKAGE = "datasets"
@@ -233,7 +236,7 @@ def hf_dataset(
     custom_mapping = sample_fields is not None and not isinstance(
         sample_fields, FieldSpec
     )
-    materialize_for_ids = auto_id and shuffle and custom_mapping
+    materialize_for_ids = auto_id and resolved_shuffle.enabled and custom_mapping
 
     if materialize_for_ids:
         # Assign auto ids over the unshuffled records, then reorder whole
@@ -251,18 +254,18 @@ def hf_dataset(
                 next_id += 1
         permutation = datasets.Dataset.from_dict(
             {"index": list(range(len(groups)))}
-        ).shuffle(seed=seed)["index"]
+        ).shuffle(seed=resolved_shuffle.seed)["index"]
         groups = [groups[index] for index in permutation]
         if limit is not None:
             groups = groups[:limit]
         samples = [group_sample for group in groups for group_sample in group]
     else:
         index_col = "__inspect_auto_id_index__"
-        recover_ids = auto_id and shuffle  # implies a 1:1 mapping here
+        recover_ids = auto_id and resolved_shuffle.enabled  # implies a 1:1 mapping here
         if recover_ids:
             dataset = dataset.add_column(index_col, list(range(len(dataset))))
-        if shuffle:
-            dataset = dataset.shuffle(seed=seed)
+        if resolved_shuffle.enabled:
+            dataset = dataset.shuffle(seed=resolved_shuffle.seed)
         if limit is not None:
             dataset = dataset.select(range(limit))
         records = dataset.to_list()
@@ -279,7 +282,7 @@ def hf_dataset(
         samples=samples,
         name=Path(path).stem if Path(path).exists() else path,
         location=path,
-        shuffled=shuffle,
+        shuffled=resolved_shuffle.enabled,
     )
 
     shuffle_choices_if_requested(memory_dataset, shuffle_choices)

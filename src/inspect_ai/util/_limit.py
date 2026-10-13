@@ -624,7 +624,7 @@ def record_model_usage(usage: ModelUsage) -> None:
     node.record(usage)
 
 
-def check_token_limit() -> None:
+def check_token_limit(raise_for_equal: bool = False) -> None:
     """Check if the current token usage exceeds _any_ of the token limits.
 
     Within the current execution context (e.g. async task) and its parent contexts only.
@@ -632,13 +632,17 @@ def check_token_limit() -> None:
     Note that all active token limits are checked, not just the most recent one.
 
     No-op when token limits are suspended (see `suspend_token_limit()`).
+
+    Args:
+      raise_for_equal: If True, also raise when usage equals a limit (used before a
+        model call, which is guaranteed to exceed a limit that has been reached).
     """
     if token_limit_tree.is_suspended():
         return
     node = token_limit_tree.get()
     if node is None:
         return
-    node.check()
+    node.check(raise_for_equal)
 
 
 def suspend_token_limit() -> AbstractContextManager[None]:
@@ -699,17 +703,21 @@ def record_model_cost(cost: float) -> None:
     node.record(cost)
 
 
-def check_cost_limit() -> None:
+def check_cost_limit(raise_for_equal: bool = False) -> None:
     """Check if the current cost exceeds _any_ of the cost limits.
 
     Within the current execution context (e.g. async task) and its parent contexts only.
 
     Note that all active cost limits are checked, not just the most recent one.
+
+    Args:
+      raise_for_equal: If True, also raise when cost equals a limit (used before a
+        model call, which is guaranteed to exceed a limit that has been reached).
     """
     node = cost_limit_tree.get()
     if node is None:
         return
-    node.check()
+    node.check(raise_for_equal)
 
 
 def message_limit(limit: int | None) -> _MessageLimit:
@@ -1071,7 +1079,7 @@ class _TokenLimit(Limit, _Node):
             self.parent.record(usage)
         self._usage += usage
 
-    def check(self) -> None:
+    def check(self, raise_for_equal: bool = False) -> None:
         """Check if this token limit or any ancestor limits have been exceeded.
 
         The checks occur from root to leaf. This is so that if multiple limits are
@@ -1079,8 +1087,8 @@ class _TokenLimit(Limit, _Node):
         preventing certain sub-agent architectures from ending up in an infinite loop.
         """
         if self.parent is not None:
-            self.parent.check()
-        self._check_self()
+            self.parent.check(raise_for_equal)
+        self._check_self(raise_for_equal)
 
     def _validate_token_limit(self, value: int | None) -> None:
         if value is not None and value < 0:
@@ -1088,22 +1096,23 @@ class _TokenLimit(Limit, _Node):
                 f"Token limit value must be a non-negative integer or None: {value}"
             )
 
-    def _check_self(self) -> None:
+    def _check_self(self, raise_for_equal: bool = False) -> None:
         from inspect_ai.event._sample_limit import SampleLimitEvent
         from inspect_ai.log._transcript import transcript
 
         if self.limit is None:
             return
         total = self._metering.value(self._usage)
-        if total > self.limit:
+        if total > self.limit or (raise_for_equal and total == self.limit):
+            status = "reached" if total == self.limit else "exceeded"
             if self._type == "all":
                 message = (
-                    f"Token limit exceeded. value: {total:,}; limit: {self.limit:,}"
+                    f"Token limit {status}. value: {total:,}; limit: {self.limit:,}"
                 )
             elif self._type == "output":
-                message = f"Output token limit exceeded. value: {total:,}; limit: {self.limit:,}"
+                message = f"Output token limit {status}. value: {total:,}; limit: {self.limit:,}"
             else:
-                message = f"Token limit exceeded ({self._type}). value: {total:,}; limit: {self.limit:,}"
+                message = f"Token limit {status} ({self._type}). value: {total:,}; limit: {self.limit:,}"
             transcript()._event(
                 SampleLimitEvent(type="token", limit=self.limit, message=message)
             )
@@ -1241,7 +1250,7 @@ class _CostLimit(Limit, _Node):
             self.parent.record(cost)
         self._cost += cost
 
-    def check(self) -> None:
+    def check(self, raise_for_equal: bool = False) -> None:
         """Check if this cost limit or any ancestor limits have been exceeded.
 
         The checks occur from root to leaf. This is so that if multiple limits are
@@ -1249,8 +1258,8 @@ class _CostLimit(Limit, _Node):
         preventing certain sub-agent architectures from ending up in an infinite loop.
         """
         if self.parent is not None:
-            self.parent.check()
-        self._check_self()
+            self.parent.check(raise_for_equal)
+        self._check_self(raise_for_equal)
 
     def _validate_cost_limit(self, value: float | None) -> None:
         if value is not None and value < 0:
@@ -1258,14 +1267,15 @@ class _CostLimit(Limit, _Node):
                 f"Cost limit value must be a non-negative float or None: {value}"
             )
 
-    def _check_self(self) -> None:
+    def _check_self(self, raise_for_equal: bool = False) -> None:
         from inspect_ai.event._sample_limit import SampleLimitEvent
         from inspect_ai.log._transcript import transcript
 
         if self.limit is None:
             return
-        if self._cost > self.limit:
-            message = f"Cost limit exceeded. value: ${self._cost:,.4f}; limit: ${self.limit:,.4f}"
+        if self._cost > self.limit or (raise_for_equal and self._cost == self.limit):
+            status = "reached" if self._cost == self.limit else "exceeded"
+            message = f"Cost limit {status}. value: ${self._cost:,.4f}; limit: ${self.limit:,.4f}"
             transcript()._event(
                 SampleLimitEvent(type="cost", limit=self.limit, message=message)
             )

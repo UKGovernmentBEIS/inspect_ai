@@ -263,101 +263,102 @@ class OpenAICompatibleAPI(ModelAPI):
                 input = chat_api_messages_for_handler(input, tools, handler)
 
             # allocate request_id (so we can see it from ModelCall)
-            request_id = self._http_hooks.start_request()
+            with self._http_hooks.request() as request_id:
+                # get completion params (slice off service from model name)
+                completion_params = self.completion_params(
+                    config=config,
+                    tools=len(tools) > 0,
+                )
 
-            # get completion params (slice off service from model name)
-            completion_params = self.completion_params(
-                config=config,
-                tools=len(tools) > 0,
-            )
+                # prepare request (we do this so we can log the ModelCall)
+                have_tools = (len(tools) > 0) and not self.emulate_tools
+                request = dict(
+                    messages=await self.messages_to_openai(input),
+                    tools=self.tools_to_openai(tools) if have_tools else NOT_GIVEN,
+                    tool_choice=openai_chat_tool_choice(tool_choice)
+                    if have_tools
+                    else NOT_GIVEN,
+                    extra_headers={HttpxHooks.REQUEST_ID_HEADER: request_id}
+                    | self.request_headers(config)
+                    | (config.extra_headers or {}),
+                    **completion_params,
+                )
 
-            # prepare request (we do this so we can log the ModelCall)
-            have_tools = (len(tools) > 0) and not self.emulate_tools
-            request = dict(
-                messages=await self.messages_to_openai(input),
-                tools=self.tools_to_openai(tools) if have_tools else NOT_GIVEN,
-                tool_choice=openai_chat_tool_choice(tool_choice)
-                if have_tools
-                else NOT_GIVEN,
-                extra_headers={HttpxHooks.REQUEST_ID_HEADER: request_id}
-                | self.request_headers(config)
-                | (config.extra_headers or {}),
-                **completion_params,
-            )
+                # resolve streaming and mutate the request accordingly before the
+                # ModelCall snapshot below, so the logged request matches the wire
+                # request
+                if self.resolve_stream(config):
+                    # ask the server for cumulative usage on the final chunk so the
+                    # streamed completion carries the same usage as a non-streamed
+                    # one
+                    request["stream"] = True
+                    request.setdefault("stream_options", {"include_usage": True})
 
-            # resolve streaming and mutate the request accordingly before the
-            # ModelCall snapshot below, so the logged request matches the wire
-            # request
-            if self.resolve_stream(config):
-                # ask the server for cumulative usage on the final chunk so the
-                # streamed completion carries the same usage as a non-streamed
-                # one
-                request["stream"] = True
-                request.setdefault("stream_options", {"include_usage": True})
+                model_call = set_active_model_event_call(request, openai_media_filter)
 
-            model_call = set_active_model_event_call(request, openai_media_filter)
+                try:
+                    # generate completion and save response for model call
+                    completion = await self._generate_completion(request, config)
 
-            try:
-                # generate completion and save response for model call
-                completion = await self._generate_completion(request, config)
+                    # guard against the openai SDK returning a non-ChatCompletion
+                    # (this can occur when the server returns a 200 with a body
+                    # that parses as JSON but is not a JSON object — e.g. a bare
+                    # string — which openai's construct_type passes through as-is)
+                    if not isinstance(completion, ChatCompletion):
+                        raise OpenAIResponseError(
+                            "server_error",
+                            f"Unexpected non-ChatCompletion response: {completion!r}",
+                        )
 
-                # guard against the openai SDK returning a non-ChatCompletion
-                # (this can occur when the server returns a 200 with a body
-                # that parses as JSON but is not a JSON object — e.g. a bare
-                # string — which openai's construct_type passes through as-is)
-                if not isinstance(completion, ChatCompletion):
-                    raise OpenAIResponseError(
-                        "server_error",
-                        f"Unexpected non-ChatCompletion response: {completion!r}",
+                    response = completion.model_dump()
+                    model_call.set_response(
+                        response, self._http_hooks.end_request(request_id)
                     )
+                    self.on_response(response)
 
-                response = completion.model_dump()
-                model_call.set_response(
-                    response, self._http_hooks.end_request(request_id)
-                )
-                self.on_response(response)
+                    # get choices
+                    choices = self.chat_choices_from_completion(completion, tools)
 
-                # get choices
-                choices = self.chat_choices_from_completion(completion, tools)
+                    # if we have a handler, see if there are embedded tool calls we need to resolve
+                    if handler:
+                        choices = [
+                            _resolve_chat_choice(choice, tools, handler)
+                            for choice in choices
+                        ]
 
-                # if we have a handler, see if there are embedded tool calls we need to resolve
-                if handler:
-                    choices = [
-                        _resolve_chat_choice(choice, tools, handler)
-                        for choice in choices
-                    ]
+                    # return output
+                    return model_output_from_openai(completion, choices), model_call
 
-                # return output
-                return model_output_from_openai(completion, choices), model_call
-
-            except (
-                BadRequestError,
-                UnprocessableEntityError,
-                PermissionDeniedError,
-            ) as ex:
-                model_call.set_error(
-                    as_error_response(ex.body), self._http_hooks.end_request(request_id)
-                )
-                return self.handle_bad_request(ex), model_call
-            except APIStatusError as ex:
-                # 413 (payload too large) has no dedicated SDK exception type but
-                # is a bad-request-class error (e.g. CloudFlare signals context
-                # window overflow this way)
-                if ex.status_code == 413:
+                except (
+                    BadRequestError,
+                    UnprocessableEntityError,
+                    PermissionDeniedError,
+                ) as ex:
                     model_call.set_error(
                         as_error_response(ex.body),
                         self._http_hooks.end_request(request_id),
                     )
                     return self.handle_bad_request(ex), model_call
-                raise
-            except APIError as ex:
-                output = self.handle_stream_error(ex)
-                if output is None:
+                except APIStatusError as ex:
+                    # 413 (payload too large) has no dedicated SDK exception type but
+                    # is a bad-request-class error (e.g. CloudFlare signals context
+                    # window overflow this way)
+                    if ex.status_code == 413:
+                        model_call.set_error(
+                            as_error_response(ex.body),
+                            self._http_hooks.end_request(request_id),
+                        )
+                        return self.handle_bad_request(ex), model_call
                     raise
-                model_call.set_error(
-                    as_error_response(ex.body), self._http_hooks.end_request(request_id)
-                )
-                return output, model_call
+                except APIError as ex:
+                    output = self.handle_stream_error(ex)
+                    if output is None:
+                        raise
+                    model_call.set_error(
+                        as_error_response(ex.body),
+                        self._http_hooks.end_request(request_id),
+                    )
+                    return output, model_call
 
     def resolve_tools(
         self, tools: list[ToolInfo], tool_choice: ToolChoice, config: GenerateConfig

@@ -983,6 +983,14 @@ LIVE_PROVIDERS = [
 ]
 
 
+LIVE_GEMINI_EFFORT_ONLY = [
+    # thinking-only, and a Flash that rejects minimal thinking
+    ("gemini-2.5-pro", "gemini/gemini-2.5-pro"),
+    ("gemini-3.8-flash", "gemini/gemini-3.8-flash"),
+]
+"""Gemini models served only for the reasoning effort test."""
+
+
 def _env_available(names: tuple[str, ...]) -> bool:
     return all(os.environ.get(name) for name in names)
 
@@ -994,6 +1002,17 @@ def live_proxy(tmp_path_factory: pytest.TempPathFactory) -> Iterator[LiteLLMProx
         "model_list": [
             {"model_name": f"live-{p.name}", "litellm_params": p.litellm_params}
             for p in available
+        ]
+        + [
+            {
+                "model_name": f"live-{name}",
+                "litellm_params": {
+                    "model": model,
+                    "api_key": "os.environ/GOOGLE_API_KEY",
+                },
+            }
+            for name, model in LIVE_GEMINI_EFFORT_ONLY
+            if _env_available(("GOOGLE_API_KEY",))
         ]
     }
     env_vars = sorted({name for p in available for name in p.env})
@@ -1160,3 +1179,72 @@ def test_live_chat_default_for_other_vendors(
     model = proxy_model(live_proxy, f"live-{provider.name}", memoize=False)
     assert isinstance(model.api, LiteLLMProxyAPI)
     assert not model.api.responses_api
+
+
+LIVE_EFFORTS: list[
+    Literal["none", "minimal", "low", "medium", "high", "xhigh", "max"]
+] = ["none", "minimal", "low", "medium", "high", "xhigh", "max"]
+
+LIVE_GEMINI_EFFORT_MODELS = [p.name for p in LIVE_PROVIDERS if p.family == "gemini"] + [
+    name for name, _ in LIVE_GEMINI_EFFORT_ONLY
+]
+
+LIVE_GEMINI_EFFORT_SENT: dict[tuple[str, str], dict[str, Any] | None] = {
+    ("gemini-3.8-flash", "minimal"): {"thinkingLevel": "low"},
+    ("gemini-3.8-flash", "max"): {"thinkingLevel": "high"},
+    ("gemini-3.1-pro", "minimal"): {"thinkingLevel": "low"},
+    ("gemini-3.1-pro", "none"): None,
+    ("gemini-2.5-pro", "none"): None,
+    ("gemini-2.5-pro", "max"): {"thinkingBudget": 32000},
+    ("gemini-2.5-flash", "high"): {"thinkingBudget": 16000},
+}
+"""Expected `thinkingConfig` fields for some requests (None: no config)."""
+
+
+@skip_if_no_openai_package
+@skip_if_no_litellm_proxy
+@pytest.mark.api
+@pytest.mark.skipif(
+    not _env_available(("GOOGLE_API_KEY",)), reason="Requires GOOGLE_API_KEY"
+)
+@pytest.mark.parametrize("name", LIVE_GEMINI_EFFORT_MODELS)
+async def test_live_gemini_reasoning_effort(
+    live_proxy: LiteLLMProxy, name: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Every reasoning effort succeeds against Gemini, mapped as natively."""
+    lowered: list[str] = []
+
+    def warning(message: str) -> None:
+        if "does not accept reasoning_effort" in message:
+            lowered.append(message)
+
+    monkeypatch.setattr(litellm_proxy_module.logger, "warning", warning)
+    api = proxy_model(live_proxy, f"live-{name}", memoize=False).api
+    assert isinstance(api, LiteLLMProxyAPI)
+    for effort in LIVE_EFFORTS:
+        call_id = str(uuid.uuid4())
+        result = await api.generate(
+            [ChatMessageUser(content="Reply with the single word: ok")],
+            [],
+            "none",
+            GenerateConfig(
+                reasoning_effort=effort,
+                max_retries=0,
+                extra_headers={CALL_ID_HEADER: call_id},
+            ),
+        )
+        output = result[0] if isinstance(result, tuple) else result
+        assert isinstance(output, ModelOutput), f"{effort}: {output}"
+        assert live_proxy.capture_dir is not None
+        request = upstream_exchange(live_proxy.capture_dir, call_id).request
+        sent = (request.get("generationConfig") or {}).get("thinkingConfig")
+        print(f"{name} {effort}: {sent}")
+        if (name, effort) in LIVE_GEMINI_EFFORT_SENT:
+            expected = LIVE_GEMINI_EFFORT_SENT[(name, effort)]
+            if expected is None:
+                assert sent is None, f"{effort}: {sent}"
+            else:
+                assert sent is not None, f"{effort}: no thinkingConfig"
+                assert expected.items() <= sent.items(), f"{effort}: {sent}"
+    # the mapping is up front, so the proxy rejected nothing
+    assert lowered == []

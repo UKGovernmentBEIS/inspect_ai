@@ -13,8 +13,14 @@ from ._first_party import FRONTIER_MODELS
 
 Vendor = Literal["anthropic", "openai", "google", "grok"]
 
-# LiteLLM provider segments that serve a single vendor's models
-_VENDOR_PROVIDERS: dict[str, Vendor] = {"anthropic": "anthropic", "xai": "grok"}
+# LiteLLM provider segments that serve a single vendor's models (`google` is
+# how upstream names on the `gemini` route are normalized)
+_VENDOR_PROVIDERS: dict[str, Vendor] = {
+    "anthropic": "anthropic",
+    "xai": "grok",
+    "gemini": "google",
+    "google": "google",
+}
 
 # LiteLLM provider for each vendor's own API, for `base_model` suggestions
 _LITELLM_PROVIDERS: dict[Vendor, str] = {

@@ -33,6 +33,7 @@ def view(
     trusted_hosts: tuple[str, ...] = (),
     unsafe_allow_unauthenticated: bool = False,
     show_shards: bool = False,
+    trust_content: bool | None = None,
 ) -> None:
     """Run the Inspect View server.
 
@@ -54,6 +55,10 @@ def view(
             authorization.
         show_shards: List shard logs (under `<name>.shards/`) that their merged
             log already covers. By default these are hidden.
+        trust_content: `False` shows the content of every log as plain text,
+            whatever the log's own `ViewerConfig(trust_content=...)`. `None`
+            (the default) or `True` defers to each log; it never shows an
+            untrusted log richly.
     """
     init_dotenv()
     init_logger(log_level)
@@ -84,6 +89,7 @@ def view(
         network_policy=network_policy,
         fs_options=fs_options,
         show_shards=show_shards,
+        trust_content=trust_content,
     )
 
 

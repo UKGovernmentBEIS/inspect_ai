@@ -20,7 +20,15 @@ from inspect_ai import SampleSource, Task, enqueue_sample, eval, eval_set, task
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.dataset import Sample
 from inspect_ai.log import EvalLog, EvalSample, read_eval_log
-from inspect_ai.scorer import SampleScore
+from inspect_ai.scorer import (
+    CORRECT,
+    SampleScore,
+    Score,
+    Scorer,
+    Target,
+    accuracy,
+    scorer,
+)
 from inspect_ai.solver import Generate, Solver, TaskState, generate, solver
 from inspect_ai.util import (
     ExecResult,
@@ -258,6 +266,252 @@ def test_sample_source_duplicate_id_errors() -> None:
     )
     assert logs[0].status == "error"
     assert "duplicate" in (logs[0].error.message if logs[0].error else "")
+
+
+@scorer(metrics=[accuracy()])
+def _record_scored_ids(scored: list[tuple[str | int, int]]) -> Scorer:
+    async def score(state: TaskState, target: Target) -> Score:
+        scored.append((state.sample_id, state.epoch))
+        return Score(value=CORRECT)
+
+    return score
+
+
+_Add = tuple[str, int | None]
+
+
+def _enqueue(adds: list[_Add]) -> None:
+    for id, epoch in adds:
+        enqueue_sample(Sample(id=id, input=id, target="ok"), epoch=epoch)
+
+
+class _EpochAdds(SampleSource):
+    """Seeds `seed`, enqueues `adds` once, and `then[(id, epoch)]` as that run completes."""
+
+    def __init__(
+        self,
+        adds: list[_Add],
+        seed: list[str] | None = None,
+        then: dict[tuple[str, int], list[_Add]] | None = None,
+    ) -> None:
+        self._adds = adds
+        self._seed = seed or []
+        self._then = then or {}
+        self._started = False
+
+    def initial_samples(self) -> list[Sample]:
+        return [Sample(id=id, input=id, target="ok") for id in self._seed]
+
+    async def next_samples(self) -> list[Sample] | None:
+        if self._started:
+            return None
+        self._started = True
+        _enqueue(self._adds)
+        return []
+
+    async def sample_complete(self, sample: EvalSample) -> None:
+        _enqueue(self._then.get((str(sample.id), sample.epoch), []))
+
+
+def _runs(log: EvalLog) -> list[tuple[str, int]]:
+    return sorted((str(sample.id), sample.epoch) for sample in log.samples or [])
+
+
+def test_enqueue_sample_epoch_runs_one_id_as_distinct_epochs() -> None:
+    # one sample enqueued as epochs 1..4 runs them concurrently, and as 5..6
+    # once epoch 4 completed, every time under its own id (an RL harness
+    # streaming repeated rollouts of one sample)
+    solved: list[tuple[str | int, int]] = []
+    scored: list[tuple[str | int, int]] = []
+    all_started = anyio.Event()
+
+    @solver
+    def wait_for_group() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            solved.append((state.sample_id, state.epoch))
+            if len(solved) == 4:
+                all_started.set()
+            if state.epoch <= 4:
+                with anyio.fail_after(10):
+                    await all_started.wait()
+            return state
+
+        return solve
+
+    source = _EpochAdds(
+        [("q", epoch) for epoch in range(1, 5)], then={("q", 4): [("q", 5), ("q", 6)]}
+    )
+    log = eval(
+        Task(
+            dataset=source, solver=[wait_for_group()], scorer=_record_scored_ids(scored)
+        ),
+        model="mockllm/model",
+        display="none",
+        max_samples=4,
+    )[0]
+    assert log.status == "success"
+    expected = [("q", epoch) for epoch in range(1, 7)]
+    assert sorted(solved[:4]) == expected[:4]
+    assert sorted(solved) == sorted(scored) == _runs(log) == expected
+    assert log.results is not None
+    assert log.results.total_samples == 6
+    assert log.results.scores[0].metrics["accuracy"].value == 1.0
+
+
+@pytest.mark.parametrize(
+    "seed,adds,expected",
+    [
+        # an explicit epoch runs once, whatever the task's epochs; a sample
+        # added without one runs every epoch, like the seed
+        (
+            ["seed"],
+            [("once", 7), ("all", None)],
+            [("all", 1), ("all", 2), ("once", 7), ("seed", 1), ("seed", 2)],
+        ),
+        # adds that don't collide mix: without an epoch then a further epoch,
+        # the reverse, and a seed id run as a further epoch
+        ([], [("q", None), ("q", 3)], [("q", 1), ("q", 2), ("q", 3)]),
+        ([], [("q", 3), ("q", None)], [("q", 1), ("q", 2), ("q", 3)]),
+        (["q"], [("q", 4)], [("q", 1), ("q", 2), ("q", 4)]),
+        # each (id, epoch) is reserved once, in whichever form it was added
+        ([], [("q", 1), ("q", 1)], "duplicate"),
+        (["q"], [("q", 2)], "duplicate"),
+        ([], [("q", None), ("q", 2)], "duplicate"),
+        ([], [("q", 1), ("q", None)], "duplicate"),
+        # an invalid epoch raises from enqueue_sample() itself
+        *[
+            ([], [("q", epoch)], "epoch must be an integer of 1 or more")
+            for epoch in (0, -1, True, 1.0)
+        ],
+    ],
+)
+def test_enqueue_sample_epoch_runs(
+    seed: list[str], adds: list[Any], expected: list[tuple[str, int]] | str
+) -> None:
+    log = eval(
+        Task(dataset=_EpochAdds(adds, seed), solver=[generate()], epochs=2),
+        model="mockllm/model",
+        display="none",
+    )[0]
+    if isinstance(expected, str):
+        assert log.status == "error"
+        assert expected in (log.error.message if log.error else "")
+    else:
+        assert log.status == "success"
+        assert _runs(log) == expected
+
+
+@pytest.mark.parametrize(
+    "seed,adds,expected",
+    [
+        # further epochs of an admitted id run; a new id beyond the limit
+        # (and its later epochs) is ignored
+        (
+            [],
+            [("a", 1), ("b", 1), ("a", 2), ("c", 1), ("c", 2)],
+            [("a", 1), ("a", 2), ("b", 1)],
+        ),
+        # an id admitted in any form (seed, without an epoch, with one) is one
+        # sample
+        (
+            ["s"],
+            [("s", 3), ("a", None), ("a", 2), ("b", 1)],
+            [("a", 1), ("a", 2), ("s", 1), ("s", 3)],
+        ),
+    ],
+)
+def test_enqueue_sample_epoch_limit_counts_samples(
+    seed: list[str], adds: list[_Add], expected: list[tuple[str, int]]
+) -> None:
+    log = eval(
+        Task(dataset=_EpochAdds(adds, seed), solver=[generate()]),
+        model="mockllm/model",
+        display="none",
+        limit=2,
+    )[0]
+    assert log.status == "success"
+    assert _runs(log) == expected
+
+
+@pytest.mark.parametrize("epoch,expected", [(2, "dropped"), (1, "duplicate")])
+def test_enqueue_sample_epoch_of_seed_id_trimmed_by_limit(
+    epoch: int, expected: str
+) -> None:
+    # "u" is trimmed from the seed by the limit but keeps its seed epoch 1:
+    # a further epoch of it is an over-limit sample, epoch 1 a duplicate (as
+    # it would be without the limit)
+    log = eval(
+        Task(
+            dataset=_EpochAdds([], ["s", "t", "u"], then={("s", 1): [("u", epoch)]}),
+            solver=[generate()],
+        ),
+        model="mockllm/model",
+        display="none",
+        limit=2,
+    )[0]
+    if expected == "dropped":
+        assert log.status == "success"
+        assert _runs(log) == [("s", 1), ("t", 1)]
+    else:
+        assert log.status == "error"
+        assert "duplicate" in (log.error.message if log.error else "")
+
+
+class _LimitedRollouts(SampleSource):
+    """Runs epochs of `q`: the seed, two per pull, and callback follow-ups.
+
+    `q` is seeded when `seed`; each pull adds two epochs from epoch 10; each
+    completion below epoch `followup_until` adds the next epoch.
+    """
+
+    def __init__(self, seed: bool, followup_until: int) -> None:
+        self.sample = Sample(id="q", input="q", target="ok")
+        self.seed = seed
+        self.followup_until = followup_until
+        self.next_calls = 0
+
+    def initial_samples(self) -> list[Sample]:
+        return [self.sample] if self.seed else []
+
+    async def next_samples(self) -> list[Sample] | None:
+        self.next_calls += 1
+        if self.next_calls > 3:
+            return None
+        first = 8 + 2 * self.next_calls
+        enqueue_sample(self.sample, epoch=first)
+        enqueue_sample(self.sample, epoch=first + 1)
+        return []
+
+    async def sample_complete(self, sample: EvalSample) -> None:
+        if sample.epoch < self.followup_until:
+            enqueue_sample(self.sample, epoch=sample.epoch + 1)
+
+
+@pytest.mark.parametrize(
+    "seed,followup_until,expected_epochs,next_calls",
+    [
+        # the seed reaches the limit: the source is never pulled
+        (True, 0, [1], 0),
+        # the first pull reaches the limit: its further epoch of the admitted
+        # id runs, but there is no second pull
+        (False, 0, [10, 11], 1),
+        # further epochs enqueued from sample_complete still run
+        (True, 3, [1, 2, 3], 0),
+    ],
+)
+def test_enqueue_sample_epoch_limit_ends_the_source(
+    seed: bool, followup_until: int, expected_epochs: list[int], next_calls: int
+) -> None:
+    source = _LimitedRollouts(seed, followup_until)
+    log = eval(
+        Task(dataset=source, solver=[generate()]),
+        model="mockllm/model",
+        display="none",
+        limit=1,
+    )[0]
+    assert log.status == "success"
+    assert _runs(log) == [("q", epoch) for epoch in expected_epochs]
+    assert source.next_calls == next_calls
 
 
 def test_live_injection_runs_concurrently_with_in_flight_sample() -> None:
@@ -683,7 +937,8 @@ class _TrackedGenerations(_Generations):
 def test_sample_source_limit_caps_total_samples() -> None:
     # --limit caps the total samples (seed + produced): limit 3 with a
     # 1-sample seed leaves a budget of 2, so a source that would produce 10
-    # runs only s0..s2 (and the task still succeeds)
+    # runs only s0..s2 (and the task still succeeds), and the source is not
+    # consulted again once s2 spent the budget
     source = _TrackedGenerations(10)
     logs = eval(
         Task(dataset=source, solver=[generate()]),
@@ -693,6 +948,7 @@ def test_sample_source_limit_caps_total_samples() -> None:
     )
     assert logs[0].status == "success"
     assert _sample_inputs(logs[0]) == ["s0", "s1", "s2"]
+    assert source.next_calls == 2
 
 
 def test_sample_source_limit_consumed_by_seed_skips_source() -> None:
@@ -1569,6 +1825,231 @@ def test_sample_source_retry_applies_limit_and_epochs_before_publication(
         retried = next(s for s in final.samples or [] if s.id == 3)
         assert retried.error_retries
         assert "retry task" in retried.error_retries[-1].message
+
+
+def test_sample_source_task_retry_reuses_explicit_epoch_runs() -> None:
+    # on a task retry, runs added with an explicit epoch (including epochs
+    # beyond the task's) that completed in the prior attempt are reused, not
+    # re-run: the reused seed adds them again
+    flaky_runs = {"n": 0}
+    rollout_runs: list[int] = []
+    rollouts_completed: set[int] = set()
+    rollouts_logged = anyio.Event()
+
+    @solver
+    def fail_flaky_once() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            if state.sample_id == "q":
+                rollout_runs.append(state.epoch)
+            if state.sample_id == "flaky":
+                flaky_runs["n"] += 1
+                if flaky_runs["n"] == 1:
+                    with anyio.fail_after(30):
+                        await rollouts_logged.wait()
+                    raise RuntimeError("transient failure")
+            return state
+
+        return solve
+
+    class _Src(_EpochAdds):
+        async def sample_complete(self, sample: EvalSample) -> None:
+            await super().sample_complete(sample)
+            if sample.id == "q":
+                rollouts_completed.add(sample.epoch)
+                if len(rollouts_completed) == 3:
+                    rollouts_logged.set()
+
+    rollouts: list[_Add] = [("q", 1), ("q", 2), ("q", 3)]
+    source = _Src([], seed=["seed", "flaky"], then={("seed", 1): rollouts})
+
+    @task
+    def reuse_epoch_runs_task() -> Task:
+        return Task(
+            dataset=source, solver=[fail_flaky_once()], name="reuse_epoch_runs_task"
+        )
+
+    with tempfile.TemporaryDirectory() as d:
+        ok, logs = eval_set(
+            tasks=[reuse_epoch_runs_task()],
+            log_dir=d,
+            model="mockllm/model",
+            retry_attempts=2,
+            retry_on_error=0,  # no sample-level retry -> task-level retry
+            max_samples=5,  # flaky blocks while the rollouts run alongside
+        )
+        assert ok, "eval-set did not succeed after task retry"
+        log = read_eval_log(logs[0].location)
+
+    assert _runs(log) == [("flaky", 1), ("q", 1), ("q", 2), ("q", 3), ("seed", 1)]
+    assert all(sample.error is None for sample in (log.samples or []))
+    assert sorted(rollout_runs) == [1, 2, 3]
+    assert flaky_runs["n"] == 2
+
+
+@pytest.mark.parametrize("log_format", ["eval", "json"])
+def test_sample_source_task_retry_keeps_explicit_epochs_through_failed_attempt(
+    log_format: Literal["eval", "json"], tmp_path: Path
+) -> None:
+    # explicit epochs beyond the task's that completed in attempt 1 stay in
+    # attempt 2's log although attempt 2 fails before the source adds them
+    # again, so attempt 3 (seeded from attempt 2) reuses rather than re-runs them
+    flaky_runs = {"n": 0}
+    seed_completions = {"n": 0}
+    rollout_runs: list[int] = []
+    rollouts_completed: set[int] = set()
+    rollouts_logged = anyio.Event()
+
+    @solver
+    def fail_flaky_once() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            if state.sample_id == "q":
+                rollout_runs.append(state.epoch)
+            if state.sample_id == "flaky":
+                flaky_runs["n"] += 1
+                if flaky_runs["n"] == 1:
+                    with anyio.fail_after(30):
+                        await rollouts_logged.wait()
+                    raise RuntimeError("transient failure")
+            return state
+
+        return solve
+
+    class _Src(_EpochAdds):
+        async def sample_complete(self, sample: EvalSample) -> None:
+            if sample.id == "seed":
+                seed_completions["n"] += 1
+                if seed_completions["n"] == 2:
+                    raise RuntimeError("feed failure")
+            await super().sample_complete(sample)
+            if sample.id == "q":
+                rollouts_completed.add(sample.epoch)
+                if len(rollouts_completed) == 2:
+                    rollouts_logged.set()
+
+    source = _Src([], seed=["seed", "flaky"], then={("seed", 1): [("q", 2), ("q", 3)]})
+
+    @task
+    def keep_epoch_runs_task() -> Task:
+        return Task(
+            dataset=source, solver=[fail_flaky_once()], name="keep_epoch_runs_task"
+        )
+
+    ok, logs = eval_set(
+        tasks=[keep_epoch_runs_task()],
+        log_dir=str(tmp_path),
+        log_format=log_format,
+        model="mockllm/model",
+        retry_attempts=3,
+        retry_on_error=0,  # no sample-level retry -> task-level retry
+        retry_cleanup=False,
+        max_samples=4,  # flaky blocks while the rollouts run alongside
+    )
+    assert ok, "eval-set did not succeed after task retries"
+    attempts = sorted(
+        (
+            read_eval_log(str(path))
+            for path in tmp_path.glob(f"*_keep-epoch-runs-task_*.{log_format}")
+        ),
+        key=lambda log: log.eval.created,
+    )
+    assert [log.status for log in attempts] == ["error", "error", "success"]
+    assert attempts[1].error is not None
+    assert "feed failure" in attempts[1].error.message
+    assert {("q", 2), ("q", 3)} <= set(_runs(attempts[1]))
+    assert ("q", 2) in _runs(attempts[2]) and ("q", 3) in _runs(attempts[2])
+    assert all(sample.error is None for sample in (attempts[2].samples or []))
+    assert sorted(rollout_runs) == [2, 3]
+
+
+@pytest.mark.parametrize("log_format", ["eval", "json"])
+def test_sample_source_task_retry_copies_only_epochs_the_seed_left_out(
+    log_format: Literal["eval", "json"],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # a retry with fewer epochs (2 -> 1) reuses rollouts the source re-admits
+    # one at a time: those above the prior's count are in the upfront seed,
+    # so only (q, 2), which the reduced count left out, is copied on admission
+    from inspect_ai._eval.task.log import TaskLogger
+
+    rollout_runs: list[int] = []
+    rollouts_logged = anyio.Event()
+    failing = True
+
+    @solver
+    def fail_flaky_once() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            if state.sample_id == "q":
+                rollout_runs.append(state.epoch)
+            if state.sample_id == "flaky" and state.epoch == 1 and failing:
+                with anyio.fail_after(30):
+                    await rollouts_logged.wait()
+                raise RuntimeError("transient failure")
+            return state
+
+        return solve
+
+    class _Src(_EpochAdds):
+        async def sample_complete(self, sample: EvalSample) -> None:
+            await super().sample_complete(sample)
+            if (str(sample.id), sample.epoch) == ("q", 5):
+                rollouts_logged.set()
+
+    chain: dict[tuple[str, int], list[_Add]] = {("seed", 1): [("q", 2)]}
+    chain.update({("q", epoch): [("q", epoch + 1)] for epoch in range(2, 5)})
+
+    @task
+    def readmit_epoch_runs_task() -> Task:
+        return Task(
+            dataset=_Src([], seed=["seed", "flaky"], then=chain),
+            solver=[fail_flaky_once()],
+            name="readmit_epoch_runs_task",
+        )
+
+    def run(epochs: int) -> tuple[bool, list[EvalLog]]:
+        return eval_set(
+            readmit_epoch_runs_task(),
+            model="mockllm/model",
+            log_dir=str(tmp_path),
+            log_format=log_format,
+            epochs=epochs,
+            retry_attempts=1,
+            retry_immediate=False,
+            fail_on_error=True,
+            retry_on_error=0,
+            display="none",
+        )
+
+    ok, _ = run(epochs=2)
+    assert not ok
+    assert sorted(rollout_runs) == [2, 3, 4, 5]
+    failing = False
+    admission_copies: list[set[tuple[str | int, int]]] = []
+    seed_added_samples = TaskLogger.seed_added_samples
+
+    async def record_copies(
+        logger: TaskLogger,
+        prior: str | list[EvalSample],
+        keep: set[tuple[str | int, int]],
+    ) -> None:
+        admission_copies.append(set(keep))
+        await seed_added_samples(logger, prior, keep)
+
+    monkeypatch.setattr(TaskLogger, "seed_added_samples", record_copies)
+    ok, logs = run(epochs=1)
+    assert ok
+    final = read_eval_log(logs[0].location)
+    assert _runs(final) == [
+        ("flaky", 1),
+        ("q", 2),
+        ("q", 3),
+        ("q", 4),
+        ("q", 5),
+        ("seed", 1),
+    ]
+    assert all(sample.error is None for sample in final.samples or [])
+    assert sorted(rollout_runs) == [2, 3, 4, 5]
+    assert admission_copies == [{("q", 2)}]
 
 
 def test_sample_source_task_retry_feed_raise_leaves_reuse_counted() -> None:
