@@ -17,8 +17,8 @@ from typing import Any, BinaryIO, Callable, Iterator, Literal, TextIO, cast, ove
 from urllib.parse import quote_from_bytes, urlparse
 from urllib.request import url2pathname
 
-import fsspec  # type: ignore  # type: ignore
-from fsspec.core import split_protocol  # type: ignore  # type: ignore
+import fsspec  # type: ignore
+from fsspec.core import split_protocol  # type: ignore
 from fsspec.implementations.local import make_path_posix  # type: ignore
 from pydantic import BaseModel, Field
 from shortuuid import uuid
