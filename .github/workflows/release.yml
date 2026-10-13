@@ -178,9 +178,23 @@ jobs:
             src/inspect_ai/tool/_sandbox_tools_utils
           persist-credentials: false
 
-      - uses: ./.github/actions/publish-dist
+      # The publish steps come from this run's commit rather than the tag, so
+      # a recovery run on main publishes an older tag with current steps.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: .ci
+          sparse-checkout: .github/actions
+          persist-credentials: false
+
+      - id: dist
+        uses: ./.ci/.github/actions/publish-dist
         with:
           version: ${{ needs.release-please.outputs.tag }}
+
+      # A Docker action, so it runs here rather than inside publish-dist.
+      - name: Publish to PyPI
+        if: steps.dist.outputs.count != '0'
+        uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2
 
   # Waits for the build so npm never gets a version that failed the PyPI gates.
   publish-npm:

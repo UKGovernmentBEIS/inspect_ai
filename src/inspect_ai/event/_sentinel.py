@@ -1,6 +1,6 @@
-from typing import Literal, TypeAlias
+from typing import Any, Literal, TypeAlias
 
-from pydantic import Field, model_validator
+from pydantic import Field, field_validator, model_validator
 from typing_extensions import Self
 
 from inspect_ai.event._base import BaseEvent
@@ -83,6 +83,12 @@ class SentinelEvent(BaseEvent):
 
     error: str | None = Field(default=None)
     """The exception a monitor function raised, as its type and message, for an `error` event."""
+
+    @field_validator("action", mode="before")
+    @classmethod
+    def _read_continue_as_proceed(cls, action: Any) -> Any:
+        # logs written before the "continue" action was renamed "proceed"
+        return "proceed" if action == "continue" else action
 
     @model_validator(mode="after")
     def _check_report_fields(self) -> Self:

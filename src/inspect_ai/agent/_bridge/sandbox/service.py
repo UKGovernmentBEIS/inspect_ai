@@ -4,6 +4,7 @@ from typing import Awaitable, Callable, Sequence, cast
 import anyio
 from pydantic import JsonValue, TypeAdapter
 
+from inspect_ai._sentinel._scope import AgentScope, sentinel_scope
 from inspect_ai._util.content import Content, ContentImage, ContentText
 from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._util.logger import warn_once
@@ -287,7 +288,9 @@ def call_tool(
             validation_errors = validate_tool_input(arguments, tool_def.parameters)
             if validation_errors:
                 raise ToolParsingError(validation_errors)
-            result = await tool_fn(**arguments)
+            # as in call_tool: the tool's own model calls are not agent turns
+            with sentinel_scope(AgentScope.OFF):
+                result = await tool_fn(**arguments)
         except Exception as ex:
             # classify the unwrapped exception, but let the original propagate:
             # the service dispatcher special-cases a bare LimitExceededError
