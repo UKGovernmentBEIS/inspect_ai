@@ -14,6 +14,7 @@ paths that must NOT be redirected (aliases, model roles, other models) still are
 import pytest
 
 from inspect_ai.agent._bridge.util import (
+    resolve_bridge_model,
     resolve_generate_config,
     resolve_inspect_model,
 )
@@ -50,6 +51,17 @@ def _isolate_active_model():
         active_model_context_var.reset(model_token)
         active_generate_config_context_var.reset(config_token)
         init_model_roles({})
+
+
+def _resolve_in_process(name: str) -> Model:
+    """Resolve as the in-process bridge does, where a name reaches what it names."""
+    return resolve_bridge_model(
+        name,
+        model_aliases=None,
+        model_resolver=None,
+        model=None,
+        allow_client_model_names=True,
+    ).model
 
 
 def _make_active() -> Model:
@@ -90,7 +102,7 @@ def test_model_role_is_not_redirected_to_the_eval_model() -> None:
     role_model = get_model("mockllm/model", config=GenerateConfig(max_tokens=7))
     init_model_roles({"grader": role_model})
 
-    resolved = resolve_inspect_model("grader")
+    resolved = _resolve_in_process("grader")
     assert resolved is role_model
 
     # and it must not inherit the eval's config
@@ -113,7 +125,7 @@ def test_alias_is_not_redirected_to_the_eval_model() -> None:
 def test_other_model_does_not_get_the_eval_config() -> None:
     """A genuinely different model the client asked for stays independent."""
     active = _make_active()
-    other = resolve_inspect_model("mockllm/some-other-model")
+    other = _resolve_in_process("mockllm/some-other-model")
     assert other is not active
 
     config = resolve_generate_config(other, GenerateConfig())
@@ -123,7 +135,7 @@ def test_other_model_does_not_get_the_eval_config() -> None:
 def test_no_active_model_is_harmless() -> None:
     """With no eval running, resolution is unchanged."""
     active_model_context_var.set(None)
-    model = resolve_inspect_model("mockllm/model")
+    model = _resolve_in_process("mockllm/model")
     assert str(model) == "mockllm/model"
 
 

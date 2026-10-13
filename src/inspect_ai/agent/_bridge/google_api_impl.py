@@ -56,8 +56,8 @@ from .util import (
     client_request_object,
     client_request_string,
     relax_tool_choice_for_withheld,
+    resolve_bridge_model,
     resolve_generate_config,
-    resolve_inspect_model,
     validate_bridge_media,
     validate_client_config,
     withheld_bridge_tool,
@@ -71,18 +71,29 @@ async def inspect_google_api_request_impl(
     web_search_providers: WebSearchProviders | None,
     code_execution_providers: CodeExecutionProviders | None,
     bridge: AgentBridge,
+    *,
+    requested_model: str | None = None,
 ) -> dict[str, Any]:
     # resolve model
-    requested_model = json_data.get("model")
-    requested_model = str(requested_model) if requested_model is not None else None
-    bridge_model_name = requested_model if requested_model is not None else "inspect"
-    model = resolve_inspect_model(
+    client_model = json_data.get("model")
+    client_model = str(client_model) if client_model is not None else None
+    bridge_model_name = client_model if client_model is not None else "inspect"
+    routing = resolve_bridge_model(
         bridge_model_name,
-        bridge.model_aliases,
-        bridge.model,
+        model_aliases=bridge.model_aliases,
         model_resolver=bridge.model_resolver,
+        model=bridge.model,
+        allow_client_model_names=bridge.allow_client_model_names,
         provider="google",
     )
+    model = routing.model
+    # the name to record when the routing name is not the client's (in-process,
+    # the SDK body carries no model). Without it the routing name is recorded:
+    # through the sandbox proxy that is the URL segment truncated at the first
+    # slash (`_extract_model_from_google_path`), so an `inspect/`-prefixed name
+    # is recorded as its first segment.
+    if requested_model is not None:
+        routing = routing._replace(requested=requested_model)
 
     # extract request components
     contents: list[dict[str, Any]] = json_data.get("contents", [])
@@ -144,7 +155,10 @@ async def inspect_google_api_request_impl(
         tools,
         tool_choice,
         config,
-        requested_model=requested_model,
+        # the slug the client sent (in-process, the name it was called with);
+        # None when it sent none
+        requested_model=client_model if client_model is not None else requested_model,
+        routing=routing,
     )
     if c_message is not None:
         messages.append(c_message)

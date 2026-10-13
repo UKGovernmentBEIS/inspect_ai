@@ -2163,6 +2163,7 @@ dev = [
     { name = "groq" },
     { name = "huggingface-hub" },
     { name = "inspect-scout" },
+    { name = "inspect-sentinel" },
     { name = "ipython", version = "8.39.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
     { name = "ipython", version = "9.16.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
     { name = "jsonpath-ng" },
@@ -2269,6 +2270,7 @@ requires-dist = [
     { name = "huggingface-hub", marker = "extra == 'dev'", specifier = ">=1.6.0" },
     { name = "ijson", specifier = ">=3.2.0" },
     { name = "inspect-scout", marker = "extra == 'dev'", specifier = ">=0.4.37" },
+    { name = "inspect-sentinel", marker = "extra == 'dev'", specifier = ">=0.1.0" },
     { name = "ipython", marker = "extra == 'dev'" },
     { name = "jsonlines", specifier = ">=3.0.0" },
     { name = "jsonpatch", specifier = ">=1.32" },
@@ -2289,9 +2291,9 @@ requires-dist = [
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=2.3.0" },
     { name = "nbclient", marker = "extra == 'doc'" },
     { name = "nbformat", marker = "extra == 'dev'" },
-    { name = "nest-asyncio2", specifier = ">=1.7.2" },
+    { name = "nest-asyncio2", specifier = ">=1.7.4" },
     { name = "numpy" },
-    { name = "openai", marker = "extra == 'dev'", specifier = ">=3.1.0" },
+    { name = "openai", marker = "extra == 'dev'", specifier = ">=3.4.0" },
     { name = "pandas", marker = "extra == 'dev'", specifier = ">=2.0.0" },
     { name = "pandas-stubs", marker = "extra == 'dev'" },
     { name = "panflute", marker = "extra == 'dev'" },
@@ -2399,6 +2401,21 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/61/31/441f2451635387d3651122cd5826e7ea4b5d288f1691738f137cd26c86f1/inspect_scout-0.4.46.tar.gz", hash = "sha256:7b79c035573123b5499b204773b5132521d900c00c08900805a24199c48c2d97", size = 2667285, upload-time = "2026-08-05T12:45:45.031Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/16/54/d841bcd68b5d03b267307a8e6b07595538f9e2623ddb8ea3f83daa7bd0a6/inspect_scout-0.4.46-py3-none-any.whl", hash = "sha256:9ef4882dbc7b112b7434cdbdbdf3ef8a067139ddec9b1c9169e1e938b0239bdc", size = 2757084, upload-time = "2026-08-05T12:45:42.408Z" },
+]
+
+[[package]]
+name = "inspect-sentinel"
+version = "0.1.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "anyio" },
+    { name = "exceptiongroup", marker = "python_full_version < '3.11'" },
+    { name = "inspect-ai" },
+    { name = "pydantic" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/10/3a/a78f69b2c918a225e1694e4a83a4d1d8dcb3931aa8c2b5ba63e4a3a36e7a/inspect_sentinel-0.1.0.tar.gz", hash = "sha256:cf669fbd2d9b7937f7fa3abee380880aa971ca0cc1129d064932eb9545abccdd", size = 48971, upload-time = "2026-10-10T13:09:22.3Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/78/1e/d0264e05b721117f4a7e95159efeb53954768f48175f4a24980895d59880/inspect_sentinel-0.1.0-py3-none-any.whl", hash = "sha256:abb7064e8e487dfbb6b367a63fcace97a72777e8eb493b1803abe96739d366b2", size = 51712, upload-time = "2026-10-10T13:09:20.567Z" },
 ]
 
 [[package]]
@@ -2794,11 +2811,11 @@ wheels = [
 
 [[package]]
 name = "jsonpath-ng"
-version = "1.8.0"
+version = "1.9.0"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/32/58/250751940d75c8019659e15482d548a4aa3b6ce122c515102a4bfdac50e3/jsonpath_ng-1.8.0.tar.gz", hash = "sha256:54252968134b5e549ea5b872f1df1168bd7defe1a52fed5a358c194e1943ddc3", size = 74513, upload-time = "2026-02-24T14:42:06.182Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/4e/ef/f320c80029173a7156dd34fe6eaba761329cbdb018cbca8a6bed2d9fc74e/jsonpath_ng-1.9.0.tar.gz", hash = "sha256:0790eea49bdd75198dbc319aba969ce9350b0d96cda6e498dba62334f53979c9", size = 78042, upload-time = "2026-10-05T18:15:13.58Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/03/99/33c7d78a3fb70d545fd5411ac67a651c81602cc09c9cf0df383733f068c5/jsonpath_ng-1.8.0-py3-none-any.whl", hash = "sha256:b8dde192f8af58d646fc031fac9c99fe4d00326afc4148f1f043c601a8cfe138", size = 67844, upload-time = "2026-02-28T00:53:19.637Z" },
+    { url = "https://files.pythonhosted.org/packages/f6/dc/68bee5d3344c785da2a3b420b52c16af758ab6eb7bb1fd6c79464183c7c8/jsonpath_ng-1.9.0-py3-none-any.whl", hash = "sha256:c563c5e8afb055488f2ecd5775f52c6950bb6202602b055f2293e012e3059fb4", size = 68196, upload-time = "2026-10-05T18:15:12.449Z" },
 ]
 
 [[package]]
@@ -4156,11 +4173,11 @@ wheels = [
 
 [[package]]
 name = "nest-asyncio2"
-version = "1.7.2"
+version = "1.7.4"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/b4/73/731debf26e27e0a0323d7bda270dc2f634b398e38f040a09da1f4351d0aa/nest_asyncio2-1.7.2.tar.gz", hash = "sha256:1921d70b92cc4612c374928d081552efb59b83d91b2b789d935c665fa01729a8", size = 14743, upload-time = "2026-02-13T00:34:04.386Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/32/2c/70e3b6bb2189cfd260280b7e1042bd622949a258663f95e887fada4ac1e6/nest_asyncio2-1.7.4.tar.gz", hash = "sha256:995b1409d926ec55e0876ea39a69bffdd8852cf1db3652c177e8c8ffdbcaf3cc", size = 16891, upload-time = "2026-10-07T22:31:50.507Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/c5/3c/3179b85b0e1c3659f0369940200cd6d0fa900e6cefcc7ea0bc6dd0e29ffb/nest_asyncio2-1.7.2-py3-none-any.whl", hash = "sha256:f5dfa702f3f81f6a03857e9a19e2ba578c0946a4ad417b4c50a24d7ba641fe01", size = 7843, upload-time = "2026-02-13T00:34:02.691Z" },
+    { url = "https://files.pythonhosted.org/packages/09/ed/559d2915dce85794bc0c36064043da170da50cd98746dcbddd85d5932017/nest_asyncio2-1.7.4-py3-none-any.whl", hash = "sha256:86e77b52c3d1496b294af3c944b44213b9b82a12a5ee590c0acc4ca4692ef6c7", size = 8543, upload-time = "2026-10-07T22:31:49.245Z" },
 ]
 
 [[package]]

@@ -146,7 +146,7 @@ def import_record(
                 and column._extract_sample is not None
                 and isinstance(record_target, EvalSample | EvalSampleSummary)
             ):
-                value = column._extract_sample(record_target)  # type: ignore[arg-type]
+                value = column._extract_sample(record_target)
             elif (
                 isinstance(column, MessageColumn)
                 and column._extract_message is not None

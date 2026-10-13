@@ -291,7 +291,9 @@ async def test_google_impl_reports_no_request_when_model_omitted() -> None:
     bridge = AgentBridge(
         state=AgentState(messages=[]),
         filter=capture_filter,
-        model="mockllm/model",
+        # an omitted model resolves as "inspect" (the active model); alias it,
+        # since no eval is running
+        model_aliases={"inspect": "mockllm/model"},
     )
     json_data = {
         # no "model" key -- scaffold never requested a slug

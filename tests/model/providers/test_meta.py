@@ -27,8 +27,15 @@ from inspect_ai.util import json_schema
 
 @pytest.fixture
 def mock_meta_env(monkeypatch):
+    from inspect_ai.model._model import _models
+
     monkeypatch.delenv("MODEL_API_KEY", raising=False)
     monkeypatch.setenv("META_API_KEY", "test-key")
+    cached = set(_models)
+    yield
+    # a memoized model keeps the dummy key, and a later get_model() with the
+    # same arguments (e.g. a live test) would reuse it and get a 401
+    assert set(_models) <= cached, "use get_model(memoize=False) with mock_meta_env"
 
 
 @pytest.fixture
@@ -164,9 +171,11 @@ def test_meta_input_tokens_name(mock_meta_env, model, expected):
 def test_meta_unknown_model_input_tokens(mock_meta_env):
     from inspect_ai.model._model_info import get_model_input_tokens
 
-    frontier = get_model_input_tokens(get_model("meta/muse-spark-1.3"))
+    frontier = get_model_input_tokens(get_model("meta/muse-spark-1.3", memoize=False))
     assert frontier is not None
-    assert get_model_input_tokens(get_model("meta/muse-nebula")) == frontier
+    assert (
+        get_model_input_tokens(get_model("meta/muse-nebula", memoize=False)) == frontier
+    )
 
 
 def test_meta_unknown_model_explicit_info_wins(mock_meta_env):
@@ -179,7 +188,10 @@ def test_meta_unknown_model_explicit_info_wins(mock_meta_env):
 
     set_model_info("meta/muse-nebula", ModelInfo(context_length=65536))
     try:
-        assert get_model_input_tokens(get_model("meta/muse-nebula")) == 65536
+        assert (
+            get_model_input_tokens(get_model("meta/muse-nebula", memoize=False))
+            == 65536
+        )
     finally:
         _custom_models.pop("meta/muse-nebula", None)
         _result_cache.clear()
@@ -531,7 +543,7 @@ async def test_meta_streamed_policy_block_is_content_filter(mock_meta_env, monke
 
 
 def test_meta_registered_provider(mock_meta_env):
-    model = get_model("meta/muse-spark-1.3")
+    model = get_model("meta/muse-spark-1.3", memoize=False)
     assert isinstance(model.api, MetaAPI)
     assert model.api.model_name == "muse-spark-1.3"
 

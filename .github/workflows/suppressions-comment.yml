@@ -51,7 +51,7 @@ jobs:
       # No `ref`: on pull_request_target this checks out the BASE branch
       # (trusted script + base ledger). Full history lets merge-tree find the
       # PR's merge base without ever checking out PR-controlled content.
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           # blob:none: all refs/commits, which is all merge-tree needs, no
