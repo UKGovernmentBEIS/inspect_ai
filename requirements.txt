@@ -18,7 +18,7 @@ jsonref>=1.1.0
 jsonschema>3.1.1
 markdown-it-py>=2.2.0
 mmh3>3.1.0
-nest_asyncio2>=1.7.2
+nest_asyncio2>=1.7.4
 numpy
 platformdirs>=2.3.0
 psutil

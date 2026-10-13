@@ -1,3 +1,8 @@
+import json
+import os
+import subprocess
+import sys
+
 import pytest
 from pydantic import ValidationError
 
@@ -99,6 +104,15 @@ def test_record_to_sample_hf_with_metadata():
     assert sample.input == "test"
     assert sample.target == "yes"
     assert sample.metadata == {"meta1": "val1", "meta2": "val2"}
+
+
+def test_record_to_sample_hf_with_description():
+    record = {"input": "test", "target": "yes", "goal": "Say yes."}
+    field_spec = HFFieldSpec(input="input", target="target", description="goal")
+    assert _record_to_sample_hf(record, field_spec).description == "Say yes."
+
+    unmapped = HFFieldSpec(input="input", target="target")
+    assert _record_to_sample_hf(record, unmapped).description is None
 
 
 def test_record_to_sample_hf_with_literal_target():
@@ -356,3 +370,47 @@ def test_hf_task_epochs_negative():
     config["epochs"] = -1
     with pytest.raises(ValidationError, match="greater than or equal to 1"):
         HFTask.model_validate(config)
+
+
+# --- eval.yaml loading tests ---
+
+
+def test_eval_yaml_read_as_utf8_under_non_utf8_locale(tmp_path):
+    # eval.yaml is UTF-8 by spec. Under a non-UTF-8 default encoding the
+    # pre-fix read crashed (C locale) or silently corrupted (cp1252) on
+    # any non-ASCII task config. U+0181 ("Ɓ") encodes to C6 81: that
+    # hard-fails under the C locale (ascii) and cp1252 (0x81 undefined);
+    # on DBCS code pages such as cp936 it silently decodes to the wrong
+    # character, caught by the value assertion below.
+    yaml_path = tmp_path / "eval.yaml"
+    yaml_path.write_text(
+        "tasks:\n"
+        "  - id: t\n"
+        "    field_spec: {input: question, target: answer}\n"
+        "    solvers: [{name: system_message, args: {system_message: 'You are Ɓ'}}]\n"
+        "    scorers: [{name: match}]\n",
+        encoding="utf-8",
+    )
+
+    # Run the read in a subprocess with UTF-8 mode and C-locale coercion
+    # disabled so the default open() encoding is genuinely not UTF-8
+    # (ASCII under LC_ALL=C on POSIX, the ANSI code page on Windows).
+    env = dict(os.environ)
+    env["PYTHONUTF8"] = "0"
+    env["PYTHONCOERCECLOCALE"] = "0"
+    env["LC_ALL"] = "C"
+    env.pop("LANG", None)
+    code = (
+        "import json, sys; "
+        "from inspect_ai._eval.task.hf import _load_eval_yaml; "
+        "print(json.dumps(_load_eval_yaml(sys.argv[1])))"
+    )
+    result = subprocess.run(
+        [sys.executable, "-c", code, str(yaml_path)],
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+    assert result.returncode == 0, result.stderr
+    data = json.loads(result.stdout)
+    assert data["tasks"][0]["solvers"][0]["args"]["system_message"] == "You are Ɓ"

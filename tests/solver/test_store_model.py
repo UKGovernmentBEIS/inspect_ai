@@ -510,3 +510,16 @@ def test_store_model_dump_restores_deleted_field_default(
     assert model.model_dump()["x"] == 5
     assert model.x == 5
     assert backing.get(key) == 5
+
+
+def test_store_model_empty_instance_validates_writes() -> None:
+    class Counter(StoreModel):
+        count: int = 0
+
+    store = Store()
+    empty = Counter(store=store, instance="")
+    empty.count = 2
+    assert Counter(store=store, instance="").count == 2
+    bad: Any = "two"
+    with pytest.raises(ValidationError):
+        empty.count = bad

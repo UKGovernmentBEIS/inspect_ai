@@ -487,10 +487,10 @@ One PR, two commits:
 1. `src/inspect_ai/_eval/task/run.py`: add `solver_cancel`, set it in the
    `else` branch of `run`'s cancellation handler, raise the wrapped
    `RuntimeError` after the task group. Update the handler's comment to say
-   what the `else` branch now means. `CHANGELOG.md` under `## Unreleased`:
-   "Samples whose solver is cut off by a cancellation that inspect did not
+   what the `else` branch now means. PR title (the changelog line): "fix:
+   samples whose solver is cut off by a cancellation that inspect did not
    issue are now recorded as sample errors instead of being scored as
-   completed."
+   completed".
 2. `tests/test_cancellation_logging.py`: the fixtures and seven tests
    above. `design/sample-lifecycle.md`: one sentence in the "running"
    anchor noting that an unattributed cancellation escaping the solver

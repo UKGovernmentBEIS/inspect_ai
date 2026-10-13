@@ -7,6 +7,8 @@ from typing import Any, AsyncIterator
 
 from shortuuid import uuid as shortuuid
 
+from inspect_ai._sentinel._scope import AgentScope, enter_scope, exit_scope
+
 logger = getLogger(__name__)
 
 
@@ -84,6 +86,9 @@ async def span(
 
     # set new current span (reset at the end)
     token = _current_span_id.set(id)
+    is_agent = (type or name) == AGENT_SPAN_TYPE
+    agent_token = _current_agent_span_id.set(id) if is_agent else None
+    scope_token = enter_scope(AgentScope.ON) if is_agent else None
 
     # run the span
     try:
@@ -105,9 +110,22 @@ async def span(
         # send end event
         transcript()._event(SpanEndEvent(id=id))
 
+        foreign = False
         try:
             _current_span_id.reset(token)
         except ValueError:
+            foreign = True
+        if agent_token is not None:
+            try:
+                _current_agent_span_id.reset(agent_token)
+            except ValueError:
+                foreign = True
+        if scope_token is not None:
+            try:
+                exit_scope(scope_token)
+            except ValueError:
+                foreign = True
+        if foreign:
             frame = inspect.stack()[1]
             caller = f"{frame.function}() [{frame.filename}:{frame.lineno}]"
             logger.warning(f"Exiting span created in another context: {caller}")
@@ -117,6 +135,10 @@ def current_span_id() -> str | None:
     """Return the current span id (if any)."""
     current = _current_span_id.get()
     return current.id if isinstance(current, _SpanCell) else current
+
+
+def current_agent_span_id() -> str | None:
+    return _current_agent_span_id.get()
 
 
 @contextlib.contextmanager
@@ -263,6 +285,11 @@ class SpanRotationScope:
 _current_span_id: ContextVar[str | _SpanCell | None] = ContextVar(
     "_current_span_id", default=None
 )
+
+_current_agent_span_id: ContextVar[str | None] = ContextVar(
+    "_current_agent_span_id", default=None
+)
+
 _span_id_provider: ContextVar[SpanIdProvider | None] = ContextVar(
     "_span_id_provider", default=None
 )

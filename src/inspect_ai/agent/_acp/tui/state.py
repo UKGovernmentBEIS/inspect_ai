@@ -272,7 +272,7 @@ ToolCallStatus = Literal["pending", "in_progress", "completed", "failed"]
 ApprovalDecisionLabel = Literal["approved", "denied", "cancelled"]
 """Post-resolution label shown in the tool card's decision-summary line.
 
-Kept narrow: the actual ``ApprovalDecision`` (approve / reject / modify
+Kept narrow: the actual ``ApprovalDecision`` (approve / reject
 / terminate / escalate) is recorded server-side; the TUI only needs
 to distinguish "the operator allowed it" vs. "denied it" vs. "we were
 cancelled / interrupted before deciding".
@@ -589,18 +589,16 @@ class EventChip:
 TranscriptItem = Union[MessageGroup, ToolCallState, ScoreChip, EventChip]
 
 
-_APPROVE_OPTION_IDS = frozenset({"approve", "modify"})
+_APPROVE_OPTION_IDS = frozenset({"approve"})
 """The ``ApprovalDecision`` ids that map to the ``approved`` summary label.
 
 ``option_id`` from the server is always one of the literal
 :class:`ApprovalDecision` strings (set by ``_options_from_choices``
 in ``approval/_human/acp.py``) — match those directly rather than
 re-deriving from :class:`PermissionOption.kind`. ``approve`` is the
-plain allow; ``modify`` is "approve with modification" which the
-in-proc panel also treats as the allow half (see
-``_KIND_BY_DECISION`` in the shim). Anything else (``reject`` /
-``terminate`` / ``escalate``, or an unknown id from a misbehaving
-client) maps to ``denied``.
+only allow (the human approver never offers ``modify``). Anything
+else (``reject`` / ``terminate`` / ``escalate``, or an unknown id
+from a misbehaving client) maps to ``denied``.
 """
 
 

@@ -1,3 +1,5 @@
+import re
+
 from inspect_ai.approval._approval import Approval, ApprovalDecision
 from inspect_ai.approval._human.approver import human_approver
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageTool
@@ -72,10 +74,8 @@ def view_with_result(view: ToolCallView, result: ChatMessageTool) -> ToolCallVie
         outcome = f"Error ({result.error.type}): {result.error.message}"
     else:
         outcome = _result_text(result)
-    # The surfaces substitute `{{param}}` placeholders from the call's
-    # arguments into the view; tool output is evidence, not a template.
-    outcome = outcome.replace("{{", "{ {")
-    result_block = f"**Result**\n\n{_fenced(outcome)}"
+    outcome = escape_placeholders(outcome)
+    result_block = f"**Result**\n\n{fenced(outcome)}"
     if view.call is None:
         call = ToolCallContent(format="markdown", content=result_block)
     elif view.call.format == "markdown":
@@ -130,7 +130,13 @@ def _result_text(result: ChatMessageTool) -> str:
     )
 
 
-def _fenced(text: str) -> str:
+def escape_placeholders(text: str) -> str:
+    # The surfaces substitute `{{param}}` placeholders from the call's
+    # arguments into the view; evidence shown there is not a template.
+    return re.sub(r"\{(?=\{)", "{ ", text)
+
+
+def fenced(text: str) -> str:
     # Deferred: `inspect_ai.review` is on the `import inspect_ai` path and the
     # ACP shim imports `acp.schema`, the single largest cost of that import.
     from inspect_ai.approval._human.acp import _safe_code_fence

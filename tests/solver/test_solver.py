@@ -183,3 +183,60 @@ def test_self_critique_instance_prefers_explicit_model() -> None:
     )
 
     assert all("critique from explicit model" in message for message in messages)
+
+
+def test_task_state_input_text_empty_user_message():
+    from inspect_ai.model import ChatMessageAssistant
+
+    state_empty_str = TaskState(
+        model="mockllm/model", sample_id=1, epoch=1, input="", messages=[]
+    )
+    assert state_empty_str.input_text == ""
+
+    state_empty_msg = TaskState(
+        model="mockllm/model",
+        sample_id=1,
+        epoch=1,
+        input=[ChatMessageUser(content="")],
+        messages=[],
+    )
+    assert state_empty_msg.input_text == ""
+
+    state_no_user = TaskState(
+        model="mockllm/model",
+        sample_id=1,
+        epoch=1,
+        input=[ChatMessageAssistant(content="hi")],
+        messages=[],
+    )
+    with pytest.raises(
+        ValueError, match="input_text requested from TaskState but none available"
+    ):
+        _ = state_no_user.input_text
+
+
+def test_task_state_input_text_non_text_user_message():
+    from inspect_ai.model import ContentAudio, ContentImage, ContentText
+
+    def input_text(content: list[Any]) -> str:
+        return TaskState(
+            model=ModelName("mockllm/model"),
+            sample_id=1,
+            epoch=1,
+            input=[ChatMessageUser(content=content)],
+            messages=[],
+        ).input_text
+
+    image = ContentImage(image="data:image/png;base64,iVBORw0KGgo=")
+    audio = ContentAudio(audio="data:audio/wav;base64,UklGRg==", format="wav")
+
+    # no text: name the non-text parts rather than returning a blank string
+    assert input_text([image]) == "[image]"
+    assert input_text([ContentText(text=""), image]) == "[image]"
+    assert input_text([image, audio]) == "[image] [audio]"
+
+    # text present: the text alone, as before
+    assert input_text([ContentText(text="Describe this."), image]) == "Describe this."
+
+    # no content parts at all: genuinely empty
+    assert input_text([]) == ""
