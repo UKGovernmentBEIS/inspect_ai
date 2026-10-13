@@ -71,7 +71,8 @@ def is_agent_generate() -> bool:
     )
 
 
-def is_agent_tool_call() -> bool:
-    # a final scope (a sentinel run, an approver, a reviewer, ...) is not the
-    # agent, so its tool calls are not checked, as its model calls are not
+def checks_tool_calls() -> bool:
+    # tool calls inside a final scope (a sentinel run, an approver, a reviewer,
+    # ...) are not checked, or a monitor that runs a tool would be checked by
+    # its own sentinel
     return active_sentinel() is not None and not in_final_scope()

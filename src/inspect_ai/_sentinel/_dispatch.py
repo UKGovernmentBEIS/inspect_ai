@@ -382,12 +382,14 @@ class _Host:
     ) -> Observation:
         eval_context = _eval_context()
         return await score_step(
-            _monitor_model("score", model, role),
+            self,
             step,
             dimensions,
             task=eval_context.sample_input_text if eval_context else None,
             history=history,
             template=template,
+            model=model,
+            role=role,
             config=config,
         )
 
