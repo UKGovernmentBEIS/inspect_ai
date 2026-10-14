@@ -241,6 +241,7 @@ def _anyio_run_released(func: Callable[[], Awaitable[T]]) -> T:
 
 
 _cleanup_shields: set[anyio.CancelScope] = set()
+_interrupt_forced = False
 
 
 @contextlib.contextmanager
@@ -248,10 +249,12 @@ def cleanup_shield() -> Iterator[anyio.CancelScope]:
     """Shield cleanup from cancellation, unless the user forces an interrupt.
 
     Under `run_main()` on trio, the first SIGINT cancels the run and this
-    cleanup still runs; a second SIGINT cancels these scopes too, so a hung
-    cleanup cannot hold up the interrupt.
+    cleanup still runs; a second SIGINT cancels these scopes, and any opened
+    later in the run, so a hung cleanup cannot hold up the interrupt.
     """
     with anyio.CancelScope(shield=True) as scope:
+        if _interrupt_forced:
+            scope.cancel()
         _cleanup_shields.add(scope)
         try:
             yield scope
@@ -286,6 +289,7 @@ def run_main(main: Callable[[], Coroutine[None, None, T]]) -> T:
 async def _trio_cancel_on_sigint(main: Callable[[], Coroutine[None, None, T]]) -> T:
     import trio
 
+    global _interrupt_forced
     trio_handler = signal.getsignal(signal.SIGINT)
     token = trio.lowlevel.current_trio_token()
     scope = trio.CancelScope()
@@ -298,6 +302,8 @@ async def _trio_cancel_on_sigint(main: Callable[[], Coroutine[None, None, T]]) -
         token.run_sync_soon(scope.cancel)
 
     def force_interrupt(signum: int, frame: FrameType | None) -> None:
+        global _interrupt_forced
+        _interrupt_forced = True
         signal.signal(signal.SIGINT, trio_handler)
         token.run_sync_soon(_cancel_cleanup_shields)
         # trio's handler raises KeyboardInterrupt now or at the next checkpoint
@@ -314,6 +320,7 @@ async def _trio_cancel_on_sigint(main: Callable[[], Coroutine[None, None, T]]) -
             raise KeyboardInterrupt from None
         raise
     finally:
+        _interrupt_forced = False
         # leave a handler that `main` installed in place
         if signal.getsignal(signal.SIGINT) in (cancel_main, force_interrupt):
             signal.signal(signal.SIGINT, trio_handler)

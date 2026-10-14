@@ -372,7 +372,12 @@ class RunEndProbe(Hooks):
         run_ends.append(data.run_id)
         events.append("hook")
         await second_sigint_in("hook")
+        if second_sigint == ("solver", "raise"):
+            # opened after the second Ctrl-C, so it must not get to finish
+            await anyio.sleep(60)
+            events.append("hook finished")
         await anyio.sleep(0)
+        events.append("hook returned")
 
 
 async def second_sigint_in(where):
@@ -393,6 +398,7 @@ def sigint_once_all_started(interrupt: bool):
         started.append(state.sample_id)
         if len(started) == NUM_SAMPLES:
             signal.raise_signal(signal.SIGINT)
+            await second_sigint_in("solver")
         await anyio.sleep(60)
         return state
 
@@ -485,11 +491,27 @@ for where, displays in [("hook", ["rich", "plain", "log"]), ("cleanup", ["plain"
             assert time.monotonic() - start < 30, (second_sigint, display)
             hooks_run = events.count("hook")
             assert hooks_run == (1 if where == "hook" else 0), (second_sigint, display, events)
+
+# both Ctrl-Cs before cleanup starts: the hooks opened afterwards are cancelled
+second_sigint = ("solver", "raise")
+for display in ["rich", "plain", "log"]:
+    events.clear()
+    start = time.monotonic()
+    try:
+        run_eval(display, tempfile.mkdtemp(), interrupt=True)
+    except KeyboardInterrupt as ex:
+        assert type(ex) is KeyboardInterrupt, repr(ex)
+    else:
+        raise AssertionError(f"{second_sigint} {display}: no KeyboardInterrupt")
+    assert time.monotonic() - start < 30, (second_sigint, display)
+    assert "hook finished" not in events, (second_sigint, display, events)
 second_sigint = None
 eval_module.cleanup_sample_buffers = cleanup_sample_buffers
 
-# a later eval() in the same process still runs
+# a later eval() in the same process still runs, with its hooks uncancelled
+events.clear()
 assert run_eval("rich", tempfile.mkdtemp(), interrupt=False).status == "success"
+assert events == ["hook", "hook returned"], events
 """
 
 
