@@ -416,6 +416,7 @@ async def _web_browser_cmd(
 ) -> ToolResult:
     # TODO: Is it worth it to plumb this down from the @tool?
     timeout = 180
+    instance = tool_state_instance(instance)
     try:
         (sandbox_env, _) = await legacy_tool_support_sandbox("web browser")
     except PrerequisiteError as e:
@@ -437,7 +438,7 @@ async def _web_browser_cmd(
         )
 
     # bind to store (use instance id or tool state scope if provided)
-    store = store_as(WebBrowserStore, instance=tool_state_instance(instance))
+    store = store_as(WebBrowserStore, instance=instance)
 
     # Create transport for all RPC calls
     transport = SandboxJSONRPCTransport(sandbox_env, LEGACY_SANDBOX_CLI)

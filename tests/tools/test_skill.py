@@ -2,8 +2,8 @@
 
 import os
 from pathlib import Path
-from typing import Any, Sequence
 
+import anyio
 import pytest
 from test_helpers.sandbox import CannedSandbox
 from test_helpers.utils import flaky_retry, skip_if_no_docker, skip_if_no_openai
@@ -14,10 +14,10 @@ from inspect_ai.dataset import Sample
 from inspect_ai.scorer import includes
 from inspect_ai.tool import Tool, bash, skill
 from inspect_ai.tool._tool_def import ToolDef
-from inspect_ai.tool._tools._skill import tool as skill_tool_module
+from inspect_ai.tool._tools._skill import install as skill_install_module
 from inspect_ai.tool._tools._skill.install import install_skills
 from inspect_ai.tool._tools._skill.read import SkillParsingError, _read_skill
-from inspect_ai.tool._tools._skill.types import Skill, SkillInfo
+from inspect_ai.tool._tools._skill.types import Skill
 from inspect_ai.util import (
     SandboxUserUnsupportedError,
     Store,
@@ -639,33 +639,26 @@ def test_skill_end_to_end() -> None:
     )
 
 
+class _YieldingSandbox(CannedSandbox):
+    """Records writes and yields on each, so concurrent installs interleave."""
+
+    async def write_file(self, file: str, contents: str | bytes) -> None:
+        await anyio.lowlevel.checkpoint()
+        await super().write_file(file, contents)
+
+
 class TestSkillToolStateScope:
     SKILL = Skill(name="example", description="Example.", instructions="Do it.")
 
     @pytest.fixture
-    def installs(self, monkeypatch: pytest.MonkeyPatch) -> list[Sequence[Skill]]:
-        """Stub the sandbox install, recording the skills of each call."""
-        installs: list[Sequence[Skill]] = []
-
-        async def fake_install_skills(
-            skills: Sequence[Skill], *args: Any, **kwargs: Any
-        ) -> list[SkillInfo]:
-            installs.append(skills)
-            return [
-                SkillInfo(
-                    name=sk.name,
-                    description=sk.description,
-                    instructions=sk.instructions,
-                    location=f"/skills/{len(installs)}/{sk.name}/SKILL.md",
-                )
-                for sk in skills
-            ]
-
-        monkeypatch.setattr(skill_tool_module, "install_skills", fake_install_skills)
-        return installs
+    def sandbox(self, monkeypatch: pytest.MonkeyPatch) -> CannedSandbox:
+        """Install skills into a canned sandbox that records written files."""
+        sandbox = _YieldingSandbox.returning(ExecResult(True, 0, "/work", ""))
+        monkeypatch.setattr(skill_install_module, "sandbox_env", lambda _: sandbox)
+        return sandbox
 
     async def test_default_skill_tool_is_per_scope(
-        self, installs: list[Sequence[Skill]]
+        self, sandbox: CannedSandbox
     ) -> None:
         init_subtask_store(Store())
         tool = skill([self.SKILL])
@@ -674,13 +667,13 @@ class TestSkillToolStateScope:
             await tool(command="example")
         with tool_state_scope("w-2"):
             await tool(command="example")
-        assert len(installs) == 2
+        assert sandbox.written == ["/work/skills/example/SKILL.md"]
         assert "InstalledSkills:skills" not in store()
         assert store().get("InstalledSkills:@w-1:skills") is not None
         assert store().get("InstalledSkills:@w-2:skills") is not None
 
     async def test_deepagent_child_skill_tool_is_per_scope(
-        self, installs: list[Sequence[Skill]]
+        self, sandbox: CannedSandbox
     ) -> None:
         from inspect_ai.agent._deepagent.agent_tool import _resolve_tools
         from inspect_ai.agent._deepagent.subagent import subagent
@@ -701,7 +694,7 @@ class TestSkillToolStateScope:
             await call_child_skill()
         with tool_state_scope("w-2"):
             await call_child_skill()
-        assert len(installs) == 2
+        assert sandbox.written == ["/work/skills/example/SKILL.md"]
         assert "InstalledSkills:general:skills" not in store()
         assert store().get("InstalledSkills:@w-1#general:skills") is not None
         assert store().get("InstalledSkills:@w-2#general:skills") is not None
@@ -709,3 +702,45 @@ class TestSkillToolStateScope:
         # outside a scope the subagent name is today's instance
         await call_child_skill()
         assert store().get("InstalledSkills:general:skills") is not None
+
+    async def test_concurrent_first_calls_across_scopes_install_once(
+        self, sandbox: CannedSandbox
+    ) -> None:
+        init_subtask_store(Store())
+        skill_with_script = Skill(
+            name="example",
+            description="Example.",
+            instructions="Do it.",
+            scripts={"run.sh": "echo hello"},
+        )
+        tool = skill([skill_with_script])
+
+        async def call_in_scope(name: str) -> None:
+            with tool_state_scope(name):
+                await tool(command="example")
+
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(call_in_scope, "w-1")
+            tg.start_soon(call_in_scope, "w-2")
+
+        assert sandbox.written == [
+            "/work/skills/example/SKILL.md",
+            "/work/skills/example/scripts/run.sh",
+        ]
+        assert store().get("InstalledSkills:@w-1:skills") is not None
+        assert store().get("InstalledSkills:@w-2:skills") is not None
+
+    async def test_conflicting_skill_contents_raise(
+        self, sandbox: CannedSandbox
+    ) -> None:
+        init_subtask_store(Store())
+        other = Skill(name="example", description="Example.", instructions="Other.")
+        with tool_state_scope("w-1"):
+            await skill([self.SKILL])(command="example")
+        with tool_state_scope("w-2"):
+            with pytest.raises(
+                RuntimeError,
+                match="'example' is already installed in /work/skills with different contents",
+            ):
+                await skill([other])(command="example")
+        assert sandbox.written == ["/work/skills/example/SKILL.md"]
