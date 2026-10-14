@@ -20,8 +20,7 @@ permissions:
   contents: read
 
 env:
-  # 0.13.0 is the first uv that installs CPython 3.15.0 (older uv picks 3.15.0a1).
-  UV_VERSION: 0.13.0
+  UV_VERSION: 0.9.4
 
 jobs:
   # Keep these check names present on Markdown-only PRs while avoiding source
@@ -71,7 +70,7 @@ jobs:
       pull-requests: read
     strategy:
       matrix:
-        python-version: ["3.11", "3.15"]
+        python-version: ["3.11", "3.14"]
     steps:
       - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
         if: github.event_name == 'pull_request'
@@ -141,7 +140,7 @@ jobs:
   # check, unlike workflow-level `paths-ignore` which would strand a
   # required check. That only holds for non-matrix jobs: a skipped matrix
   # job reports one check run under its unexpanded name, so required
-  # contexts named for the expanded legs (`test (3.11)`, `test (3.15)`)
+  # contexts named for the expanded legs (`test (3.11)`, `test (3.14)`)
   # would never report. Docs-only detection for the test matrix therefore
   # lives inside the test job itself — see the comment there.
   changes:
@@ -253,14 +252,14 @@ jobs:
       pull-requests: read
     strategy:
       matrix:
-        python-version: ["3.11", "3.15"]
+        python-version: ["3.11", "3.14"]
 
     steps:
       # Docs-only detection runs as a step rather than a `needs: changes`
       # job gate for two reasons. Latency: the job queues at run start
       # instead of behind a full queue+run cycle of the changes job
       # (~2.5 min median, ~8 min p90 of PR wall clock under runner
-      # contention). Correctness: `test (3.11)` and `test (3.15)` are
+      # contention). Correctness: `test (3.11)` and `test (3.14)` are
       # required status checks under their expanded matrix names, and a
       # skipped matrix job reports a single check run under the unexpanded
       # name `test`, so a job-level `if` would leave the required contexts
