@@ -1245,21 +1245,23 @@ async def _eval_async_inner(
                 )
                 await wait_for_shutdown_async(_ctl_server)
 
-        # cleanup sample buffers if required
-        await cleanup_sample_buffers(log_dir)
+        # shielded: under trio a Ctrl-C leaves the run's scope cancelled
+        with anyio.CancelScope(shield=True):
+            # cleanup sample buffers if required
+            await cleanup_sample_buffers(log_dir)
 
-        try:
-            await emit_run_end(eval_set_id, run_id, logs)
-        except UnboundLocalError:
-            await emit_run_end(eval_set_id, run_id, EvalLogs([]))
-        _eval_async_running = False
+            try:
+                await emit_run_end(eval_set_id, run_id, logs)
+            except UnboundLocalError:
+                await emit_run_end(eval_set_id, run_id, EvalLogs([]))
 
     except BaseException as e:
-        await emit_run_end(eval_set_id, run_id, EvalLogs([]), e)
-        _eval_async_running = False
+        with anyio.CancelScope(shield=True):
+            await emit_run_end(eval_set_id, run_id, EvalLogs([]), e)
         raise e
 
     finally:
+        _eval_async_running = False
         # Stop accepting task additions for this run.
         if enqueuer_token is not None:
             clear_task_enqueuer(enqueuer_token)

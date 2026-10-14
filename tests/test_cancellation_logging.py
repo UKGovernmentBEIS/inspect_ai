@@ -9,6 +9,8 @@ import asyncio
 import contextlib
 import os
 import signal
+import subprocess
+import sys
 import threading
 from pathlib import Path
 from typing import Callable
@@ -19,7 +21,7 @@ import pytest
 from test_helpers.utils import skip_if_trio
 
 from inspect_ai import Task, eval, eval_async
-from inspect_ai._util.error import PrerequisiteError, is_cancellation_message
+from inspect_ai._util.error import is_cancellation_message
 from inspect_ai.dataset import Sample
 from inspect_ai.event import ErrorEvent
 from inspect_ai.log import (
@@ -30,7 +32,7 @@ from inspect_ai.log import (
 )
 from inspect_ai.scorer import includes
 from inspect_ai.solver import Generate, TaskState, generate, solver, user_message
-from inspect_ai.util import DisplayType, background
+from inspect_ai.util import background
 
 
 @pytest.fixture(params=[True, False], ids=["with_sandbox", "no_sandbox"])
@@ -258,24 +260,10 @@ def test_fail_on_error_no_retry_for_cancelled(sandbox_kwarg: str | None):
         assert s.error_retries is None or len(s.error_retries) == 0
 
 
-# Sync eval() takes its backend from the environment, so the trio variants run
-# in the default suite (their ids have no "[trio" prefix for --runtrio).
-@pytest.mark.parametrize(
-    "backend,display",
-    [("asyncio", "rich"), ("trio", "rich"), ("trio", "plain"), ("trio", "log")],
-)
 def test_keyboard_interrupt_logs_cancelled_samples(
-    tmp_path: Path,
-    sandbox_kwarg: str | None,
-    backend: str,
-    display: DisplayType,
-    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path, sandbox_kwarg: str | None
 ):
     """When SIGINT (KeyboardInterrupt) occurs, all running samples should be cancelled and logged."""
-    monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
-    # restore the process-wide display once the test is done
-    monkeypatch.setattr("inspect_ai._display.core.active._active_display", None)
-    monkeypatch.setattr("inspect_ai.util._display._display_type", None)
     num_samples = 5
     started: list[int] = []
     all_started = threading.Event()
@@ -301,20 +289,16 @@ def test_keyboard_interrupt_logs_cancelled_samples(
     sigint_thread = threading.Thread(target=send_sigint, daemon=True)
     sigint_thread.start()
 
-    # once samples are running, asyncio's eval() returns the cancelled logs and
-    # trio's raises KeyboardInterrupt after writing them
-    interrupted = False
+    # eval() raises KeyboardInterrupt after logging the cancelled eval
     try:
         eval(
             task,
             model="mockllm/model",
             max_samples=num_samples,
             log_dir=str(tmp_path),
-            display=display,
         )
     except KeyboardInterrupt:
-        interrupted = True
-    assert interrupted == (backend == "trio")
+        pass
 
     sigint_thread.join(timeout=5)
     assert all_started.is_set()
@@ -336,17 +320,136 @@ def test_keyboard_interrupt_logs_cancelled_samples(
         assert sample.error is not None
 
 
-@pytest.mark.parametrize("display", ["rich", "plain", "log"])
-def test_trio_eval_error_without_sigint_is_raised(
-    display: DisplayType, monkeypatch: pytest.MonkeyPatch
-):
-    """An error raised by eval() under trio's SIGINT handling reaches the caller unchanged."""
-    monkeypatch.setenv("INSPECT_ASYNC_BACKEND", "trio")
-    monkeypatch.setattr("inspect_ai._display.core.active._active_display", None)
-    monkeypatch.setattr("inspect_ai.util._display._display_type", None)
+# Run in a subprocess so trio evals share no process-global state with the
+# asyncio test process.
+_TRIO_KEYBOARD_INTERRUPT_SCRIPT = """
+import contextlib
+import signal
+import sys
+import tempfile
 
-    with pytest.raises(PrerequisiteError):
+import anyio
+
+import inspect_ai._display.core.active as active_display
+import inspect_ai._eval.task.run as task_run
+import inspect_ai.util._display as display_state
+from inspect_ai import Task, eval
+from inspect_ai._util.error import PrerequisiteError
+from inspect_ai.dataset import Sample
+from inspect_ai.hooks import Hooks, RunEnd, hooks
+from inspect_ai.log import list_eval_logs, read_eval_log
+from inspect_ai.scorer import includes
+from inspect_ai.solver import solver
+
+NUM_SAMPLES = 3
+with_sandbox = sys.argv[1] == "with_sandbox"
+run_ends = []
+
+if with_sandbox:
+    # the sandbox_kwarg fixture's fake: teardown awaits
+    @contextlib.asynccontextmanager
+    async def fake_sandboxenv_context(*args, **kwargs):
+        try:
+            yield
+        finally:
+            await anyio.sleep(0.05)
+
+    task_run.sandboxenv_context = fake_sandboxenv_context
+
+
+@hooks(name="run_end_probe", description="Records run ends.")
+class RunEndProbe(Hooks):
+    async def on_run_end(self, data: RunEnd) -> None:
+        await anyio.sleep(0)
+        run_ends.append(data.run_id)
+
+
+@solver
+def sigint_once_all_started(interrupt: bool):
+    started = []
+
+    async def solve(state, generate):
+        if not interrupt:
+            return state
+        started.append(state.sample_id)
+        if len(started) == NUM_SAMPLES:
+            signal.raise_signal(signal.SIGINT)
+        await anyio.sleep(60)
+        return state
+
+    return solve
+
+
+def use_display(display):
+    active_display._active_display = None
+    display_state._display_type = None
+
+
+def run_eval(display, log_dir, interrupt):
+    use_display(display)
+    eval(
+        Task(
+            dataset=[Sample(input="x", target="x", id=i) for i in range(NUM_SAMPLES)],
+            solver=sigint_once_all_started(interrupt),
+            scorer=includes(),
+            sandbox="local" if with_sandbox else None,
+        ),
+        model="mockllm/model",
+        max_samples=NUM_SAMPLES,
+        log_dir=log_dir,
+        display=display,
+        ctl_server=False,
+    )
+    (log_info,) = list_eval_logs(log_dir)
+    return read_eval_log(log_info.name)
+
+
+for display in ["rich", "plain", "log"]:
+    use_display(display)
+    try:
         eval([], model="mockllm/model", ctl_server="invalid", display=display)
+    except PrerequisiteError:
+        pass
+    else:
+        raise AssertionError(f"{display}: validation error not raised")
+
+    log_dir = tempfile.mkdtemp()
+    hooks_before = len(run_ends)
+    try:
+        run_eval(display, log_dir, interrupt=True)
+    except KeyboardInterrupt as ex:
+        assert type(ex) is KeyboardInterrupt, repr(ex)
+    else:
+        raise AssertionError(f"{display}: no KeyboardInterrupt")
+    assert signal.getsignal(signal.SIGINT) is signal.default_int_handler
+
+    (log_info,) = list_eval_logs(log_dir)
+    log = read_eval_log(log_info.name)
+    assert log.status == "cancelled", (display, log.status)
+    assert log.samples is not None and len(log.samples) == NUM_SAMPLES, display
+    assert all(sample.error is not None for sample in log.samples), display
+    assert len(run_ends) == hooks_before + 1, (display, run_ends)
+
+# a later eval() in the same process still runs
+assert run_eval("rich", tempfile.mkdtemp(), interrupt=False).status == "success"
+"""
+
+
+@pytest.mark.parametrize("sandbox", ["with_sandbox", "no_sandbox"])
+def test_keyboard_interrupt_under_trio(sandbox: str):
+    """Under trio, Ctrl-C during eval() logs the cancelled samples, runs run-end hooks and raises KeyboardInterrupt.
+
+    Covers the rich, plain and log displays, that an eval() error without a
+    SIGINT is not masked, and that a later eval() still runs.
+    """
+    result = subprocess.run(
+        [sys.executable, "-I", "-c", _TRIO_KEYBOARD_INTERRUPT_SCRIPT, sandbox],
+        env={**os.environ, "INSPECT_ASYNC_BACKEND": "trio"},
+        capture_output=True,
+        text=True,
+        timeout=180,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
 
 
 # --- unattributed ("foreign") cancellation escaping the solver ---------------
