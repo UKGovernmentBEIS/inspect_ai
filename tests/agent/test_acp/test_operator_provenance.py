@@ -274,7 +274,7 @@ async def test_bridge_generate_restores_into_state_messages() -> None:
             operator,
         ]
         output, _ = await bridge_generate(
-            bridge, model, messages, [], None, GenerateConfig()
+            bridge, model, messages, [], None, GenerateConfig(), requested_model=None
         )
         await bridge._track_state(messages, output)  # mirrors completions.py:97
 
@@ -319,7 +319,9 @@ async def test_bridge_generate_carry_forward_into_state_on_later_turn() -> None:
             ChatMessageAssistant(content="a"),
             ChatMessageUser(content="redirect"),
         ]
-        out1, _ = await bridge_generate(bridge, model, t1, [], None, GenerateConfig())
+        out1, _ = await bridge_generate(
+            bridge, model, t1, [], None, GenerateConfig(), requested_model=None
+        )
         await bridge._track_state(t1, out1)
 
         # turn 2: larger, operator mid-history, source-less, NO pending
@@ -330,7 +332,9 @@ async def test_bridge_generate_carry_forward_into_state_on_later_turn() -> None:
             operator_t2,
             ChatMessageAssistant(content="b"),
         ]
-        out2, _ = await bridge_generate(bridge, model, t2, [], None, GenerateConfig())
+        out2, _ = await bridge_generate(
+            bridge, model, t2, [], None, GenerateConfig(), requested_model=None
+        )
         await bridge._track_state(t2, out2)
 
         assert operator_t2.source == "operator"  # carry-forward

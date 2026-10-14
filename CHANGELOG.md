@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.3.280](https://github.com/UKGovernmentBEIS/inspect_ai/compare/0.3.279...0.3.280) (2026-10-14)
+
+
+### Features
+
+* **agent-bridge:** filters can now tell which agent a bridged model request belongs to ([#4791](https://github.com/UKGovernmentBEIS/inspect_ai/issues/4791)) ([1b78969](https://github.com/UKGovernmentBEIS/inspect_ai/commit/1b78969d6350bd8ce84bba84a92cbaddf8b175d6))
+* **google:** support Gemini 4 Argon ([#5843](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5843)) ([76e69f9](https://github.com/UKGovernmentBEIS/inspect_ai/commit/76e69f92b9e4f84fda6214d69c15842f8e20dd49))
+* keep the response headers of a model call ([#5795](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5795)) ([1b16791](https://github.com/UKGovernmentBEIS/inspect_ai/commit/1b167913bce1c6bb9dbf85bd67edbc02015b706c))
+
+
+### Bug Fixes
+
+* Behavior change: Docker sandboxes now block writable host mounts by default; use read-only mounts, Sample.files or Docker-managed volumes, or the unsafe opt-in ([#5830](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5830)) ([d7495e8](https://github.com/UKGovernmentBEIS/inspect_ai/commit/d7495e8020d362f22aa7ac8ae238c3c9c6ca5602))
+* Groq and OpenAI on Bedrock requests failing during credential refresh ([#5707](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5707)) ([618d6f0](https://github.com/UKGovernmentBEIS/inspect_ai/commit/618d6f0a49c9b6d969e1244717f78cc081400879))
+* remove duplicated type: ignore comments that ast-serialize 0.13 rejects ([#5835](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5835)) ([81c1668](https://github.com/UKGovernmentBEIS/inspect_ai/commit/81c1668d31030eebf7ff55e8376c2650b4f811ed))
+* slow reads of local .eval logs ([#5783](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5783)) ([bf37243](https://github.com/UKGovernmentBEIS/inspect_ai/commit/bf3724303c4fbb8c8842a6fe1d15aba6aba8d1eb))
+* store and state changes crashing, replaying wrong, or logging unchanged NaNs ([#5751](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5751)) ([31a5661](https://github.com/UKGovernmentBEIS/inspect_ai/commit/31a5661544bc1c49dba9af8c5fed00087ef3fe9f))
+
+
+### Reverts
+
+* remove the short-lived inspect_ai.core package added in 0.3.277; core data types stay at their original import paths ([#5828](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5828)) ([295daba](https://github.com/UKGovernmentBEIS/inspect_ai/commit/295dabaaba23ffc8dc0480b9506344054e73fcc1))
+
 ## [0.3.279](https://github.com/UKGovernmentBEIS/inspect_ai/compare/0.3.278...0.3.279) (2026-10-12)
 
 ### Bug Fixes
