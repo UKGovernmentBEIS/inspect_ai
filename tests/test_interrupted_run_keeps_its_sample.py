@@ -10,7 +10,9 @@ from pydantic import BaseModel
 from test_helpers.utils import skip_if_trio
 from typing_extensions import override
 
-from inspect_ai import Task, eval_async
+import inspect_ai._display.core.active as active_display_module
+import inspect_ai.util._display as display_type_module
+from inspect_ai import Task, eval, eval_async
 from inspect_ai._util.background import background_task_group
 from inspect_ai._util.error import is_cancellation_message
 from inspect_ai.dataset import Sample
@@ -186,6 +188,43 @@ def _logged_sample(log: EvalLog) -> EvalSample:
 
 async def test_interrupted_sandbox_cleanup_keeps_scored_sample(tmp_path: Path) -> None:
     """A cancel in teardown keeps the score-bearing sample in the cancelled log."""
+    log = await _interrupted_eval("cleanup", tmp_path)
+
+    assert log.status == "cancelled"
+    sample = _logged_sample(log)
+    assert sample.scores
+    assert sample.error is not None
+    assert is_cancellation_message(sample.error.message)
+
+
+@pytest.fixture
+def sync_rich_eval_first(
+    tmp_path_factory: pytest.TempPathFactory, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Run a sync `eval()` with the rich display before the test's event loop.
+
+    The sync run leaves its display in place for later runs in the process,
+    so the test's `eval_async()` uses the rich display. The display created
+    by earlier tests is cleared first and the display state is restored
+    afterwards.
+    """
+    monkeypatch.setattr(
+        display_type_module, "_display_type", display_type_module._display_type
+    )
+    monkeypatch.setattr(active_display_module, "_active_display", None)
+    eval(
+        Task(dataset=[Sample(input="x", target="y")]),
+        model="mockllm/model",
+        log_dir=str(tmp_path_factory.mktemp("sync_eval")),
+        display="rich",
+    )
+
+
+@pytest.mark.usefixtures("sync_rich_eval_first")
+async def test_interrupted_cleanup_after_sync_eval_keeps_scored_sample(
+    tmp_path: Path,
+) -> None:
+    """A teardown cancel keeps the cancelled log when the rich display is active."""
     log = await _interrupted_eval("cleanup", tmp_path)
 
     assert log.status == "cancelled"

@@ -2,12 +2,13 @@ import functools
 import logging
 import os
 import sys
-from contextlib import ExitStack
+from contextlib import ExitStack, asynccontextmanager
 from copy import copy
 from dataclasses import dataclass, replace
 from typing import (
     TYPE_CHECKING,
     Any,
+    AsyncIterator,
     Awaitable,
     Callable,
     Iterable,
@@ -59,7 +60,12 @@ from inspect_ai._display.core.active import (
     clear_task_screen,
     init_task_screen,
 )
-from inspect_ai._display.core.display import CancelType, TaskCancel, TaskSpec
+from inspect_ai._display.core.display import (
+    CancelType,
+    TaskCancel,
+    TaskScreen,
+    TaskSpec,
+)
 from inspect_ai._eval.task.scan import Scanners
 from inspect_ai._sentinel._config import resolve_sentinel_root, sentinel_config
 from inspect_ai._util.error import PrerequisiteError, exception_message
@@ -813,7 +819,7 @@ async def run_task_retry_attempts(
             launch=parallel, in_flight=in_flight, pending=len(pending)
         )
 
-    async with display().task_screen(task_specs(tasks), parallel=True) as screen:
+    async with _run_task_screen(task_specs(tasks)) as screen:
         init_task_screen(screen)
         try:
             # registered inside the try so the removes in the finally below
@@ -1317,6 +1323,27 @@ class SandboxManager:
                 if self._lifecycle is not None:
                     self._lifecycle.close()
                     self._lifecycle = None
+
+
+@asynccontextmanager
+async def _run_task_screen(tasks: list[TaskSpec]) -> AsyncIterator[TaskScreen]:
+    """Open the display's task screen, keeping the run's logs on a late cancel.
+
+    The run absorbs an external cancellation and returns the logs it has.
+    Trio raises a cancellation again at every checkpoint inside the cancelled
+    scope, so a display whose teardown awaits (the rich display's update-loop
+    task group) would raise it again and the logs would be lost. Once the
+    body has finished, a cancellation from the display's teardown is absorbed
+    too; one raised before or inside the body still propagates.
+    """
+    body_finished = False
+    try:
+        async with display().task_screen(tasks, parallel=True) as screen:
+            yield screen
+            body_finished = True
+    except anyio.get_cancelled_exc_class():
+        if not body_finished:
+            raise
 
 
 def task_specs(tasks: list[TaskRunOptions]) -> list[TaskSpec]:
