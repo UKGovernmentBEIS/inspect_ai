@@ -30,8 +30,10 @@ from inspect_ai.agent._bridge.util import (
     client_json_schema,
     validate_client_config,
 )
-from inspect_ai.model import GenerateConfig
-from inspect_ai.tool._tool_choice import ToolFunction
+from inspect_ai.model import GenerateConfig, GenerateInput, Model, ModelOutput
+from inspect_ai.model._chat_message import ChatMessage
+from inspect_ai.tool._tool_choice import ToolChoice, ToolFunction
+from inspect_ai.tool._tool_info import ToolInfo
 
 # generation-tuning fields that must be dropped when not forwarding.
 # Hard-coded (not derived from the implementation's list) so this test fails if
@@ -52,6 +54,7 @@ GENERATION_FIELDS = {
     "reasoning_effort",
     "reasoning_tokens",
     "reasoning_summary",
+    "reasoning_mode",
     "verbosity",
 }
 
@@ -151,6 +154,568 @@ def test_openai_responses_forward_then_clear():
     assert config.system_message == "You are a dope model."
     assert config.parallel_tool_calls is True
     assert config.response_schema is not None
+
+
+def test_openai_responses_reasoning_object_maps_to_config() -> None:
+    json_data = {
+        "model": "inspect",
+        "reasoning": {"context": "all_turns", "effort": "max", "summary": "auto"},
+    }
+
+    config = generate_config_from_openai_responses(json_data)
+
+    # the bridge attaches the object itself only for Responses requests, after
+    # resolving the Inspect config (see test_bridged_reasoning_* below)
+    assert config.reasoning_effort == "max"
+    assert config.reasoning_summary == "auto"
+    assert "reasoning" not in (config.extra_body or {})
+
+
+def test_openai_responses_reasoning_mode_and_summary_alias_map_to_config() -> None:
+    config = generate_config_from_openai_responses(
+        {
+            "model": "inspect",
+            "reasoning": {"mode": "pro", "generate_summary": "detailed"},
+        }
+    )
+    assert config.reasoning_mode == "pro"
+    assert config.reasoning_summary == "detailed"
+
+    # `summary` wins over its deprecated alias
+    config = generate_config_from_openai_responses(
+        {
+            "model": "inspect",
+            "reasoning": {"summary": "concise", "generate_summary": "detailed"},
+        }
+    )
+    assert config.reasoning_summary == "concise"
+
+
+def test_responses_requests_detected_from_provider_request_selection() -> None:
+    from inspect_ai.agent._bridge.responses_impl import _sends_responses_requests
+    from inspect_ai.model._model import get_model
+    from inspect_ai.tool import web_search
+
+    def sends(model: str, tools: list[Any] | None = None, **model_args: Any) -> bool:
+        return _sends_responses_requests(
+            get_model(model, api_key="test-key", memoize=False, **model_args),
+            tools or [],
+            None,
+            GenerateConfig(),
+        )
+
+    assert sends("openai/gpt-5.4")
+    assert not sends("openai/gpt-4o", responses_api=False)
+    # native tools switch an OpenAI chat-completions model to Responses
+    assert sends("openai/gpt-4o", [web_search({"openai": True})], responses_api=False)
+    assert sends(
+        "openai-api/testsvc/gpt-5.4", base_url=_COMPATIBLE_URL, responses_api=True
+    )
+    assert not sends("openai-api/testsvc/gpt-5.4", base_url=_COMPATIBLE_URL)
+    assert not sends(
+        "openai-api-completions/testsvc/model",
+        base_url=_COMPATIBLE_URL,
+        responses_api=True,
+    )
+    assert not sends("mockllm/model")
+
+
+_COMPATIBLE_URL = "http://127.0.0.1:9/v1"
+
+_CLIENT_REASONING = {"effort": "low", "summary": "detailed", "context": "all_turns"}
+
+
+def _mock_responses_response() -> Any:
+    from openai.types.responses import (
+        Response,
+        ResponseOutputMessage,
+        ResponseOutputText,
+        ResponseUsage,
+    )
+    from openai.types.responses.response_usage import (
+        InputTokensDetails,
+        OutputTokensDetails,
+    )
+
+    return Response.model_construct(
+        id="resp-test",
+        created_at=0,
+        model="gpt-5.4",
+        object="response",
+        output=[
+            ResponseOutputMessage.model_construct(
+                id="msg-1",
+                type="message",
+                role="assistant",
+                status="completed",
+                content=[
+                    ResponseOutputText.model_construct(
+                        type="output_text", text="ok", annotations=[]
+                    )
+                ],
+            )
+        ],
+        parallel_tool_calls=True,
+        status="completed",
+        tool_choice="auto",
+        tools=[],
+        usage=ResponseUsage.model_construct(
+            input_tokens=10,
+            output_tokens=5,
+            total_tokens=15,
+            input_tokens_details=InputTokensDetails.model_construct(cached_tokens=0),
+            output_tokens_details=OutputTokensDetails.model_construct(
+                reasoning_tokens=0
+            ),
+        ),
+        error=None,
+    )
+
+
+class _ChatRequestCaptured(Exception):
+    pass
+
+
+def _capturing_model(
+    model_name: str = "openai/gpt-5.4", **model_args: Any
+) -> tuple[Any, list[dict[str, Any]]]:
+    """An OpenAI-protocol model whose provider requests are captured, not sent."""
+    from inspect_ai.model._model import get_model
+
+    model = get_model(model_name, api_key="test-key", memoize=False, **model_args)
+    api: Any = model.api
+    # skip the one-time account probe for reasoning summaries
+    api._reasoning_summaries = True
+    requests: list[dict[str, Any]] = []
+
+    async def create_response(**kwargs: Any) -> Any:
+        requests.append(kwargs)
+        return _mock_responses_response()
+
+    async def create_chat_completion(**kwargs: Any) -> Any:
+        requests.append(kwargs)
+        raise _ChatRequestCaptured()
+
+    api.client.responses.create = create_response
+    api.client.chat.completions.create = create_chat_completion
+    return model, requests
+
+
+async def _bridged_responses_request(
+    model: Any,
+    request: dict[str, Any],
+    *,
+    forward_generation_config: bool = True,
+    web_search: Any = None,
+    filter: Any = None,
+) -> None:
+    from inspect_ai.agent._agent import AgentState
+    from inspect_ai.agent._bridge.responses_impl import (
+        inspect_responses_api_request_impl,
+    )
+    from inspect_ai.agent._bridge.types import AgentBridge
+
+    bridge = AgentBridge(
+        state=AgentState(messages=[]),
+        filter=filter,
+        forward_generation_config=forward_generation_config,
+    )
+    bridge.model_aliases = {"agent-model": model}
+    await inspect_responses_api_request_impl(
+        json_data={
+            "model": "agent-model",
+            "input": [{"role": "user", "content": "hi"}],
+            **request,
+        },
+        headers=None,
+        web_search=web_search,
+        code_execution=None,
+        bridge=bridge,
+    )
+
+
+@pytest.mark.anyio
+async def test_bridged_reasoning_keeps_fields_config_does_not_model() -> None:
+    model, requests = _capturing_model()
+
+    await _bridged_responses_request(model, {"reasoning": _CLIENT_REASONING})
+
+    assert requests[0]["reasoning"] == _CLIENT_REASONING
+
+
+@pytest.mark.anyio
+async def test_bridged_reasoning_not_forwarded_by_default() -> None:
+    model, requests = _capturing_model()
+
+    await _bridged_responses_request(
+        model,
+        {"reasoning": _CLIENT_REASONING | {"mode": "pro"}},
+        forward_generation_config=False,
+    )
+
+    assert requests[0]["reasoning"] == {"summary": "auto"}
+    assert "background" not in requests[0]
+
+
+@pytest.mark.anyio
+async def test_bridged_reasoning_model_config_overrides_client() -> None:
+    model, requests = _capturing_model(
+        "openai/gpt-5.6-sol",
+        config=GenerateConfig(
+            reasoning_effort="high", reasoning_summary="none", reasoning_mode="standard"
+        ),
+    )
+
+    await _bridged_responses_request(
+        model, {"reasoning": _CLIENT_REASONING | {"mode": "pro"}}
+    )
+
+    assert requests[0]["reasoning"] == {
+        "effort": "high",
+        "mode": "standard",
+        "context": "all_turns",
+    }
+
+
+@pytest.mark.anyio
+async def test_bridged_reasoning_active_eval_config_overrides_client() -> None:
+    from inspect_ai.model._generate_config import active_generate_config_context_var
+    from inspect_ai.model._model import active_model_context_var
+
+    model, requests = _capturing_model("openai/gpt-5.6-sol")
+    model_token = active_model_context_var.set(model)
+    config_token = active_generate_config_context_var.set(
+        GenerateConfig(
+            reasoning_effort="medium",
+            reasoning_summary="concise",
+            reasoning_mode="standard",
+        )
+    )
+    try:
+        await _bridged_responses_request(
+            model,
+            {
+                "reasoning": _CLIENT_REASONING
+                | {"mode": "pro", "generate_summary": "auto"}
+            },
+        )
+    finally:
+        active_generate_config_context_var.reset(config_token)
+        active_model_context_var.reset(model_token)
+
+    assert requests[0]["reasoning"] == {
+        "effort": "medium",
+        "mode": "standard",
+        "summary": "concise",
+        "context": "all_turns",
+    }
+
+
+@pytest.mark.anyio
+async def test_bridged_reasoning_mode_and_summary_alias_reach_provider() -> None:
+    model, requests = _capturing_model("openai/gpt-5.6-sol")
+
+    await _bridged_responses_request(
+        model,
+        {
+            "reasoning": {
+                "mode": "pro",
+                "effort": "low",
+                "generate_summary": "detailed",
+                "context": "all_turns",
+            }
+        },
+    )
+
+    assert requests[0]["reasoning"] == {
+        "effort": "low",
+        "mode": "pro",
+        "summary": "detailed",
+        "context": "all_turns",
+    }
+
+
+@pytest.mark.anyio
+async def test_bridged_reasoning_max_effort_mapped_for_older_models() -> None:
+    model, requests = _capturing_model()
+
+    await _bridged_responses_request(
+        model, {"reasoning": {"effort": "max", "context": "all_turns"}}
+    )
+
+    assert requests[0]["reasoning"] == {
+        "effort": "xhigh",
+        "summary": "auto",
+        "context": "all_turns",
+    }
+
+
+_SAMPLING_PARAMS = {
+    "temperature": 0.2,
+    "top_p": 0.9,
+    "top_logprobs": 2,
+    "include": ["message.output_text.logprobs"],
+}
+
+
+@pytest.mark.parametrize(
+    "reasoning,sampling_sent",
+    [
+        # explicitly disabled reasoning keeps the sampling params
+        ({"effort": "none", "context": "all_turns"}, True),
+        # no effort: the model default decides, as without a reasoning object
+        ({}, True),
+        ({"summary": "auto"}, True),
+        ({"context": "all_turns"}, True),
+        ({"effort": "high"}, False),
+    ],
+)
+@pytest.mark.anyio
+async def test_bridged_reasoning_effort_decides_sampling_params(
+    reasoning: dict[str, Any], sampling_sent: bool
+) -> None:
+    model, requests = _capturing_model()
+
+    await _bridged_responses_request(
+        model, {"reasoning": reasoning, **_SAMPLING_PARAMS}
+    )
+
+    request = requests[0]
+    assert ("temperature" in request) is sampling_sent
+    assert ("top_p" in request) is sampling_sent
+    assert ("top_logprobs" in request) is sampling_sent
+    assert ("message.output_text.logprobs" in request["include"]) is sampling_sent
+
+
+@pytest.mark.anyio
+async def test_bridged_reasoning_reaches_forced_responses_requests() -> None:
+    """Native tools send an OpenAI chat-completions model's request to Responses."""
+    model, requests = _capturing_model("openai/gpt-5.4", responses_api=False)
+
+    await _bridged_responses_request(
+        model,
+        {"reasoning": _CLIENT_REASONING, "tools": [{"type": "web_search"}]},
+        web_search={"openai": True},
+    )
+
+    assert requests[0]["reasoning"] == _CLIENT_REASONING
+    assert [tool["type"] for tool in requests[0]["tools"]] == ["web_search"]
+
+
+_FUNCTION_TOOL = {
+    "type": "function",
+    "name": "lookup",
+    "description": "Look something up.",
+    "parameters": {"type": "object", "properties": {}},
+}
+
+
+@pytest.mark.parametrize(
+    "tool_choice",
+    ["none", {"type": "function", "name": "lookup"}],
+    ids=["none", "forced-function"],
+)
+@pytest.mark.anyio
+async def test_bridged_reasoning_follows_tool_choice_narrowing(
+    tool_choice: Any,
+) -> None:
+    """A tool choice that drops the native tool sends the request to Chat Completions.
+
+    `Model.generate()` keeps only the forced tool, or none for `"none"`, so the
+    native web search no longer switches the model to Responses.
+    """
+    model, requests = _capturing_model("openai/gpt-5.4", responses_api=False)
+
+    with pytest.raises(_ChatRequestCaptured):
+        await _bridged_responses_request(
+            model,
+            {
+                "reasoning": _CLIENT_REASONING,
+                "tools": [{"type": "web_search"}, _FUNCTION_TOOL],
+                "tool_choice": tool_choice,
+            },
+            web_search={"openai": True},
+        )
+
+    assert "reasoning" not in requests[0]
+    assert "reasoning" not in (requests[0].get("extra_body") or {})
+
+
+@pytest.mark.anyio
+async def test_bridged_reasoning_reaches_compatible_responses_routes() -> None:
+    model, requests = _capturing_model(
+        "openai-api/testsvc/gpt-5.4", base_url=_COMPATIBLE_URL, responses_api=True
+    )
+
+    await _bridged_responses_request(model, {"reasoning": _CLIENT_REASONING})
+
+    assert requests[0]["reasoning"] == _CLIENT_REASONING
+
+
+@pytest.mark.anyio
+async def test_bridged_reasoning_not_sent_to_chat_completions() -> None:
+    model, requests = _capturing_model("openai/gpt-5.4", responses_api=False)
+
+    with pytest.raises(_ChatRequestCaptured):
+        await _bridged_responses_request(model, {"reasoning": _CLIENT_REASONING})
+
+    # effort still reaches the model through GenerateConfig
+    assert requests[0]["reasoning_effort"] == "low"
+    assert "reasoning" not in requests[0]
+    assert "reasoning" not in (requests[0].get("extra_body") or {})
+
+
+def _web_search_tool() -> ToolInfo:
+    from inspect_ai.tool import web_search
+    from inspect_ai.tool._tool_util import tool_to_tool_info
+
+    return tool_to_tool_info(web_search({"openai": True}))
+
+
+@pytest.mark.anyio
+async def test_bridged_reasoning_follows_filter_removing_native_tools() -> None:
+    """A filter that drops the native tool sends the request to Chat Completions."""
+
+    async def remove_tools(
+        model: Model,
+        input: list[ChatMessage],
+        tools: list[ToolInfo],
+        tool_choice: ToolChoice,
+        config: GenerateConfig,
+    ) -> GenerateInput:
+        return GenerateInput(input, [], tool_choice, config)
+
+    model, requests = _capturing_model("openai/gpt-5.4", responses_api=False)
+
+    with pytest.raises(_ChatRequestCaptured):
+        await _bridged_responses_request(
+            model,
+            {"reasoning": _CLIENT_REASONING, "tools": [{"type": "web_search"}]},
+            web_search={"openai": True},
+            filter=remove_tools,
+        )
+
+    assert "reasoning" not in (requests[0].get("extra_body") or {})
+
+
+@pytest.mark.anyio
+async def test_bridged_reasoning_follows_filter_adding_native_tools() -> None:
+    """A filter that adds a native tool sends the request to Responses."""
+
+    async def add_tools(
+        model: Model,
+        input: list[ChatMessage],
+        tools: list[ToolInfo],
+        tool_choice: ToolChoice,
+        config: GenerateConfig,
+    ) -> GenerateInput:
+        return GenerateInput(input, [*tools, _web_search_tool()], tool_choice, config)
+
+    model, requests = _capturing_model("openai/gpt-5.4", responses_api=False)
+
+    await _bridged_responses_request(
+        model, {"reasoning": _CLIENT_REASONING}, filter=add_tools
+    )
+
+    assert requests[0]["reasoning"] == _CLIENT_REASONING
+
+
+@pytest.mark.anyio
+async def test_bridged_reasoning_follows_filter_adding_image_output() -> None:
+    """A filter that enables image output sends the request to Responses."""
+
+    async def add_images(
+        model: Model,
+        input: list[ChatMessage],
+        tools: list[ToolInfo],
+        tool_choice: ToolChoice,
+        config: GenerateConfig,
+    ) -> GenerateInput:
+        return GenerateInput(
+            input, tools, tool_choice, config.merge({"modalities": ["image"]})
+        )
+
+    model, requests = _capturing_model("openai/gpt-5.4", responses_api=False)
+
+    await _bridged_responses_request(
+        model, {"reasoning": _CLIENT_REASONING}, filter=add_images
+    )
+
+    assert requests[0]["reasoning"] == _CLIENT_REASONING
+
+
+@pytest.mark.anyio
+async def test_bridged_reasoning_not_given_to_filter_generation() -> None:
+    """A filter that generates through another model gets no client reasoning body."""
+    chat_model, chat_requests = _capturing_model("openai/gpt-5.4", responses_api=False)
+
+    async def generate_elsewhere(
+        model: Model,
+        input: list[ChatMessage],
+        tools: list[ToolInfo],
+        tool_choice: ToolChoice,
+        config: GenerateConfig,
+    ) -> ModelOutput:
+        return await chat_model.generate(input, tools, tool_choice, config)
+
+    model, requests = _capturing_model()
+
+    with pytest.raises(_ChatRequestCaptured):
+        await _bridged_responses_request(
+            model, {"reasoning": _CLIENT_REASONING}, filter=generate_elsewhere
+        )
+
+    assert requests == []
+    assert "reasoning" not in (chat_requests[0].get("extra_body") or {})
+
+
+@pytest.mark.anyio
+async def test_forwarded_responses_reasoning_reaches_non_responses_models() -> None:
+    """Only Responses models get the client's `reasoning` object verbatim.
+
+    Other providers never read `extra_body["reasoning"]`, so with
+    `forward_generation_config=True` they must still receive the client's
+    effort and summary through `GenerateConfig`.
+    """
+    from inspect_ai.agent._agent import AgentState
+    from inspect_ai.agent._bridge.responses_impl import (
+        inspect_responses_api_request_impl,
+    )
+    from inspect_ai.agent._bridge.types import AgentBridge
+    from inspect_ai.model._chat_message import ChatMessageUser
+    from inspect_ai.model._model import get_model
+    from inspect_ai.model._model_output import ModelOutput
+
+    configs: list[GenerateConfig] = []
+
+    def _capture(input, tools, tool_choice, config):
+        configs.append(config)
+        return ModelOutput.from_content(model="mockllm/model", content="ok")
+
+    model = get_model("mockllm/model", custom_outputs=_capture)
+    bridge = AgentBridge(
+        state=AgentState(messages=[ChatMessageUser(content="hi")]),
+        model=str(model),
+        forward_generation_config=True,
+    )
+    bridge.model_aliases = {"gpt-5": model}
+
+    await inspect_responses_api_request_impl(
+        json_data={
+            "model": "gpt-5",
+            "input": [{"role": "user", "content": "hi"}],
+            "reasoning": {"effort": "high", "summary": "auto", "context": "all_turns"},
+        },
+        headers=None,
+        web_search=None,
+        code_execution=None,
+        bridge=bridge,
+    )
+
+    assert len(configs) == 1
+    assert configs[0].reasoning_effort == "high"
+    assert configs[0].reasoning_summary == "auto"
+    assert "reasoning" not in (configs[0].extra_body or {})
 
 
 def test_anthropic_forward_then_clear():
