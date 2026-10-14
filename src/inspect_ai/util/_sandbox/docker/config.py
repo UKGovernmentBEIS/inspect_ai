@@ -10,6 +10,10 @@ from ..compose import AUTO_COMPOSE_SUBDIR, AUTO_COMPOSE_YAML, COMPOSE_FILES, DOC
 
 logger = getLogger(__name__)
 
+# Private YAML extension key recording the original base directory, so later
+# cleanup can resolve paths after the generated Compose file has been relocated.
+AUTO_COMPOSE_PROJECT_DIRECTORY_KEY = "x-inspect-project-directory"
+
 
 def auto_compose_dir() -> Path:
     """Get the directory for storing auto-generated compose files."""
@@ -141,13 +145,13 @@ def auto_compose_file(
     Args:
         contents: The YAML content to write
         project_name: Unique project name (used as filename)
-        base_dir: Directory to resolve relative build paths against (e.g., CWD)
+        base_dir: Directory to resolve relative host paths against (e.g., CWD)
 
     Returns:
         Absolute path to the created compose file
     """
     if base_dir:
-        contents = _update_build_context(contents, base_dir)
+        contents = _prepare_auto_compose(contents, base_dir)
 
     compose_dir = auto_compose_dir()
     path = compose_dir / f"{project_name}.yaml"
@@ -164,21 +168,41 @@ def _auto_compose_file_local(contents: str, parent: str = "") -> str:
     return Path(path).resolve().as_posix()
 
 
-def _update_build_context(yaml_content: str, base_dir: str) -> str:
-    """Resolve relative build.context paths to absolute paths.
+def auto_compose_project_directory(file: str | None) -> str | None:
+    """Read the original directory retained for generated Compose configurations.
 
-    When auto-compose files are stored in a central directory, relative paths
-    like "." won't work. This resolves relative paths against base_dir,
-    leaving absolute paths unchanged.
+    Persisting it in the generated file lets CLI cleanup recover the same path
+    semantics in another process. Older files have no recorded directory and
+    retain Compose's default behavior. The stored value uses Compose's ``$$``
+    escaping for literal dollar signs.
+    """
+    if file is None or not is_auto_compose_file(file):
+        return None
+    with open(file, encoding="utf-8") as f:
+        config = yaml.safe_load(f)
+    if not isinstance(config, dict) or AUTO_COMPOSE_PROJECT_DIRECTORY_KEY not in config:
+        return None
+    directory = config[AUTO_COMPOSE_PROJECT_DIRECTORY_KEY]
+    if not isinstance(directory, str) or not Path(directory).is_absolute():
+        raise ValueError(
+            f"Invalid {AUTO_COMPOSE_PROJECT_DIRECTORY_KEY} in {file}: "
+            "expected an absolute directory path."
+        )
+    return directory.replace("$$", "$")
 
-    Args:
-        yaml_content: The YAML content to update
-        base_dir: Base directory to resolve relative paths against (e.g., CWD)
 
-    Returns:
-        Updated YAML content with absolute build context paths
+def _prepare_auto_compose(yaml_content: str, base_dir: str) -> str:
+    """Preserve the original base directory when relocating a Compose file.
+
+    Keep absolute build contexts for existing readers of generated YAML. Other
+    host paths are resolved by Compose using the recorded project directory,
+    including paths that depend on environment interpolation.
     """
     data = yaml.safe_load(yaml_content)
+    # Compose interpolates extension values too; the saved directory is literal.
+    data[AUTO_COMPOSE_PROJECT_DIRECTORY_KEY] = str(Path(base_dir).resolve()).replace(
+        "$", "$$"
+    )
     if data and "services" in data:
         for service in data["services"].values():
             if "build" in service:

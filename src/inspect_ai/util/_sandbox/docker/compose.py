@@ -425,6 +425,12 @@ async def compose_command(
     if project.config:
         compose_command = compose_command + ["-f", project.config]
 
+    if project.project_directory:
+        compose_command = compose_command + [
+            "--project-directory",
+            project.project_directory,
+        ]
+
     # build final command
     compose_command = compose_command + command
 

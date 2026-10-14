@@ -11,6 +11,7 @@ from ..environment import SandboxEnvironmentConfigType
 from .config import (
     COMPOSE_DOCKERFILE_YAML,
     auto_compose_file,
+    auto_compose_project_directory,
     ensure_auto_compose_file,
     resolve_compose_file,
 )
@@ -27,6 +28,7 @@ class ComposeProject:
     sample_id: int | str | None
     epoch: int | None
     env: dict[str, str] | None
+    project_directory: str | None
 
     @classmethod
     async def create(
@@ -80,7 +82,14 @@ class ComposeProject:
         ensure_auto_compose_file(config, name)
 
         # return project
-        return ComposeProject(name, config, sample_id=sample_id, epoch=epoch, env=env)
+        return ComposeProject(
+            name,
+            config,
+            sample_id=sample_id,
+            epoch=epoch,
+            env=env,
+            project_directory=auto_compose_project_directory(config),
+        )
 
     def __init__(
         self,
@@ -89,12 +98,14 @@ class ComposeProject:
         sample_id: int | str | None,
         epoch: int | None,
         env: dict[str, str] | None,
+        project_directory: str | None = None,
     ) -> None:
         self.name = name
         self.config = config
         self.sample_id = sample_id
         self.epoch = epoch
         self.env = env
+        self.project_directory = project_directory
 
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, ComposeProject):
