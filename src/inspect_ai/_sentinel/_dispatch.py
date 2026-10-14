@@ -242,7 +242,7 @@ async def _run(step: Step) -> Decision | None:
             RuntimeError(
                 f"inspect_sentinel returned an escalate at the {_stage(step)} stage, "
                 "which it should have turned into a terminate. inspect_ai requires "
-                "inspect_sentinel 0.1.1 or later: pip install --upgrade inspect-sentinel"
+                "inspect_sentinel 0.1.2 or later: pip install --upgrade inspect-sentinel"
             )
         )
     return decision
@@ -411,8 +411,17 @@ class _Host:
                     f"{', '.join(repr(c) for c in _HUMAN_CHOICES)}."
                 )
             offered.append(cast(ApprovalDecision, choice))
+        # the approval surfaces show the conversation; a step whose host could
+        # not provide the scaffold's history shows what the model saw instead,
+        # and nothing when that is unknown too
+        if step.history is not None:
+            conversation = step.history
+        elif step.input is not None:
+            conversation = step.input
+        else:
+            conversation = []
         approval = await human_approver(choices=offered)(
-            step.message, step.call, _human_view(step), step.history
+            step.message, step.call, _human_view(step), conversation
         )
         if approval.decision in offered:
             return HumanAnswer(decision=approval.decision, reason=approval.explanation)
