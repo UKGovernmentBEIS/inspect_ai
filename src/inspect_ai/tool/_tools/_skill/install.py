@@ -1,3 +1,5 @@
+import hashlib
+from logging import getLogger
 from pathlib import Path, PurePosixPath
 from typing import NamedTuple, Sequence
 from weakref import WeakKeyDictionary
@@ -5,7 +7,7 @@ from weakref import WeakKeyDictionary
 import anyio
 
 from inspect_ai.util import sandbox as sandbox_env
-from inspect_ai.util._sandbox._privileged import privileged_exec
+from inspect_ai.util._sandbox._privileged import privileged_exec, privileged_shell
 from inspect_ai.util._sandbox.environment import (
     SandboxEnvironment,
     SandboxUserUnsupportedError,
@@ -13,6 +15,8 @@ from inspect_ai.util._sandbox.environment import (
 
 from .read import read_skills
 from .types import Skill, SkillInfo
+
+logger = getLogger(__name__)
 
 
 async def install_skills(
@@ -63,8 +67,11 @@ async def install_skills_shared(
     install into the same sandbox files. The files in the sandbox decide what
     is installed: a skill file that is missing is written, one that already
     holds the same bytes is left as is, and one that holds different bytes
-    raises an error before any file of that skill is written. Installs into
-    one sandbox are serialised by one lock per sample sandbox.
+    raises an error before any file of that skill is written. Files are
+    compared by a SHA-256 digest computed in the sandbox, so no file size
+    limit applies. A file whose write, ownership change or mode change is
+    interrupted is removed, so the next install writes it again. Installs
+    into one sandbox are serialised by one lock per sample sandbox.
 
     Args:
         skills: Resolved skills to install.
@@ -86,16 +93,16 @@ async def install_skills_shared(
         for skill in skills:
             missing: list[_SkillFile] = []
             for file in _skill_files(skills_dir, skill):
-                existing = await _read_existing(sbox, file.path)
+                existing = await _sandbox_digest(sbox, file.path)
                 if existing is None:
                     missing.append(file)
-                elif existing != _file_bytes(file.contents):
+                elif existing != hashlib.sha256(_file_bytes(file.contents)).hexdigest():
                     raise RuntimeError(
                         f"Skill '{skill.name}' cannot be installed: {file.path} "
                         "already exists in the sandbox with different contents."
                     )
             for file in missing:
-                await _write_skill_file(sbox, user, file)
+                await _write_skill_file_or_remove(sbox, user, file)
     return [_skill_info(skills_dir, skill) for skill in skills]
 
 
@@ -104,11 +111,19 @@ async def install_skills_shared(
 _install_locks: WeakKeyDictionary[SandboxEnvironment, anyio.Lock] = WeakKeyDictionary()
 
 
-async def _read_existing(sbox: SandboxEnvironment, file: str) -> bytes | None:
-    try:
-        return await sbox.read_file(file, text=False)
-    except FileNotFoundError:
-        return None
+# prints "missing" or the SHA-256 digest of file $1 (as "<digest>  -")
+_DIGEST_SCRIPT = """
+[ -e "$1" ] || { echo missing; exit 0; }
+sha256sum < "$1"
+"""
+
+
+async def _sandbox_digest(sbox: SandboxEnvironment, file: str) -> str | None:
+    result = await privileged_shell(sbox, _DIGEST_SCRIPT, file, user=None, timeout=60)
+    if not result.success:
+        raise RuntimeError(f"Error reading skill file {file}: {result.stderr}")
+    output = result.stdout.strip()
+    return None if output == "missing" else output.split()[0]
 
 
 async def _checked_exec(
@@ -206,3 +221,19 @@ async def _write_skill_file(
     # mark executable if required
     if file.executable:
         await _checked_exec(sbox, user, ["chmod", "+x", file.path])
+
+
+async def _write_skill_file_or_remove(
+    sbox: SandboxEnvironment, user: str | None, file: _SkillFile
+) -> None:
+    try:
+        await _write_skill_file(sbox, user, file)
+    except BaseException:
+        # a file left without its ownership or mode still has the skill's
+        # bytes, so the next install would skip it: remove it
+        with anyio.CancelScope(shield=True):
+            try:
+                await _checked_exec(sbox, None, ["rm", "-f", file.path])
+            except Exception as ex:
+                logger.warning(f"Unable to remove skill file {file.path}: {ex}")
+        raise

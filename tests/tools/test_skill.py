@@ -1,8 +1,8 @@
 """End-to-end tests for the skill() tool."""
 
+import hashlib
 import os
 from pathlib import Path
-from typing import Literal, overload
 
 import anyio
 import pytest
@@ -31,6 +31,10 @@ from inspect_ai.util._sandbox.context import (
     sandbox_environments_context_var,
 )
 from inspect_ai.util._sandbox.environment import SandboxEnvironment
+from inspect_ai.util._sandbox.limits import (
+    OutputLimitExceededError,
+    override_max_read_file_size,
+)
 from inspect_ai.util._sandbox.local import LocalSandboxEnvironment
 from inspect_ai.util._store import init_subtask_store
 from inspect_ai.util._subprocess import ExecResult
@@ -647,27 +651,67 @@ def test_skill_end_to_end() -> None:
 
 
 class _FileSandbox(CannedSandbox):
-    """Keeps written files in memory; `pwd` gives /work; writes yield."""
+    """Keeps written files in memory and answers the installer's commands.
+
+    `pwd` gives /work, the digest script hashes the in-memory file, `rm -f`
+    removes it, and writes yield so concurrent installs interleave.
+    """
 
     def __init__(self, files: dict[str, bytes] | None = None) -> None:
-        super().__init__(lambda _cmd, _user: ExecResult(True, 0, "/work", ""))
+        super().__init__(self._answer)
         self.files = dict(files or {})
+
+    def _answer(self, cmd: list[str], user: str | None) -> ExecResult[str]:
+        if cmd[-1] == "pwd":
+            return ExecResult(True, 0, "/work", "")
+        if "sha256sum" in cmd[2]:
+            contents = self.files.get(cmd[-1])
+            if contents is None:
+                return ExecResult(True, 0, "missing\n", "")
+            return ExecResult(
+                True, 0, f"{hashlib.sha256(contents).hexdigest()}  -\n", ""
+            )
+        if cmd[4:6] == ["rm", "-f"]:
+            self.files.pop(cmd[-1], None)
+        return ExecResult(True, 0, "", "")
 
     async def write_file(self, file: str, contents: str | bytes) -> None:
         await anyio.lowlevel.checkpoint()
         await super().write_file(file, contents)
         self.files[file] = contents.encode() if isinstance(contents, str) else contents
 
-    @overload
-    async def read_file(self, file: str, text: Literal[True] = True) -> str: ...
 
-    @overload
-    async def read_file(self, file: str, text: Literal[False]) -> bytes: ...
+class _BlockingSandbox(_FileSandbox):
+    """Blocks the first `stage` command (chown or chmod) until cancelled."""
 
-    async def read_file(self, file: str, text: bool = True) -> str | bytes:
-        if file not in self.files:
-            raise FileNotFoundError(file)
-        return self.files[file].decode() if text else self.files[file]
+    def __init__(self, stage: str) -> None:
+        super().__init__()
+        self.stage = stage
+        self.block = True
+        self.blocked = anyio.Event()
+        self.blocked_path = ""
+        self.finalized: list[str] = []
+
+    async def exec(
+        self,
+        cmd: list[str],
+        input: str | bytes | None = None,
+        cwd: str | None = None,
+        env: dict[str, str] | None = None,
+        user: str | None = None,
+        timeout: int | None = None,
+        timeout_retry: bool = True,
+        concurrency: bool = True,
+    ) -> ExecResult[str]:
+        if cmd[4:5] == [self.stage]:
+            if self.block:
+                self.blocked_path = cmd[-1]
+                self.blocked.set()
+                await anyio.sleep_forever()
+            self.finalized.append(cmd[-1])
+        return await super().exec(
+            cmd, input, cwd, env, user, timeout, timeout_retry, concurrency
+        )
 
 
 class _CountingLocalSandbox(LocalSandboxEnvironment):
@@ -893,3 +937,60 @@ class TestSkillToolStateScope:
         else:
             assert error is None
         assert len(written) == 1 and written[0].endswith("skills/example/SKILL.md")
+
+    @pytest.mark.parametrize("stage", ["chown", "chmod"])
+    async def test_interrupted_install_is_redone(self, stage: str) -> None:
+        sandbox = _BlockingSandbox(stage)
+        _use_sandbox(sandbox)
+        init_subtask_store(Store())
+        with_script = Skill(
+            name="example",
+            description="Example.",
+            instructions="Do it.",
+            scripts={"run.sh": "echo hello"},
+        )
+
+        async def first_install() -> None:
+            with tool_state_scope("w-1"):
+                await skill([with_script], user="1000")(command="example")
+
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(first_install)
+            await sandbox.blocked.wait()
+            tg.cancel_scope.cancel()
+        assert sandbox.blocked_path
+        assert sandbox.blocked_path not in sandbox.files
+
+        sandbox.block = False
+        with tool_state_scope("w-2"):
+            await skill([with_script], user="1000")(command="example")
+        assert sandbox.blocked_path in sandbox.files
+        assert sandbox.blocked_path in sandbox.finalized
+
+    async def test_comparison_is_not_limited_by_read_file_size(self) -> None:
+        local = _CountingLocalSandbox()
+        try:
+            _use_sandbox(local)
+            init_subtask_store(Store())
+            dir = f"{local.directory.name}/skills"
+            asset = f"{dir}/example/assets/data.bin"
+            large = Skill(
+                name="example",
+                description="Example.",
+                instructions="Do it.",
+                assets={"data.bin": b"x" * 256},
+            )
+            different = large.model_copy(update={"assets": {"data.bin": b"y" * 256}})
+            with override_max_read_file_size(128):
+                with tool_state_scope("w-1"):
+                    await skill([large], dir=dir)(command="example")
+                with tool_state_scope("w-2"):
+                    await skill([large], dir=dir)(command="example")
+                with tool_state_scope("w-3"):
+                    with pytest.raises(RuntimeError, match="different contents"):
+                        await skill([different], dir=dir)(command="example")
+                assert len(local.written) == 2
+                with pytest.raises(OutputLimitExceededError):
+                    await local.read_file(asset, text=False)
+        finally:
+            local.directory.cleanup()
