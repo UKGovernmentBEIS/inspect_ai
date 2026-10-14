@@ -745,10 +745,20 @@ _REQUEST_COST = {
 async def test_pause_turn_chain_priced_per_request(
     fallback_costs: None, head: str, tail: str
 ) -> None:
-    """Each request of a pause_turn chain is priced by the model that served it."""
+    """Each request of a pause_turn chain is priced by the model that served it.
+
+    The chain's fallback counts the requests that fell back, and the sample
+    rollup adds that count.
+    """
     from unittest.mock import AsyncMock, create_autospec
 
     from anthropic import AsyncAnthropic
+
+    from inspect_ai.model._model import (
+        record_sample_model_fallback,
+        sample_model_fallbacks,
+        sample_model_fallbacks_context_var,
+    )
 
     def request(id: str, stop_reason: str, kind: str) -> Message:
         return _chain_request(
@@ -778,6 +788,18 @@ async def test_pause_turn_chain_priced_per_request(
     assert output.fallback is not None
     assert output.fallback.model == REQUESTED_MODEL
     assert output.fallback.fallback_model == FALLBACK_MODEL
+    fell_back = sum(kind != "requested" for kind in (head, tail))
+    assert output.fallback.count == fell_back
     assert _recorded_cost(output) == pytest.approx(
         _REQUEST_COST[head] + _REQUEST_COST[tail]
     )
+
+    token = sample_model_fallbacks_context_var.set({})
+    try:
+        record_sample_model_fallback(output)
+        assert [
+            (rollup.model, rollup.fallback_model, rollup.count)
+            for rollup in sample_model_fallbacks()
+        ] == [(REQUESTED_MODEL, FALLBACK_MODEL, fell_back)]
+    finally:
+        sample_model_fallbacks_context_var.reset(token)

@@ -93,10 +93,11 @@ class ModelFallback(BaseModel):
     """Model that served the request after fallback."""
 
     count: int = Field(default=1)
-    """Number of generate calls served via this fallback.
+    """Number of requests served via this fallback.
 
-    Always 1 on a single `ModelOutput`; aggregated in the sample-level
-    `model_fallbacks` rollup.
+    Usually 1 on a single `ModelOutput`. An Anthropic generate call that
+    continues a `pause_turn` sends several requests and reports how many of
+    them fell back. Summed in the sample-level `model_fallbacks` rollup.
     """
 
     metadata: dict[str, Any] | None = Field(default=None)

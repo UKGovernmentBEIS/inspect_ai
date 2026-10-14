@@ -361,10 +361,13 @@ class _ContinuationChain:
         """Give the output returned for the generate call the chain's totals.
 
         When a request fell back and the output does not describe that one
-        request alone, `output.fallback` describes the chain: its metadata
-        joins every fallback's `handoffs` and `iterations`, and its
-        `served_usage` attributes each request's usage to the model that
-        served it (see `AnthropicAPI.served_model_usage`).
+        request alone, `output.fallback` describes the chain: `count` is the
+        number of requests that fell back, its metadata joins every
+        fallback's `handoffs` and `iterations`, and its `served_usage`
+        attributes each request's usage to the model that served it (see
+        `AnthropicAPI.served_model_usage`). `model` and `fallback_model`
+        come from the first and last fallbacks, so a chain that fell back to
+        different models names only the last one.
         """
         output.usage = self.usage
         output.input_context_tokens = self.input_context_tokens
@@ -373,6 +376,7 @@ class _ContinuationChain:
         output.fallback = ModelFallback(
             model=self.fallbacks[0].model,
             fallback_model=self.fallbacks[-1].fallback_model,
+            count=len(self.fallbacks),
             metadata={
                 key: [
                     item
