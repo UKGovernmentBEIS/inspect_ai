@@ -20,7 +20,9 @@ permissions:
   contents: read
 
 env:
-  UV_VERSION: 0.9.4
+  # 0.9.30 installs CPython 3.14.3; 0.9.4 installs 3.14.0, which rejects
+  # `typing.Union | "str"` forward references used by inspect_scout (fixed in 3.14.1).
+  UV_VERSION: 0.9.30
 
 jobs:
   # Keep these check names present on Markdown-only PRs while avoiding source
