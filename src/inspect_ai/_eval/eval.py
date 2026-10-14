@@ -1250,15 +1250,18 @@ async def _eval_async_inner(
             # cleanup sample buffers if required
             await cleanup_sample_buffers(log_dir)
 
-            try:
-                await emit_run_end(eval_set_id, run_id, logs)
-            except UnboundLocalError:
-                await emit_run_end(eval_set_id, run_id, EvalLogs([]))
-
     except BaseException as e:
         with anyio.CancelScope(shield=True):
             await emit_run_end(eval_set_id, run_id, EvalLogs([]), e)
         raise e
+
+    else:
+        # in `else` so an interrupt during these hooks does not rerun them
+        with anyio.CancelScope(shield=True):
+            try:
+                await emit_run_end(eval_set_id, run_id, logs)
+            except UnboundLocalError:
+                await emit_run_end(eval_set_id, run_id, EvalLogs([]))
 
     finally:
         _eval_async_running = False
