@@ -1,17 +1,20 @@
 import hashlib
-from dataclasses import dataclass, field
+import posixpath
 from pathlib import Path, PurePosixPath
 from typing import Sequence
 from weakref import WeakKeyDictionary
 
 import anyio
+from pydantic import Field
 
 from inspect_ai.util import sandbox as sandbox_env
-from inspect_ai.util._sandbox._privileged import privileged_exec
+from inspect_ai.util._sandbox._privileged import privileged_exec, privileged_shell
+from inspect_ai.util._sandbox.context import sandbox_environments_context_var
 from inspect_ai.util._sandbox.environment import (
     SandboxEnvironment,
     SandboxUserUnsupportedError,
 )
+from inspect_ai.util._store_model import StoreModel, store_as
 
 from .read import read_skills
 from .types import Skill, SkillInfo
@@ -62,10 +65,14 @@ async def install_skills_shared(
     """Install skills into a sandbox directory shared by several skill tools.
 
     Skill tools in different tool state scopes keep their own skill lists but
-    install into the same sandbox directory. A record per sandbox and
-    directory (skill name to content hash) makes each skill's files be written
-    once: a skill already installed with the same contents is skipped, and
-    one installed with different contents raises an error.
+    install into the same sandbox directory. A record in the sample store
+    (skill name to content hash, per sandbox and physical directory) makes
+    each skill's files be written once: a skill already installed with the
+    same contents is skipped, and one installed with different contents
+    raises an error. The record is checkpointed with the store, so it holds
+    after a resume. A checkpoint taken before the record existed has none:
+    after resuming it, the first tool to install a skill writes it again, as
+    it did before.
 
     Args:
         skills: Resolved skills to install.
@@ -82,16 +89,20 @@ async def install_skills_shared(
     """
     sbox = sandbox_env(sandbox)
     skills_dir = await _resolve_skills_dir(sbox, user, dir)
-    installed = _installed_skills.setdefault(sbox, {}).setdefault(
-        str(skills_dir), _InstalledSkillsDir()
-    )
-    async with installed.lock:
+    record_key = f"{_sandbox_name(sbox)}:{await _physical_dir(sbox, user, skills_dir)}"
+    # held across the writes of one tool's skills, so a skill's files are
+    # complete before another tool can find it recorded
+    lock = _install_locks.setdefault(sbox, {}).setdefault(record_key, anyio.Lock())
+    async with lock:
+        record = store_as(SkillFiles)
         for skill in skills:
             digest = _skill_hash(skill)
-            installed_digest = installed.hashes.get(skill.name)
+            installed_digest = record.hashes.get(record_key, {}).get(skill.name)
             if installed_digest is None:
                 await _write_skill(sbox, user, skills_dir, skill)
-                installed.hashes[skill.name] = digest
+                hashes = dict(record.hashes)
+                hashes[record_key] = {**hashes.get(record_key, {}), skill.name: digest}
+                record.hashes = hashes
             elif installed_digest != digest:
                 raise RuntimeError(
                     f"Skill '{skill.name}' is already installed in {skills_dir} "
@@ -101,19 +112,54 @@ async def install_skills_shared(
     return [_skill_info(skills_dir, skill) for skill in skills]
 
 
-@dataclass
-class _InstalledSkillsDir:
-    # held across the writes of one tool's skills, so a skill's files are
-    # complete before another tool can find it recorded
-    lock: anyio.Lock = field(default_factory=anyio.Lock)
-    hashes: dict[str, str] = field(default_factory=dict)
+class SkillFiles(StoreModel):
+    """Skills installed in each sandbox directory (name to content hash)."""
+
+    hashes: dict[str, dict[str, str]] = Field(default_factory=dict)
 
 
-# keyed by the sample's sandbox environment, so the record lives as long as
-# the sandbox it describes and samples do not share locks
-_installed_skills: WeakKeyDictionary[
-    SandboxEnvironment, dict[str, _InstalledSkillsDir]
-] = WeakKeyDictionary()
+# keyed by the sample's sandbox environment, so samples do not share locks
+_install_locks: WeakKeyDictionary[SandboxEnvironment, dict[str, anyio.Lock]] = (
+    WeakKeyDictionary()
+)
+
+
+def _sandbox_name(sbox: SandboxEnvironment) -> str:
+    environments = sandbox_environments_context_var.get(None) or {}
+    for name, environment in environments.items():
+        if environment is sbox:
+            return name
+    raise RuntimeError("Skill sandbox is not one of the sample's sandboxes.")
+
+
+# print the physical path of the deepest existing ancestor of $1 (symlinks
+# resolved), followed by the rest of $1, which does not exist yet
+_PHYSICAL_DIR_SCRIPT = """
+dir=$1 rest=
+while [ ! -d "$dir" ]; do
+  rest="/${dir##*/}$rest"
+  dir=${dir%/*}
+  [ -n "$dir" ] || dir=/
+done
+cd "$dir" || exit 1
+physical=$(pwd -P)
+[ "$physical" != / ] || physical=
+printf '%s%s\\n' "$physical" "${rest:-/}"
+"""
+
+
+async def _physical_dir(
+    sbox: SandboxEnvironment, user: str | None, skills_dir: PurePosixPath
+) -> PurePosixPath:
+    result = await privileged_shell(
+        sbox, _PHYSICAL_DIR_SCRIPT, str(skills_dir), user=user, timeout=60
+    )
+    if not result.success:
+        raise RuntimeError(
+            f"Error resolving skills directory {skills_dir}: {result.stderr}"
+        )
+    # the rest holds no symlinks, so its ".." can be resolved lexically
+    return PurePosixPath(posixpath.normpath(result.stdout.strip()))
 
 
 async def _checked_exec(

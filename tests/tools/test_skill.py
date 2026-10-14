@@ -1,5 +1,6 @@
 """End-to-end tests for the skill() tool."""
 
+import json
 import os
 from pathlib import Path
 
@@ -14,7 +15,6 @@ from inspect_ai.dataset import Sample
 from inspect_ai.scorer import includes
 from inspect_ai.tool import Tool, bash, skill
 from inspect_ai.tool._tool_def import ToolDef
-from inspect_ai.tool._tools._skill import install as skill_install_module
 from inspect_ai.tool._tools._skill.install import install_skills
 from inspect_ai.tool._tools._skill.read import SkillParsingError, _read_skill
 from inspect_ai.tool._tools._skill.types import Skill
@@ -24,8 +24,13 @@ from inspect_ai.util import (
     store,
     tool_state_scope,
 )
+from inspect_ai.util._sandbox.context import (
+    sandbox_default_context_var,
+    sandbox_environments_context_var,
+)
+from inspect_ai.util._sandbox.environment import SandboxEnvironment
 from inspect_ai.util._sandbox.local import LocalSandboxEnvironment
-from inspect_ai.util._store import init_subtask_store
+from inspect_ai.util._store import init_subtask_store, store_jsonable
 from inspect_ai.util._subprocess import ExecResult
 
 # Path to test skills directory
@@ -639,27 +644,52 @@ def test_skill_end_to_end() -> None:
     )
 
 
+def _skill_sandbox_policy(cmd: list[str], user: str | None) -> ExecResult[str]:
+    """`pwd` gives /work; the physical directory script gives its argument."""
+    if cmd[-1] == "pwd":
+        return ExecResult(True, 0, "/work", "")
+    return ExecResult(True, 0, cmd[-1], "")
+
+
 class _YieldingSandbox(CannedSandbox):
     """Records writes and yields on each, so concurrent installs interleave."""
+
+    def __init__(self) -> None:
+        super().__init__(_skill_sandbox_policy)
 
     async def write_file(self, file: str, contents: str | bytes) -> None:
         await anyio.lowlevel.checkpoint()
         await super().write_file(file, contents)
 
 
+class _CountingLocalSandbox(LocalSandboxEnvironment):
+    def __init__(self) -> None:
+        super().__init__()
+        self.written: list[str] = []
+
+    async def write_file(self, file: str, contents: str | bytes) -> None:
+        self.written.append(file)
+        await super().write_file(file, contents)
+
+
+def _use_sandbox(sandbox: SandboxEnvironment) -> None:
+    sandbox_environments_context_var.set({"default": sandbox})
+    sandbox_default_context_var.set("default")
+
+
 class TestSkillToolStateScope:
     SKILL = Skill(name="example", description="Example.", instructions="Do it.")
+    OTHER = Skill(name="example", description="Example.", instructions="Other.")
 
     @pytest.fixture
-    def sandbox(self, monkeypatch: pytest.MonkeyPatch) -> CannedSandbox:
-        """Install skills into a canned sandbox that records written files."""
-        sandbox = _YieldingSandbox.returning(ExecResult(True, 0, "/work", ""))
-        monkeypatch.setattr(skill_install_module, "sandbox_env", lambda _: sandbox)
-        return sandbox
+    def sandbox(self) -> CannedSandbox:
+        """A canned sandbox that records written files."""
+        return _YieldingSandbox()
 
     async def test_default_skill_tool_is_per_scope(
         self, sandbox: CannedSandbox
     ) -> None:
+        _use_sandbox(sandbox)
         init_subtask_store(Store())
         tool = skill([self.SKILL])
         with tool_state_scope("w-1"):
@@ -678,6 +708,7 @@ class TestSkillToolStateScope:
         from inspect_ai.agent._deepagent.agent_tool import _resolve_tools
         from inspect_ai.agent._deepagent.subagent import subagent
 
+        _use_sandbox(sandbox)
         init_subtask_store(Store())
         sa = subagent(name="general", description="General.", prompt="General.")
 
@@ -706,6 +737,7 @@ class TestSkillToolStateScope:
     async def test_concurrent_first_calls_across_scopes_install_once(
         self, sandbox: CannedSandbox
     ) -> None:
+        _use_sandbox(sandbox)
         init_subtask_store(Store())
         skill_with_script = Skill(
             name="example",
@@ -733,8 +765,8 @@ class TestSkillToolStateScope:
     async def test_conflicting_skill_contents_raise(
         self, sandbox: CannedSandbox
     ) -> None:
+        _use_sandbox(sandbox)
         init_subtask_store(Store())
-        other = Skill(name="example", description="Example.", instructions="Other.")
         with tool_state_scope("w-1"):
             await skill([self.SKILL])(command="example")
         with tool_state_scope("w-2"):
@@ -742,5 +774,57 @@ class TestSkillToolStateScope:
                 RuntimeError,
                 match="'example' is already installed in /work/skills with different contents",
             ):
-                await skill([other])(command="example")
+                await skill([self.OTHER])(command="example")
         assert sandbox.written == ["/work/skills/example/SKILL.md"]
+
+    async def test_aliased_skill_dirs_share_one_record(self) -> None:
+        if os.name != "posix":
+            pytest.skip("requires POSIX symlinks")
+        local = _CountingLocalSandbox()
+        try:
+            _use_sandbox(local)
+            init_subtask_store(Store())
+            root = Path(local.directory.name)
+            (root / "skills").mkdir()
+            (root / "link").symlink_to(root / "skills")
+            for scope, dir in [
+                ("w-1", f"{root}/skills"),
+                ("w-2", f"{root}/skills/../skills"),
+                ("w-3", f"{root}/link"),
+            ]:
+                with tool_state_scope(scope):
+                    await skill([self.SKILL], dir=dir)(command="example")
+            assert len(local.written) == 1
+
+            for dir in [f"{root}/skills/../skills", f"{root}/link"]:
+                with tool_state_scope("w-4"):
+                    with pytest.raises(RuntimeError, match="different contents"):
+                        await skill([self.OTHER], dir=dir)(command="example")
+            assert len(local.written) == 1
+            skill_md = root / "skills" / "example" / "SKILL.md"
+            assert skill_md.read_text() == self.SKILL.skill_md()
+        finally:
+            local.directory.cleanup()
+
+    async def test_install_record_survives_checkpoint_restore(
+        self, sandbox: CannedSandbox
+    ) -> None:
+        _use_sandbox(sandbox)
+        init_subtask_store(Store())
+        first = skill([self.SKILL])
+        with tool_state_scope("w-1"):
+            await first(command="example")
+
+        # resume: the store comes back from its JSON snapshot, the sandbox is new
+        restored = _YieldingSandbox()
+        _use_sandbox(restored)
+        init_subtask_store(Store(json.loads(json.dumps(store_jsonable(store())))))
+
+        with tool_state_scope("w-1"):
+            await first(command="example")
+        with tool_state_scope("w-2"):
+            await skill([self.SKILL])(command="example")
+        with tool_state_scope("w-3"):
+            with pytest.raises(RuntimeError, match="different contents"):
+                await skill([self.OTHER])(command="example")
+        assert restored.written == []
