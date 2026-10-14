@@ -2810,6 +2810,100 @@ async def test_guards_keep_their_clients_through_rotations(
         assert local.read_bytes() == data
 
 
+class _Clock:
+    """A monotonic clock that moves only when a test advances it."""
+
+    def __init__(self) -> None:
+        self.now = 0.0
+
+    def monotonic(self) -> float:
+        return self.now
+
+
+@skip_if_trio  # client_ttl applies to the async clients only
+@pytest.mark.parametrize("outcome", ["ok", "error", "cancelled"])
+async def test_write_file_conditional_holds_clients_while_acquiring_them(
+    mock_s3: None,
+    small_transfer_config: TransferConfig,
+    monkeypatch: pytest.MonkeyPatch,
+    outcome: str,
+) -> None:
+    """Rotations while a write acquires its clients do not close them.
+
+    Each client creation and close outlasts `client_ttl`, so every
+    acquisition rotates and reaps: the main client the write has already
+    taken is retired and due by the time it acquires its final client.
+    """
+    clock = _Clock()
+    monkeypatch.setattr(asyncfiles, "time", clock)
+    key, url = _conditional_key(f"rotate-acquire-{outcome}")
+    data = os.urandom(_ROUTE_SIZES["multipart"])
+    fs = AsyncFilesystem(client_ttl=60)
+    closed = _record_closed_clients(monkeypatch, fs)
+    record = fs._create_s3_client_async
+    created: list[Any] = []
+    after_close: list[str] = []
+    blocked = anyio.Event()
+
+    async def create_slowly(**kwargs: Any) -> Any:
+        client = await record(**kwargs)
+        created.append(client)
+        aexit = client.__aexit__
+
+        async def close_slowly(*exc_info: Any) -> None:
+            await aexit(*exc_info)
+            clock.now += 61
+
+        def check_open(event_name: str, **kwargs: Any) -> None:
+            if client in closed:
+                after_close.append(event_name)
+                raise AssertionError(f"{event_name} on a closed client")
+
+        client.__aexit__ = close_slowly
+        client.meta.events.register("before-send.s3", check_open)
+        if kwargs.get("max_attempts") == 0 and outcome == "error":
+            client.meta.events.register(
+                "before-send.s3.CompleteMultipartUpload",
+                lambda request, **kwargs: _error_response(request, True),
+            )
+        if kwargs.get("max_attempts") == 0 and outcome == "cancelled":
+            client.meta.events.register(
+                "before-send.s3.CompleteMultipartUpload",
+                _blocking_hook(blocked, threading.Event()),
+            )
+        clock.now += 61
+        return client
+
+    monkeypatch.setattr(fs, "_create_s3_client_async", create_slowly)
+    try:
+        await fs.s3_client_async()
+        clock.now += 61
+        write = fs.write_file_conditional(url, io.BytesIO(data), if_none_match=True)
+        if outcome == "ok":
+            await write
+        elif outcome == "error":
+            with pytest.raises(ClientError, match="InternalError"):
+                await write
+        else:
+            async with anyio.create_task_group() as tg:
+                tg.start_soon(lambda: write)
+                await blocked.wait()
+                tg.cancel_scope.cancel()
+
+        assert after_close == []
+        assert fs._s3_clients_held == []
+        # released: the next rotation closes every client but the new one
+        await fs.s3_client_async()
+        current = fs._s3_client_async
+        assert all(client in closed for client in created if client is not current)
+    finally:
+        await fs.close()
+
+    stored = boto3.client("s3").list_objects_v2(Bucket="test-bucket", Prefix=key)
+    assert stored.get("KeyCount", 0) == (1 if outcome == "ok" else 0)
+    assert _in_progress_uploads(key) == []
+
+
 async def test_write_file_conditional_cancelled_part_upload_aborts(
     mock_s3: None, small_transfer_config: TransferConfig
 ) -> None:

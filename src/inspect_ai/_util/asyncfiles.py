@@ -1042,17 +1042,19 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
         try:
             if current_async_backend() == "asyncio":
                 client = await self.s3_client_async()
-                final_client = await self._s3_final_client_async()
-                with self._hold_s3_clients(client, final_client):
-                    return await _s3_upload_fileobj_async(
-                        client,
-                        source,
-                        bucket,
-                        key,
-                        _s3_transfer_config(),
-                        condition=condition,
-                        final_client=final_client,
-                    )
+                # held before acquiring the final client, which can rotate
+                with self._hold_s3_clients(client):
+                    final_client = await self._s3_final_client_async()
+                    with self._hold_s3_clients(final_client):
+                        return await _s3_upload_fileobj_async(
+                            client,
+                            source,
+                            bucket,
+                            key,
+                            _s3_transfer_config(),
+                            condition=condition,
+                            final_client=final_client,
+                        )
             etag = await anyio.to_thread.run_sync(
                 _s3_upload_fileobj_conditional_sync,
                 self.s3_client(),
