@@ -4,6 +4,7 @@ from typing import Awaitable, Callable, Sequence, cast
 import anyio
 from pydantic import JsonValue, TypeAdapter
 
+from inspect_ai._sentinel._scope import AgentScope, sentinel_scope
 from inspect_ai._util.content import Content, ContentImage, ContentText
 from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai._util.json import to_json_str_safe
@@ -274,7 +275,10 @@ def call_tool(
                 logger,
                 f"Denied host tool call '{server}/{tool}': the model did not "
                 "propose it in a bridged generation (or its proposal has "
-                "already executed).",
+                "already executed). An agent that calls host tools from code "
+                "the model writes (Codex CLI in code mode) can never match a "
+                "proposal; set require_proposal=False on the existing "
+                f"BridgedToolsSpec for server '{server}' for such an agent.",
             )
             raise PermissionError(
                 f"Host tool call '{server}/{tool}' was not proposed by the model "
@@ -288,7 +292,9 @@ def call_tool(
             validation_errors = validate_tool_input(arguments, tool_def.parameters)
             if validation_errors:
                 raise ToolParsingError(validation_errors)
-            result = await tool_fn(**arguments)
+            # as in call_tool: the tool's own model calls are not agent turns
+            with sentinel_scope(AgentScope.OFF):
+                result = await tool_fn(**arguments)
         except Exception as ex:
             # classify the unwrapped exception, but let the original propagate:
             # the service dispatcher special-cases a bare LimitExceededError

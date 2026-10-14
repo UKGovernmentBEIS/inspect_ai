@@ -713,6 +713,7 @@ async def test_response_filter_runs_after_compaction_baseline_update() -> None:
         [],
         None,
         GenerateConfig(),
+        requested_model=None,
     )
 
     # the filter's replacement is what the scaffold gets back
@@ -983,6 +984,7 @@ async def test_response_filter_error_keeps_the_filter_exception_as_cause() -> No
             [],
             None,
             GenerateConfig(),
+            requested_model=None,
         )
     assert isinstance(exc_info.value.__cause__, ValueError)
 
@@ -1197,6 +1199,7 @@ async def test_response_filter_runs_under_bridge_approval_policies() -> None:
         [],
         None,
         GenerateConfig(),
+        requested_model=None,
     )
     assert seen == [True]
 
@@ -1229,6 +1232,7 @@ async def test_response_filter_limit_propagates(
                         [],
                         None,
                         GenerateConfig(),
+                        requested_model=None,
                     )
                 case "sandbox":
                     sandbox_bridge = _sandbox_bridge(response_filter)
@@ -1403,7 +1407,13 @@ async def test_response_filter_rejects_edits_to_provider_owned_content(
 
     with pytest.raises(ResponseFilterError):
         await bridge_generate(
-            bridge, model, [ChatMessageUser(content="hi")], [], None, GenerateConfig()
+            bridge,
+            model,
+            [ChatMessageUser(content="hi")],
+            [],
+            None,
+            GenerateConfig(),
+            requested_model=None,
         )
 
 
@@ -1446,7 +1456,13 @@ async def test_response_filter_keeps_provider_owned_content_it_can_render(
     bridge.response_filter = _provider_owned_keep(keep)
 
     output, _ = await bridge_generate(
-        bridge, model, [ChatMessageUser(content="hi")], [], None, GenerateConfig()
+        bridge,
+        model,
+        [ChatMessageUser(content="hi")],
+        [],
+        None,
+        GenerateConfig(),
+        requested_model=None,
     )
     blocks = await _render_anthropic(output.message)
 
@@ -1576,6 +1592,7 @@ async def test_response_filter_replacement_drops_pending_server_work(
                 [],
                 None,
                 GenerateConfig(),
+                requested_model=None,
             )
             blocks = await _render_anthropic(output.message)
             state_output = output
@@ -1766,6 +1783,7 @@ async def test_response_filter_keeps_pending_work_with_its_server_items(
                 [],
                 None,
                 GenerateConfig(),
+                requested_model=None,
             )
         case "sandbox":
             sandbox_bridge = SandboxAgentBridge(
@@ -1852,6 +1870,7 @@ async def test_response_filter_rejects_merging_server_items_across_choices() -> 
             [],
             None,
             GenerateConfig(),
+            requested_model=None,
         )
 
 
