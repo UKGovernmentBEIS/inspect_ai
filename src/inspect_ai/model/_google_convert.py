@@ -340,7 +340,7 @@ async def tool_message_from_parts(parts: "list[Part]") -> ChatMessageTool:
                     ),
                     None,
                 )
-                if response_content.get("error") not in (None, ""):
+                if response_content.get("error"):
                     error = ToolCallError(
                         "unknown", _response_text(response_content["error"])
                     )

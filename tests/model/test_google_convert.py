@@ -188,6 +188,9 @@ async def test_messages_from_google_tool_response_error() -> None:
     [
         ({"output": "42", "error": None}, "42", None),
         ({"output": "42", "error": ""}, "42", None),
+        ({"result": 42, "error": False}, "42", None),
+        ({"output": "ok", "error": {}}, "ok", None),
+        ({"error": []}, '{"error": []}', None),
         ({"result": {"temp": 72, "ok": True}}, '{"temp": 72, "ok": true}', None),
         ({"result": [1, 2]}, "[1, 2]", None),
         ({"error": {"code": 404}}, '{"code": 404}', '{"code": 404}'),
