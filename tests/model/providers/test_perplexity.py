@@ -173,6 +173,33 @@ async def test_perplexity_prompt_cache() -> None:
     )
 
 
+@pytest.mark.anyio
+@skip_if_no_perplexity
+async def test_perplexity_fetch_url() -> None:
+    model = get_model(
+        "perplexity/sonar",
+        config=GenerateConfig(
+            max_tokens=200, extra_body={"tools": [{"type": "fetch_url"}]}
+        ),
+    )
+
+    response = await model.generate(
+        input=[
+            ChatMessageUser(
+                content="Use the fetch_url tool to retrieve https://example.com "
+                "and describe that page in one sentence. Do not use web_search."
+            )
+        ],
+        tools=[web_search({"perplexity": True})],
+    )
+
+    assert len(response.completion) >= 1
+    assert response.metadata is not None
+    fetched = [r["url"] for r in response.metadata["fetch_url_results"]]
+    assert any("example.com" in url for url in fetched)
+    assert any("example.com" in url for url in _citation_urls(response))
+
+
 def _agent_response_value(
     name: str,
     tokens: int,
@@ -766,3 +793,81 @@ async def test_perplexity_streamed_response(monkeypatch: pytest.MonkeyPatch) -> 
     assert output.usage is not None
     assert output.usage.input_tokens == 2
     assert output.usage.input_tokens_cache_write == 5
+
+
+@pytest.mark.anyio
+async def test_perplexity_fetch_url_results(monkeypatch: pytest.MonkeyPatch) -> None:
+    value = _agent_response_value("a", 1)
+    value["output"].insert(
+        1,
+        {
+            "type": "fetch_url_results",
+            "contents": [
+                {
+                    "url": "https://example.com/fetched",
+                    "title": "fetched",
+                    "snippet": "page text",
+                }
+            ],
+        },
+    )
+    response = construct_type(type_=Response, value=value)
+    assert isinstance(response, Response)
+    requests: list[dict[str, Any]] = []
+    provider = _provider(monkeypatch, {"a": response}, requests)
+
+    try:
+        output, call = await provider.generate(
+            [ChatMessageUser(content="a")],
+            [_web_search_tool(True)],
+            "auto",
+            GenerateConfig(extra_body={"tools": [{"type": "fetch_url"}]}),
+        )
+    finally:
+        await provider.aclose()
+
+    assert requests[0]["extra_body"]["tools"] == [
+        {"type": "fetch_url"},
+        {"type": "web_search"},
+    ]
+    assert isinstance(output, ModelOutput)
+    assert output.completion == "answer a"
+    assert _citation_urls(output) == [
+        "https://example.com/a",
+        "https://example.com/fetched",
+    ]
+    assert output.metadata is not None
+    assert output.metadata["search_results"][0]["title"] == "a"
+    assert output.metadata["fetch_url_results"][0]["snippet"] == "page text"
+
+    # the logged response keeps the fetched results
+    assert call.response is not None
+    logged_output = call.response["output"]
+    assert isinstance(logged_output, list)
+    fetch_item = logged_output[1]
+    assert isinstance(fetch_item, dict)
+    assert fetch_item["type"] == "fetch_url_results"
+
+
+@pytest.mark.anyio
+async def test_perplexity_rejects_unsupported_tool_results(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    value = _agent_response_value("a", 1)
+    value["output"].insert(
+        1, {"type": "image_search_results", "results": [{"url": "https://x.com"}]}
+    )
+    response = construct_type(type_=Response, value=value)
+    assert isinstance(response, Response)
+    provider = _provider(monkeypatch, {"a": response})
+
+    try:
+        with pytest.raises(ValueError, match="image_search_results"):
+            await provider.generate(
+                [ChatMessageUser(content="a")],
+                [_web_search_tool(True)],
+                "auto",
+                GenerateConfig(extra_body={"tools": [{"type": "image_search"}]}),
+            )
+    finally:
+        await provider.aclose()

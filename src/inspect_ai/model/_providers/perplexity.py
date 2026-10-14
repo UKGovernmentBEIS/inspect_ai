@@ -1,7 +1,11 @@
 from typing import Any
 
 from openai._types import NOT_GIVEN
-from openai.types.responses import Response, ResponseOutputItem
+from openai.types.responses import (
+    Response,
+    ResponseOutputItem,
+    ResponseOutputMessage,
+)
 from typing_extensions import override
 
 from inspect_ai._util.citation import Citation, UrlCitation
@@ -19,6 +23,10 @@ from .._model_call import ModelCall
 # Sonar models that Perplexity retired with Sonar Chat Completions. Only
 # `sonar` is still served, through the Agent API as `perplexity/sonar`.
 RETIRED_SONAR_MODELS = ["sonar-pro", "sonar-reasoning-pro", "sonar-deep-research"]
+
+# Agent API tool result items that Inspect reads, with the field holding
+# their sources. Each is kept in `ModelOutput.metadata` under its type.
+TOOL_RESULT_ITEMS = {"search_results": "results", "fetch_url_results": "contents"}
 
 # Sonar search parameters. The Agent API's web_search tool ignores them, so
 # passing one as a web_search option would silently drop it. (`search_type` is
@@ -141,10 +149,10 @@ class PerplexityAPI(OpenAICompatibleAPI):
         if web_search is not None:
             extra_body["tools"] = _with_web_search(extra_body.get("tools"), web_search)
 
-        search_results: list[dict[str, Any]] = []
+        tool_results: dict[str, list[dict[str, Any]]] = {}
 
-        def take_search_results(response: Response) -> Response:
-            return _take_search_results(response, search_results)
+        def take_tool_results(response: Response) -> Response:
+            return _take_tool_results(response, tool_results)
 
         result = await generate_responses(
             client=self.client,
@@ -168,28 +176,30 @@ class PerplexityAPI(OpenAICompatibleAPI):
             handle_stream_error=self.handle_stream_error,
             streaming=self.resolve_stream(config),
             extra_body=extra_body,
-            process_response=take_search_results,
+            process_response=take_tool_results,
         )
         assert isinstance(result, tuple)
         output, call = result
 
-        if isinstance(output, ModelOutput) and search_results:
-            _attach_citations(output, search_results)
+        if isinstance(output, ModelOutput) and tool_results:
+            _attach_citations(output, [r for rs in tool_results.values() for r in rs])
             output.metadata = output.metadata or {}
-            output.metadata["search_results"] = search_results
+            output.metadata.update(tool_results)
 
         return output, call
 
 
-def _take_search_results(
-    response: Response, search_results: list[dict[str, Any]]
+def _take_tool_results(
+    response: Response, tool_results: dict[str, list[dict[str, Any]]]
 ) -> Response:
-    """Move the Agent API's search results out of a response.
+    """Move the Agent API's tool results out of a response.
 
-    The Agent API returns sources as `search_results` output items, which the
-    OpenAI SDK does not know and the Responses conversion cannot read. Their
-    results are appended to `search_results`, and the response is returned
-    without them.
+    The Agent API returns the sources its tools found as output items
+    (`search_results`, `fetch_url_results`), which the OpenAI SDK does not
+    know and the Responses conversion cannot read. Their sources are added to
+    `tool_results` by item type, and the response is returned without them.
+    Other result items (from Agent API tools such as `image_search` passed in
+    `extra_body`) raise an error, as Inspect cannot read them.
 
     Perplexity also reports prompt cache writes as `cache_creation_input_tokens`
     rather than `cache_write_tokens`; these are moved so that usage separates
@@ -199,10 +209,18 @@ def _take_search_results(
     for item in response.output:
         # the SDK parses an item type it does not know as an output message
         item_type: str = item.type
-        if item_type == "search_results":
-            results = (item.model_extra or {}).get("results")
+        if item_type in TOOL_RESULT_ITEMS:
+            results = (item.model_extra or {}).get(TOOL_RESULT_ITEMS[item_type])
             if isinstance(results, list):
-                search_results.extend(r for r in results if isinstance(r, dict))
+                tool_results.setdefault(item_type, []).extend(
+                    r for r in results if isinstance(r, dict)
+                )
+        elif isinstance(item, ResponseOutputMessage) and item_type != "message":
+            raise ValueError(
+                f"Perplexity returned a '{item_type}' item, which Inspect does not "
+                "support. Inspect reads the results of the web_search and fetch_url "
+                "tools only; remove other Agent API tools from extra_body."
+            )
         else:
             output.append(item)
     response.output = output
@@ -232,10 +250,8 @@ def _with_web_search(tools: Any, web_search: dict[str, Any]) -> list[Any]:
     return [*tools, web_search]
 
 
-def _attach_citations(
-    output: ModelOutput, search_results: list[dict[str, Any]]
-) -> None:
-    """Add the search results to the last text part of each message as citations.
+def _attach_citations(output: ModelOutput, sources: list[dict[str, Any]]) -> None:
+    """Add the tool results to the last text part of each message as citations.
 
     Results whose URL is already cited in the message (for example from a
     `url_citation` annotation) are left out. A message with no text gets none.
@@ -252,7 +268,7 @@ def _attach_citations(
             if isinstance(citation, UrlCitation)
         }
         citations: list[Citation] = []
-        for sr in search_results:
+        for sr in sources:
             url = sr.get("url")
             if isinstance(url, str) and url not in cited:
                 cited.add(url)
