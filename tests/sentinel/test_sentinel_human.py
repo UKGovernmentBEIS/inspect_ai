@@ -2,7 +2,7 @@ import asyncio
 import io
 from collections.abc import Callable
 from dataclasses import replace
-from typing import Any
+from typing import Any, NamedTuple
 from unittest.mock import MagicMock
 
 import anyio
@@ -20,6 +20,7 @@ from test_helpers.utils import skip_if_trio
 
 from inspect_ai import Task, eval
 from inspect_ai._util.content import ContentReasoning, ContentText
+from inspect_ai.agent import handoff, react
 from inspect_ai.agent._acp.tui.state import (
     PendingApproval,
     SessionState,
@@ -35,7 +36,7 @@ from inspect_ai.approval._human.manager import (
 )
 from inspect_ai.approval._human.util import render_tool_approval
 from inspect_ai.dataset import Sample
-from inspect_ai.event import ToolEvent
+from inspect_ai.event import SentinelEvent, ToolEvent
 from inspect_ai.log import EvalLog
 from inspect_ai.model import (
     ChatCompletionChoice,
@@ -61,11 +62,19 @@ try:
         BeforeToolCall,
         Context,
         Decision,
+        EarlierDecision,
+        Monitor,
+        MonitorGroup,
+        Observation,
         Protocol,
         Reported,
         human,
+        monitor,
+        observe_only,
         protocol,
+        run_protocols,
         sequential,
+        threshold,
     )
 
     from inspect_ai._sentinel._dispatch import _Host
@@ -970,3 +979,259 @@ async def test_each_turn_prompt_has_a_card_of_its_own(
     assert isinstance(first, ToolCallState) and isinstance(second, ToolCallState)
     assert first.tool_call_id != second.tool_call_id
     assert [first.status, second.status] == ["completed", "completed"]
+
+
+# earlier decisions
+
+
+class Seen(NamedTuple):
+    stage: str
+    conversation: str
+    subject: str
+    earlier: tuple[EarlierDecision, ...] | None
+
+
+@monitor
+def h_spy(seen: Any) -> MonitorGroup:
+    async def tool_call(context: Context, step: BeforeToolCall) -> Observation | None:
+        seen.append(
+            Seen("tool_call", step.conversation, step.call.id, step.earlier_decisions)
+        )
+        return None
+
+    async def tool_result(context: Context, step: AfterToolCall) -> Observation | None:
+        seen.append(
+            Seen("tool_result", step.conversation, step.call.id, step.earlier_decisions)
+        )
+        return None
+
+    async def model_output(context: Context, step: AfterGenerate) -> Observation | None:
+        seen.append(
+            Seen(
+                "model_output",
+                step.conversation,
+                step.output.completion,
+                step.earlier_decisions,
+            )
+        )
+        return None
+
+    return MonitorGroup(tool_call, tool_result, model_output)
+
+
+def call_id(log: EvalLog, function: str = "addition") -> str:
+    assert log.samples
+    [found] = [
+        call.id
+        for m in log.samples[0].messages
+        if isinstance(m, ChatMessageAssistant)
+        for call in m.tool_calls or []
+        if call.function == function
+    ]
+    return found
+
+
+def kept(record: EarlierDecision) -> tuple[Any, ...]:
+    report = record.decided.report
+    return (
+        record.stage,
+        record.step_id,
+        record.call_ids,
+        record.decided.name,
+        report.action,
+        report.explanation,
+    )
+
+
+def test_a_persons_approval_is_seen_at_later_steps_but_not_its_own(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    Panel("approve", "looks fine").install(monkeypatch)
+    seen: list[Seen] = []
+
+    log = run([escalated_to_human(), observe_only([h_spy(seen)])])
+
+    assert log.status == "success", log.error
+    call = call_id(log)
+    # human() records no reason on an approve
+    approved = ("tool_call", call, (call,), "human", "proceed", None)
+    assert [(s.stage, s.subject, [kept(r) for r in s.earlier or ()]) for s in seen] == [
+        ("model_output", "Adding now.", []),
+        ("tool_call", call, []),
+        ("tool_result", call, [approved]),
+        ("model_output", "done", [approved]),
+    ]
+
+
+def test_a_persons_rejection_is_seen_at_later_steps(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    Panel("reject", "not that").install(monkeypatch)
+    seen: list[Seen] = []
+
+    log = run([escalated_to_human(), observe_only([h_spy(seen)])])
+
+    assert log.status == "success", log.error
+    [last] = [s for s in seen if s.subject == "done"]
+    assert last.earlier is not None
+    assert [kept(r) for r in last.earlier] == [
+        ("tool_call", call_id(log), (call_id(log),), "human", "reject", "not that")
+    ]
+
+
+def test_a_turn_approval_is_seen_at_each_of_its_calls(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    Panel("approve").install(monkeypatch)
+    seen: list[Seen] = []
+
+    log = run_turn([turn_escalated_to_human(), observe_only([h_spy(seen)])])
+
+    assert log.status == "success", log.error
+    assert log.samples
+    [turn] = [
+        m
+        for m in log.samples[0].messages
+        if isinstance(m, ChatMessageAssistant) and m.tool_calls
+    ]
+    assert turn.id is not None
+    approved = ("model_output", turn.id, ("c1", "c2"), "human", "proceed", None)
+    assert [(s.stage, s.subject, [kept(r) for r in s.earlier or ()]) for s in seen] == [
+        ("model_output", "Adding and shouting.", []),
+        ("tool_call", "c1", [approved]),
+        ("tool_result", "c1", [approved]),
+        ("tool_call", "c2", [approved]),
+        ("tool_result", "c2", [approved]),
+        ("model_output", "done", [approved]),
+    ]
+
+
+def test_a_persons_decision_stays_in_its_own_conversation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    Panel("approve").install(monkeypatch)
+    seen: list[Seen] = []
+    helper = react(
+        name="helper",
+        description="A helper agent.",
+        tools=[addition()],
+        model=get_model(
+            "mockllm/model",
+            custom_outputs=[
+                ModelOutput.for_tool_call(
+                    "mockllm/model",
+                    tool_name="addition",
+                    tool_arguments={"x": 2, "y": 3},
+                ),
+                ModelOutput.from_content("mockllm/model", content="helper done"),
+            ],
+            memoize=False,
+        ),
+        submit=False,
+    )
+    task = Task(
+        dataset=[Sample(input="What is 2 + 3?")],
+        solver=[use_tools(handoff(helper)), generate()],
+        sentinel=[escalated_to_human(), observe_only([h_spy(seen)])],
+    )
+    parent_model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.for_tool_call(
+                "mockllm/model", tool_name="transfer_to_helper", tool_arguments={}
+            ),
+            ModelOutput.from_content("mockllm/model", content="done"),
+        ],
+        memoize=False,
+    )
+
+    log = eval(task, model=parent_model)[0]
+
+    assert log.status == "success", log.error
+    # the helper's messages are not kept in the parent's, so take the calls'
+    # ids from the steps: the parent's call, then the helper's
+    (transfer, parent), (add, child) = [
+        (s.subject, s.conversation) for s in seen if s.stage == "tool_call"
+    ]
+    assert parent != child
+    by_call = {
+        (s.stage, s.subject): [r.step_id for r in s.earlier or ()]
+        for s in seen
+        if s.stage != "model_output"
+    }
+    assert by_call == {
+        ("tool_call", transfer): [],
+        # the helper's own conversation holds none of its parent's decisions
+        ("tool_call", add): [],
+        ("tool_result", add): [add],
+        ("tool_result", transfer): [transfer],
+    }
+    [done] = [s for s in seen if s.subject == "done"]
+    assert [r.step_id for r in done.earlier or ()] == [transfer]
+
+
+@monitor
+def h_loud() -> Monitor:
+    async def check(context: Context, step: BeforeToolCall) -> Observation | None:
+        return Observation.score(0.93, "posts credentials to an unknown host")
+
+    return check
+
+
+def test_no_monitor_score_is_seen_in_earlier_decisions(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    Panel("approve", "fine").install(monkeypatch)
+    seen: list[Seen] = []
+
+    log = run(
+        [
+            sequential(
+                [threshold(h_loud(), escalate_at=0.5), human(stages=["tool_call"])]
+            ),
+            observe_only([h_spy(seen)]),
+        ]
+    )
+
+    assert log.status == "success", log.error
+    assert log.samples
+    # the escalation the person answered carried the score
+    [escalation] = [
+        e
+        for e in log.samples[0].events
+        if isinstance(e, SentinelEvent) and e.action == "escalate"
+    ]
+    assert escalation.metadata is not None
+    assert "credentials" in str(escalation.metadata)
+    [last] = [s for s in seen if s.subject == "done"]
+    assert last.earlier is not None
+    [record] = last.earlier
+    assert record.decided.report.metadata is None
+    assert record.decided.report.references == []
+    assert "credentials" not in repr(record)
+    assert "0.93" not in repr(record)
+
+
+@protocol
+def h_overrules() -> Protocol:
+    async def decide(context: Context, step: BeforeToolCall) -> Decision | None:
+        await run_protocols(human(stages=["tool_call"]), context, step)
+        return Decision.proceed("carry on regardless")
+
+    return decide
+
+
+def test_a_terminate_a_parent_overruled_is_seen_later(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    Panel("terminate", "stop").install(monkeypatch)
+    seen: list[Seen] = []
+
+    log = run([h_overrules(), observe_only([h_spy(seen)])])
+
+    assert log.status == "success", log.error
+    [last] = [s for s in seen if s.subject == "done"]
+    assert last.earlier is not None
+    assert [kept(r) for r in last.earlier] == [
+        ("tool_call", call_id(log), (call_id(log),), "human", "terminate", "stop")
+    ]

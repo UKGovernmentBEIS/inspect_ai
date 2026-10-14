@@ -13,6 +13,7 @@ from inspect_sentinel import (
     BeforeToolCall,
     Context,
     Decision,
+    EarlierDecision,
     EvalContext,
     Failed,
     HumanAnswer,
@@ -22,7 +23,12 @@ from inspect_sentinel import (
     Step,
     Truncation,
 )
-from inspect_sentinel._integration import HostContext, run_sentinel, watched_stages
+from inspect_sentinel._integration import (
+    HostContext,
+    earlier_decision,
+    run_sentinel,
+    watched_stages,
+)
 from shortuuid import uuid as shortuuid
 
 from inspect_ai._util.exception import TerminateSampleError
@@ -104,13 +110,15 @@ async def sentinel_before_tool_call(
     if not _watches(BeforeToolCall):
         return None
     producer = _producing_event(call, history)
+    conversation = _conversation()
     step = BeforeToolCall(
-        conversation=_conversation(),
+        conversation=conversation,
         message=message,
         call=call,
         view=resolve_tool_call_view(call, viewer),
         input=list(producer.input) if producer is not None else None,
         history=history,
+        earlier_decisions=_earlier_decisions(conversation),
         tools=list(producer.tools) if producer is not None else None,
     )
     return await _run(step)
@@ -146,8 +154,9 @@ async def sentinel_after_tool_call(
     if not _watches(AfterToolCall):
         return
     producer = _producing_event(call, history)
+    conversation = _conversation()
     step = AfterToolCall(
-        conversation=_conversation(),
+        conversation=conversation,
         message=message,
         call=call,
         result=result,
@@ -155,6 +164,7 @@ async def sentinel_after_tool_call(
         view=resolve_tool_call_view(call, viewer),
         input=list(producer.input) if producer is not None else None,
         history=history,
+        earlier_decisions=_earlier_decisions(conversation),
         tools=list(producer.tools) if producer is not None else None,
         truncated=Truncation(*truncated) if truncated is not None else False,
     )
@@ -186,11 +196,13 @@ async def sentinel_before_generate(
     root = active_sentinel()
     if root is None or not (watched_stages(root) & {BeforeGenerate, AfterGenerate}):
         return None
+    conversation = _conversation()
     step = BeforeGenerate(
         model=model,
-        conversation=_conversation(),
+        conversation=conversation,
         input=input,
         history=history,
+        earlier_decisions=_earlier_decisions(conversation),
         tools=tools,
         tool_choice=tool_choice,
         config=config,
@@ -211,6 +223,7 @@ async def sentinel_after_generate(before: BeforeGenerate, output: ModelOutput) -
         conversation=before.conversation,
         input=before.input,
         history=before.history,
+        earlier_decisions=_earlier_decisions(before.conversation),
         tools=before.tools,
         tool_choice=before.tool_choice,
         config=before.config,
@@ -323,6 +336,20 @@ def _conversation() -> str:
         return agent_span_id
     active = sample_active()
     return active.sample_uuid if active is not None else ""
+
+
+def _earlier_decisions(conversation: str) -> tuple[EarlierDecision, ...]:
+    """The `human()` decisions recorded so far in the conversation, for a step about to run.
+
+    Taken when the step is built, so a decision made at the step itself, or at a parallel call's step that is still running, is not among them.
+    """
+    return tuple(_earlier.get(transcript(), {}).get(conversation, []))
+
+
+# the `human()` decisions recorded in each conversation of a sample, oldest first
+_earlier: "WeakKeyDictionary[Transcript, dict[str, list[EarlierDecision]]]" = (
+    WeakKeyDictionary()
+)
 
 
 def _assistant_index(call: ToolCall, history: list[ChatMessage]) -> int | None:
@@ -699,6 +726,10 @@ class _Recorder:
                 reported.function,
                 report,
             )
+        kept = earlier_decision(factory, step, self._step_id, reported)
+        if kept is not None:
+            conversations = _earlier.setdefault(transcript(), {})
+            conversations.setdefault(step.conversation, []).append(kept)
 
     def failed(
         self, context: Context, factory: str, step: Step, failed: Failed
