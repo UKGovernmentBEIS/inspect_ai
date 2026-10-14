@@ -214,6 +214,10 @@ class OpenAICompatibleAPI(ModelAPI):
     async def aclose(self) -> None:
         await self.client.close()
 
+    def uses_responses_api(self, tools: list[ToolInfo], config: GenerateConfig) -> bool:
+        """Whether `generate()` sends a request with these tools to the Responses API."""
+        return bool(self.responses_api)
+
     async def generate(
         self,
         input: list[ChatMessage],
@@ -223,7 +227,7 @@ class OpenAICompatibleAPI(ModelAPI):
     ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
         tools, tool_choice, config = self.resolve_tools(tools, tool_choice, config)
 
-        if self.responses_api:
+        if self.uses_responses_api(tools, config):
             # supports_explicit_prompt_cache intentionally left False: other
             # OpenAI-compatible providers' support for these fields is unverified.
             return await generate_responses(

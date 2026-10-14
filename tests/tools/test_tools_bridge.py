@@ -147,11 +147,20 @@ def eval_bridged_tools_task(
 
 
 async def _mcp_http_request_with_retry(
-    url: str, request: str, max_retries: int = 30, retry_delay: float = 0.5
+    url: str,
+    request: str,
+    max_retries: int = 30,
+    retry_delay: float = 0.5,
+    headers: dict[str, str] | None = None,
 ) -> dict:
     """Send HTTP POST to MCP endpoint with retry logic for server startup."""
     import asyncio
 
+    header_args = [
+        arg
+        for name, value in (headers or {}).items()
+        for arg in ("-H", f"{name}: {value}")
+    ]
     last_error: Exception | None = None
     for attempt in range(max_retries):
         result = await sandbox().exec(
@@ -163,6 +172,7 @@ async def _mcp_http_request_with_retry(
                 "POST",
                 "-H",
                 "Content-Type: application/json",
+                *header_args,
                 "-d",
                 request,
                 url,
@@ -708,6 +718,94 @@ def test_sandbox_bridge_redirects_unknown_model_to_eval_model() -> None:
     assert [(e.model, e.requested_model) for e in events] == [
         ("mockllm/model", "claude-haiku-4-5")
     ]
+
+
+@skip_if_no_docker
+@pytest.mark.slow
+def test_sandbox_bridge_forwards_allowed_betas_and_decodes_brotli() -> None:
+    """Client headers reach the provider through the in-container proxy.
+
+    Full round trip: sandbox HTTP (Anthropic dialect) -> model proxy -> sandbox
+    service RPC -> header filter -> Anthropic provider. The provider answers
+    brotli-encoded, as Anthropic does once `br` is forwarded.
+    """
+    import importlib
+
+    import httpx2
+
+    try:
+        brotli = importlib.import_module("brotli")
+    except ImportError:
+        brotli = importlib.import_module("brotlicffi")
+
+    provider_requests: list[httpx2.Request] = []
+    message = {
+        "id": "msg_1",
+        "type": "message",
+        "role": "assistant",
+        "model": "claude-sonnet-4-5",
+        "content": [{"type": "text", "text": "decoded"}],
+        "stop_reason": "end_turn",
+        "stop_sequence": None,
+        "usage": {"input_tokens": 3, "output_tokens": 1},
+    }
+
+    def handler(request: httpx2.Request) -> httpx2.Response:
+        provider_requests.append(request)
+        return httpx2.Response(
+            200,
+            content=brotli.compress(json.dumps(message).encode()),
+            headers={"content-encoding": "br", "content-type": "application/json"},
+        )
+
+    target_model = get_model(
+        "anthropic/claude-sonnet-4-5",
+        api_key="local-fake-key",
+        memoize=False,
+        streaming=False,
+        config=GenerateConfig(max_tokens=64),
+        http_client=httpx2.AsyncClient(transport=httpx2.MockTransport(handler)),
+    )
+    seen: list[dict] = []
+
+    @solver
+    def test_solver():
+        async def solve(state, generate):
+            async with sandbox_agent_bridge(
+                state,
+                model_aliases={"agent-model": target_model},
+                forward_client_headers={"anthropic-beta": ["allowed-beta-2026-01-01"]},
+            ) as bridge:
+                seen.append(
+                    await _mcp_http_request_with_retry(
+                        f"http://localhost:{bridge.port}/v1/messages",
+                        json.dumps(
+                            {
+                                "model": "agent-model",
+                                "max_tokens": 64,
+                                "messages": [{"role": "user", "content": "hi"}],
+                            }
+                        ),
+                        headers={
+                            "anthropic-beta": (
+                                "allowed-beta-2026-01-01,unlisted-beta-2026-01-01"
+                            ),
+                            "Accept-Encoding": "br",
+                            "OpenAI-Organization": "org-sandbox",
+                        },
+                    )
+                )
+            return state
+
+        return solve
+
+    eval_bridged_tools_task(test_solver())
+
+    assert seen[0]["content"][0]["text"] == "decoded"
+    [request] = provider_requests
+    assert request.headers["anthropic-beta"] == "allowed-beta-2026-01-01"
+    assert request.headers["accept-encoding"] == "br"
+    assert "openai-organization" not in request.headers
 
 
 # =============================================================================

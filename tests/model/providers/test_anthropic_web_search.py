@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Literal
 from unittest.mock import patch
 
 import pytest
@@ -360,6 +360,7 @@ async def _live_web_search(
     model_name: str,
     tool_choice: ToolChoice,
     anthropic_options: dict[str, Any] | None = None,
+    config: GenerateConfig = GenerateConfig(),
 ) -> tuple[ModelOutput, dict[str, Any]]:
     """Generate against the live API, returning the output and the request."""
     api = AnthropicAPI(model_name=model_name)
@@ -378,7 +379,7 @@ async def _live_web_search(
             )
         ],
         tool_choice=tool_choice,
-        config=GenerateConfig(max_tokens=4096),
+        config=config.merge(GenerateConfig(max_tokens=4096)),
     )
     assert isinstance(output, ModelOutput)
     assert output.error is None
@@ -397,10 +398,18 @@ def _server_tool_types(output: ModelOutput) -> set[str]:
 @pytest.mark.anyio
 @skip_if_no_anthropic
 @pytest.mark.parametrize("model_name", ["claude-sonnet-4-6", "claude-opus-5"])
-async def test_forced_web_search_live(model_name: str) -> None:
+@pytest.mark.parametrize("reasoning_effort", [None, "high"])
+async def test_forced_web_search_live(
+    model_name: str, reasoning_effort: Literal["high"] | None
+) -> None:
     output, request = await _live_web_search(
-        model_name, ToolFunction(name="web_search")
+        model_name,
+        ToolFunction(name="web_search"),
+        config=GenerateConfig(reasoning_effort=reasoning_effort),
     )
+    # reasoning_effort selects adaptive thinking, which keeps the forced choice
+    if reasoning_effort is not None:
+        assert request["thinking"]["type"] == "adaptive"
     assert request["tool_choice"] == {"type": "tool", "name": "web_search"}
     search = next(t for t in request["tools"] if t["name"] == "web_search")
     assert search["type"] == "web_search_20260209"

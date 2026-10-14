@@ -7,7 +7,6 @@ from inspect_ai.dataset import Sample
 from inspect_ai.model import get_model
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.tool._tool import tool
-from inspect_ai.tool._tool_choice import ToolFunction
 
 from .test_reasoning_content import check_reasoning_content
 
@@ -164,11 +163,11 @@ async def test_reasoning_claude_ignore_unsupported():
 
         return execute
 
+    # no forced tool choice: under adaptive thinking a forced turn has no reasoning
     await check_reasoning_content(
         "anthropic/claude-sonnet-4-6",
         config=GenerateConfig(temperature=0.9, top_p=3, top_k=3),
         tools=[addition()],
-        tool_choice=ToolFunction("addition"),
     )
 
 

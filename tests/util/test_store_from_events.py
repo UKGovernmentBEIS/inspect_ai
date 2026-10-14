@@ -533,6 +533,30 @@ def test_json_change_remove_no_value() -> None:
     assert "value" not in result
 
 
+def test_store_changes_replay_when_values_move() -> None:
+    """StoreEvents for edits that move values between containers replay to the new store."""
+    from inspect_ai.util._store import store_changes
+
+    before = {"a": [{}, 1, [{}, 0]]}
+    after = {"a": [[], "text", [1]]}
+    events: list[Event] = []
+    for changes in [store_changes({}, before), store_changes(before, after)]:
+        assert changes is not None
+        events.append(StoreEvent(changes=changes))
+
+    assert dict(store_from_events(events).items()) == after
+
+
+def test_logged_move_operation_still_replays() -> None:
+    """Older logs can hold move operations; they still replay."""
+    events: list[Event] = [
+        _make_store_event([{"op": "add", "path": "/a", "value": [1, [2]]}]),
+        _make_store_event([{"op": "move", "from": "/a/0", "path": "/b"}]),
+    ]
+
+    assert dict(store_from_events(events).items()) == {"a": [[2]], "b": 1}
+
+
 # End-to-end tests: Run eval, write log, re-hydrate store from events
 
 

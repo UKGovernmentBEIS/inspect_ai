@@ -51,7 +51,7 @@ Appropriate timeouts will vary depending on the nature of your task so please vi
 
 {{< include _working_limits.md >}}
 
-Here we set an `working_limit` of 10 minutes (10 x 60 seconds) for each sample within a task:
+Here we set a `working_limit` of 10 minutes (10 x 60 seconds) for each sample within a task, with a `time_limit` of 30 minutes as a backstop on clock time:
 
 ``` python
 @task
@@ -64,9 +64,16 @@ def intercode_ctf():
             generate(),
         ],
         working_limit=10 * 60,
+        time_limit=30 * 60,
         scorer=includes(),
         sandbox="docker",
     )
+```
+
+Or at the CLI:
+
+``` bash
+inspect eval ctf.py --working-limit 600 --time-limit 1800
 ```
 
 
@@ -355,14 +362,29 @@ Internally, this uses [`anyio`'s cancellation scopes](https://anyio.readthedocs.
 
 {{< include _working_limits.md >}}
 
-To limit the working time to 10 minutes:
+To limit the working time to 10 minutes, with a 30 minute backstop on clock time:
 
 ``` python
-with working_limit(10 * 60):
+with time_limit(30 * 60), working_limit(10 * 60):
     ...
 ```
 
 Unlike time limits, this is not driven by `anyio`. It is checked periodically such as from `generate()` and after each `Solver` runs.
+
+#### Suspending Working Limits
+
+To count the time spent in a block of code as waiting, use `suspend_working_limit()`:
+
+``` python
+with working_limit(10 * 60):
+    await generate()  # counts as working time
+    with suspend_working_limit():
+        # time spent here counts as waiting
+        await wait_for_operator()
+    await generate()  # counts again
+```
+
+Unlike `suspend_token_limit()` and `suspend_turn_limit()`, which only affect code inside the block, `suspend_working_limit()` makes the whole sample count as waiting while the block is open, including work done by other tasks in the sample. Only code in the eval process can call it (not agent code running in a sandbox). Inspect already does this for tool approval and review.
 
 
 ### Message Limit
