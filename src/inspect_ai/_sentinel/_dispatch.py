@@ -242,7 +242,7 @@ async def _run(step: Step) -> Decision | None:
             RuntimeError(
                 f"inspect_sentinel returned an escalate at the {_stage(step)} stage, "
                 "which it should have turned into a terminate. inspect_ai requires "
-                "inspect_sentinel 0.1.1 or later: pip install --upgrade inspect-sentinel"
+                "inspect_sentinel 0.1.2 or later: pip install --upgrade inspect-sentinel"
             )
         )
     return decision
