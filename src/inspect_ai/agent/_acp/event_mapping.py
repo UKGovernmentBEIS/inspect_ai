@@ -859,17 +859,19 @@ def _map_tool_event(
 ) -> Iterator[SessionNotification]:
     # a host tool a sandbox bridge ran for a proposed call updates the card
     # synthesized for that call, so the scaffold's result must not settle it again
-    bridge.pending.pop(event.id, None)
+    synthesized = bridge.pending.pop(event.id, None) is not None
     status = _tool_call_status(event)
     if event.id in seen_tool_call_ids:
-        yield session_notification(
-            session_id,
-            update_tool_call(
-                tool_call_id=event.id,
-                status=status,
-                content=_content_for_update(event),
-            ),
+        update = update_tool_call(
+            tool_call_id=event.id,
+            status=status,
+            content=_content_for_update(event),
         )
+        if synthesized:
+            # the synthesized start was marked non-cancelable; a real ToolEvent
+            # now backs the card, so `inspect/cancel_tool_call` can act on it
+            update.field_meta = {TOOL_CALL_CANCELABLE_META_KEY: True}
+        yield session_notification(session_id, update)
     else:
         seen_tool_call_ids.add(event.id)
         # Title: descriptive per-tool summary derived from the args
@@ -984,7 +986,9 @@ def _bridge_start_notification(
     Marked non-cancelable: the bridged scaffold runs the tool, so there's no
     pending ``ToolEvent`` for ``inspect/cancel_tool_call`` to act on. The flag
     tells the Inspect TUI not to offer a per-tool cancel that would no-op (the
-    operator can still interrupt the whole turn).
+    operator can still interrupt the whole turn). If a sandbox bridge then runs
+    the call as a host tool, its real ``ToolEvent`` makes the card cancelable
+    (`_map_tool_event`).
     """
     start = start_tool_call(
         tool_call_id=synth.id,

@@ -703,6 +703,10 @@ def test_host_tool_event_settles_its_synthesized_card_once() -> None:
         assert starts[0].title is not None
         updates = [p for p in _progress(published) if p.tool_call_id == "tc1"]
         assert [u.status for u in updates] == ["in_progress", "completed"]
+        # the synthesized start was non-cancelable; the real pending event
+        # can be cancelled, so its first update says so
+        assert starts[0].field_meta == {TOOL_CALL_CANCELABLE_META_KEY: False}
+        assert updates[0].field_meta == {TOOL_CALL_CANCELABLE_META_KEY: True}
         assert not [
             n
             for n in published[settled:]
