@@ -1,7 +1,7 @@
 from collections import deque
 from logging import getLogger
 from os.path import commonprefix
-from typing import TYPE_CHECKING, Any, NamedTuple, NoReturn, Sequence
+from typing import TYPE_CHECKING, Any, Mapping, NamedTuple, NoReturn, Sequence
 
 import anyio
 from pydantic_core import to_jsonable_python
@@ -10,6 +10,7 @@ from shortuuid import uuid
 from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai._util.logger import warn_once
 from inspect_ai.agent._agent import AgentState
+from inspect_ai.agent._bridge.bridge import resolve_forward_client_headers
 from inspect_ai.agent._bridge.types import AgentBridge, DispatchedCall
 from inspect_ai.model._call_tools import get_tools_info
 from inspect_ai.model._compaction.types import CompactionStrategy
@@ -18,6 +19,7 @@ from inspect_ai.model._model import (
     Model,
     ModelEventSink,
     ModelResolver,
+    ModelResponseFilter,
 )
 from inspect_ai.tool import Tool
 from inspect_ai.tool._mcp._config import MCPServerConfigHTTP
@@ -59,6 +61,8 @@ class SandboxAgentBridge(AgentBridge):
         allow_remote_mcp: bool = False,
         allow_remote_media: bool = False,
         model_resolver: ModelResolver | None = None,
+        forward_client_headers: Mapping[str, Sequence[str]] | None = None,
+        response_filter: ModelResponseFilter | None = None,
     ) -> None:
         super().__init__(
             state,
@@ -74,12 +78,16 @@ class SandboxAgentBridge(AgentBridge):
             allow_remote_mcp=allow_remote_mcp,
             allow_remote_media=allow_remote_media,
             model_resolver=model_resolver,
+            response_filter=response_filter,
         )
         self.port = port
         self.mcp_server_configs = mcp_server_configs or []
         self.bridged_tools = {}
         self.served_tools = {}
         self.proposal_exempt_servers = proposal_exempt_servers or set()
+        self.forward_client_headers = resolve_forward_client_headers(
+            forward_client_headers
+        )
         for server, tools in (bridged_tools or {}).items():
             self.register_bridged_tools(server, tools)
         self._tool_execution_grants: deque[_ToolExecutionGrant] = deque(
@@ -109,6 +117,13 @@ class SandboxAgentBridge(AgentBridge):
 
     Their tools execute without an execution grant, so for them the bridge does
     not guarantee that a host tool runs only for a call the model proposed.
+    """
+
+    forward_client_headers: dict[str, frozenset[str]]
+    """Client headers (lowercase name) and values the sandboxed client may send.
+
+    Other client headers and values, except `Accept-Encoding`, are dropped
+    before the host request.
     """
 
     grants_tool_execution = True
@@ -149,8 +164,9 @@ class SandboxAgentBridge(AgentBridge):
         are stored for servers in `proposal_exempt_servers` too, only so that a
         proposed call on them pairs; they execute without one.
 
-        A grant persists until consumed or evicted (with a warning, once
-        `_MAX_TOOL_EXECUTION_GRANTS` unconsumed grants accumulate), including when
+        A grant persists until consumed or evicted (with a warning,
+        `_warn_eviction`, once `_MAX_TOOL_EXECUTION_GRANTS` unconsumed grants
+        accumulate, counting those for exempt servers), including when
         the response never reached the scaffold, but only ever authorizes the
         exact proposed action.
         """
@@ -176,13 +192,7 @@ class SandboxAgentBridge(AgentBridge):
                     len(self._tool_execution_grants)
                     == self._tool_execution_grants.maxlen
                 ):
-                    warn_once(
-                        logger,
-                        "Bridged tool execution grants exceeded "
-                        f"{_MAX_TOOL_EXECUTION_GRANTS}; evicting the oldest "
-                        "unconsumed grant. A proposed-but-never-executed call "
-                        "that old can no longer be executed.",
-                    )
+                    self._warn_eviction(self._tool_execution_grants[0])
                 self._tool_execution_grants.append(
                     _ToolExecutionGrant(
                         server=target.server,
@@ -191,6 +201,31 @@ class SandboxAgentBridge(AgentBridge):
                         proposal=proposal,
                     )
                 )
+
+    def _warn_eviction(self, evicted: "_ToolExecutionGrant") -> None:
+        """Warn, once per kind, that the store is full and its oldest grant goes.
+
+        Grants for servers registered with `require_proposal=False` share the
+        store, so they can push out a grant a server requiring proposals needs.
+        """
+        if evicted.server in self.proposal_exempt_servers:
+            consequence = (
+                f"The evicted grant is for server '{evicted.server}', registered "
+                "with require_proposal=False: that call still executes, but its "
+                "tool event no longer pairs with the model's proposal."
+            )
+        else:
+            consequence = (
+                f"The evicted grant is for server '{evicted.server}', which "
+                "requires proposals: a proposed-but-never-executed call that "
+                "old can no longer be executed."
+            )
+        warn_once(
+            logger,
+            f"Bridged tool execution grants exceeded {_MAX_TOOL_EXECUTION_GRANTS} "
+            "(grants for require_proposal=False servers count too); evicting the "
+            f"oldest unconsumed grant. {consequence}",
+        )
 
     def warn_indistinct_tools(self) -> None:
         """Warn the eval author about bridged tools a proposal cannot single out.

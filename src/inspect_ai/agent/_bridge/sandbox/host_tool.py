@@ -5,11 +5,12 @@ import anyio
 from pydantic import JsonValue, TypeAdapter
 from shortuuid import uuid
 
+from inspect_ai._sentinel._scope import AgentScope, sentinel_scope
 from inspect_ai._util.content import Content, ContentImage, ContentText
 from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.url import data_uri_mime_type, data_uri_to_base64, is_data_uri
-from inspect_ai._util.working import sample_waiting_time
+from inspect_ai._util.working import sample_clock, sample_working_time_since
 from inspect_ai.agent._channel.observer import null_execution_observer
 from inspect_ai.event._tool import ToolEvent
 from inspect_ai.log._samples import sample_active
@@ -108,7 +109,10 @@ async def execute_host_tool(
             logger,
             f"Denied host tool call '{server}/{tool}': the model did not "
             "propose it in a bridged generation (or its proposal has "
-            "already executed).",
+            "already executed). An agent that calls host tools from code "
+            "the model writes (Codex CLI in code mode) can never match a "
+            "proposal; set require_proposal=False on the existing "
+            f"BridgedToolsSpec for server '{server}' for such an agent.",
         )
         message = (
             f"Host tool call '{server}/{tool}' was not proposed by the model "
@@ -170,7 +174,7 @@ async def _record_rejection(
         result="",
         truncated=None,
         error=error,
-        waiting_time=0.0,
+        working_time=0.0,
         agent=None,
         failed=None,
         message_id=None,
@@ -234,7 +238,7 @@ async def _execute_granted(
     observer = (
         sample.execution_observer if sample is not None else null_execution_observer()
     )
-    waiting_start = sample_waiting_time()
+    call_start = sample_clock()
     recorded = False
 
     def finalise(
@@ -247,7 +251,7 @@ async def _execute_granted(
             result=result,
             truncated=truncated,
             error=error,
-            waiting_time=sample_waiting_time() - waiting_start,
+            working_time=sample_working_time_since(call_start),
             agent=None,
             failed=failed,
             message_id=None,
@@ -269,7 +273,10 @@ async def _execute_granted(
                 try:
                     with anyio.CancelScope() as scope:
                         event._set_cancel_fn(scope.cancel)
-                        result: ToolResult = await tool_fn(**call_arguments)
+                        # as in call_tool: the tool's own model calls are not
+                        # agent turns
+                        with sentinel_scope(AgentScope.OFF):
+                            result: ToolResult = await tool_fn(**call_arguments)
                 except anyio.get_cancelled_exc_class():
                     # an outer cancellation (bridge teardown, sample limit): the
                     # operator's per-call cancel is absorbed by `scope` instead

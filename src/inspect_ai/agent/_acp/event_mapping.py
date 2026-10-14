@@ -221,9 +221,12 @@ class SubagentDepthTracker:
         # matching SpanEndEvent is consumed without decrementing
         # depth.
         self._outer_span_id: str | None = None
-        # Parent of every span begun since construction, and the nested
-        # sub-agent spans among them, so an event can be placed by its
-        # ``span_id`` after its span closed.
+        # Parent of each span begun since construction and still open, or
+        # closed inside a sub-agent, and the nested sub-agent spans among
+        # them, so an event can be placed by its ``span_id`` after its span
+        # closed. A span that closes outside any sub-agent is forgotten: no
+        # ancestor of it is a sub-agent, so a lookup that stops there gives
+        # the same answer.
         self._span_parents: dict[str, str | None] = {}
         self._subagent_span_ids: set[str] = set()
 
@@ -242,6 +245,12 @@ class SubagentDepthTracker:
           caller should drop it if filtering is enabled.
         - ``"emit"`` — the event is top-level and should be emitted.
         """
+        action = self._classify(event)
+        if isinstance(event, SpanEndEvent) and not self._in_subagent_span(event.id):
+            self._span_parents.pop(event.id, None)
+        return action
+
+    def _classify(self, event: Event) -> _SubagentAction:
         if isinstance(event, SpanBeginEvent):
             self._span_parents[event.id] = event.parent_id
         if isinstance(event, SpanBeginEvent) and event.type == AGENT_SPAN_TYPE:

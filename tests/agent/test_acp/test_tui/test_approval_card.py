@@ -137,7 +137,7 @@ async def test_card_renders_one_compact_button_per_option() -> None:
         options=[
             PermissionOption(option_id="approve", name="Approve", kind="allow_once"),
             PermissionOption(option_id="reject", name="Reject", kind="reject_once"),
-            PermissionOption(option_id="modify", name="Modify", kind="allow_once"),
+            PermissionOption(option_id="escalate", name="Escalate", kind="reject_once"),
         ]
     )
     async with _CardApp(pending).run_test() as pilot:
@@ -146,7 +146,7 @@ async def test_card_renders_one_compact_button_per_option() -> None:
         assert [b.id for b in buttons] == [
             f"{_BUTTON_ID_PREFIX}approve",
             f"{_BUTTON_ID_PREFIX}reject",
-            f"{_BUTTON_ID_PREFIX}modify",
+            f"{_BUTTON_ID_PREFIX}escalate",
         ]
         # Buttons are compact-styled; the CSS makes them single-line.
         for b in buttons:

@@ -235,14 +235,6 @@ inspect eval arc.py --model anthropic/claude-sonnet-4-0 -M betas=context-1m-2025
 
 ### Refusal Fallback {#anthropic-refusal-fallback}
 
-::: {.callout-note appearance="simple"}
-The model fallback feature described below requires the development version of Inspect. You can install the development version from GitHub with:
-
-```bash
-pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-```
-:::
-
 Claude 5 classifiers can decline a request, returning a refusal (surfaced by Inspect as `stop_reason="content_filter"`). Such a request can usually be served by another Claude model. Set the `fallback_models` generate config to retry refused requests on one or more fallback models (tried in order) within the same request, using Anthropic's [server-side fallback](https://platform.claude.com/docs/en/build-with-claude/refusals-and-fallback):
 
 ``` bash
@@ -631,7 +623,7 @@ The `grok` provider also supports a `disable_retry` model argument that disables
 inspect eval arc.py --model grok/grok-3-mini -M disable_retry=true
 ```
 
-This might be done if you are attempting to accurately track sample `working_time`---typically HTTP retries are subtracted from working time but the Grok provider uses GRPC which has no hooks available for requests and responses (while other providers do).
+This might be done if you are attempting to accurately track sample `working_time`---typically HTTP retries are subtracted from working time but the Grok provider uses GRPC which has no hooks available for requests and responses (while other providers do). See [Working Limit](setting-limits.qmd#working-limit) for what working time excludes and its limitations.
 
 The `grok` provider also supports a `service_tier` model argument that selects the xAI processing tier for requests (introduced alongside Grok 4.6; requires `xai_sdk` >= 1.17). For example, to use [Priority Processing](https://docs.x.ai/developers/grok-4-6) (billed at higher token rates):
 

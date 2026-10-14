@@ -1,5 +1,7 @@
 from typing import cast
 
+import pytest
+
 from inspect_ai import Task, TaskSource, eval, task, task_source
 from inspect_ai._util.constants import PKG_NAME
 from inspect_ai._util.registry import (
@@ -9,6 +11,7 @@ from inspect_ai._util.registry import (
     registry_add,
     registry_create,
     registry_create_from_dict,
+    registry_has,
     registry_info,
     registry_key,
     registry_kwargs,
@@ -288,3 +291,41 @@ def test_repr_params_all_strategies() -> None:
     )
     assert result["compaction"]["threshold"] == 0.75
     assert result["compaction"]["memory"] == "auto"
+
+
+def test_registry_types_include_sentinel_kinds() -> None:
+    from typing import get_args
+
+    from inspect_ai._util.registry import RegistryType
+
+    assert {"monitor", "protocol"} <= set(get_args(RegistryType))
+
+
+def test_registry_has_matches_by_type_and_name() -> None:
+    async def predicate() -> None:
+        pass
+
+    registry_add(predicate, RegistryInfo(type="monitor", name="test_has/watch"))
+    try:
+        assert registry_has("monitor", "test_has/watch")
+        assert not registry_has("protocol", "test_has/watch")
+        assert not registry_has("monitor", "test_has/other")
+    finally:
+        _registry.pop(registry_key("monitor", "test_has/watch"), None)
+
+
+def test_registry_has_finds_unnamespaced_inspect_ai_names() -> None:
+    assert registry_has("metric", "accuracy")
+    assert registry_has("metric", f"{PKG_NAME}/accuracy")
+
+
+def test_registry_has_does_not_load_entry_points(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from inspect_ai._util import registry
+
+    def fail(package: str | None = None) -> None:
+        raise AssertionError("entry points were loaded")
+
+    monkeypatch.setattr(registry, "ensure_entry_points", fail)
+    assert not registry_has("monitor", "unloaded_pkg/watch")

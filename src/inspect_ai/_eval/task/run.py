@@ -37,6 +37,9 @@ from inspect_ai._display import (
 )
 from inspect_ai._display.core.display import TaskCancel, TaskDisplayMetric
 from inspect_ai._eval.task.scan import Scanners
+from inspect_ai._sentinel._config import SentinelRoot
+from inspect_ai._sentinel._context import SentinelFailure
+from inspect_ai._sentinel._scope import sentinel_solving
 from inspect_ai._util._async import Wake, aexit_shielded_when
 from inspect_ai._util.async_zip import AsyncZipReader
 from inspect_ai._util.asyncfiles import get_async_filesystem
@@ -67,6 +70,7 @@ from inspect_ai._util.registry import (
 )
 from inspect_ai._util.working import (
     init_sample_working_time,
+    sample_clock,
     sample_start_datetime,
     sample_waiting_time,
 )
@@ -632,6 +636,8 @@ class TaskRunOptions:
     logger: TaskLogger
     eval_wd: str
     config: EvalConfig = field(default_factory=EvalConfig)
+    sentinel: "SentinelRoot | None" = field(default=None)
+    """Resolved root protocol of the task's sentinel."""
     solver: Solver | None = field(default=None)
     scanner: "Scanners | None" = field(default=None)
     scan_id: str | None = field(default=None)
@@ -775,6 +781,9 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
         generate_config,
         options.task.approval,
         options.task.review,
+        options.sentinel,
+        options.task.metadata,
+        options.task.description,
     )
 
     # track stats, results, and log. progress results are keyed by
@@ -2525,6 +2534,11 @@ async def _task_run_sample_attempt(
 
         # helper to handle exceptions (will throw if we've exceeded the limit)
         def handle_error(ex: BaseException) -> tuple[EvalError, BaseException | None]:
+            # report the sentinel's own error, from the solver or scorers
+            failure = inner_exception(ex) if isinstance(ex, Exception) else ex
+            if isinstance(failure, SentinelFailure):
+                ex = inner_exception(failure.error)
+
             # helper to log sample error
             def log_sample_error() -> None:
                 msg = f"Sample error (id: {sample.id}, epoch: {state.epoch}): {exception_message(ex)})"
@@ -2631,6 +2645,7 @@ async def _task_run_sample_attempt(
                     input=sample.input,
                     choices=sample.choices,
                     target=sample.target,
+                    description=sample.description,
                     metadata=sample.metadata or {},
                     started_at=sample_admitted_at.isoformat(),
                 )
@@ -2828,7 +2843,8 @@ async def _task_run_sample_attempt(
 
                                     # set progress for plan then run it
                                     async with span("solvers"):
-                                        state = await plan(state, generate)
+                                        with sentinel_solving():
+                                            state = await plan(state, generate)
 
                                 # some 'cancel' exceptions are actually user interrupts or the
                                 # result of monitor_working_limit() - for these exceptions we
@@ -3453,7 +3469,8 @@ def create_eval_sample(
     # construct sample for logging
 
     # compute total time if we can
-    total_time = time.monotonic() - start_time if start_time is not None else None
+    end_time = sample_clock()
+    total_time = end_time - start_time if start_time is not None else None
 
     return EvalSample(
         id=id,
@@ -3461,6 +3478,7 @@ def create_eval_sample(
         input=sample.input,
         choices=sample.choices,
         target=sample.target,
+        description=sample.description,
         metadata=state.metadata or {},
         sandbox=sample.sandbox,
         files=list(sample.files.keys()) if sample.files else None,
@@ -3487,7 +3505,7 @@ def create_eval_sample(
         started_at=started_at.isoformat() if started_at is not None else None,
         completed_at=datetime.now(timezone.utc).isoformat(),
         total_time=round(total_time, 3) if total_time is not None else None,
-        working_time=round(total_time - sample_waiting_time(), 3)
+        working_time=round(total_time - sample_waiting_time(start_time, end_time), 3)
         if total_time is not None
         else None,
         error=error,

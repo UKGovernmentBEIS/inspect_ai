@@ -25,7 +25,11 @@ from acp.schema import (
 )
 
 from inspect_ai.agent import AgentState
-from inspect_ai.agent._acp.event_mapping import _AcpEventRouter, replay_transcript
+from inspect_ai.agent._acp.event_mapping import (
+    SubagentDepthTracker,
+    _AcpEventRouter,
+    replay_transcript,
+)
 from inspect_ai.agent._acp.inspect_ext import TOOL_CALL_CANCELABLE_META_KEY
 from inspect_ai.agent._acp.transport_live import LiveAcpTransport
 from inspect_ai.agent._bridge.sandbox.service import call_tool
@@ -395,6 +399,7 @@ async def test_bridge_generate_live_chain_publishes_tool_start() -> None:
             [],
             None,
             GenerateConfig(),
+            requested_model=None,
         )
         starts = _starts(published)
         assert len(starts) == 1
@@ -674,7 +679,7 @@ def test_host_tool_event_settles_its_synthesized_card_once() -> None:
             result="contents",
             truncated=None,
             error=None,
-            waiting_time=0,
+            working_time=0,
             agent=None,
             failed=None,
             message_id=None,
@@ -851,7 +856,7 @@ def _complete(event: ToolEvent) -> None:
         result="contents",
         truncated=None,
         error=None,
-        waiting_time=0,
+        working_time=0,
         agent=None,
         failed=None,
         message_id=None,
@@ -911,3 +916,36 @@ def test_replay_sub_agent_host_call_follows_its_attributed_span(
         assert cards == []
     else:
         assert "proposed" in cards
+
+
+def test_tracker_forgets_spans_closed_outside_sub_agents() -> None:
+    """Span ancestry does not grow with spans that close at the top level.
+
+    Every host tool call opens its own ``tool`` span; only spans inside a
+    sub-agent are kept, since a late event can still name them.
+    """
+    tracker = SubagentDepthTracker()
+    tracker.process(SpanBeginEvent(id="outer", type="agent", name="main"))
+    for index in range(1000):
+        tracker.process(
+            SpanBeginEvent(id=f"tool-{index}", parent_id="outer", type="tool", name="t")
+        )
+        tracker.process(SpanEndEvent(id=f"tool-{index}"))
+
+    tracker.process(
+        SpanBeginEvent(id="agent-sub", parent_id="outer", type="agent", name="sub")
+    )
+    tracker.process(
+        SpanBeginEvent(id="sub-tool", parent_id="agent-sub", type="tool", name="t")
+    )
+    tracker.process(SpanEndEvent(id="sub-tool"))
+    tracker.process(SpanEndEvent(id="agent-sub"))
+    tracker.process(SpanEndEvent(id="outer"))
+
+    assert set(tracker._span_parents) == {"agent-sub", "sub-tool"}
+    late = InfoEvent(data="late")
+    late.span_id = "sub-tool"
+    assert tracker.process(late) == "skip"
+    top = InfoEvent(data="top")
+    top.span_id = "tool-7"
+    assert tracker.process(top) == "emit"
