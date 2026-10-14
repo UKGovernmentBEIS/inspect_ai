@@ -107,13 +107,11 @@ jobs:
         run: uv sync
 
       # TEMPORARY: the dispatcher requires inspect_sentinel with
-      # meridianlabs-ai/inspect_sentinel#74 (an unhandled escalate terminates),
-      # #83 (step.input may be None), #84 (the proceed rename), #42 (the generate
-      # stages) and #87 (Host wraps HostNative). Remove when a release with all five
-      # is on PyPI and requirements-dev.txt requires it.
+      # meridianlabs-ai/inspect_sentinel#87 (Host wraps HostNative). Remove when a
+      # release with it is on PyPI and requirements-dev.txt requires it.
       - name: Install inspect_sentinel (TEMPORARY)
         if: github.event_name != 'pull_request' || steps.filter.outputs.code == 'true'
-        run: uv pip install --no-deps "inspect_sentinel @ git+https://github.com/meridianlabs-ai/inspect_sentinel@dfec84532f2af9195637566490a532bf4a982d23"
+        run: uv pip install --no-deps "inspect_sentinel @ git+https://github.com/meridianlabs-ai/inspect_sentinel@b281b6026e43b52a53bcc15c3c10122c649138d3"
 
       - name: Run mypy
         if: github.event_name != 'pull_request' || steps.filter.outputs.code == 'true'
@@ -339,13 +337,11 @@ jobs:
           uv pip install --no-deps ./tests/test_package
 
       # TEMPORARY: the dispatcher requires inspect_sentinel with
-      # meridianlabs-ai/inspect_sentinel#74 (an unhandled escalate terminates),
-      # #83 (step.input may be None), #84 (the proceed rename), #42 (the generate
-      # stages) and #87 (Host wraps HostNative). Remove when a release with all five
-      # is on PyPI and requirements-dev.txt requires it.
+      # meridianlabs-ai/inspect_sentinel#87 (Host wraps HostNative). Remove when a
+      # release with it is on PyPI and requirements-dev.txt requires it.
       - name: Install inspect_sentinel (TEMPORARY)
         if: env.RUN_TESTS == 'true'
-        run: uv pip install --no-deps "inspect_sentinel @ git+https://github.com/meridianlabs-ai/inspect_sentinel@dfec84532f2af9195637566490a532bf4a982d23"
+        run: uv pip install --no-deps "inspect_sentinel @ git+https://github.com/meridianlabs-ai/inspect_sentinel@b281b6026e43b52a53bcc15c3c10122c649138d3"
 
       - name: Test with pytest
         if: env.RUN_TESTS == 'true'

@@ -620,7 +620,16 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
     async def read_file_bytes_fully(
         self, filename: str, start: int, end: int | None
     ) -> bytes:
-        """Read the byte range [start, end) of a file into bytes (end=None reads to EOF)."""
+        """Read the byte range [start, end) of a file into bytes (end=None reads to EOF).
+
+        A local range is read in one worker thread rather than through
+        :meth:`read_file_bytes`, whose file stream makes a thread hop for each
+        open, seek, read and close.
+        """
+        if not is_s3_filename(filename) and filesystem(filename).is_local():
+            return await anyio.to_thread.run_sync(
+                _read_local_range, local_path(filename), start, end
+            )
         stream = await self.read_file_bytes(filename, start, end)
         chunks: list[bytes] = []
         try:
@@ -1704,11 +1713,29 @@ _FSSPEC_WRITE_BLOCK_SIZE = 8 * 1024 * 1024  # 8 MB
 # copying to local or fsspec-backed files via shutil.copyfileobj.
 _STREAMING_COPY_BUFSIZE = 16 * 1024 * 1024  # 16 MB
 
-# Granularity for `read_file_bytes_fully`: one read hop per chunk while
-# accumulating a range into memory.
+# Granularity for `read_file_bytes_fully`: one read hop (remote) or one
+# cancellation check (local) per chunk while accumulating a range into memory.
 _READ_FULLY_CHUNK_SIZE = 1024 * 1024  # 1 MB
 
 _S3_ABORT_TIMEOUT = 30
+
+
+def _read_local_range(path: str, start: int, end: int | None) -> bytes:
+    """Blocking local range read for ``read_file_bytes_fully`` — run in a worker thread."""
+    remaining = None if end is None else max(0, end - start)
+    chunks: list[bytes] = []
+    with open(path, "rb") as f:
+        f.seek(start)
+        while remaining != 0:
+            anyio.from_thread.check_cancelled()
+            size = _READ_FULLY_CHUNK_SIZE
+            chunk = f.read(size if remaining is None else min(size, remaining))
+            if not chunk:
+                break
+            chunks.append(chunk)
+            if remaining is not None:
+                remaining -= len(chunk)
+    return b"".join(chunks)
 
 
 def _copy_local_file_into(path: str, dest: BinaryIO, chunk_size: int) -> None:
