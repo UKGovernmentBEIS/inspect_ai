@@ -2247,7 +2247,7 @@ requires-dist = [
     { name = "anthropic", marker = "extra == 'dev'", specifier = ">=1.0.0" },
     { name = "antlr4-python3-runtime", marker = "extra == 'dev'", specifier = ">=4.9.3,!=4.10.*,!=4.12.*,!=4.13.0,!=4.13.1,<=4.13.2" },
     { name = "antlr4-python3-runtime", marker = "extra == 'math'", specifier = ">=4.9.3,!=4.10.*,!=4.12.*,!=4.13.0,!=4.13.1,<=4.13.2" },
-    { name = "anyio", specifier = ">=4.14.0" },
+    { name = "anyio", specifier = ">=4.14.2" },
     { name = "apprise", marker = "extra == 'dev'" },
     { name = "aws-bedrock-token-generator", marker = "extra == 'dev'" },
     { name = "azure-ai-inference", marker = "extra == 'dev'" },
