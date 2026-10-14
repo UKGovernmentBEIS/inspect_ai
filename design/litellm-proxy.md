@@ -364,9 +364,19 @@ Usage shows what happened: `completion_tokens == reasoning_tokens`,
 (and by `native_finish_reason` when present) and runs the native provider's
 retry: a model-role acknowledgement, a user-role request for function call
 JSON, `tool_choice` forced to `any` when it was `auto`, three attempts in
-total, then words in the model's mouth. The function-calling hint goes in the
-system prompt. Both are in `_litellm_proxy_gemini.py`, with the texts shared
-with `google.py` through `_gemini_function_calling.py`.
+total, then words in the model's mouth. It is in `_litellm_proxy_gemini.py`,
+with the texts shared with `google.py` through `_gemini_function_calling.py`.
+
+**No function-calling hint.** Until 2026-10 the provider added the native
+provider's function-calling hint to the system prompt. Same-batch live trials
+through a `main-latest` proxy on 2026-10-07 showed it did harm and no good. On
+gemini-2.5-pro, with three identical addition tools and the first turn forced,
+16 of 1,500 samples looped to the message limit with the hint and 2 of 1,500
+without. Samples needing a malformed-call retry: 10 with the hint, 1 without.
+On the `write_files` workload of #2990, the hint did not lower
+`MALFORMED_FUNCTION_CALL` on gemini-2.5-flash (50 of 50 turns with it, 49 of
+50 without), gemini-2.5-pro or gemini-3-flash-preview (none either way), and
+raised it on gemini-3.1-pro-preview (6 of 100, against 0 of 100).
 
 **The id-embedded signature is lost unless the alias says "gemini".** LiteLLM
 embeds each tool call's thought signature in its id

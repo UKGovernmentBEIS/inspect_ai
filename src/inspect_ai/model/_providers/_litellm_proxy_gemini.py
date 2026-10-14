@@ -1,7 +1,6 @@
 """Gemini upstreams through the LiteLLM proxy.
 
-Tool call signatures on replay, the function-calling hint and
-MALFORMED_FUNCTION_CALL recovery.
+Tool call signatures on replay and MALFORMED_FUNCTION_CALL recovery.
 
 LiteLLM maps Gemini's MALFORMED_FUNCTION_CALL finish reason to `stop` and drops
 the `finishMessage` that holds the attempted call, so the client sees a turn
@@ -11,7 +10,9 @@ choice at all). Newer LiteLLM reports the raw reason as
 versions and streams report nothing, so such a turn is recognized by its
 shape. The recovery mirrors the native Google provider's: a corrective
 exchange, tool calling forced if it was `auto`, and words in the model's
-mouth when the attempts run out.
+mouth when the attempts run out. No function-calling hint is added to the
+system prompt: in live trials through the proxy it made Gemini 2.5 Pro loop on
+repeated tool calls more often and did not lower MALFORMED_FUNCTION_CALL.
 
 LiteLLM embeds each Gemini tool call's thought signature in its id
 (`call_x__thought__<signature>`). Its pre-call hook strips that suffix
@@ -44,13 +45,11 @@ from inspect_ai._util.content import ContentText
 from .._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
-    ChatMessageSystem,
     ChatMessageUser,
 )
 from .._model_output import ChatCompletionChoice, ModelOutput, ModelUsage
 from ._gemini_function_calling import (
     DEFAULT_MALFORMED_FUNCTION_MESSAGE,
-    FUNCTION_CALLING_HINT,
     MALFORMED_FUNCTION_RETRY_PROMPT,
     malformed_function_apology,
     malformed_function_attempt,
@@ -126,19 +125,6 @@ def _is_json_object(text: str) -> bool:
         return isinstance(json.loads(text), dict)
     except ValueError:
         return False
-
-
-def with_function_calling_hint(input: list[ChatMessage]) -> list[ChatMessage]:
-    """The request's messages with the function-calling hint in the system prompt."""
-    if input and isinstance(input[0], ChatMessageSystem):
-        system = input[0]
-        content: str | list[Any] = (
-            f"{system.content}\n{FUNCTION_CALLING_HINT}"
-            if isinstance(system.content, str)
-            else [*system.content, ContentText(text=FUNCTION_CALLING_HINT)]
-        )
-        return [system.model_copy(update={"content": content}), *input[1:]]
-    return [ChatMessageSystem(content=FUNCTION_CALLING_HINT.strip()), *input]
 
 
 def malformed_function_call(

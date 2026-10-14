@@ -140,8 +140,9 @@ logs` or `feat(anthropic): support Claude Haiku 5.5`. PRs are squash-merged, so
 the title becomes the commit that sets the next release's version:
 
 - `fix`, `feat`, `perf` and `revert` make a patch release (0.3.x).
-- `!` after the type or scope (`feat!: ...`) marks a breaking change and makes
-  a minor release (0.x.0).
+- `!` after the type or scope (`feat!: ...`) marks a breaking change. It is
+  listed in the changelog but still makes a patch release; maintainers decide
+  when to make a minor release.
 - `docs`, `refactor`, `test`, `build`, `ci`, `chore` and `style` do not make a
   release on their own.
 
