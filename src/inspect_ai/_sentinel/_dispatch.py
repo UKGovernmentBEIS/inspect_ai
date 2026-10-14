@@ -22,12 +22,7 @@ from inspect_sentinel import (
     Step,
     Truncation,
 )
-from inspect_sentinel._integration import (
-    Host,
-    HostContext,
-    run_sentinel,
-    watched_stages,
-)
+from inspect_sentinel._integration import HostContext, run_sentinel, watched_stages
 from shortuuid import uuid as shortuuid
 
 from inspect_ai._util.exception import TerminateSampleError
@@ -300,7 +295,7 @@ _model_inputs: "WeakKeyDictionary[Transcript, Counter[str]]" = WeakKeyDictionary
 
 def _host_context(step_id: str) -> HostContext:
     return HostContext(
-        context=Context(path="", host=Host(_HostNative(_eval_context()))),
+        host=_HostNative(_eval_context()),
         recorder=_Recorder(step_id),
         store=store(),
     )
