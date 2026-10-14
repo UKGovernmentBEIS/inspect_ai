@@ -4,6 +4,7 @@ import base64
 import json
 from typing import TYPE_CHECKING, Any, Literal, Sequence, Union
 
+from pydantic_core import to_jsonable_python
 from shortuuid import uuid
 
 from inspect_ai._util.content import (
@@ -365,7 +366,13 @@ async def tool_message_from_parts(parts: "list[Part]") -> ChatMessageTool:
 
 
 def _response_text(value: Any) -> str:
-    """A function response value as text, with dicts and lists as JSON."""
+    """A function response value as text, with dicts and lists as JSON.
+
+    Values may hold Pydantic models, such as the MCP content blocks that
+    `FunctionResponse.from_mcp_response()` puts in `result`.
+    """
     if isinstance(value, dict | list):
-        return json.dumps(value)
+        return json.dumps(
+            value, default=lambda v: to_jsonable_python(v, exclude_none=True)
+        )
     return str(value)

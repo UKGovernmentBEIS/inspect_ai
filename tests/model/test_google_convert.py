@@ -12,6 +12,7 @@ from google.genai.types import (
     GenerateContentResponseUsageMetadata,
     Part,
 )
+from test_helpers.utils import skip_if_no_mcp_package
 
 from inspect_ai._util.content import ContentReasoning, ContentText
 from inspect_ai.model import (
@@ -218,6 +219,23 @@ async def test_messages_from_google_tool_response_values(
     assert isinstance(message, ChatMessageTool)
     assert message.content == content
     assert (message.error.message if message.error else None) == error
+
+
+@skip_if_no_mcp_package
+async def test_messages_from_google_mcp_response() -> None:
+    from mcp.types import CallToolResult, TextContent
+
+    response = FunctionResponse.from_mcp_response(
+        name="lookup",
+        response=CallToolResult(content=[TextContent(type="text", text="42")]),
+    )
+    contents = [Content(role="user", parts=[Part(function_response=response)])]
+
+    (message,) = await messages_from_google(contents)
+
+    assert isinstance(message, ChatMessageTool)
+    assert message.content == '[{"type": "text", "text": "42"}]'
+    assert message.error is None
 
 
 async def test_messages_from_google_with_reasoning() -> None:
