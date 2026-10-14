@@ -68,7 +68,7 @@ When batch processing is enabled, the following steps are taken when handling ge
 
 1.  **Request Queuing**: Individual model requests are queued rather than sent immediately
 
-2.  **Batch Formation**: Requests are grouped into batches based on size limits and timeouts.
+2.  **Batch Formation**: Requests are grouped into batches based on size limits and timeouts. Requests with different HTTP headers go in separate batches, since a batch is sent with one set of headers.
 
 3.  **Batch Submission**: Complete batches are submitted to the provider's batch API.
 

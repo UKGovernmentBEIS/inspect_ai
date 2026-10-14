@@ -28,6 +28,7 @@ from inspect_ai.tool._tools._computer._computer import is_computer_tool_info
 
 from .._chat_message import ChatMessage
 from .._generate_config import GenerateConfig
+from .._model import same_model
 from .._model_call import ModelCall
 from .._model_data.model_data import ModelInfo
 from .._model_info import (
@@ -36,7 +37,12 @@ from .._model_info import (
     _get_model_info_direct,
     set_model_info,
 )
-from .._model_output import ChatCompletionChoice, ModelOutput, ModelUsage
+from .._model_output import (
+    ChatCompletionChoice,
+    ModelOutput,
+    ModelUsage,
+    ServedModelUsage,
+)
 from .._openai import (
     OpenAIResponseError,
     chat_choices_from_openai,
@@ -91,7 +97,12 @@ from ._litellm_proxy_model_info import (
     proxy_deployments,
     proxy_model_info,
 )
-from ._litellm_proxy_names import ProxyResolution, resolve_deployments
+from ._litellm_proxy_names import (
+    ProxyResolution,
+    resolve_deployments,
+    resolve_upstream,
+    upstream_model,
+)
 from ._litellm_proxy_reasoning import (
     ThinkingBlocksAccumulator,
     choice_with_litellm_reasoning,
@@ -257,6 +268,8 @@ class LiteLLMProxyAPI(OpenAICompatibleAPI):
         # get_model_info() constructs providers with a placeholder key, which
         # the proxy would reject
         self._deployments: list[ProxyDeployment] | None = None
+        # every deployment the proxy lists, to identify a fallback's deployment
+        self._proxy_deployments: list[ProxyDeployment] = []
         # the model name a key or team alias routes to, and why aliases
         # couldn't be read
         self._alias_target: str | None = None
@@ -279,6 +292,7 @@ class LiteLLMProxyAPI(OpenAICompatibleAPI):
                     "team gets the model info of the listed model.",
                 )
             self._deployments = [d for d in deployments if d.model_name == target]
+            self._proxy_deployments = deployments
         self._resolution: ProxyResolution | None = resolve_deployments(
             self.service_model_name(), self._deployments or []
         )
@@ -329,10 +343,7 @@ class LiteLLMProxyAPI(OpenAICompatibleAPI):
         key = self._model_info_key()
         current = _get_custom_model_info(key)
         previous = _registrations.get(key)
-        if previous is not None and current is previous.registered:
-            user = previous.user
-        else:
-            user = current
+        user = _user_model_info(key)
         db_key = self._resolution.db_key if self._resolution else None
         db = _get_model_info_direct(db_key) if db_key else None
         proxy = proxy_model_info(self._deployments or [])
@@ -356,6 +367,66 @@ class LiteLLMProxyAPI(OpenAICompatibleAPI):
         _registrations[key] = _Registration(
             user=user, registered=info, base_url=self.base_url
         )
+
+    @override
+    def served_model_usage(self, output: ModelOutput) -> list[ServedModelUsage] | None:
+        """The deployment that served the request, when the response names one.
+
+        The proxy reports the model either as an alias (the requested one, or
+        the fallback's for streamed Chat Completions) or as the serving
+        deployment's upstream model id (the fallback's, or the called
+        deployment's for streamed Responses). An upstream id identifies one
+        deployment, which is priced on its own; an alias stands for all of
+        its deployments, and the requested alias keeps its price.
+        """
+        if output.usage is None or not output.model:
+            return None
+        called = self._routed_name()
+        reported = output.model
+        if reported in (self.service_model_name(), called):
+            return None
+        serving = self._serving_deployments(reported)
+        if serving is None:
+            # an upstream id of no listed deployment
+            resolution = resolve_upstream(reported)
+            if self._resolution is not None and same_model(
+                _db_model_info(resolution.db_key),
+                _db_model_info(self._resolution.db_key),
+            ):
+                return None
+            served = resolution.db_key or resolution.upstream or reported
+            return [ServedModelUsage(served, output.usage)]
+        alias, deployments = serving
+        key = self._model_info_key() if alias == called else f"litellm-proxy/{alias}"
+        return [_deployment_usage(key, alias, deployments, reported, output.usage)]
+
+    def _serving_deployments(
+        self, reported: str
+    ) -> tuple[str, list[ProxyDeployment]] | None:
+        """The listed alias and deployments a reported model name names.
+
+        An alias name names all of its deployments; an upstream id (raw, or a
+        snapshot the model database identifies) names one. The called alias's
+        deployments take precedence.
+        """
+        deployments = self._proxy_deployments
+        named = [d for d in deployments if d.model_name == reported]
+        if named:
+            return reported, named
+        called = self._routed_name()
+        ordered = sorted(deployments, key=lambda d: d.model_name != called)
+        for deployment in ordered:
+            ids = {deployment.model, upstream_model(deployment)} - {None}
+            if reported in ids | {i.split("/", 1)[-1] for i in ids if i}:
+                return deployment.model_name, [deployment]
+        reported_info = _db_model_info(resolve_upstream(reported).db_key)
+        for deployment in ordered:
+            resolution = resolve_deployments(deployment.model_name, [deployment])
+            if resolution is not None and same_model(
+                reported_info, _db_model_info(resolution.db_key)
+            ):
+                return deployment.model_name, [deployment]
+        return None
 
     def _routed_name(self) -> str:
         """The model name requests are routed to (the alias target, if any)."""
@@ -1082,3 +1153,80 @@ def merged_model_info(
     if primary.input_tokens is None and "context_length" in fill:
         merged = ModelInfo(_input_tokens=secondary.input_tokens, **merged.model_dump())
     return merged
+
+
+def _db_model_info(db_key: str | None) -> ModelInfo | None:
+    return _get_model_info_direct(db_key) if db_key else None
+
+
+def _user_model_info(key: str) -> ModelInfo | None:
+    """The user's own registration for a model info key, if any.
+
+    Model info this provider registered under the key is not the user's; the
+    user's registration it merged in is.
+    """
+    current = _get_custom_model_info(key)
+    previous = _registrations.get(key)
+    if previous is not None and current is previous.registered:
+        return previous.user
+    return current
+
+
+def _deployment_usage(
+    key: str,
+    alias: str,
+    deployments: list[ProxyDeployment],
+    reported: str,
+    usage: ModelUsage,
+) -> ServedModelUsage:
+    """Usage served by these deployments of an alias, for pricing.
+
+    The same precedence as registered model info: the user's registration
+    for the alias, then Inspect's entry for the model, then the proxy's
+    metadata. An alias reported by name with several deployments does not
+    say which one served the call, so it is priced as the alias, the way
+    the alias is priced when called. An identified deployment is priced by
+    its own model (its resolved model, the reported snapshot, or its
+    upstream id, as registered or in Inspect's database). Without a price,
+    the deployment's model is reported so that pricing falls back to the
+    called model and warns, rather than using another deployment's rates.
+    """
+    user = _user_model_info(key)
+    if user is not None and user.cost is not None:
+        return ServedModelUsage(key, usage, user.cost)
+    if len(deployments) > 1:
+        resolution = resolve_deployments(alias, deployments)
+        db = _db_model_info(resolution.db_key if resolution else None)
+        if db is not None and db.cost is not None:
+            return ServedModelUsage(key, usage, db.cost)
+        proxy = proxy_model_info(deployments)
+        return ServedModelUsage(key, usage, proxy.cost if proxy is not None else None)
+    names = _deployment_names(alias, deployments, reported)
+    for name in names:
+        info = _get_model_info_direct(name)
+        if info is not None and info.cost is not None:
+            return ServedModelUsage(name, usage)
+    proxy = proxy_model_info(deployments)
+    cost = proxy.cost if proxy is not None else None
+    return ServedModelUsage(names[0] if names else reported, usage, cost)
+
+
+def _deployment_names(
+    alias: str, deployments: list[ProxyDeployment], reported: str
+) -> list[str]:
+    """Model info names for deployments, most specific identity first."""
+    resolution = resolve_deployments(alias, deployments)
+    names = [resolution.db_key if resolution else None]
+    reported_upstream = None
+    if reported != alias:
+        reported_resolution = resolve_upstream(reported)
+        names.append(reported_resolution.db_key)
+        reported_upstream = reported_resolution.upstream
+    for deployment in deployments:
+        for upstream in (deployment.model, upstream_model(deployment)):
+            if upstream:
+                names += [upstream, upstream.split("/", 1)[-1]]
+    names.append(resolution.upstream if resolution else None)
+    if reported != alias:
+        names += [reported, reported_upstream]
+    return list(dict.fromkeys(n for n in names if n))

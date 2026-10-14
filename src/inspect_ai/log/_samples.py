@@ -53,6 +53,7 @@ import anyio
 from anyio.abc import TaskGroup
 from shortuuid import uuid
 
+from inspect_ai._util.working import sample_wait
 from inspect_ai.dataset._dataset import Sample
 from inspect_ai.util._checkpoint.checkpointer import CheckpointerSetup, ResumeCheckpoint
 from inspect_ai.util._checkpoint.checkpointer_factory import create_checkpointer
@@ -604,7 +605,8 @@ def awaiting_human(
     one surface that serves it — an approval is a wait whether it is answered
     in an editor over ACP, in the Textual panel, or at the console, and a
     record that only one of the three kept would report an attended run as
-    idle for as long as somebody was looking at the prompt.
+    idle for as long as somebody was looking at the prompt. The wait also
+    counts as sample waiting time, so it is not charged as working time.
 
     A no-op outside a sample (a scorer, a bare `ask_user` in a script), which
     is why callers can wrap unconditionally.
@@ -617,7 +619,7 @@ def awaiting_human(
     if sample is None:
         yield
         return
-    with sample.awaiting_human(kind, subject):
+    with sample.awaiting_human(kind, subject), sample_wait():
         yield
 
 
@@ -750,6 +752,14 @@ def has_active_model_event() -> bool:
     return _active_model_event.get() is not None
 
 
+def clear_active_model_event() -> None:
+    """Detach the current context from the in-flight `ModelEvent`.
+
+    For long-lived tasks spawned during a model call, which inherit its context.
+    """
+    _active_model_event.set(None)
+
+
 def set_active_model_event_call(
     request: Any,
     filter: "ModelCallFilter | None" = None,
@@ -781,6 +791,19 @@ def report_active_sample_retry() -> None:
     active = sample_active()
     if active is not None:
         active.http_retries += 1
+
+
+def report_active_model_request_id(request_id: str, header: str, status: int) -> None:
+    """Record a provider request id on the in-flight `ModelEvent`, if any."""
+    from inspect_ai.model._model_call import ModelRequestId
+
+    model_event = _active_model_event.get()
+    if model_event is not None:
+        if model_event.request_ids is None:
+            model_event.request_ids = []
+        model_event.request_ids.append(
+            ModelRequestId(id=request_id, header=header, status=status)
+        )
 
 
 def report_active_sample_refusal() -> None:

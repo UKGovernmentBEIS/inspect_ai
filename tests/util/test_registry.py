@@ -1,18 +1,24 @@
 from typing import cast
 
+import pytest
+
 from inspect_ai import Task, TaskSource, eval, task, task_source
 from inspect_ai._util.constants import PKG_NAME
 from inspect_ai._util.registry import (
     RegistryInfo,
+    RegistryType,
     _registry,
     extract_named_params,
+    is_registry_dict,
     registry_add,
     registry_create,
     registry_create_from_dict,
+    registry_has,
     registry_info,
     registry_key,
     registry_kwargs,
     registry_lookup,
+    registry_tag,
     registry_value,
 )
 from inspect_ai.dataset import Sample
@@ -58,6 +64,34 @@ def test_validation_predicate_registry_type() -> None:
         assert registry_info(predicate) == info
     finally:
         _registry.pop(registry_key("validation_predicate", "test_predicate"), None)
+
+
+@pytest.mark.parametrize("registry_type", ["swarm_controller", "swarm_channel"])
+def test_swarm_registry_types(registry_type: RegistryType) -> None:
+    class Component:
+        def __init__(self, size: int) -> None:
+            self.size = size
+
+    name = f"test_{registry_type}"
+    info = RegistryInfo(type=registry_type, name=name)
+
+    def factory(size: int = 1) -> Component:
+        component = Component(size)
+        registry_tag(factory, component, info, size=size)
+        return component
+
+    registry_add(factory, info)
+    try:
+        assert registry_lookup(registry_type, name) is factory
+        logged = registry_value(factory(size=3))
+        assert logged == {"type": registry_type, "name": name, "params": {"size": 3}}
+        assert is_registry_dict(logged)
+        restored = registry_create_from_dict(logged)
+        assert isinstance(restored, Component)
+        assert restored.size == 3
+        assert registry_info(restored) == info
+    finally:
+        _registry.pop(registry_key(registry_type, name), None)
 
 
 def test_registry_dict() -> None:
@@ -288,3 +322,41 @@ def test_repr_params_all_strategies() -> None:
     )
     assert result["compaction"]["threshold"] == 0.75
     assert result["compaction"]["memory"] == "auto"
+
+
+def test_registry_types_include_sentinel_kinds() -> None:
+    from typing import get_args
+
+    from inspect_ai._util.registry import RegistryType
+
+    assert {"monitor", "protocol"} <= set(get_args(RegistryType))
+
+
+def test_registry_has_matches_by_type_and_name() -> None:
+    async def predicate() -> None:
+        pass
+
+    registry_add(predicate, RegistryInfo(type="monitor", name="test_has/watch"))
+    try:
+        assert registry_has("monitor", "test_has/watch")
+        assert not registry_has("protocol", "test_has/watch")
+        assert not registry_has("monitor", "test_has/other")
+    finally:
+        _registry.pop(registry_key("monitor", "test_has/watch"), None)
+
+
+def test_registry_has_finds_unnamespaced_inspect_ai_names() -> None:
+    assert registry_has("metric", "accuracy")
+    assert registry_has("metric", f"{PKG_NAME}/accuracy")
+
+
+def test_registry_has_does_not_load_entry_points(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from inspect_ai._util import registry
+
+    def fail(package: str | None = None) -> None:
+        raise AssertionError("entry points were loaded")
+
+    monkeypatch.setattr(registry, "ensure_entry_points", fail)
+    assert not registry_has("monitor", "unloaded_pkg/watch")

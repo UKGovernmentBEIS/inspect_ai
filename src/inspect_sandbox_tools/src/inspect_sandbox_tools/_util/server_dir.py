@@ -57,7 +57,9 @@ def server_socket_path(server_dir: Path) -> Path:
     return Path("/tmp") / f"inspect-sandbox-tools-{os.geteuid()}" / f"{identity}.sock"
 
 
-def ensure_private_server_dir(server_dir: Path, *, create: bool = True) -> None:
+def ensure_private_server_dir(
+    server_dir: Path, *, create: bool = True, repair_mode: bool = True
+) -> None:
     """Create ``server_dir`` as a private directory, or verify an existing one.
 
     The socket, pid, lock, and status files that the server and CLI trust live in
@@ -68,7 +70,7 @@ def ensure_private_server_dir(server_dir: Path, *, create: bool = True) -> None:
     (development and tests) falls back to the system temp dir, where other users may
     be able to plant an entry before the server first starts. Either way an existing
     entry is adopted only if it is a real directory (not a symlink) owned by the
-    current effective uid, and it is then tightened to mode 0700; an owned directory
+    current effective uid, and by default tightened to mode 0700; an owned directory
     the uid cannot even enter is refused rather than repaired. This holds for root
     and non-root servers alike: a rootless server shares its uid with the sandbox's
     default user, but no other uid in the container may reach its socket or rewrite
@@ -76,13 +78,16 @@ def ensure_private_server_dir(server_dir: Path, *, create: bool = True) -> None:
 
     Verification and tightening go through a descriptor so they bind to the entry
     that was inspected; a path-based chmod would follow a symlink swapped in later.
-    Only the final path component is checked: the caller must supply a parent that
-    other principals cannot write to (or that is sticky), and it must already exist.
+    Only the final path component is checked: the caller must supply existing
+    parents protected against replacement by other principals, including a trusted
+    owner for any sticky directory.
 
     Args:
         server_dir: The directory to create or verify.
         create: Create the directory (mode 0700) when nothing exists at the path.
             With ``False`` a missing directory raises ``FileNotFoundError``.
+        repair_mode: Tighten an owned directory to 0700. With ``False``, refuse
+            other modes because the directory may contain planted content.
 
     Raises:
         RuntimeError: An entry exists at the path but cannot be trusted, or the
@@ -99,7 +104,7 @@ def ensure_private_server_dir(server_dir: Path, *, create: bool = True) -> None:
             pass
         except OSError as ex:
             raise RuntimeError(
-                f"Sandbox-tools server directory {server_dir} cannot be created: "
+                f"Sandbox-tools directory {server_dir} cannot be created: "
                 f"{ex.strerror or ex}"
             ) from ex
         finally:
@@ -120,6 +125,11 @@ def ensure_private_server_dir(server_dir: Path, *, create: bool = True) -> None:
                 server_dir, f"it is owned by uid {info.st_uid}, not uid {expected_uid}"
             )
         if stat.S_IMODE(info.st_mode) != 0o700:
+            if not repair_mode:
+                raise _untrusted_server_dir(
+                    server_dir,
+                    f"it has mode {stat.S_IMODE(info.st_mode):04o}, not 0700",
+                )
             os.fchmod(dir_fd, 0o700)
     finally:
         os.close(dir_fd)
@@ -152,7 +162,7 @@ def _describe_entry(path: Path, open_error: OSError) -> str:
 
 def _untrusted_server_dir(server_dir: Path, reason: str) -> RuntimeError:
     return RuntimeError(
-        f"Sandbox-tools server directory {server_dir} cannot be trusted: {reason}. "
+        f"Sandbox-tools directory {server_dir} cannot be trusted: {reason}. "
         "Remove the entry (or correct its ownership and permissions) and retry."
     )
 

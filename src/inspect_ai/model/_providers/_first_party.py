@@ -21,8 +21,9 @@ FIRST_PARTY_PROVIDERS = frozenset(
 FRONTIER_MODELS = {
     "anthropic": "anthropic/claude-opus-5-5",
     "openai": "openai/gpt-6-astra",
-    "google": "google/gemini-3.8-flash",
+    "google": "google/gemini-4-argon",
     "grok": "grok/grok-4.7",
+    "meta": "meta/muse-spark-1.3",
 }
 """Model info database key of each provider's current frontier model.
 

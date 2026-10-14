@@ -969,6 +969,7 @@ async def test_streaming_recovery_synthesizes_uuid_for_in_progress_sample() -> N
                 epoch=1,
                 input="Question 42",
                 target="answer",
+                description="Answer question 42.",
                 started_at=datetime.now(timezone.utc).isoformat(),
                 # uuid intentionally omitted — simulates old buffer rows
             )
@@ -1033,6 +1034,7 @@ async def test_streaming_recovery_synthesizes_uuid_for_in_progress_sample() -> N
             target = next(s for s in recovered.samples if s.id == 42 and s.epoch == 1)
             assert target.uuid is not None
             assert len(target.uuid) >= 20
+            assert target.description == "Answer question 42."
 
 
 async def test_recovery_preserves_uuid_from_in_progress_buffer_row() -> None:

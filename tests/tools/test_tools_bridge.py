@@ -6,8 +6,9 @@ via the MCP protocol using BridgedToolsSpec and sandbox_agent_bridge.
 
 import json
 import sys
+from contextlib import contextmanager
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Iterator
 
 import anyio
 import pytest
@@ -15,12 +16,19 @@ from test_helpers.utils import skip_if_no_docker
 
 from inspect_ai import Task, eval, task
 from inspect_ai._util.content import ContentImage, ContentText
+from inspect_ai._util.json import to_json_str_safe
 from inspect_ai.agent import BridgedToolsSpec, sandbox_agent_bridge
 from inspect_ai.agent._bridge.sandbox.service import call_tool
 from inspect_ai.dataset import Sample
+from inspect_ai.event._model import ModelEvent
 from inspect_ai.log import EvalLog
 from inspect_ai.model import get_model
-from inspect_ai.model._call_tools import tool_call_error
+from inspect_ai.model._call_tools import tool_call_error, truncate_tool_output
+from inspect_ai.model._generate_config import (
+    GenerateConfig,
+    active_generate_config_context_var,
+)
+from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.scorer import includes
 from inspect_ai.solver import Solver, solver
 from inspect_ai.tool import ToolError, tool
@@ -139,11 +147,20 @@ def eval_bridged_tools_task(
 
 
 async def _mcp_http_request_with_retry(
-    url: str, request: str, max_retries: int = 30, retry_delay: float = 0.5
+    url: str,
+    request: str,
+    max_retries: int = 30,
+    retry_delay: float = 0.5,
+    headers: dict[str, str] | None = None,
 ) -> dict:
     """Send HTTP POST to MCP endpoint with retry logic for server startup."""
     import asyncio
 
+    header_args = [
+        arg
+        for name, value in (headers or {}).items()
+        for arg in ("-H", f"{name}: {value}")
+    ]
     last_error: Exception | None = None
     for attempt in range(max_retries):
         result = await sandbox().exec(
@@ -155,6 +172,7 @@ async def _mcp_http_request_with_retry(
                 "POST",
                 "-H",
                 "Content-Type: application/json",
+                *header_args,
                 "-d",
                 request,
                 url,
@@ -652,6 +670,142 @@ def test_sandbox_bridge_rejection_hides_the_call_from_the_agent() -> None:
     assert log.samples is not None
     approvals = [e for e in log.samples[0].events if e.event == "approval"]
     assert [(e.decision, e.call.function) for e in approvals] == [("reject", "bash")]
+
+
+@skip_if_no_docker
+@pytest.mark.slow
+def test_sandbox_bridge_redirects_unknown_model_to_eval_model() -> None:
+    """A model name the eval did not configure is served by the eval's model.
+
+    Full round trip through the in-container proxy; the requested name is
+    recorded on the model event.
+    """
+    seen: list[dict] = []
+
+    @solver
+    def test_solver():
+        async def solve(state, generate):
+            async with sandbox_agent_bridge(state) as bridge:
+                seen.append(
+                    await post_completions(
+                        bridge.port,
+                        {
+                            "model": "claude-haiku-4-5",
+                            "messages": [{"role": "user", "content": "Hello"}],
+                        },
+                    )
+                )
+            return state
+
+        return solve
+
+    log = eval(
+        bridged_tools_task(test_solver()),
+        model=get_model(
+            "mockllm/model",
+            custom_outputs=[
+                ModelOutput.from_content(model="mockllm/model", content="hi there")
+            ],
+        ),
+    )[0]
+    assert log.status == "success"
+
+    assert seen[0]["model"] == "model"
+    assert seen[0]["choices"][0]["message"]["content"] == "hi there"
+
+    assert log.samples is not None
+    events = [e for e in log.samples[0].events if isinstance(e, ModelEvent)]
+    assert [(e.model, e.requested_model) for e in events] == [
+        ("mockllm/model", "claude-haiku-4-5")
+    ]
+
+
+@skip_if_no_docker
+@pytest.mark.slow
+def test_sandbox_bridge_forwards_allowed_betas_and_decodes_brotli() -> None:
+    """Client headers reach the provider through the in-container proxy.
+
+    Full round trip: sandbox HTTP (Anthropic dialect) -> model proxy -> sandbox
+    service RPC -> header filter -> Anthropic provider. The provider answers
+    brotli-encoded, as Anthropic does once `br` is forwarded.
+    """
+    import importlib
+
+    import httpx2
+
+    try:
+        brotli = importlib.import_module("brotli")
+    except ImportError:
+        brotli = importlib.import_module("brotlicffi")
+
+    provider_requests: list[httpx2.Request] = []
+    message = {
+        "id": "msg_1",
+        "type": "message",
+        "role": "assistant",
+        "model": "claude-sonnet-4-5",
+        "content": [{"type": "text", "text": "decoded"}],
+        "stop_reason": "end_turn",
+        "stop_sequence": None,
+        "usage": {"input_tokens": 3, "output_tokens": 1},
+    }
+
+    def handler(request: httpx2.Request) -> httpx2.Response:
+        provider_requests.append(request)
+        return httpx2.Response(
+            200,
+            content=brotli.compress(json.dumps(message).encode()),
+            headers={"content-encoding": "br", "content-type": "application/json"},
+        )
+
+    target_model = get_model(
+        "anthropic/claude-sonnet-4-5",
+        api_key="local-fake-key",
+        memoize=False,
+        streaming=False,
+        config=GenerateConfig(max_tokens=64),
+        http_client=httpx2.AsyncClient(transport=httpx2.MockTransport(handler)),
+    )
+    seen: list[dict] = []
+
+    @solver
+    def test_solver():
+        async def solve(state, generate):
+            async with sandbox_agent_bridge(
+                state,
+                model_aliases={"agent-model": target_model},
+                forward_client_headers={"anthropic-beta": ["allowed-beta-2026-01-01"]},
+            ) as bridge:
+                seen.append(
+                    await _mcp_http_request_with_retry(
+                        f"http://localhost:{bridge.port}/v1/messages",
+                        json.dumps(
+                            {
+                                "model": "agent-model",
+                                "max_tokens": 64,
+                                "messages": [{"role": "user", "content": "hi"}],
+                            }
+                        ),
+                        headers={
+                            "anthropic-beta": (
+                                "allowed-beta-2026-01-01,unlisted-beta-2026-01-01"
+                            ),
+                            "Accept-Encoding": "br",
+                            "OpenAI-Organization": "org-sandbox",
+                        },
+                    )
+                )
+            return state
+
+        return solve
+
+    eval_bridged_tools_task(test_solver())
+
+    assert seen[0]["content"][0]["text"] == "decoded"
+    [request] = provider_requests
+    assert request.headers["anthropic-beta"] == "allowed-beta-2026-01-01"
+    assert request.headers["accept-encoding"] == "br"
+    assert "openai-organization" not in request.headers
 
 
 # =============================================================================
@@ -1181,3 +1335,148 @@ def test_sandbox_bridge_host_tool_error_does_not_end_the_sample() -> None:
         return solve
 
     eval_bridged_tools_task(test_solver())
+
+
+# =============================================================================
+# Output limits
+# =============================================================================
+#
+# A bridged tool's text result is truncated to the limit and in the format a
+# native call gets (`truncate_tool_output`): the tool's own `max_output`, else
+# `max_tool_output` from the active generate config, else 16 KiB.
+
+
+@tool
+def long_output_tool():
+    async def execute(size: int) -> str:
+        """Return `size` bytes of text.
+
+        Args:
+            size: Number of bytes to return.
+        """
+        return "x" * size
+
+    return execute
+
+
+@tool(max_output=8)
+def capped_output_tool():
+    async def execute(size: int) -> str:
+        """Return `size` bytes of text, with an 8 byte output limit.
+
+        Args:
+            size: Number of bytes to return.
+        """
+        return "x" * size
+
+    return execute
+
+
+@tool
+def long_structured_tool():
+    async def execute(size: int) -> dict[str, str]:
+        """Return a structured result holding `size` bytes of text.
+
+        Args:
+            size: Number of bytes of text.
+        """
+        return {"data": "x" * size}
+
+    return execute
+
+
+@tool
+def long_content_tool():
+    async def execute(size: int) -> list[ContentText]:
+        """Return `size` bytes of text as content.
+
+        Args:
+            size: Number of bytes of text.
+        """
+        return [ContentText(text="x" * size)]
+
+    return execute
+
+
+@contextmanager
+def max_tool_output(limit: int | None) -> Iterator[None]:
+    """Set `max_tool_output` in the active generate config."""
+    token = active_generate_config_context_var.set(
+        GenerateConfig(max_tool_output=limit)
+    )
+    try:
+        yield
+    finally:
+        active_generate_config_context_var.reset(token)
+
+
+async def test_bridged_tool_result_over_default_limit_is_truncated() -> None:
+    bridge = _bridge_with_tools([long_output_tool()])
+    text = "x" * (20 * 1024)
+
+    result = await call_tool(bridge)("srv", "long_output_tool", {"size": len(text)})
+
+    expected = truncate_tool_output("long_output_tool", text, None)
+    assert expected is not None
+    assert result == expected.output
+    assert isinstance(result, str)
+    assert result.startswith(
+        "\nThe output of your call to long_output_tool was too long"
+    )
+    assert "x" * (16 * 1024) in result
+    assert "x" * (16 * 1024 + 1) not in result
+
+
+async def test_bridged_tool_result_follows_max_tool_output() -> None:
+    bridge = _bridge_with_tools([long_output_tool()])
+
+    with max_tool_output(10):
+        result = await call_tool(bridge)("srv", "long_output_tool", {"size": 50})
+        expected = truncate_tool_output("long_output_tool", "x" * 50, None)
+
+    assert expected is not None
+    assert result == expected.output
+    assert "\n" + "x" * 10 + "\n" in expected.output
+
+
+async def test_bridged_tool_result_within_limit_is_unchanged() -> None:
+    bridge = _bridge_with_tools([long_output_tool()])
+
+    with max_tool_output(10):
+        result = await call_tool(bridge)("srv", "long_output_tool", {"size": 10})
+
+    assert result == "x" * 10
+
+
+async def test_bridged_tool_max_output_wins_over_max_tool_output() -> None:
+    bridge = _bridge_with_tools([capped_output_tool()])
+
+    with max_tool_output(1000):
+        result = await call_tool(bridge)("srv", "capped_output_tool", {"size": 50})
+
+    expected = truncate_tool_output("capped_output_tool", "x" * 50, 8)
+    assert expected is not None
+    assert result == expected.output
+
+
+async def test_bridged_tool_structured_result_is_truncated_as_json() -> None:
+    bridge = _bridge_with_tools([long_structured_tool()])
+
+    with max_tool_output(10):
+        result = await call_tool(bridge)("srv", "long_structured_tool", {"size": 50})
+        expected = truncate_tool_output(
+            "long_structured_tool", to_json_str_safe({"data": "x" * 50}), None
+        )
+
+    assert expected is not None
+    assert result == expected.output
+
+
+async def test_bridged_tool_content_result_is_not_truncated() -> None:
+    """Content results aren't truncated natively, so neither are they here."""
+    bridge = _bridge_with_tools([long_content_tool()])
+
+    with max_tool_output(10):
+        result = await call_tool(bridge)("srv", "long_content_tool", {"size": 50})
+
+    assert result == to_json_str_safe([ContentText(text="x" * 50)])

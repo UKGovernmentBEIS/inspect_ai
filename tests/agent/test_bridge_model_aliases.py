@@ -2,7 +2,7 @@
 
 import pytest
 
-from inspect_ai.agent._bridge.util import resolve_inspect_model
+from inspect_ai.agent._bridge.util import resolve_bridge_model, resolve_inspect_model
 from inspect_ai.model._model import Model, get_model
 
 
@@ -12,8 +12,21 @@ def test_resolve_inspect_model_bare_inspect(monkeypatch: pytest.MonkeyPatch) -> 
     assert str(model) == "mockllm/default"
 
 
-def test_resolve_inspect_model_prefixed() -> None:
+def test_resolve_inspect_model_prefixed(monkeypatch: pytest.MonkeyPatch) -> None:
+    # a sandbox bridge serves an unrecognised name with the eval's model
+    monkeypatch.setenv("INSPECT_EVAL_MODEL", "mockllm/default")
     model = resolve_inspect_model("inspect/mockllm/model")
+    assert str(model) == "mockllm/default"
+
+
+def test_resolve_bridge_model_prefixed_in_process() -> None:
+    model = resolve_bridge_model(
+        "inspect/mockllm/model",
+        model_aliases=None,
+        model_resolver=None,
+        model=None,
+        allow_client_model_names=True,
+    ).model
     assert str(model) == "mockllm/model"
 
 

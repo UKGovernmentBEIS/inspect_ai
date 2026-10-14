@@ -1,10 +1,13 @@
 import base64
 import json
+from contextlib import nullcontext
+from pathlib import Path
 
 import httpx2
 import openai
 import pytest
 from openai import DefaultAsyncHttpxClient
+from test_helpers.output_cache import check_output_cache_round_trip
 from test_helpers.utils import skip_if_no_openai, skip_if_no_openai_model
 
 from inspect_ai import Task, eval
@@ -100,6 +103,13 @@ async def test_openai_api() -> None:
     message = ChatMessageUser(content="This is a test string. What are you?")
     response = await model.generate(input=[message])
     assert len(response.completion) >= 1
+
+
+@skip_if_no_openai
+async def test_openai_output_cache(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    await check_output_cache_round_trip("openai/gpt-4o-mini", monkeypatch, tmp_path)
 
 
 @skip_if_no_openai
@@ -295,7 +305,7 @@ async def test_chat_completions_forwards_config_extra_headers():
     client.chat.completions.create = AsyncMock(return_value=mock_completion)
 
     http_hooks = MagicMock(spec=HttpxHooks)
-    http_hooks.start_request = MagicMock(return_value="req_1")
+    http_hooks.request = MagicMock(return_value=nullcontext("req_1"))
     http_hooks.end_request = MagicMock(return_value=None)
 
     openai_api = MagicMock()
@@ -365,6 +375,83 @@ def test_openai_resolve_streaming_declines_azure_chat_completions() -> None:
         )
     # without an on_stream callback, auto never streams
     assert api("openai/gpt-4o")._resolve_streaming(use_responses=False) is False
+
+
+async def test_azure_usage_priced_by_served_model() -> None:
+    """An Azure deployment is priced by the model the response says served it."""
+    from inspect_ai.model import ModelCost, set_model_cost
+    from inspect_ai.model._model_info import clear_model_info_cache
+
+    async def handler(request: httpx2.Request) -> httpx2.Response:
+        return httpx2.Response(
+            200,
+            json={
+                "id": "chatcmpl-test",
+                "object": "chat.completion",
+                "created": 0,
+                "model": "gpt-4o-mini-2024-07-18",
+                "choices": [
+                    {
+                        "index": 0,
+                        "message": {"role": "assistant", "content": "Hello"},
+                        "finish_reason": "stop",
+                    }
+                ],
+                "usage": {
+                    "prompt_tokens": 3,
+                    "completion_tokens": 4,
+                    "total_tokens": 7,
+                },
+            },
+            request=request,
+        )
+
+    def cost(rate: float) -> ModelCost:
+        return ModelCost(
+            input=rate, output=rate, input_cache_write=rate, input_cache_read=rate
+        )
+
+    # the deployment is named for one model but serves another
+    set_model_cost("openai/azure/gpt-4o", cost(1000.0))
+    set_model_cost("openai/gpt-4o-mini-2024-07-18", cost(100.0))
+    try:
+        http_client = DefaultAsyncHttpxClient(transport=httpx2.MockTransport(handler))
+        async with get_model(
+            "openai/azure/gpt-4o",
+            api_key="test",
+            base_url="https://test.openai.azure.com",
+            http_client=http_client,
+            responses_api=False,
+            memoize=False,
+        ) as model:
+            output = await model.generate("hello")
+        assert output.model == "gpt-4o-mini-2024-07-18"
+        assert output.usage is not None
+        # 7 tokens at the served model's $100/M, not the deployment's $1000/M
+        assert output.usage.total_cost == pytest.approx(0.0007)
+    finally:
+        clear_model_info_cache()
+
+
+def test_served_model_usage_azure_only() -> None:
+    from inspect_ai.model import ModelOutput, ModelUsage, ServedModelUsage
+    from inspect_ai.model._providers.openai import OpenAIAPI
+
+    usage = ModelUsage(input_tokens=3, output_tokens=4, total_tokens=7)
+
+    def served(model_name: str, output_model: str) -> object:
+        api = OpenAIAPI(
+            model_name=model_name,
+            base_url="https://test.openai.azure.com",
+            api_key="test-key",
+        )
+        return api.served_model_usage(ModelOutput(model=output_model, usage=usage))
+
+    assert served("azure/my-deployment", "gpt-4o-mini-2024-07-18") == [
+        ServedModelUsage("openai/gpt-4o-mini-2024-07-18", usage)
+    ]
+    assert served("azure/gpt-4o", "gpt-4o") is None
+    assert served("gpt-4o", "gpt-4o-2024-08-06") is None
 
 
 def test_openai_streaming_model_arg_normalized() -> None:
@@ -547,7 +634,7 @@ async def test_chat_completions_streaming_with_non_strict_tools():
     client.chat.completions.create = AsyncMock(return_value=_FakeChunkStream())
 
     http_hooks = MagicMock(spec=HttpxHooks)
-    http_hooks.start_request = MagicMock(return_value="req_1")
+    http_hooks.request = MagicMock(return_value=nullcontext("req_1"))
     http_hooks.end_request = MagicMock(return_value=None)
 
     openai_api = MagicMock()
@@ -632,7 +719,7 @@ async def test_chat_completions_streaming_converts_mid_stream_safeguard_block() 
     client.chat.completions.create = AsyncMock(return_value=_FakeStream())
 
     http_hooks = MagicMock(spec=HttpxHooks)
-    http_hooks.start_request = MagicMock(return_value="req_1")
+    http_hooks.request = MagicMock(return_value=nullcontext("req_1"))
     http_hooks.end_request = MagicMock(return_value=None)
 
     openai_api = MagicMock()
