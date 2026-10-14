@@ -63,12 +63,14 @@ from inspect_ai._control.log_dir.walk import walk_log_dir
 from inspect_ai._control.state import _iso_to_timestamp
 from inspect_ai._util.async_zip import AsyncZipReader, ZipCrcError
 from inspect_ai._util.asyncfiles import AsyncFilesystem, FileContent
+from inspect_ai._util.file import local_path
 from inspect_ai.dataset import Sample
 from inspect_ai.event import InfoEvent, ModelEvent
 from inspect_ai.log import (
     EvalLog,
     EvalSample,
     EvalSpec,
+    list_eval_logs,
     read_eval_log_async,
     write_eval_log_async,
 )
@@ -88,6 +90,7 @@ from inspect_ai.log._recorders.buffer.types import (
     SampleData,
 )
 from inspect_ai.log._recorders.eval import EvalRecorder
+from inspect_ai.log._shards._walk import is_shard_path
 from inspect_ai.model import GenerateConfig
 from inspect_ai.scorer import match
 from inspect_ai.solver import Generate, Solver, TaskState, generate, solver
@@ -2146,11 +2149,16 @@ async def _shard_set(
 
 
 async def _merged(
-    root: Path, source: EvalLog, *, suffix: str = "", name: str = _SET_NAME
+    root: Path,
+    source: EvalLog,
+    *,
+    suffix: str = "",
+    name: str = _SET_NAME,
+    task_id: str | None = None,
 ) -> Path:
     """The merged log beside the companion (``suffix`` ``-recovered`` for a recovered one)."""
     log = source.model_copy(deep=True)
-    task_id = name.rsplit("_", 1)[-1]
+    task_id = task_id or name.rsplit("_", 1)[-1]
     log.eval = log.eval.model_copy(
         update={"task_id": task_id, "eval_id": "MERGEDEVAL000000000000", "run_id": "R"}
     )
@@ -2290,14 +2298,105 @@ async def test_an_unreadable_ordinary_retry_of_a_shard_set_blocks_sample_reads(
             assert raised.value.location == str(retry)
 
 
+async def test_a_shard_set_is_keyed_by_its_merged_logs_task_id(
+    tmp_path: Path, finished_log: EvalLog
+) -> None:
+    # a file name pattern without {id}: the merge's task_id is not in the name
+    name = "2026-02-01T00-00-00+00-00_alpha"
+    minted = "MINTEDTASKID0000000000"
+    companion = await _shard_set(tmp_path, finished_log, {"0": [1]}, name=name)
+    await _merged(tmp_path, finished_log, name=name, task_id=minted)
+    _, [row] = await _index(tmp_path)
+    assert row["task_id"] == minted and row["current_attempt"] == "shards"
+
+    # an eval_set() retry inherits the merged log's task_id and folds with it
+    retry = finished_log.model_copy(deep=True)
+    retry.eval = retry.eval.model_copy(update={"task_id": minted})
+    retry_log = await _attempt(retry, tmp_path, "2026-03-01T00-00-00+00-00")
+    _, [row] = await _index(tmp_path)
+    assert row["current_attempt"] == "log" and row["attempts"] == 2
+    assert row["log_location"] == str(retry_log)
+    assert row["log_target"] == f"shards:{companion.name}"
+
+
+async def test_an_unreadable_merged_log_of_a_superseded_shard_set_is_reported(
+    tmp_path: Path, finished_log: EvalLog
+) -> None:
+    await _shard_set(tmp_path, finished_log, {"0": [1]})
+    merged = tmp_path / f"{_SET_NAME}.eval"
+    merged.write_bytes(b"not a zip")
+    retry = finished_log.model_copy(deep=True)
+    retry.eval = retry.eval.model_copy(update={"task_id": _SET_ID})
+    await _attempt(retry, tmp_path, "2026-03-01T00-00-00+00-00")
+    _, [row] = await _index(tmp_path)
+    # keyed by its name, it still folds with the retry
+    assert row["current_attempt"] == "log" and row["attempts"] == 2
+    assert row["shards"] is None and row["incomplete"] is True
+    assert [u["log_location"] for u in row["unreadable"]] == [str(merged)]
+
+
+async def test_a_shard_directory_with_no_attempt_is_not_a_shard(
+    tmp_path: Path, finished_log: EvalLog
+) -> None:
+    companion = tmp_path / f"{_SET_NAME}.shards"
+    # attempt-less directories that sort before the shards
+    (companion / "0" / "scans").mkdir(parents=True)
+    (companion / "0" / "scans" / "notes.txt").write_text("x")
+    (companion / "1" / ".buffer" / "stem").mkdir(parents=True)
+    (companion / "1" / ".buffer" / "stem" / "segment.0.zip").write_bytes(b"x")
+    await _shard(finished_log, companion, "2", [1], model="mockllm/first")
+    await _shard(finished_log, companion, "3", [2])
+    _, [row] = await _index(tmp_path)
+    # the first shard is the first directory with an attempt
+    assert row["task_id"] == _SET_ID and row["model"] == "mockllm/first"
+    assert row["shards"]["total"] == 2 and row["shards"]["mismatched"] == 1
+    assert row["samples"]["total"] == 2 and row["incomplete"] is False
+
+
+@pytest.mark.parametrize("root", ["dir", "companion", "shard"])
+async def test_the_walk_agrees_with_eval_set_on_shard_paths(
+    tmp_path: Path, finished_log: EvalLog, root: str
+) -> None:
+    companion = await _shard_set(tmp_path, finished_log, {"0": [1], "1": [2]})
+    await _merged(tmp_path, finished_log)
+    log_name = Path(finished_log.location).name
+    for directory in ("0/scans", ".hidden", ".hidden/sub"):
+        (companion / directory).mkdir(parents=True, exist_ok=True)
+        shutil.copy(finished_log.location, companion / directory / log_name)
+    nested = companion / "1" / "scans" / "n.shards"
+    await _shard(finished_log, nested, "0", [3])
+
+    base = {"dir": tmp_path, "companion": companion, "shard": companion / "0"}[root]
+    async with AsyncFilesystem() as fs:
+        listing = await walk_log_dir(fs, str(base))
+    shard_files = {
+        *(m.location for s in listing.shard_sets for m in s.members),
+        *(x.path for s in listing.shard_sets for x in s.stray),
+        *(x.path for x in listing.stray),
+    }
+    ordinary = {
+        *(f.location for f in listing.eval_files),
+        *(s.merged.location for s in listing.shard_sets if s.merged),
+    }
+    logs = {local_path(i.name) for i in list_eval_logs(str(base), formats=["eval"])}
+    assert shard_files | ordinary == logs and not shard_files & ordinary
+    assert shard_files == {log for log in logs if is_shard_path(str(base), log)}
+    sets = {Path(s.location) for s in listing.shard_sets}
+    assert sets == {"dir": {companion}, "companion": {nested}, "shard": set()}[root]
+
+
 async def test_a_merged_log_without_its_companion_is_an_ordinary_row(
     tmp_path: Path, finished_log: EvalLog
 ) -> None:
     merged = await _merged(tmp_path, finished_log)
-    # a companion with no shard attempt is not a shard set
-    (tmp_path / f"{_SET_NAME}.shards" / "0").mkdir(parents=True)
+    # a companion with no shard attempt is not a shard set: here what a shard
+    # deletion that keeps checkpoints leaves
+    checkpoint = tmp_path / f"{_SET_NAME}.shards" / "0" / "run.checkpoints" / "1"
+    checkpoint.parent.mkdir(parents=True)
+    checkpoint.write_bytes(b"checkpoint")
     _, [row] = await _index(tmp_path)
     assert row["current_attempt"] == "log" and row["shards"] is None
+    assert row["unreadable"] == [] and checkpoint.read_bytes() == b"checkpoint"
     assert row["log_location"] == str(merged)
     assert row["log_target"] == f"log:{_SET_ID}"
 

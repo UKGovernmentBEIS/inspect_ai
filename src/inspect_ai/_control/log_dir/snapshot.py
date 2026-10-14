@@ -348,28 +348,45 @@ async def _add_shard_sets(
 ) -> None:
     """Add each shard set to its task as the oldest attempt.
 
-    A task id has at most one shard set, the first by path; a second is
-    listed in the task's ``stray``. A shard set's members and merged log are
-    read only when it is current: an unsharded attempt with its task id is
-    current over it whatever the order.
+    A shard set's task id is its merged log's ``task_id``, so every merged
+    log is read first; without a readable merged log it is the id parsed
+    from ``<name>`` (:func:`_set_key`). A task id has at most one shard
+    set, the first by path; a second is listed in the task's ``stray``.
+    A shard set's members are read only when it is current: an unsharded
+    attempt with its task id is current over it whatever the order.
     """
+    merged_files = [s.merged for s in shard_sets if s.merged is not None]
+    merged = dict(
+        zip(
+            (f.location for f in merged_files),
+            await tg_collect(
+                [functools.partial(plan_or_failure, f) for f in merged_files]
+            ),
+        )
+    )
+
+    def run_of(shard_set: ShardSetFiles) -> LogPlan | Unreadable | None:
+        return merged[shard_set.merged.location] if shard_set.merged else None
+
+    def key_of(shard_set: ShardSetFiles) -> str:
+        run = run_of(shard_set)
+        if isinstance(run, LogPlan) and run.header.eval.task_id:
+            return run.header.eval.task_id
+        return _set_key(shard_set.location)
+
     first: dict[str, ShardSetFiles] = {}
     for shard_set in shard_sets:
-        first.setdefault(_set_key(shard_set.location), shard_set)
+        first.setdefault(key_of(shard_set), shard_set)
     current = {key: s for key, s in first.items() if key not in tasks}
-    files = [
-        f
-        for s in current.values()
-        for f in [*s.members, *([s.merged] if s.merged else [])]
-    ]
+    members = [f for s in current.values() for f in s.members]
     results = dict(
         zip(
-            (f.location for f in files),
-            await tg_collect([functools.partial(plan_or_failure, f) for f in files]),
+            (f.location for f in members),
+            await tg_collect([functools.partial(plan_or_failure, f) for f in members]),
         )
     )
     for shard_set in shard_sets:
-        key = _set_key(shard_set.location)
+        key = key_of(shard_set)
         task = tasks.setdefault(key, LogicalTask(key=key, attempts=[]))
         if first[key] is not shard_set:
             reason = (
@@ -378,20 +395,21 @@ async def _add_shard_sets(
             )
             task.stray.append(_stray(StrayFile(shard_set.location, reason)))
             continue
+        run = run_of(shard_set)
+        if isinstance(run, Unreadable):
+            task.stray.append(run)
+            run = None
         task.stray.extend(_stray(s) for s in shard_set.stray)
         if key not in current:
             task.attempts.insert(0, Attempt([], shard_set.location, None, shard_set))
             continue
-        merged = results[shard_set.merged.location] if shard_set.merged else None
-        if isinstance(merged, Unreadable):
-            task.stray.insert(0, merged)
         task.attempts.append(
             Attempt(
                 members=[_member(f, results[f.location]) for f in shard_set.members],
                 location=shard_set.merged.location
                 if shard_set.merged
                 else shard_set.location,
-                run=None if isinstance(merged, Unreadable) else merged,
+                run=run,
                 shard_set=shard_set,
             )
         )
@@ -420,7 +438,12 @@ def _stray(stray: StrayFile) -> Unreadable:
 
 
 def _set_key(companion: str) -> str:
-    """A shard set's task id: ``{id}`` parsed from ``<name>``, else ``<name>``."""
+    """The task id of a shard set with no readable merged log.
+
+    ``{id}`` parsed from ``<name>``, else ``<name>``: the merged log's
+    ``task_id`` under a file name pattern with ``{id}``. The shared
+    ``merged_log_task_id`` (sharding implementation PR 5) replaces this.
+    """
     _, task_id = _file_identity(companion)
     return task_id or basename(companion).rsplit(".", 1)[0]
 
