@@ -1,5 +1,5 @@
 from collections import Counter
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Sequence
 from copy import copy
 from logging import getLogger
 from typing import Any, Literal, TypeGuard, cast
@@ -13,7 +13,6 @@ from inspect_sentinel import (
     Context,
     Decision,
     EvalContext,
-    Excerpt,
     Failed,
     HumanAnswer,
     Observation,
@@ -22,9 +21,9 @@ from inspect_sentinel import (
     Step,
 )
 from inspect_sentinel._integration import (
+    Host,
     HostContext,
     run_sentinel,
-    score_step,
     watched_stages,
 )
 
@@ -283,7 +282,7 @@ _model_inputs: "WeakKeyDictionary[Transcript, Counter[str]]" = WeakKeyDictionary
 
 def _host_context(step_id: str) -> HostContext:
     return HostContext(
-        context=Context(path="", host=_Host(), eval=_eval_context()),
+        context=Context(path="", host=Host(_Host(_eval_context()))),
         recorder=_Recorder(step_id),
         store=store(),
     )
@@ -353,6 +352,9 @@ def _produced_by(message_id: str) -> Callable[[Event], TypeGuard[ModelEvent]]:
 
 
 class _Host:
+    def __init__(self, eval: EvalContext | None) -> None:
+        self.eval = eval
+
     async def generate(
         self,
         input: str | list[ChatMessage],
@@ -363,40 +365,39 @@ class _Host:
         tool_choice: ToolChoice | None = None,
         config: GenerateConfig | None = None,
     ) -> ModelOutput:
-        return await _monitor_model("generate", model, role).generate(
+        if isinstance(cast(object, model), Model):
+            raise TypeError(
+                "Host.generate() takes a model name, not a Model. "
+                "Configure the Model for a role with Task(model_roles={'<role>': model}) "
+                "or --model-role, and pass role='<role>'."
+            )
+        if model == "":
+            raise ValueError(
+                "Host.generate() model must be a model name, not an empty string. "
+                "Pass None to use a role."
+            )
+        if role == "":
+            raise ValueError(
+                "Host.generate() role must be a model role, not an empty string. "
+                "Pass None for the 'monitor' role."
+            )
+        if model is not None and role is None:
+            resolved = copy(get_model(model))
+            resolved._set_role("sentinel")
+        else:
+            role = role or "monitor"
+            if model is None and role not in model_roles():
+                warn_once(
+                    logger,
+                    f"No model is configured for the sentinel role '{role}', so monitor calls use the agent's own model. "
+                    f"Set one with Task(model_roles={{'{role}': ...}}) or --model-role {role}=<model>.",
+                )
+            resolved = get_model(model, role=role, default=active_model())
+        return await resolved.generate(
             input,
             tools=tools or [],
             tool_choice=tool_choice,
             config=config or GenerateConfig(),
-        )
-
-    async def score(
-        self,
-        step: Step | Excerpt[Step],
-        dimensions: str | Mapping[str, str],
-        *,
-        instructions: str | None = None,
-        policy: str | None = None,
-        template: str | None = None,
-        template_variables: Mapping[str, Any] | None = None,
-        model: str | None = None,
-        role: str | None = None,
-        config: GenerateConfig | None = None,
-        retry_refusals: int = 3,
-    ) -> Observation:
-        return await score_step(
-            self,
-            step,
-            dimensions,
-            eval=_eval_context(),
-            instructions=instructions,
-            policy=policy,
-            template=template,
-            template_variables=template_variables,
-            model=model,
-            role=role,
-            config=config,
-            retry_refusals=retry_refusals,
         )
 
     async def ask_human(self, step: Step, choices: Sequence[str]) -> HumanAnswer:
@@ -433,37 +434,6 @@ class _Host:
 
 
 _HUMAN_CHOICES = ("approve", "reject", "terminate")
-
-
-def _monitor_model(method: str, model: str | None, role: str | None) -> Model:
-    if isinstance(cast(object, model), Model):
-        raise TypeError(
-            f"Host.{method}() takes a model name, not a Model. "
-            "Configure the Model for a role with Task(model_roles={'<role>': model}) "
-            "or --model-role, and pass role='<role>'."
-        )
-    if model == "":
-        raise ValueError(
-            f"Host.{method}() model must be a model name, not an empty string. "
-            "Pass None to use a role."
-        )
-    if role == "":
-        raise ValueError(
-            f"Host.{method}() role must be a model role, not an empty string. "
-            "Pass None for the 'monitor' role."
-        )
-    if model is not None and role is None:
-        resolved = copy(get_model(model))
-        resolved._set_role("sentinel")
-        return resolved
-    role = role or "monitor"
-    if model is None and role not in model_roles():
-        warn_once(
-            logger,
-            f"No model is configured for the sentinel role '{role}', so monitor calls use the agent's own model. "
-            f"Set one with Task(model_roles={{'{role}': ...}}) or --model-role {role}=<model>.",
-        )
-    return get_model(model, role=role, default=active_model())
 
 
 def _human_view(step: BeforeToolCall | AfterToolCall) -> ToolCallView:

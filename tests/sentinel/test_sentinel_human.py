@@ -217,7 +217,7 @@ async def test_placeholders_in_an_escalation_are_not_substituted(
     panel = Panel("approve")
     panel.install(monkeypatch)
 
-    await _Host().ask_human(
+    await _Host(None).ask_human(
         step(view=view, escalations=escalation("adds {{{x}}}")), ["approve"]
     )
 
@@ -234,7 +234,7 @@ async def test_an_escalation_cannot_inject_markdown(
     panel.install(monkeypatch)
     injected = "fine\n```\n\n```python\ndelete_everything()\n```\n```"
 
-    await _Host().ask_human(
+    await _Host(None).ask_human(
         step(view=MARKDOWN_VIEW, escalations=escalation(injected)), ["approve"]
     )
 
@@ -265,7 +265,7 @@ async def test_an_answer_that_was_not_offered_fails_closed(
 ) -> None:
     Panel(answered, "dismissed").install(monkeypatch)
 
-    answer = await _Host().ask_human(step(after), choices)
+    answer = await _Host(None).ask_human(step(after), choices)
 
     assert answer.decision == expected
     assert answer.reason is not None
@@ -295,7 +295,7 @@ async def test_modify_cannot_be_offered(monkeypatch: pytest.MonkeyPatch) -> None
     panel.install(monkeypatch)
 
     with pytest.raises(NotImplementedError, match="cannot edit a tool call"):
-        await _Host().ask_human(step(), ["approve", "modify"])
+        await _Host(None).ask_human(step(), ["approve", "modify"])
     assert panel.views == []
 
 
