@@ -1,5 +1,4 @@
 import json
-import sys
 from enum import auto
 
 from inspect_ai.util import StrEnum
@@ -37,7 +36,6 @@ def test_rejects_non_str_value() -> None:
 
 
 def test_is_stdlib_on_311() -> None:
-    if sys.version_info >= (3, 11):
-        import enum
+    import enum
 
-        assert StrEnum is enum.StrEnum
+    assert StrEnum is enum.StrEnum
