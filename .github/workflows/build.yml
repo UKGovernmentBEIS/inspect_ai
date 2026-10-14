@@ -20,7 +20,8 @@ permissions:
   contents: read
 
 env:
-  UV_VERSION: 0.9.4
+  # 0.13.0 is the first uv that installs CPython 3.15.0 (older uv picks 3.15.0a1).
+  UV_VERSION: 0.13.0
 
 jobs:
   # Keep these check names present on Markdown-only PRs while avoiding source
