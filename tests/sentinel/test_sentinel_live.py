@@ -36,11 +36,11 @@ try:
         BeforeToolCall,
         Context,
         Decision,
+        Escalations,
         Monitor,
         MonitorGroup,
         Observation,
         Protocol,
-        Reported,
         human,
         monitor,
         observe_only,
@@ -100,7 +100,7 @@ def e2e_protect_etc() -> Protocol:
     async def check(
         context: Context,
         step: BeforeToolCall,
-        escalations: tuple[Reported[Decision], ...],
+        escalations: Escalations,
     ) -> Decision | None:
         if str(step.call.arguments.get("path", "")).startswith("/etc"):
             return Decision.reject(
@@ -116,7 +116,7 @@ def e2e_escalate_deletes() -> Protocol:
     async def check(
         context: Context,
         step: BeforeToolCall,
-        escalations: tuple[Reported[Decision], ...],
+        escalations: Escalations,
     ) -> Decision | None:
         if step.call.function == "delete_file":
             return Decision.escalate("deletes a file")

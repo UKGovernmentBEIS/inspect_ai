@@ -13,6 +13,7 @@ from inspect_sentinel import (
     BeforeToolCall,
     Context,
     Decision,
+    Escalations,
     EvalContext,
     Failed,
     HumanAnswer,
@@ -410,7 +411,7 @@ class _Host:
     async def ask_human(
         self,
         step: Step,
-        escalations: tuple[Reported[Decision], ...],
+        escalations: Escalations,
         choices: Sequence[str],
     ) -> HumanAnswer:
         if isinstance(step, BeforeGenerate):
@@ -469,7 +470,7 @@ _HUMAN_CHOICES = ("approve", "reject", "terminate")
 
 
 def _human_view(
-    step: BeforeToolCall | AfterToolCall, escalations: tuple[Reported[Decision], ...]
+    step: BeforeToolCall | AfterToolCall, escalations: Escalations
 ) -> ToolCallView:
     view = step.view
     if escalations:
@@ -495,7 +496,7 @@ def _human_view(
     return view
 
 
-def _escalation_lines(escalations: tuple[Reported[Decision], ...]) -> str:
+def _escalation_lines(escalations: Escalations) -> str:
     return escape_placeholders(
         "\n".join(
             f"- {e.name}: {e.report.explanation}"
@@ -509,7 +510,7 @@ def _escalation_lines(escalations: tuple[Reported[Decision], ...]) -> str:
 async def _ask_about_turn(
     approve: Approver,
     step: AfterGenerate,
-    escalations: tuple[Reported[Decision], ...],
+    escalations: Escalations,
     offered: list[ApprovalDecision],
     conversation: list[ChatMessage],
 ) -> Approval:
@@ -536,9 +537,7 @@ class _Prompt(NamedTuple):
     view: ToolCallView
 
 
-def _turn_prompt(
-    step: AfterGenerate, escalations: tuple[Reported[Decision], ...]
-) -> _Prompt:
+def _turn_prompt(step: AfterGenerate, escalations: Escalations) -> _Prompt:
     """The assistant turn as one prompt for the human approval surfaces.
 
     The surfaces show one tool call, so the turn becomes a single view: the

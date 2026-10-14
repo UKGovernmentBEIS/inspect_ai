@@ -35,7 +35,7 @@ from inspect_ai.approval._human.manager import (
 )
 from inspect_ai.approval._human.util import render_tool_approval
 from inspect_ai.dataset import Sample
-from inspect_ai.event import ToolEvent
+from inspect_ai.event import SentinelEvent, ToolEvent
 from inspect_ai.log import EvalLog
 from inspect_ai.model import (
     ChatCompletionChoice,
@@ -61,6 +61,7 @@ try:
         BeforeToolCall,
         Context,
         Decision,
+        Escalations,
         Protocol,
         Reported,
         human,
@@ -111,7 +112,7 @@ def h_escalate_turn() -> Protocol:
     async def unsure(
         context: Context,
         step: AfterGenerate,
-        escalations: tuple[Reported[Decision], ...],
+        escalations: Escalations,
     ) -> Decision | None:
         if step.output.message.tool_calls:
             return Decision.escalate("two calls together, {{x}}")
@@ -125,7 +126,7 @@ def h_escalate() -> Protocol:
     async def unsure(
         context: Context,
         step: BeforeToolCall,
-        escalations: tuple[Reported[Decision], ...],
+        escalations: Escalations,
     ) -> Decision | None:
         return Decision.escalate("adds {{x}} suspiciously")
 
@@ -219,6 +220,24 @@ def test_an_escalation_asks_the_person_and_approve_runs_the_call(
     assert message.text == "2"
 
 
+def test_an_approval_records_the_persons_reason(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    Panel("approve", "addition is expected here").install(monkeypatch)
+
+    log = run(escalated_to_human())
+
+    assert log.status == "success", log.error
+    assert log.samples
+    [approval] = [
+        e
+        for e in log.samples[0].events
+        if isinstance(e, SentinelEvent) and e.path == "human"
+    ]
+    assert approval.action == "proceed"
+    assert approval.explanation == "addition is expected here"
+
+
 def test_a_rejection_blocks_the_call_with_the_reason(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -267,7 +286,7 @@ def step(
     return BeforeToolCall("", "Adding.", call, view, [], [])
 
 
-def escalation(explanation: str) -> tuple[Reported[Decision], ...]:
+def escalation(explanation: str) -> Escalations:
     return (Reported("monitor", "monitor", Decision.escalate(explanation), "check"),)
 
 

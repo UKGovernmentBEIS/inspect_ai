@@ -85,6 +85,7 @@ try:
         BeforeToolCall,
         Context,
         Decision,
+        Escalations,
         Monitor,
         MonitorGroup,
         Observation,
@@ -126,7 +127,7 @@ def d3_reject(
     async def decide(
         context: Context,
         step: BeforeToolCall,
-        escalations: tuple[Reported[Decision], ...],
+        escalations: Escalations,
     ) -> Decision | None:
         return Decision.reject(reason, message=message)
 
@@ -138,7 +139,7 @@ def d3_modify() -> Protocol:
     async def rewrite(
         context: Context,
         step: BeforeToolCall,
-        escalations: tuple[Reported[Decision], ...],
+        escalations: Escalations,
     ) -> Decision | None:
         modified = replace(step.call, arguments={"x": 10, "y": 20})
         return Decision(action="modify", modified=modified, explanation="bigger")
@@ -151,7 +152,7 @@ def d3_terminate() -> Protocol:
     async def stop(
         context: Context,
         step: BeforeToolCall,
-        escalations: tuple[Reported[Decision], ...],
+        escalations: Escalations,
     ) -> Decision | None:
         return Decision.terminate("too risky")
 
@@ -163,7 +164,7 @@ def d3_terminate_after() -> Protocol:
     async def stop(
         context: Context,
         step: AfterToolCall,
-        escalations: tuple[Reported[Decision], ...],
+        escalations: Escalations,
     ) -> Decision | None:
         return Decision.terminate(f"saw {step.result.text}")
 
@@ -175,7 +176,7 @@ def d3_escalate() -> Protocol:
     async def unsure(
         context: Context,
         step: BeforeToolCall,
-        escalations: tuple[Reported[Decision], ...],
+        escalations: Escalations,
     ) -> Decision | None:
         return Decision.escalate("not sure")
 
@@ -187,7 +188,7 @@ def d3_escalate_after() -> Protocol:
     async def unsure(
         context: Context,
         step: AfterToolCall,
-        escalations: tuple[Reported[Decision], ...],
+        escalations: Escalations,
     ) -> Decision | None:
         return Decision.escalate(f"unsure about {step.result.text}")
 
@@ -199,7 +200,7 @@ def d3_continue() -> Protocol:
     async def fine(
         context: Context,
         step: BeforeToolCall,
-        escalations: tuple[Reported[Decision], ...],
+        escalations: Escalations,
     ) -> Decision | None:
         return Decision.proceed()
 
@@ -211,7 +212,7 @@ def d3_final() -> Protocol:
     async def veto(
         context: Context,
         step: BeforeToolCall,
-        escalations: tuple[Reported[Decision], ...],
+        escalations: Escalations,
     ) -> Decision | None:
         decide_final(Decision.reject(message="vetoed"))
         return None
@@ -224,7 +225,7 @@ def d3_final_escalate() -> Protocol:
     async def unsure(
         context: Context,
         step: BeforeToolCall,
-        escalations: tuple[Reported[Decision], ...],
+        escalations: Escalations,
     ) -> Decision | None:
         decide_final(Decision.escalate("not sure"))
         return None
@@ -256,7 +257,7 @@ def d3_cites_reject() -> Protocol:
     async def decide(
         context: Context,
         step: BeforeToolCall,
-        escalations: tuple[Reported[Decision], ...],
+        escalations: Escalations,
     ) -> Decision | None:
         return Decision.reject("see [M2]", references=[_CITE])
 
@@ -467,7 +468,7 @@ def d3_reject_handoff() -> Protocol:
     async def decide(
         context: Context,
         step: BeforeToolCall,
-        escalations: tuple[Reported[Decision], ...],
+        escalations: Escalations,
     ) -> Decision | None:
         if step.call.function == "transfer_to_helper":
             return Decision.reject("no handoffs", message="do it yourself")
@@ -687,7 +688,7 @@ def d3_terminate_after_handoff() -> Protocol:
     async def stop(
         context: Context,
         step: AfterToolCall,
-        escalations: tuple[Reported[Decision], ...],
+        escalations: Escalations,
     ) -> Decision | None:
         if step.call.function == "transfer_to_helper":
             return Decision.terminate("handoff went badly")
@@ -939,14 +940,14 @@ def d3_both_tool_stages() -> ProtocolGroup:
     async def before(
         context: Context,
         step: BeforeToolCall,
-        escalations: tuple[Reported[Decision], ...],
+        escalations: Escalations,
     ) -> Decision | None:
         return None
 
     async def after(
         context: Context,
         step: AfterToolCall,
-        escalations: tuple[Reported[Decision], ...],
+        escalations: Escalations,
     ) -> Decision | None:
         return None
 
@@ -1358,7 +1359,7 @@ def d3_raising(error: Any, after: bool = False) -> ProtocolGroup:
     async def before(
         context: Context,
         step: BeforeToolCall,
-        escalations: tuple[Reported[Decision], ...],
+        escalations: Escalations,
     ) -> Decision | None:
         if not after:
             raise error
@@ -1367,7 +1368,7 @@ def d3_raising(error: Any, after: bool = False) -> ProtocolGroup:
     async def later(
         context: Context,
         step: AfterToolCall,
-        escalations: tuple[Reported[Decision], ...],
+        escalations: Escalations,
     ) -> Decision | None:
         if after:
             raise error
@@ -1408,7 +1409,7 @@ def d3_raising_in_helper(error: Any, after: bool = False) -> ProtocolGroup:
     async def before(
         context: Context,
         step: BeforeToolCall,
-        escalations: tuple[Reported[Decision], ...],
+        escalations: Escalations,
     ) -> Decision | None:
         if not after and step.call.function == "addition":
             raise error
@@ -1417,7 +1418,7 @@ def d3_raising_in_helper(error: Any, after: bool = False) -> ProtocolGroup:
     async def later(
         context: Context,
         step: AfterToolCall,
-        escalations: tuple[Reported[Decision], ...],
+        escalations: Escalations,
     ) -> Decision | None:
         if after and step.call.function == "addition":
             raise error
@@ -2240,14 +2241,14 @@ def d3_generate_decides(
     async def before_generate(
         context: Context,
         step: BeforeGenerate,
-        escalations: tuple[Reported[Decision], ...],
+        escalations: Escalations,
     ) -> Decision | None:
         return None if after else Decision(action=action, explanation="no generate")
 
     async def after_generate(
         context: Context,
         step: AfterGenerate,
-        escalations: tuple[Reported[Decision], ...],
+        escalations: Escalations,
     ) -> Decision | None:
         if after and (any_output or step.output.message.tool_calls):
             return Decision(action=action, explanation="no tools")

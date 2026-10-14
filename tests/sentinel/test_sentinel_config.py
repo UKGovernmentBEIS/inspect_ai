@@ -51,10 +51,10 @@ try:
         BeforeToolCall,
         Context,
         Decision,
+        Escalations,
         Monitor,
         Observation,
         Protocol,
-        Reported,
         monitor,
         observe_only,
         protocol,
@@ -77,7 +77,7 @@ def d2_rule(reason: str = "no") -> Protocol:
     async def decide(
         context: Context,
         step: BeforeToolCall,
-        escalations: tuple[Reported[Decision], ...],
+        escalations: Escalations,
     ) -> Decision | None:
         return Decision.reject(reason)
 
