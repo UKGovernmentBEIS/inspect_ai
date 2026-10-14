@@ -324,9 +324,12 @@ def test_keyboard_interrupt_logs_cancelled_samples(
 # asyncio test process.
 _TRIO_KEYBOARD_INTERRUPT_SCRIPT = """
 import contextlib
+import os
 import signal
 import sys
 import tempfile
+import threading
+import time
 
 import anyio
 
@@ -345,8 +348,11 @@ from inspect_ai.solver import solver
 NUM_SAMPLES = 3
 with_sandbox = sys.argv[1] == "with_sandbox"
 run_ends = []
-sigint_in_hook = False
 events = []
+# where the second Ctrl-C lands: "hook" or "cleanup", sent from inside it
+# ("raise") or from another thread while it waits ("external")
+second_sigint = None
+waiting = threading.Event()
 
 if with_sandbox:
     # the sandbox_kwarg fixture's fake: teardown awaits
@@ -365,9 +371,16 @@ class RunEndProbe(Hooks):
     async def on_run_end(self, data: RunEnd) -> None:
         run_ends.append(data.run_id)
         events.append("hook")
-        if sigint_in_hook:
-            signal.raise_signal(signal.SIGINT)
+        await second_sigint_in("hook")
         await anyio.sleep(0)
+
+
+async def second_sigint_in(where):
+    if second_sigint == (where, "raise"):
+        signal.raise_signal(signal.SIGINT)
+    elif second_sigint == (where, "external"):
+        waiting.set()
+        await anyio.sleep(60)
 
 
 @solver
@@ -436,40 +449,43 @@ for display in ["rich", "plain", "log"]:
     assert all(sample.error is not None for sample in log.samples), display
     assert len(run_ends) == hooks_before + 1, (display, run_ends)
 
-# a second Ctrl-C during the run-end hook interrupts without rerunning it
-sigint_in_hook = True
-for display in ["rich", "plain", "log"]:
-    hooks_before = len(run_ends)
-    try:
-        run_eval(display, tempfile.mkdtemp(), interrupt=True)
-    except KeyboardInterrupt as ex:
-        assert type(ex) is KeyboardInterrupt, repr(ex)
-    else:
-        raise AssertionError(f"{display}: no KeyboardInterrupt")
-    assert len(run_ends) == hooks_before + 1, (display, run_ends)
-sigint_in_hook = False
-
-# a second Ctrl-C during buffer cleanup interrupts without starting the hooks
-# (with the rich display the first Ctrl-C ends the run before buffer cleanup)
+# a second Ctrl-C during the run-end hooks or buffer cleanup interrupts at once
+# without starting the hooks again (with the rich display the first Ctrl-C ends
+# the run before buffer cleanup, and the hooks run on the exception path)
 cleanup_sample_buffers = eval_module.cleanup_sample_buffers
 
 
 async def cleanup_with_sigint(log_dir):
     events.append("cleanup")
-    signal.raise_signal(signal.SIGINT)
+    await second_sigint_in("cleanup")
     await cleanup_sample_buffers(log_dir)
 
 
+def sigint_when_waiting():
+    if waiting.wait(timeout=60):
+        os.kill(os.getpid(), signal.SIGINT)
+
+
 eval_module.cleanup_sample_buffers = cleanup_with_sigint
-for display in ["plain", "log"]:
-    events.clear()
-    try:
-        run_eval(display, tempfile.mkdtemp(), interrupt=True)
-    except KeyboardInterrupt as ex:
-        assert type(ex) is KeyboardInterrupt, repr(ex)
-    else:
-        raise AssertionError(f"{display}: no KeyboardInterrupt")
-    assert events == ["cleanup"], (display, events)
+for where, displays in [("hook", ["rich", "plain", "log"]), ("cleanup", ["plain", "log"])]:
+    for how in ["raise", "external"]:
+        second_sigint = (where, how)
+        for display in displays:
+            events.clear()
+            waiting.clear()
+            if how == "external":
+                threading.Thread(target=sigint_when_waiting, daemon=True).start()
+            start = time.monotonic()
+            try:
+                run_eval(display, tempfile.mkdtemp(), interrupt=True)
+            except KeyboardInterrupt as ex:
+                assert type(ex) is KeyboardInterrupt, repr(ex)
+            else:
+                raise AssertionError(f"{second_sigint} {display}: no KeyboardInterrupt")
+            assert time.monotonic() - start < 30, (second_sigint, display)
+            hooks_run = events.count("hook")
+            assert hooks_run == (1 if where == "hook" else 0), (second_sigint, display, events)
+second_sigint = None
 eval_module.cleanup_sample_buffers = cleanup_sample_buffers
 
 # a later eval() in the same process still runs
@@ -482,9 +498,9 @@ def test_keyboard_interrupt_under_trio(sandbox: str):
     """Under trio, Ctrl-C during eval() logs the cancelled samples, runs run-end hooks and raises KeyboardInterrupt.
 
     Covers the rich, plain and log displays, that an eval() error without a
-    SIGINT is not masked, that a second SIGINT during a run-end hook does not
-    rerun it, that a second SIGINT during buffer cleanup does not start the
-    hooks, and that a later eval() still runs.
+    SIGINT is not masked, that a second SIGINT (raised inside, or sent from
+    another thread while it waits) stops a run-end hook or buffer cleanup at
+    once without starting the hooks again, and that a later eval() still runs.
     """
     result = subprocess.run(
         [sys.executable, "-I", "-c", _TRIO_KEYBOARD_INTERRUPT_SCRIPT, sandbox],

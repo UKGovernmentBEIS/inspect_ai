@@ -50,6 +50,7 @@ from inspect_ai._sentinel._config import (
     resolve_sentinel_spec,
     sentinel_config,
 )
+from inspect_ai._util._async import cleanup_shield
 from inspect_ai._util.asyncfiles import with_async_fs
 from inspect_ai._util.config import parse_cli_args, resolve_args
 from inspect_ai._util.constants import (
@@ -1246,14 +1247,14 @@ async def _eval_async_inner(
                 await wait_for_shutdown_async(_ctl_server)
 
     except BaseException as e:
-        with anyio.CancelScope(shield=True):
+        with cleanup_shield():
             await emit_run_end(eval_set_id, run_id, EvalLogs([]), e)
         raise e
 
     else:
         # shielded: under trio a Ctrl-C leaves the run's scope cancelled. In
-        # `else` so a second Ctrl-C here does not start the hooks above.
-        with anyio.CancelScope(shield=True):
+        # `else` so a forced interrupt here does not start the hooks above.
+        with cleanup_shield():
             # cleanup sample buffers if required
             await cleanup_sample_buffers(log_dir)
 

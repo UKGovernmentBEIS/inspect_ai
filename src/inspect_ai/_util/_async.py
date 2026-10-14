@@ -7,7 +7,17 @@ import sys
 import threading
 from logging import Logger
 from types import FrameType
-from typing import Any, Awaitable, Callable, Coroutine, Iterable, Literal, TypeVar, cast
+from typing import (
+    Any,
+    Awaitable,
+    Callable,
+    Coroutine,
+    Iterable,
+    Iterator,
+    Literal,
+    TypeVar,
+    cast,
+)
 
 import anyio
 import nest_asyncio2 as nest_asyncio  # type: ignore
@@ -230,6 +240,30 @@ def _anyio_run_released(func: Callable[[], Awaitable[T]]) -> T:
             _run_vars.pop(loop, None)
 
 
+_cleanup_shields: set[anyio.CancelScope] = set()
+
+
+@contextlib.contextmanager
+def cleanup_shield() -> Iterator[anyio.CancelScope]:
+    """Shield cleanup from cancellation, unless the user forces an interrupt.
+
+    Under `run_main()` on trio, the first SIGINT cancels the run and this
+    cleanup still runs; a second SIGINT cancels these scopes too, so a hung
+    cleanup cannot hold up the interrupt.
+    """
+    with anyio.CancelScope(shield=True) as scope:
+        _cleanup_shields.add(scope)
+        try:
+            yield scope
+        finally:
+            _cleanup_shields.discard(scope)
+
+
+def _cancel_cleanup_shields() -> None:
+    for scope in list(_cleanup_shields):
+        scope.cancel()
+
+
 def run_main(main: Callable[[], Coroutine[None, None, T]]) -> T:
     """Run `main` on a new event loop of the configured backend.
 
@@ -260,9 +294,15 @@ async def _trio_cancel_on_sigint(main: Callable[[], Coroutine[None, None, T]]) -
     def cancel_main(signum: int, frame: FrameType | None) -> None:
         nonlocal interrupted
         interrupted = True
-        # trio's handler raises KeyboardInterrupt on the next SIGINT
-        signal.signal(signal.SIGINT, trio_handler)
+        signal.signal(signal.SIGINT, force_interrupt)
         token.run_sync_soon(scope.cancel)
+
+    def force_interrupt(signum: int, frame: FrameType | None) -> None:
+        signal.signal(signal.SIGINT, trio_handler)
+        token.run_sync_soon(_cancel_cleanup_shields)
+        # trio's handler raises KeyboardInterrupt now or at the next checkpoint
+        if callable(trio_handler):
+            trio_handler(signum, frame)
 
     signal.signal(signal.SIGINT, cancel_main)
     try:
@@ -275,7 +315,7 @@ async def _trio_cancel_on_sigint(main: Callable[[], Coroutine[None, None, T]]) -
         raise
     finally:
         # leave a handler that `main` installed in place
-        if signal.getsignal(signal.SIGINT) is cancel_main:
+        if signal.getsignal(signal.SIGINT) in (cancel_main, force_interrupt):
             signal.signal(signal.SIGINT, trio_handler)
     if interrupted:
         raise KeyboardInterrupt
