@@ -14,6 +14,7 @@ from pydantic import (
     computed_field,
     field_serializer,
     field_validator,
+    model_validator,
 )
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 from pydantic_core import to_jsonable_python
@@ -709,14 +710,38 @@ async def test_conversion_error_is_a_parsing_error_before_approval() -> None:
     assert calls == []
 
 
-async def test_modified_call_is_validated() -> None:
+@pytest.mark.parametrize(
+    "function,arguments,modified,error",
+    [
+        ("addition", {"x": 1, "y": 1}, {"x": "one", "y": 1}, "parsing"),
+        # the validator would run n=2 as 3
+        ("model_tool", {"bumped": {"n": 1}}, {"bumped": {"n": 2}}, "approval"),
+    ],
+    ids=["invalid", "changes-when-converted"],
+)
+async def test_modified_call_is_validated(
+    function: str,
+    arguments: dict[str, Any],
+    modified: dict[str, Any],
+    error: str,
+) -> None:
+    from inspect_ai.log._transcript import Transcript, init_transcript, transcript
+
+    init_transcript(Transcript())
     message = await execute_with_approval(
-        ToolCall(id="1", function="addition", arguments={"x": 1, "y": 1}),
-        [addition()],
-        [ApprovalPolicy(modifying_approver({"x": "one", "y": 1}), "*")],
+        ToolCall(id="1", function=function, arguments=arguments),
+        [addition(), model_tool([])],
+        [ApprovalPolicy(modifying_approver(modified), "*")],
     )
     assert message.error is not None
-    assert message.error.type == "parsing"
+    assert message.error.type == error
+
+    # the failure is logged with the modified arguments that caused it
+    (event,) = [e for e in transcript().events if isinstance(e, ToolEvent)]
+    event = ToolEvent.model_validate_json(event.model_dump_json())
+    assert event.arguments == modified
+    assert event.error is not None
+    assert event.error.type == error
 
 
 class Step(BaseModel):
@@ -895,6 +920,42 @@ class ShiftedParent(BaseModel):
         return {"name": inner.name, "size": inner.size + 1}
 
 
+class Node(BaseModel):
+    """Refers to itself through a field it does not serialize."""
+
+    name: str
+    parent: Any = Field(default=None, exclude=True)
+
+    @model_validator(mode="after")
+    def link(self) -> "Node":
+        self.parent = self
+        return self
+
+
+@dataclass
+class Loop:
+    """Refers to itself through a field it serializes."""
+
+    name: str
+    me: Any = None
+
+    def __post_init__(self) -> None:
+        self.me = self
+
+
+@dataclass
+class Flagged:
+    """Turns its flag default into a number."""
+
+    name: str
+    mode: bool | int = False
+    modes: tuple[bool | int, ...] = (False,)
+
+    def __post_init__(self) -> None:
+        self.mode = int(self.mode)
+        self.modes = tuple(int(m) for m in self.modes)
+
+
 class Guarded(BaseModel):
     flags: dict[str, bool]
 
@@ -983,6 +1044,10 @@ def model_tool(received: list[Any]):
         limit_holders: list[LimitHolder] | None = None,
         shifted: Shifted | None = None,
         shifted_parent: ShiftedParent | None = None,
+        node: Node | None = None,
+        nodes: list[Node] | None = None,
+        loop: Loop | None = None,
+        flagged: Flagged | None = None,
     ) -> str:
         """Record models.
 
@@ -1022,6 +1087,10 @@ def model_tool(received: list[Any]):
             shifted: A Pydantic dataclass whose serializer changes its default.
             shifted_parent: A model whose serializer changes its child's
                 default.
+            node: A model that refers to itself, without serializing it.
+            nodes: A list of such models.
+            loop: A dataclass that refers to itself and serializes it.
+            flagged: A dataclass that turns its flag defaults into numbers.
         """
         received.append(
             {
@@ -1059,6 +1128,10 @@ def model_tool(received: list[Any]):
                     limit_holders=limit_holders,
                     shifted=shifted,
                     shifted_parent=shifted_parent,
+                    node=node,
+                    nodes=nodes,
+                    loop=loop,
+                    flagged=flagged,
                 ).items()
                 if v is not None
             }
@@ -1086,6 +1159,11 @@ def model_tool(received: list[Any]):
         ({"flag": {"n": 1}}, {"flag": {"n": True}}),
         ({"doubled": {"x": 3}}, {"doubled": {"x": 6}}),
         ({"normalized": {"name": "ABC"}}, {"normalized": {"name": "abc", "size": 7}}),
+        ({"node": {"name": "a"}}, {"node": {"name": "a"}}),
+        (
+            {"nodes": [{"name": "a"}, {"name": "b"}]},
+            {"nodes": [{"name": "a"}, {"name": "b"}]},
+        ),
     ],
     ids=[
         "model",
@@ -1095,6 +1173,8 @@ def model_tool(received: list[Any]):
         "flag-validator",
         "dataclass-validator",
         "dataclass-post-init",
+        "self-reference-not-serialized",
+        "list-self-reference-not-serialized",
     ],
 )
 async def test_model_parameter_is_approved_as_it_runs(
@@ -1255,6 +1335,10 @@ async def test_model_in_unsupported_form_errors_under_approval(
             {"shifted_parent": {"inner": {"name": "abc"}}},
             {"shifted_parent": {"inner": {"name": "abc", "size": 8}}},
         ),
+        # a default of False that runs as 0 is a change
+        ({"flagged": {"name": "a", "modes": [0]}}, None),
+        ({"flagged": {"name": "a", "mode": False, "modes": [0]}}, None),
+        ({"flagged": {"name": "a", "mode": 0}}, None),
     ],
     ids=[
         "validator-changes-it",
@@ -1280,6 +1364,9 @@ async def test_model_in_unsupported_form_errors_under_approval(
         "serialized-default-left-out",
         "serialized-supplied-changes-it",
         "parent-serialized-default-left-out",
+        "bool-default-left-out-becomes-number",
+        "bool-default-selected-becomes-number",
+        "bool-in-tuple-default-becomes-number",
     ],
 )
 async def test_modified_value_runs_only_as_selected(
@@ -1366,6 +1453,20 @@ async def test_modify_is_compared_as_the_parent_serializes(
     # the shown n=5 is constructed as 5 and serializes as 6
     assert message.error is not None
     assert message.error.type == "approval"
+    assert received == []
+
+
+async def test_self_reference_that_cannot_serialize_is_a_parsing_error() -> None:
+    received: list[Any] = []
+    message = await execute_with_approval(
+        ToolCall(id="1", function="model_tool", arguments={"loop": {"name": "a"}}),
+        [model_tool(received)],
+        [ApprovalPolicy(recording_approver([]), "*")],
+    )
+
+    assert message.error is not None
+    assert message.error.type == "parsing"
+    assert "serializing it failed" in message.error.message
     assert received == []
 
 

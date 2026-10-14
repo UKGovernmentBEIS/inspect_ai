@@ -885,13 +885,21 @@ async def call_tool(
     async def revalidated_tool_call(
         selected: ToolCall, tool_def: ToolDef
     ) -> ValidatedToolCall:
+        # the event records the modified call, so a failure is logged with the
+        # arguments that caused it (the model's proposal stays in the
+        # ModelEvent and the ApprovalEvent)
+        event.arguments = selected.arguments
+        event.view = None
         try:
-            return modified_tool_call(selected, tool_def)
+            validated = modified_tool_call(selected, tool_def)
         except ToolParsingError as ex:
             raise await record_tool_parsing_error(ex.message)
         except ToolApprovalError:
             await record_pending_tool_event()
             raise
+        event.arguments = validated.call.arguments
+        event.view = tool_call_view(validated.call, tools)
+        return validated
 
     # if there was an error parsing the ToolCall, raise that
     if call.parse_error:
@@ -937,11 +945,7 @@ async def call_tool(
         if error is not None:
             await record_pending_tool_event()
             raise RuntimeError(error)
-        # record the arguments that run: the model's proposal stays in the
-        # ModelEvent and the ApprovalEvent
         call, arguments = await revalidated_tool_call(approval.modified, tool_def)
-        event.arguments = call.arguments
-        event.view = tool_call_view(call, tools)
 
     if active_sentinel() is not None:
         from inspect_ai._sentinel._dispatch import (
@@ -959,8 +963,6 @@ async def call_tool(
             raise
         if modified is not call:
             call, arguments = await revalidated_tool_call(modified, tool_def)
-            event.arguments = call.arguments
-            event.view = tool_call_view(call, tools)
 
     # call the tool
     with trace_action(
@@ -1596,25 +1598,52 @@ def _holds_default(value: Any, name: str) -> bool:
             return False
     elif default is MISSING:
         return field.default_factory is not MISSING
-    current = getattr(value, name)
-    return current is default or bool(current == default)
+    return _same_value(getattr(value, name), default)
+
+
+def _same_value(value: Any, default: Any) -> bool:
+    """Whether a constructed value is its default, telling `False` from `0`."""
+    if value is default:
+        return True
+    if type(value) is not type(default):
+        return json_equal(value, default)
+    if isinstance(value, list | tuple):
+        return len(value) == len(default) and all(map(_same_value, value, default))
+    if isinstance(value, Mapping):
+        return value.keys() == default.keys() and all(
+            _same_value(item, default[key]) for key, item in value.items()
+        )
+    if isinstance(value, BaseModel):
+        return _same_value(value.__dict__, default.__dict__)
+    if _is_dataclass_instance(value):
+        return all(
+            _same_value(getattr(value, f.name), getattr(default, f.name))
+            for f in fields(value)
+        )
+    return json_equal(value, default)
 
 
 def _is_dataclass_instance(value: Any) -> bool:
     return is_dataclass(value) and not isinstance(value, type)
 
 
-def _contains_constructed(value: Any) -> bool:
+def _contains_constructed(value: Any, seen: set[int] | None = None) -> bool:
     """Whether a value holds a Pydantic model or a dataclass anywhere."""
     if isinstance(value, BaseModel) or _is_dataclass_instance(value):
         return True
     if isinstance(value, str | bytes | Iterator):
         return False
     if isinstance(value, Mapping):
-        return any(_contains_constructed(v) for v in value.values())
-    if isinstance(value, Iterable):
-        return any(_contains_constructed(v) for v in value)
-    return False
+        items: Iterable[Any] = value.values()
+    elif isinstance(value, Iterable):
+        items = value
+    else:
+        return False
+    seen = set() if seen is None else seen
+    if id(value) in seen:
+        return False
+    seen.add(id(value))
+    return any(_contains_constructed(item, seen) for item in items)
 
 
 def _serialized_value(name: str, value: Any) -> Any:
@@ -1662,22 +1691,32 @@ def _serialized_value(name: str, value: Any) -> Any:
         ) from ex
 
 
-def _holds_iterator(value: Any) -> bool:
-    """Whether a value holds a lazy iterable anywhere, without consuming it."""
+def _holds_iterator(value: Any, seen: set[int] | None = None) -> bool:
+    """Whether a value holds a lazy iterable anywhere, without consuming it.
+
+    Each object is visited once, so a value that refers back to itself is
+    walked without recursing forever (serializing it then decides whether
+    the cycle can be shown).
+    """
     if isinstance(value, Iterator):
         return True
     if isinstance(value, str | bytes):
         return False
     if isinstance(value, BaseModel):
-        values = [*value.__dict__.values(), *(value.__pydantic_extra__ or {}).values()]
-        return any(_holds_iterator(v) for v in values)
-    if _is_dataclass_instance(value):
-        return any(_holds_iterator(getattr(value, f.name)) for f in fields(value))
-    if isinstance(value, Mapping):
-        return any(_holds_iterator(v) for v in value.values())
-    if isinstance(value, Iterable):
-        return any(_holds_iterator(v) for v in value)
-    return False
+        items = [*value.__dict__.values(), *(value.__pydantic_extra__ or {}).values()]
+    elif _is_dataclass_instance(value):
+        items = [getattr(value, f.name) for f in fields(value)]
+    elif isinstance(value, Mapping):
+        items = list(value.values())
+    elif isinstance(value, Iterable):
+        items = list(value)
+    else:
+        return False
+    seen = set() if seen is None else seen
+    if id(value) in seen:
+        return False
+    seen.add(id(value))
+    return any(_holds_iterator(item, seen) for item in items)
 
 
 def tool_param(type_hint: Type[Any], input: Any) -> Any:

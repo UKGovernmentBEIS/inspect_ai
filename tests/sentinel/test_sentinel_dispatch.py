@@ -783,6 +783,13 @@ def test_a_sentinel_modify_is_validated() -> None:
     [message] = tool_messages(log)
     assert message.error is not None and message.error.type == "parsing"
 
+    # the failure is logged with the modified arguments that caused it
+    assert log.samples
+    [event] = [e for e in log.samples[0].events if isinstance(e, ToolEvent)]
+    event = ToolEvent.model_validate_json(event.model_dump_json())
+    assert event.arguments == {"x": "ten", "y": 20}
+    assert event.error is not None and event.error.type == "parsing"
+
 
 class Item(BaseModel):
     name: str
