@@ -508,7 +508,11 @@ unsharded log is current whatever the mtimes, following the parent's rule
 that the unsharded log wins over the merged log it was seeded from: it
 holds the merged samples plus the re-runs. The shard set is a prior
 attempt: counted in `attempts` and not read, so the row's `shards` is null
-as for any unsharded current attempt (decision: Ransom, 2026-10-13). With
+as for any unsharded current attempt (decision: Ransom, 2026-10-13). An
+unsharded log with that `task_id` that cannot be read (a crashed retry)
+would be current, so the shard set stays current but the row lists the log
+in `unreadable`, and per-sample reads fail with its error, as for any newer
+unreadable attempt. With
 `retry_cleanup` on,
 `eval_set()` removes the merged log and companion after a successful retry,
 and the task is an ordinary unsharded row.

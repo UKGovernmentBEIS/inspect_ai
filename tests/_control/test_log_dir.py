@@ -2264,6 +2264,32 @@ async def test_an_ordinary_retry_of_a_shard_set_is_current(
     assert detail["status"] == "completed"
 
 
+async def test_an_unreadable_ordinary_retry_of_a_shard_set_blocks_sample_reads(
+    tmp_path: Path, finished_log: EvalLog
+) -> None:
+    await _shard_set(tmp_path, finished_log, {"0": [1], "1": [2]})
+    await _merged(tmp_path, finished_log)
+    # a crashed eval_set() retry, older by name and by mtime than the shards:
+    # it would be current if it parsed, so the shards may not hold its samples
+    retry = tmp_path / f"2026-01-01T00-00-00+00-00_alpha_{_SET_ID}.eval"
+    retry.write_bytes(b"not a zip")
+    os.utime(retry, (1, 1))
+
+    index, [view] = await _shard_views(tmp_path)
+    row = task_row(view)
+    assert row["current_attempt"] == "shards"
+    assert row["shards"]["total"] == 2 and row["shards"]["success"] == 2
+    assert row["attempts"] == 2 and row["incomplete"] is True
+    assert [u["log_location"] for u in row["unreadable"]] == [str(retry)]
+
+    task = index.tasks[0]
+    async with AsyncFilesystem() as fs:
+        for read in (sample_detail, sample_events, sample_messages, sample_store):
+            with pytest.raises(LogUnparseableError) as raised:
+                await read(fs, task, "1", 1)
+            assert raised.value.location == str(retry)
+
+
 async def test_a_merged_log_without_its_companion_is_an_ordinary_row(
     tmp_path: Path, finished_log: EvalLog
 ) -> None:
