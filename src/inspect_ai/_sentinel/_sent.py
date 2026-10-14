@@ -11,10 +11,11 @@ class _Sent:
     messages: list[ChatMessage] = field(default_factory=list)
     # the versions sent under each message id
     versions: dict[str | None, list[ChatMessage]] = field(default_factory=dict)
-    # an id an unchanged message was rebuilt under -> the message as first
-    # sent; only its latest rebuilt id is kept, so the index stays one entry
-    # per message however often a scaffold rebuilds it
-    aliases: dict[str | None, ChatMessage] = field(default_factory=dict)
+    # an id unchanged messages were rebuilt under -> those messages as first
+    # sent; each keeps only its latest rebuilt id, so the index stays one
+    # entry per message however often a scaffold rebuilds it, and an id
+    # reused for another message does not displace the first
+    aliases: dict[str | None, list[ChatMessage]] = field(default_factory=dict)
     # id() of a message as first sent -> its latest rebuilt id
     latest_alias: dict[int, str | None] = field(default_factory=dict)
     # what the previous call sent at each position, as first sent; a list of
@@ -39,9 +40,10 @@ def record_sent(conversation: str, input: list[ChatMessage]) -> None:
 
 def _record(sent: _Sent, position: int, message: ChatMessage) -> ChatMessage:
     # the message as first sent that this one is, recording it if it is new
-    known = sent.versions.get(message.id, [])
-    alias = sent.aliases.get(message.id)
-    candidates = [*known, alias] if alias is not None else known
+    candidates = [
+        *sent.versions.get(message.id, []),
+        *sent.aliases.get(message.id, []),
+    ]
     for candidate in candidates:
         if candidate is message:
             return candidate
@@ -61,10 +63,11 @@ def _alias(sent: _Sent, rebuilt: str | None, original: ChatMessage) -> None:
     key = id(original)  # originals are held in sent.messages, so ids are stable
     if key in sent.latest_alias:
         earlier = sent.latest_alias[key]
-        # unless a later message has since been rebuilt under the same id
-        if sent.aliases.get(earlier) is original:
+        originals = sent.aliases[earlier]
+        originals[:] = [kept for kept in originals if kept is not original]
+        if not originals:
             del sent.aliases[earlier]
-    sent.aliases[rebuilt] = original
+    sent.aliases.setdefault(rebuilt, []).append(original)
     sent.latest_alias[key] = rebuilt
 
 

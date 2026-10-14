@@ -1,9 +1,10 @@
 import logging
+import random
 from collections.abc import Callable, Iterator, Sequence
 from contextlib import contextmanager
 from dataclasses import replace
 from pathlib import Path
-from typing import Any, Literal, cast
+from typing import Any, Literal, NamedTuple, cast
 
 import anyio
 import pytest
@@ -3305,6 +3306,33 @@ def test_a_rebuilt_message_sent_again_later_is_not_repeated() -> None:
     ]
 
 
+@solver
+def d3_reuses_a_rebuilt_id_for_another_message() -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        model = get_model()
+        # x is the rebuilt id of A, then of B, and then A comes back under it
+        for message_id, content in [
+            ("a", "A"),
+            ("x", "A"),
+            ("b", "B"),
+            ("x", "B"),
+            ("gap", "Gap"),
+            ("x", "A"),
+        ]:
+            state.output = await model.generate(
+                [ChatMessageUser(content=content, id=message_id)]
+            )
+        return state
+
+    return solve
+
+
+def test_a_rebuilt_id_reused_for_another_message_keeps_both() -> None:
+    seen = run_reading_sent(d3_reuses_a_rebuilt_id_for_another_message())
+    *_, (_, last) = sent_afters(seen)
+    assert sent_texts(last) == ["A", "B", "Gap"]
+
+
 _REBUILT_TURNS = 20
 
 
@@ -3327,7 +3355,8 @@ def d3_rebuilds_every_message(remembered: dict[str, int]) -> Solver:
             turns += [("assistant", output.completion), ("user", f"Turn {turn}.")]
         [record] = _sent[transcript()].values()
         remembered["messages"] = len(record.messages)
-        remembered["ids"] = len(record.versions) + len(getattr(record, "aliases", {}))
+        aliases = getattr(record, "aliases", {})
+        remembered["ids"] = len(record.versions) + sum(map(len, aliases.values()))
         return state
 
     return solve
@@ -3479,3 +3508,230 @@ def test_nothing_is_recorded_without_a_sentinel() -> None:
     )
     log = eval(task, model="mockllm/model")[0]
     assert log.status == "success", log.error
+
+
+# A reference model of step.sent's rules, checked against _sent.py on random
+# request sequences. The reference refolds the whole sequence for every
+# request, with no incremental state, no alias index and no identity shortcut.
+
+_ROLES = ("system", "user", "assistant")
+_CONTENTS = ("A", "B", "C")
+_SHARED_IDS = ("a", "b", "x", "y")
+# rebuilt messages share fewer ids, so one id is often reused for two messages
+_REBUILT_IDS = ("x", "y")
+
+
+class _Spec(NamedTuple):
+    role: str
+    id: str
+    content: str
+
+
+class _Request(NamedTuple):
+    # indexes into the case's message specs; the same index is the same object
+    messages: tuple[int, ...]
+    # the caller's previous list, changed in place, rather than a new list
+    in_place: bool
+
+
+class _Case(NamedTuple):
+    specs: tuple[_Spec, ...]
+    requests: tuple[_Request, ...]
+
+
+def _message(spec: _Spec) -> ChatMessage:
+    if spec.role == "system":
+        return ChatMessageSystem(id=spec.id, content=spec.content)
+    if spec.role == "user":
+        return ChatMessageUser(id=spec.id, content=spec.content)
+    return ChatMessageAssistant(id=spec.id, content=spec.content)
+
+
+def _sent_content(message: ChatMessage) -> tuple[type, dict[str, Any]]:
+    # what the model is sent: everything but the id, source and metadata
+    return type(message), message.model_dump(exclude={"id", "source", "metadata"})
+
+
+def reference_sent(requests: list[list[ChatMessage]]) -> list[ChatMessage]:
+    """The rules, folded from scratch over every request so far.
+
+    A message is already sent when it has the content of a message first sent (an original) and either the original's id, or the id of the latest request message recognized as that original by position. Otherwise it is already sent when the previous request had a message with its content at its position; it then stands for that message's original, and its id becomes the original's latest rebuilt id. Otherwise it is a new original. So one message rebuilt under two ids that alternate can repeat: only the latest rebuilt id stands for it (the accepted edge).
+    """
+    originals: list[ChatMessage] = []
+    latest_rebuilt: dict[int, str | None] = {}
+    previous: list[int] = []
+    for request in requests:
+        current: list[int] = []
+        for position, message in enumerate(request):
+            content = _sent_content(message)
+            matches = [
+                index
+                for index, original in enumerate(originals)
+                if _sent_content(original) == content
+                and (
+                    original.id == message.id
+                    or latest_rebuilt.get(index, _NO_ID) == message.id
+                )
+            ]
+            # more than one would leave the rules ambiguous about which
+            # original a rebuilt message stands for
+            assert len(matches) <= 1, f"ambiguous: {message} matches {matches}"
+            if matches:
+                current.append(matches[0])
+            elif position < len(previous) and (
+                _sent_content(originals[previous[position]]) == content
+            ):
+                latest_rebuilt[previous[position]] = message.id
+                current.append(previous[position])
+            else:
+                originals.append(message)
+                current.append(len(originals) - 1)
+        previous = current
+    return originals
+
+
+_NO_ID = object()
+
+
+def _random_case(rng: random.Random, requests: int) -> _Case:
+    specs: list[_Spec] = []
+    fresh = iter(range(10_000))
+
+    def new(role: str, content: str, shared: tuple[str, ...] | None) -> int:
+        message_id = rng.choice(shared) if shared else f"m{next(fresh)}"
+        specs.append(_Spec(role, message_id, content))
+        return len(specs) - 1
+
+    def appended() -> int:
+        shared = _SHARED_IDS if rng.random() < 0.4 else None
+        return new(rng.choice(_ROLES), rng.choice(_CONTENTS), shared)
+
+    current: list[int] = []
+    sequence: list[_Request] = []
+    for _ in range(requests):
+        current = list(current)
+        for _ in range(rng.randint(1, 3)):
+            op = rng.choice(
+                [
+                    "append",
+                    "append",
+                    "rebuild",
+                    "rebuild",
+                    "edit",
+                    "omit",
+                    "return",
+                    "return",
+                    "drop",
+                    "keep",
+                ]
+            )
+            if op == "append" or not current:
+                current.append(appended())
+            elif op == "rebuild":
+                # the same message under a fresh or a shared id
+                at = rng.randrange(len(current))
+                spec = specs[current[at]]
+                shared = _REBUILT_IDS if rng.random() < 0.7 else None
+                current[at] = new(spec.role, spec.content, shared)
+            elif op == "edit":
+                # the same id with other content
+                at = rng.randrange(len(current))
+                spec = specs[current[at]]
+                specs.append(spec._replace(content=rng.choice(_CONTENTS)))
+                current[at] = len(specs) - 1
+            elif op == "omit":
+                del current[rng.randrange(len(current))]
+            elif op == "return":
+                current.insert(
+                    rng.randrange(len(current) + 1), rng.randrange(len(specs))
+                )
+            elif op == "drop":
+                # a compaction that drops the opening messages
+                del current[: rng.randint(1, len(current))]
+        sequence.append(_Request(tuple(current), rng.random() < 0.3))
+    return _Case(tuple(specs), tuple(sequence))
+
+
+def _first_divergence(case: _Case) -> str | None:
+    from inspect_ai._sentinel._sent import record_sent, sent_messages
+
+    init_transcript(Transcript())
+    objects = [_message(spec) for spec in case.specs]
+    snapshots: list[list[ChatMessage]] = []
+    passed: list[ChatMessage] = []
+    for number, request in enumerate(case.requests):
+        messages = [objects[index] for index in request.messages]
+        if request.in_place:
+            passed[:] = messages
+        else:
+            passed = messages
+        snapshots.append(list(messages))
+        record_sent("conversation", passed)
+        actual = sent_messages("conversation")
+        expected = reference_sent(snapshots)
+        if len(actual) != len(expected) or any(
+            a is not e for a, e in zip(actual, expected)
+        ):
+            return f"after request {number}: sent {_describe(actual)}, expected {_describe(expected)}"
+    return None
+
+
+def _describe(messages: list[ChatMessage]) -> str:
+    return str([f"{m.role}:{m.id}:{m.text}" for m in messages])
+
+
+def _shrink(case: _Case) -> _Case:
+    # drop whole requests, then single messages, while it still diverges
+    shrunk = True
+    while shrunk:
+        shrunk = False
+        candidates = [
+            case._replace(requests=case.requests[:i] + case.requests[i + 1 :])
+            for i in range(len(case.requests))
+        ] + [
+            case._replace(
+                requests=case.requests[:i]
+                + (r._replace(messages=r.messages[:j] + r.messages[j + 1 :]),)
+                + case.requests[i + 1 :]
+            )
+            for i, r in enumerate(case.requests)
+            for j in range(len(r.messages))
+        ]
+        for candidate in candidates:
+            if _first_divergence(candidate) is not None:
+                case, shrunk = candidate, True
+                break
+    return case
+
+
+def _describe_case(case: _Case) -> str:
+    lines = []
+    for number, request in enumerate(case.requests):
+        sent = [
+            f"{case.specs[i].role}:{case.specs[i].id}:{case.specs[i].content}#{i}"
+            for i in request.messages
+        ]
+        lines.append(f"  {number}: {sent}{' (in place)' if request.in_place else ''}")
+    return "\n".join(lines)
+
+
+def _check_random_cases(seed: int, cases: int) -> None:
+    rng = random.Random(seed)
+    for number in range(cases):
+        case = _random_case(rng, rng.randint(1, 8))
+        if _first_divergence(case) is not None:
+            minimal = _shrink(case)
+            raise AssertionError(
+                f"step.sent differs from the reference (seed {seed}, case {number}); "
+                f"minimal sequence (role:id:content#object):\n{_describe_case(minimal)}\n"
+                f"{_first_divergence(minimal)}"
+            )
+
+
+def test_sent_matches_the_reference_rules() -> None:
+    _check_random_cases(seed=0, cases=400)
+
+
+@pytest.mark.slow
+def test_sent_matches_the_reference_rules_at_length() -> None:
+    _check_random_cases(seed=1, cases=20_000)
