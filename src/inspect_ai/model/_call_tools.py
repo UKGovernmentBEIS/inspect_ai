@@ -5,7 +5,7 @@ import types
 import typing
 from collections.abc import Collection, Iterable, Iterator, Mapping
 from copy import copy, deepcopy
-from dataclasses import fields, is_dataclass, replace
+from dataclasses import MISSING, fields, is_dataclass, replace
 from datetime import date, datetime, time
 from enum import EnumMeta
 from logging import getLogger
@@ -1435,16 +1435,17 @@ def validated_tool_call(call: ToolCall, tool_def: ToolDef) -> ValidatedToolCall:
     The arguments are checked against the tool's schema and converted to the
     tool's parameter types (exactly, see `tool_param()`). The returned call is
     what approvers, sentinel monitors and viewers see, and the returned
-    arguments are what the tool receives. A Pydantic model applies its own
-    validation, which can change a value, so while approval or a sentinel is
-    active a `BaseModel` (or `list[BaseModel]`) parameter is shown as the
-    constructed model serializes (see `_serialized_model()`), and that form
-    must still fit the tool's schema.
+    arguments are what the tool receives. A Pydantic model or a dataclass
+    is built by its constructor, which can change a value (a validator,
+    `__post_init__`), so while approval or a sentinel is active such a
+    parameter (or a list of them) is shown as the constructed value
+    serializes (see `_serialized_value()`), and that form must still fit the
+    tool's schema.
 
     Raises:
         ToolParsingError: The arguments fail the schema or cannot be converted
             exactly, or (while approval or a sentinel is active) hold a model
-            that cannot be shown in a form the tool accepts.
+            or dataclass that cannot be shown in a form the tool accepts.
     """
     from inspect_ai.agent._handoff import AgentTool
 
@@ -1472,16 +1473,16 @@ def validated_tool_call(call: ToolCall, tool_def: ToolDef) -> ValidatedToolCall:
     serialized = False
     for name in call.arguments:
         value = arguments.get(name)
-        if _contains_model(value):
-            shown[name] = _serialized_model(name, value)
+        if _contains_constructed(value):
+            shown[name] = _serialized_value(name, value)
             serialized = True
     if serialized:
         schema_errors = validate_tool_input(shown, tool_def.parameters)
         if schema_errors:
             raise ToolParsingError(
-                "A Pydantic model argument cannot be shown to approvers or "
-                "monitors: as it serializes, it does not fit the tool's "
-                f"schema.\n{schema_errors}"
+                "A Pydantic model or dataclass argument cannot be shown to "
+                "approvers or monitors: as it serializes, it does not fit the "
+                f"tool's schema.\n{schema_errors}"
             )
     return ValidatedToolCall(replace(call, arguments=shown), arguments)
 
@@ -1496,6 +1497,9 @@ def _tool_calls_overseen() -> bool:
 def modified_tool_call(selected: ToolCall, tool_def: ToolDef) -> ValidatedToolCall:
     """Validate an approver's modified call, which must run as selected.
 
+    A model or dataclass may leave out fields that have defaults: the
+    defaults it fills in do not count as a change.
+
     Raises:
         ToolParsingError: The modified arguments are invalid.
         ToolApprovalError: Converting an argument for the tool would change
@@ -1504,7 +1508,9 @@ def modified_tool_call(selected: ToolCall, tool_def: ToolDef) -> ValidatedToolCa
     modified = validated_tool_call(selected, tool_def)
     for name, value in to_jsonable_python(selected.arguments, fallback=str).items():
         shown = modified.call.arguments.get(name)
-        if not json_equal(value, to_jsonable_python(shown, fallback=str)):
+        if not json_equal(
+            value, to_jsonable_python(shown, fallback=str)
+        ) and not _only_defaults_added(value, modified.arguments.get(name)):
             raise ToolApprovalError(
                 f"The modified value for '{name}' changes when it is "
                 "converted for the tool, so the call was not run."
@@ -1512,43 +1518,86 @@ def modified_tool_call(selected: ToolCall, tool_def: ToolDef) -> ValidatedToolCa
     return modified
 
 
-def _contains_model(value: Any) -> bool:
+def _only_defaults_added(selected: Any, value: Any) -> bool:
+    """Whether `value` is `selected` with only the defaults it left out filled in."""
+    if isinstance(value, list) and isinstance(selected, list):
+        return len(value) == len(selected) and all(
+            map(_only_defaults_added, selected, value)
+        )
     if isinstance(value, BaseModel):
+        return json_equal(
+            selected,
+            value.model_dump(
+                mode="json",
+                by_alias=True,
+                exclude_computed_fields=True,
+                exclude_unset=True,
+            ),
+        )
+    if _is_dataclass_instance(value) and isinstance(selected, dict):
+        dumped = to_jsonable_python(value, by_alias=True)
+        names = {f.name for f in fields(value)}
+        if not isinstance(dumped, dict) or not set(selected) <= names:
+            return False
+        for f in fields(value):
+            if f.name in selected:
+                expected = selected[f.name]
+            elif f.default is not MISSING:
+                expected = to_jsonable_python(f.default, by_alias=True, fallback=str)
+            elif f.default_factory is not MISSING:
+                expected = to_jsonable_python(
+                    f.default_factory(), by_alias=True, fallback=str
+                )
+            else:
+                return False
+            if not json_equal(expected, dumped.get(f.name)):
+                return False
+        return True
+    return json_equal(selected, to_jsonable_python(value, fallback=str))
+
+
+def _is_dataclass_instance(value: Any) -> bool:
+    return is_dataclass(value) and not isinstance(value, type)
+
+
+def _contains_constructed(value: Any) -> bool:
+    """Whether a value holds a Pydantic model or a dataclass anywhere."""
+    if isinstance(value, BaseModel) or _is_dataclass_instance(value):
         return True
     if isinstance(value, str | bytes | Iterator):
         return False
-    if is_dataclass(value) and not isinstance(value, type):
-        return any(_contains_model(getattr(value, f.name)) for f in fields(value))
     if isinstance(value, Mapping):
-        return any(_contains_model(v) for v in value.values())
+        return any(_contains_constructed(v) for v in value.values())
     if isinstance(value, Iterable):
-        return any(_contains_model(v) for v in value)
+        return any(_contains_constructed(v) for v in value)
     return False
 
 
-def _serialized_model(name: str, value: Any) -> Any:
-    """A `BaseModel` or `list[BaseModel]` argument as the models serialize.
+def _serialized_value(name: str, value: Any) -> Any:
+    """A model or dataclass argument (or a list of them) as it serializes.
 
     Models are dumped by alias and without computed fields, matching the
-    model's schema. A lazy iterable anywhere in the value is refused before
-    serializing, since serializing would consume it and leave the tool with
-    nothing.
+    model's schema; dataclasses with `to_jsonable_python()`. A lazy iterable
+    anywhere in the value is refused before serializing, since serializing
+    would consume it and leave the tool with nothing.
 
     Raises:
-        ToolParsingError: The value holds a model in another form, or
-            serializing it fails.
+        ToolParsingError: The value holds a model or dataclass in another
+            form, or serializing it fails.
     """
-    supported = isinstance(value, BaseModel) or (
+
+    def constructed(item: Any) -> bool:
+        return isinstance(item, BaseModel) or _is_dataclass_instance(item)
+
+    supported = constructed(value) or (
         isinstance(value, list)
-        and all(
-            isinstance(item, BaseModel) or not _contains_model(item) for item in value
-        )
+        and all(constructed(item) or not _contains_constructed(item) for item in value)
     )
     if not supported or _holds_iterator(value):
         raise ToolParsingError(
-            f"Argument '{name}' holds a Pydantic model in a form that cannot "
-            "be shown to approvers or monitors (only a model or a list of "
-            "models, without lazy iterables)."
+            f"Argument '{name}' holds a Pydantic model or dataclass in a form "
+            "that cannot be shown to approvers or monitors (only a model or "
+            "dataclass, or a list of them, without lazy iterables)."
         )
 
     def dump(item: Any) -> Any:
@@ -1556,14 +1605,16 @@ def _serialized_model(name: str, value: Any) -> Any:
             return item.model_dump(
                 mode="json", by_alias=True, exclude_computed_fields=True
             )
+        if _is_dataclass_instance(item):
+            return to_jsonable_python(item, by_alias=True)
         return to_jsonable_python(item, fallback=str)
 
     try:
-        return dump(value) if isinstance(value, BaseModel) else list(map(dump, value))
+        return list(map(dump, value)) if isinstance(value, list) else dump(value)
     except Exception as ex:
         raise ToolParsingError(
-            f"Argument '{name}' holds a Pydantic model that cannot be shown to "
-            f"approvers or monitors: serializing it failed ({ex})."
+            f"Argument '{name}' holds a Pydantic model or dataclass that cannot "
+            f"be shown to approvers or monitors: serializing it failed ({ex})."
         ) from ex
 
 
@@ -1576,7 +1627,7 @@ def _holds_iterator(value: Any) -> bool:
     if isinstance(value, BaseModel):
         values = [*value.__dict__.values(), *(value.__pydantic_extra__ or {}).values()]
         return any(_holds_iterator(v) for v in values)
-    if is_dataclass(value) and not isinstance(value, type):
+    if _is_dataclass_instance(value):
         return any(_holds_iterator(getattr(value, f.name)) for f in fields(value))
     if isinstance(value, Mapping):
         return any(_holds_iterator(v) for v in value.values())

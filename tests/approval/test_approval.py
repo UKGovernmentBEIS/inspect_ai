@@ -1,11 +1,13 @@
 import logging
 from collections.abc import Iterable
+from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
 from typing import Any, Literal, NamedTuple
 
 import pytest
 from pydantic import BaseModel, Field, computed_field, field_serializer, field_validator
+from pydantic.dataclasses import dataclass as pydantic_dataclass
 from pydantic_core import to_jsonable_python
 
 from inspect_ai import Task, eval
@@ -740,6 +742,25 @@ class Parent(BaseModel):
     children: list[Lazy]
 
 
+@pydantic_dataclass
+class Doubled:
+    x: int
+
+    @field_validator("x")
+    @classmethod
+    def double(cls, x: int) -> int:
+        return x * 2
+
+
+@dataclass
+class Normalized:
+    name: str
+    size: int = 7
+
+    def __post_init__(self) -> None:
+        self.name = self.name.lower()
+
+
 class Aliased(BaseModel):
     file_path: str = Field(alias="filePath")
 
@@ -773,6 +794,8 @@ def model_tool(received: list[Any]):
         aliased: Aliased | None = None,
         split_alias: SplitAlias | None = None,
         unserializable: Unserializable | None = None,
+        doubled: Doubled | None = None,
+        normalized: Normalized | None = None,
     ) -> str:
         """Record models.
 
@@ -787,6 +810,8 @@ def model_tool(received: list[Any]):
             aliased: A model with an alias and a computed field.
             split_alias: A model that serializes under another alias.
             unserializable: A model whose serializer fails.
+            doubled: A Pydantic dataclass whose validator changes its value.
+            normalized: A dataclass whose `__post_init__` changes its value.
         """
         received.append(
             {
@@ -802,6 +827,8 @@ def model_tool(received: list[Any]):
                     aliased=aliased,
                     split_alias=split_alias,
                     unserializable=unserializable,
+                    doubled=doubled,
+                    normalized=normalized,
                 ).items()
                 if v is not None
             }
@@ -827,8 +854,18 @@ def model_tool(received: list[Any]):
         ({"either": {"other": 1}}, {"either": {"other": 1}}),
         ({"bumped": {"n": 1}}, {"bumped": {"n": 2}}),
         ({"flag": {"n": 1}}, {"flag": {"n": True}}),
+        ({"doubled": {"x": 3}}, {"doubled": {"x": 6}}),
+        ({"normalized": {"name": "ABC"}}, {"normalized": {"name": "abc", "size": 7}}),
     ],
-    ids=["model", "list-of-models", "model-or-dict", "validator", "flag-validator"],
+    ids=[
+        "model",
+        "list-of-models",
+        "model-or-dict",
+        "validator",
+        "flag-validator",
+        "dataclass-validator",
+        "dataclass-post-init",
+    ],
 )
 async def test_model_parameter_is_approved_as_it_runs(
     arguments: dict[str, Any], shown: dict[str, Any]
@@ -906,28 +943,45 @@ async def test_model_in_unsupported_form_errors_under_approval(
     "modified,runs",
     [
         # the approver selects n=2 (as shown), which the validator would run as 3
-        ({"bumped": {"n": 2}}, False),
-        # a model that serializes as selected runs
-        ({"step": {"step": "act", "status": "pending"}}, True),
+        ({"bumped": {"n": 2}}, None),
+        ({"doubled": {"x": 6}}, None),
+        ({"normalized": {"name": "ABC"}}, None),
+        # values that serialize as selected run
+        (
+            {"step": {"step": "act", "status": "pending"}},
+            {"step": {"step": "act", "status": "pending"}},
+        ),
+        (
+            {"normalized": {"name": "abc", "size": 1}},
+            {"normalized": {"name": "abc", "size": 1}},
+        ),
+        # so do ones that leave out fields their defaults fill in
+        ({"step": {"step": "act"}}, {"step": {"step": "act", "status": "pending"}}),
+        ({"normalized": {"name": "abc"}}, {"normalized": {"name": "abc", "size": 7}}),
     ],
-    ids=["validator-changes-it", "serializes-as-selected"],
+    ids=[
+        "validator-changes-it",
+        "dataclass-validator-changes-it",
+        "post-init-changes-it",
+        "serializes-as-selected",
+        "dataclass-serializes-as-selected",
+        "model-default-left-out",
+        "dataclass-default-left-out",
+    ],
 )
-async def test_modified_model_runs_only_as_selected(
-    modified: dict[str, Any], runs: bool
+async def test_modified_value_runs_only_as_selected(
+    modified: dict[str, Any], runs: dict[str, Any] | None
 ) -> None:
     received: list[Any] = []
-    initial = {
-        name: {"step": "plan"} if name == "step" else {"n": 1} for name in modified
-    }
     message = await execute_with_approval(
-        ToolCall(id="1", function="model_tool", arguments=initial),
+        ToolCall(id="1", function="model_tool", arguments=modified),
         [model_tool(received)],
         [ApprovalPolicy(modifying_approver(modified), "*")],
     )
 
-    if runs:
+    if runs is not None:
         assert message.error is None
-        assert json_equal(to_jsonable_python(received), [modified])
+        assert json_equal(to_jsonable_python(received), [runs])
     else:
         assert message.error is not None
         assert message.error.type == "approval"
