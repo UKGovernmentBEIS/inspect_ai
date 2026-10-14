@@ -14,6 +14,7 @@ from inspect_ai.model._model import (
     Model,
     ModelEventSink,
     ModelResolver,
+    ModelResponseFilter,
 )
 from inspect_ai.tool._mcp._config import MCPServerConfigHTTP
 from inspect_ai.tool._mcp._tools_bridge import BridgedToolsSpec
@@ -69,6 +70,7 @@ async def sandbox_agent_bridge(
     approval: list["ApprovalPolicy"] | None = None,
     checkpointer: Checkpointer | None = None,
     forward_client_headers: Mapping[str, Sequence[str]] | None = None,
+    response_filter: ModelResponseFilter | None = None,
 ) -> AsyncIterator[SandboxAgentBridge]:
     """Sandbox agent bridge.
 
@@ -184,6 +186,9 @@ async def sandbox_agent_bridge(
             `Accept-Encoding` and credential and transport headers (e.g.
             `Authorization`, `api-key`, `x-goog-api-key`, `x-amz-*`, `Host`,
             `Content-Type`) cannot be listed.
+        response_filter: Filter that can replace model output after generation
+            (see ``ModelResponseFilter``). Return ``None`` to pass through;
+            return a ``ModelOutput`` to replace the response.
     """
     warn_sentinel_bridged()
 
@@ -231,6 +236,7 @@ async def sandbox_agent_bridge(
                 checkpointer=checkpointer,
                 allow_remote_mcp=allow_remote_mcp,
                 forward_client_headers=forward_client_headers,
+                response_filter=response_filter,
             )
 
             # register bridged tools with the bridge

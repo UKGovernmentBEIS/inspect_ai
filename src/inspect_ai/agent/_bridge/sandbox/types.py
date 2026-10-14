@@ -18,6 +18,7 @@ from inspect_ai.model._model import (
     Model,
     ModelEventSink,
     ModelResolver,
+    ModelResponseFilter,
 )
 from inspect_ai.tool import Tool
 from inspect_ai.tool._mcp._config import MCPServerConfigHTTP
@@ -60,6 +61,7 @@ class SandboxAgentBridge(AgentBridge):
         allow_remote_media: bool = False,
         model_resolver: ModelResolver | None = None,
         forward_client_headers: Mapping[str, Sequence[str]] | None = None,
+        response_filter: ModelResponseFilter | None = None,
     ) -> None:
         super().__init__(
             state,
@@ -75,6 +77,7 @@ class SandboxAgentBridge(AgentBridge):
             allow_remote_mcp=allow_remote_mcp,
             allow_remote_media=allow_remote_media,
             model_resolver=model_resolver,
+            response_filter=response_filter,
         )
         self.port = port
         self.mcp_server_configs = mcp_server_configs or []

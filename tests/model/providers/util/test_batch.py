@@ -12,6 +12,11 @@ from tenacity.wait import wait_none
 from typing_extensions import TypedDict
 
 from inspect_ai._util._async import tg_collect
+from inspect_ai._util.working import (
+    init_sample_working_time,
+    sample_timing,
+    sample_waiting_time,
+)
 
 if sys.version_info < (3, 11):
     from exceptiongroup import ExceptionGroup
@@ -170,6 +175,51 @@ class TestBatcher:
 
             # Should get back a successful result
             assert result.startswith("result-for-")
+
+        await self._run_with_task_group(test_logic)
+
+    async def test_queued_request_is_sample_waiting(self):
+        """A request waits in the local queue until its batch is submitted."""
+
+        async def test_logic():
+            init_sample_working_time(time.monotonic())
+            batcher = FakeBatcher(
+                config=BatchConfig(size=10, send_delay=0.3, tick=0.01),
+                batch_completion_delay=0.3,
+            )
+            await batcher.generate_for_request({"prompt": "test"})
+            timing = sample_timing()
+            assert timing is not None and timing.open_waits == 0
+            # about 0.3 s queued; the 0.3 s in flight is working time
+            assert 0.2 <= sample_waiting_time() <= 0.45
+
+        await self._run_with_task_group(test_logic)
+
+    async def test_queued_wait_closes_on_error_and_cancel(self):
+        """The queue wait closes when the batch fails or the request is cancelled."""
+
+        async def test_logic():
+            init_sample_working_time(time.monotonic())
+            timing = sample_timing()
+            assert timing is not None
+
+            failing = FakeBatcher(
+                config=BatchConfig(
+                    size=10,
+                    send_delay=0.01,
+                    tick=0.001,
+                    max_consecutive_check_failures=1,
+                ),
+                fail_batch_ids={"batch-0"},
+            )
+            with pytest.raises(Exception, match="Simulated batch failure"):
+                await failing.generate_for_request({"prompt": "fails"})
+            assert timing.open_waits == 0
+
+            slow = FakeBatcher(config=BatchConfig(size=10, send_delay=0.5, tick=0.01))
+            with anyio.move_on_after(0.1):
+                await slow.generate_for_request({"prompt": "cancelled"})
+            assert timing.open_waits == 0
 
         await self._run_with_task_group(test_logic)
 
