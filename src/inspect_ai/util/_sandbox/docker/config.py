@@ -199,10 +199,9 @@ def _prepare_auto_compose(yaml_content: str, base_dir: str) -> str:
     including paths that depend on environment interpolation.
     """
     data = yaml.safe_load(yaml_content)
-    # Compose interpolates extension values too; the saved directory is literal.
-    data[AUTO_COMPOSE_PROJECT_DIRECTORY_KEY] = str(Path(base_dir).resolve()).replace(
-        "$", "$$"
-    )
+    # Escape the literal directory, preserving user-supplied Compose expressions.
+    escaped_base_dir = str(Path(base_dir).resolve()).replace("$", "$$")
+    data[AUTO_COMPOSE_PROJECT_DIRECTORY_KEY] = escaped_base_dir
     if data and "services" in data:
         for service in data["services"].values():
             if "build" in service:
@@ -210,10 +209,12 @@ def _prepare_auto_compose(yaml_content: str, base_dir: str) -> str:
                     ctx = service["build"].get("context", ".")
                     if not Path(ctx).is_absolute():
                         # Resolve relative path against base_dir
-                        service["build"]["context"] = str(Path(base_dir) / ctx)
+                        service["build"]["context"] = str(Path(escaped_base_dir) / ctx)
                 elif isinstance(service["build"], str):
                     # build is just a context path string
                     ctx = service["build"]
                     if not Path(ctx).is_absolute():
-                        service["build"] = {"context": str(Path(base_dir) / ctx)}
+                        service["build"] = {
+                            "context": str(Path(escaped_base_dir) / ctx)
+                        }
     return yaml.dump(data, default_flow_style=False, sort_keys=False)
