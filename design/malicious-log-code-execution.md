@@ -292,7 +292,7 @@ operation, with no task-file import and under step 3's restrictions.
 |---|---|
 | read operations | none, unless the caller passes `trust_log=True` (`inspect log recover --trust-log`) to recompute or recover, which imports the recorded task file |
 | `inspect score` without `--scorer`, `score(log, None)` | the recorded task file, and only when a recorded scorer or metric name is not registered |
-| `inspect score --scorer NAME`, `score(log, scorers)` | none for metrics. The recorded task file only when `--scorer` is a bare name that is not registered: the existing fallback in `scorer_from_spec()` that finds a scorer the user named in their task file, unchanged (Open questions) |
+| `inspect score --scorer NAME`, `score(log, scorers)` | none for metrics. The recorded task file only when `--scorer` is a bare name that is not registered: the existing fallback in `scorer_from_spec()` that finds a scorer the user named in their task file, kept (decision: Ransom, 2026-10-14; step 6) |
 | `eval-retry` | the recorded task file and the recorded solver file. A log with no `task_file` and an `hf/` task name instead makes the retry fetch that Hugging Face repo's `eval.yaml`, which imports no local file but chooses the dataset and the arguments of the built-in solvers and scorers it names |
 
 In every class, registry names may load installed packages' entry points and
@@ -816,8 +816,10 @@ the log's scorers imports the task file by design. It makes the task file the
 only file a log can make `inspect score` import, which is what step 7 reports.
 An explicit bare `--scorer NAME` that is not registered keeps its existing
 fallback to the recorded task file (`loader.py:833-862`, through
-`scorer_from_spec()`), since the user named a scorer they expect to find
-there; see Open questions.
+`scorer_from_spec()`). Decision: Ransom, 2026-10-14. The user named the
+scorer and expects to find it there; the file is the same one that rescoring
+with the log's scorers imports; and `inspect score --help` says to use the
+command only on trusted logs (step 7).
 
 ### 7. Run operations record what they loaded, and the docs say they run the log's code
 
@@ -977,6 +979,13 @@ metric options in read operations can make those factories build.
   only when a scorer asks for one would avoid constructing it for rule-based
   scorers. It changes how `score_async()` binds the task context, and the
   model is part of the run being scored; left under "Not this design".
+- **Resolving `--scorer` only through the registry or an explicit path**, so
+  that rescoring with the user's scorer never imports a file the log names; a
+  user whose scorer is in the task file would pass
+  `--scorer evals/task.py@my_scorer`. Rejected (decision: Ransom,
+  2026-10-14): the user named the scorer, the file is the one rescoring with
+  the log's scorers imports, and `inspect score` is documented for trusted
+  logs only (step 6).
 
 ## Compatibility and migration
 
@@ -1089,8 +1098,9 @@ an eval set resumes from. After this design:
   scorers (`--scorer`, or `score(log, scorers)`) the log's metrics never
   trigger it and their options are restricted by step 3; only an explicit
   bare `--scorer` name that is not registered still falls back to the
-  recorded task file, as today. In both modes `score()` still builds the
-  log's model and model roles (under "Not this design").
+  recorded task file, as today (decision: Ransom, 2026-10-14; step 6). In
+  both modes `score()` still builds the log's model and model roles (under
+  "Not this design").
 - What remains in read operations is installed code chosen by name: entry
   points of installed packages, their registered metric and reducer
   factories called with log arguments, registered scorer factories called
@@ -1342,22 +1352,13 @@ change).
 
 ## Open questions
 
-- **Bare `--scorer NAME` falling back to the log's task file.** Today
-  `inspect score --scorer my_scorer`, with `my_scorer` not registered,
-  imports the recorded task file to find it (`loader.py:833-862`). This
-  design leaves that as is: the user named the scorer, the file is the one
-  rescoring with the log's scorers would import, and `inspect score`'s help
-  says to use it on trusted logs. The alternative is to resolve `--scorer`
-  only through the registry or an explicit path, so that rescoring with the
-  user's scorer never imports a file the log names; a user whose scorer is in
-  the task file would then pass `--scorer evals/task.py@my_scorer`.
-  Recommendation: keep the fallback.
-
-Ransom settled the three earlier questions on 2026-10-06: break now
-(Alternatives considered), `model_info()` direct lookup only (step 5), and a
-printed record plus a plain statement in the docs and `--help` rather than a
-confirmation (step 7). He settled rescoring trust on 2026-10-14: the log is
-trusted only when its own scorers are used.
+None open. Ransom settled the three earlier questions on 2026-10-06: break
+now (Alternatives considered), `model_info()` direct lookup only (step 5),
+and a printed record plus a plain statement in the docs and `--help` rather
+than a confirmation (step 7). He settled rescoring trust on 2026-10-14: the
+log is trusted only when its own scorers are used. Also on 2026-10-14 he
+kept the bare unregistered `--scorer NAME` fallback to the recorded task
+file (step 6).
 
 ## Not this design
 
