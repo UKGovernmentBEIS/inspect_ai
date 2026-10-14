@@ -3093,3 +3093,48 @@ def test_mcp_sampling_is_not_checked() -> None:
     model_events = [e for e in log.samples[0].events if isinstance(e, ModelEvent)]
     assert len(model_events) == 2
     assert len(seen) == 2
+
+
+_MONITOR_SECONDS = 0.2
+
+
+@monitor
+def d3_slow(seen: Any) -> MonitorGroup:
+    async def before_generate(
+        context: Context, step: BeforeGenerate
+    ) -> Observation | None:
+        return await slow(step)
+
+    async def after_generate(
+        context: Context, step: AfterGenerate
+    ) -> Observation | None:
+        return await slow(step)
+
+    async def before_tool(context: Context, step: BeforeToolCall) -> Observation | None:
+        return await slow(step)
+
+    async def after_tool(context: Context, step: AfterToolCall) -> Observation | None:
+        return await slow(step)
+
+    async def slow(step: Any) -> Observation | None:
+        seen.append(type(step))
+        await anyio.sleep(_MONITOR_SECONDS)
+        return None
+
+    return MonitorGroup(before_generate, after_generate, before_tool, after_tool)
+
+
+def test_monitor_time_is_waiting_at_every_stage() -> None:
+    seen: list[type] = []
+    log = run(observe_only([d3_slow(seen)]))
+    assert log.status == "success", log.error
+    assert log.samples
+    sample = log.samples[0]
+    assert sample.total_time is not None and sample.working_time is not None
+
+    # two agent generates and one tool call
+    assert sorted(t.__name__ for t in seen) == sorted(
+        ["BeforeGenerate", "AfterGenerate"] * 2 + ["BeforeToolCall", "AfterToolCall"]
+    )
+    waiting = sample.total_time - sample.working_time
+    assert waiting >= len(seen) * _MONITOR_SECONDS - 0.05
