@@ -1915,12 +1915,6 @@
       "undescribed": 6
     }
   },
-  "tests/util/test_strenum.py": {
-    "type: ignore[comparison-overlap]": {
-      "count": 1,
-      "undescribed": 1
-    }
-  },
   "tests/util/test_utc_datetime_str.py": {
     "type: ignore": {
       "count": 5,
