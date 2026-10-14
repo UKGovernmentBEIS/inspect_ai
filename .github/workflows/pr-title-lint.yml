@@ -1,0 +1,21 @@
+name: PR Title Lint
+
+# PRs are squash-merged, so the PR title becomes the commit on main that
+# Release Please reads to decide the next version. The title must follow
+# Conventional Commits (e.g. "fix: ...", "feat(eval): ...", "feat!: ..."),
+# with the types in meridianlabs-ai/actions' conventional-commit-types.json.
+on:
+  pull_request:
+    types: [opened, edited, reopened, synchronize]
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    permissions:
+      pull-requests: read
+    uses: meridianlabs-ai/actions/.github/workflows/pr-title-lint.yml@6fdc8c6f9b26446215ed86b814f0165e8b17c988 # main, 2026-10-05
+    with:
+      # read the type list from the same pinned commit
+      types-ref: 6fdc8c6f9b26446215ed86b814f0165e8b17c988
