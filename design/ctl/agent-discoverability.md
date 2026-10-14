@@ -284,6 +284,6 @@ all of them.
   rather than a real TTY run.
   Help-text items (1c/2a/2b) are covered by `--help` snapshot-style assertions
   only if such tests already exist — otherwise not worth pinning prose.
-- CHANGELOG: one line, e.g. "`inspect eval` now prints a pointer to
-  `inspect ctl` monitoring at launch, and eval/ctl help text cross-links the
-  two surfaces."
+- PR title (the changelog line), e.g. "feat(ctl): `inspect eval` prints a
+  pointer to `inspect ctl` monitoring at launch, and eval/ctl help text
+  cross-links the two surfaces".

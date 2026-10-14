@@ -24,10 +24,15 @@ from inspect_ai import Task, eval, eval_async, task
 from inspect_ai._util.content import ContentToolUse
 from inspect_ai.agent import Agent, AgentState, agent, agent_bridge
 from inspect_ai.agent._bridge.types import AgentBridge
+from inspect_ai.agent._bridge.util import bridge_generate
 from inspect_ai.dataset import Sample
 from inspect_ai.event._model import ModelEvent
 from inspect_ai.log._log import EvalLog
-from inspect_ai.model._chat_message import ChatMessage, ChatMessageAssistant
+from inspect_ai.model._chat_message import (
+    ChatMessage,
+    ChatMessageAssistant,
+    ChatMessageUser,
+)
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model import GenerateFilter, GenerateInput, Model, get_model
 from inspect_ai.model._model_output import Logprob, Logprobs, ModelOutput, TopLogprob
@@ -124,13 +129,13 @@ def check_openai_responses_log_json(log_json: str, tools: bool):
     assert r'"parallel_tool_calls": true' in log_json
     assert r'"effort": "low"' in log_json
     assert r'"summary": "auto"' in log_json
-    assert r'"service_tier": "default"' in log_json
     assert r'"max_tool_calls": 5' in log_json
     assert r'"foo": "bar"' in log_json
     assert r'"prompt_cache_key": "42"' in log_json
     assert r'"prompt_cache_retention": "24h"' in log_json
     assert r'"safety_identifier": "42"' in log_json
-    assert r'"truncation": "auto"' in log_json
+    # the eval's configuration governs truncation, so the client's is withheld
+    assert r'"truncation": "auto"' not in log_json
     if tools:
         assert r'"name": "testing_tool"' in log_json
         assert r'"tool_choice": "auto"' in log_json
@@ -461,6 +466,32 @@ def anthropic_web_search_agent() -> Agent:
                         }
                     ],
                     tool_choice={"type": "any"},
+                )
+
+            return bridge.state
+
+    return execute
+
+
+@agent
+def anthropic_forced_web_search_agent(tool_type: str) -> Agent:
+    """Forces the named web_search tool, as Claude Code's WebSearch does."""
+
+    async def execute(state: AgentState) -> AgentState:
+        async with agent_bridge(state) as bridge:
+            async with AsyncAnthropic() as client:
+                tools: Any = [{"type": tool_type, "name": "web_search", "max_uses": 8}]
+                await client.messages.create(
+                    model="inspect",
+                    max_tokens=4096,
+                    messages=[
+                        {
+                            "role": "user",
+                            "content": user_prompt(state.messages).text,
+                        }
+                    ],
+                    tools=tools,
+                    tool_choice={"type": "tool", "name": "web_search"},
                 )
 
             return bridge.state
@@ -1092,6 +1123,38 @@ def test_bridged_web_search_tool_anthropic_filtering():
 
 
 @skip_if_no_anthropic
+def test_bridged_forced_web_search_keeps_client_version():
+    # Claude Code's forced WebSearch declares web_search_20250305; a frontier
+    # model would otherwise get web_search_20260209
+    log = eval(
+        web_search_task(anthropic_forced_web_search_agent("web_search_20250305")),
+        model="anthropic/claude-opus-5",
+    )[0]
+    log_json = log.model_dump_json(exclude_none=True, indent=2)
+    assert '"type": "web_search_20250305"' in log_json
+    assert '"type": "web_search_20260209"' not in log_json
+    check_server_tool_use(log, "web_search")
+
+
+@skip_if_no_anthropic
+@pytest.mark.parametrize("reasoning_effort", [None, "high"])
+def test_bridged_forced_web_search_filtering_version(
+    reasoning_effort: Literal["high"] | None,
+):
+    log = eval(
+        web_search_task(anthropic_forced_web_search_agent("web_search_20260209")),
+        model="anthropic/claude-sonnet-4-6",
+        reasoning_effort=reasoning_effort,
+    )[0]
+    log_json = log.model_dump_json(exclude_none=True, indent=2)
+    assert '"type": "web_search_20260209"' in log_json
+    assert '"direct"' in log_json
+    if reasoning_effort is not None:
+        assert '"type": "adaptive"' in log_json
+    check_server_tool_use(log, "web_search")
+
+
+@skip_if_no_anthropic
 def test_bridged_code_execution_tool_anthropic():
     log = eval(
         code_execution_task(anthropic_code_execution_agent()),
@@ -1627,6 +1690,55 @@ def test_bridge_filter_generated_event_records_requested_name() -> None:
     ]
 
 
+@pytest.mark.filterwarnings("ignore::DeprecationWarning")
+async def test_bridge_filter_style_detected_per_filter() -> None:
+    """Each filter gets a `Model` or a name by its own signature.
+
+    Alternating styles lets a new filter reuse a freed filter's `id()`.
+    """
+    model = get_model("mockllm/model")
+    received: list[Model | str] = []
+
+    def legacy_filter() -> GenerateFilter:
+        async def filter(
+            model: str,
+            input: list[ChatMessage],
+            tools: list[ToolInfo],
+            tool_choice: ToolChoice | None,
+            config: GenerateConfig,
+        ) -> None:
+            received.append(model)
+
+        return filter
+
+    def model_filter() -> GenerateFilter:
+        async def filter(
+            model: Model,
+            input: list[ChatMessage],
+            tools: list[ToolInfo],
+            tool_choice: ToolChoice | None,
+            config: GenerateConfig,
+        ) -> None:
+            received.append(model)
+
+        return filter
+
+    for make_filter in [legacy_filter, model_filter] * 3:
+        bridge = AgentBridge(AgentState(messages=[]), filter=make_filter())
+        await bridge_generate(
+            bridge,
+            model,
+            [ChatMessageUser(content="hi")],
+            [],
+            None,
+            GenerateConfig(),
+            None,
+        )
+        del bridge
+
+    assert received == [model.name, model] * 3
+
+
 @pytest.mark.parametrize(
     "requested",
     [
@@ -1663,3 +1775,128 @@ def test_google_sdk_request_records_full_requested_model(requested: str) -> None
     assert [(e.model, e.requested_model) for e in events] == [
         ("mockllm/model", requested)
     ]
+
+
+@skip_if_no_anthropic
+async def test_sandbox_bridge_live_anthropic_allowed_beta_and_brotli() -> None:
+    """A listed beta and `Accept-Encoding: br` reach Anthropic; the reply decodes."""
+    import anthropic
+
+    from inspect_ai.agent._bridge.sandbox.service import generate_anthropic
+    from inspect_ai.agent._bridge.sandbox.types import SandboxAgentBridge
+
+    beta = "context-management-2025-06-27"
+    request_headers: list[dict[str, str]] = []
+    response_encodings: list[str | None] = []
+
+    async def on_request(request: Any) -> None:
+        request_headers.append(dict(request.headers))
+
+    async def on_response(response: Any) -> None:
+        response_encodings.append(response.headers.get("content-encoding"))
+
+    model = get_model(
+        "anthropic/claude-haiku-4-5",
+        memoize=False,
+        streaming=False,
+        config=GenerateConfig(max_tokens=32),
+        http_client=anthropic.DefaultAsyncHttpxClient(
+            event_hooks={"request": [on_request], "response": [on_response]}
+        ),
+    )
+    bridge = SandboxAgentBridge(
+        state=AgentState(messages=[]),
+        filter=None,
+        retry_refusals=None,
+        compaction=None,
+        port=13131,
+        model=None,
+        model_aliases={"agent-model": model},
+        forward_client_headers={"anthropic-beta": [beta]},
+    )
+    try:
+        response: Any = await generate_anthropic(None, None, bridge)(
+            {
+                "model": "agent-model",
+                "max_tokens": 32,
+                "messages": [{"role": "user", "content": "Say hello."}],
+            },
+            {
+                "anthropic-beta": f"{beta},unlisted-beta-2026-01-01",
+                "accept-encoding": "br",
+            },
+        )
+    finally:
+        await model.api.aclose()
+
+    assert response["content"][0]["text"]
+    [headers] = request_headers
+    assert headers["anthropic-beta"] == beta
+    assert headers["accept-encoding"] == "br"
+    assert response_encodings == ["br"]
+
+
+@skip_if_no_openai
+@pytest.mark.parametrize(
+    "client_reasoning,model_config,expected_reasoning,sampling_sent",
+    [
+        # enabled: the model's configured effort and summary win; `context` stays
+        (
+            {"effort": "high", "summary": "auto", "context": "all_turns"},
+            GenerateConfig(reasoning_effort="low", reasoning_summary="none"),
+            {"effort": "low", "context": "all_turns"},
+            False,
+        ),
+        # disabled: sampling params are still sent
+        (
+            {"effort": "none", "context": "current_turn"},
+            GenerateConfig(reasoning_summary="none"),
+            {"effort": "none", "context": "current_turn"},
+            True,
+        ),
+    ],
+    ids=["enabled-with-override", "disabled"],
+)
+async def test_bridged_responses_reasoning_live_openai(
+    client_reasoning: dict[str, Any],
+    model_config: GenerateConfig,
+    expected_reasoning: dict[str, Any],
+    sampling_sent: bool,
+) -> None:
+    from inspect_ai.agent._bridge.responses_impl import (
+        inspect_responses_api_request_impl,
+    )
+
+    model = get_model("openai/gpt-5.4", memoize=False, config=model_config)
+    api: Any = model.api
+    requests: list[dict[str, Any]] = []
+    create = api.client.responses.create
+
+    async def capture_create(**kwargs: Any) -> Any:
+        requests.append(kwargs)
+        return await create(**kwargs)
+
+    api.client.responses.create = capture_create
+    bridge = AgentBridge(state=AgentState(messages=[]), forward_generation_config=True)
+    bridge.model_aliases = {"agent-model": model}
+    try:
+        response = await inspect_responses_api_request_impl(
+            json_data={
+                "model": "agent-model",
+                "input": "Say hello.",
+                "reasoning": client_reasoning,
+                "temperature": 0.2,
+                "max_output_tokens": 256,
+            },
+            headers=None,
+            web_search=None,
+            code_execution=None,
+            bridge=bridge,
+        )
+    finally:
+        await model.api.aclose()
+
+    assert response.output_text
+    [request] = requests
+    assert request["reasoning"] == expected_reasoning
+    assert ("temperature" in request) is sampling_sent
