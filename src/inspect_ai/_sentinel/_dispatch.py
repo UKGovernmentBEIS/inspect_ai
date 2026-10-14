@@ -378,22 +378,25 @@ class _Host:
         instructions: str | None = None,
         policy: str | None = None,
         template: str | None = None,
+        template_variables: Mapping[str, Any] | None = None,
         model: str | None = None,
         role: str | None = None,
         config: GenerateConfig | None = None,
+        retry_refusals: int = 3,
     ) -> Observation:
-        eval_context = _eval_context()
         return await score_step(
             self,
             step,
             dimensions,
-            task=eval_context.sample_input_text if eval_context else None,
+            eval=_eval_context(),
             instructions=instructions,
             policy=policy,
             template=template,
+            template_variables=template_variables,
             model=model,
             role=role,
             config=config,
+            retry_refusals=retry_refusals,
         )
 
     async def ask_human(self, step: Step, choices: Sequence[str]) -> HumanAnswer:
