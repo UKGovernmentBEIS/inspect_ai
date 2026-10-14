@@ -646,12 +646,9 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
     async def info(self, filename: str) -> FileInfo:
         if is_s3_filename(filename):
             bucket, key = s3_bucket_and_key(filename)
+            if current_async_backend() == "asyncio":
+                return await _s3_info_async(await self.s3_client_async(), filename)
             with _map_missing_s3_object(filename):
-                if current_async_backend() == "asyncio":
-                    response = await (await self.s3_client_async()).head_object(
-                        Bucket=bucket, Key=key
-                    )
-                    return _s3_head_to_file_info(filename, response)
                 return await anyio.to_thread.run_sync(
                     s3_info, self.s3_client(), bucket, key, filename
                 )
@@ -1027,23 +1024,31 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
             else {"IfNoneMatch": "*"}
         )
 
-        try:
-            current = (await self.info(filename)).etag
-        except FileNotFoundError:
-            current = None
-        if expected is None and current is not None:
-            raise WriteConflictError(f"{filename} already exists.")
-        if expected is not None and current != expected:
-            raise WriteConflictError(
-                f"{filename} was modified or removed by another process. "
-                f"Expected ETag: {expected}, found: {current or 'no object'}."
-            )
+        async def check(client: Any | None) -> None:
+            try:
+                info = (
+                    await _s3_info_async(client, filename)
+                    if client is not None
+                    else await self.info(filename)
+                )
+                current = info.etag
+            except FileNotFoundError:
+                current = None
+            if expected is None and current is not None:
+                raise WriteConflictError(f"{filename} already exists.")
+            if expected is not None and current != expected:
+                raise WriteConflictError(
+                    f"{filename} was modified or removed by another process. "
+                    f"Expected ETag: {expected}, found: {current or 'no object'}."
+                )
 
         try:
             if current_async_backend() == "asyncio":
                 client = await self.s3_client_async()
-                # held before acquiring the final client, which can rotate
+                # held from the check on, through acquiring the final client
+                # (which can rotate)
                 with self._hold_s3_clients(client):
+                    await check(client)
                     final_client = await self._s3_final_client_async()
                     with self._hold_s3_clients(final_client):
                         return await _s3_upload_fileobj_async(
@@ -1055,6 +1060,7 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
                             condition=condition,
                             final_client=final_client,
                         )
+            await check(None)
             etag = await anyio.to_thread.run_sync(
                 _s3_upload_fileobj_conditional_sync,
                 self.s3_client(),
@@ -1664,6 +1670,13 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
         return await session.create_client(
             "s3", config=config, region_name=region_name
         ).__aenter__()
+
+
+async def _s3_info_async(client: Any, filename: str) -> FileInfo:
+    bucket, key = s3_bucket_and_key(filename)
+    with _map_missing_s3_object(filename):
+        response = await client.head_object(Bucket=bucket, Key=key)
+    return _s3_head_to_file_info(filename, response)
 
 
 def _s3_head_to_file_info(filename: str, response: dict[str, Any]) -> FileInfo:

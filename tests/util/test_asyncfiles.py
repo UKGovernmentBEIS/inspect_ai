@@ -2904,6 +2904,80 @@ async def test_write_file_conditional_holds_clients_while_acquiring_them(
     assert _in_progress_uploads(key) == []
 
 
+@skip_if_trio  # client_ttl applies to the async clients only
+@pytest.mark.parametrize("condition", ["if_none_match", "if_match"])
+@pytest.mark.parametrize("outcome", ["ok", "conflict", "cancelled"])
+async def test_write_file_conditional_holds_client_through_check(
+    mock_s3: None, monkeypatch: pytest.MonkeyPatch, condition: str, outcome: str
+) -> None:
+    """Two client_ttl rotations during the check's HEAD do not close its client."""
+    key, url = _conditional_key(f"rotate-check-{condition}-{outcome}")
+    s3 = boto3.client("s3")
+    kwargs: dict[str, Any] = {"if_none_match": True}
+    if condition == "if_match":
+        etag = s3.put_object(Bucket="test-bucket", Key=key, Body=b"seed")["ETag"]
+        kwargs = {"if_match": '"' + "0" * 32 + '"' if outcome == "conflict" else etag}
+    elif outcome == "conflict":
+        s3.put_object(Bucket="test-bucket", Key=key, Body=b"seed")
+    fs = AsyncFilesystem(client_ttl=60)
+    closed = _record_closed_clients(monkeypatch, fs)
+    blocked = anyio.Event()
+    resume = anyio.Event()
+    heads = 0
+
+    try:
+        client = await fs.s3_client_async()
+
+        async def hold_first_head(**kwargs: Any) -> None:
+            nonlocal heads
+            heads += 1
+            if heads == 1:
+                blocked.set()
+                await resume.wait()
+                if client in closed:
+                    raise AssertionError("HEAD resumed on a closed client")
+
+        client.meta.events.register("before-send.s3.HeadObject", hold_first_head)
+        write = fs.write_file_conditional(url, io.BytesIO(b"new"), **kwargs)
+
+        async def run_write() -> None:
+            if outcome == "conflict":
+                with pytest.raises(WriteConflictError):
+                    await write
+            else:
+                await write
+
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(run_write)
+            await blocked.wait()
+            if outcome == "cancelled":
+                tg.cancel_scope.cancel()
+            else:
+                for _ in range(2):
+                    _age_s3_clients(fs)
+                    await fs.s3_client_async()
+                resume.set()
+
+        assert fs._s3_clients_held == []
+        if outcome != "cancelled":
+            assert client not in closed
+        # released: retired, then closed by a rotation a client_ttl later
+        for _ in range(2):
+            _age_s3_clients(fs)
+            await fs.s3_client_async()
+        assert client in closed
+    finally:
+        await fs.close()
+
+    stored = s3.list_objects_v2(Bucket="test-bucket", Prefix=key).get("Contents", [])
+    if outcome == "ok":
+        assert s3.get_object(Bucket="test-bucket", Key=key)["Body"].read() == b"new"
+    elif condition == "if_match" or outcome == "conflict":
+        assert s3.get_object(Bucket="test-bucket", Key=key)["Body"].read() == b"seed"
+    else:
+        assert stored == []
+
+
 async def test_write_file_conditional_cancelled_part_upload_aborts(
     mock_s3: None, small_transfer_config: TransferConfig
 ) -> None:
