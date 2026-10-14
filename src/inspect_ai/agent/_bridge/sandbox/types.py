@@ -1,7 +1,7 @@
 from collections import deque
 from logging import getLogger
 from os.path import commonprefix
-from typing import TYPE_CHECKING, Any, NamedTuple, NoReturn, Sequence
+from typing import TYPE_CHECKING, Any, Mapping, NamedTuple, NoReturn, Sequence
 
 import anyio
 from pydantic_core import to_jsonable_python
@@ -10,6 +10,7 @@ from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai._util.json import json_equal
 from inspect_ai._util.logger import warn_once
 from inspect_ai.agent._agent import AgentState
+from inspect_ai.agent._bridge.bridge import resolve_forward_client_headers
 from inspect_ai.agent._bridge.types import AgentBridge, DispatchedCall
 from inspect_ai.model._call_tools import get_tools_info
 from inspect_ai.model._compaction.types import CompactionStrategy
@@ -18,6 +19,7 @@ from inspect_ai.model._model import (
     Model,
     ModelEventSink,
     ModelResolver,
+    ModelResponseFilter,
 )
 from inspect_ai.tool import Tool
 from inspect_ai.tool._mcp._config import MCPServerConfigHTTP
@@ -59,6 +61,8 @@ class SandboxAgentBridge(AgentBridge):
         allow_remote_mcp: bool = False,
         allow_remote_media: bool = False,
         model_resolver: ModelResolver | None = None,
+        forward_client_headers: Mapping[str, Sequence[str]] | None = None,
+        response_filter: ModelResponseFilter | None = None,
     ) -> None:
         super().__init__(
             state,
@@ -74,12 +78,16 @@ class SandboxAgentBridge(AgentBridge):
             allow_remote_mcp=allow_remote_mcp,
             allow_remote_media=allow_remote_media,
             model_resolver=model_resolver,
+            response_filter=response_filter,
         )
         self.port = port
         self.mcp_server_configs = mcp_server_configs or []
         self.bridged_tools = {}
         self.served_tools = {}
         self.proposal_exempt_servers = proposal_exempt_servers or set()
+        self.forward_client_headers = resolve_forward_client_headers(
+            forward_client_headers
+        )
         for server, tools in (bridged_tools or {}).items():
             self.register_bridged_tools(server, tools)
         self._tool_execution_grants: deque[_ToolExecutionGrant] = deque(
@@ -109,6 +117,13 @@ class SandboxAgentBridge(AgentBridge):
 
     Their tools execute without an execution grant, so for them the bridge does
     not guarantee that a host tool runs only for a call the model proposed.
+    """
+
+    forward_client_headers: dict[str, frozenset[str]]
+    """Client headers (lowercase name) and values the sandboxed client may send.
+
+    Other client headers and values, except `Accept-Encoding`, are dropped
+    before the host request.
     """
 
     grants_tool_execution = True
