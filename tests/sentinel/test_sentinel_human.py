@@ -399,8 +399,11 @@ async def test_an_answer_that_was_not_offered_fails_closed(
     answer = await _Host().ask_human(step(after), choices)
 
     assert answer.decision == expected
-    assert answer.dismissed
     assert answer.reason is not None
+    # later steps read this answer, so it says the person did not choose
+    assert answer.reason.startswith(
+        "The person closed the prompt without choosing; failing closed"
+    )
     assert f"{answered}: dismissed" in answer.reason
 
 
@@ -1084,7 +1087,6 @@ def test_a_persons_rejection_is_seen_at_later_steps(
     assert [kept(r) for r in last.decisions] == [
         ("tool_call", call_id(log), (call_id(log),), "human", "reject", "not that")
     ]
-    assert not last.decisions[0].dismissed
 
 
 def test_a_turn_approval_is_seen_at_each_of_its_calls(
@@ -1502,7 +1504,7 @@ def test_a_superseded_copy_of_the_persons_decision_is_not_seen_later(
     assert last.decisions == ()
 
 
-def test_a_dismissed_prompt_is_marked_at_later_steps(
+def test_a_closed_prompt_is_seen_later_by_its_explanation(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     # the person ends the prompt without choosing, and the host fails closed
@@ -1515,29 +1517,34 @@ def test_a_dismissed_prompt_is_marked_at_later_steps(
     [last] = [s for s in seen if s.subject == "done"]
     assert last.decisions is not None
     [record] = last.decisions
-    assert record.dismissed
     assert record.decided.report.action == "reject"
+    assert (record.decided.report.explanation or "").startswith(
+        "The person closed the prompt without choosing; failing closed"
+    )
 
 
 @pytest.mark.parametrize(
-    ("response", "dismissed"),
+    ("response", "explanation"),
     [
         # the person cancels the prompt: the client fails closed with reject,
-        # which is offered by default
-        (RequestPermissionResponse(outcome=DeniedOutcome(outcome="cancelled")), True),
-        # the person selects reject: their own decision
+        # which is offered by default, and says why
+        (
+            RequestPermissionResponse(outcome=DeniedOutcome(outcome="cancelled")),
+            "ACP client cancelled the permission request.",
+        ),
+        # the person selects reject: their own decision, with no reason typed
         (
             RequestPermissionResponse(
                 outcome=AllowedOutcome(outcome="selected", option_id="reject")
             ),
-            False,
+            None,
         ),
     ],
 )
-def test_an_acp_cancellation_is_marked_dismissed_at_later_steps(
+def test_an_acp_cancellation_is_seen_later_by_its_explanation(
     monkeypatch: pytest.MonkeyPatch,
     response: RequestPermissionResponse,
-    dismissed: bool,
+    explanation: str | None,
 ) -> None:
     offered: list[list[str]] = []
 
@@ -1556,4 +1563,4 @@ def test_an_acp_cancellation_is_marked_dismissed_at_later_steps(
     assert last.decisions is not None
     [record] = last.decisions
     assert record.decided.report.action == "reject"
-    assert record.dismissed is dismissed
+    assert record.decided.report.explanation == explanation

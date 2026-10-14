@@ -63,7 +63,6 @@ from inspect_ai.tool._tool_call import (
 )
 
 from .._approval import Approval, ApprovalDecision
-from .util import HUMAN_DISMISSED
 
 if TYPE_CHECKING:
     from acp.schema import ContentToolCallContent
@@ -146,9 +145,6 @@ def _approval_from_response(
     ``outcome.selected`` with an unrecognized ``optionId`` → reject
     with an explanation noting the unknown id; defensive against a
     misbehaving client (or a client that synthesized its own option).
-
-    Neither reject is the person's choice, so both carry
-    ``metadata={HUMAN_DISMISSED: True}``.
     """
     outcome = response.outcome
     # The discriminator is ``outcome.outcome`` ("selected" | "cancelled").
@@ -156,7 +152,6 @@ def _approval_from_response(
         return Approval(
             decision="reject",
             explanation="ACP client cancelled the permission request.",
-            metadata={HUMAN_DISMISSED: True},
         )
     option_id = outcome.option_id  # AllowedOutcome
     if option_id in choices:
@@ -169,7 +164,6 @@ def _approval_from_response(
             f"ACP client returned an unknown optionId {option_id!r}; "
             f"valid options were {choices!r}."
         ),
-        metadata={HUMAN_DISMISSED: True},
     )
 
 
