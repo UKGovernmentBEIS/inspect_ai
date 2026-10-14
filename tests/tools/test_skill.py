@@ -1,8 +1,8 @@
 """End-to-end tests for the skill() tool."""
 
-import json
 import os
 from pathlib import Path
+from typing import Literal, overload
 
 import anyio
 import pytest
@@ -13,6 +13,7 @@ from inspect_ai import Task, eval
 from inspect_ai.agent import react
 from inspect_ai.dataset import Sample
 from inspect_ai.scorer import includes
+from inspect_ai.solver import Generate, Solver, TaskState, fork, solver
 from inspect_ai.tool import Tool, bash, skill
 from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.tool._tools._skill.install import install_skills
@@ -22,6 +23,7 @@ from inspect_ai.util import (
     SandboxUserUnsupportedError,
     Store,
     store,
+    subtask,
     tool_state_scope,
 )
 from inspect_ai.util._sandbox.context import (
@@ -30,7 +32,7 @@ from inspect_ai.util._sandbox.context import (
 )
 from inspect_ai.util._sandbox.environment import SandboxEnvironment
 from inspect_ai.util._sandbox.local import LocalSandboxEnvironment
-from inspect_ai.util._store import init_subtask_store, store_jsonable
+from inspect_ai.util._store import init_subtask_store
 from inspect_ai.util._subprocess import ExecResult
 
 # Path to test skills directory
@@ -644,22 +646,28 @@ def test_skill_end_to_end() -> None:
     )
 
 
-def _skill_sandbox_policy(cmd: list[str], user: str | None) -> ExecResult[str]:
-    """`pwd` gives /work; the physical directory script gives its argument."""
-    if cmd[-1] == "pwd":
-        return ExecResult(True, 0, "/work", "")
-    return ExecResult(True, 0, cmd[-1], "")
+class _FileSandbox(CannedSandbox):
+    """Keeps written files in memory; `pwd` gives /work; writes yield."""
 
-
-class _YieldingSandbox(CannedSandbox):
-    """Records writes and yields on each, so concurrent installs interleave."""
-
-    def __init__(self) -> None:
-        super().__init__(_skill_sandbox_policy)
+    def __init__(self, files: dict[str, bytes] | None = None) -> None:
+        super().__init__(lambda _cmd, _user: ExecResult(True, 0, "/work", ""))
+        self.files = dict(files or {})
 
     async def write_file(self, file: str, contents: str | bytes) -> None:
         await anyio.lowlevel.checkpoint()
         await super().write_file(file, contents)
+        self.files[file] = contents.encode() if isinstance(contents, str) else contents
+
+    @overload
+    async def read_file(self, file: str, text: Literal[True] = True) -> str: ...
+
+    @overload
+    async def read_file(self, file: str, text: Literal[False]) -> bytes: ...
+
+    async def read_file(self, file: str, text: bool = True) -> str | bytes:
+        if file not in self.files:
+            raise FileNotFoundError(file)
+        return self.files[file].decode() if text else self.files[file]
 
 
 class _CountingLocalSandbox(LocalSandboxEnvironment):
@@ -682,13 +690,11 @@ class TestSkillToolStateScope:
     OTHER = Skill(name="example", description="Example.", instructions="Other.")
 
     @pytest.fixture
-    def sandbox(self) -> CannedSandbox:
-        """A canned sandbox that records written files."""
-        return _YieldingSandbox()
+    def sandbox(self) -> _FileSandbox:
+        """A sandbox that keeps written files in memory."""
+        return _FileSandbox()
 
-    async def test_default_skill_tool_is_per_scope(
-        self, sandbox: CannedSandbox
-    ) -> None:
+    async def test_default_skill_tool_is_per_scope(self, sandbox: _FileSandbox) -> None:
         _use_sandbox(sandbox)
         init_subtask_store(Store())
         tool = skill([self.SKILL])
@@ -703,7 +709,7 @@ class TestSkillToolStateScope:
         assert store().get("InstalledSkills:@w-2:skills") is not None
 
     async def test_deepagent_child_skill_tool_is_per_scope(
-        self, sandbox: CannedSandbox
+        self, sandbox: _FileSandbox
     ) -> None:
         from inspect_ai.agent._deepagent.agent_tool import _resolve_tools
         from inspect_ai.agent._deepagent.subagent import subagent
@@ -735,7 +741,7 @@ class TestSkillToolStateScope:
         assert store().get("InstalledSkills:general:skills") is not None
 
     async def test_concurrent_first_calls_across_scopes_install_once(
-        self, sandbox: CannedSandbox
+        self, sandbox: _FileSandbox
     ) -> None:
         _use_sandbox(sandbox)
         init_subtask_store(Store())
@@ -763,7 +769,7 @@ class TestSkillToolStateScope:
         assert store().get("InstalledSkills:@w-2:skills") is not None
 
     async def test_conflicting_skill_contents_raise(
-        self, sandbox: CannedSandbox
+        self, sandbox: _FileSandbox
     ) -> None:
         _use_sandbox(sandbox)
         init_subtask_store(Store())
@@ -772,12 +778,32 @@ class TestSkillToolStateScope:
         with tool_state_scope("w-2"):
             with pytest.raises(
                 RuntimeError,
-                match="'example' is already installed in /work/skills with different contents",
+                match="/work/skills/example/SKILL.md already exists in the sandbox with different contents",
             ):
                 await skill([self.OTHER])(command="example")
         assert sandbox.written == ["/work/skills/example/SKILL.md"]
+        assert sandbox.files["/work/skills/example/SKILL.md"] == (
+            self.SKILL.skill_md().encode()
+        )
 
-    async def test_aliased_skill_dirs_share_one_record(self) -> None:
+    async def test_existing_sandbox_files_are_compared(self) -> None:
+        """Files already in the sandbox (a resumed sandbox or the image) count."""
+        path = "/work/skills/example/SKILL.md"
+        same = _FileSandbox({path: self.SKILL.skill_md().encode()})
+        _use_sandbox(same)
+        init_subtask_store(Store())
+        await skill([self.SKILL])(command="example")
+        assert same.written == []
+
+        different = _FileSandbox({path: b"other"})
+        _use_sandbox(different)
+        init_subtask_store(Store())
+        with pytest.raises(RuntimeError, match="different contents"):
+            await skill([self.SKILL])(command="example")
+        assert different.written == []
+        assert different.files[path] == b"other"
+
+    async def test_aliased_skill_dirs_compare_the_same_files(self) -> None:
         if os.name != "posix":
             pytest.skip("requires POSIX symlinks")
         local = _CountingLocalSandbox()
@@ -785,46 +811,85 @@ class TestSkillToolStateScope:
             _use_sandbox(local)
             init_subtask_store(Store())
             root = Path(local.directory.name)
-            (root / "skills").mkdir()
-            (root / "link").symlink_to(root / "skills")
-            for scope, dir in [
-                ("w-1", f"{root}/skills"),
-                ("w-2", f"{root}/skills/../skills"),
-                ("w-3", f"{root}/link"),
-            ]:
+            (root / "other" / "child").mkdir(parents=True)
+            (root / "other" / "skills").mkdir()
+            (root / "link").symlink_to(root / "other" / "skills")
+            (root / "child-link").symlink_to(root / "other" / "child")
+            aliases = [
+                f"{root}/link",  # symlink
+                f"{root}/other/skills/../skills",  # ..
+                f"{root}/child-link/../skills",  # symlink then ..
+            ]
+            with tool_state_scope("w-0"):
+                await skill([self.SKILL], dir=f"{root}/other/skills")(command="example")
+            for scope, dir in zip(["w-1", "w-2", "w-3"], aliases):
                 with tool_state_scope(scope):
                     await skill([self.SKILL], dir=dir)(command="example")
             assert len(local.written) == 1
 
-            for dir in [f"{root}/skills/../skills", f"{root}/link"]:
+            for dir in aliases:
                 with tool_state_scope("w-4"):
                     with pytest.raises(RuntimeError, match="different contents"):
                         await skill([self.OTHER], dir=dir)(command="example")
             assert len(local.written) == 1
-            skill_md = root / "skills" / "example" / "SKILL.md"
+            skill_md = root / "other" / "skills" / "example" / "SKILL.md"
             assert skill_md.read_text() == self.SKILL.skill_md()
         finally:
             local.directory.cleanup()
 
-    async def test_install_record_survives_checkpoint_restore(
-        self, sandbox: CannedSandbox
+    @pytest.mark.parametrize("wrapper", ["subtask", "fork"])
+    @pytest.mark.parametrize("conflict", [False, True])
+    def test_installs_through_subtask_and_fork_branches(
+        self, wrapper: str, conflict: bool, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        _use_sandbox(sandbox)
-        init_subtask_store(Store())
-        first = skill([self.SKILL])
-        with tool_state_scope("w-1"):
-            await first(command="example")
+        written: list[str] = []
+        local_write_file = LocalSandboxEnvironment.write_file
 
-        # resume: the store comes back from its JSON snapshot, the sandbox is new
-        restored = _YieldingSandbox()
-        _use_sandbox(restored)
-        init_subtask_store(Store(json.loads(json.dumps(store_jsonable(store())))))
+        async def counting_write_file(
+            self: LocalSandboxEnvironment, file: str, contents: str | bytes
+        ) -> None:
+            written.append(file)
+            await local_write_file(self, file, contents)
 
-        with tool_state_scope("w-1"):
-            await first(command="example")
-        with tool_state_scope("w-2"):
-            await skill([self.SKILL])(command="example")
-        with tool_state_scope("w-3"):
-            with pytest.raises(RuntimeError, match="different contents"):
-                await skill([self.OTHER])(command="example")
-        assert restored.written == []
+        monkeypatch.setattr(LocalSandboxEnvironment, "write_file", counting_write_file)
+
+        first = self.SKILL
+        second = self.OTHER if conflict else self.SKILL
+
+        @solver
+        def install(scope: str, sk: Skill) -> Solver:
+            async def solve(state: TaskState, generate: Generate) -> TaskState:
+                with tool_state_scope(scope):
+                    await skill([sk])(command="example")
+                return state
+
+            return solve
+
+        @subtask
+        async def install_subtask(scope: str, sk: Skill) -> None:
+            with tool_state_scope(scope):
+                await skill([sk])(command="example")
+
+        @solver
+        def branches() -> Solver:
+            async def solve(state: TaskState, generate: Generate) -> TaskState:
+                if wrapper == "fork":
+                    await fork(state, [install("w-1", first), install("w-2", second)])
+                else:
+                    await install_subtask("w-1", first)
+                    await install_subtask("w-2", second)
+                return state
+
+            return solve
+
+        log = eval(
+            Task(dataset=[Sample(input="x")], solver=branches(), sandbox="local"),
+            model="mockllm/model",
+        )[0]
+        assert log.samples is not None
+        error = log.samples[0].error
+        if conflict:
+            assert error is not None and "different contents" in error.message
+        else:
+            assert error is None
+        assert len(written) == 1 and written[0].endswith("skills/example/SKILL.md")
