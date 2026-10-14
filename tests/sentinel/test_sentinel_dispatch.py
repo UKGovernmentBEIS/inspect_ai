@@ -909,7 +909,7 @@ def test_an_escalate_returned_to_the_host_fails_the_sample(
     assert sample.limit is None
     assert sample.error is not None
     assert f"returned an escalate at the {stage} stage" in sample.error.message
-    assert "inspect_sentinel 0.1.1 or later" in sample.error.message
+    assert "inspect_sentinel 0.1.2 or later" in sample.error.message
     assert tool_messages(log) == []
     [event] = [e for e in sample.events if isinstance(e, ToolEvent)]
     assert event.failed is True
@@ -1093,6 +1093,8 @@ def test_context_and_step_come_from_the_sample(
     assert step.conversation == sample.uuid
     assert step.call.function == "addition"
     assert step.view.call is not None
+    # in-process Inspect always provides history
+    assert step.history is not None
     assert step.history[-1].role == "assistant"
     model_events = [e for e in sample.events if isinstance(e, ModelEvent)]
     assert step.input is not None
