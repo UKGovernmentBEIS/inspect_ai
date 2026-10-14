@@ -113,7 +113,7 @@ jobs:
       # is on PyPI and requirements-dev.txt requires it.
       - name: Install inspect_sentinel (TEMPORARY)
         if: github.event_name != 'pull_request' || steps.filter.outputs.code == 'true'
-        run: uv pip install --no-deps "inspect_sentinel @ git+https://github.com/meridianlabs-ai/inspect_sentinel@bb42b49835d328dfd22b63238ad6538b9fd2c820"
+        run: uv pip install --no-deps "inspect_sentinel @ git+https://github.com/meridianlabs-ai/inspect_sentinel@b9e8dc60a469788ae82d845f2b99abc7d2e9ee2e"
 
       - name: Run mypy
         if: github.event_name != 'pull_request' || steps.filter.outputs.code == 'true'
@@ -345,7 +345,7 @@ jobs:
       # is on PyPI and requirements-dev.txt requires it.
       - name: Install inspect_sentinel (TEMPORARY)
         if: env.RUN_TESTS == 'true'
-        run: uv pip install --no-deps "inspect_sentinel @ git+https://github.com/meridianlabs-ai/inspect_sentinel@bb42b49835d328dfd22b63238ad6538b9fd2c820"
+        run: uv pip install --no-deps "inspect_sentinel @ git+https://github.com/meridianlabs-ai/inspect_sentinel@b9e8dc60a469788ae82d845f2b99abc7d2e9ee2e"
 
       - name: Test with pytest
         if: env.RUN_TESTS == 'true'
