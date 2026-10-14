@@ -436,9 +436,13 @@ async def test_headers_are_kept_when_the_callers_own_hook_cannot_read_the_body(
 async def test_concurrent_calls_keep_their_own_headers(
     attempts: list[tuple[str, ResponseHeaders]], name: str, base_url: str, reply: Reply
 ) -> None:
+    # built here rather than in the tasks, so that a skip isn't wrapped in the
+    # task group's exception group
+    models = {caller: _model(name, base_url, reply(caller)) for caller in "abc"}
+
     async def call(caller: str) -> None:
         _caller.set(caller)
-        await _model(name, base_url, reply(caller)).generate("hello")
+        await models[caller].generate("hello")
 
     async with anyio.create_task_group() as tg:
         for caller in ("a", "b", "c"):
