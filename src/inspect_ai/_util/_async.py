@@ -274,7 +274,9 @@ async def _trio_cancel_on_sigint(main: Callable[[], Coroutine[None, None, T]]) -
             raise KeyboardInterrupt from None
         raise
     finally:
-        signal.signal(signal.SIGINT, trio_handler)
+        # leave a handler that `main` installed in place
+        if signal.getsignal(signal.SIGINT) is cancel_main:
+            signal.signal(signal.SIGINT, trio_handler)
     if interrupted:
         raise KeyboardInterrupt
     return result

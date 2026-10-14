@@ -1245,19 +1245,18 @@ async def _eval_async_inner(
                 )
                 await wait_for_shutdown_async(_ctl_server)
 
-        # shielded: under trio a Ctrl-C leaves the run's scope cancelled
-        with anyio.CancelScope(shield=True):
-            # cleanup sample buffers if required
-            await cleanup_sample_buffers(log_dir)
-
     except BaseException as e:
         with anyio.CancelScope(shield=True):
             await emit_run_end(eval_set_id, run_id, EvalLogs([]), e)
         raise e
 
     else:
-        # in `else` so an interrupt during these hooks does not rerun them
+        # shielded: under trio a Ctrl-C leaves the run's scope cancelled. In
+        # `else` so a second Ctrl-C here does not start the hooks above.
         with anyio.CancelScope(shield=True):
+            # cleanup sample buffers if required
+            await cleanup_sample_buffers(log_dir)
+
             try:
                 await emit_run_end(eval_set_id, run_id, logs)
             except UnboundLocalError:

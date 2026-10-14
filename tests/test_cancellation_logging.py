@@ -331,6 +331,7 @@ import tempfile
 import anyio
 
 import inspect_ai._display.core.active as active_display
+import inspect_ai._eval.eval as eval_module
 import inspect_ai._eval.task.run as task_run
 import inspect_ai.util._display as display_state
 from inspect_ai import Task, eval
@@ -345,6 +346,7 @@ NUM_SAMPLES = 3
 with_sandbox = sys.argv[1] == "with_sandbox"
 run_ends = []
 sigint_in_hook = False
+events = []
 
 if with_sandbox:
     # the sandbox_kwarg fixture's fake: teardown awaits
@@ -362,6 +364,7 @@ if with_sandbox:
 class RunEndProbe(Hooks):
     async def on_run_end(self, data: RunEnd) -> None:
         run_ends.append(data.run_id)
+        events.append("hook")
         if sigint_in_hook:
             signal.raise_signal(signal.SIGINT)
         await anyio.sleep(0)
@@ -446,6 +449,29 @@ for display in ["rich", "plain", "log"]:
     assert len(run_ends) == hooks_before + 1, (display, run_ends)
 sigint_in_hook = False
 
+# a second Ctrl-C during buffer cleanup interrupts without starting the hooks
+# (with the rich display the first Ctrl-C ends the run before buffer cleanup)
+cleanup_sample_buffers = eval_module.cleanup_sample_buffers
+
+
+async def cleanup_with_sigint(log_dir):
+    events.append("cleanup")
+    signal.raise_signal(signal.SIGINT)
+    await cleanup_sample_buffers(log_dir)
+
+
+eval_module.cleanup_sample_buffers = cleanup_with_sigint
+for display in ["plain", "log"]:
+    events.clear()
+    try:
+        run_eval(display, tempfile.mkdtemp(), interrupt=True)
+    except KeyboardInterrupt as ex:
+        assert type(ex) is KeyboardInterrupt, repr(ex)
+    else:
+        raise AssertionError(f"{display}: no KeyboardInterrupt")
+    assert events == ["cleanup"], (display, events)
+eval_module.cleanup_sample_buffers = cleanup_sample_buffers
+
 # a later eval() in the same process still runs
 assert run_eval("rich", tempfile.mkdtemp(), interrupt=False).status == "success"
 """
@@ -457,7 +483,8 @@ def test_keyboard_interrupt_under_trio(sandbox: str):
 
     Covers the rich, plain and log displays, that an eval() error without a
     SIGINT is not masked, that a second SIGINT during a run-end hook does not
-    rerun it, and that a later eval() still runs.
+    rerun it, that a second SIGINT during buffer cleanup does not start the
+    hooks, and that a later eval() still runs.
     """
     result = subprocess.run(
         [sys.executable, "-I", "-c", _TRIO_KEYBOARD_INTERRUPT_SCRIPT, sandbox],

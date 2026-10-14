@@ -150,6 +150,16 @@ def test_run_main_trio_sigint() -> None:
                 check_interrupted(interrupted_twice_without_yielding)
                 assert reached == ["first"], reached
                 check_interrupted(interrupted_twice_in_child)
+
+                def own_handler(signum, frame):
+                    pass
+
+                async def installs_handler():
+                    signal.signal(signal.SIGINT, own_handler)
+                    return "installed"
+
+                assert run_main(installs_handler) == "installed"
+                assert signal.getsignal(signal.SIGINT) is own_handler
             """),
         ],
         env={**os.environ, "INSPECT_ASYNC_BACKEND": "trio"},
