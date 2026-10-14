@@ -1,8 +1,9 @@
+import re
 from collections import Counter
 from collections.abc import Callable, Sequence
 from copy import copy
 from logging import getLogger
-from typing import Any, Literal, TypeGuard, cast
+from typing import Any, Literal, NamedTuple, TypeGuard, cast
 from weakref import WeakKeyDictionary
 
 from inspect_sentinel import (
@@ -19,13 +20,17 @@ from inspect_sentinel import (
     Report,
     Reported,
     Step,
+    Truncation,
 )
 from inspect_sentinel._integration import HostContext, run_sentinel, watched_stages
+from shortuuid import uuid as shortuuid
 
 from inspect_ai._util.exception import TerminateSampleError
+from inspect_ai._util.format import MARKER_CLOSE, MARKER_OPEN, display_safe
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.registry import registry_lookup
-from inspect_ai.approval._approval import ApprovalDecision
+from inspect_ai.approval._approval import Approval, ApprovalDecision
+from inspect_ai.approval._approver import Approver
 from inspect_ai.approval._human.approver import human_approver
 from inspect_ai.event._event import Event
 from inspect_ai.event._model import ModelEvent
@@ -63,7 +68,9 @@ from inspect_ai.tool._tool_call import (
     ToolCallContent,
     ToolCallView,
     ToolCallViewer,
+    default_tool_call_viewer,
     resolve_tool_call_view,
+    substitute_tool_call_content,
 )
 from inspect_ai.tool._tool_choice import ToolChoice
 from inspect_ai.tool._tool_info import ToolInfo
@@ -92,13 +99,15 @@ async def sentinel_before_tool_call(
 ) -> Decision | None:
     if not _watches(BeforeToolCall):
         return None
+    producer = _producing_event(call, history)
     step = BeforeToolCall(
         conversation=_conversation(),
         message=message,
         call=call,
         view=resolve_tool_call_view(call, viewer),
-        input=_model_input(call, history),
+        input=list(producer.input) if producer is not None else None,
         history=history,
+        tools=list(producer.tools) if producer is not None else None,
     )
     return await _run(step)
 
@@ -126,11 +135,13 @@ async def sentinel_after_tool_call(
     call: ToolCall,
     result: ChatMessageTool,
     output: ToolResult,
+    truncated: tuple[int, int] | None,
     viewer: ToolCallViewer | None,
     history: list[ChatMessage],
 ) -> None:
     if not _watches(AfterToolCall):
         return
+    producer = _producing_event(call, history)
     step = AfterToolCall(
         conversation=_conversation(),
         message=message,
@@ -138,8 +149,10 @@ async def sentinel_after_tool_call(
         result=result,
         output=output,
         view=resolve_tool_call_view(call, viewer),
-        input=_model_input(call, history),
+        input=list(producer.input) if producer is not None else None,
         history=history,
+        tools=list(producer.tools) if producer is not None else None,
+        truncated=Truncation(*truncated) if truncated is not None else False,
     )
     decision = await _run(step)
     if decision is not None and decision.action == "terminate":
@@ -242,7 +255,7 @@ async def _run(step: Step) -> Decision | None:
             RuntimeError(
                 f"inspect_sentinel returned an escalate at the {_stage(step)} stage, "
                 "which it should have turned into a terminate. inspect_ai requires "
-                "inspect_sentinel 0.1.1 or later: pip install --upgrade inspect-sentinel"
+                "inspect_sentinel 0.1.2 or later: pip install --upgrade inspect-sentinel"
             )
         )
     return decision
@@ -317,20 +330,17 @@ def _assistant_index(call: ToolCall, history: list[ChatMessage]) -> int | None:
     return None
 
 
-def _model_input(
-    call: ToolCall, history: list[ChatMessage]
-) -> list[ChatMessage] | None:
+def _producing_event(call: ToolCall, history: list[ChatMessage]) -> ModelEvent | None:
     index = _assistant_index(call, history)
     message_id = history[index].id if index is not None else None
     if message_id is None:
         return None
     try:
-        event = transcript().history.find_last(_produced_by(message_id))
+        return transcript().history.find_last(_produced_by(message_id))
     except TranscriptHistoryUnavailableError:
         return None
     except Exception as ex:
         raise SentinelFailure(ex) from ex
-    return list(event.input) if event is not None else None
 
 
 def _produced_by(message_id: str) -> Callable[[Event], TypeGuard[ModelEvent]]:
@@ -393,15 +403,20 @@ class _Host:
         )
 
     async def ask_human(self, step: Step, choices: Sequence[str]) -> HumanAnswer:
-        if not isinstance(step, BeforeToolCall | AfterToolCall):
+        if isinstance(step, BeforeGenerate):
             raise NotImplementedError(
                 f"inspect_ai cannot ask a person at the {_stage(step)} stage; "
-                "its human approval surfaces show tool calls."
+                "its human approval surfaces show tool calls and assistant turns."
             )
         if "modify" in choices:
             raise NotImplementedError(
                 "human() cannot offer 'modify' in inspect_ai, since its human "
                 "approval surfaces cannot edit a tool call yet."
+            )
+        if isinstance(step, AfterGenerate) and "reject" in choices:
+            raise ValueError(
+                f"human() cannot offer 'reject' at the {_stage(step)} stage, "
+                "where a turn can only proceed or be terminated."
             )
         offered: list[ApprovalDecision] = []
         for choice in choices:
@@ -411,9 +426,22 @@ class _Host:
                     f"{', '.join(repr(c) for c in _HUMAN_CHOICES)}."
                 )
             offered.append(cast(ApprovalDecision, choice))
-        approval = await human_approver(choices=offered)(
-            step.message, step.call, _human_view(step), step.history
-        )
+        # the approval surfaces show the conversation; a step whose host could
+        # not provide the scaffold's history shows what the model saw instead,
+        # and nothing when that is unknown too
+        if step.history is not None:
+            conversation = step.history
+        elif step.input is not None:
+            conversation = step.input
+        else:
+            conversation = []
+        approve = human_approver(choices=offered)
+        if isinstance(step, AfterGenerate):
+            approval = await _ask_about_turn(approve, step, offered, conversation)
+        else:
+            approval = await approve(
+                step.message, step.call, _human_view(step), conversation
+            )
         if approval.decision in offered:
             return HumanAnswer(decision=approval.decision, reason=approval.explanation)
         return HumanAnswer(
@@ -431,14 +459,7 @@ _HUMAN_CHOICES = ("approve", "reject", "terminate")
 def _human_view(step: BeforeToolCall | AfterToolCall) -> ToolCallView:
     view = step.view
     if step.escalations:
-        lines = escape_placeholders(
-            "\n".join(
-                f"- {e.name}: {e.report.explanation}"
-                if e.report.explanation
-                else f"- {e.name}"
-                for e in step.escalations
-            )
-        )
+        lines = _escalation_lines(step)
         escalated = f"**Escalated by**\n\n{fenced(lines)}"
         if view.call is None:
             call = ToolCallContent(format="markdown", content=escalated)
@@ -458,6 +479,187 @@ def _human_view(step: BeforeToolCall | AfterToolCall) -> ToolCallView:
     if isinstance(step, AfterToolCall):
         view = view_with_result(view, step.result)
     return view
+
+
+def _escalation_lines(step: Step) -> str:
+    return escape_placeholders(
+        "\n".join(
+            f"- {e.name}: {e.report.explanation}"
+            if e.report.explanation
+            else f"- {e.name}"
+            for e in step.escalations
+        )
+    )
+
+
+async def _ask_about_turn(
+    approve: Approver,
+    step: AfterGenerate,
+    offered: list[ApprovalDecision],
+    conversation: list[ChatMessage],
+) -> Approval:
+    # deferred: the ACP shim imports `acp.schema`, which only matters once a
+    # person is asked
+    from inspect_ai.approval._human.acp import finish_approval_card
+
+    prompt = _turn_prompt(step)
+    status: Literal["completed", "failed"] = "failed"
+    try:
+        approval = await approve(prompt.message, prompt.call, prompt.view, conversation)
+        if approval.decision in offered:
+            status = "completed"
+        return approval
+    finally:
+        # no tool event completes the card the turn's prompt opened; a prompt
+        # that ended without one of the choices failed
+        finish_approval_card(prompt.call, prompt.view, status)
+
+
+class _Prompt(NamedTuple):
+    message: str
+    call: ToolCall
+    view: ToolCallView
+
+
+def _turn_prompt(step: AfterGenerate) -> _Prompt:
+    """The assistant turn as one prompt for the human approval surfaces.
+
+    The surfaces show one tool call, so the turn becomes a single view: the
+    escalations, how many calls the turn makes, then each call. Two things
+    keep a call from hiding, merging into or passing for another:
+
+    - Markdown: a call's content is shown only inside a code block it cannot
+      close (see `_call_markdown`), and everything outside the code blocks is
+      written here, so the count says how many calls there are.
+    - Characters that act rather than show (terminal escape sequences, which
+      could move the cursor over another call's lines, bidi overrides, and
+      zero-width and tag characters): everything the agent wrote in the view,
+      the calls, the escalations quoting it and the title, goes through
+      `display_safe`, which shows each as a marker, and the view says so when
+      it did. So does the assistant text, which the panel and the console show
+      above the view; an ACP client shows the turn's streamed text and
+      reasoning instead, which the Inspect ACP TUI makes safe the same way,
+      as `--display conversation` does for the turn it prints.
+
+    What a call's own viewer makes of its arguments inside its code block is
+    the viewer's; a call can still garble its own content there. Earlier
+    tool output in the ACP TUI's stream and the conversation display is not
+    made safe yet.
+
+    The call handed to the surfaces stands for the whole turn, and its
+    function is the turn's title, which carries the count too. Its id is its
+    own, unlike any tool call's or another prompt's, since an ACP client opens
+    a card under it; its empty arguments leave the view as rendered here.
+    """
+    safe = _Escaped()
+    message = step.output.message if step.output.choices else None
+    calls = (message.tool_calls if message else None) or []
+    shown = [
+        _call_markdown(call, index, len(calls), safe)
+        for index, call in enumerate(calls, 1)
+    ]
+    tally = Counter(_one_line(call.function, safe) for call in calls)
+    tools = ", ".join(
+        function if count == 1 else f"{function} ×{count}"
+        for function, count in tally.items()
+    )
+    text = safe(message.text) if message else ""
+    blocks: list[str] = []
+    if step.escalations:
+        escalated = safe(_escalation_lines(step))
+        blocks.append(f"**Escalated by**\n\n{fenced(escalated)}")
+    count = f"**The turn makes {_calls(len(calls))}.**"
+    if safe.escaped:
+        count = f"{count}\n\n**{_ESCAPED_NOTICE}**"
+    blocks.append(count)
+    blocks.extend(shown)
+    turn = ToolCall(
+        id=f"turn_{shortuuid()}",
+        function=f"Assistant turn: {_calls(len(calls))}"
+        + (f" ({tools})" if tools else ""),
+        arguments={},
+    )
+    view = ToolCallView(
+        call=ToolCallContent(format="markdown", content="\n\n---\n\n".join(blocks))
+    )
+    return _Prompt(text, turn, view)
+
+
+_ESCAPED_NOTICE = (
+    "This turn contains hidden or control characters, "
+    f"shown as {MARKER_OPEN}U+…{MARKER_CLOSE}."
+)
+
+
+class _Escaped:
+    """`display_safe` for one turn, remembering whether it escaped anything."""
+
+    def __init__(self) -> None:
+        self.escaped = False
+
+    def __call__(self, text: str) -> str:
+        shown = display_safe(text)
+        self.escaped = self.escaped or shown.escaped
+        return shown.text
+
+
+def _calls(count: int) -> str:
+    if count == 0:
+        return "no tool calls"
+    return "1 tool call" if count == 1 else f"{count} tool calls"
+
+
+def _call_markdown(call: ToolCall, index: int, count: int, safe: _Escaped) -> str:
+    """One call: a header written here, then its content as a code block.
+
+    The content is what the transcript shows (`ToolCall.view`, which
+    `Model.generate` sets from the tool's viewer, or the default rendering),
+    with the call's placeholders filled in. Viewers interpolate arguments into
+    markdown unescaped, so an argument could close the viewer's code fence and
+    open an HTML comment that swallows the calls after it. A viewer's single
+    code block keeps its language and is fenced again by a fence longer than
+    any backtick run in it; any other content is shown as source.
+    """
+    content = substitute_tool_call_content(
+        call.view or cast(ToolCallContent, default_tool_call_viewer(call).call),
+        call.arguments,
+    )
+    header = f"**Call {index} of {count}:** {_markdown_text(call.function, safe)}"
+    if content.title and content.title != call.function:
+        header = f"{header} ({_markdown_text(content.title, safe)})"
+    block = _CODE_BLOCK.fullmatch(content.content)
+    if content.format == "markdown" and block is not None:
+        language, code = block.group("language").strip(), block.group("code")
+    else:
+        language = "markdown" if content.format == "markdown" else ""
+        code = content.content
+    return f"{header}\n\n{_code_block(safe(code), language)}"
+
+
+# a viewer's single fenced code block, e.g. `code_viewer`'s and the default's
+_CODE_BLOCK = re.compile(
+    r"(?P<fence>`{3,})(?P<language>[\w+.-]*)\n(?P<code>.*)\n(?P=fence)[ \t]*\n?",
+    re.DOTALL,
+)
+
+
+def _code_block(code: str, language: str) -> str:
+    # deferred: the ACP shim imports `acp.schema`, which only matters once a
+    # person is asked
+    from inspect_ai.approval._human.acp import _safe_code_fence
+
+    fence = _safe_code_fence(code)
+    return f"{fence}{language}\n{code}\n{fence}"
+
+
+def _markdown_text(text: str, safe: _Escaped) -> str:
+    # one line of literal text: markdown punctuation escaped, so a function
+    # name or viewer title cannot add structure
+    return re.sub(r"([\\`*_{}\[\]()#+\-.!|<>~&])", r"\\\1", _one_line(text, safe))
+
+
+def _one_line(text: str, safe: _Escaped) -> str:
+    return " ".join(safe(text).split())
 
 
 class _Recorder:
