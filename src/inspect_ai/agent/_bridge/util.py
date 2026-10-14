@@ -115,6 +115,7 @@ _GENERATION_PARAM_FIELDS: tuple[str, ...] = (
     "reasoning_effort",
     "reasoning_tokens",
     "reasoning_summary",
+    "reasoning_mode",
     "verbosity",
 )
 
@@ -830,6 +831,11 @@ async def bridge_generate(
     declared_in_input: Callable[[list[ChatMessage]], Sequence[ToolInfo]] | None = None,
     *,
     routing: "BridgeModelResolution | None" = None,
+    finalize_config: Callable[
+        [Model, Sequence[ToolInfo | Tool], ToolChoice | None, GenerateConfig],
+        GenerateConfig,
+    ]
+    | None = None,
 ) -> tuple[ModelOutput, ChatMessageUser | None]:
     """Generate model output through the agent bridge.
 
@@ -864,6 +870,10 @@ async def bridge_generate(
     on the `ModelEvent` of the client's request (whether the filter or the default
     generation makes it), and a redirect is warned about once per name. Compaction
     and approval calls are not the client's request and are not labelled.
+
+    `finalize_config` adjusts the config of the bridge's own generation call for
+    the model, tools, tool choice and config it is made with, after any filter
+    rewrite. It is not applied to a generation the filter makes itself.
     """
     if routing is not None and routing.redirected:
         _warn_redirect(routing, bridge.model)
@@ -878,6 +888,7 @@ async def bridge_generate(
             config,
             declared_in_input,
             routing,
+            finalize_config,
         )
 
 
@@ -890,6 +901,11 @@ async def _bridge_generate_impl(
     config: GenerateConfig,
     declared_in_input: Callable[[list[ChatMessage]], Sequence[ToolInfo]] | None,
     routing: "BridgeModelResolution | None",
+    finalize_config: Callable[
+        [Model, Sequence[ToolInfo | Tool], ToolChoice | None, GenerateConfig],
+        GenerateConfig,
+    ]
+    | None,
 ) -> tuple[ModelOutput, ChatMessageUser | None]:
     """Implementation of bridge_generate (see wrapper)."""
     # restore operator provenance lost to a bridged scaffold's round-trip (e.g.
@@ -986,7 +1002,9 @@ async def _bridge_generate_impl(
                             input=input_messages,
                             tool_choice=tool_choice,
                             tools=tools,
-                            config=config,
+                            config=finalize_config(model, tools, tool_choice, config)
+                            if finalize_config is not None
+                            else config,
                         )
                     except ModelRefusalError as ex:
                         if bridge.response_filter is not None:
@@ -1065,13 +1083,44 @@ def resolve_generate_config(
     # give config built into the model instance priority over
     # bridged agent default
     config = bridge_config.merge(model.config)
+    extra_headers = merge_extra_headers(
+        bridge_config.extra_headers, model.config.extra_headers
+    )
 
     # apply active model config if appropriate
     is_active_model = model is active_model()
     if is_active_model:
-        config = config.merge(active_generate_config())
+        active_config = active_generate_config()
+        config = config.merge(active_config)
+        extra_headers = merge_extra_headers(extra_headers, active_config.extra_headers)
 
+    config.extra_headers = extra_headers
     return config
+
+
+def merge_extra_headers(
+    client_headers: dict[str, str] | None, headers: dict[str, str] | None
+) -> dict[str, str] | None:
+    """Merge model or eval `extra_headers` over the headers a bridged client sent.
+
+    `GenerateConfig.merge` replaces `extra_headers` whole, which would drop every
+    forwarded client header whenever the model or eval sets any. Here names are
+    matched case-insensitively and `headers` wins on the same name, except that
+    `anthropic-beta` lists are combined.
+    """
+    if not client_headers:
+        return dict(headers) if headers else None
+    merged = dict(client_headers)
+    for name, value in (headers or {}).items():
+        existing = [key for key in merged if key.lower() == name.lower()]
+        if name.lower() == "anthropic-beta":
+            betas = [beta for key in existing for beta in merged[key].split(",")]
+            betas.extend(value.split(","))
+            value = ",".join(dict.fromkeys(b.strip() for b in betas if b.strip()))
+        for key in existing:
+            del merged[key]
+        merged[name] = value
+    return merged
 
 
 BridgeModelRoute = Literal[
