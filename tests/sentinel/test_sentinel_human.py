@@ -39,8 +39,10 @@ from inspect_ai.event import ToolEvent
 from inspect_ai.log import EvalLog
 from inspect_ai.model import (
     ChatCompletionChoice,
+    ChatMessage,
     ChatMessageAssistant,
     ChatMessageTool,
+    ChatMessageUser,
     GenerateConfig,
     ModelOutput,
     get_model,
@@ -131,6 +133,7 @@ class Panel:
         self.views: list[ToolCallView] = []
         self.choices: list[list[str]] = []
         self.messages: list[str] = []
+        self.histories: list[object] = []
 
     def install(self, monkeypatch: pytest.MonkeyPatch) -> None:
         async def acp(**kwargs: object) -> Approval | None:
@@ -144,6 +147,7 @@ class Panel:
             choices: list[str],
         ) -> Approval:
             self.messages.append(message)
+            self.histories.append(history)
             self.views.append(view)
             self.choices.append(choices)
             return Approval(decision=self.decision, explanation=self.explanation)
@@ -301,6 +305,61 @@ async def test_an_escalation_cannot_inject_markdown(
     fenced = f"````\n- monitor: {injected}\n````"
     assert content.startswith(f"**Escalated by**\n\n{fenced}\n\n")
     assert content.endswith("```python\naddition(1, 1)\n```")
+
+
+HISTORY: list[ChatMessage] = [
+    ChatMessageUser(content="What is 1 + 1?"),
+    ChatMessageAssistant(content="Adding."),
+]
+INPUT: list[ChatMessage] = [ChatMessageUser(content="What is 1 + 1?")]
+
+
+@pytest.mark.parametrize("after", [False, True])
+@pytest.mark.parametrize(
+    "history, model_input, shown",
+    [
+        (HISTORY, INPUT, HISTORY),
+        # a host that could not provide history: show what the model saw
+        (None, INPUT, INPUT),
+        (None, None, []),
+    ],
+    ids=["history", "no-history", "neither"],
+)
+async def test_the_person_sees_history_or_else_what_the_model_saw(
+    monkeypatch: pytest.MonkeyPatch,
+    after: bool,
+    history: list[ChatMessage] | None,
+    model_input: list[ChatMessage] | None,
+    shown: list[ChatMessage],
+) -> None:
+    panel = Panel("approve")
+    panel.install(monkeypatch)
+
+    await _Host().ask_human(
+        replace(step(after), history=history, input=model_input), ["approve"]
+    )
+
+    assert panel.histories == [shown]
+
+
+@pytest.mark.parametrize(
+    "history, shown",
+    [(HISTORY, HISTORY), (None, INPUT)],
+    ids=["history", "no-history"],
+)
+async def test_after_a_generate_the_person_sees_history_or_else_what_the_model_saw(
+    monkeypatch: pytest.MonkeyPatch,
+    history: list[ChatMessage] | None,
+    shown: list[ChatMessage],
+) -> None:
+    panel = Panel("approve")
+    panel.install(monkeypatch)
+
+    await _Host().ask_human(
+        replace(turn_step(ADD), history=history, input=INPUT), ["approve", "terminate"]
+    )
+
+    assert panel.histories == [shown]
 
 
 @pytest.mark.parametrize(

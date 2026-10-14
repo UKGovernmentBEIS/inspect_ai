@@ -248,7 +248,7 @@ async def _run(step: Step) -> Decision | None:
             RuntimeError(
                 f"inspect_sentinel returned an escalate at the {_stage(step)} stage, "
                 "which it should have turned into a terminate. inspect_ai requires "
-                "inspect_sentinel 0.1.1 or later: pip install --upgrade inspect-sentinel"
+                "inspect_sentinel 0.1.2 or later: pip install --upgrade inspect-sentinel"
             )
         )
     return decision
@@ -422,12 +422,21 @@ class _Host:
                     f"{', '.join(repr(c) for c in _HUMAN_CHOICES)}."
                 )
             offered.append(cast(ApprovalDecision, choice))
+        # the approval surfaces show the conversation; a step whose host could
+        # not provide the scaffold's history shows what the model saw instead,
+        # and nothing when that is unknown too
+        if step.history is not None:
+            conversation = step.history
+        elif step.input is not None:
+            conversation = step.input
+        else:
+            conversation = []
         approve = human_approver(choices=offered)
         if isinstance(step, AfterGenerate):
-            approval = await _ask_about_turn(approve, step, offered)
+            approval = await _ask_about_turn(approve, step, offered, conversation)
         else:
             approval = await approve(
-                step.message, step.call, _human_view(step), step.history
+                step.message, step.call, _human_view(step), conversation
             )
         if approval.decision in offered:
             return HumanAnswer(decision=approval.decision, reason=approval.explanation)
@@ -480,7 +489,10 @@ def _escalation_lines(step: Step) -> str:
 
 
 async def _ask_about_turn(
-    approve: Approver, step: AfterGenerate, offered: list[ApprovalDecision]
+    approve: Approver,
+    step: AfterGenerate,
+    offered: list[ApprovalDecision],
+    conversation: list[ChatMessage],
 ) -> Approval:
     # deferred: the ACP shim imports `acp.schema`, which only matters once a
     # person is asked
@@ -489,7 +501,7 @@ async def _ask_about_turn(
     prompt = _turn_prompt(step)
     status: Literal["completed", "failed"] = "failed"
     try:
-        approval = await approve(prompt.message, prompt.call, prompt.view, step.history)
+        approval = await approve(prompt.message, prompt.call, prompt.view, conversation)
         if approval.decision in offered:
             status = "completed"
         return approval
