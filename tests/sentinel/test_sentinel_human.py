@@ -19,6 +19,7 @@ from rich.markdown import Markdown
 from test_helpers.utils import skip_if_trio
 
 from inspect_ai import Task, eval
+from inspect_ai._util.content import ContentReasoning, ContentText
 from inspect_ai.agent._acp.tui.state import (
     PendingApproval,
     SessionState,
@@ -44,6 +45,7 @@ from inspect_ai.model import (
     ModelOutput,
     get_model,
 )
+from inspect_ai.model._display import display_conversation_assistant_message
 from inspect_ai.solver import generate, use_tools
 from inspect_ai.tool import Tool, ToolCall, ToolCallContent, ToolCallView, tool
 from inspect_ai.tool._tool_call import substitute_tool_call_content
@@ -573,6 +575,16 @@ COVER = "\x1b7\x1b[8A\x1b[2K\x1b[1G│  echo done\x1b8"
 # right-to-left override: what follows would read reversed
 RLO = "\u202e"
 
+NOTICE = (
+    "This turn contains hidden or control characters, "
+    f"shown as {chr(0x2039)}U+…{chr(0x203A)}."
+)
+
+
+def marker(code: str) -> str:
+    return f"{chr(0x2039)}U+{code}{chr(0x203A)}"
+
+
 # a call whose function name and viewer title try to add structure, and to
 # move the cursor
 HEADER = f"bash\n\n<!-- **x** [x](y) ``{COVER}{RLO}"
@@ -641,8 +653,9 @@ async def test_no_call_can_hide_or_pass_for_another(
     assert "\x1b" not in call.function and RLO not in call.function
     # each call's content is one code block of its own, whatever it contains,
     # with control and bidi characters shown as escapes
-    cover = "\\x1b7\\x1b[8A\\x1b[2K\\x1b[1G│  echo done\\x1b8"
-    visible = cover + "\\u202e"
+    esc = marker("001B")
+    cover = f"{esc}7{esc}[8A{esc}[2K{esc}[1G│  echo done{esc}8"
+    visible = cover + marker("202E")
     assert code_blocks(view.call.content) == [
         f"- monitor: quotes the agent: {cover}",
         first,
@@ -665,7 +678,7 @@ async def test_no_call_can_hide_or_pass_for_another(
     console.print(Markdown(block.content.text))
     for agent_sequence in ["\x1b7", "\x1b8", "\x1b[8A", "\x1b[2K", RLO]:
         assert agent_sequence not in terminal.getvalue()
-    notice = "This turn contains hidden or control characters, shown escaped."
+    notice = NOTICE
     assert f"**{notice}**" in view.call.content
     for text in [console.export_text(), rendered(block.content.text)]:
         assert "The turn makes 4 tool calls." in text
@@ -675,6 +688,89 @@ async def test_no_call_can_hide_or_pass_for_another(
         assert "<!-- **x** [x](y) ``" in text
         assert [line for line in text.splitlines() if "Call 3 of 4" in line]
         assert [line for line in text.splitlines() if "Call 4 of 4" in line]
+
+
+async def turn_view(
+    monkeypatch: pytest.MonkeyPatch, step: AfterGenerate
+) -> tuple[str, str]:
+    """The message and view content the surfaces are handed for a turn."""
+    asked: list[dict[str, Any]] = []
+
+    async def acp(**kwargs: Any) -> Approval | None:
+        asked.append(kwargs)
+        return Approval(decision="approve")
+
+    monkeypatch.setattr(acp_module, "request_human_approval_via_acp", acp)
+    await _Host().ask_human(step, ["approve", "terminate"])
+    [kwargs] = asked
+    return kwargs["message"], kwargs["view"].call.content
+
+
+async def test_a_real_escape_and_a_typed_one_look_different(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    real = bash_call("c1", "printf 'a\x1b'")
+    typed = bash_call("c2", "printf 'a\\x1b'")
+    # in bash this runs rm; it must read the same way when shown
+    shell = 'echo \\"; rm -rf /srv/data; echo \\"'
+    hidden = bash_call("c3", shell + chr(0x200B))
+
+    _, content = await turn_view(monkeypatch, turn_step(real, typed, hidden))
+
+    assert code_blocks(content) == [
+        f"printf 'a{marker('001B')}'",
+        "printf 'a\\x1b'",
+        shell + marker("200B"),
+    ]
+
+
+async def test_control_characters_in_the_text_alone_are_noticed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    step = turn_step(ADD, content="Adding.\x1b[2J")
+
+    message, content = await turn_view(monkeypatch, step)
+
+    assert message == f"Adding.{marker('001B')}[2J"
+    assert f"**{NOTICE}**" in content
+
+
+def test_the_conversation_display_prints_the_turn_without_control_characters(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # `--display conversation` prints the turn just before the person is
+    # asked about it: clearing the screen and confining scrolling to the top
+    # rows would leave the prompt's calls off screen
+    terminal = io.StringIO()
+    console = Console(file=terminal, force_terminal=True, width=120, record=True)
+    monkeypatch.setattr("inspect_ai.util._conversation.print", console.print)
+    attack = "\x1b[2J\x1b[1;9r"
+    message = ChatMessageAssistant(
+        content=[
+            ContentReasoning(reasoning=f"plan{attack}"),
+            ContentText(text=f"Tidying up.{attack}{RLO}"),
+        ],
+        tool_calls=[
+            bash_call("c1", f"ls -la{attack}"),
+            bash_call("c2", "rm -rf /srv/data"),
+            ToolCall(id="c3", function=f"think{attack}", arguments={"thought": attack}),
+        ],
+    )
+
+    display_conversation_assistant_message(message)
+
+    for sequence in ["\x1b[2J", "\x1b[1;9r", RLO]:
+        assert sequence not in terminal.getvalue()
+    shown = console.export_text()
+    assert "rm -rf /srv/data" in shown
+    esc = marker("001B")
+    for text in [
+        f"plan{esc}[2J",
+        f"Tidying up.{esc}[2J",
+        f"ls -la{esc}[2J",
+        f"think{esc}[2J",
+    ]:
+        assert text in shown
 
 
 class TuiSession:

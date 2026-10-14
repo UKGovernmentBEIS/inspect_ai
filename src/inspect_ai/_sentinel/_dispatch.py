@@ -25,7 +25,7 @@ from inspect_sentinel._integration import HostContext, run_sentinel, watched_sta
 from shortuuid import uuid as shortuuid
 
 from inspect_ai._util.exception import TerminateSampleError
-from inspect_ai._util.format import display_safe
+from inspect_ai._util.format import MARKER_CLOSE, MARKER_OPEN, display_safe
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.registry import registry_lookup
 from inspect_ai.approval._approval import Approval, ApprovalDecision
@@ -517,13 +517,18 @@ def _turn_prompt(step: AfterGenerate) -> _Prompt:
       written here, so the count says how many calls there are.
     - Characters that act rather than show (terminal escape sequences, which
       could move the cursor over another call's lines, bidi overrides, and
-      zero-width and tag characters): everything the agent wrote, the calls,
-      the escalations quoting it, the assistant text and the title, goes
-      through `display_safe`, which shows them as escapes, and the view says
-      so when it did.
+      zero-width and tag characters): everything the agent wrote in the view,
+      the calls, the escalations quoting it and the title, goes through
+      `display_safe`, which shows each as a marker, and the view says so when
+      it did. So does the assistant text, which the panel and the console show
+      above the view; an ACP client shows the turn's streamed text and
+      reasoning instead, which the Inspect ACP TUI makes safe the same way,
+      as `--display conversation` does for the turn it prints.
 
     What a call's own viewer makes of its arguments inside its code block is
-    the viewer's; a call can still garble its own content there.
+    the viewer's; a call can still garble its own content there. Earlier
+    tool output in the ACP TUI's stream and the conversation display is not
+    made safe yet.
 
     The call handed to the surfaces stands for the whole turn, and its
     function is the turn's title, which carries the count too. Its id is its
@@ -564,7 +569,10 @@ def _turn_prompt(step: AfterGenerate) -> _Prompt:
     return _Prompt(text, turn, view)
 
 
-_ESCAPED_NOTICE = "This turn contains hidden or control characters, shown escaped."
+_ESCAPED_NOTICE = (
+    "This turn contains hidden or control characters, "
+    f"shown as {MARKER_OPEN}U+…{MARKER_CLOSE}."
+)
 
 
 class _Escaped:
