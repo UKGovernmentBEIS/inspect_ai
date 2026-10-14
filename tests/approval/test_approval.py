@@ -776,6 +776,67 @@ class Wrapper:
     step: Step
 
 
+class Directory(BaseModel):
+    by_name: dict[str, Normalized]
+
+
+@dataclass
+class Groups:
+    groups: dict[str, list[Normalized]]
+
+
+class Batches(BaseModel):
+    batches: list[dict[str, Normalized]]
+
+
+class Pair(BaseModel):
+    pair: tuple[Normalized, Normalized]
+
+
+class Counter(BaseModel):
+    n: int
+
+
+@dataclass
+class CounterData:
+    n: int
+
+
+class Bumping(BaseModel):
+    """Serializes its child one higher than it holds."""
+
+    inner: Counter
+
+    @field_serializer("inner")
+    def bump(self, inner: Counter) -> dict[str, int]:
+        return {"n": inner.n + 1}
+
+
+class BumpingData(BaseModel):
+    inner: CounterData
+
+    @field_serializer("inner")
+    def bump(self, inner: CounterData) -> dict[str, int]:
+        return {"n": inner.n + 1}
+
+
+class BumpingList(BaseModel):
+    inners: list[Counter]
+
+    @field_serializer("inners")
+    def bump(self, inners: list[Counter]) -> list[dict[str, int]]:
+        return [{"n": inner.n + 1} for inner in inners]
+
+
+@pydantic_dataclass
+class BumpingParent:
+    inner: Counter
+
+    @field_serializer("inner")
+    def bump(self, inner: Counter) -> dict[str, int]:
+        return {"n": inner.n + 1}
+
+
 class Guarded(BaseModel):
     flags: dict[str, bool]
 
@@ -852,6 +913,14 @@ def model_tool(received: list[Any]):
         guarded_data: GuardedData | None = None,
         counted: Counted | None = None,
         pydantic_counted: PydanticCounted | None = None,
+        directory: Directory | None = None,
+        groups: Groups | None = None,
+        batches: Batches | None = None,
+        pair: Pair | None = None,
+        bumping: Bumping | None = None,
+        bumping_data: BumpingData | None = None,
+        bumping_list: BumpingList | None = None,
+        bumping_parent: BumpingParent | None = None,
     ) -> str:
         """Record models.
 
@@ -877,6 +946,15 @@ def model_tool(received: list[Any]):
                 in place.
             counted: A dataclass with a default factory.
             pydantic_counted: A Pydantic dataclass with a default factory.
+            directory: A model holding a dict of dataclasses.
+            groups: A dataclass holding a dict of lists of dataclasses.
+            batches: A model holding a list of dicts of dataclasses.
+            pair: A model holding a tuple of dataclasses.
+            bumping: A model whose serializer changes its child model.
+            bumping_data: A model whose serializer changes its child dataclass.
+            bumping_list: A model whose serializer changes its list of models.
+            bumping_parent: A Pydantic dataclass whose serializer changes its
+                child model.
         """
         received.append(
             {
@@ -902,6 +980,14 @@ def model_tool(received: list[Any]):
                     guarded_data=guarded_data,
                     counted=counted,
                     pydantic_counted=pydantic_counted,
+                    directory=directory,
+                    groups=groups,
+                    batches=batches,
+                    pair=pair,
+                    bumping=bumping,
+                    bumping_data=bumping_data,
+                    bumping_list=bumping_list,
+                    bumping_parent=bumping_parent,
                 ).items()
                 if v is not None
             }
@@ -1049,6 +1135,24 @@ async def test_model_in_unsupported_form_errors_under_approval(
             {"outers": [{"inner": {"name": "abc"}}]},
             {"outers": [{"inner": {"name": "abc", "size": 7}}]},
         ),
+        # containers inside a model or dataclass follow the same rules
+        (
+            {"directory": {"by_name": {"a": {"name": "abc"}}}},
+            {"directory": {"by_name": {"a": {"name": "abc", "size": 7}}}},
+        ),
+        ({"directory": {"by_name": {"a": {"name": "ABC"}}}}, None),
+        (
+            {"groups": {"groups": {"a": [{"name": "abc"}]}}},
+            {"groups": {"groups": {"a": [{"name": "abc", "size": 7}]}}},
+        ),
+        (
+            {"batches": {"batches": [{"a": {"name": "abc"}}]}},
+            {"batches": {"batches": [{"a": {"name": "abc", "size": 7}}]}},
+        ),
+        (
+            {"pair": {"pair": [{"name": "a"}, {"name": "b", "size": 1}]}},
+            {"pair": {"pair": [{"name": "a", "size": 7}, {"name": "b", "size": 1}]}},
+        ),
     ],
     ids=[
         "validator-changes-it",
@@ -1063,6 +1167,11 @@ async def test_model_in_unsupported_form_errors_under_approval(
         "dataclass-in-model-default-left-out",
         "model-in-dataclass-default-left-out",
         "list-of-nested-default-left-out",
+        "dict-in-model-default-left-out",
+        "dict-in-model-post-init-changes-it",
+        "dict-of-lists-in-dataclass-default-left-out",
+        "list-of-dicts-in-model-default-left-out",
+        "tuple-in-model-default-left-out",
     ],
 )
 async def test_modified_value_runs_only_as_selected(
@@ -1111,6 +1220,45 @@ async def test_constructor_cannot_change_the_selected_call(name: str) -> None:
     assert message.error.type == "approval"
     assert received == []
     assert selected.arguments == {name: {"flags": {"write": False}}}
+
+
+@approver
+def copying_approver() -> Approver:
+    """Approver which selects the call exactly as it was shown."""
+
+    async def approve(
+        message: str, call: ToolCall, view: ToolCallView, history: list[ChatMessage]
+    ) -> Approval:
+        return Approval(decision="modify", modified=call)
+
+    return approve
+
+
+@pytest.mark.parametrize(
+    "arguments",
+    [
+        {"bumping": {"inner": {"n": 4}}},
+        {"bumping_data": {"inner": {"n": 4}}},
+        {"bumping_list": {"inners": [{"n": 4}]}},
+        {"bumping_parent": {"inner": {"n": 4}}},
+    ],
+    ids=["model-child", "dataclass-child", "list-of-models", "pydantic-dataclass"],
+)
+async def test_modify_is_compared_as_the_parent_serializes(
+    arguments: dict[str, Any],
+) -> None:
+    """A parent's serializer applies when a modify is compared."""
+    received: list[Any] = []
+    message = await execute_with_approval(
+        ToolCall(id="1", function="model_tool", arguments=arguments),
+        [model_tool(received)],
+        [ApprovalPolicy(copying_approver(), "*")],
+    )
+
+    # the shown n=5 is constructed as 5 and serializes as 6
+    assert message.error is not None
+    assert message.error.type == "approval"
+    assert received == []
 
 
 @pytest.mark.parametrize("name", ["counted", "pydantic_counted"])

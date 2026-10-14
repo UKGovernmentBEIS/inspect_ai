@@ -1510,10 +1510,8 @@ def modified_tool_call(selected: ToolCall, tool_def: ToolDef) -> ValidatedToolCa
     selected_arguments = to_jsonable_python(selected.arguments, fallback=str)
     modified = validated_tool_call(selected, tool_def)
     for name, value in selected_arguments.items():
-        shown = modified.call.arguments.get(name)
-        if not json_equal(
-            value, to_jsonable_python(shown, fallback=str)
-        ) and not _only_defaults_added(value, modified.arguments.get(name)):
+        shown = to_jsonable_python(modified.call.arguments.get(name), fallback=str)
+        if not _only_defaults_added(value, shown, modified.arguments.get(name)):
             raise ToolApprovalError(
                 f"The modified value for '{name}' changes when it is "
                 "converted for the tool, so the call was not run."
@@ -1521,59 +1519,55 @@ def modified_tool_call(selected: ToolCall, tool_def: ToolDef) -> ValidatedToolCa
     return modified
 
 
-def _only_defaults_added(selected: Any, value: Any) -> bool:
-    """Whether `value` is `selected` with only the defaults it left out filled in.
+def _only_defaults_added(selected: Any, dumped: Any, value: Any) -> bool:
+    """Whether `dumped` is `selected` with only the defaults it left out filled in.
 
-    Models and dataclasses are compared field by field, recursing into fields
-    that hold models or dataclasses. A supplied field must serialize as
-    selected. A left-out field must hold its default: an unset model field, a
-    dataclass field's static default, or one its default factory filled (the
-    factory is not called again).
+    `dumped` is the constructed `value` as it serializes, and the two forms
+    are compared position by position, so every serializer in the value
+    applies. `value` is followed alongside only to tell which left-out keys
+    hold defaults: an unset model field, a dataclass field's static default,
+    or one its default factory filled (the factory is not called again).
     """
-    if isinstance(value, list):
-        return (
-            isinstance(selected, list)
-            and len(value) == len(selected)
-            and all(map(_only_defaults_added, selected, value))
+    if isinstance(selected, list) and isinstance(dumped, list):
+        if isinstance(value, list | tuple) and len(value) == len(dumped):
+            items = list(value)
+        else:
+            items = [None] * len(dumped)
+        return len(selected) == len(dumped) and all(
+            map(_only_defaults_added, selected, dumped, items)
         )
-    if isinstance(value, BaseModel) and isinstance(selected, dict):
-        dumped = value.model_dump(
-            mode="json", by_alias=True, exclude_computed_fields=True
-        )
-        attributes = {
+    if not (isinstance(selected, dict) and isinstance(dumped, dict)):
+        return json_equal(selected, dumped)
+    children, defaults = _serialized_parts(value, dumped)
+    return set(selected) <= set(dumped) and all(
+        _only_defaults_added(selected[key], item, children.get(key))
+        if key in selected
+        else key in defaults
+        for key, item in dumped.items()
+    )
+
+
+def _serialized_parts(
+    value: Any, dumped: dict[str, Any]
+) -> tuple[dict[str, Any], set[str]]:
+    """The values a serialized object's keys hold, and the keys holding defaults."""
+    if isinstance(value, BaseModel):
+        names = {
             info.serialization_alias or info.alias or name: name
             for name, info in type(value).model_fields.items()
         }
-        attributes.update({key: key for key in value.__pydantic_extra__ or {}})
-        return set(selected) <= set(attributes) and all(
-            _field_matches(selected[key], getattr(value, name), dumped.get(key))
-            if key in selected
-            else name not in value.model_fields_set
-            for key, name in attributes.items()
-        )
-    if _is_dataclass_instance(value) and isinstance(selected, dict):
-        dumped = to_jsonable_python(value, by_alias=True)
         return (
-            isinstance(dumped, dict)
-            and set(selected) <= {f.name for f in fields(value)}
-            and all(
-                _field_matches(
-                    selected[f.name], getattr(value, f.name), dumped.get(f.name)
-                )
-                if f.name in selected
-                else _holds_default(f, dumped.get(f.name))
-                for f in fields(value)
-            )
+            {key: getattr(value, name) for key, name in names.items()},
+            {key for key, name in names.items() if name not in value.model_fields_set},
         )
-    return json_equal(selected, to_jsonable_python(value, fallback=str))
-
-
-def _field_matches(selected: Any, value: Any, dumped: Any) -> bool:
-    """Whether a supplied field holds `selected`, given its value and its dump."""
-    constructed = isinstance(value, BaseModel | list) or _is_dataclass_instance(value)
-    if constructed and _contains_constructed(value):
-        return _only_defaults_added(selected, value)
-    return json_equal(selected, dumped)
+    if _is_dataclass_instance(value):
+        return (
+            {f.name: getattr(value, f.name) for f in fields(value)},
+            {f.name for f in fields(value) if _holds_default(f, dumped.get(f.name))},
+        )
+    if isinstance(value, Mapping):
+        return {key: item for key, item in value.items() if isinstance(key, str)}, set()
+    return {}, set()
 
 
 def _holds_default(field: Field[Any], dumped: Any) -> bool:
