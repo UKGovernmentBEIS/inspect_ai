@@ -68,6 +68,7 @@ try:
         Observation,
         Protocol,
         Reported,
+        concurrent,
         decide_final,
         human,
         monitor,
@@ -77,7 +78,9 @@ try:
         sequential,
         threshold,
     )
+    from inspect_sentinel._report import origin
 
+    from inspect_ai._sentinel import _dispatch
     from inspect_ai._sentinel._dispatch import _Host
 except ImportError:
     pytest.skip("inspect_sentinel is not installed", allow_module_level=True)
@@ -1211,6 +1214,9 @@ def test_no_monitor_score_is_seen_in_earlier_decisions(
     assert record.decided.report.references == []
     assert "credentials" not in repr(record)
     assert "0.93" not in repr(record)
+    # nor through the runner's record of the step it was made at
+    step_nodes, _ = origin(record.decided.report)
+    assert step_nodes is None
 
 
 @protocol
@@ -1307,3 +1313,184 @@ def test_a_superseded_decision_is_not_seen_later(
         ("tool_result", ()),
         ("model_output", ()),
     ]
+
+
+def answer_by_call(
+    monkeypatch: pytest.MonkeyPatch, answers: dict[str, ApprovalDecision]
+) -> None:
+    async def acp(**kwargs: object) -> Approval | None:
+        return None
+
+    async def panel(
+        message: str,
+        call: ToolCall,
+        view: ToolCallView,
+        history: object,
+        choices: list[str],
+    ) -> Approval:
+        return Approval(decision=answers[call.id], explanation="stop")
+
+    monkeypatch.setattr(acp_module, "request_human_approval_via_acp", acp)
+    monkeypatch.setattr(approver_module, "panel_approval", panel)
+
+
+def signal_when_recorded(
+    monkeypatch: pytest.MonkeyPatch, factory: str, call_id: str, gate: Answered
+) -> None:
+    record = _dispatch._Recorder.record
+
+    def recording(
+        self: Any, context: Context, name: str, step: Any, reported: Any
+    ) -> None:
+        record(self, context, name, step, reported)
+        if name == factory and getattr(step, "call", None) is not None:
+            if step.call.id == call_id:
+                gate.event.set()
+
+    monkeypatch.setattr(_dispatch._Recorder, "record", recording)
+
+
+@protocol
+def h_final_for(call_id: str, gate: Any) -> Protocol:
+    async def decide(context: Context, step: BeforeToolCall) -> Decision | None:
+        if step.call.id != call_id:
+            return None
+        with anyio.CancelScope(shield=True):
+            await gate.event.wait()
+            decide_final(Decision.proceed("carry on"))
+        return None
+
+    return decide
+
+
+@monitor
+def h_opens(call_id: str, gate: Any) -> Monitor:
+    async def check(context: Context, step: AfterToolCall) -> Observation | None:
+        if step.call.id == call_id:
+            gate.event.set()
+        return None
+
+    return check
+
+
+def test_a_parallel_step_does_not_see_a_decision_before_its_step_settles(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    a_recorded, b_seen = Answered(), Answered()
+
+    @tool(parallel=True)
+    def gated() -> Tool:
+        async def execute(x: int) -> str:
+            """Return x once call A's answer is recorded.
+
+            Args:
+                x: A number.
+            """
+            await a_recorded.event.wait()
+            return str(x)
+
+        return execute
+
+    answer_by_call(monkeypatch, {"A": "terminate", "B": "approve"})
+    signal_when_recorded(monkeypatch, "inspect_sentinel/human", "A", a_recorded)
+    seen: list[Seen] = []
+    calls = [
+        ToolCall(id=id, function="gated", arguments={"x": x})
+        for id, x in (("A", 1), ("B", 2))
+    ]
+    task = Task(
+        dataset=[Sample(input="Run both.")],
+        solver=[use_tools(gated()), generate()],
+        # A's step stays open, its person's terminate recorded, until B's
+        # result has been seen; then a final proceed supersedes the terminate
+        sentinel=[
+            human(stages=["tool_call"]),
+            h_final_for("A", b_seen),
+            observe_only([h_spy(seen), h_opens("B", b_seen)]),
+        ],
+    )
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            turn_output(*calls, content="Both at once."),
+            ModelOutput.from_content("mockllm/model", content="done"),
+        ],
+        memoize=False,
+    )
+
+    log = eval(task, model=model)[0]
+
+    assert log.status == "success", log.error
+    assert log.samples
+    assert sorted(
+        (e.step_id, e.status, e.action)
+        for e in log.samples[0].events
+        if isinstance(e, SentinelEvent) and e.factory == "inspect_sentinel/human"
+    ) == [
+        ("A", "reported", "terminate"),
+        ("A", "superseded", "terminate"),
+        ("B", "reported", "proceed"),
+    ]
+    later = {
+        (s.stage, s.subject): [
+            (r.step_id, r.decided.report.action) for r in s.earlier or ()
+        ]
+        for s in seen
+        if s.stage == "tool_result" or s.subject == "done"
+    }
+    assert later == {
+        ("tool_result", "B"): [("B", "proceed")],
+        ("tool_result", "A"): [("B", "proceed")],
+        ("model_output", "done"): [("B", "proceed")],
+    }
+
+
+@protocol
+def h_proceeds() -> Protocol:
+    async def decide(context: Context, step: BeforeToolCall) -> Decision | None:
+        return Decision.proceed()
+
+    return decide
+
+
+@protocol
+def h_forwards(child: Any, done: Any) -> Protocol:
+    async def decide(context: Context, step: BeforeToolCall) -> Decision | None:
+        strongest = (await run_protocols(child, context, step)).strongest()
+        done.event.set()
+        return strongest.report if strongest is not None else None
+
+    return decide
+
+
+def test_a_superseded_copy_of_the_persons_decision_is_not_seen_later(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    Panel("terminate", "stop").install(monkeypatch)
+    done = Answered()
+    seen: list[Seen] = []
+    # the inner concurrent passes the person's terminate up as a copy carrying
+    # the vote; a final proceed then supersedes it above
+    inner = concurrent(
+        {"first_vote": h_proceeds(), "person": human(stages=["tool_call"])}
+    )
+
+    log = run(
+        [
+            h_forwards(inner, done),
+            h_final_after_the_person(done),
+            observe_only([h_spy(seen)]),
+        ]
+    )
+
+    assert log.status == "success", log.error
+    assert log.samples
+    [superseded] = [
+        e
+        for e in log.samples[0].events
+        if isinstance(e, SentinelEvent) and e.status == "superseded"
+    ]
+    assert superseded.factory != "inspect_sentinel/human"
+    assert "first_vote: proceed" in (superseded.explanation or "")
+    [last] = [s for s in seen if s.subject == "done"]
+    assert last.earlier == ()

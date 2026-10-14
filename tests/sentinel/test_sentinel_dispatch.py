@@ -1982,15 +1982,16 @@ def test_a_modified_call_on_a_non_modify_decision_is_not_dropped(
         name="p", path="p", function="f", report=Decision(action=action, modified=call)
     )
     with pytest.raises(ValueError, match="modified is set only"):
-        _Recorder(call.id).record(
-            replace(_host_context(call.id).context, path="p"), "p", step, reported
+        recorder = _Recorder(call.id)
+        recorder.record(
+            replace(_host_context(recorder).context, path="p"), "p", step, reported
         )
 
 
 def test_host_context_outside_a_sample_has_no_eval() -> None:
-    from inspect_ai._sentinel._dispatch import _host_context
+    from inspect_ai._sentinel._dispatch import _host_context, _Recorder
 
-    assert _host_context("").context.eval is None
+    assert _host_context(_Recorder("")).context.eval is None
 
 
 def test_apply_sentinel_decision() -> None:

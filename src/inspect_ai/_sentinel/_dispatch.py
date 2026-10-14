@@ -27,6 +27,7 @@ from inspect_sentinel._integration import (
     HostContext,
     earlier_decision,
     run_sentinel,
+    supersedes,
     watched_stages,
 )
 from shortuuid import uuid as shortuuid
@@ -249,6 +250,7 @@ async def _run(step: Step) -> Decision | None:
     root = active_sentinel()
     if root is None or type(step) not in watched_stages(root):
         return None
+    recorder = _Recorder(_step_id(step))
     try:
         try:
             async with span(name="sentinel", type="sentinel"):
@@ -258,9 +260,7 @@ async def _run(step: Step) -> Decision | None:
                     suspend_working_limit(),
                     sentinel_scope(AgentScope.OFF, final=True),
                 ):
-                    decision = await run_sentinel(
-                        root, _host_context(_step_id(step)), step
-                    )
+                    decision = await run_sentinel(root, _host_context(recorder), step)
         except TimeoutError as ex:
             # the sample runner treats a bare TimeoutError as benign
             raise RuntimeError(
@@ -268,6 +268,7 @@ async def _run(step: Step) -> Decision | None:
             ) from ex
     except Exception as ex:
         raise SentinelFailure(ex) from ex
+    _publish(step.conversation, recorder.kept)
     if decision is not None and decision.action == "escalate":
         raise SentinelFailure(
             RuntimeError(
@@ -306,10 +307,10 @@ def _step_id(step: Step) -> str:
 _model_inputs: "WeakKeyDictionary[Transcript, Counter[str]]" = WeakKeyDictionary()
 
 
-def _host_context(step_id: str) -> HostContext:
+def _host_context(recorder: "_Recorder") -> HostContext:
     return HostContext(
         context=Context(path="", host=_Host(), eval=_eval_context()),
-        recorder=_Recorder(step_id),
+        recorder=recorder,
         store=store(),
     )
 
@@ -339,14 +340,24 @@ def _conversation() -> str:
 
 
 def _earlier_decisions(conversation: str) -> tuple[EarlierDecision, ...]:
-    """The `human()` decisions recorded so far in the conversation, for a step about to run.
+    """The `human()` decisions published so far in the conversation, for a step about to run.
 
-    Taken when the step is built, so a decision made at the step itself, or at a parallel call's step that is still running, is not among them.
+    Taken when the step is built. A step's decisions are published only once it has settled (see `_publish`), so a decision made at the step itself, or at a parallel call's step still running, is not among them.
     """
     return tuple(_earlier.get(transcript(), {}).get(conversation, []))
 
 
-# the `human()` decisions recorded in each conversation of a sample, oldest first
+def _publish(conversation: str, kept: list[EarlierDecision]) -> None:
+    """Add a settled step's `human()` decisions to its conversation's earlier decisions.
+
+    Called after the step's sentinel span ends, so a supersession has already withdrawn any decision that did not take effect, and a parallel step built before then never saw one that might yet be.
+    """
+    if kept:
+        conversations = _earlier.setdefault(transcript(), {})
+        conversations.setdefault(conversation, []).extend(kept)
+
+
+# the `human()` decisions of each conversation's settled steps, oldest first
 _earlier: "WeakKeyDictionary[Transcript, dict[str, list[EarlierDecision]]]" = (
     WeakKeyDictionary()
 )
@@ -697,6 +708,8 @@ def _one_line(text: str, safe: _Escaped) -> str:
 class _Recorder:
     def __init__(self, step_id: str) -> None:
         self._step_id = step_id
+        # this step's human() decisions, published once it settles
+        self.kept: list[EarlierDecision] = []
 
     def record(
         self, context: Context, factory: str, step: Step, reported: Reported[Report]
@@ -728,8 +741,7 @@ class _Recorder:
             )
         kept = earlier_decision(factory, step, self._step_id, reported)
         if kept is not None:
-            conversations = _earlier.setdefault(transcript(), {})
-            conversations.setdefault(step.conversation, []).append(kept)
+            self.kept.append(kept)
 
     def failed(
         self, context: Context, factory: str, step: Step, failed: Failed
@@ -769,11 +781,7 @@ class _Recorder:
             reported.function,
             reported.report,
         )
-        # a human() decision recorded before a sibling's decide_final() outran
-        # it did not take effect, so later steps must not see it
-        kept = _earlier.get(transcript(), {}).get(step.conversation)
-        if kept:
-            kept[:] = [k for k in kept if k.decided.report is not reported.report]
+        self.kept = [k for k in self.kept if not supersedes(context.path, reported, k)]
 
 
 def _factory_kind(factory: str) -> _Kind:
