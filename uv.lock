@@ -2270,7 +2270,7 @@ requires-dist = [
     { name = "huggingface-hub", marker = "extra == 'dev'", specifier = ">=1.6.0" },
     { name = "ijson", specifier = ">=3.2.0" },
     { name = "inspect-scout", marker = "extra == 'dev'", specifier = ">=0.4.37" },
-    { name = "inspect-sentinel", marker = "extra == 'dev'", specifier = ">=0.1.1" },
+    { name = "inspect-sentinel", marker = "extra == 'dev'", specifier = ">=0.1.2" },
     { name = "ipython", marker = "extra == 'dev'" },
     { name = "jsonlines", specifier = ">=3.0.0" },
     { name = "jsonpatch", specifier = ">=1.32" },
@@ -2405,7 +2405,7 @@ wheels = [
 
 [[package]]
 name = "inspect-sentinel"
-version = "0.1.1"
+version = "0.1.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "anyio" },
@@ -2413,9 +2413,9 @@ dependencies = [
     { name = "inspect-ai" },
     { name = "pydantic" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/99/41/6f8835db02fda55050d1f5c820d3e3e3e4f556189b08431c7c3ce3b206e7/inspect_sentinel-0.1.1.tar.gz", hash = "sha256:f399b28b8ebe6657951d0074469e68d3b30db837fce6c1a878fe18c25702d6aa", size = 57469, upload-time = "2026-10-13T00:14:58.328Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/7d/96/e466f16e76e0f1eb5a09df984396306d26a574ef6f7ce853ef3695fc60b5/inspect_sentinel-0.1.2.tar.gz", hash = "sha256:b1855f3a98ef72d7b08a4975af24253dabf612b3be354ecf4c93fb5dbb8593f2", size = 58549, upload-time = "2026-10-14T01:01:39.725Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/08/7a/96a53338a20f1e5e7b687ba42ef1462d5b8b5521eb80bbde8124a7bf337e/inspect_sentinel-0.1.1-py3-none-any.whl", hash = "sha256:92ba6f8224c44ea96303bf26eeba0c13e071e6435aa75eada57bf46d0aa19cf2", size = 61740, upload-time = "2026-10-13T00:14:56.625Z" },
+    { url = "https://files.pythonhosted.org/packages/e2/1f/133fb4d150053a05cbdc08160fd15c26d5155ab6291bed790d35aac654f1/inspect_sentinel-0.1.2-py3-none-any.whl", hash = "sha256:8c6db4e8b620a6b8e12566f1051ed1bc86432132df07c177f403f812680d54ce", size = 62826, upload-time = "2026-10-14T01:01:38.445Z" },
 ]
 
 [[package]]
