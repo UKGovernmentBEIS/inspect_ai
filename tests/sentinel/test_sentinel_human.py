@@ -62,7 +62,7 @@ try:
         BeforeToolCall,
         Context,
         Decision,
-        EarlierDecision,
+        HumanDecision,
         Monitor,
         MonitorGroup,
         Observation,
@@ -399,6 +399,7 @@ async def test_an_answer_that_was_not_offered_fails_closed(
     answer = await _Host().ask_human(step(after), choices)
 
     assert answer.decision == expected
+    assert answer.dismissed
     assert answer.reason is not None
     assert f"{answered}: dismissed" in answer.reason
 
@@ -985,27 +986,27 @@ async def test_each_turn_prompt_has_a_card_of_its_own(
     assert [first.status, second.status] == ["completed", "completed"]
 
 
-# earlier decisions
+# human decisions
 
 
 class Seen(NamedTuple):
     stage: str
     conversation: str
     subject: str
-    earlier: tuple[EarlierDecision, ...] | None
+    decisions: tuple[HumanDecision, ...] | None
 
 
 @monitor
 def h_spy(seen: Any) -> MonitorGroup:
     async def tool_call(context: Context, step: BeforeToolCall) -> Observation | None:
         seen.append(
-            Seen("tool_call", step.conversation, step.call.id, step.earlier_decisions)
+            Seen("tool_call", step.conversation, step.call.id, step.human_decisions)
         )
         return None
 
     async def tool_result(context: Context, step: AfterToolCall) -> Observation | None:
         seen.append(
-            Seen("tool_result", step.conversation, step.call.id, step.earlier_decisions)
+            Seen("tool_result", step.conversation, step.call.id, step.human_decisions)
         )
         return None
 
@@ -1015,7 +1016,7 @@ def h_spy(seen: Any) -> MonitorGroup:
                 "model_output",
                 step.conversation,
                 step.output.completion,
-                step.earlier_decisions,
+                step.human_decisions,
             )
         )
         return None
@@ -1035,7 +1036,7 @@ def call_id(log: EvalLog, function: str = "addition") -> str:
     return found
 
 
-def kept(record: EarlierDecision) -> tuple[Any, ...]:
+def kept(record: HumanDecision) -> tuple[Any, ...]:
     report = record.decided.report
     return (
         record.stage,
@@ -1059,7 +1060,9 @@ def test_a_persons_approval_is_seen_at_later_steps_but_not_its_own(
     call = call_id(log)
     # human() records no reason on an approve
     approved = ("tool_call", call, (call,), "human", "proceed", None)
-    assert [(s.stage, s.subject, [kept(r) for r in s.earlier or ()]) for s in seen] == [
+    assert [
+        (s.stage, s.subject, [kept(r) for r in s.decisions or ()]) for s in seen
+    ] == [
         ("model_output", "Adding now.", []),
         ("tool_call", call, []),
         ("tool_result", call, [approved]),
@@ -1077,10 +1080,11 @@ def test_a_persons_rejection_is_seen_at_later_steps(
 
     assert log.status == "success", log.error
     [last] = [s for s in seen if s.subject == "done"]
-    assert last.earlier is not None
-    assert [kept(r) for r in last.earlier] == [
+    assert last.decisions is not None
+    assert [kept(r) for r in last.decisions] == [
         ("tool_call", call_id(log), (call_id(log),), "human", "reject", "not that")
     ]
+    assert not last.decisions[0].dismissed
 
 
 def test_a_turn_approval_is_seen_at_each_of_its_calls(
@@ -1100,7 +1104,9 @@ def test_a_turn_approval_is_seen_at_each_of_its_calls(
     ]
     assert turn.id is not None
     approved = ("model_output", turn.id, ("c1", "c2"), "human", "proceed", None)
-    assert [(s.stage, s.subject, [kept(r) for r in s.earlier or ()]) for s in seen] == [
+    assert [
+        (s.stage, s.subject, [kept(r) for r in s.decisions or ()]) for s in seen
+    ] == [
         ("model_output", "Adding and shouting.", []),
         ("tool_call", "c1", [approved]),
         ("tool_result", "c1", [approved]),
@@ -1159,7 +1165,7 @@ def test_a_persons_decision_stays_in_its_own_conversation(
     ]
     assert parent != child
     by_call = {
-        (s.stage, s.subject): [r.step_id for r in s.earlier or ()]
+        (s.stage, s.subject): [r.step_id for r in s.decisions or ()]
         for s in seen
         if s.stage != "model_output"
     }
@@ -1171,7 +1177,7 @@ def test_a_persons_decision_stays_in_its_own_conversation(
         ("tool_result", transfer): [transfer],
     }
     [done] = [s for s in seen if s.subject == "done"]
-    assert [r.step_id for r in done.earlier or ()] == [transfer]
+    assert [r.step_id for r in done.decisions or ()] == [transfer]
 
 
 @monitor
@@ -1182,7 +1188,7 @@ def h_loud() -> Monitor:
     return check
 
 
-def test_no_monitor_score_is_seen_in_earlier_decisions(
+def test_no_monitor_score_is_seen_in_human_decisions(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     Panel("approve", "fine").install(monkeypatch)
@@ -1208,8 +1214,8 @@ def test_no_monitor_score_is_seen_in_earlier_decisions(
     assert escalation.metadata is not None
     assert "credentials" in str(escalation.metadata)
     [last] = [s for s in seen if s.subject == "done"]
-    assert last.earlier is not None
-    [record] = last.earlier
+    assert last.decisions is not None
+    [record] = last.decisions
     assert record.decided.report.metadata is None
     assert record.decided.report.references == []
     assert "credentials" not in repr(record)
@@ -1238,8 +1244,8 @@ def test_a_terminate_a_parent_overruled_is_seen_later(
 
     assert log.status == "success", log.error
     [last] = [s for s in seen if s.subject == "done"]
-    assert last.earlier is not None
-    assert [kept(r) for r in last.earlier] == [
+    assert last.decisions is not None
+    assert [kept(r) for r in last.decisions] == [
         ("tool_call", call_id(log), (call_id(log),), "human", "terminate", "stop")
     ]
 
@@ -1309,7 +1315,7 @@ def test_a_superseded_decision_is_not_seen_later(
     ] == ["reported", "superseded"]
     assert [m.text for m in tool_messages(log)] == ["2"]
     later = [s for s in seen if s.stage == "tool_result" or s.subject == "done"]
-    assert [(s.stage, s.earlier) for s in later] == [
+    assert [(s.stage, s.decisions) for s in later] == [
         ("tool_result", ()),
         ("model_output", ()),
     ]
@@ -1433,7 +1439,7 @@ def test_a_parallel_step_does_not_see_a_decision_before_its_step_settles(
     ]
     later = {
         (s.stage, s.subject): [
-            (r.step_id, r.decided.report.action) for r in s.earlier or ()
+            (r.step_id, r.decided.report.action) for r in s.decisions or ()
         ]
         for s in seen
         if s.stage == "tool_result" or s.subject == "done"
@@ -1493,4 +1499,21 @@ def test_a_superseded_copy_of_the_persons_decision_is_not_seen_later(
     assert superseded.factory != "inspect_sentinel/human"
     assert "first_vote: proceed" in (superseded.explanation or "")
     [last] = [s for s in seen if s.subject == "done"]
-    assert last.earlier == ()
+    assert last.decisions == ()
+
+
+def test_a_dismissed_prompt_is_marked_at_later_steps(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # the person ends the prompt without choosing, and the host fails closed
+    Panel("escalate", "closed the panel").install(monkeypatch)
+    seen: list[Seen] = []
+
+    log = run([escalated_to_human(), observe_only([h_spy(seen)])])
+
+    assert log.status == "success", log.error
+    [last] = [s for s in seen if s.subject == "done"]
+    assert last.decisions is not None
+    [record] = last.decisions
+    assert record.dismissed
+    assert record.decided.report.action == "reject"

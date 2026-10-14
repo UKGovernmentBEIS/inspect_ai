@@ -13,10 +13,10 @@ from inspect_sentinel import (
     BeforeToolCall,
     Context,
     Decision,
-    EarlierDecision,
     EvalContext,
     Failed,
     HumanAnswer,
+    HumanDecision,
     Observation,
     Report,
     Reported,
@@ -25,7 +25,7 @@ from inspect_sentinel import (
 )
 from inspect_sentinel._integration import (
     HostContext,
-    earlier_decision,
+    kept_human_decision,
     run_sentinel,
     supersedes,
     watched_stages,
@@ -119,7 +119,7 @@ async def sentinel_before_tool_call(
         view=resolve_tool_call_view(call, viewer),
         input=list(producer.input) if producer is not None else None,
         history=history,
-        earlier_decisions=_earlier_decisions(conversation),
+        human_decisions=_human_decisions(conversation),
         tools=list(producer.tools) if producer is not None else None,
     )
     return await _run(step)
@@ -165,7 +165,7 @@ async def sentinel_after_tool_call(
         view=resolve_tool_call_view(call, viewer),
         input=list(producer.input) if producer is not None else None,
         history=history,
-        earlier_decisions=_earlier_decisions(conversation),
+        human_decisions=_human_decisions(conversation),
         tools=list(producer.tools) if producer is not None else None,
         truncated=Truncation(*truncated) if truncated is not None else False,
     )
@@ -203,7 +203,7 @@ async def sentinel_before_generate(
         conversation=conversation,
         input=input,
         history=history,
-        earlier_decisions=_earlier_decisions(conversation),
+        human_decisions=_human_decisions(conversation),
         tools=tools,
         tool_choice=tool_choice,
         config=config,
@@ -224,7 +224,7 @@ async def sentinel_after_generate(before: BeforeGenerate, output: ModelOutput) -
         conversation=before.conversation,
         input=before.input,
         history=before.history,
-        earlier_decisions=_earlier_decisions(before.conversation),
+        human_decisions=_human_decisions(before.conversation),
         tools=before.tools,
         tool_choice=before.tool_choice,
         config=before.config,
@@ -339,26 +339,26 @@ def _conversation() -> str:
     return active.sample_uuid if active is not None else ""
 
 
-def _earlier_decisions(conversation: str) -> tuple[EarlierDecision, ...]:
+def _human_decisions(conversation: str) -> tuple[HumanDecision, ...]:
     """The `human()` decisions published so far in the conversation, for a step about to run.
 
     Taken when the step is built. A step's decisions are published only once it has settled (see `_publish`), so a decision made at the step itself, or at a parallel call's step still running, is not among them.
     """
-    return tuple(_earlier.get(transcript(), {}).get(conversation, []))
+    return tuple(_published.get(transcript(), {}).get(conversation, []))
 
 
-def _publish(conversation: str, kept: list[EarlierDecision]) -> None:
-    """Add a settled step's `human()` decisions to its conversation's earlier decisions.
+def _publish(conversation: str, kept: list[HumanDecision]) -> None:
+    """Add a settled step's `human()` decisions to its conversation's human decisions.
 
     Called after the step's sentinel span ends, so a supersession has already withdrawn any decision that did not take effect, and a parallel step built before then never saw one that might yet be.
     """
     if kept:
-        conversations = _earlier.setdefault(transcript(), {})
+        conversations = _published.setdefault(transcript(), {})
         conversations.setdefault(conversation, []).extend(kept)
 
 
 # the `human()` decisions of each conversation's settled steps, oldest first
-_earlier: "WeakKeyDictionary[Transcript, dict[str, list[EarlierDecision]]]" = (
+_published: "WeakKeyDictionary[Transcript, dict[str, list[HumanDecision]]]" = (
     WeakKeyDictionary()
 )
 
@@ -493,6 +493,7 @@ class _Host:
                 "Human review ended without one of the offered choices "
                 f"({approval.decision}: {approval.explanation})."
             ),
+            dismissed=True,
         )
 
 
@@ -709,7 +710,7 @@ class _Recorder:
     def __init__(self, step_id: str) -> None:
         self._step_id = step_id
         # this step's human() decisions, published once it settles
-        self.kept: list[EarlierDecision] = []
+        self.kept: list[HumanDecision] = []
 
     def record(
         self, context: Context, factory: str, step: Step, reported: Reported[Report]
@@ -739,7 +740,7 @@ class _Recorder:
                 reported.function,
                 report,
             )
-        kept = earlier_decision(factory, step, self._step_id, reported)
+        kept = kept_human_decision(factory, step, self._step_id, reported)
         if kept is not None:
             self.kept.append(kept)
 
