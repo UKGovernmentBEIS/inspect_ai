@@ -460,6 +460,50 @@ async def test_perplexity_web_search_options_and_extra_body(
 
 
 @pytest.mark.anyio
+async def test_perplexity_extra_body_keeps_request_fields(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    requests: list[dict[str, Any]] = []
+    provider = _provider(monkeypatch, {"a": _agent_response("a", 1)}, requests)
+
+    try:
+        await provider.generate(
+            [ChatMessageUser(content="a")],
+            [],
+            "none",
+            GenerateConfig(
+                reasoning_effort="high",
+                reasoning_summary="detailed",
+                verbosity="low",
+                max_tokens=100,
+                extra_body={
+                    "reasoning": {"effort": "low", "context": "all"},
+                    "text": {"format": {"type": "text"}},
+                    "include": ["web_search_call.results"],
+                    "max_output_tokens": 5,
+                    "stream": True,
+                    "max_steps": 3,
+                },
+            ),
+        )
+    finally:
+        await provider.aclose()
+
+    request = requests[0]
+    # fields the request reads or sets are not sent again to replace it
+    assert request["extra_body"] == {"max_steps": 3}
+    assert request["reasoning"] == {
+        "effort": "high",
+        "summary": "detailed",
+        "context": "all",
+    }
+    assert request["text"] == {"verbosity": "low"}
+    assert request["include"] == ["reasoning.encrypted_content"]
+    assert request["max_output_tokens"] == 100
+    assert "stream" not in request
+
+
+@pytest.mark.anyio
 async def test_perplexity_rejects_unsupported_tools_and_options() -> None:
     provider = PerplexityAPI(model_name="sonar", api_key="sk-test")
     try:

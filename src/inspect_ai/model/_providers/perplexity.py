@@ -12,7 +12,6 @@ from inspect_ai._util.citation import Citation, UrlCitation
 from inspect_ai._util.content import ContentText
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model_output import ModelOutput
-from inspect_ai.model._openai_responses import responses_extra_body_fields
 from inspect_ai.model._providers.openai_compatible import OpenAICompatibleAPI
 from inspect_ai.model._providers.openai_responses import generate_responses
 from inspect_ai.tool import ToolChoice, ToolInfo
@@ -139,13 +138,8 @@ class PerplexityAPI(OpenAICompatibleAPI):
                     "Perplexity does not support tools other than web_search with perplexity options"
                 )
 
-        # generate_responses applies the Responses fields it knows from
-        # extra_body; send the rest (Agent API fields) as given
-        extra_body = {
-            k: v
-            for k, v in (config.extra_body or {}).items()
-            if k not in responses_extra_body_fields() and k != "background"
-        }
+        # generate_responses sends the Agent API fields as given
+        extra_body = dict(config.extra_body or {})
         if web_search is not None:
             extra_body["tools"] = _with_web_search(extra_body.get("tools"), web_search)
 
