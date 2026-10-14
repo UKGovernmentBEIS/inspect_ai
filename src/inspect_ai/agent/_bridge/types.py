@@ -25,7 +25,7 @@ from inspect_ai.model._model import (
 )
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.tool._tool import Tool
-from inspect_ai.tool._tool_call import ToolCall
+from inspect_ai.tool._tool_call import ToolCall, ToolCallViewer
 from inspect_ai.tool._tool_info import ToolInfo
 from inspect_ai.util._checkpoint.checkpointer import Checkpointer
 from inspect_ai.util._checkpoint.checkpointer_noop import _NoopCheckpointer
@@ -36,6 +36,8 @@ if TYPE_CHECKING:
     # cycles back through partially-initialized modules). Same reason
     # `model/_call_tools.py` defers it.
     from inspect_ai.approval._policy import ApprovalPolicy
+
+    from ._sentinel import SentinelCheck, _ResultChecks
 
 
 class DispatchedCall(NamedTuple):
@@ -143,6 +145,7 @@ class AgentBridge:
         self._pending_operator = 0
         self._operator_keys: set[str] = set()
         self._warned_request_settings: set[str] = set()
+        self._sentinel_results: "_ResultChecks | None" = None
 
     state: AgentState
     """State updated from messages traveling over the bridge."""
@@ -260,6 +263,15 @@ class AgentBridge:
         the model actually made.
         """
 
+    def _register_tool_execution_grants(
+        self,
+        calls: Sequence[ToolCall],
+        tools: Sequence[ToolInfo | Tool],
+        checks: Sequence["SentinelCheck"] | None,
+    ) -> None:
+        # a sandbox bridge holds each call's sentinel check (if any) with its grants
+        self.register_tool_execution_grants(calls, tools)
+
     def dispatched_call(self, call: ToolCall) -> DispatchedCall | None:
         """The bridged tool call that `call` makes through a dispatcher, if any.
 
@@ -269,6 +281,11 @@ class AgentBridge:
         arguments. In-process bridges have no bridged tools, so nothing is
         dispatched; `SandboxAgentBridge` overrides this.
         """
+        return None
+
+    def _host_tool_viewer(
+        self, call: ToolCall, tools: Sequence[ToolInfo | Tool]
+    ) -> ToolCallViewer | None:
         return None
 
     def compaction(

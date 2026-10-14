@@ -38,6 +38,7 @@ from inspect_ai.agent._bridge._approval import (
     terminate_for_repeated_rejections,
 )
 from inspect_ai.agent._bridge._errors import BridgePolicyError
+from inspect_ai.agent._bridge._sentinel import sentinel_tokens, sentinel_tool_results
 from inspect_ai.agent._bridge.types import AgentBridge, message_json_hash
 from inspect_ai.model._agent_message import validate_agent_message
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageUser
@@ -654,10 +655,13 @@ async def bridge_generate(
     returns None when the scaffold sent no model, and both reset when the
     request completes.
 
-    Tool calls in the output are approved before it is handed back to the scaffold. A
-    rejected call is not edited out of the response — instead the model is told it was
-    rejected and generation is retried, so the scaffold sees only the replacement (see
-    `_approval.apply_bridge_tool_approval`).
+    Tool calls in the output are approved, and go through the sentinel's `tool_call`
+    stage, before it is handed back to the scaffold. A rejected call is not edited
+    out of the response — instead the model is told it was rejected and generation
+    is retried, so the scaffold sees only the replacement (see
+    `_approval.apply_bridge_tool_approval`). Tool results in `input` for calls an
+    earlier response handed over go through the sentinel's `tool_result` stage
+    first.
 
     `routing` is how the dialect resolved `model`. Its requested name is recorded
     on the `ModelEvent` of the client's request (whether the filter or the default
@@ -697,6 +701,8 @@ async def _bridge_generate_impl(
     # ModelEvent input and state.messages (and thus the eval log).
     _restore_operator_message_source(bridge, input)
 
+    await sentinel_tool_results(bridge, input)
+
     # get compaction function and run compaction once before retry loop
     compact = bridge.compaction(tools, model)
     if compact is not None:
@@ -717,6 +723,7 @@ async def _bridge_generate_impl(
 
     refusals = 0
     rejections = 0
+    replayed: list[ChatMessage] = []
     while True:
         # Re-stamp the ambient context to the default so a filter-set context
         # from a refused attempt doesn't leak into the next retry — attempt
@@ -810,16 +817,29 @@ async def _bridge_generate_impl(
         # in-input declarations alike), which a filter may have rewritten. Approval
         # review is "utility" work — an approver's own model calls should read as
         # utility, not as the agent whose calls are under review.
+        declarations: list[ToolInfo | Tool] = list(tools)
+        if declared_in_input is not None:
+            declarations.extend(declared_in_input(input_messages))
         with agent_bridge_context_scope(_UTILITY_CONTEXT):
-            reviewed = await apply_bridge_tool_approval(bridge, output, input_messages)
-        if reviewed.rejection is None:
-            declarations: list[ToolInfo | Tool] = list(tools)
-            if declared_in_input is not None:
-                declarations.extend(declared_in_input(input_messages))
-            bridge.register_tool_execution_grants(
-                reviewed.output.message.tool_calls or [], declarations
+            reviewed = await apply_bridge_tool_approval(
+                bridge,
+                output,
+                input_messages,
+                input + replayed,
+                declarations,
             )
-            return reviewed.output, c_message
+        if reviewed.rejection is None:
+            # with a sentinel, each call is handed over under a token identifying
+            # its execution, which its result comes back under
+            output, checks = (
+                sentinel_tokens(bridge, reviewed.output, reviewed.sentinel)
+                if reviewed.sentinel is not None
+                else (reviewed.output, None)
+            )
+            bridge._register_tool_execution_grants(
+                output.message.tool_calls or [], declarations, checks
+            )
+            return output, c_message
 
         rejections += 1
         if rejections >= MAX_CONSECUTIVE_REJECTIONS:
@@ -828,6 +848,7 @@ async def _bridge_generate_impl(
         # accumulate onto original_input (rather than input_messages) since that is
         # what the top of the loop resets to, and any filter rewrite is per-attempt
         original_input = original_input + reviewed.rejection
+        replayed = replayed + reviewed.rejection
 
 
 def resolve_generate_config(

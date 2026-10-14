@@ -18,14 +18,21 @@ from inspect_ai.model._call_tools import (
 )
 from inspect_ai.model._model import ModelRefusalError
 from inspect_ai.tool._tool import ToolParsingError
+from inspect_ai.tool._tool_call import ToolCallError
 from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.tool._tools._code_execution import CodeExecutionProviders
 from inspect_ai.tool._tools._web_search._web_search import WebSearchProviders
 from inspect_ai.util._anyio import inner_exception
 from inspect_ai.util._limit import LimitExceededError
 from inspect_ai.util._sandbox import SandboxEnvironment, sandbox_service
+from inspect_ai.util._sandbox.service import _method_error
 
 from .._errors import PROVIDER_ERROR_KEY, provider_error_payload
+from .._sentinel import (
+    SentinelCheck,
+    sentinel_host_tool_result,
+    sentinel_unproposed_host_check,
+)
 from ..anthropic_api import inspect_anthropic_api_request
 from ..completions import inspect_completions_api_request
 from ..google_api import inspect_google_api_request
@@ -35,6 +42,7 @@ from .types import SandboxAgentBridge
 logger = getLogger(__name__)
 
 MODEL_SERVICE = "bridge_model_service"
+_CALL_TOOL = "call_tool"
 JSON_VALUE_ADAPTER: TypeAdapter[JsonValue] = TypeAdapter(JsonValue)
 
 GenerateMethod = Callable[[dict[str, JsonValue]], Awaitable[dict[str, JsonValue]]]
@@ -114,7 +122,7 @@ async def run_model_service(
                 generate_google(web_search, code_execution, bridge), bridge
             ),
             "list_tools": list_tools(bridge),
-            "call_tool": call_tool(bridge),
+            _CALL_TOOL: call_tool(bridge),
         },
         until=lambda: False,
         sandbox=sandbox,
@@ -201,7 +209,7 @@ def list_tools(
     return execute
 
 
-def _mcp_tool_content_block(content: JsonValue) -> JsonValue:
+def _mcp_tool_content_block(content: JsonValue, checked: bool) -> JsonValue:
     match content:
         case {"type": "image", "image": str() as image} if is_data_uri(image):
             return {
@@ -211,19 +219,38 @@ def _mcp_tool_content_block(content: JsonValue) -> JsonValue:
             }
         case {"type": "image", "image": str() as image}:
             return {"type": "text", "text": image}
+        case {"type": "text", "text": str() as text} if checked:
+            return {"type": "text", "text": text}
         case _:
             return content
 
 
+def _mcp_delivered_content(block: JsonValue) -> Content:
+    match block:
+        case {"type": "image", "data": str() as data, "mimeType": str() as mime}:
+            return ContentImage(image=f"data:{mime};base64,{data}")
+        case {"type": "text", "text": str() as text}:
+            return ContentText(text=text)
+        case _:
+            raise ValueError(f"Unexpected MCP tool result content: {block}")
+
+
 def _mcp_tool_result_content(
-    result: ContentImage | Sequence[Content],
+    result: ContentImage | Sequence[Content], checked: bool
 ) -> list[JsonValue]:
+    # a checked result's text blocks carry only their text, so the sentinel
+    # sees exactly what is delivered
     content = JSON_VALUE_ADAPTER.validate_json(to_json_str_safe(result))
     match content:
         case list():
-            return [_mcp_tool_content_block(block) for block in content]
+            return [_mcp_tool_content_block(block, checked) for block in content]
         case _:
-            return [_mcp_tool_content_block(content)]
+            return [_mcp_tool_content_block(content, checked)]
+
+
+def _truncated(tool: str, text: str, max_output: int | None) -> str:
+    truncated = truncate_tool_output(tool, text, max_output)
+    return truncated.output if truncated else text
 
 
 def call_tool(
@@ -251,6 +278,20 @@ def call_tool(
     A result a native call would pass to the model as text (anything but
     content) is truncated to the same output limit, in the same format
     (`truncate_tool_output`).
+
+    With a sentinel active, a call goes through the sentinel's `tool_result`
+    stage before its result, or a model-facing error raised once the tool began
+    executing, is returned to the scaffold. That includes a call to a
+    `require_proposal=False` server, checked with its proposal's context if the
+    model proposed it, and otherwise with the conversation the bridge last saw.
+    An MCP call carries no call id, so a call that outstanding proposals of
+    several calls could account for is checked without any of their contexts,
+    and its result recorded as checked for each of them.
+    The check sees the result as the scaffold receives it (the serialized text,
+    or the text and images of the MCP content), and an error as the service's
+    error text, with the type the native path gives it. As on the native path,
+    an argument validation error has no `tool_result` stage, and neither does a
+    bare `LimitExceededError`, which ends the sample.
     """
 
     async def execute(
@@ -263,10 +304,16 @@ def call_tool(
         if tool not in server_tools:
             raise ValueError(f"Unknown tool '{tool}' in server '{server}'")
 
-        if (
-            server not in bridge.proposal_exempt_servers
-            and not bridge.consume_tool_execution_grant(server, tool, arguments)
-        ):
+        exempt = server in bridge.proposal_exempt_servers
+        # an MCP call carries no call id, so when proposals of several calls
+        # match it, which execution it is can't be told
+        candidates = bridge._candidate_checks(server, tool, arguments, exempt)
+        grant = (
+            bridge._consume_exempt_proposal(server, tool, arguments)
+            if exempt
+            else bridge._consume_grant(server, tool, arguments)
+        )
+        if not exempt and grant is None:
             warn_once(
                 logger,
                 f"Denied host tool call '{server}/{tool}': the model did not "
@@ -283,11 +330,21 @@ def call_tool(
             )
 
         tool_fn = server_tools[tool]
+        check: SentinelCheck | None
+        if grant is None or grant.check is None or len(candidates) > 1:
+            # with no proposal's context; an ambiguous call's result is
+            # recorded for each execution it could be
+            check = sentinel_unproposed_host_check(bridge, tool, arguments, tool_fn)
+        else:
+            check = grant.check
+            candidates = []
+        executing = False
         try:
             tool_def = ToolDef(tool_fn)
             validation_errors = validate_tool_input(arguments, tool_def.parameters)
             if validation_errors:
                 raise ToolParsingError(validation_errors)
+            executing = True
             # as in call_tool: the tool's own model calls are not agent turns
             with sentinel_scope(AgentScope.OFF):
                 result = await tool_fn(**arguments)
@@ -297,18 +354,39 @@ def call_tool(
             # (ending the sample), and unwrapping a grouped one would newly
             # route it there
             inner_ex = inner_exception(ex)
-            if tool_call_error(inner_ex, tool) is None:
+            mapped = tool_call_error(inner_ex, tool)
+            if mapped is None:
                 bridge.request_fail(inner_ex)
+            elif (
+                check is not None
+                and executing
+                and not isinstance(ex, LimitExceededError)
+            ):
+                await sentinel_host_tool_result(
+                    bridge,
+                    check,
+                    "",
+                    mapped.result if mapped.result is not None else "",
+                    ToolCallError(mapped.error.type, _method_error(_CALL_TOOL, ex)),
+                    candidates,
+                )
             raise
 
         # Plain strings are returned verbatim (the MCP `tools/call` text part
         # carries them as-is). For anything else, use pydantic_core.to_json so
         # Pydantic models (e.g. list[ContentText] from real MCP tools) are
         # serialized correctly — json.dumps can't handle BaseModel.
-        if tool_result_content_list(result) is None:
+        contents = tool_result_content_list(result)
+        if contents is None:
             text = result if isinstance(result, str) else to_json_str_safe(result)
-            truncated = truncate_tool_output(tool, text, tool_def.max_output)
-            return truncated.output if truncated else text
+            text = _truncated(tool, text, tool_def.max_output)
+            if check is not None:
+                await sentinel_host_tool_result(
+                    bridge, check, text, result, candidates=candidates
+                )
+            return text
+        delivered: JsonValue
+        checked: str | list[Content]
         if isinstance(result, ContentImage) or (
             isinstance(result, list)
             and all(
@@ -316,7 +394,15 @@ def call_tool(
             )
             and any(isinstance(content, ContentImage) for content in result)
         ):
-            return _mcp_tool_result_content(result)
-        return to_json_str_safe(result)
+            blocks = _mcp_tool_result_content(result, check is not None)
+            delivered = blocks
+            checked = [_mcp_delivered_content(block) for block in blocks]
+        else:
+            delivered = checked = to_json_str_safe(result)
+        if check is not None:
+            await sentinel_host_tool_result(
+                bridge, check, checked, result, candidates=candidates
+            )
+        return delivered
 
     return execute

@@ -915,39 +915,6 @@ def test_an_escalate_returned_to_the_host_fails_the_sample(
     assert event.failed is True
 
 
-@solver
-def bridged() -> Solver:
-    async def solve(state: TaskState, generate: Generate) -> TaskState:
-        async with agent_bridge():
-            pass
-        return state
-
-    return solve
-
-
-@pytest.mark.parametrize("sentinel", [True, False])
-def test_bridged_agent_warns_once_that_sentinels_do_not_run(
-    sentinel: bool,
-    caplog: pytest.LogCaptureFixture,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    from inspect_ai._util import logger as logger_module
-
-    monkeypatch.setattr(logger_module, "_warned", [])
-    task = Task(
-        dataset=[Sample(input="a"), Sample(input="b")],
-        solver=bridged(),
-        sentinel=d3_continue() if sentinel else None,
-    )
-    with caplog.at_level(logging.WARNING):
-        [log] = eval(task, model="mockllm/model")
-    assert log.status == "success", log.error
-    warnings = [r for r in caplog.records if "bridged agents" in r.message]
-    assert len(warnings) == (1 if sentinel else 0)
-    if sentinel:
-        assert "issues/5759" in warnings[0].message
-
-
 def test_multi_function_monitor_shares_state_across_calls() -> None:
     log = run(observe_only([d3_trajectory()]), turns=2)
     assert log.status == "success", log.error

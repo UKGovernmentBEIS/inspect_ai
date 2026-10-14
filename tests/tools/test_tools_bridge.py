@@ -912,6 +912,145 @@ def test_sandbox_bridge_terminate_ends_the_sample() -> None:
     assert completed == []
 
 
+@pytest.mark.parametrize("terminate", [False, True])
+@skip_if_no_docker
+@pytest.mark.slow
+def test_sandbox_bridge_runs_the_sentinel_for_a_host_tool(terminate: bool) -> None:
+    """Both tool stages run for a bridged host tool, across the RPC boundary.
+
+    The tool_call stage runs on the model's response; the tool_result stage runs
+    in the service before the result reaches the agent, and not again when the
+    agent sends the result back to the model. A tool_result terminate ends the
+    sample from the service task.
+    """
+    pytest.importorskip("inspect_sentinel")
+    from inspect_sentinel import (
+        AfterToolCall,
+        BeforeToolCall,
+        Context,
+        Decision,
+        Monitor,
+        Observation,
+        ProtocolGroup,
+        monitor,
+        observe_only,
+        protocol,
+    )
+
+    from inspect_ai.event import SentinelEvent
+    from inspect_ai.model._chat_message import ChatMessageAssistant
+    from inspect_ai.model._model_output import ChatCompletionChoice, ModelOutput
+    from inspect_ai.tool._tool_call import ToolCall
+
+    outputs_seen: list[object] = []
+
+    @monitor
+    def host_output_monitor() -> Monitor:
+        async def after(context: Context, step: AfterToolCall) -> Observation:
+            outputs_seen.append(step.output)
+            return Observation.score(0.0)
+
+        return after
+
+    @protocol
+    def host_result_terminate() -> ProtocolGroup:
+        async def before(context: Context, step: BeforeToolCall) -> Decision | None:
+            return None
+
+        async def after(context: Context, step: AfterToolCall) -> Decision | None:
+            return Decision.terminate(f"saw {step.result.text}")
+
+        return ProtocolGroup(before, after)
+
+    call_log: list[dict] = []
+    responses: list[dict] = []
+    completed: list[bool] = []
+    calculator = {
+        "type": "function",
+        "function": {
+            "name": "calculator_add",
+            "description": "Add two numbers.",
+            "parameters": {
+                "type": "object",
+                "properties": {"x": {"type": "integer"}, "y": {"type": "integer"}},
+                "required": ["x", "y"],
+            },
+        },
+    }
+
+    @solver
+    def test_solver():
+        async def solve(state, generate):
+            async with sandbox_agent_bridge(
+                state,
+                bridged_tools=[
+                    BridgedToolsSpec(name="calc", tools=[calculator_add(call_log)])
+                ],
+            ) as bridge:
+                messages: list[dict] = [{"role": "user", "content": "Add 5 and 3."}]
+                response = await post_completions(
+                    bridge.port,
+                    {"model": "inspect", "messages": messages, "tools": [calculator]},
+                )
+                messages.append(response["choices"][0]["message"])
+                responses.append(
+                    await call_mcp_tool(
+                        bridge.mcp_server_configs[0],
+                        "calculator_add",
+                        {"x": 5, "y": 3},
+                    )
+                )
+                messages.append(
+                    {"role": "tool", "tool_call_id": "proposed", "content": "8"}
+                )
+                await post_completions(
+                    bridge.port,
+                    {"model": "inspect", "messages": messages, "tools": [calculator]},
+                )
+                completed.append(True)
+            return state
+
+        return solve
+
+    proposed = ToolCall(
+        id="proposed", function="calculator_add", arguments={"x": 5, "y": 3}
+    )
+    outputs = [
+        ModelOutput(
+            model="mockllm/model",
+            choices=[
+                ChatCompletionChoice(
+                    message=ChatMessageAssistant(content="", tool_calls=[proposed]),
+                    stop_reason="tool_calls",
+                )
+            ],
+        ),
+        ModelOutput.from_content(model="mockllm/model", content="It is 8."),
+    ]
+    task = bridged_tools_task(test_solver())
+    task.sentinel = (
+        host_result_terminate() if terminate else observe_only([host_output_monitor()])
+    )
+    log = eval(task, model=get_model("mockllm/model", custom_outputs=outputs))[0]
+
+    assert log.status == "success"
+    assert log.samples is not None
+    assert call_log == [{"tool": "calculator_add", "x": 5, "y": 3}]
+    events = [e for e in log.samples[0].events if isinstance(e, SentinelEvent)]
+    assert {e.step_id for e in events} == {"proposed"}
+    if terminate:
+        assert completed == []
+        assert [(e.stage, e.action) for e in events if e.path == ""] == [
+            ("tool_result", "terminate")
+        ]
+        assert events[-1].explanation == "saw 8"
+    else:
+        assert completed == [True]
+        assert responses[0]["result"]["content"][0]["text"] == "8"
+        assert outputs_seen == ["8"]
+        assert [e.stage for e in events] == ["tool_result"]
+
+
 # =============================================================================
 # Host tool exceptions
 # =============================================================================
