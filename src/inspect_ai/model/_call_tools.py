@@ -5,7 +5,7 @@ import types
 import typing
 from collections.abc import Collection, Iterable, Iterator, Mapping
 from copy import copy, deepcopy
-from dataclasses import MISSING, Field, fields, is_dataclass, replace
+from dataclasses import MISSING, fields, is_dataclass, replace
 from datetime import date, datetime, time
 from enum import EnumMeta
 from logging import getLogger
@@ -1524,9 +1524,8 @@ def _only_defaults_added(selected: Any, dumped: Any, value: Any) -> bool:
 
     `dumped` is the constructed `value` as it serializes, and the two forms
     are compared position by position, so every serializer in the value
-    applies. `value` is followed alongside only to tell which left-out keys
-    hold defaults: an unset model field, a dataclass field's static default,
-    or one its default factory filled (the factory is not called again).
+    applies. `value` is followed alongside only to tell whether a left-out
+    key holds its default (see `_holds_default()`).
     """
     if isinstance(selected, list) and isinstance(dumped, list):
         if isinstance(value, list | tuple) and len(value) == len(dumped):
@@ -1538,40 +1537,55 @@ def _only_defaults_added(selected: Any, dumped: Any, value: Any) -> bool:
         )
     if not (isinstance(selected, dict) and isinstance(dumped, dict)):
         return json_equal(selected, dumped)
-    children, defaults = _serialized_parts(value, dumped)
+    names = _serialized_names(value)
     return set(selected) <= set(dumped) and all(
-        _only_defaults_added(selected[key], item, children.get(key))
+        _only_defaults_added(selected[key], item, _member(value, names.get(key)))
         if key in selected
-        else key in defaults
+        else key in names and _holds_default(value, names[key])
         for key, item in dumped.items()
     )
 
 
-def _serialized_parts(
-    value: Any, dumped: dict[str, Any]
-) -> tuple[dict[str, Any], set[str]]:
-    """The values a serialized object's keys hold, and the keys holding defaults."""
+def _serialized_names(value: Any) -> dict[str, str]:
+    """The attribute (or key) each serialized key of `value` holds."""
     if isinstance(value, BaseModel):
-        names = {
-            info.serialization_alias or info.alias or name: name
-            for name, info in type(value).model_fields.items()
-        }
-        return (
-            {key: getattr(value, name) for key, name in names.items()},
-            {key for key, name in names.items() if name not in value.model_fields_set},
-        )
+        infos = type(value).model_fields
+        return {_serialized_key(name, info): name for name, info in infos.items()}
     if _is_dataclass_instance(value):
-        return (
-            {f.name: getattr(value, f.name) for f in fields(value)},
-            {f.name for f in fields(value) if _holds_default(f, dumped.get(f.name))},
-        )
+        # a Pydantic dataclass keeps its aliases here
+        infos = getattr(type(value), "__pydantic_fields__", {})
+        return {
+            _serialized_key(f.name, infos.get(f.name)): f.name for f in fields(value)
+        }
     if isinstance(value, Mapping):
-        return {key: item for key, item in value.items() if isinstance(key, str)}, set()
-    return {}, set()
+        return {key: key for key in value if isinstance(key, str)}
+    return {}
 
 
-def _holds_default(field: Field[Any], dumped: Any) -> bool:
-    """Whether a left-out dataclass field holds its default, given its dump."""
+def _serialized_key(name: str, info: FieldInfo | None) -> str:
+    if info is None:
+        return name
+    return info.serialization_alias or info.alias or name
+
+
+def _member(value: Any, name: str | None) -> Any:
+    if name is None:
+        return None
+    return value[name] if isinstance(value, Mapping) else getattr(value, name)
+
+
+def _holds_default(value: Any, name: str) -> bool:
+    """Whether a model or dataclass field left out of a call holds its default.
+
+    A model field must be unset. A dataclass field must hold its static
+    default as constructed (not as serialized), or come from its default
+    factory, which is not called again.
+    """
+    if isinstance(value, BaseModel):
+        return name not in value.model_fields_set
+    if not _is_dataclass_instance(value):
+        return False
+    field = next(f for f in fields(value) if f.name == name)
     default = field.default
     if isinstance(default, FieldInfo):
         # a Pydantic dataclass `Field()`
@@ -1582,7 +1596,8 @@ def _holds_default(field: Field[Any], dumped: Any) -> bool:
             return False
     elif default is MISSING:
         return field.default_factory is not MISSING
-    return json_equal(to_jsonable_python(default, by_alias=True, fallback=str), dumped)
+    current = getattr(value, name)
+    return current is default or bool(current == default)
 
 
 def _is_dataclass_instance(value: Any) -> bool:

@@ -7,7 +7,14 @@ from pathlib import Path
 from typing import Any, Literal, NamedTuple
 
 import pytest
-from pydantic import BaseModel, Field, computed_field, field_serializer, field_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    computed_field,
+    field_serializer,
+    field_validator,
+)
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 from pydantic_core import to_jsonable_python
 
@@ -837,6 +844,57 @@ class BumpingParent:
         return {"n": inner.n + 1}
 
 
+class Fragile(BaseModel):
+    """Serializes only a non-negative value."""
+
+    model_config = ConfigDict(frozen=True)
+
+    v: int
+
+    @field_serializer("v")
+    def check(self, v: int) -> int:
+        if v < 0:
+            raise ValueError("cannot serialize a negative value")
+        return v
+
+
+@dataclass
+class WithDefault:
+    name: str
+    item: Fragile = Fragile(v=-1)
+
+
+@pydantic_dataclass
+class Limited:
+    name: str
+    count: int = Field(default=7, alias="limit")
+    inner: Normalized | None = Field(default=None, alias="kid")
+
+
+class LimitHolder(BaseModel):
+    limited: Limited
+
+
+@pydantic_dataclass
+class Shifted:
+    """Serializes its limit one higher than it holds."""
+
+    name: str
+    limit: int = 7
+
+    @field_serializer("limit")
+    def shift(self, limit: int) -> int:
+        return limit + 1
+
+
+class ShiftedParent(BaseModel):
+    inner: Normalized
+
+    @field_serializer("inner")
+    def shift(self, inner: Normalized) -> dict[str, Any]:
+        return {"name": inner.name, "size": inner.size + 1}
+
+
 class Guarded(BaseModel):
     flags: dict[str, bool]
 
@@ -921,6 +979,10 @@ def model_tool(received: list[Any]):
         bumping_data: BumpingData | None = None,
         bumping_list: BumpingList | None = None,
         bumping_parent: BumpingParent | None = None,
+        with_default: WithDefault | None = None,
+        limit_holders: list[LimitHolder] | None = None,
+        shifted: Shifted | None = None,
+        shifted_parent: ShiftedParent | None = None,
     ) -> str:
         """Record models.
 
@@ -955,6 +1017,11 @@ def model_tool(received: list[Any]):
             bumping_list: A model whose serializer changes its list of models.
             bumping_parent: A Pydantic dataclass whose serializer changes its
                 child model.
+            with_default: A dataclass whose default fails to serialize.
+            limit_holders: Models holding a dataclass with aliased fields.
+            shifted: A Pydantic dataclass whose serializer changes its default.
+            shifted_parent: A model whose serializer changes its child's
+                default.
         """
         received.append(
             {
@@ -988,6 +1055,10 @@ def model_tool(received: list[Any]):
                     bumping_data=bumping_data,
                     bumping_list=bumping_list,
                     bumping_parent=bumping_parent,
+                    with_default=with_default,
+                    limit_holders=limit_holders,
+                    shifted=shifted,
+                    shifted_parent=shifted_parent,
                 ).items()
                 if v is not None
             }
@@ -1153,6 +1224,37 @@ async def test_model_in_unsupported_form_errors_under_approval(
             {"pair": {"pair": [{"name": "a"}, {"name": "b", "size": 1}]}},
             {"pair": {"pair": [{"name": "a", "size": 7}, {"name": "b", "size": 1}]}},
         ),
+        # a supplied field's default is never serialized
+        (
+            {"with_default": {"name": "b", "item": {"v": 2}}},
+            {"with_default": {"name": "b", "item": {"v": 2}}},
+        ),
+        # defaults are found by their serialized (aliased) keys
+        (
+            {"limit_holders": [{"limited": {"name": "b"}}]},
+            {"limit_holders": [{"limited": {"name": "b", "limit": 7, "kid": None}}]},
+        ),
+        (
+            {"limit_holders": [{"limited": {"name": "b", "kid": {"name": "abc"}}}]},
+            {
+                "limit_holders": [
+                    {
+                        "limited": {
+                            "name": "b",
+                            "limit": 7,
+                            "kid": {"name": "abc", "size": 7},
+                        }
+                    }
+                ]
+            },
+        ),
+        # a default is checked as constructed, not as serialized
+        ({"shifted": {"name": "b"}}, {"shifted": {"name": "b", "limit": 8}}),
+        ({"shifted": {"name": "b", "limit": 7}}, None),
+        (
+            {"shifted_parent": {"inner": {"name": "abc"}}},
+            {"shifted_parent": {"inner": {"name": "abc", "size": 8}}},
+        ),
     ],
     ids=[
         "validator-changes-it",
@@ -1172,6 +1274,12 @@ async def test_model_in_unsupported_form_errors_under_approval(
         "dict-of-lists-in-dataclass-default-left-out",
         "list-of-dicts-in-model-default-left-out",
         "tuple-in-model-default-left-out",
+        "unused-default-not-serialized",
+        "aliased-default-left-out",
+        "aliased-child-default-left-out",
+        "serialized-default-left-out",
+        "serialized-supplied-changes-it",
+        "parent-serialized-default-left-out",
     ],
 )
 async def test_modified_value_runs_only_as_selected(
