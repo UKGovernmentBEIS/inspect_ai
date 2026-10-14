@@ -89,6 +89,7 @@ from ._context import (
     active_task_metadata,
 )
 from ._scope import AgentScope, sentinel_scope
+from ._sent import record_turn, sent_messages
 
 logger = getLogger(__name__)
 
@@ -325,6 +326,10 @@ def _conversation() -> str:
     return active.sample_uuid if active is not None else ""
 
 
+def record_agent_turn(event: ModelEvent) -> None:
+    record_turn(event, _conversation())
+
+
 def _assistant_index(call: ToolCall, history: list[ChatMessage]) -> int | None:
     for index in range(len(history) - 1, -1, -1):
         message = history[index]
@@ -406,6 +411,9 @@ class _Host:
             tool_choice=tool_choice,
             config=config or GenerateConfig(),
         )
+
+    async def sent(self, step: Step) -> list[ChatMessage] | None:
+        return sent_messages(step.conversation)
 
     async def ask_human(self, step: Step, choices: Sequence[str]) -> HumanAnswer:
         if isinstance(step, BeforeGenerate):

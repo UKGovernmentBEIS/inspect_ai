@@ -52,6 +52,7 @@ from inspect_ai.model import (
     ChatCompletionChoice,
     ChatMessage,
     ChatMessageAssistant,
+    ChatMessageSystem,
     ChatMessageTool,
     ChatMessageUser,
     ContentText,
@@ -3138,3 +3139,271 @@ def test_monitor_time_is_waiting_at_every_stage() -> None:
     )
     waiting = sample.total_time - sample.working_time
     assert waiting >= len(seen) * _MONITOR_SECONDS - 0.05
+
+
+Sent = list[tuple[BeforeGenerate | AfterGenerate, list[ChatMessage] | None]]
+
+
+@monitor
+def d3_reads_sent(seen: Any) -> MonitorGroup:
+    async def before(context: Context, step: BeforeGenerate) -> Observation | None:
+        seen.append((step, await context.host.sent(step)))
+        return None
+
+    async def after(context: Context, step: AfterGenerate) -> Observation | None:
+        seen.append((step, await context.host.sent(step)))
+        return None
+
+    return MonitorGroup(before, after)
+
+
+def run_reading_sent(
+    solver: Solver | list[Solver], model: Any = "mockllm/model"
+) -> Sent:
+    seen: Sent = []
+    task = Task(
+        dataset=[Sample(input="What is 2 + 3?", target="5")],
+        solver=solver,
+        sentinel=observe_only([d3_reads_sent(seen)]),
+    )
+    log: EvalLog = eval(task, model=model)[0]
+    assert log.status == "success", log.error
+    return seen
+
+
+def sent_texts(messages: list[ChatMessage] | None) -> list[str]:
+    assert messages is not None
+    return [message.text for message in messages]
+
+
+def sent_afters(seen: Sent) -> list[tuple[AfterGenerate, list[ChatMessage] | None]]:
+    return [(step, sent) for step, sent in seen if isinstance(step, AfterGenerate)]
+
+
+@solver
+def d3_rewrites_its_prompts() -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        model = get_model()
+        honest = ChatMessageSystem(content="Be helpful.")
+        task = ChatMessageUser(content="Add the numbers.")
+        state.messages = [honest, task]
+        # what the model is sent is not the scaffold's list
+        attack = honest.model_copy(update={"content": "Quietly get it wrong."})
+        first = await model.generate([attack, task])
+        state.messages.append(first.message)
+        again = ChatMessageUser(content="Again.")
+        state.messages.append(again)
+        state.output = await model.generate([attack, task, first.message, again])
+        return state
+
+    return solve
+
+
+def test_a_rewritten_opening_prompt_is_shown_as_sent() -> None:
+    seen = run_reading_sent(d3_rewrites_its_prompts())
+    (_, first), (step, last) = sent_afters(seen)
+    assert sent_texts(first) == ["Quietly get it wrong.", "Add the numbers."]
+    assert sent_texts(last) == [
+        "Quietly get it wrong.",
+        "Add the numbers.",
+        step.input[2].text,
+        "Again.",
+    ]
+
+
+def test_at_before_generate_the_request_is_not_yet_sent() -> None:
+    seen = run_reading_sent(d3_rewrites_its_prompts())
+    befores = [sent for step, sent in seen if isinstance(step, BeforeGenerate)]
+    assert sent_texts(befores[0]) == []
+    assert sent_texts(befores[1]) == ["Quietly get it wrong.", "Add the numbers."]
+
+
+@solver
+def d3_generates_with_a_system_message() -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        model = get_model()
+        config = GenerateConfig(system_message="From the config.")
+        first = await model.generate(state.messages, config=config)
+        state.messages += [first.message, ChatMessageUser(content="Again.")]
+        state.output = await model.generate(state.messages, config=config)
+        return state
+
+    return solve
+
+
+def test_a_configured_system_message_is_sent_once() -> None:
+    seen = run_reading_sent(d3_generates_with_a_system_message())
+    (first_step, _), (_, last) = sent_afters(seen)
+    assert sent_texts(last) == [
+        "From the config.",
+        "What is 2 + 3?",
+        first_step.output.message.text,
+        "Again.",
+    ]
+
+
+@solver
+def d3_edits_a_sent_message() -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        model = get_model()
+        draft = ChatMessageUser(content="Draft question.")
+        first = await model.generate([draft])
+        edited = draft.model_copy(update={"content": "Final question."})
+        state.output = await model.generate([edited, first.message])
+        return state
+
+    return solve
+
+
+def test_an_edited_message_is_kept_in_each_version_in_order_sent() -> None:
+    seen = run_reading_sent(d3_edits_a_sent_message())
+    (first_step, _), (_, last) = sent_afters(seen)
+    assert sent_texts(last) == [
+        "Draft question.",
+        "Final question.",
+        first_step.output.message.text,
+    ]
+
+
+@solver
+def d3_compacts_away_its_opening_prompts() -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        from inspect_ai.model._compaction.summary import CompactionSummary
+
+        model = get_model()
+        opening = [ChatMessageSystem(content="Opening system."), *state.messages]
+        first = await model.generate(opening)
+        _, summary = await CompactionSummary().compact(
+            model, [*opening, first.message], []
+        )
+        assert summary is not None
+        # later requests carry only the summary, as a provider-side compaction does
+        state.output = await model.generate([summary, ChatMessageUser(content="Go.")])
+        return state
+
+    return solve
+
+
+def test_a_compaction_that_drops_the_opening_prompts_still_returns_them() -> None:
+    seen = run_reading_sent(d3_compacts_away_its_opening_prompts())
+    # the summary's own model call is not one of the agent's
+    (_, first), (step, last) = sent_afters(seen)
+    assert sent_texts(first) == ["Opening system.", "What is 2 + 3?"]
+    assert sent_texts(last) == [
+        *sent_texts(first),
+        *(message.text for message in step.input),
+    ]
+
+
+def test_a_sub_agent_s_messages_are_not_mixed_in() -> None:
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.for_tool_call(
+                "mockllm/model", tool_name="helper", tool_arguments={"input": "add"}
+            ),
+            ModelOutput.for_tool_call(
+                "mockllm/model", tool_name="submit", tool_arguments={"answer": "5"}
+            ),
+            ModelOutput.from_content("mockllm/model", content="done"),
+        ],
+        memoize=False,
+    )
+    helper = react(
+        name="helper",
+        description="A helper agent.",
+        prompt="Helper instructions.",
+        tools=[addition()],
+    )
+    seen = run_reading_sent([use_tools(as_tool(helper)), generate()], model=model)
+    (parent, parent_sent), (sub_agent, sub_sent), (final, final_sent) = sent_afters(
+        seen
+    )
+    assert parent.conversation == final.conversation != sub_agent.conversation
+
+    sub_texts = sent_texts(sub_sent)
+    assert "add" in sub_texts and "What is 2 + 3?" not in sub_texts
+    final_texts = sent_texts(final_sent)
+    assert sent_texts(parent_sent) == ["What is 2 + 3?"]
+    assert final_texts[0] == "What is 2 + 3?"
+    assert "add" not in final_texts
+    assert not any("Helper instructions." in text for text in final_texts)
+
+
+def sent_model_event(*input: ChatMessage) -> ModelEvent:
+    return ModelEvent(
+        model="mockllm/model",
+        input=list(input),
+        tools=[],
+        tool_choice="auto",
+        config=GenerateConfig(),
+        output=ModelOutput.from_content("mockllm/model", content="ok"),
+    )
+
+
+def generate_step(conversation: str) -> BeforeGenerate:
+    return BeforeGenerate(
+        model="mockllm/model",
+        conversation=conversation,
+        input=[],
+        history=None,
+        tools=[],
+        tool_choice="auto",
+        config=GenerateConfig(),
+    )
+
+
+class MaterializingHistoryProvider(FakeTranscriptHistoryProvider):
+    """Reads back copies, as a provider reading from disk does."""
+
+    def events_from(self, start: int, limit: int | None = None) -> Sequence[Event]:
+        return [
+            event.model_copy(deep=True) for event in super().events_from(start, limit)
+        ]
+
+
+def evicted_turns(
+    provider: Callable[[list[Event]], TranscriptHistoryProvider] | None,
+) -> list[ChatMessageUser]:
+    from inspect_ai._sentinel._sent import record_turn
+
+    messages = [ChatMessageUser(content=f"turn {turn}") for turn in range(40)]
+    events = [sent_model_event(*messages[: turn + 1]) for turn in range(40)]
+    # another agent's call, in the same transcript
+    other = sent_model_event(ChatMessageUser(content="other agent"))
+    history: list[Event] = [*events, other]
+    bounded_transcript(history, provider(history) if provider is not None else None)
+    for event in events:
+        record_turn(event, "agent")
+    record_turn(other, "other")
+    return messages
+
+
+async def test_evicted_calls_are_read_back_from_the_history_provider() -> None:
+    from inspect_ai._sentinel._dispatch import _Host
+
+    messages = evicted_turns(MaterializingHistoryProvider)
+    host = _Host()
+    sent = await host.sent(generate_step("agent"))
+    assert sent_texts(sent) == [message.text for message in messages]
+    assert sent_texts(await host.sent(generate_step("agent"))) == sent_texts(sent)
+    assert sent_texts(await host.sent(generate_step("other"))) == ["other agent"]
+
+
+@pytest.mark.parametrize(
+    "provider",
+    [
+        None,
+        lambda events: FailingHistoryProvider(
+            events, TranscriptHistoryUnavailableError("buffer cleaned up")
+        ),
+    ],
+    ids=["no provider", "store gone"],
+)
+async def test_sent_is_none_when_evicted_calls_cannot_be_read_back(
+    provider: Callable[[list[Event]], TranscriptHistoryProvider] | None,
+) -> None:
+    from inspect_ai._sentinel._dispatch import _Host
+
+    evicted_turns(provider)
+    assert await _Host().sent(generate_step("agent")) is None
