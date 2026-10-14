@@ -5,7 +5,7 @@ import types
 import typing
 from collections.abc import Collection, Iterable, Iterator, Mapping
 from copy import copy, deepcopy
-from dataclasses import MISSING, fields, is_dataclass, replace
+from dataclasses import MISSING, Field, fields, is_dataclass, replace
 from datetime import date, datetime, time
 from enum import EnumMeta
 from logging import getLogger
@@ -39,7 +39,8 @@ import anyio
 import yaml
 from anyio.streams.memory import MemoryObjectSendStream
 from pydantic import BaseModel
-from pydantic_core import to_jsonable_python
+from pydantic.fields import FieldInfo
+from pydantic_core import PydanticUndefined, to_jsonable_python
 from typing_extensions import is_typeddict
 
 from inspect_ai._sentinel._context import SentinelFailure, active_sentinel
@@ -1453,18 +1454,19 @@ def validated_tool_call(call: ToolCall, tool_def: ToolDef) -> ValidatedToolCall:
     if validation_errors:
         raise ToolParsingError(validation_errors)
 
+    # a constructor (a validator, `__post_init__`) can change its input in
+    # place, so it gets a copy and the call keeps the values that were sent
+    supplied = deepcopy(call.arguments)
     if isinstance(tool_def.tool, AgentTool):
         # agent_handoff passes the real `state`, and the developer's curried
         # arguments are Python values that go to the agent as given
         curried = tool_def.tool.kwargs
         arguments = {
-            **tool_params(
-                call.arguments, tool_def.tool.agent, skip={"state", *curried}
-            ),
+            **tool_params(supplied, tool_def.tool.agent, skip={"state", *curried}),
             **curried,
         }
     else:
-        arguments = tool_params(call.arguments, tool_def.tool)
+        arguments = tool_params(supplied, tool_def.tool)
 
     if not _tool_calls_overseen():
         return ValidatedToolCall(call, arguments)
@@ -1505,8 +1507,9 @@ def modified_tool_call(selected: ToolCall, tool_def: ToolDef) -> ValidatedToolCa
         ToolApprovalError: Converting an argument for the tool would change
             the value the approver selected (e.g. a model validator).
     """
+    selected_arguments = to_jsonable_python(selected.arguments, fallback=str)
     modified = validated_tool_call(selected, tool_def)
-    for name, value in to_jsonable_python(selected.arguments, fallback=str).items():
+    for name, value in selected_arguments.items():
         shown = modified.call.arguments.get(name)
         if not json_equal(
             value, to_jsonable_python(shown, fallback=str)
@@ -1519,41 +1522,73 @@ def modified_tool_call(selected: ToolCall, tool_def: ToolDef) -> ValidatedToolCa
 
 
 def _only_defaults_added(selected: Any, value: Any) -> bool:
-    """Whether `value` is `selected` with only the defaults it left out filled in."""
-    if isinstance(value, list) and isinstance(selected, list):
-        return len(value) == len(selected) and all(
-            map(_only_defaults_added, selected, value)
+    """Whether `value` is `selected` with only the defaults it left out filled in.
+
+    Models and dataclasses are compared field by field, recursing into fields
+    that hold models or dataclasses. A supplied field must serialize as
+    selected. A left-out field must hold its default: an unset model field, a
+    dataclass field's static default, or one its default factory filled (the
+    factory is not called again).
+    """
+    if isinstance(value, list):
+        return (
+            isinstance(selected, list)
+            and len(value) == len(selected)
+            and all(map(_only_defaults_added, selected, value))
         )
-    if isinstance(value, BaseModel):
-        return json_equal(
-            selected,
-            value.model_dump(
-                mode="json",
-                by_alias=True,
-                exclude_computed_fields=True,
-                exclude_unset=True,
-            ),
+    if isinstance(value, BaseModel) and isinstance(selected, dict):
+        dumped = value.model_dump(
+            mode="json", by_alias=True, exclude_computed_fields=True
+        )
+        attributes = {
+            info.serialization_alias or info.alias or name: name
+            for name, info in type(value).model_fields.items()
+        }
+        attributes.update({key: key for key in value.__pydantic_extra__ or {}})
+        return set(selected) <= set(attributes) and all(
+            _field_matches(selected[key], getattr(value, name), dumped.get(key))
+            if key in selected
+            else name not in value.model_fields_set
+            for key, name in attributes.items()
         )
     if _is_dataclass_instance(value) and isinstance(selected, dict):
         dumped = to_jsonable_python(value, by_alias=True)
-        names = {f.name for f in fields(value)}
-        if not isinstance(dumped, dict) or not set(selected) <= names:
-            return False
-        for f in fields(value):
-            if f.name in selected:
-                expected = selected[f.name]
-            elif f.default is not MISSING:
-                expected = to_jsonable_python(f.default, by_alias=True, fallback=str)
-            elif f.default_factory is not MISSING:
-                expected = to_jsonable_python(
-                    f.default_factory(), by_alias=True, fallback=str
+        return (
+            isinstance(dumped, dict)
+            and set(selected) <= {f.name for f in fields(value)}
+            and all(
+                _field_matches(
+                    selected[f.name], getattr(value, f.name), dumped.get(f.name)
                 )
-            else:
-                return False
-            if not json_equal(expected, dumped.get(f.name)):
-                return False
-        return True
+                if f.name in selected
+                else _holds_default(f, dumped.get(f.name))
+                for f in fields(value)
+            )
+        )
     return json_equal(selected, to_jsonable_python(value, fallback=str))
+
+
+def _field_matches(selected: Any, value: Any, dumped: Any) -> bool:
+    """Whether a supplied field holds `selected`, given its value and its dump."""
+    constructed = isinstance(value, BaseModel | list) or _is_dataclass_instance(value)
+    if constructed and _contains_constructed(value):
+        return _only_defaults_added(selected, value)
+    return json_equal(selected, dumped)
+
+
+def _holds_default(field: Field[Any], dumped: Any) -> bool:
+    """Whether a left-out dataclass field holds its default, given its dump."""
+    default = field.default
+    if isinstance(default, FieldInfo):
+        # a Pydantic dataclass `Field()`
+        if default.default_factory is not None:
+            return True
+        default = default.default
+        if default is PydanticUndefined:
+            return False
+    elif default is MISSING:
+        return field.default_factory is not MISSING
+    return json_equal(to_jsonable_python(default, by_alias=True, fallback=str), dumped)
 
 
 def _is_dataclass_instance(value: Any) -> bool:

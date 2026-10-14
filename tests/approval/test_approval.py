@@ -1,7 +1,8 @@
 import logging
 from collections.abc import Iterable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date
+from itertools import count
 from pathlib import Path
 from typing import Any, Literal, NamedTuple
 
@@ -761,6 +762,53 @@ class Normalized:
         self.name = self.name.lower()
 
 
+@dataclass
+class Outer:
+    inner: Normalized
+
+
+class Holder(BaseModel):
+    inner: Normalized
+
+
+@dataclass
+class Wrapper:
+    step: Step
+
+
+class Guarded(BaseModel):
+    flags: dict[str, bool]
+
+    @field_validator("flags", mode="before")
+    @classmethod
+    def force_write(cls, flags: Any) -> Any:
+        flags["write"] = True
+        return flags
+
+
+@dataclass
+class GuardedData:
+    flags: Any
+
+    def __post_init__(self) -> None:
+        self.flags["write"] = True
+
+
+_ids = count()
+
+
+@dataclass
+class Counted:
+    name: str
+    id: int = field(default_factory=lambda: next(_ids))
+
+
+@pydantic_dataclass
+class PydanticCounted:
+    name: str
+    id: int = Field(default_factory=lambda: next(_ids))
+
+
 class Aliased(BaseModel):
     file_path: str = Field(alias="filePath")
 
@@ -796,6 +844,14 @@ def model_tool(received: list[Any]):
         unserializable: Unserializable | None = None,
         doubled: Doubled | None = None,
         normalized: Normalized | None = None,
+        outer: Outer | None = None,
+        holder: Holder | None = None,
+        wrapper: Wrapper | None = None,
+        outers: list[Outer] | None = None,
+        guarded: Guarded | None = None,
+        guarded_data: GuardedData | None = None,
+        counted: Counted | None = None,
+        pydantic_counted: PydanticCounted | None = None,
     ) -> str:
         """Record models.
 
@@ -812,6 +868,15 @@ def model_tool(received: list[Any]):
             unserializable: A model whose serializer fails.
             doubled: A Pydantic dataclass whose validator changes its value.
             normalized: A dataclass whose `__post_init__` changes its value.
+            outer: A dataclass holding a dataclass.
+            holder: A model holding a dataclass.
+            wrapper: A dataclass holding a model.
+            outers: A list of dataclasses holding dataclasses.
+            guarded: A model whose validator changes its input in place.
+            guarded_data: A dataclass whose `__post_init__` changes its input
+                in place.
+            counted: A dataclass with a default factory.
+            pydantic_counted: A Pydantic dataclass with a default factory.
         """
         received.append(
             {
@@ -829,6 +894,14 @@ def model_tool(received: list[Any]):
                     unserializable=unserializable,
                     doubled=doubled,
                     normalized=normalized,
+                    outer=outer,
+                    holder=holder,
+                    wrapper=wrapper,
+                    outers=outers,
+                    guarded=guarded,
+                    guarded_data=guarded_data,
+                    counted=counted,
+                    pydantic_counted=pydantic_counted,
                 ).items()
                 if v is not None
             }
@@ -958,6 +1031,24 @@ async def test_model_in_unsupported_form_errors_under_approval(
         # so do ones that leave out fields their defaults fill in
         ({"step": {"step": "act"}}, {"step": {"step": "act", "status": "pending"}}),
         ({"normalized": {"name": "abc"}}, {"normalized": {"name": "abc", "size": 7}}),
+        # nested: defaults may be left out, supplied values must not change
+        (
+            {"outer": {"inner": {"name": "abc"}}},
+            {"outer": {"inner": {"name": "abc", "size": 7}}},
+        ),
+        ({"outer": {"inner": {"name": "ABC"}}}, None),
+        (
+            {"holder": {"inner": {"name": "abc"}}},
+            {"holder": {"inner": {"name": "abc", "size": 7}}},
+        ),
+        (
+            {"wrapper": {"step": {"step": "act"}}},
+            {"wrapper": {"step": {"step": "act", "status": "pending"}}},
+        ),
+        (
+            {"outers": [{"inner": {"name": "abc"}}]},
+            {"outers": [{"inner": {"name": "abc", "size": 7}}]},
+        ),
     ],
     ids=[
         "validator-changes-it",
@@ -967,6 +1058,11 @@ async def test_model_in_unsupported_form_errors_under_approval(
         "dataclass-serializes-as-selected",
         "model-default-left-out",
         "dataclass-default-left-out",
+        "dataclass-in-dataclass-default-left-out",
+        "nested-post-init-changes-it",
+        "dataclass-in-model-default-left-out",
+        "model-in-dataclass-default-left-out",
+        "list-of-nested-default-left-out",
     ],
 )
 async def test_modified_value_runs_only_as_selected(
@@ -986,6 +1082,50 @@ async def test_modified_value_runs_only_as_selected(
         assert message.error is not None
         assert message.error.type == "approval"
         assert received == []
+
+
+@pytest.mark.parametrize("name", ["guarded", "guarded_data"])
+async def test_constructor_cannot_change_the_selected_call(name: str) -> None:
+    """A constructor that changes its input in place changes a copy."""
+    selected = ToolCall(
+        id="1", function="model_tool", arguments={name: {"flags": {"write": False}}}
+    )
+
+    @approver
+    def selecting_approver() -> Approver:
+        async def approve(
+            message: str, call: ToolCall, view: ToolCallView, history: list[ChatMessage]
+        ) -> Approval:
+            return Approval(decision="modify", modified=selected)
+
+        return approve
+
+    received: list[Any] = []
+    message = await execute_with_approval(
+        ToolCall(id="1", function="model_tool", arguments={name: {"flags": {}}}),
+        [model_tool(received)],
+        [ApprovalPolicy(selecting_approver(), "*")],
+    )
+
+    assert message.error is not None
+    assert message.error.type == "approval"
+    assert received == []
+    assert selected.arguments == {name: {"flags": {"write": False}}}
+
+
+@pytest.mark.parametrize("name", ["counted", "pydantic_counted"])
+async def test_modify_leaving_out_a_default_factory_field_runs(name: str) -> None:
+    """The comparison does not call a default factory again."""
+    received: list[Any] = []
+    message = await execute_with_approval(
+        ToolCall(id="1", function="model_tool", arguments={name: {"name": "a"}}),
+        [model_tool(received)],
+        [ApprovalPolicy(modifying_approver({name: {"name": "b"}}), "*")],
+    )
+
+    assert message.error is None
+    (values,) = received
+    assert values[name].name == "b"
 
 
 async def test_aliased_model_is_shown_as_its_schema_reads() -> None:
