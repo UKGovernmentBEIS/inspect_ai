@@ -2007,7 +2007,7 @@ class Model:
         if is_agent_generate():
             from inspect_ai._sentinel._dispatch import record_agent_turn
 
-            record_agent_turn(event)
+            record_agent_turn(input)
         sink = _model_event_sink.get()
         if sink is None:
             transcript()._event(event)

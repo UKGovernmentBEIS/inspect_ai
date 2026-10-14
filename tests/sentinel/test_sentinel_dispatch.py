@@ -3141,20 +3141,28 @@ def test_monitor_time_is_waiting_at_every_stage() -> None:
     assert waiting >= len(seen) * _MONITOR_SECONDS - 0.05
 
 
-Sent = list[tuple[BeforeGenerate | AfterGenerate, list[ChatMessage] | None]]
+Sent = list[tuple[Any, list[ChatMessage] | None]]
 
 
 @monitor
 def d3_reads_sent(seen: Any) -> MonitorGroup:
     async def before(context: Context, step: BeforeGenerate) -> Observation | None:
-        seen.append((step, await context.host.sent(step)))
+        seen.append((step, step.sent))
         return None
 
     async def after(context: Context, step: AfterGenerate) -> Observation | None:
-        seen.append((step, await context.host.sent(step)))
+        seen.append((step, step.sent))
         return None
 
-    return MonitorGroup(before, after)
+    async def before_tool(context: Context, step: BeforeToolCall) -> Observation | None:
+        seen.append((step, step.sent))
+        return None
+
+    async def after_tool(context: Context, step: AfterToolCall) -> Observation | None:
+        seen.append((step, step.sent))
+        return None
+
+    return MonitorGroup(before, after, before_tool, after_tool)
 
 
 def run_reading_sent(
@@ -3330,80 +3338,36 @@ def test_a_sub_agent_s_messages_are_not_mixed_in() -> None:
     assert not any("Helper instructions." in text for text in final_texts)
 
 
-def sent_model_event(*input: ChatMessage) -> ModelEvent:
-    return ModelEvent(
-        model="mockllm/model",
-        input=list(input),
-        tools=[],
-        tool_choice="auto",
-        config=GenerateConfig(),
-        output=ModelOutput.from_content("mockllm/model", content="ok"),
+def test_tool_stages_carry_what_was_sent_for_the_call() -> None:
+    seen = run_reading_sent(
+        [use_tools(addition()), generate()], model=agent_model(turns=1)
     )
+    tool_steps = [
+        (step, sent)
+        for step, sent in seen
+        if isinstance(step, (BeforeToolCall, AfterToolCall))
+    ]
+    assert [sent_texts(sent) for _, sent in tool_steps] == [["What is 2 + 3?"]] * 2
+    _, (step, last) = sent_afters(seen)
+    assert sent_texts(last) == [message.text for message in step.input]
 
 
-def generate_step(conversation: str) -> BeforeGenerate:
-    return BeforeGenerate(
-        model="mockllm/model",
-        conversation=conversation,
-        input=[],
-        history=None,
-        tools=[],
-        tool_choice="auto",
-        config=GenerateConfig(),
+@solver
+def d3_generates_and_checks_nothing_was_recorded() -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        from inspect_ai._sentinel._sent import _sent
+
+        state.output = await get_model().generate(state.messages)
+        assert transcript() not in _sent
+        return state
+
+    return solve
+
+
+def test_nothing_is_recorded_without_a_sentinel() -> None:
+    task = Task(
+        dataset=[Sample(input="Say hi.")],
+        solver=d3_generates_and_checks_nothing_was_recorded(),
     )
-
-
-class MaterializingHistoryProvider(FakeTranscriptHistoryProvider):
-    """Reads back copies, as a provider reading from disk does."""
-
-    def events_from(self, start: int, limit: int | None = None) -> Sequence[Event]:
-        return [
-            event.model_copy(deep=True) for event in super().events_from(start, limit)
-        ]
-
-
-def evicted_turns(
-    provider: Callable[[list[Event]], TranscriptHistoryProvider] | None,
-) -> list[ChatMessageUser]:
-    from inspect_ai._sentinel._sent import record_turn
-
-    messages = [ChatMessageUser(content=f"turn {turn}") for turn in range(40)]
-    events = [sent_model_event(*messages[: turn + 1]) for turn in range(40)]
-    # another agent's call, in the same transcript
-    other = sent_model_event(ChatMessageUser(content="other agent"))
-    history: list[Event] = [*events, other]
-    bounded_transcript(history, provider(history) if provider is not None else None)
-    for event in events:
-        record_turn(event, "agent")
-    record_turn(other, "other")
-    return messages
-
-
-async def test_evicted_calls_are_read_back_from_the_history_provider() -> None:
-    from inspect_ai._sentinel._dispatch import _Host
-
-    messages = evicted_turns(MaterializingHistoryProvider)
-    host = _Host()
-    sent = await host.sent(generate_step("agent"))
-    assert sent_texts(sent) == [message.text for message in messages]
-    assert sent_texts(await host.sent(generate_step("agent"))) == sent_texts(sent)
-    assert sent_texts(await host.sent(generate_step("other"))) == ["other agent"]
-
-
-@pytest.mark.parametrize(
-    "provider",
-    [
-        None,
-        lambda events: FailingHistoryProvider(
-            events, TranscriptHistoryUnavailableError("buffer cleaned up")
-        ),
-    ],
-    ids=["no provider", "store gone"],
-)
-async def test_sent_is_none_when_evicted_calls_cannot_be_read_back(
-    provider: Callable[[list[Event]], TranscriptHistoryProvider] | None,
-) -> None:
-    from inspect_ai._sentinel._dispatch import _Host
-
-    evicted_turns(provider)
-    assert await _Host().sent(generate_step("agent")) is None
+    log = eval(task, model="mockllm/model")[0]
+    assert log.status == "success", log.error
