@@ -68,6 +68,7 @@ try:
         Observation,
         Protocol,
         Reported,
+        decide_final,
         human,
         monitor,
         observe_only,
@@ -1234,4 +1235,75 @@ def test_a_terminate_a_parent_overruled_is_seen_later(
     assert last.earlier is not None
     assert [kept(r) for r in last.earlier] == [
         ("tool_call", call_id(log), (call_id(log),), "human", "terminate", "stop")
+    ]
+
+
+class Answered:
+    """An event a test's panel sets once the person answers, made in the eval's loop."""
+
+    def __init__(self) -> None:
+        self._event: anyio.Event | None = None
+
+    @property
+    def event(self) -> anyio.Event:
+        if self._event is None:
+            self._event = anyio.Event()
+        return self._event
+
+
+@protocol
+def h_final_after_the_person(answered: Any) -> Protocol:
+    async def decide(context: Context, step: BeforeToolCall) -> Decision | None:
+        # outlives the person's terminate, which cancels its siblings
+        with anyio.CancelScope(shield=True):
+            await answered.event.wait()
+            decide_final(Decision.proceed("carry on"))
+        return None
+
+    return decide
+
+
+def test_a_superseded_decision_is_not_seen_later(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    answered = Answered()
+
+    async def acp(**kwargs: object) -> Approval | None:
+        return None
+
+    async def panel(
+        message: str,
+        call: ToolCall,
+        view: ToolCallView,
+        history: object,
+        choices: list[str],
+    ) -> Approval:
+        answered.event.set()
+        return Approval(decision="terminate", explanation="stop")
+
+    monkeypatch.setattr(acp_module, "request_human_approval_via_acp", acp)
+    monkeypatch.setattr(approver_module, "panel_approval", panel)
+    seen: list[Seen] = []
+
+    log = run(
+        [
+            human(stages=["tool_call"]),
+            h_final_after_the_person(answered),
+            observe_only([h_spy(seen)]),
+        ]
+    )
+
+    assert log.status == "success", log.error
+    assert log.samples
+    # the person's terminate was recorded, then outrun by the final proceed
+    assert [
+        e.status
+        for e in log.samples[0].events
+        if isinstance(e, SentinelEvent) and e.factory == "inspect_sentinel/human"
+    ] == ["reported", "superseded"]
+    assert [m.text for m in tool_messages(log)] == ["2"]
+    later = [s for s in seen if s.stage == "tool_result" or s.subject == "done"]
+    assert [(s.stage, s.earlier) for s in later] == [
+        ("tool_result", ()),
+        ("model_output", ()),
     ]

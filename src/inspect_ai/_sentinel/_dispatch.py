@@ -769,6 +769,11 @@ class _Recorder:
             reported.function,
             reported.report,
         )
+        # a human() decision recorded before a sibling's decide_final() outran
+        # it did not take effect, so later steps must not see it
+        kept = _earlier.get(transcript(), {}).get(step.conversation)
+        if kept:
+            kept[:] = [k for k in kept if k.decided.report is not reported.report]
 
 
 def _factory_kind(factory: str) -> _Kind:
