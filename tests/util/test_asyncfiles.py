@@ -2458,10 +2458,15 @@ class _RawBody:
         yield self.data
 
 
-def _error_response(request: AWSPreparedRequest, is_async: bool) -> AWSResponse:
-    body = _RawBody(b"<Error><Code>InternalError</Code><Message>x</Message></Error>")
+def _error_response(
+    request: AWSPreparedRequest,
+    is_async: bool,
+    status: int = 500,
+    code: str = "InternalError",
+) -> AWSResponse:
+    body = _RawBody(f"<Error><Code>{code}</Code><Message>x</Message></Error>".encode())
     response_type = AioAWSResponse if is_async else AWSResponse
-    return response_type(request.url, 500, HTTPHeaders(), body)
+    return response_type(request.url, status, HTTPHeaders(), body)
 
 
 @pytest.mark.parametrize("route", ["put", "multipart"])
@@ -2612,6 +2617,197 @@ async def test_write_file_conditional_ambiguous_outcome_propagates(
         with pytest.raises(ConnectionClosedError):
             await fs.write_file_conditional(url, io.BytesIO(data), if_none_match=True)
         assert await fs.read_file(url) == data
+
+
+@pytest.mark.parametrize("route", ["put", "multipart"])
+@pytest.mark.parametrize(
+    ("code", "conflict"),
+    [("ConditionalRequestConflict", True), ("OperationAborted", False)],
+)
+async def test_write_file_conditional_409(
+    mock_s3: None,
+    small_transfer_config: TransferConfig,
+    route: str,
+    code: str,
+    conflict: bool,
+) -> None:
+    """S3's 409 for concurrent conditional writes of one key is a conflict.
+
+    The mapping matches the error code, so a 409 with another code is not
+    treated as a failed condition and propagates unchanged.
+    """
+    key, url = _conditional_key(f"409-{route}")
+    final_op = "PutObject" if route == "put" else "CompleteMultipartUpload"
+    is_async = current_async_backend() == "asyncio"
+
+    def respond_409(request: AWSPreparedRequest, **kwargs: Any) -> AWSResponse:
+        return _error_response(request, is_async, status=409, code=code)
+
+    async with AsyncFilesystem() as fs:
+        for client in await _s3_clients(fs):
+            client.meta.events.register(f"before-send.s3.{final_op}", respond_409)
+
+        with pytest.raises(WriteConflictError if conflict else ClientError) as exc_info:
+            await fs.write_file_conditional(
+                url, io.BytesIO(os.urandom(_ROUTE_SIZES[route])), if_none_match=True
+            )
+        error = exc_info.value.__cause__ if conflict else exc_info.value
+        assert isinstance(error, ClientError)
+        assert error.response["Error"]["Code"] == code
+        assert not await fs.exists(url)
+    assert _in_progress_uploads(key) == []
+
+
+def _record_closed_clients(
+    monkeypatch: pytest.MonkeyPatch, fs: AsyncFilesystem
+) -> list[Any]:
+    """Record each async S3 client `fs` creates when it is closed."""
+    closed: list[Any] = []
+    create = fs._create_s3_client_async
+
+    async def create_recorded(**kwargs: Any) -> Any:
+        client = await create(**kwargs)
+        aexit = client.__aexit__
+
+        async def record_close(*exc_info: Any) -> None:
+            closed.append(client)
+            await aexit(*exc_info)
+
+        client.__aexit__ = record_close
+        return client
+
+    monkeypatch.setattr(fs, "_create_s3_client_async", create_recorded)
+    return closed
+
+
+def _age_s3_clients(fs: AsyncFilesystem) -> None:
+    """Age the current and retired async S3 clients past `client_ttl`."""
+    assert fs._client_ttl is not None
+    aged = time.monotonic() - fs._client_ttl - 1
+    fs._s3_client_async_created = aged
+    fs._s3_clients_retired = [
+        _RetiredClient(retired.client, aged) for retired in fs._s3_clients_retired
+    ]
+
+
+@skip_if_trio  # client_ttl applies to the async clients only
+async def test_write_file_conditional_final_client_rotated_and_closed(
+    mock_s3: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    key, url = _conditional_key("rotate")
+    fs = AsyncFilesystem(client_ttl=60)
+    closed = _record_closed_clients(monkeypatch, fs)
+    try:
+        etag = await fs.write_file_conditional(
+            url, io.BytesIO(b"first"), if_none_match=True
+        )
+        first_final = fs._s3_client_final_async
+        assert first_final is not None
+        first_final_sends = 0
+
+        def count_send(**kwargs: Any) -> None:
+            nonlocal first_final_sends
+            first_final_sends += 1
+
+        first_final.meta.events.register("before-send.s3.PutObject", count_send)
+
+        _age_s3_clients(fs)
+        await fs.write_file_conditional(url, io.BytesIO(b"second"), if_match=etag)
+
+        second_final = fs._s3_client_final_async
+        assert second_final is not None and second_final is not first_final
+        assert first_final_sends == 0
+        assert first_final in [retired.client for retired in fs._s3_clients_retired]
+        assert first_final not in closed
+    finally:
+        await fs.close()
+    assert first_final in closed
+    assert second_final in closed
+    body = boto3.client("s3").get_object(Bucket="test-bucket", Key=key)["Body"]
+    assert body.read() == b"second"
+
+
+@skip_if_trio  # client_ttl applies to the async clients only
+@pytest.mark.parametrize("operation", ["upload", "download"])
+async def test_guards_keep_their_clients_through_rotations(
+    mock_s3: None,
+    small_transfer_config: TransferConfig,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    operation: str,
+) -> None:
+    """Two client_ttl rotations during a transfer do not close its clients.
+
+    The second rotation closes clients retired a full TTL earlier; the guards
+    hold theirs until the transfer ends, and a later rotation closes them.
+    """
+    key, url = _conditional_key(f"rotate-mid-{operation}")
+    data = os.urandom(_ROUTE_SIZES["multipart"])  # three parts or ranges
+    local = tmp_path / "out.bin"
+    etag = None
+    if operation == "download":
+        etag = boto3.client("s3").put_object(Bucket="test-bucket", Key=key, Body=data)[
+            "ETag"
+        ]
+    fs = AsyncFilesystem(client_ttl=60)
+    closed = _record_closed_clients(monkeypatch, fs)
+    blocked = anyio.Event()
+    resume = anyio.Event()
+    requests = 0
+    used: list[Any] = []
+
+    async def hold_second_request(**kwargs: Any) -> None:
+        nonlocal requests
+        requests += 1
+        if requests == 2:
+            blocked.set()
+            await resume.wait()
+
+    async def rotate_twice() -> None:
+        await blocked.wait()
+        used.extend(
+            client
+            for client in (fs._s3_client_async, fs._s3_client_final_async)
+            if client is not None
+        )
+        for _ in range(2):
+            _age_s3_clients(fs)
+            await fs.s3_client_async()
+        resume.set()
+
+    try:
+        client = await fs.s3_client_async()
+        op = "UploadPart" if operation == "upload" else "GetObject"
+        client.meta.events.register(f"before-send.s3.{op}", hold_second_request)
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(rotate_twice)
+            if operation == "upload":
+                await fs.write_file_conditional(
+                    url, io.BytesIO(data), if_none_match=True
+                )
+            else:
+                assert etag is not None
+                await fs.get_file_if_match(url, str(local), etag)
+
+        assert len(used) == (2 if operation == "upload" else 1)
+        assert all(c in [r.client for r in fs._s3_clients_retired] for c in used)
+        assert not any(c in closed for c in used)
+
+        # released once the transfer ends: the next rotation closes them
+        _age_s3_clients(fs)
+        await fs.s3_client_async()
+        assert all(c in closed for c in used)
+    finally:
+        await fs.close()
+
+    if operation == "upload":
+        assert (
+            boto3.client("s3").get_object(Bucket="test-bucket", Key=key)["Body"].read()
+            == data
+        )
+        assert _in_progress_uploads(key) == []
+    else:
+        assert local.read_bytes() == data
 
 
 async def test_write_file_conditional_cancelled_part_upload_aborts(
@@ -2951,6 +3147,11 @@ async def test_get_file_if_match_memory_is_bounded_by_ranges(
             fs, "s3_client_async", AsyncMock(return_value=_GeneratedAsyncClient(obj))
         )
         monkeypatch.setattr(fs, "s3_client", lambda: _GeneratedSyncClient(obj))
+        # tracemalloc counts every thread: let the module's moto server finish
+        # requests that earlier tests left in flight
+        for thread in threading.enumerate():
+            if thread.name.endswith("(process_request_thread)"):
+                thread.join(timeout=10)
         tracemalloc.start()
         try:
             await fs.get_file_if_match(

@@ -636,6 +636,7 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
         self._s3_client_final_async: Any | None = None
         self._s3_client_async_created: float = 0.0
         self._s3_clients_retired: list[_RetiredClient] = []
+        self._s3_clients_held: list[Any] = []
         self._s3_lock = anyio.Lock()
         self._owns_context: bool = False
 
@@ -1040,15 +1041,18 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
 
         try:
             if current_async_backend() == "asyncio":
-                return await _s3_upload_fileobj_async(
-                    await self.s3_client_async(),
-                    source,
-                    bucket,
-                    key,
-                    _s3_transfer_config(),
-                    condition=condition,
-                    final_client=await self._s3_final_client_async(),
-                )
+                client = await self.s3_client_async()
+                final_client = await self._s3_final_client_async()
+                with self._hold_s3_clients(client, final_client):
+                    return await _s3_upload_fileobj_async(
+                        client,
+                        source,
+                        bucket,
+                        key,
+                        _s3_transfer_config(),
+                        condition=condition,
+                        final_client=final_client,
+                    )
             etag = await anyio.to_thread.run_sync(
                 _s3_upload_fileobj_conditional_sync,
                 self.s3_client(),
@@ -1129,14 +1133,16 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
         try:
             try:
                 if current_async_backend() == "asyncio":
-                    await _s3_download_file_async(
-                        await self.s3_client_async(),
-                        bucket,
-                        key,
-                        partial_path,
-                        _s3_transfer_config(),
-                        if_match=if_match,
-                    )
+                    client = await self.s3_client_async()
+                    with self._hold_s3_clients(client):
+                        await _s3_download_file_async(
+                            client,
+                            bucket,
+                            key,
+                            partial_path,
+                            _s3_transfer_config(),
+                            if_match=if_match,
+                        )
                 else:
                     await anyio.to_thread.run_sync(
                         _s3_download_file_if_match_sync,
@@ -1589,14 +1595,31 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
                 )
             return self._s3_client_final_async
 
+    @contextmanager
+    def _hold_s3_clients(self, *clients: Any) -> Iterator[None]:
+        """Keep `clients` open until the block exits, even once retired.
+
+        A conditional write or download can outlast the grace period of
+        `_close_retired_clients_past_grace`, and its final call or last range
+        must not go through a closed client. Held clients that are due are
+        closed on a later rotation, or by `close()`.
+        """
+        self._s3_clients_held.extend(clients)
+        try:
+            yield
+        finally:
+            for client in clients:
+                self._s3_clients_held.remove(client)
+
     async def _close_retired_clients_past_grace(self) -> None:
         """Close retired clients that have aged past the reuse-safety grace.
 
         The grace period is one `client_ttl`: an operation still streaming
         through a retired client when it was rotated out gets at least a full
-        TTL to finish before the client can be closed under it. Called only
-        from `s3_client_async` while holding `_s3_lock`, so rotations (the
-        only producer of retirees) and reaping never interleave.
+        TTL to finish before the client can be closed under it. Clients held
+        by `_hold_s3_clients` are left open. Called only from
+        `s3_client_async` while holding `_s3_lock`, so rotations (the only
+        producer of retirees) and reaping never interleave.
         """
         assert self._client_ttl is not None
         now = time.monotonic()
@@ -1604,12 +1627,11 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
             retired
             for retired in self._s3_clients_retired
             if now - retired.retired_at > self._client_ttl
+            and retired.client not in self._s3_clients_held
         ]
         if due:
             self._s3_clients_retired = [
-                retired
-                for retired in self._s3_clients_retired
-                if now - retired.retired_at <= self._client_ttl
+                retired for retired in self._s3_clients_retired if retired not in due
             ]
             for retired in due:
                 try:
