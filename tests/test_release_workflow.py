@@ -879,7 +879,11 @@ def test_release_please_config_invariants() -> None:
     # Bare tags; release-please ignores these two at the top level.
     assert package["include-v-in-tag"] is False
     assert package["include-component-in-tag"] is False
-    # 0.x: feat and fix bump the patch, breaking changes bump the minor.
+    # Every release is a patch, breaking changes included; a minor or major
+    # release is set with a temporary release-as.
+    assert package["versioning"] == "always-bump-patch"
+    # Inert under always-bump-patch; kept so switching back to default
+    # versioning restores the 0.x behavior.
     assert package["bump-minor-pre-major"] is True
     assert package["bump-patch-for-minor-pre-major"] is True
     # Release Please writes CHANGELOG.md.
