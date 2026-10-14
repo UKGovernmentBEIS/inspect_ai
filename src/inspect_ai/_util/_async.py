@@ -2,7 +2,9 @@ import asyncio
 import contextlib
 import inspect
 import os
+import signal
 import sys
+import threading
 from logging import Logger
 from typing import Any, Awaitable, Callable, Coroutine, Iterable, Literal, TypeVar, cast
 
@@ -225,6 +227,44 @@ def _anyio_run_released(func: Callable[[], Awaitable[T]]) -> T:
     finally:
         if loop is not None:
             _run_vars.pop(loop, None)
+
+
+def run_main(main: Callable[[], Coroutine[None, None, T]]) -> T:
+    """Run `main` on a new event loop of the configured backend.
+
+    Ctrl-C behaves as `asyncio.run()` defines it on both backends: the first
+    SIGINT cancels `main`, which can still clean up and return its result;
+    if the cancellation escapes `main`, `KeyboardInterrupt` is raised. A
+    second SIGINT interrupts at once. Left alone, trio raises
+    `KeyboardInterrupt` into whatever code is running when the signal lands.
+    """
+    backend = configured_async_backend()
+    if (
+        backend == "trio"
+        and threading.current_thread() is threading.main_thread()
+        and signal.getsignal(signal.SIGINT) is signal.default_int_handler
+    ):
+        return anyio.run(_trio_cancel_on_sigint, main, backend="trio")
+    return anyio.run(main, backend=backend)
+
+
+async def _trio_cancel_on_sigint(main: Callable[[], Coroutine[None, None, T]]) -> T:
+    import trio
+
+    with contextlib.ExitStack() as receiving, trio.CancelScope() as scope:
+        signals = receiving.enter_context(trio.open_signal_receiver(signal.SIGINT))
+
+        async def cancel_main() -> None:
+            async for _ in signals:
+                # restores trio's handler, which raises on the next SIGINT
+                receiving.close()
+                scope.cancel()
+                return
+
+        # a system task, so errors from `main` are not wrapped in a group
+        trio.lowlevel.spawn_system_task(cancel_main)
+        return await main()
+    raise KeyboardInterrupt
 
 
 def current_async_backend() -> Literal["asyncio", "trio"] | None:

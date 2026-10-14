@@ -70,6 +70,62 @@ def test_run_coroutine_preserves_task_errors(backend: str) -> None:
     assert result.returncode == 0, result.stdout + result.stderr
 
 
+@pytest.mark.parametrize("backend", ["asyncio", "trio"])
+def test_run_main_sigint_matches_asyncio_run(backend: str) -> None:
+    """Ctrl-C under run_main() behaves as asyncio.run() defines it on both backends."""
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-I",
+            "-c",
+            textwrap.dedent("""
+                import signal
+                import time
+
+                import anyio
+                from inspect_ai._util._async import run_main
+
+                async def cancelled():
+                    signal.raise_signal(signal.SIGINT)
+                    await anyio.sleep(30)
+
+                async def cleans_up():
+                    signal.raise_signal(signal.SIGINT)
+                    try:
+                        await anyio.sleep(30)
+                    except anyio.get_cancelled_exc_class():
+                        return "cleaned up"
+
+                async def interrupted_twice():
+                    signal.raise_signal(signal.SIGINT)
+                    try:
+                        await anyio.sleep(30)
+                    finally:
+                        with anyio.CancelScope(shield=True):
+                            signal.raise_signal(signal.SIGINT)
+                            await anyio.sleep(30)
+
+                for main in [cancelled, interrupted_twice]:
+                    start = time.monotonic()
+                    try:
+                        run_main(main)
+                    except KeyboardInterrupt as ex:
+                        assert type(ex) is KeyboardInterrupt, repr(ex)
+                    else:
+                        raise AssertionError(f"{main.__name__}: no KeyboardInterrupt")
+                    assert time.monotonic() - start < 10, main.__name__
+
+                assert run_main(cleans_up) == "cleaned up"
+            """),
+        ],
+        env={**os.environ, "INSPECT_ASYNC_BACKEND": backend},
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
 def test_run_coroutine_releases_result() -> None:
     """run_coroutine() must not retain a reference to the coroutine's result.
 

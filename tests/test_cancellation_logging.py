@@ -256,10 +256,17 @@ def test_fail_on_error_no_retry_for_cancelled(sandbox_kwarg: str | None):
         assert s.error_retries is None or len(s.error_retries) == 0
 
 
+# Sync eval() takes its backend from the environment, so the trio variant runs
+# in the default suite (its id has no "[trio" prefix for --runtrio).
+@pytest.mark.parametrize("backend", ["asyncio", "trio"])
 def test_keyboard_interrupt_logs_cancelled_samples(
-    tmp_path: Path, sandbox_kwarg: str | None
+    tmp_path: Path,
+    sandbox_kwarg: str | None,
+    backend: str,
+    monkeypatch: pytest.MonkeyPatch,
 ):
     """When SIGINT (KeyboardInterrupt) occurs, all running samples should be cancelled and logged."""
+    monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
     num_samples = 5
     task = Task(
         dataset=_make_samples(num_samples),
