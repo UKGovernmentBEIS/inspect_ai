@@ -379,6 +379,8 @@ Custom agents run through a bridge still get most of the benefit of the Inspect 
 
 Tools the agent runs itself (e.g. its own shell or file tools) appear only in the model calls. [Bridged tools](#bridged-tools) run by Inspect are recorded as tool events, like other tool calls, including calls that were denied or rejected. A call the model proposed takes the id of the model's tool call, so the log viewer shows it with that call. Each event's `metadata["bridge"]` records the server and tool, the name the model called it by, the id of the proposing call, and whether a proposal matched (`grant`: `"consumed"`, `"denied"`, `"exempt"` for a `require_proposal=False` server, or `None` for a request rejected before that check). Counts of tool events in a bridged sample (e.g. from `events_df()`) include bridged tool calls but not the agent's own tools.
 
+On a `require_proposal=False` server, a call is paired with the oldest pending proposal for the same tool and arguments, whichever call arrives first. A call the model did not propose (for example, one made from code the model wrote) with the same arguments as a pending proposal takes that proposal's id, and the proposed call is then recorded as `"exempt"` with a fresh id. Both calls run as usual; only the pairing in the log is wrong.
+
 If you want to use additional features of Inspect transcripts (e.g. spans, markdown output, etc.) you can still import and use the `transcript` function as normal. For example:
 
 ``` python

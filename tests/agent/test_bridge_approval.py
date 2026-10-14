@@ -3119,6 +3119,32 @@ async def test_opted_out_server_pairs_a_proposed_call() -> None:
     assert bridge_metadata(unproposed)["proposal_id"] is None
 
 
+async def test_opted_out_server_pairs_the_first_matching_call() -> None:
+    """A documented limitation: matching is by arguments, first come first served.
+
+    An unproposed call (e.g. from model-written code) with the same arguments
+    as a pending proposal takes its id; the proposed call then runs exempt.
+    """
+    tool = AsyncMock(return_value="contents")
+    bridge = sandbox_bridge_with_tool(tool, None, require_proposal=False)
+    call = ToolCall(id="proposed", function="read_file", arguments={"path": "a"})
+
+    with recorded_transcript() as recorded:
+        await propose(bridge, call)
+        await call_host_tool(bridge)("host", "read_file", {"path": "a"})
+        await call_host_tool(bridge)("host", "read_file", {"path": "a"})
+
+    assert tool.await_count == 2
+    first, second = recorded.tool_events
+    assert first.id == "proposed"
+    assert bridge_metadata(first)["grant"] == "consumed"
+    assert bridge_metadata(first)["proposal_id"] == "proposed"
+    assert second.id != "proposed"
+    assert second.error is None
+    assert bridge_metadata(second)["grant"] == "exempt"
+    assert bridge_metadata(second)["proposal_id"] is None
+
+
 @tool
 def sized_output() -> Tool:
     async def execute(size: int) -> ToolResult:

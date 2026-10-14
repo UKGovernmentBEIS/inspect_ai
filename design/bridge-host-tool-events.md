@@ -19,7 +19,12 @@ recorded in a sub-agent span that has already closed stays filtered. Two
 items listed under "Not this design" were done after review: the ACP card
 synthesised for a proposal becomes cancelable once its host execution's
 `ToolEvent` arrives, and the eviction warning says what an evicted grant
-loses.
+loses. Exempt-server pairing is first come, first served (Ransom,
+2026-10-14): an unproposed call on a `require_proposal=False` server with the
+same arguments as a pending proposal consumes its grant and takes its id, and
+the proposed call then runs with a fresh id and `grant: "exempt"`. Execution
+is unaffected. The bridge docs state this limitation, a test pins it, and the
+matching is unchanged.
 
 All `path:line` references are to `main` at `472cf7dd2` (2026-09-22, which
 includes #5464) unless a different tree is named. Viewer references are to
