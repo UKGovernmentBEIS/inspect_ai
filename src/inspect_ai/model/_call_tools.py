@@ -3,7 +3,7 @@ import json
 import string
 import types
 import typing
-from collections.abc import Iterable, Iterator, Mapping
+from collections.abc import Collection, Iterable, Iterator, Mapping
 from copy import copy, deepcopy
 from dataclasses import fields, is_dataclass, replace
 from datetime import date, datetime, time
@@ -1325,7 +1325,17 @@ def type_hint_includes_none(type_hint: Type[Any] | None) -> bool:
     return False
 
 
-def tool_params(input: dict[str, Any], func: Callable[..., Any]) -> dict[str, Any]:
+def tool_params(
+    input: dict[str, Any], func: Callable[..., Any], skip: Collection[str] = ()
+) -> dict[str, Any]:
+    """Convert a tool call's arguments to the parameters of `func`.
+
+    Args:
+        input: The arguments, as the model supplied them.
+        func: The tool (or agent) function.
+        skip: Parameters the caller supplies itself, which are neither
+            converted nor required.
+    """
     # parse function typeinfo
     signature = inspect.signature(func)
     type_hints = get_type_hints(func)
@@ -1333,7 +1343,7 @@ def tool_params(input: dict[str, Any], func: Callable[..., Any]) -> dict[str, An
 
     # if the function takes **kwargs: Any then just pass the tool arguments through
     if "kwargs" in type_hints and type_hints["kwargs"] == Any:
-        return input
+        return {name: value for name, value in input.items() if name not in skip}
 
     # build params
     params: dict[str, Any] = {}
@@ -1350,6 +1360,8 @@ def tool_params(input: dict[str, Any], func: Callable[..., Any]) -> dict[str, An
             continue
 
         named_params.add(param_name)
+        if param_name in skip:
+            continue
 
         # get type hint (fallback to docstring as required)
         type_hint = param_type_hint(param_name, type_hints, docstring)
@@ -1441,14 +1453,15 @@ def validated_tool_call(call: ToolCall, tool_def: ToolDef) -> ValidatedToolCall:
         raise ToolParsingError(validation_errors)
 
     if isinstance(tool_def.tool, AgentTool):
-        # inject curried args, and a `state` placeholder so tool_params doesn't
-        # treat the agent's required `state` parameter as missing
-        # (agent_handoff passes the real AgentState)
-        arguments = tool_params(
-            {**call.arguments, **tool_def.tool.kwargs, "state": None},
-            tool_def.tool.agent,
-        )
-        del arguments["state"]
+        # agent_handoff passes the real `state`, and the developer's curried
+        # arguments are Python values that go to the agent as given
+        curried = tool_def.tool.kwargs
+        arguments = {
+            **tool_params(
+                call.arguments, tool_def.tool.agent, skip={"state", *curried}
+            ),
+            **curried,
+        }
     else:
         arguments = tool_params(call.arguments, tool_def.tool)
 

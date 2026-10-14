@@ -992,15 +992,18 @@ async def test_model_serializer_failure() -> None:
 
 @agent
 def amount_agent(received: list[dict[str, Any]]) -> Agent:
-    async def execute(state: AgentState, amount: float, note: str = "") -> AgentState:
+    async def execute(
+        state: AgentState, amount: float, note: str = "", tags: list[str] | None = None
+    ) -> AgentState:
         """Record an amount.
 
         Args:
             state: Agent state.
             amount: An amount.
             note: A note.
+            tags: Tags.
         """
-        received.append({"amount": amount, "note": note})
+        received.append({"amount": amount, "note": note, "tags": tags})
         return state
 
     return execute
@@ -1029,13 +1032,38 @@ async def test_handoff_arguments_are_converted_before_approval(
 
     if valid:
         assert message.error is None
-        assert received == [{"amount": 5.0, "note": "curried"}]
+        assert received == [{"amount": 5.0, "note": "curried", "tags": None}]
         assert isinstance(received[0]["amount"], float)
     else:
         assert message.error is not None
         assert message.error.type == "parsing"
         assert calls == []
         assert received == []
+
+
+async def test_curried_handoff_arguments_are_passed_as_given() -> None:
+    """Curried arguments come from the developer, so they are not converted."""
+    from inspect_ai.agent import handoff
+
+    received: list[dict[str, Any]] = []
+    note, tags = Path("notes.txt"), {"a"}
+    call = ToolCall(
+        id="1", function="transfer_to_amount_agent", arguments={"amount": 5}
+    )
+    messages, _ = await execute_tools(
+        [
+            ChatMessageUser(content="go"),
+            ChatMessageAssistant(content="", tool_calls=[call]),
+        ],
+        [handoff(amount_agent(received), note=note, tags=tags)],
+        approval=[ApprovalPolicy(recording_approver([]), "*")],
+    )
+    (message,) = [m for m in messages if isinstance(m, ChatMessageTool)]
+
+    assert message.error is None
+    (values,) = received
+    assert values["note"] is note
+    assert values["tags"] is tags
 
 
 def test_modify_arguments_run_and_are_recorded() -> None:
