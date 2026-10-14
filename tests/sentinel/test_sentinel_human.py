@@ -108,7 +108,11 @@ def shout() -> Tool:
 
 @protocol
 def h_escalate_turn() -> Protocol:
-    async def unsure(context: Context, step: AfterGenerate) -> Decision | None:
+    async def unsure(
+        context: Context,
+        step: AfterGenerate,
+        escalations: tuple[Reported[Decision], ...],
+    ) -> Decision | None:
         if step.output.message.tool_calls:
             return Decision.escalate("two calls together, {{x}}")
         return Decision.proceed()
@@ -118,7 +122,11 @@ def h_escalate_turn() -> Protocol:
 
 @protocol
 def h_escalate() -> Protocol:
-    async def unsure(context: Context, step: BeforeToolCall) -> Decision | None:
+    async def unsure(
+        context: Context,
+        step: BeforeToolCall,
+        escalations: tuple[Reported[Decision], ...],
+    ) -> Decision | None:
         return Decision.escalate("adds {{x}} suspiciously")
 
     return unsure
@@ -249,18 +257,14 @@ def test_after_a_call_the_person_sees_the_result(
 
 
 def step(
-    after: bool = False,
-    view: ToolCallView | None = None,
-    escalations: tuple[Reported[Decision], ...] = (),
+    after: bool = False, view: ToolCallView | None = None
 ) -> BeforeToolCall | AfterToolCall:
     call = ToolCall(id="c1", function="addition", arguments={"x": 1, "y": 1})
     view = view or ToolCallView()
     if after:
         result = ChatMessageTool(content="2", tool_call_id="c1", function="addition")
-        return AfterToolCall(
-            "", "Adding.", call, result, "2", view, [], [], escalations
-        )
-    return BeforeToolCall("", "Adding.", call, view, [], [], escalations)
+        return AfterToolCall("", "Adding.", call, result, "2", view, [], [])
+    return BeforeToolCall("", "Adding.", call, view, [], [])
 
 
 def escalation(explanation: str) -> tuple[Reported[Decision], ...]:
@@ -280,9 +284,7 @@ async def test_placeholders_in_an_escalation_are_not_substituted(
     panel = Panel("approve")
     panel.install(monkeypatch)
 
-    await _Host().ask_human(
-        step(view=view, escalations=escalation("adds {{{x}}}")), ["approve"]
-    )
+    await _Host().ask_human(step(view=view), escalation("adds {{{x}}}"), ["approve"])
 
     [shown] = panel.views
     assert shown.call is not None
@@ -297,9 +299,7 @@ async def test_an_escalation_cannot_inject_markdown(
     panel.install(monkeypatch)
     injected = "fine\n```\n\n```python\ndelete_everything()\n```\n```"
 
-    await _Host().ask_human(
-        step(view=MARKDOWN_VIEW, escalations=escalation(injected)), ["approve"]
-    )
+    await _Host().ask_human(step(view=MARKDOWN_VIEW), escalation(injected), ["approve"])
 
     content = panel.content()
     fenced = f"````\n- monitor: {injected}\n````"
@@ -336,7 +336,7 @@ async def test_the_person_sees_history_or_else_what_the_model_saw(
     panel.install(monkeypatch)
 
     await _Host().ask_human(
-        replace(step(after), history=history, input=model_input), ["approve"]
+        replace(step(after), history=history, input=model_input), (), ["approve"]
     )
 
     assert panel.histories == [shown]
@@ -356,7 +356,9 @@ async def test_after_a_generate_the_person_sees_history_or_else_what_the_model_s
     panel.install(monkeypatch)
 
     await _Host().ask_human(
-        replace(turn_step(ADD), history=history, input=INPUT), ["approve", "terminate"]
+        replace(turn_step(ADD), history=history, input=INPUT),
+        (),
+        ["approve", "terminate"],
     )
 
     assert panel.histories == [shown]
@@ -383,7 +385,7 @@ async def test_an_answer_that_was_not_offered_fails_closed(
 ) -> None:
     Panel(answered, "dismissed").install(monkeypatch)
 
-    answer = await _Host().ask_human(step(after), choices)
+    answer = await _Host().ask_human(step(after), (), choices)
 
     assert answer.decision == expected
     assert answer.reason is not None
@@ -413,7 +415,7 @@ async def test_modify_cannot_be_offered(monkeypatch: pytest.MonkeyPatch) -> None
     panel.install(monkeypatch)
 
     with pytest.raises(NotImplementedError, match="cannot edit a tool call"):
-        await _Host().ask_human(step(), ["approve", "modify"])
+        await _Host().ask_human(step(), (), ["approve", "modify"])
     assert panel.views == []
 
 
@@ -515,11 +517,7 @@ def test_a_terminated_turn_runs_none_of_its_calls(
     assert not [e for e in sample.events if isinstance(e, ToolEvent)]
 
 
-def turn_step(
-    *calls: ToolCall,
-    escalations: tuple[Reported[Decision], ...] = (),
-    content: str = "Adding and shouting.",
-) -> AfterGenerate:
+def turn_step(*calls: ToolCall, content: str = "Adding and shouting.") -> AfterGenerate:
     return AfterGenerate(
         model="mockllm/model",
         conversation="",
@@ -529,7 +527,6 @@ def turn_step(
         tool_choice="auto",
         config=GenerateConfig(),
         output=turn_output(*calls, content=content),
-        escalations=escalations,
     )
 
 
@@ -548,8 +545,7 @@ async def test_every_surface_is_handed_the_whole_turn(
     monkeypatch.setattr(acp_module, "request_human_approval_via_acp", acp)
 
     answer = await _Host().ask_human(
-        turn_step(ADD, VIEWED_SHOUT, escalations=escalation("together")),
-        ["approve", "terminate"],
+        turn_step(ADD, VIEWED_SHOUT), escalation("together"), ["approve", "terminate"]
     )
 
     assert answer.decision == "approve"
@@ -582,7 +578,7 @@ async def test_a_turn_with_no_calls_says_so(monkeypatch: pytest.MonkeyPatch) -> 
     panel = Panel("approve")
     panel.install(monkeypatch)
 
-    await _Host().ask_human(turn_step(), ["approve", "terminate"])
+    await _Host().ask_human(turn_step(), (), ["approve", "terminate"])
 
     assert panel.content() == "**The turn makes no tool calls.**"
 
@@ -590,7 +586,7 @@ async def test_a_turn_with_no_calls_says_so(monkeypatch: pytest.MonkeyPatch) -> 
 async def test_a_dismissed_turn_terminates(monkeypatch: pytest.MonkeyPatch) -> None:
     Panel("reject", "dismissed").install(monkeypatch)
 
-    answer = await _Host().ask_human(turn_step(ADD), ["approve", "terminate"])
+    answer = await _Host().ask_human(turn_step(ADD), (), ["approve", "terminate"])
 
     assert answer.decision == "terminate"
     assert answer.reason is not None
@@ -602,7 +598,7 @@ async def test_a_turn_cannot_be_rejected(monkeypatch: pytest.MonkeyPatch) -> Non
     panel.install(monkeypatch)
 
     with pytest.raises(ValueError, match="cannot offer 'reject' at the model_output"):
-        await _Host().ask_human(turn_step(ADD), ["approve", "reject"])
+        await _Host().ask_human(turn_step(ADD), (), ["approve", "reject"])
     assert panel.views == []
 
 
@@ -617,7 +613,7 @@ async def test_a_person_cannot_be_asked_before_a_generate() -> None:
         config=GenerateConfig(),
     )
     with pytest.raises(NotImplementedError, match="model_input"):
-        await _Host().ask_human(before, ["approve"])
+        await _Host().ask_human(before, (), ["approve"])
 
 
 BASH = code_viewer("bash", "cmd")
@@ -695,13 +691,11 @@ async def test_no_call_can_hide_or_pass_for_another(
 
     monkeypatch.setattr(acp_module, "request_human_approval_via_acp", acp)
     calls = (bash_call("c1", first), NAMED, bash_call("c3", "rm -rf /srv/data"), NOTES)
-    step = turn_step(
-        *calls,
-        content=f"Tidying up.{COVER}{RLO}",
-        escalations=escalation(f"quotes the agent: {COVER}"),
-    )
+    step = turn_step(*calls, content=f"Tidying up.{COVER}{RLO}")
 
-    await _Host().ask_human(step, ["approve", "terminate"])
+    await _Host().ask_human(
+        step, escalation(f"quotes the agent: {COVER}"), ["approve", "terminate"]
+    )
 
     [kwargs] = asked
     call, view = kwargs["call"], kwargs["view"]
@@ -760,7 +754,7 @@ async def turn_view(
         return Approval(decision="approve")
 
     monkeypatch.setattr(acp_module, "request_human_approval_via_acp", acp)
-    await _Host().ask_human(step, ["approve", "terminate"])
+    await _Host().ask_human(step, (), ["approve", "terminate"])
     [kwargs] = asked
     return kwargs["message"], kwargs["view"].call.content
 
@@ -922,7 +916,7 @@ async def test_an_acp_turn_card_is_finished_once_the_prompt_ends(
     session = TuiSession(answer)
     tui(session)
 
-    result = await _Host().ask_human(turn_step(*calls), ["approve", "terminate"])
+    result = await _Host().ask_human(turn_step(*calls), (), ["approve", "terminate"])
 
     assert result.decision == decision
     card = only_card(session.state)
@@ -947,7 +941,7 @@ async def test_an_acp_turn_card_fails_when_the_prompt_is_cancelled(
     with anyio.CancelScope() as scope:
         session = TuiSession("approve", scope)
         tui(session)
-        await _Host().ask_human(turn_step(ADD), ["approve", "terminate"])
+        await _Host().ask_human(turn_step(ADD), (), ["approve", "terminate"])
 
     assert scope.cancelled_caught
     card = only_card(session.state)
@@ -964,7 +958,7 @@ async def test_each_turn_prompt_has_a_card_of_its_own(
     tui(session)
 
     for _ in range(2):
-        await _Host().ask_human(turn_step(ADD), ["approve", "terminate"])
+        await _Host().ask_human(turn_step(ADD), (), ["approve", "terminate"])
 
     first, second = session.state.items
     assert isinstance(first, ToolCallState) and isinstance(second, ToolCallState)

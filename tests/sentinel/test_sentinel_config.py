@@ -54,6 +54,7 @@ try:
         Monitor,
         Observation,
         Protocol,
+        Reported,
         monitor,
         observe_only,
         protocol,
@@ -73,7 +74,11 @@ def d2_suspicion(score: float = 0.5) -> Monitor:
 
 @protocol
 def d2_rule(reason: str = "no") -> Protocol:
-    async def decide(context: Context, step: BeforeToolCall) -> Decision | None:
+    async def decide(
+        context: Context,
+        step: BeforeToolCall,
+        escalations: tuple[Reported[Decision], ...],
+    ) -> Decision | None:
         return Decision.reject(reason)
 
     return decide
@@ -609,7 +614,7 @@ from inspect_sentinel import BeforeToolCall, Decision, Protocol, protocol
 
 @protocol
 def cli_rule(reason: str = "no") -> Protocol:
-    async def decide(context, step: BeforeToolCall) -> Decision | None:
+    async def decide(context, step: BeforeToolCall, escalations) -> Decision | None:
         return Decision.reject(reason)
 
     return decide
