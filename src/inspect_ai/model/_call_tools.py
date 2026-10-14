@@ -429,6 +429,7 @@ async def _execute_tools_impl(
                             executed_call,
                             tool_message,
                             result,
+                            truncated,
                             conversation,
                         )
                 except anyio.get_cancelled_exc_class():
@@ -982,6 +983,7 @@ async def _apply_tool_review(
     call: ToolCall,
     result: ChatMessageTool,
     output: ToolResult,
+    truncated: tuple[int, int] | None,
     conversation: list[ChatMessage],
 ) -> None:
     """Give the active review policies and sentinel the executed call's result.
@@ -1015,6 +1017,7 @@ async def _apply_tool_review(
             call,
             result,
             output,
+            truncated,
             tool_def.viewer if tool_def else None,
             conversation,
         )
