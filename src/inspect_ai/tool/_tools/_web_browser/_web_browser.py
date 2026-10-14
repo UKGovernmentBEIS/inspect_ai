@@ -422,19 +422,19 @@ async def _web_browser_cmd(
         # The user may have the old, incompatible, sandbox. If so, use that and
         # execute the old compatible code.
         try:
-            if tool_state_instance(None) is not None:
-                # the legacy code keeps one unscoped session per sample
-                await _web_browser_sandbox()
-                raise ToolError(
-                    "The legacy web browser sandbox (aisiuk/inspect-web-browser-tool) "
-                    "is not supported inside a tool state scope. Use the "
-                    "aisiuk/inspect-tool-support image instead."
+            if tool_state_instance(None) is None:
+                return await old_web_browser_cmd(
+                    tool_name, *(str(value) for value in params.values())
                 )
-            return await old_web_browser_cmd(
-                tool_name, *(str(value) for value in params.values())
-            )
+            await _web_browser_sandbox()
         except PrerequisiteError:
             raise e
+        # the legacy code keeps one unscoped session per sample
+        raise PrerequisiteError(
+            "The legacy web browser sandbox (aisiuk/inspect-web-browser-tool) "
+            "is not supported inside a tool state scope. Use the "
+            "aisiuk/inspect-tool-support image instead."
+        )
 
     # bind to store (use instance id or tool state scope if provided)
     store = store_as(WebBrowserStore, instance=tool_state_instance(instance))

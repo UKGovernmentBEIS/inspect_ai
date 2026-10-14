@@ -17,7 +17,7 @@ from inspect_ai.model import ModelOutput, get_model
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageTool
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.solver import generate, use_tools
-from inspect_ai.tool import ToolError, web_browser
+from inspect_ai.tool import web_browser
 from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_choice import ToolChoice
 from inspect_ai.tool._tool_def import ToolDef
@@ -140,9 +140,9 @@ async def test_web_browser_default_instance_is_per_tool_state_scope(
 
     assert new_sessions == ["session-1", "session-2"]
     assert used_sessions == [
-        ("w-1", "session-1"),
-        ("w-2", "session-2"),
-        ("w-1", "session-1"),
+        ("@w-1", "session-1"),
+        ("@w-2", "session-2"),
+        ("@w-1", "session-1"),
     ]
 
 
@@ -182,7 +182,7 @@ async def test_web_browser_legacy_sandbox_refused_in_tool_state_scope(
 
     # inside a scope it is refused
     with tool_state_scope("w-1"):
-        with pytest.raises(ToolError, match="legacy web browser sandbox"):
+        with pytest.raises(PrerequisiteError, match="legacy web browser sandbox"):
             await go(url="https://example.com")
     assert legacy_calls == ["web_go"]
 

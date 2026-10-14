@@ -676,8 +676,8 @@ class TestSkillToolStateScope:
             await tool(command="example")
         assert len(installs) == 2
         assert "InstalledSkills:skills" not in store()
-        assert store().get("InstalledSkills:w-1:skills") is not None
-        assert store().get("InstalledSkills:w-2:skills") is not None
+        assert store().get("InstalledSkills:@w-1:skills") is not None
+        assert store().get("InstalledSkills:@w-2:skills") is not None
 
     async def test_deepagent_child_skill_tool_is_per_scope(
         self, installs: list[Sequence[Skill]]
@@ -703,8 +703,8 @@ class TestSkillToolStateScope:
             await call_child_skill()
         assert len(installs) == 2
         assert "InstalledSkills:general:skills" not in store()
-        assert store().get("InstalledSkills:w-1/general:skills") is not None
-        assert store().get("InstalledSkills:w-2/general:skills") is not None
+        assert store().get("InstalledSkills:@w-1#general:skills") is not None
+        assert store().get("InstalledSkills:@w-2#general:skills") is not None
 
         # outside a scope the subagent name is today's instance
         await call_child_skill()

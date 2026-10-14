@@ -142,9 +142,9 @@ async def test_bash_session_default_instance_is_per_tool_state_scope(
 
     assert new_sessions == ["session-1", "session-2", "session-3"]
     assert used_sessions == [
-        ("w-1", "session-1"),
-        ("w-2", "session-2"),
-        ("w-1", "session-1"),
-        ("w-2", "session-2"),
+        ("@w-1", "session-1"),
+        ("@w-2", "session-2"),
+        ("@w-1", "session-1"),
+        ("@w-2", "session-2"),
         (None, "session-3"),
     ]

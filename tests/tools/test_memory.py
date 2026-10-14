@@ -394,8 +394,8 @@ async def test_tool_state_scopes_keep_separate_memory() -> None:
         content = await tool(command="view", path="/memories/a.txt")
         assert isinstance(content, str) and "from w-1" in content
     assert "MemoryStore:files" not in store()
-    assert "/memories/a.txt" in store().get("MemoryStore:w-1:files")
-    assert "/memories/a.txt" in store().get("MemoryStore:w-2:files")
+    assert "/memories/a.txt" in store().get("MemoryStore:@w-1:files")
+    assert "/memories/a.txt" in store().get("MemoryStore:@w-2:files")
 
 
 async def test_tool_state_scopes_keep_separate_readonly_memory() -> None:
@@ -422,6 +422,14 @@ async def test_tool_state_scope_keeps_explicit_instance_shared() -> None:
     with tool_state_scope("w-2"):
         content = await tool(command="view", path="/memories/a.txt")
         assert isinstance(content, str) and "board" in content
+
+
+async def test_tool_state_scope_does_not_share_with_explicit_instance() -> None:
+    """A scope named like an explicit instance keeps its own memory."""
+    with tool_state_scope("team"):
+        await memory()(command="create", path="/memories/a.txt", file_text="w")
+    with pytest.raises(ToolError, match="does not exist"):
+        await memory(instance="team")(command="view", path="/memories/a.txt")
 
 
 async def test_no_tool_state_scope_keeps_default_keys() -> None:
