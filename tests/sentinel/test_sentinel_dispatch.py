@@ -7,6 +7,7 @@ from typing import Any, cast
 
 import anyio
 import pytest
+from pydantic import BaseModel
 from test_helpers.transcript import FakeTranscriptHistoryProvider
 from test_helpers.utils import skip_if_no_mcp_package
 from typing_extensions import assert_type
@@ -673,6 +674,41 @@ def test_a_sentinel_modify_is_validated() -> None:
     assert log.status == "success", log.error
     [message] = tool_messages(log)
     assert message.error is not None and message.error.type == "parsing"
+
+
+class Item(BaseModel):
+    name: str
+
+
+@tool
+def count_items() -> Tool:
+    async def execute(items: dict[str, Item]) -> str:
+        """Count items.
+
+        Args:
+            items: Items by name.
+        """
+        return str(len(items))
+
+    return execute
+
+
+async def test_the_sentinel_is_not_shown_an_unsupported_model_form() -> None:
+    """With no approval policy, a model the sentinel cannot be shown is refused."""
+    init_transcript(Transcript())
+    seen: Seen = []
+    call = ToolCall(
+        id="1", function="count_items", arguments={"items": {"a": {"name": "a"}}}
+    )
+    with active(observe_only([d3_recording(seen)])):
+        result = await execute_tools(
+            [ChatMessageAssistant(content=[], tool_calls=[call])], [count_items()]
+        )
+
+    [message] = result.messages
+    assert isinstance(message, ChatMessageTool)
+    assert message.error is not None and message.error.type == "parsing"
+    assert seen == []
 
 
 def test_a_review_terminate_skips_the_after_call_sentinel() -> None:

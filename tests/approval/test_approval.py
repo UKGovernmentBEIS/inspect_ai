@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Any, Literal, NamedTuple
 
 import pytest
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, Field, computed_field, field_serializer, field_validator
 from pydantic_core import to_jsonable_python
 
 from inspect_ai import Task, eval
@@ -740,6 +740,26 @@ class Parent(BaseModel):
     children: list[Lazy]
 
 
+class Aliased(BaseModel):
+    file_path: str = Field(alias="filePath")
+
+    @computed_field
+    def name(self) -> str:
+        return Path(self.file_path).name
+
+
+class SplitAlias(BaseModel):
+    value: str = Field(validation_alias="in_value", serialization_alias="out_value")
+
+
+class Unserializable(BaseModel):
+    value: str
+
+    @field_serializer("value")
+    def fail(self, value: str) -> str:
+        raise ValueError("cannot serialize")
+
+
 @tool
 def model_tool(received: list[Any]):
     async def execute(
@@ -750,6 +770,9 @@ def model_tool(received: list[Any]):
         flag: Flag | None = None,
         by_name: dict[str, Step] | None = None,
         parent: Parent | None = None,
+        aliased: Aliased | None = None,
+        split_alias: SplitAlias | None = None,
+        unserializable: Unserializable | None = None,
     ) -> str:
         """Record models.
 
@@ -761,6 +784,9 @@ def model_tool(received: list[Any]):
             flag: A model whose validator turns a number into a flag.
             by_name: Models in a mapping (not supported under approval).
             parent: A model holding lazy values (not supported under approval).
+            aliased: A model with an alias and a computed field.
+            split_alias: A model that serializes under another alias.
+            unserializable: A model whose serializer fails.
         """
         received.append(
             {
@@ -773,6 +799,9 @@ def model_tool(received: list[Any]):
                     flag=flag,
                     by_name=by_name,
                     parent=parent,
+                    aliased=aliased,
+                    split_alias=split_alias,
+                    unserializable=unserializable,
                 ).items()
                 if v is not None
             }
@@ -832,8 +861,13 @@ async def test_model_parameter_is_approved_as_it_runs(
             {"parent": {"children": [{"values": [1, 2]}]}},
             {"parent": {"children": [{"values": [1, 2]}]}},
         ),
+        # serializes as {"out_value": ...}, which the tool's schema rejects
+        (
+            {"split_alias": {"in_value": "x"}},
+            {"split_alias": {"out_value": "x"}},
+        ),
     ],
-    ids=["mapping", "nested-lazy"],
+    ids=["mapping", "nested-lazy", "split-alias"],
 )
 async def test_model_in_unsupported_form_errors_under_approval(
     arguments: dict[str, Any], runs: dict[str, Any]
@@ -848,7 +882,7 @@ async def test_model_in_unsupported_form_errors_under_approval(
 
     assert message.error is not None
     assert message.error.type == "parsing"
-    assert "does not support" in message.error.message
+    assert "cannot be shown to approvers or monitors" in message.error.message
     assert calls == []
 
     # without approval the tool runs as before, with its lazy values unconsumed
@@ -898,6 +932,62 @@ async def test_modified_model_runs_only_as_selected(
         assert message.error is not None
         assert message.error.type == "approval"
         assert received == []
+
+
+async def test_aliased_model_is_shown_as_its_schema_reads() -> None:
+    """A model is shown by alias without computed fields, so a modify that copies it runs."""
+    received: list[Any] = []
+    calls: list[ToolCall] = []
+    arguments = {"aliased": {"filePath": "a/b.txt"}, "step": {"step": "plan"}}
+    message = await execute_with_approval(
+        ToolCall(id="1", function="model_tool", arguments=arguments),
+        [model_tool(received)],
+        [ApprovalPolicy(recording_approver(calls), "*")],
+    )
+    assert message.error is None
+    (call,) = calls
+    assert call.arguments == {
+        "aliased": {"filePath": "a/b.txt"},
+        "step": {"step": "plan", "status": "pending"},
+    }
+
+    # the shown call, with another argument changed
+    modified = {**call.arguments, "step": {"step": "act", "status": "pending"}}
+    message = await execute_with_approval(
+        ToolCall(id="2", function="model_tool", arguments=arguments),
+        [model_tool(received)],
+        [ApprovalPolicy(modifying_approver(modified), "*")],
+    )
+    assert message.error is None
+    assert received[-1]["aliased"].file_path == "a/b.txt"
+    assert received[-1]["step"] == Step(step="act")
+
+
+async def test_model_serializer_failure() -> None:
+    """A model that cannot be serialized is a parsing error only when it must be shown."""
+    received: list[Any] = []
+    calls: list[ToolCall] = []
+    call = ToolCall(
+        id="1", function="model_tool", arguments={"unserializable": {"value": "x"}}
+    )
+    message = await execute_with_approval(
+        call,
+        [model_tool(received)],
+        [ApprovalPolicy(recording_approver(calls), "*")],
+    )
+    assert message.error is not None
+    assert message.error.type == "parsing"
+    assert "serializing it failed" in message.error.message
+    assert calls == []
+    assert received == []
+
+    # without approval the model is not serialized and the tool runs
+    messages, _ = await execute_tools(
+        [ChatMessageAssistant(content=[], tool_calls=[call])], [model_tool(received)]
+    )
+    assert isinstance(messages[-1], ChatMessageTool)
+    assert messages[-1].error is None
+    assert received == [{"unserializable": Unserializable(value="x")}]
 
 
 @agent

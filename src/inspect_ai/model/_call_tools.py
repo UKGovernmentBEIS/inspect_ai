@@ -1422,18 +1422,19 @@ def validated_tool_call(call: ToolCall, tool_def: ToolDef) -> ValidatedToolCall:
 
     The arguments are checked against the tool's schema and converted to the
     tool's parameter types (exactly, see `tool_param()`). The returned call is
-    what approvers and viewers see, and the returned arguments are what the
-    tool receives. A Pydantic model applies its own validation, which can
-    change a value, so a `BaseModel` (or `list[BaseModel]`) parameter is shown
-    as the constructed model serializes (`model_dump(mode="json")`); a model
-    in any other shape is not supported while approval is active.
+    what approvers, sentinel monitors and viewers see, and the returned
+    arguments are what the tool receives. A Pydantic model applies its own
+    validation, which can change a value, so while approval or a sentinel is
+    active a `BaseModel` (or `list[BaseModel]`) parameter is shown as the
+    constructed model serializes (see `_serialized_model()`), and that form
+    must still fit the tool's schema.
 
     Raises:
-        ToolParsingError: The arguments fail the schema, cannot be converted
-            exactly, or hold a model in a shape approval does not support.
+        ToolParsingError: The arguments fail the schema or cannot be converted
+            exactly, or (while approval or a sentinel is active) hold a model
+            that cannot be shown in a form the tool accepts.
     """
     from inspect_ai.agent._handoff import AgentTool
-    from inspect_ai.approval._apply import have_tool_approval
 
     validation_errors = validate_tool_input(call.arguments, tool_def.parameters)
     if validation_errors:
@@ -1451,16 +1452,32 @@ def validated_tool_call(call: ToolCall, tool_def: ToolDef) -> ValidatedToolCall:
     else:
         arguments = tool_params(call.arguments, tool_def.tool)
 
+    if not _tool_calls_overseen():
+        return ValidatedToolCall(call, arguments)
+
     shown = dict(call.arguments)
+    serialized = False
     for name in call.arguments:
         value = arguments.get(name)
         if _contains_model(value):
-            try:
-                shown[name] = _serialized_model(name, value)
-            except ToolParsingError:
-                if have_tool_approval():
-                    raise
+            shown[name] = _serialized_model(name, value)
+            serialized = True
+    if serialized:
+        schema_errors = validate_tool_input(shown, tool_def.parameters)
+        if schema_errors:
+            raise ToolParsingError(
+                "A Pydantic model argument cannot be shown to approvers or "
+                "monitors: as it serializes, it does not fit the tool's "
+                f"schema.\n{schema_errors}"
+            )
     return ValidatedToolCall(replace(call, arguments=shown), arguments)
+
+
+def _tool_calls_overseen() -> bool:
+    """Whether an approval policy or a sentinel will see tool calls."""
+    from inspect_ai.approval._apply import have_tool_approval
+
+    return have_tool_approval() or active_sentinel() is not None
 
 
 def modified_tool_call(selected: ToolCall, tool_def: ToolDef) -> ValidatedToolCall:
@@ -1499,8 +1516,14 @@ def _contains_model(value: Any) -> bool:
 def _serialized_model(name: str, value: Any) -> Any:
     """A `BaseModel` or `list[BaseModel]` argument as the models serialize.
 
-    A lazy iterable anywhere in the value is refused before serializing, since
-    serializing would consume it and leave the tool with nothing.
+    Models are dumped by alias and without computed fields, matching the
+    model's schema. A lazy iterable anywhere in the value is refused before
+    serializing, since serializing would consume it and leave the tool with
+    nothing.
+
+    Raises:
+        ToolParsingError: The value holds a model in another form, or
+            serializing it fails.
     """
     supported = isinstance(value, BaseModel) or (
         isinstance(value, list)
@@ -1510,18 +1533,25 @@ def _serialized_model(name: str, value: Any) -> Any:
     )
     if not supported or _holds_iterator(value):
         raise ToolParsingError(
-            f"Argument '{name}' holds a Pydantic model in a form that tool "
-            "approval does not support (only a model or a list of models, "
-            "without lazy iterables)."
+            f"Argument '{name}' holds a Pydantic model in a form that cannot "
+            "be shown to approvers or monitors (only a model or a list of "
+            "models, without lazy iterables)."
         )
-    if isinstance(value, BaseModel):
-        return value.model_dump(mode="json")
-    return [
-        item.model_dump(mode="json")
-        if isinstance(item, BaseModel)
-        else to_jsonable_python(item, fallback=str)
-        for item in value
-    ]
+
+    def dump(item: Any) -> Any:
+        if isinstance(item, BaseModel):
+            return item.model_dump(
+                mode="json", by_alias=True, exclude_computed_fields=True
+            )
+        return to_jsonable_python(item, fallback=str)
+
+    try:
+        return dump(value) if isinstance(value, BaseModel) else list(map(dump, value))
+    except Exception as ex:
+        raise ToolParsingError(
+            f"Argument '{name}' holds a Pydantic model that cannot be shown to "
+            f"approvers or monitors: serializing it failed ({ex})."
+        ) from ex
 
 
 def _holds_iterator(value: Any) -> bool:
