@@ -273,6 +273,191 @@ async def test_model_proxy_request_headers_and_body(
             assert "content-type" in received_request["headers"]
 
 
+async def _raw_request(base_url: str, header_lines: list[str]) -> bytes:
+    host, port = base_url.removeprefix("http://").split(":")
+    reader, writer = await asyncio.open_connection(host, int(port))
+    body = b"{}"
+    request = (
+        "POST /inspect HTTP/1.1\r\n"
+        + "".join(f"{line}\r\n" for line in header_lines)
+        + f"Content-Length: {len(body)}\r\n\r\n"
+    ).encode() + body
+    writer.write(request)
+    await writer.drain()
+    response = await reader.read()
+    writer.close()
+    await writer.wait_closed()
+    return response
+
+
+async def test_model_proxy_joins_repeated_header_lines(
+    http_server: tuple[AsyncHTTPServer, str],
+) -> None:
+    """A list-valued header split across lines keeps every line's values."""
+    server, base_url = http_server
+    received: list[dict[str, str]] = []
+
+    @server.route("/inspect", method="POST")
+    async def inspect_handler(request: dict[str, Any]) -> dict[str, Any]:
+        received.append(request["headers"])
+        return {"status": 200, "body": {}}
+
+    response = await _raw_request(
+        base_url,
+        [
+            "Host: localhost",
+            "Content-Type: application/json",
+            "anthropic-beta: beta-a",
+            "Anthropic-Beta: beta-b, beta-c",
+        ],
+    )
+
+    assert response.startswith(b"HTTP/1.1 200")
+    assert received[0]["anthropic-beta"] == "beta-a, beta-b, beta-c"
+
+
+@pytest.mark.parametrize("expect_lines", [1, 2])
+async def test_model_proxy_sends_100_continue_before_reading_the_body(
+    http_server: tuple[AsyncHTTPServer, str], expect_lines: int
+) -> None:
+    """A client that withholds the body until `100 Continue` is not left waiting."""
+    server, base_url = http_server
+    received: list[Any] = []
+
+    @server.route("/inspect", method="POST")
+    async def inspect_handler(request: dict[str, Any]) -> dict[str, Any]:
+        received.append(request["json"])
+        return {"status": 200, "body": {}}
+
+    host, port = base_url.removeprefix("http://").split(":")
+    reader, writer = await asyncio.open_connection(host, int(port))
+    body = b'{"a": 1}'
+    writer.write(
+        (
+            "POST /inspect HTTP/1.1\r\n"
+            "Host: localhost\r\n"
+            "Content-Type: application/json\r\n"
+            + "Expect: 100-continue\r\n" * expect_lines
+            + f"Content-Length: {len(body)}\r\n\r\n"
+        ).encode()
+    )
+    await writer.drain()
+    interim = await asyncio.wait_for(reader.readuntil(b"\r\n\r\n"), timeout=5)
+    assert interim == b"HTTP/1.1 100 Continue\r\n\r\n"
+
+    writer.write(body)
+    await writer.drain()
+    response = await asyncio.wait_for(reader.read(), timeout=5)
+    writer.close()
+    await writer.wait_closed()
+
+    assert response.startswith(b"HTTP/1.1 200")
+    assert received == [{"a": 1}]
+
+
+@pytest.mark.parametrize("name", ["Content-Length", "Host", "Content-Type"])
+async def test_model_proxy_rejects_repeated_single_value_headers(
+    http_server: tuple[AsyncHTTPServer, str], name: str
+) -> None:
+    server, base_url = http_server
+    received: list[dict[str, str]] = []
+
+    @server.route("/inspect", method="POST")
+    async def inspect_handler(request: dict[str, Any]) -> dict[str, Any]:
+        received.append(request["headers"])
+        return {"status": 200, "body": {}}
+
+    value = "2" if name == "Content-Length" else "x"
+    response = await _raw_request(
+        base_url,
+        ["Host: localhost", "Content-Type: application/json"] + [f"{name}: {value}"],
+    )
+
+    assert response.startswith(b"HTTP/1.1 500")
+    assert f"Repeated {name.lower()} header".encode() in response
+    assert received == []
+
+
+@pytest.mark.asyncio
+async def test_model_proxy_forwards_client_headers_to_model_service() -> None:
+    calls: list[tuple[str, dict[str, Any]]] = []
+
+    async def call_model_service(method: str, **params: Any) -> dict[str, str]:
+        calls.append((method, params))
+        return {"id": "completion"}
+
+    server = await model_proxy_server(
+        port=0,
+        call_bridge_model_service_async=call_model_service,
+    )
+    handler = server.routes["POST"]["/v1/chat/completions"]
+
+    await handler(
+        {
+            "json": {"model": "inspect", "messages": []},
+            "headers": {"x-claude-code-agent-id": "toolu_x"},
+        }
+    )
+
+    assert calls == [
+        (
+            "generate_completions",
+            {
+                "json_data": {
+                    "model": "inspect",
+                    "messages": [],
+                    "parallel_tool_calls": False,
+                },
+                "headers": {"x-claude-code-agent-id": "toolu_x"},
+            },
+        )
+    ]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("path", "body", "method"),
+    [
+        (
+            "/v1/responses",
+            {"model": "inspect", "input": "hello"},
+            "generate_responses",
+        ),
+        (
+            "/v1/messages",
+            {"model": "inspect", "messages": [], "max_tokens": 1},
+            "generate_anthropic",
+        ),
+    ],
+)
+async def test_model_proxy_forwards_client_headers_for_other_generation_routes(
+    path: str,
+    body: dict[str, Any],
+    method: str,
+) -> None:
+    calls: list[tuple[str, dict[str, Any]]] = []
+
+    async def call_model_service(service_method: str, **params: Any) -> dict[str, str]:
+        calls.append((service_method, params))
+        return {"id": "completion"}
+
+    server = await model_proxy_server(
+        port=0,
+        call_bridge_model_service_async=call_model_service,
+    )
+    handler = server.routes["POST"][path]
+
+    await handler(
+        {
+            "json": body,
+            "headers": {"x-claude-code-agent-id": "toolu_x"},
+        }
+    )
+
+    assert calls[0][0] == method
+    assert calls[0][1]["headers"] == {"x-claude-code-agent-id": "toolu_x"}
+
+
 @pytest.mark.asyncio
 async def test_model_proxy_non_json_response(
     http_server: tuple[AsyncHTTPServer, str],
@@ -646,7 +831,9 @@ async def proxy_server() -> AsyncGenerator[tuple[AsyncHTTPServer, str], None]:
 
     # Mock the bridge service
     async def mock_bridge_service(
-        method: str, json_data: dict[str, Any]
+        method: str,
+        json_data: dict[str, Any],
+        headers: dict[str, str] | None = None,
     ) -> dict[str, Any]:
         """Mock implementation of call_bridge_model_service_async."""
         if method == "generate_responses":
@@ -1514,7 +1701,9 @@ async def proxy_server_anthropic() -> AsyncGenerator[tuple[AsyncHTTPServer, str]
 
     # Mock the bridge service for Anthropic
     async def mock_bridge_service_anthropic(
-        method: str, json_data: dict[str, Any]
+        method: str,
+        json_data: dict[str, Any],
+        headers: dict[str, str] | None = None,
     ) -> dict[str, Any]:
         """Mock implementation of call_bridge_model_service_async for Anthropic."""
         if method == "generate_anthropic":
@@ -2218,7 +2407,9 @@ async def proxy_server_google() -> AsyncGenerator[tuple[AsyncHTTPServer, str], N
 
     # Mock the bridge service for Google
     async def mock_bridge_service_google(
-        method: str, json_data: dict[str, Any]
+        method: str,
+        json_data: dict[str, Any],
+        headers: dict[str, str] | None = None,
     ) -> dict[str, Any]:
         """Mock implementation of call_bridge_model_service_async for Google."""
         if method == "generate_google":
@@ -3087,10 +3278,8 @@ async def proxy_server_recording_bridge() -> AsyncGenerator[
 
     calls: list[tuple[str, dict[str, Any]]] = []
 
-    async def recording_bridge(
-        method: str, json_data: dict[str, Any]
-    ) -> dict[str, Any]:
-        calls.append((method, json_data))
+    async def recording_bridge(method: str, **params: Any) -> dict[str, Any]:
+        calls.append((method, params))
         return {"error": {"message": "unexpected bridge call"}}
 
     server = await model_proxy_server(
@@ -3270,6 +3459,7 @@ _CLIENT_HEADERS = {
     "OpenAI-Organization": "org-from-sandbox",
     "OpenAI-Project": "proj-from-sandbox",
     "X-Client-Header": "client-header-value",
+    "Accept-Encoding": "br",
 }
 
 
@@ -3303,13 +3493,18 @@ _CLIENT_HEADERS = {
         ),
     ],
 )
-async def test_proxy_forwards_no_client_headers(
+async def test_proxy_leaves_client_header_policy_to_host(
     proxy_server_recording_bridge: tuple[str, list[tuple[str, dict[str, Any]]]],
     path: str,
     body: dict[str, Any],
     method: str,
 ) -> None:
-    """Only the request body reaches the bridge, so client headers never reach the provider."""
+    """Client headers go to the host's filter, never into the request body.
+
+    On the host, `filter_sandbox_client_headers` forwards only `Accept-Encoding`
+    and the headers the eval lists in `forward_client_headers`, so the tenant
+    and custom headers here are dropped there. The Google route passes none.
+    """
     base_url, calls = proxy_server_recording_bridge
     async with ClientSession() as session:
         async with session.post(
@@ -3317,8 +3512,15 @@ async def test_proxy_forwards_no_client_headers(
         ) as response:
             await response.read()
 
-    assert [call_method for call_method, _ in calls] == [method]
-    forwarded = json.dumps(calls)
+    [(call_method, params)] = calls
+    assert call_method == method
+    body_sent = json.dumps(params["json_data"])
     for name, value in _CLIENT_HEADERS.items():
-        assert name.lower() not in forwarded.lower()
-        assert value not in forwarded
+        assert name.lower() not in body_sent.lower()
+        assert value not in body_sent
+    if method == "generate_google":
+        assert "headers" not in params
+    else:
+        headers = params["headers"]
+        for name, value in _CLIENT_HEADERS.items():
+            assert headers[name.lower()] == value
