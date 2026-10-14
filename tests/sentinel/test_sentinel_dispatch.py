@@ -58,11 +58,14 @@ from inspect_ai.model import (
     ContentText,
     GenerateConfig,
     Model,
+    ModelAPI,
     ModelOutput,
     ModelUsage,
     get_model,
+    modelapi,
 )
 from inspect_ai.model._call_tools import execute_tools
+from inspect_ai.model._providers.mockllm import MockLLM
 from inspect_ai.review import Review, Reviewer, ReviewPolicy, reviewer
 from inspect_ai.scorer import Reference, Score, Scorer, Target, scorer
 from inspect_ai.solver import Generate, Solver, TaskState, generate, solver, use_tools
@@ -3270,6 +3273,72 @@ def test_an_edited_message_is_kept_in_each_version_in_order_sent() -> None:
         "Draft question.",
         "Final question.",
         first_step.output.message.text,
+    ]
+
+
+@solver
+def d3_reuses_a_rebuilt_message() -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        model = get_model()
+        original = ChatMessageSystem(content="Instructions", id="original")
+        rebuilt = ChatMessageSystem(content="Instructions", id="rebuilt")
+        await model.generate([original, ChatMessageUser(content="Question")])
+        await model.generate([rebuilt, ChatMessageUser(content="Question")])
+        await model.generate([rebuilt, ChatMessageUser(content="Question")])
+        await model.generate([ChatMessageUser(content="Different question")])
+        state.output = await model.generate(
+            [rebuilt, ChatMessageUser(content="Final question")]
+        )
+        return state
+
+    return solve
+
+
+def test_a_rebuilt_message_sent_again_later_is_not_repeated() -> None:
+    seen = run_reading_sent(d3_reuses_a_rebuilt_message())
+    *_, (_, last) = sent_afters(seen)
+    assert sent_texts(last) == [
+        "Instructions",
+        "Question",
+        "Different question",
+        "Final question",
+    ]
+
+
+class _NativeMediaMockLLM(MockLLM):
+    # with native media tool results the model may send the caller's own list
+    def tool_result_images(self) -> bool:
+        return True
+
+    def tool_result_documents(self) -> bool:
+        return True
+
+
+@modelapi(name="d3_native_media")
+def d3_native_media() -> type[ModelAPI]:
+    return _NativeMediaMockLLM
+
+
+@solver
+def d3_extends_its_input_list() -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        messages: list[ChatMessage] = [ChatMessageUser(content="First question")]
+        first = await get_model().generate(messages)
+        messages.extend([first.message, ChatMessageUser(content="Second question")])
+        state.output = await get_model().generate(messages)
+        return state
+
+    return solve
+
+
+@pytest.mark.parametrize("model", ["mockllm/model", "d3_native_media/model"])
+def test_messages_added_to_the_callers_list_are_sent(model: str) -> None:
+    seen = run_reading_sent(d3_extends_its_input_list(), model=model)
+    (first_step, _), (_, last) = sent_afters(seen)
+    assert sent_texts(last) == [
+        "First question",
+        first_step.output.message.text,
+        "Second question",
     ]
 
 
