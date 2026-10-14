@@ -469,6 +469,7 @@ async def eval_run(
                         eval_checkpoint=eval_checkpoint,
                         logger=logger,
                         eval_wd=eval_wd,
+                        run_dir=resolved_task.run_dir,
                         config=task_eval_config,
                         sentinel=sentinel_root,
                         solver=eval_solver,
@@ -1223,14 +1224,16 @@ class SandboxManager:
             sandboxenv: TaskSandboxEnvironment | None = None
             cache_key: tuple[Task, SandboxEnvironmentSpec] | None = None
             if not sample.metadata:
-                spec = await resolve_sandbox(task.sandbox, sample, task.task.name)
+                spec = await resolve_sandbox(
+                    task.sandbox, sample, task.task.name, task.run_dir
+                )
                 if spec is None:
                     continue
                 cache_key = (task.task, spec)
                 sandboxenv = self._resolved_no_metadata.get(cache_key)
             if sandboxenv is None:
                 sandboxenv = await resolve_sandbox_for_task_and_sample(
-                    task.sandbox, task.task, sample
+                    task.sandbox, task.task, sample, task.run_dir
                 )
                 if sandboxenv is not None and cache_key is not None:
                     self._resolved_no_metadata[cache_key] = sandboxenv

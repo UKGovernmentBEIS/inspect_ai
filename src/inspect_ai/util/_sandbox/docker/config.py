@@ -6,13 +6,15 @@ import yaml
 
 from inspect_ai._util.appdirs import inspect_data_dir
 
-from ..compose import AUTO_COMPOSE_SUBDIR, AUTO_COMPOSE_YAML, COMPOSE_FILES, DOCKERFILE
+from ..compose import (
+    AUTO_COMPOSE_PROJECT_DIRECTORY_KEY,
+    AUTO_COMPOSE_SUBDIR,
+    AUTO_COMPOSE_YAML,
+    COMPOSE_FILES,
+    DOCKERFILE,
+)
 
 logger = getLogger(__name__)
-
-# Private YAML extension key recording the original base directory, so later
-# cleanup can resolve paths after the generated Compose file has been relocated.
-AUTO_COMPOSE_PROJECT_DIRECTORY_KEY = "x-inspect-project-directory"
 
 
 def auto_compose_dir() -> Path:
@@ -145,13 +147,13 @@ def auto_compose_file(
     Args:
         contents: The YAML content to write
         project_name: Unique project name (used as filename)
-        base_dir: Directory to resolve relative host paths against (e.g., CWD)
+        base_dir: Directory to resolve generated Dockerfile build contexts against
 
     Returns:
         Absolute path to the created compose file
     """
     if base_dir:
-        contents = _prepare_auto_compose(contents, base_dir)
+        contents = _resolve_build_context(contents, base_dir)
 
     compose_dir = auto_compose_dir()
     path = compose_dir / f"{project_name}.yaml"
@@ -191,17 +193,11 @@ def auto_compose_project_directory(file: str | None) -> str | None:
     return directory.replace("$$", "$")
 
 
-def _prepare_auto_compose(yaml_content: str, base_dir: str) -> str:
-    """Preserve the original base directory when relocating a Compose file.
-
-    Keep absolute build contexts for existing readers of generated YAML. Other
-    host paths are resolved by Compose using the recorded project directory,
-    including paths that depend on environment interpolation.
-    """
+def _resolve_build_context(yaml_content: str, base_dir: str) -> str:
+    """Keep generated Dockerfile build contexts valid after relocating the YAML."""
     data = yaml.safe_load(yaml_content)
     # Escape the literal directory, preserving user-supplied Compose expressions.
     escaped_base_dir = str(Path(base_dir).resolve()).replace("$", "$$")
-    data[AUTO_COMPOSE_PROJECT_DIRECTORY_KEY] = escaped_base_dir
     if data and "services" in data:
         for service in data["services"].values():
             if "build" in service:

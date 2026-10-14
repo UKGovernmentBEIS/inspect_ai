@@ -163,7 +163,7 @@ def my_task(cpus: float = 1.0):
 
 The `ComposeConfig` and `ComposeService` classes mirror the structure of Docker Compose files, supporting fields like `image`, `build`, `command`, `environment`, `volumes`, `ports`, `mem_limit`, `cpus`, and more. Extension fields (prefixed with `x-`) are also supported.
 
-Relative host paths in a `ComposeConfig` resolve against the working directory when Inspect initializes the sandbox project, normally the task's run directory.
+Relative host paths in a `ComposeConfig` resolve against the task's run directory.
 
 ## Sandbox Limits {#sec-sandbox-limits}
 

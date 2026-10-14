@@ -1,4 +1,5 @@
 import contextlib
+import os
 import sys
 import time
 from contextvars import Token
@@ -635,6 +636,7 @@ class TaskRunOptions:
     """Eval/CLI-level checkpoint config (overrides task/sample)."""
     logger: TaskLogger
     eval_wd: str
+    run_dir: str = field(default_factory=os.getcwd)
     config: EvalConfig = field(default_factory=EvalConfig)
     sentinel: "SentinelRoot | None" = field(default=None)
     """Resolved root protocol of the task's sentinel."""
@@ -1537,6 +1539,7 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
 
                     result = await task_run_sample(
                         task=task,
+                        run_dir=options.run_dir,
                         task_name=task.name,
                         log_location=profile.log_location,
                         create_sample_state=create_sample_state,
@@ -2268,6 +2271,7 @@ def _sample_started() -> float | None:
 async def task_run_sample(
     *,
     task: Task,
+    run_dir: str,
     task_name: str,
     log_location: str,
     create_sample_state: Callable[[str | None], Awaitable[tuple[Sample, TaskState]]],
@@ -2321,6 +2325,7 @@ async def task_run_sample(
     while True:
         result = await _task_run_sample_attempt(
             task=task,
+            run_dir=run_dir,
             task_name=task_name,
             log_location=log_location,
             create_sample_state=create_sample_state,
@@ -2372,6 +2377,7 @@ async def task_run_sample(
 async def _task_run_sample_attempt(
     *,
     task: Task,
+    run_dir: str,
     task_name: str,
     log_location: str,
     create_sample_state: Callable[[str | None], Awaitable[tuple[Sample, TaskState]]],
@@ -2513,7 +2519,7 @@ async def _task_run_sample_attempt(
         sandboxenv_cm = (
             aexit_shielded_when(
                 sandboxenv_context(
-                    task_name, sandbox, max_sandboxes, sandbox_cleanup, sample
+                    task_name, sandbox, max_sandboxes, sandbox_cleanup, sample, run_dir
                 ),
                 lambda: cancelled_error is not None,
             )

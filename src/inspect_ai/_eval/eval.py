@@ -1057,6 +1057,7 @@ async def _eval_async_inner(
         # run_id after each batch.
         resolve_added_tasks = functools.partial(
             _resolve_enqueued_tasks,
+            default_run_dir=os.getcwd(),
             models=model,
             model_roles=model_roles,
             config=GenerateConfig(**kwargs),
@@ -1285,6 +1286,7 @@ def _resolve_enqueued_tasks(
     sample_shuffle: bool | int | None,
     checkpoint: CheckpointConfig | None,
     cost_limit: float | None,
+    default_run_dir: str | None = None,
 ) -> list[ResolvedTask]:
     """Resolve tasks added to a running eval (via ``enqueue_task``).
 
@@ -1309,6 +1311,7 @@ def _resolve_enqueued_tasks(
                     sample_shuffle,
                     checkpoint,
                     input_media_policy="inline_only",
+                    default_run_dir=default_run_dir,
                 )
             )
         return resolved

@@ -71,6 +71,7 @@ class FakeDocker:
         self.events: list[str] = []
         self.running: set[str] = set()
         self.reported: list[str] = []
+        self.project_directories: list[str | None] = []
         self.fail_build_contexts: set[str] = set()
         self.on_build_failure: list[Any] = []
         self.on_build: list[Any] = []
@@ -85,6 +86,7 @@ class FakeDocker:
             pass
 
         async def compose_services(project: ComposeProject) -> dict[str, Any]:
+            self.project_directories.append(project.project_directory)
             assert project.config is not None and Path(project.config).exists()
             with open(project.config) as f:
                 services: dict[str, Any] = yaml.safe_load(f)["services"]
@@ -664,6 +666,37 @@ async def test_cli_cleanup_removes_orphaned_auto_compose_config(
     assert fake_docker.generated_files() == []
 
 
+@pytest.mark.parametrize("contents", ["services: [", "x-inspect-project-directory: 42"])
+async def test_cli_cleanup_continues_after_invalid_config(
+    fake_docker: FakeDocker,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+    contents: str,
+) -> None:
+    bad = auto_compose_dir() / "inspect-bad-i123456.yaml"
+    bad.write_text(contents)
+    good = auto_compose_dir() / "inspect-good-i123456.yaml"
+    write_compose_file(good)
+    cleaned: list[str] = []
+
+    async def projects() -> list[Project]:
+        return [
+            Project(Name=p.stem, Status="running", ConfigFiles=str(p))
+            for p in (bad, good)
+        ]
+
+    async def down(project: ComposeProject, quiet: bool = True) -> None:
+        cleaned.append(project.name)
+
+    monkeypatch.setattr(cleanup_module, "compose_ls", projects)
+    monkeypatch.setattr(cleanup_module, "compose_down", down)
+    await DockerSandboxEnvironment.cli_cleanup(None)
+    assert cleaned == [good.stem]
+    assert bad.exists()
+    assert not good.exists()
+    assert "Unable to clean up Docker project inspect-bad" in caplog.text
+
+
 # -- eval level -----------------------------------------------------------------
 
 
@@ -700,7 +733,9 @@ class _AddOne(SampleSource):
 
 @pytest.mark.parametrize("route", ["next_samples", "enqueue_sample", "sample_complete"])
 async def test_docker_sample_added_to_a_task_without_docker_samples(
-    fake_docker: FakeDocker, route: str
+    fake_docker: FakeDocker,
+    route: str,
+    tmp_path: Path,
 ) -> None:
     """The first Docker sample of a task may arrive from the source, not the seed.
 
@@ -709,18 +744,25 @@ async def test_docker_sample_added_to_a_task_without_docker_samples(
     sample (`sample_complete` route), runs `task_init` in the feeder task.
     The added sample must start, and everything must be cleaned at the end.
     """
+    from inspect_ai._eval.task.constants import TASK_RUN_DIR_ATTR
+
+    config = compose_config()
+    spec = SandboxEnvironmentSpec("docker", config)
     if route == "sample_complete":
-        added = Sample(input="added", sandbox="docker")
+        added = Sample(input="added", sandbox=spec)
         task = Task(dataset=_AddOne(route, added), solver=[generate()], name="t")
     else:
         added = Sample(input="added")
         task = Task(
             dataset=_AddOne(route, added),
             solver=[generate()],
-            sandbox="docker",
+            sandbox=spec,
             name="t",
         )
 
+    task_dir = tmp_path / "task"
+    task_dir.mkdir()
+    setattr(task, TASK_RUN_DIR_ATTR, str(task_dir))
     logs = await eval_async(task, model="mockllm/model")
 
     assert logs[0].status == "success", logs[0].error
@@ -732,6 +774,9 @@ async def test_docker_sample_added_to_a_task_without_docker_samples(
     assert fake_docker.events == [f"up:{added_id}", f"down:{added_id}"]
     assert fake_docker.generated_files() == []
     assert sandbox_lifecycle_state() is None
+    assert len(fake_docker.project_directories) >= 2
+    assert set(fake_docker.project_directories) == {str(task_dir)}
+    assert config.extensions == {}
 
 
 async def test_late_docker_config_keeps_earlier_startup_resources(

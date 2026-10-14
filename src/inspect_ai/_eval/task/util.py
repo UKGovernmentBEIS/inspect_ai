@@ -32,8 +32,8 @@ def sample_messages(sample: Sample) -> list[ChatMessage]:
         return messages
 
 
-def task_run_dir(task: Task) -> str:
-    return getattr(task, TASK_RUN_DIR_ATTR, os.getcwd())
+def task_run_dir(task: Task, default: str | None = None) -> str:
+    return getattr(task, TASK_RUN_DIR_ATTR, default or os.getcwd())
 
 
 def task_file(task: Task, relative: bool = False) -> str | None:

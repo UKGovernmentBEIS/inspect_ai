@@ -32,6 +32,7 @@ from inspect_ai.util._concurrency import (
 from inspect_ai.util._sandbox.compose import (
     is_docker_compatible_config,
     is_docker_compatible_sandbox_type,
+    resolve_compose_sandbox,
 )
 from inspect_ai.util._sandbox.context import (
     cleanup_sandbox_environments_sample,
@@ -89,9 +90,10 @@ async def sandboxenv_context(
     max_sandboxes: int | None,
     cleanup: bool,
     sample: Sample,
+    run_dir: str | None = None,
 ) -> AsyncGenerator[None, None]:
     # resolve sandbox
-    sandbox = await resolve_sandbox(sandbox, sample, task_name)
+    sandbox = await resolve_sandbox(sandbox, sample, task_name, run_dir)
     if not sandbox:
         raise ValueError("sandboxenv_context called with no sandbox specified")
 
@@ -250,6 +252,7 @@ async def resolve_sandbox_for_task_and_sample(
     sandbox: SandboxEnvironmentSpec | None,
     task: Task,
     sample: Sample,
+    run_dir: str | None = None,
 ) -> TaskSandboxEnvironment | None:
     # `sandbox` is the task's already-resolved sandbox (i.e. `ResolvedTask.sandbox`),
     # which has had any eval-level override (`--sandbox <provider>`) and implicit
@@ -258,10 +261,10 @@ async def resolve_sandbox_for_task_and_sample(
     # (sandboxenv_context() -> resolve_sandbox()), so that the set of sandboxes we
     # initialize here matches what each sample actually uses at runtime -- including
     # docker-compatible per-sample configs (e.g. a per-sample ComposeConfig).
-    sandbox = await resolve_sandbox(sandbox, sample, task.name)
+    run_dir = run_dir or task_run_dir(task)
+    sandbox = await resolve_sandbox(sandbox, sample, task.name, run_dir)
     if sandbox is not None:
         # see if there are environment variables required for init of this sample
-        run_dir = task_run_dir(task)
         with chdir(run_dir):
             sandboxenv_type = registry_find_sandboxenv(sandbox.type)
             task_init_environment = cast(
@@ -280,6 +283,7 @@ async def resolve_sandbox(
     sandbox: SandboxEnvironmentSpec | None,
     sample: Sample,
     task_name: str | None = None,
+    run_dir: str | None = None,
 ) -> SandboxEnvironmentSpec | None:
     # resolved sandbox
     resolved_sandbox: SandboxEnvironmentSpec | None = None
@@ -326,7 +330,11 @@ async def resolve_sandbox(
     elif sample.sandbox is not None:
         resolved_sandbox = sample.sandbox
 
-    return resolved_sandbox
+    return (
+        resolve_compose_sandbox(resolved_sandbox, run_dir)
+        if run_dir is not None
+        else resolved_sandbox
+    )
 
 
 async def _retrying_httpx_get(

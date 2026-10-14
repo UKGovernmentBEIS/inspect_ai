@@ -10,8 +10,18 @@ import pytest
 import yaml
 from test_helpers.utils import skip_if_no_docker
 
+from inspect_ai import eval_async, eval_retry_async
 from inspect_ai._util.error import PrerequisiteError
-from inspect_ai.util import ComposeConfig, ComposeService, ExecResult
+from inspect_ai.util import (
+    ComposeConfig,
+    ComposeService,
+    ExecResult,
+    SandboxEnvironmentSpec,
+)
+from inspect_ai.util._sandbox.compose import (
+    AUTO_COMPOSE_PROJECT_DIRECTORY_KEY,
+    resolve_compose_sandbox,
+)
 from inspect_ai.util._sandbox.docker import compose as compose_module
 from inspect_ai.util._sandbox.docker import config as config_module
 from inspect_ai.util._sandbox.docker import docker as docker_module
@@ -26,7 +36,6 @@ from inspect_ai.util._sandbox.docker.compose import (
     compose_up,
 )
 from inspect_ai.util._sandbox.docker.config import (
-    AUTO_COMPOSE_PROJECT_DIRECTORY_KEY,
     auto_compose_dir,
     is_auto_compose_file,
 )
@@ -41,6 +50,128 @@ def generated_compose_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Pa
     directory.mkdir()
     monkeypatch.setattr(config_module, "auto_compose_dir", lambda: directory)
     return directory
+
+
+@skip_if_no_docker
+@pytest.mark.slow
+@pytest.mark.parametrize("sample_config", [False, True])
+async def test_compose_paths_in_file_task_eval(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    generated_compose_dir: Path,
+    sample_config: bool,
+) -> None:
+    launch = tmp_path / "launch"
+    launch.mkdir(exist_ok=True)
+    (launch / "marker.txt").write_text("wrong")
+    monkeypatch.chdir(launch)
+    task_files = []
+    for name in ("one", "two"):
+        directory = tmp_path / name
+        directory.mkdir(exist_ok=True)
+        (directory / "marker.txt").write_text(name)
+        (directory / "vars.env").write_text(f"INSPECT_PATH_TEST={name}\n")
+        (directory / ".env").write_text(f"INSPECT_PATH_DOTENV={name}\n")
+        task_file = directory / "task.py"
+        task_file.write_text(
+            """import os
+from inspect_ai import Task, task
+from inspect_ai.dataset import Sample
+from inspect_ai.solver import solver
+from inspect_ai.util import ComposeConfig, ComposeService, sandbox
+
+@solver
+def check_paths():
+    async def solve(state, generate):
+        result = await sandbox().exec(["sh", "-c", 'cat /workspace/marker.txt; printf "\\n%s\\n%s" "$INSPECT_PATH_TEST" "$DOTENV_VALUE"'])
+        assert result.success, result.stderr
+        assert result.stdout.splitlines() == [state.input] * 3, result.stdout
+        if os.environ.get("INSPECT_PATH_FAIL_ONCE"):
+            raise RuntimeError("deliberate retry")
+        return state
+    return solve
+
+@task
+def paths():
+    config = ComposeConfig(services={"default": ComposeService(
+        image="aisiuk/inspect-tool-support", command="tail -f /dev/null",
+        network_mode="none", volumes=[".:/workspace:ro"],
+        env_file="./vars.env", environment={"DOTENV_VALUE": "${INSPECT_PATH_DOTENV}"},
+    )})
+    spec = ("docker", config)
+    return Task(dataset=[Sample(input=NAME, sandbox=spec if SAMPLE_CONFIG else None)],
+                sandbox=None if SAMPLE_CONFIG else spec, solver=check_paths())
+""".replace("NAME", repr(name)).replace("SAMPLE_CONFIG", repr(sample_config))
+        )
+        task_files.append(os.path.relpath(task_file, launch))
+
+    monkeypatch.setenv("INSPECT_PATH_FAIL_ONCE", "1")
+    with anyio.fail_after(120):
+        logs = await eval_async(
+            task_files,
+            model="mockllm/model",
+            max_tasks=2,
+            max_samples=2,
+            max_sandboxes=2,
+            log_dir=str(tmp_path / "logs"),
+        )
+    assert len(logs) == 2
+    assert all(
+        log.error and log.error.message == "RuntimeError('deliberate retry')"
+        for log in logs
+    ), [log.error for log in logs]
+    assert list(generated_compose_dir.iterdir()) == []
+    monkeypatch.delenv("INSPECT_PATH_FAIL_ONCE")
+    with anyio.fail_after(120):
+        retried = await eval_retry_async(logs, log_dir=str(tmp_path / "retried"))
+    assert all(log.status == "success" for log in retried), [
+        log.error for log in retried
+    ]
+    assert list(generated_compose_dir.iterdir()) == []
+
+
+@pytest.mark.parametrize("name", ["task", "$VALUE", "$$", "${VALUE}"])
+async def test_bound_compose_config_roundtrip(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    generated_compose_dir: Path,
+    name: str,
+) -> None:
+    config = ComposeConfig(services={"default": ComposeService(image="alpine")})
+    original = SandboxEnvironmentSpec("docker", config)
+    directory = str(tmp_path / name)
+    bound = resolve_compose_sandbox(original, directory)
+    assert bound is not None
+    assert original.config == config
+    assert AUTO_COMPOSE_PROJECT_DIRECTORY_KEY not in config.extensions
+    restored = SandboxEnvironmentSpec.model_validate_json(bound.model_dump_json())
+    assert restored == bound
+    assert resolve_compose_sandbox(restored, str(tmp_path / "other")) == bound
+    assert resolve_compose_sandbox(original, str(tmp_path / "other")) != bound
+    monkeypatch.chdir(tmp_path)
+    project = await ComposeProject.create("inspect-roundtrip", restored.config)
+    assert project.project_directory == directory
+    reopened = await ComposeProject.create(project.name, project.config)
+    assert reopened.project_directory == directory
+
+
+@skip_if_no_docker
+@pytest.mark.parametrize("explicit", [False, True])
+async def test_dockerfile_ignores_task_dotenv(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    generated_compose_dir: Path,
+    explicit: bool,
+) -> None:
+    (tmp_path / "Dockerfile").write_text("FROM alpine\n")
+    (tmp_path / ".env").write_text("PASSWORD=abc${def\n")
+    monkeypatch.chdir(tmp_path)
+    project = await ComposeProject.create(
+        "inspect-dockerfile-dotenv", "Dockerfile" if explicit else None
+    )
+    services: dict[str, Any] = dict(await compose_services(project))
+    assert services["default"]["build"]["context"] == str(tmp_path)
+    assert project.project_directory is None
 
 
 @skip_if_no_docker

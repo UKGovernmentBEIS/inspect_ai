@@ -287,10 +287,18 @@ async def cli_cleanup(project_name: str | None) -> None:
     # clean them up
     if len(projects) > 0:
         # create compose projects
-        compose_projects = [
-            await ComposeProject.create(name=project.Name, config=project.ConfigFiles)
-            for project in projects
-        ]
+        compose_projects = []
+        for project in projects:
+            try:
+                compose_projects.append(
+                    await ComposeProject.create(
+                        name=project.Name, config=project.ConfigFiles
+                    )
+                )
+            except Exception as ex:
+                logger.warning(
+                    f"Unable to clean up Docker project {project.Name}: {ex}"
+                )
 
         # do the cleanup
         await cleanup_projects(compose_projects, cleanup_fn=compose_down)
