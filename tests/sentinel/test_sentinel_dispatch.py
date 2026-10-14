@@ -3305,6 +3305,45 @@ def test_a_rebuilt_message_sent_again_later_is_not_repeated() -> None:
     ]
 
 
+_REBUILT_TURNS = 20
+
+
+@solver
+def d3_rebuilds_every_message(remembered: dict[str, int]) -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        from inspect_ai._sentinel._sent import _sent
+
+        model = get_model()
+        turns: list[tuple[str, str]] = [("user", "Begin.")]
+        for turn in range(_REBUILT_TURNS):
+            # every message rebuilt, with a fresh id, on every call, as a bridge does
+            input: list[ChatMessage] = [
+                ChatMessageUser(content=text)
+                if role == "user"
+                else ChatMessageAssistant(content=text)
+                for role, text in turns
+            ]
+            output = await model.generate(input)
+            turns += [("assistant", output.completion), ("user", f"Turn {turn}.")]
+        [record] = _sent[transcript()].values()
+        remembered["messages"] = len(record.messages)
+        remembered["ids"] = len(record.versions) + len(getattr(record, "aliases", {}))
+        return state
+
+    return solve
+
+
+def test_rebuilding_every_message_keeps_the_index_to_the_messages_sent() -> None:
+    remembered: dict[str, int] = {}
+    seen = run_reading_sent(d3_rebuilds_every_message(remembered))
+    *_, (step, last) = sent_afters(seen)
+    assert sent_texts(last) == [message.text for message in step.input]
+    # one id per message sent and at most one rebuilt id for each, however
+    # many times the scaffold rebuilt it
+    assert remembered["messages"] == 2 * _REBUILT_TURNS - 1
+    assert remembered["ids"] <= 2 * remembered["messages"]
+
+
 class _NativeMediaMockLLM(MockLLM):
     # with native media tool results the model may send the caller's own list
     def tool_result_images(self) -> bool:
