@@ -39,6 +39,7 @@ from inspect_ai._util.registry import registry_lookup
 from inspect_ai.approval._approval import Approval, ApprovalDecision
 from inspect_ai.approval._approver import Approver
 from inspect_ai.approval._human.approver import human_approver
+from inspect_ai.approval._human.util import HUMAN_DISMISSED
 from inspect_ai.event._event import Event
 from inspect_ai.event._model import ModelEvent
 from inspect_ai.event._sentinel import (
@@ -486,7 +487,11 @@ class _Host:
                 step.message, step.call, _human_view(step), conversation
             )
         if approval.decision in offered:
-            return HumanAnswer(decision=approval.decision, reason=approval.explanation)
+            return HumanAnswer(
+                decision=approval.decision,
+                reason=approval.explanation,
+                dismissed=_dismissed(approval),
+            )
         return HumanAnswer(
             decision="reject" if "reject" in offered else "terminate",
             reason=(
@@ -498,6 +503,11 @@ class _Host:
 
 
 _HUMAN_CHOICES = ("approve", "reject", "terminate")
+
+
+def _dismissed(approval: Approval) -> bool:
+    """Whether the surface closed the prompt without the person choosing, so its decision is a fail-closed default (an ACP cancellation answers `reject`, which may be offered)."""
+    return (approval.metadata or {}).get(HUMAN_DISMISSED) is True
 
 
 def _human_view(step: BeforeToolCall | AfterToolCall) -> ToolCallView:
@@ -550,7 +560,7 @@ async def _ask_about_turn(
     status: Literal["completed", "failed"] = "failed"
     try:
         approval = await approve(prompt.message, prompt.call, prompt.view, conversation)
-        if approval.decision in offered:
+        if approval.decision in offered and not _dismissed(approval):
             status = "completed"
         return approval
     finally:

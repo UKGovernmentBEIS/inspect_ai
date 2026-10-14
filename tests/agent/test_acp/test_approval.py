@@ -214,6 +214,15 @@ def test_approval_from_response_selected_known_option() -> None:
     approval = _approval_from_response(_selected("approve"), choices)
     assert approval.decision == "approve"
     assert approval.explanation is None
+    assert approval.metadata is None
+
+
+def test_approval_from_response_selected_reject_is_the_persons_choice() -> None:
+    """A selected reject is the person's own decision, not a dismissal."""
+    choices: list[ApprovalDecision] = ["approve", "reject", "terminate"]
+    approval = _approval_from_response(_selected("reject"), choices)
+    assert approval.decision == "reject"
+    assert approval.metadata is None
 
 
 def test_approval_from_response_cancelled_becomes_reject() -> None:
@@ -223,6 +232,8 @@ def test_approval_from_response_cancelled_becomes_reject() -> None:
     assert approval.decision == "reject"
     assert approval.explanation is not None
     assert "cancelled" in approval.explanation.lower()
+    # not the person's choice, though reject is offered
+    assert approval.metadata == {"dismissed": True}
 
 
 def test_approval_from_response_unknown_option_becomes_reject() -> None:
@@ -238,6 +249,7 @@ def test_approval_from_response_unknown_option_becomes_reject() -> None:
     assert approval.explanation is not None
     assert "unknown" in approval.explanation.lower()
     assert "definitely-not-real" in approval.explanation
+    assert approval.metadata == {"dismissed": True}
 
 
 # ---------------------------------------------------------------------------

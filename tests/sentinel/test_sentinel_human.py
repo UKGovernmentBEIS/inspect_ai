@@ -1517,3 +1517,43 @@ def test_a_dismissed_prompt_is_marked_at_later_steps(
     [record] = last.decisions
     assert record.dismissed
     assert record.decided.report.action == "reject"
+
+
+@pytest.mark.parametrize(
+    ("response", "dismissed"),
+    [
+        # the person cancels the prompt: the client fails closed with reject,
+        # which is offered by default
+        (RequestPermissionResponse(outcome=DeniedOutcome(outcome="cancelled")), True),
+        # the person selects reject: their own decision
+        (
+            RequestPermissionResponse(
+                outcome=AllowedOutcome(outcome="selected", option_id="reject")
+            ),
+            False,
+        ),
+    ],
+)
+def test_an_acp_cancellation_is_marked_dismissed_at_later_steps(
+    monkeypatch: pytest.MonkeyPatch,
+    response: RequestPermissionResponse,
+    dismissed: bool,
+) -> None:
+    offered: list[list[str]] = []
+
+    async def acp(**kwargs: Any) -> Approval | None:
+        offered.append(list(kwargs["choices"]))
+        return acp_module._approval_from_response(response, kwargs["choices"])
+
+    monkeypatch.setattr(acp_module, "request_human_approval_via_acp", acp)
+    seen: list[Seen] = []
+
+    log = run([escalated_to_human(), observe_only([h_spy(seen)])])
+
+    assert log.status == "success", log.error
+    assert offered == [["approve", "reject", "terminate"]]
+    [last] = [s for s in seen if s.subject == "done"]
+    assert last.decisions is not None
+    [record] = last.decisions
+    assert record.decided.report.action == "reject"
+    assert record.dismissed is dismissed

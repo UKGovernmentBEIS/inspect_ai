@@ -18,6 +18,11 @@ HUMAN_REJECTED = "Human operator rejected the tool call."
 HUMAN_TERMINATED = "Human operator asked that the sample be terminated."
 HUMAN_ESCALATED = "Human operator escalated the tool call approval."
 
+# `Approval.metadata` key a human approval surface sets to True when the person
+# closed the prompt without choosing, so the decision is the surface's
+# fail-closed default rather than the person's judgment
+HUMAN_DISMISSED = "dismissed"
+
 
 def render_tool_approval(
     message: str, view: ToolCallView, arguments: dict[str, JsonValue] | None = None
