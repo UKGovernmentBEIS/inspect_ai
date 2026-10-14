@@ -10,13 +10,21 @@ from inspect_ai.agent._bridge.anthropic_api_impl import (
     base_64_data,
     content_block_to_content,
     messages_from_anthropic_input,
+    tools_from_anthropic_tools,
+)
+from inspect_ai.agent._bridge.util import (
+    internal_web_search_providers,
+    resolve_bridge_web_search,
 )
 from inspect_ai.model._chat_message import (
     ChatMessageAssistant,
     ChatMessageSystem,
     ChatMessageUser,
 )
-from inspect_ai.model._providers.anthropic import message_block_params
+from inspect_ai.model._providers.anthropic import AnthropicAPI, message_block_params
+from inspect_ai.tool import WebSearchProviders
+from inspect_ai.tool._tool_info import ToolInfo
+from inspect_ai.tool._tool_util import tool_to_tool_info
 
 
 @pytest.mark.anyio
@@ -223,11 +231,13 @@ async def _request_impl_messages(
     from inspect_ai.agent._agent import AgentState
     from inspect_ai.agent._bridge.types import AgentBridge
 
-    async def capture(bridge: Any, model: Any, messages: Any, *args: Any) -> Any:
+    async def capture(
+        bridge: Any, model: Any, messages: Any, *args: Any, **kwargs: Any
+    ) -> Any:
         raise _CapturedMessages(messages)
 
     monkeypatch.setattr(impl, "bridge_generate", capture)
-    bridge = AgentBridge(state=AgentState(messages=[]))
+    bridge = AgentBridge(state=AgentState(messages=[]), allow_client_model_names=True)
     with pytest.raises(_CapturedMessages) as exc_info:
         await impl.inspect_anthropic_api_request_impl(
             {
@@ -367,3 +377,75 @@ def test_anthropic_usage_omits_thinking_tokens_when_absent_beta() -> None:
     usage = anthropic_usage(ModelUsage(input_tokens=10, output_tokens=20), beta=True)
 
     assert usage.output_tokens_details is None
+
+
+# the providers a bridge resolves by default, and the raw default before resolution
+DEFAULT_WEB_SEARCH = pytest.mark.parametrize(
+    "providers",
+    [
+        resolve_bridge_web_search(True, default_grant=False),
+        internal_web_search_providers(),
+    ],
+    ids=["resolved", "raw"],
+)
+
+
+def _bridged_web_search_params(
+    client_tool: dict[str, Any],
+    providers: WebSearchProviders | None,
+    model_name: str = "claude-opus-5",
+) -> list[Any] | None:
+    """The web tools the provider sends for a client's web_search declaration."""
+    tools = tools_from_anthropic_tools(
+        [cast(Any, client_tool)], None, providers, None, False
+    )
+    assert len(tools) == 1
+    tool = tools[0]
+    tool_info = tool if isinstance(tool, ToolInfo) else tool_to_tool_info(tool)
+    api = AnthropicAPI(model_name=model_name, api_key="test-key")
+    return api.web_search_tool_params(tool_info)
+
+
+@DEFAULT_WEB_SEARCH
+def test_bridge_preserves_claude_code_web_search_version(
+    providers: WebSearchProviders | None,
+) -> None:
+    # the tool Claude Code's WebSearch sends with a forced tool_choice
+    params = _bridged_web_search_params(
+        {"type": "web_search_20250305", "name": "web_search", "max_uses": 8},
+        providers,
+    )
+    assert params == [
+        {"name": "web_fetch", "type": "web_fetch_20250910", "max_uses": 8},
+        {"name": "web_search", "type": "web_search_20250305", "max_uses": 8},
+    ]
+
+
+@DEFAULT_WEB_SEARCH
+def test_bridge_preserves_client_latest_web_search_version(
+    providers: WebSearchProviders | None,
+) -> None:
+    # honoured even on a model whose default is the older version
+    params = _bridged_web_search_params(
+        {"type": "web_search_20260209", "name": "web_search"},
+        providers,
+        model_name="claude-sonnet-4-5",
+    )
+    assert params == [
+        {"name": "web_fetch", "type": "web_fetch_20260209"},
+        {"name": "web_search", "type": "web_search_20260209"},
+    ]
+
+
+@DEFAULT_WEB_SEARCH
+def test_bridge_unknown_web_search_version_uses_provider_choice(
+    providers: WebSearchProviders | None,
+) -> None:
+    params = _bridged_web_search_params(
+        {"type": "web_search_20990101", "name": "web_search"}, providers
+    )
+    assert params is not None
+    assert [param["type"] for param in params] == [
+        "web_fetch_20260209",
+        "web_search_20260209",
+    ]

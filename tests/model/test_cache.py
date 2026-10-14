@@ -21,6 +21,7 @@ from inspect_ai.model import (
     GenerateConfig,
     ModelOutput,
 )
+from inspect_ai.model import _cache as cache_module
 from inspect_ai.model._cache import (
     _CACHE_KEY_DROPPED_FIELDS,
     _CACHE_KEY_NEUTRALIZED_FIELDS,
@@ -222,6 +223,38 @@ def test_cache_skips_content_filter(monkeypatch: pytest.MonkeyPatch, tmp_path: P
     fetched = cache_fetch(cache_entry())
     assert fetched is not None
     assert fetched.completion == "Hi"
+
+
+def test_cache_trace_omits_key_components(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+):
+    monkeypatch.setenv("INSPECT_CACHE_DIR", str(tmp_path))
+    traced: list[str] = []
+    monkeypatch.setattr(
+        cache_module,
+        "trace",
+        lambda msg, *args: traced.append(msg % args if args else msg),
+    )
+
+    secret = "distinctive-message-content-1234"
+    entry = CacheEntry(
+        base_url=None,
+        config=GenerateConfig(),
+        input=[ChatMessageUser(content=secret)],
+        model="mockllm/model",
+        policy=CachePolicy(),
+        tool_choice=None,
+        tools=[],
+    )
+    output = ModelOutput.from_content(model="mockllm/model", content="Hi")
+    assert cache_store(entry=entry, output=output) is True
+    assert cache_fetch(entry) is not None
+
+    # the trace log identifies entries by key, never by the (potentially
+    # very large) conversation the key was computed from
+    assert traced
+    assert all(secret not in message for message in traced)
+    assert any(entry.key in message for message in traced)
 
 
 # A model name that walks out of the cache directory. With the cache root at

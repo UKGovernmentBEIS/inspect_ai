@@ -95,6 +95,11 @@ def first_block(param: MessageParam) -> dict[str, Any]:
         ("vertex/claude-sonnet-5-5", TOOLSET),
         ("azure/claude-sonnet-5-5", LEGACY),
         ("bedrock/anthropic.claude-sonnet-5-5", LEGACY),
+        # Haiku 5.5 follows Opus 5.5
+        ("claude-haiku-5-5", TOOLSET),
+        ("vertex/claude-haiku-5-5", TOOLSET),
+        ("azure/claude-haiku-5-5", LEGACY),
+        ("bedrock/anthropic.claude-haiku-5-5", LEGACY),
         # Fable/Mythos 5.x default to the toolset where it is offered
         ("claude-fable-5", TOOLSET),
         ("claude-fable-5-1", TOOLSET),
@@ -201,6 +206,8 @@ def test_computer_toolset_false_keeps_legacy_where_supported(
         "vertex/claude-opus-5-5",
         "claude-sonnet-5-5",
         "vertex/claude-sonnet-5-5",
+        "claude-haiku-5-5",
+        "vertex/claude-haiku-5-5",
     ],
 )
 def test_computer_toolset_false_rejected_where_legacy_unsupported(

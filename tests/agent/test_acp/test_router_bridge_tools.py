@@ -383,6 +383,7 @@ async def test_bridge_generate_live_chain_publishes_tool_start() -> None:
             [],
             None,
             GenerateConfig(),
+            requested_model=None,
         )
         starts = _starts(published)
         assert len(starts) == 1
