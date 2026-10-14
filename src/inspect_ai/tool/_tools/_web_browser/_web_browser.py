@@ -19,8 +19,9 @@ from inspect_ai.tool._tool_info import parse_tool_info
 from inspect_ai.tool._tool_with import tool_with
 from inspect_ai.util._sandbox._json_rpc_transport import SandboxJSONRPCTransport
 from inspect_ai.util._store_model import StoreModel, store_as
+from inspect_ai.util._tool_state import tool_state_instance
 
-from ._back_compat import old_web_browser_cmd
+from ._back_compat import _web_browser_sandbox, old_web_browser_cmd
 
 
 # These two models are cloned from the container code. If/when we decide to create
@@ -54,7 +55,8 @@ def web_browser(*, interactive: bool = True, instance: str | None = None) -> lis
        interactive: Provide interactive tools (enable
           clicking, typing, and submitting forms). Defaults
           to True.
-       instance: Instance id (each unique instance id has its own web browser process)
+       instance: Instance id (each unique instance id has its own web browser process).
+          Defaults to the current `tool_state_scope()`, if any.
 
     Returns:
        List of tools used for web browser navigation.
@@ -154,7 +156,9 @@ class WebBrowserStore(StoreModel):
 def tool_with_web_at_viewer(tool: Tool, instance: str | None = None) -> Tool:
     def web_at_viewer(call: ToolCall) -> ToolCallView:
         # get the web accessibility tree, if we have it create a view from it
-        web_at = store_as(WebBrowserStore, instance=instance).web_at
+        web_at = store_as(
+            WebBrowserStore, instance=tool_state_instance(instance)
+        ).web_at
         element_id = call.arguments.get("element_id", 0)
         if web_at and element_id:
             lines = web_at.splitlines()
@@ -418,14 +422,22 @@ async def _web_browser_cmd(
         # The user may have the old, incompatible, sandbox. If so, use that and
         # execute the old compatible code.
         try:
+            if tool_state_instance(None) is not None:
+                # the legacy code keeps one unscoped session per sample
+                await _web_browser_sandbox()
+                raise ToolError(
+                    "The legacy web browser sandbox (aisiuk/inspect-web-browser-tool) "
+                    "is not supported inside a tool state scope. Use the "
+                    "aisiuk/inspect-tool-support image instead."
+                )
             return await old_web_browser_cmd(
                 tool_name, *(str(value) for value in params.values())
             )
         except PrerequisiteError:
             raise e
 
-    # bind to store (use instance id if provided)
-    store = store_as(WebBrowserStore, instance=instance)
+    # bind to store (use instance id or tool state scope if provided)
+    store = store_as(WebBrowserStore, instance=tool_state_instance(instance))
 
     # Create transport for all RPC calls
     transport = SandboxJSONRPCTransport(sandbox_env, LEGACY_SANDBOX_CLI)

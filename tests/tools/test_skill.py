@@ -2,6 +2,7 @@
 
 import os
 from pathlib import Path
+from typing import Any, Sequence
 
 import pytest
 from test_helpers.sandbox import CannedSandbox
@@ -11,12 +12,20 @@ from inspect_ai import Task, eval
 from inspect_ai.agent import react
 from inspect_ai.dataset import Sample
 from inspect_ai.scorer import includes
-from inspect_ai.tool import bash, skill
+from inspect_ai.tool import Tool, bash, skill
+from inspect_ai.tool._tool_def import ToolDef
+from inspect_ai.tool._tools._skill import tool as skill_tool_module
 from inspect_ai.tool._tools._skill.install import install_skills
 from inspect_ai.tool._tools._skill.read import SkillParsingError, _read_skill
-from inspect_ai.tool._tools._skill.types import Skill
-from inspect_ai.util import SandboxUserUnsupportedError
+from inspect_ai.tool._tools._skill.types import Skill, SkillInfo
+from inspect_ai.util import (
+    SandboxUserUnsupportedError,
+    Store,
+    store,
+    tool_state_scope,
+)
 from inspect_ai.util._sandbox.local import LocalSandboxEnvironment
+from inspect_ai.util._store import init_subtask_store
 from inspect_ai.util._subprocess import ExecResult
 
 # Path to test skills directory
@@ -628,3 +637,75 @@ def test_skill_end_to_end() -> None:
         "Model did not run the script. "
         f"Expected 'DELTA-ECHO-FOXTROT' in output but got: {combined_output[:500]}..."
     )
+
+
+class TestSkillToolStateScope:
+    SKILL = Skill(name="example", description="Example.", instructions="Do it.")
+
+    @pytest.fixture
+    def installs(self, monkeypatch: pytest.MonkeyPatch) -> list[Sequence[Skill]]:
+        """Stub the sandbox install, recording the skills of each call."""
+        installs: list[Sequence[Skill]] = []
+
+        async def fake_install_skills(
+            skills: Sequence[Skill], *args: Any, **kwargs: Any
+        ) -> list[SkillInfo]:
+            installs.append(skills)
+            return [
+                SkillInfo(
+                    name=sk.name,
+                    description=sk.description,
+                    instructions=sk.instructions,
+                    location=f"/skills/{len(installs)}/{sk.name}/SKILL.md",
+                )
+                for sk in skills
+            ]
+
+        monkeypatch.setattr(skill_tool_module, "install_skills", fake_install_skills)
+        return installs
+
+    async def test_default_skill_tool_is_per_scope(
+        self, installs: list[Sequence[Skill]]
+    ) -> None:
+        init_subtask_store(Store())
+        tool = skill([self.SKILL])
+        with tool_state_scope("w-1"):
+            await tool(command="example")
+            await tool(command="example")
+        with tool_state_scope("w-2"):
+            await tool(command="example")
+        assert len(installs) == 2
+        assert "InstalledSkills:skills" not in store()
+        assert store().get("InstalledSkills:w-1:skills") is not None
+        assert store().get("InstalledSkills:w-2:skills") is not None
+
+    async def test_deepagent_child_skill_tool_is_per_scope(
+        self, installs: list[Sequence[Skill]]
+    ) -> None:
+        from inspect_ai.agent._deepagent.agent_tool import _resolve_tools
+        from inspect_ai.agent._deepagent.subagent import subagent
+
+        init_subtask_store(Store())
+        sa = subagent(name="general", description="General.", prompt="General.")
+
+        async def call_child_skill() -> None:
+            tools = _resolve_tools(
+                sa, [sa], None, None, [self.SKILL], 0, 1, get_messages=None
+            )
+            [child_skill] = [
+                t for t in tools if isinstance(t, Tool) and ToolDef(t).name == "skill"
+            ]
+            await child_skill(command="example")
+
+        with tool_state_scope("w-1"):
+            await call_child_skill()
+        with tool_state_scope("w-2"):
+            await call_child_skill()
+        assert len(installs) == 2
+        assert "InstalledSkills:general:skills" not in store()
+        assert store().get("InstalledSkills:w-1/general:skills") is not None
+        assert store().get("InstalledSkills:w-2/general:skills") is not None
+
+        # outside a scope the subagent name is today's instance
+        await call_child_skill()
+        assert store().get("InstalledSkills:general:skills") is not None

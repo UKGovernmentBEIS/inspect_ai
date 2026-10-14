@@ -8,6 +8,7 @@ from pydantic import Field
 from inspect_ai.tool._tool import Tool, ToolError, tool
 from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.util._store_model import StoreModel, store_as
+from inspect_ai.util._tool_state import tool_state_instance
 
 from .install import install_skills
 from .read import read_skills
@@ -37,6 +38,7 @@ def skill(
         instance: Optional instance name for the skill store. Enables
             multiple independent skill tool instances within a single
             sample (e.g., different subagents with different skill sets).
+            Defaults to the current `tool_state_scope()`, if any.
         sandbox: Sandbox environment name to copy skills to.
         user: User to write skills files with.
         dir: Directory to install into (defaults to "./skills").
@@ -56,9 +58,10 @@ def skill(
         # see if we need to install the skills (double-checked under a
         # per-instance lock so concurrent first-callers don't both run
         # install_skills and race on sandbox file writes)
-        installed = store_as(InstalledSkills, instance=instance)
+        resolved_instance = tool_state_instance(instance)
+        installed = store_as(InstalledSkills, instance=resolved_instance)
         if installed.skills is None:
-            lock = _install_locks.setdefault(instance, anyio.Lock())
+            lock = _install_locks.setdefault(resolved_instance, anyio.Lock())
             async with lock:
                 if installed.skills is None:
                     installed.skills = await install_skills(
