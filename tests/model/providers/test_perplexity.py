@@ -1,11 +1,15 @@
 import uuid
-from typing import Any
+from typing import Any, AsyncIterator
 
 import anyio
 import pytest
 from openai._models import construct_type
 from openai._types import NOT_GIVEN
-from openai.types.responses import Response
+from openai.types.responses import (
+    Response,
+    ResponseCompletedEvent,
+    ResponseStreamEvent,
+)
 from test_helpers.utils import skip_if_no_perplexity
 
 from inspect_ai._util._async import tg_collect
@@ -20,6 +24,7 @@ from inspect_ai.model import (
     get_model,
 )
 from inspect_ai.model._providers.perplexity import PerplexityAPI
+from inspect_ai.model._stream import ModelStreamObserver, model_stream_observer
 from inspect_ai.tool import web_search
 from inspect_ai.tool._tool_info import ToolInfo
 
@@ -168,63 +173,80 @@ async def test_perplexity_prompt_cache() -> None:
     )
 
 
+def _agent_response_value(
+    name: str,
+    tokens: int,
+    cache_creation: int = 0,
+    cache_read: int = 0,
+    annotations: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    """An Agent API response body."""
+    return {
+        "id": f"resp_{name}",
+        "created_at": 1791230228,
+        "model": "perplexity/sonar",
+        "object": "response",
+        "status": "completed",
+        "parallel_tool_calls": True,
+        "tool_choice": "auto",
+        "tools": [{"type": "web_search"}],
+        "output": [
+            {
+                "type": "search_results",
+                "queries": [f"query {name}"],
+                "results": [
+                    {
+                        "id": 1,
+                        "title": name,
+                        "url": f"https://example.com/{name}",
+                        "snippet": "snippet",
+                        "date": "2026-10-02",
+                        "source": "web",
+                    }
+                ],
+            },
+            {
+                "type": "message",
+                "id": f"msg_{name}",
+                "role": "assistant",
+                "status": "completed",
+                "content": [
+                    {
+                        "type": "output_text",
+                        "text": f"answer {name}",
+                        "annotations": annotations or [],
+                    }
+                ],
+            },
+        ],
+        "usage": {
+            "input_tokens": tokens + cache_creation + cache_read,
+            "input_tokens_details": {
+                "cached_tokens": cache_read,
+                "cache_creation_input_tokens": cache_creation,
+                "cache_read_input_tokens": cache_read,
+            },
+            "output_tokens": tokens,
+            "output_tokens_details": {"reasoning_tokens": 1},
+            "total_tokens": 2 * tokens + cache_creation + cache_read,
+            "cost": {"currency": "USD", "total_cost": 0.001},
+        },
+    }
+
+
 def _agent_response(
-    name: str, tokens: int, cache_creation: int = 0, cache_read: int = 0
+    name: str,
+    tokens: int,
+    cache_creation: int = 0,
+    cache_read: int = 0,
+    annotations: list[dict[str, Any]] | None = None,
 ) -> Response:
     """An Agent API response, parsed as the OpenAI SDK parses it."""
     response = construct_type(
         type_=Response,
-        value={
-            "id": f"resp_{name}",
-            "created_at": 1791230228,
-            "model": "perplexity/sonar",
-            "object": "response",
-            "status": "completed",
-            "parallel_tool_calls": True,
-            "tool_choice": "auto",
-            "tools": [{"type": "web_search"}],
-            "output": [
-                {
-                    "type": "search_results",
-                    "queries": [f"query {name}"],
-                    "results": [
-                        {
-                            "id": 1,
-                            "title": name,
-                            "url": f"https://example.com/{name}",
-                            "snippet": "snippet",
-                            "date": "2026-10-02",
-                            "source": "web",
-                        }
-                    ],
-                },
-                {
-                    "type": "message",
-                    "id": f"msg_{name}",
-                    "role": "assistant",
-                    "status": "completed",
-                    "content": [
-                        {
-                            "type": "output_text",
-                            "text": f"answer {name}",
-                            "annotations": [],
-                        }
-                    ],
-                },
-            ],
-            "usage": {
-                "input_tokens": tokens + cache_creation + cache_read,
-                "input_tokens_details": {
-                    "cached_tokens": cache_read,
-                    "cache_creation_input_tokens": cache_creation,
-                    "cache_read_input_tokens": cache_read,
-                },
-                "output_tokens": tokens,
-                "output_tokens_details": {"reasoning_tokens": 1},
-                "total_tokens": 2 * tokens + cache_creation + cache_read,
-                "cost": {"currency": "USD", "total_cost": 0.001},
-            },
-        },
+        value=_agent_response_value(
+            name, tokens, cache_creation, cache_read, annotations
+        ),
     )
     assert isinstance(response, Response)
     return response
@@ -478,7 +500,15 @@ def test_perplexity_agent_model_name(model_name: str, expected: str) -> None:
 
 
 @pytest.mark.parametrize(
-    "model_name", ["sonar-pro", "sonar-reasoning-pro", "sonar-deep-research"]
+    "model_name",
+    [
+        "sonar-pro",
+        "sonar-reasoning-pro",
+        "sonar-deep-research",
+        "perplexity/sonar-pro",
+        "perplexity/sonar-reasoning-pro",
+        "perplexity/sonar-deep-research",
+    ],
 )
 def test_perplexity_retired_sonar_model(model_name: str) -> None:
     with pytest.raises(ValueError, match="retired"):
@@ -526,3 +556,213 @@ async def test_perplexity_concurrent_generate_uses_own_response(
         assert output.usage.input_tokens == tokens
         assert output.metadata is not None
         assert output.metadata["search_results"][0]["title"] == name
+
+
+@pytest.mark.anyio
+async def test_perplexity_web_search_with_extra_body_tools(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    requests: list[dict[str, Any]] = []
+    provider = _provider(monkeypatch, {"a": _agent_response("a", 1)}, requests)
+    fetch_url = {"type": "fetch_url"}
+
+    async def generate(tools: list[ToolInfo], extra_body: dict[str, Any]) -> None:
+        await provider.generate(
+            [ChatMessageUser(content="a")],
+            tools,
+            "auto",
+            GenerateConfig(extra_body=extra_body),
+        )
+
+    try:
+        # web_search() is added to the Agent API tools passed in extra_body
+        await generate([_web_search_tool(True)], {"tools": [fetch_url]})
+        assert requests[-1]["extra_body"]["tools"] == [
+            fetch_url,
+            {"type": "web_search"},
+        ]
+
+        # without web_search(), extra_body's tools pass through
+        await generate([], {"tools": [fetch_url]})
+        assert requests[-1]["extra_body"]["tools"] == [fetch_url]
+
+        with pytest.raises(ValueError, match="already has a web_search tool"):
+            await generate(
+                [_web_search_tool(True)], {"tools": [{"type": "web_search"}]}
+            )
+        with pytest.raises(TypeError, match="extra_body"):
+            await generate([_web_search_tool(True)], {"tools": fetch_url})
+    finally:
+        await provider.aclose()
+
+    assert len(requests) == 2
+
+
+@pytest.mark.anyio
+async def test_perplexity_search_results_merge_with_annotations(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    annotations = [
+        {
+            "type": "url_citation",
+            "start_index": 0,
+            "end_index": 6,
+            "title": "cited a",
+            "url": "https://example.com/a",
+        },
+        {
+            "type": "url_citation",
+            "start_index": 7,
+            "end_index": 8,
+            "title": "other",
+            "url": "https://example.com/other",
+        },
+    ]
+    provider = _provider(
+        monkeypatch, {"a": _agent_response("a", 1, annotations=annotations)}
+    )
+
+    try:
+        output, _ = await provider.generate(
+            [ChatMessageUser(content="a")],
+            [_web_search_tool(True)],
+            "auto",
+            GenerateConfig(),
+        )
+    finally:
+        await provider.aclose()
+
+    assert isinstance(output, ModelOutput)
+    content = output.choices[0].message.content
+    assert isinstance(content, list)
+    # one text part: no empty part is added for the search results
+    texts = [part for part in content if isinstance(part, ContentText)]
+    assert [part.text for part in texts] == ["answer a"]
+    # the annotations are kept, and the search result already cited is not
+    # added again
+    assert _citation_urls(output) == [
+        "https://example.com/a",
+        "https://example.com/other",
+    ]
+    citations = texts[0].citations
+    assert citations is not None
+    assert isinstance(citations[0], UrlCitation)
+    assert citations[0].cited_text == (0, 6)
+
+
+@pytest.mark.anyio
+async def test_perplexity_search_results_go_to_last_text_part(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    value = _agent_response_value("a", 1)
+    value["output"][0]["results"].append(
+        {"id": 2, "title": "b", "url": "https://example.com/b"}
+    )
+    message = value["output"][1]
+    message["content"].append(
+        {"type": "output_text", "text": "more", "annotations": []}
+    )
+    # a duplicate search result is cited once
+    value["output"][0]["results"].append(
+        {"id": 3, "title": "a again", "url": "https://example.com/a"}
+    )
+    response = construct_type(type_=Response, value=value)
+    assert isinstance(response, Response)
+    provider = _provider(monkeypatch, {"a": response})
+
+    try:
+        output, _ = await provider.generate(
+            [ChatMessageUser(content="a")],
+            [_web_search_tool(True)],
+            "auto",
+            GenerateConfig(),
+        )
+    finally:
+        await provider.aclose()
+
+    assert isinstance(output, ModelOutput)
+    content = output.choices[0].message.content
+    assert isinstance(content, list)
+    first, last = [part for part in content if isinstance(part, ContentText)]
+    assert first.citations is None or len(first.citations) == 0
+    assert last.citations is not None
+    assert [c.url for c in last.citations if isinstance(c, UrlCitation)] == [
+        "https://example.com/a",
+        "https://example.com/b",
+    ]
+
+
+class _FakeStream:
+    def __init__(self, events: list[Any]) -> None:
+        self.events = events
+        self.closed = False
+
+    async def __aenter__(self) -> "_FakeStream":
+        return self
+
+    async def __aexit__(self, *exc: object) -> None:
+        self.closed = True
+
+    def __aiter__(self) -> AsyncIterator[Any]:
+        async def events() -> AsyncIterator[Any]:
+            for event in self.events:
+                yield event
+
+        return events()
+
+
+@pytest.mark.anyio
+async def test_perplexity_streamed_response(monkeypatch: pytest.MonkeyPatch) -> None:
+    """An on_stream callback streams the request (the default)."""
+    response = _agent_response_value("a", 2, cache_creation=5)
+    # stream events, parsed as the OpenAI SDK parses them
+    events = [
+        construct_type(type_=ResponseStreamEvent, value=event)
+        for event in [
+            {
+                "type": "response.created",
+                "sequence_number": 0,
+                "response": {**response, "status": "in_progress", "output": []},
+            },
+            {
+                "type": "response.completed",
+                "sequence_number": 1,
+                "response": response,
+            },
+        ]
+    ]
+    assert isinstance(events[-1], ResponseCompletedEvent)
+    stream = _FakeStream(events)
+    requests: list[dict[str, Any]] = []
+
+    async def fake_create(**kwargs: Any) -> _FakeStream:
+        requests.append(kwargs)
+        return stream
+
+    provider = PerplexityAPI(model_name="sonar", api_key="sk-test")
+    monkeypatch.setattr(provider.client.responses, "create", fake_create)
+
+    async def on_stream(event: Any) -> None:
+        pass
+
+    try:
+        with model_stream_observer(ModelStreamObserver("test", on_stream)):
+            output, _ = await provider.generate(
+                [ChatMessageUser(content="a")],
+                [_web_search_tool(True)],
+                "auto",
+                GenerateConfig(),
+            )
+    finally:
+        await provider.aclose()
+
+    assert requests[0]["stream"] is True
+    assert stream.closed
+    assert isinstance(output, ModelOutput)
+    assert output.completion == "answer a"
+    assert _citation_urls(output) == ["https://example.com/a"]
+    assert output.metadata is not None
+    assert output.metadata["search_results"][0]["title"] == "a"
+    assert output.usage is not None
+    assert output.usage.input_tokens == 2
+    assert output.usage.input_tokens_cache_write == 5

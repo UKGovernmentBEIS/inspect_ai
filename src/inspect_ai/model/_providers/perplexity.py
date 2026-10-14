@@ -4,7 +4,7 @@ from openai._types import NOT_GIVEN
 from openai.types.responses import Response, ResponseOutputItem
 from typing_extensions import override
 
-from inspect_ai._util.citation import UrlCitation
+from inspect_ai._util.citation import Citation, UrlCitation
 from inspect_ai._util.content import ContentText
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model_output import ModelOutput
@@ -50,7 +50,8 @@ class PerplexityAPI(OpenAICompatibleAPI):
         config: GenerateConfig = GenerateConfig(),
         **model_args: Any,
     ) -> None:
-        if model_name in RETIRED_SONAR_MODELS:
+        # Perplexity's own models can also be named with their provider
+        if model_name.removeprefix("perplexity/") in RETIRED_SONAR_MODELS:
             raise ValueError(
                 f"Perplexity retired the '{model_name}' model along with Sonar Chat "
                 "Completions. Use 'perplexity/sonar' or another Agent API model, "
@@ -138,7 +139,7 @@ class PerplexityAPI(OpenAICompatibleAPI):
             if k not in responses_extra_body_fields() and k != "background"
         }
         if web_search is not None:
-            extra_body["tools"] = [web_search]
+            extra_body["tools"] = _with_web_search(extra_body.get("tools"), web_search)
 
         search_results: list[dict[str, Any]] = []
 
@@ -215,24 +216,46 @@ def _take_search_results(
     return response
 
 
+def _with_web_search(tools: Any, web_search: dict[str, Any]) -> list[Any]:
+    """Add the web_search tool to the Agent API tools passed in `extra_body`."""
+    if tools is None:
+        return [web_search]
+    if not isinstance(tools, list):
+        raise TypeError(f"Expected a list for extra_body['tools'], got {type(tools)}")
+    if any(
+        isinstance(tool, dict) and tool.get("type") == "web_search" for tool in tools
+    ):
+        raise ValueError(
+            "extra_body['tools'] already has a web_search tool. Pass Perplexity's "
+            "web search either with the web_search() tool or in extra_body, not both."
+        )
+    return [*tools, web_search]
+
+
 def _attach_citations(
     output: ModelOutput, search_results: list[dict[str, Any]]
 ) -> None:
-    citations = [
-        UrlCitation(title=sr.get("title"), url=sr["url"])
-        for sr in search_results
-        if isinstance(sr.get("url"), str)
-    ]
-    if not citations:
-        return
+    """Add the search results to the last text part of each message as citations.
+
+    Results whose URL is already cited in the message (for example from a
+    `url_citation` annotation) are left out. A message with no text gets none.
+    """
     for choice in output.choices:
-        msg = choice.message
-        if isinstance(msg.content, str):
-            msg.content = [ContentText(text=msg.content, citations=citations)]
-        else:
-            for content in msg.content:
-                if isinstance(content, ContentText) and content.citations is None:
-                    content.citations = citations
-                    break
-            else:
-                msg.content.append(ContentText(text="", citations=citations))
+        # the Responses conversion gives list content
+        texts = [p for p in choice.message.content if isinstance(p, ContentText)]
+        if not texts:
+            continue
+        cited = {
+            citation.url
+            for part in texts
+            for citation in part.citations or []
+            if isinstance(citation, UrlCitation)
+        }
+        citations: list[Citation] = []
+        for sr in search_results:
+            url = sr.get("url")
+            if isinstance(url, str) and url not in cited:
+                cited.add(url)
+                citations.append(UrlCitation(title=sr.get("title"), url=url))
+        if citations:
+            texts[-1].citations = [*(texts[-1].citations or []), *citations]
