@@ -365,9 +365,9 @@ class LogTaskFileImport:
     def __init__(
         self, log: EvalLog, *, trust_log: bool, opt_in: str = TRUST_LOG_OPT_IN
     ) -> None:
-        """`opt_in` is the advice the shared LookupError gives when the
-        import is not trusted; the default is "pass trust_log=True (inspect
-        log recover: --trust-log) to import the log's task file"."""
+        """`opt_in` is the closing advice of both untrusted-log errors (the
+        step 2 LookupError and step 3's DisallowedRegistryArg), so each
+        caller names an option it actually has (below)."""
 
     trust_log: bool
     task_path: Path | None  # Path(log.eval.task_file).absolute(), or None
@@ -391,12 +391,15 @@ def resolve_scorers_info(
 def metrics_from_log_header(
     log: EvalLog, *, task_import: LogTaskFileImport | None = None
 ) -> ...: ...
-def metric_from_log(metric: EvalMetricDefinition, *, trust_log: bool = False) -> Metric: ...
+def metric_from_log(
+    metric: EvalMetricDefinition, *, task_import: LogTaskFileImport | None = None
+) -> Metric: ...
 ```
 
 `task_import=None` means a fresh untrusted tracker. The resolvers build each
-definition with `metric_from_log(..., trust_log=task_import.trust_log)`,
-which selects step 3's restriction. Each resolver makes the
+definition with `metric_from_log(..., task_import=task_import)`, which
+selects step 3's restriction from `task_import.trust_log` and takes its
+advice text from `task_import.opt_in`. Each resolver makes the
 metric definitions it consumes resolvable before building anything, through
 one shared implementation:
 
@@ -465,18 +468,26 @@ With `trust_log=False`:
 
   ```
   Metric 'my_metric' (used by scorer 'my_scorer') is not registered. If it is
-  defined in the task file ('evals/task.py'), import that module first, or
-  pass trust_log=True (inspect log recover: --trust-log) to import the log's
-  task file. This runs the file's code; do it only for logs you trust.
+  defined in the task file ('evals/task.py'), import that module first.
+  To trust the log, pass trust_log=True (inspect log recover: --trust-log);
+  this imports the log's task file and runs its code, so do it only for logs
+  you trust.
   ```
 
   For a task-level metric the parenthesis reads "(a task-level metric)".
-  The "or pass ..." clause is the tracker's `opt_in` text: rescoring with the
-  user's scorers says "or pass metrics= (inspect score: --metric) to replace
-  the log's metrics, or rescore with the log's scorers (scorers=None;
-  inspect score without --scorer)". With `trust_log=True` the same message,
-  without the opt-in clause, is raised for a metric the task file does not
-  define either.
+  The last sentence is the tracker's `opt_in` text, which depends on the
+  caller, because only some callers have `trust_log`:
+
+  - `TRUST_LOG_OPT_IN`, the default (`recompute_metrics()`, `edit_score()`,
+    recovery): the `trust_log` sentence above.
+  - `SCORE_OPT_IN`, for rescoring with the caller's scorers (`score()` and
+    `score_async()` have no `trust_log`): "To score without the log's
+    metrics, pass metrics= (inspect score: --metric). If you trust the log,
+    rescore with its own scorers instead (scorers=None; inspect score
+    without --scorer), which imports its task file and runs its code."
+
+  With `trust_log=True` the same message, without the opt-in sentence, is
+  raised for a metric the task file does not define either.
 
 - Metric options are rebuilt in the restricted mode of step 3.
 
@@ -555,7 +566,7 @@ Callers inside Inspect:
   nothing a retry can do, and keeps the recovered log's metrics and
   finalization identical.
 - `score_async()` creates one `LogTaskFileImport` with
-  `trust_log=scorers is None` and passes it to `resolve_scorers()` (step 6)
+  `trust_log=scorers is None` and `opt_in=SCORE_OPT_IN`, and passes it to `resolve_scorers()` (step 6)
   and to `metrics_from_log_header()` (`score.py:348`, used by
   `--action overwrite`). Only rescoring with the log's own scorers is a run
   operation:
@@ -638,9 +649,18 @@ def registry_arg(
 
   ```
   Metric 'grouped' option 'metric.params.model': a model cannot be created
-  from metric options in a log unless the log is trusted (pass
-  trust_log=True; inspect log recover: --trust-log).
+  from metric options in an untrusted log. To trust the log, pass
+  trust_log=True (inspect log recover: --trust-log); this imports the log's
+  task file and runs its code, so do it only for logs you trust.
   ```
+
+  The registry layer raises the first sentence only; it knows nothing of
+  callers. `metric_from_log()` catches `DisallowedRegistryArg` and re-raises
+  it (`raise DisallowedRegistryArg(f"{e} {task_import.opt_in}") from e`) with
+  the tracker's `opt_in` sentence, the same one step 2's `LookupError`
+  ends with, so `score(log, scorers)` advises `metrics=` / `--metric`, or
+  its own scorers for a trusted log, and never a `trust_log` argument it
+  does not accept.
 
 - `_resolve_registry_args()` resolves every argument before the outer
   factory is called (as `registry_kwargs()` does today), so a forbidden
@@ -653,7 +673,8 @@ def registry_arg(
 
 `metric_from_log()` (`score.py:590`) calls
 `create_registry_object("metric", metric.name, metric.options or {},
-allowed_types=None if trust_log else LOG_METRIC_OPTION_TYPES)` directly. The
+allowed_types=None if task_import.trust_log else LOG_METRIC_OPTION_TYPES)`
+directly. The
 public `metric_create()` keeps its signature and behaviour.
 
 Nested metric registry dicts stay allowed because built-in metrics take
@@ -1134,13 +1155,15 @@ written, and the `get_model` spy was not called.
   metrics for the hostile keys; each fixture 2 variant raises `LookupError`
   with the shared step 2 message naming the right metric (scorer metric or
   task-level metric); fixture 3 raises `DisallowedRegistryArg` (a
-  `ValueError`) naming the metric and the option key path. For
+  `ValueError`) naming the metric and the option key path. Both errors end
+  with the `trust_log` advice. For
   `edit_score()` on fixtures 2 and 3, also assert the log is unchanged after
   the failure (`model_dump()` equal before and after: no edited value, no
   `score.history` entry, no `ScoreEditEvent`, same `results`).
 - `score(log, [match()], action="overwrite", model="mockllm/model")` on
   fixture 2's task-level variant and fixture 3's `eval.metrics` placements:
-  the step 2 `LookupError` and `DisallowedRegistryArg` respectively, no
+  the step 2 `LookupError` and `DisallowedRegistryArg` respectively, each
+  ending with the `SCORE_OPT_IN` advice and not mentioning `trust_log`, no
   marker, no spy hit (`model=` is passed so the spy sees only the fixtures'
   metric options, not `score_async()` building the log's model, which is a
   "Not this design" item).
@@ -1179,8 +1202,11 @@ Legitimate flows:
   `test_resolve_scorers_info_loads_task_file_metrics_once` passes a trusted
   `LogTaskFileImport` and keeps asserting one import; an `edit_score()` of a
   fixture 2 log fails with the log unchanged, then the same call with
-  `trust_log=True` succeeds with exactly one new `score.history` entry and
-  one `ScoreEditEvent` and the metric computed; `edit_score(...,
+  `trust_log=True` succeeds and applies the edit once, exactly as an edit
+  that never failed: `score.history` holds the original-state snapshot
+  (`log/_score.py:99-107`, added on a score's first edit) followed by one
+  entry for this edit, the sample has one `ScoreEditEvent`, and the metric
+  is computed; `edit_score(...,
   recompute_metrics=False)` on the same log edits without resolving; add
   `recompute_metrics(log, trust_log=True)` tests with fixture 2 that compute
   both the scorer metric and the task-level metric with a single import, one
@@ -1232,9 +1258,11 @@ Legitimate flows:
   - User's scorers (`--scorer <registered>`, and `score(log, [match()])`):
     `--action overwrite` on a log whose `eval.metrics` holds a task-level
     metric defined only in the task file raises the step 2 `LookupError` with
-    the rescoring opt-in text and does not import the marker module; the
-    same with a model-option metric raises `DisallowedRegistryArg` and the
-    `get_model` spy is not called with its model; passing `metrics=`
+    the `SCORE_OPT_IN` advice and does not import the marker module; the
+    same with a model-option metric, and with a non-metric registry option,
+    raises `DisallowedRegistryArg` with the option path and the same
+    `SCORE_OPT_IN` advice (no `trust_log`), and the `get_model` spy is not
+    called with its model; passing `metrics=`
     (`--metric accuracy`) instead succeeds; and a regression test for
     `--scorer <registered> --action overwrite` on a log with no
     `eval.metrics` whose old `eval.scorers` names an unavailable custom
