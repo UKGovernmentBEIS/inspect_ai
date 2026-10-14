@@ -25,7 +25,7 @@ from inspect_ai.model import (
 )
 from inspect_ai.model._providers.perplexity import PerplexityAPI
 from inspect_ai.model._stream import ModelStreamObserver, model_stream_observer
-from inspect_ai.tool import web_search
+from inspect_ai.tool import ToolChoice, ToolFunction, web_search
 from inspect_ai.tool._tool_info import ToolInfo
 
 
@@ -132,6 +132,23 @@ async def test_perplexity_api_without_web_search() -> None:
     assert response.usage.output_tokens > 0
     # no web_search() tool, so no search
     assert "search_results" not in (response.metadata or {})
+
+
+@pytest.mark.anyio
+@skip_if_no_perplexity
+@pytest.mark.parametrize("tool_choice", ["any", ToolFunction(name="web_search")])
+async def test_perplexity_forced_web_search(tool_choice: ToolChoice) -> None:
+    model = get_model("perplexity/sonar", config=GenerateConfig(max_tokens=50))
+
+    # a prompt the model answers without searching unless forced to
+    response = await model.generate(
+        input=[ChatMessageUser(content="Reply with the single word OK.")],
+        tools=[web_search({"perplexity": True})],
+        tool_choice=tool_choice,
+    )
+
+    assert response.metadata is not None
+    assert response.metadata["search_results"]
 
 
 @pytest.mark.anyio
@@ -348,6 +365,45 @@ async def test_perplexity_web_search_only_when_requested(
     assert "extra_body" not in without_search
     assert with_search["model"] == agent_model
     assert with_search["extra_body"] == {"tools": [{"type": "web_search"}]}
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    "tool_choice,expected",
+    [
+        ("auto", None),
+        ("none", None),
+        ("any", "required"),
+        (ToolFunction(name="web_search"), {"type": "web_search"}),
+    ],
+)
+async def test_perplexity_tool_choice(
+    monkeypatch: pytest.MonkeyPatch, tool_choice: ToolChoice, expected: Any
+) -> None:
+    model = get_model("perplexity/sonar", api_key="sk-test", memoize=False)
+    requests: list[dict[str, Any]] = []
+
+    async def fake_create(**kwargs: Any) -> Response:
+        requests.append(kwargs)
+        return _agent_response("a", 1)
+
+    assert isinstance(model.api, PerplexityAPI)
+    monkeypatch.setattr(model.api.client.responses, "create", fake_create)
+    try:
+        await model.generate(
+            [ChatMessageUser(content="a")],
+            tools=[web_search({"perplexity": True})],
+            tool_choice=tool_choice,
+        )
+    finally:
+        await model.api.aclose()
+
+    extra_body = requests[0].get("extra_body", {})
+    # the generate_responses helper sends no tool choice of its own
+    assert requests[0]["tool_choice"] is NOT_GIVEN
+    assert extra_body.get("tool_choice") == expected
+    # "none" removes the web_search tool before the provider sees it
+    assert ("tools" in extra_body) == (tool_choice != "none")
 
 
 @pytest.mark.anyio

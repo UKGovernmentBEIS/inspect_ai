@@ -14,7 +14,7 @@ from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.model._providers.openai_compatible import OpenAICompatibleAPI
 from inspect_ai.model._providers.openai_responses import generate_responses
-from inspect_ai.tool import ToolChoice, ToolInfo
+from inspect_ai.tool import ToolChoice, ToolFunction, ToolInfo
 
 from .._chat_message import ChatMessage
 from .._model_call import ModelCall
@@ -91,6 +91,11 @@ class PerplexityAPI(OpenAICompatibleAPI):
         )
 
     @override
+    def uses_responses_api(self, tools: list[ToolInfo], config: GenerateConfig) -> bool:
+        # every request goes to the Agent API's /v1/responses
+        return True
+
+    @override
     def supports_max_reasoning_effort(self) -> bool:
         # the Agent API accepts `max` for every model
         return True
@@ -142,6 +147,11 @@ class PerplexityAPI(OpenAICompatibleAPI):
         extra_body = dict(config.extra_body or {})
         if web_search is not None:
             extra_body["tools"] = _with_web_search(extra_body.get("tools"), web_search)
+            # generate_responses sends no tool choice, as it sends no tools
+            if tool_choice == "any":
+                extra_body["tool_choice"] = "required"
+            elif isinstance(tool_choice, ToolFunction):
+                extra_body["tool_choice"] = {"type": "web_search"}
 
         tool_results: dict[str, list[dict[str, Any]]] = {}
 
