@@ -107,11 +107,12 @@ jobs:
         run: uv sync
 
       # TEMPORARY: the dispatcher requires inspect_sentinel with
-      # meridianlabs-ai/inspect_sentinel#87 (Host wraps HostNative). Remove when a
-      # release with it is on PyPI and requirements-dev.txt requires it.
+      # meridianlabs-ai/inspect_sentinel#87 (Host wraps HostNative), installed from
+      # its branch until it merges, then from main. Remove when a release with it
+      # is on PyPI and requirements-dev.txt requires it.
       - name: Install inspect_sentinel (TEMPORARY)
         if: github.event_name != 'pull_request' || steps.filter.outputs.code == 'true'
-        run: uv pip install --no-deps "inspect_sentinel @ git+https://github.com/meridianlabs-ai/inspect_sentinel@b7aa87d5ac27c58e64671375211eb00d22dd2882"
+        run: uv pip install --no-deps "inspect_sentinel @ git+https://github.com/meridianlabs-ai/inspect_sentinel@epatey/sentinel-step-excerpts"
 
       - name: Run mypy
         if: github.event_name != 'pull_request' || steps.filter.outputs.code == 'true'
@@ -337,11 +338,12 @@ jobs:
           uv pip install --no-deps ./tests/test_package
 
       # TEMPORARY: the dispatcher requires inspect_sentinel with
-      # meridianlabs-ai/inspect_sentinel#87 (Host wraps HostNative). Remove when a
-      # release with it is on PyPI and requirements-dev.txt requires it.
+      # meridianlabs-ai/inspect_sentinel#87 (Host wraps HostNative), installed from
+      # its branch until it merges, then from main. Remove when a release with it
+      # is on PyPI and requirements-dev.txt requires it.
       - name: Install inspect_sentinel (TEMPORARY)
         if: env.RUN_TESTS == 'true'
-        run: uv pip install --no-deps "inspect_sentinel @ git+https://github.com/meridianlabs-ai/inspect_sentinel@b7aa87d5ac27c58e64671375211eb00d22dd2882"
+        run: uv pip install --no-deps "inspect_sentinel @ git+https://github.com/meridianlabs-ai/inspect_sentinel@epatey/sentinel-step-excerpts"
 
       - name: Test with pytest
         if: env.RUN_TESTS == 'true'
