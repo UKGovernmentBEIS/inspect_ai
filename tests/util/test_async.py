@@ -70,9 +70,8 @@ def test_run_coroutine_preserves_task_errors(backend: str) -> None:
     assert result.returncode == 0, result.stdout + result.stderr
 
 
-@pytest.mark.parametrize("backend", ["asyncio", "trio"])
-def test_run_main_sigint_matches_asyncio_run(backend: str) -> None:
-    """Ctrl-C under run_main() behaves as asyncio.run() defines it on both backends."""
+def test_run_main_trio_sigint() -> None:
+    """Under trio, Ctrl-C cancels run_main()'s coroutine, then raises KeyboardInterrupt."""
     result = subprocess.run(
         [
             sys.executable,
@@ -85,6 +84,15 @@ def test_run_main_sigint_matches_asyncio_run(backend: str) -> None:
                 import anyio
                 from inspect_ai._util._async import run_main
 
+                cleaned_up = []
+                reached = []
+
+                async def returns():
+                    return "result"
+
+                async def fails():
+                    raise ValueError("main failed")
+
                 async def cancelled():
                     signal.raise_signal(signal.SIGINT)
                     await anyio.sleep(30)
@@ -94,18 +102,29 @@ def test_run_main_sigint_matches_asyncio_run(backend: str) -> None:
                     try:
                         await anyio.sleep(30)
                     except anyio.get_cancelled_exc_class():
+                        cleaned_up.append(True)
                         return "cleaned up"
 
-                async def interrupted_twice():
+                async def interrupted_twice_without_yielding():
                     signal.raise_signal(signal.SIGINT)
-                    try:
-                        await anyio.sleep(30)
-                    finally:
-                        with anyio.CancelScope(shield=True):
-                            signal.raise_signal(signal.SIGINT)
-                            await anyio.sleep(30)
+                    reached.append("first")
+                    signal.raise_signal(signal.SIGINT)
+                    reached.append("second")
 
-                for main in [cancelled, interrupted_twice]:
+                async def interrupted_twice_in_child():
+                    async def child():
+                        signal.raise_signal(signal.SIGINT)
+                        try:
+                            await anyio.sleep(30)
+                        finally:
+                            with anyio.CancelScope(shield=True):
+                                signal.raise_signal(signal.SIGINT)
+                                await anyio.sleep(30)
+
+                    async with anyio.create_task_group() as tg:
+                        tg.start_soon(child)
+
+                def check_interrupted(main):
                     start = time.monotonic()
                     try:
                         run_main(main)
@@ -114,11 +133,26 @@ def test_run_main_sigint_matches_asyncio_run(backend: str) -> None:
                     else:
                         raise AssertionError(f"{main.__name__}: no KeyboardInterrupt")
                     assert time.monotonic() - start < 10, main.__name__
+                    assert signal.getsignal(signal.SIGINT) is signal.default_int_handler
 
-                assert run_main(cleans_up) == "cleaned up"
+                assert run_main(returns) == "result"
+                try:
+                    run_main(fails)
+                except ValueError as ex:
+                    assert str(ex) == "main failed"
+                else:
+                    raise AssertionError("fails: no ValueError")
+                assert signal.getsignal(signal.SIGINT) is signal.default_int_handler
+
+                check_interrupted(cancelled)
+                check_interrupted(cleans_up)
+                assert cleaned_up == [True]
+                check_interrupted(interrupted_twice_without_yielding)
+                assert reached == ["first"], reached
+                check_interrupted(interrupted_twice_in_child)
             """),
         ],
-        env={**os.environ, "INSPECT_ASYNC_BACKEND": backend},
+        env={**os.environ, "INSPECT_ASYNC_BACKEND": "trio"},
         capture_output=True,
         text=True,
         timeout=60,

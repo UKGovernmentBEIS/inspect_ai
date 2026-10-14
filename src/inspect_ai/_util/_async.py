@@ -6,6 +6,7 @@ import signal
 import sys
 import threading
 from logging import Logger
+from types import FrameType
 from typing import Any, Awaitable, Callable, Coroutine, Iterable, Literal, TypeVar, cast
 
 import anyio
@@ -15,7 +16,7 @@ import sniffio
 if sys.version_info >= (3, 11):
     from typing import TypeVarTuple, Unpack
 else:
-    from exceptiongroup import ExceptionGroup
+    from exceptiongroup import BaseExceptionGroup, ExceptionGroup
     from typing_extensions import TypeVarTuple, Unpack
 
 
@@ -232,11 +233,11 @@ def _anyio_run_released(func: Callable[[], Awaitable[T]]) -> T:
 def run_main(main: Callable[[], Coroutine[None, None, T]]) -> T:
     """Run `main` on a new event loop of the configured backend.
 
-    Ctrl-C behaves as `asyncio.run()` defines it on both backends: the first
-    SIGINT cancels `main`, which can still clean up and return its result;
-    if the cancellation escapes `main`, `KeyboardInterrupt` is raised. A
-    second SIGINT interrupts at once. Left alone, trio raises
+    On trio, the first SIGINT cancels `main`, which can still clean up (an
+    eval writes its cancelled logs), and `KeyboardInterrupt` is raised once
+    it finishes. A second SIGINT interrupts at once. Left alone, trio raises
     `KeyboardInterrupt` into whatever code is running when the signal lands.
+    On asyncio, `asyncio.run()` handles SIGINT.
     """
     backend = configured_async_backend()
     if (
@@ -251,20 +252,32 @@ def run_main(main: Callable[[], Coroutine[None, None, T]]) -> T:
 async def _trio_cancel_on_sigint(main: Callable[[], Coroutine[None, None, T]]) -> T:
     import trio
 
-    with contextlib.ExitStack() as receiving, trio.CancelScope() as scope:
-        signals = receiving.enter_context(trio.open_signal_receiver(signal.SIGINT))
+    trio_handler = signal.getsignal(signal.SIGINT)
+    token = trio.lowlevel.current_trio_token()
+    scope = trio.CancelScope()
+    interrupted = False
 
-        async def cancel_main() -> None:
-            async for _ in signals:
-                # restores trio's handler, which raises on the next SIGINT
-                receiving.close()
-                scope.cancel()
-                return
+    def cancel_main(signum: int, frame: FrameType | None) -> None:
+        nonlocal interrupted
+        interrupted = True
+        # trio's handler raises KeyboardInterrupt on the next SIGINT
+        signal.signal(signal.SIGINT, trio_handler)
+        token.run_sync_soon(scope.cancel)
 
-        # a system task, so errors from `main` are not wrapped in a group
-        trio.lowlevel.spawn_system_task(cancel_main)
-        return await main()
-    raise KeyboardInterrupt
+    signal.signal(signal.SIGINT, cancel_main)
+    try:
+        with scope:
+            result = await main()
+    except BaseExceptionGroup as ex:
+        # a second SIGINT that lands in a child task arrives grouped
+        if interrupted and ex.split((KeyboardInterrupt, trio.Cancelled))[1] is None:
+            raise KeyboardInterrupt from None
+        raise
+    finally:
+        signal.signal(signal.SIGINT, trio_handler)
+    if interrupted:
+        raise KeyboardInterrupt
+    return result
 
 
 def current_async_backend() -> Literal["asyncio", "trio"] | None:
