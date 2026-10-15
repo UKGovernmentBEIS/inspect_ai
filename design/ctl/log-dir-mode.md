@@ -1024,13 +1024,14 @@ the source for sample state:
   (`src/inspect_ai/log/_score.py:13`) but not its key, status, tokens or
   messages, which are all the aggregate row takes from summaries. So the
   row is the same; per-sample content is not, which is why the shortcut
-  stops at the aggregate row. The `shards` block and per-shard fields come
-  from the ledger entries (status, `started_at`, `completed_at`) and from
-  the fresh listing the shortcut already requires: `attempts` counts every
-  `.eval` file in each `<k>/` (`len(shard.attempts)`), and `updated_at` is
+  stops at the aggregate row. The `shards` block comes from the ledger
+  entries (status, `started_at`, `completed_at`), and the rest from the
+  fresh listing the shortcut already requires: `attempts` is the logical
+  task's attempt count as on the full path (the shard set counts as one;
+  older files in a `<k>/` are not attempts), and `updated_at` is
   the latest mtime of each shard's *current* attempt only, as the full path
-  takes it from each current member's `plan.file.mtime`
-  (`src/inspect_ai/_control/log_dir/snapshot.py:486`); a superseded
+  takes it from each current member's listed mtime (`_updated_at`,
+  `src/inspect_ai/_control/log_dir/snapshot.py`); a superseded
   attempt's mtime is never used, even when it is newer (after a copy or an
   edit). No manifest is read here, since a complete snapshot has no
   running member; outside the shortcut the existing manifest rule applies
