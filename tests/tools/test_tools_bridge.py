@@ -12,10 +12,15 @@ from typing import TYPE_CHECKING, Iterator
 
 import anyio
 import pytest
+from test_helpers.service_dispatch import (
+    dispatching_service,
+    serve_beside_failure_monitor,
+)
 from test_helpers.utils import skip_if_no_docker
 
 from inspect_ai import Task, eval, task
 from inspect_ai._util.content import ContentImage, ContentText
+from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai._util.json import to_json_str_safe
 from inspect_ai.agent import BridgedToolsSpec, sandbox_agent_bridge
 from inspect_ai.agent._bridge.sandbox.service import call_tool
@@ -31,7 +36,7 @@ from inspect_ai.model._generate_config import (
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.scorer import includes
 from inspect_ai.solver import Solver, solver
-from inspect_ai.tool import ToolError, tool
+from inspect_ai.tool import Tool, ToolError, tool
 from inspect_ai.tool._mcp._config import MCPServerConfigHTTP
 from inspect_ai.tool._tool import ToolParsingError
 from inspect_ai.util import sandbox
@@ -948,9 +953,10 @@ def test_sandbox_bridge_executes_proposed_host_tool_call_once(
 def test_sandbox_bridge_terminate_ends_the_sample() -> None:
     """`terminate` must reach the sample runner from the sandbox service task.
 
-    The service converts exceptions into RPC error responses, so this exercises
-    the monitor task in the bridge's own task group — the path that actually
-    unwinds the agent.
+    The approver runs in the bridged generation, inside the service task. Its
+    `TerminateSampleError` is re-raised past the provider-error forwarding to the
+    service dispatcher, which answers the RPC and propagates it out of the service
+    task; that unwinds the bridge's task group and ends the sample once.
     """
     from inspect_ai.approval import ApprovalPolicy, auto_approver
     from inspect_ai.model._chat_message import ChatMessageAssistant
@@ -1000,7 +1006,9 @@ def test_sandbox_bridge_terminate_ends_the_sample() -> None:
         model=get_model("mockllm/model", custom_outputs=outputs),
     )[0]
 
-    assert log.status == "success"
+    _assert_terminated_once(
+        log, "Tool call approver requested termination: Automatic decision."
+    )
     # positive evidence the approver ran and terminated: without it an empty
     # `completed` could equally mean the bridge never started
     assert log.samples is not None
@@ -1015,10 +1023,12 @@ def test_sandbox_bridge_terminate_ends_the_sample() -> None:
 # =============================================================================
 #
 # Natively, `execute_tools` shows the model a fixed set of exception types as a
-# `ToolCallError` and fails the sample on anything else. The bridge's `call_tool`
-# runs in the sandbox service task, where an exception only becomes an RPC error
-# the scaffold reads as tool output, so an unexpected one has to be signalled to
-# the bridge's monitor task to end the sample the same way.
+# `ToolCallError`, ends the sample on a termination, and fails it on anything
+# else. The bridge's `call_tool` runs in the sandbox service task, whose
+# dispatcher answers a termination and propagates it out of the service task,
+# but turns any other exception into an RPC error the scaffold reads as tool
+# output. So an unexpected one has to be signalled to the bridge's monitor task
+# to fail the sample the same way.
 
 
 @tool
@@ -1266,6 +1276,87 @@ async def test_bridged_tool_exception_unwinds_the_bridge_task_group() -> None:
     assert scaffold_replies == ["'missing'"]
 
 
+@tool
+def raising_group_tool():
+    async def execute(text: str) -> str:
+        """Fail with a bug and a termination together, as a task group can.
+
+        Args:
+            text: Ignored.
+        """
+        raise ExceptionGroup(
+            "mixed", [KeyError("missing"), TerminateSampleError("tool says stop")]
+        )
+
+    return execute
+
+
+@pytest.mark.parametrize(
+    ("host_tool", "ended_by", "reply", "failure_requested"),
+    [
+        pytest.param(
+            raising_tool(TerminateSampleError("tool says stop")),
+            TerminateSampleError,
+            "Terminating: tool says stop",
+            False,
+            id="terminate",
+        ),
+        pytest.param(
+            raising_in_task_group_tool(TerminateSampleError("tool says stop")),
+            TerminateSampleError,
+            "Terminating: tool says stop",
+            False,
+            id="grouped-terminate",
+        ),
+        pytest.param(
+            raising_group_tool(),
+            TerminateSampleError,
+            "Terminating: tool says stop",
+            False,
+            id="bug-and-terminate",
+        ),
+        pytest.param(
+            raising_tool(KeyError("missing")),
+            KeyError,
+            "Error calling method call_tool: 'missing'",
+            True,
+            id="bug",
+        ),
+    ],
+)
+async def test_bridged_tool_failure_through_the_service_dispatcher(
+    monkeypatch: pytest.MonkeyPatch,
+    host_tool: Tool,
+    ended_by: type[Exception],
+    reply: str,
+    failure_requested: bool,
+) -> None:
+    """Each failure ends the sample by exactly one path, after one RPC reply.
+
+    A termination is the service dispatcher's: it answers the RPC and propagates
+    the termination out of the service task, so the bridge's monitor is not also
+    signalled. Any other unexpected exception is answered as an RPC error and
+    signalled through `bridge.request_fail`, so the monitor raises it.
+    """
+    from inspect_ai.tool._tool_def import ToolDef
+
+    bridge = _bridge_with_tools([host_tool])
+    replies: list[str | None] = []
+    service = dispatching_service(
+        monkeypatch,
+        "call_tool",
+        call_tool(bridge),
+        {"server": "srv", "tool": ToolDef(host_tool).name, "arguments": {"text": "hi"}},
+        replies,
+    )
+
+    unwound = await serve_beside_failure_monitor(service, bridge)
+
+    assert [type(ex) for ex in unwound] == [ended_by]
+    assert replies == [reply]
+    assert bridge._failure_requested.is_set() == failure_requested
+
+
 @skip_if_no_docker
 @pytest.mark.slow
 def test_sandbox_bridge_host_tool_exception_ends_the_sample() -> None:
@@ -1307,6 +1398,59 @@ def test_sandbox_bridge_host_tool_exception_ends_the_sample() -> None:
     assert log.status == "error"
     assert log.error is not None
     assert "KeyError" in log.error.message
+    assert completed == []
+
+
+def _assert_terminated_once(log: EvalLog, reason: str) -> None:
+    """The sample ended by one termination with `reason`, not in error."""
+    assert log.status == "success"
+    assert log.samples is not None
+    sample = log.samples[0]
+    assert sample.error is None, sample.error
+    assert sample.limit is not None
+    assert (sample.limit.type, sample.limit.reason) == ("operator", reason)
+    limits = [e for e in sample.events if e.event == "sample_limit"]
+    assert [(e.type, e.message) for e in limits] == [("operator", reason)]
+
+
+@skip_if_no_docker
+@pytest.mark.slow
+def test_sandbox_bridge_host_tool_terminate_ends_the_sample() -> None:
+    """A host tool's `TerminateSampleError` ends the sample as a termination.
+
+    The service dispatcher propagates it out of the service task, which unwinds
+    the bridge's task group; the sample ends normally with an operator limit, as
+    a native tool's termination does.
+    """
+    completed: list[bool] = []
+
+    @solver
+    def test_solver():
+        async def solve(state, generate):
+            async with sandbox_agent_bridge(
+                bridged_tools=[
+                    BridgedToolsSpec(
+                        name="srv",
+                        tools=[raising_tool(TerminateSampleError("tool says stop"))],
+                        require_proposal=False,
+                    )
+                ]
+            ) as bridge:
+                config = bridge.mcp_server_configs[0]
+                try:
+                    await call_mcp_tool(config, "raising_tool", {"text": "hi"})
+                except Exception:
+                    pass
+                # must not be reached: the termination unwinds the bridge
+                await anyio.sleep(30)
+                completed.append(True)
+            return state
+
+        return solve
+
+    log = eval(bridged_tools_task(test_solver()), model=get_model("mockllm/model"))[0]
+
+    _assert_terminated_once(log, "tool says stop")
     assert completed == []
 
 

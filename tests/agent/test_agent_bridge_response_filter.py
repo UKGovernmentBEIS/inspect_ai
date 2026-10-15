@@ -1103,12 +1103,17 @@ async def test_sandbox_forwarding_preserves_response_filter_limit() -> None:
 
 
 @pytest.mark.parametrize(
-    "failure", [f for f in get_args(FilterFailure) if _expected_error(f) is not None]
+    "failure",
+    [
+        f
+        for f in get_args(FilterFailure)
+        if _expected_error(f) not in (None, _expected_error("terminate"))
+    ],
 )
 async def test_sandbox_response_filter_ends_sample_through_the_monitor(
     failure: FilterFailure,
 ) -> None:
-    """A filter's termination, refusal or failure reaches the sample runner from the sandbox.
+    """A filter's refusal or failure reaches the sample runner from the sandbox.
 
     A re-raise from a sandbox model method would become an RPC error and never
     reach the sample runner, so the forwarder hands the exception to the
@@ -1126,6 +1131,21 @@ async def test_sandbox_response_filter_ends_sample_through_the_monitor(
     assert bridge._failure_requested.is_set()
     with pytest.raises(expected.error_type, match=re.escape(expected.fragment)):
         await _monitor_failure(bridge)
+
+
+async def test_sandbox_response_filter_termination_is_left_to_the_dispatcher() -> None:
+    """A filter's termination propagates from a sandbox model method.
+
+    The sandbox service dispatcher answers the RPC and propagates the
+    `TerminateSampleError` out of the service task, which ends the sample, so
+    the forwarder re-raises it rather than signalling the bridge's monitor.
+    """
+    bridge = _sandbox_bridge(_failing_response_filter("terminate"))
+    with pytest.raises(TerminateSampleError, match=TERMINATE_REASON):
+        await _forward_provider_errors(generate_completions(bridge), bridge)(
+            CHAT_REQUEST
+        )
+    assert not bridge._failure_requested.is_set()
 
 
 @pytest.mark.parametrize("source", get_args(RefusalSource))
