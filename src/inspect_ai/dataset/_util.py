@@ -13,6 +13,7 @@ from inspect_ai.model import (
     ChatMessageTool,
     ChatMessageUser,
 )
+from inspect_ai.util._checkpoint._triggers import CheckpointTrigger
 from inspect_ai.util._checkpoint.config import CheckpointSampleConfig
 from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec
 
@@ -281,6 +282,12 @@ def read_checkpoint(checkpoint: Any | None) -> CheckpointSampleConfig | None:
     literal) map to ``None``; other strings are JSON-decoded first, so a CSV
     or Hugging Face cell holding a JSON object works like an object in
     JSON/JSONL.
+
+    A non-null ``trigger`` is refused unless it is already a trigger object.
+    Turn, token and cost interval triggers all serialize as ``{"every": N}``,
+    so a serialized trigger cannot say which kind it is, and a sample trigger
+    overrides the task's. A missing or null ``trigger`` inherits the task or
+    eval trigger (or the default).
     """
     if is_none_or_nan(checkpoint):
         return None
@@ -290,6 +297,17 @@ def read_checkpoint(checkpoint: Any | None) -> CheckpointSampleConfig | None:
             if not checkpoint.strip():
                 return None
             checkpoint = json.loads(checkpoint)
+
+        trigger = checkpoint.get("trigger") if isinstance(checkpoint, dict) else None
+        if trigger is not None and not isinstance(trigger, CheckpointTrigger):
+            raise ValueError(
+                "A dataset record cannot set the checkpoint 'trigger', because turn, "
+                'token and cost interval triggers all serialize as {"every": N}. '
+                "Remove 'trigger' to inherit the task or eval trigger, set it with "
+                "Task(checkpoint=CheckpointConfig(trigger=...)) or "
+                "eval(checkpoint=...), or construct it in a custom sample_fields "
+                f"converter. Got: {trigger!r}"
+            )
 
         return _CHECKPOINT_ADAPTER.validate_python(checkpoint)
     except ValueError as ex:

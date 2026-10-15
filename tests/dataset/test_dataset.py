@@ -32,8 +32,13 @@ from inspect_ai.util import (
     CheckpointSampleConfig,
     Manual,
     SandboxSnapshotConfig,
+    TokenInterval,
+    TurnInterval,
 )
-from inspect_ai.util._checkpoint.config import merge_checkpoint_configs
+from inspect_ai.util._checkpoint.config import (
+    DEFAULT_CHECKPOINT_TRIGGER,
+    merge_checkpoint_configs,
+)
 
 T_ds = TypeVar("T_ds")
 
@@ -804,6 +809,109 @@ def test_dataset_checkpoint_merge_precedence_preserved() -> None:
         sample=loaded.checkpoint,
     )
     assert sample_wins is not None and sample_wins.max_consecutive_failures == 3
+
+
+@pytest.mark.parametrize(
+    "trigger",
+    [TokenInterval(every=500_000), TurnInterval(every=500_000)],
+    ids=["token", "turn"],
+)
+def test_dataset_checkpoint_serialized_trigger_rejected(
+    tmp_path: Path, trigger: TokenInterval | TurnInterval
+) -> None:
+    # Both serialize to {"every": 500000}; loading either would pick
+    # TurnInterval and override the task's trigger.
+    sample = Sample(
+        input="x",
+        checkpoint=CheckpointSampleConfig(trigger=trigger, max_consecutive_failures=0),
+    )
+    dataset_file = tmp_path / "dataset.jsonl"
+    dataset_file.write_text(sample.model_dump_json() + "\n")
+
+    with pytest.raises(ValueError, match="cannot set the checkpoint 'trigger'"):
+        json_dataset(str(dataset_file))
+
+
+@pytest.mark.parametrize("serialized", [False, True], ids=["dict", "json-string"])
+@pytest.mark.parametrize(
+    "trigger",
+    [
+        pytest.param({"every": 500_000}, id="int-every"),
+        pytest.param({"every": 1.5}, id="float-every"),
+        pytest.param({}, id="empty"),
+        pytest.param({"percent": 25}, id="unknown-fields"),
+        pytest.param({"every": [1]}, id="malformed-every"),
+        pytest.param("token", id="string"),
+        pytest.param(5, id="number"),
+    ],
+)
+def test_dataset_checkpoint_trigger_values_rejected(
+    trigger: object, serialized: bool
+) -> None:
+    from inspect_ai.dataset._util import record_to_sample_fn
+
+    checkpoint = {"trigger": trigger, "max_consecutive_failures": 0}
+    value = json_module.dumps(checkpoint) if serialized else checkpoint
+    with pytest.raises(ValueError, match="cannot set the checkpoint 'trigger'") as exc:
+        record_to_sample_fn(FieldSpec())({"input": "x", "checkpoint": value})
+
+    message = str(exc.value)
+    assert "Task(checkpoint=CheckpointConfig(trigger=...))" in message
+    assert "FieldSpec(checkpoint=...)" in message
+    assert "custom sample_fields converter" in message
+
+
+@pytest.mark.parametrize(
+    "checkpoint",
+    [
+        pytest.param({"max_consecutive_failures": 0}, id="missing"),
+        pytest.param({"trigger": None, "max_consecutive_failures": 0}, id="null"),
+        pytest.param(
+            '{"trigger": null, "max_consecutive_failures": 0}', id="json-string-null"
+        ),
+    ],
+)
+def test_dataset_checkpoint_missing_trigger_inherits(checkpoint: object) -> None:
+    from inspect_ai.dataset._util import record_to_sample_fn
+
+    loaded = record_to_sample_fn(FieldSpec())({"input": "x", "checkpoint": checkpoint})
+    assert not isinstance(loaded, list)
+    assert loaded.checkpoint == CheckpointSampleConfig(max_consecutive_failures=0)
+
+    task = CheckpointConfig(trigger=TurnInterval(every=3))
+    task_trigger = merge_checkpoint_configs(task=task, sample=loaded.checkpoint)
+    assert task_trigger is not None and task_trigger.trigger == TurnInterval(every=3)
+
+    eval_trigger = merge_checkpoint_configs(
+        task=task,
+        sample=loaded.checkpoint,
+        eval_=CheckpointConfig(trigger=TokenInterval(every=9)),
+    )
+    assert eval_trigger is not None and eval_trigger.trigger == TokenInterval(every=9)
+
+    default = merge_checkpoint_configs(
+        task=CheckpointConfig(), sample=loaded.checkpoint
+    )
+    assert default is not None and default.trigger == DEFAULT_CHECKPOINT_TRIGGER
+
+
+@pytest.mark.parametrize(
+    "checkpoint",
+    [
+        pytest.param(
+            CheckpointSampleConfig(trigger=TokenInterval(every=500_000)),
+            id="typed-config",
+        ),
+        pytest.param({"trigger": TokenInterval(every=500_000)}, id="typed-trigger"),
+    ],
+)
+def test_dataset_checkpoint_typed_trigger_preserved(checkpoint: object) -> None:
+    from inspect_ai.dataset._util import record_to_sample_fn
+
+    loaded = record_to_sample_fn(FieldSpec())({"input": "x", "checkpoint": checkpoint})
+    assert not isinstance(loaded, list) and loaded.checkpoint is not None
+    assert type(loaded.checkpoint.trigger) is TokenInterval
+    assert loaded.checkpoint.trigger == TokenInterval(every=500_000)
 
 
 def test_csv_checkpoint_json_object_string(tmp_path: Path) -> None:
