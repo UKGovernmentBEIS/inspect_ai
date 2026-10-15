@@ -114,7 +114,6 @@ description: Miscellaneous utility functions.
 
 ## JSON
 
-### StrEnum
 ### JSONType
 ### JSONSchema
 ### json_schema
