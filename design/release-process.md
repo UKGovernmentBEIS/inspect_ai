@@ -11,7 +11,7 @@ and published to PyPI and npm by GitHub Actions with trusted publishing.
    on any type, including `chore!:`), makes the next release a patch (0.3.x).
    Other types make no release on their own, except a commit whose message ends
    with a `Release-As: X.Y.Z` footer, which makes a release of that version. A
-   breaking change is listed under "⚠ BREAKING CHANGES" but still makes a
+   breaking change is listed under "Breaking Changes" but still makes a
    patch: the config sets `"versioning": "always-bump-patch"`, which ignores
    breaking changes when choosing the version (see [Minor or major
    release](#minor-or-major-release)). Config: `.release-please-config.json`;
@@ -20,7 +20,8 @@ and published to PyPI and npm by GitHub Actions with trusted publishing.
    which opens or updates the release PR (branch
    `release-please--branches--main`, title `chore(main): release X.Y.Z`). The
    PR bumps the manifest and adds the version's section to `CHANGELOG.md` (see
-   [Changelog](#changelog)). `release.yml` then dispatches `build.yml`,
+   [Changelog](#changelog)). `release.yml` then renames the breaking changes
+   heading (see [Changelog](#changelog)) and dispatches `build.yml`,
    `changelog-lint.yml` and `release-pr-checks.yml` on the branch. `build.yml`
    and `changelog-lint.yml` provide `main`'s required status checks, which
    every release PR needs.
@@ -58,7 +59,7 @@ as in `inspect_scout`), so the commit title is the linted PR title and the
 body is the PR description. With GitHub's default, a single-commit PR squashes
 to its commit message instead. With the setting:
 
-- a `BREAKING CHANGE:` paragraph is listed under "⚠ BREAKING CHANGES"; it
+- a `BREAKING CHANGE:` paragraph is listed under "Breaking Changes"; it
   runs to the next blank line, so it needs a blank line after it;
 - a line that starts with a Conventional Commits header (`fix: ...`) right
   after a blank line adds an entry of its own. The parser splits on a blank
@@ -78,6 +79,17 @@ except the release PR (head branch `release-please--branches--main` in this
 repository, or a dispatched run on that branch). Its check is required on
 `main`. Edits made to the release
 PR's `CHANGELOG.md` are lost the next time Release Please updates the PR.
+
+Release Please's template titles breaking changes "### ⚠ BREAKING CHANGES",
+and no config option changes it. After each Release Please run, `release.yml`
+renames that heading to "### Breaking Changes" in the release PR's body and
+in the newest section of `CHANGELOG.md` on its branch
+(`release_workflow.py breaking-changes-heading`); Release Please takes the
+GitHub Release notes from the merged PR's body. Once the body is edited,
+Release Please no longer finds the PR unchanged, so while the release has a
+breaking change every push to `main` rewrites the release PR and its checks
+run again. The step continues on error so it never blocks a publish; the next
+run renames what it missed.
 
 ## Why everything runs in `release.yml`
 
