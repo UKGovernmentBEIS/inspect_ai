@@ -62,8 +62,8 @@ is present locally, and the key and team alias tests also need
 `postgres:16` (`LITELLM_PROXY_POSTGRES_IMAGE`). Pull them once with
 `docker pull`. The live tests pass the provider keys to the proxy container:
 `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GOOGLE_API_KEY`, `GROK_API_KEY`,
-`MOONSHOT_API_KEY`, `TOGETHER_API_KEY`, and `ENABLE_BEDROCK_TESTS` with AWS
-credentials.
+`META_API_KEY`, `MOONSHOT_API_KEY`, `TOGETHER_API_KEY`, and
+`ENABLE_BEDROCK_TESTS` with AWS credentials.
 
 ## Docker
 

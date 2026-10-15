@@ -121,6 +121,8 @@ from inspect_ai.model._providers.openai_compatible import OpenAICompatibleAPI
 from inspect_ai.tool import (
     Tool,
     ToolCall,
+    ToolChoice,
+    ToolFunction,
     ToolInfo,
     ToolParam,
     ToolParams,
@@ -883,6 +885,11 @@ def _route_provider(
         ([_route_row("xai/grok-4.7", api_base=VLLM_BASE)], False),
         ([_route_row("openrouter/x-ai/grok-4.7")], False),
         ([_route_row("xai/grok-4.7"), _route_row("openai/gpt-5")], False),
+        # the Meta Model API, for every model
+        ([_route_row("meta/muse-wonder-1.0")], True),
+        ([_route_row("meta/muse-spark-1.3", api_base="https://api.meta.ai/v1")], True),
+        ([_route_row("meta/muse-wonder-1.0", api_base=VLLM_BASE)], False),
+        ([_route_row("openrouter/meta/muse-spark-1.3")], False),
     ],
 )
 def test_responses_default_route(
@@ -929,6 +936,7 @@ def test_responses_explicit_kept_for_other_routes(
         (_route_row("openai/gpt-5.5"), {"responses_api": True}, True),
         # as does Responses to xAI
         (_route_row("xai/grok-4.7"), {}, True),
+        (_route_row("meta/muse-wonder-1.0"), {}, True),
         # Responses to other upstreams doesn't (LiteLLM #43010)
         (_route_row("anthropic/claude-sonnet-5"), {"responses_api": True}, False),
         (
@@ -987,6 +995,63 @@ def test_grok_conv_id_header(
     provider = _route_provider(model_info_stub, [_route_row(model)])
     config = provider._with_grok_conv_id(GenerateConfig(extra_headers=headers))
     assert config.extra_headers == expected
+
+
+WEATHER_TOOL = ToolInfo(name="get_weather", description="Get the weather.")
+
+
+@skip_if_no_openai_package
+@pytest.mark.parametrize(
+    "tool_choice,sent_tools,sent_choice",
+    [
+        ("auto", 1, "auto"),
+        ("any", 1, "auto"),
+        (ToolFunction(name="get_weather"), 1, "auto"),
+        # the API rejects "none", so the tools are left out instead
+        ("none", 0, "none"),
+    ],
+)
+def test_meta_tool_choice(
+    model_info_stub: ModelInfoStub,
+    tool_choice: ToolChoice,
+    sent_tools: int,
+    sent_choice: ToolChoice,
+) -> None:
+    provider = _route_provider(model_info_stub, [_route_row("meta/muse-wonder-1.0")])
+    tools, choice, _ = provider.resolve_tools(
+        [WEATHER_TOOL], tool_choice, GenerateConfig()
+    )
+    assert (len(tools), choice) == (sent_tools, sent_choice)
+
+
+@skip_if_no_openai_package
+def test_meta_drops_unsupported_parameters(
+    model_info_stub: ModelInfoStub, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    warnings: list[str] = []
+    monkeypatch.setattr(inspect_logger, "_warned", [])
+    monkeypatch.setattr(litellm_proxy_module.logger, "warning", warnings.append)
+    provider = _route_provider(
+        model_info_stub, [_route_row("meta/muse-wonder-1.0")], responses_api=False
+    )
+    config = GenerateConfig(
+        logprobs=True, top_logprobs=2, stop_seqs=["x"], num_choices=2, temperature=0.5
+    )
+    _, _, resolved = provider.resolve_tools([], "none", config)
+    assert resolved.logprobs is None and resolved.top_logprobs is None
+    params = provider.completion_params(resolved, tools=False)
+    assert "stop" not in params and "n" not in params
+    assert params["temperature"] == 0.5
+    assert len(warnings) == 4
+
+
+@skip_if_no_openai_package
+def test_meta_shaping_only_for_meta(model_info_stub: ModelInfoStub) -> None:
+    provider = _route_provider(model_info_stub, [_route_row("openai/gpt-4.1")])
+    config = GenerateConfig(logprobs=True, stop_seqs=["x"])
+    tools, choice, resolved = provider.resolve_tools([WEATHER_TOOL], "any", config)
+    assert (len(tools), choice, resolved.logprobs) == (1, "any", True)
+    assert "stop" in provider.completion_params(resolved, tools=True)
 
 
 def _wire_tool_types(provider: LiteLLMProxyAPI, tools: list[Tool]) -> dict[str, str]:
@@ -1395,6 +1460,9 @@ UPSTREAM_CASES = [
     ("openai/o3", "openai/o3"),
     ("gemini/gemini-2.5-pro", "google/gemini-2.5-pro"),
     ("xai/grok-4", "grok/grok-4"),
+    ("meta/muse-spark-1.3", "meta/muse-spark-1.3"),
+    ("openrouter/meta/muse-spark-1.3", "meta/muse-spark-1.3"),
+    ("hosted_vllm/muse-spark-1.2", "meta/muse-spark-1.2"),
     ("mistral/mistral-small-2506", "mistral/mistral-small-2506"),
     ("deepseek/deepseek-reasoner", "DeepSeek/deepseek-reasoner"),
     ("moonshot/kimi-k2.6", "moonshotai/kimi-k2.6"),
@@ -2055,6 +2123,25 @@ def test_upstream_message_keeps_unparsed_message() -> None:
     assert upstream_message("litellm.BadRequestError: ") == "litellm.BadRequestError: "
 
 
+@skip_if_no_openai_package
+@pytest.mark.parametrize(
+    "message",
+    [
+        # as LiteLLM returns a non-streamed refusal (verified on 1.96 and later)
+        {"refusal": None, "provider_specific_fields": {"refusal": "No."}},
+        {"refusal": "No."},
+    ],
+)
+def test_chat_refusal_from_provider_specific_fields(message: dict[str, Any]) -> None:
+    completion = _completion({"content": None} | message)
+    [choice] = _provider().chat_choices_from_completion(completion, [])
+    assert isinstance(choice.message.content, list)
+    [content] = choice.message.content
+    assert isinstance(content, ContentText)
+    assert content.text == "No." and content.refusal
+    assert choice.stop_details is not None and choice.stop_details.type == "refusal"
+
+
 def _bad_request(message: str) -> BadRequestError:
     request = httpx2.Request("POST", "http://proxy/v1/chat/completions")
     return BadRequestError(
@@ -2163,7 +2250,8 @@ def test_provider_stream_error_xai_refusal() -> None:
 
 
 # Upstream errors and refusals through a proxy (`test_helpers.litellm_proxy.errors`):
-# the stop reason of the output, or the retry kind of the raised error.
+# the stop reason of the output, the retry kind of the raised error, or "error"
+# for an error raised and not retried.
 ERROR_EXPECTATIONS: dict[str, str] = {
     "anthropic-context": "model_length",
     "anthropic-blocked": "content_filter",
@@ -2185,6 +2273,10 @@ ERROR_EXPECTATIONS: dict[str, str] = {
     "grok-context": "model_length",
     "grok-refusal": "content_filter",
     "grok-rate-limit": "retry:rate_limit",
+    "muse-context": "error",
+    "muse-policy": "content_filter",
+    "muse-refusal": "content_filter",
+    "muse-rate-limit": "retry:rate_limit",
     "azure-content-filter": "content_filter",
 }
 
@@ -2264,7 +2356,11 @@ async def test_litellm_proxy_error_handling(
     except Exception as ex:
         output = ex
 
-    if expected.startswith("retry:"):
+    if expected == "error":
+        assert isinstance(output, Exception), output
+        decision = api.should_retry(output)
+        assert not (isinstance(decision, RetryDecision) and decision.retry), output
+    elif expected.startswith("retry:"):
         assert isinstance(output, Exception), output
         decision = api.should_retry(output)
         assert isinstance(decision, RetryDecision) and decision.retry, output
@@ -2328,6 +2424,23 @@ PARAMETER_REJECTED = (
             "'gpt-5' model. Supported values are: 'minimal', 'low', 'medium', and "
             '\'high\'.",\n    "type": "invalid_request_error",\n    "param": '
             '"reasoning.effort",\n    "code": "unsupported_value"\n  }\n}',
+            "none",
+            "value",
+        ),
+        # Meta (muse-wonder-1.0), on chat completions and Responses
+        (
+            "litellm.BadRequestError: MetaException - reasoning_effort 'none' is "
+            "not supported for model 'muse-wonder-1.0'. Supported values: "
+            "[minimal, low, medium, high, xhigh, max]",
+            "none",
+            "value",
+        ),
+        (
+            'litellm.BadRequestError: MetaException - {"error":{"code":null,'
+            '"message":"reasoning_effort \'none\' is not supported for model '
+            "'muse-wonder-1.0'. Supported values: [minimal, low, medium, high, "
+            'xhigh, max]","param":"reasoning.effort","type":'
+            '"invalid_request_error"}}',
             "none",
             "value",
         ),
@@ -2423,14 +2536,38 @@ def _xai_effort_rejection(body: dict[str, Any]) -> Reply | None:
     return Reply(400, {"code": "invalid-argument", "error": error})
 
 
+def _meta_effort_rejection(body: dict[str, Any]) -> Reply | None:
+    """Meta's rejection of `none` for muse-wonder-1.0 (verified live)."""
+    effort = (
+        body.get("reasoning_effort")
+        if "messages" in body
+        else (body.get("reasoning") or {}).get("effort")
+    )
+    if effort != "none":
+        return None
+    message = (
+        "reasoning_effort 'none' is not supported for model 'muse-wonder-1.0'. "
+        "Supported values: [minimal, low, medium, high, xhigh, max]"
+    )
+    return Reply(
+        400,
+        {"error": {"code": None, "message": message, "type": "invalid_request_error"}},
+    )
+
+
 def _strict_openai_route(request: StubRequest) -> dict[str, Any] | SSE | Reply | None:
     """The fake upstreams, plus an OpenAI model that rejects other efforts.
 
-    Also grok-4.7, which rejects `none` and `max` as xAI does.
+    Also grok-4.7, which rejects `none` and `max` as xAI does, and
+    muse-wonder-1.0, which rejects `none` as Meta does.
     """
     body = request.body or {}
     if body.get("model") == "grok-4.7":
         rejection = _xai_effort_rejection(body)
+        if rejection is not None:
+            return rejection
+    if body.get("model") == "muse-wonder-1.0":
+        rejection = _meta_effort_rejection(body)
         if rejection is not None:
             return rejection
     if body.get("model") == "strict-openai":
@@ -2480,6 +2617,7 @@ EFFORT_DEPLOYMENTS = {
     "gpt-4.1": "openai/gpt-4.1",
     "grok-4": "xai/grok-4",
     "grok-4.7": "xai/grok-4.7",
+    "muse-wonder-1.0": "meta/muse-wonder-1.0",
     "deepseek-reasoner": "deepseek/deepseek-reasoner",
     "strict-openai": "openai/strict-openai",
     # the strict fake as a codename identified by base_model
@@ -2642,6 +2780,9 @@ async def test_litellm_proxy_reasoning_effort_never_fails(
         ("grok-4.7", True, "max", "xhigh"),
         ("grok-4.7", False, "none", None),
         ("grok-4.7", True, "none", None),
+        ("muse-wonder-1.0", False, "none", None),
+        ("muse-wonder-1.0", True, "none", None),
+        ("muse-wonder-1.0", True, "max", "max"),
         ("strict-openai", False, "max", "high"),
         ("strict-openai", True, "max", "high"),
         ("strict-openai", False, "none", None),
@@ -3063,6 +3204,20 @@ async def test_litellm_proxy_codename_adaptive_thinking_flag(
         ([None, None, "claude-metis"], "anthropic"),
         (["hosted_vllm/llama-4", "claude-metis"], "anthropic"),
         (["xai/mimas"], "grok"),
+        (["meta/muse-wonder-1.0"], "meta"),
+        (["meta/nebula"], "meta"),
+        (["openrouter/meta/muse-spark-1.3"], "meta"),
+        ([None, "muse-wonder"], "meta"),
+        # another host's model named `muse-`
+        (["hosted_vllm/muse-spark-1.3"], None),
+        (["fireworks_ai/accounts/fireworks/models/muse-glimmer-30b"], None),
+        (["fireworks/muse-glimmer-30b"], None),
+        # Llama is served as open weights by many providers
+        (["meta_llama/Llama-4-Maverick-17B-128E-Instruct-FP8"], None),
+        (["together_ai/meta-llama/Llama-3.3-70B-Instruct-Turbo"], None),
+        (["vertex_ai/meta/llama-3.1-405b-instruct-maas"], None),
+        (["meta/llama-3.1-405b-instruct"], None),
+        (["nvidia_nim/meta/llama-3.1-70b-instruct"], None),
         (["openrouter/x-ai/grok-5"], "grok"),
         (["gemini/gemini-4-pro"], "google"),
         (["google/nimbus-preview"], "google"),
@@ -3091,6 +3246,7 @@ def _frontier_model(vendor: str) -> str:
         ("openai", "openai"),
         ("google", "gemini"),
         ("grok", "xai"),
+        ("meta", "meta"),
     ],
 )
 def test_frontier_base_model(vendor: Vendor, litellm_provider: str) -> None:
@@ -3668,6 +3824,7 @@ def test_env_var_fallbacks(
         ("openai/gpt-7-preview", "openai"),
         ("gemini/gemini-4-pro", "google"),
         ("xai/mimas", "grok"),
+        ("meta/nebula", "meta"),
     ],
 )
 def test_gate_suggests_frontier_base_model(
