@@ -5,7 +5,6 @@ via the MCP protocol using BridgedToolsSpec and sandbox_agent_bridge.
 """
 
 import json
-import sys
 from contextlib import contextmanager
 from pathlib import Path
 from typing import TYPE_CHECKING, Iterator
@@ -38,9 +37,6 @@ from inspect_ai.util import sandbox
 from inspect_ai.util._limit import LimitExceededError
 from inspect_ai.util._sandbox.environment import SandboxUnavailableError
 from inspect_ai.util._sandbox.limits import OutputLimitExceededError
-
-if sys.version_info < (3, 11):
-    from exceptiongroup import ExceptionGroup
 
 if TYPE_CHECKING:
     from inspect_ai.agent._bridge.sandbox.types import SandboxAgentBridge
