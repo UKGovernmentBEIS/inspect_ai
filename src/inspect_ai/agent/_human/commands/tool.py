@@ -18,7 +18,7 @@ from inspect_ai._util.content import (
 )
 from inspect_ai._util.exception import TerminateSampleError, TerminateTaskError
 from inspect_ai._util.registry import registry_unqualified_name
-from inspect_ai._util.working import sample_waiting_time
+from inspect_ai._util.working import sample_clock, sample_working_time_since
 from inspect_ai.event._tool import ToolEvent
 from inspect_ai.log._transcript import transcript
 from inspect_ai.model._call_tools import (
@@ -340,10 +340,9 @@ def tool(args):
         )
         transcript()._event(event)
 
-        # snapshot sample waiting time so nested waits (model calls, rate
-        # limits) are excluded from the event's working time, as on the
-        # model tool path
-        waiting_start = sample_waiting_time()
+        # nested waits (model calls, rate limits) are excluded from the
+        # event's working time, as on the model tool path
+        start = sample_clock()
 
         def finalize(
             result: ToolResult = "",
@@ -355,7 +354,7 @@ def tool(args):
                 result=result,
                 truncated=truncated,
                 error=error,
-                waiting_time=sample_waiting_time() - waiting_start,
+                working_time=sample_working_time_since(start),
                 agent=None,
                 failed=failed,
                 message_id=None,

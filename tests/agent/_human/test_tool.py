@@ -1034,12 +1034,20 @@ async def test_custom_viewer_applies_to_human_tool_events() -> None:
 async def test_waiting_time_excluded_from_working_time() -> None:
     """Nested waits (model calls, rate limits) are not tool working time.
 
-    Hard-coding waiting_time=0 counted a nested 50ms reported wait as
-    work; the model path snapshots sample_waiting_time() and passes the
-    delta at finalization.
+    The model path computes working time with sample_working_time_since()
+    from a sample-clock start; a nested 50ms reported wait must not count
+    as work.
     """
-    from inspect_ai._util.working import report_sample_waiting_time
+    import time
+
+    from inspect_ai._util.working import (
+        init_sample_working_time,
+        report_sample_waiting_time,
+    )
     from inspect_ai.log._transcript import Transcript, init_transcript, transcript
+
+    # waits are only tracked inside a sample
+    init_sample_working_time(time.monotonic())
 
     async def execute() -> str:
         """Wait on something reported as sample waiting.
