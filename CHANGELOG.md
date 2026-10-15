@@ -3,7 +3,7 @@
 ## [0.3.281](https://github.com/UKGovernmentBEIS/inspect_ai/compare/0.3.280...0.3.281) (2026-10-15)
 
 
-### ⚠ BREAKING CHANGES
+### Breaking Changes
 
 * require Python 3.11 and test on Python 3.14 ([#5862](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5862))
 
