@@ -1760,14 +1760,14 @@ async def test_schema_constraints_enforced_for_human_calls() -> None:
 
 
 @pytest.mark.anyio
-async def test_ordinary_exception_surfaces_and_records() -> None:
-    """A tool raising a non-ToolError surfaces a clean message and records.
+async def test_unexpected_exception_records_failed_event_and_fails() -> None:
+    """A tool raising a non-ToolError records a failed event, then fails the sample.
 
-    Raising through the sandbox-service boundary just hands the human a
-    raw RPC traceback (the boundary swallows the exception and polls
-    on), and terminating the sample would destroy hours of human work
-    over a possibly-incidental tool bug. Instead: readable CLI message,
-    failed ToolEvent in the transcript, session continues.
+    The model path raises unexpected tool exceptions out of execute_tools();
+    the human path must give the same disposition. The human gets a reply
+    (rather than a raw RPC error) and the failure is held for the human
+    agent service, which ends the sample with it (see
+    test_human_service_raises_unexpected_tool_exception).
     """
     from inspect_ai.log._transcript import Transcript, init_transcript, transcript
 
@@ -1786,7 +1786,8 @@ async def test_ordinary_exception_surfaces_and_records() -> None:
         parameters={},
     ).as_tool()
 
-    handler = ToolCommand([broken]).service(state=_agent_state())
+    command = ToolCommand([broken])
+    handler = command.service(state=_agent_state())
     init_transcript(Transcript())
     result = await handler(tool="broken", arguments={})
 
@@ -1797,6 +1798,8 @@ async def test_ordinary_exception_surfaces_and_records() -> None:
     assert events[0].error is not None
     assert "boom" in events[0].error.message
     assert events[0].failed is True
+    assert isinstance(command.failure, RuntimeError)
+    assert str(command.failure) == "boom"
 
 
 @pytest.mark.anyio
@@ -1896,3 +1899,474 @@ async def test_event_is_pending_during_execution() -> None:
     assert len(events) == 1
     assert events[0].pending is None  # finalized
     assert events[0].completed is not None
+
+
+# --- review round 2026-10: failure policy, cancellation, no_ booleans, ------
+# --- wrapped termination, per-tool max_output --------------------------------
+
+
+def _sleeper_tool(name: str, started, parallel: bool = True):
+    import anyio
+
+    async def execute() -> str:
+        """Sleep until cancelled.
+
+        Returns:
+            Never returns.
+        """
+        started.set()
+        await anyio.sleep(30)
+        return "unreachable"
+
+    return ToolDef(
+        execute,
+        name=name,
+        description="Sleep.",
+        parameters={},
+        parallel=parallel,
+    ).as_tool()
+
+
+async def _run_human_service_with(monkeypatch, commands, calls) -> None:
+    """Run run_human_agent_service() over a fake sandbox service.
+
+    The fake makes `calls` (tool name, arguments) through the "tool" service
+    method, then polls until() the way sandbox_service() does, failing if the
+    service would keep running.
+    """
+    from inspect_ai.agent._agent import AgentState
+    from inspect_ai.agent._human import service as human_service
+    from inspect_ai.log._transcript import Transcript, init_transcript
+
+    async def fake_sandbox_service(name, methods, until, sandbox, user) -> None:
+        for tool_name, arguments in calls:
+            await methods["tool"](tool=tool_name, arguments=arguments)
+        if not until():
+            raise AssertionError("human agent service kept running")
+
+    monkeypatch.setattr(human_service, "sandbox_service", fake_sandbox_service)
+    monkeypatch.setattr(human_service, "sandbox", lambda: None)
+    init_transcript(Transcript())
+    await human_service.run_human_agent_service(
+        None, AgentState(messages=[]), commands, None
+    )
+
+
+@pytest.mark.anyio
+async def test_human_service_raises_unexpected_tool_exception(monkeypatch) -> None:
+    """An unexpected tool exception ends the human agent with that exception.
+
+    Service methods run inside the sandbox service, which turns exceptions
+    into RPC errors and keeps polling, so the failure has to be raised by
+    run_human_agent_service() for the sample's error handling to see it.
+    """
+    command = ToolCommand(
+        [_raising_tool("raiser", lambda: RuntimeError("unexpected defect"))]
+    )
+    with pytest.raises(RuntimeError, match="unexpected defect"):
+        await _run_human_service_with(monkeypatch, [command], [("raiser", {})])
+
+
+@pytest.mark.anyio
+async def test_human_service_continues_after_expected_tool_error(
+    monkeypatch,
+) -> None:
+    """A ToolError stays recoverable: the service keeps running."""
+    command = ToolCommand([_raising_tool("raiser", lambda: ToolError("try again"))])
+    with pytest.raises(AssertionError, match="kept running"):
+        await _run_human_service_with(monkeypatch, [command], [("raiser", {})])
+    assert command.failure is None
+
+
+@pytest.mark.anyio
+async def test_operator_cancel_stops_hanging_tool_call(monkeypatch) -> None:
+    """cancel-tool-call stops a hanging human tool call and frees its slot.
+
+    The pending event must carry a cancel hook (the control resolver rejects
+    events without one), the call must finish as the operator-cancel timeout
+    the model path records, and a serial call must release the scheduler so
+    the next call runs.
+    """
+    from types import SimpleNamespace
+
+    import anyio
+
+    from inspect_ai._control import cancel as control_cancel
+    from inspect_ai._control import state as control_state
+    from inspect_ai.log._transcript import Transcript, init_transcript, transcript
+
+    started = anyio.Event()
+    handler = ToolCommand(
+        [_sleeper_tool("sleeper", started, parallel=False), _addition()]
+    ).service(state=_agent_state())
+    init_transcript(Transcript())
+
+    sample = SimpleNamespace(
+        completed=None, transcript=transcript(), sample=SimpleNamespace(id=1), epoch=1
+    )
+    monkeypatch.setattr(
+        control_state, "find_active_sample", lambda *args, **kwargs: sample
+    )
+
+    results: dict = {}
+
+    async def call() -> None:
+        results["sleeper"] = await handler(tool="sleeper", arguments={})
+
+    with anyio.fail_after(10):
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(call)
+            await started.wait()
+            response = await control_cancel.cancel_tool_call("eval", "1", 1)
+            assert response is not None
+            assert response.get("ok") is True, response
+            assert response.get("changed") is True, response
+
+        # the serial slot was released: the next call runs
+        assert await handler(tool="_addition", arguments={"x": 1, "y": 2}) == "3"
+
+    assert "timed out" in results["sleeper"]
+    event = next(
+        e for e in transcript().events if e.event == "tool" and e.function == "sleeper"
+    )
+    assert event.pending is None
+    assert event.cancelled
+    assert event.error is not None and event.error.type == "timeout"
+    assert event.failed is None
+
+
+@pytest.mark.anyio
+async def test_tui_cancel_stops_hanging_tool_call() -> None:
+    """The TUI timeout control calls ToolEvent._cancel() directly."""
+    import anyio
+
+    from inspect_ai.log._transcript import Transcript, init_transcript, transcript
+
+    started = anyio.Event()
+    handler = ToolCommand([_sleeper_tool("sleeper", started)]).service(
+        state=_agent_state()
+    )
+    init_transcript(Transcript())
+
+    results: dict = {}
+
+    async def call() -> None:
+        results["sleeper"] = await handler(tool="sleeper", arguments={})
+
+    with anyio.fail_after(10):
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(call)
+            await started.wait()
+            event = next(e for e in transcript().events if e.event == "tool")
+            event._cancel()
+
+    assert "timed out" in results["sleeper"]
+    assert event.pending is None
+    assert event.error is not None and event.error.type == "timeout"
+
+
+def _no_cache_tool():
+    async def execute(no_cache: bool = False) -> str:
+        """Report the flag.
+
+        Args:
+            no_cache: Skip the cache.
+
+        Returns:
+            The value received.
+        """
+        return str(no_cache)
+
+    return ToolDef(
+        execute,
+        name="fetch",
+        description="Report the flag.",
+        parameters={"no_cache": "Skip the cache."},
+    ).as_tool()
+
+
+def test_boolean_param_named_no_x_has_true_and_false_flags() -> None:
+    """`no_cache: bool` needs a flag that sends True and one that sends False.
+
+    BooleanOptionalAction infers False from any option starting --no-, so
+    --no-cache and --no-no-cache both sent False (and Python 3.14 refuses
+    to build such an option at all, taking down the whole generated CLI).
+    """
+    parser, _ = _build_parsers([_no_cache_tool()])
+    assert _handler_kwargs(parser, ["tool", "fetch", "--no-cache"]) == {
+        "no_cache": True
+    }
+    assert _handler_kwargs(parser, ["tool", "fetch", "--no-no-cache"]) == {
+        "no_cache": False
+    }
+    assert _handler_kwargs(parser, ["tool", "fetch"]) == {}
+
+
+def test_boolean_cli_does_not_use_boolean_optional_action() -> None:
+    """Generated code must not depend on BooleanOptionalAction.
+
+    Its --no- prefix inference is the ambiguity above, and on Python 3.14 it
+    raises ValueError at parser construction for an option starting --no-.
+    """
+    code = ToolCommand([_no_cache_tool(), _format_text()]).get_cli_parser_code()
+    assert "BooleanOptionalAction" not in code
+
+
+def test_boolean_true_false_flags_are_mutually_exclusive() -> None:
+    parser, _ = _build_parsers([_format_text()])
+    with pytest.raises(SystemExit):
+        parser.parse_args(
+            ["tool", "_format_text", "--text", "hi", "--reverse", "--no-reverse"]
+        )
+
+
+def test_nullable_boolean_has_true_false_and_null_flags() -> None:
+    async def execute(flag: bool | None = None) -> str:
+        """Report the flag.
+
+        Args:
+            flag: A nullable boolean.
+
+        Returns:
+            The value received.
+        """
+        return str(flag)
+
+    nullable = ToolDef(
+        execute,
+        name="nullable",
+        description="Report the flag.",
+        parameters={"flag": "A nullable boolean."},
+    ).as_tool()
+    parser, _ = _build_parsers([nullable])
+    assert _handler_kwargs(parser, ["tool", "nullable", "--flag"]) == {"flag": True}
+    assert _handler_kwargs(parser, ["tool", "nullable", "--no-flag"]) == {"flag": False}
+    assert _handler_kwargs(parser, ["tool", "nullable", "--null-flag"]) == {
+        "flag": None
+    }
+    with pytest.raises(SystemExit):
+        parser.parse_args(["tool", "nullable", "--flag", "--null-flag"])
+
+
+def test_required_boolean_requires_one_of_its_flags() -> None:
+    async def execute(confirm: bool) -> str:
+        """Report the flag.
+
+        Args:
+            confirm: A required boolean.
+
+        Returns:
+            The value received.
+        """
+        return str(confirm)
+
+    required = ToolDef(
+        execute,
+        name="required",
+        description="Report the flag.",
+        parameters={"confirm": "A required boolean."},
+    ).as_tool()
+    parser, _ = _build_parsers([required])
+    with pytest.raises(SystemExit):
+        parser.parse_args(["tool", "required"])
+    assert _handler_kwargs(parser, ["tool", "required", "--no-confirm"]) == {
+        "confirm": False
+    }
+
+
+def _service_dispatch(method, params: dict) -> tuple:
+    """Dispatch one request through SandboxService._handle_request().
+
+    Returns the (result, error) response, with request reads and response
+    writes served in memory.
+    """
+    import json
+    from typing import cast
+
+    from inspect_ai.util._sandbox.environment import SandboxEnvironment
+    from inspect_ai.util._sandbox.service import SandboxService
+    from inspect_ai.util._subprocess import ExecResult
+
+    request_id = "11111111-2222-3333-4444-555555555555"
+    service = SandboxService(
+        name="human_agent", sandbox=cast(SandboxEnvironment, object())
+    )
+    service._requests_dir = "/svc/requests"
+    service._responses_dir = "/svc/responses"
+    service.add_method("tool", method)
+    request = json.dumps({"id": request_id, "method": "tool", "params": params})
+    responses: list[tuple] = []
+
+    async def exec(cmd: list[str], **kwargs) -> ExecResult[str]:
+        assert cmd[0] == "cat", cmd
+        return ExecResult(success=True, returncode=0, stdout=request, stderr="")
+
+    async def write_response(request_file, response_id, result, error=None) -> None:
+        responses.append((result, error))
+
+    setattr(service, "_exec", exec)
+    setattr(service, "_write_response", write_response)
+    return service, f"/svc/requests/{request_id}.json", responses
+
+
+def _wrapped_termination_tool(shape: str):
+    import anyio
+
+    from inspect_ai._util.exception import TerminateSampleError
+
+    async def execute() -> str:
+        """Raise a termination wrapped in an expected tool error.
+
+        Returns:
+            Never returns.
+        """
+        if shape == "cause":
+            try:
+                raise TerminateSampleError("must stop")
+            except TerminateSampleError as ex:
+                raise ToolError("outer expected failure") from ex
+        elif shape == "group":
+
+            async def terminate() -> None:
+                raise TerminateSampleError("must stop")
+
+            async def tool_error() -> None:
+                raise ToolError("outer expected failure")
+
+            async with anyio.create_task_group() as tg:
+                tg.start_soon(tool_error)
+                tg.start_soon(terminate)
+        return "unreachable"
+
+    return ToolDef(
+        execute, name="wrapper", description="Wrap a termination.", parameters={}
+    ).as_tool()
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("shape", ["cause", "group"])
+async def test_wrapped_termination_ends_sample_through_dispatcher(shape) -> None:
+    """A TerminateSampleError wrapped by a ToolError (or grouped) still terminates.
+
+    The dispatcher treats termination as sticky across the exception's
+    causal history; reducing the exception to one expected ToolError
+    before checking for termination consumed it.
+    """
+    from inspect_ai._util.exception import TerminateSampleError
+    from inspect_ai.log._transcript import Transcript, init_transcript, transcript
+
+    handler = ToolCommand([_wrapped_termination_tool(shape)]).service(
+        state=_agent_state()
+    )
+    init_transcript(Transcript())
+    service, request_file, responses = _service_dispatch(
+        handler, {"tool": "wrapper", "arguments": {}}
+    )
+    with pytest.raises(TerminateSampleError, match="must stop"):
+        await service._handle_request(request_file)
+
+    assert len(responses) == 1
+    assert responses[0][1] is not None and "must stop" in responses[0][1]
+    event = next(e for e in transcript().events if e.event == "tool")
+    assert event.pending is None
+
+
+def _sized_tool(name: str, result, max_output: int | None = None):
+    async def execute() -> object:
+        """Return a fixed result.
+
+        Returns:
+            The result.
+        """
+        return result
+
+    return ToolDef(
+        execute,
+        name=name,
+        description="Return a fixed result.",
+        parameters={},
+        max_output=max_output,
+    ).as_tool()
+
+
+@pytest.mark.anyio
+async def test_tool_max_output_caps_human_result() -> None:
+    """A tool's own max_output applies to human calls as it does to model calls."""
+    from inspect_ai.log._transcript import Transcript, init_transcript, transcript
+
+    handler = ToolCommand([_sized_tool("small", "x" * 80, max_output=8)]).service(
+        state=_agent_state()
+    )
+    init_transcript(Transcript())
+    result = str(await handler(tool="small", arguments={}))
+
+    assert "x" * 80 not in result
+    assert "truncated" in result
+    event = next(e for e in transcript().events if e.event == "tool")
+    assert event.truncated == (80, 8)
+
+
+@pytest.mark.anyio
+async def test_tool_max_output_raises_human_limit() -> None:
+    """A tool allowed more than the default limit is not cut to the default."""
+    from inspect_ai.log._transcript import Transcript, init_transcript, transcript
+
+    big = "x" * (32 * 1024)
+    handler = ToolCommand([_sized_tool("big", big, max_output=64 * 1024)]).service(
+        state=_agent_state()
+    )
+    init_transcript(Transcript())
+    result = await handler(tool="big", arguments={})
+
+    assert result == big
+    event = next(e for e in transcript().events if e.event == "tool")
+    assert event.truncated is None
+
+
+@pytest.mark.anyio
+async def test_tool_max_output_caps_expected_error_partial() -> None:
+    from inspect_ai.log._transcript import Transcript, init_transcript, transcript
+    from inspect_ai.util import OutputLimitExceededError
+
+    async def execute() -> str:
+        """Hit an output limit with a partial result.
+
+        Returns:
+            Never returns.
+        """
+        raise OutputLimitExceededError("1 MiB", "y" * 80)
+
+    limited = ToolDef(
+        execute,
+        name="limited",
+        description="Hit an output limit.",
+        parameters={},
+        max_output=8,
+    ).as_tool()
+    handler = ToolCommand([limited]).service(state=_agent_state())
+    init_transcript(Transcript())
+    result = str(await handler(tool="limited", arguments={}))
+
+    assert "y" * 80 not in result
+    event = next(e for e in transcript().events if e.event == "tool")
+    assert event.truncated == (80, 8)
+
+
+@pytest.mark.anyio
+async def test_tool_max_output_caps_structured_terminal_rendering() -> None:
+    """Structured content is kept in the event; its terminal text uses the tool limit."""
+    from inspect_ai.log._transcript import Transcript, init_transcript, transcript
+
+    content = [ContentText(text="z" * 80), ContentImage(image="data:image/png;base64,")]
+    handler = ToolCommand([_sized_tool("mixed", content, max_output=8)]).service(
+        state=_agent_state()
+    )
+    init_transcript(Transcript())
+    result = str(await handler(tool="mixed", arguments={}))
+
+    assert "z" * 80 not in result
+    assert "truncated" in result
+    event = next(e for e in transcript().events if e.event == "tool")
+    assert isinstance(event.result, list)
+    assert isinstance(event.result[0], ContentText)
+    assert event.result[0].text == "z" * 80

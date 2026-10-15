@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import contextlib
 import json
-import logging
 import math
 from argparse import Namespace
 from textwrap import dedent
@@ -16,7 +15,6 @@ from inspect_ai._util.content import (
     ContentBase,
     ContentText,
 )
-from inspect_ai._util.exception import TerminateSampleError, TerminateTaskError
 from inspect_ai._util.registry import registry_unqualified_name
 from inspect_ai._util.working import sample_clock, sample_working_time_since
 from inspect_ai.event._tool import ToolEvent
@@ -36,13 +34,12 @@ from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.util._anyio import inner_exception
 from inspect_ai.util._limit import LimitExceededError
 from inspect_ai.util._sandbox.limits import OutputLimitExceededError
+from inspect_ai.util._sandbox.service import find_control_flow
 from inspect_ai.util._span import span
 
 from ..._handoff import AgentTool
 from ..state import HumanAgentState
 from .command import HumanAgentCommand
-
-logger = logging.getLogger(__name__)
 
 
 class _ToolScheduler:
@@ -71,9 +68,11 @@ class _ToolScheduler:
             try:
                 yield
             finally:
-                async with self._condition:
-                    self._parallel_active -= 1
-                    self._condition.notify_all()
+                # shielded: a cancelled call must still release its slot
+                with anyio.CancelScope(shield=True):
+                    async with self._condition:
+                        self._parallel_active -= 1
+                        self._condition.notify_all()
         else:
             async with self._condition:
                 while self._serial_active or self._parallel_active > 0:
@@ -82,9 +81,22 @@ class _ToolScheduler:
             try:
                 yield
             finally:
-                async with self._condition:
-                    self._serial_active = False
-                    self._condition.notify_all()
+                with anyio.CancelScope(shield=True):
+                    async with self._condition:
+                        self._serial_active = False
+                        self._condition.notify_all()
+
+
+# JSON value converter for structured parameters (argparse turns
+# ArgumentTypeError into a standard usage error naming the flag)
+_JSON_ARG_CODE = dedent("""
+    def _json_arg(value):
+        import json
+        try:
+            return json.loads(value)
+        except json.JSONDecodeError as ex:
+            raise argparse.ArgumentTypeError(f"invalid JSON: {ex}")
+    """).strip()
 
 
 def _omitted(kind: str) -> str:
@@ -97,9 +109,10 @@ def _validate_cli_flags(tool_def: ToolDef) -> None:
 
     Argparse raises at parser *construction* on a duplicate option string,
     which bricks the entire generated CLI (including `task submit`), so
-    collisions must be rejected host-side before install. Two sources:
-    argparse's automatic -h/--help, and the --no-<flag> negative alias that
-    BooleanOptionalAction generates for boolean parameters.
+    collisions must be rejected host-side before install. Sources:
+    argparse's automatic -h/--help, the --no-<flag> false flag generated
+    for boolean parameters, and the --null-<flag> flag generated for
+    nullable parameters.
     """
     flags: dict[str, str] = {"--help": "argparse help", "-h": "argparse help"}
     for name, schema in tool_def.parameters.properties.items():
@@ -126,6 +139,31 @@ def _validate_cli_flags(tool_def: ToolDef) -> None:
                     f"CLI flag '{flag}', which collides with {flags[flag]}."
                 )
             flags[flag] = f"parameter '{name}'"
+
+
+def _validate_parser_builds(tool_def: ToolDef) -> None:
+    """Fail closed if the tool's generated parser cannot be constructed.
+
+    Builds the generated subparser host-side, so anything argparse rejects
+    when the sandbox CLI loads is caught before install rather than
+    breaking every `task` command.
+    """
+    import argparse
+
+    parser_code, _ = generate_tool_parser(
+        tool_def.name, tool_def.description, tool_def.parameters, "parser_0"
+    )
+    tool_subparsers = argparse.ArgumentParser().add_subparsers()
+    try:
+        exec(
+            compile(f"{_JSON_ARG_CODE}\n{parser_code}", "<generated>", "exec"),
+            {"argparse": argparse, "tool_subparsers": tool_subparsers},
+        )
+    except Exception as ex:
+        raise ValueError(
+            f"Tool '{tool_def.name}' cannot be offered via `task tool`: "
+            f"its generated command-line parser fails to build ({ex})."
+        ) from ex
 
 
 def tool_result_to_str(result: ToolResult) -> str:
@@ -165,6 +203,7 @@ class ToolCommand(HumanAgentCommand):
 
     def __init__(self, tools: list[Tool]):
         self._tools = tools
+        self._failure: Exception | None = None
         self._tool_defs: dict[str, ToolDef] = {}
         self._tool_map: dict[str, Tool] = {}
         for tool in tools:
@@ -195,6 +234,7 @@ class ToolCommand(HumanAgentCommand):
             if tool_def.name in self._tool_defs:
                 raise ValueError(f"Duplicate tool name '{tool_def.name}'.")
             _validate_cli_flags(tool_def)
+            _validate_parser_builds(tool_def)
             self._tool_defs[tool_def.name] = tool_def
             self._tool_map[tool_def.name] = tool
 
@@ -211,6 +251,18 @@ class ToolCommand(HumanAgentCommand):
         return 2
 
     @property
+    def failure(self) -> Exception | None:
+        """Unexpected exception from a tool call, which must fail the sample.
+
+        Service methods run inside the sandbox service, which turns their
+        exceptions into RPC error replies and keeps serving, so raising one
+        cannot end the sample. The human agent service polls this and
+        raises it instead (see `run_human_agent_service()`). The first
+        failure is kept.
+        """
+        return self._failure
+
+    @property
     def cli_args(self) -> list[HumanAgentCommand.CLIArg]:
         # No static args - we use dynamic per-tool subparsers
         return []
@@ -224,18 +276,7 @@ class ToolCommand(HumanAgentCommand):
         """
         lines: list[str] = []
 
-        # JSON value converter for structured parameters (argparse turns
-        # ArgumentTypeError into a standard usage error naming the flag)
-        lines.append(
-            dedent("""
-            def _json_arg(value):
-                import json
-                try:
-                    return json.loads(value)
-                except json.JSONDecodeError as ex:
-                    raise argparse.ArgumentTypeError(f"invalid JSON: {ex}")
-            """).strip()
-        )
+        lines.append(_JSON_ARG_CODE)
 
         # Create main tool parser with subparsers
         lines.append(
@@ -291,6 +332,7 @@ def tool(args):
 
     def service(self, state: HumanAgentState) -> Callable[..., Awaitable[JsonValue]]:
         scheduler = _ToolScheduler()
+        self._failure = None
 
         # Tool arguments arrive as a single dict, out-of-band of this
         # function's own parameters — no tool argument name can collide
@@ -331,6 +373,10 @@ def tool(args):
             if tool in self._tool_defs
             else None
         )
+        # operator cancellation (`inspect ctl sample cancel-tool-call`, the
+        # TUI's timeout control) cancels this scope; the hook must be on the
+        # event before it is published as pending
+        cancel_scope = anyio.CancelScope()
         event = ToolEvent(
             id=call_id,
             function=tool,
@@ -338,6 +384,7 @@ def tool(args):
             view=view,
             pending=True,
         )
+        event._set_cancel_fn(cancel_scope.cancel)
         transcript()._event(event)
 
         # nested waits (model calls, rate limits) are excluded from the
@@ -388,73 +435,103 @@ def tool(args):
             finalize(error=ToolCallError("parsing", str(e)))
             return f"Error parsing tool arguments: {e}"
 
-        try:
-            result = await tool_fn(**params)
-        except BaseException as raw_ex:
-            if not isinstance(raw_ex, Exception):
-                # cancellation (anyio) derives from BaseException — finalize
-                # so the event doesn't stay pending forever, then re-raise
-                finalize(error=ToolCallError("unknown", "Tool call was cancelled."))
+        # the tool's own max_output wins over the generate config, as on
+        # the model path
+        max_output = self._tool_defs[tool].max_output
+
+        with cancel_scope:
+            try:
+                result = await tool_fn(**params)
+            except Exception as ex:
+                return self._tool_exception(tool, ex, max_output, finalize)
+            except BaseException:
+                # outer cancellation (the service shutting down) or another
+                # BaseException: finalize so the event doesn't stay pending
+                # forever, then re-raise. An operator cancel of this call is
+                # absorbed by cancel_scope and finalized below.
+                if not cancel_scope.cancel_called:
+                    finalize(error=ToolCallError("unknown", "Tool call was cancelled."))
                 raise
 
-            # normalize before classifying, as the model path does — anyio
-            # task groups wrap child exceptions in ExceptionGroups (nested
-            # included), and classification must see the real exception
-            ex = inner_exception(raw_ex)
-
-            if isinstance(ex, (TerminateSampleError, TerminateTaskError)):
-                # control flow: propagate through the sandbox-service
-                # boundary (which enacts termination) after recording
-                finalize(error=ToolCallError("unknown", str(ex)))
-                raise ex from raw_ex
-
-            # shared classification with the model tool path — the same
-            # exception yields the same ToolCallError on both paths
-            # (unexpected exceptions come back None and get human policy)
-            classified = classify_tool_exception(ex, tool)
-
-            if classified is None:
-                # unexpected exceptions must not end the human's session (a
-                # human, unlike a model sample, can read the error and work
-                # around a broken tool — and raising here just yields a raw
-                # RPC traceback anyway, as the sandbox-service boundary
-                # swallows exceptions and keeps polling). Surface a clean
-                # message; the failed ToolEvent and this warning keep the
-                # breakage visible to analysts and operators.
-                logger.warning(f"Error executing human agent tool '{tool}': {ex}")
-                finalize(error=ToolCallError("unknown", str(ex)), failed=True)
-                return f"Error executing tool '{tool}': {ex}"
-
-            if isinstance(ex, LimitExceededError) and not isinstance(
-                ex, OutputLimitExceededError
-            ):
-                # disposition differs from the model path by design: the
-                # sample-ending mechanism for human agents is the sandbox-
-                # service boundary, so record (with the shared "limit"
-                # classification) and propagate
-                finalize(error=classified.error)
-                raise ex from raw_ex
-
-            # expected tool failure: record the shared classification and
-            # surface the message (plus any partial output — sandbox
-            # timeouts and output-limit hits carry one — routed through the
-            # shared truncation so a 10 MiB partial can't flood anything)
-            content, truncated = resolve_tool_content(classified.result, tool, None)
-            finalize(result=content, error=classified.error, truncated=truncated)
-            partial = content if isinstance(content, str) and content else ""
-            message = f"Error: {classified.error.message}"
-            return f"{message}\n{partial}" if partial else message
+        if cancel_scope.cancelled_caught:
+            # same outcome the model path records for an operator cancel
+            finalize(
+                error=ToolCallError("timeout", "Command timed out before completing.")
+            )
+            return "Error: Command timed out before completing."
 
         # success: shared massaging/truncation — structured content is
         # preserved in the event untruncated (the terminal rendering is
         # capped separately below)
-        content, truncated = resolve_tool_content(result, tool, None)
+        content, truncated = resolve_tool_content(result, tool, max_output)
         finalize(result=content, truncated=truncated)
         if isinstance(content, str):
             return content
         rendered = tool_result_to_str(result)
-        rendered_truncated = truncate_tool_output(tool, rendered, None)
+        rendered_truncated = truncate_tool_output(tool, rendered, max_output)
         return rendered_truncated.output if rendered_truncated else rendered
+
+    def _tool_exception(
+        self,
+        tool: str,
+        raw_ex: Exception,
+        max_output: int | None,
+        finalize: Callable[..., None],
+    ) -> str:
+        """Record a tool exception and apply the model path's disposition.
+
+        Sample termination anywhere in the exception's history and limits
+        propagate to the sandbox service, which enacts them. Expected tool
+        errors are returned to the human. Unexpected exceptions are held as
+        `failure`, which fails the sample.
+        """
+        # the service treats termination as sticky across the whole causal
+        # history (group leaves, causes, context), so check that before
+        # reducing the exception to a single classification
+        control = find_control_flow(raw_ex)
+        if control is not None:
+            finalize(error=ToolCallError("unknown", str(control)))
+            raise raw_ex
+
+        # normalize before classifying, as the model path does — anyio
+        # task groups wrap child exceptions in ExceptionGroups (nested
+        # included), and classification must see the real exception
+        ex = inner_exception(raw_ex)
+
+        # shared classification with the model tool path — the same
+        # exception yields the same ToolCallError on both paths
+        classified = classify_tool_exception(ex, tool)
+
+        if classified is None:
+            # unexpected: the model path raises these out of execute_tools()
+            # and the sample fails. Reply to the human first, then let the
+            # human agent service raise it.
+            finalize(error=ToolCallError("unknown", str(ex)), failed=True)
+            if self._failure is None:
+                self._failure = ex
+            return (
+                f"Error executing tool '{tool}': {ex}\n"
+                "This is an unexpected error, so the sample will end with it."
+            )
+
+        if isinstance(ex, LimitExceededError) and not isinstance(
+            ex, OutputLimitExceededError
+        ):
+            # the sandbox service routes a LimitExceededError to the active
+            # sample, so record (with the shared "limit" classification) and
+            # propagate
+            finalize(error=classified.error)
+            raise ex from raw_ex
+
+        # expected tool failure: record the shared classification and
+        # surface the message (plus any partial output — sandbox
+        # timeouts and output-limit hits carry one — routed through the
+        # shared truncation so a 10 MiB partial can't flood anything)
+        content, truncated = resolve_tool_content(classified.result, tool, max_output)
+        finalize(result=content, error=classified.error, truncated=truncated)
+        partial = content if isinstance(content, str) and content else ""
+        message = f"Error: {classified.error.message}"
+        return f"{message}\n{partial}" if partial else message
 
 
 class ParamInfo(NamedTuple):
@@ -611,6 +688,41 @@ def _example_is_valid(instance: Any, schema: dict[str, Any]) -> bool:
         return False
 
 
+def _boolean_argument_lines(parser_var: str, name: str, info: ParamInfo) -> list[str]:
+    """Generated code for a boolean parameter: --<name> and --no-<name>.
+
+    Each flag stores an explicit constant, so a parameter whose own name
+    starts with `no_` still gets an unambiguous pair (`no_cache` gets
+    --no-cache for true and --no-no-cache for false). argparse's
+    BooleanOptionalAction infers false from a --no- prefix instead, and
+    Python 3.14 rejects it outright for such options. The flags (plus
+    --null-<name> for a nullable parameter) form a mutually exclusive group
+    that carries requiredness. Absent flags are suppressed from the
+    namespace so the tool's own default applies.
+    """
+    arg_name = name.replace("_", "-")
+    dest = f"arg_{name}"
+    help_text = (info.description or "").replace("%", "%%")
+    flags: list[tuple[str, bool | None, str]] = [
+        (f"--{arg_name}", True, help_text),
+        (f"--no-{arg_name}", False, f"send false for {name}"),
+    ]
+    if info.is_optional:
+        flags.append((f"--null-{arg_name}", None, f"send null for {name}"))
+    lines = [
+        f"_group = {parser_var}.add_mutually_exclusive_group("
+        f"required={info.is_required})"
+    ]
+    for flag, const, flag_help in flags:
+        help_part = f", help={flag_help!r}" if flag_help else ""
+        lines.append(
+            f"_group.add_argument({flag!r}, dest={dest!r}, "
+            f"action='store_const', const={const!r}, "
+            f"default=argparse.SUPPRESS{help_part})"
+        )
+    return lines
+
+
 def generate_tool_parser(
     tool_name: str,
     tool_description: str,
@@ -667,6 +779,11 @@ def generate_tool_parser(
     # Generate arguments in declaration order (all as named args)
     for name, info in param_infos.items():
         arg_name = name.replace("_", "-")
+
+        if info.schema_type == "boolean":
+            lines.extend(_boolean_argument_lines(parser_var, name, info))
+            continue
+
         parts: list[str] = []
 
         # Always use named args (--x, --y); dests are prefixed so tool
@@ -681,11 +798,6 @@ def generate_tool_parser(
             parts.append("type=int")
         elif info.schema_type == "number":
             parts.append("type=float")
-        elif info.schema_type == "boolean":
-            # --flag / --no-flag pair; absent flags are suppressed from the
-            # namespace so the tool's own default applies (an absent flag
-            # must not silently send False to a tool whose default is True)
-            parts.append("action=argparse.BooleanOptionalAction")
         elif info.schema_type == "json":
             # structured parameter: the flag's value is JSON ('null' included)
             parts.append("type=_json_arg")
@@ -694,7 +806,7 @@ def generate_tool_parser(
         # Enum/choices
         if info.enum:
             parts.append(f"choices={info.enum!r}")
-        elif info.schema_type not in ("boolean", "json"):
+        elif info.schema_type != "json":
             # metavar must come from the parameter name — argparse would
             # otherwise derive it from the internal prefixed dest (ARG_X)
             parts.append(f"metavar={name.upper()!r}")
