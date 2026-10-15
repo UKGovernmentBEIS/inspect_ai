@@ -38,6 +38,7 @@ from inspect_ai.event._pool import (
     CallMessageKey,
     _build_call_index,
     _build_msg_index,
+    _strict_eq,
     _strict_eq_prefix_len,
     condense_model_event_calls,
     condense_model_event_inputs,
@@ -1330,7 +1331,9 @@ def walk_chat_message(
         hit = cache.get(message.id)
         if hit is not None:
             pre_walk, walked = hit
-            if pre_walk is message or pre_walk == message:
+            if pre_walk is message or (
+                pre_walk == message and _strict_eq(pre_walk, message)
+            ):
                 return walked
     if isinstance(message.content, str):
         res = message.model_copy(update=dict(content=content_fn(message.content)))

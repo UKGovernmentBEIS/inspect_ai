@@ -32,7 +32,7 @@ if TYPE_CHECKING:
     from inspect_ai.tool import ToolInfo
 
 import anyio
-from pydantic import BaseModel
+from pydantic import BaseModel, JsonValue, TypeAdapter, ValidationError
 from pydantic_core import to_jsonable_python
 from shortuuid import uuid
 from tenacity import (
@@ -2995,6 +2995,11 @@ def _snapshot_messages(messages: list[ChatMessage]) -> list[ChatMessage]:
     share the objects of unchanged messages, which keeps memory proportional
     to message versions and lets the log's message pool dedup them by
     identity.
+
+    Raises:
+        TypeError: A message's metadata holds something other than JSON data.
+            The match check compares JSON data only; objects such as slotted
+            dataclasses or models with extra fields would compare wrongly.
     """
     from inspect_ai.event._pool import _strict_eq
 
@@ -3004,11 +3009,32 @@ def _snapshot_messages(messages: list[ChatMessage]) -> list[ChatMessage]:
             _message_snapshots.get(message.id) if message.id is not None else None
         )
         if snapshot is None or not _strict_eq(snapshot, message):
+            _check_metadata_is_json(message)
             snapshot = message.model_copy(deep=True)
             if message.id is not None:
                 _message_snapshots[message.id] = snapshot
         snapshots.append(snapshot)
     return snapshots
+
+
+_json_value_adapter: TypeAdapter[JsonValue] = TypeAdapter(JsonValue)
+
+
+def _check_metadata_is_json(message: ChatMessage) -> None:
+    if message.metadata is None:
+        return
+    try:
+        _json_value_adapter.validate_python(message.metadata)
+    except ValidationError as ex:
+        error = ex.errors()[0]
+        # locations alternate a JSON type tag with a key or index
+        path = "".join(f"[{key!r}]" for key in error["loc"][1::2])
+        raise TypeError(
+            f"Message metadata must be JSON data (dicts with string keys, lists, "
+            f"strings, numbers, booleans and None), but metadata{path} has type "
+            f"{type(error['input']).__name__}. Convert it to plain data first, "
+            f"for example with model_dump() or dataclasses.asdict()."
+        ) from ex
 
 
 @contextlib.contextmanager

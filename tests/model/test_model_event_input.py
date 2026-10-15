@@ -1,5 +1,11 @@
 """`ModelEvent.input` records the messages as they were when the model was called."""
 
+from dataclasses import dataclass
+from typing import Any
+
+import pytest
+from pydantic import BaseModel, ConfigDict
+
 from inspect_ai.event._model import ModelEvent
 from inspect_ai.log._transcript import Transcript, init_transcript, transcript
 from inspect_ai.model import (
@@ -92,3 +98,23 @@ async def test_model_event_input_snapshot_with_event_sink() -> None:
     assert len(sink.events) == 1
     _assert_original(sink.events[0].input[2])
     assert _model_events() == []
+
+
+@dataclass(slots=True)
+class _SlottedState:
+    step: int
+
+
+class _ExtraState(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+
+@pytest.mark.parametrize(
+    "value", [_SlottedState(step=1), _ExtraState.model_validate({"step": 1})]
+)
+async def test_model_event_input_refuses_object_metadata(value: Any) -> None:
+    init_transcript(Transcript())
+    message = ChatMessageUser(content="hi", metadata={"state": value})
+
+    with pytest.raises(TypeError, match=r"metadata\['state'\] has type"):
+        await get_model("mockllm/model").generate([message])

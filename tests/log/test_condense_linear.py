@@ -42,16 +42,27 @@ from pydantic import JsonValue
 from inspect_ai.event._event import Event
 from inspect_ai.event._model import ModelEvent
 from inspect_ai.event._validate import validate_chat_messages
-from inspect_ai.log._condense import condense_events, condense_sample, expand_events
+from inspect_ai.log._condense import (
+    condense_events,
+    condense_sample,
+    expand_events,
+    resolve_sample_attachments,
+)
 from inspect_ai.log._log import EvalSample, EvalSampleSummary
 from inspect_ai.log._recorders.buffer import SampleBufferDatabase
 from inspect_ai.log._recorders.types import SampleEvent
 from inspect_ai.log._transcript import Transcript
 from inspect_ai.log._transcript_store import TranscriptEventStore
-from inspect_ai.model._chat_message import ChatMessage, ChatMessageBase, ChatMessageUser
+from inspect_ai.model._chat_message import (
+    ChatMessage,
+    ChatMessageAssistant,
+    ChatMessageBase,
+    ChatMessageUser,
+)
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model_call import ModelCall
 from inspect_ai.model._model_output import ModelOutput
+from inspect_ai.tool._tool_call import ToolCall
 
 N_EVENTS = 100
 ATTACHABLE = "x" * 150  # > events_attachment_fn's 100-char attachment threshold
@@ -560,6 +571,53 @@ def test_condense_sample_rewritten_history_condenses_correctly() -> None:
         assert [(m.role, m.content) for m in restored_event.input] == [
             (m.role, m.content) for m in original_input
         ]
+
+
+def test_condense_sample_keeps_json_distinct_message_versions() -> None:
+    """Two versions of one message that differ only as True vs 1 stay distinct.
+
+    Model events snapshot each version of a message edited in place, so a
+    sample can hold same-id messages that are == but serialize differently.
+    Writing (condense) and reading (resolve) must keep both versions, and the
+    final conversation must keep its own.
+    """
+    first = ChatMessageAssistant(
+        content="",
+        tool_calls=[ToolCall(id="c1", function="f", arguments={"flag": True})],
+        metadata={"flag": True},
+    )
+    second = first.model_copy(deep=True)
+    assert second.tool_calls is not None and second.metadata is not None
+    second.tool_calls[0].arguments["flag"] = 1
+    second.metadata["flag"] = 1
+    assert first == second
+
+    sample = EvalSample(
+        id="s1",
+        epoch=1,
+        input="start",
+        target="done",
+        messages=[second],
+        events=[_model_event([first], []), _model_event([second], [])],
+    )
+
+    condensed = condense_sample(sample)
+    assert condensed.events_data is not None
+    assert len(condensed.events_data["messages"]) == 2
+
+    resolved = resolve_sample_attachments(condensed, "full")
+
+    def flags(message: ChatMessage) -> tuple[object, object]:
+        assert isinstance(message, ChatMessageAssistant)
+        assert message.tool_calls is not None and message.metadata is not None
+        return message.tool_calls[0].arguments["flag"], message.metadata["flag"]
+
+    inputs = [e.input[0] for e in resolved.events if isinstance(e, ModelEvent)]
+    assert [tuple(map(type, flags(m))) for m in inputs] == [
+        (bool, bool),
+        (int, int),
+    ]
+    assert tuple(map(type, flags(resolved.messages[0]))) == (int, int)
 
 
 def test_condense_sample_messages_stay_inline() -> None:
