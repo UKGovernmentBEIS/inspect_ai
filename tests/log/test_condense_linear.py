@@ -50,6 +50,7 @@ from inspect_ai.log._condense import (
 )
 from inspect_ai.log._log import EvalSample, EvalSampleSummary
 from inspect_ai.log._recorders.buffer import SampleBufferDatabase
+from inspect_ai.log._recorders.eval import _parse_sample_data
 from inspect_ai.log._recorders.types import SampleEvent
 from inspect_ai.log._transcript import Transcript
 from inspect_ai.log._transcript_store import TranscriptEventStore
@@ -585,8 +586,9 @@ def test_condense_sample_keeps_json_distinct_message_versions(
     Model events snapshot each version of a message edited in place, so a
     sample can hold same-id messages such as True vs 1, 0.0 vs -0.0, or
     dicts that differ only in key order.
-    Writing (condense) and reading (resolve) must keep both versions, and the
-    final conversation must keep its own.
+    Writing (condense), resolving, and reading the written JSON back with
+    the log parser must keep both versions, and the final conversation must
+    keep its own.
     """
     first = ChatMessageAssistant(
         content="",
@@ -613,6 +615,7 @@ def test_condense_sample_keeps_json_distinct_message_versions(
     assert len(condensed.events_data["messages"]) == 2
 
     resolved = resolve_sample_attachments(condensed, "full")
+    parsed = _parse_sample_data(condensed.model_dump_json().encode())
 
     def flags(message: ChatMessage) -> list[str]:
         assert isinstance(message, ChatMessageAssistant)
@@ -620,11 +623,15 @@ def test_condense_sample_keeps_json_distinct_message_versions(
         values = [message.tool_calls[0].arguments["flag"], message.metadata["flag"]]
         return [json.dumps(v) for v in values]
 
-    inputs = [e.input[0] for e in resolved.events if isinstance(e, ModelEvent)]
     expected_before = [json.dumps(before)] * 2
     expected_after = [json.dumps(after)] * 2
-    assert [flags(m) for m in inputs] == [expected_before, expected_after]
-    assert flags(resolved.messages[0]) == expected_after
+    for read in (resolved, parsed):
+        inputs = [e.input[0] for e in read.events if isinstance(e, ModelEvent)]
+        assert [flags(m) for m in inputs] == [expected_before, expected_after]
+        assert flags(read.messages[0]) == expected_after
+    # the parser's message cache still shares identical messages
+    parsed_inputs = [e.input[0] for e in parsed.events if isinstance(e, ModelEvent)]
+    assert parsed.messages[0] is parsed_inputs[1]
 
 
 def test_condense_sample_messages_stay_inline() -> None:

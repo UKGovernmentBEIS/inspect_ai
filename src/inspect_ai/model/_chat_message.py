@@ -71,9 +71,9 @@ class ChatMessageBase(BaseModel):
         if cache is None:
             return handler(data)
         try:
-            cache_key: bytes = hashlib.sha256(
-                json.dumps(data, sort_keys=True).encode()
-            ).digest()
+            # no sort_keys: key order is part of a message (tool arguments are
+            # sent in it), and logs can hold versions that differ only in it
+            cache_key: bytes = hashlib.sha256(json.dumps(data).encode()).digest()
         except Exception as ex:
             warn_once(
                 logger,
