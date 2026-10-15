@@ -1,9 +1,11 @@
 import contextlib
 import importlib.util
 import re
+from collections.abc import Mapping, Sequence
 from contextvars import ContextVar
 from dataclasses import dataclass, field
-from functools import wraps
+from functools import cache, wraps
+from logging import getLogger
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -19,11 +21,17 @@ from pydantic_core import to_json
 
 from inspect_ai._sentinel._context import warn_sentinel_bridged
 from inspect_ai._util._async import is_callable_coroutine
+from inspect_ai._util.logger import warn_once
 from inspect_ai.agent._agent import Agent, AgentState, agent
 from inspect_ai.agent._bridge.types import AgentBridge
 from inspect_ai.log._samples import sample_active
 from inspect_ai.model._compaction.types import CompactionStrategy
-from inspect_ai.model._model import GenerateFilter, ModelEventSink, get_model
+from inspect_ai.model._model import (
+    GenerateFilter,
+    ModelEventSink,
+    ModelResponseFilter,
+    get_model,
+)
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.model._openai_convert import (
     messages_from_openai,
@@ -55,6 +63,8 @@ if TYPE_CHECKING:
     # initializing. Same reason `model/_call_tools.py` defers it.
     from inspect_ai.approval._policy import ApprovalPolicy
 
+logger = getLogger(__name__)
+
 # Headers blocked from bridge clients (exact match, case-insensitive)
 _BLOCKED_BRIDGE_HEADERS = frozenset(
     [
@@ -80,6 +90,147 @@ _BLOCKED_BRIDGE_HEADERS = frozenset(
 _BLOCKED_BRIDGE_HEADER_PREFIXES = ("x-stainless-",)
 
 
+# Headers a sandboxed client may never set on the host's request, whatever
+# `forward_client_headers` lists: credentials, transport framing, and values
+# the provider SDK or Inspect owns. The credential names cover the provider
+# SDKs Inspect uses: bearer tokens, Anthropic and Foundry keys, Azure OpenAI's
+# `api-key`, Google's `x-goog-api-key`, and AWS SigV4 (`x-amz-` prefix).
+_BLOCKED_CLIENT_HEADERS = frozenset(
+    [
+        "authorization",
+        "proxy-authorization",
+        "x-api-key",
+        "api-key",
+        "x-goog-api-key",
+        "cookie",
+        "host",
+        "content-type",
+        "content-length",
+        "transfer-encoding",
+        "connection",
+        "anthropic-version",
+        "user-agent",
+        "x-irid",
+    ]
+)
+_BLOCKED_CLIENT_HEADER_PREFIXES = ("x-stainless-", "x-amz-")
+
+_FORWARD_CLIENT_HEADERS_OPTION = "sandbox_agent_bridge(forward_client_headers=...)"
+
+
+def _is_blocked_client_header(lower_name: str) -> bool:
+    return lower_name in _BLOCKED_CLIENT_HEADERS or lower_name.startswith(
+        _BLOCKED_CLIENT_HEADER_PREFIXES
+    )
+
+
+def resolve_forward_client_headers(
+    forward_client_headers: Mapping[str, Sequence[str]] | None,
+) -> dict[str, frozenset[str]]:
+    """Validate `forward_client_headers`, keyed by lowercase header name.
+
+    Names and values are stripped of surrounding whitespace, as client header
+    values are when they are matched one comma-separated item at a time.
+
+    Raises:
+        TypeError: The mapping is not a mapping, a name is not a string, or a
+            value list is a bare string, not a sequence, or holds a non-string.
+        ValueError: A header that must never cross the sandbox boundary, or
+            `Accept-Encoding` (which has its own policy), is listed, or a value
+            contains a comma and so could never match one item of a header.
+    """
+    if forward_client_headers is None:
+        return {}
+    if isinstance(forward_client_headers, str) or not isinstance(
+        forward_client_headers, Mapping
+    ):
+        raise TypeError(
+            "forward_client_headers must map header names to lists of allowed "
+            f"values (got {forward_client_headers!r})."
+        )
+    resolved: dict[str, frozenset[str]] = {}
+    for name, values in forward_client_headers.items():
+        if not isinstance(name, str):
+            raise TypeError(
+                f"forward_client_headers names must be strings (got {name!r})."
+            )
+        lower_name = name.strip().lower()
+        if _is_blocked_client_header(lower_name):
+            raise ValueError(
+                f"forward_client_headers cannot list '{name}': the sandboxed agent "
+                "may never set this header on the host's model request."
+            )
+        if lower_name == "accept-encoding":
+            raise ValueError(
+                "forward_client_headers cannot list 'accept-encoding': the bridge "
+                "forwards the codings the host can decode."
+            )
+        if isinstance(values, str) or not isinstance(values, Sequence):
+            raise TypeError(
+                f"forward_client_headers['{name}'] must be a list of allowed "
+                f"values (got {values!r})."
+            )
+        for value in values:
+            if not isinstance(value, str):
+                raise TypeError(
+                    f"forward_client_headers['{name}'] values must be strings "
+                    f"(got {value!r})."
+                )
+            if "," in value:
+                raise ValueError(
+                    f"forward_client_headers['{name}'] value {value!r} contains a "
+                    "comma: list each comma-separated item as its own value."
+                )
+        resolved[lower_name] = resolved.get(lower_name, frozenset()) | frozenset(
+            value.strip() for value in values
+        )
+    return resolved
+
+
+@cache
+def _decodable_content_codings() -> frozenset[str]:
+    """Content codings every HTTP client the model providers use can decode.
+
+    httpx and httpx2 (used by the OpenAI and Anthropic SDKs) each skip a content
+    coding they have no decoder for and pass the body on still encoded, so a
+    client may only advertise codings both decode on this host. httpx2 decodes
+    `zstd` only on Python 3.14+ or with `backports.zstd` installed. If httpx's
+    private decoder table cannot be imported, no coding is treated as decodable
+    and the client's `Accept-Encoding` is dropped.
+    """
+    try:
+        from httpx._decoders import SUPPORTED_DECODERS as httpx_decoders
+    except ImportError:
+        return frozenset()
+
+    codings = set(httpx_decoders)
+    try:
+        from httpx2._decoders import SUPPORTED_DECODERS as httpx2_decoders
+    except ImportError:
+        pass
+    else:
+        codings &= set(httpx2_decoders)
+    return frozenset(codings)
+
+
+def _with_decodable_accept_encoding(
+    headers: dict[str, str],
+) -> dict[str, str] | None:
+    """Narrow a forwarded `Accept-Encoding` to codings the host can decode."""
+    for name in list(headers):
+        if name.lower() == "accept-encoding":
+            kept = [
+                item.strip()
+                for item in headers[name].split(",")
+                if item.split(";")[0].strip().lower() in _decodable_content_codings()
+            ]
+            if kept:
+                headers[name] = ", ".join(kept)
+            else:
+                del headers[name]
+    return headers if headers else None
+
+
 def filter_bridge_headers(headers: dict[str, str] | None) -> dict[str, str] | None:
     """Filter headers from bridge clients, removing sensitive/internal headers.
 
@@ -94,7 +245,114 @@ def filter_bridge_headers(headers: dict[str, str] | None) -> dict[str, str] | No
         if k.lower() not in _BLOCKED_BRIDGE_HEADERS
         and not k.lower().startswith(_BLOCKED_BRIDGE_HEADER_PREFIXES)
     }
-    return filtered if filtered else None
+    return _with_decodable_accept_encoding(filtered)
+
+
+def filter_sandbox_client_headers(
+    headers: object,
+    forward_client_headers: Mapping[str, frozenset[str]],
+) -> dict[str, str] | None:
+    """Filter a sandboxed client's headers to `forward_client_headers`.
+
+    The sandboxed agent is untrusted code using the host's credentials, so only
+    `Accept-Encoding` and the headers and values the eval lists are forwarded;
+    every other header is dropped, including provider tenant/billing headers
+    such as `OpenAI-Organization` or Google's `x-goog-user-project`. The
+    in-process `agent_bridge()` uses `filter_bridge_headers` instead.
+
+    Args:
+        headers: Headers sent by the sandboxed client, as decoded from the
+            proxy's JSON request. Anything other than string names and values
+            is dropped and logged once.
+        forward_client_headers: Allowed client headers, from
+            `resolve_forward_client_headers`. A listed header keeps only its
+            listed comma-separated values (the others are dropped with a
+            warning) and is removed if none remain.
+    """
+    if headers is None:
+        return None
+    if not isinstance(headers, dict):
+        warn_once(
+            logger,
+            "Agent bridge ignored the sandboxed agent's request headers: they "
+            "were not a mapping of names to values.",
+        )
+        return None
+    filtered: dict[str, str] = {}
+    for name, value in headers.items():
+        if not isinstance(name, str) or not isinstance(value, str):
+            warn_once(
+                logger,
+                "Agent bridge dropped request headers from the sandboxed agent "
+                "whose name or value was not a string.",
+            )
+            continue
+        lower_name = name.lower()
+        if lower_name in forward_client_headers:
+            value = _allowed_header_value(
+                name, value, forward_client_headers[lower_name]
+            )
+            if value:
+                filtered[name] = value
+        elif lower_name == "accept-encoding":
+            filtered[name] = value
+        elif not _is_blocked_client_header(lower_name):
+            _log_dropped_client_header(
+                f"Agent bridge did not forward the sandboxed agent's "
+                f"{_loggable(lower_name)} header. To forward it, list it in "
+                f"{_FORWARD_CLIENT_HEADERS_OPTION}.",
+                warning=False,
+            )
+    return _with_decodable_accept_encoding(filtered)
+
+
+def _allowed_header_value(name: str, value: str, allowed: frozenset[str]) -> str:
+    """Keep the allowed tokens of a comma-separated header value."""
+    kept: list[str] = []
+    for token in (t.strip() for t in value.split(",")):
+        if not token:
+            continue
+        if token in allowed:
+            kept.append(token)
+        else:
+            _log_dropped_client_header(
+                f"Agent bridge dropped {_loggable(token)} from the sandboxed "
+                f"agent's {_loggable(name.lower())} header. To forward it, add it "
+                f"to {_FORWARD_CLIENT_HEADERS_OPTION}.",
+                warning=True,
+            )
+    return ",".join(kept)
+
+
+_MAX_LOGGED_CLIENT_HEADER_DROPS = 100
+_MAX_LOGGED_CLIENT_HEADER_TEXT = 64
+_logged_client_header_drops: set[str] = set()
+
+
+def _loggable(text: str) -> str:
+    """Quote client-chosen header text for a log message, truncated."""
+    if len(text) > _MAX_LOGGED_CLIENT_HEADER_TEXT:
+        text = text[:_MAX_LOGGED_CLIENT_HEADER_TEXT] + "..."
+    return repr(text)
+
+
+def _log_dropped_client_header(message: str, *, warning: bool) -> None:
+    """Log a dropped client header once per message, for a bounded number of messages.
+
+    The sandboxed agent chooses the header names and values, so the set of
+    distinct messages is capped rather than growing for the life of the process.
+    """
+    if message in _logged_client_header_drops:
+        return
+    if len(_logged_client_header_drops) >= _MAX_LOGGED_CLIENT_HEADER_DROPS:
+        return
+    _logged_client_header_drops.add(message)
+    if len(_logged_client_header_drops) == _MAX_LOGGED_CLIENT_HEADER_DROPS:
+        message += " Further dropped client headers will not be logged."
+    if warning:
+        logger.warning(message)
+    else:
+        logger.info(message)
 
 
 @contextlib.asynccontextmanager
@@ -110,6 +368,7 @@ async def agent_bridge(
     model_event_sink: ModelEventSink | None = None,
     forward_generation_config: bool = False,
     approval: list["ApprovalPolicy"] | None = None,
+    response_filter: ModelResponseFilter | None = None,
 ) -> AsyncGenerator[AgentBridge, None]:
     """Agent bridge.
 
@@ -166,6 +425,9 @@ async def agent_bridge(
           each approval. Eval-level and task-level policies already apply without
           this. A rejected tool call is never handed to the agent: the model is
           told it was rejected and generation is retried.
+       response_filter: Filter that can replace model output after generation
+          (see ``ModelResponseFilter``). Return ``None`` to pass through; return
+          a ``ModelOutput`` to replace the response.
     """
     # ensure one time init
     init_bridge_request_patch()
@@ -194,6 +456,7 @@ async def agent_bridge(
         allow_remote_mcp=allow_remote_mcp,
         allow_remote_media=True,
         allow_client_model_names=True,
+        response_filter=response_filter,
     )
 
     # set the patch config for this context and child coroutines
