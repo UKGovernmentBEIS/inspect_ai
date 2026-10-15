@@ -186,6 +186,13 @@ async def test_web_browser_legacy_sandbox_refused_in_tool_state_scope(
             await go(url="https://example.com")
     assert legacy_calls == ["web_go"]
 
+    # an explicit shared instance is refused inside a scope too
+    shared = _named_tools(web_browser(instance="team"))["web_browser_go"].tool
+    with tool_state_scope("w-1"):
+        with pytest.raises(PrerequisiteError, match="legacy web browser sandbox"):
+            await shared(url="https://example.com")
+    assert legacy_calls == ["web_go"]
+
     # an explicit instance reserved for scopes is refused, as with the
     # tool-support image
     reserved = _named_tools(web_browser(instance="@notes"))["web_browser_go"].tool

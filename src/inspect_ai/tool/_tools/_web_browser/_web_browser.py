@@ -430,7 +430,8 @@ async def _web_browser_cmd(
             await _web_browser_sandbox()
         except PrerequisiteError:
             raise e
-        # the legacy code keeps one unscoped session per sample
+        # the deprecated legacy image is refused inside any active scope, even
+        # for an explicit instance
         raise PrerequisiteError(
             "The legacy web browser sandbox (aisiuk/inspect-web-browser-tool) "
             "is not supported inside a tool state scope. Use the "
