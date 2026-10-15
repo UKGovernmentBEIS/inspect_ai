@@ -394,6 +394,77 @@ made without thinking (it wraps a constant UUID) was suspected of triggering
 the empty turns; across 1,795 tool-call turns, the turn after such a call was
 bad 9% of the time versus 41% after a call with a full signature.
 
+### Grok
+
+Probed 2026-10-15 with `xai/grok-4.7` (xAI's frontier) through `main-latest`
+and 1.96.0 proxies, live except where noted. Both images know `xai/grok-4.7`
+(`supports_reasoning`, 500k window, prices), and it resolves to Inspect's
+`grok/grok-4.7`. LiteLLM sends chat to xAI's `/v1/chat/completions` and
+Responses to xAI's own `/v1/responses` (`llms/xai/responses`), not through its
+chat bridge.
+
+**Reasoning round trips work on both paths** (live matrix: 8 of 8 passed,
+chat and Responses, streamed or not, tool loop and text follow-up). They
+carry different things:
+
+- Chat returns `reasoning_content`, which is a summary (1,457 characters for
+  4,035 reasoning tokens). The provider sends it back unchanged; the model's
+  reasoning state is not carried.
+- Responses returns `encrypted_content` with `include:
+  reasoning.encrypted_content` and `store: false`, and the provider replays it
+  unchanged before the function calls, as for OpenAI. This matches the native
+  provider, which always sends `use_encrypted_content`.
+
+**Reasoning effort.** `minimal` through `xhigh` are forwarded and accepted on
+both paths and both versions. `none` and `max` are forwarded and rejected by
+xAI, and the provider returns the error instead of lowering, because neither
+message matches its rejection patterns:
+
+- `none`: ``This model does not support `reasoning_effort` value `none`.``
+- `max`: `Invalid reasoning effort.` (names no value)
+
+The native provider sends `xhigh` for `max` and drops `none`.
+
+**Errors.**
+
+- Context overflow becomes `model_length` on all four paths. It matches only
+  through the Anthropic marker `prompt is too long`, in xAI's
+  `[input_too_large] The prompt is too long for this model's context window
+  (601243 tokens > 500000 tokens)`. The output text is xAI's raw JSON
+  (`{"code": ..., "error": "<string>"}`), since `upstream_message` reads only
+  `error.message`.
+- Refusals: not reproduced live, and xAI does not document their REST shape.
+  The native provider matches `safety_check` and "can't help with that
+  request" on gRPC `PERMISSION_DENIED`. With a fake upstream returning that
+  wording, a 403 reaches the client as `PermissionDeniedError` and a 400 as
+  `BadRequestError`, and neither becomes `content_filter`.
+
+**Caching and cost.** xAI caches prefixes without help: a one-line prompt
+reports 1,152 cached tokens, from xAI's own system prompt. Cost is correct on
+both paths: cache reads at the cache rate, from the proxy's prices, and equal
+to xAI's `cost_in_usd_ticks`. LiteLLM folds xAI's separate `reasoning_tokens`
+into `completion_tokens`. The native provider sends `x-grok-conv-id` (the
+sample id) so that a conversation stays on one xAI server. The proxy forwards
+that header only with `general_settings.forward_client_headers_to_llm_api:
+true` (offline, both versions). `prompt_cache_key` is rejected by
+`main-latest` (`UnsupportedParamsError`) and dropped by 1.96.
+
+**Requests.** LiteLLM sends no `max_tokens` for xAI (no truncation default)
+and removes `strict` from tool schemas on chat. Parallel tool calls work.
+
+**Proposed changes:**
+
+1. Use the Responses API by default for `xai` deployments (api_base unset or
+   `api.x.ai`) and grok 4+ families, so tool loops keep encrypted reasoning;
+   also stream it by default.
+2. Lower rejected efforts for xAI: recognize both wordings (`max` → `xhigh`,
+   `none` dropped), or map them before sending, as the native provider does.
+3. Errors: add `input_too_large` to the context window markers, read
+   `{"error": "<string>"}` bodies in `upstream_message`, and map xAI's refusal
+   wording to `content_filter` whatever the status.
+4. Send `x-grok-conv-id` for grok deployments (ignored unless the operator
+   forwards client headers), and document the setting.
+
 ### Working around LiteLLM behavior
 
 Users run many LiteLLM versions, and LiteLLM fixes bugs over time. Handling of

@@ -980,6 +980,20 @@ LIVE_PROVIDERS = [
         },
         check=check_reasoning_content_replay,
     ),
+    LiveProvider(
+        name="grok-4.7",
+        family="grok",
+        env=("GROK_API_KEY",),
+        litellm_params={
+            "model": "xai/grok-4.7",
+            "api_key": "os.environ/GROK_API_KEY",
+        },
+        check=lambda response, request: (
+            check_openai_responses_replay(response, request)
+            if "output" in response
+            else check_reasoning_content_replay(response, request)
+        ),
+    ),
 ]
 
 
