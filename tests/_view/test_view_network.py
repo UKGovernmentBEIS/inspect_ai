@@ -541,9 +541,26 @@ def test_viewer_csp_header_scoped_to_viewer_files(
     app = standalone_view_app(
         log_dir=str(log_dir), network_policy=_policy(), dist_dir=dist_dir
     )
+    # Encoded aliases beneath the docs endpoints reach the static mount, which
+    # resolves the `..` and serves a viewer file. A bare `/api` isn't under
+    # the API mount, so it reaches the static mount too.
+    viewer_status = {
+        "/": 200,
+        "/assets/worker.js": 200,
+        "/missing": 404,
+        "/docs%2f..%2findex.html": 200,
+        "/docs%2F..%2Fassets/worker.js": 200,
+        "/docs/oauth2-redirect%2f..%2f..%2findex.html": 200,
+        "/redoc%2f..%2findex.html": 200,
+        "/openapi.json%2f..%2fassets/worker.js": 200,
+        "/api": 404,
+    }
     with TestClient(app, base_url="http://localhost:7575") as client:
-        viewer = {
-            path: client.get(path) for path in ("/", "/assets/worker.js", "/missing")
+        viewer = {path: client.get(path) for path in viewer_status}
+        # the API mount gets every path beneath it, `..` included
+        api_aliases = {
+            path: client.get(path)
+            for path in ("/api%2f..%2findex.html", "/api/..%2fassets/worker.js")
         }
         non_viewer = {
             path: client.get(path)
@@ -561,20 +578,25 @@ def test_viewer_csp_header_scoped_to_viewer_files(
             "/api/app-config", headers={"Origin": "https://attacker.example"}
         )
 
-    assert {path: r.status_code for path, r in viewer.items()} == {
-        "/": 200,
-        "/assets/worker.js": 200,
-        "/missing": 404,
-    }
+    assert {path: r.status_code for path, r in viewer.items()} == viewer_status
+    assert all(
+        r.status_code == 404 and r.json() == {"detail": "Not Found"}
+        for r in api_aliases.values()
+    )
     assert all(r.status_code == 200 for r in non_viewer.values())
     assert forbidden.status_code == 403
 
     # a duplicate header would read back comma-joined, failing equality
     for response in viewer.values():
         assert response.headers["content-security-policy"] == viewer_expected
-    for response in [*non_viewer.values(), forbidden]:
+    for response in [*api_aliases.values(), *non_viewer.values(), forbidden]:
         assert response.headers["content-security-policy"] == "frame-ancestors 'none'"
-    for response in [*viewer.values(), *non_viewer.values(), forbidden]:
+    for response in [
+        *viewer.values(),
+        *api_aliases.values(),
+        *non_viewer.values(),
+        forbidden,
+    ]:
         assert response.headers["x-frame-options"] == "DENY"
 
 

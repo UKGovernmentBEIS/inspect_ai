@@ -225,19 +225,26 @@ class SecurityHeadersMiddleware:
     """Add framing and Content-Security-Policy headers to every HTTP response.
 
     Every response gets `frame-ancestors 'none'`. The viewer's own policy is
-    added to every response outside `viewer_policy_exempt_paths`, not just
-    `index.html`: a worker script takes its policy from its own response
-    headers. Exempt paths (the JSON API and FastAPI's docs pages, which load
-    scripts from a CDN and run inline scripts) keep only `frame-ancestors`.
+    added to every other response too, not just `index.html`: a worker script
+    takes its policy from its own response headers. Only the JSON API and
+    FastAPI's docs pages (which load scripts from a CDN and run inline scripts)
+    are exempt, and keep only `frame-ancestors`.
+
+    Exemptions are matched before routing, so they must cover only paths the
+    router sends to the exempt app. Docs endpoints match exactly, because a
+    path beneath one (`/docs%2f..%2findex.html`) reaches the static mount,
+    which resolves the `..`. A mounted app is exempt for every path under
+    `{mount}/`, which holds as long as it is mounted before the static mount.
 
     Args:
         app: The ASGI app to wrap.
         content_security_policy: The policy of the viewer dist being served
             (see `read_content_security_policy`), or `None` for a dist without
             one.
-        viewer_policy_exempt_paths: Paths that don't get the viewer policy;
-            each also exempts everything beneath it (`/api` covers
-            `/api/logs`).
+        viewer_policy_exempt_paths: Exact paths that don't get the viewer
+            policy.
+        viewer_policy_exempt_mounts: Mount paths (such as `/api`) whose
+            sub-paths don't get the viewer policy.
     """
 
     def __init__(
@@ -245,6 +252,7 @@ class SecurityHeadersMiddleware:
         app: ASGIApp,
         content_security_policy: str | None = None,
         viewer_policy_exempt_paths: tuple[str, ...] = (),
+        viewer_policy_exempt_mounts: tuple[str, ...] = (),
     ) -> None:
         self.app = app
         self._viewer_policy = (
@@ -252,15 +260,13 @@ class SecurityHeadersMiddleware:
             if content_security_policy is not None
             else _FRAME_ANCESTORS_NONE
         )
-        self._exempt_paths = tuple(
-            path.rstrip("/") for path in viewer_policy_exempt_paths
+        self._exempt_paths = frozenset(viewer_policy_exempt_paths)
+        self._exempt_prefixes = tuple(
+            f"{mount.rstrip('/')}/" for mount in viewer_policy_exempt_mounts
         )
 
     def _policy_for(self, path: str) -> str:
-        if any(
-            path == exempt or path.startswith(f"{exempt}/")
-            for exempt in self._exempt_paths
-        ):
+        if path in self._exempt_paths or path.startswith(self._exempt_prefixes):
             return _FRAME_ANCESTORS_NONE
         return self._viewer_policy
 

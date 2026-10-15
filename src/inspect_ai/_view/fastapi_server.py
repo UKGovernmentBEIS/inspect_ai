@@ -821,8 +821,9 @@ def standalone_view_app(
     async def api_dist() -> dict[str, str]:
         return {"path": resolved_dist_dir.as_posix()}
 
+    api_mount = "/api"
     app = FastAPI()
-    app.mount("/api", BrowserOriginMiddleware(api, network_policy))
+    app.mount(api_mount, BrowserOriginMiddleware(api, network_policy))
     app.mount(
         "/",
         _InspectStaticFiles(directory=resolved_dist_dir.as_posix(), html=True),
@@ -836,19 +837,17 @@ def standalone_view_app(
     return SecurityHeadersMiddleware(
         protected_app,
         content_security_policy=content_security_policy,
-        viewer_policy_exempt_paths=(
-            "/api",
-            *(
-                path
-                for path in (
-                    app.docs_url,
-                    app.redoc_url,
-                    app.openapi_url,
-                    app.swagger_ui_oauth2_redirect_url,
-                )
-                if path is not None
-            ),
+        viewer_policy_exempt_paths=tuple(
+            path
+            for path in (
+                app.docs_url,
+                app.redoc_url,
+                app.openapi_url,
+                app.swagger_ui_oauth2_redirect_url,
+            )
+            if path is not None
         ),
+        viewer_policy_exempt_mounts=(api_mount,),
     )
 
 
