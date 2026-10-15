@@ -1,9 +1,29 @@
 # Working time under concurrency within a sample
 
-Status: accepted and implemented, 2026-10-07. Proposed 2026-10-01;
-rewritten 2026-10-07 around Ransom's decision of that date (see
-"Decision"). Issue: none. Author: agent (Claude), reviewed by Codex; see
-the PR.
+Status: accepted and implemented, 2026-10-07; known work added
+2026-10-15. Proposed 2026-10-01; rewritten 2026-10-07 around Ransom's
+decision of that date, and revised 2026-10-15 around his decision of that
+date (see "Decision"). Issue: none. Author: agent (Claude), reviewed by
+Codex; see the PRs.
+
+## Overview
+
+Working time is clock time minus waiting time. The 2026-10-07 rule made
+every known wait (backoff, a semaphore queue, an approval) stop the clock
+for the whole sample, so one wait made all other work in the sample free.
+The 2026-10-15 revision adds known work: while a model request, a sandbox
+exec or a tool call is in progress and not itself waiting, the sample is
+working, whatever waits are open elsewhere. Known work removes the first
+accepted limitation ("One wait stops the clock for everything") for the
+work Inspect can see. Work it cannot see (a background process, a
+sandboxed agent's own commands, an in-process library's `gather()`) stays
+free during a wait.
+
+The sample keeps a second merged interval set, of known work, beside the
+wait set. A reading is the length of the waits not covered by known work,
+so it still lies in `[0, elapsed]`. A model attempt in flight is known work
+until the retry policy classifies it as retried, when its interval becomes
+a wait again, as before.
 
 ## Why
 
@@ -46,13 +66,23 @@ every wait, and accepts its cost (see "Accepted limitations").
 
 ## Decision
 
-Ransom, 2026-10-07, after maintainer feedback:
+Ransom, 2026-10-15 (decision: Ransom, 2026-10-15): improve working-time
+accounting so that known work is charged even while a wait is open
+elsewhere in the sample. Each instant is classified as:
+
+> 1. If something is known to be working, the instant is working.
+> 2. Otherwise, if something is known to be waiting, the instant is
+>    waiting.
+> 3. Otherwise, working.
+
+This builds on Ransom's decision of 2026-10-07, after maintainer feedback,
+which is rules 2 and 3:
 
 > If Inspect knows of anything waiting, the time counts as waiting time;
 > otherwise it counts as working time.
 
-This replaces the options from the 2026-10-06 revision (see "Alternatives
-considered"). These earlier decisions still stand:
+That decision replaced the options from the 2026-10-06 revision (see
+"Alternatives considered"). These earlier decisions still stand:
 
 - **On by default.** This is a bug fix, so there is no opt-in mode and no
   legacy switch.
@@ -65,15 +95,47 @@ a backstop in their evals, and METR relies on it.
 
 ## The rule
 
-At each instant, the sample is **waiting** if at least one known wait is
-open anywhere in the sample. Otherwise it is **working**.
+At each instant, the sample is **working** if any known work is in
+progress anywhere in the sample. Otherwise it is **waiting** if at least
+one known wait is open anywhere in the sample. Otherwise it is
+**working**.
 
-- Waiting time is the length of the **union** of all known wait intervals.
-  Overlapping waits are merged, never added, so `0 ≤ working_time ≤
-  total_time` always holds. That removes the negative values and the double
-  counting.
-- Whatever else the sample is doing during a known wait is not charged
-  (see "Accepted limitations").
+- Waiting time is the length of the **union** of all known wait intervals
+  minus the **union** of all known work intervals. Overlapping waits and
+  overlapping work are merged, never added, so `0 ≤ working_time ≤
+  total_time` always holds. That removes the negative values and the
+  double counting.
+- Work Inspect does not see during a known wait is not charged (see
+  "Accepted limitations").
+
+### Known work
+
+| Known work | Where the span opens and closes |
+| --- | --- |
+| A model `generate` attempt in flight | `ModelAttempts.attempt()` around the provider call in `Model._generate` (`_model.py`), from just before `api.generate` to its return. The connection-slot wait, the pause hold and the cache lookup come before it, and the backoff after it. |
+| A sandbox exec | `SandboxEnvironmentProxy.exec` (`util/_sandbox/events.py`), for the execs it records as `SandboxEvent`s: not sandbox service commands or `exec_remote`'s polls, which are Inspect's own plumbing |
+| A tool call | `call_tool()` in `call_tool_task` (`model/_call_tools.py`), including its approval and sentinel stages, and a bridged host tool call in the sandbox agent bridge's service (`agent/_bridge/sandbox/service.py`) |
+
+Cache hits open no attempt. `compact()` and `count_tokens()` attempts are
+not known work: they are not generate calls (their retries and backoff
+remain known waits).
+
+Known work excludes the waits inside it. A span is **held** while a wait or
+a nested span is open in its own task context, which includes the tasks it
+starts (they inherit the context). A held span is not working; the inner
+wait or work accounts for that time. So a tool call whose sandbox exec is
+queued on `max_subprocesses`, or that waits for its approval, is waiting
+for that part, and a tool call that runs a sub-agent's model call is
+charged as that attempt, which can later become a wait.
+
+Work done inside a suspension is not known work. A `sample_wait()` block,
+which is what `suspend_working_limit()`, approvals, reviews, sentinel
+monitors, human input, the pause hold, the connection-slot wait and the
+backoff sleep use, marks its context as suspended, and no span opens there.
+An approver's or a monitor's own model calls and tool calls therefore never
+restart the agent's clock. `SampleWait` objects that close from another
+task (the batch queue, `sample_waiting_for()`) hold the work of the context
+that opened them but suspend nothing, since no work runs inside them.
 
 ### Known waits
 
@@ -102,19 +164,28 @@ credits nothing for its attempts. A cache hit produces a negative credit.
 
 Under the rule:
 
-- **A successful attempt is working time.** It is not a wait, even while it
-  runs.
+- **An attempt in flight is known work.** Its intervals (the parts not held
+  by a wait inside it, such as the batch queue) are kept on the attempt
+  until it is classified, and read as live work meanwhile.
+- **A successful attempt is working time.** Its intervals are added to the
+  work set.
 - **A retried attempt is a known wait.** A retried attempt is one the retry
   policy classified as retryable (tenacity's `after` callback, which runs
   only for retryable outcomes and before the stop check). When it fails,
-  its interval `[attempt start, attempt end]` is added to the wait set.
-  This keeps today's documented exclusion of "unsuccessful model
-  generations". It also credits retryable attempts in a call that
-  eventually runs out of retries, which today are charged.
+  its intervals are dropped from known work and its interval `[attempt
+  start, attempt end]` is added to the wait set. Only the part of it with
+  no other known work becomes waiting. This keeps today's documented
+  exclusion of "unsuccessful model generations". It also credits retryable
+  attempts in a call that eventually runs out of retries, which today are
+  charged.
+- **An attempt that fails without a retry** (a non-retryable error, or a
+  cancellation) is working time: `Model._generate` adds its intervals to
+  the work set when the retry loop exits.
 - **SDK-internal retries are a known wait.** When an attempt succeeds, the
   part of it before `attempt end - call.time` is added as a wait interval:
   the SDK's failed requests and sleeps before its last request. The split
-  needs a positive `call.time`. A missing `call.time` (`azureai`, in-process
+  needs a positive `call.time`; the attempt's known work starts at `attempt
+  end - call.time`. A missing `call.time` (`azureai`, in-process
   providers such as `hf`) and a zero `call.time` (SageMaker's placeholder,
   and the HTTP-hook fallback for a request id that was never registered)
   mean the request was not measured, so nothing is credited and the whole
@@ -134,29 +205,37 @@ open. A scalar total cannot de-duplicate a late report against what it has
 already counted: histories `[0,1]` and `[1,2]` both total 1, but a later
 report of `[1,3]` must bring them to 3 and to 2 respectively.
 
-So the sample keeps the **merged set of closed wait intervals for the whole
-attempt**, with no folding, plus the start time of the oldest open span:
+The same holds for known work, which can be dropped after the fact (a
+retried attempt). So the sample keeps, for the whole attempt and with no
+folding, three merged sets with prefix sums: closed known work `K`, closed
+waits not covered by known work `E`, and the union of closed waits and
+closed work `U`. Beside them it keeps the start time of the oldest open
+wait and the work spans that are open or awaiting classification:
 
 - **Adding an interval.** It is clipped to the current attempt, from the
-  sample clock's start to now, and merged into the sorted list.
+  sample clock's start to now, and merged into the sorted lists.
   Overlapping and adjacent intervals become one, so every addition, live or
-  late, is de-duplicated exactly.
-- **Size.** The list grows at most by one entry per wait span, usually
-  less, because overlapping spans merge. A sample has at most a few
-  thousand waits, so memory is small. Prior attempts are carried as totals
-  in the checkpoint (see "Resume accounting").
-- **Readings.** The live span is `[oldest open span start, now]` while any
-  known wait is open. `waiting(a, b)` is the length of `[a, b]` intersected
-  with the **union** of the closed set and the live span. Time covered by
-  both counts once:
+  late, is de-duplicated exactly. A wait adds to `U`, and its gaps in `K`
+  to `E`. Work adds to `K` and `U`, and is removed from `E`. A span's
+  interval is added when the span is held or closes; an attempt's intervals
+  wait for its classification.
+- **Size.** Each list grows at most by one entry per span, usually less,
+  because overlapping spans merge. A sample has at most a few thousand
+  spans, so memory is small. Prior attempts are carried as totals in the
+  checkpoint (see "Resume accounting").
+- **Readings.** The live wait is `L = [oldest open wait start, now]` while
+  any known wait is open. The live work is the merged intervals of the
+  open and unclassified spans, a handful at any time. For a window `J`,
+  the waiting outside closed work is
 
-  `|closed ∩ [a, b]| + |live ∩ [a, b]| - |closed ∩ live ∩ [a, b]|`
+  `x(J) = |E ∩ J| + |L ∩ J| - |U ∩ L ∩ J|`
 
-  The last term uses the same bisect and short scan over the closed
-  intervals that fall inside the live span's window. Working time over
-  `[a, b]` is `(b - a) - waiting(a, b)` and always lies in `[0, b - a]`.
-  When the live span closes, it is merged into the closed set, and every
-  reading is unchanged at that instant.
+  and `waiting(a, b) = x([a, b]) - Σ x(J)` over the live-work intervals
+  `J` within `[a, b]`. Each term is a bisect into a prefix-sum list, so a
+  reading costs `O(s log n)` for `s` live spans and `n` closed intervals.
+  Working time over `[a, b]` is `(b - a) - waiting(a, b)` and always lies
+  in `[0, b - a]`. When a live span closes, it is merged into the closed
+  sets, and every reading is unchanged at that instant.
 
 ### Approvals and limit suspension
 
@@ -179,7 +258,9 @@ just as its tokens are not. Sentinel monitors are treated the same way:
 `_run()` in `src/inspect_ai/_sentinel/_dispatch.py`, which runs the
 monitors at every stage, uses `suspend_working_limit()` alongside the token
 and turn suspensions. Like the other known waits, the suspension covers the
-whole sample while it is open (see "Accepted limitations").
+whole sample while it is open, except where known work runs elsewhere in
+the sample. Model calls and tool calls made inside the suspension are not
+known work (see "Known work").
 
 ### Scoped `working_limit()` and enforcement
 
@@ -216,9 +297,11 @@ whole sample while it is open (see "Accepted limitations").
   `src/inspect_ai/model/_call_tools.py`, and the subtask in
   `src/inspect_ai/util/_subtask.py`, which sets `SubtaskEvent.working_time`
   the same way. An event's duration
-  uses the waits known when the event completes. A retried attempt
+  uses the waits and work known when the event completes. A retried attempt
   classified after that does not change an event that is already
-  published; this is a stated approximation of the heuristic.
+  published; this is a stated approximation of the heuristic. A tool
+  event's own call is known work, so its duration counts as working except
+  where the call itself was held.
   `working_start` is the sample's working time at the event's creation,
   as today.
 
@@ -266,18 +349,23 @@ ignore the new key.
 
 ## Accepted limitations
 
-The rule undercounts working time whenever other work runs during a known
-wait, and it does not try to detect that work:
+The rule undercounts working time whenever work Inspect does not see runs
+during a known wait, and it does not try to detect that work:
 
-- **One wait stops the clock for everything.** A sample (or a model,
-  through parallel tool calls or sub-agents) that keeps one known wait open
-  is not charged for its other work during that wait. Examples are a
-  background call stuck in backoff, a task queued on a semaphore, a request
-  waiting for a connection slot its own other requests hold, and a model
-  approver running beside other work.
 - **Unseen work during a wait is free.** This covers a background process
   started through a sandbox exec tool, a sandboxed CLI agent's local
-  commands, and an in-process agent library's own `asyncio.gather()`.
+  commands, an in-process agent library's own `asyncio.gather()`, a
+  solver's or scorer's own code between known work, and `compact()` and
+  `count_tokens()` calls. Work is seen only when it goes through a generate
+  call, a sandbox exec or a tool call. A sandboxed agent's model requests
+  through the agent bridge are generate calls and so are known work.
+- **A held span hides its sibling tasks' unseen work.** A tool call that
+  starts several tasks is held while any of them waits, so its other tasks'
+  unseen work during that wait is free. Their known work is still charged.
+- **Retry classification is late.** An attempt in flight is charged until
+  the retry policy classifies it, so a `working_limit` can trip during an
+  attempt that is later retried. This was already the case before known
+  work.
 - **Provoked retries lengthen credited time.** A sample can provoke
   retryable failures, such as timeouts on very long outputs or some request
   errors the retry policy retries (quota 429s on OpenAI-compatible
@@ -286,6 +374,8 @@ wait, and it does not try to detect that work:
   then grows without a cap, unless `time_limit` or the call's `timeout`
   and `max_retries` are set.
 
+The first limitation of the 2026-10-07 rule, "one wait stops the clock
+for everything", is removed for known work by the 2026-10-15 revision.
 These cases are mostly multi-agent and concurrent. The design accepts
 them: `working_limit` is a backstop, and the earlier attempts to account
 for concurrency precisely were too complex for that role. `time_limit`
@@ -329,6 +419,11 @@ No migration is required, and there is no schema change other than the
 - **Concurrent samples get correct values.** Samples with concurrent
   retries, holds or reconciliations no longer report negative or inflated
   waiting, so `working_limit` can trip where it never did before.
+- **Known work (2026-10-15).** Samples that run model calls, sandbox
+  execs or tool calls while a wait is open elsewhere get more working time,
+  up to what the old rule hid, so a `working_limit` can trip sooner. No
+  sample gets less working time: known work only removes waiting.
+  `suspend_working_limit()` no longer makes other tasks' known work free.
 - **Sequential samples barely change.** Human approval, model-approver and
   human-input time is now credited. Retryable attempts in a call that runs
   out of retries are now credited. Cache hits no longer add time.
@@ -383,9 +478,9 @@ block on `anyio.Event`s, so ordering is fixed.
     attempt runs 0–8 and is classified at 8, and the scope starts at 5. At
     10 the scope's usage is 2 and lies within its elapsed time, and a
     scoped limit of 1 trips;
-  - a tool and a subtask that straddle the same retroactive interval report
-    the waits inside their own interval only, and a tool that completes
-    before the classification keeps its published duration.
+  - a subtask that straddles a retroactive interval reports the waits
+    inside its own interval only, and a tool that completes before the
+    classification keeps its published duration.
 - **Pause** (`tests/_control/test_pause.py`). Hold credit happens without
   ticks, and two parked calls merge.
 - **`report_sample_waiting_time`** merges with an overlapping native span.
@@ -394,6 +489,29 @@ block on `anyio.Event`s, so ordering is fixed.
   - 10 s of hydration delay before restore (the `sample_elapsed` example);
   - an old snapshot with a negative `working_elapsed`;
   - payloads without `sample_elapsed` or `time_elapsed`.
+- **Known work** (2026-10-15). Fake-clock tests in
+  `tests/util/test_limit_working.py`:
+  - known work in one task overrides a wait in another;
+  - a wait in the work's own context, or a task it started, holds it;
+  - model calls and tool calls inside `suspend_working_limit()` are not
+    known work;
+  - an attempt classified as retried (through the real retry config) while
+    a sibling tool call ran: only the part with no other known work becomes
+    waiting; a successful attempt is charged from `attempt end -
+    call.time`; a tool's nested attempt that is retried makes that part of
+    the tool a wait;
+  - seeded random sequences of nested spans, waits, late waits, attempts
+    classified both ways and scoped limits, checked against a brute-force
+    evaluation of the rule, with every reading and scope in bounds and
+    unchanged when everything closes.
+
+  Sample tests in `tests/test_sample_limits.py`: a tool call or a
+  successful generate beside a call in retry backoff is working; a task
+  queued on a semaphore while its holder generates is working; a model
+  approver's generate leaves an idle agent waiting; a local sandbox exec
+  beside a wait is working; and a sandbox exec queued for a
+  `max_subprocesses` slot is waiting. The lone-wait cases above are
+  unchanged.
 
 ## Implementation plan
 
@@ -416,6 +534,12 @@ block on `anyio.Event`s, so ordering is fixed.
    the event producers in `_call_tools.py` and `_subtask.py` to
    `sample_working_time_since(start)`.
 5. **Docs, CHANGELOG and the tests above.**
+
+Known work (2026-10-15) adds the work set, `known_work()` and
+`ModelAttempts` to `_util/working.py`, the attempt span to
+`Model._generate` and the retry config's `after` callback, and the spans in
+`SandboxEnvironmentProxy.exec`, `_call_tools.py` and the bridge's host tool
+service.
 
 ## Alternatives considered
 

@@ -71,6 +71,7 @@ from inspect_ai._util.retry import report_http_retry
 from inspect_ai._util.rich import format_traceback
 from inspect_ai._util.trace import trace_action
 from inspect_ai._util.working import (
+    ModelAttempts,
     add_sample_wait,
     sample_clock,
     sample_wait,
@@ -1438,6 +1439,8 @@ class Model:
         # only consulted per attempt (see wait_generate_dispatch's fast path).
         from inspect_ai._control.pause import wait_generate_dispatch
 
+        attempts = ModelAttempts()
+
         @retry(
             **model_retry_config(
                 self.api.model_name,
@@ -1452,6 +1455,7 @@ class Model:
                 sample_waits=True,
                 wait=self.api.retry_wait(),
                 qualified_model_name=self.api.qualified_model_name,
+                attempts=attempts,
             )
         )
         async def generate() -> tuple[ModelOutput, BaseModel]:
@@ -1565,7 +1569,10 @@ class Model:
             idle_cm = idle_scope if idle_scope is not None else contextlib.nullcontext()
             response_headers = ResponseHeaders()
 
-            with trace_action(logger, "Model", f"generate ({str(self)})"):
+            with (
+                trace_action(logger, "Model", f"generate ({str(self)})"),
+                attempts.attempt(),
+            ):
                 time_start = sample_clock()
                 try:
                     assert isinstance(event, ModelEvent)
@@ -1686,8 +1693,10 @@ class Model:
                 # (zero means the provider did not measure the request)
                 if call.time > 0:
                     add_sample_wait(time_start, time_end - call.time)
+                    attempts.commit(work_from=time_end - call.time)
             else:
                 output.time = time_elapsed
+            attempts.commit()
 
             # add views to tool calls
             for choice in output.choices:
@@ -1719,7 +1728,11 @@ class Model:
 
         # call the model (this will do retries, etc.)
         with cleared_retry_wait():
-            model_output, event = await generate()
+            try:
+                model_output, event = await generate()
+            finally:
+                # an attempt that failed without a retry stays known work
+                attempts.commit()
 
         # record any model fallback against the active sample (here in the
         # outer frame rather than alongside usage recording so that cache

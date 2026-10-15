@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import random
-from typing import Generator
+from contextvars import Context, copy_context
+from dataclasses import dataclass, field
+from typing import Any, Generator
 from unittest.mock import patch
 
 import anyio
@@ -12,11 +14,13 @@ from test_helpers.utils import skip_if_no_docker
 from inspect_ai import eval
 from inspect_ai._eval.task.task import Task
 from inspect_ai._util.working import (
+    ModelAttempts,
     SampleTiming,
     SampleWait,
     _sample_timing,
     add_sample_wait,
     init_sample_working_time,
+    known_work,
     report_sample_waiting_time,
     sample_timing,
     sample_wait,
@@ -561,6 +565,348 @@ def _union(intervals: list[tuple[float, float]], a: float, b: float) -> float:
             cur_e = max(cur_e, e)
     if cur_e is not None and cur_s is not None:
         total += cur_e - cur_s
+    return total
+
+
+class _Task:
+    """A task context (a copied `Context`) for driving spans step by step."""
+
+    def __init__(self, parent: _Task | None = None) -> None:
+        self.ctx: Context = parent.ctx.run(copy_context) if parent else copy_context()
+
+    def enter(self, cm: Any) -> Any:
+        self.ctx.run(cm.__enter__)
+        return cm
+
+    def exit(self, cm: Any) -> None:
+        self.ctx.run(cm.__exit__, None, None, None)
+
+    def wait(self) -> SampleWait:
+        return self.ctx.run(SampleWait)
+
+
+async def test_known_work_overrides_sibling_wait(sample_clock: _MockTime) -> None:
+    waiter, worker = _Task(), _Task()
+    wait = waiter.wait()
+    sample_clock.advance(1)
+    work = worker.enter(known_work())
+    sample_clock.advance(2)
+    assert sample_waiting_time() == 1
+    worker.exit(work)
+    sample_clock.advance(1)
+    wait.close()
+    assert sample_waiting_time() == 2
+    assert sample_waiting_time(1, 3) == 0
+
+
+async def test_wait_in_own_context_holds_work(sample_clock: _MockTime) -> None:
+    """A wait in the work's own context (or a task it started) holds it."""
+    tool = _Task()
+    work = tool.enter(known_work())
+    sample_clock.advance(1)
+    queued = tool.wait()  # e.g. its exec queued on max_subprocesses
+    sample_clock.advance(2)
+    assert sample_waiting_time() == 2
+    queued.close()
+    sample_clock.advance(1)
+    child = _Task(tool)
+    approval = child.enter(sample_wait())
+    sample_clock.advance(2)
+    child.exit(approval)
+    tool.exit(work)
+    assert sample_waiting_time() == 4
+    assert sample_working_time() == 2
+
+
+async def test_work_inside_suspension_is_not_known_work(
+    sample_clock: _MockTime,
+) -> None:
+    """An approver's or monitor's own model call does not restart the clock."""
+    agent = _Task()
+    with suspend_working_limit():
+        monitor = _Task()
+        attempts = ModelAttempts()
+        attempt = monitor.enter(attempts.attempt())
+        tool = monitor.enter(known_work())
+        sample_clock.advance(3)
+        monitor.exit(tool)
+        monitor.exit(attempt)
+        attempts.commit()
+    work = agent.enter(known_work())
+    sample_clock.advance(1)
+    agent.exit(work)
+    assert sample_waiting_time() == 3
+    assert sample_working_time() == 1
+
+
+async def test_retried_attempt_keeps_sibling_work(sample_clock: _MockTime) -> None:
+    """Only the part of a retried attempt with no other known work is waiting.
+
+    The attempt runs 0-8 and is classified as retried at 8; a sibling tool
+    call runs 1-4.
+    """
+    attempts = ModelAttempts()
+    sibling = _Task()
+
+    @retry(
+        **model_retry_config(
+            "m",
+            0,
+            None,
+            lambda ex: True,
+            lambda ex: None,
+            lambda m, rs: None,
+            sample_waits=True,
+            attempts=attempts,
+        )
+    )
+    async def attempt() -> None:
+        with attempts.attempt():
+            sample_clock.advance(1)
+            tool = sibling.enter(known_work())
+            sample_clock.advance(3)
+            sibling.exit(tool)
+            sample_clock.advance(4)
+            # in flight, the attempt is known work
+            assert sample_waiting_time() == 0
+            raise RuntimeError("retryable")
+
+    with working_limit(None) as limit:
+        with pytest.raises(Exception):
+            await attempt()
+        attempts.commit()  # nothing pending: the retry loop dropped it
+        assert sample_waiting_time() == 5
+        assert limit.usage == 3
+
+
+async def test_attempt_charged_unless_retried(sample_clock: _MockTime) -> None:
+    """A successful attempt is work, except the part split off as SDK retries."""
+    attempts = ModelAttempts()
+    caller, waiter = _Task(), _Task()
+    wait = waiter.wait()
+    attempt = caller.enter(attempts.attempt())
+    sample_clock.advance(8)
+    caller.exit(attempt)
+    assert sample_waiting_time() == 0
+    # the request took the last 2 s; the SDK retried before it
+    add_sample_wait(0, 6)
+    attempts.commit(work_from=6)
+    assert sample_waiting_time() == 6
+    sample_clock.advance(1)
+    wait.close()
+    assert sample_waiting_time() == 7
+
+
+async def test_nested_attempt_holds_enclosing_tool(sample_clock: _MockTime) -> None:
+    """A tool's nested model call owns its time, so a retry makes it a wait."""
+    tool_task = _Task()
+    attempts = ModelAttempts()
+    tool = tool_task.enter(known_work())
+    sample_clock.advance(2)
+    attempt = tool_task.enter(attempts.attempt())
+    sample_clock.advance(4)
+    tool_task.exit(attempt)
+    add_sample_wait(2, 6)
+    attempts.retried()
+    sample_clock.advance(4)
+    tool_task.exit(tool)
+    assert sample_waiting_time() == 4
+    assert sample_working_time() == 6
+
+
+@pytest.mark.parametrize("seed", range(30))
+async def test_random_work_and_waits_match_reference(seed: int) -> None:
+    """Readings match a brute-force evaluation of the rule, within bounds.
+
+    Waits and known work open and close in separate tasks, nested in each
+    other's contexts, with late waits and attempts classified after the fact.
+    """
+    rng = random.Random(seed)
+    clock = _MockTime()
+    init_sample_working_time(0.0, clock.get_time)
+    model = _RuleModel(clock)
+    scopes: list[tuple[Any, float]] = []
+    for _ in range(250):
+        op = rng.random()
+        open_spans = [s for s in model.spans if not s.closed]
+        if op < 0.25:
+            clock.advance(rng.choice([0, rng.random() * 3]))
+        elif op < 0.37:
+            parent = (
+                rng.choice(open_spans) if open_spans and rng.random() < 0.5 else None
+            )
+            model.open_span(parent, attempt=rng.random() < 0.4)
+        elif op < 0.47 and open_spans:
+            model.close_span(rng.choice(open_spans))
+        elif op < 0.57:
+            parent = (
+                rng.choice(open_spans) if open_spans and rng.random() < 0.6 else None
+            )
+            model.open_wait(parent)
+        elif op < 0.67 and model.open_waits:
+            model.close_wait(rng.randrange(len(model.open_waits)))
+        elif op < 0.75:
+            closed = [s for s in model.spans if s.attempts and s.closed and not s.done]
+            if closed:
+                model.classify(rng.choice(closed), retried=rng.random() < 0.5)
+        elif op < 0.85:
+            now = clock.get_time()
+            start = rng.uniform(-1, now + 1)
+            end = rng.uniform(start, now + 2)
+            add_sample_wait(start, end)
+            model.waits.append((max(start, 0), min(end, now)))
+        elif op < 0.9:
+            scope = working_limit(None)
+            scope.__enter__()
+            scopes.append((scope, clock.get_time()))
+        else:
+            seconds = rng.random() * 4
+            now = clock.get_time()
+            report_sample_waiting_time(seconds)
+            model.waits.append((max(now - seconds, 0), now))
+        _check_rule(rng, model, scopes)
+    # closing everything leaves every reading unchanged
+    now = clock.get_time()
+    windows = [(rng.uniform(0, now), now) for _ in range(5)] + [(0, now)]
+    before = [sample_waiting_time(a, b) for a, b in windows]
+    for span in [s for s in model.spans if not s.closed]:
+        model.close_span(span)
+    while model.open_waits:
+        model.close_wait(0)
+    for span in [s for s in model.spans if s.attempts and not s.done]:
+        model.classify(span, retried=False)
+    after = [sample_waiting_time(a, b) for a, b in windows]
+    assert after == pytest.approx(before, abs=1e-9)
+    _check_rule(rng, model, scopes)
+
+
+@dataclass
+class _Span:
+    task: _Task
+    cm: Any
+    parent: _Span | None
+    attempts: ModelAttempts | None
+    opened: float
+    segments: list[tuple[float, float]] = field(default_factory=list)
+    active: float | None = None
+    holds: int = 0
+    closed: bool = False
+    done: bool = False  # an attempt that has been classified
+    dropped: bool = False
+
+
+class _RuleModel:
+    """Drives the implementation and tracks the waits and work it should see."""
+
+    def __init__(self, clock: _MockTime) -> None:
+        self.clock = clock
+        self.spans: list[_Span] = []
+        self.waits: list[tuple[float, float]] = []
+        self.open_waits: list[tuple[SampleWait, _Span | None, float]] = []
+
+    def open_span(self, parent: _Span | None, attempt: bool) -> None:
+        task = _Task(parent.task if parent else None)
+        attempts = ModelAttempts() if attempt else None
+        cm = attempts.attempt() if attempts else known_work()
+        task.enter(cm)
+        now = self.clock.get_time()
+        span = _Span(task, cm, parent, attempts, now, active=now)
+        if parent is not None:
+            self._hold(parent)
+        self.spans.append(span)
+
+    def close_span(self, span: _Span) -> None:
+        span.task.exit(span.cm)
+        self._end(span)
+        span.closed = True
+        if span.parent is not None:
+            self._release(span.parent)
+
+    def open_wait(self, span: _Span | None) -> None:
+        task = _Task(span.task if span else None)
+        self.open_waits.append((task.wait(), span, self.clock.get_time()))
+        if span is not None:
+            self._hold(span)
+
+    def close_wait(self, index: int) -> None:
+        wait, span, start = self.open_waits.pop(index)
+        wait.close()
+        self.waits.append((start, self.clock.get_time()))
+        if span is not None:
+            self._release(span)
+
+    def classify(self, span: _Span, retried: bool) -> None:
+        assert span.attempts is not None
+        span.done = True
+        if retried:
+            span.dropped = True
+            add_sample_wait(span.opened, self.clock.get_time())
+            self.waits.append((span.opened, self.clock.get_time()))
+            span.attempts.retried()
+        else:
+            span.attempts.commit()
+
+    def intervals(self) -> tuple[list[tuple[float, float]], list[tuple[float, float]]]:
+        now = self.clock.get_time()
+        waits = self.waits + [(start, now) for _, _, start in self.open_waits]
+        work: list[tuple[float, float]] = []
+        for span in self.spans:
+            if not span.dropped:
+                work += span.segments
+                if span.active is not None:
+                    work.append((span.active, now))
+        return waits, work
+
+    def _hold(self, span: _Span) -> None:
+        if span.holds == 0:
+            self._end(span)
+        span.holds += 1
+
+    def _release(self, span: _Span) -> None:
+        span.holds -= 1
+        if span.holds == 0 and not span.closed:
+            span.active = self.clock.get_time()
+
+    def _end(self, span: _Span) -> None:
+        if span.active is not None:
+            span.segments.append((span.active, self.clock.get_time()))
+            span.active = None
+
+
+def _check_rule(
+    rng: random.Random, model: _RuleModel, scopes: list[tuple[Any, float]]
+) -> None:
+    now = model.clock.get_time()
+    waits, work = model.intervals()
+    assert 0 <= sample_working_time() <= now + 1e-9
+    assert sample_waiting_time() == pytest.approx(
+        _rule_waiting(waits, work, 0, now), abs=1e-9
+    )
+    for _ in range(3):
+        a = rng.uniform(0, now)
+        b = rng.uniform(a, now)
+        waiting = sample_waiting_time(a, b)
+        assert waiting == pytest.approx(_rule_waiting(waits, work, a, b), abs=1e-9)
+        assert -1e-9 <= (b - a) - waiting <= b - a + 1e-9
+    for scope, start in scopes:
+        assert -1e-9 <= scope.usage <= now - start + 1e-9
+
+
+def _rule_waiting(
+    waits: list[tuple[float, float]],
+    work: list[tuple[float, float]],
+    a: float,
+    b: float,
+) -> float:
+    """Length of `[a, b]` inside some wait and outside all known work."""
+    points = sorted({a, b} | {x for s, e in waits + work for x in (s, e) if a < x < b})
+    total = 0.0
+    for lo, hi in zip(points, points[1:]):
+        mid = (lo + hi) / 2
+        if any(s <= mid <= e for s, e in waits) and not any(
+            s <= mid <= e for s, e in work
+        ):
+            total += hi - lo
     return total
 
 

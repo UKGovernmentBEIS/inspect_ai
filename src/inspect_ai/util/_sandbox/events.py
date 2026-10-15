@@ -9,6 +9,7 @@ from pydantic_core import to_jsonable_python
 from typing_extensions import override
 
 from inspect_ai._util.text import truncate_lines, truncate_string_to_bytes
+from inspect_ai._util.working import known_work
 from inspect_ai.util._subprocess import ExecResult
 
 from .environment import (
@@ -69,9 +70,16 @@ class SandboxEnvironmentProxy(SandboxEnvironment):
         if len(sig.parameters) == 8:
             params["concurrency"] = concurrency
 
-        # make call
+        # make call (an exec shown in the transcript is known work; service
+        # commands and exec_remote polls are not)
+        work = (
+            known_work()
+            if self._events and not is_sandbox_service_command(cmd)
+            else contextlib.nullcontext()
+        )
         try:
-            result = await self._sandbox.exec(**params)
+            with work:
+                result = await self._sandbox.exec(**params)
         except TimeoutError as ex:
             raise SandboxTimeoutError(
                 str(ex), truncated_output=getattr(ex, "truncated_output", None)
