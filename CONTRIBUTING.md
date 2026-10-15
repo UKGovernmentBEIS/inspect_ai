@@ -158,7 +158,7 @@ is the PR description, which Release Please also reads:
 
 - For a breaking change, use `feat!:` (or `fix!:`) and add a paragraph to the
   PR description starting with `BREAKING CHANGE:` that says what users must
-  change, with a blank line after it. It is listed under "⚠ BREAKING CHANGES".
+  change, with a blank line after it. It is listed under "Breaking Changes".
 - A line in the description that starts with a type and colon (such as
   `fix: ...`) right after a blank line adds its own changelog entry. To show
   such a line without adding an entry, indent it (four spaces also renders it

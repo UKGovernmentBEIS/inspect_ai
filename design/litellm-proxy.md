@@ -395,6 +395,107 @@ made without thinking (it wraps a constant UUID) was suspected of triggering
 the empty turns; across 1,795 tool-call turns, the turn after such a call was
 bad 9% of the time versus 41% after a call with a full signature.
 
+### Meta
+
+Probed 2026-10-15 with `meta/muse-wonder-1.0` through `main-latest` and
+1.96.0 proxies, live, and against Meta's API directly where noted.
+
+- **The model and its info.** LiteLLM's `meta` provider is a JSON-configured
+  OpenAI-compatible provider (`llms/openai_like/providers.json`: base
+  `https://api.meta.ai/v1`, `META_API_KEY`, chat and Responses endpoints).
+  Neither image's bundled map has `muse-wonder-1.0`. Both proxies report it
+  anyway (1M input, 131k output, reasoning, prices), from the model map
+  LiteLLM fetches at startup. It resolves to `meta/muse-wonder-1.0`, which
+  Inspect's database lacks, so the context window comes from the proxy. A
+  proxy using only its local map would fail the model info check, and with
+  no Meta vendor the error suggests a limits template rather than
+  `base_model: meta/muse-spark-1.3`. Bare `muse-*` names (e.g. behind
+  `openai/`) do not resolve: `NAME_ORGS` has no `muse` prefix.
+- **Reasoning round trips.**
+  - Chat returns no reasoning at all (no `reasoning_content`), only usage, so
+    nothing is carried to the next turn.
+  - Responses returns encrypted reasoning items, and the provider replays
+    them unchanged before the function calls, streamed or not.
+  - The native `meta` provider uses the Responses API by default for this
+    reason. The proxy uses Chat Completions (`meta` is not a recognized
+    vendor or route).
+- **Reasoning effort.** `minimal` through `max` are accepted on both paths
+  and versions. `none` is rejected, on both paths: ``reasoning_effort 'none'
+  is not supported for model 'muse-wonder-1.0'. Supported values: [minimal,
+  low, medium, high, xhigh, max]``. The provider's patterns do not match it,
+  so the request fails. The native provider drops `none` with a warning
+  (Muse always reasons).
+- **Request parameters Meta rejects** (400s that fail the request today):
+
+  | Parameter | Chat | Responses |
+  |---|---|---|
+  | `tool_choice` other than `auto` (`any`, a function, and `none`) | rejected | rejected |
+  | `logprobs` / `top_logprobs` | rejected ("not supported with reasoning") | rejected |
+  | `stop` | rejected | not sent (the Responses API has none) |
+  | `n` > 1 (`num_choices`) | rejected | not sent |
+
+  The native provider degrades forced tool choice to `auto` (warning, plus
+  `tool_choice_degraded` in the output metadata), and drops `logprobs`,
+  `top_logprobs`, `stop`, `logit_bias` and `n` with warnings. It does not
+  handle `tool_choice="none"` with tools.
+- **Errors.** A prompt over the context window gets `The request contains
+  invalid parameters. Check the request body for any errors or
+  inconsistencies.`, from the proxy and from Meta's API directly (1.06M and
+  1.2M tokens). It cannot be told apart from other invalid requests, so it
+  is not mapped to `model_length`. Refusals were not reproduced. The native
+  provider promotes Meta's structured refusal field (Responses `refusal`
+  part, chat `message.refusal`) from `stop` to `content_filter`. The proxy
+  records it as refusal content and stop details, but keeps `stop`. On
+  non-streamed chat, LiteLLM (1.96 and `main-latest`, every route) moves
+  `message.refusal` into `message.provider_specific_fields` and returns
+  `refusal: null`, so the refusal reads as an empty response. Streamed
+  deltas keep it.
+- **Usage and cost.** On Responses, usage matches Meta's on both versions.
+  On chat, Meta's `completion_tokens` includes reasoning (direct: 52, of
+  which 41 reasoning). `main-latest` passes it through, but 1.96 reports 1
+  output token, which undercounts output and cost (a LiteLLM bug, fixed
+  since). Cached prompt tokens are reported.
+
+**Changes made:**
+
+1. Meta is a vendor: the `meta` provider segment (except Llama, which
+   `vertex_ai/meta/...` and `nvidia_nim/meta/...` normalize to), or a bare
+   or `meta/` `muse-` name (not under another host's path: Fireworks serves
+   a `muse-glimmer-30b`). `muse-` → `meta` is in `NAME_ORGS`, and the model
+   info error suggests `base_model: meta/muse-spark-1.3`.
+2. The Responses API is the default, streamed, when every deployment has the
+   `meta` route and an `api_base` that is unset or a `meta.ai` host, as in
+   the native provider. This also avoids the 1.96 chat usage bug.
+3. Meta's `none` rejection is recognized, so `none` is dropped with the usual
+   warning.
+4. For Meta models, as in the native provider:
+   - forced tool choice is degraded to `auto`, with a warning and
+     `tool_choice_degraded` in the output metadata;
+   - `logprobs` / `top_logprobs`, and on chat `stop`, `logit_bias` and `n`,
+     are dropped with warnings;
+   - `tool_choice="none"` sends no tools and no `tool_choice` (Meta accepts a
+     tool call history without tools, on both paths).
+5. A structured refusal becomes `content_filter` for Meta models
+   (`_flag_refusal_stop` from the native provider). For every vendor, a
+   non-streamed chat refusal is read back from `provider_specific_fields`
+   (`with_upstream_refusals`), so it is refusal content with refusal stop
+   details, as from the vendor's own API.
+6. Not changed: context overflow (Meta's error is not identifiable).
+
+All of 2–4 verified live on `main-latest`, on both paths.
+
+**Tests.** `muse-wonder-1.0` is in the live round-trip matrix (Responses
+only: chat returns no reasoning), the live Responses default test,
+`test_live_reasoning_effort_lowered` (every effort on both paths, with the
+value sent upstream; shared with Grok), and `test_live_meta_request_shaping`
+(a forced and a `none` tool choice, and `logprobs`, `stop` and `n`, on both
+paths, with the request sent upstream). Offline: a `meta` fake in the
+round-trip matrix (Responses), `muse-wonder-1.0` in the effort guarantee with
+a fake that rejects `none` in Meta's wording, and `muse-context` (stays an
+error), `muse-policy` (a `content_policy_violation` 400), `muse-refusal` (the
+structured refusal, on all four paths) and `muse-rate-limit` error scenarios.
+Live, on `main-latest` and 1.96.0: 10 passed each.
+
 ### Grok
 
 Probed 2026-10-15 with `xai/grok-4.7` (xAI's frontier) through `main-latest`
@@ -478,7 +579,7 @@ it reaches `handle_stream_error`, so the provider checks
 `PermissionDeniedError` there too (it is never retried).
 
 **Tests.** `grok-4.7` is in the live round-trip matrix, the live Responses
-default test, and `test_live_grok_reasoning_effort` (every effort on both
+default test, and `test_live_reasoning_effort_lowered` (every effort on both
 paths, with the value sent upstream). Offline: an `xai` fake in the round-trip
 matrix, `grok-4.7` in the effort guarantee with a fake that rejects `none` and
 `max` in xAI's wording, and `grok-context`, `grok-refusal` and `grok-rate-limit`

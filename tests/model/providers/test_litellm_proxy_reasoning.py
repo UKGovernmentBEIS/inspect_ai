@@ -55,7 +55,15 @@ from inspect_ai.model import (
 )
 from inspect_ai.model._providers import litellm_proxy as litellm_proxy_module
 from inspect_ai.model._providers.litellm_proxy import LiteLLMProxyAPI
-from inspect_ai.tool import Tool, code_execution, computer, tool, web_search
+from inspect_ai.tool import (
+    Tool,
+    ToolChoice,
+    ToolFunction,
+    code_execution,
+    computer,
+    tool,
+    web_search,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -506,6 +514,19 @@ FAKE_PROVIDERS = [
             else reasoning_content_chat_response(request)
         ),
         check=check_xai_replay,
+    ),
+    # Meta returns reasoning only on the Responses API, which LiteLLM passes
+    # through unconverted
+    FakeProvider(
+        name="meta",
+        litellm_params=lambda url: {
+            "model": "meta/muse-wonder-1.0",
+            "api_base": f"{url}/v1",
+            "api_key": "fake",
+        },
+        served=openai_responses_response,
+        check=check_openai_responses_replay,
+        responses_api=(True,),
     ),
     # the fake speaks Converse JSON only, not the eventstream encoding
     FakeProvider(
@@ -1006,6 +1027,18 @@ LIVE_PROVIDERS = [
         },
         check=check_xai_replay,
     ),
+    # chat returns no reasoning, so there is nothing to replay
+    LiveProvider(
+        name="muse-wonder-1.0",
+        family="meta",
+        env=("META_API_KEY",),
+        litellm_params={
+            "model": "meta/muse-wonder-1.0",
+            "api_key": "os.environ/META_API_KEY",
+        },
+        check=check_openai_responses_replay,
+        responses_api=(True,),
+    ),
 ]
 
 
@@ -1135,7 +1168,9 @@ def _live_marks(provider: LiveProvider) -> list[Any]:
 LIVE_OPENAI = [p for p in LIVE_PROVIDERS if p.family == "openai"]
 
 # upstreams whose own Responses API the provider uses by default
-LIVE_RESPONSES_DEFAULT = [p for p in LIVE_PROVIDERS if p.family in ("openai", "grok")]
+LIVE_RESPONSES_DEFAULT = [
+    p for p in LIVE_PROVIDERS if p.family in ("openai", "grok", "meta")
+]
 
 
 @skip_if_no_openai_package
@@ -1279,10 +1314,11 @@ async def test_live_gemini_reasoning_effort(
     assert lowered == []
 
 
-LIVE_GROK = [p for p in LIVE_PROVIDERS if p.family == "grok"]
-
-LIVE_GROK_EFFORT_SENT: dict[str, str | None] = {"none": None, "max": "xhigh"}
-"""Efforts xAI rejects, and what is sent instead (None: no effort)."""
+LIVE_EFFORT_SENT: dict[str, dict[str, str | None]] = {
+    "grok": {"none": None, "max": "xhigh"},
+    "meta": {"none": None},
+}
+"""Efforts the upstream rejects, and what is sent instead (None: no effort)."""
 
 
 @skip_if_no_openai_package
@@ -1290,16 +1326,21 @@ LIVE_GROK_EFFORT_SENT: dict[str, str | None] = {"none": None, "max": "xhigh"}
 @pytest.mark.parametrize("responses_api", [False, True], ids=["chat", "responses"])
 @pytest.mark.parametrize(
     "provider",
-    [pytest.param(p, id=p.name, marks=_live_marks(p)) for p in LIVE_GROK],
+    [
+        pytest.param(p, id=p.name, marks=_live_marks(p))
+        for p in LIVE_PROVIDERS
+        if p.family in LIVE_EFFORT_SENT
+    ],
 )
-async def test_live_grok_reasoning_effort(
+async def test_live_reasoning_effort_lowered(
     live_proxy: LiteLLMProxy, provider: LiveProvider, responses_api: bool
 ) -> None:
-    """Every reasoning effort succeeds against Grok, lowered as natively."""
+    """Every reasoning effort succeeds against Grok and Muse, lowered as natively."""
     api = proxy_model(
         live_proxy, f"live-{provider.name}", responses_api=responses_api, memoize=False
     ).api
     assert isinstance(api, LiteLLMProxyAPI)
+    expected_sent = LIVE_EFFORT_SENT[provider.family]
     for effort in LIVE_EFFORTS:
         call_id = str(uuid.uuid4())
         result = await api.generate(
@@ -1321,4 +1362,51 @@ async def test_live_grok_reasoning_effort(
             if responses_api
             else request.get("reasoning_effort")
         )
-        assert sent == LIVE_GROK_EFFORT_SENT.get(effort, effort), f"{effort}: {sent}"
+        assert sent == expected_sent.get(effort, effort), f"{effort}: {sent}"
+
+
+LIVE_META = [p for p in LIVE_PROVIDERS if p.family == "meta"]
+
+
+@skip_if_no_openai_package
+@skip_if_no_litellm_proxy
+@pytest.mark.parametrize("responses_api", [False, True], ids=["chat", "responses"])
+@pytest.mark.parametrize(
+    "provider",
+    [pytest.param(p, id=p.name, marks=_live_marks(p)) for p in LIVE_META],
+)
+async def test_live_meta_request_shaping(
+    live_proxy: LiteLLMProxy, provider: LiveProvider, responses_api: bool
+) -> None:
+    """Requests with parameters Meta rejects succeed, shaped as natively."""
+    model = proxy_model(
+        live_proxy, f"live-{provider.name}", responses_api=responses_api, memoize=False
+    )
+
+    async def generate(
+        tool_choice: ToolChoice, **config: Any
+    ) -> tuple[ModelOutput, dict[str, Any]]:
+        call_id = str(uuid.uuid4())
+        output = await model.generate(
+            "What is the weather in Paris?",
+            tools=[get_weather()],
+            tool_choice=tool_choice,
+            config=GenerateConfig(extra_headers={CALL_ID_HEADER: call_id}, **config),
+        )
+        assert live_proxy.capture_dir is not None
+        return output, upstream_exchange(live_proxy.capture_dir, call_id).request
+
+    output, request = await generate(ToolFunction(name="get_weather"))
+    assert request.get("tool_choice", "auto") == "auto", request.get("tool_choice")
+    assert (output.metadata or {})["tool_choice_degraded"]["used"] == {"type": "auto"}
+
+    output, request = await generate("none")
+    assert not request.get("tools") and "tool_choice" not in request
+    assert not output.message.tool_calls
+
+    output, request = await generate(
+        "auto", logprobs=True, top_logprobs=2, stop_seqs=["xyz"], num_choices=2
+    )
+    assert output.stop_reason != "unknown", output.error
+    assert not {"logprobs", "top_logprobs", "stop", "n"} & request.keys()
+    assert not any("logprobs" in item for item in request.get("include") or [])

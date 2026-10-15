@@ -14,6 +14,8 @@ import json
 import re
 from typing import Any
 
+from openai.types.chat import ChatCompletion
+
 from .._model_output import ModelOutput, StopDetails
 
 CONTEXT_WINDOW_MARKERS = (
@@ -75,6 +77,26 @@ def litellm_error_model_output(
             stop_details=StopDetails(type="refusal", explanation=content),
         )
     return None
+
+
+def with_upstream_refusals(completion: ChatCompletion) -> ChatCompletion:
+    """The completion with each message's upstream `refusal` restored.
+
+    On non-streamed chat, LiteLLM moves the upstream `message.refusal` into
+    `message.provider_specific_fields` and returns `refusal: null` (1.96 and
+    later, every route), so the refusal would read as an empty response.
+    Streamed deltas keep `refusal`.
+    """
+    choices = []
+    for choice in completion.choices:
+        message = choice.message
+        fields = getattr(message, "provider_specific_fields", None)
+        refusal = fields.get("refusal") if isinstance(fields, dict) else None
+        if message.refusal is None and isinstance(refusal, str) and refusal:
+            message = message.model_copy(update={"refusal": refusal})
+            choice = choice.model_copy(update={"message": message})
+        choices.append(choice)
+    return completion.model_copy(update={"choices": choices})
 
 
 def upstream_message(message: str) -> str:
