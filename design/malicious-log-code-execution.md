@@ -561,6 +561,53 @@ Without results a resolving recovery (`incomplete_action` other than
 `"retry"`) does not finalize (`_write.py:314`): the log stays retryable and
 its in-progress samples are re-run instead of resolved.
 
+**A recovery without metrics keeps its input, so it can be repeated.** The
+remedy the messages give is to recover again with `trust_log=True`. Today
+that second recovery is impossible under the defaults:
+`recover_eval_log()` and `recover_eval_log_async()` default to
+`cleanup=True` (`_recover/_api.py:118`, `:181`), which the CLI passes unless
+`--no-cleanup` is given (`_cli/log.py:488`), and the buffer is removed
+whatever the outcome (`_api.py:325-329`); a second recovery then raises
+`RecoveryNotAvailable` (`:229-231`). With `overwrite=True` the crashed log is
+also replaced by the recovered one (`:318-322`), which
+`read_crashed_eval_log()` rejects as input because it has `header.json`
+(`_recover/_read.py:72-75`). So, in `src/inspect_ai/log/_recover/`:
+
+- `RecoveryStats` (`_write.py:39`) gains `metrics_error: str | None`, which
+  `write_recovered_eval_log()` sets to the exception's message in its
+  existing `except Exception` branch (`_write.py:286`). The rule covers
+  every failure in that block, not only the trust refusals: whatever the
+  cause (an untrusted log, a metric not installed, a metric that raised),
+  a recovered log without results is incomplete, and keeping the input is
+  what lets the user fix the cause and recover again.
+  `recover_eval_log_async()` always passes a `RecoveryStats` to the writer,
+  creating one when the caller's `_stats` is `None`.
+- When `metrics_error` is set, `recover_eval_log_async()` does not remove
+  the buffer, whatever `cleanup` says. Under `cleanup="finalized"` this is
+  already so, because a log without results never finalizes; the change
+  affects `cleanup=True`, the API and CLI default. `cleanup=False` is
+  unchanged.
+- When `metrics_error` is set and `overwrite=True`, the crashed log is not
+  replaced: the recovered log stays at the temporary sibling path the
+  overwrite writes first (`default_output_path(log)`, `<name>-recovered.eval`)
+  and is returned from there, so `inspect log recover` prints that path.
+- The writer's warning gains a second sentence: "The crashed log and its
+  sample buffer were kept, so it can be recovered again." The opt-in
+  advice is already in the error text it carries.
+
+The second recovery takes the original crashed log as input, not the
+`-recovered.eval` output, and writes the same output path again. The guard
+against a newer file (`_api.py:207-226`) counts only `success` logs, and
+the first output has status `error`, so it does not block the rerun. With
+results, the second recovery removes the buffer as usual, finalizes under
+a resolving `incomplete_action`, and with `overwrite=True` replaces the
+crashed log.
+
+Inspect's own callers keep their cleanup choices and are unaffected:
+eval-retry uses `cleanup="finalized"` and then `cleanup=False` for the
+threshold fallback (`eval.py:1728-1741`), eval-set the same
+(`evalset.py:1575-1586`), and none of them pass `overwrite`.
+
 Callers inside Inspect:
 
 - `eval_retry_async()` passes `trust_log=True` to both recovery calls
@@ -1083,7 +1130,18 @@ Behaviour changes, by user:
 - **`inspect log recover` users with task-file metrics**: the recovered log
   has no results and the warning names `--trust-log`. With a resolving
   `--incomplete-action`, such a log also does not finalize, so its
-  in-progress samples are left for a retry. Rerun with the flag.
+  in-progress samples are left for a retry. The sample buffer is kept, and
+  with `--overwrite` so is the crashed log (the output goes to
+  `<name>-recovered.eval`), so rerunning the same command on the same
+  crashed log with `--trust-log` computes the metrics, finalizes a resolving
+  recovery and then removes the buffer.
+- **Recovery callers whose metric computation fails for any reason** (with
+  `cleanup=True`, the default): the buffer is now kept instead of removed,
+  and an `overwrite=True` recovery leaves the crashed log in place and
+  returns the log written at `<name>-recovered.eval`. A recovery whose
+  metrics compute behaves as today. A kept buffer is removed by a later
+  recovery that computes metrics, or by the existing startup sweep of stale
+  buffers (`_recover/_api.py:138-139`).
 - **`eval-retry`**: no change apart from the printed record and help text; its recovery passes
   `trust_log=True`, so it imports the task file and rebuilds metric options
   as today, and recovered results and finalization are unchanged.
@@ -1318,6 +1376,28 @@ Legitimate flows:
   marker records exactly one import and the record line is logged once
   (printed once by `inspect log recover --trust-log`), which fails if
   `write_recovered_eval_log()` gives the two resolvers separate trackers.
+- `tests/log/test_recover_api.py` and `test_recover_filestore.py`, the
+  default-then-trusted sequence, once with a database buffer and once with
+  a filestore buffer, each under `incomplete_action="retry"` and `"error"`
+  (built with the existing helpers `_create_buffer_db()`,
+  `_write_crashed_eval()` and `_create_filestore_fixture()`). The first
+  `recover_eval_log(log)` call uses the defaults (`cleanup=True`) on fixture
+  2 and returns a log without results, with `RecoveryStats.metrics_error`
+  set and the warning naming the kept buffer; the buffer still exists. A
+  second `recover_eval_log(log, trust_log=True)` on the same crashed log
+  computes both metrics and removes the buffer, and under `"error"` the log
+  finalizes with status `success`.
+  - The same with `overwrite=True`: after the first call the crashed log is
+    unchanged (still accepted by `read_crashed_eval_log()`) and the returned
+    log is at `<name>-recovered.eval`; the second call replaces the crashed
+    log.
+  - The same sequence through `inspect log recover` and then
+    `inspect log recover --trust-log` with `CliRunner`.
+  - A metric that is registered but raises when computed also keeps the
+    buffer under `cleanup=True`, and a recovery whose metrics compute still
+    removes it.
+  These fail on the current code, where the first call removes the buffer
+  and the second raises `RecoveryNotAvailable`.
 - `tests/test_eval_set.py`: an eval set with a task-file custom metric,
   interrupted so a `started` log with a buffer remains, resumes with the
   metric computed (proves eval-set needs no opt-in). A unit test on
@@ -1429,7 +1509,9 @@ the PRs open, as the repo requires.
    `--scorer`), `src/inspect_ai/log/_metric.py` (`resolve_log_metrics()`,
    `compute_log_metrics()`), `src/inspect_ai/log/_score.py` (resolve before
    editing),
-   `src/inspect_ai/log/_recover/_api.py`, `src/inspect_ai/log/_recover/_write.py`,
+   `src/inspect_ai/log/_recover/_api.py`, `src/inspect_ai/log/_recover/_write.py`
+   (`trust_log`; `RecoveryStats.metrics_error`, and keeping the buffer and
+   the crashed log when metrics fail),
    `src/inspect_ai/_cli/log.py`, `src/inspect_ai/_eval/eval.py` (both retry
    recovery calls pass `trust_log=True`), `docs/eval-logs.qmd` (the
    recompute example and a short "Logs from others" note),
