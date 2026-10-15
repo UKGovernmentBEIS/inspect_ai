@@ -744,6 +744,45 @@ async def test_late_wait_withdraws_own_work(sample_clock: _MockTime) -> None:
     assert sample_working_time() == 1
 
 
+@pytest.mark.parametrize("helper", ["report_sample_waiting_time", "add_sample_wait"])
+@pytest.mark.parametrize("suspension", [sample_wait, suspend_working_limit])
+@pytest.mark.parametrize("sibling", [False, True])
+async def test_late_wait_inside_suspension_withdraws_own_work(
+    sample_clock: _MockTime,
+    helper: str,
+    suspension: Callable[[], Any],
+    sibling: bool,
+) -> None:
+    """A wait reported inside a suspension still withdraws its context's work.
+
+    A tool runs from 0, enters a suspension at 3 and reports `[0, 5]` at 5.
+    An independent sibling working over `[1, 2]` stays charged.
+    """
+    with working_limit(None) as scope:
+        tool, other = _Task(), _Task()
+        tool_work = tool.enter(known_work())
+        sample_clock.advance(1)
+        sibling_work = other.enter(known_work()) if sibling else None
+        sample_clock.advance(1)
+        if sibling_work is not None:
+            other.exit(sibling_work)
+        sample_clock.advance(1)
+        suspended = tool.enter(suspension())
+        sample_clock.advance(2)
+        if helper == "report_sample_waiting_time":
+            tool.ctx.run(report_sample_waiting_time, 5)
+        else:
+            tool.ctx.run(add_sample_wait, 0, 5)
+        working = 1 if sibling else 0
+        assert sample_working_time() == working
+        assert scope.usage == working
+        tool.exit(suspended)
+        tool.exit(tool_work)
+        assert sample_working_time() == working
+        assert sample_waiting_time() == 5 - working
+        assert scope.usage == working
+
+
 async def test_late_wait_keeps_sibling_work(sample_clock: _MockTime) -> None:
     tool, sibling = _Task(), _Task()
     tool_work = tool.enter(known_work())
@@ -945,7 +984,9 @@ async def test_random_work_and_waits_match_reference(seed: int) -> None:
             now = clock.get_time()
             start = rng.uniform(-1, now + 1)
             end = rng.uniform(start, now + 2)
-            model.late_wait(context, start, end, add_sample_wait)
+            model.late_wait(
+                context, start, end, add_sample_wait, suspended=rng.random() < 0.3
+            )
         elif op < 0.9:
             scope = working_limit(None)
             scope.__enter__()
@@ -957,6 +998,7 @@ async def test_random_work_and_waits_match_reference(seed: int) -> None:
                 now - rng.random() * 4,
                 now,
                 lambda start, end: report_sample_waiting_time(end - start),
+                suspended=rng.random() < 0.3,
             )
         _check_rule(rng, model, scopes)
     # closing everything leaves every reading unchanged
@@ -1049,9 +1091,22 @@ class _RuleModel:
         start: float,
         end: float,
         report: Callable[[float, float], None],
+        suspended: bool = False,
     ) -> None:
-        """Report a wait after the fact from inside `context`'s work."""
-        _Task(context.inner if context else None).ctx.run(report, start, end)
+        """Report a wait after the fact from inside `context`'s work.
+
+        With `suspended`, the report is made inside a `sample_wait()` opened
+        at that instant, as an approver or monitor would.
+        """
+
+        def run() -> None:
+            if suspended:
+                with sample_wait():
+                    report(start, end)
+            else:
+                report(start, end)
+
+        _Task(context.inner if context else None).ctx.run(run)
         now = self.clock.get_time()
         start, end = max(start, 0), min(end, now)
         if end <= start:

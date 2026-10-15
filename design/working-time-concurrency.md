@@ -235,8 +235,11 @@ wait and the work spans that are open or awaiting classification:
   work, which was active while the wait was not yet known: a tool calling
   `count_tokens()` whose attempt is retried, for example. So the wait is
   withdrawn from the known work of the reporting context and the work
-  enclosing it, as if it had held them while open. Other tasks' work over
-  the interval is kept. For this, `K` counts how many spans cover each
+  enclosing it, as if it had held them while open. This holds for a wait
+  reported from inside a suspension too (an approver reporting its wait):
+  the suspension stops new work from opening there, but the work around it
+  still owns its earlier time. Other tasks' work over the interval is
+  kept. For this, `K` counts how many spans cover each
   point, each span keeps the intervals it added, and the closed waits `W`
   are kept too: a withdrawal decrements the counts, and where `K` no longer
   covers, `E` regains `W` and `U` loses what `W` does not cover.
@@ -522,7 +525,9 @@ block on `anyio.Event`s, so ordering is fixed.
     call.time`; a tool's nested attempt that is retried makes that part of
     the tool a wait;
   - a late wait reported inside a tool is withdrawn from that tool's work
-    and its enclosing tool's work, but not from a sibling's;
+    and its enclosing tool's work, but not from a sibling's, including when
+    it is reported from inside `sample_wait()` or `suspend_working_limit()`
+    and covers time before the suspension started;
   - a task that outlives the inner tool that started it still holds the
     outer tool, for waits and retried model attempts, and a wait that
     outlasts its span keeps the span above held;
@@ -531,7 +536,8 @@ block on `anyio.Event`s, so ordering is fixed.
     directory is known work, and execs inside `untracked_sandbox_execs()`
     are not;
   - seeded random sequences of nested spans (including contexts of closed
-    spans), waits, late waits reported from inside work, attempts
+    spans), waits, late waits reported from inside work (some from inside a
+    suspension), attempts
     classified both ways and scoped limits, checked against a brute-force
     evaluation of the rule, with every reading and scope in bounds and
     unchanged when everything closes.

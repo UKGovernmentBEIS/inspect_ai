@@ -521,23 +521,26 @@ def report_sample_waiting_time(waiting_time: float) -> None:
 
     Adds the interval `[now - waiting_time, now]` to the sample's known waits,
     merged with the waits already known. The known work of the calling context
-    (and the work enclosing it) is not counted over the interval.
+    (and the work enclosing it) is not counted over the interval, including
+    when the call is made inside a wait such as `suspend_working_limit()`.
     """
     timing = _sample_timing.get()
     if timing is not None:
         now = timing.now()
-        timing.add_wait(now - waiting_time, now, _context_work())
+        timing.add_wait(now - waiting_time, now, _current_work.get())
 
 
 def add_sample_wait(start: float, end: float) -> None:
     """Record the closed interval `[start, end]` (sample clock) as a known wait.
 
     The known work of the calling context (and the work enclosing it) is not
-    counted over the interval, as if the wait had held it while open.
+    counted over the interval, as if the wait had held it while open. This
+    holds inside a wait such as `suspend_working_limit()` too: the wait stops
+    new work there, not the history of the work around it.
     """
     timing = _sample_timing.get()
     if timing is not None:
-        timing.add_wait(start, end, _context_work())
+        timing.add_wait(start, end, _current_work.get())
 
 
 class SampleWait:
