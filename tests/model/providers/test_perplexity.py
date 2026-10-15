@@ -407,6 +407,38 @@ async def test_perplexity_tool_choice(
 
 
 @pytest.mark.anyio
+@pytest.mark.parametrize("tool_choice", ["auto", "none"])
+async def test_perplexity_extra_body_tool_choice(
+    monkeypatch: pytest.MonkeyPatch, tool_choice: ToolChoice
+) -> None:
+    # Inspect's tool_choice governs Inspect's tools; tools passed in
+    # extra_body follow extra_body["tool_choice"] (decision: Ransom, 2026-10-15)
+    model = get_model("perplexity/sonar", api_key="sk-test", memoize=False)
+    requests: list[dict[str, Any]] = []
+
+    async def fake_create(**kwargs: Any) -> Response:
+        requests.append(kwargs)
+        return _agent_response("a", 1)
+
+    assert isinstance(model.api, PerplexityAPI)
+    monkeypatch.setattr(model.api.client.responses, "create", fake_create)
+    fetch_url = {"type": "fetch_url"}
+    try:
+        await model.generate(
+            [ChatMessageUser(content="a")],
+            tool_choice=tool_choice,
+            config=GenerateConfig(
+                extra_body={"tools": [fetch_url], "tool_choice": "none"}
+            ),
+        )
+    finally:
+        await model.api.aclose()
+
+    assert requests[0]["tool_choice"] is NOT_GIVEN
+    assert requests[0]["extra_body"] == {"tools": [fetch_url], "tool_choice": "none"}
+
+
+@pytest.mark.anyio
 async def test_perplexity_agent_api_response(monkeypatch: pytest.MonkeyPatch) -> None:
     requests: list[dict[str, Any]] = []
     provider = _provider(
