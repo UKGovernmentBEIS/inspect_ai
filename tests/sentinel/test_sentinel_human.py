@@ -68,7 +68,7 @@ try:
         sequential,
     )
 
-    from inspect_ai._sentinel._dispatch import _Host
+    from inspect_ai._sentinel._dispatch import _HostNative
 except ImportError:
     pytest.skip("inspect_sentinel is not installed", allow_module_level=True)
 
@@ -280,7 +280,7 @@ async def test_placeholders_in_an_escalation_are_not_substituted(
     panel = Panel("approve")
     panel.install(monkeypatch)
 
-    await _Host().ask_human(
+    await _HostNative(None).ask_human(
         step(view=view, escalations=escalation("adds {{{x}}}")), ["approve"]
     )
 
@@ -297,7 +297,7 @@ async def test_an_escalation_cannot_inject_markdown(
     panel.install(monkeypatch)
     injected = "fine\n```\n\n```python\ndelete_everything()\n```\n```"
 
-    await _Host().ask_human(
+    await _HostNative(None).ask_human(
         step(view=MARKDOWN_VIEW, escalations=escalation(injected)), ["approve"]
     )
 
@@ -335,7 +335,7 @@ async def test_the_person_sees_history_or_else_what_the_model_saw(
     panel = Panel("approve")
     panel.install(monkeypatch)
 
-    await _Host().ask_human(
+    await _HostNative(None).ask_human(
         replace(step(after), history=history, input=model_input), ["approve"]
     )
 
@@ -355,7 +355,7 @@ async def test_after_a_generate_the_person_sees_history_or_else_what_the_model_s
     panel = Panel("approve")
     panel.install(monkeypatch)
 
-    await _Host().ask_human(
+    await _HostNative(None).ask_human(
         replace(turn_step(ADD), history=history, input=INPUT), ["approve", "terminate"]
     )
 
@@ -383,7 +383,7 @@ async def test_an_answer_that_was_not_offered_fails_closed(
 ) -> None:
     Panel(answered, "dismissed").install(monkeypatch)
 
-    answer = await _Host().ask_human(step(after), choices)
+    answer = await _HostNative(None).ask_human(step(after), choices)
 
     assert answer.decision == expected
     assert answer.reason is not None
@@ -413,7 +413,7 @@ async def test_modify_cannot_be_offered(monkeypatch: pytest.MonkeyPatch) -> None
     panel.install(monkeypatch)
 
     with pytest.raises(NotImplementedError, match="cannot edit a tool call"):
-        await _Host().ask_human(step(), ["approve", "modify"])
+        await _HostNative(None).ask_human(step(), ["approve", "modify"])
     assert panel.views == []
 
 
@@ -547,7 +547,7 @@ async def test_every_surface_is_handed_the_whole_turn(
 
     monkeypatch.setattr(acp_module, "request_human_approval_via_acp", acp)
 
-    answer = await _Host().ask_human(
+    answer = await _HostNative(None).ask_human(
         turn_step(ADD, VIEWED_SHOUT, escalations=escalation("together")),
         ["approve", "terminate"],
     )
@@ -582,7 +582,7 @@ async def test_a_turn_with_no_calls_says_so(monkeypatch: pytest.MonkeyPatch) -> 
     panel = Panel("approve")
     panel.install(monkeypatch)
 
-    await _Host().ask_human(turn_step(), ["approve", "terminate"])
+    await _HostNative(None).ask_human(turn_step(), ["approve", "terminate"])
 
     assert panel.content() == "**The turn makes no tool calls.**"
 
@@ -590,7 +590,7 @@ async def test_a_turn_with_no_calls_says_so(monkeypatch: pytest.MonkeyPatch) -> 
 async def test_a_dismissed_turn_terminates(monkeypatch: pytest.MonkeyPatch) -> None:
     Panel("reject", "dismissed").install(monkeypatch)
 
-    answer = await _Host().ask_human(turn_step(ADD), ["approve", "terminate"])
+    answer = await _HostNative(None).ask_human(turn_step(ADD), ["approve", "terminate"])
 
     assert answer.decision == "terminate"
     assert answer.reason is not None
@@ -602,7 +602,7 @@ async def test_a_turn_cannot_be_rejected(monkeypatch: pytest.MonkeyPatch) -> Non
     panel.install(monkeypatch)
 
     with pytest.raises(ValueError, match="cannot offer 'reject' at the model_output"):
-        await _Host().ask_human(turn_step(ADD), ["approve", "reject"])
+        await _HostNative(None).ask_human(turn_step(ADD), ["approve", "reject"])
     assert panel.views == []
 
 
@@ -617,7 +617,7 @@ async def test_a_person_cannot_be_asked_before_a_generate() -> None:
         config=GenerateConfig(),
     )
     with pytest.raises(NotImplementedError, match="model_input"):
-        await _Host().ask_human(before, ["approve"])
+        await _HostNative(None).ask_human(before, ["approve"])
 
 
 BASH = code_viewer("bash", "cmd")
@@ -701,7 +701,7 @@ async def test_no_call_can_hide_or_pass_for_another(
         escalations=escalation(f"quotes the agent: {COVER}"),
     )
 
-    await _Host().ask_human(step, ["approve", "terminate"])
+    await _HostNative(None).ask_human(step, ["approve", "terminate"])
 
     [kwargs] = asked
     call, view = kwargs["call"], kwargs["view"]
@@ -760,7 +760,7 @@ async def turn_view(
         return Approval(decision="approve")
 
     monkeypatch.setattr(acp_module, "request_human_approval_via_acp", acp)
-    await _Host().ask_human(step, ["approve", "terminate"])
+    await _HostNative(None).ask_human(step, ["approve", "terminate"])
     [kwargs] = asked
     return kwargs["message"], kwargs["view"].call.content
 
@@ -922,7 +922,9 @@ async def test_an_acp_turn_card_is_finished_once_the_prompt_ends(
     session = TuiSession(answer)
     tui(session)
 
-    result = await _Host().ask_human(turn_step(*calls), ["approve", "terminate"])
+    result = await _HostNative(None).ask_human(
+        turn_step(*calls), ["approve", "terminate"]
+    )
 
     assert result.decision == decision
     card = only_card(session.state)
@@ -947,7 +949,7 @@ async def test_an_acp_turn_card_fails_when_the_prompt_is_cancelled(
     with anyio.CancelScope() as scope:
         session = TuiSession("approve", scope)
         tui(session)
-        await _Host().ask_human(turn_step(ADD), ["approve", "terminate"])
+        await _HostNative(None).ask_human(turn_step(ADD), ["approve", "terminate"])
 
     assert scope.cancelled_caught
     card = only_card(session.state)
@@ -964,7 +966,7 @@ async def test_each_turn_prompt_has_a_card_of_its_own(
     tui(session)
 
     for _ in range(2):
-        await _Host().ask_human(turn_step(ADD), ["approve", "terminate"])
+        await _HostNative(None).ask_human(turn_step(ADD), ["approve", "terminate"])
 
     first, second = session.state.items
     assert isinstance(first, ToolCallState) and isinstance(second, ToolCallState)
