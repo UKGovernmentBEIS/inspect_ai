@@ -979,6 +979,75 @@ async def test_after_call_callbacks_cannot_change_the_call_in_place(
             )
 
 
+def edit_proposal(history: Sequence[ChatMessage] | None) -> None:
+    """Change the model's own call in the conversation."""
+    assert history
+    response = history[-1]
+    assert isinstance(response, ChatMessageAssistant) and response.tool_calls
+    response.tool_calls[0].id = "renamed"
+
+
+@protocol
+def d3_edit_proposal_before() -> Protocol:
+    async def mutate(context: Context, step: BeforeToolCall) -> Decision | None:
+        edit_proposal(step.history)
+        return None
+
+    return mutate
+
+
+@protocol
+def d3_edit_proposal_after() -> Protocol:
+    async def mutate(context: Context, step: AfterToolCall) -> Decision | None:
+        edit_proposal(step.history)
+        return None
+
+    return mutate
+
+
+@reviewer
+def d3_proposal_editing_reviewer() -> Reviewer:
+    async def review_(
+        message: str,
+        call: ToolCall,
+        result: ChatMessageTool,
+        output: ToolResult,
+        view: ToolCallView,
+        history: list[ChatMessage],
+    ) -> Review:
+        edit_proposal(history)
+        return Review(decision="continue")
+
+    return review_
+
+
+@pytest.mark.parametrize("callback", ["before", "after", "reviewer"])
+async def test_callbacks_cannot_change_the_models_call_in_place(callback: str) -> None:
+    """Under oversight callbacks see the model's own call in the conversation."""
+    init_transcript(Transcript())
+    call = ToolCall(
+        id="1", function="list_items", arguments={"items": {"a": {"name": "a"}}}
+    )
+    messages: list[ChatMessage] = [ChatMessageAssistant(content=[], tool_calls=[call])]
+    approval = [ApprovalPolicy(d3_approver([], "approve"), "*")]
+    with pytest.raises(RuntimeError, match="changed the model's tool call"):
+        if callback == "reviewer":
+            await execute_tools(
+                messages,
+                [list_items()],
+                approval=approval,
+                review=[ReviewPolicy(d3_proposal_editing_reviewer(), "*")],
+            )
+        else:
+            protocol = (
+                d3_edit_proposal_before()
+                if callback == "before"
+                else d3_edit_proposal_after()
+            )
+            with active(protocol):
+                await execute_tools(messages, [list_items()], approval=approval)
+
+
 def test_a_review_terminate_skips_the_after_call_sentinel() -> None:
     log = run_with(
         observe_only([d3_trajectory()]),

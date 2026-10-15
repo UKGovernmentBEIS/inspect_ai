@@ -4,6 +4,7 @@ import string
 import types
 import typing
 from collections.abc import Collection
+from contextlib import AbstractContextManager, nullcontext
 from copy import copy, deepcopy
 from dataclasses import is_dataclass, replace
 from datetime import date, datetime, time
@@ -68,7 +69,11 @@ from inspect_ai.tool._tool import (
     ToolSource,
     tool_result_content,
 )
-from inspect_ai.tool._tool_call import ToolCallContent, ToolCallError
+from inspect_ai.tool._tool_call import (
+    ToolCallContent,
+    ToolCallError,
+    unchanged_in_place,
+)
 from inspect_ai.tool._tool_def import ToolDef, tool_def_fields, tool_defs
 from inspect_ai.tool._tool_info import parse_docstring
 from inspect_ai.tool._tool_params import ToolParams
@@ -422,8 +427,17 @@ async def _execute_tools_impl(
                 output=output,
             )
             if tool_exception is None and executed_call is not None:
+                # under oversight the call that ran is not the model's own,
+                # which the conversation reviewers see holds
+                proposal_unchanged = (
+                    unchanged_in_place(
+                        call, None, RuntimeError(_PROPOSAL_CHANGED_AFTER_CALL)
+                    )
+                    if executed_call is not call
+                    else nullcontext()
+                )
                 try:
-                    with _observer.track_tool_call(call.id, event):
+                    with _observer.track_tool_call(call.id, event), proposal_unchanged:
                         await _apply_tool_review(
                             tdefs,
                             message.text,
@@ -920,11 +934,21 @@ async def call_tool(
         validated = validated_tool_call(call, tool_def)
     except ToolParsingError as ex:
         raise await record_tool_parsing_error(ex.message)
-    if validated.call is not call:
+    proposed = call
+    overseen = validated.call is not call
+    if overseen:
         # under oversight the event records the call as shown
         event.arguments = validated.call.arguments
         event.view = _tool_view(tool_def, validated.call, validate=False)
     call, arguments = validated
+
+    def proposal_unchanged() -> AbstractContextManager[None]:
+        # under oversight callbacks are given the call as shown, but the
+        # conversation they see holds the model's own, which the result answers:
+        # an edit there leaves the conversation inconsistent, so the sample fails
+        if not overseen:
+            return nullcontext()
+        return unchanged_in_place(proposed, None, RuntimeError(_PROPOSAL_CHANGED))
 
     # if we have a tool approver, apply it now
     from inspect_ai.approval._apply import (
@@ -933,10 +957,11 @@ async def call_tool(
     )
 
     try:
-        approved, approval = await apply_tool_approval(
-            message, call, tool_def.viewer, conversation
-        )
-    except ToolApprovalError:
+        with proposal_unchanged():
+            approved, approval = await apply_tool_approval(
+                message, call, tool_def.viewer, conversation
+            )
+    except (ToolApprovalError, RuntimeError):
         await record_pending_tool_event()
         raise
     if not approved:
@@ -960,11 +985,12 @@ async def call_tool(
         )
 
         try:
-            decision = await sentinel_before_tool_call(
-                message, call, tool_def.viewer, conversation
-            )
+            with proposal_unchanged():
+                decision = await sentinel_before_tool_call(
+                    message, call, tool_def.viewer, conversation
+                )
             modified = apply_sentinel_decision(decision, call)
-        except (SentinelFailure, ToolApprovalError, TerminateSampleError):
+        except (SentinelFailure, ToolApprovalError, TerminateSampleError, RuntimeError):
             await record_pending_tool_event()
             raise
         if modified is not call:
@@ -995,6 +1021,18 @@ async def call_tool(
                     result: ToolResult = await tool_def.tool(**arguments)
                 agent_span_id = getattr(tool_def.tool, "agent_span_id", None)
                 return CalledTool(result, [], None, None, agent_span_id)
+
+
+_PROPOSAL_CHANGED = (
+    "An approver or sentinel monitor changed the model's tool call in the "
+    "conversation in place. Callbacks must not change the conversation; to change "
+    "a call, return a modify decision with a new call."
+)
+
+_PROPOSAL_CHANGED_AFTER_CALL = (
+    "A tool result reviewer or sentinel monitor changed the model's tool call in "
+    "place after it ran. Reviewers and monitors must not change the call."
+)
 
 
 async def _apply_tool_review(

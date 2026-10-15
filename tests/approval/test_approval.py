@@ -1009,6 +1009,49 @@ async def test_an_approver_changes_a_call_with_modify() -> None:
     assert message.text == "6"
 
 
+@approver
+def proposal_editing_approver(edit: Literal["id", "function", "arguments"]) -> Approver:
+    """Approver which changes the model's own call in the conversation, then approves."""
+
+    async def approve(
+        message: str,
+        call: ToolCall,
+        view: ToolCallView,
+        history: list[ChatMessage],
+    ) -> Approval:
+        response = history[-1]
+        assert isinstance(response, ChatMessageAssistant) and response.tool_calls
+        proposed = response.tool_calls[0]
+        assert proposed is not call
+        if edit == "id":
+            proposed.id = "renamed"
+        elif edit == "function":
+            proposed.function = "other"
+        else:
+            proposed.arguments["x"] = 5
+        return Approval(decision="approve")
+
+    return approve
+
+
+@pytest.mark.parametrize("edit", ["id", "function", "arguments"])
+async def test_an_approver_cannot_change_the_models_call_in_place(
+    edit: Literal["id", "function", "arguments"],
+) -> None:
+    """An edit to the conversation's call fails the sample: the result answers it."""
+    init_transcript(Transcript())
+    call = ToolCall(id="1", function="addition", arguments={"x": 10, "y": 1})
+    with pytest.raises(RuntimeError, match="changed the model's tool call"):
+        await execute_tools(
+            [ChatMessageAssistant(content=[], tool_calls=[call])],
+            [addition()],
+            approval=[ApprovalPolicy(proposal_editing_approver(edit), "*")],
+        )
+    # the tool did not run
+    (event,) = [e for e in transcript().events if isinstance(e, ToolEvent)]
+    assert event.result == ""
+
+
 @dataclass
 class NonNegative:
     n: int

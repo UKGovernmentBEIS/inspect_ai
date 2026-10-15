@@ -40,6 +40,7 @@ from inspect_ai.agent._bridge.util import (
 )
 from inspect_ai.approval import (
     Approval,
+    ApprovalDecision,
     ApprovalPolicy,
     Approver,
     approver,
@@ -603,7 +604,9 @@ HistoryEdit = Literal[
 
 
 @approver(name="test_bridge_history_edit")
-def history_editing_approver(edit: HistoryEdit) -> Approver:
+def history_editing_approver(
+    edit: HistoryEdit, decision: ApprovalDecision = "approve"
+) -> Approver:
     """Approver which changes the response's calls through its history."""
 
     async def approve(
@@ -634,7 +637,7 @@ def history_editing_approver(edit: HistoryEdit) -> Approver:
             calls.clear()
         else:
             calls[0].id = "renamed"
-        return Approval(decision="approve")
+        return Approval(decision=decision)
 
     return approve
 
@@ -709,6 +712,146 @@ async def test_an_approver_cannot_change_an_approved_call_through_history(
         with pytest.raises(PermissionError, match="was not proposed by the model"):
             await execute("host", "read_file", {"path": path})
     tool.assert_not_awaited()
+
+
+@pytest.mark.parametrize("edit", ["sibling", "clear"])
+async def test_a_rejection_after_an_edit_replays_the_calls_as_proposed(
+    edit: HistoryEdit,
+) -> None:
+    """A later rejection still reports the edit, against the calls as proposed."""
+    tool = AsyncMock(return_value="contents")
+    bridge = sandbox_bridge_with_tool(
+        tool,
+        [
+            ApprovalPolicy(history_editing_approver(edit, "reject"), "bash"),
+            ApprovalPolicy(auto_approver("approve"), "*"),
+        ],
+    )
+    first = ToolCall(id="1", function="read_file", arguments={"path": "public"})
+    second = ToolCall(id="2", function="bash", arguments={"cmd": "ls"})
+    proposed = deepcopy([first, second])
+    replacement = ToolCall(id="r", function="echo", arguments={"text": "done"})
+
+    run = await run_bridge(
+        [tool_calls_output(first, second), tool_calls_output(replacement)],
+        bridge=bridge,
+        tools=declare("read_file"),
+    )
+
+    assert run.generations == 2
+    assert run.output.message.tool_calls == [replacement]
+    (replayed,) = [m for m in run.inputs[1] if isinstance(m, ChatMessageAssistant)]
+    assert replayed.tool_calls == proposed
+    results = run.tool_results(1)
+    assert [result.tool_call_id for result in results] == ["1", "2"]
+    assert any(
+        result.error is not None
+        and "changed the tool call or its view in place" in result.error.message
+        for result in results
+    )
+    execute = call_host_tool(bridge)
+    for path in ("public", "private"):
+        with pytest.raises(PermissionError, match="was not proposed by the model"):
+            await execute("host", "read_file", {"path": path})
+    tool.assert_not_awaited()
+
+
+@approver(name="test_bridge_keep_modify")
+def keeping_modify_approver(kept: list[ToolCall]) -> Approver:
+    """Approver which modifies the call to read `public`, keeping its selection."""
+
+    async def approve(
+        message: str,
+        call: ToolCall,
+        view: ToolCallView,
+        history: list[ChatMessage],
+    ) -> Approval:
+        selected = ToolCall(
+            id=call.id, function=call.function, arguments={"path": "public"}
+        )
+        kept.append(selected)
+        return Approval(decision="modify", modified=selected)
+
+    return approve
+
+
+@approver(name="test_bridge_edit_selection")
+def selection_editing_approver(kept: list[ToolCall]) -> Approver:
+    """Approver which points an earlier approver's selection at another path."""
+
+    async def approve(
+        message: str,
+        call: ToolCall,
+        view: ToolCallView,
+        history: list[ChatMessage],
+    ) -> Approval:
+        kept[0].arguments["path"] = "private"
+        return Approval(decision="approve")
+
+    return approve
+
+
+@pytest.mark.parametrize("dispatcher", [False, True])
+async def test_an_approved_modify_cannot_be_changed_in_place_later(
+    dispatcher: bool,
+) -> None:
+    """A selection changed after its decision is refused, not applied or granted."""
+    tool = AsyncMock(return_value="contents")
+    kept: list[ToolCall] = []
+    bridge = sandbox_bridge_with_tool(
+        tool,
+        [
+            ApprovalPolicy(keeping_modify_approver(kept), "read_file"),
+            ApprovalPolicy(selection_editing_approver(kept), "bash"),
+            ApprovalPolicy(auto_approver("approve"), "*"),
+        ],
+    )
+    secret = (
+        dispatched("1", {"path": "secret"})
+        if dispatcher
+        else ToolCall(id="1", function="read_file", arguments={"path": "secret"})
+    )
+    second = ToolCall(id="2", function="bash", arguments={"cmd": "ls"})
+    replacement = ToolCall(id="r", function="echo", arguments={"text": "done"})
+
+    run = await run_bridge(
+        [tool_calls_output(secret, second), tool_calls_output(replacement)],
+        bridge=bridge,
+        tools=declare_dispatcher() if dispatcher else declare("read_file"),
+    )
+
+    assert run.generations == 2
+    assert run.output.message.tool_calls == [replacement]
+    execute = call_host_tool(bridge)
+    for path in ("secret", "public", "private"):
+        with pytest.raises(PermissionError, match="was not proposed by the model"):
+            await execute("host", "read_file", {"path": path})
+    tool.assert_not_awaited()
+
+
+async def test_an_approved_modify_is_applied_when_unchanged() -> None:
+    tool = AsyncMock(return_value="contents")
+    kept: list[ToolCall] = []
+    bridge = sandbox_bridge_with_tool(
+        tool,
+        [
+            ApprovalPolicy(keeping_modify_approver(kept), "read_file"),
+            ApprovalPolicy(auto_approver("approve"), "*"),
+        ],
+    )
+    secret = ToolCall(id="1", function="read_file", arguments={"path": "secret"})
+    second = ToolCall(id="2", function="bash", arguments={"cmd": "ls"})
+
+    run = await run_bridge(
+        [tool_calls_output(secret, second)], bridge=bridge, tools=declare("read_file")
+    )
+
+    assert run.generations == 1
+    assert run.output.message.tool_calls is not None
+    assert run.output.message.tool_calls[0].arguments == {"path": "public"}
+    assert await call_host_tool(bridge)("host", "read_file", {"path": "public"}) == (
+        "contents"
+    )
 
 
 async def test_an_approved_modify_cannot_be_skipped_by_changing_a_call_id() -> None:

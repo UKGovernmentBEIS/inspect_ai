@@ -153,6 +153,18 @@ async def apply_bridge_tool_approval(
         message = output.message.text
         modified: dict[str, dict[str, Any]] = {}
         shown = [ShownCall.of(call) for call in tool_calls]
+        # each modify decision's call as selected, by the index of the call it
+        # replaces: the approver (or a later one) still holds it
+        selected: dict[int, tuple[ToolCall, ShownCall]] = {}
+
+        def changed_since_shown() -> int | None:
+            changed = changed_in_place(tool_calls, shown, output.message.tool_calls)
+            if changed is None:
+                changed = next(
+                    (i for i, (call, s) in selected.items() if s.changed(call)), None
+                )
+            return changed
+
         for index, call in enumerate(tool_calls):
             dispatched = bridge.dispatched_call(call)
             reviewed = dispatched.target if dispatched else call
@@ -179,6 +191,16 @@ async def apply_bridge_tool_approval(
                     bridge.request_terminate(
                         f"Tool call approver requested termination: {explanation}"
                     )
+                # an earlier approver may have changed the response the rejection
+                # replays
+                changed = changed_since_shown()
+                if changed is not None:
+                    return BridgeApproval(
+                        output,
+                        refused_in_place(
+                            output, tool_calls, shown, changed, CHANGED_IN_PLACE
+                        ),
+                    )
                 return BridgeApproval(
                     output, rejection_messages(output, call, explanation)
                 )
@@ -189,6 +211,7 @@ async def apply_bridge_tool_approval(
                     failure = RuntimeError(error)
                     bridge.request_fail(failure)
                     raise failure
+                selected[index] = (approval.modified, ShownCall.of(approval.modified))
                 arguments = approval.modified.arguments
                 modified[call.id] = (
                     dispatched.dispatch(arguments) if dispatched else arguments
@@ -196,9 +219,10 @@ async def apply_bridge_tool_approval(
 
         # every approver sees the whole response in its history, so a call
         # already approved (or a dispatcher call's envelope) can be changed after
-        # its own check: the response is checked as a whole before it is handed
-        # over and granted
-        changed = changed_in_place(tool_calls, shown, output.message.tool_calls)
+        # its own check, as can a modify decision's selected call: the response
+        # and the selections are checked as a whole before they are handed over
+        # and granted
+        changed = changed_since_shown()
         if changed is not None:
             return BridgeApproval(
                 output,

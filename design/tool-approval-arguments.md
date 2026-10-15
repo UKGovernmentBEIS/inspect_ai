@@ -43,15 +43,25 @@ Conversion always works on a copy of the call's arguments, so a constructor
 that changes its input in place cannot change the call. Viewers are given a
 copy of the call. Approvers, sentinel monitors and result reviewers must not
 change the call or its view in place; they change a call with a `modify`
-decision. An in-place edit is refused: after the approval chain or the
-before-tool sentinel, a call whose id, function, arguments or view differ
-from what was shown is an approval error and does not run. For a bridged agent
-the response is rejected, replayed to the model with its calls as proposed and
-the approval error, and the model generates again; since every approver
-sees the whole response in its history, all of its calls (and dispatcher
-calls' envelopes) are checked again before it is handed over, and so is the
-list of calls itself (no call added, removed, replaced or reordered). After the tool runs, a
-reviewer or monitor that changed the call or its view fails the sample.
+decision. An in-place edit is refused:
+
+- After the approval chain or the before-tool sentinel, a call whose id,
+  function, arguments or view differ from what was shown is an approval error
+  and does not run.
+- Under oversight, callbacks are given the call as shown, while the
+  conversation they see holds the model's own call, which the result answers.
+  A callback that changes the model's call there, before or after the tool
+  runs, fails the sample, since the conversation can no longer be answered
+  consistently.
+- For a bridged agent, a refused response is replayed to the model with its
+  calls as proposed and the approval error, and the model generates again.
+  Every approver sees the whole response in its history, so all of its calls
+  (and dispatcher calls' envelopes), the list of calls itself (no call added,
+  removed, replaced or reordered) and each `modify` decision's selected call
+  are checked again before the response is handed over, and before a
+  rejection is replayed.
+- After the tool runs, a reviewer or monitor that changed the call or its view
+  fails the sample.
 
 Parameters the call leaves out are not shown. They get their Python defaults
 when the arguments are rebuilt, as without oversight. Curried handoff
