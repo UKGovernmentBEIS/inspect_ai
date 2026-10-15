@@ -40,9 +40,11 @@ approved, D the check.
    without converting again.
 
 Conversion always works on a copy of the call's arguments, so a constructor
-that changes its input in place cannot change the call. Viewers, approvers and
-sentinel monitors are given copies of the call, so a callback that changes
-its input cannot change the call that runs or is logged.
+that changes its input in place cannot change the call. Viewers, approvers,
+sentinel monitors and result reviewers are given copies of the call, so a
+callback that changes its input cannot change the call that runs or is
+logged. An approver escalated to sees the call as shown, and later approval
+policies match that call, not one an earlier approver changed in place.
 
 Parameters the call leaves out are not shown. They get their Python defaults
 when the arguments are rebuilt, as without oversight. Curried handoff

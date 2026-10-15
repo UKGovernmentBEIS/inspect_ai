@@ -897,6 +897,60 @@ async def test_a_sentinel_cannot_change_the_call_that_runs() -> None:
     assert event.arguments == {"items": {"a": {"name": "a"}}}
 
 
+@protocol
+def d3_mutate_after() -> Protocol:
+    async def mutate(context: Context, step: AfterToolCall) -> Decision | None:
+        step.call.arguments["items"]["a"]["name"] = "z"
+        return None
+
+    return mutate
+
+
+@reviewer
+def d3_mutating_reviewer() -> Reviewer:
+    async def review_(
+        message: str,
+        call: ToolCall,
+        result: ChatMessageTool,
+        output: ToolResult,
+        view: ToolCallView,
+        history: list[ChatMessage],
+    ) -> Review:
+        call.arguments["items"]["a"]["name"] = "z"
+        return Review(decision="continue")
+
+    return review_
+
+
+@pytest.mark.parametrize("callback", ["sentinel", "reviewer"])
+async def test_after_call_callbacks_cannot_change_the_logged_call(
+    callback: str,
+) -> None:
+    init_transcript(Transcript())
+    call = ToolCall(
+        id="1", function="list_items", arguments={"items": {"a": {"name": "a"}}}
+    )
+    messages: list[ChatMessage] = [ChatMessageAssistant(content=[], tool_calls=[call])]
+    if callback == "sentinel":
+        with active(d3_mutate_after()):
+            result = await execute_tools(messages, [list_items()])
+    else:
+        result = await execute_tools(
+            messages,
+            [list_items()],
+            approval=[ApprovalPolicy(d3_approver([], "approve"), "*")],
+            review=[ReviewPolicy(d3_mutating_reviewer(), "*")],
+        )
+
+    [message] = result.messages
+    assert isinstance(message, ChatMessageTool)
+    assert message.error is None
+    assert message.text == "a"
+    [event] = transcript_tool_events()
+    event = ToolEvent.model_validate_json(event.model_dump_json())
+    assert event.arguments == {"items": {"a": {"name": "a"}}}
+
+
 def test_a_review_terminate_skips_the_after_call_sentinel() -> None:
     log = run_with(
         observe_only([d3_trajectory()]),

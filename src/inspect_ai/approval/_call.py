@@ -1,4 +1,5 @@
 import inspect
+from copy import deepcopy
 from logging import getLogger
 
 from inspect_ai._util.logger import warn_once
@@ -20,6 +21,10 @@ async def call_approver(
     view: ToolCallView,
     history: list[ChatMessage],
 ) -> Approval:
+    # the record keeps the call as the approver was shown it, even if the
+    # approver changes its input in place
+    shown = deepcopy(call)
+
     # run approver (if the approval is still using state then
     # provide that but issue a warning)
     signature = inspect.signature(approver)
@@ -34,7 +39,7 @@ async def call_approver(
         approval = await approver(message, call, view, history)
 
     # record
-    record_approval(registry_log_name(approver), message, call, view, approval)
+    record_approval(registry_log_name(approver), message, shown, view, approval)
 
     # return approval
     return approval

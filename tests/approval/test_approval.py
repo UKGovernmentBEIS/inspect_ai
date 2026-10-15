@@ -936,6 +936,103 @@ async def test_callbacks_cannot_change_the_call_that_runs(
         assert approval.call.arguments == shown
 
 
+@approver
+def mutating_escalator() -> Approver:
+    """Approver which changes the call it is given in place, then escalates."""
+
+    async def approve(
+        message: str,
+        call: ToolCall,
+        view: ToolCallView,
+        history: list[ChatMessage],
+    ) -> Approval:
+        call.arguments["x"] = 5
+        return Approval(decision="escalate")
+
+    return approve
+
+
+@pytest.mark.parametrize("last", ["approve", "reject"])
+async def test_an_escalating_approver_cannot_change_the_next_decision(
+    last: ApprovalDecision,
+) -> None:
+    """Later policies match, and later approvers see, the call that runs."""
+    init_transcript(Transcript())
+    matched_changed: list[ToolCall] = []
+    last_seen: list[ToolCall] = []
+    message = await execute_with_approval(
+        ToolCall(id="1", function="addition", arguments={"x": 10, "y": 1}),
+        [addition()],
+        [
+            ApprovalPolicy(mutating_escalator(), "*"),
+            ApprovalPolicy(recording_approver(matched_changed), "addition(x=5"),
+            ApprovalPolicy(recording_approver(last_seen, last), "*"),
+        ],
+    )
+
+    assert matched_changed == []
+    assert [call.arguments for call in last_seen] == [{"x": 10, "y": 1}]
+    approvals = [e for e in transcript().events if isinstance(e, ApprovalEvent)]
+    assert [e.call.arguments for e in approvals] == [{"x": 10, "y": 1}] * 2
+    if last == "approve":
+        assert message.error is None
+        assert message.text == "11"
+    else:
+        assert message.error is not None
+        assert message.error.type == "approval"
+
+
+@dataclass
+class NonNegative:
+    n: int
+
+    def __post_init__(self) -> None:
+        assert self.n >= 0
+
+
+@tool
+def non_negative_tool(received: list[int]) -> Tool:
+    async def execute(value: NonNegative) -> str:
+        """Record a value.
+
+        Args:
+            value: A value whose constructor asserts it is not negative.
+        """
+        received.append(value.n)
+        return "done"
+
+    return execute
+
+
+@pytest.mark.parametrize(
+    "policy",
+    [None, "approve", "modify"],
+)
+async def test_a_failing_constructor_is_a_parsing_error(policy: str | None) -> None:
+    """Any exception from building an argument (here an assert) goes back to the model."""
+    init_transcript(Transcript())
+    received: list[int] = []
+    arguments = {"value": {"n": 1 if policy == "modify" else -1}}
+    policies = {
+        None: None,
+        "approve": [ApprovalPolicy(recording_approver([]), "*")],
+        "modify": [ApprovalPolicy(modifying_approver({"value": {"n": -1}}), "*")],
+    }[policy]
+    message = await execute_with_approval(
+        ToolCall(id="1", function="non_negative_tool", arguments=arguments),
+        [non_negative_tool(received)],
+        policies,
+    )
+
+    assert message.error is not None
+    assert message.error.type == "parsing"
+    assert "Unable to convert argument 'value'" in message.error.message
+    assert received == []
+    event = logged_tool_event()
+    assert event.arguments == {"value": {"n": -1}}
+    assert event.error is not None and event.error.type == "parsing"
+
+
 async def test_lazy_iterable_runs_with_its_values() -> None:
     calls: list[ToolCall] = []
     received: list[dict[str, Any]] = []

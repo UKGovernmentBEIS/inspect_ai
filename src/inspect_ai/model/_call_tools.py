@@ -1015,10 +1015,12 @@ async def _apply_tool_review(
     """
     from inspect_ai.review._apply import apply_tool_review
 
+    # reviewers and monitors get copies, so they cannot change the call (and
+    # its ToolEvent) that ran
     tool_def = next((tool for tool in tools if tool.name == call.function), None)
     review = await apply_tool_review(
         message,
-        call,
+        deepcopy(call),
         result,
         output,
         tool_def.viewer if tool_def else None,
@@ -1032,7 +1034,7 @@ async def _apply_tool_review(
 
         await sentinel_after_tool_call(
             message,
-            call,
+            deepcopy(call),
             result,
             output,
             truncated,
@@ -1410,9 +1412,12 @@ def _converted_param(name: str, type_hint: Type[Any], value: Any) -> Any:
     # date or enum value, a failing constructor) goes back to the model
     try:
         return tool_param(type_hint, value)
-    except (TypeError, ValueError) as ex:
+    except ToolParsingError:
+        raise
+    except Exception as ex:
+        detail = str(ex) or type(ex).__name__
         raise ToolParsingError(
-            f"Unable to convert argument '{name}' for the tool: {ex}"
+            f"Unable to convert argument '{name}' for the tool: {detail}"
         ) from ex
 
 
