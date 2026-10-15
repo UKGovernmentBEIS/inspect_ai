@@ -1029,6 +1029,7 @@ def test_meta_drops_unsupported_parameters(
     model_info_stub: ModelInfoStub, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     warnings: list[str] = []
+    monkeypatch.setattr(inspect_logger, "_warned", [])
     monkeypatch.setattr(litellm_proxy_module.logger, "warning", warnings.append)
     provider = _route_provider(
         model_info_stub, [_route_row("meta/muse-wonder-1.0")], responses_api=False
@@ -3206,10 +3207,17 @@ async def test_litellm_proxy_codename_adaptive_thinking_flag(
         (["meta/muse-wonder-1.0"], "meta"),
         (["meta/nebula"], "meta"),
         (["openrouter/meta/muse-spark-1.3"], "meta"),
-        (["hosted_vllm/muse-spark-1.3"], "meta"),
+        ([None, "muse-wonder"], "meta"),
+        # another host's model named `muse-`
+        (["hosted_vllm/muse-spark-1.3"], None),
+        (["fireworks_ai/accounts/fireworks/models/muse-glimmer-30b"], None),
+        (["fireworks/muse-glimmer-30b"], None),
         # Llama is served as open weights by many providers
         (["meta_llama/Llama-4-Maverick-17B-128E-Instruct-FP8"], None),
         (["together_ai/meta-llama/Llama-3.3-70B-Instruct-Turbo"], None),
+        (["vertex_ai/meta/llama-3.1-405b-instruct-maas"], None),
+        (["meta/llama-3.1-405b-instruct"], None),
+        (["nvidia_nim/meta/llama-3.1-70b-instruct"], None),
         (["openrouter/x-ai/grok-5"], "grok"),
         (["gemini/gemini-4-pro"], "google"),
         (["google/nimbus-preview"], "google"),

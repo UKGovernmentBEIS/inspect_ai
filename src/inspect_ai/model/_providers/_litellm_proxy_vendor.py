@@ -47,8 +47,10 @@ VENDOR_NAMES: dict[Vendor, str] = {
 # is not the OpenAI vendor here (no OpenAI frontier suggestion for it)
 _OPENAI_MODEL = re.compile(r"(^|[/.])(gpt-(?!oss)|o\d|chatgpt|codex)")
 
-# Meta's Muse models (not Llama, which many providers serve as open weights)
-_MUSE_MODEL = re.compile(r"(^|[/.])muse-")
+# Meta's Muse models: a bare name, or under the `meta` org (e.g. via
+# OpenRouter). Not under another host's path, where `muse-` names include
+# other vendors' models (e.g. Fireworks' muse-glimmer-30b).
+_MUSE_MODEL = re.compile(r"^(?:(?:.+/)?meta/)?muse-")
 
 
 def upstream_vendor(names: Iterable[str | None]) -> Vendor | None:
@@ -88,6 +90,10 @@ def claude_thinks_adaptively(family: str) -> bool:
 
 def _name_vendor(name: str) -> Vendor | None:
     provider = name.split("/", 1)[0] if "/" in name else None
+    # Llama under the `meta` org, as normalized from e.g. `vertex_ai/meta/...`
+    # and `nvidia_nim/meta/...`, is served as open weights, not by Meta's API
+    if provider == "meta" and "llama" in name:
+        return None
     if provider in _VENDOR_PROVIDERS:
         return _VENDOR_PROVIDERS[provider]
     if "claude" in name:

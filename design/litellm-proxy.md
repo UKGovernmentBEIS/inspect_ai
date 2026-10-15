@@ -458,9 +458,11 @@ Probed 2026-10-15 with `meta/muse-wonder-1.0` through `main-latest` and
 
 **Changes made:**
 
-1. Meta is a vendor: the `meta` provider segment, or a `muse-` name. `muse-`
-   → `meta` is in `NAME_ORGS`, and the model info error suggests
-   `base_model: meta/muse-spark-1.3`.
+1. Meta is a vendor: the `meta` provider segment (except Llama, which
+   `vertex_ai/meta/...` and `nvidia_nim/meta/...` normalize to), or a bare
+   or `meta/` `muse-` name (not under another host's path: Fireworks serves
+   a `muse-glimmer-30b`). `muse-` → `meta` is in `NAME_ORGS`, and the model
+   info error suggests `base_model: meta/muse-spark-1.3`.
 2. The Responses API is the default, streamed, when every deployment has the
    `meta` route and an `api_base` that is unset or a `meta.ai` host, as in
    the native provider. This also avoids the 1.96 chat usage bug.
