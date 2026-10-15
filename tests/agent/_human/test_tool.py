@@ -2174,41 +2174,6 @@ def test_required_boolean_requires_one_of_its_flags() -> None:
     }
 
 
-def _service_dispatch(method, params: dict) -> tuple:
-    """Dispatch one request through SandboxService._handle_request().
-
-    Returns the (result, error) response, with request reads and response
-    writes served in memory.
-    """
-    import json
-    from typing import cast
-
-    from inspect_ai.util._sandbox.environment import SandboxEnvironment
-    from inspect_ai.util._sandbox.service import SandboxService
-    from inspect_ai.util._subprocess import ExecResult
-
-    request_id = "11111111-2222-3333-4444-555555555555"
-    service = SandboxService(
-        name="human_agent", sandbox=cast(SandboxEnvironment, object())
-    )
-    service._requests_dir = "/svc/requests"
-    service._responses_dir = "/svc/responses"
-    service.add_method("tool", method)
-    request = json.dumps({"id": request_id, "method": "tool", "params": params})
-    responses: list[tuple] = []
-
-    async def exec(cmd: list[str], **kwargs) -> ExecResult[str]:
-        assert cmd[0] == "cat", cmd
-        return ExecResult(success=True, returncode=0, stdout=request, stderr="")
-
-    async def write_response(request_file, response_id, result, error=None) -> None:
-        responses.append((result, error))
-
-    setattr(service, "_exec", exec)
-    setattr(service, "_write_response", write_response)
-    return service, f"/svc/requests/{request_id}.json", responses
-
-
 def _wrapped_termination_tool(shape: str):
     import anyio
 
@@ -2245,13 +2210,21 @@ def _wrapped_termination_tool(shape: str):
 
 @pytest.mark.anyio
 @pytest.mark.parametrize("shape", ["cause", "group"])
-async def test_wrapped_termination_ends_sample_through_dispatcher(shape) -> None:
+async def test_wrapped_termination_ends_sample_through_dispatcher(
+    shape, monkeypatch
+) -> None:
     """A TerminateSampleError wrapped by a ToolError (or grouped) still terminates.
 
     The dispatcher treats termination as sticky across the exception's
     causal history; reducing the exception to one expected ToolError
     before checking for termination consumed it.
     """
+    from test_helpers.service_dispatch import (
+        REQUEST_FILE,
+        REQUEST_ID,
+        dispatching_service,
+    )
+
     from inspect_ai._util.exception import TerminateSampleError
     from inspect_ai.log._transcript import Transcript, init_transcript, transcript
 
@@ -2259,14 +2232,15 @@ async def test_wrapped_termination_ends_sample_through_dispatcher(shape) -> None
         state=_agent_state()
     )
     init_transcript(Transcript())
-    service, request_file, responses = _service_dispatch(
-        handler, {"tool": "wrapper", "arguments": {}}
+    errors: list[str | None] = []
+    service = dispatching_service(
+        monkeypatch, "tool", handler, {"tool": "wrapper", "arguments": {}}, errors
     )
     with pytest.raises(TerminateSampleError, match="must stop"):
-        await service._handle_request(request_file)
+        await service._handle_request_tracked(REQUEST_FILE, REQUEST_ID)
 
-    assert len(responses) == 1
-    assert responses[0][1] is not None and "must stop" in responses[0][1]
+    assert len(errors) == 1
+    assert errors[0] is not None and "must stop" in errors[0]
     event = next(e for e in transcript().events if e.event == "tool")
     assert event.pending is None
 
