@@ -30,7 +30,6 @@ from inspect_ai._util._async import configured_async_backend, run_coroutine, tg_
 from inspect_ai._util.platform import platform_init, running_in_notebook
 from inspect_ai._util.registry import (
     has_registry_params,
-    registry_info,
     registry_lookup,
     registry_params,
     registry_unqualified_name,
@@ -64,12 +63,7 @@ from inspect_ai.scorer._reducer import (
     create_reducers,
     reducer_log_names,
 )
-from inspect_ai.scorer._scorer import (
-    SCORER_SCORE_NAME,
-    ScorerSpec,
-    as_scorer_spec,
-    unique_scorer_name,
-)
+from inspect_ai.scorer._scorer import ScorerSpec, as_scorer_spec, unique_scorer_name
 from inspect_ai.solver import TaskState
 from inspect_ai.util._display import (
     DisplayType,
@@ -286,7 +280,6 @@ async def score_async(
             if records_names
             else None
         )
-    _validate_scorer_metadata(resolved_scorers)
 
     # resolve the active model and model_roles for the scoring task context.
     # caller-supplied overrides win; otherwise reconstruct from the log header
@@ -771,7 +764,7 @@ def resolve_scorers_info(log: EvalLog) -> list[ScorerInfo]:
                 name=s.name,
                 metrics=metrics,
                 params=s.options or {},
-                metadata=_scorer_metadata(s),
+                metadata=s.metadata or {},
             )
         )
     return infos
@@ -779,31 +772,19 @@ def resolve_scorers_info(log: EvalLog) -> list[ScorerInfo]:
 
 def _with_score_name(eval_scorer: EvalScorer, score_name: str) -> EvalScorer:
     """Record a caller-chosen score name on a log header scorer."""
-    metadata = eval_scorer.metadata or {}
-    return eval_scorer.model_copy(
-        update={"metadata": {**metadata, SCORER_SCORE_NAME: score_name}}
-    )
+    return eval_scorer.model_copy(update={"score_name": score_name})
 
 
 def _score_name(eval_scorer: EvalScorer) -> str | None:
-    """Caller-chosen score name recorded on a log header scorer, if any."""
-    metadata = eval_scorer.metadata or {}
-    if SCORER_SCORE_NAME not in metadata:
-        return None
-    score_name = metadata[SCORER_SCORE_NAME]
-    if not isinstance(score_name, str) or not score_name:
+    """Caller-chosen score name recorded on a log header scorer, if any.
+
+    Raises `ValueError` if the recorded name is empty, which no scoring run writes.
+    """
+    if eval_scorer.score_name == "":
         raise ValueError(
-            f"Invalid '{SCORER_SCORE_NAME}' for scorer '{eval_scorer.name}': "
-            f"{score_name!r}"
+            f"Invalid score name recorded for scorer '{eval_scorer.name}': ''"
         )
-    return score_name
-
-
-def _scorer_metadata(eval_scorer: EvalScorer) -> dict[str, Any]:
-    """Log header scorer metadata without the recorded score name."""
-    return {
-        k: v for k, v in (eval_scorer.metadata or {}).items() if k != SCORER_SCORE_NAME
-    }
+    return eval_scorer.score_name
 
 
 def score_names_from_log_header(log: EvalLog) -> list[str] | None:
@@ -908,17 +889,3 @@ def _validate_score_names(score_names: list[str], existing: set[str]) -> None:
             f"Score names already in the log: {', '.join(clashes)}. "
             "Choose other names or use action='overwrite'."
         )
-
-
-def _validate_scorer_metadata(scorers: list[Scorer]) -> None:
-    """Reject scorers whose metadata uses the key reserved for score names.
-
-    Runs before any sample is scored; `as_scorer_spec()` enforces the same rule
-    when a log header is written.
-    """
-    for scorer in scorers:
-        if SCORER_SCORE_NAME in registry_info(scorer).metadata:
-            raise ValueError(
-                f"Scorer '{registry_unqualified_name(scorer)}' uses the reserved "
-                f"metadata key '{SCORER_SCORE_NAME}'."
-            )

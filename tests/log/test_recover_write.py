@@ -231,7 +231,7 @@ async def test_write_recovered_eval_log_keeps_recorded_score_names() -> None:
                     EvalScorer(
                         name="match",
                         metrics=[EvalMetricDefinition(name="inspect_ai/accuracy")],
-                        metadata={"__score_name__": score_name},
+                        score_name=score_name,
                     )
                     for score_name in ["strict", "loose"]
                 ],

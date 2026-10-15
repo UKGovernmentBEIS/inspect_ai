@@ -1,6 +1,7 @@
 import contextlib
 import functools
 import pathlib
+import zipfile
 from typing import Any, AsyncIterator
 
 import anyio
@@ -8,7 +9,7 @@ import pydantic
 import pytest
 from test_helpers.utils import skip_if_no_openai
 
-from inspect_ai import Task, eval, eval_async, score
+from inspect_ai import Task, eval_async, score
 from inspect_ai._eval.score import (
     ScoreAction,
     _get_updated_events,
@@ -1070,7 +1071,8 @@ def test_score_dict_uses_keys_as_score_names() -> None:
     assert scored_log.eval.scorers is not None
     header = scored_log.eval.scorers
     assert [s.name for s in header] == ["match"] * len(expected)
-    assert [_score_name(s) or s.name for s in header] == expected
+    assert [s.score_name for s in header] == [None, *expected[1:]]
+    assert not any(s.metadata for s in header)
 
 
 async def test_score_dict_names_survive_recompute_metrics() -> None:
@@ -1122,56 +1124,65 @@ async def test_score_dict_empty_name_is_error() -> None:
         )
 
 
-@scorer(metrics=[accuracy()], **{"__score_name__": "taken"})
-def _reserved_key_scorer(scored_samples: list[int | str]) -> Scorer:
-    async def score(state: TaskState, target: Target) -> Score:
-        scored_samples.append(state.sample_id)
-        return Score(value=1)
+@pytest.mark.parametrize("extension", ["eval", "json"])
+async def test_score_dict_names_round_trip_through_log_file(
+    tmp_path: pathlib.Path, extension: str
+) -> None:
+    """Score names are written to and read from the header's `score_name`."""
+    scored = await _score_async_with_named_scorers()
+    location = tmp_path / f"scored.{extension}"
+    await write_eval_log_async(scored, location)
 
-    return score
+    header = await read_eval_log_async(location, header_only=True)
+    reloaded = await read_eval_log_async(location)
+    recompute_metrics(reloaded)
+
+    assert header.eval.scorers is not None
+    assert [s.score_name for s in header.eval.scorers] == [
+        None,
+        "accuracy_strict",
+        "accuracy_loose",
+    ]
+    assert _score_entries(reloaded) == _score_entries(scored)
+    assert _reductions(reloaded) == _reductions(scored)
 
 
-@pytest.mark.parametrize("as_dict", [True, False])
-async def test_score_reserved_metadata_key_is_error(as_dict: bool) -> None:
-    """A scorer using the metadata key reserved for score names fails before scoring."""
-    scored_samples: list[int | str] = []
-    reserved = _reserved_key_scorer(scored_samples)
-
-    with pytest.raises(ValueError, match="reserved metadata key '__score_name__'"):
-        await score_async(
-            await read_eval_log_async(LOG_SCORED),
-            {"reserved": reserved} if as_dict else [reserved],
-            model="mockllm/model",
-        )
-    assert scored_samples == []
+def _log_file_text(location: pathlib.Path) -> str:
+    """Text of a `.json` log, or of every member of an `.eval` log."""
+    if location.suffix == ".json":
+        return location.read_text()
+    with zipfile.ZipFile(location) as log_zip:
+        return "".join(log_zip.read(name).decode() for name in log_zip.namelist())
 
 
-def test_eval_reserved_metadata_key_is_error() -> None:
-    """An eval whose scorer uses the reserved metadata key fails before running."""
-    task = Task(
-        dataset=[Sample(input="Say hello", target="hello")],
-        scorer=_reserved_key_scorer([]),
+@pytest.mark.parametrize("extension", ["eval", "json"])
+async def test_score_list_writes_no_score_name(
+    tmp_path: pathlib.Path, extension: str
+) -> None:
+    """A log scored without a dict is written without `score_name`, as before."""
+    scored = await score_async(
+        await read_eval_log_async(LOG_SCORED),
+        [match(location="begin")],
+        model="mockllm/model",
     )
-    with pytest.raises(ValueError, match="reserved metadata key '__score_name__'"):
-        eval(task, model="mockllm/model", display="none")
+    location = tmp_path / f"scored.{extension}"
+    await write_eval_log_async(scored, location)
+
+    assert "score_name" not in _log_file_text(location)
 
 
 @pytest.mark.parametrize(
     ("recorded", "error"),
     [
         ("accuracy_strict", "duplicate score names: accuracy_strict"),
-        ("", "Invalid '__score_name__'"),
-        (None, "Invalid '__score_name__'"),
+        ("", "Invalid score name recorded for scorer 'match': ''"),
     ],
 )
-def test_score_dict_invalid_recorded_name_is_error(
-    recorded: str | None, error: str
-) -> None:
+def test_score_dict_invalid_recorded_name_is_error(recorded: str, error: str) -> None:
     """An invalid name recorded in the log header is an error on recompute."""
     scored = _score_with_named_scorers()
     assert scored.eval.scorers is not None
-    loose = scored.eval.scorers[2]
-    loose.metadata = {**(loose.metadata or {}), "__score_name__": recorded}
+    scored.eval.scorers[2].score_name = recorded
 
     with pytest.raises(ValueError, match=error):
         recompute_metrics(scored)
@@ -1416,12 +1427,11 @@ async def test_score_invalid_recorded_name_fails_before_scoring(as_dict: bool) -
     """An invalid name recorded in the header fails an append before any scoring."""
     scored = await _score_async_with_named_scorers()
     assert scored.eval.scorers is not None
-    loose = scored.eval.scorers[2]
-    loose.metadata = {**(loose.metadata or {}), "__score_name__": ""}
+    scored.eval.scorers[2].score_name = ""
     scored_samples: list[int | str] = []
     counting = _counting_scorer(scored_samples)
 
-    with pytest.raises(ValueError, match="Invalid '__score_name__'"):
+    with pytest.raises(ValueError, match="Invalid score name recorded"):
         await score_async(
             scored,
             {"counted": counting} if as_dict else [counting],
