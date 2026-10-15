@@ -40,8 +40,8 @@ logger = getLogger(__name__)
 # Control-flow exceptions that a service method may raise and that must
 # propagate out of sandbox_service() to be enacted (in contrast to ordinary
 # exceptions, which become RPC error responses, and LimitExceededError,
-# which is routed to the active sample). ExceptionGroups are searched
-# exhaustively before matching. TerminateTaskError is deliberately absent:
+# which is routed to the active sample unless a termination is in its
+# history). ExceptionGroups are searched exhaustively before matching. TerminateTaskError is deliberately absent:
 # the sample runner consumes TerminateSampleError from solver exceptions
 # (task/run.py) but has no equivalent task-boundary consumer, so routing it
 # would not reliably enact anything.
@@ -614,6 +614,10 @@ class SandboxService:
                         request_file, request_id, await method(**params)
                     )
                 except LimitExceededError as ex:
+                    # a termination anywhere in the limit's history wins: the
+                    # handler below answers the RPC and propagates it
+                    if find_control_flow(ex) is not None:
+                        raise
                     active = sample_active()
                     if active is not None:
                         active.limit_exceeded(ex)

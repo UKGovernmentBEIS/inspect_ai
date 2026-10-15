@@ -1352,14 +1352,12 @@ def tool_param(type_hint: Type[Any], input: Any) -> Any:
 class MappedToolCallError(NamedTuple):
     """A tool-execution exception mapped to the error the model/human sees.
 
-    Shared by the model tool path and the human agent tool path (#3053) so
-    both produce identical ToolCallError types and partial results for the
-    same exception. Returned from tool_call_error(); None means the
-    exception is unexpected. The agreed contract is that both paths fail
-    the sample on an unexpected exception, but this is implemented and
-    tested only for the model path so far: #3053's caller change to apply
-    that disposition on the human agent path, and its corresponding tests,
-    remain outstanding.
+    Returned from tool_call_error(); None means the exception is
+    unexpected. Native tool calls (`execute_tools`) and the sandbox agent
+    bridge's host tools (`call_tool`) both classify with it and fail the
+    sample on an unexpected exception. `classify_tool_exception()` adapts
+    it for the human agent tool path (`human_cli(tools=...)`, #3053), whose
+    caller is not part of this module.
     """
 
     error: ToolCallError
