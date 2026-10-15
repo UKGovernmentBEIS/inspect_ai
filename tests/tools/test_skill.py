@@ -16,8 +16,9 @@ from inspect_ai.scorer import includes
 from inspect_ai.solver import Generate, Solver, TaskState, fork, solver
 from inspect_ai.tool import Tool, ToolError, bash, skill
 from inspect_ai.tool._tool_def import ToolDef
-from inspect_ai.tool._tools._skill.install import install_lock, install_skills
+from inspect_ai.tool._tools._skill.install import install_skills
 from inspect_ai.tool._tools._skill.read import SkillParsingError, _read_skill
+from inspect_ai.tool._tools._skill.tool import _cache_lock
 from inspect_ai.tool._tools._skill.types import Skill
 from inspect_ai.util import (
     SandboxUserUnsupportedError,
@@ -1021,16 +1022,19 @@ class TestSkillToolStateScope:
             "/work/skills/example/SKILL.md": self.SKILL.skill_md().encode()
         }
 
+    @pytest.mark.parametrize("second_sandbox", [None, "other"])
     async def test_concurrent_first_calls_for_one_instance_keep_the_first_list(
-        self,
+        self, second_sandbox: str | None
     ) -> None:
         sandbox = _BlockingSandbox("write")
-        _use_sandbox(sandbox)
+        other = _FileSandbox()
+        sandbox_environments_context_var.set({"default": sandbox, "other": other})
+        sandbox_default_context_var.set("default")
         init_subtask_store(Store())
         alpha = Skill(name="alpha", description="Alpha.", instructions="Alpha.")
         beta = Skill(name="beta", description="Beta.", instructions="Beta.")
         first = skill([alpha], instance="team")
-        second = skill([beta], instance="team")
+        second = skill([beta], instance="team", sandbox=second_sandbox)
         errors: list[str] = []
 
         async def call_second() -> None:
@@ -1043,14 +1047,17 @@ class TestSkillToolStateScope:
             tg.start_soon(first, "alpha")
             await sandbox.blocked.wait()
             tg.start_soon(call_second)
-            while install_lock(sandbox).statistics().tasks_waiting == 0:
+            while _cache_lock(store(), "team").statistics().tasks_waiting == 0:
                 await anyio.lowlevel.checkpoint()
             sandbox.release.set()
 
         # as before tool state scopes: the first tool to install sets the list
         assert errors == ["Unknown skill: beta"]
         await first(command="alpha")
+        with pytest.raises(ToolError, match="Unknown skill: beta"):
+            await second(command="beta")
         assert list(sandbox.files) == ["/work/skills/alpha/SKILL.md"]
+        assert other.files == {}
 
     async def test_existing_identical_script_is_made_executable(self) -> None:
         local = _CountingLocalSandbox()
