@@ -3,6 +3,7 @@ from __future__ import annotations
 import contextlib
 import json
 import math
+import sys
 from argparse import Namespace
 from textwrap import dedent
 from typing import Any, AsyncIterator, Awaitable, Callable, Literal, NamedTuple
@@ -20,6 +21,7 @@ from inspect_ai._util.working import sample_clock, sample_working_time_since
 from inspect_ai.event._tool import ToolEvent
 from inspect_ai.log._transcript import transcript
 from inspect_ai.model._call_tools import (
+    ClassifiedToolException,
     classify_tool_exception,
     resolve_tool_content,
     tool_call_view,
@@ -31,11 +33,13 @@ from inspect_ai.tool import Tool, ToolParams
 from inspect_ai.tool._tool import ToolResult
 from inspect_ai.tool._tool_call import ToolCall, ToolCallError
 from inspect_ai.tool._tool_def import ToolDef
-from inspect_ai.util._anyio import inner_exception
 from inspect_ai.util._limit import LimitExceededError
 from inspect_ai.util._sandbox.limits import OutputLimitExceededError
 from inspect_ai.util._sandbox.service import find_control_flow
 from inspect_ai.util._span import span
+
+if sys.version_info < (3, 11):
+    from exceptiongroup import ExceptionGroup
 
 from ..._handoff import AgentTool
 from ..state import HumanAgentState
@@ -193,6 +197,48 @@ def _raise_if_control_flow(ex: Exception, finalize: Callable[..., None]) -> None
     if control is not None:
         finalize(error=ToolCallError("unknown", str(control)))
         raise ex
+
+
+def _capped(tool: str, reply: str, max_output: int | None) -> str:
+    """Bound a terminal reply by the tool's output limit (shared truncation)."""
+    truncated = truncate_tool_output(tool, reply, max_output)
+    return truncated.output if truncated else reply
+
+
+def _group_leaves(ex: Exception) -> list[Exception]:
+    """The leaves of an exception group in group order (`[ex]` otherwise)."""
+    if isinstance(ex, ExceptionGroup):
+        return [leaf for child in ex.exceptions for leaf in _group_leaves(child)]
+    return [ex]
+
+
+class _DecisiveException(NamedTuple):
+    exception: Exception
+    classified: ClassifiedToolException | None
+    """None when the exception is unexpected."""
+
+
+def _decisive_exception(ex: Exception, tool: str) -> _DecisiveException:
+    """The exception that decides a tool failure's disposition, classified.
+
+    inner_exception() reduces a group to one leaf in no particular order,
+    which can hide an unexpected exception or a limit behind an expected
+    error. Every leaf is classified instead: the first unexpected leaf wins,
+    then the first limit; otherwise the first leaf (all are expected errors).
+    """
+    leaves = [
+        _DecisiveException(leaf, classify_tool_exception(leaf, tool))
+        for leaf in _group_leaves(ex)
+    ]
+    for leaf in leaves:
+        if leaf.classified is None:
+            return leaf
+    for leaf in leaves:
+        if isinstance(leaf.exception, LimitExceededError) and not isinstance(
+            leaf.exception, OutputLimitExceededError
+        ):
+            return leaf
+    return leaves[0]
 
 
 def tool_result_to_str(result: ToolResult) -> str:
@@ -443,7 +489,11 @@ def tool(args):
         # Unknown tool: record the failed attempt and surface a clean error
         if tool_fn is None:
             finalize(error=ToolCallError("parsing", f"Unknown tool '{tool}'"))
-            return f"Error: Unknown tool '{tool}'"
+            return _capped(tool, f"Error: Unknown tool '{tool}'", None)
+
+        # the tool's own max_output wins over the generate config, as on
+        # the model path; it bounds every reply, errors included
+        max_output = self._tool_defs[tool].max_output
 
         # Validate against the declared JSON Schema exactly as the model
         # path does (tool_params() below converts to the Python signature
@@ -455,23 +505,14 @@ def tool(args):
         )
         if validation_errors:
             finalize(error=ToolCallError("parsing", validation_errors))
-            return f"Error: {validation_errors}"
-
-        # Convert args using tool_params() (typed arguments run their
-        # constructors and validators, which are user code)
-        try:
-            params = tool_params(kwargs, tool_fn)
-        except Exception as e:
-            _raise_if_control_flow(e, finalize)
-            finalize(error=ToolCallError("parsing", str(e)))
-            return f"Error parsing tool arguments: {e}"
-
-        # the tool's own max_output wins over the generate config, as on
-        # the model path
-        max_output = self._tool_defs[tool].max_output
+            return _capped(tool, f"Error: {validation_errors}", max_output)
 
         with cancel_scope:
             try:
+                # tool_params() runs typed arguments' constructors and
+                # validators (user code), so it shares the tool body's
+                # exception disposition, as on the model path
+                params = tool_params(kwargs, tool_fn)
                 result = await tool_fn(**params)
             except Exception as ex:
                 return self._tool_exception(tool, ex, max_output, finalize)
@@ -514,18 +555,13 @@ def tool(args):
         Sample termination anywhere in the exception's history and limits
         propagate to the sandbox service, which enacts them. Expected tool
         errors are returned to the human. Unexpected exceptions are held as
-        `failure`, which fails the sample.
+        `failure`, which fails the sample. For an exception group, every
+        leaf is considered: an unexpected leaf wins, then a limit, and only
+        a group of expected errors is recoverable.
         """
         _raise_if_control_flow(raw_ex, finalize)
 
-        # normalize before classifying, as the model path does — anyio
-        # task groups wrap child exceptions in ExceptionGroups (nested
-        # included), and classification must see the real exception
-        ex = inner_exception(raw_ex)
-
-        # shared classification with the model tool path — the same
-        # exception yields the same ToolCallError on both paths
-        classified = classify_tool_exception(ex, tool)
+        ex, classified = _decisive_exception(raw_ex, tool)
 
         if classified is None:
             # unexpected: the model path raises these out of execute_tools()
@@ -534,10 +570,8 @@ def tool(args):
             finalize(error=ToolCallError("unknown", str(ex)), failed=True)
             if self._failure is None:
                 self._failure = ex
-            return (
-                f"Error executing tool '{tool}': {ex}\n"
-                "This is an unexpected error, so the sample will end with it."
-            )
+            message = _capped(tool, f"Error executing tool '{tool}': {ex}", max_output)
+            return f"{message}\nThis is an unexpected error, so the sample will end with it."
 
         if isinstance(ex, LimitExceededError) and not isinstance(
             ex, OutputLimitExceededError
@@ -554,9 +588,10 @@ def tool(args):
         # shared truncation so a 10 MiB partial can't flood anything)
         content, truncated = resolve_tool_content(classified.result, tool, max_output)
         finalize(result=content, error=classified.error, truncated=truncated)
-        partial = content if isinstance(content, str) and content else ""
-        message = f"Error: {classified.error.message}"
-        return f"{message}\n{partial}" if partial else message
+        reply = f"Error: {classified.error.message}"
+        if isinstance(classified.result, str) and classified.result:
+            reply = f"{reply}\n{classified.result}"
+        return _capped(tool, reply, max_output)
 
 
 class ParamInfo(NamedTuple):

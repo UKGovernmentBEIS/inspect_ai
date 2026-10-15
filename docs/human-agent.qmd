@@ -117,7 +117,7 @@ Tool calls execute in the main evaluation process (not the sandbox), are validat
 
 Tool errors are handled as they are for a model. Expected errors (a `ToolError`, a timeout, a missing file, a permission error, and the other errors a model is shown) are printed for the human, who can carry on. An unexpected exception from a tool (a bug in the tool) is recorded as a failed `ToolEvent`, reported to the human, and then fails the sample, subject to the task's usual error handling (`fail_on_error`, `retry_on_error`).
 
-Tool results are truncated to the same limit a model sees: the tool's own `max_output` if it declares one, otherwise `max_tool_output` from the generate config (16 KiB by default). Tools that return non-text content (images, audio, video) display an omission marker in the terminal; the full result is preserved in the transcript.
+Tool results are truncated to the same limit a model sees: the tool's own `max_output` if it declares one, otherwise `max_tool_output` from the generate config (16 KiB by default). Error messages printed for the human are capped to the same limit. Tools that return non-text content (images, audio, video) display an omission marker in the terminal; the full result is preserved in the transcript.
 
 A tool call the human starts can be cancelled from the [control channel](control-channel.qmd#cancellation) (`inspect ctl sample cancel-tool-call`) or the TUI, as a model's can; the human sees a timeout error and the session continues.
 

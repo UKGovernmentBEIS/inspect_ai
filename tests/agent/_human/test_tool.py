@@ -2359,16 +2359,23 @@ _CONSTRUCTION_SHAPE: dict[str, str] = {}
 
 
 @dataclass
-class _TerminatingArgument:
-    """A typed argument whose construction raises a sample termination."""
+class _ConstructedArgument:
+    """A typed argument whose construction raises (see _CONSTRUCTION_SHAPE)."""
 
     value: int
 
     def __post_init__(self) -> None:
         from inspect_ai._util.exception import TerminateSampleError
+        from inspect_ai.util._limit import LimitExceededError
 
         shape = _CONSTRUCTION_SHAPE["shape"]
-        if shape == "direct":
+        if shape == "runtime":
+            raise RuntimeError("constructor defect")
+        elif shape == "limit":
+            raise LimitExceededError("token", value=1001, limit=1000)
+        elif shape == "tool_error":
+            raise ToolError("value must be positive")
+        elif shape == "direct":
             raise TerminateSampleError("must stop")
         elif shape == "cause":
             try:
@@ -2402,7 +2409,7 @@ async def test_termination_during_argument_construction_ends_sample(
     from inspect_ai._util.exception import TerminateSampleError
     from inspect_ai.log._transcript import Transcript, init_transcript, transcript
 
-    async def execute(argument: _TerminatingArgument) -> str:
+    async def execute(argument: _ConstructedArgument) -> str:
         """Take a typed argument.
 
         Args:
@@ -2494,3 +2501,264 @@ def test_unrenderable_help_rejected_at_construction(monkeypatch) -> None:
     monkeypatch.setattr(tool_module, "_help", lambda text: text)
     with pytest.raises(ValueError, match="percent_names"):
         ToolCommand([_percent_kwargs_tool()])
+
+
+# --- review pass 2 (2026-10-15): constructor failures, mixed exception -------
+# --- groups, capped error replies ----------------------------------------------
+
+
+def _typed_tool():
+    async def execute(argument: _ConstructedArgument) -> str:
+        """Take a typed argument.
+
+        Args:
+            argument: An argument whose construction raises.
+
+        Returns:
+            Never returns.
+        """
+        return "body must not run"
+
+    return ToolDef(
+        execute,
+        name="typed",
+        description="Take a typed argument.",
+        parameters={"argument": "An argument."},
+    ).as_tool()
+
+
+async def _dispatch(monkeypatch, command: ToolCommand, tool: str, arguments: dict):
+    """Serve one `tool` request through the real sandbox service dispatcher.
+
+    Returns the RPC error (None when the method returned) and the mock
+    active sample that the dispatcher routes limits to.
+    """
+    from unittest.mock import MagicMock, patch
+
+    from test_helpers.service_dispatch import (
+        REQUEST_FILE,
+        REQUEST_ID,
+        dispatching_service,
+    )
+
+    from inspect_ai.log._transcript import Transcript, init_transcript
+
+    handler = command.service(state=_agent_state())
+    init_transcript(Transcript())
+    errors: list[str | None] = []
+    service = dispatching_service(
+        monkeypatch, "tool", handler, {"tool": tool, "arguments": arguments}, errors
+    )
+    active = MagicMock()
+    with patch("inspect_ai.log._samples.sample_active", return_value=active):
+        await service._handle_request_tracked(REQUEST_FILE, REQUEST_ID)
+    assert len(errors) == 1
+    return errors[0], active
+
+
+@pytest.mark.anyio
+async def test_constructor_defect_fails_sample(monkeypatch) -> None:
+    """An unexpected exception from a typed argument's constructor fails the sample.
+
+    tool_params() runs constructors and validators (user code); on the model
+    path that is inside the execution exception boundary, so a defect there
+    gets the same disposition as one in the tool body.
+    """
+    from inspect_ai.log._transcript import transcript
+
+    monkeypatch.setitem(_CONSTRUCTION_SHAPE, "shape", "runtime")
+    command = ToolCommand([_typed_tool()])
+    error, active = await _dispatch(
+        monkeypatch, command, "typed", {"argument": {"value": 1}}
+    )
+    assert error is None  # the human gets a reply
+    assert isinstance(command.failure, RuntimeError)
+    event = next(e for e in transcript().events if e.event == "tool")
+    assert event.failed is True
+
+
+@pytest.mark.anyio
+async def test_constructor_limit_reaches_sample(monkeypatch) -> None:
+    from inspect_ai.log._transcript import transcript
+
+    monkeypatch.setitem(_CONSTRUCTION_SHAPE, "shape", "limit")
+    command = ToolCommand([_typed_tool()])
+    error, active = await _dispatch(
+        monkeypatch, command, "typed", {"argument": {"value": 1}}
+    )
+    assert error is not None and "Limit exceeded" in error
+    assert active.limit_exceeded.call_count == 1
+    event = next(e for e in transcript().events if e.event == "tool")
+    assert event.error is not None and event.error.type == "limit"
+
+
+@pytest.mark.anyio
+async def test_constructor_tool_error_stays_recoverable(monkeypatch) -> None:
+    """Control: an argument rejected with a ToolError is a recoverable reply."""
+    monkeypatch.setitem(_CONSTRUCTION_SHAPE, "shape", "tool_error")
+    command = ToolCommand([_typed_tool()])
+    error, active = await _dispatch(
+        monkeypatch, command, "typed", {"argument": {"value": 1}}
+    )
+    assert error is None
+    assert command.failure is None
+    assert active.limit_exceeded.call_count == 0
+
+
+_GROUP_REPEATS = 50
+
+
+def _group_tool(exceptions):
+    async def execute() -> str:
+        """Raise an exception group.
+
+        Returns:
+            Never returns.
+        """
+        raise ExceptionGroup("tool errors", exceptions())
+
+    return ToolDef(
+        execute, name="grouped", description="Raise a group.", parameters={}
+    ).as_tool()
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("fatal_first", [False, True])
+async def test_group_with_fatal_leaf_fails_sample(monkeypatch, fatal_first) -> None:
+    """A fatal leaf beside a recoverable one fails the sample, in either order.
+
+    Repeated with fresh exceptions: reducing a group to one leaf picked in
+    set (address) order chose the recoverable leaf only some of the time.
+    """
+    from inspect_ai.log._transcript import transcript
+
+    def exceptions() -> list[Exception]:
+        leaves: list[Exception] = [ToolError("retry"), RuntimeError("fatal defect")]
+        return leaves[::-1] if fatal_first else leaves
+
+    for _ in range(_GROUP_REPEATS):
+        command = ToolCommand([_group_tool(exceptions)])
+        error, active = await _dispatch(monkeypatch, command, "grouped", {})
+        assert error is None
+        assert isinstance(command.failure, RuntimeError)
+        assert str(command.failure) == "fatal defect"
+        event = next(e for e in transcript().events if e.event == "tool")
+        assert event.failed is True
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("limit_first", [False, True])
+async def test_group_with_limit_leaf_reaches_sample(monkeypatch, limit_first) -> None:
+    from inspect_ai.util._limit import LimitExceededError
+
+    def exceptions() -> list[Exception]:
+        leaves: list[Exception] = [
+            ToolError("retry"),
+            LimitExceededError("token", value=1001, limit=1000),
+        ]
+        return leaves[::-1] if limit_first else leaves
+
+    for _ in range(_GROUP_REPEATS):
+        command = ToolCommand([_group_tool(exceptions)])
+        error, active = await _dispatch(monkeypatch, command, "grouped", {})
+        assert error is not None and "Limit exceeded" in error
+        assert active.limit_exceeded.call_count == 1
+        assert command.failure is None
+
+
+@pytest.mark.anyio
+async def test_group_of_recoverable_errors_stays_recoverable(monkeypatch) -> None:
+    """Control: a group of expected errors is one recoverable reply."""
+    from inspect_ai.log._transcript import transcript
+
+    command = ToolCommand(
+        [_group_tool(lambda: [ToolError("first"), ToolError("second")])]
+    )
+    error, active = await _dispatch(monkeypatch, command, "grouped", {})
+    assert error is None
+    assert command.failure is None
+    assert active.limit_exceeded.call_count == 0
+    event = next(e for e in transcript().events if e.event == "tool")
+    assert event.failed is None
+    assert event.error is not None and event.error.message == "first"
+
+
+@pytest.mark.anyio
+async def test_large_expected_error_reply_is_capped() -> None:
+    """The terminal reply for an expected error honors the tool's max_output."""
+    from inspect_ai.log._transcript import Transcript, init_transcript, transcript
+
+    async def execute() -> str:
+        """Raise a huge ToolError.
+
+        Returns:
+            Never returns.
+        """
+        raise ToolError("x" * 1_000_000)
+
+    loud = ToolDef(
+        execute, name="loud", description="Raise.", parameters={}, max_output=8
+    ).as_tool()
+    handler = ToolCommand([loud]).service(state=_agent_state())
+    init_transcript(Transcript())
+    result = str(await handler(tool="loud", arguments={}))
+
+    assert len(result) < 1000
+    assert "truncated" in result
+    event = next(e for e in transcript().events if e.event == "tool")
+    assert event.error is not None and event.error.type == "unknown"
+
+
+@pytest.mark.anyio
+async def test_large_unexpected_error_reply_is_capped() -> None:
+    from inspect_ai.log._transcript import Transcript, init_transcript
+
+    async def execute() -> str:
+        """Raise a huge RuntimeError.
+
+        Returns:
+            Never returns.
+        """
+        raise RuntimeError("x" * 1_000_000)
+
+    loud = ToolDef(
+        execute, name="loud", description="Raise.", parameters={}, max_output=8
+    ).as_tool()
+    command = ToolCommand([loud])
+    handler = command.service(state=_agent_state())
+    init_transcript(Transcript())
+    result = str(await handler(tool="loud", arguments={}))
+
+    assert len(result) < 1000
+    assert command.failure is not None
+
+
+@pytest.mark.anyio
+async def test_input_derived_validation_reply_is_capped() -> None:
+    """Schema-validation messages echo the human's input; the reply is capped."""
+    from inspect_ai.log._transcript import Transcript, init_transcript
+
+    async def execute(count: int) -> str:
+        """Take a count.
+
+        Args:
+            count: A count.
+
+        Returns:
+            The count.
+        """
+        return str(count)
+
+    counter = ToolDef(
+        execute,
+        name="counter",
+        description="Take a count.",
+        parameters={"count": "A count."},
+        max_output=8,
+    ).as_tool()
+    handler = ToolCommand([counter]).service(state=_agent_state())
+    init_transcript(Transcript())
+    result = str(await handler(tool="counter", arguments={"count": "y" * 1_000_000}))
+
+    assert len(result) < 1000
+    assert "truncated" in result
