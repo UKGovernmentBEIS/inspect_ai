@@ -1743,9 +1743,9 @@ When the upstream model is a Gemini model (recognized by its name), requests wit
 
 When the upstream model is an xAI Grok model (recognized by its name, or the `xai` provider), requests follow the native `grok` provider:
 
--   Grok 4 and later models served directly by xAI use the Responses API (see [Responses API and Streaming](#litellm-proxy-streaming)), so their encrypted reasoning is carried from one turn to the next. On the Chat Completions API, xAI returns only a summary of the reasoning.
+-   Grok 4 and later models served directly by xAI use the Responses API (see [Responses API and Streaming](#litellm-proxy-streaming)), so their encrypted reasoning is carried from one turn to the next. On the Chat Completions API, xAI returns only a summary of the reasoning. As with the `grok` provider, any model name on LiteLLM's `xai` provider other than Grok 2 and Grok 3 (including predeployment codenames) counts as Grok 4 or later.
 -   `reasoning_effort` values the model rejects are lowered: `max` to `xhigh`, and `none` is not sent.
--   Each request carries the sample id in the `x-grok-conv-id` header, which keeps a sample's requests on one xAI server so that they reuse its prompt cache. The proxy forwards the header only when its config has `forward_client_headers_to_llm_api: true` under `general_settings`.
+-   Requests made within a sample carry its id in the `x-grok-conv-id` header, which keeps the sample's requests on one xAI server so that they reuse its prompt cache. The proxy forwards the header only when its config has `forward_client_headers_to_llm_api: true` under `general_settings`.
 -   xAI's context window errors end the turn with stop reason `model_length`, and its safety refusals with `content_filter`.
 
 ### Reasoning Effort {#litellm-proxy-reasoning-effort}

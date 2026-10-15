@@ -301,7 +301,9 @@ ERROR_SCENARIOS: dict[str, ErrorScenario] = {
     ),
     # xAI: the context window error as returned live by grok-4.7; the refusal
     # uses the grok provider's wording (its REST shape is undocumented)
-    "xai-context": ErrorScenario(
+    # named for the model, since the error test identifies the vendor from
+    # the alias (it skips model info)
+    "grok-context": ErrorScenario(
         "xai",
         Reply(
             400,
@@ -313,7 +315,7 @@ ERROR_SCENARIOS: dict[str, ErrorScenario] = {
             ),
         ),
     ),
-    "xai-refusal": ErrorScenario(
+    "grok-refusal": ErrorScenario(
         "xai",
         Reply(
             403,
@@ -324,7 +326,7 @@ ERROR_SCENARIOS: dict[str, ErrorScenario] = {
             ),
         ),
     ),
-    "xai-rate-limit": ErrorScenario(
+    "grok-rate-limit": ErrorScenario(
         "xai",
         Reply(429, _xai_error("resource-exhausted", "Too many requests")),
     ),

@@ -219,8 +219,9 @@ class LiteLLMProxyAPI(OpenAICompatibleAPI):
     skip the listing, the registration and the check.
 
     When `responses_api` is not passed, GPT-5, o-series and Codex models
-    served directly by OpenAI use the Responses API, as with the native
-    `openai` provider; everything else uses Chat Completions.
+    served directly by OpenAI, and Grok 4+ models served directly by xAI,
+    use the Responses API, as with the native `openai` and `grok`
+    providers; everything else uses Chat Completions.
 
     Chat Completions requests to Claude 4.6+ that carry a `reasoning_effort`
     ask for summarized thinking (`-M thinking_display=omitted` to not).
@@ -1091,7 +1092,9 @@ class LiteLLMProxyAPI(OpenAICompatibleAPI):
             return self._adaptive_thinking_error(message)
         if _PREFILL_REJECTED.search(message):
             return PrefillNotSupportedError(self.service_model_name(), message)
-        output = litellm_error_model_output(self.service_model_name(), message)
+        output = litellm_error_model_output(
+            self.service_model_name(), message, xai=self._vendor == "grok"
+        )
         if output is None:
             # the base class's message heuristics, recording the upstream
             # message rather than LiteLLM's wrapping of it
@@ -1143,7 +1146,9 @@ class LiteLLMProxyAPI(OpenAICompatibleAPI):
                 if isinstance(ex, OpenAIResponseError)
                 else _error_message(ex)
             )
-            output = litellm_error_model_output(self.service_model_name(), message)
+            output = litellm_error_model_output(
+                self.service_model_name(), message, xai=self._vendor == "grok"
+            )
             if output is not None:
                 return output
         return super().handle_stream_error(ex)

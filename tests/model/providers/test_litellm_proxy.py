@@ -20,7 +20,7 @@ from typing import Any, Literal, NamedTuple
 import httpx
 import httpx2
 import pytest
-from openai import APIError, APIStatusError, BadRequestError
+from openai import APIError, APIStatusError, BadRequestError, PermissionDeniedError
 from test_helpers.litellm_proxy.errors import (
     _anthropic_error,
     error_deployments,
@@ -1950,22 +1950,6 @@ LITELLM_ERROR_MESSAGES = [
         id="xai-context-window",
     ),
     pytest.param(
-        'litellm.APIError: APIError: XaiException - {"code": '
-        '"permission-denied", "error": "Content violates usage guidelines. '
-        "Failed check: SAFETY_CHECK_TYPE_CSAM\"}\n\nLiteLLM: model group 'g' "
-        "failed with the error above. No fallback was attempted.",
-        "content_filter",
-        "Content violates usage guidelines. Failed check: SAFETY_CHECK_TYPE_CSAM",
-        id="xai-safety-check",
-    ),
-    pytest.param(
-        'litellm.BadRequestError: XaiException - {"code": "permission-denied", '
-        '"error": "I can\'t help with that request."}',
-        "content_filter",
-        "I can't help with that request.",
-        id="xai-refusal",
-    ),
-    pytest.param(
         "litellm.BadRequestError: litellm.ContentPolicyViolationError: "
         'ContentPolicyViolationError: OpenAIException - {"error": {"message": '
         '"Invalid prompt: your prompt was flagged.", "type": '
@@ -2013,6 +1997,57 @@ def test_litellm_error_model_output(
 )
 def test_litellm_error_model_output_unrecognized(message: str) -> None:
     assert litellm_error_model_output("model", message) is None
+
+
+XAI_SAFETY_CHECK = (
+    'litellm.APIError: APIError: XaiException - {"code": "permission-denied", '
+    '"error": "Content violates usage guidelines. Failed check: '
+    "SAFETY_CHECK_TYPE_CSAM\"}\n\nLiteLLM: model group 'g' failed with the "
+    "error above. No fallback was attempted."
+)
+
+
+@pytest.mark.parametrize(
+    "message,content",
+    [
+        (
+            XAI_SAFETY_CHECK,
+            "Content violates usage guidelines. Failed check: SAFETY_CHECK_TYPE_CSAM",
+        ),
+        (
+            'litellm.BadRequestError: XaiException - {"code": '
+            '"permission-denied", "error": "I can\'t help with that request."}',
+            "I can't help with that request.",
+        ),
+    ],
+)
+def test_litellm_error_model_output_xai_refusal(message: str, content: str) -> None:
+    output = litellm_error_model_output("model", message, xai=True)
+    assert output is not None
+    assert output.stop_reason == "content_filter"
+    assert output.completion == content
+    # the markers apply only to xAI models
+    assert litellm_error_model_output("model", message) is None
+
+
+def test_litellm_error_model_output_openai_safety_checks() -> None:
+    message = (
+        "litellm.BadRequestError: OpenAIException - Missing required parameter: "
+        "'input[3].acknowledged_safety_checks'."
+    )
+    assert litellm_error_model_output("model", message) is None
+
+
+@pytest.mark.parametrize(
+    "text,message",
+    [
+        ('{"error": {"message": "nested"}}', "nested"),
+        ('{"code": "invalid-argument", "error": "xai"}', "xai"),
+        ('{"error": "Bad Request", "message": "detail"}', "detail"),
+    ],
+)
+def test_upstream_message_json_bodies(text: str, message: str) -> None:
+    assert upstream_message(f"litellm.BadRequestError: XException - {text}") == message
 
 
 def test_upstream_message_keeps_unparsed_message() -> None:
@@ -2099,6 +2134,34 @@ def test_provider_stream_error_keeps_retryable_errors() -> None:
     assert _provider().handle_stream_error(status_error) is None
 
 
+def _permission_denied(message: str) -> PermissionDeniedError:
+    request = httpx2.Request("POST", "http://proxy/v1/responses")
+    return PermissionDeniedError(
+        f"Error code: 403 - {message}",
+        response=httpx2.Response(403, request=request),
+        body={"message": message, "type": "permission_error", "code": "403"},
+    )
+
+
+@skip_if_no_openai_package
+def test_provider_stream_error_xai_refusal() -> None:
+    # the Responses path sends a 403 here rather than to handle_bad_request
+    grok = get_model(
+        "litellm-proxy/grok-4.7",
+        base_url="http://localhost:4000/v1",
+        api_key="key",
+        model_info=False,
+    ).api
+    assert isinstance(grok, LiteLLMProxyAPI)
+    output = grok.handle_stream_error(_permission_denied(XAI_SAFETY_CHECK))
+    assert isinstance(output, ModelOutput)
+    assert output.stop_reason == "content_filter"
+    # another 403 is raised with its usual classification
+    assert grok.handle_stream_error(_permission_denied("Key blocked")) is None
+    # as is an xAI-worded 403 for a model that isn't xAI's
+    assert _provider().handle_stream_error(_permission_denied(XAI_SAFETY_CHECK)) is None
+
+
 # Upstream errors and refusals through a proxy (`test_helpers.litellm_proxy.errors`):
 # the stop reason of the output, or the retry kind of the raised error.
 ERROR_EXPECTATIONS: dict[str, str] = {
@@ -2119,9 +2182,9 @@ ERROR_EXPECTATIONS: dict[str, str] = {
     "bedrock-guardrail": "content_filter",
     "deepseek-context": "model_length",
     "moonshot-context": "model_length",
-    "xai-context": "model_length",
-    "xai-refusal": "content_filter",
-    "xai-rate-limit": "retry:rate_limit",
+    "grok-context": "model_length",
+    "grok-refusal": "content_filter",
+    "grok-rate-limit": "retry:rate_limit",
     "azure-content-filter": "content_filter",
 }
 

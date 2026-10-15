@@ -39,7 +39,9 @@ _VALUE_REJECTED = (
     # xAI (e.g. `none` for grok-4.7)
     re.compile(r"does not support `reasoning_effort` value `(\w+)`"),
 )
-# Value rejections that name no value (a request sends only one)
+# Value rejections that name no value (a request sends only one). Were a model
+# to reject every value this way, the ladder is walked once (one failed request
+# per value) before the effort is dropped; rejections are remembered.
 _UNNAMED_VALUE_REJECTED = (
     # xAI (e.g. `max` for grok-4.7)
     re.compile(r"\bInvalid reasoning effort\."),

@@ -464,23 +464,24 @@ and removes `strict` from tool schemas on chat. Parallel tool calls work.
    value sent. `max` is lowered to `xhigh` and `none` is dropped, with the
    usual warning (verified live on both paths).
 3. `input_too_large` is a context window marker, `upstream_message` reads
-   `{"error": "<string>"}` bodies, and `safety_check` / "can't help with that
-   request" are content policy markers for any status (403 errors reach
-   `handle_bad_request`). The refusal wording is the native provider's and is
-   unverified over REST.
+   `{"error": "<string>"}` bodies (preferring a sibling `message`), and
+   `safety_check` / "can't help with that request" are content policy
+   markers for any status, for grok models only (`acknowledged_safety_checks`
+   appears in OpenAI computer use errors). The refusal wording is the native
+   provider's and is unverified over REST.
 4. `x-grok-conv-id` (the sample id) is sent for grok models; a caller's own
    header wins. The constant is shared with the native provider through
    `_grok_cache.py`, which does not import `xai_sdk`.
 
-On the Responses path a 403 reaches `handle_stream_error`, not
-`handle_bad_request`, so the provider checks `PermissionDeniedError` there
-too (it is never retried).
+On chat completions a 403 reaches `handle_bad_request`; on the Responses path
+it reaches `handle_stream_error`, so the provider checks
+`PermissionDeniedError` there too (it is never retried).
 
 **Tests.** `grok-4.7` is in the live round-trip matrix, the live Responses
 default test, and `test_live_grok_reasoning_effort` (every effort on both
 paths, with the value sent upstream). Offline: an `xai` fake in the round-trip
 matrix, `grok-4.7` in the effort guarantee with a fake that rejects `none` and
-`max` in xAI's wording, and `xai-context`, `xai-refusal` and `xai-rate-limit`
+`max` in xAI's wording, and `grok-context`, `grok-refusal` and `grok-rate-limit`
 error scenarios. Live, on `main-latest` and 1.96.0: 12 passed.
 
 ### Working around LiteLLM behavior
