@@ -282,6 +282,51 @@ async def test_compaction_iterations_still_summed() -> None:
     assert output.usage is not None
     assert output.usage.input_tokens == 300
     assert output.usage.output_tokens == 30
+    # the context size is the first iteration's input, not the sum
+    assert output.input_context_tokens == 100
+
+
+@pytest.mark.parametrize("continued", [False, True])
+@pytest.mark.anyio
+async def test_compaction_iterations_context_is_one_input(continued: bool) -> None:
+    """A compacting request's context size is its input, not its iterations' sum.
+
+    The compaction iteration reads the request's input (with its cache reads
+    and writes); the message iteration that follows reads the compacted
+    version. A later continuation adds to usage but not to the context size,
+    and the value survives serialization.
+    """
+    from unittest.mock import AsyncMock, create_autospec
+
+    from anthropic import AsyncAnthropic
+
+    init_sample_anthropic_assistant_internal()
+    compaction = _iteration("compaction", REQUESTED_MODEL, 1_000, 500)
+    compaction["cache_read_input_tokens"] = 90_000
+    compaction["cache_creation_input_tokens"] = 9_000
+    head = _chain_request(
+        "msg_head",
+        "pause_turn" if continued else "end_turn",
+        fallback=False,
+        iterations=[compaction, _iteration("message", REQUESTED_MODEL, 20_000, 100)],
+    )
+    tail = _chain_request("msg_tail", "end_turn", fallback=False)
+    tail.usage.input_tokens = 5_000
+
+    api = AnthropicAPI(model_name=REQUESTED_MODEL, api_key="test-key")
+    client = create_autospec(AsyncAnthropic, instance=True)
+    client.messages.create = AsyncMock(side_effect=[head, tail])
+    api.client = client
+
+    _, output = await api._perform_request_and_continuations(
+        request={"messages": []}, streaming=False, tools=[], config=GenerateConfig()
+    )
+
+    assert output.usage is not None
+    assert output.usage.input_tokens == 21_000 + (5_000 if continued else 0)
+    assert output.input_context_tokens == 100_000
+    restored = ModelOutput.model_validate_json(output.model_dump_json())
+    assert restored.input_context_tokens == 100_000
 
 
 # ---------------------------------------------------------------------------

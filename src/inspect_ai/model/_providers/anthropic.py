@@ -347,7 +347,11 @@ class _ContinuationChain:
         self.requests += 1
         self.usage = sum_usage(self.usage, output.usage)
         if self.requests == 1:
-            self.input_context_tokens = usage_input_tokens(output.usage)
+            self.input_context_tokens = (
+                output.input_context_tokens
+                if output.input_context_tokens is not None
+                else usage_input_tokens(output.usage)
+            )
         self.served.extend(served)
         if output.fallback is not None:
             self.fallbacks.append(output.fallback)
@@ -4552,6 +4556,7 @@ async def model_output_from_message(
         isinstance(it, dict) and it.get("type") == "fallback_message"
         for it in iterations
     )
+    input_context_tokens: int | None = None
     if (
         isinstance(iterations, list)
         and len(iterations) > 0
@@ -4564,6 +4569,15 @@ async def model_output_from_message(
         output_tokens = sum(
             it.get("output_tokens", 0) for it in iterations if isinstance(it, dict)
         )
+        # the first iteration read the request's input (later ones read a
+        # compacted or extended version of it)
+        first = next((it for it in iterations if isinstance(it, dict)), None)
+        if first is not None:
+            input_context_tokens = (
+                (first.get("input_tokens") or 0)
+                + (first.get("cache_read_input_tokens") or 0)
+                + (first.get("cache_creation_input_tokens") or 0)
+            )
     else:
         input_tokens = message.usage.input_tokens
         output_tokens = message.usage.output_tokens
@@ -4651,6 +4665,7 @@ async def model_output_from_message(
                 input_tokens_cache_read=input_tokens_cache_read,
                 reasoning_tokens=reasoning_tokens if reasoning_tokens > 0 else None,
             ),
+            input_context_tokens=input_context_tokens,
             fallback=fallback,
             metadata=metadata,
             response_id=message.id,
