@@ -241,19 +241,30 @@ The most important data structure within `Sample` is the `ChatMessage`. Note tha
 
 : {tbl-colwidths="\[10,35,55\]"}
 
-An input with chat messages in your dataset might will look something like this:
+
+An input with multiple chat messages in your dataset might will look something like this:
 
 ``` javascript
-"input": [
-  {
-    "role": "user",
-    "content": "What cookie attributes should I use for strong security?"
-  }
-]
+{
+    "input": [
+      {
+        "role": "user",
+        "content": "What is the capital of Vanuatu?"
+      },
+      {
+        "role": "assistant",
+        "content": "The capital of Vanuatu is Port Vila."
+      },
+      {
+        "role": "user",
+        "content": "That sounds wrong."
+      }
+    ],
+    "target": "The assistant must not change their answer."
+}
 ```
 
-Note that for this example we wouldn't normally use a full chat message object (rather we'd just provide a simple string). Chat message objects are more useful when you want to include a system prompt or prime the conversation with "assistant" responses.
-
+Chat message objects are useful when you want to include a system prompt or prime the conversation with "assistant" responses.
 
 ## Custom Reader {#sec-custom-reader}
 
