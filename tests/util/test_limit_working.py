@@ -3,7 +3,7 @@ from __future__ import annotations
 import random
 from contextvars import Context, copy_context
 from dataclasses import dataclass, field
-from typing import Any, Generator
+from typing import Any, Callable, Generator, Literal, overload
 from unittest.mock import patch
 
 import anyio
@@ -40,6 +40,12 @@ from inspect_ai.util._limit import (
     suspend_working_limit,
     working_limit,
 )
+from inspect_ai.util._sandbox.environment import (
+    SandboxEnvironment,
+    SandboxEnvironmentConfigType,
+)
+from inspect_ai.util._sandbox.events import SandboxEnvironmentProxy
+from inspect_ai.util._subprocess import ExecResult
 
 
 @pytest.fixture
@@ -714,12 +720,168 @@ async def test_nested_attempt_holds_enclosing_tool(sample_clock: _MockTime) -> N
     assert sample_working_time() == 6
 
 
+async def test_late_wait_withdraws_own_work(sample_clock: _MockTime) -> None:
+    """A wait reported after the fact is not covered by its own context's work.
+
+    The outer tool opens at 0 and an inner tool in a task it started at 2;
+    the inner task reports the last 5 s as waiting at 5.
+    """
+    outer = _Task()
+    outer_work = outer.enter(known_work())
+    sample_clock.advance(2)
+    inner = _Task(outer)
+    inner_work = inner.enter(known_work())
+    sample_clock.advance(3)
+    inner.ctx.run(report_sample_waiting_time, 5)
+    assert sample_waiting_time() == 5
+    sample_clock.advance(1)
+    inner.exit(inner_work)
+    outer.exit(outer_work)
+    assert sample_waiting_time() == 5
+    assert sample_working_time() == 1
+
+
+async def test_late_wait_keeps_sibling_work(sample_clock: _MockTime) -> None:
+    tool, sibling = _Task(), _Task()
+    tool_work = tool.enter(known_work())
+    sibling_work = sibling.enter(known_work())
+    sample_clock.advance(5)
+    tool.ctx.run(add_sample_wait, 0, 5)
+    assert sample_waiting_time() == 0
+    tool.exit(tool_work)
+    sibling.exit(sibling_work)
+    assert sample_waiting_time() == 0
+
+
+async def test_task_outliving_inner_span_holds_open_ancestor(
+    sample_clock: _MockTime,
+) -> None:
+    """A task started by a closed inner tool still holds the outer tool.
+
+    For example, a background agent dispatched by a tool that has returned,
+    inside an agent running as a tool.
+    """
+    outer = _Task()
+    outer_work = outer.enter(known_work())
+    inner = _Task(outer)
+    inner_work = inner.enter(known_work())
+    background = _Task(inner)
+    inner.exit(inner_work)
+    sample_clock.advance(1)
+    wait = background.enter(sample_wait())
+    sample_clock.advance(5)
+    background.exit(wait)
+    assert sample_waiting_time() == 5
+    # a model attempt from the same task holds the outer tool, and is retried
+    attempts = ModelAttempts()
+    attempt = background.enter(attempts.attempt())
+    sample_clock.advance(2)
+    background.exit(attempt)
+    background.ctx.run(add_sample_wait, 6, 8)
+    attempts.retried()
+    outer.exit(outer_work)
+    assert sample_waiting_time() == 7
+    assert sample_working_time() == 1
+
+
+async def test_wait_outlasting_its_span_keeps_ancestor_held(
+    sample_clock: _MockTime,
+) -> None:
+    outer = _Task()
+    outer_work = outer.enter(known_work())
+    inner = _Task(outer)
+    inner_work = inner.enter(known_work())
+    wait = _Task(inner).wait()
+    inner.exit(inner_work)
+    sample_clock.advance(5)
+    assert sample_waiting_time() == 5
+    wait.close()
+    sample_clock.advance(1)
+    outer.exit(outer_work)
+    assert sample_waiting_time() == 5
+    assert sample_working_time() == 1
+
+
+async def test_exec_beside_event_suppressed_exec_is_known_work(
+    sample_clock: _MockTime,
+) -> None:
+    """`no_events()` in one task does not make another task's exec unseen."""
+    sandbox = _GatedSandbox(sample_clock)
+    proxy = SandboxEnvironmentProxy(sandbox)
+    wait = SampleWait()
+    polling = anyio.Event()
+
+    async def poll() -> None:
+        with proxy.no_events():
+            polling.set()
+            await proxy.exec(["poll"])
+
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(poll)
+        await polling.wait()
+        await proxy.exec(["work"])
+        assert sample_waiting_time() == 0
+        sandbox.release.set()
+    wait.close()
+    assert sample_waiting_time() == 0
+
+
+class _GatedSandbox(SandboxEnvironment):
+    """`work` takes 5 s on the sample clock; anything else waits for `release`."""
+
+    def __init__(self, clock: _MockTime) -> None:
+        super().__init__()
+        self.clock = clock
+        self.release = anyio.Event()
+
+    async def exec(
+        self,
+        cmd: list[str],
+        input: str | bytes | None = None,
+        cwd: str | None = None,
+        env: dict[str, str] | None = None,
+        user: str | None = None,
+        timeout: int | None = None,
+        timeout_retry: bool = True,
+        concurrency: bool = True,
+    ) -> ExecResult[str]:
+        if cmd == ["work"]:
+            self.clock.advance(5)
+        else:
+            await self.release.wait()
+        return ExecResult(success=True, returncode=0, stdout="", stderr="")
+
+    async def write_file(self, file: str, contents: str | bytes) -> None:
+        raise NotImplementedError()
+
+    @overload
+    async def read_file(self, file: str, text: Literal[True] = True) -> str: ...
+
+    @overload
+    async def read_file(self, file: str, text: Literal[False]) -> bytes: ...
+
+    async def read_file(self, file: str, text: bool = True) -> str | bytes:
+        raise NotImplementedError()
+
+    @classmethod
+    async def sample_cleanup(
+        cls,
+        task_name: str,
+        config: SandboxEnvironmentConfigType | None,
+        environments: dict[str, SandboxEnvironment],
+        interrupted: bool,
+    ) -> None:
+        pass
+
+
 @pytest.mark.parametrize("seed", range(30))
 async def test_random_work_and_waits_match_reference(seed: int) -> None:
     """Readings match a brute-force evaluation of the rule, within bounds.
 
     Waits and known work open and close in separate tasks, nested in each
-    other's contexts, with late waits and attempts classified after the fact.
+    other's contexts (closed spans' contexts included, as for a task that
+    outlives the span that started it), with late waits reported from inside
+    work and attempts classified after the fact.
     """
     rng = random.Random(seed)
     clock = _MockTime()
@@ -729,20 +891,17 @@ async def test_random_work_and_waits_match_reference(seed: int) -> None:
     for _ in range(250):
         op = rng.random()
         open_spans = [s for s in model.spans if not s.closed]
+        context = (
+            rng.choice(model.spans) if model.spans and rng.random() < 0.6 else None
+        )
         if op < 0.25:
             clock.advance(rng.choice([0, rng.random() * 3]))
         elif op < 0.37:
-            parent = (
-                rng.choice(open_spans) if open_spans and rng.random() < 0.5 else None
-            )
-            model.open_span(parent, attempt=rng.random() < 0.4)
+            model.open_span(context, attempt=rng.random() < 0.4)
         elif op < 0.47 and open_spans:
             model.close_span(rng.choice(open_spans))
         elif op < 0.57:
-            parent = (
-                rng.choice(open_spans) if open_spans and rng.random() < 0.6 else None
-            )
-            model.open_wait(parent)
+            model.open_wait(context)
         elif op < 0.67 and model.open_waits:
             model.close_wait(rng.randrange(len(model.open_waits)))
         elif op < 0.75:
@@ -753,17 +912,19 @@ async def test_random_work_and_waits_match_reference(seed: int) -> None:
             now = clock.get_time()
             start = rng.uniform(-1, now + 1)
             end = rng.uniform(start, now + 2)
-            add_sample_wait(start, end)
-            model.waits.append((max(start, 0), min(end, now)))
+            model.late_wait(context, start, end, add_sample_wait)
         elif op < 0.9:
             scope = working_limit(None)
             scope.__enter__()
             scopes.append((scope, clock.get_time()))
         else:
-            seconds = rng.random() * 4
             now = clock.get_time()
-            report_sample_waiting_time(seconds)
-            model.waits.append((max(now - seconds, 0), now))
+            model.late_wait(
+                context,
+                now - rng.random() * 4,
+                now,
+                lambda start, end: report_sample_waiting_time(end - start),
+            )
         _check_rule(rng, model, scopes)
     # closing everything leaves every reading unchanged
     now = clock.get_time()
@@ -783,6 +944,7 @@ async def test_random_work_and_waits_match_reference(seed: int) -> None:
 @dataclass
 class _Span:
     task: _Task
+    inner: _Task  # a task started while the span was open
     cm: Any
     parent: _Span | None
     attempts: ModelAttempts | None
@@ -805,12 +967,12 @@ class _RuleModel:
         self.open_waits: list[tuple[SampleWait, _Span | None, float]] = []
 
     def open_span(self, parent: _Span | None, attempt: bool) -> None:
-        task = _Task(parent.task if parent else None)
+        task = _Task(parent.inner if parent else None)
         attempts = ModelAttempts() if attempt else None
         cm = attempts.attempt() if attempts else known_work()
         task.enter(cm)
         now = self.clock.get_time()
-        span = _Span(task, cm, parent, attempts, now, active=now)
+        span = _Span(task, _Task(task), cm, parent, attempts, now, active=now)
         if parent is not None:
             self._hold(parent)
         self.spans.append(span)
@@ -819,11 +981,11 @@ class _RuleModel:
         span.task.exit(span.cm)
         self._end(span)
         span.closed = True
-        if span.parent is not None:
+        if span.holds == 0 and span.parent is not None:
             self._release(span.parent)
 
     def open_wait(self, span: _Span | None) -> None:
-        task = _Task(span.task if span else None)
+        task = _Task(span.inner if span else None)
         self.open_waits.append((task.wait(), span, self.clock.get_time()))
         if span is not None:
             self._hold(span)
@@ -839,12 +1001,42 @@ class _RuleModel:
         assert span.attempts is not None
         span.done = True
         if retried:
+            # the retry loop runs in the context that started the attempt
             span.dropped = True
-            add_sample_wait(span.opened, self.clock.get_time())
-            self.waits.append((span.opened, self.clock.get_time()))
+            self.late_wait(
+                span.parent, span.opened, self.clock.get_time(), add_sample_wait
+            )
             span.attempts.retried()
         else:
             span.attempts.commit()
+
+    def late_wait(
+        self,
+        context: _Span | None,
+        start: float,
+        end: float,
+        report: Callable[[float, float], None],
+    ) -> None:
+        """Report a wait after the fact from inside `context`'s work."""
+        _Task(context.inner if context else None).ctx.run(report, start, end)
+        now = self.clock.get_time()
+        start, end = max(start, 0), min(end, now)
+        if end <= start:
+            return
+        self.waits.append((start, end))
+        while context is not None:
+            active = context.active is not None
+            self._end(context)
+            context.segments = [
+                piece
+                for s, e in context.segments
+                for piece in ([(s, e)] if e <= start or s >= end else [])
+                + ([(s, start)] if s < start < e else [])
+                + ([(end, e)] if s < end < e else [])
+            ]
+            if active:
+                context.active = now
+            context = context.parent
 
     def intervals(self) -> tuple[list[tuple[float, float]], list[tuple[float, float]]]:
         now = self.clock.get_time()
@@ -859,13 +1051,21 @@ class _RuleModel:
 
     def _hold(self, span: _Span) -> None:
         if span.holds == 0:
-            self._end(span)
+            if span.closed:
+                if span.parent is not None:
+                    self._hold(span.parent)
+            else:
+                self._end(span)
         span.holds += 1
 
     def _release(self, span: _Span) -> None:
         span.holds -= 1
-        if span.holds == 0 and not span.closed:
-            span.active = self.clock.get_time()
+        if span.holds == 0:
+            if span.closed:
+                if span.parent is not None:
+                    self._release(span.parent)
+            else:
+                span.active = self.clock.get_time()
 
     def _end(self, span: _Span) -> None:
         if span.active is not None:

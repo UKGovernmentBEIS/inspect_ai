@@ -1127,6 +1127,40 @@ def test_token_count_and_compact_retries_are_waiting(
     assert sample.working_time is not None and sample.working_time >= 0.15
 
 
+@pytest.mark.parametrize("operation", ["count_tokens", "compact"])
+def test_token_count_and_compact_retries_inside_a_tool_are_waiting(
+    flaky_model: None, operation: str
+) -> None:
+    """A tool's own retried attempts are waiting, though the tool is known work."""
+
+    @tool
+    def retrying_tool() -> Tool:
+        async def execute() -> str:
+            """Tool whose model operation is retried."""
+            model = get_model(
+                "flakytiming/m", fail_times=2, attempt_seconds=0.2, memoize=False
+            )
+            if operation == "count_tokens":
+                await model.count_tokens("count")
+            else:
+                await model.compact([ChatMessageUser(content="compact")], [])
+            return "done"
+
+        return execute
+
+    @solver
+    def retried_in_tool() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            await execute_tools(_tool_calls("retrying_tool"), [retrying_tool()])
+            return state
+
+        return solve
+
+    sample = _run_timing_solver(retried_in_tool())
+    # two failed 0.2 s attempts and two backoffs
+    assert _waiting(sample) >= 2 * (0.2 + _BACKOFF) - 0.05
+
+
 def test_sdk_internal_retries_are_waiting(flaky_model: None) -> None:
     """An attempt's time before its successful request is waiting."""
 

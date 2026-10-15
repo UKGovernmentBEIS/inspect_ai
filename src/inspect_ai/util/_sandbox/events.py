@@ -1,6 +1,7 @@
 import contextlib
 import inspect
 import shlex
+from contextvars import ContextVar
 from datetime import datetime, timezone
 from typing import Any, Iterator, Literal, Type, Union, overload
 
@@ -29,6 +30,11 @@ class SandboxTimeoutError(TimeoutError):
         super().__init__(message)
         self.truncated_output = truncated_output
         """Partial command output captured before the timeout, if available."""
+
+
+# Set by `no_events()` for its own task, so that commands other tasks run on
+# the same sandbox meanwhile stay known work.
+_no_events: ContextVar[bool] = ContextVar("sandbox_no_events", default=False)
 
 
 class SandboxEnvironmentProxy(SandboxEnvironment):
@@ -70,11 +76,11 @@ class SandboxEnvironmentProxy(SandboxEnvironment):
         if len(sig.parameters) == 8:
             params["concurrency"] = concurrency
 
-        # make call (an exec shown in the transcript is known work; service
-        # commands and exec_remote polls are not)
+        # make call (service commands and commands run by this task under
+        # `no_events()`, such as exec_remote polls, are not known work)
         work = (
             known_work()
-            if self._events and not is_sandbox_service_command(cmd)
+            if not _no_events.get() and not is_sandbox_service_command(cmd)
             else contextlib.nullcontext()
         )
         try:
@@ -228,9 +234,11 @@ class SandboxEnvironmentProxy(SandboxEnvironment):
     @contextlib.contextmanager
     def no_events(self) -> Iterator[None]:
         self._events = False
+        token = _no_events.set(True)
         try:
             yield
         finally:
+            _no_events.reset(token)
             self._events = True
 
     @classmethod

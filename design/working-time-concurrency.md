@@ -113,7 +113,7 @@ one known wait is open anywhere in the sample. Otherwise it is
 | Known work | Where the span opens and closes |
 | --- | --- |
 | A model `generate` attempt in flight | `ModelAttempts.attempt()` around the provider call in `Model._generate` (`_model.py`), from just before `api.generate` to its return. The connection-slot wait, the pause hold and the cache lookup come before it, and the backoff after it. |
-| A sandbox exec | `SandboxEnvironmentProxy.exec` (`util/_sandbox/events.py`), for the execs it records as `SandboxEvent`s: not sandbox service commands or `exec_remote`'s polls, which are Inspect's own plumbing |
+| A sandbox exec | `SandboxEnvironmentProxy.exec` (`util/_sandbox/events.py`), except sandbox service commands and commands a task runs inside the proxy's `no_events()` (`exec_remote`'s polls, sandbox tools injection, the human agent's setup), which are Inspect's own plumbing. The exclusion follows a task-local flag, so another task's exec on the same sandbox stays known work. |
 | A tool call | `call_tool()` in `call_tool_task` (`model/_call_tools.py`), including its approval and sentinel stages, and a bridged host tool call in the sandbox agent bridge's service (`agent/_bridge/sandbox/service.py`) |
 
 Cache hits open no attempt. `compact()` and `count_tokens()` attempts are
@@ -127,6 +127,12 @@ wait or work accounts for that time. So a tool call whose sandbox exec is
 queued on `max_subprocesses`, or that waits for its approval, is waiting
 for that part, and a tool call that runs a sub-agent's model call is
 charged as that attempt, which can later become a wait.
+
+A span holds its parent while it is open, and after it closes for as long
+as something in a task it started still holds it. So a task that outlives
+the span that started it (a `background()` worker, or a background agent
+dispatched by a tool that has returned) still holds the open work above
+it.
 
 Work done inside a suspension is not known work. A `sample_wait()` block,
 which is what `suspend_working_limit()`, approvals, reviews, sentinel
@@ -219,6 +225,17 @@ wait and the work spans that are open or awaiting classification:
   to `E`. Work adds to `K` and `U`, and is removed from `E`. A span's
   interval is added when the span is held or closes; an attempt's intervals
   wait for its classification.
+- **Late waits and their own work.** A wait added after the fact
+  (`add_sample_wait`, `report_sample_waiting_time`, a retried attempt in the
+  retry loop) would otherwise be covered by the reporting context's own
+  work, which was active while the wait was not yet known: a tool calling
+  `count_tokens()` whose attempt is retried, for example. So the wait is
+  withdrawn from the known work of the reporting context and the work
+  enclosing it, as if it had held them while open. Other tasks' work over
+  the interval is kept. For this, `K` counts how many spans cover each
+  point, each span keeps the intervals it added, and the closed waits `W`
+  are kept too: a withdrawal decrements the counts, and where `K` no longer
+  covers, `E` regains `W` and `U` loses what `W` does not cover.
 - **Size.** Each list grows at most by one entry per span, usually less,
   because overlapping spans merge. A sample has at most a few thousand
   spans, so memory is small. Prior attempts are carried as totals in the
@@ -500,7 +517,15 @@ block on `anyio.Event`s, so ordering is fixed.
     waiting; a successful attempt is charged from `attempt end -
     call.time`; a tool's nested attempt that is retried makes that part of
     the tool a wait;
-  - seeded random sequences of nested spans, waits, late waits, attempts
+  - a late wait reported inside a tool is withdrawn from that tool's work
+    and its enclosing tool's work, but not from a sibling's;
+  - a task that outlives the inner tool that started it still holds the
+    outer tool, for waits and retried model attempts, and a wait that
+    outlasts its span keeps the span above held;
+  - an exec on a sandbox while another task runs inside its `no_events()`
+    is still known work;
+  - seeded random sequences of nested spans (including contexts of closed
+    spans), waits, late waits reported from inside work, attempts
     classified both ways and scoped limits, checked against a brute-force
     evaluation of the rule, with every reading and scope in bounds and
     unchanged when everything closes.
@@ -508,7 +533,8 @@ block on `anyio.Event`s, so ordering is fixed.
   Sample tests in `tests/test_sample_limits.py`: a tool call or a
   successful generate beside a call in retry backoff is working; a task
   queued on a semaphore while its holder generates is working; a model
-  approver's generate leaves an idle agent waiting; a local sandbox exec
+  approver's generate leaves an idle agent waiting; `count_tokens()` and
+  `compact()` retries inside a tool are waiting; a local sandbox exec
   beside a wait is working; and a sandbox exec queued for a
   `max_subprocesses` slot is waiting. The lone-wait cases above are
   unchanged.

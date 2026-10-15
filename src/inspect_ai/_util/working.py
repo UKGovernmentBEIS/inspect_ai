@@ -77,6 +77,14 @@ class _IntervalSet:
             gaps.append((cursor, end))
         return gaps
 
+    def overlaps(self, start: float, end: float) -> list[tuple[float, float]]:
+        """The parts of `[start, end]` covered by the set."""
+        i = bisect_right(self._ends, start)
+        j = bisect_left(self._starts, end)
+        return [
+            (max(self._starts[k], start), min(self._ends[k], end)) for k in range(i, j)
+        ]
+
     def measure(self, a: float, b: float) -> float:
         """Length of the set within `[a, b]`."""
         return self._before(b) - self._before(a) if b > a else 0.0
@@ -98,15 +106,90 @@ class _IntervalSet:
             total += self._ends[k] - self._starts[k]
 
 
+class _CountedSet:
+    """Disjoint, sorted intervals, each with how many spans' work covers it."""
+
+    def __init__(self) -> None:
+        self._starts: list[float] = []
+        self._ends: list[float] = []
+        self._counts: list[int] = []
+
+    def add(self, start: float, end: float) -> list[tuple[float, float]]:
+        """Count `[start, end]` once more; returns the parts newly covered."""
+        covered: list[tuple[float, float]] = []
+        pieces: list[tuple[float, float, int]] = []
+        i, j = self._overlapping(start, end)
+        cursor = start
+        for k in range(i, j):
+            s, e, c = self._starts[k], self._ends[k], self._counts[k]
+            if s < start:
+                pieces.append((s, start, c))
+                s = start
+            if s > cursor:
+                pieces.append((cursor, s, 1))
+                covered.append((cursor, s))
+            pieces.append((s, min(e, end), c + 1))
+            if e > end:
+                pieces.append((end, e, c))
+            cursor = min(e, end)
+        if cursor < end:
+            pieces.append((cursor, end, 1))
+            covered.append((cursor, end))
+        self._splice(i, j, pieces)
+        return covered
+
+    def remove(self, start: float, end: float) -> list[tuple[float, float]]:
+        """Count `[start, end]` (previously added) once less; returns the parts uncovered."""
+        uncovered: list[tuple[float, float]] = []
+        pieces: list[tuple[float, float, int]] = []
+        i, j = self._overlapping(start, end)
+        for k in range(i, j):
+            s, e, c = self._starts[k], self._ends[k], self._counts[k]
+            if s < start:
+                pieces.append((s, start, c))
+                s = start
+            if c > 1:
+                pieces.append((s, min(e, end), c - 1))
+            else:
+                uncovered.append((s, min(e, end)))
+            if e > end:
+                pieces.append((end, e, c))
+        self._splice(i, j, pieces)
+        return uncovered
+
+    def gaps(self, start: float, end: float) -> list[tuple[float, float]]:
+        """The parts of `[start, end]` not covered."""
+        gaps: list[tuple[float, float]] = []
+        cursor = start
+        i, j = self._overlapping(start, end)
+        for k in range(i, j):
+            if self._starts[k] > cursor:
+                gaps.append((cursor, self._starts[k]))
+            cursor = max(cursor, self._ends[k])
+        if cursor < end:
+            gaps.append((cursor, end))
+        return gaps
+
+    def _overlapping(self, start: float, end: float) -> tuple[int, int]:
+        return bisect_right(self._ends, start), bisect_left(self._starts, end)
+
+    def _splice(self, i: int, j: int, pieces: list[tuple[float, float, int]]) -> None:
+        pieces = [p for p in pieces if p[1] > p[0]]
+        self._starts[i:j] = [s for s, _, _ in pieces]
+        self._ends[i:j] = [e for _, e, _ in pieces]
+        self._counts[i:j] = [c for _, _, c in pieces]
+
+
 @dataclass
 class SampleTiming:
     """Working-time state for one attempt of a sample.
 
-    Keeps the merged closed known-work intervals, the closed waits not covered
-    by them, and their union, for the whole attempt. While any wait is open,
-    the live wait runs from the start of the oldest open wait to now. Work
-    still in progress (open spans, and model attempts not yet classified) is
-    kept on its spans and read live.
+    Keeps, for the whole attempt, the closed waits, the closed known work
+    (counted per span, so one span's work can be withdrawn), the closed waits
+    not covered by known work, and the union of closed waits and work. While
+    any wait is open, the live wait runs from the start of the oldest open
+    wait to now. Work still in progress (open spans, and model attempts not
+    yet classified) is kept on its spans and read live.
     """
 
     start_time: float = 0.0
@@ -126,8 +209,10 @@ class SampleTiming:
     open_waits: int = 0
     open_start: float | None = None
 
+    # closed waits
+    _all_waits: _IntervalSet = field(default_factory=_IntervalSet)
     # closed known work
-    _work: _IntervalSet = field(default_factory=_IntervalSet)
+    _work: _CountedSet = field(default_factory=_CountedSet)
     # closed waits minus closed known work
     _waits: _IntervalSet = field(default_factory=_IntervalSet)
     # closed waits and closed known work
@@ -150,22 +235,47 @@ class SampleTiming:
             self.open_start = None
             self.add_wait(start, self.now())
 
-    def add_wait(self, start: float, end: float) -> None:
-        """Merge the closed wait `[start, end]`, clipped to this attempt."""
+    def add_wait(
+        self, start: float, end: float, owner: "_WorkSpan | None" = None
+    ) -> None:
+        """Merge the closed wait `[start, end]`, clipped to this attempt.
+
+        Args:
+           start: Start of the wait on the sample clock.
+           end: End of the wait on the sample clock.
+           owner: The known work of the context the wait was in. A wait
+              reported after the fact is withdrawn from that work and its
+              enclosing work, as if it had held them.
+        """
         start, end = self._clip(start, end)
         if end <= start:
             return
+        self._all_waits.add(start, end)
         self._covered.add(start, end)
         self._waits.add_all(self._work.gaps(start, end))
+        while owner is not None:
+            owner.withdraw(start, end)
+            owner = owner._parent
 
-    def add_work(self, start: float, end: float) -> None:
-        """Merge the closed known work `[start, end]`, clipped to this attempt."""
+    def add_work(self, start: float, end: float) -> tuple[float, float] | None:
+        """Count the closed known work `[start, end]`, clipped to this attempt.
+
+        Returns the interval counted, if any, for `remove_work()`.
+        """
         start, end = self._clip(start, end)
         if end <= start:
-            return
-        self._work.add(start, end)
-        self._covered.add(start, end)
-        self._waits.remove(start, end)
+            return None
+        for s, e in self._work.add(start, end):
+            self._covered.add(s, e)
+            self._waits.remove(s, e)
+        return start, end
+
+    def remove_work(self, start: float, end: float) -> None:
+        """Withdraw known work counted by `add_work()`."""
+        for s, e in self._work.remove(start, end):
+            self._waits.add_all(self._all_waits.overlaps(s, e))
+            for gap_start, gap_end in self._all_waits.gaps(s, e):
+                self._covered.remove(gap_start, gap_end)
 
     def waiting(self, a: float, b: float) -> float:
         """Length of `[a, b]` covered by a known wait and by no known work."""
@@ -222,8 +332,11 @@ class _WorkSpan:
 
     A wait or a nested span opened in the span's own context (including tasks
     it starts) holds it, so its time counts once, as the inner wait or work.
-    A deferred span keeps its intervals until `commit()` or `discard()`, so a
-    model attempt can be reclassified once its outcome is known.
+    A span holds its parent while it is open, and after it closes for as long
+    as something still holds it, so a task that outlives the span still holds
+    the open work above it. A deferred span keeps its intervals until
+    `commit()` or `discard()`, so a model attempt can be reclassified once its
+    outcome is known.
     """
 
     def __init__(
@@ -235,20 +348,31 @@ class _WorkSpan:
         self._holds = 0
         self._closed = False
         self._active_start: float | None = timing.now()
+        # intervals not yet counted (deferred spans only)
         self._pending: list[tuple[float, float]] = []
+        # intervals counted as known work
+        self._counted: list[tuple[float, float]] = []
         timing._spans[self] = None
         if parent is not None:
             parent.hold()
 
     def hold(self) -> None:
         if self._holds == 0:
-            self._end_active()
+            if self._closed:
+                if self._parent is not None:
+                    self._parent.hold()
+            else:
+                self._end_active()
         self._holds += 1
 
     def release(self) -> None:
         self._holds -= 1
-        if self._holds == 0 and not self._closed:
-            self._active_start = self._timing.now()
+        if self._holds == 0:
+            if self._closed:
+                if self._parent is not None:
+                    self._parent.release()
+            else:
+                self._active_start = self._timing.now()
 
     def close(self) -> None:
         if self._closed:
@@ -257,21 +381,37 @@ class _WorkSpan:
         self._closed = True
         if not self._deferred:
             self._timing._spans.pop(self, None)
-        if self._parent is not None:
+        if self._holds == 0 and self._parent is not None:
             self._parent.release()
 
     def commit(self, work_from: float | None = None) -> None:
-        """Record the pending intervals (from `work_from` on) as known work."""
+        """Count the pending intervals (from `work_from` on) as known work."""
         for start, end in self._pending:
             if work_from is not None:
                 start = max(start, work_from)
-            self._timing.add_work(start, end)
+            self._count(start, end)
         self.discard()
 
     def discard(self) -> None:
         """Drop the pending intervals."""
         self._pending = []
         self._timing._spans.pop(self, None)
+
+    def withdraw(self, start: float, end: float) -> None:
+        """Stop counting `[start, end]` as this span's work."""
+        active = self._active_start is not None
+        self._end_active()
+        self._pending = _subtract(self._pending, start, end)
+        counted, self._counted = self._counted, []
+        for s, e in counted:
+            if s < end and e > start:
+                self._timing.remove_work(s, e)
+                for piece_start, piece_end in _subtract([(s, e)], start, end):
+                    self._count(piece_start, piece_end)
+            else:
+                self._counted.append((s, e))
+        if active:
+            self._active_start = self._timing.now()
 
     def intervals(self, now: float) -> list[tuple[float, float]]:
         """Pending intervals, plus the active one up to `now`."""
@@ -288,7 +428,28 @@ class _WorkSpan:
             if end > start:
                 self._pending.append((start, end))
         else:
-            self._timing.add_work(start, end)
+            self._count(start, end)
+
+    def _count(self, start: float, end: float) -> None:
+        counted = self._timing.add_work(start, end)
+        if counted is not None:
+            self._counted.append(counted)
+
+
+def _subtract(
+    intervals: list[tuple[float, float]], start: float, end: float
+) -> list[tuple[float, float]]:
+    """`intervals` without `[start, end]`."""
+    result: list[tuple[float, float]] = []
+    for s, e in intervals:
+        if e <= start or s >= end:
+            result.append((s, e))
+            continue
+        if s < start:
+            result.append((s, start))
+        if e > end:
+            result.append((end, e))
+    return result
 
 
 def init_sample_working_time(
@@ -360,19 +521,24 @@ def report_sample_waiting_time(waiting_time: float) -> None:
     """Record that the sample was waiting for the last `waiting_time` seconds.
 
     Adds the interval `[now - waiting_time, now]` to the sample's known waits,
-    merged with the waits already known.
+    merged with the waits already known. The known work of the calling context
+    (and the work enclosing it) is not counted over the interval.
     """
     timing = _sample_timing.get()
     if timing is not None:
         now = timing.now()
-        timing.add_wait(now - waiting_time, now)
+        timing.add_wait(now - waiting_time, now, _context_work())
 
 
 def add_sample_wait(start: float, end: float) -> None:
-    """Record the closed interval `[start, end]` (sample clock) as a known wait."""
+    """Record the closed interval `[start, end]` (sample clock) as a known wait.
+
+    The known work of the calling context (and the work enclosing it) is not
+    counted over the interval, as if the wait had held it while open.
+    """
     timing = _sample_timing.get()
     if timing is not None:
-        timing.add_wait(start, end)
+        timing.add_wait(start, end, _context_work())
 
 
 class SampleWait:
@@ -384,7 +550,7 @@ class SampleWait:
 
     def __init__(self) -> None:
         self._timing = _sample_timing.get()
-        self._work = _current_work.get() if not _suspended.get() else None
+        self._work = _context_work()
         if self._timing is not None:
             self._timing.open_wait()
             if self._work is not None:
@@ -412,6 +578,11 @@ def sample_wait() -> Iterator[None]:
     finally:
         _suspended.reset(token)
         wait.close()
+
+
+def _context_work() -> _WorkSpan | None:
+    """The innermost known work of this context (`None` inside a wait)."""
+    return _current_work.get() if not _suspended.get() else None
 
 
 def _open_work(deferred: bool) -> _WorkSpan | None:
