@@ -8,6 +8,7 @@ lies between zero and the elapsed time. See design/working-time-concurrency.md.
 """
 
 import contextlib
+import math
 import time
 from bisect import bisect_left, bisect_right
 from contextvars import ContextVar
@@ -384,11 +385,9 @@ class _WorkSpan:
         if self._holds == 0 and self._parent is not None:
             self._parent.release()
 
-    def commit(self, work_from: float | None = None) -> None:
-        """Count the pending intervals (from `work_from` on) as known work."""
+    def commit(self) -> None:
+        """Count the pending intervals as known work."""
         for start, end in self._pending:
-            if work_from is not None:
-                start = max(start, work_from)
             self._count(start, end)
         self.discard()
 
@@ -593,6 +592,27 @@ def _open_work(deferred: bool) -> _WorkSpan | None:
 
 
 @contextlib.contextmanager
+def untracked_sandbox_execs() -> Iterator[None]:
+    """Sandbox execs this task runs inside the block are not known work.
+
+    For Inspect's own plumbing (sandbox service queues, `exec_remote` polls,
+    tool injection), which is not the sample's work.
+    """
+    token = _untracked_sandbox_execs.set(True)
+    try:
+        yield
+    finally:
+        _untracked_sandbox_execs.reset(token)
+
+
+def sandbox_exec_work() -> contextlib.AbstractContextManager[None]:
+    """Known work for a sandbox exec, unless inside `untracked_sandbox_execs()`."""
+    if _untracked_sandbox_execs.get():
+        return contextlib.nullcontext()
+    return known_work()
+
+
+@contextlib.contextmanager
 def known_work() -> Iterator[None]:
     """Count the block as known work (no-op outside a sample or inside a wait)."""
     span = _open_work(deferred=False)
@@ -611,8 +631,9 @@ class ModelAttempts:
     """Known work of the attempts of one model call's retry loop.
 
     An attempt in flight is known work. Its intervals stay pending until the
-    retry policy classifies it: `retried()` drops them (the retry loop records
-    the attempt as a wait), and `commit()` records them as work.
+    retry loop is done with it: `retried()` drops them (the retry loop records
+    the attempt as a wait), and `commit()`, once the loop has returned or
+    raised, records them as work.
     """
 
     def __init__(self) -> None:
@@ -633,15 +654,19 @@ class ModelAttempts:
             _current_work.reset(token)
             span.close()
 
-    def commit(self, work_from: float | None = None) -> None:
-        """Record the pending attempts as known work.
+    def exclude_before(self, start: float) -> None:
+        """Stop counting the pending attempts' time before `start` as work.
 
-        Args:
-           work_from: Start of the known work on the sample clock (the time
-              before it went to the provider SDK's own retries).
+        Used for the time a successful attempt spent in the provider SDK's own
+        retries. The attempts stay pending, so a later retry still drops them.
         """
         for span in self._pending:
-            span.commit(work_from)
+            span.withdraw(-math.inf, start)
+
+    def commit(self) -> None:
+        """Record the pending attempts as known work."""
+        for span in self._pending:
+            span.commit()
         self._pending = []
 
     def retried(self) -> None:
@@ -658,6 +683,11 @@ _sample_timing: ContextVar[SampleTiming | None] = ContextVar(
 # the innermost known work of this context
 _current_work: ContextVar[_WorkSpan | None] = ContextVar(
     "sample_current_work", default=None
+)
+
+# inside `untracked_sandbox_execs()`
+_untracked_sandbox_execs: ContextVar[bool] = ContextVar(
+    "sample_untracked_sandbox_execs", default=False
 )
 
 # inside a known wait that covers its own work (`sample_wait()`)

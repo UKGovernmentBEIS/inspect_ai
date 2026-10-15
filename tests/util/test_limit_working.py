@@ -26,6 +26,7 @@ from inspect_ai._util.working import (
     sample_wait,
     sample_waiting_time,
     sample_working_time,
+    untracked_sandbox_execs,
 )
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model import get_model
@@ -696,7 +697,9 @@ async def test_attempt_charged_unless_retried(sample_clock: _MockTime) -> None:
     assert sample_waiting_time() == 0
     # the request took the last 2 s; the SDK retried before it
     add_sample_wait(0, 6)
-    attempts.commit(work_from=6)
+    attempts.exclude_before(6)
+    assert sample_waiting_time() == 6
+    attempts.commit()
     assert sample_waiting_time() == 6
     sample_clock.advance(1)
     wait.close()
@@ -826,8 +829,38 @@ async def test_exec_beside_event_suppressed_exec_is_known_work(
     assert sample_waiting_time() == 0
 
 
+@pytest.mark.parametrize(
+    "cmd",
+    [
+        ["sh", "-c", "work # /var/tmp/sandbox-services"],
+        ["ls", "/var/tmp", "sandbox-services"],
+    ],
+)
+async def test_exec_naming_service_directory_is_known_work(
+    sample_clock: _MockTime, cmd: list[str]
+) -> None:
+    """Whether an exec is known work never depends on its command text."""
+    proxy = SandboxEnvironmentProxy(_GatedSandbox(sample_clock))
+    wait = SampleWait()
+    await proxy.exec(cmd)
+    wait.close()
+    assert sample_waiting_time() == 0
+
+
+async def test_untracked_sandbox_execs_are_not_known_work(
+    sample_clock: _MockTime,
+) -> None:
+    """Inspect's own plumbing (sandbox service commands, polls) is not known work."""
+    proxy = SandboxEnvironmentProxy(_GatedSandbox(sample_clock))
+    wait = SampleWait()
+    with untracked_sandbox_execs():
+        await proxy.exec(["work"])
+    wait.close()
+    assert sample_waiting_time() == 5
+
+
 class _GatedSandbox(SandboxEnvironment):
-    """`work` takes 5 s on the sample clock; anything else waits for `release`."""
+    """`poll` waits for `release`; any other command takes 5 s on the sample clock."""
 
     def __init__(self, clock: _MockTime) -> None:
         super().__init__()
@@ -845,10 +878,10 @@ class _GatedSandbox(SandboxEnvironment):
         timeout_retry: bool = True,
         concurrency: bool = True,
     ) -> ExecResult[str]:
-        if cmd == ["work"]:
-            self.clock.advance(5)
-        else:
+        if cmd == ["poll"]:
             await self.release.wait()
+        else:
+            self.clock.advance(5)
         return ExecResult(success=True, returncode=0, stdout="", stderr="")
 
     async def write_file(self, file: str, contents: str | bytes) -> None:

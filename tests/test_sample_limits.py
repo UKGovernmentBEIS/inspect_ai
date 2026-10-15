@@ -925,6 +925,7 @@ class _FlakyAPI(ModelAPI):
         attempt_seconds: float = 0.1,
         call_time: float | None = None,
         return_call: bool = False,
+        usage: bool = False,
         **model_args: object,
     ) -> None:
         super().__init__(
@@ -938,6 +939,7 @@ class _FlakyAPI(ModelAPI):
         self.attempt_seconds = attempt_seconds
         self.call_time = call_time
         self.return_call = return_call
+        self.usage = usage
         self.attempts: dict[str, int] = {}
 
     async def generate(
@@ -949,6 +951,8 @@ class _FlakyAPI(ModelAPI):
     ) -> ModelOutput | tuple[ModelOutput, ModelCall]:
         await self._attempt(input[-1].text)
         output = ModelOutput.from_content(model=self.model_name, content="ok")
+        if self.usage:
+            output.usage = ModelUsage(input_tokens=1, output_tokens=1, total_tokens=2)
         if self.call_time is not None or self.return_call:
             return output, ModelCall.create({}, {}, time=self.call_time)
         return output
@@ -1179,6 +1183,51 @@ def test_sdk_internal_retries_are_waiting(flaky_model: None) -> None:
     assert _waiting(sample) >= 0.35
     # the successful 0.1 s request is working time
     assert sample.working_time is not None and sample.working_time >= 0.09
+
+
+@pytest.mark.parametrize("call_time", [None, 0.2])
+def test_attempt_retried_after_provider_success_is_waiting(
+    flaky_model: None, monkeypatch: pytest.MonkeyPatch, call_time: float | None
+) -> None:
+    """An attempt is not charged when a later step of it fails and is retried.
+
+    The provider call succeeds, then usage telemetry fails once with a
+    retryable error, so the retry loop retries the whole attempt.
+    """
+    failures = [_FlakyError("telemetry failed")]
+
+    async def flaky_telemetry(type: str, json: str) -> str:
+        if failures:
+            raise failures.pop()
+        return "not_handled"
+
+    monkeypatch.setattr(
+        "inspect_ai.hooks._legacy.send_telemetry_legacy", flaky_telemetry
+    )
+
+    @solver
+    def retried_after_success() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            model = get_model(
+                "flakytiming/m",
+                attempt_seconds=0.5,
+                call_time=call_time,
+                usage=True,
+                memoize=False,
+            )
+            await model.generate("telemetry")
+            return state
+
+        return solve
+
+    sample = _run_timing_solver(retried_after_success())
+    assert not failures
+    # the retried 0.5 s attempt, the backoff, and the second attempt's time
+    # before its measured request
+    sdk = 0.5 - call_time if call_time is not None else 0.0
+    assert _waiting(sample) >= 0.5 + _BACKOFF + sdk - 0.05
+    assert sample.working_time is not None
+    assert sample.working_time >= (call_time or 0.5) - 0.01
 
 
 @pytest.mark.parametrize(

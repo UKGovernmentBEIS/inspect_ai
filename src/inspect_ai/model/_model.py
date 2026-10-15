@@ -1693,10 +1693,9 @@ class Model:
                 # (zero means the provider did not measure the request)
                 if call.time > 0:
                     add_sample_wait(time_start, time_end - call.time)
-                    attempts.commit(work_from=time_end - call.time)
+                    attempts.exclude_before(time_end - call.time)
             else:
                 output.time = time_elapsed
-            attempts.commit()
 
             # add views to tool calls
             for choice in output.choices:
@@ -1731,7 +1730,7 @@ class Model:
             try:
                 model_output, event = await generate()
             finally:
-                # an attempt that failed without a retry stays known work
+                # the last attempt, successful or failed without a retry
                 attempts.commit()
 
         # record any model fallback against the active sample (here in the

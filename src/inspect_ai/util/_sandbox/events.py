@@ -1,7 +1,6 @@
 import contextlib
 import inspect
 import shlex
-from contextvars import ContextVar
 from datetime import datetime, timezone
 from typing import Any, Iterator, Literal, Type, Union, overload
 
@@ -10,7 +9,7 @@ from pydantic_core import to_jsonable_python
 from typing_extensions import override
 
 from inspect_ai._util.text import truncate_lines, truncate_string_to_bytes
-from inspect_ai._util.working import known_work
+from inspect_ai._util.working import sandbox_exec_work, untracked_sandbox_execs
 from inspect_ai.util._subprocess import ExecResult
 
 from .environment import (
@@ -30,11 +29,6 @@ class SandboxTimeoutError(TimeoutError):
         super().__init__(message)
         self.truncated_output = truncated_output
         """Partial command output captured before the timeout, if available."""
-
-
-# Set by `no_events()` for its own task, so that commands other tasks run on
-# the same sandbox meanwhile stay known work.
-_no_events: ContextVar[bool] = ContextVar("sandbox_no_events", default=False)
 
 
 class SandboxEnvironmentProxy(SandboxEnvironment):
@@ -76,15 +70,9 @@ class SandboxEnvironmentProxy(SandboxEnvironment):
         if len(sig.parameters) == 8:
             params["concurrency"] = concurrency
 
-        # make call (service commands and commands run by this task under
-        # `no_events()`, such as exec_remote polls, are not known work)
-        work = (
-            known_work()
-            if not _no_events.get() and not is_sandbox_service_command(cmd)
-            else contextlib.nullcontext()
-        )
+        # make call
         try:
-            with work:
+            with sandbox_exec_work():
                 result = await self._sandbox.exec(**params)
         except TimeoutError as ex:
             raise SandboxTimeoutError(
@@ -234,11 +222,10 @@ class SandboxEnvironmentProxy(SandboxEnvironment):
     @contextlib.contextmanager
     def no_events(self) -> Iterator[None]:
         self._events = False
-        token = _no_events.set(True)
         try:
-            yield
+            with untracked_sandbox_execs():
+                yield
         finally:
-            _no_events.reset(token)
             self._events = True
 
     @classmethod

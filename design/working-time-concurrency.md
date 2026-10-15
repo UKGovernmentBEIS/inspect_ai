@@ -113,7 +113,7 @@ one known wait is open anywhere in the sample. Otherwise it is
 | Known work | Where the span opens and closes |
 | --- | --- |
 | A model `generate` attempt in flight | `ModelAttempts.attempt()` around the provider call in `Model._generate` (`_model.py`), from just before `api.generate` to its return. The connection-slot wait, the pause hold and the cache lookup come before it, and the backoff after it. |
-| A sandbox exec | `SandboxEnvironmentProxy.exec` (`util/_sandbox/events.py`), except sandbox service commands and commands a task runs inside the proxy's `no_events()` (`exec_remote`'s polls, sandbox tools injection, the human agent's setup), which are Inspect's own plumbing. The exclusion follows a task-local flag, so another task's exec on the same sandbox stays known work. |
+| A sandbox exec | `SandboxEnvironmentProxy.exec` (`util/_sandbox/events.py`), except Inspect's own plumbing: the sandbox service's setup and queue commands, and commands a task runs inside the proxy's `no_events()` (`exec_remote`'s polls, sandbox tools injection, the human agent's setup). That code runs its execs inside `untracked_sandbox_execs()`, a task-local flag, so the exclusion never depends on a command's text, and another task's exec on the same sandbox stays known work. |
 | A tool call | `call_tool()` in `call_tool_task` (`model/_call_tools.py`), including its approval and sentinel stages, and a bridged host tool call in the sandbox agent bridge's service (`agent/_bridge/sandbox/service.py`) |
 
 Cache hits open no attempt. `compact()` and `count_tokens()` attempts are
@@ -172,9 +172,12 @@ Under the rule:
 
 - **An attempt in flight is known work.** Its intervals (the parts not held
   by a wait inside it, such as the batch queue) are kept on the attempt
-  until it is classified, and read as live work meanwhile.
+  until the retry loop is done with it, and read as live work meanwhile.
+  A step after the provider call (event completion, usage recording,
+  telemetry) can still raise a retryable error, so the attempt stays
+  reclassifiable until the retry-wrapped function returns.
 - **A successful attempt is working time.** Its intervals are added to the
-  work set.
+  work set when the retry loop returns.
 - **A retried attempt is a known wait.** A retried attempt is one the retry
   policy classified as retryable (tenacity's `after` callback, which runs
   only for retryable outcomes and before the stop check). When it fails,
@@ -190,8 +193,9 @@ Under the rule:
 - **SDK-internal retries are a known wait.** When an attempt succeeds, the
   part of it before `attempt end - call.time` is added as a wait interval:
   the SDK's failed requests and sleeps before its last request. The split
-  needs a positive `call.time`; the attempt's known work starts at `attempt
-  end - call.time`. A missing `call.time` (`azureai`, in-process
+  needs a positive `call.time`; the attempt's pending known work is trimmed
+  to start at `attempt end - call.time`, and stays pending until the retry
+  loop returns. A missing `call.time` (`azureai`, in-process
   providers such as `hf`) and a zero `call.time` (SageMaker's placeholder,
   and the HTTP-hook fallback for a request id that was never registered)
   mean the request was not measured, so nothing is credited and the whole
@@ -523,7 +527,9 @@ block on `anyio.Event`s, so ordering is fixed.
     outer tool, for waits and retried model attempts, and a wait that
     outlasts its span keeps the span above held;
   - an exec on a sandbox while another task runs inside its `no_events()`
-    is still known work;
+    is still known work, an exec whose arguments name the services
+    directory is known work, and execs inside `untracked_sandbox_execs()`
+    are not;
   - seeded random sequences of nested spans (including contexts of closed
     spans), waits, late waits reported from inside work, attempts
     classified both ways and scoped limits, checked against a brute-force
@@ -534,7 +540,9 @@ block on `anyio.Event`s, so ordering is fixed.
   successful generate beside a call in retry backoff is working; a task
   queued on a semaphore while its holder generates is working; a model
   approver's generate leaves an idle agent waiting; `count_tokens()` and
-  `compact()` retries inside a tool are waiting; a local sandbox exec
+  `compact()` retries inside a tool are waiting; an attempt whose provider
+  call succeeded but whose usage telemetry then failed and was retried is
+  waiting, with and without a measured `call.time`; a local sandbox exec
   beside a wait is working; and a sandbox exec queued for a
   `max_subprocesses` slot is waiting. The lone-wait cases above are
   unchanged.
