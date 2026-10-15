@@ -255,16 +255,22 @@ wait and the work spans that are open or awaiting classification:
   it returns, by when its model calls, sandbox commands and nested work
   have closed. So when a span's work is final (at close, or for a model
   attempt when the retry loop commits or drops it), it hands the intervals
-  it counted to its parent span. `K` is unchanged; only the record of which
-  span can withdraw them moves up. A late report walks the same chain of
-  spans and withdraws their handed-up intervals as well as their own: a
+  it counted, and those handed to it, to its parent span. Each interval
+  keeps the span that counted it. `K` is unchanged; only the record of
+  which span can withdraw them moves up. A late report walks the same chain
+  of spans and withdraws their handed-up intervals as well as their own: a
   tool that reports a five-second generate it just made reads 0 working.
   A closed span still held by a task it started passes what it receives on
-  to its parent; a span with no parent keeps it, for the tasks it started.
-  The retry loop's own waits (a retried attempt, and an attempt's
-  SDK-internal retries) withdraw only the reporting context's own work: the
-  attempt's work is dropped or trimmed on the attempt itself, and work that
-  other tasks under the same span finished meanwhile stays charged.
+  to its parent; a span with no parent drops it, so once a top-level tool
+  call has returned, a task it started can no longer withdraw its work,
+  as at the sample's top level. A still-open top-level tool keeps what its
+  finished operations hand it. The retry loop's own waits (a retried
+  attempt, and an attempt's SDK-internal retries) withdraw only the
+  intervals counted by the spans on the reporting context's chain, wherever
+  those have been handed, such as the work of an inner tool that returned
+  while its background task's `count_tokens()` attempt was in flight. The
+  attempt's own work is dropped or trimmed on the attempt itself, and work
+  that other tasks under the same span finished meanwhile stays charged.
 - **Size.** Each list grows at most by one entry per span, usually less,
   because overlapping spans merge. A sample has at most a few thousand
   spans, so memory is small. Prior attempts are carried as totals in the
@@ -418,8 +424,9 @@ during a known wait, and it does not try to detect that work:
   and of sibling tool calls inside an agent running as a tool, although a
   wait opened at the time would not have stopped them. At the sample's
   top level there is no span, so a late report after a top-level generate
-  or exec withdraws nothing. Callers that report a custom call's wait
-  should wrap the call in `sample_wait()` where they can.
+  or exec withdraws nothing, and a top-level tool call's work is dropped
+  from late reports once it returns. Callers that report a custom call's
+  wait should wrap the call in `sample_wait()` where they can.
 - **Provoked retries lengthen credited time.** A sample can provoke
   retryable failures, such as timeouts on very long outputs or some request
   errors the retry policy retries (quota 429s on OpenAI-compatible
@@ -563,9 +570,12 @@ block on `anyio.Event`s, so ordering is fixed.
     scoped usage, through both report helpers, while an independent
     sibling's work over part of the interval stays charged; work finishing
     under a closed span reaches the open span above it; at the top level a
-    late report withdraws nothing; and the retry loop's waits (a retried
-    attempt, SDK-internal retries) leave work another task finished under
-    the same tool charged;
+    late report withdraws nothing, nor does one from a task a top-level
+    tool started after the tool returned; and the retry loop's waits (a
+    retried attempt, SDK-internal retries) leave work another task finished
+    under the same tool charged but withdraw the work of an inner tool that
+    returned during the attempt (`count_tokens()`, `compact()`, and a
+    generate's work before its provider call, with and without a sibling);
   - a task that outlives the inner tool that started it still holds the
     outer tool, for waits and retried model attempts, and a wait that
     outlasts its span keeps the span above held;
@@ -583,7 +593,8 @@ block on `anyio.Event`s, so ordering is fixed.
     late waits reported from inside work (some from inside a suspension,
     some withdrawing finished work and some not), attempts classified both
     ways and scoped limits, with a reference that hands each span's work to
-    its parent when it is final, checked against a brute-force
+    its parent when it is final and drops it at a span with no parent,
+    checked against a brute-force
     evaluation of the rule, with every reading and scope in bounds and
     unchanged when everything closes.
 

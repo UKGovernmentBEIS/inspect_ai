@@ -251,8 +251,10 @@ class SampleTiming:
            owner: The known work of the context the wait was in. A wait
               reported after the fact is withdrawn from that work and its
               enclosing work, as if it had held them.
-           completed: Also withdraw the work that has finished under `owner`
-              and its enclosing work (handed to them when it closed).
+           completed: Also withdraw the work of other spans that finished
+              under `owner` and its enclosing work (handed to them when it
+              was final). Otherwise only the work those spans counted
+              themselves is withdrawn.
         """
         start, end = self._clip(start, end)
         if end <= start:
@@ -260,9 +262,13 @@ class SampleTiming:
         self._all_waits.add(start, end)
         self._covered.add(start, end)
         self._waits.add_all(self._work.gaps(start, end))
+        chain: list[_WorkSpan] = []
         while owner is not None:
-            owner.withdraw(start, end, completed)
+            chain.append(owner)
             owner = owner._parent
+        origins = None if completed else set(chain)
+        for span in chain:
+            span.withdraw(start, end, origins)
 
     def add_work(self, start: float, end: float) -> tuple[float, float] | None:
         """Count the closed known work `[start, end]`, clipped to this attempt.
@@ -346,9 +352,10 @@ class _WorkSpan:
     outcome is known.
 
     Once its work is final (at `close()`, or at `commit()` or `discard()` for a
-    deferred span), a span hands the intervals it counted to its parent, so a
-    wait reported later from the parent's context can withdraw them. A span
-    with no parent keeps them, for the tasks it started.
+    deferred span), a span hands the intervals it counted, and those handed to
+    it, to its parent, so a wait reported later from the parent's context can
+    withdraw them. Each interval keeps the span that counted it. A span with
+    no parent drops them.
     """
 
     def __init__(
@@ -362,10 +369,9 @@ class _WorkSpan:
         self._active_start: float | None = timing.now()
         # intervals not yet counted (deferred spans only)
         self._pending: list[tuple[float, float]] = []
-        # intervals counted as known work in this span
-        self._counted: list[tuple[float, float]] = []
-        # intervals counted by spans that have handed their work to this one
-        self._received: list[tuple[float, float]] = []
+        # intervals counted as known work, by this span or by spans that have
+        # handed their work to it, with the span that counted each
+        self._counted: list[tuple[_WorkSpan, float, float]] = []
         self._handed_off = False
         timing._spans[self] = None
         if parent is not None:
@@ -413,20 +419,31 @@ class _WorkSpan:
         self._timing._spans.pop(self, None)
         self._hand_off()
 
-    def withdraw(self, start: float, end: float, completed: bool) -> None:
-        """Stop counting `[start, end]` as this span's work.
+    def withdraw(
+        self, start: float, end: float, origins: "set[_WorkSpan] | None"
+    ) -> None:
+        """Stop counting `[start, end]` as work of this span or handed to it.
 
         Args:
            start: Start of the interval.
            end: End of the interval.
-           completed: Also withdraw it from the work handed to this span.
+           origins: Withdraw only the intervals these spans counted (all of
+              them, if `None`).
         """
         active = self._active_start is not None
         self._end_active()
         self._pending = _subtract(self._pending, start, end)
-        self._counted = self._withdraw(self._counted, start, end)
-        if completed:
-            self._received = self._withdraw(self._received, start, end)
+        kept: list[tuple[_WorkSpan, float, float]] = []
+        for origin, s, e in self._counted:
+            if s < end and e > start and (origins is None or origin in origins):
+                self._timing.remove_work(s, e)
+                for piece in _subtract([(s, e)], start, end):
+                    recounted = self._timing.add_work(*piece)
+                    if recounted is not None:
+                        kept.append((origin, *recounted))
+            else:
+                kept.append((origin, s, e))
+        self._counted = kept
         if active:
             self._active_start = self._timing.now()
 
@@ -450,36 +467,19 @@ class _WorkSpan:
     def _count(self, start: float, end: float) -> None:
         counted = self._timing.add_work(start, end)
         if counted is not None:
-            self._counted.append(counted)
-
-    def _withdraw(
-        self, counted: list[tuple[float, float]], start: float, end: float
-    ) -> list[tuple[float, float]]:
-        """`counted` without `[start, end]`, uncounting what it removes."""
-        kept: list[tuple[float, float]] = []
-        for s, e in counted:
-            if s < end and e > start:
-                self._timing.remove_work(s, e)
-                for piece in _subtract([(s, e)], start, end):
-                    recounted = self._timing.add_work(*piece)
-                    if recounted is not None:
-                        kept.append(recounted)
-            else:
-                kept.append((s, e))
-        return kept
+            self._counted.append((self, *counted))
 
     def _hand_off(self) -> None:
         """Pass the counted intervals to the parent; the span's work is final."""
-        intervals = self._counted + self._received
-        self._counted, self._received = [], []
+        counted, self._counted = self._counted, []
         self._handed_off = True
-        self._receive(intervals)
+        self._receive(counted)
 
-    def _receive(self, intervals: list[tuple[float, float]]) -> None:
-        if self._handed_off and self._parent is not None:
-            self._parent._receive(intervals)
-        else:
-            self._received.extend(intervals)
+    def _receive(self, counted: list[tuple["_WorkSpan", float, float]]) -> None:
+        if not self._handed_off:
+            self._counted.extend(counted)
+        elif self._parent is not None:
+            self._parent._receive(counted)
 
 
 def _subtract(
@@ -590,15 +590,18 @@ def add_sample_wait(start: float, end: float, completed: bool = True) -> None:
     (subtasks a tool started, say), although a wait opened at the time would
     not have stopped them. Outside any known work, at the sample's top level,
     there is none to withdraw, so a call made there leaves finished work
-    charged: wrap the operation in `sample_wait()` instead.
+    charged: wrap the operation in `sample_wait()` instead. The same holds for
+    a top-level tool call's work once it has returned.
 
     Args:
        start: Start of the wait on the sample clock.
        end: End of the wait on the sample clock.
-       completed: Withdraw finished work too. A model call passes `False`
-          for its own retries (retried attempts, SDK-internal retries): the
-          attempt's work is dropped or trimmed on the attempt itself, and
-          other work that finished beside it stays charged.
+       completed: Withdraw other finished work too. A model call passes
+          `False` for its own retries (retried attempts, SDK-internal
+          retries): the attempt's work is dropped or trimmed on the attempt
+          itself, and other work that finished beside it stays charged,
+          while the calling context's own work (and that of the work
+          enclosing it) is still withdrawn.
     """
     timing = _sample_timing.get()
     if timing is not None:
@@ -725,7 +728,7 @@ class ModelAttempts:
         retries. The attempts stay pending, so a later retry still drops them.
         """
         for span in self._pending:
-            span.withdraw(-math.inf, start, completed=False)
+            span.withdraw(-math.inf, start, origins={span})
 
     def commit(self) -> None:
         """Record the pending attempts as known work."""

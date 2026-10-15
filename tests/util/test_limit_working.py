@@ -32,11 +32,11 @@ from inspect_ai._util.working import (
     sample_working_time,
     untracked_sandbox_execs,
 )
-from inspect_ai.model._chat_message import ChatMessage
+from inspect_ai.model._chat_message import ChatMessage, ChatMessageUser
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model import ModelAPI, get_model
 from inspect_ai.model._model_call import ModelCall
-from inspect_ai.model._model_output import ModelOutput
+from inspect_ai.model._model_output import ModelOutput, ModelUsage
 from inspect_ai.model._registry import modelapi
 from inspect_ai.model._retry import batch_admin_retry_config, model_retry_config
 from inspect_ai.solver._solver import generate
@@ -997,6 +997,146 @@ async def test_late_wait_at_top_level_leaves_finished_work(
     assert sample_waiting_time() == 5
 
 
+async def test_late_wait_after_parentless_tool_closes_leaves_its_work(
+    sample_clock: _MockTime,
+) -> None:
+    """A top-level tool's work is dropped from late reports once it closes.
+
+    The tool works over `[0, 5]` and starts a task; work that task does under
+    the closed tool is dropped too. Reports from that task then leave both
+    charged, as a report from the sample's top level would.
+    """
+    tool = _Task()
+    tool_work = tool.enter(known_work())
+    background = _Task(tool)
+    sample_clock.advance(5)
+    tool.exit(tool_work)
+    work = background.enter(known_work())
+    sample_clock.advance(1)
+    background.exit(work)
+    background.ctx.run(add_sample_wait, 0, 6)
+    background.ctx.run(add_sample_wait, 0, 6, False)
+    assert sample_waiting_time() == 0
+    assert sample_working_time() == 6
+
+
+@pytest.mark.parametrize("operation", ["count_tokens", "compact", "generate"])
+@pytest.mark.parametrize("sibling", [False, True])
+async def test_retry_wait_withdraws_closed_ancestors_own_work(
+    sample_clock: _MockTime,
+    monkeypatch: pytest.MonkeyPatch,
+    operation: str,
+    sibling: bool,
+) -> None:
+    """A retried attempt's wait withdraws the work of a tool that has returned.
+
+    Inside an outer tool, an inner tool starts a background task and returns
+    at 2. The task's model operation (for generate, its work before the
+    provider call) runs from 0 and its attempt fails at 5 and is retried. A
+    sibling under the outer tool works over `[1, 2]` and stays charged.
+    """
+    ready, inner_closed = anyio.Event(), anyio.Event()
+    other: _Task | None = None
+    attempts = 0
+
+    def before_attempt() -> None:
+        sample_clock.advance(1)
+        work = other.enter(known_work()) if sibling and other else None
+        sample_clock.advance(1)
+        if work is not None and other is not None:
+            other.exit(work)
+
+    async def attempt() -> None:
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            if operation != "generate":
+                before_attempt()
+            ready.set()
+            await inner_closed.wait()
+            sample_clock.advance(3)
+            raise RuntimeError("retryable")
+
+    class ClockAPI(ModelAPI):
+        async def generate(
+            self,
+            input: list[ChatMessage],
+            tools: list[ToolInfo],
+            tool_choice: ToolChoice,
+            config: GenerateConfig,
+        ) -> ModelOutput:
+            await attempt()
+            return ModelOutput()
+
+        async def count_tokens(
+            self, input: str | list[ChatMessage], config: GenerateConfig | None = None
+        ) -> int:
+            await attempt()
+            return 1
+
+        async def compact(
+            self,
+            input: list[ChatMessage],
+            tools: list[ToolInfo],
+            config: GenerateConfig,
+            instructions: str | None = None,
+        ) -> tuple[list[ChatMessage], ModelUsage | None]:
+            await attempt()
+            return input, None
+
+        def should_retry(self, ex: Exception) -> bool:
+            return isinstance(ex, RuntimeError)
+
+    checks = 0
+
+    def check_limits_before_dispatch() -> None:
+        nonlocal checks
+        checks += 1
+        if checks == 1:
+            before_attempt()
+
+    async def no_sleep(seconds: float) -> None:
+        pass
+
+    monkeypatch.setattr("inspect_ai.model._retry._sleep", no_sleep)
+    monkeypatch.setattr(
+        "inspect_ai.model._model._check_limits_before_dispatch",
+        check_limits_before_dispatch,
+    )
+
+    @modelapi(name="working_retry_clock")
+    def working_retry_clock() -> type[ModelAPI]:
+        return ClockAPI
+
+    async def background() -> None:
+        model = get_model("working_retry_clock/m", memoize=False)
+        if operation == "count_tokens":
+            await model.count_tokens("count")
+        elif operation == "compact":
+            await model.compact([ChatMessageUser(content="compact")], [])
+        else:
+            await model.generate("generate")
+
+    working = 1 if sibling else 0
+    try:
+        with working_limit(None) as scope:
+            with known_work():
+                other = _Task()
+                async with anyio.create_task_group() as tg:
+                    with known_work():
+                        tg.start_soon(background)
+                        await ready.wait()
+                    inner_closed.set()
+                assert sample_clock.get_time() == 5
+                assert sample_working_time() == working
+                assert sample_waiting_time() == 5 - working
+                assert scope.usage == working
+            assert sample_working_time() == working
+            assert scope.usage == working
+    finally:
+        del _registry["modelapi:working_retry_clock"]
+
+
 async def test_closed_span_passes_later_work_up(sample_clock: _MockTime) -> None:
     """Work finishing under a closed span reaches the open work above it.
 
@@ -1270,7 +1410,7 @@ class _Span:
     done: bool = False  # an attempt that has been classified
     dropped: bool = False
     handed_off: bool = False  # its work is final and passed up
-    holder: _Span | None = None  # the span its counted work is with
+    holder: _Span | None = None  # the span its counted work is with, if any
 
 
 class _RuleModel:
@@ -1374,24 +1514,29 @@ class _RuleModel:
         if end <= start:
             return
         self.waits.append((start, end))
+        chain: list[_Span] = []
         while context is not None:
-            active = context.active is not None
-            self._end(context)
-            if completed:
-                owned = [s for s in self.spans if s.holder is context]
-            else:
-                owned = [] if context.handed_off else [context]
-            for span in owned:
-                span.segments = [
-                    piece
-                    for s, e in span.segments
-                    for piece in ([(s, e)] if e <= start or s >= end else [])
-                    + ([(s, start)] if s < start < e else [])
-                    + ([(end, e)] if s < end < e else [])
-                ]
-            if active:
-                context.active = now
+            chain.append(context)
             context = context.parent
+        active = [span for span in chain if span.active is not None]
+        for span in chain:
+            self._end(span)
+        for span in self.spans:
+            # the chain's spans' own work wherever it was handed, and with
+            # `completed` any work handed to the chain
+            if span.holder is None or span.holder not in chain:
+                continue
+            if not completed and span not in chain:
+                continue
+            span.segments = [
+                piece
+                for s, e in span.segments
+                for piece in ([(s, e)] if e <= start or s >= end else [])
+                + ([(s, start)] if s < start < e else [])
+                + ([(end, e)] if s < end < e else [])
+            ]
+        for span in active:
+            span.active = now
 
     def intervals(self) -> tuple[list[tuple[float, float]], list[tuple[float, float]]]:
         now = self.clock.get_time()
@@ -1423,10 +1568,13 @@ class _RuleModel:
                 span.active = self.clock.get_time()
 
     def _hand_off(self, span: _Span) -> None:
-        """Pass the work `span` holds to its first parent still taking it."""
+        """Pass the work `span` holds to its first parent still taking it.
+
+        The work is dropped when no such parent exists.
+        """
         span.handed_off = True
-        target = span
-        while target.handed_off and target.parent is not None:
+        target: _Span | None = span
+        while target is not None and target.handed_off:
             target = target.parent
         for other in self.spans:
             if other.holder is span:
