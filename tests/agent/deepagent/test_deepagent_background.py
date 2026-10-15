@@ -10,14 +10,10 @@ background, abandon-on-exit, timeout partials).
 
 from __future__ import annotations
 
-import sys
 from typing import Any, Awaitable, Callable
 
 import anyio
 import pytest
-
-if sys.version_info < (3, 11):
-    from exceptiongroup import ExceptionGroup
 
 from inspect_ai import Task, eval
 from inspect_ai.agent import deepagent, subagent
