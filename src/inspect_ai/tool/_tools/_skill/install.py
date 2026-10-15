@@ -83,9 +83,13 @@ async def install_skills_shared(
         List of `SkillInfo` with skill names, descriptions, and locations.
 
     Raises:
+        ValueError: If a skill's supporting file names are invalid (see
+            `_check_file_names()`).
         RuntimeError: If a skill file already exists in the sandbox with
             different contents.
     """
+    for skill in skills:
+        _check_file_names(skill)
     skills_dir = await _resolve_skills_dir(sbox, user, dir)
     for skill in skills:
         files = _skill_files(skills_dir, skill)
@@ -102,6 +106,35 @@ async def install_skills_shared(
         for file in files:
             await _install_file(sbox, user, file, write=file in missing)
     return [_skill_info(skills_dir, skill) for skill in skills]
+
+
+def _check_file_names(skill: Skill) -> None:
+    """Refuse supporting file names that the shared install cannot compare.
+
+    Names are installed at their normalized path (`./run.sh` at `run.sh`,
+    `a//b` at `a/b`). Names that are empty, absolute or contain `..` would
+    leave their directory, and two names in one map with the same normalized
+    path would write one file twice, so both are refused.
+    """
+    for subdir, contents in (
+        ("scripts", skill.scripts),
+        ("references", skill.references),
+        ("assets", skill.assets),
+    ):
+        seen: dict[PurePosixPath, str] = {}
+        for name in contents:
+            path = PurePosixPath(name)
+            if not path.parts or path.is_absolute() or ".." in path.parts:
+                raise ValueError(
+                    f"Skill '{skill.name}' has an invalid {subdir} file name "
+                    f"'{name}': it must be a relative path inside {subdir}/."
+                )
+            if path in seen:
+                raise ValueError(
+                    f"Skill '{skill.name}' has {subdir} file names "
+                    f"'{seen[path]}' and '{name}' for the same path '{path}'."
+                )
+            seen[path] = name
 
 
 def install_lock(sbox: SandboxEnvironment) -> anyio.Lock:

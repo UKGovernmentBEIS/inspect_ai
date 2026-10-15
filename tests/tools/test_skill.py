@@ -2,6 +2,7 @@
 
 import hashlib
 import os
+import re
 from pathlib import Path
 
 import anyio
@@ -1099,6 +1100,66 @@ class TestSkillToolStateScope:
             assert os.access(script, os.X_OK)
         finally:
             local.directory.cleanup()
+
+    async def test_file_names_with_the_same_path_are_refused(
+        self, sandbox: _FileSandbox
+    ) -> None:
+        _use_sandbox(sandbox)
+        init_subtask_store(Store())
+        aliased = self.SKILL.model_copy(
+            update={"assets": {"file.txt": "first", "./file.txt": "second"}}
+        )
+        with pytest.raises(
+            ValueError,
+            match="Skill 'example' has assets file names 'file.txt' and './file.txt'",
+        ):
+            await skill([aliased])(command="example")
+        assert sandbox.written == []
+
+    async def test_non_canonical_file_name_installs_at_normalized_path(
+        self, sandbox: _FileSandbox
+    ) -> None:
+        _use_sandbox(sandbox)
+        init_subtask_store(Store())
+        dotted = self.SKILL.model_copy(update={"assets": {"./file.txt": "data"}})
+        with tool_state_scope("w-1"):
+            await skill([dotted])(command="example")
+        with tool_state_scope("w-2"):
+            await skill([dotted])(command="example")
+        assert sandbox.written == [
+            "/work/skills/example/SKILL.md",
+            "/work/skills/example/assets/file.txt",
+        ]
+
+    @pytest.mark.parametrize("name", ["", "/etc/passwd", "../file.txt", "a/../b"])
+    async def test_file_names_outside_their_directory_are_refused(
+        self, sandbox: _FileSandbox, name: str
+    ) -> None:
+        _use_sandbox(sandbox)
+        init_subtask_store(Store())
+        bad = self.SKILL.model_copy(update={"references": {name: "data"}})
+        with pytest.raises(
+            ValueError,
+            match=f"Skill 'example' has an invalid references file name '{re.escape(name)}'",
+        ):
+            await skill([bad])(command="example")
+        assert sandbox.written == []
+
+    async def test_nested_file_names_are_accepted(self, sandbox: _FileSandbox) -> None:
+        _use_sandbox(sandbox)
+        init_subtask_store(Store())
+        nested = self.SKILL.model_copy(
+            update={
+                "scripts": {"tools/run.sh": "echo hi"},
+                "assets": {"a/b/c.txt": "c"},
+            }
+        )
+        await skill([nested])(command="example")
+        assert sandbox.written == [
+            "/work/skills/example/SKILL.md",
+            "/work/skills/example/scripts/tools/run.sh",
+            "/work/skills/example/assets/a/b/c.txt",
+        ]
 
     async def test_comparison_is_not_limited_by_read_file_size(self) -> None:
         local = _CountingLocalSandbox()
