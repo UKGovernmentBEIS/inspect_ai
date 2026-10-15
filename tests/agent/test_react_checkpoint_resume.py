@@ -181,6 +181,7 @@ async def test_initial_attempt_enters_mcp_and_agent_channel(
         _tools: object,
         _retry_refusals: object,
         _compact: object,
+        _approval: object,
     ) -> AgentState:
         output = output_factory()
         state.output = output

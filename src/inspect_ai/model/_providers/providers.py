@@ -134,7 +134,7 @@ def cloudflare() -> type[ModelAPI]:
 def mistral() -> type[ModelAPI]:
     FEATURE = "Mistral API"
     PACKAGE = "mistralai"
-    MIN_VERSION = "2.0.1"
+    MIN_VERSION = "3.0.0"
 
     # verify we have the package
     try:
@@ -197,6 +197,22 @@ def moonshot() -> type[ModelAPI]:
     from .moonshot import MoonshotAPI
 
     return MoonshotAPI
+
+
+@modelapi(name="meta")
+def meta() -> type[ModelAPI]:
+    validate_openai_client("Meta Model API")
+    from .meta import MetaAPI
+
+    return MetaAPI
+
+
+@modelapi(name="litellm-proxy")
+def litellm_proxy() -> type[ModelAPI]:
+    validate_openai_client("LiteLLM Proxy")
+    from .litellm_proxy import LiteLLMProxyAPI
+
+    return LiteLLMProxyAPI
 
 
 @modelapi(name="deepseek")
@@ -363,7 +379,9 @@ def hf_inference_providers() -> type[ModelAPI]:
 def validate_openai_client(feature: str) -> None:
     FEATURE = feature
     PACKAGE = "openai"
-    MIN_VERSION = "3.1.0"
+    # 3.4.0: Azure clients ignore AZURE_OPENAI_AD_TOKEN when given explicit
+    # credentials, so OpenAIAPI.refresh_credentials() can update the key in place
+    MIN_VERSION = "3.4.0"
 
     # verify we have the package
     try:

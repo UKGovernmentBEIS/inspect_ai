@@ -3,7 +3,10 @@ from typing import Sequence
 
 from inspect_ai.util import sandbox as sandbox_env
 from inspect_ai.util._sandbox._privileged import privileged_exec
-from inspect_ai.util._sandbox.environment import SandboxEnvironment
+from inspect_ai.util._sandbox.environment import (
+    SandboxEnvironment,
+    SandboxUserUnsupportedError,
+)
 
 from .read import read_skills
 from .types import Skill, SkillInfo
@@ -64,7 +67,10 @@ async def install_skills(
 
         # change user if required
         if user:
-            await checked_exec(["chown", user, file], as_user="root")
+            try:
+                await checked_exec(["chown", user, file], as_user="root")
+            except SandboxUserUnsupportedError:
+                await checked_exec(["chown", user, file], as_user=user)
 
         # mark executable if required
         if executable:

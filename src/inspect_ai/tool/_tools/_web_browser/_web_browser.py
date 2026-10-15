@@ -4,6 +4,7 @@ from pydantic import BaseModel, Field
 
 from inspect_ai._util._json_rpc import exec_model_request
 from inspect_ai._util.content import ContentText
+from inspect_ai._util.deprecation import deprecation_warning
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.tool._sandbox_tools_utils._error_mapper import (
     SandboxToolsErrorMapper,
@@ -39,6 +40,11 @@ class CrawlerResult(BaseModel):
 def web_browser(*, interactive: bool = True, instance: str | None = None) -> list[Tool]:
     """Tools used for web browser navigation.
 
+    Deprecated: `web_browser()` will be removed in a future release. Use
+    `web_search()` for web retrieval, and `computer()` or a browser MCP server
+    run in the sandbox via `mcp_server_sandbox()` for web interaction. See
+    <https://github.com/UKGovernmentBEIS/inspect_ai/issues/5497>.
+
     To create a separate web browser process for each
     call to `web_browser()`, pass a unique value for `instance`.
 
@@ -54,6 +60,13 @@ def web_browser(*, interactive: bool = True, instance: str | None = None) -> lis
        List of tools used for web browser navigation.
 
     """
+    deprecation_warning(
+        "The `web_browser()` tool is deprecated and will be removed in a future release. "
+        "Please use `web_search()` for web retrieval, and `computer()` or a browser MCP "
+        "server run in the sandbox via `mcp_server_sandbox()` for web interaction. "
+        "See https://github.com/UKGovernmentBEIS/inspect_ai/issues/5497 for details."
+    )
+
     # start with go tool (excluding interactive docs if necessary)
     go = web_browser_go(instance)
     if not interactive:

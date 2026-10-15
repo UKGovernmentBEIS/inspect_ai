@@ -27,6 +27,7 @@ description: Miscellaneous utility functions.
 ### Limit
 ### LimitExceededError
 ### suspend_token_limit
+### suspend_working_limit
 
 ## Concurrency
 
@@ -65,6 +66,7 @@ description: Miscellaneous utility functions.
 ### SandboxEnvironment
 ### SandboxConnection
 ### SandboxUnavailableError
+### SandboxUserUnsupportedError
 ### sandboxenv
 ### sandbox_service
 ### override_sandbox_output_limit
@@ -109,7 +111,6 @@ description: Miscellaneous utility functions.
 
 ## JSON
 
-### StrEnum
 ### JSONType
 ### JSONSchema
 ### json_schema

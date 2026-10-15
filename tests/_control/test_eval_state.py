@@ -590,3 +590,30 @@ def test_event_counts_no_op_when_empty_or_unregistered() -> None:
     state = get_eval_state("e1")
     assert state is not None
     assert (state.refusals, state.http_retries) == (0, 0)
+
+
+def test_explicit_epoch_runs_are_planned_individually() -> None:
+    # an explicit-epoch add plans its (id, epoch) only, for both the pending
+    # listing and the cancel/requeue resolvers
+    from inspect_ai._control.requeue import _is_planned
+    from inspect_ai._control.state import _add_pending_samples
+
+    state = register_eval("e1", 2, sample_ids=["seed"], epochs=2, dynamic=True)
+    record_samples_added("e1", 3, sample_epochs=[("q", 1), ("q", 5), ("seed", 3)])
+    assert state.total == 5
+
+    by_key: dict[tuple[Any, int], dict[str, Any]] = {}
+    _add_pending_samples("e1", by_key)
+    assert sorted(by_key) == [
+        ("q", 1),
+        ("q", 5),
+        ("seed", 1),
+        ("seed", 2),
+        ("seed", 3),
+    ]
+
+    assert _is_planned(state, "q", 5)
+    assert not _is_planned(state, "q", 2)
+    assert _is_planned(state, "seed", 2)
+    assert _is_planned(state, "seed", 3)
+    assert not _is_planned(state, "seed", 5)

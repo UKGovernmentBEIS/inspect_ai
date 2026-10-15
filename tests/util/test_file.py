@@ -195,6 +195,60 @@ def test_strip_trailing_sep(path: str, expected: str) -> None:
     assert strip_trailing_sep(path) == expected
 
 
+_AZURE_OPTIONS = {"account_name": "inspectunittest", "anon": True}
+_ABFSS_URL = "abfss://mycontainer@myaccount.dfs.core.windows.net/inspect-logs"
+
+
+@pytest.mark.parametrize(
+    "path,fs_options,location,uri",
+    [
+        ("s3://bucket/logs/", {}, "s3://bucket/logs", "s3://bucket/logs"),
+        ("s3://bucket/logs", {}, "s3://bucket/logs", "s3://bucket/logs"),
+        ("s3://bucket/", {}, "s3://bucket", "s3://bucket"),
+        # adlfs keeps a trailing slash when stripping the protocol, and lists
+        # names as abfs:// without the account
+        (
+            "az://container/logs/",
+            _AZURE_OPTIONS,
+            "az://container/logs",
+            "abfs://container/logs",
+        ),
+        ("az://container/", _AZURE_OPTIONS, "az://container", "abfs://container"),
+        (f"{_ABFSS_URL}/", {}, _ABFSS_URL, "abfs://mycontainer/inspect-logs"),
+        (_ABFSS_URL, {}, _ABFSS_URL, "abfs://mycontainer/inspect-logs"),
+        (
+            "webhdfs://user@namenode:9870/logs/",
+            {},
+            "webhdfs://user@namenode:9870/logs",
+            "webhdfs:///logs",
+        ),
+        ("logs/", {}, "file://{cwd}/logs", "file://{cwd}/logs"),
+        ("file://{cwd}/logs/", {}, "file://{cwd}/logs", "file://{cwd}/logs"),
+        ("/", {}, "file:///", "file:///"),
+    ],
+)
+def test_dir_location_and_uri(
+    path: str,
+    fs_options: dict[str, Any],
+    location: str,
+    uri: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("AZURE_STORAGE_ACCOUNT_NAME", raising=False)
+    monkeypatch.delenv("AZURE_ACCOUNT_NAME", raising=False)
+    cwd = tmp_path.as_posix()
+    path = path.format(cwd=cwd)
+    fs = filesystem(path, fs_options)
+    with patch.object(fs.fs, "info", side_effect=AssertionError("info called")):
+        assert fs.dir_location(path) == location.format(cwd=cwd)
+        assert fs.dir_as_uri(path) == uri.format(cwd=cwd)
+    # the location opens the same filesystem without the original options
+    if not fs_options:
+        filesystem(f"{fs.dir_location(path)}/eval-set.json")
+
+
 @pytest.mark.parametrize(
     "path,expected_suffix",
     [
@@ -391,21 +445,22 @@ async def test_cleanup_s3_sessions_disarms_s3fs_finalizer(real_s3fs: Any) -> Non
     """cleanup_s3_sessions detaches s3fs's GC-time close_session finalizer.
 
     The finalizer would otherwise exit the already-exited client a second time
-    as a bare task on the running loop, failing with "Session was never entered".
+    as a bare task on the running loop, which fails with "Session was never
+    entered" on aiobotocore < 3.9.2.
     """
     fs = real_s3fs(cache_regions=False)
     await fs.set_session()
     finalizers = _close_session_finalizers(fs)
     assert len(finalizers) == 1 and finalizers[0].alive
-    creator = fs._s3creator
+    http_session = fs._s3creator._client._endpoint.http_session
+    assert http_session._sessions is not None
 
     await cleanup_s3_sessions()
 
     assert _close_session_finalizers(fs) == []
     assert not finalizers[0].alive
-    # the creator was exited once; a second exit is what the finalizer would do
-    with pytest.raises(AssertionError, match="Session was never entered"):
-        await creator.__aexit__(None, None, None)
+    # the creator's HTTP session was exited
+    assert http_session._sessions is None
 
 
 @skip_if_trio
