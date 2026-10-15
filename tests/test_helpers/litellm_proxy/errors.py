@@ -30,6 +30,10 @@ def _gemini_error(code: int, message: str, status: str) -> dict[str, Any]:
     return {"error": {"code": code, "message": message, "status": status}}
 
 
+def _xai_error(code: str, message: str) -> dict[str, Any]:
+    return {"code": code, "error": message}
+
+
 def _anthropic_message(text: str, stop_reason: str) -> dict[str, Any]:
     return {
         "id": "msg_1",
@@ -140,7 +144,7 @@ def _gemini_safety(request: StubRequest) -> dict[str, Any] | SSE:
 class ErrorScenario(NamedTuple):
     provider: str
     """Upstream provider format: anthropic, openai, gemini, bedrock, deepseek,
-    moonshot or azure."""
+    moonshot, xai or azure."""
 
     respond: Reply | dict[str, Any] | Callable[[StubRequest], dict[str, Any] | SSE]
     """An error `Reply`, a 200 body, or a function from the request to a body."""
@@ -294,6 +298,37 @@ ERROR_SCENARIOS: dict[str, ErrorScenario] = {
                 None,
             ),
         ),
+    ),
+    # xAI: the context window error as returned live by grok-4.7; the refusal
+    # uses the grok provider's wording (its REST shape is undocumented)
+    # named for the model, since the error test identifies the vendor from
+    # the alias (it skips model info)
+    "grok-context": ErrorScenario(
+        "xai",
+        Reply(
+            400,
+            _xai_error(
+                "invalid-argument",
+                "Failed to start sampling: [input_too_large] The prompt is too "
+                "long for this model's context window (601243 tokens > 500000 "
+                "tokens)",
+            ),
+        ),
+    ),
+    "grok-refusal": ErrorScenario(
+        "xai",
+        Reply(
+            403,
+            _xai_error(
+                "permission-denied",
+                "Content violates usage guidelines. Failed check: "
+                "SAFETY_CHECK_TYPE_CSAM",
+            ),
+        ),
+    ),
+    "grok-rate-limit": ErrorScenario(
+        "xai",
+        Reply(429, _xai_error("resource-exhausted", "Too many requests")),
     ),
     "azure-content-filter": ErrorScenario(
         "azure",

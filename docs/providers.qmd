@@ -1739,6 +1739,15 @@ When the upstream model is a Gemini model (recognized by its name), requests wit
 -   A turn that comes back as a malformed function call is retried up to 3 times with a corrective exchange, with tool calling required when the tool choice was `auto`. LiteLLM reports Gemini's `MALFORMED_FUNCTION_CALL` as an ordinary stop, so Inspect recognizes such a turn by its shape: no text and no tool call, or text that is a function call written as code. When the retries run out, the assistant message says that it had trouble calling a function. Usage covers every attempt, and `ModelOutput.metadata` records `malformed_function_call_attempts`.
 -   Each replayed tool call carries its thought signature in `provider_specific_fields` as well as in its id. LiteLLM strips the id-embedded signature when the proxy's `model_name` does not contain "gemini" and then sends a placeholder signature, which Google documents as degrading the model.
 
+### Grok Models {#litellm-proxy-grok}
+
+When the upstream model is an xAI Grok model (recognized by its name, or the `xai` provider), requests follow the native `grok` provider:
+
+-   Grok 4 and later models served directly by xAI use the Responses API (see [Responses API and Streaming](#litellm-proxy-streaming)), so their encrypted reasoning is carried from one turn to the next. On the Chat Completions API, xAI returns only a summary of the reasoning. As with the `grok` provider, any model name on LiteLLM's `xai` provider other than Grok 2 and Grok 3 (including predeployment codenames) counts as Grok 4 or later.
+-   `reasoning_effort` values the model rejects are lowered: `max` to `xhigh`, and `none` is not sent.
+-   Requests made within a sample carry its id in the `x-grok-conv-id` header, which keeps the sample's requests on one xAI server so that they reuse its prompt cache. The proxy forwards the header only when its config has `forward_client_headers_to_llm_api: true` under `general_settings`.
+-   xAI's context window errors end the turn with stop reason `model_length`, and its safety refusals with `content_filter`.
+
 ### Reasoning Effort {#litellm-proxy-reasoning-effort}
 
 Google models get the same `reasoning_effort` mapping as the [Google](#google-gemini) provider: Gemini 3 and later (and names matching no known Gemini model, such as predeployment codenames) take `minimal` through `high`, with `xhigh` and `max` lowered to `high` and `minimal` raised to `low` where the model does not support it.
@@ -1747,9 +1756,9 @@ When the proxy or upstream model rejects the requested `reasoning_effort`, Inspe
 
 ### Responses API and Streaming {#litellm-proxy-streaming}
 
-GPT-5 and later, o-series and Codex models served directly by OpenAI use the proxy's Responses API, as they do with the `openai` provider, so their reasoning is carried from one turn to the next. This applies when every deployment of the model uses LiteLLM's `openai` provider with no `api_base` other than OpenAI's (Azure deployments and OpenAI-compatible servers are not included). A predeployment model qualifies when its deployment sets `model_info.base_model` (see [Model Info](#litellm-proxy-model-info)). Other models use the Chat Completions API. Pass `-M responses_api=true` or `-M responses_api=false` to choose the API. Through the proxy, web search is the only OpenAI built-in tool used on the Responses API; `computer()`, `code_execution()` and remote MCP servers are sent as ordinary tools, as on the Chat Completions API.
+GPT-5 and later, o-series and Codex models served directly by OpenAI use the proxy's Responses API, as they do with the `openai` provider, so their reasoning is carried from one turn to the next. This applies when every deployment of the model uses LiteLLM's `openai` provider with no `api_base` other than OpenAI's (Azure deployments and OpenAI-compatible servers are not included). A predeployment model qualifies when its deployment sets `model_info.base_model` (see [Model Info](#litellm-proxy-model-info)). The same applies to Grok 4 and later models whose deployments all use LiteLLM's `xai` provider with no `api_base` other than xAI's. Other models use the Chat Completions API. Pass `-M responses_api=true` or `-M responses_api=false` to choose the API. Through the proxy, web search is the only OpenAI built-in tool used on the Responses API; `computer()`, `code_execution()` and remote MCP servers are sent as ordinary tools, as on the Chat Completions API.
 
-Requests stream by default, so long generations don't hit client or proxy timeouts, except Responses API requests for models not served by OpenAI. Pass `-M stream=false` to disable streaming.
+Requests stream by default, so long generations don't hit client or proxy timeouts, except Responses API requests for models not served by OpenAI or xAI. Pass `-M stream=false` to disable streaming.
 
 ### Web Search {#litellm-proxy-web-search}
 
@@ -1761,8 +1770,8 @@ The `web_search()` tool uses OpenAI's built-in search (its `openai` provider) fo
 |------------------------------------|------------------------------------|
 | `require_model_info` | Fail if the model has no context window (default: `true`). |
 | `model_info` | Read the proxy's `/model/info` listing (default: `true`). With `false`, Inspect does not look up the upstream model and requests are shaped by the proxy model name alone. |
-| `stream` | Stream requests (default: `true`, except Responses API requests for models not served by OpenAI). |
-| `responses_api` | Use the Responses API (default: `true` for GPT-5 and later, o-series and Codex models served by OpenAI, `false` otherwise). |
+| `stream` | Stream requests (default: `true`, except Responses API requests for models not served by OpenAI or xAI). |
+| `responses_api` | Use the Responses API (default: `true` for GPT-5 and later, o-series and Codex models served by OpenAI, and Grok 4 and later models served by xAI; `false` otherwise). |
 | `thinking_display` | Thinking text Claude 4.6 and later models return when a `reasoning_effort` is set: `summarized` (default) or `omitted`. |
 
 : {tbl-colwidths=\[25,75\]}
