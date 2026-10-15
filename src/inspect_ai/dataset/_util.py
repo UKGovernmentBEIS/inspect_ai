@@ -190,7 +190,17 @@ def read_target(obj: Any | None) -> str | list[str]:
     # string values) the same as None rather than stringifying it to "nan"
     if is_none_or_nan(obj):
         return ""
-    return [str(item) for item in obj] if isinstance(obj, list) else str(obj)
+    # strip surrounding whitespace from string targets (and string items of
+    # list targets): file-loaded targets routinely carry stray padding from
+    # hand-edited files or spreadsheet-exported CSVs, and downstream consumers
+    # (choice shuffling, includes()) do not tolerate it. Targets constructed
+    # programmatically via Sample are unaffected.
+    if isinstance(obj, list):
+        return [
+            str(item).strip() if isinstance(item, str) else str(item)
+            for item in obj
+        ]
+    return str(obj).strip() if isinstance(obj, str) else str(obj)
 
 
 def read_choices(obj: Any | None) -> list[str] | None:
