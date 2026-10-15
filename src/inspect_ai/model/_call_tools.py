@@ -43,7 +43,7 @@ from pydantic.fields import FieldInfo
 from pydantic_core import PydanticUndefined, to_jsonable_python
 from typing_extensions import is_typeddict
 
-from inspect_ai._sentinel._context import SentinelFailure, active_sentinel
+from inspect_ai._sentinel._context import SentinelFailure, checks_tool_calls
 from inspect_ai._sentinel._scope import AgentScope, sentinel_scope
 from inspect_ai._util.content import (
     Content,
@@ -947,7 +947,7 @@ async def call_tool(
             raise RuntimeError(error)
         call, arguments = await revalidated_tool_call(approval.modified, tool_def)
 
-    if active_sentinel() is not None:
+    if checks_tool_calls():
         from inspect_ai._sentinel._dispatch import (
             apply_sentinel_decision,
             sentinel_before_tool_call,
@@ -1023,7 +1023,7 @@ async def _apply_tool_review(
     if review is not None and review.decision == "terminate":
         raise TerminateSampleError("Tool result reviewer requested termination.")
 
-    if active_sentinel() is not None:
+    if checks_tool_calls():
         from inspect_ai._sentinel._dispatch import sentinel_after_tool_call
 
         await sentinel_after_tool_call(
@@ -1495,7 +1495,7 @@ def _tool_calls_overseen() -> bool:
     """Whether an approval policy or a sentinel will see tool calls."""
     from inspect_ai.approval._apply import have_tool_approval
 
-    return have_tool_approval() or active_sentinel() is not None
+    return have_tool_approval() or checks_tool_calls()
 
 
 def modified_tool_call(selected: ToolCall, tool_def: ToolDef) -> ValidatedToolCall:

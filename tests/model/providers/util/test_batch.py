@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import functools
 import json
-import sys
 import time
 
 import anyio
@@ -17,11 +16,6 @@ from inspect_ai._util.working import (
     sample_timing,
     sample_waiting_time,
 )
-
-if sys.version_info < (3, 11):
-    from exceptiongroup import ExceptionGroup
-
-
 from inspect_ai.model._generate_config import BatchConfig
 from inspect_ai.model._providers.util.batch import (
     BatchCheckResult,
