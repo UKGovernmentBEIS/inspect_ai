@@ -394,6 +394,85 @@ made without thinking (it wraps a constant UUID) was suspected of triggering
 the empty turns; across 1,795 tool-call turns, the turn after such a call was
 bad 9% of the time versus 41% after a call with a full signature.
 
+### Meta
+
+Probed 2026-10-15 with `meta/muse-wonder-1.0` through `main-latest` and
+1.96.0 proxies, live, and against Meta's API directly where noted.
+
+- **The model and its info.** LiteLLM's `meta` provider is a JSON-configured
+  OpenAI-compatible provider (`llms/openai_like/providers.json`: base
+  `https://api.meta.ai/v1`, `META_API_KEY`, chat and Responses endpoints).
+  Neither image's bundled map has `muse-wonder-1.0`. Both proxies report it
+  anyway (1M input, 131k output, reasoning, prices), from the model map
+  LiteLLM fetches at startup. It resolves to `meta/muse-wonder-1.0`, which
+  Inspect's database lacks, so the context window comes from the proxy. A
+  proxy using only its local map would fail the model info check, and with
+  no Meta vendor the error suggests a limits template rather than
+  `base_model: meta/muse-spark-1.3`. Bare `muse-*` names (e.g. behind
+  `openai/`) do not resolve: `NAME_ORGS` has no `muse` prefix.
+- **Reasoning round trips.**
+  - Chat returns no reasoning at all (no `reasoning_content`), only usage, so
+    nothing is carried to the next turn.
+  - Responses returns encrypted reasoning items, and the provider replays
+    them unchanged before the function calls, streamed or not.
+  - The native `meta` provider uses the Responses API by default for this
+    reason. The proxy uses Chat Completions (`meta` is not a recognized
+    vendor or route).
+- **Reasoning effort.** `minimal` through `max` are accepted on both paths
+  and versions. `none` is rejected, on both paths: ``reasoning_effort 'none'
+  is not supported for model 'muse-wonder-1.0'. Supported values: [minimal,
+  low, medium, high, xhigh, max]``. The provider's patterns do not match it,
+  so the request fails. The native provider drops `none` with a warning
+  (Muse always reasons).
+- **Request parameters Meta rejects** (400s that fail the request today):
+
+  | Parameter | Chat | Responses |
+  |---|---|---|
+  | `tool_choice` other than `auto` (`any`, a function, and `none`) | rejected | rejected |
+  | `logprobs` / `top_logprobs` | rejected ("not supported with reasoning") | rejected |
+  | `stop` | rejected | not sent (the Responses API has none) |
+  | `n` > 1 (`num_choices`) | rejected | not sent |
+
+  The native provider degrades forced tool choice to `auto` (warning, plus
+  `tool_choice_degraded` in the output metadata), and drops `logprobs`,
+  `top_logprobs`, `stop`, `logit_bias` and `n` with warnings. It does not
+  handle `tool_choice="none"` with tools.
+- **Errors.** A prompt over the context window gets `The request contains
+  invalid parameters. Check the request body for any errors or
+  inconsistencies.`, from the proxy and from Meta's API directly (1.06M and
+  1.2M tokens). It cannot be told apart from other invalid requests, so it
+  is not mapped to `model_length`. Refusals were not reproduced. The native
+  provider promotes Meta's structured refusal field (Responses `refusal`
+  part, chat `message.refusal`) from `stop` to `content_filter`. The proxy
+  records it as refusal content and stop details, but keeps `stop`.
+- **Usage and cost.** On Responses, usage matches Meta's on both versions.
+  On chat, Meta's `completion_tokens` includes reasoning (direct: 52, of
+  which 41 reasoning). `main-latest` passes it through, but 1.96 reports 1
+  output token, which undercounts output and cost (a LiteLLM bug, fixed
+  since). Cached prompt tokens are reported.
+
+**Proposed changes:**
+
+1. Add Meta as a vendor: the `meta` provider segment, or `muse` in the name.
+   Add `muse` → `meta` to `NAME_ORGS`. The model info error then suggests
+   `base_model: meta/muse-spark-1.3`.
+2. Use the Responses API by default, streamed, for Muse models whose
+   deployments all use the `meta` route with an unset or `meta.ai`
+   `api_base`, as the native provider does. This also avoids the 1.96 chat
+   usage bug.
+3. Effort: recognize Meta's `none` rejection, so `none` is dropped with a
+   warning.
+4. Parameters, for Meta models, as the native provider does:
+   - degrade forced tool choice to `auto`, with the warning and
+     `tool_choice_degraded` metadata;
+   - drop `logprobs` / `top_logprobs`, and on chat `stop` and `n`, with
+     warnings;
+   - send no `tool_choice` for `none` (Meta rejects it) and leave the tools
+     out, so the model cannot call them.
+5. Refusals: promote a structured refusal to `content_filter` for Meta
+   models, as the native `_flag_refusal_stop` does.
+6. Not changed: context overflow (Meta's error is not identifiable).
+
 ### Working around LiteLLM behavior
 
 Users run many LiteLLM versions, and LiteLLM fixes bugs over time. Handling of
