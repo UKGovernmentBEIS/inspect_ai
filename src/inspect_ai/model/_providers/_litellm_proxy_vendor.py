@@ -11,15 +11,17 @@ from urllib.parse import urlparse
 
 from ._first_party import FRONTIER_MODELS
 
-Vendor = Literal["anthropic", "openai", "google", "grok"]
+Vendor = Literal["anthropic", "openai", "google", "grok", "meta"]
 
 # LiteLLM provider segments that serve a single vendor's models (`google` is
-# how upstream names on the `gemini` route are normalized)
+# how upstream names on the `gemini` route are normalized; `meta` is the Meta
+# Model API, while `meta_llama` serves Llama models)
 _VENDOR_PROVIDERS: dict[str, Vendor] = {
     "anthropic": "anthropic",
     "xai": "grok",
     "gemini": "google",
     "google": "google",
+    "meta": "meta",
 }
 
 # LiteLLM provider for each vendor's own API, for `base_model` suggestions
@@ -28,6 +30,7 @@ _LITELLM_PROVIDERS: dict[Vendor, str] = {
     "openai": "openai",
     "google": "gemini",
     "grok": "xai",
+    "meta": "meta",
 }
 
 VENDOR_NAMES: dict[Vendor, str] = {
@@ -35,6 +38,7 @@ VENDOR_NAMES: dict[Vendor, str] = {
     "openai": "OpenAI",
     "google": "Google",
     "grok": "xAI",
+    "meta": "Meta",
 }
 """Display names, for messages."""
 
@@ -42,6 +46,9 @@ VENDOR_NAMES: dict[Vendor, str] = {
 # the org rules for database matching (`_litellm_proxy_names.NAME_ORGS`), it
 # is not the OpenAI vendor here (no OpenAI frontier suggestion for it)
 _OPENAI_MODEL = re.compile(r"(^|[/.])(gpt-(?!oss)|o\d|chatgpt|codex)")
+
+# Meta's Muse models (not Llama, which many providers serve as open weights)
+_MUSE_MODEL = re.compile(r"(^|[/.])muse-")
 
 
 def upstream_vendor(names: Iterable[str | None]) -> Vendor | None:
@@ -89,6 +96,8 @@ def _name_vendor(name: str) -> Vendor | None:
         return "google"
     if "grok" in name:
         return "grok"
+    if _MUSE_MODEL.search(name):
+        return "meta"
     if _OPENAI_MODEL.search(name):
         return "openai"
     return None
@@ -129,6 +138,14 @@ def is_xai_api_base(api_base: str | None) -> bool:
         return True
     host = urlparse(api_base).hostname or ""
     return host == "x.ai" or host.endswith(".x.ai")
+
+
+def is_meta_api_base(api_base: str | None) -> bool:
+    """Whether a deployment's `api_base` is the Meta Model API (or unset)."""
+    if api_base is None:
+        return True
+    host = urlparse(api_base).hostname or ""
+    return host == "meta.ai" or host.endswith(".meta.ai")
 
 
 def grok_4_or_later(family: str) -> bool:

@@ -452,27 +452,28 @@ Probed 2026-10-15 with `meta/muse-wonder-1.0` through `main-latest` and
   output token, which undercounts output and cost (a LiteLLM bug, fixed
   since). Cached prompt tokens are reported.
 
-**Proposed changes:**
+**Changes made:**
 
-1. Add Meta as a vendor: the `meta` provider segment, or `muse` in the name.
-   Add `muse` → `meta` to `NAME_ORGS`. The model info error then suggests
+1. Meta is a vendor: the `meta` provider segment, or a `muse-` name. `muse-`
+   → `meta` is in `NAME_ORGS`, and the model info error suggests
    `base_model: meta/muse-spark-1.3`.
-2. Use the Responses API by default, streamed, for Muse models whose
-   deployments all use the `meta` route with an unset or `meta.ai`
-   `api_base`, as the native provider does. This also avoids the 1.96 chat
-   usage bug.
-3. Effort: recognize Meta's `none` rejection, so `none` is dropped with a
+2. The Responses API is the default, streamed, when every deployment has the
+   `meta` route and an `api_base` that is unset or a `meta.ai` host, as in
+   the native provider. This also avoids the 1.96 chat usage bug.
+3. Meta's `none` rejection is recognized, so `none` is dropped with the usual
    warning.
-4. Parameters, for Meta models, as the native provider does:
-   - degrade forced tool choice to `auto`, with the warning and
-     `tool_choice_degraded` metadata;
-   - drop `logprobs` / `top_logprobs`, and on chat `stop` and `n`, with
-     warnings;
-   - send no `tool_choice` for `none` (Meta rejects it) and leave the tools
-     out, so the model cannot call them.
-5. Refusals: promote a structured refusal to `content_filter` for Meta
-   models, as the native `_flag_refusal_stop` does.
+4. For Meta models, as in the native provider:
+   - forced tool choice is degraded to `auto`, with a warning and
+     `tool_choice_degraded` in the output metadata;
+   - `logprobs` / `top_logprobs`, and on chat `stop`, `logit_bias` and `n`,
+     are dropped with warnings;
+   - `tool_choice="none"` sends no tools and no `tool_choice` (Meta accepts a
+     tool call history without tools, on both paths).
+5. A structured refusal becomes `content_filter` for Meta models
+   (`_flag_refusal_stop` from the native provider).
 6. Not changed: context overflow (Meta's error is not identifiable).
+
+All of 2–4 verified live on `main-latest`, on both paths.
 
 ### Grok
 
