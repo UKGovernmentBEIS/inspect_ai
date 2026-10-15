@@ -38,7 +38,7 @@ from inspect_ai.agent._human.install import (
     human_agent_commands,
     install_human_agent,
 )
-from inspect_ai.tool import tool
+from inspect_ai.tool import ToolError, tool
 from inspect_ai.util._sandbox._framework_directory import (
     _SCRIPT,
     _STAT_ENTRY,
@@ -1437,6 +1437,88 @@ def test_human_cli_with_tools_no_args(capsys: pytest.CaptureFixture[str]):
         # "done", so done-ness alone hides eval failures
         log = future.result()
         assert log.status == "success", f"eval failed: {log.error}"
+
+
+@pytest.mark.slow
+@skip_if_no_docker
+def test_human_cli_unexpected_tool_exception_fails_sample(
+    capsys: pytest.CaptureFixture[str],
+):
+    """An unexpected tool exception fails the sample, as on the model path.
+
+    An expected ToolError is shown to the human and the session continues;
+    a bug in the tool (RuntimeError) is reported to the human, recorded as a
+    failed ToolEvent, and then ends the sample with an error.
+    """
+
+    @tool
+    def flaky():
+        async def execute(broken: bool) -> str:
+            """Fail one way or another.
+
+            Args:
+                broken: Raise an unexpected exception instead of a ToolError.
+
+            Returns:
+                Never returns.
+            """
+            if broken:
+                raise RuntimeError("tool defect")
+            raise ToolError("try again")
+
+        return execute
+
+    def run_eval():
+        task = Task(
+            solver=human_cli(tools=[flaky()]),
+            sandbox=(
+                "docker",
+                (Path(__file__).parent / "compose.human.yaml").as_posix(),
+            ),
+        )
+        return eval(task, display="plain")[0]
+
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        future = executor.submit(run_eval)
+
+        container_name = wait_for_container_name(capsys)
+        docker_exec = ["docker", "exec", container_name, "bash", "-l", "-c"]
+        wait_for_human_agent(docker_exec)
+
+        expected_result = subprocess.run(
+            docker_exec + ["python3 /opt/human_agent/task.py tool flaky --no-broken"],
+            capture_output=True,
+            text=True,
+        )
+        broken_result = subprocess.run(
+            docker_exec + ["python3 /opt/human_agent/task.py tool flaky --broken"],
+            capture_output=True,
+            text=True,
+        )
+
+        done, _ = concurrent.futures.wait([future], timeout=20)
+        if future not in done:
+            # the sample kept running: unblock the eval thread, then fail
+            submit_task(docker_exec)
+            concurrent.futures.wait([future], timeout=10)
+            raise AssertionError("sample continued after an unexpected tool exception")
+
+        assert "try again" in expected_result.stdout, fmt_err(expected_result)
+        assert "tool defect" in broken_result.stdout, fmt_err(broken_result)
+
+        log = future.result()
+        assert log.status == "error", log.status
+        assert log.samples is not None
+        sample = log.samples[0]
+        assert sample.error is not None
+        assert "tool defect" in sample.error.message
+        tool_events = [e for e in sample.events if e.event == "tool"]
+        assert [
+            (e.error.message if e.error else None, e.failed) for e in tool_events
+        ] == [
+            ("try again", None),
+            ("tool defect", True),
+        ]
 
 
 @pytest.mark.slow
