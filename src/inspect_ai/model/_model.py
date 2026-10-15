@@ -5,6 +5,7 @@ import functools
 import json
 import logging
 import os
+import weakref
 from contextvars import ContextVar
 from copy import copy, deepcopy
 from datetime import datetime, timezone
@@ -1994,7 +1995,7 @@ class Model:
             model=model,
             role=self.role,
             requested_model=_requested_model.get(),
-            input=input,
+            input=_snapshot_messages(input),
             tools=tools,
             tool_choice=tool_choice,
             config=config,
@@ -2978,6 +2979,36 @@ class ModelEventSink(Protocol):
 _model_event_sink: ContextVar[ModelEventSink | None] = ContextVar(
     "_model_event_sink", default=None
 )
+
+
+_message_snapshots: weakref.WeakValueDictionary[str, ChatMessage] = (
+    weakref.WeakValueDictionary()
+)
+"""Latest snapshot of each message id, held while a logged event holds it."""
+
+
+def _snapshot_messages(messages: list[ChatMessage]) -> list[ChatMessage]:
+    """Copy messages so later in-place edits do not change a logged input.
+
+    Each message is deep copied unless the last copy made for its id still
+    matches it, in which case that copy is reused. Successive events then
+    share the objects of unchanged messages, which keeps memory proportional
+    to message versions and lets the log's message pool dedup them by
+    identity.
+    """
+    from inspect_ai.event._pool import _strict_eq
+
+    snapshots: list[ChatMessage] = []
+    for message in messages:
+        snapshot = (
+            _message_snapshots.get(message.id) if message.id is not None else None
+        )
+        if snapshot is None or not _strict_eq(snapshot, message):
+            snapshot = message.model_copy(deep=True)
+            if message.id is not None:
+                _message_snapshots[message.id] = snapshot
+        snapshots.append(snapshot)
+    return snapshots
 
 
 @contextlib.contextmanager
