@@ -492,6 +492,63 @@ async def test_sandbox_modify_without_a_modified_call_grants_nothing() -> None:
     tool.assert_not_awaited()
 
 
+@approver(name="test_bridge_in_place")
+def in_place_approver() -> Approver:
+    """Approver which points the call at another path in place, then escalates."""
+
+    async def approve(
+        message: str,
+        call: ToolCall,
+        view: ToolCallView,
+        history: list[ChatMessage],
+    ) -> Approval:
+        call.arguments["path"] = "private"
+        return Approval(decision="escalate")
+
+    return approve
+
+
+@pytest.mark.parametrize("dispatcher", [False, True])
+async def test_an_approver_cannot_change_a_bridged_call_in_place(
+    dispatcher: bool,
+) -> None:
+    """The edited call is neither handed to the scaffold nor granted."""
+    tool = AsyncMock(return_value="contents")
+    bridge = sandbox_bridge_with_tool(
+        tool,
+        [
+            ApprovalPolicy(in_place_approver(), "read_file"),
+            ApprovalPolicy(auto_approver("approve"), "*"),
+        ],
+    )
+    arguments: dict[str, object] = {"path": "public"}
+    edited = (
+        dispatched("1", arguments)
+        if dispatcher
+        else ToolCall(id="1", function="read_file", arguments=arguments)
+    )
+    replacement = ToolCall(id="2", function="bash", arguments={"cmd": "ls"})
+
+    run = await run_bridge(
+        [tool_calls_output(edited), tool_calls_output(replacement)],
+        bridge=bridge,
+        tools=declare_dispatcher() if dispatcher else declare("read_file"),
+    )
+
+    # the model is told and generates again; the scaffold sees only the replacement
+    assert run.generations == 2
+    assert run.output.message.tool_calls == [replacement]
+    (result,) = run.tool_results(1)
+    assert result.error is not None
+    assert result.error.type == "approval"
+    assert "changed the tool call or its view in place" in result.error.message
+    execute = call_host_tool(bridge)
+    for path in ("public", "private"):
+        with pytest.raises(PermissionError, match="was not proposed by the model"):
+            await execute("host", "read_file", {"path": path})
+    tool.assert_not_awaited()
+
+
 # ---------------------------------------------------------------------------
 # reject: the internal round-trip
 # ---------------------------------------------------------------------------

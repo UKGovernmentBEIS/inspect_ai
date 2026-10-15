@@ -1,6 +1,7 @@
 import json
 import logging
 from collections.abc import Iterable
+from copy import deepcopy
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
@@ -878,50 +879,23 @@ def mutating_viewer(call: ToolCall) -> ToolCallView:
     return ToolCallView()
 
 
-@approver
-def mutating_approver(modified: dict[str, Any] | None = None) -> Approver:
-    """Approver which changes the call it is given, then approves or modifies."""
-
-    async def approve(
-        message: str,
-        call: ToolCall,
-        view: ToolCallView,
-        history: list[ChatMessage],
-    ) -> Approval:
-        call.arguments["step"]["name"] = "changed"
-        if modified is None:
-            return Approval(decision="approve")
-        return Approval(
-            decision="modify",
-            modified=ToolCall(id=call.id, function=call.function, arguments=modified),
-        )
-
-    return approve
-
-
 @pytest.mark.parametrize(
-    "viewer,policy,runs",
+    "policy,runs",
     [
-        (mutating_viewer, recording_approver([]), "write"),
-        (None, mutating_approver(), "write"),
-        (
-            mutating_viewer,
-            modifying_approver({"step": {"name": "test", "status": "done"}}),
-            "test",
-        ),
-        (None, mutating_approver({"step": {"name": "test", "status": "done"}}), "test"),
+        (recording_approver([]), "write"),
+        (modifying_approver({"step": {"name": "test", "status": "done"}}), "test"),
     ],
-    ids=["viewer-approve", "approver-approve", "viewer-modify", "approver-modify"],
+    ids=["approve", "modify"],
 )
-async def test_callbacks_cannot_change_the_call_that_runs(
-    viewer: Any, policy: Approver, runs: str
+async def test_a_viewer_cannot_change_the_call_that_runs(
+    policy: Approver, runs: str
 ) -> None:
-    """Viewers and approvers get copies, so the approved call is the one that runs."""
+    """Viewers get copies, so the approved call is the one that runs."""
     init_transcript(Transcript())
     received: list[dict[str, Any]] = []
     message = await execute_with_approval(
         ToolCall(id="1", function="step_tool", arguments={"step": {"name": "write"}}),
-        [ToolDef(step_tool(received), viewer=viewer)],
+        [ToolDef(step_tool(received), viewer=mutating_viewer)],
         [ApprovalPolicy(policy, "*")],
     )
 
@@ -929,16 +903,16 @@ async def test_callbacks_cannot_change_the_call_that_runs(
     status: Literal["pending", "done"] = "pending" if runs == "write" else "done"
     assert received == [{"step": Step(name=runs, status=status)}]
     assert logged_tool_event().arguments == {"step": {"name": runs, "status": status}}
-    if viewer is not None:
-        # the approver was shown, and the log records, the call as shown
-        (approval,) = [e for e in transcript().events if isinstance(e, ApprovalEvent)]
-        shown = {"step": {"name": "write", "status": "pending"}}
-        assert approval.call.arguments == shown
+    # the approver was shown, and the log records, the call as shown
+    (approval,) = [e for e in transcript().events if isinstance(e, ApprovalEvent)]
+    assert approval.call.arguments == {"step": {"name": "write", "status": "pending"}}
 
 
 @approver
-def mutating_escalator() -> Approver:
-    """Approver which changes the call it is given in place, then escalates."""
+def in_place_approver(
+    edit: Literal["arguments", "view"], decision: ApprovalDecision
+) -> Approver:
+    """Approver which changes the call or its view in place."""
 
     async def approve(
         message: str,
@@ -946,40 +920,87 @@ def mutating_escalator() -> Approver:
         view: ToolCallView,
         history: list[ChatMessage],
     ) -> Approval:
-        call.arguments["x"] = 5
-        return Approval(decision="escalate")
+        if edit == "arguments":
+            call.arguments["x"] = 5
+        else:
+            assert view.call is not None
+            view.call.content = "addition(x=5, y=1)"
+        if decision == "modify":
+            arguments = {"x": 7, "y": 1}
+            return Approval(
+                decision="modify",
+                modified=ToolCall(
+                    id=call.id, function=call.function, arguments=arguments
+                ),
+            )
+        return Approval(decision=decision)
 
     return approve
 
 
-@pytest.mark.parametrize("last", ["approve", "reject"])
-async def test_an_escalating_approver_cannot_change_the_next_decision(
-    last: ApprovalDecision,
+@pytest.mark.parametrize(
+    "edit,decision",
+    [
+        ("arguments", "escalate"),
+        ("arguments", "approve"),
+        ("arguments", "modify"),
+        ("view", "escalate"),
+        ("view", "approve"),
+    ],
+)
+async def test_an_approver_cannot_change_the_call_in_place(
+    edit: Literal["arguments", "view"], decision: ApprovalDecision
 ) -> None:
-    """Later policies match, and later approvers see, the call that runs."""
+    """An in-place edit is refused: an approver changes a call with `modify`."""
     init_transcript(Transcript())
-    matched_changed: list[ToolCall] = []
-    last_seen: list[ToolCall] = []
+    seen: list[ToolCall] = []
     message = await execute_with_approval(
         ToolCall(id="1", function="addition", arguments={"x": 10, "y": 1}),
         [addition()],
         [
-            ApprovalPolicy(mutating_escalator(), "*"),
-            ApprovalPolicy(recording_approver(matched_changed), "addition(x=5"),
-            ApprovalPolicy(recording_approver(last_seen, last), "*"),
+            ApprovalPolicy(in_place_approver(edit, decision), "*"),
+            ApprovalPolicy(recording_approver(seen), "*"),
         ],
     )
 
-    assert matched_changed == []
-    assert [call.arguments for call in last_seen] == [{"x": 10, "y": 1}]
-    approvals = [e for e in transcript().events if isinstance(e, ApprovalEvent)]
-    assert [e.call.arguments for e in approvals] == [{"x": 10, "y": 1}] * 2
-    if last == "approve":
-        assert message.error is None
-        assert message.text == "11"
-    else:
-        assert message.error is not None
-        assert message.error.type == "approval"
+    assert message.error is not None
+    assert message.error.type == "approval"
+    assert "changed the tool call or its view in place" in message.error.message
+    assert message.text == ""
+    assert len(seen) == (1 if decision == "escalate" else 0)
+    event = logged_tool_event()
+    assert event.error is not None and event.error.type == "approval"
+
+
+@approver
+def copying_approver() -> Approver:
+    """Approver which modifies a copy of the call it is given."""
+
+    async def approve(
+        message: str,
+        call: ToolCall,
+        view: ToolCallView,
+        history: list[ChatMessage],
+    ) -> Approval:
+        arguments = deepcopy(call.arguments)
+        arguments["x"] = 5
+        return Approval(
+            decision="modify",
+            modified=ToolCall(id=call.id, function=call.function, arguments=arguments),
+        )
+
+    return approve
+
+
+async def test_an_approver_changes_a_call_with_modify() -> None:
+    message = await execute_with_approval(
+        ToolCall(id="1", function="addition", arguments={"x": 10, "y": 1}),
+        [addition()],
+        [ApprovalPolicy(copying_approver(), "*")],
+    )
+
+    assert message.error is None
+    assert message.text == "6"
 
 
 @dataclass

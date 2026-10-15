@@ -30,6 +30,7 @@ from inspect_ai._util.logger import warn_once
 from inspect_ai.agent._bridge.types import AgentBridge
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageTool
 from inspect_ai.model._model_output import ModelOutput
+from inspect_ai.tool._tool import ToolApprovalError
 from inspect_ai.tool._tool_call import ToolCall, ToolCallError
 
 if TYPE_CHECKING:
@@ -152,9 +153,16 @@ async def apply_bridge_tool_approval(
             # no viewer: bridged tools reach us as ToolInfo from the scaffold's
             # request, not as ToolDef, so there is no registered viewer to resolve.
             # apply_tool_approval falls back to its default rendering.
-            approved, approval = await apply_tool_approval(
-                message, reviewed, None, approval_history
-            )
+            try:
+                approved, approval = await apply_tool_approval(
+                    message, reviewed, None, approval_history
+                )
+            except ToolApprovalError as ex:
+                # an approver changed the call in place: like the native path,
+                # the model is told and the response is not handed over
+                return BridgeApproval(
+                    output, rejection_messages(output, call, ex.message)
+                )
             if not approved:
                 explanation = (approval.explanation if approval else None) or (
                     f"Tool call '{reviewed.function}' was rejected by the approval "

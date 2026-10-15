@@ -71,6 +71,7 @@ from inspect_ai.tool._tool_call import (
     default_tool_call_viewer,
     resolve_tool_call_view,
     substitute_tool_call_content,
+    unchanged_in_place,
 )
 from inspect_ai.tool._tool_choice import ToolChoice
 from inspect_ai.tool._tool_info import ToolInfo
@@ -104,16 +105,25 @@ async def sentinel_before_tool_call(
     if not _watches(BeforeToolCall):
         return None
     producer = _producing_event(call, history)
+    view = resolve_tool_call_view(call, viewer)
     step = BeforeToolCall(
         conversation=_conversation(),
         message=message,
         call=call,
-        view=resolve_tool_call_view(call, viewer),
+        view=view,
         input=list(producer.input) if producer is not None else None,
         history=history,
         tools=list(producer.tools) if producer is not None else None,
     )
-    return await _run(step)
+    with unchanged_in_place(call, view, ToolApprovalError(_CHANGED_IN_PLACE)):
+        return await _run(step)
+
+
+_CHANGED_IN_PLACE = (
+    "A sentinel monitor or protocol changed the tool call or its view in place, so "
+    "the call was not run. To change a call, return a modify decision with a new "
+    "ToolCall."
+)
 
 
 def apply_sentinel_decision(decision: Decision | None, call: ToolCall) -> ToolCall:

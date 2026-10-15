@@ -1,6 +1,5 @@
 import fnmatch
 import sys
-from copy import deepcopy
 from dataclasses import dataclass
 from typing import Any, Generator, cast
 
@@ -65,18 +64,11 @@ def policy_approver(policies: str | list[ApprovalPolicy]) -> Approver:
         view: ToolCallView,
         history: list[ChatMessage],
     ) -> Approval:
-        # process approvers for this tool call (continue loop on "escalate").
-        # Policies match the call as given, and an approver escalated to gets
-        # that call too, so an approver that changes its input in place cannot
-        # change what a later one decides on.
+        # process approvers for this tool call (continue loop on "escalate")
         has_approver = False
-        original = deepcopy(call)
-        for approver in tool_approvers(original):
-            approver_call = deepcopy(original) if has_approver else call
+        for approver in tool_approvers(call):
             has_approver = True
-            approval = await call_approver(
-                approver, message, approver_call, view, history
-            )
+            approval = await call_approver(approver, message, call, view, history)
             if approval.decision != "escalate":
                 return approval
 
@@ -86,7 +78,7 @@ def policy_approver(policies: str | list[ApprovalPolicy]) -> Approver:
             explanation=f"No {'approval granted' if has_approver else 'approvers registered'} for tool {call.function}",
         )
         # record and return the rejection
-        record_approval("policy", message, original, view, reject)
+        record_approval("policy", message, call, view, reject)
         return reject
 
     return approve

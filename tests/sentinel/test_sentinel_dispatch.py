@@ -879,7 +879,7 @@ def d3_mutate_and_continue() -> Protocol:
     return mutate
 
 
-async def test_a_sentinel_cannot_change_the_call_that_runs() -> None:
+async def test_a_sentinel_cannot_change_the_call_in_place() -> None:
     init_transcript(Transcript())
     call = ToolCall(
         id="1", function="list_items", arguments={"items": {"a": {"name": "a"}}}
@@ -891,10 +891,9 @@ async def test_a_sentinel_cannot_change_the_call_that_runs() -> None:
 
     [message] = result.messages
     assert isinstance(message, ChatMessageTool)
-    assert message.error is None
-    assert message.text == "a"
-    [event] = transcript_tool_events()
-    assert event.arguments == {"items": {"a": {"name": "a"}}}
+    assert message.error is not None and message.error.type == "approval"
+    assert "changed the tool call or its view in place" in message.error.message
+    assert message.text == ""
 
 
 @protocol
@@ -923,7 +922,7 @@ def d3_mutating_reviewer() -> Reviewer:
 
 
 @pytest.mark.parametrize("callback", ["sentinel", "reviewer"])
-async def test_after_call_callbacks_cannot_change_the_logged_call(
+async def test_after_call_callbacks_cannot_change_the_call_in_place(
     callback: str,
 ) -> None:
     init_transcript(Transcript())
@@ -931,24 +930,16 @@ async def test_after_call_callbacks_cannot_change_the_logged_call(
         id="1", function="list_items", arguments={"items": {"a": {"name": "a"}}}
     )
     messages: list[ChatMessage] = [ChatMessageAssistant(content=[], tool_calls=[call])]
-    if callback == "sentinel":
-        with active(d3_mutate_after()):
-            result = await execute_tools(messages, [list_items()])
-    else:
-        result = await execute_tools(
-            messages,
-            [list_items()],
-            approval=[ApprovalPolicy(d3_approver([], "approve"), "*")],
-            review=[ReviewPolicy(d3_mutating_reviewer(), "*")],
-        )
-
-    [message] = result.messages
-    assert isinstance(message, ChatMessageTool)
-    assert message.error is None
-    assert message.text == "a"
-    [event] = transcript_tool_events()
-    event = ToolEvent.model_validate_json(event.model_dump_json())
-    assert event.arguments == {"items": {"a": {"name": "a"}}}
+    with pytest.raises(RuntimeError, match="changed the tool call in place"):
+        if callback == "sentinel":
+            with active(d3_mutate_after()):
+                await execute_tools(messages, [list_items()])
+        else:
+            await execute_tools(
+                messages,
+                [list_items()],
+                review=[ReviewPolicy(d3_mutating_reviewer(), "*")],
+            )
 
 
 def test_a_review_terminate_skips_the_after_call_sentinel() -> None:

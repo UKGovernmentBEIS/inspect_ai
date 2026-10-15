@@ -1,4 +1,6 @@
 import re
+from collections.abc import Iterator
+from contextlib import contextmanager
 from copy import deepcopy
 from dataclasses import dataclass, field
 from logging import getLogger
@@ -10,6 +12,7 @@ from typing_extensions import TypedDict
 
 from inspect_ai._util.content import Content
 from inspect_ai._util.format import format_function_call
+from inspect_ai._util.json import json_equal
 from inspect_ai._util.logger import warn_once
 
 
@@ -118,6 +121,26 @@ def resolve_tool_call_view(
                 "Falling back to default rendering.",
             )
     return default_tool_call_viewer(call)
+
+
+@contextmanager
+def unchanged_in_place(
+    call: ToolCall, view: ToolCallView | None, error: Exception
+) -> Iterator[None]:
+    """Raise `error` if the block changes the call's arguments or the view in place.
+
+    Approvers, sentinel monitors and result reviewers change a call by
+    returning a modified one. An edit in place would change the call that runs
+    or is logged without that decision, so it is refused rather than guarded
+    against with copies.
+    """
+    arguments = deepcopy(call.arguments)
+    rendered = view.model_dump() if view is not None else None
+    yield
+    if not json_equal(call.arguments, arguments) or (
+        view is not None and view.model_dump() != rendered
+    ):
+        raise error
 
 
 def default_tool_call_viewer(call: ToolCall) -> ToolCallView:

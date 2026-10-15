@@ -40,11 +40,14 @@ approved, D the check.
    without converting again.
 
 Conversion always works on a copy of the call's arguments, so a constructor
-that changes its input in place cannot change the call. Viewers, approvers,
-sentinel monitors and result reviewers are given copies of the call, so a
-callback that changes its input cannot change the call that runs or is
-logged. An approver escalated to sees the call as shown, and later approval
-policies match that call, not one an earlier approver changed in place.
+that changes its input in place cannot change the call. Viewers are given a
+copy of the call. Approvers, sentinel monitors and result reviewers must not
+change the call or its view in place; they change a call with a `modify`
+decision. An in-place edit is refused: after the approval chain or the
+before-tool sentinel, a call whose arguments or view differ from what was
+shown is an approval error and does not run (for a bridged agent, the
+response is rejected and the model generates again). After the tool runs, a
+reviewer or monitor that changed the call fails the sample.
 
 Parameters the call leaves out are not shown. They get their Python defaults
 when the arguments are rebuilt, as without oversight. Curried handoff
@@ -95,4 +98,8 @@ arguments are not converted.
 - 2026-10-15: strict scalar conversion is dropped in favour of the existing
   conversion, since the approver now sees the converted value. A modify must
   include every field. The tool runs what is rebuilt from the approved JSON
+  (decision: Ransom, 2026-10-15).
+- 2026-10-15: approvers, sentinel monitors and reviewers that change a call
+  or its view in place are refused with one check, instead of each being
+  given a copy. `modify` is the supported way to change a call
   (decision: Ransom, 2026-10-15).
