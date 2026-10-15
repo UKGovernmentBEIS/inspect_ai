@@ -111,8 +111,6 @@ description: Miscellaneous utility functions.
 
 ## JSON
 
-`StrEnum` is Python's [`enum.StrEnum`](https://docs.python.org/3/library/enum.html#enum.StrEnum).
-
 ### JSONType
 ### JSONSchema
 ### json_schema
