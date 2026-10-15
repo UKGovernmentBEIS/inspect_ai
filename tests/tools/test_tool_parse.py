@@ -20,6 +20,23 @@ if TYPE_CHECKING:
     from decimal import Decimal
 
 
+@dataclass
+class TreeNode:
+    label: str
+    children: "list[TreeNode]" = field(default_factory=list)
+
+
+@dataclass
+class Point:
+    x: int
+
+
+@dataclass
+class Segment:
+    start: Point
+    end: Point
+
+
 # Test helper functions
 def test_json_schema():
     assert json_schema(int) == JSONSchema(type="integer")
@@ -195,6 +212,31 @@ def test_dataclass_parameter_unresolvable_annotation() -> None:
     assert properties["field1"].type is None
     assert properties["field2"].type is None
     assert info.parameters.properties["data"].required == ["field1", "field2"]
+
+
+def test_dataclass_parameter_recursive() -> None:
+    # a dataclass that refers to itself is expanded once; the nested reference
+    # gets an empty schema, as an unresolved forward reference did before
+    def tree_func(tree: TreeNode):
+        """A function with a recursive dataclass parameter."""
+        pass
+
+    info = parse_tool_info(tree_func)
+    properties = info.parameters.properties["tree"].properties
+    assert properties
+    assert properties["label"].type == "string"
+    assert properties["children"].type == "array"
+    assert properties["children"].items == JSONSchema()
+
+
+def test_dataclass_parameter_repeated_field_type() -> None:
+    # the same dataclass in sibling fields is not recursion: expand both
+    schema = json_schema(Segment)
+    assert schema.properties
+    for name in ("start", "end"):
+        point = schema.properties[name].properties
+        assert point
+        assert point["x"].type == "integer"
 
 
 def test_pydantic_parameter() -> None:

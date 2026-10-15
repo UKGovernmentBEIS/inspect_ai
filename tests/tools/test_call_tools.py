@@ -74,6 +74,12 @@ class MyStringAnnotatedDataClass:
     items: "list[int]" = field(default_factory=list)
 
 
+@dataclass
+class MyTree:
+    label: str
+    children: "list[MyTree]" = field(default_factory=list)
+
+
 class MyPydanticModel(BaseModel):
     name: str
     id: int
@@ -173,6 +179,19 @@ def string_annotated_tool():
 
 
 @tool
+def tree_tool():
+    async def tree_tool(tree: MyTree) -> str:
+        """Describe a recursive dataclass.
+
+        Args:
+            tree (MyTree): A tree with a 'label' and 'children'.
+        """
+        return f"{tree.label}:{len(tree.children)}:{type(tree.children[0]).__name__ if tree.children else ''}"
+
+    return tree_tool
+
+
+@tool
 def document_tool():
     async def document_tool() -> ContentDocument:
         """Return a document tool result."""
@@ -232,6 +251,26 @@ async def test_string_annotated_dataclass_arguments():
     result = eval(messages[-1].content)
     assert result == {"value": 2.0, "flag": True, "items": [1, 2]}
     assert isinstance(result["value"], float)
+
+
+@pytest.mark.parametrize(
+    "children,expected",
+    [([], "root:0:"), ([{"label": "leaf", "children": []}], "root:1:MyTree")],
+)
+async def test_recursive_dataclass_arguments(children, expected):
+    schema = ToolDef(tree_tool()).parameters.properties["tree"]
+    assert schema.properties is not None
+    assert schema.properties["children"].type == "array"
+
+    call = make_call("tree_tool", {"tree": {"label": "root", "children": children}})
+    messages, _ = await execute_tools(
+        [ChatMessageAssistant(content=[], tool_calls=[call])],
+        [ToolDef(tree_tool())],
+    )
+
+    assert isinstance(messages[-1], ChatMessageTool)
+    assert messages[-1].error is None
+    assert messages[-1].content == expected
 
 
 async def test_deeply_nested_dict_arguments_rejected_as_parse_error():
