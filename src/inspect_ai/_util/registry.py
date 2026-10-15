@@ -59,13 +59,16 @@ RegistryType = Literal[
     "validation_predicate",
     "monitor",
     "protocol",
+    "swarm_controller",
+    "swarm_channel",
 ]
 """Enumeration of registry object types.
 
 These are the types of objects in this system that can be
-registered using a decorator (e.g. `@task`, `@solver`). The "monitor" and
-"protocol" types are constructed via `create_registry_object()` rather than
-`registry_create()`; see the note above the `registry_create()` overloads.
+registered using a decorator (e.g. `@task`, `@solver`). The "monitor",
+"protocol", "swarm_controller" and "swarm_channel" types are constructed via
+`create_registry_object()` rather than `registry_create()`; see the note above
+the `registry_create()` overloads.
 Registered objects can in turn be created dynamically using
 the `registry_create()` function.
 
@@ -418,8 +421,8 @@ def registry_create(type: Literal["scanner"], name: str, **kwargs: Any) -> Any: 
 def registry_create(type: Literal["scanjob"], name: str, **kwargs: Any) -> Any: ...
 
 
-# No "monitor"/"protocol" overloads: they are built with
-# create_registry_object(), so registry_create() is a type error.
+# No "monitor"/"protocol"/"swarm_controller"/"swarm_channel" overloads: they are
+# built with create_registry_object(), so registry_create() is a type error.
 
 
 def registry_create(type: RegistryType, name: str, **kwargs: Any) -> object:  # type: ignore[return]

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import sys
 from contextlib import asynccontextmanager, contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass, field
@@ -12,8 +11,6 @@ if TYPE_CHECKING:
     from inspect_ai.approval._policy import ApprovalPolicy
     from inspect_ai.tool._tools._skill import Skill
 
-if sys.version_info < (3, 11):
-    from exceptiongroup import ExceptionGroup
 
 import anyio
 from anyio.abc import TaskGroup
