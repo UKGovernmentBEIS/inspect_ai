@@ -86,7 +86,6 @@ from ._litellm_proxy_gemini import (
     add_usage,
     malformed_function_call,
     malformed_function_retry,
-    with_function_calling_hint,
     with_json_tool_results_wrapped,
     with_malformed_function_apology,
     with_tool_call_signatures,
@@ -779,9 +778,9 @@ class LiteLLMProxyAPI(OpenAICompatibleAPI):
         directly. A rejected `thinking` parameter (see `_thinking_for`) is
         dropped the same way.
 
-        Requests with tools to a Gemini upstream carry the function-calling
-        hint, and a turn that comes back as a malformed function call is
-        retried with a corrective exchange (see `_litellm_proxy_gemini`).
+        A turn from a Gemini upstream that comes back as a malformed function
+        call is retried with a corrective exchange (see
+        `_litellm_proxy_gemini`).
         """
         if config.reasoning_tokens is not None:
             warn_once(
@@ -793,8 +792,6 @@ class LiteLLMProxyAPI(OpenAICompatibleAPI):
         _cache_write_ttl.set(None)
         requested = config.reasoning_effort
         gemini_tools = self._vendor == "google" and len(tools) > 0
-        if gemini_tools:
-            input = with_function_calling_hint(input)
         tool_calling_attempts = 0
         discarded_usage: ModelUsage | None = None
         # ends: each rejection is recorded, so the next attempt sends a value

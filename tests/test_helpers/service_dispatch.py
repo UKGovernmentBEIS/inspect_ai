@@ -85,8 +85,8 @@ async def serve_beside_failure_monitor(
 
     async def serve(tg: anyio.abc.TaskGroup) -> None:
         await service._handle_request_tracked(REQUEST_FILE, REQUEST_ID)
-        # give a monitor woken by the request time to raise before stopping it
-        await anyio.sleep(0.1)
+        # let a monitor woken by the request raise before stopping it
+        await anyio.wait_all_tasks_blocked()
         tg.cancel_scope.cancel()
 
     with anyio.fail_after(10):

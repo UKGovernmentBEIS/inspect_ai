@@ -40,7 +40,7 @@ from anyio.streams.memory import MemoryObjectSendStream
 from pydantic import BaseModel
 from typing_extensions import is_typeddict
 
-from inspect_ai._sentinel._context import SentinelFailure, active_sentinel
+from inspect_ai._sentinel._context import SentinelFailure, checks_tool_calls
 from inspect_ai._sentinel._scope import AgentScope, sentinel_scope
 from inspect_ai._util.content import (
     Content,
@@ -251,24 +251,18 @@ async def _execute_tools_impl(
             except SentinelFailure as ex:
                 tool_exception = _sentinel_exception(ex)
             except Exception as ex:
-                # shared classification with the human agent tool path — the
-                # same exception yields the same ToolCallError on both paths
-                classified = tool_call_error(ex, call.function)
-                if classified is not None:
-                    tool_error = classified.error
-                    if classified.result is not None:
-                        result = classified.result
+                mapped = tool_call_error(ex, call.function)
+                if mapped is not None:
+                    tool_error = mapped.error
+                    if mapped.result is not None:
+                        result = mapped.result
                 elif isinstance(ex, ValueError):
-                    # historical model-path behavior: ordinary ValueErrors
-                    # propagate immediately rather than staging as a
-                    # tool exception
+                    # pre-existing: a ValueError other than the null-byte case
+                    # escapes the per-call handler rather than being captured
                     raise
                 else:
                     tool_exception = ex
 
-            # massage result, leave list[Content] alone, convert all other
-            # types to string as that is what the model APIs accept (shared
-            # with the human agent tool path)
             content, truncated = resolve_tool_content(
                 result,
                 call.function,
@@ -802,7 +796,7 @@ async def call_tool(
         event.arguments = call.arguments
         event.view = tool_call_view(call, tools)
 
-    if active_sentinel() is not None:
+    if checks_tool_calls():
         from inspect_ai._sentinel._dispatch import (
             apply_sentinel_decision,
             sentinel_before_tool_call,
@@ -886,7 +880,7 @@ async def _apply_tool_review(
     if review is not None and review.decision == "terminate":
         raise TerminateSampleError("Tool result reviewer requested termination.")
 
-    if active_sentinel() is not None:
+    if checks_tool_calls():
         from inspect_ai._sentinel._dispatch import sentinel_after_tool_call
 
         await sentinel_after_tool_call(
@@ -1504,9 +1498,19 @@ ToolResultContent = (
 """Content forms a tool result may take after massaging."""
 
 
+class ResolvedToolContent(NamedTuple):
+    """A tool result massaged for recording."""
+
+    content: ToolResultContent
+    """The recorded content."""
+
+    truncated: tuple[int, int] | None
+    """(raw_bytes, truncated_bytes) when truncation occurred, otherwise `None`."""
+
+
 def resolve_tool_content(
     result: ToolResult, function: str, max_output: int | None
-) -> tuple[ToolResultContent, tuple[int, int] | None]:
+) -> ResolvedToolContent:
     """Massage a tool result for recording, truncating oversize text.
 
     Shared by the model tool path and the human agent tool path: valid
@@ -1520,8 +1524,8 @@ def resolve_tool_content(
             config, falling back to the 16 KiB default).
 
     Returns:
-        Tuple of recorded content and (raw_bytes, truncated_bytes) when
-        truncation occurred (None otherwise).
+        The recorded content, with (raw_bytes, truncated_bytes) when
+        truncation occurred.
     """
     truncated: tuple[int, int] | None = None
     content: ToolResultContent
@@ -1539,7 +1543,7 @@ def resolve_tool_content(
                 truncated_output.raw_bytes,
                 truncated_output.truncated_bytes,
             )
-    return content, truncated
+    return ResolvedToolContent(content=content, truncated=truncated)
 
 
 def tool_call_view(call: ToolCall, tdefs: list[ToolDef]) -> ToolCallContent | None:
