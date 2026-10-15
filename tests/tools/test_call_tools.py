@@ -9,6 +9,8 @@ from pydantic import BaseModel
 from typing_extensions import TypedDict
 
 from inspect_ai._util.content import ContentDocument, ContentText
+from inspect_ai.agent import Agent, AgentState, agent, handoff
+from inspect_ai.event._span import SpanBeginEvent
 from inspect_ai.event._tool import ToolEvent
 from inspect_ai.log._transcript import Transcript, init_transcript
 from inspect_ai.model._call_tools import MAX_TOOL_CALL_ARGUMENTS_DEPTH, execute_tools
@@ -21,6 +23,7 @@ from inspect_ai.tool._tool import tool_result_content
 from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.util._sandbox import SandboxTimeoutError, SandboxUnavailableError
+from inspect_ai.util._span import span
 
 # --- Helpers ---------------------------------------------------------------
 
@@ -536,6 +539,69 @@ async def test_tool_event_message_id_for_multiple_calls():
     # ensure each event has a distinct message_id (regression: previously
     # every event pointed at the first ChatMessageTool)
     assert len({e.message_id for e in tool_events}) == 3
+
+
+def assert_tool_events_in_tool_spans(transcript: Transcript, parent_id: str) -> None:
+    """Each ToolEvent names the tool span it was recorded in."""
+    events = transcript.events
+    tool_events = [e for e in events if isinstance(e, ToolEvent)]
+    assert tool_events
+    for tool_event in tool_events:
+        tool_span = events[events.index(tool_event) - 1]
+        assert isinstance(tool_span, SpanBeginEvent)
+        assert tool_span.type == "tool"
+        assert tool_span.name == tool_event.function
+        assert tool_span.parent_id == parent_id
+        assert tool_event.span_id == tool_span.id
+
+
+async def test_tool_event_span_id_is_its_tool_span():
+    transcript = Transcript()
+    init_transcript(transcript)
+
+    calls = [
+        ToolCall(id="call-1", function="incr", arguments={"x": 1}, parse_error=None),
+        # fails before execution, so its event is recorded on the error path
+        ToolCall(id="call-2", function="missing", arguments={}, parse_error=None),
+    ]
+    async with span("caller"):
+        await execute_tools(
+            [ChatMessageAssistant(content=[], tool_calls=calls)], [ToolDef(incr())]
+        )
+
+    (caller,) = [
+        e
+        for e in transcript.events
+        if isinstance(e, SpanBeginEvent) and e.name == "caller"
+    ]
+    assert_tool_events_in_tool_spans(transcript, caller.id)
+
+
+@agent
+def echo_agent() -> Agent:
+    async def execute(state: AgentState) -> AgentState:
+        """Echo agent."""
+        state.messages.append(ChatMessageAssistant(content="echo"))
+        return state
+
+    return execute
+
+
+async def test_handoff_tool_event_span_id_is_its_tool_span():
+    transcript = Transcript()
+    init_transcript(transcript)
+
+    call = make_call("transfer_to_echo_agent", {})
+    await execute_tools(
+        [ChatMessageAssistant(content=[], tool_calls=[call])], [handoff(echo_agent())]
+    )
+
+    (handoff_span,) = [
+        e
+        for e in transcript.events
+        if isinstance(e, SpanBeginEvent) and e.type == "handoff"
+    ]
+    assert_tool_events_in_tool_spans(transcript, handoff_span.id)
 
 
 async def test_tool_with_varargs_and_kwargs():

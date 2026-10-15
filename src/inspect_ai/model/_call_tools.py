@@ -76,7 +76,7 @@ from inspect_ai.util._anyio import inner_exception
 from inspect_ai.util._limit import LimitExceededError, apply_limits
 from inspect_ai.util._sandbox.environment import SandboxUnavailableError
 from inspect_ai.util._sandbox.events import SandboxTimeoutError
-from inspect_ai.util._span import AGENT_SPAN_TYPE, span
+from inspect_ai.util._span import AGENT_SPAN_TYPE, current_span_id, span
 
 from ._chat_message import (
     ChatMessage,
@@ -871,9 +871,18 @@ async def call_tool(
     # this function is responsible for transcript events so that it can
     # put them in the right enclosure (e.g. handoff/agent/tool). This
     # means that if we throw early we need to do the enclosure when raising.
+    def record_tool_event() -> None:
+        """Record the event in the tool span the caller has entered.
+
+        The event was created before that span existed, so its `span_id`
+        names the caller's span; restamp it with the tool span's id.
+        """
+        event.span_id = current_span_id()
+        transcript()._event(event)
+
     async def record_pending_tool_event() -> None:
         async with span(name=call.function, type="tool"):
-            transcript()._event(event)
+            record_tool_event()
 
     async def record_tool_parsing_error(error: str) -> Exception:
         await record_pending_tool_event()
@@ -956,7 +965,7 @@ async def call_tool(
         if isinstance(tool_def.tool, AgentTool):
             async with span(tool_def.tool.name, type="handoff"):
                 async with span(name=call.function, type="tool"):
-                    transcript()._event(event)
+                    record_tool_event()
                     if on_execute is not None:
                         on_execute(call)
                     handoff_result = await agent_handoff(tool_def, call, conversation)
@@ -965,7 +974,7 @@ async def call_tool(
         # normal tool call
         else:
             async with span(name=call.function, type="tool"):
-                transcript()._event(event)
+                record_tool_event()
                 if on_execute is not None:
                     on_execute(call)
                 with sentinel_scope(AgentScope.OFF):
