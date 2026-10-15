@@ -1,4 +1,6 @@
 import argparse
+import sys
+from dataclasses import dataclass
 
 import pytest
 
@@ -7,6 +9,9 @@ from inspect_ai.agent._human.commands.tool import ToolCommand, tool_result_to_st
 from inspect_ai.agent._human.state import HumanAgentState
 from inspect_ai.tool import ToolDef, ToolError, tool
 from inspect_ai.util import JSONSchema
+
+if sys.version_info < (3, 11):
+    from exceptiongroup import ExceptionGroup
 
 
 def _agent_state() -> HumanAgentState:
@@ -2344,3 +2349,148 @@ async def test_tool_max_output_caps_structured_terminal_rendering() -> None:
     assert isinstance(event.result, list)
     assert isinstance(event.result[0], ContentText)
     assert event.result[0].text == "z" * 80
+
+
+# --- review pass 1 (2026-10-15): termination during argument construction, --
+# --- percent signs in synthesized help ---------------------------------------
+
+
+_CONSTRUCTION_SHAPE: dict[str, str] = {}
+
+
+@dataclass
+class _TerminatingArgument:
+    """A typed argument whose construction raises a sample termination."""
+
+    value: int
+
+    def __post_init__(self) -> None:
+        from inspect_ai._util.exception import TerminateSampleError
+
+        shape = _CONSTRUCTION_SHAPE["shape"]
+        if shape == "direct":
+            raise TerminateSampleError("must stop")
+        elif shape == "cause":
+            try:
+                raise TerminateSampleError("must stop")
+            except TerminateSampleError as ex:
+                raise ToolError("wrapped validator failure") from ex
+        else:
+            raise ExceptionGroup(
+                "validator errors",
+                [ToolError("retry"), TerminateSampleError("must stop")],
+            )
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("shape", ["direct", "cause", "group"])
+async def test_termination_during_argument_construction_ends_sample(
+    shape, monkeypatch
+) -> None:
+    """A termination raised while building a typed argument still ends the sample.
+
+    tool_params() runs dataclass/Pydantic constructors and validators, which
+    are user code; treating every exception there as a parsing error answered
+    the RPC normally and the termination never reached the dispatcher.
+    """
+    from test_helpers.service_dispatch import (
+        REQUEST_FILE,
+        REQUEST_ID,
+        dispatching_service,
+    )
+
+    from inspect_ai._util.exception import TerminateSampleError
+    from inspect_ai.log._transcript import Transcript, init_transcript, transcript
+
+    async def execute(argument: _TerminatingArgument) -> str:
+        """Take a typed argument.
+
+        Args:
+            argument: An argument whose construction terminates the sample.
+
+        Returns:
+            Never returns.
+        """
+        return "body must not run"
+
+    typed = ToolDef(
+        execute,
+        name="typed",
+        description="Take a typed argument.",
+        parameters={"argument": "An argument."},
+    ).as_tool()
+
+    monkeypatch.setitem(_CONSTRUCTION_SHAPE, "shape", shape)
+    command = ToolCommand([typed])
+    handler = command.service(state=_agent_state())
+    init_transcript(Transcript())
+    errors: list[str | None] = []
+    service = dispatching_service(
+        monkeypatch,
+        "tool",
+        handler,
+        {"tool": "typed", "arguments": {"argument": {"value": 1}}},
+        errors,
+    )
+    with pytest.raises(TerminateSampleError, match="must stop"):
+        await service._handle_request_tracked(REQUEST_FILE, REQUEST_ID)
+
+    assert len(errors) == 1
+    assert errors[0] is not None and "must stop" in errors[0]
+    assert command.failure is None
+    event = next(e for e in transcript().events if e.event == "tool")
+    assert event.pending is None
+
+
+def _percent_kwargs_tool():
+    """A **kwargs tool with a boolean and a nullable property whose names hold %."""
+    from typing import Any
+
+    from inspect_ai.tool import ToolParams
+    from inspect_ai.util import JSONSchema
+
+    async def execute(**kwargs: Any) -> str:
+        """Echo the arguments.
+
+        Returns:
+            The arguments.
+        """
+        return str(kwargs)
+
+    return ToolDef(
+        execute,
+        name="percent_names",
+        description="Echo the arguments.",
+        parameters=ToolParams(
+            properties={
+                "%": JSONSchema(type="boolean", description="A flag."),
+                "50%": JSONSchema(
+                    anyOf=[JSONSchema(type="string"), JSONSchema(type="null")],
+                    description="A nullable value.",
+                ),
+            },
+            required=["%"],
+        ),
+    ).as_tool()
+
+
+def test_percent_in_property_names_survives_help_rendering() -> None:
+    """Synthesized help ('send false for <name>') must escape % too.
+
+    argparse percent-interpolates help at render time, so a property name
+    holding % made `task tool <name> --help` raise ValueError.
+    """
+    parser, namespace = _build_parsers([_percent_kwargs_tool()])
+    help_text = namespace["parser_0"].format_help()
+    assert "send false for %" in help_text
+    assert "send null for 50%" in help_text
+    assert _handler_kwargs(parser, ["tool", "percent_names", "--%"]) == {"%": True}
+
+
+def test_unrenderable_help_rejected_at_construction(monkeypatch) -> None:
+    """Construction renders each tool's help, so a help failure fails closed."""
+    from inspect_ai.agent._human.commands import tool as tool_module
+
+    monkeypatch.setattr(tool_module, "_help", lambda text: text)
+    with pytest.raises(ValueError, match="percent_names"):
+        ToolCommand([_percent_kwargs_tool()])

@@ -99,6 +99,15 @@ _JSON_ARG_CODE = dedent("""
     """).strip()
 
 
+def _help(text: str) -> str:
+    """Escape help text for argparse, which %-interpolates it at render time.
+
+    repr() makes generated *source* safe; this makes the rendered help safe
+    for any tool description or property name.
+    """
+    return text.replace("%", "%%")
+
+
 def _omitted(kind: str) -> str:
     """Terminal marker for non-text content (the full result is in the ToolEvent)."""
     return f"[{kind} content omitted (recorded in transcript)]"
@@ -142,11 +151,12 @@ def _validate_cli_flags(tool_def: ToolDef) -> None:
 
 
 def _validate_parser_builds(tool_def: ToolDef) -> None:
-    """Fail closed if the tool's generated parser cannot be constructed.
+    """Fail closed if the tool's generated parser cannot be built or render help.
 
-    Builds the generated subparser host-side, so anything argparse rejects
-    when the sandbox CLI loads is caught before install rather than
-    breaking every `task` command.
+    Builds the generated subparser host-side and renders its help, so
+    anything argparse rejects when the sandbox CLI loads (which breaks every
+    `task` command) or when `task tool <name> --help` runs is caught before
+    install.
     """
     import argparse
 
@@ -154,16 +164,35 @@ def _validate_parser_builds(tool_def: ToolDef) -> None:
         tool_def.name, tool_def.description, tool_def.parameters, "parser_0"
     )
     tool_subparsers = argparse.ArgumentParser().add_subparsers()
+    namespace: dict[str, Any] = {
+        "argparse": argparse,
+        "tool_subparsers": tool_subparsers,
+    }
     try:
         exec(
             compile(f"{_JSON_ARG_CODE}\n{parser_code}", "<generated>", "exec"),
-            {"argparse": argparse, "tool_subparsers": tool_subparsers},
+            namespace,
         )
+        namespace["parser_0"].format_help()
     except Exception as ex:
         raise ValueError(
             f"Tool '{tool_def.name}' cannot be offered via `task tool`: "
             f"its generated command-line parser fails to build ({ex})."
         ) from ex
+
+
+def _raise_if_control_flow(ex: Exception, finalize: Callable[..., None]) -> None:
+    """Finalize the event and re-raise `ex` if it carries a sample termination.
+
+    The sandbox service treats termination as sticky across the whole causal
+    history (group leaves, causes, context) and enacts it when the exception
+    reaches the dispatcher, so this must run before an exception is reduced
+    to a classification or a reply.
+    """
+    control = find_control_flow(ex)
+    if control is not None:
+        finalize(error=ToolCallError("unknown", str(control)))
+        raise ex
 
 
 def tool_result_to_str(result: ToolResult) -> str:
@@ -428,10 +457,12 @@ def tool(args):
             finalize(error=ToolCallError("parsing", validation_errors))
             return f"Error: {validation_errors}"
 
-        # Convert args using tool_params()
+        # Convert args using tool_params() (typed arguments run their
+        # constructors and validators, which are user code)
         try:
             params = tool_params(kwargs, tool_fn)
         except Exception as e:
+            _raise_if_control_flow(e, finalize)
             finalize(error=ToolCallError("parsing", str(e)))
             return f"Error parsing tool arguments: {e}"
 
@@ -485,13 +516,7 @@ def tool(args):
         errors are returned to the human. Unexpected exceptions are held as
         `failure`, which fails the sample.
         """
-        # the service treats termination as sticky across the whole causal
-        # history (group leaves, causes, context), so check that before
-        # reducing the exception to a single classification
-        control = find_control_flow(raw_ex)
-        if control is not None:
-            finalize(error=ToolCallError("unknown", str(control)))
-            raise raw_ex
+        _raise_if_control_flow(raw_ex, finalize)
 
         # normalize before classifying, as the model path does — anyio
         # task groups wrap child exceptions in ExceptionGroups (nested
@@ -702,13 +727,12 @@ def _boolean_argument_lines(parser_var: str, name: str, info: ParamInfo) -> list
     """
     arg_name = name.replace("_", "-")
     dest = f"arg_{name}"
-    help_text = (info.description or "").replace("%", "%%")
     flags: list[tuple[str, bool | None, str]] = [
-        (f"--{arg_name}", True, help_text),
-        (f"--no-{arg_name}", False, f"send false for {name}"),
+        (f"--{arg_name}", True, _help(info.description or "")),
+        (f"--no-{arg_name}", False, _help(f"send false for {name}")),
     ]
     if info.is_optional:
-        flags.append((f"--null-{arg_name}", None, f"send null for {name}"))
+        flags.append((f"--null-{arg_name}", None, _help(f"send null for {name}")))
     lines = [
         f"_group = {parser_var}.add_mutually_exclusive_group("
         f"required={info.is_required})"
@@ -767,12 +791,9 @@ def generate_tool_parser(
     # text is data, never code)
     # caller-supplied indexed variable (parser_<i>) so no tool name can
     # shadow routing variables or produce an invalid identifier
-    # argparse percent-interpolates help text at render time, so a literal
-    # % in a description must be escaped as %% (repr() alone only makes the
-    # generated *source* safe)
     lines.append(
         f"{parser_var} = tool_subparsers.add_parser({tool_name!r}, "
-        f"help={tool_description.replace('%', '%%')!r}, "
+        f"help={_help(tool_description)!r}, "
         f"formatter_class=argparse.RawDescriptionHelpFormatter)"
     )
 
@@ -835,8 +856,7 @@ def generate_tool_parser(
                     f"{help_text} (JSON; illustrative shape: '{example}')".strip()
                 )
         if help_text:
-            # escape argparse's %-interpolation (see add_parser above)
-            parts.append(f"help={help_text.replace('%', '%%')!r}")
+            parts.append(f"help={_help(help_text)!r}")
 
         if info.is_optional:
             # every nullable parameter gets a dedicated --null-<name> flag —
@@ -853,7 +873,7 @@ def generate_tool_parser(
                 f"_group.add_argument({f'--null-{arg_name}'!r}, "
                 f"dest={f'arg_{name}'!r}, action='store_const', const=None, "
                 f"default=argparse.SUPPRESS, "
-                f"help={f'send null for {name}'!r})"
+                f"help={_help(f'send null for {name}')!r})"
             )
         else:
             lines.append(f"{parser_var}.add_argument({', '.join(parts)})")
