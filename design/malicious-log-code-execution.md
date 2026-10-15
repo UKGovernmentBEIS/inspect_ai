@@ -888,8 +888,17 @@ and `model_args`), scores every sample in `tg_collect`, and only then calls
    `eval_results()` with the metrics from 2, as today.
 
 So a log whose scorers or metrics cannot be resolved, or whose metric
-options are forbidden, fails before a provider is constructed with the
-log's model, base URL and `model_args`, and before any scorer runs. Under `--stream` the CLI has already called
+options are forbidden, fails before the log's primary model and model roles
+are set up (`score.py:258-275`, with the log's base URL and `model_args`),
+and before any scorer runs. That is the guarantee the order gives, not that
+no provider is constructed: options replayed into trusted constructors
+still build whatever they name. Recorded scorer options and legacy
+`results.scores[*].params` go through `scorer_create()` and the unrestricted
+registry bridge (`score.py:626-645`, `_util/registry.py:752-762`), so a
+serialized model option of `model_graded_qa` constructs a provider before a
+later metric lookup fails. With the log's scorers, an earlier trusted
+metric's options can do the same. Only untrusted metric options are
+restricted (step 3). Under `--stream` the CLI has already called
 `log_init()` and `log_start()` on the output, as it does today before any
 failure, but no sample is read, scored or written.
 
@@ -1233,9 +1242,11 @@ an eval set resumes from. After this design:
   recorded task file (decision: Ransom, 2026-10-14; step 6), now through a
   tracker, so that import is also made once, with the eval loader, and
   recorded. In both modes `score_async()` resolves scorers and metrics
-  before it builds the log's model and roles, so a log that fails to
-  resolve constructs no provider; a log that resolves still has its model
-  and model roles built (under "Not this design").
+  before it sets up the log's primary model and model roles, so a log that
+  fails to resolve does not reach that setup. Trusted reconstruction can
+  still construct a provider earlier, from recorded scorer options or (with
+  the log's scorers) metric options (step 6). A log that resolves still has
+  its model and model roles built (under "Not this design").
 - What remains in read operations is installed code chosen by name: entry
   points of installed packages, their registered metric and reducer
   factories called with log arguments, registered scorer factories called
