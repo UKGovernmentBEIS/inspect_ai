@@ -287,7 +287,6 @@ async def score_async(
             else None
         )
     _validate_scorer_metadata(resolved_scorers)
-    replace_header = score_names is not None and _holds_no_scores(log)
 
     # resolve the active model and model_roles for the scoring task context.
     # caller-supplied overrides win; otherwise reconstruct from the log header
@@ -338,12 +337,14 @@ async def score_async(
         # tally the per-sample error state as we go so an overwrite can restate
         # completed_samples exactly rather than falling back to len(scores)
         sample_completed: list[bool] = [False] * total_samples
+        sample_held_scores: list[bool] = [False] * total_samples
 
         async def _score_sample(idx_sample: int) -> None:
             nonlocal scorer_names
             sample_score: dict[str, SampleScore] = {}
 
             async with samples(idx_sample) as sample:
+                sample_held_scores[idx_sample] = bool(sample.scores)
                 # run the task, capturing the resulting sample scores
                 # and sample names for later use. The sample scores
                 # returned here are only the _newly created_ scores
@@ -432,6 +433,9 @@ async def score_async(
         # Since the metrics calculation above is only be done using the scorers
         # and scores that were generated during this scoring run, we need to process
         # the results carefully, depending upon whether the action was "append" or "overwrite"
+        replace_header = score_names is not None and _held_no_scores(
+            log, sample_held_scores
+        )
         if action == "overwrite" or log.results is None or replace_header:
             # Completely replace the results (and reductions) with the new ones
             log.reductions = reductions
@@ -841,19 +845,16 @@ def _header_score_names(eval_scorers: list[EvalScorer]) -> list[str]:
     return score_names
 
 
-def _holds_no_scores(log: EvalLog) -> bool:
-    """Whether `log` holds no scores at all, as after an eval run without scoring.
+def _held_no_scores(log: EvalLog, sample_held_scores: list[bool]) -> bool:
+    """Whether `log` held no scores before this run, as after an eval run without scoring.
 
     Appending recorded names to such a log replaces its header, as appending to a
     log without results does: its scorers never ran, and replaying them next to
-    the recorded names would add an empty result before the new scores. Streamed
-    samples aren't loaded, so a log scored from a stream never qualifies.
+    the recorded names would add an empty result before the new scores. Whether
+    each sample held scores is recorded as it is read, so loaded and streamed
+    samples are treated alike.
     """
-    return (
-        not (log.results and log.results.scores)
-        and log.samples is not None
-        and not any(sample.scores for sample in log.samples)
-    )
+    return not (log.results and log.results.scores) and not any(sample_held_scores)
 
 
 def _existing_score_names(log: EvalLog, header: list[EvalScorer]) -> set[str]:

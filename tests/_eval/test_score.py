@@ -30,6 +30,7 @@ from inspect_ai.log import (
     EvalSample,
     Transcript,
     recompute_metrics,
+    write_eval_log_async,
 )
 from inspect_ai.log._file import read_eval_log, read_eval_log_async
 from inspect_ai.log._transcript import init_transcript
@@ -1319,6 +1320,86 @@ async def test_score_dict_on_unscored_log_survives_recompute_metrics(
     assert _reductions(scored) == reductions
     assert scored.results.headline == headline
     assert score_names_from_log_header(scored) == [score_name]
+
+
+@pytest.mark.parametrize("score_name", ["match", "strict"])
+async def test_score_dict_streamed_onto_unscored_log_survives_reload_and_recompute(
+    tmp_path: pathlib.Path, score_name: str
+) -> None:
+    """A dict streamed onto a log with no scores, reloaded and recomputed, matches the loaded case."""
+    unscored = await _unscored_log(tmp_path)
+    loaded = await score_async(unscored, {score_name: match()})
+    samples = unscored.samples
+    assert samples is not None
+
+    @contextlib.asynccontextmanager
+    async def read_sample(index: int) -> AsyncIterator[EvalSample]:
+        yield samples[index]
+
+    streamed = await score_async(
+        unscored.model_copy(update={"samples": None}),
+        {score_name: match()},
+        samples=read_sample,
+    )
+    streamed.samples = samples
+    location = tmp_path / "streamed.eval"
+    await write_eval_log_async(streamed, location)
+    reloaded = await read_eval_log_async(location)
+    recompute_metrics(reloaded)
+
+    assert loaded.results is not None
+    assert reloaded.results is not None
+    assert _score_entries(reloaded) == _score_entries(loaded)
+    assert _reductions(reloaded) == _reductions(loaded)
+    assert reloaded.results.headline == loaded.results.headline
+    assert score_names_from_log_header(reloaded) == [score_name]
+
+
+@scorer(metrics=[])
+def _unaggregated_scorer() -> Scorer:
+    async def score(state: TaskState, target: Target) -> Score:
+        return Score(value="C")
+
+    return score
+
+
+@pytest.mark.parametrize("streamed", [False, True])
+async def test_score_dict_keeps_header_scorer_with_sample_scores_only(
+    tmp_path: pathlib.Path, streamed: bool
+) -> None:
+    """A scorer without metrics scores only samples; appending a dict keeps it in the header."""
+    task = Task(
+        dataset=[
+            Sample(input="a", target="a", id=1),
+            Sample(input="b", target="b", id=2),
+        ],
+        scorer=_unaggregated_scorer(),
+    )
+    (log,) = await eval_async(task, model="mockllm/model", log_dir=str(tmp_path))
+    assert log.results is not None
+    assert log.results.scores == []
+    samples = log.samples
+    assert samples is not None
+
+    @contextlib.asynccontextmanager
+    async def read_sample(index: int) -> AsyncIterator[EvalSample]:
+        yield samples[index]
+
+    scored = (
+        await score_async(
+            log.model_copy(update={"samples": None}),
+            {"strict": match()},
+            samples=read_sample,
+        )
+        if streamed
+        else await score_async(log, {"strict": match()})
+    )
+
+    assert scored.eval.scorers is not None
+    assert [(s.name, _score_name(s)) for s in scored.eval.scorers] == [
+        ("_unaggregated_scorer", None),
+        ("match", "strict"),
+    ]
 
 
 @scorer(metrics=[accuracy()])
