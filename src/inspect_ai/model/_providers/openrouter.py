@@ -84,8 +84,8 @@ class OpenRouterAPI(OpenAICompatibleAPI):
     For `openrouter/anthropic/*` models, Anthropic prompt caching is enabled
     by default: this provider inserts per-block `cache_control: {"type":
     "ephemeral"}` markers on the last system block, the last tool definition,
-    and a rolling pair of message-level breakpoints (mirroring the placement
-    used by the direct Anthropic provider). The markers are accepted by
+    and the last two non-system text blocks of the conversation (a rolling
+    pair of history breakpoints). The markers are accepted by
     OpenRouter across Anthropic-direct, Bedrock, and Vertex routing. Set
     `cache_prompt=False` in `GenerateConfig` to disable. Cache writes returned
     by the upstream provider are surfaced as `ModelUsage.input_tokens_cache_write`.
@@ -434,12 +434,10 @@ def _ephemeral() -> dict[str, str]:
 def _add_anthropic_cache_markers(request: dict[str, Any]) -> None:
     """Insert Anthropic per-block cache_control markers in an OpenAI-format request.
 
-    Mirrors the breakpoint placement used by inspect_ai's direct anthropic
-    provider: last system block, last tool definition, and the penultimate
-    content block of the last message (with fallback to the last block of the
-    previous message when the last message has fewer than 2 blocks). Anthropic
-    enforces a maximum of 4 cache_control breakpoints per request; this scheme
-    uses at most 3.
+    Breakpoints: last system block, last tool definition, and the last two
+    non-system text blocks of the conversation (see
+    `_add_history_cache_markers`). Anthropic enforces a maximum of 4
+    cache_control breakpoints per request; this scheme uses at most 4.
 
     Note: the OpenAI-compatible base snapshots the ModelCall request before
     _generate_completion runs, so cache_control markers will NOT appear in the
@@ -449,32 +447,13 @@ def _add_anthropic_cache_markers(request: dict[str, Any]) -> None:
     """
     messages = request.get("messages")
     if isinstance(messages, list) and messages:
-        # mark the last system message's last content block (string-content
-        # system messages are safe to convert to list form)
+        # mark the last system message's last content block
         for msg in reversed(messages):
             if isinstance(msg, dict) and msg.get("role") == "system":
                 _mark_last_content_block(msg)
                 break
 
-        # mark a rolling pair of message-level breakpoints. auto-cache marks the
-        # last block; this gives lookback a fallback when the final block changes.
-        # In the fallback branch we deliberately do NOT convert string-content
-        # to list form (mirroring anthropic.py:1208-1211): the previous message
-        # may be a role:"tool" message whose string content must stay a string
-        # for upstream tool_result translation.
-        last = messages[-1]
-        if isinstance(last, dict):
-            last_content = last.get("content")
-            if isinstance(last_content, list) and len(last_content) >= 2:
-                last_content[-2]["cache_control"] = _ephemeral()
-            elif len(messages) >= 2:
-                prev = messages[-2]
-                if isinstance(prev, dict):
-                    prev_content = prev.get("content")
-                    if isinstance(prev_content, list) and prev_content:
-                        last_block = prev_content[-1]
-                        if isinstance(last_block, dict):
-                            last_block["cache_control"] = _ephemeral()
+        _add_history_cache_markers(messages)
 
     # mark the last tool definition (cache_control at the top of the tool dict,
     # alongside "type": "function" — empirically verified against OpenRouter;
@@ -486,11 +465,56 @@ def _add_anthropic_cache_markers(request: dict[str, Any]) -> None:
             last_tool["cache_control"] = _ephemeral()
 
 
+_HISTORY_CACHE_BREAKPOINTS = 2
+
+
+def _add_history_cache_markers(messages: list[Any]) -> None:
+    """Tag the last `_HISTORY_CACHE_BREAKPOINTS` text blocks of the conversation.
+
+    Walks messages in reverse, skipping system messages (marked separately),
+    non-text parts and blank text. The direct anthropic provider tags only the
+    second-to-last block because Anthropic's request-level automatic caching
+    covers the last one; OpenRouter does not forward that request-level
+    marker, so without an explicit marker on the last block the growing
+    conversation history is never written to the cache. The second marker
+    gives prefix lookback a fallback when the final block changes between
+    calls.
+
+    Inspect emits bare strings for text-only user/tool/assistant messages. A
+    string cannot carry `cache_control`, so it is converted to a single text
+    part (valid for all three roles; OpenRouter translates it to the native
+    block form).
+    """
+    tagged = 0
+    for msg in reversed(messages):
+        if not isinstance(msg, dict) or msg.get("role") == "system":
+            continue
+        content = msg.get("content")
+        if isinstance(content, str):
+            if not content.strip():
+                continue
+            content = [{"type": "text", "text": content}]
+            msg["content"] = content
+        if not isinstance(content, list):
+            continue
+        for block in reversed(content):
+            if (
+                isinstance(block, dict)
+                and block.get("type") == "text"
+                and isinstance(block.get("text"), str)
+                and block["text"].strip()
+            ):
+                block["cache_control"] = _ephemeral()
+                tagged += 1
+                if tagged >= _HISTORY_CACHE_BREAKPOINTS:
+                    return
+
+
 def _mark_last_content_block(msg: dict[str, Any]) -> None:
     """Mark the last content block of a message with cache_control.
 
     If content is a plain string, convert to a single-block list so we can
-    attach the marker. Only safe for system messages — see caller.
+    attach the marker.
     """
     content = msg.get("content")
     if isinstance(content, list) and content:
