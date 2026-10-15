@@ -1,5 +1,6 @@
 import json
 import re
+import sys
 from pathlib import Path
 from typing import Any, Literal, NamedTuple, cast, get_args
 from unittest.mock import AsyncMock
@@ -7,6 +8,11 @@ from unittest.mock import AsyncMock
 import anyio
 import pytest
 from pydantic import JsonValue
+from test_helpers.service_dispatch import (
+    REQUEST_FILE,
+    REQUEST_ID,
+    dispatching_service,
+)
 from test_helpers.utils import (
     skip_if_no_anthropic,
     skip_if_no_docker,
@@ -72,6 +78,9 @@ from inspect_ai.tool._tool_info import ToolInfo
 from inspect_ai.tool._tool_params import ToolParam, ToolParams
 from inspect_ai.util import ExecResult, collect, token_limit
 from inspect_ai.util._limit import LimitExceededError
+
+if sys.version_info < (3, 11):
+    from exceptiongroup import ExceptionGroup
 
 
 class _FakeProxy:
@@ -1146,6 +1155,74 @@ async def test_sandbox_response_filter_termination_is_left_to_the_dispatcher() -
             CHAT_REQUEST
         )
     assert not bridge._failure_requested.is_set()
+
+
+def test_sandbox_response_filter_limit_with_termination_terminates(
+    tmp_path: Path,
+) -> None:
+    """A filter's concurrent limit and termination end the sample as a termination.
+
+    `_apply_response_filter` raises the group's first control-flow leaf (the
+    limit) with the group as its context. The service dispatcher finds the
+    termination in that history before routing the limit to the sample, so it
+    answers the RPC once and propagates the termination: the sample ends with
+    the operator reason, not a token limit, and the monitor is not signalled.
+    """
+    from inspect_ai import Task, eval
+    from inspect_ai.dataset import Sample
+    from inspect_ai.solver import Generate, Solver, TaskState, solver
+
+    replies: list[str | None] = []
+    signalled: list[bool] = []
+
+    async def concurrent_judges(
+        model: Model, output: ModelOutput, generate_input: GenerateInput
+    ) -> ModelOutput | None:
+        raise ExceptionGroup(
+            "concurrent judges",
+            [
+                LimitExceededError("token", value=2, limit=1),
+                TerminateSampleError("stop now"),
+            ],
+        )
+
+    @solver
+    def serve_one_generation() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            bridge = _sandbox_bridge(concurrent_judges)
+            try:
+                with pytest.MonkeyPatch.context() as monkeypatch:
+                    service = dispatching_service(
+                        monkeypatch,
+                        "generate_completions",
+                        _forward_provider_errors(generate_completions(bridge), bridge),
+                        {"json_data": CHAT_REQUEST},
+                        replies,
+                    )
+                    await service._handle_request_tracked(REQUEST_FILE, REQUEST_ID)
+            finally:
+                signalled.append(bridge._failure_requested.is_set())
+            return state
+
+        return solve
+
+    log = eval(
+        Task(dataset=[Sample(input="test")], solver=serve_one_generation()),
+        model="mockllm/model",
+        log_dir=str(tmp_path),
+        display="none",
+    )[0]
+
+    assert log.status == "success"
+    assert log.samples is not None
+    sample = log.samples[0]
+    assert sample.error is None, sample.error
+    assert sample.limit is not None
+    assert (sample.limit.type, sample.limit.reason) == ("operator", "stop now")
+    limits = [e for e in sample.events if e.event == "sample_limit"]
+    assert [(e.type, e.message) for e in limits] == [("operator", "stop now")]
+    assert replies == ["Terminating: stop now"]
+    assert signalled == [False]
 
 
 @pytest.mark.parametrize("source", get_args(RefusalSource))

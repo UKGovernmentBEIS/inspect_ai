@@ -1,17 +1,18 @@
 """Tests for the shared tool-execution helpers.
 
-These helpers are consumed by both the model tool path and the human agent
-tool path (human_cli tools=...), so the same exception or result produces
-identical classification, truncation, and content handling on both. The
-parametrized zoos here are the shared contract: classified exceptions are
-recoverable and unclassified (None) exceptions fail the sample. The
-fail-the-sample disposition for unclassified exceptions is agreed for both
-paths but is exercised here, and by the model path's own tests, only for
-the model path; #3053's corresponding caller change and tests for the
-human agent path remain outstanding.
+The classifier is used by native tool calls and by the sandbox agent
+bridge's host tools; `classify_tool_exception()` and
+`resolve_tool_content()` serve the human agent tool path (human_cli
+tools=...). The parametrized zoos here are the shared contract: classified
+exceptions are recoverable and unclassified (None) exceptions fail the
+sample. These tests cover the helpers and the sandbox service's
+termination protocol; each caller's disposition is tested with that caller
+(tests/tools for the model path and bridged host tools, #3053 for
+human_cli).
 """
 
 import sys
+from unittest.mock import MagicMock, patch
 
 import anyio
 import pytest
@@ -348,6 +349,44 @@ async def test_ordinary_method_errors_still_swallowed(monkeypatch):
     await service._handle_request_tracked("/req/r1.json", "r1")  # no raise
     assert len(responses) == 1
     assert responses[0][1] is not None and "ordinary failure" in responses[0][1]
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("link", [None, "__cause__", "__context__"])
+async def test_limit_carrying_a_terminate_is_a_termination(monkeypatch, link):
+    """A termination in a limit's history wins over the limit.
+
+    The dispatcher routes a bare `LimitExceededError` to the active sample, but
+    only after searching its history: a limit raised from, or while handling, a
+    termination (e.g. a response filter's group of concurrent judges, raised as
+    its first control-flow leaf) answers the RPC once and propagates the
+    termination instead. A plain limit is still routed to the sample.
+    """
+    limit = LimitExceededError("token", value=2, limit=1)
+    if link is not None:
+        setattr(limit, link, TerminateSampleError("stop now"))
+
+    async def method() -> str:
+        raise limit
+
+    responses: list = []
+    service = _fake_service(method, monkeypatch, responses)
+    active = MagicMock()
+    with patch("inspect_ai.log._samples.sample_active", return_value=active):
+        if link is None:
+            await service._handle_request_tracked("/req/r1.json", "r1")
+        else:
+            with pytest.raises(TerminateSampleError, match="stop now"):
+                await service._handle_request_tracked("/req/r1.json", "r1")
+
+    if link is None:
+        assert active.limit_exceeded.call_count == 1
+        assert responses == [
+            (None, "Limit exceeded calling method boom: Exceeded token limit: 1")
+        ]
+    else:
+        active.limit_exceeded.assert_not_called()
+        assert responses == [(None, "Terminating: stop now")]
 
 
 def test_terminate_detected_as_explicit_cause():
