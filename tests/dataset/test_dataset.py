@@ -532,6 +532,30 @@ def test_dataset_nan_target_treated_as_missing() -> None:
     assert sample_num.target == "4"
 
 
+def test_dataset_padded_target_is_stripped() -> None:
+    # File-loaded targets routinely carry stray padding (hand-edited files,
+    # spreadsheet-exported CSVs such as a "…, B" cell). The loader must
+    # normalise it away: a padded letter target otherwise crashes
+    # shuffle_choices(), and a padded text target silently mis-scores
+    # with includes().
+    from inspect_ai.dataset._util import record_to_sample_fn
+
+    rec2sample = record_to_sample_fn(FieldSpec())
+
+    sample = rec2sample({"input": "What is 2+2?", "target": " B "})
+    assert not isinstance(sample, list)
+    assert sample.target == "B"
+
+    sample_list = rec2sample({"input": "x", "target": [" Paris", "Lyon "]})
+    assert not isinstance(sample_list, list)
+    assert sample_list.target == ["Paris", "Lyon"]
+
+    # numeric targets are stringified as before (no whitespace involved)
+    sample_num = rec2sample({"input": "x", "target": 4})
+    assert not isinstance(sample_num, list)
+    assert sample_num.target == "4"
+
+
 def test_dataset_nan_fields_treated_as_missing() -> None:
     from inspect_ai.dataset._util import record_to_sample_fn
 
