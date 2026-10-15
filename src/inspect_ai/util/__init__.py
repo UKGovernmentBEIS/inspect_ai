@@ -1,3 +1,5 @@
+from enum import StrEnum
+
 from inspect_ai._util.download import download, gdrive_download
 from inspect_ai._util.images import (
     MediaKind,
@@ -13,7 +15,6 @@ from inspect_ai._util.registry import (
     registry_create,
     registry_info,
 )
-from inspect_ai._util.strenum import StrEnum
 from inspect_ai._util.trace import trace_action, trace_message
 from inspect_ai.util._limit import (
     Limit,
@@ -27,6 +28,7 @@ from inspect_ai.util._limit import (
     sample_limits,
     suspend_token_limit,
     suspend_turn_limit,
+    suspend_working_limit,
     time_limit,
     token_limit,
     turn_limit,
@@ -184,6 +186,7 @@ __all__ = [
     "cost_limit",
     "suspend_token_limit",
     "suspend_turn_limit",
+    "suspend_working_limit",
     "token_limit",
     "TokenLimit",
     "turn_limit",

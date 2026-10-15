@@ -73,10 +73,11 @@ def init_task_context(
     review: list[ReviewPolicy] | None = None,
     sentinel: "SentinelRoot | None" = None,
     task_metadata: dict[str, Any] | None = None,
+    task_description: str | None = None,
 ) -> None:
     init_model_context(model, model_roles, config)
     if not have_tool_approval():
         init_tool_approval(approval)
     if not have_tool_review():
         init_tool_review(review)
-    init_sentinel(sentinel, task_metadata)
+    init_sentinel(sentinel, task_metadata, task_description)

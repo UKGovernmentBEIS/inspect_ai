@@ -6,8 +6,10 @@ from inspect_ai import Task, TaskSource, eval, task, task_source
 from inspect_ai._util.constants import PKG_NAME
 from inspect_ai._util.registry import (
     RegistryInfo,
+    RegistryType,
     _registry,
     extract_named_params,
+    is_registry_dict,
     registry_add,
     registry_create,
     registry_create_from_dict,
@@ -16,6 +18,7 @@ from inspect_ai._util.registry import (
     registry_key,
     registry_kwargs,
     registry_lookup,
+    registry_tag,
     registry_value,
 )
 from inspect_ai.dataset import Sample
@@ -61,6 +64,34 @@ def test_validation_predicate_registry_type() -> None:
         assert registry_info(predicate) == info
     finally:
         _registry.pop(registry_key("validation_predicate", "test_predicate"), None)
+
+
+@pytest.mark.parametrize("registry_type", ["swarm_controller", "swarm_channel"])
+def test_swarm_registry_types(registry_type: RegistryType) -> None:
+    class Component:
+        def __init__(self, size: int) -> None:
+            self.size = size
+
+    name = f"test_{registry_type}"
+    info = RegistryInfo(type=registry_type, name=name)
+
+    def factory(size: int = 1) -> Component:
+        component = Component(size)
+        registry_tag(factory, component, info, size=size)
+        return component
+
+    registry_add(factory, info)
+    try:
+        assert registry_lookup(registry_type, name) is factory
+        logged = registry_value(factory(size=3))
+        assert logged == {"type": registry_type, "name": name, "params": {"size": 3}}
+        assert is_registry_dict(logged)
+        restored = registry_create_from_dict(logged)
+        assert isinstance(restored, Component)
+        assert restored.size == 3
+        assert registry_info(restored) == info
+    finally:
+        _registry.pop(registry_key(registry_type, name), None)
 
 
 def test_registry_dict() -> None:

@@ -1,4 +1,60 @@
-## Unreleased
+# Changelog
+
+## [0.3.281](https://github.com/UKGovernmentBEIS/inspect_ai/compare/0.3.280...0.3.281) (2026-10-15)
+
+
+### Breaking Changes
+
+* require Python 3.11 and test on Python 3.14 ([#5862](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5862))
+
+### Features
+
+* add swarm_controller and swarm_channel registry types ([#5860](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5860)) ([a11afc9](https://github.com/UKGovernmentBEIS/inspect_ai/commit/a11afc94322a431782f57c0f48a3d6b7666413c3))
+* **agent-bridge:** forward allowed Anthropic betas, Accept-Encoding and Responses reasoning context ([#5708](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5708)) ([be4fd1f](https://github.com/UKGovernmentBEIS/inspect_ai/commit/be4fd1fba7bd6c31bf5f708a4d90f3fca969ae07))
+* let agent bridges transform model responses with `response_filter` ([#5715](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5715)) ([19f9349](https://github.com/UKGovernmentBEIS/inspect_ai/commit/19f9349d2a21572333854f987a46c02327754ef1))
+* require Python 3.11 and test on Python 3.14 ([#5862](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5862)) ([f612192](https://github.com/UKGovernmentBEIS/inspect_ai/commit/f612192808ddcb2575a205df16469c28a3bf7716))
+* sentinel monitors can call context.host.score ([#5865](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5865)) ([b0a5cd1](https://github.com/UKGovernmentBEIS/inspect_ai/commit/b0a5cd1d3b0c5f240df3ba696d3edd1d15e78bb1))
+
+
+### Bug Fixes
+
+* Antigravity host tool calls being denied as unproposed by the sandbox agent bridge ([#5717](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5717)) ([46e79a4](https://github.com/UKGovernmentBEIS/inspect_ai/commit/46e79a4f46f288cbbd67a43842dde684d598a469))
+* count overlapping waits once in working time and add suspend_working_limit() ([#5758](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5758)) ([974c17d](https://github.com/UKGovernmentBEIS/inspect_ai/commit/974c17d43738702adde22f404293d07c316242af))
+* **litellm-proxy:** Grok models keep reasoning across turns, accept every reasoning effort, and report refusals ([#5874](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5874)) ([7158198](https://github.com/UKGovernmentBEIS/inspect_ai/commit/71581988aaabd7a7c44c31fe25fe907a01e81680))
+* **litellm-proxy:** Meta Muse models keep reasoning across turns, accept unsupported parameters, and report refusals ([#5878](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5878)) ([08f8600](https://github.com/UKGovernmentBEIS/inspect_ai/commit/08f8600926ee7383c0b582faada2640c6c6f0740))
+* **litellm:** stop the function-calling hint making Gemini loop on tool calls ([#5761](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5761)) ([0c3b3e4](https://github.com/UKGovernmentBEIS/inspect_ai/commit/0c3b3e46ee76afd2115c2aae09a719c01900f1c5))
+* prevent StoreModel validation leaks and make store and instance read-only ([#5748](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5748)) ([aaad90c](https://github.com/UKGovernmentBEIS/inspect_ai/commit/aaad90c850d82f302c5a8750f6f5c9775bfe3eaf))
+* reject unknown sandbox names even when only one environment exists ([#5723](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5723)) ([3f9c2e3](https://github.com/UKGovernmentBEIS/inspect_ai/commit/3f9c2e3fb4cc4799577971f61d29a5c8cd381ed4))
+* **sandbox:** Docker `read_file()` no longer unpacks agent-controlled archives on the host or fills its disk ([#5829](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5829)) ([86c1157](https://github.com/UKGovernmentBEIS/inspect_ai/commit/86c1157328b8d83ce02bf830484bba45afae053c))
+
+## [0.3.280](https://github.com/UKGovernmentBEIS/inspect_ai/compare/0.3.279...0.3.280) (2026-10-14)
+
+
+### Features
+
+* **agent-bridge:** filters can now tell which agent a bridged model request belongs to ([#4791](https://github.com/UKGovernmentBEIS/inspect_ai/issues/4791)) ([1b78969](https://github.com/UKGovernmentBEIS/inspect_ai/commit/1b78969d6350bd8ce84bba84a92cbaddf8b175d6))
+* **google:** support Gemini 4 Argon ([#5843](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5843)) ([76e69f9](https://github.com/UKGovernmentBEIS/inspect_ai/commit/76e69f92b9e4f84fda6214d69c15842f8e20dd49))
+* keep the response headers of a model call ([#5795](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5795)) ([1b16791](https://github.com/UKGovernmentBEIS/inspect_ai/commit/1b167913bce1c6bb9dbf85bd67edbc02015b706c))
+
+
+### Bug Fixes
+
+* Behavior change: Docker sandboxes now block writable host mounts by default; use read-only mounts, Sample.files or Docker-managed volumes, or the unsafe opt-in ([#5830](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5830)) ([d7495e8](https://github.com/UKGovernmentBEIS/inspect_ai/commit/d7495e8020d362f22aa7ac8ae238c3c9c6ca5602))
+* Groq and OpenAI on Bedrock requests failing during credential refresh ([#5707](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5707)) ([618d6f0](https://github.com/UKGovernmentBEIS/inspect_ai/commit/618d6f0a49c9b6d969e1244717f78cc081400879))
+* remove duplicated type: ignore comments that ast-serialize 0.13 rejects ([#5835](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5835)) ([81c1668](https://github.com/UKGovernmentBEIS/inspect_ai/commit/81c1668d31030eebf7ff55e8376c2650b4f811ed))
+* slow reads of local .eval logs ([#5783](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5783)) ([bf37243](https://github.com/UKGovernmentBEIS/inspect_ai/commit/bf3724303c4fbb8c8842a6fe1d15aba6aba8d1eb))
+* store and state changes crashing, replaying wrong, or logging unchanged NaNs ([#5751](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5751)) ([31a5661](https://github.com/UKGovernmentBEIS/inspect_ai/commit/31a5661544bc1c49dba9af8c5fed00087ef3fe9f))
+
+
+### Reverts
+
+* remove the short-lived inspect_ai.core package added in 0.3.277; core data types stay at their original import paths ([#5828](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5828)) ([295daba](https://github.com/UKGovernmentBEIS/inspect_ai/commit/295dabaaba23ffc8dc0480b9506344054e73fcc1))
+
+## [0.3.279](https://github.com/UKGovernmentBEIS/inspect_ai/compare/0.3.278...0.3.279) (2026-10-12)
+
+### Bug Fixes
+
+* Internal improvements.
 
 ## 0.3.278 (09 October 2026)
 
