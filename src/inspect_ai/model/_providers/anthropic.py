@@ -300,11 +300,6 @@ _REMINDER_SYSTEM_HOISTED_WARNING = (
 # rest of the sample from further expiry.
 CACHE_TTL_ESCALATION_GAP = 300.0  # seconds (= the default 5m cache TTL)
 
-# Most pause_turn continuations sent for one generate call. Each pause_turn ends
-# a server-side tool loop, so this allows a long turn while bounding a chain of
-# billed requests that never finishes.
-MAX_PAUSE_TURN_CONTINUATIONS = 10
-
 # TTL sent on the request whose usage is currently being recorded, read back by
 # cache_write_ttl() for cost accounting: escalation state is sticky and shared,
 # so a sibling that escalates mid-flight (or a batched call, which never
@@ -1116,10 +1111,7 @@ class AnthropicAPI(ModelAPI):
         has_fallback = _input_has_fallback(input)
 
         # Convert to Anthropic message format
-        messages = [
-            await message_param(m, last=index == len(input) - 1)
-            for index, m in enumerate(input)
-        ]
+        messages = [await message_param(m) for m in input]
 
         # Collapse consecutive user messages (as Inspect 'tool' messages become
         # Claude 'user' messages, and multiple tool results need to be merged)
@@ -1264,12 +1256,6 @@ class AnthropicAPI(ModelAPI):
         over the head and every continuation, since each one is billed; `chain`
         holds that sum as requests complete, so a caller can still report it
         when a later continuation raises.
-
-        After `MAX_PAUSE_TURN_CONTINUATIONS` continuations a further pause_turn
-        is not continued: the content generated so far is returned with stop
-        reason "unknown" and `stop_details.type` "pause_turn". Returning it
-        rather than raising keeps the usage of the billed requests, and matches
-        Anthropic's contract that a paused turn can be resumed by sending it back.
         """
         # each continuation re-sends the same cache_control, so it refreshes the
         # cache entry at its own prefill -- record it as the gap baseline
@@ -1321,30 +1307,8 @@ class AnthropicAPI(ModelAPI):
             span_recorder=span_recorder,
         )
         chain.add(head_model_output, self._request_served_usage(head_model_output))
-        continuations = chain.requests - 1
 
-        if continuation_required and continuations >= MAX_PAUSE_TURN_CONTINUATIONS:
-            logger.warning(
-                f"{self.model_name}: stopped after {continuations} pause_turn "
-                "continuations; returning the paused turn."
-            )
-            head_model_output.choices[0].stop_details = StopDetails(
-                type="pause_turn",
-                explanation=(
-                    f"Turn still paused after {continuations} continuations "
-                    "(the continuation limit)."
-                ),
-            )
-            # no continuation will complete a server tool call still in
-            # flight, so record its open span with this message: a request
-            # that resumes the turn then sends its use block, and the result
-            # that arrives finds it (see `_ServerToolSpan.paused`)
-            open_spans = span_recorder.take_spans(include_open=True)
-            for span in open_spans:
-                span.paused = bool(span.open_use_ids)
-            if open_spans and head_model_output.message.id is not None:
-                record_server_tool_spans(head_model_output.message.id, open_spans)
-        elif continuation_required:
+        if continuation_required:
             tail_request = dict(request)
             tail_request["messages"] = request["messages"] + [
                 MessageParam(role=head_message.role, content=head_message.content)
@@ -2265,12 +2229,10 @@ class AnthropicAPI(ModelAPI):
         message_params = [
             (
                 await message_param(
-                    message,
-                    computer_toolset_call_ids=computer_toolset_call_ids,
-                    last=index == len(messages) - 1,
+                    message, computer_toolset_call_ids=computer_toolset_call_ids
                 )
             )
-            for index, message in enumerate(messages)
+            for message in messages
         ]
 
         # collapse user messages (as Inspect 'tool' messages become Claude 'user' messages)
@@ -2393,12 +2355,10 @@ class AnthropicAPI(ModelAPI):
         message_params = [
             (
                 await message_param(
-                    message,
-                    computer_toolset_call_ids=computer_toolset_call_ids,
-                    last=index == len(messages) - 1,
+                    message, computer_toolset_call_ids=computer_toolset_call_ids
                 )
             )
-            for index, message in enumerate(messages)
+            for message in messages
         ]
 
         # collapse user messages (as Inspect 'tool' messages become Claude 'user' messages)
@@ -3537,17 +3497,13 @@ def system_content_blocks(
 
 
 async def message_param(
-    message: ChatMessage,
-    *,
-    computer_toolset_call_ids: Collection[str] = frozenset(),
-    last: bool = True,
+    message: ChatMessage, *, computer_toolset_call_ids: Collection[str] = frozenset()
 ) -> MessageParam:
     """Convert a chat message to an Anthropic message param.
 
     `computer_toolset_call_ids` holds the tool call ids that replay as computer
     toolset members (their `tool_use` and `tool_result` blocks carry
     `toolset_name`); it is empty whenever the toolset is not declared.
-    `last` is False when other messages follow this one in the request.
     """
     # if content is empty that is going to result in an error when we replay
     # this message to claude, so in that case insert a NO_CONTENT message
@@ -3612,7 +3568,7 @@ async def message_param(
     # tool_calls means claude is attempting to call our tools
     elif message.role == "assistant":
         block_params = await assistant_message_block_params(
-            message, computer_toolset_call_ids=computer_toolset_call_ids, last=last
+            message, computer_toolset_call_ids=computer_toolset_call_ids
         )
 
         return MessageParam(
@@ -3825,7 +3781,6 @@ async def assistant_message_block_params(
     message: ChatMessageAssistant,
     *,
     computer_toolset_call_ids: Collection[str] = frozenset(),
-    last: bool = True,
 ) -> list[MessageBlockParam]:
     block_params: list[MessageBlockParam] = []
 
@@ -3843,17 +3798,12 @@ async def assistant_message_block_params(
         # links, nesting) so they are replayed verbatim as a unit, while the
         # editable content (text, reasoning, client tool calls) is still
         # rendered from the content list so that scaffold edits surface.
-        record = _message_server_tool_spans(message)
+        record = (
+            assistant_internal().server_tool_spans.get(message.id)
+            if message.id is not None
+            else None
+        )
         emitted: set[int] = set()
-        # a paused turn's unfinished work is resumed only when the turn is
-        # last. otherwise its span is dropped whole (an unfinished outer use
-        # and the inner blocks that depend on it), unless this message also
-        # holds the results that finish it (a resumed turn combined with it)
-        content_ids = {c.id for c in message.content if isinstance(c, ContentToolUse)}
-
-        def abandoned(span: _ServerToolSpan) -> bool:
-            return span.paused and not last and not span.open_use_ids <= content_ids
-
         for content in message.content:
             segment: list[MessageBlockParam] = []
             span = _server_tool_span_for_content(content, record)
@@ -3862,16 +3812,6 @@ async def assistant_message_block_params(
                 # content item (subsequent items of the same span emit nothing)
                 if id(span) not in emitted:
                     emitted.add(id(span))
-                    if abandoned(span):
-                        segments.append(segment)
-                        continue
-                    # a result whose use block ended an earlier turn that this
-                    # message also holds (a resumed turn combined with the
-                    # paused one) needs that use block first
-                    use_span = _earlier_turn_use_span(content, span, record)
-                    if use_span is not None and id(use_span) not in emitted:
-                        emitted.add(id(use_span))
-                        segment.extend(_span_block_params(use_span, message))
                     segment.extend(_span_block_params(span, message))
             else:
                 segment.extend(await message_block_params(content))
@@ -3888,8 +3828,6 @@ async def assistant_message_block_params(
         for span in record or []:
             if not span.content_ids and id(span) not in emitted:
                 emitted.add(id(span))
-                if abandoned(span):
-                    continue
                 pending_span_params.extend(_span_block_params(span, message))
 
     # splice client tool_use blocks back at their recorded interleaved
@@ -4004,13 +3942,6 @@ class _ServerToolSpan:
     obligates the follow-up request to name the container (see
     `_pending_container_for_input`). Ids stay set even after a later turn's
     result arrives (see `add_prior_turn_result`)."""
-
-    paused: bool = False
-    """Left pending by a turn paused at `MAX_PAUSE_TURN_CONTINUATIONS`.
-
-    Only a request that resumes that turn (the paused message last) can
-    complete the work. A request where other messages follow it sends
-    neither the pending use block nor the container."""
 
 
 class _ServerToolSpanRecorder:
@@ -4139,10 +4070,12 @@ class _AssistantInternal:
     Replayed as the `container` request param when a turn left code
     execution pending (see `_pending_container_for_input`).
 
-    A pending span has produced no content, so no bridge-surviving key
-    exists to index by: the agent bridge instead copies a resent turn's
-    pending spans and container to its new message id (see
-    `resume_pending_server_tool_work`)."""
+    Unlike `server_tool_span_index`, there is no fallback for message ids
+    rewritten by the agent bridge: a pending span has produced no content,
+    so no bridge-surviving key exists to index by. Pending-work resumption
+    therefore does not survive a bridge id rewrite (the bridge does not
+    carry server tool state in general -- its anthropic impl handles
+    neither `server_tool_use` blocks nor the `container` param)."""
 
 
 def assistant_internal() -> _AssistantInternal:
@@ -4187,7 +4120,6 @@ def init_sample_anthropic_assistant_internal(value: JsonValue | None = None) -> 
             blocks=cast("list[_ServerToolSpanBlockParam]", span["blocks"]),
             content_ids=cast("list[str]", span["content_ids"]),
             open_use_ids=set(cast("list[str]", span["open_use_ids"])),
-            paused=bool(span.get("paused", False)),
         )
         for span in cast("list[dict[str, Any]]", value.get("spans", []))
     ]
@@ -4256,7 +4188,6 @@ def dump_anthropic_assistant_internal() -> JsonValue | None:
                     "blocks": span.blocks,
                     "content_ids": span.content_ids,
                     "open_use_ids": sorted(span.open_use_ids),
-                    "paused": span.paused,
                 }
                 for span in span_table
             ],
@@ -4328,49 +4259,6 @@ def merge_server_tool_spans(head_id: str | None, tail_id: str | None) -> None:
         internal.containers.setdefault(tail_id, head_container)
 
 
-def resume_pending_server_tool_work(
-    message_id: str | None, blocks: Iterable[Any]
-) -> None:
-    """Record a resent turn's unfinished server tool calls under its new message id.
-
-    A turn can end with a server tool call still running (a turn paused at
-    `MAX_PAUSE_TURN_CONTINUATIONS`, or a client tool call that cut it short).
-    The call has no content item, so its span and container are found only
-    under the id of the message that recorded them. The agent bridge parses
-    the turn its client sends back into a message with a new id; this records
-    those spans under that id, so replay sends the use block (before the
-    call's result, when the client sends the result in the same turn). The
-    container is recorded too when a call is still pending, so the request
-    names it.
-
-    Args:
-       message_id: Id of the message parsed from `blocks`.
-       blocks: The assistant turn's content blocks (dicts or SDK blocks).
-    """
-    block_dicts = [
-        cast("dict[str, Any]", b if isinstance(b, dict) else b.model_dump())
-        for b in blocks
-    ]
-    use_ids = {b.get("id") for b in block_dicts if b.get("type") == "server_tool_use"}
-    pending_ids = use_ids - {b.get("tool_use_id") for b in block_dicts}
-    internal = assistant_internal()
-    if message_id is None or not use_ids or message_id in internal.server_tool_spans:
-        return
-    resumed: list[_ServerToolSpan] = []
-    for source_id, spans in list(internal.server_tool_spans.items()):
-        unfinished = [span for span in spans if span.open_use_ids & use_ids]
-        resumed.extend(
-            span for span in unfinished if all(span is not r for r in resumed)
-        )
-        container = internal.containers.get(source_id)
-        if container is not None and any(
-            span.open_use_ids & pending_ids for span in unfinished
-        ):
-            internal.containers[message_id] = container
-    if resumed:
-        internal.server_tool_spans[message_id] = resumed
-
-
 def _prior_turn_server_tool_use(tool_use_id: str) -> BetaServerToolUseBlock | None:
     """Server tool use block recorded in a prior turn's span (if any).
 
@@ -4410,70 +4298,20 @@ def _pending_container_for_input(input: list[ChatMessage]) -> str | None:
     is not replayed, since unconditionally reusing containers across turns
     would change behavior (state carry-over) and risk naming an expired
     container.
-
-    When the last assistant message combines several (a paused turn and the
-    turns that resumed it), only the latest of them can have work pending.
     """
     last_assistant = next(
         (m for m in reversed(input) if isinstance(m, ChatMessageAssistant)), None
     )
-    if last_assistant is None:
-        return None
-    message_ids = (last_assistant.metadata or {}).get("combined_from") or [
-        last_assistant.id
-    ]
-    latest_id = message_ids[-1]
-    if latest_id is None:
+    if last_assistant is None or last_assistant.id is None:
         return None
     internal = assistant_internal()
-    container = internal.containers.get(latest_id)
+    container = internal.containers.get(last_assistant.id)
     if container is None:
         return None
-    spans = internal.server_tool_spans.get(latest_id, [])
-    if last_assistant is not input[-1]:
-        # a paused turn followed by other messages is not resumed
-        spans = [span for span in spans if not span.paused]
+    spans = internal.server_tool_spans.get(last_assistant.id, [])
     if any(span.open_use_ids for span in spans):
         return container
     return None
-
-
-def _message_server_tool_spans(
-    message: ChatMessageAssistant,
-) -> list[_ServerToolSpan] | None:
-    """Server tool spans recorded for a message, or for the messages it combines.
-
-    Consecutive assistant messages are combined before a request (e.g. a
-    paused turn and the turn that resumed it), and the combined message has
-    a new id; `metadata["combined_from"]` names the messages it holds.
-    """
-    message_ids = (message.metadata or {}).get("combined_from") or [message.id]
-    internal = assistant_internal()
-    spans: list[_ServerToolSpan] = []
-    for message_id in message_ids:
-        for span in internal.server_tool_spans.get(message_id, []):
-            if all(span is not other for other in spans):
-                spans.append(span)
-    return spans or None
-
-
-def _earlier_turn_use_span(
-    content: Content, span: _ServerToolSpan, record: list[_ServerToolSpan] | None
-) -> _ServerToolSpan | None:
-    """The span in `record` holding the use block of a result recorded without it.
-
-    A result that arrives in a later turn than its use block is recorded
-    alone (see `_ServerToolSpanRecorder.add_prior_turn_result`).
-    """
-    if not isinstance(content, ContentToolUse) or any(
-        cast("dict[str, Any]", block).get("type") == "server_tool_use"
-        and cast("dict[str, Any]", block).get("id") == content.id
-        for block in span.blocks
-    ):
-        return None
-    return next(
-        (other for other in record or [] if content.id in other.open_use_ids), None
-    )
 
 
 def _server_tool_span_for_content(

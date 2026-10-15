@@ -146,7 +146,6 @@ def test_anthropic_round_trip() -> None:
         ],
         content_ids=["stu_1"],
         open_use_ids={"stu_1"},
-        paused=True,
     )
     index_only = _ServerToolSpan(content_ids=["stu_2"])
     internal.server_tool_spans["msg_1"] = [shared]
