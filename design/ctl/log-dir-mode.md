@@ -570,7 +570,8 @@ one attempt.
   one is listed in the task row's `unreadable`). It does not get a row of
   its own.
 - The shard set is one attempt of the logical task identified by the
-  merged log's `eval.task_id` when the merged log exists, and otherwise by
+  merged log's `eval.task_id` when the merged log exists and records one,
+  and otherwise by
   `merged_log_task_id(X, task=, model=)` with the `task` and `model` of
   the first shard in shard order, the first `<k>/` with an attempt and so
   the merge's template shard (`src/inspect_ai/_util/log_layout.py`,

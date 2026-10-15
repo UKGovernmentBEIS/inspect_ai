@@ -670,16 +670,22 @@ def identity_row(task: LogicalTask) -> dict[str, Any]:
     table read, without the summaries a full row needs. For a shard set,
     ``task``, ``model``, ``solver`` and ``epochs`` come from its first
     readable shard, and ``run_id`` and ``eval_id`` from the merged log (null
-    without one).
+    without one). Its ``task_id`` is the merged log's, or the set's key when
+    the merged log has none.
     """
     attempt = task.current
     run = attempt.run.header.eval if attempt.run is not None else None
     spec = attempt.identity.header.eval if attempt.identity is not None else None
+    task_id = (
+        run.task_id
+        if run is not None and (run.task_id or attempt.shard_set is None)
+        else task.key
+    )
     return {
         "run_id": run.run_id if run else None,
         "eval_id": run.eval_id if run else None,
         "task": spec.task if spec else _file_identity(attempt.location)[0],
-        "task_id": run.task_id if run else task.key,
+        "task_id": task_id,
         "model": spec.model if spec else None,
         "solver": (spec.solver or "") if spec else "",
         "log_location": local_path(attempt.location),

@@ -98,7 +98,7 @@ class _SampleRows(NamedTuple):
     envelope keys only ``--log-dir`` reads add (``conflicted``,
     ``incomplete``, ``unreadable``). ``row_counts``, when set, is the status
     histogram of every row the uncapped listing returns, for the truncation
-    footer: under ``--log-dir`` a conflicted key has a row per shard holding
+    footer and the empty ``--status`` message: under ``--log-dir`` a conflicted key has a row per shard holding
     it and no place in ``counts``.
     """
 
@@ -528,7 +528,8 @@ def _run_sample_listing(
     if not listing.read:
         empty = "(samples unavailable)"
     elif statuses is not None:
-        empty = f"(no matching samples: 0 of {sum(listing.counts.values())})"
+        counts = listing.counts if listing.row_counts is None else listing.row_counts
+        empty = f"(no matching samples: 0 of {sum(counts.values())})"
     elif active_since is not None:
         empty = "(no samples active since the given timestamp)"
     else:

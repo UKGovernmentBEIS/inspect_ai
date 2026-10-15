@@ -2158,7 +2158,7 @@ async def _merged(
 ) -> Path:
     """The merged log beside the companion (``suffix`` ``-recovered`` for a recovered one)."""
     log = source.model_copy(deep=True)
-    task_id = task_id or name.rsplit("_", 1)[-1]
+    task_id = name.rsplit("_", 1)[-1] if task_id is None else task_id
     log.eval = log.eval.model_copy(
         update={"task_id": task_id, "eval_id": "MERGEDEVAL000000000000", "run_id": "R"}
     )
@@ -2317,6 +2317,20 @@ async def test_a_shard_set_is_keyed_by_its_merged_logs_task_id(
     assert row["current_attempt"] == "log" and row["attempts"] == 2
     assert row["log_location"] == str(retry_log)
     assert row["log_target"] == f"shards:{companion.name}"
+
+
+def test_a_merged_log_with_no_task_id_keeps_the_sets_key(
+    tmp_path: Path, finished_log: EvalLog, no_discovery: None
+) -> None:
+    anyio.run(functools.partial(_shard_set, tmp_path, finished_log, {"0": [1]}))
+    anyio.run(functools.partial(_merged, tmp_path, finished_log, task_id=""))
+    payload = _json(_ctl(tmp_path, "task", "list", "--json"))
+    [row] = payload["tasks"]
+    assert row["task_id"] == _SET_ID and row["current_attempt"] == "shards"
+    assert row["eval_id"] == "MERGEDEVAL000000000000"
+    for args in (["sample", "list"], ["sample", "show"]):
+        result = _ctl(tmp_path, *args, _SET_ID, *(["1"] if "show" in args else []))
+        assert result.exit_code == 0, (args, result.output)
 
 
 async def test_an_unreadable_recovered_merged_log_falls_back_to_the_original(
@@ -2483,6 +2497,10 @@ def test_cli_capped_sample_list_counts_conflict_rows(
     )
     assert human.exit_code == 0, human.output
     assert "showing 1 of 2 matching samples (2 total: 2 completed)" in human.stdout
+    for selector in ([_SET_ID], []):
+        human = _ctl(tmp_path, "sample", "list", *selector, "--status", "running")
+        assert human.exit_code == 0, human.output
+        assert "(no matching samples: 0 of 2)" in human.stdout
     # the JSON counts still leave the conflict out
     payload = _json(_ctl(tmp_path, "sample", "list", _SET_ID, "--limit", "1", "--json"))
     assert payload["counts"]["completed"] == 0 and payload["conflicted"] == 1
