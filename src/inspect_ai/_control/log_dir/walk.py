@@ -75,9 +75,9 @@ class ShardSetFiles(NamedTuple):
     """The current (newest) attempt of each shard directory, in shard order.
     Older attempts are superseded and not read."""
 
-    merged: LogFile | None
-    """The newest merged log beside the companion (``<name>.eval`` or
-    ``<name>-recovered.eval``)."""
+    merged: list[LogFile]
+    """The merged logs beside the companion (``<name>.eval`` and
+    ``<name>-recovered.eval``), newest first."""
 
     stray: list[StrayFile]
     """Logs in the companion that are not shard attempts."""
@@ -170,7 +170,7 @@ async def walk_log_dir(
                     location=companion,
                     path=_relative(root, companion),
                     members=members,
-                    merged=max(merged, key=attempt_order, default=None),
+                    merged=sorted(merged, key=attempt_order, reverse=True),
                     stray=listing.stray,
                 )
             )

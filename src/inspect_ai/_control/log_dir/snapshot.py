@@ -349,28 +349,34 @@ async def _add_shard_sets(
     """Add each shard set to its task as the oldest attempt.
 
     A shard set's task id is its merged log's ``task_id``, so every merged
-    log is read first; without a readable merged log it is the id parsed
-    from ``<name>`` (:func:`_set_key`). A task id has at most one shard
+    log is read first: the newest, then the next when it cannot be read,
+    with each unreadable one listed in the task's ``stray``. Without a
+    readable merged log it is the id parsed from ``<name>``
+    (:func:`_set_key`). A task id has at most one shard
     set, the first by path; a second is listed in the task's ``stray``.
     A shard set's members are read only when it is current: an unsharded
     attempt with its task id is current over it whatever the order.
     """
-    merged_files = [s.merged for s in shard_sets if s.merged is not None]
+
+    async def read_merged(shard_set: ShardSetFiles) -> _MergedRead:
+        unreadable: list[Unreadable] = []
+        for file in shard_set.merged:
+            result = await plan_or_failure(file)
+            if isinstance(result, LogPlan):
+                return _MergedRead(result, unreadable)
+            unreadable.append(result)
+        return _MergedRead(None, unreadable)
+
     merged = dict(
         zip(
-            (f.location for f in merged_files),
-            await tg_collect(
-                [functools.partial(plan_or_failure, f) for f in merged_files]
-            ),
+            (s.location for s in shard_sets),
+            await tg_collect([functools.partial(read_merged, s) for s in shard_sets]),
         )
     )
 
-    def run_of(shard_set: ShardSetFiles) -> LogPlan | Unreadable | None:
-        return merged[shard_set.merged.location] if shard_set.merged else None
-
     def key_of(shard_set: ShardSetFiles) -> str:
-        run = run_of(shard_set)
-        if isinstance(run, LogPlan) and run.header.eval.task_id:
+        run = merged[shard_set.location].run
+        if run is not None and run.header.eval.task_id:
             return run.header.eval.task_id
         return _set_key(shard_set.location)
 
@@ -395,10 +401,8 @@ async def _add_shard_sets(
             )
             task.stray.append(_stray(StrayFile(shard_set.location, reason)))
             continue
-        run = run_of(shard_set)
-        if isinstance(run, Unreadable):
-            task.stray.append(run)
-            run = None
+        run, unreadable = merged[shard_set.location]
+        task.stray.extend(unreadable)
         task.stray.extend(_stray(s) for s in shard_set.stray)
         if key not in current:
             task.attempts.insert(0, Attempt([], shard_set.location, None, shard_set))
@@ -406,13 +410,23 @@ async def _add_shard_sets(
         task.attempts.append(
             Attempt(
                 members=[_member(f, results[f.location]) for f in shard_set.members],
-                location=shard_set.merged.location
-                if shard_set.merged
-                else shard_set.location,
+                location=run.file.location
+                if run
+                else next((f.location for f in shard_set.merged), shard_set.location),
                 run=run,
                 shard_set=shard_set,
             )
         )
+
+
+class _MergedRead(NamedTuple):
+    """The merged log read for a shard set's task id."""
+
+    run: LogPlan | None
+    """The newest merged log that can be read."""
+
+    unreadable: list[Unreadable]
+    """The newer merged logs that cannot be read."""
 
 
 def _log_attempt(plan: LogPlan) -> Attempt:

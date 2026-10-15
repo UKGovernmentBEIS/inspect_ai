@@ -2319,6 +2319,24 @@ async def test_a_shard_set_is_keyed_by_its_merged_logs_task_id(
     assert row["log_target"] == f"shards:{companion.name}"
 
 
+async def test_an_unreadable_recovered_merged_log_falls_back_to_the_original(
+    tmp_path: Path, finished_log: EvalLog
+) -> None:
+    # a file name pattern without {id}: only a readable merged log gives the id
+    name = "2026-02-01T00-00-00+00-00_alpha"
+    minted = "MINTEDTASKID0000000000"
+    await _shard_set(tmp_path, finished_log, {"0": [1]}, name=name)
+    merged = await _merged(tmp_path, finished_log, name=name, task_id=minted)
+    recovered = tmp_path / f"{name}-recovered.eval"
+    recovered.write_bytes(b"not a zip")
+    _, [row] = await _index(tmp_path)
+    assert row["task_id"] == minted and row["current_attempt"] == "shards"
+    assert row["eval_id"] == "MERGEDEVAL000000000000"
+    assert row["log_location"] == str(merged)
+    assert row["incomplete"] is True
+    assert [u["log_location"] for u in row["unreadable"]] == [str(recovered)]
+
+
 async def test_an_unreadable_merged_log_of_a_superseded_shard_set_is_reported(
     tmp_path: Path, finished_log: EvalLog
 ) -> None:
@@ -2359,6 +2377,7 @@ async def test_the_walk_agrees_with_eval_set_on_shard_paths(
 ) -> None:
     companion = await _shard_set(tmp_path, finished_log, {"0": [1], "1": [2]})
     await _merged(tmp_path, finished_log)
+    await _merged(tmp_path, finished_log, suffix="-recovered")
     log_name = Path(finished_log.location).name
     for directory in ("0/scans", ".hidden", ".hidden/sub"):
         (companion / directory).mkdir(parents=True, exist_ok=True)
@@ -2376,7 +2395,7 @@ async def test_the_walk_agrees_with_eval_set_on_shard_paths(
     }
     ordinary = {
         *(f.location for f in listing.eval_files),
-        *(s.merged.location for s in listing.shard_sets if s.merged),
+        *(f.location for s in listing.shard_sets for f in s.merged),
     }
     logs = {local_path(i.name) for i in list_eval_logs(str(base), formats=["eval"])}
     assert shard_files | ordinary == logs and not shard_files & ordinary
@@ -2701,9 +2720,12 @@ def test_cli_task_list_shards_lists_each_shard_as_a_task(
     assert human.exit_code == 0, human.output
     assert "shards" in human.stdout
     assert "sharded; the sample totals cover the shards found" in human.stdout
+    assert "1 sample errored — see `inspect ctl sample errors" in human.stdout
     human = _ctl(tmp_path, "task", "list", "--shards")
     assert human.exit_code == 0, human.output
     assert "sharded" not in human.stdout
+    # the merged log's row repeats its shards' samples, so no summed footer
+    assert "errored — see" not in human.stdout
 
 
 def test_cli_shards_is_a_no_op_in_live_mode(monkeypatch: pytest.MonkeyPatch) -> None:

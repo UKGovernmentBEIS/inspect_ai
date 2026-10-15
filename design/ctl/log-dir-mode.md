@@ -347,7 +347,9 @@ inspect ctl sample events TASK SAMPLE_ID [EPOCH] --log-dir <dir> [...]
   ordinary row, stray logs are ordinary logs, and there is no logical row.
   It lists what `--log-dir` pointed at each companion would, for every
   shard set under the root in one command. Without it, sharded runs show
-  one row. The flag is mirrored onto the bare `task` noun by the existing
+  one row. Human output leaves out the errored-samples footer under
+  `--shards`: the merged log's row holds its shards' samples, so a sum over
+  the rows would count them twice. The flag is mirrored onto the bare `task` noun by the existing
   `_mirror_list_options` (`_group.py:192`). In live mode `--shards` is
   accepted and a no-op (decision: Ransom, 2026-10-13; it replaced shard
   rows listed after the logical row).
@@ -564,7 +566,9 @@ one attempt.
   are superseded and not read, matching the parent's newest-wins rule.
 - Its merged log is the `.eval` in the companion's parent directory whose
   `log_basename` is `X`: `X.eval` or `X-recovered.eval`, the newest when
-  both exist. It does not get a row of its own.
+  both exist, or the other when the newest cannot be read (the unreadable
+  one is listed in the task row's `unreadable`). It does not get a row of
+  its own.
 - The shard set is one attempt of the logical task identified by the
   merged log's `eval.task_id` when the merged log exists, and otherwise by
   `merged_log_task_id(X, task=, model=)` with the `task` and `model` of
@@ -585,7 +589,8 @@ one attempt.
   including one an unsharded retry supersedes, which is otherwise not
   read. Its shards are read only when the set is current. A merged log
   that cannot be read is listed in the task row's `unreadable`, and the
-  set takes the id parsed from `X`.
+  set takes the id of its other merged log, or the id parsed from `X`
+  when none can be read.
 - A task id has at most one shard set: the first companion by path. A
   second companion with the same task id is not read beyond its merged
   log; the companion is listed in the task row's `unreadable`, so the row
