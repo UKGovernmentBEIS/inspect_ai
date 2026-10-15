@@ -46,7 +46,8 @@ change the call or its view in place; they change a call with a `modify`
 decision. An in-place edit is refused: after the approval chain or the
 before-tool sentinel, a call whose id, function, arguments or view differ
 from what was shown is an approval error and does not run. For a bridged agent
-the response is rejected and the model generates again; since every approver
+the response is rejected, replayed to the model with its calls as proposed and
+the approval error, and the model generates again; since every approver
 sees the whole response in its history, all of its calls (and dispatcher
 calls' envelopes) are checked again before it is handed over, and so is the
 list of calls itself (no call added, removed, replaced or reordered). After the tool runs, a

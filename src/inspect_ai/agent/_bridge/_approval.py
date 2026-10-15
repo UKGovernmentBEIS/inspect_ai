@@ -22,6 +22,7 @@ dispatcher call the scaffold receives.
 
 import sys
 from contextlib import AbstractContextManager, nullcontext
+from dataclasses import replace
 from logging import getLogger
 from typing import TYPE_CHECKING, Any, NamedTuple, NoReturn
 
@@ -152,7 +153,7 @@ async def apply_bridge_tool_approval(
         message = output.message.text
         modified: dict[str, dict[str, Any]] = {}
         shown = [ShownCall.of(call) for call in tool_calls]
-        for call in tool_calls:
+        for index, call in enumerate(tool_calls):
             dispatched = bridge.dispatched_call(call)
             reviewed = dispatched.target if dispatched else call
             # no viewer: bridged tools reach us as ToolInfo from the scaffold's
@@ -166,7 +167,8 @@ async def apply_bridge_tool_approval(
                 # an approver changed the call in place: like the native path,
                 # the model is told and the response is not handed over
                 return BridgeApproval(
-                    output, rejection_messages(output, call, ex.message)
+                    output,
+                    refused_in_place(output, tool_calls, shown, index, ex.message),
                 )
             if not approved:
                 explanation = (approval.explanation if approval else None) or (
@@ -199,7 +201,8 @@ async def apply_bridge_tool_approval(
         changed = changed_in_place(tool_calls, shown, output.message.tool_calls)
         if changed is not None:
             return BridgeApproval(
-                output, rejection_messages(output, changed, CHANGED_IN_PLACE)
+                output,
+                refused_in_place(output, tool_calls, shown, changed, CHANGED_IN_PLACE),
             )
 
     # modifications are adopted only now that the whole response is approved: a later
@@ -213,8 +216,8 @@ async def apply_bridge_tool_approval(
 
 def changed_in_place(
     calls: list[ToolCall], shown: list[ShownCall], current: list[ToolCall] | None
-) -> ToolCall | None:
-    """The first call of a response that was changed in place, if any.
+) -> int | None:
+    """The index of the first call of a response that was changed in place, if any.
 
     Args:
         calls: The response's tool calls when approval started (a list of
@@ -225,8 +228,33 @@ def changed_in_place(
     """
     current = current or []
     if len(current) != len(calls) or any(a is not b for a, b in zip(current, calls)):
-        return calls[0]
-    return next((call for call, s in zip(calls, shown) if s.changed(call)), None)
+        return 0
+    return next(
+        (index for index, (call, s) in enumerate(zip(calls, shown)) if s.changed(call)),
+        None,
+    )
+
+
+def refused_in_place(
+    output: ModelOutput,
+    calls: list[ToolCall],
+    shown: list[ShownCall],
+    index: int,
+    explanation: str,
+) -> list[ChatMessage]:
+    """The retry input for a response refused because it was changed in place.
+
+    It replays the calls as the model proposed them (from `shown`), since the
+    response itself may no longer hold them, and blames the call at `index`.
+    """
+    proposed = [
+        replace(call, id=s.id, function=s.function, arguments=s.arguments)
+        for call, s in zip(calls, shown)
+    ]
+    message = output.message.model_copy(update={"tool_calls": proposed})
+    choice = output.choices[0].model_copy(update={"message": message})
+    as_proposed = output.model_copy(update={"choices": [choice, *output.choices[1:]]})
+    return rejection_messages(as_proposed, proposed[index], explanation)
 
 
 def with_modified_arguments(

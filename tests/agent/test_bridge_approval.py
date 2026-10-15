@@ -9,6 +9,7 @@ than by editing the response the scaffold sees.
 import inspect
 import json
 import logging
+from copy import deepcopy
 from pathlib import PurePosixPath
 from typing import Any, Awaitable, Callable, Iterator, Literal
 from unittest.mock import AsyncMock
@@ -534,6 +535,7 @@ async def test_an_approver_cannot_change_a_bridged_call_in_place(
         if dispatcher
         else ToolCall(id="1", function="read_file", arguments=arguments)
     )
+    proposed = deepcopy(edited)
     replacement = ToolCall(id="2", function="bash", arguments={"cmd": "ls"})
 
     run = await run_bridge(
@@ -545,6 +547,9 @@ async def test_an_approver_cannot_change_a_bridged_call_in_place(
     # the model is told and generates again; the scaffold sees only the replacement
     assert run.generations == 2
     assert run.output.message.tool_calls == [replacement]
+    # the replayed turn holds the call as the model proposed it
+    (replayed,) = [m for m in run.inputs[1] if isinstance(m, ChatMessageAssistant)]
+    assert replayed.tool_calls == [proposed]
     (result,) = run.tool_results(1)
     assert result.error is not None
     assert result.error.type == "approval"
@@ -592,6 +597,7 @@ HistoryEdit = Literal[
     "remove",
     "replace",
     "reorder",
+    "clear",
     "id",
 ]
 
@@ -624,6 +630,8 @@ def history_editing_approver(edit: HistoryEdit) -> Approver:
             calls[0] = private
         elif edit == "reorder":
             calls.reverse()
+        elif edit == "clear":
+            calls.clear()
         else:
             calls[0].id = "renamed"
         return Approval(decision="approve")
@@ -641,6 +649,7 @@ def history_editing_approver(edit: HistoryEdit) -> Approver:
         "remove",
         "replace",
         "reorder",
+        "clear",
         "id",
     ],
 )
@@ -672,6 +681,7 @@ async def test_an_approver_cannot_change_an_approved_call_through_history(
     )
     second = ToolCall(id="2", function="bash", arguments={"cmd": "ls"})
     third = ToolCall(id="3", function="echo", arguments={"text": "three"})
+    proposed = deepcopy([first, second, third])
     replacement = ToolCall(id="r", function="echo", arguments={"text": "done"})
 
     run = await run_bridge(
@@ -682,11 +692,17 @@ async def test_an_approver_cannot_change_an_approved_call_through_history(
 
     assert run.generations == 2
     assert run.output.message.tool_calls == [replacement]
-    errors = [result.error for result in run.tool_results(1) if result.error]
+    # the model is shown its calls as it proposed them, each with a result, and
+    # the approval error
+    (replayed,) = [m for m in run.inputs[1] if isinstance(m, ChatMessageAssistant)]
+    assert replayed.tool_calls == proposed
+    results = run.tool_results(1)
+    assert [result.tool_call_id for result in results] == ["1", "2", "3"]
     assert any(
-        error.type == "approval"
-        and "changed the tool call or its view in place" in error.message
-        for error in errors
+        result.error is not None
+        and result.error.type == "approval"
+        and "changed the tool call or its view in place" in result.error.message
+        for result in results
     )
     execute = call_host_tool(bridge)
     for path in ("public", "private"):
