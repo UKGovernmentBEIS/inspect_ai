@@ -125,6 +125,11 @@ _CHANGED_IN_PLACE = (
     "ToolCall."
 )
 
+_CHANGED_AFTER_CALL = (
+    "A sentinel monitor or protocol changed the tool call or its view in place "
+    "after it ran. Monitors must not change the call."
+)
+
 
 def apply_sentinel_decision(decision: Decision | None, call: ToolCall) -> ToolCall:
     if decision is None:
@@ -156,19 +161,22 @@ async def sentinel_after_tool_call(
     if not _watches(AfterToolCall):
         return
     producer = _producing_event(call, history)
+    view = resolve_tool_call_view(call, viewer)
     step = AfterToolCall(
         conversation=_conversation(),
         message=message,
         call=call,
         result=result,
         output=output,
-        view=resolve_tool_call_view(call, viewer),
+        view=view,
         input=list(producer.input) if producer is not None else None,
         history=history,
         tools=list(producer.tools) if producer is not None else None,
         truncated=Truncation(*truncated) if truncated is not None else False,
     )
-    decision = await _run(step)
+    # the call has already run, so an edit in place fails the sample
+    with unchanged_in_place(call, view, RuntimeError(_CHANGED_AFTER_CALL)):
+        decision = await _run(step)
     if decision is not None and decision.action == "terminate":
         raise TerminateSampleError(
             decision.explanation or "Sentinel requested termination."

@@ -68,11 +68,7 @@ from inspect_ai.tool._tool import (
     ToolSource,
     tool_result_content,
 )
-from inspect_ai.tool._tool_call import (
-    ToolCallContent,
-    ToolCallError,
-    unchanged_in_place,
-)
+from inspect_ai.tool._tool_call import ToolCallContent, ToolCallError
 from inspect_ai.tool._tool_def import ToolDef, tool_def_fields, tool_defs
 from inspect_ai.tool._tool_info import parse_docstring
 from inspect_ai.tool._tool_params import ToolParams
@@ -1018,42 +1014,35 @@ async def _apply_tool_review(
 
     Raises:
         TerminateSampleError: A reviewer or the sentinel requested termination.
-        RuntimeError: A reviewer or the sentinel changed the call (whose
-            arguments the ToolEvent records) in place.
+        RuntimeError: A reviewer or the sentinel changed the call or its view
+            in place.
     """
     from inspect_ai.review._apply import apply_tool_review
 
     tool_def = next((tool for tool in tools if tool.name == call.function), None)
-    with unchanged_in_place(call, None, RuntimeError(_REVIEW_CHANGED_IN_PLACE)):
-        review = await apply_tool_review(
+    review = await apply_tool_review(
+        message,
+        call,
+        result,
+        output,
+        tool_def.viewer if tool_def else None,
+        conversation,
+    )
+    if review is not None and review.decision == "terminate":
+        raise TerminateSampleError("Tool result reviewer requested termination.")
+
+    if checks_tool_calls():
+        from inspect_ai._sentinel._dispatch import sentinel_after_tool_call
+
+        await sentinel_after_tool_call(
             message,
             call,
             result,
             output,
+            truncated,
             tool_def.viewer if tool_def else None,
             conversation,
         )
-        if review is not None and review.decision == "terminate":
-            raise TerminateSampleError("Tool result reviewer requested termination.")
-
-        if checks_tool_calls():
-            from inspect_ai._sentinel._dispatch import sentinel_after_tool_call
-
-            await sentinel_after_tool_call(
-                message,
-                call,
-                result,
-                output,
-                truncated,
-                tool_def.viewer if tool_def else None,
-                conversation,
-            )
-
-
-_REVIEW_CHANGED_IN_PLACE = (
-    "A tool result reviewer or sentinel monitor changed the tool call in place "
-    "after it ran. Reviewers and monitors must not change the call."
-)
 
 
 async def agent_handoff(

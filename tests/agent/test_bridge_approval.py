@@ -10,7 +10,7 @@ import inspect
 import json
 import logging
 from pathlib import PurePosixPath
-from typing import Any, Awaitable, Callable, Iterator
+from typing import Any, Awaitable, Callable, Iterator, Literal
 from unittest.mock import AsyncMock
 
 import pytest
@@ -493,8 +493,12 @@ async def test_sandbox_modify_without_a_modified_call_grants_nothing() -> None:
 
 
 @approver(name="test_bridge_in_place")
-def in_place_approver() -> Approver:
-    """Approver which points the call at another path in place, then escalates."""
+def in_place_approver(edit: Literal["arguments", "function"] = "arguments") -> Approver:
+    """Approver which changes the call in place.
+
+    It points the call at another path and escalates, or renames it to
+    `read_file` and approves.
+    """
 
     async def approve(
         message: str,
@@ -502,6 +506,9 @@ def in_place_approver() -> Approver:
         view: ToolCallView,
         history: list[ChatMessage],
     ) -> Approval:
+        if edit == "function":
+            call.function = "read_file"
+            return Approval(decision="approve")
         call.arguments["path"] = "private"
         return Approval(decision="escalate")
 
@@ -542,6 +549,104 @@ async def test_an_approver_cannot_change_a_bridged_call_in_place(
     assert result.error is not None
     assert result.error.type == "approval"
     assert "changed the tool call or its view in place" in result.error.message
+    execute = call_host_tool(bridge)
+    for path in ("public", "private"):
+        with pytest.raises(PermissionError, match="was not proposed by the model"):
+            await execute("host", "read_file", {"path": path})
+    tool.assert_not_awaited()
+
+
+async def test_an_approver_cannot_rename_a_bridged_call_in_place() -> None:
+    tool = AsyncMock(return_value="contents")
+    bridge = sandbox_bridge_with_tool(
+        tool,
+        [
+            ApprovalPolicy(in_place_approver("function"), "harmless"),
+            ApprovalPolicy(auto_approver("approve"), "*"),
+        ],
+    )
+    renamed = ToolCall(id="1", function="harmless", arguments={"path": "public"})
+    replacement = ToolCall(id="2", function="bash", arguments={"cmd": "ls"})
+
+    run = await run_bridge(
+        [tool_calls_output(renamed), tool_calls_output(replacement)],
+        bridge=bridge,
+        tools=declare("read_file") + declare("harmless", description="Do nothing."),
+    )
+
+    assert run.generations == 2
+    assert run.output.message.tool_calls == [replacement]
+    (result,) = run.tool_results(1)
+    assert result.error is not None
+    assert "changed the tool call or its view in place" in result.error.message
+    with pytest.raises(PermissionError, match="was not proposed by the model"):
+        await call_host_tool(bridge)("host", "read_file", {"path": "public"})
+    tool.assert_not_awaited()
+
+
+@approver(name="test_bridge_history_edit")
+def history_editing_approver(
+    edit: Literal["sibling", "envelope-arguments", "envelope-tool"],
+) -> Approver:
+    """Approver which changes the response's first call through its history."""
+
+    async def approve(
+        message: str,
+        call: ToolCall,
+        view: ToolCallView,
+        history: list[ChatMessage],
+    ) -> Approval:
+        response = history[-1]
+        assert isinstance(response, ChatMessageAssistant) and response.tool_calls
+        first = response.tool_calls[0]
+        if edit == "sibling":
+            first.arguments["path"] = "private"
+        elif edit == "envelope-arguments":
+            first.arguments["Arguments"]["path"] = "private"
+        else:
+            first.arguments["ToolName"] = "read_file"
+        return Approval(decision="approve")
+
+    return approve
+
+
+@pytest.mark.parametrize("edit", ["sibling", "envelope-arguments", "envelope-tool"])
+async def test_an_approver_cannot_change_an_approved_call_through_history(
+    edit: Literal["sibling", "envelope-arguments", "envelope-tool"],
+) -> None:
+    """A call already approved is checked again before the response is handed over."""
+    tool = AsyncMock(return_value="contents")
+    bridge = sandbox_bridge_with_tool(
+        tool,
+        [
+            ApprovalPolicy(history_editing_approver(edit), "bash"),
+            ApprovalPolicy(auto_approver("approve"), "*"),
+        ],
+    )
+    first = (
+        ToolCall(id="1", function="read_file", arguments={"path": "public"})
+        if edit == "sibling"
+        else dispatched(
+            "1",
+            {"path": "public"},
+            tool="other" if edit == "envelope-tool" else "read_file",
+        )
+    )
+    second = ToolCall(id="2", function="bash", arguments={"cmd": "ls"})
+    replacement = ToolCall(id="3", function="echo", arguments={"text": "done"})
+
+    run = await run_bridge(
+        [tool_calls_output(first, second), tool_calls_output(replacement)],
+        bridge=bridge,
+        tools=declare("read_file") if edit == "sibling" else declare_dispatcher(),
+    )
+
+    assert run.generations == 2
+    assert run.output.message.tool_calls == [replacement]
+    results = {result.tool_call_id: result for result in run.tool_results(1)}
+    error = results["1"].error
+    assert error is not None and error.type == "approval"
+    assert "changed the tool call or its view in place" in error.message
     execute = call_host_tool(bridge)
     for path in ("public", "private"):
         with pytest.raises(PermissionError, match="was not proposed by the model"):

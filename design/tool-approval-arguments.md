@@ -44,10 +44,12 @@ that changes its input in place cannot change the call. Viewers are given a
 copy of the call. Approvers, sentinel monitors and result reviewers must not
 change the call or its view in place; they change a call with a `modify`
 decision. An in-place edit is refused: after the approval chain or the
-before-tool sentinel, a call whose arguments or view differ from what was
-shown is an approval error and does not run (for a bridged agent, the
-response is rejected and the model generates again). After the tool runs, a
-reviewer or monitor that changed the call fails the sample.
+before-tool sentinel, a call whose function, arguments or view differ from
+what was shown is an approval error and does not run. For a bridged agent the
+response is rejected and the model generates again; since every approver sees
+the whole response in its history, all of its calls (and dispatcher calls'
+envelopes) are checked again before it is handed over. After the tool runs, a
+reviewer or monitor that changed the call or its view fails the sample.
 
 Parameters the call leaves out are not shown. They get their Python defaults
 when the arguments are rebuilt, as without oversight. Curried handoff

@@ -69,7 +69,9 @@ from inspect_ai.solver import Generate, Solver, TaskState, generate, solver, use
 from inspect_ai.tool import (
     Tool,
     ToolCall,
+    ToolCallContent,
     ToolCallView,
+    ToolDef,
     ToolFunction,
     ToolInfo,
     ToolResult,
@@ -870,23 +872,53 @@ async def test_a_sentinel_sees_and_modifies_the_converted_call(
         assert message.error is not None and message.error.type == error
 
 
+InPlaceEdit = Literal["arguments", "function", "call-content", "context"]
+
+
+def edit_in_place(call: ToolCall, view: ToolCallView, edit: InPlaceEdit) -> None:
+    if edit == "arguments":
+        call.arguments["items"]["a"]["name"] = "z"
+    elif edit == "function":
+        call.function = "other"
+    elif edit == "call-content":
+        assert view.call is not None
+        view.call.content = "list_items(z)"
+    else:
+        assert view.context is not None
+        view.context.content = "changed"
+
+
+def shared_view_items() -> ToolDef:
+    """`list_items` with a viewer that returns the same view every time."""
+    view = ToolCallView(
+        context=ToolCallContent(format="text", content="context"),
+        call=ToolCallContent(format="text", content="list_items(a)"),
+    )
+    return ToolDef(list_items(), viewer=lambda call: view)
+
+
+IN_PLACE_EDITS = ["arguments", "function", "call-content", "context"]
+
+
 @protocol
-def d3_mutate_and_continue() -> Protocol:
+def d3_edit_before(edit: InPlaceEdit) -> Protocol:
     async def mutate(context: Context, step: BeforeToolCall) -> Decision | None:
-        step.call.arguments["items"]["a"]["name"] = "z"
+        edit_in_place(step.call, step.view, edit)
         return None
 
     return mutate
 
 
-async def test_a_sentinel_cannot_change_the_call_in_place() -> None:
+@pytest.mark.parametrize("edit", IN_PLACE_EDITS)
+async def test_a_sentinel_cannot_change_the_call_in_place(edit: InPlaceEdit) -> None:
     init_transcript(Transcript())
     call = ToolCall(
         id="1", function="list_items", arguments={"items": {"a": {"name": "a"}}}
     )
-    with active(d3_mutate_and_continue()):
+    with active(d3_edit_before(edit)):
         result = await execute_tools(
-            [ChatMessageAssistant(content=[], tool_calls=[call])], [list_items()]
+            [ChatMessageAssistant(content=[], tool_calls=[call])],
+            [shared_view_items()],
         )
 
     [message] = result.messages
@@ -897,16 +929,16 @@ async def test_a_sentinel_cannot_change_the_call_in_place() -> None:
 
 
 @protocol
-def d3_mutate_after() -> Protocol:
+def d3_edit_after(edit: InPlaceEdit) -> Protocol:
     async def mutate(context: Context, step: AfterToolCall) -> Decision | None:
-        step.call.arguments["items"]["a"]["name"] = "z"
+        edit_in_place(step.call, step.view, edit)
         return None
 
     return mutate
 
 
 @reviewer
-def d3_mutating_reviewer() -> Reviewer:
+def d3_editing_reviewer(edit: InPlaceEdit) -> Reviewer:
     async def review_(
         message: str,
         call: ToolCall,
@@ -915,30 +947,33 @@ def d3_mutating_reviewer() -> Reviewer:
         view: ToolCallView,
         history: list[ChatMessage],
     ) -> Review:
-        call.arguments["items"]["a"]["name"] = "z"
+        edit_in_place(call, view, edit)
         return Review(decision="continue")
 
     return review_
 
 
+@pytest.mark.parametrize("edit", IN_PLACE_EDITS)
 @pytest.mark.parametrize("callback", ["sentinel", "reviewer"])
 async def test_after_call_callbacks_cannot_change_the_call_in_place(
-    callback: str,
+    callback: str, edit: InPlaceEdit
 ) -> None:
     init_transcript(Transcript())
     call = ToolCall(
         id="1", function="list_items", arguments={"items": {"a": {"name": "a"}}}
     )
     messages: list[ChatMessage] = [ChatMessageAssistant(content=[], tool_calls=[call])]
-    with pytest.raises(RuntimeError, match="changed the tool call in place"):
+    with pytest.raises(
+        RuntimeError, match="changed the tool call or its view in place"
+    ):
         if callback == "sentinel":
-            with active(d3_mutate_after()):
-                await execute_tools(messages, [list_items()])
+            with active(d3_edit_after(edit)):
+                await execute_tools(messages, [shared_view_items()])
         else:
             await execute_tools(
                 messages,
-                [list_items()],
-                review=[ReviewPolicy(d3_mutating_reviewer(), "*")],
+                [shared_view_items()],
+                review=[ReviewPolicy(d3_editing_reviewer(edit), "*")],
             )
 
 

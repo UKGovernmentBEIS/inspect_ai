@@ -31,7 +31,7 @@ from inspect_ai.agent._bridge.types import AgentBridge
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageTool
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.tool._tool import ToolApprovalError
-from inspect_ai.tool._tool_call import ToolCall, ToolCallError
+from inspect_ai.tool._tool_call import ShownCall, ToolCall, ToolCallError
 
 if TYPE_CHECKING:
     from inspect_ai.approval._policy import ApprovalPolicy
@@ -115,6 +115,7 @@ async def apply_bridge_tool_approval(
         the response was rejected.
     """
     from inspect_ai.approval._apply import (
+        CHANGED_IN_PLACE,
         apply_tool_approval,
         have_tool_approval,
         modified_function_error,
@@ -147,6 +148,7 @@ async def apply_bridge_tool_approval(
         approval_history = history + [output.message]
         message = output.message.text
         modified: dict[str, dict[str, Any]] = {}
+        shown = [ShownCall.of(call) for call in tool_calls]
         for call in tool_calls:
             dispatched = bridge.dispatched_call(call)
             reviewed = dispatched.target if dispatched else call
@@ -187,6 +189,16 @@ async def apply_bridge_tool_approval(
                     dispatched.dispatch(arguments) if dispatched else arguments
                 )
 
+        # every approver sees the whole response in its history, so a call
+        # already approved (or a dispatcher call's envelope) can be changed after
+        # its own check: the response is checked as a whole before it is handed
+        # over and granted
+        changed = changed_in_place(tool_calls, shown, output.message.tool_calls)
+        if changed is not None:
+            return BridgeApproval(
+                output, rejection_messages(output, changed, CHANGED_IN_PLACE)
+            )
+
     # modifications are adopted only now that the whole response is approved: a later
     # rejection discards every call, and rewriting an earlier one as we went would
     # leave the turn we replay to the model claiming arguments it never produced.
@@ -194,6 +206,23 @@ async def apply_bridge_tool_approval(
         return BridgeApproval(with_modified_arguments(output, modified), None)
 
     return BridgeApproval(output, None)
+
+
+def changed_in_place(
+    calls: list[ToolCall], shown: list[ShownCall], current: list[ToolCall] | None
+) -> ToolCall | None:
+    """The first call of a response that was changed in place, if any.
+
+    Args:
+        calls: The response's tool calls when approval started.
+        shown: Each call as it was then.
+        current: The response's tool calls now. Calls added, removed or
+            replaced count as a change to the first call.
+    """
+    current = current or []
+    if len(current) != len(calls) or any(a is not b for a, b in zip(current, calls)):
+        return calls[0]
+    return next((call for call, s in zip(calls, shown) if s.changed(call)), None)
 
 
 def with_modified_arguments(
