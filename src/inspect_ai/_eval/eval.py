@@ -2,7 +2,6 @@ import contextlib
 import functools
 import logging
 import os
-import sys
 from contextlib import nullcontext
 from contextvars import Token, copy_context
 from dataclasses import replace
@@ -36,9 +35,8 @@ from inspect_ai.model._model_info import set_model_cost
 from inspect_ai.model._util import resolve_model_costs, resolve_model_roles
 from inspect_ai.util._anyio import inner_exception
 
-if sys.version_info < (3, 11):
-    from exceptiongroup import ExceptionGroup
-
+# The imports above must load before _display (circular import).
+# isort: split
 from shortuuid import uuid
 from typing_extensions import Unpack
 

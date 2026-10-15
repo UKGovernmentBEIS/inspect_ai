@@ -123,6 +123,20 @@ def is_openai_api_base(api_base: str | None) -> bool:
     return host == "api.openai.com" or host.endswith(".api.openai.com")
 
 
+def is_xai_api_base(api_base: str | None) -> bool:
+    """Whether a deployment's `api_base` is xAI's own API (or unset)."""
+    if api_base is None:
+        return True
+    host = urlparse(api_base).hostname or ""
+    return host == "x.ai" or host.endswith(".x.ai")
+
+
+def grok_4_or_later(family: str) -> bool:
+    """Grok 4 or later, including codenames, as in the native grok provider."""
+    family = family.lower()
+    return "grok-2" not in family and "grok-3" not in family
+
+
 def frontier_base_model(vendor: Vendor) -> str:
     """The vendor's frontier model, named as LiteLLM's `base_model` takes it."""
     model = FRONTIER_MODELS[vendor].split("/", 1)[1]

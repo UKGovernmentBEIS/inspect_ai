@@ -3,22 +3,25 @@ import contextlib
 import inspect
 import os
 import signal
-import sys
 import threading
 from logging import Logger
 from types import FrameType
-from typing import Any, Awaitable, Callable, Coroutine, Iterable, Literal, TypeVar, cast
+from typing import (
+    Any,
+    Awaitable,
+    Callable,
+    Coroutine,
+    Iterable,
+    Literal,
+    TypeVar,
+    TypeVarTuple,
+    Unpack,
+    cast,
+)
 
 import anyio
 import nest_asyncio2 as nest_asyncio  # type: ignore
 import sniffio
-
-if sys.version_info >= (3, 11):
-    from typing import TypeVarTuple, Unpack
-else:
-    from exceptiongroup import BaseExceptionGroup, ExceptionGroup
-    from typing_extensions import TypeVarTuple, Unpack
-
 
 PosArgsT = TypeVarTuple("PosArgsT")
 

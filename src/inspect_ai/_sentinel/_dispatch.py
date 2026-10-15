@@ -295,7 +295,7 @@ _model_inputs: "WeakKeyDictionary[Transcript, Counter[str]]" = WeakKeyDictionary
 
 def _host_context(step_id: str) -> HostContext:
     return HostContext(
-        context=Context(path="", host=_Host(), eval=_eval_context()),
+        host=_HostNative(_eval_context()),
         recorder=_Recorder(step_id),
         store=store(),
     )
@@ -361,7 +361,10 @@ def _produced_by(message_id: str) -> Callable[[Event], TypeGuard[ModelEvent]]:
     return produced
 
 
-class _Host:
+class _HostNative:
+    def __init__(self, eval: EvalContext | None) -> None:
+        self.eval = eval
+
     async def generate(
         self,
         input: str | list[ChatMessage],

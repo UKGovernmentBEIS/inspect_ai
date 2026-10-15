@@ -36,6 +36,15 @@ _VALUE_REJECTED = (
         r"\"param\": \"reasoning\.effort\"",
         re.DOTALL,
     ),
+    # xAI (e.g. `none` for grok-4.7)
+    re.compile(r"does not support `reasoning_effort` value `(\w+)`"),
+)
+# Value rejections that name no value (a request sends only one). Were a model
+# to reject every value this way, the ladder is walked once (one failed request
+# per value) before the effort is dropped; rejections are remembered.
+_UNNAMED_VALUE_REJECTED = (
+    # xAI (e.g. `max` for grok-4.7)
+    re.compile(r"\bInvalid reasoning effort\."),
 )
 
 
@@ -47,7 +56,8 @@ class EffortRejection(NamedTuple):
 def rejected_effort(message: str, sent: str) -> EffortRejection | None:
     """Classify an error message as a rejection of the effort `sent`, if it is one.
 
-    A value rejection counts only when the value it names is the one sent.
+    A value rejection counts only when the value it names is the one sent,
+    or when it names no value.
     """
     if any(pattern.search(message) for pattern in _PARAMETER_REJECTED):
         return EffortRejection(kind="parameter")
@@ -55,6 +65,8 @@ def rejected_effort(message: str, sent: str) -> EffortRejection | None:
         match = pattern.search(message)
         if match and match.group(1) == sent:
             return EffortRejection(kind="value")
+    if any(pattern.search(message) for pattern in _UNNAMED_VALUE_REJECTED):
+        return EffortRejection(kind="value")
     return None
 
 
