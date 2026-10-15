@@ -573,23 +573,26 @@ def test_condense_sample_rewritten_history_condenses_correctly() -> None:
         ]
 
 
-def test_condense_sample_keeps_json_distinct_message_versions() -> None:
-    """Two versions of one message that differ only as True vs 1 stay distinct.
+@pytest.mark.parametrize("before,after", [(True, 1), (0.0, -0.0)])
+def test_condense_sample_keeps_json_distinct_message_versions(
+    before: JsonValue, after: JsonValue
+) -> None:
+    """Two versions of one message that are == but serialize differently stay apart.
 
     Model events snapshot each version of a message edited in place, so a
-    sample can hold same-id messages that are == but serialize differently.
+    sample can hold same-id messages such as True vs 1 or 0.0 vs -0.0.
     Writing (condense) and reading (resolve) must keep both versions, and the
     final conversation must keep its own.
     """
     first = ChatMessageAssistant(
         content="",
-        tool_calls=[ToolCall(id="c1", function="f", arguments={"flag": True})],
-        metadata={"flag": True},
+        tool_calls=[ToolCall(id="c1", function="f", arguments={"flag": before})],
+        metadata={"flag": before},
     )
     second = first.model_copy(deep=True)
     assert second.tool_calls is not None and second.metadata is not None
-    second.tool_calls[0].arguments["flag"] = 1
-    second.metadata["flag"] = 1
+    second.tool_calls[0].arguments["flag"] = after
+    second.metadata["flag"] = after
     assert first == second
 
     sample = EvalSample(
@@ -607,17 +610,17 @@ def test_condense_sample_keeps_json_distinct_message_versions() -> None:
 
     resolved = resolve_sample_attachments(condensed, "full")
 
-    def flags(message: ChatMessage) -> tuple[object, object]:
+    def flags(message: ChatMessage) -> list[str]:
         assert isinstance(message, ChatMessageAssistant)
         assert message.tool_calls is not None and message.metadata is not None
-        return message.tool_calls[0].arguments["flag"], message.metadata["flag"]
+        values = [message.tool_calls[0].arguments["flag"], message.metadata["flag"]]
+        return [json.dumps(v) for v in values]
 
     inputs = [e.input[0] for e in resolved.events if isinstance(e, ModelEvent)]
-    assert [tuple(map(type, flags(m))) for m in inputs] == [
-        (bool, bool),
-        (int, int),
-    ]
-    assert tuple(map(type, flags(resolved.messages[0]))) == (int, int)
+    expected_before = [json.dumps(before)] * 2
+    expected_after = [json.dumps(after)] * 2
+    assert [flags(m) for m in inputs] == [expected_before, expected_after]
+    assert flags(resolved.messages[0]) == expected_after
 
 
 def test_condense_sample_messages_stay_inline() -> None:

@@ -1,5 +1,7 @@
 """`ModelEvent.input` records the messages as they were when the model was called."""
 
+import math
+from collections import OrderedDict
 from dataclasses import dataclass
 from typing import Any
 
@@ -100,6 +102,26 @@ async def test_model_event_input_snapshot_with_event_sink() -> None:
     assert _model_events() == []
 
 
+async def test_model_event_input_keeps_signed_zero() -> None:
+    init_transcript(Transcript())
+    model = get_model("mockllm/model")
+    messages = _conversation()
+    assistant = messages[1]
+    assert isinstance(assistant, ChatMessageAssistant) and assistant.tool_calls
+    assistant.tool_calls[0].arguments["offset"] = 0.0
+
+    await model.generate(messages)
+    assistant.tool_calls[0].arguments["offset"] = -0.0
+    await model.generate(messages)
+
+    signs = []
+    for event in _model_events():
+        message = event.input[1]
+        assert isinstance(message, ChatMessageAssistant) and message.tool_calls
+        signs.append(math.copysign(1.0, message.tool_calls[0].arguments["offset"]))
+    assert signs == [1.0, -1.0]
+
+
 @dataclass(slots=True)
 class _SlottedState:
     step: int
@@ -110,7 +132,12 @@ class _ExtraState(BaseModel):
 
 
 @pytest.mark.parametrize(
-    "value", [_SlottedState(step=1), _ExtraState.model_validate({"step": 1})]
+    "value",
+    [
+        _SlottedState(step=1),
+        _ExtraState.model_validate({"step": 1}),
+        OrderedDict(step=1),
+    ],
 )
 async def test_model_event_input_refuses_object_metadata(value: Any) -> None:
     init_transcript(Transcript())

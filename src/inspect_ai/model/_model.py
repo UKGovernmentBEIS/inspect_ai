@@ -20,6 +20,7 @@ from typing import (
     Literal,
     Mapping,
     NamedTuple,
+    NoReturn,
     Protocol,
     Sequence,
     Type,
@@ -2998,8 +2999,9 @@ def _snapshot_messages(messages: list[ChatMessage]) -> list[ChatMessage]:
 
     Raises:
         TypeError: A message's metadata holds something other than JSON data.
-            The match check compares JSON data only; objects such as slotted
-            dataclasses or models with extra fields would compare wrongly.
+            The match check compares plain JSON types only; objects (slotted
+            dataclasses, models with extra fields) and container subclasses
+            (OrderedDict, defaultdict) would compare wrongly.
     """
     from inspect_ai.event._pool import _strict_eq
 
@@ -3029,12 +3031,48 @@ def _check_metadata_is_json(message: ChatMessage) -> None:
         error = ex.errors()[0]
         # locations alternate a JSON type tag with a key or index
         path = "".join(f"[{key!r}]" for key in error["loc"][1::2])
-        raise TypeError(
-            f"Message metadata must be JSON data (dicts with string keys, lists, "
-            f"strings, numbers, booleans and None), but metadata{path} has type "
-            f"{type(error['input']).__name__}. Convert it to plain data first, "
-            f"for example with model_dump() or dataclasses.asdict()."
-        ) from ex
+        if error["type"] == "recursion_loop":
+            raise TypeError(
+                f"Message metadata must be JSON data, but metadata{path} "
+                "contains itself or is nested too deeply."
+            ) from ex
+        _raise_metadata_type_error(path, type(error["input"]), ex)
+    # the validator accepts subclasses (OrderedDict, list subclasses) and
+    # returns plain copies, but the snapshot keeps the original values
+    found = _non_plain_json(message.metadata)
+    if found is not None:
+        _raise_metadata_type_error(*found, None)
+
+
+def _non_plain_json(value: object) -> tuple[str, type] | None:
+    """Path and type of the first value whose type is not a plain JSON type.
+
+    Expects a value that already validated as JSON (finite and acyclic).
+    """
+    stack: list[tuple[object, str]] = [(value, "")]
+    while stack:
+        current, path = stack.pop()
+        if type(current) is dict:
+            for key, item in current.items():
+                if type(key) is not str:
+                    return f"{path}[{key!r}]", type(key)
+                stack.append((item, f"{path}[{key!r}]"))
+        elif type(current) is list:
+            stack.extend((item, f"{path}[{i}]") for i, item in enumerate(current))
+        elif type(current) not in (str, int, float, bool, type(None)):
+            return path, type(current)
+    return None
+
+
+def _raise_metadata_type_error(
+    path: str, value_type: type, cause: Exception | None
+) -> NoReturn:
+    raise TypeError(
+        f"Message metadata must be JSON data (dicts with string keys, lists, "
+        f"strings, numbers, booleans and None), but metadata{path} has type "
+        f"{value_type.__name__}. Convert it to plain data first, "
+        f"for example with model_dump() or dataclasses.asdict()."
+    ) from cause
 
 
 @contextlib.contextmanager

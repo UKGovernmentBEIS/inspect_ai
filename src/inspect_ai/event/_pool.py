@@ -25,6 +25,7 @@ and hash only genuinely new content.
 
 import dataclasses
 import json
+import math
 from collections.abc import Iterable, Mapping, Sequence
 from typing import Final, Literal, NamedTuple, TypeAlias, TypeVar, cast
 
@@ -52,9 +53,9 @@ def materialize_pooled_events(
 def _strict_eq(a: object, b: object) -> bool:
     """Equality that distinguishes values with different JSON serializations.
 
-    Python ``==`` conflates values the pool hashes distinguish: ``0 == 0.0``
-    and ``True == 1``, but ``json.dumps`` emits different bytes for each, so
-    ``_msg_hash``/``_call_hash`` differ. An ``==``-based merge of such values
+    Python ``==`` conflates values the pool hashes distinguish: ``0 == 0.0``,
+    ``True == 1`` and ``0.0 == -0.0``, but ``json.dumps`` emits different
+    bytes for each, so ``_msg_hash``/``_call_hash`` differ. An ``==``-based merge of such values
     would reuse a pool entry whose stored bytes round-trip to the *other*
     value — silent data corruption. This comparison requires matching types
     for scalars (recursing into models, dataclasses, dicts, and lists), so a
@@ -91,6 +92,9 @@ def _strict_eq(a: object, b: object) -> bool:
     if ta is list or ta is tuple:
         assert isinstance(a, (list, tuple)) and isinstance(b, (list, tuple))
         return len(a) == len(b) and all(_strict_eq(x, y) for x, y in zip(a, b))
+    if ta is float:
+        assert isinstance(a, float) and isinstance(b, float)
+        return a == b and math.copysign(1.0, a) == math.copysign(1.0, b)
     return a == b
 
 
