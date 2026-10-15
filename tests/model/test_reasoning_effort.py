@@ -19,6 +19,7 @@ Covers:
 """
 
 import logging
+from typing import Literal
 
 import pytest
 from google.genai.types import ThinkingLevel
@@ -220,6 +221,7 @@ def test_google_gemini_2_5_reasoning_tokens_wins_over_effort():
         ("gemini-3.7-flash", ThinkingLevel.LOW),
         ("gemini-3.8-flash", ThinkingLevel.LOW),
         ("gemini-3.1-pro-preview", ThinkingLevel.LOW),
+        ("gemini-4-argon", ThinkingLevel.LOW),
     ],
 )
 def test_google_gemini_3_minimal_effort(
@@ -252,6 +254,70 @@ def test_google_gemini_3_uses_thinking_level_not_bridge():
     # thinking_level is set, thinking_budget is not
     assert thinking_config.thinking_level is not None
     assert thinking_config.thinking_budget is None
+
+
+@pytest.mark.parametrize(
+    "effort,expected_level",
+    [
+        ("low", ThinkingLevel.LOW),
+        ("medium", ThinkingLevel.MEDIUM),
+        ("high", ThinkingLevel.HIGH),
+        ("xhigh", ThinkingLevel.HIGH),
+        ("max", ThinkingLevel.HIGH),
+    ],
+)
+def test_google_gemini_4_argon_thinking_level(
+    effort: Literal["low", "medium", "high", "xhigh", "max"],
+    expected_level: ThinkingLevel,
+) -> None:
+    thinking_config = _google_api("gemini-4-argon").chat_thinking_config(
+        GenerateConfig(reasoning_effort=effort)
+    )
+    assert thinking_config is not None
+    assert thinking_config.thinking_level == expected_level
+    assert thinking_config.thinking_budget is None
+
+
+@pytest.mark.parametrize(
+    "model_name,thinking_only",
+    [
+        ("gemini-4-argon", False),
+        (
+            "vertex/projects/my-project/locations/us-central1/publishers/google/models/gemini-4-argon",
+            False,
+        ),
+        ("gemini-3.8-flash", False),
+        ("gemini-3.1-pro-preview", True),
+        ("gemini-4-pro", True),
+    ],
+)
+def test_google_reasoning_effort_none(
+    model_name: str,
+    thinking_only: bool,
+    caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`none` disables thinking except on Pro models, which warn instead."""
+    monkeypatch.setattr("inspect_ai._util.logger._warned", [])
+    vertex = model_name.startswith("vertex/")
+    api = GoogleGenAIAPI(
+        model_name=model_name,
+        base_url=None,
+        api_key="test-key",
+        project="test-project" if vertex else None,
+        location="us-central1" if vertex else None,
+    )
+    with caplog.at_level(logging.WARNING):
+        thinking_config = api.chat_thinking_config(
+            GenerateConfig(reasoning_effort="none")
+        )
+    assert thinking_config is not None
+    if thinking_only:
+        assert thinking_config.thinking_budget is None
+        assert "Thinking cannot be disabled" in caplog.text
+    else:
+        assert thinking_config.thinking_budget == 0
+        assert "Thinking cannot be disabled" not in caplog.text
 
 
 # -- Groq / Ollama / SageMaker / SambaNova / Together clamping --
@@ -634,6 +700,49 @@ def test_openai_responses_reasoning_mode_composes_with_effort():
     )
     assert params["reasoning"]["mode"] == "pro"
     assert params["reasoning"]["effort"] == "high"
+
+
+# -- OpenAI Responses `reasoning` object in extra_body --
+
+
+def test_openai_responses_extra_body_reasoning_adds_unmodelled_fields():
+    # e.g. attached by the agent bridge for a forwarded client request; `context`
+    # has no GenerateConfig representation and is sent as given, while the
+    # fields GenerateConfig models come from the config
+    params = _responses_params_for(
+        "gpt-5.6-sol",
+        GenerateConfig(
+            reasoning_effort="high",
+            reasoning_summary="none",
+            extra_body={
+                "reasoning": {
+                    "context": "all_turns",
+                    "effort": "low",
+                    "summary": "detailed",
+                    "generate_summary": "detailed",
+                    "mode": "pro",
+                }
+            },
+        ),
+    )
+    assert params["reasoning"] == {"effort": "high", "context": "all_turns"}
+
+
+def test_openai_responses_extra_body_reasoning_does_not_enable_reasoning():
+    params = _responses_params_for(
+        "gpt-5.4",
+        GenerateConfig(
+            reasoning_effort="none",
+            temperature=0.7,
+            extra_body={"reasoning": {"effort": "high", "context": "all_turns"}},
+        ),
+    )
+    assert params["reasoning"] == {
+        "effort": "none",
+        "summary": "auto",
+        "context": "all_turns",
+    }
+    assert params["temperature"] == 0.7
 
 
 def test_openai_responses_pro_mode_suppresses_sampling_params():

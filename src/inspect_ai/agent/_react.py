@@ -245,6 +245,11 @@ def react(
                 # input would hand it the same conversation and loop forever
                 overflow_compact = compact if _uses_compaction_handler(model) else None
 
+                # the handler does not check that a forced compaction shrank
+                # the input, so an overflow right after one means it did not:
+                # don't force it again, which could resend the same request
+                overflow_compacted = False
+
                 # track attempts (recovered from checkpoint state on resume)
                 attempt_count = cp.track("attempt_count", lambda: attempt_count, 0)
 
@@ -269,13 +274,17 @@ def react(
 
                             # check for context window overflow
                             if state.output.stop_reason == "model_length":
-                                state, handled = await _handle_overflow(
-                                    state, overflow, overflow_compact
+                                state, recovery = await _handle_overflow(
+                                    state,
+                                    overflow,
+                                    None if overflow_compacted else overflow_compact,
                                 )
-                                if handled:
-                                    continue
-                                else:
+                                if recovery is None:
                                     break
+                                if recovery == "compaction":
+                                    overflow_compacted = True
+                                continue
+                            overflow_compacted = False
 
                             # check for content filter (model refusal) -- allow a few
                             # chances to recover before breaking to avoid infinite loop
@@ -480,6 +489,11 @@ def react_no_submit(
                 # input would hand it the same conversation and loop forever
                 overflow_compact = compact if _uses_compaction_handler(model) else None
 
+                # the handler does not check that a forced compaction shrank
+                # the input, so an overflow right after one means it did not:
+                # don't force it again, which could resend the same request
+                overflow_compacted = False
+
                 # track consecutive content_filter responses
                 consecutive_content_filter = 0
 
@@ -500,13 +514,17 @@ def react_no_submit(
 
                             # check for context window overflow
                             if state.output.stop_reason == "model_length":
-                                state, handled = await _handle_overflow(
-                                    state, overflow, overflow_compact
+                                state, recovery = await _handle_overflow(
+                                    state,
+                                    overflow,
+                                    None if overflow_compacted else overflow_compact,
                                 )
-                                if handled:
-                                    continue
-                                else:
+                                if recovery is None:
                                     break
+                                if recovery == "compaction":
+                                    overflow_compacted = True
+                                continue
+                            overflow_compacted = False
 
                             # check for content filter (model refusal) -- allow a few
                             # chances to recover before breaking to avoid infinite loop
@@ -620,7 +638,7 @@ async def _handle_overflow(
     state: AgentState,
     overflow: MessageFilter | None,
     compact: Compact | None = None,
-) -> tuple[AgentState, bool]:
+) -> tuple[AgentState, Literal["compaction", "filter"] | None]:
     from inspect_ai.log._transcript import transcript
 
     # Drop the failed assistant turn appended by _model_generate; it has no
@@ -633,8 +651,9 @@ async def _handle_overflow(
     # via compact_fn — no extra transcript().info() needed here.
     if compact is not None:
         try:
-            # a successful return means the handler already validated that
-            # its result fits, so unlike the filter below there is no length gate
+            # a successful return means the handler's count says its result
+            # fits, so unlike the filter below there is no length gate (the
+            # callers skip compaction if the retry overflows anyway)
             _, c_message = await compact.compact_input(previous_messages, force=True)
             # compaction shapes the model input, not the record: the handler
             # keeps the compacted view internally, so assigning it here would
@@ -642,7 +661,7 @@ async def _handle_overflow(
             state.messages = previous_messages
             if c_message is not None:
                 state.messages.append(c_message)
-            return state, True
+            return state, "compaction"
         except ModelRefusalError:
             # a refused summary generation under fail_on_refusal fails the
             # sample like any other refusal rather than degrading to overflow
@@ -661,11 +680,11 @@ async def _handle_overflow(
             transcript().info(
                 "Agent exceeded model context window, truncating messages and continuing."
             )
-            return state, True
+            return state, "filter"
 
     # no overflow policy or overflow didn't reduce conversation length
     transcript().info("Agent terminated: model context window exceeded")
-    return state, False
+    return state, None
 
 
 def _agent_compact(

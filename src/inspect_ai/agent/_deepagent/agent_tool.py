@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import sys
 from contextlib import asynccontextmanager, contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass, field
@@ -12,8 +11,6 @@ if TYPE_CHECKING:
     from inspect_ai.approval._policy import ApprovalPolicy
     from inspect_ai.tool._tools._skill import Skill
 
-if sys.version_info < (3, 11):
-    from exceptiongroup import ExceptionGroup
 
 import anyio
 from anyio.abc import TaskGroup
@@ -713,6 +710,7 @@ async def _run_background(
     """
     from copy import copy, deepcopy
 
+    from inspect_ai._sentinel._context import SentinelFailure
     from inspect_ai._util.exception import TerminateSampleError
     from inspect_ai.event._timeline import timeline_branch
     from inspect_ai.model._model import ModelRefusalError
@@ -771,7 +769,12 @@ async def _run_background(
         # structured concurrency requires it to propagate.
         future.status = "cancelled"
         raise
-    except (LimitExceededError, TerminateSampleError, ModelRefusalError):
+    except (
+        LimitExceededError,
+        TerminateSampleError,
+        ModelRefusalError,
+        SentinelFailure,
+    ):
         # Sample-level control flow must propagate so the sample runner
         # records/enforces it (run.py catches these off sample.tg; from an
         # owned task group they reach the deepagent's caller). The
@@ -779,10 +782,10 @@ async def _run_background(
         # apply_limits(catch_errors=True), so any LimitExceededError that
         # reaches here belongs to an outer (sample/parent) scope and must
         # not be downgraded to a per-agent "errored" result. A refusal under
-        # fail_on_refusal likewise fails the sample wherever it occurs. The
-        # sample is terminating; record a terminal status so the
-        # `finally: done.set()` below never wakes a waiter with a stale
-        # "running" status.
+        # fail_on_refusal, or a sentinel's own error, likewise fails the
+        # sample wherever it occurs. The sample is terminating; record a
+        # terminal status so the `finally: done.set()` below never wakes a
+        # waiter with a stale "running" status.
         future.status = "cancelled"
         raise
     except Exception as ex:
