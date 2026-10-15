@@ -11,6 +11,7 @@ import os
 import signal
 import threading
 from pathlib import Path
+from typing import Callable
 
 import anyio
 import anyio.lowlevel
@@ -96,10 +97,11 @@ def _conversation_then_error_solvers() -> list:
 
 
 @solver
-def sleep_solver():
-    """All samples sleep; used with external SIGINT."""
+def sleep_solver(on_start: Callable[[], None]):
+    """All samples call `on_start` then sleep; used with external SIGINT."""
 
     async def solve(state: TaskState, generate: Generate) -> TaskState:
+        on_start()
         await anyio.sleep(60)
         return state
 
@@ -261,19 +263,26 @@ def test_keyboard_interrupt_logs_cancelled_samples(
 ):
     """When SIGINT (KeyboardInterrupt) occurs, all running samples should be cancelled and logged."""
     num_samples = 5
+    started: list[int] = []
+    all_started = threading.Event()
+
+    def on_start() -> None:
+        started.append(1)
+        if len(started) == num_samples:
+            all_started.set()
+
     task = Task(
         dataset=_make_samples(num_samples),
-        solver=[sleep_solver()],
+        solver=[sleep_solver(on_start)],
         scorer=includes(),
         sandbox=sandbox_kwarg,
     )
 
-    # send SIGINT from a background thread after samples have started
+    # send SIGINT from a background thread once every sample is running (a
+    # fixed delay can fire before eval starts on a loaded machine)
     def send_sigint() -> None:
-        import time
-
-        time.sleep(1)
-        os.kill(os.getpid(), signal.SIGINT)
+        if all_started.wait(timeout=60):
+            os.kill(os.getpid(), signal.SIGINT)
 
     sigint_thread = threading.Thread(target=send_sigint, daemon=True)
     sigint_thread.start()
@@ -290,6 +299,7 @@ def test_keyboard_interrupt_logs_cancelled_samples(
         pass
 
     sigint_thread.join(timeout=5)
+    assert all_started.is_set()
 
     # read the log that was written to disk before KeyboardInterrupt propagated
     log_files = list_eval_logs(str(tmp_path))
