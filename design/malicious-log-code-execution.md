@@ -225,10 +225,15 @@ the solvers and scorers it names, which go through `solver_from_spec()` and
 (`hf.py:25`, `:39`), validated by `HFTask.model_validate()` (`hf.py:132`)
 before either loader sees them. Both loaders still pass the name through
 `parse_spec_str()` before the registry (`loader.py:649`, `:789`), which
-treats any existing path as a file (`loader.py:969-971`), so a file or
-symlink in the working directory named exactly like an allowlisted solver
-or scorer (`generate`, `match`, ...) is imported instead of the built-in.
-The repo chooses only the name; the file has to be in the user's working
+treats any existing path as a file (`loader.py:969-971`), resolving
+symlinks. So a path in the working directory named exactly like an
+allowlisted solver or scorer (`generate`, `match`, ...) shadows the
+built-in. The names have no extension, so an ordinary file or directory
+with that name only makes the load fail: `load_module()` raises
+`ModuleNotFoundError` for any suffix other than `.py` or `.ipynb` before
+opening it (`_util/module.py:23-54`). A symlink with that name that
+resolves to a `.py` or `.ipynb` file is imported instead of the built-in.
+The repo chooses only the name; the path has to be in the user's working
 directory already. This is the same rule that applies to a name the user
 types, and this design leaves it unchanged. The arguments are not restricted, so a model
 dict among them builds a model with a base URL the repo chooses
