@@ -873,6 +873,69 @@ async def test_modify_runs_only_as_selected(
         assert received == []
 
 
+def mutating_viewer(call: ToolCall) -> ToolCallView:
+    call.arguments["step"]["name"] = "changed"
+    return ToolCallView()
+
+
+@approver
+def mutating_approver(modified: dict[str, Any] | None = None) -> Approver:
+    """Approver which changes the call it is given, then approves or modifies."""
+
+    async def approve(
+        message: str,
+        call: ToolCall,
+        view: ToolCallView,
+        history: list[ChatMessage],
+    ) -> Approval:
+        call.arguments["step"]["name"] = "changed"
+        if modified is None:
+            return Approval(decision="approve")
+        return Approval(
+            decision="modify",
+            modified=ToolCall(id=call.id, function=call.function, arguments=modified),
+        )
+
+    return approve
+
+
+@pytest.mark.parametrize(
+    "viewer,policy,runs",
+    [
+        (mutating_viewer, recording_approver([]), "write"),
+        (None, mutating_approver(), "write"),
+        (
+            mutating_viewer,
+            modifying_approver({"step": {"name": "test", "status": "done"}}),
+            "test",
+        ),
+        (None, mutating_approver({"step": {"name": "test", "status": "done"}}), "test"),
+    ],
+    ids=["viewer-approve", "approver-approve", "viewer-modify", "approver-modify"],
+)
+async def test_callbacks_cannot_change_the_call_that_runs(
+    viewer: Any, policy: Approver, runs: str
+) -> None:
+    """Viewers and approvers get copies, so the approved call is the one that runs."""
+    init_transcript(Transcript())
+    received: list[dict[str, Any]] = []
+    message = await execute_with_approval(
+        ToolCall(id="1", function="step_tool", arguments={"step": {"name": "write"}}),
+        [ToolDef(step_tool(received), viewer=viewer)],
+        [ApprovalPolicy(policy, "*")],
+    )
+
+    assert message.error is None
+    status: Literal["pending", "done"] = "pending" if runs == "write" else "done"
+    assert received == [{"step": Step(name=runs, status=status)}]
+    assert logged_tool_event().arguments == {"step": {"name": runs, "status": status}}
+    if viewer is not None:
+        # the approver was shown, and the log records, the call as shown
+        (approval,) = [e for e in transcript().events if isinstance(e, ApprovalEvent)]
+        shown = {"step": {"name": "write", "status": "pending"}}
+        assert approval.call.arguments == shown
+
+
 async def test_lazy_iterable_runs_with_its_values() -> None:
     calls: list[ToolCall] = []
     received: list[dict[str, Any]] = []

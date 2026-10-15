@@ -39,6 +39,11 @@ approved, D the check.
    its values. The ToolEvent records C, and its view is rendered from C
    without converting again.
 
+Conversion always works on a copy of the call's arguments, so a constructor
+that changes its input in place cannot change the call. Viewers, approvers and
+sentinel monitors are given copies of the call, so a callback that changes
+its input cannot change the call that runs or is logged.
+
 Parameters the call leaves out are not shown. They get their Python defaults
 when the arguments are rebuilt, as without oversight. Curried handoff
 arguments are Python values from the developer: they are not shown, not

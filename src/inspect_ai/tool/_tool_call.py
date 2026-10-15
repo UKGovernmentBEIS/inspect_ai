@@ -1,4 +1,5 @@
 import re
+from copy import deepcopy
 from dataclasses import dataclass, field
 from logging import getLogger
 from typing import Any, Callable, Literal
@@ -105,7 +106,8 @@ def resolve_tool_call_view(
 ) -> ToolCallView:
     if viewer:
         try:
-            view = viewer(call)
+            # a viewer gets a copy, so it cannot change the call being decided on
+            view = viewer(deepcopy(call))
             if not view.call:
                 view.call = default_tool_call_viewer(call).call
             return view

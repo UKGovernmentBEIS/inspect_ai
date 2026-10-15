@@ -932,8 +932,10 @@ async def call_tool(
         modified_function_error,
     )
 
+    # approvers and monitors get copies, so the call that runs stays the one
+    # they were shown
     approved, approval = await apply_tool_approval(
-        message, call, tool_def.viewer, conversation
+        message, deepcopy(call), tool_def.viewer, conversation
     )
     if not approved:
         await record_pending_tool_event()
@@ -957,7 +959,7 @@ async def call_tool(
 
         try:
             decision = await sentinel_before_tool_call(
-                message, call, tool_def.viewer, conversation
+                message, deepcopy(call), tool_def.viewer, conversation
             )
             modified = apply_sentinel_decision(decision, call)
         except (SentinelFailure, ToolApprovalError, TerminateSampleError):
@@ -1467,7 +1469,7 @@ def validated_tool_call(call: ToolCall, tool_def: ToolDef) -> ValidatedToolCall:
         raise ToolParsingError(validation_errors)
 
     if not _tool_calls_overseen():
-        return ValidatedToolCall(call, _converted_arguments(call.arguments, tool_def))
+        return ValidatedToolCall(call, _rebuilt_arguments(call.arguments, tool_def))
 
     shown = replace(call, arguments=_serialized_arguments(call.arguments, tool_def))
     try:
@@ -1519,12 +1521,15 @@ def _tool_calls_overseen() -> bool:
     return have_tool_approval() or checks_tool_calls()
 
 
-def _converted_arguments(
-    arguments: dict[str, Any], tool_def: ToolDef
-) -> dict[str, Any]:
-    """The tool's arguments converted from a call's, with curried handoff values."""
+def _rebuilt_arguments(arguments: dict[str, Any], tool_def: ToolDef) -> dict[str, Any]:
+    """The tool's arguments converted from a call's, with curried handoff values.
+
+    Conversion gets a copy of the call's arguments, since a constructor (a
+    validator, `__post_init__`) can change its input in place.
+    """
     from inspect_ai.agent._handoff import AgentTool
 
+    arguments = deepcopy(arguments)
     if isinstance(tool_def.tool, AgentTool):
         # agent_handoff passes the real `state`, and the developer's curried
         # arguments are Python values that go to the agent as given
@@ -1534,12 +1539,6 @@ def _converted_arguments(
         )
         return {**converted, **curried}
     return tool_params(arguments, tool_def.tool)
-
-
-def _rebuilt_arguments(arguments: dict[str, Any], tool_def: ToolDef) -> dict[str, Any]:
-    # a constructor (a validator, `__post_init__`) can change its input in
-    # place, so it gets a copy and the JSON keeps the approved values
-    return _converted_arguments(deepcopy(arguments), tool_def)
 
 
 def _serialized_arguments(
@@ -1678,7 +1677,8 @@ def _tool_view(
     try:
         if validate:
             call = validated_tool_call(call, tool_def).call
-        return tool_def.viewer(call).call
+        # a viewer gets a copy, so it cannot change the call that runs
+        return tool_def.viewer(deepcopy(call)).call
     except ToolParsingError:
         return None
     except Exception as ex:

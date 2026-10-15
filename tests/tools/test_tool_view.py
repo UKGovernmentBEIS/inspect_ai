@@ -1,6 +1,8 @@
 import logging
+from typing import Any
 
 import pytest
+from pydantic import BaseModel, model_validator
 from test_helpers.tool_call_utils import get_tool_event
 from test_helpers.utils import skip_if_no_docker
 
@@ -9,7 +11,7 @@ from inspect_ai.approval._apply import apply_tool_approval
 from inspect_ai.approval._approval import Approval
 from inspect_ai.dataset import Sample
 from inspect_ai.model import ModelOutput, get_model
-from inspect_ai.model._call_tools import tool_call_view
+from inspect_ai.model._call_tools import execute_tools, tool_call_view
 from inspect_ai.solver import generate, use_tools
 from inspect_ai.tool import bash
 from inspect_ai.tool._tool_call import (
@@ -181,3 +183,49 @@ async def test_generate_skips_viewer_for_invalid_call() -> None:
     assert viewed == []
     view = await generate_view({"thought": "ok"})
     assert view is not None and view.content == "viewed"
+
+
+class _Appended(BaseModel):
+    values: list[int]
+
+    @model_validator(mode="before")
+    @classmethod
+    def append(cls, data: Any) -> Any:
+        # changes its input in place
+        data["values"].append(9)
+        return data
+
+
+async def test_generate_view_does_not_change_the_call() -> None:
+    """Validating a call for its view converts a copy, not the call that runs."""
+    received: list[list[int]] = []
+
+    async def execute(item: _Appended) -> str:
+        """Record values.
+
+        Args:
+            item: The values.
+        """
+        received.append(item.values)
+        return "done"
+
+    def viewer(call: ToolCall) -> ToolCallView:
+        return ToolCallView(call=ToolCallContent(format="text", content="viewed"))
+
+    tdef = ToolDef(execute, name="appended", viewer=viewer)
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.for_tool_call(
+                "mockllm/model",
+                tool_name=tdef.name,
+                tool_arguments={"item": {"values": [1]}},
+            )
+        ],
+    )
+    output = await model.generate("go", tools=[tdef])
+    assert output.message.tool_calls
+    assert output.message.tool_calls[0].arguments == {"item": {"values": [1]}}
+
+    await execute_tools([output.message], [tdef])
+    assert received == [[1, 9]]

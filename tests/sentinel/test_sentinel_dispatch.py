@@ -870,6 +870,33 @@ async def test_a_sentinel_sees_and_modifies_the_converted_call(
         assert message.error is not None and message.error.type == error
 
 
+@protocol
+def d3_mutate_and_continue() -> Protocol:
+    async def mutate(context: Context, step: BeforeToolCall) -> Decision | None:
+        step.call.arguments["items"]["a"]["name"] = "z"
+        return None
+
+    return mutate
+
+
+async def test_a_sentinel_cannot_change_the_call_that_runs() -> None:
+    init_transcript(Transcript())
+    call = ToolCall(
+        id="1", function="list_items", arguments={"items": {"a": {"name": "a"}}}
+    )
+    with active(d3_mutate_and_continue()):
+        result = await execute_tools(
+            [ChatMessageAssistant(content=[], tool_calls=[call])], [list_items()]
+        )
+
+    [message] = result.messages
+    assert isinstance(message, ChatMessageTool)
+    assert message.error is None
+    assert message.text == "a"
+    [event] = transcript_tool_events()
+    assert event.arguments == {"items": {"a": {"name": "a"}}}
+
+
 def test_a_review_terminate_skips_the_after_call_sentinel() -> None:
     log = run_with(
         observe_only([d3_trajectory()]),
