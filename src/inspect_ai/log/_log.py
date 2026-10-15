@@ -1015,7 +1015,7 @@ class EvalScorer(BaseModel):
     """Scorer name"""
 
     score_name: str | None = Field(default=None)
-    """Score name chosen by the caller (a key of the dict of scorers passed to `score()`), if any."""
+    """Name of this scorer's scores, if recorded: its key in a dict of scorers passed to `score()`, or the name generated for it when appended to a log that records names."""
 
     options: dict[str, Any] | None = Field(default=None)
     """Scorer arguments"""

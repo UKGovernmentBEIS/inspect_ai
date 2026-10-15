@@ -426,9 +426,7 @@ async def score_async(
         # Since the metrics calculation above is only be done using the scorers
         # and scores that were generated during this scoring run, we need to process
         # the results carefully, depending upon whether the action was "append" or "overwrite"
-        replace_header = score_names is not None and _held_no_scores(
-            log, sample_held_scores
-        )
+        replace_header = bool(score_names) and _held_no_scores(log, sample_held_scores)
         if action == "overwrite" or log.results is None or replace_header:
             # Completely replace the results (and reductions) with the new ones
             log.reductions = reductions
@@ -703,7 +701,7 @@ def named_scorers_from_log_header(
 
     `scorers` are those `resolve_scorers()` rebuilt from this log's header, in
     header order. They are returned as a dict keyed by their score names when the
-    header records caller-chosen names, so rescoring keeps them, and unchanged
+    header records names, so rescoring keeps them, and unchanged
     otherwise.
     """
     score_names = score_names_from_log_header(log)
@@ -771,12 +769,12 @@ def resolve_scorers_info(log: EvalLog) -> list[ScorerInfo]:
 
 
 def _with_score_name(eval_scorer: EvalScorer, score_name: str) -> EvalScorer:
-    """Record a caller-chosen score name on a log header scorer."""
+    """Record a score name on a log header scorer."""
     return eval_scorer.model_copy(update={"score_name": score_name})
 
 
 def _score_name(eval_scorer: EvalScorer) -> str | None:
-    """Caller-chosen score name recorded on a log header scorer, if any.
+    """Score name recorded on a log header scorer, if any.
 
     Raises `ValueError` if the recorded name is empty, which no scoring run writes.
     """
@@ -788,7 +786,7 @@ def _score_name(eval_scorer: EvalScorer) -> str | None:
 
 
 def score_names_from_log_header(log: EvalLog) -> list[str] | None:
-    """Score name of each log header scorer, or `None` if none was caller-chosen.
+    """Score name of each log header scorer, or `None` if the header records none.
 
     Returning `None` for logs without recorded names leaves their metrics
     recomputation unchanged.
@@ -833,7 +831,8 @@ def _held_no_scores(log: EvalLog, sample_held_scores: list[bool]) -> bool:
     log without results does: its scorers never ran, and replaying them next to
     the recorded names would add an empty result before the new scores. Whether
     each sample held scores is recorded as it is read, so loaded and streamed
-    samples are treated alike.
+    samples are treated alike. An append that applies no scorers keeps the header,
+    as an empty list does.
     """
     return not (log.results and log.results.scores) and not any(sample_held_scores)
 

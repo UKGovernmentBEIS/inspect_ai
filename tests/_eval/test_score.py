@@ -1366,6 +1366,36 @@ async def test_score_dict_streamed_onto_unscored_log_survives_reload_and_recompu
     assert score_names_from_log_header(reloaded) == [score_name]
 
 
+@pytest.mark.parametrize("streamed", [False, True])
+async def test_score_empty_dict_on_unscored_log_keeps_header(
+    tmp_path: pathlib.Path, streamed: bool
+) -> None:
+    """An empty dict appended to a log with no scores keeps its header, as an empty list does."""
+    unscored = await _unscored_log(tmp_path)
+    samples = unscored.samples
+    assert samples is not None
+
+    @contextlib.asynccontextmanager
+    async def read_sample(index: int) -> AsyncIterator[EvalSample]:
+        yield samples[index]
+
+    async def append(scorers: dict[str, Scorer] | list[Scorer]) -> EvalLog:
+        if streamed:
+            return await score_async(
+                unscored.model_copy(update={"samples": None}),
+                scorers,
+                samples=read_sample,
+            )
+        return await score_async(unscored, scorers)
+
+    from_dict = await append({})
+    from_list = await append([])
+
+    assert unscored.eval.scorers is not None
+    assert from_dict.eval.scorers == unscored.eval.scorers
+    assert from_list.eval.scorers == unscored.eval.scorers
+
+
 @scorer(metrics=[])
 def _unaggregated_scorer() -> Scorer:
     async def score(state: TaskState, target: Target) -> Score:
