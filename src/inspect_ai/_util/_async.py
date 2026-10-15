@@ -238,9 +238,10 @@ def run_main(main: Callable[[], Coroutine[None, None, T]]) -> T:
 
     On trio, the first SIGINT cancels `main`, which can still clean up (an
     eval writes its cancelled logs), and `KeyboardInterrupt` is raised once
-    it finishes. A second SIGINT interrupts at once. Left alone, trio raises
-    `KeyboardInterrupt` into whatever code is running when the signal lands.
-    On asyncio, `asyncio.run()` handles SIGINT.
+    it finishes. Without this, trio raises `KeyboardInterrupt` into whatever
+    code is running when the signal lands. Later SIGINTs go to trio's own
+    handler, which does not stop shielded cleanup that is waiting. On
+    asyncio, `asyncio.run()` handles SIGINT.
     """
     backend = configured_async_backend()
     if (

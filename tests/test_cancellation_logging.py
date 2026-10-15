@@ -436,7 +436,7 @@ for display in ["rich", "plain", "log"]:
     assert all(sample.error is not None for sample in log.samples), display
     assert len(run_ends) == hooks_before + 1, (display, run_ends)
 
-# a second Ctrl-C during the run-end hook interrupts without rerunning it
+# a second Ctrl-C raised in the run-end hook interrupts without rerunning it
 sigint_in_hook = True
 for display in ["rich", "plain", "log"]:
     hooks_before = len(run_ends)
@@ -449,7 +449,7 @@ for display in ["rich", "plain", "log"]:
     assert len(run_ends) == hooks_before + 1, (display, run_ends)
 sigint_in_hook = False
 
-# a second Ctrl-C during buffer cleanup interrupts without starting the hooks
+# a second Ctrl-C raised in buffer cleanup interrupts without starting the hooks
 # (with the rich display the first Ctrl-C ends the run before buffer cleanup)
 cleanup_sample_buffers = eval_module.cleanup_sample_buffers
 
@@ -482,9 +482,9 @@ def test_keyboard_interrupt_under_trio(sandbox: str):
     """Under trio, Ctrl-C during eval() logs the cancelled samples, runs run-end hooks and raises KeyboardInterrupt.
 
     Covers the rich, plain and log displays, that an eval() error without a
-    SIGINT is not masked, that a second SIGINT during a run-end hook does not
-    rerun it, that a second SIGINT during buffer cleanup does not start the
-    hooks, and that a later eval() still runs.
+    SIGINT is not masked, that a second SIGINT raised in a run-end hook does
+    not rerun it, that a second SIGINT raised in buffer cleanup does not start
+    the hooks, and that a later eval() still runs.
     """
     result = subprocess.run(
         [sys.executable, "-I", "-c", _TRIO_KEYBOARD_INTERRUPT_SCRIPT, sandbox],
