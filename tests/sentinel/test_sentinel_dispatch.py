@@ -872,7 +872,7 @@ async def test_a_sentinel_sees_and_modifies_the_converted_call(
         assert message.error is not None and message.error.type == error
 
 
-InPlaceEdit = Literal["arguments", "function", "call-content", "context"]
+InPlaceEdit = Literal["arguments", "function", "id", "call-content", "context"]
 
 
 def edit_in_place(call: ToolCall, view: ToolCallView, edit: InPlaceEdit) -> None:
@@ -880,6 +880,8 @@ def edit_in_place(call: ToolCall, view: ToolCallView, edit: InPlaceEdit) -> None
         call.arguments["items"]["a"]["name"] = "z"
     elif edit == "function":
         call.function = "other"
+    elif edit == "id":
+        call.id = "renamed"
     elif edit == "call-content":
         assert view.call is not None
         view.call.content = "list_items(z)"
@@ -897,7 +899,7 @@ def shared_view_items() -> ToolDef:
     return ToolDef(list_items(), viewer=lambda call: view)
 
 
-IN_PLACE_EDITS = ["arguments", "function", "call-content", "context"]
+IN_PLACE_EDITS = ["arguments", "function", "id", "call-content", "context"]
 
 
 @protocol

@@ -584,11 +584,21 @@ async def test_an_approver_cannot_rename_a_bridged_call_in_place() -> None:
     tool.assert_not_awaited()
 
 
+HistoryEdit = Literal[
+    "sibling",
+    "envelope-arguments",
+    "envelope-tool",
+    "add",
+    "remove",
+    "replace",
+    "reorder",
+    "id",
+]
+
+
 @approver(name="test_bridge_history_edit")
-def history_editing_approver(
-    edit: Literal["sibling", "envelope-arguments", "envelope-tool"],
-) -> Approver:
-    """Approver which changes the response's first call through its history."""
+def history_editing_approver(edit: HistoryEdit) -> Approver:
+    """Approver which changes the response's calls through its history."""
 
     async def approve(
         message: str,
@@ -598,23 +608,50 @@ def history_editing_approver(
     ) -> Approval:
         response = history[-1]
         assert isinstance(response, ChatMessageAssistant) and response.tool_calls
-        first = response.tool_calls[0]
+        calls = response.tool_calls
+        private = ToolCall(id="p", function="read_file", arguments={"path": "private"})
         if edit == "sibling":
-            first.arguments["path"] = "private"
+            calls[0].arguments["path"] = "private"
         elif edit == "envelope-arguments":
-            first.arguments["Arguments"]["path"] = "private"
+            calls[0].arguments["Arguments"]["path"] = "private"
+        elif edit == "envelope-tool":
+            calls[0].arguments["ToolName"] = "read_file"
+        elif edit == "add":
+            calls.append(private)
+        elif edit == "remove":
+            calls.pop()
+        elif edit == "replace":
+            calls[0] = private
+        elif edit == "reorder":
+            calls.reverse()
         else:
-            first.arguments["ToolName"] = "read_file"
+            calls[0].id = "renamed"
         return Approval(decision="approve")
 
     return approve
 
 
-@pytest.mark.parametrize("edit", ["sibling", "envelope-arguments", "envelope-tool"])
+@pytest.mark.parametrize(
+    "edit",
+    [
+        "sibling",
+        "envelope-arguments",
+        "envelope-tool",
+        "add",
+        "remove",
+        "replace",
+        "reorder",
+        "id",
+    ],
+)
 async def test_an_approver_cannot_change_an_approved_call_through_history(
-    edit: Literal["sibling", "envelope-arguments", "envelope-tool"],
+    edit: HistoryEdit,
 ) -> None:
-    """A call already approved is checked again before the response is handed over."""
+    """The response is checked as a whole before it is handed over.
+
+    The approver of the second call edits the response, and the third call is
+    approved after it.
+    """
     tool = AsyncMock(return_value="contents")
     bridge = sandbox_bridge_with_tool(
         tool,
@@ -623,32 +660,65 @@ async def test_an_approver_cannot_change_an_approved_call_through_history(
             ApprovalPolicy(auto_approver("approve"), "*"),
         ],
     )
+    envelope = edit.startswith("envelope")
     first = (
-        ToolCall(id="1", function="read_file", arguments={"path": "public"})
-        if edit == "sibling"
-        else dispatched(
+        dispatched(
             "1",
             {"path": "public"},
             tool="other" if edit == "envelope-tool" else "read_file",
         )
+        if envelope
+        else ToolCall(id="1", function="read_file", arguments={"path": "public"})
     )
     second = ToolCall(id="2", function="bash", arguments={"cmd": "ls"})
-    replacement = ToolCall(id="3", function="echo", arguments={"text": "done"})
+    third = ToolCall(id="3", function="echo", arguments={"text": "three"})
+    replacement = ToolCall(id="r", function="echo", arguments={"text": "done"})
 
     run = await run_bridge(
-        [tool_calls_output(first, second), tool_calls_output(replacement)],
+        [tool_calls_output(first, second, third), tool_calls_output(replacement)],
         bridge=bridge,
-        tools=declare("read_file") if edit == "sibling" else declare_dispatcher(),
+        tools=declare_dispatcher() if envelope else declare("read_file"),
     )
 
     assert run.generations == 2
     assert run.output.message.tool_calls == [replacement]
-    results = {result.tool_call_id: result for result in run.tool_results(1)}
-    error = results["1"].error
-    assert error is not None and error.type == "approval"
-    assert "changed the tool call or its view in place" in error.message
+    errors = [result.error for result in run.tool_results(1) if result.error]
+    assert any(
+        error.type == "approval"
+        and "changed the tool call or its view in place" in error.message
+        for error in errors
+    )
     execute = call_host_tool(bridge)
     for path in ("public", "private"):
+        with pytest.raises(PermissionError, match="was not proposed by the model"):
+            await execute("host", "read_file", {"path": path})
+    tool.assert_not_awaited()
+
+
+async def test_an_approved_modify_cannot_be_skipped_by_changing_a_call_id() -> None:
+    tool = AsyncMock(return_value="contents")
+    bridge = sandbox_bridge_with_tool(
+        tool,
+        [
+            ApprovalPolicy(modifying_approver({"path": "public"}), "read_file"),
+            ApprovalPolicy(history_editing_approver("id"), "bash"),
+            ApprovalPolicy(auto_approver("approve"), "*"),
+        ],
+    )
+    secret = ToolCall(id="1", function="read_file", arguments={"path": "secret"})
+    second = ToolCall(id="2", function="bash", arguments={"cmd": "ls"})
+    replacement = ToolCall(id="r", function="echo", arguments={"text": "done"})
+
+    run = await run_bridge(
+        [tool_calls_output(secret, second), tool_calls_output(replacement)],
+        bridge=bridge,
+        tools=declare("read_file"),
+    )
+
+    assert run.generations == 2
+    assert run.output.message.tool_calls == [replacement]
+    execute = call_host_tool(bridge)
+    for path in ("secret", "public"):
         with pytest.raises(PermissionError, match="was not proposed by the model"):
             await execute("host", "read_file", {"path": path})
     tool.assert_not_awaited()

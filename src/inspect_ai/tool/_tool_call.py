@@ -126,6 +126,7 @@ def resolve_tool_call_view(
 class ShownCall(NamedTuple):
     """A call (and its view) as shown to a callback, to detect edits in place."""
 
+    id: str
     function: str
     arguments: dict[str, Any]
     view: dict[str, Any] | None
@@ -133,12 +134,13 @@ class ShownCall(NamedTuple):
     @classmethod
     def of(cls, call: ToolCall, view: ToolCallView | None = None) -> "ShownCall":
         rendered = view.model_dump() if view is not None else None
-        return cls(call.function, deepcopy(call.arguments), rendered)
+        return cls(call.id, call.function, deepcopy(call.arguments), rendered)
 
     def changed(self, call: ToolCall, view: ToolCallView | None = None) -> bool:
         """Whether `call` (or `view`) no longer matches what was shown."""
         return (
-            call.function != self.function
+            call.id != self.id
+            or call.function != self.function
             or not json_equal(call.arguments, self.arguments)
             or (view is not None and view.model_dump() != self.view)
         )

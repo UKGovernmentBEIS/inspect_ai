@@ -137,9 +137,12 @@ async def apply_bridge_tool_approval(
         if not approval_active:
             return BridgeApproval(output, None)
 
-        tool_calls = output.message.tool_calls
-        if not tool_calls:
+        if not output.message.tool_calls:
             return BridgeApproval(output, None)
+        # the calls as they are now (a new list, since approvers can reach the
+        # response's own list through their history), to check the response
+        # against once every call is approved
+        tool_calls = list(output.message.tool_calls)
 
         # approvers see the assistant turn under review, matching the native path
         # where the conversation ends with the message carrying the tool calls: an
@@ -214,10 +217,11 @@ def changed_in_place(
     """The first call of a response that was changed in place, if any.
 
     Args:
-        calls: The response's tool calls when approval started.
+        calls: The response's tool calls when approval started (a list of
+            their own, which approvers cannot reach).
         shown: Each call as it was then.
-        current: The response's tool calls now. Calls added, removed or
-            replaced count as a change to the first call.
+        current: The response's tool calls now. Calls added, removed,
+            replaced or reordered count as a change to the first call.
     """
     current = current or []
     if len(current) != len(calls) or any(a is not b for a, b in zip(current, calls)):

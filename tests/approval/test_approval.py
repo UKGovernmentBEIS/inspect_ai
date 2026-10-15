@@ -910,7 +910,7 @@ async def test_a_viewer_cannot_change_the_call_that_runs(
 
 @approver
 def in_place_approver(
-    edit: Literal["arguments", "view", "function"], decision: ApprovalDecision
+    edit: Literal["arguments", "view", "function", "id"], decision: ApprovalDecision
 ) -> Approver:
     """Approver which changes the call or its view in place."""
 
@@ -924,6 +924,8 @@ def in_place_approver(
             call.arguments["x"] = 5
         elif edit == "function":
             call.function = "other"
+        elif edit == "id":
+            call.id = "renamed"
         else:
             assert view.call is not None
             view.call.content = "addition(x=5, y=1)"
@@ -949,10 +951,11 @@ def in_place_approver(
         ("view", "escalate"),
         ("view", "approve"),
         ("function", "approve"),
+        ("id", "approve"),
     ],
 )
 async def test_an_approver_cannot_change_the_call_in_place(
-    edit: Literal["arguments", "view", "function"], decision: ApprovalDecision
+    edit: Literal["arguments", "view", "function", "id"], decision: ApprovalDecision
 ) -> None:
     """An in-place edit is refused: an approver changes a call with `modify`."""
     init_transcript(Transcript())
