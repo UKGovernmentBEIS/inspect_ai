@@ -11,11 +11,7 @@ from typing_extensions import TypedDict
 from inspect_ai._util.content import ContentDocument, ContentText
 from inspect_ai.event._tool import ToolEvent
 from inspect_ai.log._transcript import Transcript, init_transcript
-from inspect_ai.model._call_tools import (
-    MAX_TOOL_CALL_ARGUMENTS_DEPTH,
-    execute_tools,
-    tool_param,
-)
+from inspect_ai.model._call_tools import MAX_TOOL_CALL_ARGUMENTS_DEPTH, execute_tools
 from inspect_ai.model._chat_message import (
     ChatMessageAssistant,
     ChatMessageTool,
@@ -542,98 +538,6 @@ async def test_tool_event_message_id_for_multiple_calls():
     assert len({e.message_id for e in tool_events}) == 3
 
 
-# --- Exact argument conversion ----------------------------------------------
-
-
-@pytest.mark.parametrize(
-    "type_hint,value",
-    [
-        (bool, "false"),
-        (bool, 0),
-        (str, {"a": 1}),
-        (str, 5),
-        (int, 1.5),
-        (int, "5"),
-        (int, True),
-        (float, "1.5"),
-        (float, 2**53 + 1),
-        (List[str], "abc"),
-        (Tuple[str, int], ["a", "1"]),
-        (Dict[str, int], ["a"]),
-        (date, "not-a-date"),
-        (MyEnum, "zulu"),
-        (MyPydanticModel, {"name": "a", "id": "x"}),
-    ],
-)
-def test_tool_param_rejects_inexact_conversions(type_hint: Any, value: Any) -> None:
-    from inspect_ai.tool._tool import ToolParsingError
-
-    with pytest.raises(ToolParsingError, match="Unable to convert"):
-        tool_param(type_hint, value)
-
-
-@pytest.mark.parametrize(
-    "type_hint,value,expected",
-    [
-        (bool, False, False),
-        (str, "5", "5"),
-        (int, 5.0, 5),
-        (float, 5, 5.0),
-        (List[int], [1, 2.0], [1, 2]),
-        (Tuple[str, int], ["a", 1], ("a", 1)),
-        (Optional[int], None, None),
-        (MyEnum, "alpha", MyEnum.ALPHA),
-    ],
-)
-def test_tool_param_keeps_exact_conversions(
-    type_hint: Any, value: Any, expected: Any
-) -> None:
-    converted = tool_param(type_hint, value)
-    assert converted == expected
-    assert type(converted) is type(expected)
-
-
-def test_tool_param_omitted_fields_keep_defaults() -> None:
-    @dataclass
-    class WithDefault:
-        name: str
-        label: str = "default"
-
-    assert tool_param(WithDefault, {"name": "a"}) == WithDefault("a", "default")
-
-
-async def test_inexact_argument_is_a_parsing_error() -> None:
-    # a schema looser than the type hints lets "false" reach conversion, where
-    # bool("false") would have been True
-    @tool
-    def flag():
-        async def execute(enabled: bool) -> str:
-            """Report a flag.
-
-            Args:
-                enabled: The flag.
-            """
-            return f"enabled={enabled}"
-
-        return execute
-
-    tool_def = ToolDef(
-        flag(), parameters=ToolParams(properties={"enabled": ToolParam()})
-    )
-    messages, _ = await execute_tools(
-        [
-            ChatMessageAssistant(
-                content=[], tool_calls=[make_call("flag", {"enabled": "false"})]
-            )
-        ],
-        [tool_def],
-    )
-
-    assert isinstance(messages[-1], ChatMessageTool)
-    assert messages[-1].error is not None
-    assert messages[-1].error.type == "parsing"
-
-
 @pytest.mark.parametrize(
     "tool_factory,name,item",
     [
@@ -823,9 +727,7 @@ async def test_tool_explicit_schema_kwargs_docstring_int():
         """
         return str(options["options"] + 1)
 
-    message = await _execute_with_schema(
-        execute, ["options"], {"options": 2.0}, types={"options": "number"}
-    )
+    message = await _execute_with_schema(execute, ["options"], {"options": "2"})
     assert message.content == "3"
 
 

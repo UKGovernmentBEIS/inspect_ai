@@ -3,9 +3,9 @@ import json
 import string
 import types
 import typing
-from collections.abc import Collection, Iterable, Iterator, Mapping
+from collections.abc import Collection
 from copy import copy, deepcopy
-from dataclasses import MISSING, fields, is_dataclass, replace
+from dataclasses import is_dataclass, replace
 from datetime import date, datetime, time
 from enum import EnumMeta
 from logging import getLogger
@@ -38,9 +38,7 @@ if TYPE_CHECKING:
 import anyio
 import yaml
 from anyio.streams.memory import MemoryObjectSendStream
-from pydantic import BaseModel
-from pydantic.fields import FieldInfo
-from pydantic_core import PydanticUndefined, to_jsonable_python
+from pydantic import BaseModel, TypeAdapter
 from typing_extensions import is_typeddict
 
 from inspect_ai._sentinel._context import SentinelFailure, checks_tool_calls
@@ -897,8 +895,7 @@ async def call_tool(
         except ToolApprovalError:
             await record_pending_tool_event()
             raise
-        event.arguments = validated.call.arguments
-        event.view = tool_call_view(validated.call, tools)
+        event.view = _tool_view(tool_def, validated.call, validate=False)
         return validated
 
     # if there was an error parsing the ToolCall, raise that
@@ -920,9 +917,14 @@ async def call_tool(
     # approvers and viewers see the validated call, so an invalid call is
     # never presented for approval
     try:
-        call, arguments = validated_tool_call(call, tool_def)
+        validated = validated_tool_call(call, tool_def)
     except ToolParsingError as ex:
         raise await record_tool_parsing_error(ex.message)
+    if validated.call is not call:
+        # under oversight the event records the call as shown
+        event.arguments = validated.call.arguments
+        event.view = _tool_view(tool_def, validated.call, validate=False)
+    call, arguments = validated
 
     # if we have a tool approver, apply it now
     from inspect_ai.approval._apply import (
@@ -1375,7 +1377,9 @@ def tool_params(
 
         # yield parameter (fail if not passed and there is no default)
         if param_name in input:
-            params[param_name] = tool_param(type_hint, input.get(param_name))
+            params[param_name] = _converted_param(
+                param_name, type_hint, input.get(param_name)
+            )
         elif param.default is not inspect.Parameter.empty:
             params[param_name] = param.default
         elif type_hint_includes_none(type_hint):
@@ -1394,9 +1398,20 @@ def tool_params(
         )
         for name, value in input.items():
             if name not in named_params:
-                params[name] = tool_param(kwargs_type, value)
+                params[name] = _converted_param(name, kwargs_type, value)
 
     return params
+
+
+def _converted_param(name: str, type_hint: Type[Any], value: Any) -> Any:
+    # conversion runs before approval, so a value it cannot convert (a bad
+    # date or enum value, a failing constructor) goes back to the model
+    try:
+        return tool_param(type_hint, value)
+    except (TypeError, ValueError) as ex:
+        raise ToolParsingError(
+            f"Unable to convert argument '{name}' for the tool: {ex}"
+        ) from ex
 
 
 def param_type_hint(
@@ -1426,7 +1441,7 @@ class ValidatedToolCall(NamedTuple):
     """Outcome of `validated_tool_call()`."""
 
     call: ToolCall
-    """The call approvers and viewers see."""
+    """The call approvers, sentinel monitors and viewers see."""
 
     arguments: dict[str, Any]
     """The arguments the tool receives."""
@@ -1436,59 +1451,65 @@ def validated_tool_call(call: ToolCall, tool_def: ToolDef) -> ValidatedToolCall:
     """Validate and convert a call's arguments before it is approved.
 
     The arguments are checked against the tool's schema and converted to the
-    tool's parameter types (exactly, see `tool_param()`). The returned call is
-    what approvers, sentinel monitors and viewers see, and the returned
-    arguments are what the tool receives. A Pydantic model or a dataclass
-    is built by its constructor, which can change a value (a validator,
-    `__post_init__`), so while approval or a sentinel is active such a
-    parameter (or a list of them) is shown as the constructed value
-    serializes (see `_serialized_value()`), and that form must still fit the
-    tool's schema.
+    tool's parameter types. While approval or a sentinel is active, the
+    returned call holds the converted arguments serialized as JSON, and the
+    returned arguments are rebuilt from that JSON, which must serialize back
+    to itself. Otherwise the call is returned unchanged. See
+    `design/tool-approval-arguments.md`.
 
     Raises:
-        ToolParsingError: The arguments fail the schema or cannot be converted
-            exactly, or (while approval or a sentinel is active) hold a model
-            or dataclass that cannot be shown in a form the tool accepts.
+        ToolParsingError: The arguments fail the schema or cannot be
+            converted, or (while approval or a sentinel is active) cannot be
+            serialized or do not rebuild to the same JSON.
     """
-    from inspect_ai.agent._handoff import AgentTool
-
     validation_errors = validate_tool_input(call.arguments, tool_def.parameters)
     if validation_errors:
         raise ToolParsingError(validation_errors)
 
-    # a constructor (a validator, `__post_init__`) can change its input in
-    # place, so it gets a copy and the call keeps the values that were sent
-    supplied = deepcopy(call.arguments)
-    if isinstance(tool_def.tool, AgentTool):
-        # agent_handoff passes the real `state`, and the developer's curried
-        # arguments are Python values that go to the agent as given
-        curried = tool_def.tool.kwargs
-        arguments = {
-            **tool_params(supplied, tool_def.tool.agent, skip={"state", *curried}),
-            **curried,
-        }
-    else:
-        arguments = tool_params(supplied, tool_def.tool)
-
     if not _tool_calls_overseen():
-        return ValidatedToolCall(call, arguments)
+        return ValidatedToolCall(call, _converted_arguments(call.arguments, tool_def))
 
-    shown = dict(call.arguments)
-    serialized = False
-    for name in call.arguments:
-        value = arguments.get(name)
-        if _contains_constructed(value):
-            shown[name] = _serialized_value(name, value)
-            serialized = True
-    if serialized:
-        schema_errors = validate_tool_input(shown, tool_def.parameters)
-        if schema_errors:
-            raise ToolParsingError(
-                "A Pydantic model or dataclass argument cannot be shown to "
-                "approvers or monitors: as it serializes, it does not fit the "
-                f"tool's schema.\n{schema_errors}"
-            )
-    return ValidatedToolCall(replace(call, arguments=shown), arguments)
+    shown = replace(call, arguments=_serialized_arguments(call.arguments, tool_def))
+    try:
+        changed = _changed_on_rebuild(shown.arguments, tool_def)
+    except ToolParsingError as ex:
+        raise ToolParsingError(
+            "The arguments cannot be shown to approvers or monitors: as "
+            "converted for the tool and serialized, they do not convert back. "
+            f"{ex.message}"
+        ) from ex
+    if changed is not None:
+        raise ToolParsingError(
+            f"Argument '{changed}' cannot be shown to approvers or monitors: as "
+            "converted for the tool and serialized, it does not convert back to "
+            "the same value."
+        )
+    return ValidatedToolCall(shown, _rebuilt_arguments(shown.arguments, tool_def))
+
+
+def modified_tool_call(selected: ToolCall, tool_def: ToolDef) -> ValidatedToolCall:
+    """Validate an approver's or sentinel's modified call, which runs as selected.
+
+    The selected arguments are the JSON the tool's arguments are rebuilt
+    from, so they must serialize back to exactly that JSON: a modify gives
+    every argument and field in full, as shown.
+
+    Raises:
+        ToolParsingError: The modified arguments are invalid.
+        ToolApprovalError: Rebuilding an argument for the tool changes it.
+    """
+    validation_errors = validate_tool_input(selected.arguments, tool_def.parameters)
+    if validation_errors:
+        raise ToolParsingError(validation_errors)
+
+    changed = _changed_on_rebuild(selected.arguments, tool_def)
+    if changed is not None:
+        raise ToolApprovalError(
+            f"The modified value for '{changed}' changes when it is converted "
+            "for the tool, so the call was not run. Copy the full call as shown "
+            "(including any defaults it fills in) and change only what you need."
+        )
+    return ValidatedToolCall(selected, _rebuilt_arguments(selected.arguments, tool_def))
 
 
 def _tool_calls_overseen() -> bool:
@@ -1498,336 +1519,131 @@ def _tool_calls_overseen() -> bool:
     return have_tool_approval() or checks_tool_calls()
 
 
-def modified_tool_call(selected: ToolCall, tool_def: ToolDef) -> ValidatedToolCall:
-    """Validate an approver's modified call, which must run as selected.
+def _converted_arguments(
+    arguments: dict[str, Any], tool_def: ToolDef
+) -> dict[str, Any]:
+    """The tool's arguments converted from a call's, with curried handoff values."""
+    from inspect_ai.agent._handoff import AgentTool
 
-    A model or dataclass may leave out fields that have defaults: the
-    defaults it fills in do not count as a change.
-
-    Raises:
-        ToolParsingError: The modified arguments are invalid.
-        ToolApprovalError: Converting an argument for the tool would change
-            the value the approver selected (e.g. a model validator).
-    """
-    selected_arguments = to_jsonable_python(selected.arguments, fallback=str)
-    modified = validated_tool_call(selected, tool_def)
-    for name, value in selected_arguments.items():
-        shown = to_jsonable_python(modified.call.arguments.get(name), fallback=str)
-        if not _only_defaults_added(value, shown, modified.arguments.get(name)):
-            raise ToolApprovalError(
-                f"The modified value for '{name}' changes when it is "
-                "converted for the tool, so the call was not run."
-            )
-    return modified
-
-
-def _only_defaults_added(selected: Any, dumped: Any, value: Any) -> bool:
-    """Whether `dumped` is `selected` with only the defaults it left out filled in.
-
-    `dumped` is the constructed `value` as it serializes, and the two forms
-    are compared position by position, so every serializer in the value
-    applies. `value` is followed alongside only to tell whether a left-out
-    key holds its default (see `_holds_default()`).
-    """
-    if isinstance(selected, list) and isinstance(dumped, list):
-        if isinstance(value, list | tuple) and len(value) == len(dumped):
-            items = list(value)
-        else:
-            items = [None] * len(dumped)
-        return len(selected) == len(dumped) and all(
-            map(_only_defaults_added, selected, dumped, items)
+    if isinstance(tool_def.tool, AgentTool):
+        # agent_handoff passes the real `state`, and the developer's curried
+        # arguments are Python values that go to the agent as given
+        curried = tool_def.tool.kwargs
+        converted = tool_params(
+            arguments, tool_def.tool.agent, skip={"state", *curried}
         )
-    if not (isinstance(selected, dict) and isinstance(dumped, dict)):
-        return json_equal(selected, dumped)
-    names = _serialized_names(value)
-    return set(selected) <= set(dumped) and all(
-        _only_defaults_added(selected[key], item, _member(value, names.get(key)))
-        if key in selected
-        else key in names and _holds_default(value, names[key])
-        for key, item in dumped.items()
-    )
+        return {**converted, **curried}
+    return tool_params(arguments, tool_def.tool)
 
 
-def _serialized_names(value: Any) -> dict[str, str]:
-    """The attribute (or key) each serialized key of `value` holds."""
-    if isinstance(value, BaseModel):
-        infos = type(value).model_fields
-        return {_serialized_key(name, info): name for name, info in infos.items()}
-    if _is_dataclass_instance(value):
-        # a Pydantic dataclass keeps its aliases here
-        infos = getattr(type(value), "__pydantic_fields__", {})
-        return {
-            _serialized_key(f.name, infos.get(f.name)): f.name for f in fields(value)
-        }
-    if isinstance(value, Mapping):
-        return {key: key for key in value if isinstance(key, str)}
-    return {}
+def _rebuilt_arguments(arguments: dict[str, Any], tool_def: ToolDef) -> dict[str, Any]:
+    # a constructor (a validator, `__post_init__`) can change its input in
+    # place, so it gets a copy and the JSON keeps the approved values
+    return _converted_arguments(deepcopy(arguments), tool_def)
 
 
-def _serialized_key(name: str, info: FieldInfo | None) -> str:
-    if info is None:
-        return name
-    return info.serialization_alias or info.alias or name
+def _serialized_arguments(
+    arguments: dict[str, Any], tool_def: ToolDef
+) -> dict[str, Any]:
+    """A call's arguments as converted for the tool, serialized as JSON.
 
-
-def _member(value: Any, name: str | None) -> Any:
-    if name is None:
-        return None
-    return value[name] if isinstance(value, Mapping) else getattr(value, name)
-
-
-def _holds_default(value: Any, name: str) -> bool:
-    """Whether a model or dataclass field left out of a call holds its default.
-
-    A model field must be unset. A dataclass field must hold its static
-    default as constructed (not as serialized), or come from its default
-    factory, which is not called again.
+    Only the arguments the call gives are serialized: parameters it leaves
+    out get their Python defaults when the arguments are rebuilt, and curried
+    handoff values are not part of the call.
     """
-    if isinstance(value, BaseModel):
-        return name not in value.model_fields_set
-    if not _is_dataclass_instance(value):
-        return False
-    field = next(f for f in fields(value) if f.name == name)
-    default = field.default
-    if isinstance(default, FieldInfo):
-        # a Pydantic dataclass `Field()`
-        if default.default_factory is not None:
-            return True
-        default = default.default
-        if default is PydanticUndefined:
-            return False
-    elif default is MISSING:
-        return field.default_factory is not MISSING
-    return _same_value(getattr(value, name), default)
+    from inspect_ai.agent._handoff import AgentTool
+
+    converted = _rebuilt_arguments(arguments, tool_def)
+    curried = tool_def.tool.kwargs if isinstance(tool_def.tool, AgentTool) else {}
+    return {
+        name: _serialized(name, converted[name])
+        for name in arguments
+        if name in converted and name not in curried
+    }
 
 
-def _same_value(value: Any, default: Any) -> bool:
-    """Whether a constructed value is its default, telling `False` from `0`."""
-    if value is default:
-        return True
-    if type(value) is not type(default):
-        return json_equal(value, default)
-    if isinstance(value, list | tuple):
-        return len(value) == len(default) and all(map(_same_value, value, default))
-    if isinstance(value, Mapping):
-        return value.keys() == default.keys() and all(
-            _same_value(item, default[key]) for key, item in value.items()
-        )
-    if isinstance(value, BaseModel):
-        return _same_value(value.__dict__, default.__dict__)
-    if _is_dataclass_instance(value):
-        return all(
-            _same_value(getattr(value, f.name), getattr(default, f.name))
-            for f in fields(value)
-        )
-    return json_equal(value, default)
+def _changed_on_rebuild(arguments: dict[str, Any], tool_def: ToolDef) -> str | None:
+    """The first argument that does not serialize back to itself when rebuilt."""
+    rebuilt = _serialized_arguments(arguments, tool_def)
+    for name in [*arguments, *(name for name in rebuilt if name not in arguments)]:
+        if name not in rebuilt or not json_equal(rebuilt[name], arguments.get(name)):
+            return name
+    return None
 
 
-def _is_dataclass_instance(value: Any) -> bool:
-    return is_dataclass(value) and not isinstance(value, type)
+_JSON_VALUE = TypeAdapter[Any](Any)
 
 
-def _contains_constructed(value: Any, seen: set[int] | None = None) -> bool:
-    """Whether a value holds a Pydantic model or a dataclass anywhere."""
-    if isinstance(value, BaseModel) or _is_dataclass_instance(value):
-        return True
-    if isinstance(value, str | bytes | Iterator):
-        return False
-    if isinstance(value, Mapping):
-        items: Iterable[Any] = value.values()
-    elif isinstance(value, Iterable):
-        items = value
-    else:
-        return False
-    seen = set() if seen is None else seen
-    if id(value) in seen:
-        return False
-    seen.add(id(value))
-    return any(_contains_constructed(item, seen) for item in items)
-
-
-def _serialized_value(name: str, value: Any) -> Any:
-    """A model or dataclass argument (or a list of them) as it serializes.
-
-    Models are dumped by alias and without computed fields, matching the
-    model's schema; dataclasses with `to_jsonable_python()`. A lazy iterable
-    anywhere in the value is refused before serializing, since serializing
-    would consume it and leave the tool with nothing.
-
-    Raises:
-        ToolParsingError: The value holds a model or dataclass in another
-            form, or serializing it fails.
-    """
-
-    def constructed(item: Any) -> bool:
-        return isinstance(item, BaseModel) or _is_dataclass_instance(item)
-
-    supported = constructed(value) or (
-        isinstance(value, list)
-        and all(constructed(item) or not _contains_constructed(item) for item in value)
-    )
-    if not supported or _holds_iterator(value):
-        raise ToolParsingError(
-            f"Argument '{name}' holds a Pydantic model or dataclass in a form "
-            "that cannot be shown to approvers or monitors (only a model or "
-            "dataclass, or a list of them, without lazy iterables)."
-        )
-
-    def dump(item: Any) -> Any:
-        if isinstance(item, BaseModel):
-            return item.model_dump(
-                mode="json", by_alias=True, exclude_computed_fields=True
-            )
-        if _is_dataclass_instance(item):
-            return to_jsonable_python(item, by_alias=True)
-        return to_jsonable_python(item, fallback=str)
-
+def _serialized(name: str, value: Any) -> Any:
+    """An argument value as JSON, with models dumped by alias and without computed fields."""
     try:
-        return list(map(dump, value)) if isinstance(value, list) else dump(value)
+        return _JSON_VALUE.dump_python(
+            value, mode="json", by_alias=True, exclude_computed_fields=True
+        )
     except Exception as ex:
         raise ToolParsingError(
-            f"Argument '{name}' holds a Pydantic model or dataclass that cannot "
-            f"be shown to approvers or monitors: serializing it failed ({ex})."
+            f"Argument '{name}' cannot be shown to approvers or monitors: "
+            f"serializing it failed ({ex})."
         ) from ex
 
 
-def _holds_iterator(value: Any, seen: set[int] | None = None) -> bool:
-    """Whether a value holds a lazy iterable anywhere, without consuming it.
-
-    Each object is visited once, so a value that refers back to itself is
-    walked without recursing forever (serializing it then decides whether
-    the cycle can be shown).
-    """
-    if isinstance(value, Iterator):
-        return True
-    if isinstance(value, str | bytes):
-        return False
-    if isinstance(value, BaseModel):
-        items = [*value.__dict__.values(), *(value.__pydantic_extra__ or {}).values()]
-    elif _is_dataclass_instance(value):
-        items = [getattr(value, f.name) for f in fields(value)]
-    elif isinstance(value, Mapping):
-        items = list(value.values())
-    elif isinstance(value, Iterable):
-        items = list(value)
-    else:
-        return False
-    seen = set() if seen is None else seen
-    if id(value) in seen:
-        return False
-    seen.add(id(value))
-    return any(_holds_iterator(item, seen) for item in items)
-
-
 def tool_param(type_hint: Type[Any], input: Any) -> Any:
-    """Convert a model-supplied argument value to `type_hint`.
-
-    Only conversions that keep the value's meaning are made: an `int` parameter
-    accepts an int or a float with no fractional part, a `float` parameter
-    accepts a float or an int it can represent exactly, and `str` and `bool`
-    parameters accept only their own type. Lists, sets and tuples must be given
-    as JSON arrays, and dicts, TypedDicts and dataclasses as JSON objects.
-    Dates and times are parsed from ISO 8601 strings, enums are looked up by
-    value, and Pydantic models validate their input.
-
-    Raises:
-        ToolParsingError: The value would need a lossy or surprising conversion.
-    """
     origin = get_origin(type_hint)
     args = get_args(type_hint)
-
-    def unable_to_convert(ex: Exception | None = None) -> ToolParsingError:
-        name = getattr(type_hint, "__name__", None) if origin is None else None
-        reason = f": {ex}" if ex is not None else ""
-        return ToolParsingError(
-            f"Unable to convert '{input}' to {name or type_hint}{reason}"
-        )
 
     if origin is None:
         if type_hint == typing.Any:
             return input
         elif type_hint in [int, str, float, bool]:
-            scalar = _exact_scalar(type_hint, input)
-            if scalar is None:
-                raise unable_to_convert()
-            return scalar
-        elif type_hint in (datetime, date, time):
-            if not isinstance(input, str):
-                raise unable_to_convert()
             try:
-                if type_hint == datetime:
-                    # convert trailing Z to +00:00
-                    iso = input[:-1] + "+00:00" if input.endswith("Z") else input
-                    return datetime_from_iso_format_safe(iso)
-                elif type_hint == date:
-                    return date.fromisoformat(input)
-                else:
-                    return time.fromisoformat(input)
-            except ValueError as ex:
-                raise unable_to_convert(ex) from ex
+                return type_hint(input)
+            except (ValueError, TypeError):
+                raise ToolParsingError(
+                    f"Unable to convert '{input}' to {type_hint.__name__}"
+                )
+        elif type_hint == datetime:
+            if input.endswith("Z"):
+                # convert trailing Z to +00:00
+                input = input[:-1] + "+00:00"
+            return datetime_from_iso_format_safe(input)
+        elif type_hint == date:
+            return date.fromisoformat(input)
+        elif type_hint == time:
+            return time.fromisoformat(input)
         elif is_typeddict(type_hint):
-            if not isinstance(input, dict):
-                raise unable_to_convert()
             typeddict_data: dict[str, Any] = {}
             annotations = get_type_hints(type_hint)
             for name, hint in annotations.items():
-                if name in input:
-                    typeddict_data[name] = tool_param(hint, input[name])
+                typeddict_data[name] = tool_param(hint, input.get(name))
             return typeddict_data
         elif is_dataclass(type_hint):
-            if not isinstance(input, dict):
-                raise unable_to_convert()
             dataclass_data: dict[str, Any] = {}
             fields = type_hint.__dataclass_fields__  # type: ignore
             for name, field in fields.items():
-                if name in input:
-                    dataclass_data[name] = tool_param(field.type, input[name])  # type: ignore
-            try:
-                return type_hint(**dataclass_data)
-            except (TypeError, ValueError) as ex:
-                raise unable_to_convert(ex) from ex
+                dataclass_data[name] = tool_param(field.type, input.get(name))  # type: ignore
+            return type_hint(**dataclass_data)
         elif issubclass(type_hint, BaseModel):
-            if not isinstance(input, dict):
-                raise unable_to_convert()
-            try:
-                return type_hint(**input)
-            except (TypeError, ValueError) as ex:
-                raise unable_to_convert(ex) from ex
+            return type_hint(**input)
         elif isinstance(type_hint, EnumMeta):
-            try:
-                return type_hint(input)
-            except ValueError as ex:
-                raise unable_to_convert(ex) from ex
+            return type_hint(input)
         else:
             return input
     elif origin is list or origin is List:
-        if not isinstance(input, list | tuple):
-            raise unable_to_convert()
         if args:
             return [tool_param(args[0], x) for x in input]
         else:
             return input
     elif origin is set or origin is Set:
-        if not isinstance(input, list | tuple):
-            raise unable_to_convert()
         if args:
             return {tool_param(args[0], x) for x in input}
         else:
             return set(input)
     elif origin is tuple or origin is Tuple:
-        if not isinstance(input, list | tuple):
-            raise unable_to_convert()
-        if len(args) == 2 and args[1] is Ellipsis:
+        if args:
             return tuple([tool_param(args[0], x) for x in input])
-        elif args:
-            if len(args) != len(input):
-                raise unable_to_convert()
-            return tuple([tool_param(arg, x) for arg, x in zip(args, input)])
         else:
             return tuple(input)
     elif origin is dict or origin is Dict:
-        if not isinstance(input, dict):
-            raise unable_to_convert()
         if args and len(args) > 1:
             return {k: tool_param(args[1], v) for k, v in input.items()}
         else:
@@ -1841,25 +1657,6 @@ def tool_param(type_hint: Type[Any], input: Any) -> Any:
         return input
 
 
-def _exact_scalar(type_hint: Type[Any], value: Any) -> Any:
-    """`value` as `type_hint` (int, str, float or bool), or None if not exact."""
-    is_number = isinstance(value, int | float) and not isinstance(value, bool)
-    if type_hint is bool or type_hint is str:
-        return value if isinstance(value, type_hint) else None
-    elif type_hint is int:
-        if is_number and (isinstance(value, int) or value.is_integer()):
-            return int(value)
-    elif type_hint is float:
-        if isinstance(value, float):
-            return value
-        elif is_number:
-            try:
-                return float(value) if float(value) == value else None
-            except OverflowError:
-                return None
-    return None
-
-
 def tool_call_view(call: ToolCall, tdefs: list[ToolDef]) -> ToolCallContent | None:
     """The tool's own view of `call` for the transcript, if it has a viewer.
 
@@ -1867,19 +1664,29 @@ def tool_call_view(call: ToolCall, tdefs: list[ToolDef]) -> ToolCallContent | No
     (`validated_tool_call()`); an invalid call gets the default rendering.
     """
     tool_def = next((tool for tool in tdefs if tool.name == call.function), None)
-    if tool_def and tool_def.viewer and call.parse_error is None:
-        try:
-            return tool_def.viewer(validated_tool_call(call, tool_def).call).call
-        except ToolParsingError:
-            return None
-        except Exception as ex:
-            warn_once(
-                logger,
-                f"Error in viewer for tool '{call.function}': {ex}. "
-                "Falling back to default rendering.",
-            )
-            return None
-    else:
+    if tool_def is None or call.parse_error is not None:
+        return None
+    return _tool_view(tool_def, call, validate=True)
+
+
+def _tool_view(
+    tool_def: ToolDef, call: ToolCall, validate: bool
+) -> ToolCallContent | None:
+    """The tool's own view of `call`, validating it first unless it already is."""
+    if tool_def.viewer is None:
+        return None
+    try:
+        if validate:
+            call = validated_tool_call(call, tool_def).call
+        return tool_def.viewer(call).call
+    except ToolParsingError:
+        return None
+    except Exception as ex:
+        warn_once(
+            logger,
+            f"Error in viewer for tool '{call.function}': {ex}. "
+            "Falling back to default rendering.",
+        )
         return None
 
 

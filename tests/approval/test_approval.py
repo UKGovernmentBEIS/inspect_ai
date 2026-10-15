@@ -1,27 +1,16 @@
+import json
 import logging
 from collections.abc import Iterable
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import date
-from itertools import count
 from pathlib import Path
 from typing import Any, Literal, NamedTuple
 
 import pytest
-from pydantic import (
-    BaseModel,
-    ConfigDict,
-    Field,
-    computed_field,
-    field_serializer,
-    field_validator,
-    model_validator,
-)
-from pydantic.dataclasses import dataclass as pydantic_dataclass
-from pydantic_core import to_jsonable_python
+from pydantic import BaseModel, Field, field_serializer, field_validator
 
 from inspect_ai import Task, eval
 from inspect_ai._util.content import ContentText
-from inspect_ai._util.json import json_equal
 from inspect_ai._util.registry import registry_log_name
 from inspect_ai.agent import Agent, AgentState, agent
 from inspect_ai.approval import (
@@ -44,6 +33,7 @@ from inspect_ai.event._approval import ApprovalEvent
 from inspect_ai.event._model import ModelEvent
 from inspect_ai.event._tool import ToolEvent
 from inspect_ai.log._log import EvalLog
+from inspect_ai.log._transcript import Transcript, init_transcript, transcript
 from inspect_ai.model import (
     ChatMessage,
     ChatMessageAssistant,
@@ -57,9 +47,8 @@ from inspect_ai.model._call_tools import execute_tools
 from inspect_ai.scorer import match
 from inspect_ai.solver import generate, use_tools
 from inspect_ai.tool._tool import Tool, tool
-from inspect_ai.tool._tool_call import ToolCall, ToolCallView
+from inspect_ai.tool._tool_call import ToolCall, ToolCallContent, ToolCallView
 from inspect_ai.tool._tool_def import ToolDef
-from inspect_ai.tool._tool_params import ToolParam, ToolParams
 
 
 # define tool
@@ -615,7 +604,8 @@ def modifying_approver(arguments: dict[str, object], function: str = "") -> Appr
     return approve
 
 
-# --- approval decides on the validated call that will run --------------------
+# --- approval decides on the call that will run ------------------------------
+# (design/tool-approval-arguments.md)
 
 
 @approver
@@ -637,7 +627,7 @@ def recording_approver(
 
 
 async def execute_with_approval(
-    call: ToolCall, tools: list[Any], policies: list[ApprovalPolicy]
+    call: ToolCall, tools: list[Any], policies: list[ApprovalPolicy] | None
 ) -> ChatMessageTool:
     messages, _ = await execute_tools(
         [ChatMessageAssistant(content=[], tool_calls=[call])],
@@ -648,357 +638,53 @@ async def execute_with_approval(
     return messages[-1]
 
 
-@pytest.mark.parametrize(
-    "parameters,arguments",
-    [
-        # fails the schema
-        (None, {"x": "one", "y": 1}),
-        # passes a loose schema, but would need a lossy conversion (1.5 -> 1)
-        (
-            ToolParams(properties={"x": ToolParam(), "y": ToolParam()}),
-            {"x": 1.5, "y": 1},
-        ),
-    ],
-    ids=["schema", "inexact-conversion"],
-)
-async def test_invalid_call_never_reaches_approver(
-    parameters: ToolParams | None, arguments: dict[str, Any]
-) -> None:
-    viewed: list[ToolCall] = []
-
-    def viewer(call: ToolCall) -> ToolCallView:
-        viewed.append(call)
-        return ToolCallView()
-
-    calls: list[ToolCall] = []
-    message = await execute_with_approval(
-        ToolCall(id="1", function="addition", arguments=arguments),
-        [ToolDef(addition(), parameters=parameters, viewer=viewer)],
-        [ApprovalPolicy(recording_approver(calls, "reject"), "*")],
-    )
-
-    assert message.error is not None
-    assert message.error.type == "parsing"
-    assert calls == []
-    assert viewed == []
-
-
-async def test_conversion_error_is_a_parsing_error_before_approval() -> None:
-    """A value the schema allows but that cannot be converted fails before approval."""
-
-    @tool
-    def schedule():
-        async def execute(when: date) -> str:
-            """Schedule something.
-
-            Args:
-                when: The date.
-            """
-            return "ok"
-
-        return execute
-
-    calls: list[ToolCall] = []
-    message = await execute_with_approval(
-        ToolCall(id="1", function="schedule", arguments={"when": "not-a-date"}),
-        [schedule()],
-        [ApprovalPolicy(recording_approver(calls, "reject"), "*")],
-    )
-
-    assert message.error is not None
-    assert message.error.type == "parsing"
-    assert calls == []
-
-
-@pytest.mark.parametrize(
-    "function,arguments,modified,error",
-    [
-        ("addition", {"x": 1, "y": 1}, {"x": "one", "y": 1}, "parsing"),
-        # the validator would run n=2 as 3
-        ("model_tool", {"bumped": {"n": 1}}, {"bumped": {"n": 2}}, "approval"),
-    ],
-    ids=["invalid", "changes-when-converted"],
-)
-async def test_modified_call_is_validated(
-    function: str,
-    arguments: dict[str, Any],
-    modified: dict[str, Any],
-    error: str,
-) -> None:
-    from inspect_ai.log._transcript import Transcript, init_transcript, transcript
-
-    init_transcript(Transcript())
-    message = await execute_with_approval(
-        ToolCall(id="1", function=function, arguments=arguments),
-        [addition(), model_tool([])],
-        [ApprovalPolicy(modifying_approver(modified), "*")],
-    )
-    assert message.error is not None
-    assert message.error.type == error
-
-    # the failure is logged with the modified arguments that caused it
+def logged_tool_event() -> ToolEvent:
     (event,) = [e for e in transcript().events if isinstance(e, ToolEvent)]
-    event = ToolEvent.model_validate_json(event.model_dump_json())
-    assert event.arguments == modified
-    assert event.error is not None
-    assert event.error.type == error
+    return ToolEvent.model_validate_json(event.model_dump_json())
+
+
+def json_viewer(viewed: list[dict[str, Any]]) -> Any:
+    def viewer(call: ToolCall) -> ToolCallView:
+        viewed.append(call.arguments)
+        content = json.dumps(call.arguments, sort_keys=True)
+        return ToolCallView(call=ToolCallContent(format="text", content=content))
+
+    return viewer
 
 
 class Step(BaseModel):
-    step: str
+    name: str
     status: Literal["pending", "done"] = "pending"
 
+    @field_validator("name")
+    @classmethod
+    def lowercase(cls, name: str) -> str:
+        return name.lower()
 
-class Bumped(BaseModel):
+
+@dataclass
+class Label:
+    text: str
+
+    def __post_init__(self) -> None:
+        self.text = self.text.strip()
+
+
+class Doubled(BaseModel):
     n: int
 
     @field_validator("n")
     @classmethod
-    def bump(cls, n: int) -> int:
-        return n + 1
-
-
-class Flag(BaseModel):
-    n: bool | int
-
-    @field_validator("n")
-    @classmethod
-    def as_flag(cls, n: bool | int) -> bool:
-        return bool(n)
+    def double(cls, n: int) -> int:
+        return n * 2
 
 
 class Lazy(BaseModel):
     values: Iterable[int]
 
 
-class Parent(BaseModel):
-    children: list[Lazy]
-
-
-@pydantic_dataclass
-class Doubled:
-    x: int
-
-    @field_validator("x")
-    @classmethod
-    def double(cls, x: int) -> int:
-        return x * 2
-
-
-@dataclass
-class Normalized:
-    name: str
-    size: int = 7
-
-    def __post_init__(self) -> None:
-        self.name = self.name.lower()
-
-
-@dataclass
-class Outer:
-    inner: Normalized
-
-
-class Holder(BaseModel):
-    inner: Normalized
-
-
-@dataclass
-class Wrapper:
-    step: Step
-
-
-class Directory(BaseModel):
-    by_name: dict[str, Normalized]
-
-
-@dataclass
-class Groups:
-    groups: dict[str, list[Normalized]]
-
-
-class Batches(BaseModel):
-    batches: list[dict[str, Normalized]]
-
-
-class Pair(BaseModel):
-    pair: tuple[Normalized, Normalized]
-
-
-class Counter(BaseModel):
-    n: int
-
-
-@dataclass
-class CounterData:
-    n: int
-
-
-class Bumping(BaseModel):
-    """Serializes its child one higher than it holds."""
-
-    inner: Counter
-
-    @field_serializer("inner")
-    def bump(self, inner: Counter) -> dict[str, int]:
-        return {"n": inner.n + 1}
-
-
-class BumpingData(BaseModel):
-    inner: CounterData
-
-    @field_serializer("inner")
-    def bump(self, inner: CounterData) -> dict[str, int]:
-        return {"n": inner.n + 1}
-
-
-class BumpingList(BaseModel):
-    inners: list[Counter]
-
-    @field_serializer("inners")
-    def bump(self, inners: list[Counter]) -> list[dict[str, int]]:
-        return [{"n": inner.n + 1} for inner in inners]
-
-
-@pydantic_dataclass
-class BumpingParent:
-    inner: Counter
-
-    @field_serializer("inner")
-    def bump(self, inner: Counter) -> dict[str, int]:
-        return {"n": inner.n + 1}
-
-
-class Fragile(BaseModel):
-    """Serializes only a non-negative value."""
-
-    model_config = ConfigDict(frozen=True)
-
-    v: int
-
-    @field_serializer("v")
-    def check(self, v: int) -> int:
-        if v < 0:
-            raise ValueError("cannot serialize a negative value")
-        return v
-
-
-@dataclass
-class WithDefault:
-    name: str
-    item: Fragile = Fragile(v=-1)
-
-
-@pydantic_dataclass
-class Limited:
-    name: str
-    count: int = Field(default=7, alias="limit")
-    inner: Normalized | None = Field(default=None, alias="kid")
-
-
-class LimitHolder(BaseModel):
-    limited: Limited
-
-
-@pydantic_dataclass
-class Shifted:
-    """Serializes its limit one higher than it holds."""
-
-    name: str
-    limit: int = 7
-
-    @field_serializer("limit")
-    def shift(self, limit: int) -> int:
-        return limit + 1
-
-
-class ShiftedParent(BaseModel):
-    inner: Normalized
-
-    @field_serializer("inner")
-    def shift(self, inner: Normalized) -> dict[str, Any]:
-        return {"name": inner.name, "size": inner.size + 1}
-
-
-class Node(BaseModel):
-    """Refers to itself through a field it does not serialize."""
-
-    name: str
-    parent: Any = Field(default=None, exclude=True)
-
-    @model_validator(mode="after")
-    def link(self) -> "Node":
-        self.parent = self
-        return self
-
-
-@dataclass
-class Loop:
-    """Refers to itself through a field it serializes."""
-
-    name: str
-    me: Any = None
-
-    def __post_init__(self) -> None:
-        self.me = self
-
-
-@dataclass
-class Flagged:
-    """Turns its flag default into a number."""
-
-    name: str
-    mode: bool | int = False
-    modes: tuple[bool | int, ...] = (False,)
-
-    def __post_init__(self) -> None:
-        self.mode = int(self.mode)
-        self.modes = tuple(int(m) for m in self.modes)
-
-
-class Guarded(BaseModel):
-    flags: dict[str, bool]
-
-    @field_validator("flags", mode="before")
-    @classmethod
-    def force_write(cls, flags: Any) -> Any:
-        flags["write"] = True
-        return flags
-
-
-@dataclass
-class GuardedData:
-    flags: Any
-
-    def __post_init__(self) -> None:
-        self.flags["write"] = True
-
-
-_ids = count()
-
-
-@dataclass
-class Counted:
-    name: str
-    id: int = field(default_factory=lambda: next(_ids))
-
-
-@pydantic_dataclass
-class PydanticCounted:
-    name: str
-    id: int = Field(default_factory=lambda: next(_ids))
-
-
-class Aliased(BaseModel):
-    file_path: str = Field(alias="filePath")
-
-    @computed_field
-    def name(self) -> str:
-        return Path(self.file_path).name
-
-
 class SplitAlias(BaseModel):
-    value: str = Field(validation_alias="in_value", serialization_alias="out_value")
+    value: int = Field(validation_alias="in", serialization_alias="out")
 
 
 class Unserializable(BaseModel):
@@ -1010,220 +696,135 @@ class Unserializable(BaseModel):
 
 
 @tool
-def model_tool(received: list[Any]):
+def step_tool(received: list[dict[str, Any]]) -> Tool:
     async def execute(
         step: Step | None = None,
-        steps: list[Step] | None = None,
-        either: Step | dict[str, Any] | None = None,
-        bumped: Bumped | None = None,
-        flag: Flag | None = None,
-        by_name: dict[str, Step] | None = None,
-        parent: Parent | None = None,
-        aliased: Aliased | None = None,
-        split_alias: SplitAlias | None = None,
-        unserializable: Unserializable | None = None,
+        steps: dict[str, Step] | None = None,
+        label: Label | None = None,
+        when: date | None = None,
         doubled: Doubled | None = None,
-        normalized: Normalized | None = None,
-        outer: Outer | None = None,
-        holder: Holder | None = None,
-        wrapper: Wrapper | None = None,
-        outers: list[Outer] | None = None,
-        guarded: Guarded | None = None,
-        guarded_data: GuardedData | None = None,
-        counted: Counted | None = None,
-        pydantic_counted: PydanticCounted | None = None,
-        directory: Directory | None = None,
-        groups: Groups | None = None,
-        batches: Batches | None = None,
-        pair: Pair | None = None,
-        bumping: Bumping | None = None,
-        bumping_data: BumpingData | None = None,
-        bumping_list: BumpingList | None = None,
-        bumping_parent: BumpingParent | None = None,
-        with_default: WithDefault | None = None,
-        limit_holders: list[LimitHolder] | None = None,
-        shifted: Shifted | None = None,
-        shifted_parent: ShiftedParent | None = None,
-        node: Node | None = None,
-        nodes: list[Node] | None = None,
-        loop: Loop | None = None,
-        flagged: Flagged | None = None,
+        lazy: Lazy | None = None,
+        split: SplitAlias | None = None,
+        unserializable: Unserializable | None = None,
     ) -> str:
-        """Record models.
+        """Record its arguments.
 
         Args:
-            step: A model.
-            steps: A list of models.
-            either: A model or a plain object.
-            bumped: A model whose validator changes its value.
-            flag: A model whose validator turns a number into a flag.
-            by_name: Models in a mapping (not supported under approval).
-            parent: A model holding lazy values (not supported under approval).
-            aliased: A model with an alias and a computed field.
-            split_alias: A model that serializes under another alias.
+            step: A step.
+            steps: Steps by name.
+            label: A label.
+            when: A date.
+            doubled: A number the validator doubles.
+            lazy: A lazy iterable.
+            split: A model with different validation and serialization aliases.
             unserializable: A model whose serializer fails.
-            doubled: A Pydantic dataclass whose validator changes its value.
-            normalized: A dataclass whose `__post_init__` changes its value.
-            outer: A dataclass holding a dataclass.
-            holder: A model holding a dataclass.
-            wrapper: A dataclass holding a model.
-            outers: A list of dataclasses holding dataclasses.
-            guarded: A model whose validator changes its input in place.
-            guarded_data: A dataclass whose `__post_init__` changes its input
-                in place.
-            counted: A dataclass with a default factory.
-            pydantic_counted: A Pydantic dataclass with a default factory.
-            directory: A model holding a dict of dataclasses.
-            groups: A dataclass holding a dict of lists of dataclasses.
-            batches: A model holding a list of dicts of dataclasses.
-            pair: A model holding a tuple of dataclasses.
-            bumping: A model whose serializer changes its child model.
-            bumping_data: A model whose serializer changes its child dataclass.
-            bumping_list: A model whose serializer changes its list of models.
-            bumping_parent: A Pydantic dataclass whose serializer changes its
-                child model.
-            with_default: A dataclass whose default fails to serialize.
-            limit_holders: Models holding a dataclass with aliased fields.
-            shifted: A Pydantic dataclass whose serializer changes its default.
-            shifted_parent: A model whose serializer changes its child's
-                default.
-            node: A model that refers to itself, without serializing it.
-            nodes: A list of such models.
-            loop: A dataclass that refers to itself and serializes it.
-            flagged: A dataclass that turns its flag defaults into numbers.
         """
-        received.append(
-            {
-                k: v
-                for k, v in dict(
-                    step=step,
-                    steps=steps,
-                    either=either,
-                    bumped=bumped,
-                    flag=flag,
-                    by_name=by_name,
-                    parent=parent,
-                    aliased=aliased,
-                    split_alias=split_alias,
-                    unserializable=unserializable,
-                    doubled=doubled,
-                    normalized=normalized,
-                    outer=outer,
-                    holder=holder,
-                    wrapper=wrapper,
-                    outers=outers,
-                    guarded=guarded,
-                    guarded_data=guarded_data,
-                    counted=counted,
-                    pydantic_counted=pydantic_counted,
-                    directory=directory,
-                    groups=groups,
-                    batches=batches,
-                    pair=pair,
-                    bumping=bumping,
-                    bumping_data=bumping_data,
-                    bumping_list=bumping_list,
-                    bumping_parent=bumping_parent,
-                    with_default=with_default,
-                    limit_holders=limit_holders,
-                    shifted=shifted,
-                    shifted_parent=shifted_parent,
-                    node=node,
-                    nodes=nodes,
-                    loop=loop,
-                    flagged=flagged,
-                ).items()
-                if v is not None
-            }
-        )
-        return "ok"
+        arguments = {
+            "step": step,
+            "steps": steps,
+            "label": label,
+            "when": when,
+            "doubled": doubled,
+            "lazy": list(lazy.values) if lazy is not None else None,
+            "split": split,
+            "unserializable": unserializable,
+        }
+        received.append({k: v for k, v in arguments.items() if v is not None})
+        return "done"
 
     return execute
 
 
 @pytest.mark.parametrize(
-    "arguments,shown",
+    "function,arguments",
     [
-        ({"step": {"step": "plan"}}, {"step": {"step": "plan", "status": "pending"}}),
-        (
-            {"steps": [{"step": "plan"}, {"step": "act", "status": "done"}]},
-            {
-                "steps": [
-                    {"step": "plan", "status": "pending"},
-                    {"step": "act", "status": "done"},
-                ]
+        ("addition", {"x": "one", "y": 1}),
+        ("step_tool", {"when": "not-a-date"}),
+    ],
+    ids=["fails-schema", "fails-conversion"],
+)
+async def test_invalid_call_never_reaches_approver(
+    function: str, arguments: dict[str, Any]
+) -> None:
+    viewed: list[dict[str, Any]] = []
+    calls: list[ToolCall] = []
+    received: list[dict[str, Any]] = []
+    message = await execute_with_approval(
+        ToolCall(id="1", function=function, arguments=arguments),
+        [
+            ToolDef(addition(), viewer=json_viewer(viewed)),
+            ToolDef(step_tool(received), viewer=json_viewer(viewed)),
+        ],
+        [ApprovalPolicy(recording_approver(calls, "reject"), "*")],
+    )
+
+    assert message.error is not None
+    assert message.error.type == "parsing"
+    assert calls == []
+    assert viewed == []
+
+
+async def test_approver_sees_the_arguments_as_converted() -> None:
+    """The approver, the viewer and the log see what the tool gets, defaults included."""
+    init_transcript(Transcript())
+    viewed: list[dict[str, Any]] = []
+    calls: list[ToolCall] = []
+    received: list[dict[str, Any]] = []
+    message = await execute_with_approval(
+        ToolCall(
+            id="1",
+            function="step_tool",
+            arguments={
+                "step": {"name": "WRITE"},
+                "steps": {"b": {"name": "B", "status": "done"}},
+                "label": {"text": " tests "},
+                "when": "2026-10-15",
             },
         ),
-        ({"either": {"other": 1}}, {"either": {"other": 1}}),
-        ({"bumped": {"n": 1}}, {"bumped": {"n": 2}}),
-        ({"flag": {"n": 1}}, {"flag": {"n": True}}),
-        ({"doubled": {"x": 3}}, {"doubled": {"x": 6}}),
-        ({"normalized": {"name": "ABC"}}, {"normalized": {"name": "abc", "size": 7}}),
-        ({"node": {"name": "a"}}, {"node": {"name": "a"}}),
-        (
-            {"nodes": [{"name": "a"}, {"name": "b"}]},
-            {"nodes": [{"name": "a"}, {"name": "b"}]},
-        ),
-    ],
-    ids=[
-        "model",
-        "list-of-models",
-        "model-or-dict",
-        "validator",
-        "flag-validator",
-        "dataclass-validator",
-        "dataclass-post-init",
-        "self-reference-not-serialized",
-        "list-self-reference-not-serialized",
-    ],
-)
-async def test_model_parameter_is_approved_as_it_runs(
-    arguments: dict[str, Any], shown: dict[str, Any]
-) -> None:
-    """The approver sees each model as it serializes, and that instance runs."""
-    received: list[Any] = []
-    calls: list[ToolCall] = []
-    message = await execute_with_approval(
-        ToolCall(id="1", function="model_tool", arguments=arguments),
-        [model_tool(received)],
+        [ToolDef(step_tool(received), viewer=json_viewer(viewed))],
         [ApprovalPolicy(recording_approver(calls), "*")],
     )
 
+    shown = {
+        "step": {"name": "write", "status": "pending"},
+        "steps": {"b": {"name": "b", "status": "done"}},
+        "label": {"text": "tests"},
+        "when": "2026-10-15",
+    }
     assert message.error is None
-    (call,) = calls
-    # json_equal tells a JSON true from 1, which `==` does not
-    assert json_equal(call.arguments, shown)
-    (values,) = received
-    assert json_equal(to_jsonable_python(values), shown)
+    assert [call.arguments for call in calls] == [shown]
+    assert viewed and all(arguments == shown for arguments in viewed)
+    assert received == [
+        {
+            "step": Step(name="write"),
+            "steps": {"b": Step(name="b", status="done")},
+            "label": Label("tests"),
+            "when": date(2026, 10, 15),
+        }
+    ]
+    event = logged_tool_event()
+    assert event.arguments == shown
+    assert event.view is not None
+    assert event.view.content == json.dumps(shown, sort_keys=True)
 
 
 @pytest.mark.parametrize(
-    "arguments,runs",
+    "arguments",
     [
-        (
-            {"by_name": {"a": {"step": "plan"}}},
-            {"by_name": {"a": {"step": "plan", "status": "pending"}}},
-        ),
-        (
-            {"parent": {"children": [{"values": [1, 2]}]}},
-            {"parent": {"children": [{"values": [1, 2]}]}},
-        ),
-        # serializes as {"out_value": ...}, which the tool's schema rejects
-        (
-            {"split_alias": {"in_value": "x"}},
-            {"split_alias": {"out_value": "x"}},
-        ),
+        {"doubled": {"n": 2}},
+        {"split": {"in": 1}},
+        {"unserializable": {"value": "x"}},
     ],
-    ids=["mapping", "nested-lazy", "split-alias"],
+    ids=["validator-not-idempotent", "mismatched-alias", "serializer-fails"],
 )
-async def test_model_in_unsupported_form_errors_under_approval(
-    arguments: dict[str, Any], runs: dict[str, Any]
+async def test_arguments_that_do_not_rebuild_are_refused(
+    arguments: dict[str, Any],
 ) -> None:
-    received: list[Any] = []
     calls: list[ToolCall] = []
+    received: list[dict[str, Any]] = []
     message = await execute_with_approval(
-        ToolCall(id="1", function="model_tool", arguments=arguments),
-        [model_tool(received)],
+        ToolCall(id="1", function="step_tool", arguments=arguments),
+        [step_tool(received)],
         [ApprovalPolicy(recording_approver(calls), "*")],
     )
 
@@ -1231,314 +832,78 @@ async def test_model_in_unsupported_form_errors_under_approval(
     assert message.error.type == "parsing"
     assert "cannot be shown to approvers or monitors" in message.error.message
     assert calls == []
-
-    # without approval the tool runs as before, with its lazy values unconsumed
-    messages, _ = await execute_tools(
-        [
-            ChatMessageAssistant(
-                content=[],
-                tool_calls=[
-                    ToolCall(id="2", function="model_tool", arguments=arguments)
-                ],
-            )
-        ],
-        [model_tool(received)],
-    )
-    assert isinstance(messages[-1], ChatMessageTool)
-    assert messages[-1].error is None
-    assert to_jsonable_python(received) == [runs]
+    assert received == []
 
 
 @pytest.mark.parametrize(
-    "modified,runs",
+    "modified,error",
     [
-        # the approver selects n=2 (as shown), which the validator would run as 3
-        ({"bumped": {"n": 2}}, None),
-        ({"doubled": {"x": 6}}, None),
-        ({"normalized": {"name": "ABC"}}, None),
-        # values that serialize as selected run
-        (
-            {"step": {"step": "act", "status": "pending"}},
-            {"step": {"step": "act", "status": "pending"}},
-        ),
-        (
-            {"normalized": {"name": "abc", "size": 1}},
-            {"normalized": {"name": "abc", "size": 1}},
-        ),
-        # so do ones that leave out fields their defaults fill in
-        ({"step": {"step": "act"}}, {"step": {"step": "act", "status": "pending"}}),
-        ({"normalized": {"name": "abc"}}, {"normalized": {"name": "abc", "size": 7}}),
-        # nested: defaults may be left out, supplied values must not change
-        (
-            {"outer": {"inner": {"name": "abc"}}},
-            {"outer": {"inner": {"name": "abc", "size": 7}}},
-        ),
-        ({"outer": {"inner": {"name": "ABC"}}}, None),
-        (
-            {"holder": {"inner": {"name": "abc"}}},
-            {"holder": {"inner": {"name": "abc", "size": 7}}},
-        ),
-        (
-            {"wrapper": {"step": {"step": "act"}}},
-            {"wrapper": {"step": {"step": "act", "status": "pending"}}},
-        ),
-        (
-            {"outers": [{"inner": {"name": "abc"}}]},
-            {"outers": [{"inner": {"name": "abc", "size": 7}}]},
-        ),
-        # containers inside a model or dataclass follow the same rules
-        (
-            {"directory": {"by_name": {"a": {"name": "abc"}}}},
-            {"directory": {"by_name": {"a": {"name": "abc", "size": 7}}}},
-        ),
-        ({"directory": {"by_name": {"a": {"name": "ABC"}}}}, None),
-        (
-            {"groups": {"groups": {"a": [{"name": "abc"}]}}},
-            {"groups": {"groups": {"a": [{"name": "abc", "size": 7}]}}},
-        ),
-        (
-            {"batches": {"batches": [{"a": {"name": "abc"}}]}},
-            {"batches": {"batches": [{"a": {"name": "abc", "size": 7}}]}},
-        ),
-        (
-            {"pair": {"pair": [{"name": "a"}, {"name": "b", "size": 1}]}},
-            {"pair": {"pair": [{"name": "a", "size": 7}, {"name": "b", "size": 1}]}},
-        ),
-        # a supplied field's default is never serialized
-        (
-            {"with_default": {"name": "b", "item": {"v": 2}}},
-            {"with_default": {"name": "b", "item": {"v": 2}}},
-        ),
-        # defaults are found by their serialized (aliased) keys
-        (
-            {"limit_holders": [{"limited": {"name": "b"}}]},
-            {"limit_holders": [{"limited": {"name": "b", "limit": 7, "kid": None}}]},
-        ),
-        (
-            {"limit_holders": [{"limited": {"name": "b", "kid": {"name": "abc"}}}]},
-            {
-                "limit_holders": [
-                    {
-                        "limited": {
-                            "name": "b",
-                            "limit": 7,
-                            "kid": {"name": "abc", "size": 7},
-                        }
-                    }
-                ]
-            },
-        ),
-        # a default is checked as constructed, not as serialized
-        ({"shifted": {"name": "b"}}, {"shifted": {"name": "b", "limit": 8}}),
-        ({"shifted": {"name": "b", "limit": 7}}, None),
-        (
-            {"shifted_parent": {"inner": {"name": "abc"}}},
-            {"shifted_parent": {"inner": {"name": "abc", "size": 8}}},
-        ),
-        # a default of False that runs as 0 is a change
-        ({"flagged": {"name": "a", "modes": [0]}}, None),
-        ({"flagged": {"name": "a", "mode": False, "modes": [0]}}, None),
-        ({"flagged": {"name": "a", "mode": 0}}, None),
+        ({"step": {"name": "test", "status": "done"}}, None),
+        ({"step": {"name": "test"}}, "approval"),
+        ({"step": {"name": "TEST", "status": "done"}}, "approval"),
+        ({"step": {"name": 5, "status": "done"}}, "parsing"),
     ],
-    ids=[
-        "validator-changes-it",
-        "dataclass-validator-changes-it",
-        "post-init-changes-it",
-        "serializes-as-selected",
-        "dataclass-serializes-as-selected",
-        "model-default-left-out",
-        "dataclass-default-left-out",
-        "dataclass-in-dataclass-default-left-out",
-        "nested-post-init-changes-it",
-        "dataclass-in-model-default-left-out",
-        "model-in-dataclass-default-left-out",
-        "list-of-nested-default-left-out",
-        "dict-in-model-default-left-out",
-        "dict-in-model-post-init-changes-it",
-        "dict-of-lists-in-dataclass-default-left-out",
-        "list-of-dicts-in-model-default-left-out",
-        "tuple-in-model-default-left-out",
-        "unused-default-not-serialized",
-        "aliased-default-left-out",
-        "aliased-child-default-left-out",
-        "serialized-default-left-out",
-        "serialized-supplied-changes-it",
-        "parent-serialized-default-left-out",
-        "bool-default-left-out-becomes-number",
-        "bool-default-selected-becomes-number",
-        "bool-in-tuple-default-becomes-number",
-    ],
+    ids=["full", "omits-default", "validator-changes-it", "invalid"],
 )
-async def test_modified_value_runs_only_as_selected(
-    modified: dict[str, Any], runs: dict[str, Any] | None
+async def test_modify_runs_only_as_selected(
+    modified: dict[str, Any], error: str | None
 ) -> None:
-    received: list[Any] = []
+    init_transcript(Transcript())
+    viewed: list[dict[str, Any]] = []
+    received: list[dict[str, Any]] = []
     message = await execute_with_approval(
-        ToolCall(id="1", function="model_tool", arguments=modified),
-        [model_tool(received)],
+        ToolCall(id="1", function="step_tool", arguments={"step": {"name": "write"}}),
+        [ToolDef(step_tool(received), viewer=json_viewer(viewed))],
         [ApprovalPolicy(modifying_approver(modified), "*")],
     )
 
-    if runs is not None:
+    # the event records the modified call, whether or not it ran
+    event = logged_tool_event()
+    assert event.arguments == modified
+    if error is None:
         assert message.error is None
-        assert json_equal(to_jsonable_python(received), [runs])
+        assert received == [{"step": Step(name="test", status="done")}]
+        assert event.view is not None
+        assert event.view.content == json.dumps(modified, sort_keys=True)
     else:
         assert message.error is not None
-        assert message.error.type == "approval"
+        assert message.error.type == error
+        assert event.error is not None
+        assert event.error.type == error
         assert received == []
 
 
-@pytest.mark.parametrize("name", ["guarded", "guarded_data"])
-async def test_constructor_cannot_change_the_selected_call(name: str) -> None:
-    """A constructor that changes its input in place changes a copy."""
-    selected = ToolCall(
-        id="1", function="model_tool", arguments={name: {"flags": {"write": False}}}
-    )
-
-    @approver
-    def selecting_approver() -> Approver:
-        async def approve(
-            message: str, call: ToolCall, view: ToolCallView, history: list[ChatMessage]
-        ) -> Approval:
-            return Approval(decision="modify", modified=selected)
-
-        return approve
-
-    received: list[Any] = []
-    message = await execute_with_approval(
-        ToolCall(id="1", function="model_tool", arguments={name: {"flags": {}}}),
-        [model_tool(received)],
-        [ApprovalPolicy(selecting_approver(), "*")],
-    )
-
-    assert message.error is not None
-    assert message.error.type == "approval"
-    assert received == []
-    assert selected.arguments == {name: {"flags": {"write": False}}}
-
-
-@approver
-def copying_approver() -> Approver:
-    """Approver which selects the call exactly as it was shown."""
-
-    async def approve(
-        message: str, call: ToolCall, view: ToolCallView, history: list[ChatMessage]
-    ) -> Approval:
-        return Approval(decision="modify", modified=call)
-
-    return approve
-
-
-@pytest.mark.parametrize(
-    "arguments",
-    [
-        {"bumping": {"inner": {"n": 4}}},
-        {"bumping_data": {"inner": {"n": 4}}},
-        {"bumping_list": {"inners": [{"n": 4}]}},
-        {"bumping_parent": {"inner": {"n": 4}}},
-    ],
-    ids=["model-child", "dataclass-child", "list-of-models", "pydantic-dataclass"],
-)
-async def test_modify_is_compared_as_the_parent_serializes(
-    arguments: dict[str, Any],
-) -> None:
-    """A parent's serializer applies when a modify is compared."""
-    received: list[Any] = []
-    message = await execute_with_approval(
-        ToolCall(id="1", function="model_tool", arguments=arguments),
-        [model_tool(received)],
-        [ApprovalPolicy(copying_approver(), "*")],
-    )
-
-    # the shown n=5 is constructed as 5 and serializes as 6
-    assert message.error is not None
-    assert message.error.type == "approval"
-    assert received == []
-
-
-async def test_self_reference_that_cannot_serialize_is_a_parsing_error() -> None:
-    received: list[Any] = []
-    message = await execute_with_approval(
-        ToolCall(id="1", function="model_tool", arguments={"loop": {"name": "a"}}),
-        [model_tool(received)],
-        [ApprovalPolicy(recording_approver([]), "*")],
-    )
-
-    assert message.error is not None
-    assert message.error.type == "parsing"
-    assert "serializing it failed" in message.error.message
-    assert received == []
-
-
-@pytest.mark.parametrize("name", ["counted", "pydantic_counted"])
-async def test_modify_leaving_out_a_default_factory_field_runs(name: str) -> None:
-    """The comparison does not call a default factory again."""
-    received: list[Any] = []
-    message = await execute_with_approval(
-        ToolCall(id="1", function="model_tool", arguments={name: {"name": "a"}}),
-        [model_tool(received)],
-        [ApprovalPolicy(modifying_approver({name: {"name": "b"}}), "*")],
-    )
-
-    assert message.error is None
-    (values,) = received
-    assert values[name].name == "b"
-
-
-async def test_aliased_model_is_shown_as_its_schema_reads() -> None:
-    """A model is shown by alias without computed fields, so a modify that copies it runs."""
-    received: list[Any] = []
+async def test_lazy_iterable_runs_with_its_values() -> None:
     calls: list[ToolCall] = []
-    arguments = {"aliased": {"filePath": "a/b.txt"}, "step": {"step": "plan"}}
+    received: list[dict[str, Any]] = []
     message = await execute_with_approval(
-        ToolCall(id="1", function="model_tool", arguments=arguments),
-        [model_tool(received)],
+        ToolCall(
+            id="1", function="step_tool", arguments={"lazy": {"values": [1, 2, 3]}}
+        ),
+        [step_tool(received)],
         [ApprovalPolicy(recording_approver(calls), "*")],
     )
+
     assert message.error is None
-    (call,) = calls
-    assert call.arguments == {
-        "aliased": {"filePath": "a/b.txt"},
-        "step": {"step": "plan", "status": "pending"},
-    }
+    assert [call.arguments for call in calls] == [{"lazy": {"values": [1, 2, 3]}}]
+    assert received == [{"lazy": [1, 2, 3]}]
 
-    # the shown call, with another argument changed
-    modified = {**call.arguments, "step": {"step": "act", "status": "pending"}}
+
+async def test_without_oversight_the_call_runs_as_given() -> None:
+    """With no approval or sentinel, nothing is serialized or rebuilt."""
+    init_transcript(Transcript())
+    received: list[dict[str, Any]] = []
+    arguments = {"step": {"name": "WRITE"}, "doubled": {"n": 2}}
     message = await execute_with_approval(
-        ToolCall(id="2", function="model_tool", arguments=arguments),
-        [model_tool(received)],
-        [ApprovalPolicy(modifying_approver(modified), "*")],
+        ToolCall(id="1", function="step_tool", arguments=arguments),
+        [step_tool(received)],
+        None,
     )
+
     assert message.error is None
-    assert received[-1]["aliased"].file_path == "a/b.txt"
-    assert received[-1]["step"] == Step(step="act")
-
-
-async def test_model_serializer_failure() -> None:
-    """A model that cannot be serialized is a parsing error only when it must be shown."""
-    received: list[Any] = []
-    calls: list[ToolCall] = []
-    call = ToolCall(
-        id="1", function="model_tool", arguments={"unserializable": {"value": "x"}}
-    )
-    message = await execute_with_approval(
-        call,
-        [model_tool(received)],
-        [ApprovalPolicy(recording_approver(calls), "*")],
-    )
-    assert message.error is not None
-    assert message.error.type == "parsing"
-    assert "serializing it failed" in message.error.message
-    assert calls == []
-    assert received == []
-
-    # without approval the model is not serialized and the tool runs
-    messages, _ = await execute_tools(
-        [ChatMessageAssistant(content=[], tool_calls=[call])], [model_tool(received)]
-    )
-    assert isinstance(messages[-1], ChatMessageTool)
-    assert messages[-1].error is None
-    assert received == [{"unserializable": Unserializable(value="x")}]
+    assert received == [{"step": Step(name="write"), "doubled": Doubled(n=2)}]
+    assert received[0]["doubled"].n == 4
+    assert logged_tool_event().arguments == arguments
 
 
 @agent
@@ -1560,43 +925,12 @@ def amount_agent(received: list[dict[str, Any]]) -> Agent:
     return execute
 
 
-@pytest.mark.parametrize("amount,valid", [(2**53 + 1, False), (5, True)])
-async def test_handoff_arguments_are_converted_before_approval(
-    amount: int, valid: bool
-) -> None:
-    from inspect_ai.agent import handoff
-
-    received: list[dict[str, Any]] = []
-    calls: list[ToolCall] = []
-    call = ToolCall(
-        id="1", function="transfer_to_amount_agent", arguments={"amount": amount}
-    )
-    messages, _ = await execute_tools(
-        [
-            ChatMessageUser(content="go"),
-            ChatMessageAssistant(content="", tool_calls=[call]),
-        ],
-        [handoff(amount_agent(received), note="curried")],
-        approval=[ApprovalPolicy(recording_approver(calls), "*")],
-    )
-    (message,) = [m for m in messages if isinstance(m, ChatMessageTool)]
-
-    if valid:
-        assert message.error is None
-        assert received == [{"amount": 5.0, "note": "curried", "tags": None}]
-        assert isinstance(received[0]["amount"], float)
-    else:
-        assert message.error is not None
-        assert message.error.type == "parsing"
-        assert calls == []
-        assert received == []
-
-
 async def test_curried_handoff_arguments_are_passed_as_given() -> None:
     """Curried arguments come from the developer, so they are not converted."""
     from inspect_ai.agent import handoff
 
     received: list[dict[str, Any]] = []
+    calls: list[ToolCall] = []
     note, tags = Path("notes.txt"), {"a"}
     call = ToolCall(
         id="1", function="transfer_to_amount_agent", arguments={"amount": 5}
@@ -1607,11 +941,12 @@ async def test_curried_handoff_arguments_are_passed_as_given() -> None:
             ChatMessageAssistant(content="", tool_calls=[call]),
         ],
         [handoff(amount_agent(received), note=note, tags=tags)],
-        approval=[ApprovalPolicy(recording_approver([]), "*")],
+        approval=[ApprovalPolicy(recording_approver(calls), "*")],
     )
     (message,) = [m for m in messages if isinstance(m, ChatMessageTool)]
 
     assert message.error is None
+    assert [call.arguments for call in calls] == [{"amount": 5.0}]
     (values,) = received
     assert values["note"] is note
     assert values["tags"] is tags

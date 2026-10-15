@@ -7,7 +7,7 @@ from typing import Any, Literal, cast
 
 import anyio
 import pytest
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from test_helpers.transcript import FakeTranscriptHistoryProvider
 from test_helpers.utils import skip_if_no_mcp_package
 from typing_extensions import assert_type
@@ -813,36 +813,61 @@ def test_a_sentinel_modify_is_validated() -> None:
 class Item(BaseModel):
     name: str
 
+    @field_validator("name")
+    @classmethod
+    def lowercase(cls, name: str) -> str:
+        return name.lower()
+
 
 @tool
-def count_items() -> Tool:
+def list_items() -> Tool:
     async def execute(items: dict[str, Item]) -> str:
-        """Count items.
+        """List items.
 
         Args:
-            items: Items by name.
+            items: Items by key.
         """
-        return str(len(items))
+        return ",".join(item.name for item in items.values())
 
     return execute
 
 
-async def test_the_sentinel_is_not_shown_an_unsupported_model_form() -> None:
-    """With no approval policy, a model the sentinel cannot be shown is refused."""
+@protocol
+def d3_modify_items(seen: list[ToolCall], items: dict[str, Any]) -> Protocol:
+    async def rewrite(context: Context, step: BeforeToolCall) -> Decision | None:
+        seen.append(step.call)
+        modified = replace(step.call, arguments={"items": items})
+        return Decision(action="modify", modified=modified, explanation="rename")
+
+    return rewrite
+
+
+@pytest.mark.parametrize(
+    "name,error", [("b", None), ("B", "approval")], ids=["as-shown", "changes"]
+)
+async def test_a_sentinel_sees_and_modifies_the_converted_call(
+    name: str, error: str | None
+) -> None:
     init_transcript(Transcript())
-    seen: Seen = []
+    seen: list[ToolCall] = []
     call = ToolCall(
-        id="1", function="count_items", arguments={"items": {"a": {"name": "a"}}}
+        id="1", function="list_items", arguments={"items": {"a": {"name": "A"}}}
     )
-    with active(observe_only([d3_recording(seen)])):
+    with active(d3_modify_items(seen, {"b": {"name": name}})):
         result = await execute_tools(
-            [ChatMessageAssistant(content=[], tool_calls=[call])], [count_items()]
+            [ChatMessageAssistant(content=[], tool_calls=[call])], [list_items()]
         )
 
+    assert [c.arguments for c in seen] == [{"items": {"a": {"name": "a"}}}]
     [message] = result.messages
     assert isinstance(message, ChatMessageTool)
-    assert message.error is not None and message.error.type == "parsing"
-    assert seen == []
+    [event] = transcript_tool_events()
+    assert event.arguments == {"items": {"b": {"name": name}}}
+    if error is None:
+        assert message.error is None
+        assert message.text == "b"
+    else:
+        assert message.error is not None and message.error.type == error
 
 
 def test_a_review_terminate_skips_the_after_call_sentinel() -> None:
