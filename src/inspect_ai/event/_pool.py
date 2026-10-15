@@ -54,8 +54,10 @@ def _strict_eq(a: object, b: object) -> bool:
     """Equality that distinguishes values with different JSON serializations.
 
     Python ``==`` conflates values the pool hashes distinguish: ``0 == 0.0``,
-    ``True == 1`` and ``0.0 == -0.0``, but ``json.dumps`` emits different
-    bytes for each, so ``_msg_hash``/``_call_hash`` differ. An ``==``-based merge of such values
+    ``True == 1``, ``0.0 == -0.0`` and dicts that differ only in key order,
+    but ``json.dumps`` emits different bytes for each, so ``_msg_hash``
+    differs (``_call_hash`` sorts keys, so for wire values key order only
+    costs a prefix miss and a re-hash). An ``==``-based merge of such values
     would reuse a pool entry whose stored bytes round-trip to the *other*
     value — silent data corruption. This comparison requires matching types
     for scalars (recursing into models, dataclasses, dicts, and lists), so a
@@ -72,23 +74,14 @@ def _strict_eq(a: object, b: object) -> bool:
         return _strict_eq(vars(a), vars(b))
     if ta is dict:
         assert isinstance(a, dict) and isinstance(b, dict)
-        if len(a) != len(b):
-            return False
-        sentinel = object()
-        for k, v in a.items():
-            other = b.get(k, sentinel)
-            if other is sentinel or not _strict_eq(v, other):
-                return False
-            # dict lookup matches keys by ==, which conflates 0/0.0 and
-            # True/1 on the key axis just like values ({0: x} and {0.0: x}
-            # serialize to different JSON); str keys (the JSON-bound common
-            # case) cannot ==-collide across types, so only non-str keys
-            # need their counterpart's type checked
-            if type(k) is not str and not any(
-                bk == k and type(bk) is type(k) for bk in b
-            ):
-                return False
-        return True
+        # keys pair up in order: messages serialize (and _msg_hash hashes)
+        # dicts in insertion order, so {"x": 1, "y": 2} and {"y": 2, "x": 1}
+        # are distinct; comparing keys with _strict_eq also keeps 0/0.0 and
+        # True/1 keys apart
+        return len(a) == len(b) and all(
+            _strict_eq(ka, kb) and _strict_eq(va, vb)
+            for (ka, va), (kb, vb) in zip(a.items(), b.items())
+        )
     if ta is list or ta is tuple:
         assert isinstance(a, (list, tuple)) and isinstance(b, (list, tuple))
         return len(a) == len(b) and all(_strict_eq(x, y) for x, y in zip(a, b))

@@ -1,6 +1,6 @@
 """`ModelEvent.input` records the messages as they were when the model was called."""
 
-import math
+import json
 from collections import OrderedDict
 from dataclasses import dataclass
 from typing import Any
@@ -102,24 +102,30 @@ async def test_model_event_input_snapshot_with_event_sink() -> None:
     assert _model_events() == []
 
 
-async def test_model_event_input_keeps_signed_zero() -> None:
+@pytest.mark.parametrize(
+    "before,after", [(0.0, -0.0), ({"x": 1, "y": 2}, {"y": 2, "x": 1})]
+)
+async def test_model_event_input_keeps_equal_but_distinct_edits(
+    before: Any, after: Any
+) -> None:
+    # == treats these as equal, but they serialize (and are sent) differently
     init_transcript(Transcript())
     model = get_model("mockllm/model")
     messages = _conversation()
     assistant = messages[1]
     assert isinstance(assistant, ChatMessageAssistant) and assistant.tool_calls
-    assistant.tool_calls[0].arguments["offset"] = 0.0
+    assistant.tool_calls[0].arguments["value"] = before
 
     await model.generate(messages)
-    assistant.tool_calls[0].arguments["offset"] = -0.0
+    assistant.tool_calls[0].arguments["value"] = after
     await model.generate(messages)
 
-    signs = []
+    logged = []
     for event in _model_events():
         message = event.input[1]
         assert isinstance(message, ChatMessageAssistant) and message.tool_calls
-        signs.append(math.copysign(1.0, message.tool_calls[0].arguments["offset"]))
-    assert signs == [1.0, -1.0]
+        logged.append(json.dumps(message.tool_calls[0].arguments["value"]))
+    assert logged == [json.dumps(before), json.dumps(after)]
 
 
 @dataclass(slots=True)
