@@ -1025,6 +1025,43 @@ def test_sandbox_response_filter_failure_outcome(
     _assert_failure_outcome(log, failure)
 
 
+@skip_if_no_docker
+@pytest.mark.slow
+def test_sandbox_response_filter_terminate_survives_the_scaffold_exiting_first(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A termination ends the sample even when the scaffold finishes before it lands.
+
+    The service dispatcher writes the terminating reply before raising. Removing
+    the request file is slowed here so the scaffold always reads that reply and
+    exits, and the agent completes, before the termination is raised: the race
+    that otherwise loses it intermittently. The termination must still end the
+    sample, not be cancelled with the service or logged as a cleanup error.
+    """
+    from inspect_ai.util._sandbox.service import SandboxService
+
+    remove_request_file = SandboxService._remove_request_file
+
+    async def slow_remove_request_file(self: SandboxService, request_file: str) -> None:
+        await remove_request_file(self, request_file)
+        await anyio.sleep(5)
+
+    monkeypatch.setattr(
+        SandboxService, "_remove_request_file", slow_remove_request_file
+    )
+
+    log, results = _run_sandbox_eval_with_response_filter(
+        tmp_path,
+        _failing_response_filter("terminate"),
+        model=_under_limit_model(),
+        token_limit=JUDGE_TOKEN_LIMIT,
+    )
+
+    # the scaffold finished first: the ordering the race needs
+    assert len(results) == 1
+    _assert_failure_outcome(log, "terminate")
+
+
 def _sandbox_bridge(
     response_filter: ModelResponseFilter,
     model: Model | None = None,

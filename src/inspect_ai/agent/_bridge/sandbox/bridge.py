@@ -32,6 +32,7 @@ from inspect_ai.util._sandbox.exec_remote import (
     ExecRemoteStreamingOptions,
     ExecStderr,
 )
+from inspect_ai.util._sandbox.service import find_control_flow
 
 from ..._agent import AgentState
 from ..util import resolve_bridge_code_execution, resolve_bridge_web_search
@@ -301,6 +302,12 @@ async def sandbox_agent_bridge(
                 # ensure the scope is cancelled
                 tg.cancel_scope.cancel()
     except Exception as ex:
+        # A termination ends the sample even if the agent completed first: the
+        # service dispatcher answers a terminating request before raising, so the
+        # scaffold can read that reply and exit before the termination arrives.
+        termination = find_control_flow(ex)
+        if termination is not None:
+            raise termination from ex
         # If the agent completed successfully but we got an error during cleanup,
         # log the error but don't fail the sample.
         if agent_completed:
