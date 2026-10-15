@@ -17,7 +17,7 @@ from inspect_ai.scorer import includes
 from inspect_ai.solver import Generate, Solver, TaskState, fork, solver
 from inspect_ai.tool import Tool, ToolError, bash, skill
 from inspect_ai.tool._tool_def import ToolDef
-from inspect_ai.tool._tools._skill.install import install_skills
+from inspect_ai.tool._tools._skill.install import install_lock, install_skills
 from inspect_ai.tool._tools._skill.read import SkillParsingError, _read_skill
 from inspect_ai.tool._tools._skill.tool import _cache_lock
 from inspect_ai.tool._tools._skill.types import Skill
@@ -1014,6 +1014,35 @@ class TestSkillToolStateScope:
         assert ("chown" if stage == "write" else stage, sandbox.blocked_path) in (
             sandbox.finalized
         )
+
+    async def test_cancelled_install_starts_no_further_files(self) -> None:
+        sandbox = _BlockingSandbox("write")
+        _use_sandbox(sandbox)
+        init_subtask_store(Store())
+        full = Skill(
+            name="example",
+            description="Example.",
+            instructions="Do it.",
+            scripts={"run.sh": "echo hello"},
+            references={"ref.md": "ref"},
+            assets={"data.txt": "data"},
+        )
+
+        async def install() -> None:
+            await skill([full])(command="example")
+
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(install)
+            await sandbox.blocked.wait()
+            tg.cancel_scope.cancel()
+            sandbox.release.set()
+
+        # the write in flight finishes; nothing after it starts
+        assert sandbox.files == {
+            "/work/skills/example/SKILL.md": full.skill_md().encode()
+        }
+        assert sandbox.written == ["/work/skills/example/SKILL.md"]
+        assert not install_lock(sandbox).locked()
 
     async def test_failed_write_is_removed(self) -> None:
         class FailingSandbox(_FileSandbox):

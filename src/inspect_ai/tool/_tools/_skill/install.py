@@ -104,6 +104,8 @@ async def install_skills_shared(
                     "already exists in the sandbox with different contents."
                 )
         for file in files:
+            # each file is shielded, so honour cancellation between files
+            await anyio.lowlevel.checkpoint()
             await _install_file(sbox, user, file, write=file in missing)
     return [_skill_info(skills_dir, skill) for skill in skills]
 
