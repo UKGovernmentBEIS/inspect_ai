@@ -14,12 +14,13 @@ import uuid
 from collections.abc import AsyncIterator, Iterator
 from dataclasses import dataclass, field
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from types import SimpleNamespace
 from typing import Any, Literal, NamedTuple
 
 import httpx
 import httpx2
 import pytest
-from openai import APIError, APIStatusError, BadRequestError
+from openai import APIError, APIStatusError, BadRequestError, PermissionDeniedError
 from test_helpers.litellm_proxy.errors import (
     _anthropic_error,
     error_deployments,
@@ -873,6 +874,15 @@ def _route_provider(
         ),
         ([_route_row("openai/gpt-5"), _route_row("azure/gpt-5")], False),
         ([_route_row("anthropic/claude-sonnet-5")], False),
+        # xAI's own API, for Grok 4 and later (including codenames)
+        ([_route_row("xai/grok-4.7")], True),
+        ([_route_row("xai/grok-4-1-fast-reasoning")], True),
+        ([_route_row("xai/grok-4.7", api_base="https://api.x.ai/v1")], True),
+        ([_route_row("xai/sherlock-think", base_model="xai/grok-4.7")], True),
+        ([_route_row("xai/grok-3-mini")], False),
+        ([_route_row("xai/grok-4.7", api_base=VLLM_BASE)], False),
+        ([_route_row("openrouter/x-ai/grok-4.7")], False),
+        ([_route_row("xai/grok-4.7"), _route_row("openai/gpt-5")], False),
     ],
 )
 def test_responses_default_route(
@@ -917,6 +927,8 @@ def test_responses_explicit_kept_for_other_routes(
         # Responses to OpenAI streams, by default or explicitly
         (_route_row("openai/gpt-5"), {}, True),
         (_route_row("openai/gpt-5.5"), {"responses_api": True}, True),
+        # as does Responses to xAI
+        (_route_row("xai/grok-4.7"), {}, True),
         # Responses to other upstreams doesn't (LiteLLM #43010)
         (_route_row("anthropic/claude-sonnet-5"), {"responses_api": True}, False),
         (
@@ -939,6 +951,42 @@ def test_responses_streaming(
 ) -> None:
     provider = _route_provider(model_info_stub, [row], **model_args)
     assert provider.resolve_stream(GenerateConfig()) is streams
+
+
+@skip_if_no_openai_package
+@pytest.mark.parametrize(
+    "model,active,headers,expected",
+    [
+        ("xai/grok-4.7", True, None, {"x-grok-conv-id": "sample-uuid-1"}),
+        (
+            "xai/grok-4.7",
+            True,
+            {"x-other": "1"},
+            {"x-grok-conv-id": "sample-uuid-1", "x-other": "1"},
+        ),
+        # a caller-supplied header wins
+        ("xai/grok-4.7", True, {"X-Grok-Conv-Id": "mine"}, {"X-Grok-Conv-Id": "mine"}),
+        # no conversation to key on outside a sample
+        ("xai/grok-4.7", False, None, None),
+        ("anthropic/claude-sonnet-5", True, None, None),
+    ],
+)
+def test_grok_conv_id_header(
+    model_info_stub: ModelInfoStub,
+    monkeypatch: pytest.MonkeyPatch,
+    model: str,
+    active: bool,
+    headers: dict[str, str] | None,
+    expected: dict[str, str] | None,
+) -> None:
+    monkeypatch.setattr(
+        litellm_proxy_module,
+        "sample_active",
+        lambda: SimpleNamespace(sample_uuid="sample-uuid-1") if active else None,
+    )
+    provider = _route_provider(model_info_stub, [_route_row(model)])
+    config = provider._with_grok_conv_id(GenerateConfig(extra_headers=headers))
+    assert config.extra_headers == expected
 
 
 def _wire_tool_types(provider: LiteLLMProxyAPI, tools: list[Tool]) -> dict[str, str]:
@@ -1891,6 +1939,17 @@ LITELLM_ERROR_MESSAGES = [
         id="moonshot",
     ),
     pytest.param(
+        'litellm.BadRequestError: XaiException - {"code":"invalid-argument",'
+        '"error":"Failed to start sampling: [input_too_large] The prompt is too '
+        "long for this model's context window (601243 tokens > 500000 tokens)\"}"
+        "\n\nLiteLLM: model group 'g' failed with the error above. No fallback "
+        "was attempted.",
+        "model_length",
+        "Failed to start sampling: [input_too_large] The prompt is too long for "
+        "this model's context window (601243 tokens > 500000 tokens)",
+        id="xai-context-window",
+    ),
+    pytest.param(
         "litellm.BadRequestError: litellm.ContentPolicyViolationError: "
         'ContentPolicyViolationError: OpenAIException - {"error": {"message": '
         '"Invalid prompt: your prompt was flagged.", "type": '
@@ -1938,6 +1997,57 @@ def test_litellm_error_model_output(
 )
 def test_litellm_error_model_output_unrecognized(message: str) -> None:
     assert litellm_error_model_output("model", message) is None
+
+
+XAI_SAFETY_CHECK = (
+    'litellm.APIError: APIError: XaiException - {"code": "permission-denied", '
+    '"error": "Content violates usage guidelines. Failed check: '
+    "SAFETY_CHECK_TYPE_CSAM\"}\n\nLiteLLM: model group 'g' failed with the "
+    "error above. No fallback was attempted."
+)
+
+
+@pytest.mark.parametrize(
+    "message,content",
+    [
+        (
+            XAI_SAFETY_CHECK,
+            "Content violates usage guidelines. Failed check: SAFETY_CHECK_TYPE_CSAM",
+        ),
+        (
+            'litellm.BadRequestError: XaiException - {"code": '
+            '"permission-denied", "error": "I can\'t help with that request."}',
+            "I can't help with that request.",
+        ),
+    ],
+)
+def test_litellm_error_model_output_xai_refusal(message: str, content: str) -> None:
+    output = litellm_error_model_output("model", message, xai=True)
+    assert output is not None
+    assert output.stop_reason == "content_filter"
+    assert output.completion == content
+    # the markers apply only to xAI models
+    assert litellm_error_model_output("model", message) is None
+
+
+def test_litellm_error_model_output_openai_safety_checks() -> None:
+    message = (
+        "litellm.BadRequestError: OpenAIException - Missing required parameter: "
+        "'input[3].acknowledged_safety_checks'."
+    )
+    assert litellm_error_model_output("model", message) is None
+
+
+@pytest.mark.parametrize(
+    "text,message",
+    [
+        ('{"error": {"message": "nested"}}', "nested"),
+        ('{"code": "invalid-argument", "error": "xai"}', "xai"),
+        ('{"error": "Bad Request", "message": "detail"}', "detail"),
+    ],
+)
+def test_upstream_message_json_bodies(text: str, message: str) -> None:
+    assert upstream_message(f"litellm.BadRequestError: XException - {text}") == message
 
 
 def test_upstream_message_keeps_unparsed_message() -> None:
@@ -2024,6 +2134,34 @@ def test_provider_stream_error_keeps_retryable_errors() -> None:
     assert _provider().handle_stream_error(status_error) is None
 
 
+def _permission_denied(message: str) -> PermissionDeniedError:
+    request = httpx2.Request("POST", "http://proxy/v1/responses")
+    return PermissionDeniedError(
+        f"Error code: 403 - {message}",
+        response=httpx2.Response(403, request=request),
+        body={"message": message, "type": "permission_error", "code": "403"},
+    )
+
+
+@skip_if_no_openai_package
+def test_provider_stream_error_xai_refusal() -> None:
+    # the Responses path sends a 403 here rather than to handle_bad_request
+    grok = get_model(
+        "litellm-proxy/grok-4.7",
+        base_url="http://localhost:4000/v1",
+        api_key="key",
+        model_info=False,
+    ).api
+    assert isinstance(grok, LiteLLMProxyAPI)
+    output = grok.handle_stream_error(_permission_denied(XAI_SAFETY_CHECK))
+    assert isinstance(output, ModelOutput)
+    assert output.stop_reason == "content_filter"
+    # another 403 is raised with its usual classification
+    assert grok.handle_stream_error(_permission_denied("Key blocked")) is None
+    # as is an xAI-worded 403 for a model that isn't xAI's
+    assert _provider().handle_stream_error(_permission_denied(XAI_SAFETY_CHECK)) is None
+
+
 # Upstream errors and refusals through a proxy (`test_helpers.litellm_proxy.errors`):
 # the stop reason of the output, or the retry kind of the raised error.
 ERROR_EXPECTATIONS: dict[str, str] = {
@@ -2044,6 +2182,9 @@ ERROR_EXPECTATIONS: dict[str, str] = {
     "bedrock-guardrail": "content_filter",
     "deepseek-context": "model_length",
     "moonshot-context": "model_length",
+    "grok-context": "model_length",
+    "grok-refusal": "content_filter",
+    "grok-rate-limit": "retry:rate_limit",
     "azure-content-filter": "content_filter",
 }
 
@@ -2190,6 +2331,27 @@ PARAMETER_REJECTED = (
             "none",
             "value",
         ),
+        # xAI (grok-4.7), which LiteLLM forwards unmapped
+        (
+            'litellm.BadRequestError: XaiException - {"code":"invalid-argument",'
+            '"error":"This model does not support `reasoning_effort` value '
+            '`none`."}',
+            "none",
+            "value",
+        ),
+        (
+            'litellm.BadRequestError: XaiException - {"code":"invalid-argument",'
+            '"error":"Invalid reasoning effort."}',
+            "max",
+            "value",
+        ),
+        (
+            'litellm.BadRequestError: XaiException - {"code":"invalid-argument",'
+            '"error":"This model does not support `reasoning_effort` value '
+            '`none`."}',
+            "high",
+            None,
+        ),
         # an unsupported value for another parameter
         (
             'litellm.BadRequestError: OpenAIException - {"error": {"message": '
@@ -2245,9 +2407,32 @@ SUMMARIZED = {"type": "adaptive", "display": "summarized"}
 """The `thinking` the provider sends to Claude 4.6+ with an effort."""
 
 
+def _xai_effort_rejection(body: dict[str, Any]) -> Reply | None:
+    """XAI's rejection of an effort grok-4.7 doesn't take (verified live)."""
+    effort = (
+        body.get("reasoning_effort")
+        if "messages" in body
+        else (body.get("reasoning") or {}).get("effort")
+    )
+    if effort == "none":
+        error = "This model does not support `reasoning_effort` value `none`."
+    elif effort == "max":
+        error = "Invalid reasoning effort."
+    else:
+        return None
+    return Reply(400, {"code": "invalid-argument", "error": error})
+
+
 def _strict_openai_route(request: StubRequest) -> dict[str, Any] | SSE | Reply | None:
-    """The fake upstreams, plus an OpenAI model that rejects other efforts."""
+    """The fake upstreams, plus an OpenAI model that rejects other efforts.
+
+    Also grok-4.7, which rejects `none` and `max` as xAI does.
+    """
     body = request.body or {}
+    if body.get("model") == "grok-4.7":
+        rejection = _xai_effort_rejection(body)
+        if rejection is not None:
+            return rejection
     if body.get("model") == "strict-openai":
         param = "reasoning_effort" if "messages" in body else "reasoning.effort"
         effort = (
@@ -2294,6 +2479,7 @@ EFFORT_DEPLOYMENTS = {
     "gpt-5.5": "openai/gpt-5.5",
     "gpt-4.1": "openai/gpt-4.1",
     "grok-4": "xai/grok-4",
+    "grok-4.7": "xai/grok-4.7",
     "deepseek-reasoner": "deepseek/deepseek-reasoner",
     "strict-openai": "openai/strict-openai",
     # the strict fake as a codename identified by base_model
@@ -2452,6 +2638,10 @@ async def test_litellm_proxy_reasoning_effort_never_fails(
         ("gpt-5.5", False, "minimal", "low"),
         ("gpt-4.1", False, "high", None),
         ("grok-4", False, "high", None),
+        ("grok-4.7", False, "max", "xhigh"),
+        ("grok-4.7", True, "max", "xhigh"),
+        ("grok-4.7", False, "none", None),
+        ("grok-4.7", True, "none", None),
         ("strict-openai", False, "max", "high"),
         ("strict-openai", True, "max", "high"),
         ("strict-openai", False, "none", None),

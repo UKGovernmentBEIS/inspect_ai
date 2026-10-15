@@ -11,6 +11,7 @@ from openai import (
     APIResponseValidationError,
     APIStatusError,
     BadRequestError,
+    PermissionDeniedError,
 )
 from openai.types.chat import (
     ChatCompletion,
@@ -22,6 +23,7 @@ from typing_extensions import override
 
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.logger import warn_once
+from inspect_ai.log._samples import sample_active
 from inspect_ai.tool import ToolChoice, ToolInfo
 from inspect_ai.tool._tool_info import INTERNAL_TOOL_TYPE
 from inspect_ai.tool._tools._computer._computer import is_computer_tool_info
@@ -76,6 +78,7 @@ from ._google_reasoning import (
     is_gemini,
     is_gemini_2_5,
 )
+from ._grok_cache import GROK_CONV_ID_HEADER
 from ._litellm_proxy_caching import (
     cache_write_ttl,
     with_cache_breakpoints,
@@ -120,7 +123,9 @@ from ._litellm_proxy_vendor import (
     claude_thinks_adaptively,
     deployment_route,
     frontier_base_model,
+    grok_4_or_later,
     is_openai_api_base,
+    is_xai_api_base,
     upstream_vendor,
 )
 from ._openai_web_search import maybe_web_search_tool
@@ -214,8 +219,9 @@ class LiteLLMProxyAPI(OpenAICompatibleAPI):
     skip the listing, the registration and the check.
 
     When `responses_api` is not passed, GPT-5, o-series and Codex models
-    served directly by OpenAI use the Responses API, as with the native
-    `openai` provider; everything else uses Chat Completions.
+    served directly by OpenAI, and Grok 4+ models served directly by xAI,
+    use the Responses API, as with the native `openai` and `grok`
+    providers; everything else uses Chat Completions.
 
     Chat Completions requests to Claude 4.6+ that carry a `reasoning_effort`
     ask for summarized thinking (`-M thinking_display=omitted` to not).
@@ -308,14 +314,11 @@ class LiteLLMProxyAPI(OpenAICompatibleAPI):
             if require_model_info:
                 self._check_model_info()
 
-        self._openai_route = bool(self._deployments) and all(
-            deployment_route(d.model, d.custom_llm_provider) == "openai"
-            and is_openai_api_base(d.api_base)
-            for d in self._deployments or []
-        )
+        routes = {_responses_route(d) for d in self._deployments or []}
+        self._responses_route = routes.pop() if len(routes) == 1 else None
         if (
             self.responses_api is None
-            and self._openai_route
+            and self._responses_route is not None
             and self._responses_preferred()
             and config.num_choices is None
             and not self.emulate_tools
@@ -520,17 +523,24 @@ class LiteLLMProxyAPI(OpenAICompatibleAPI):
         )
 
     def _responses_preferred(self) -> bool:
-        """GPT-5 or later, o-series and Codex models, by upstream model family.
+        """Whether the upstream model family is better served by Responses.
 
-        The native `openai` provider uses the Responses API for these. On
-        Chat Completions, OpenAI returns none of their reasoning, so it can't
-        be carried to the next turn. Unlike the native provider, unrecognized
-        names are not treated as frontier codenames: a proxy can send every
-        `openai/` deployment to another server (`OPENAI_API_BASE`) without
-        listing an `api_base`. A codename gets the default through
+        OpenAI: GPT-5 or later, o-series and Codex models, for which the
+        native `openai` provider uses the Responses API. On Chat Completions,
+        OpenAI returns none of their reasoning, so it can't be carried to the
+        next turn. Unlike the native provider, unrecognized names are not
+        treated as frontier codenames: a proxy can send every `openai/`
+        deployment to another server (`OPENAI_API_BASE`) without listing an
+        `api_base`. A codename gets the default through
         `model_info.base_model`, which the model info check asks for.
+
+        xAI: Grok 4 or later. On Chat Completions, xAI returns only a summary
+        of the reasoning; on Responses, its encrypted reasoning is carried to
+        the next turn, as the native `grok` provider does.
         """
         family = self.model_family()
+        if self._responses_route == "xai":
+            return grok_4_or_later(family)
         return is_gpt_5_model(family) or is_o_series_model(family) or "codex" in family
 
     def _is_claude(self) -> bool:
@@ -549,11 +559,12 @@ class LiteLLMProxyAPI(OpenAICompatibleAPI):
         Long generations (e.g. high reasoning effort) otherwise hit client
         and proxy timeouts, and a streamed reply keeps its thinking blocks.
         `-M stream=false` opts out. Responses requests are streamed only to
-        OpenAI (LiteLLM #43010 affects its conversion for other upstreams).
+        OpenAI and xAI, whose own Responses APIs LiteLLM passes them to
+        (LiteLLM #43010 affects its conversion for other upstreams).
         """
-        return (not self.responses_api or self._openai_route) and self.auto_streamable(
-            config
-        )
+        return (
+            not self.responses_api or self._responses_route is not None
+        ) and self.auto_streamable(config)
 
     @override
     def max_tokens_for_config(self, config: GenerateConfig) -> int | None:
@@ -790,6 +801,7 @@ class LiteLLMProxyAPI(OpenAICompatibleAPI):
             )
         _cache_prompt.set(self._is_claude() and config.cache_prompt is not False)
         _cache_write_ttl.set(None)
+        config = self._with_grok_conv_id(config)
         requested = config.reasoning_effort
         gemini_tools = self._vendor == "google" and len(tools) > 0
         tool_calling_attempts = 0
@@ -884,6 +896,28 @@ class LiteLLMProxyAPI(OpenAICompatibleAPI):
             else:
                 assert effort is not None
                 self._rejected_efforts.add(effort)
+
+    def _with_grok_conv_id(self, config: GenerateConfig) -> GenerateConfig:
+        """For xAI models, send the sample id as xAI's cache affinity header.
+
+        As the native `grok` provider does (see `_grok_cache`). The proxy
+        forwards it only with `forward_client_headers_to_llm_api: true` in
+        its `general_settings`, and drops it otherwise. A caller-supplied
+        header wins.
+        """
+        active = sample_active()
+        headers = config.extra_headers or {}
+        if (
+            self._vendor != "grok"
+            or active is None
+            or any(name.lower() == GROK_CONV_ID_HEADER for name in headers)
+        ):
+            return config
+        return config.model_copy(
+            update={
+                "extra_headers": {GROK_CONV_ID_HEADER: active.sample_uuid} | headers
+            }
+        )
 
     def _effort_unsupported_fix(self) -> str:
         """The proxy config fix for a Claude 4.6+ model that takes no effort.
@@ -1058,7 +1092,9 @@ class LiteLLMProxyAPI(OpenAICompatibleAPI):
             return self._adaptive_thinking_error(message)
         if _PREFILL_REJECTED.search(message):
             return PrefillNotSupportedError(self.service_model_name(), message)
-        output = litellm_error_model_output(self.service_model_name(), message)
+        output = litellm_error_model_output(
+            self.service_model_name(), message, xai=self._vendor == "grok"
+        )
         if output is None:
             # the base class's message heuristics, recording the upstream
             # message rather than LiteLLM's wrapping of it
@@ -1099,8 +1135,10 @@ class LiteLLMProxyAPI(OpenAICompatibleAPI):
     def handle_stream_error(
         self, ex: APIError | OpenAIResponseError
     ) -> ModelOutput | None:
-        # status, validation and connection errors keep their retry handling
-        if not isinstance(
+        # status, validation and connection errors keep their retry handling;
+        # a 403 is never retried, and the Responses path sends it here rather
+        # than to handle_bad_request (e.g. an xAI refusal)
+        if isinstance(ex, PermissionDeniedError) or not isinstance(
             ex, APIStatusError | APIResponseValidationError | APIConnectionError
         ):
             message = (
@@ -1108,7 +1146,9 @@ class LiteLLMProxyAPI(OpenAICompatibleAPI):
                 if isinstance(ex, OpenAIResponseError)
                 else _error_message(ex)
             )
-            output = litellm_error_model_output(self.service_model_name(), message)
+            output = litellm_error_model_output(
+                self.service_model_name(), message, xai=self._vendor == "grok"
+            )
             if output is not None:
                 return output
         return super().handle_stream_error(ex)
@@ -1130,6 +1170,21 @@ def _error_message(ex: APIError) -> str:
     """The proxy's error message (the SDK's `message` prefixes the status)."""
     message = ex.body.get("message") if isinstance(ex.body, dict) else None
     return message if isinstance(message, str) else ex.message
+
+
+def _responses_route(deployment: ProxyDeployment) -> Literal["openai", "xai"] | None:
+    """The vendor whose own Responses API serves a deployment, if any.
+
+    LiteLLM passes Responses requests for the `openai` and `xai` routes to
+    the vendor's API unconverted. Another `api_base` is usually a compatible
+    server, which may not serve the Responses API.
+    """
+    route = deployment_route(deployment.model, deployment.custom_llm_provider)
+    if route == "openai" and is_openai_api_base(deployment.api_base):
+        return "openai"
+    if route == "xai" and is_xai_api_base(deployment.api_base):
+        return "xai"
+    return None
 
 
 def merged_model_info(

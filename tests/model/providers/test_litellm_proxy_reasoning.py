@@ -21,6 +21,7 @@ from test_helpers.litellm_proxy.artifacts import (
     check_gemini_replay,
     check_openai_responses_replay,
     check_reasoning_content_replay,
+    check_xai_replay,
 )
 from test_helpers.litellm_proxy.proxy import (
     CALL_ID_HEADER,
@@ -490,6 +491,21 @@ FAKE_PROVIDERS = [
         },
         served=reasoning_content_chat_response,
         check=check_reasoning_content_replay,
+    ),
+    # LiteLLM passes both APIs to xAI unconverted
+    FakeProvider(
+        name="xai",
+        litellm_params=lambda url: {
+            "model": "xai/grok-4.7",
+            "api_base": f"{url}/v1",
+            "api_key": "fake",
+        },
+        served=lambda request: (
+            openai_responses_response(request)
+            if "input" in request
+            else reasoning_content_chat_response(request)
+        ),
+        check=check_xai_replay,
     ),
     # the fake speaks Converse JSON only, not the eventstream encoding
     FakeProvider(
@@ -980,6 +996,16 @@ LIVE_PROVIDERS = [
         },
         check=check_reasoning_content_replay,
     ),
+    LiveProvider(
+        name="grok-4.7",
+        family="grok",
+        env=("GROK_API_KEY",),
+        litellm_params={
+            "model": "xai/grok-4.7",
+            "api_key": "os.environ/GROK_API_KEY",
+        },
+        check=check_xai_replay,
+    ),
 ]
 
 
@@ -1108,13 +1134,16 @@ def _live_marks(provider: LiveProvider) -> list[Any]:
 
 LIVE_OPENAI = [p for p in LIVE_PROVIDERS if p.family == "openai"]
 
+# upstreams whose own Responses API the provider uses by default
+LIVE_RESPONSES_DEFAULT = [p for p in LIVE_PROVIDERS if p.family in ("openai", "grok")]
+
 
 @skip_if_no_openai_package
 @skip_if_no_litellm_proxy
 @pytest.mark.parametrize("stream", [None, False], ids=["default-stream", "nostream"])
 @pytest.mark.parametrize(
     "provider",
-    [pytest.param(p, id=p.name, marks=_live_marks(p)) for p in LIVE_OPENAI],
+    [pytest.param(p, id=p.name, marks=_live_marks(p)) for p in LIVE_RESPONSES_DEFAULT],
 )
 async def test_live_responses_default_round_trip(
     live_proxy: LiteLLMProxy, provider: LiveProvider, stream: bool | None
@@ -1129,7 +1158,7 @@ async def test_live_responses_default_round_trip(
     )
     assert isinstance(model.api, LiteLLMProxyAPI)
     assert model.api.responses_api is True
-    # the second generate raises if OpenAI rejects the replayed turn
+    # the second generate raises if the upstream rejects the replayed turn
     turns = await run_tool_loop(live_proxy, model)
     assert "input" in turns.second.request
     if turns.first.response is None:
@@ -1248,3 +1277,48 @@ async def test_live_gemini_reasoning_effort(
                 assert expected.items() <= sent.items(), f"{effort}: {sent}"
     # the mapping is up front, so the proxy rejected nothing
     assert lowered == []
+
+
+LIVE_GROK = [p for p in LIVE_PROVIDERS if p.family == "grok"]
+
+LIVE_GROK_EFFORT_SENT: dict[str, str | None] = {"none": None, "max": "xhigh"}
+"""Efforts xAI rejects, and what is sent instead (None: no effort)."""
+
+
+@skip_if_no_openai_package
+@skip_if_no_litellm_proxy
+@pytest.mark.parametrize("responses_api", [False, True], ids=["chat", "responses"])
+@pytest.mark.parametrize(
+    "provider",
+    [pytest.param(p, id=p.name, marks=_live_marks(p)) for p in LIVE_GROK],
+)
+async def test_live_grok_reasoning_effort(
+    live_proxy: LiteLLMProxy, provider: LiveProvider, responses_api: bool
+) -> None:
+    """Every reasoning effort succeeds against Grok, lowered as natively."""
+    api = proxy_model(
+        live_proxy, f"live-{provider.name}", responses_api=responses_api, memoize=False
+    ).api
+    assert isinstance(api, LiteLLMProxyAPI)
+    for effort in LIVE_EFFORTS:
+        call_id = str(uuid.uuid4())
+        result = await api.generate(
+            [ChatMessageUser(content="Reply with the single word: ok")],
+            [],
+            "none",
+            GenerateConfig(
+                reasoning_effort=effort,
+                max_retries=0,
+                extra_headers={CALL_ID_HEADER: call_id},
+            ),
+        )
+        output = result[0] if isinstance(result, tuple) else result
+        assert isinstance(output, ModelOutput), f"{effort}: {output}"
+        assert live_proxy.capture_dir is not None
+        request = upstream_exchange(live_proxy.capture_dir, call_id).request
+        sent = (
+            (request.get("reasoning") or {}).get("effort")
+            if responses_api
+            else request.get("reasoning_effort")
+        )
+        assert sent == LIVE_GROK_EFFORT_SENT.get(effort, effort), f"{effort}: {sent}"
