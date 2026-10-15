@@ -594,7 +594,8 @@ one attempt.
   when none can be read.
 - A task id has at most one shard set: the first companion by path. A
   second companion with the same task id is not read beyond its merged
-  log; the companion is listed in the task row's `unreadable`, so the row
+  log; the companion, and any of its merged logs that cannot be read, are
+  listed in the task row's `unreadable`, so the row
   is `incomplete` (decision: Ransom, 2026-10-13). Shard sets with
   different task ids are separate tasks.
 

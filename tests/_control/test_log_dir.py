@@ -2533,6 +2533,37 @@ async def test_a_second_shard_set_for_a_task_id_is_reported_not_read(
     assert str(first) in unreadable["reason"]
 
 
+@pytest.mark.parametrize("merged", ["fallback", "unreadable"])
+def test_a_second_shard_sets_unreadable_merged_logs_are_reported(
+    tmp_path: Path, finished_log: EvalLog, no_discovery: None, merged: str
+) -> None:
+    anyio.run(functools.partial(_shard_set, tmp_path / "a", finished_log, {"0": [1]}))
+    second = anyio.run(
+        functools.partial(_shard_set, tmp_path / "b", finished_log, {"0": [2]})
+    )
+    # a duplicate's shards are not read, so this one is never reported
+    broken = second / "1" / f"{_SHARD_STAMP}_alpha_SHARD1TASK000000000000.eval"
+    broken.parent.mkdir()
+    broken.write_bytes(b"not a zip")
+    plain = tmp_path / "b" / f"{_SET_NAME}.eval"
+    if merged == "fallback":
+        anyio.run(functools.partial(_merged, tmp_path / "b", finished_log))
+    else:
+        plain.write_bytes(b"not a zip")
+    recovered = tmp_path / "b" / f"{_SET_NAME}-recovered.eval"
+    recovered.write_bytes(b"not a zip")
+
+    payload = _json(_ctl(tmp_path, "task", "list", "--json"))
+    [row] = payload["tasks"]
+    assert row["task_id"] == _SET_ID and row["samples"]["total"] == 1
+    failed = {str(recovered)} | ({str(plain)} if merged == "unreadable" else set())
+    expected = failed | {str(second)}
+    assert {u["log_location"] for u in row["unreadable"]} == expected
+    assert {u["log_location"] for u in payload["unreadable"]} == expected
+    listing = _json(_ctl(tmp_path, "sample", "list", _SET_ID, "--json"))
+    assert {u["log_location"] for u in listing["unreadable"]} == expected
+
+
 async def test_an_unreadable_shard_marks_the_row_and_blocks_sample_reads(
     tmp_path: Path, finished_log: EvalLog
 ) -> None:

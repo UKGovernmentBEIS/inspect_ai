@@ -394,6 +394,8 @@ async def _add_shard_sets(
     for shard_set in shard_sets:
         key = key_of(shard_set)
         task = tasks.setdefault(key, LogicalTask(key=key, attempts=[]))
+        run, unreadable = merged[shard_set.location]
+        task.stray.extend(unreadable)
         if first[key] is not shard_set:
             reason = (
                 "a second shard set for this task; "
@@ -401,8 +403,6 @@ async def _add_shard_sets(
             )
             task.stray.append(_stray(StrayFile(shard_set.location, reason)))
             continue
-        run, unreadable = merged[shard_set.location]
-        task.stray.extend(unreadable)
         task.stray.extend(_stray(s) for s in shard_set.stray)
         if key not in current:
             task.attempts.insert(0, Attempt([], shard_set.location, None, shard_set))
