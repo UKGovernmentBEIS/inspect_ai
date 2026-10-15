@@ -60,9 +60,10 @@ constraint at `hawk/core/db/models.py:265`). The cache-hit row is a smaller
 bug in the same reconciliation, which adds the original call's time on a
 hit.
 
-The second row shows today's semaphore merging. One waiting task counts as
-the whole sample waiting. This design keeps that behaviour, extends it to
-every wait, and accepts its cost (see "Accepted limitations").
+The second row shows the semaphore merging on `main` at the time. The
+2026-10-07 rule made one semaphore wait pause the whole sample. The
+2026-10-15 rule charges any concurrent known work (see "Known work" and
+"Accepted limitations").
 
 ## Decision
 
@@ -142,6 +143,13 @@ An approver's or a monitor's own model calls and tool calls therefore never
 restart the agent's clock. `SampleWait` objects that close from another
 task (the batch queue, `sample_waiting_for()`) hold the work of the context
 that opened them but suspend nothing, since no work runs inside them.
+
+The suspension only stops new spans from opening; it does not hide the work
+around it. A wait opened by a task started inside a suspension still holds
+the enclosing work, so if that task outlives the suspension the enclosing
+work stays held until its wait ends. Outside a running sample,
+`sample_wait()` does nothing, so a sample started inside it (an `eval()`
+call wrapped in `suspend_working_limit()`) is not suppressed.
 
 ### Known waits
 
@@ -531,13 +539,18 @@ block on `anyio.Event`s, so ordering is fixed.
   - a task that outlives the inner tool that started it still holds the
     outer tool, for waits and retried model attempts, and a wait that
     outlasts its span keeps the span above held;
+  - a task started inside a tool's suspension that waits past the
+    suspension's end (in `sample_wait()`, a `SampleWait` or
+    `sample_waiting_for()`, ended or cancelled) keeps the tool held;
+  - a suspension entered outside a sample does not suppress the known work
+    of a sample started inside it;
   - an exec on a sandbox while another task runs inside its `no_events()`
     is still known work, an exec whose arguments name the services
     directory is known work, and execs inside `untracked_sandbox_execs()`
     are not;
   - seeded random sequences of nested spans (including contexts of closed
-    spans), waits, late waits reported from inside work (some from inside a
-    suspension), attempts
+    spans), waits (some opened by a task started inside a suspension),
+    late waits reported from inside work (some from inside a suspension), attempts
     classified both ways and scoped limits, checked against a brute-force
     evaluation of the rule, with every reading and scope in bounds and
     unchanged when everything closes.
@@ -608,14 +621,18 @@ too risky.
 
 ## Decisions on earlier open questions
 
+The sample-wide exemption of other tasks' known work in these earlier
+decisions was superseded on 2026-10-15; their known work is now charged.
+
 1. **`suspend_working_limit()` is public.** Ransom, 2026-10-07: it is
    exported from `inspect_ai.util`, so code like METR's approver has a
    public way to mark time as waiting. Its contract differs from
    `suspend_token_limit()` and `suspend_turn_limit()`, which suspend
    metering only for code inside the block in the current task.
    `suspend_working_limit()` marks the whole sample as waiting while the
-   block is open, including other tasks' work, because waiting is
-   sample-wide under the union rule. Its docstring says so. Only code in
+   block is open, because waiting is sample-wide under the union rule;
+   since 2026-10-15, other tasks' known work during the block is charged.
+   Its docstring says so. Only code in
    the eval process can call it, not agent code in a sandbox.
 2. **Sentinel monitors count as waiting.** Ransom, 2026-10-13: monitor
    runs at all four sentinel stages count as waiting, as approvers and

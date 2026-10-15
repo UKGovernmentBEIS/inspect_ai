@@ -552,7 +552,8 @@ class SampleWait:
 
     def __init__(self) -> None:
         self._timing = _sample_timing.get()
-        self._work = _context_work()
+        # held even when opened inside a suspension, which the wait may outlive
+        self._work = _current_work.get()
         if self._timing is not None:
             self._timing.open_wait()
             if self._work is not None:
@@ -574,17 +575,15 @@ def sample_wait() -> Iterator[None]:
     working time.
     """
     wait = SampleWait()
+    if _sample_timing.get() is None:
+        yield
+        return
     token = _suspended.set(True)
     try:
         yield
     finally:
         _suspended.reset(token)
         wait.close()
-
-
-def _context_work() -> _WorkSpan | None:
-    """The innermost known work of this context (`None` inside a wait)."""
-    return _current_work.get() if not _suspended.get() else None
 
 
 def _open_work(deferred: bool) -> _WorkSpan | None:

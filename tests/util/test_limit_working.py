@@ -24,6 +24,7 @@ from inspect_ai._util.working import (
     report_sample_waiting_time,
     sample_timing,
     sample_wait,
+    sample_waiting_for,
     sample_waiting_time,
     sample_working_time,
     untracked_sandbox_execs,
@@ -453,6 +454,91 @@ async def test_suspend_working_limit_outside_sample(mock_time: _MockTime) -> Non
         with suspend_working_limit():
             mock_time.advance(5)
         assert limit.usage == 5
+
+
+@pytest.mark.parametrize("suspension", [sample_wait, suspend_working_limit])
+def test_suspension_outside_sample_leaves_sample_work_known(
+    suspension: Callable[[], Any],
+) -> None:
+    """A suspension entered outside a sample (around `eval()`, say) is a no-op.
+
+    A sample started inside it still charges its known work beside a wait.
+    """
+    clock = _MockTime()
+
+    def run() -> None:
+        _sample_timing.set(None)
+        with suspension():
+            init_sample_working_time(0.0, clock.get_time)
+            with working_limit(None) as scope:
+                waiter, worker = _Task(), _Task()
+                wait = waiter.wait()
+                work = worker.enter(known_work())
+                clock.advance(5)
+                worker.exit(work)
+                wait.close()
+                assert sample_waiting_time() == 0
+                assert sample_working_time() == 5
+                assert scope.usage == 5
+
+    copy_context().run(run)
+
+
+@pytest.mark.parametrize("suspension", [sample_wait, suspend_working_limit])
+@pytest.mark.parametrize("form", ["sample_wait", "SampleWait", "sample_waiting_for"])
+@pytest.mark.parametrize("cancel", [False, True])
+async def test_child_wait_outliving_suspension_holds_work(
+    sample_clock: _MockTime,
+    suspension: Callable[[], Any],
+    form: str,
+    cancel: bool,
+) -> None:
+    """A task started inside a tool's suspension holds the tool while it waits.
+
+    The suspension runs 0-1; the child task it started waits until 6, ends
+    (or is cancelled), and the tool works 6-7.
+    """
+    started = anyio.Event()
+    release = anyio.Event()
+    lock = anyio.Semaphore(0)
+
+    async def child() -> None:
+        if form == "sample_wait":
+            with sample_wait():
+                started.set()
+                await release.wait()
+        elif form == "SampleWait":
+            wait = SampleWait()
+            started.set()
+            try:
+                await release.wait()
+            finally:
+                wait.close()
+        else:
+            started.set()
+            async with sample_waiting_for(lock):
+                pass
+
+    with working_limit(None) as scope, known_work():
+        async with anyio.create_task_group() as tg:
+            with suspension():
+                tg.start_soon(child)
+                await started.wait()
+                sample_clock.advance(1)
+            sample_clock.advance(5)
+            assert sample_waiting_time() == 6
+            assert scope.usage == 0
+            if cancel:
+                tg.cancel_scope.cancel()
+            else:
+                release.set()
+                lock.release()
+        timing = sample_timing()
+        assert timing is not None and timing.open_waits == 0
+        sample_clock.advance(1)
+        assert sample_waiting_time() == 6
+        assert scope.usage == 1
+    assert sample_working_time() == 1
 
 
 async def test_retry_backoff_and_retried_attempts_are_waits(
@@ -973,7 +1059,7 @@ async def test_random_work_and_waits_match_reference(seed: int) -> None:
         elif op < 0.47 and open_spans:
             model.close_span(rng.choice(open_spans))
         elif op < 0.57:
-            model.open_wait(context)
+            model.open_wait(context, suspended=rng.random() < 0.3)
         elif op < 0.67 and model.open_waits:
             model.close_wait(rng.randrange(len(model.open_waits)))
         elif op < 0.75:
@@ -1059,8 +1145,18 @@ class _RuleModel:
         if span.holds == 0 and span.parent is not None:
             self._release(span.parent)
 
-    def open_wait(self, span: _Span | None) -> None:
+    def open_wait(self, span: _Span | None, suspended: bool = False) -> None:
+        """Open a wait in a task started in `span` (inside a suspension, if set).
+
+        A suspension opened and closed at this instant adds no wait itself;
+        the task it started inherits its suppression of new work.
+        """
         task = _Task(span.inner if span else None)
+        if suspended:
+            suspension = task.enter(sample_wait())
+            child = _Task(task)
+            task.exit(suspension)
+            task = child
         self.open_waits.append((task.wait(), span, self.clock.get_time()))
         if span is not None:
             self._hold(span)
