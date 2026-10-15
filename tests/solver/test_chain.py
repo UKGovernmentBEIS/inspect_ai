@@ -1,11 +1,11 @@
 from copy import deepcopy
 from types import SimpleNamespace
-from typing import cast
+from typing import Sequence, cast, overload
 
 import pytest
 from test_helpers.utils import simple_task_state
 
-from inspect_ai import Task
+from inspect_ai import Task, eval
 from inspect_ai.dataset import Sample
 from inspect_ai.model import ChatMessageUser
 from inspect_ai.solver import (
@@ -74,6 +74,107 @@ def test_plan_normalizes_a_tuple_of_steps_to_a_list():
 def test_plan_keeps_a_caller_supplied_list_by_identity():
     steps = [identity(), identity()]
     assert Plan(steps=steps, internal=True).steps is steps
+
+
+class SolverSequence(Sequence[Solver]):
+    """A custom Sequence that is neither a list nor a tuple."""
+
+    def __init__(self, solvers: list[Solver]) -> None:
+        self._solvers = solvers
+
+    @overload
+    def __getitem__(self, index: int) -> Solver: ...
+
+    @overload
+    def __getitem__(self, index: slice) -> Sequence[Solver]: ...
+
+    def __getitem__(self, index: int | slice) -> Solver | Sequence[Solver]:
+        return self._solvers[index]
+
+    def __len__(self) -> int:
+        return len(self._solvers)
+
+
+@pytest.mark.parametrize(
+    "make_sequence",
+    [list, tuple, SolverSequence],
+    ids=["list", "tuple", "custom_sequence"],
+)
+def test_unroll_flattens_any_sequence(make_sequence):
+    s1, s2, s3 = identity(), identity(), identity()
+
+    unrolled = unroll(make_sequence([s1, make_sequence([s2, s3])]))
+
+    assert unrolled == [s1, s2, s3]
+
+
+def test_chain_accepts_a_custom_sequence():
+    s1, s2 = identity(), identity()
+
+    composed = chain(SolverSequence([s1, s2]))
+
+    assert list(composed) == [s1, s2]
+
+
+def test_unroll_flattens_an_existing_chain():
+    s1, s2 = identity(), identity()
+
+    assert unroll(chain(s1, s2)) == [s1, s2]
+    assert unroll([chain(s1), SolverSequence([s2])]) == [s1, s2]
+
+
+@pytest.mark.parametrize("text", ["generate", b"generate", bytearray(b"generate")])
+def test_text_is_rejected_as_a_sequence_of_solvers(text):
+    with pytest.raises(TypeError, match="sequence of solvers"):
+        chain(text)
+    with pytest.raises(TypeError, match="sequence of solvers"):
+        Task(dataset=[Sample(input="test")], solver=text)
+    with pytest.raises(TypeError, match="sequence of solvers"):
+        Plan(steps=text, internal=True)
+
+
+def test_task_accepts_a_custom_sequence_of_solvers():
+    task = Task(
+        dataset=[Sample(input="test")],
+        setup=SolverSequence([identity()]),
+        solver=SolverSequence([identity(), identity()]),
+    )
+    assert isinstance(task.solver, Chain)
+    assert len(task.solver) == 2
+
+
+def test_plan_normalizes_a_custom_sequence_of_steps_to_a_list():
+    plan = Plan(steps=SolverSequence([identity(), identity()]), internal=True)
+    assert isinstance(plan.steps, list)
+    assert len(plan.steps) == 2
+
+
+@solver
+def record(calls: list[str], name: str):
+    async def solve(state: TaskState, _generate: Generate):
+        calls.append(name)
+        return state
+
+    return solve
+
+
+@pytest.mark.parametrize(
+    "make_sequence",
+    [list, tuple, SolverSequence],
+    ids=["list", "tuple", "custom_sequence"],
+)
+def test_eval_solver_sequence_overrides_task_solver(make_sequence):
+    calls: list[str] = []
+    task = Task(dataset=[Sample(input="test")], solver=record(calls, "task"))
+
+    log = eval(
+        task,
+        model="mockllm/model",
+        solver=make_sequence([record(calls, "first"), record(calls, "second")]),
+    )[0]
+
+    assert log.status == "success"
+    assert calls == ["first", "second"]
 
 
 @solver
