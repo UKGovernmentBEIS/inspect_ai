@@ -220,10 +220,17 @@ repo the name selects and builds the task from it
 (`src/inspect_ai/_eval/task/hf.py:83-200`). That file chooses the dataset
 (loaded with `trust=False`, so no dataset script runs) and the arguments of
 the solvers and scorers it names, which go through `solver_from_spec()` and
-`scorer_from_spec()`. The names cannot select a file: `HFSolver.name` and
+`scorer_from_spec()`. The names cannot be file specs: `HFSolver.name` and
 `HFScorer.name` are `Literal` allowlists of built-in solvers and scorers
 (`hf.py:25`, `:39`), validated by `HFTask.model_validate()` (`hf.py:132`)
-before either loader sees them. The arguments are not restricted, so a model
+before either loader sees them. Both loaders still pass the name through
+`parse_spec_str()` before the registry (`loader.py:649`, `:789`), which
+treats any existing path as a file (`loader.py:969-971`), so a file or
+symlink in the working directory named exactly like an allowlisted solver
+or scorer (`generate`, `match`, ...) is imported instead of the built-in.
+The repo chooses only the name; the file has to be in the user's working
+directory already. This is the same rule that applies to a name the user
+types, and this design leaves it unchanged. The arguments are not restricted, so a model
 dict among them builds a model with a base URL the repo chooses
 (`registry.py:689-739`).
 
@@ -293,7 +300,7 @@ operation, with no task-file import and under step 3's restrictions.
 | read operations | none, unless the caller passes `trust_log=True` (`inspect log recover --trust-log`) to recompute or recover, which imports the recorded task file |
 | `inspect score` without `--scorer`, `score(log, None)` | the recorded task file, and only when a recorded scorer or metric name is not registered |
 | `inspect score --scorer NAME`, `score(log, scorers)` | none for metrics. The recorded task file only when `--scorer` is a bare name that is not registered: the existing fallback in `scorer_from_spec()` that finds a scorer the user named in their task file, kept, and now made through the tracker so it is imported once and recorded (decision: Ransom, 2026-10-14; step 6) |
-| `eval-retry` | the recorded task file and the recorded solver file. A log with no `task_file` and an `hf/` task name instead makes the retry fetch that Hugging Face repo's `eval.yaml`, which imports no local file but chooses the dataset and the arguments of the built-in solvers and scorers it names |
+| `eval-retry` | the recorded task file and the recorded solver file. A log with no `task_file` and an `hf/` task name instead makes the retry fetch that Hugging Face repo's `eval.yaml`, which names no file (only allowlisted built-in solvers and scorers, though an existing working-directory path with the same name shadows one, as for any spec) but chooses the dataset and the arguments of the solvers and scorers it names |
 
 In every class, registry names may load installed packages' entry points and
 call their registered factories (see "Registry names" below).
@@ -602,6 +609,23 @@ the first output has status `error`, so it does not block the rerun. With
 results, the second recovery removes the buffer as usual, finalizes under
 a resolving `incomplete_action`, and with `overwrite=True` replaces the
 crashed log.
+
+Discovery follows the same rule. `recoverable_eval_logs()` and
+`inspect log recover --list` skip a crashed log whenever
+`<name>-recovered.eval` exists, before looking at the buffer
+(`_recover/_api.py:424-430`), so they would hide an input kept for the
+trusted rerun. `_recoverable_eval_logs_async()` instead reads the sibling's
+header (`read_eval_log_async(..., header_only=True)`) and skips the
+original only when the sibling has `results`. `eval_results()` always
+returns an `EvalResults` (`_eval/task/results.py:102`), so a recovered log
+without `results` is exactly one whose metric block failed. A sibling whose
+header cannot be read is skipped, as today, and the buffer check that
+follows is unchanged, so a crashed log is listed only while its buffer
+still exists. This also lists logs that eval-retry or eval-set recovered
+without metrics and left with their buffer (`cleanup="finalized"`); those
+can be recovered again in the same way. The `recoverable_eval_logs()`
+docstring ("no recovered file already exists", `_api.py:395-397`) says
+"no recovered file with results exists".
 
 Inspect's own callers keep their cleanup choices and are unaffected:
 eval-retry uses `cleanup="finalized"` and then `cleanup=False` for the
@@ -1150,7 +1174,10 @@ Behaviour changes, by user:
   returns the log written at `<name>-recovered.eval`. A recovery whose
   metrics compute behaves as today. A kept buffer is removed by a later
   recovery that computes metrics, or by the existing startup sweep of stale
-  buffers (`_recover/_api.py:138-139`).
+  buffers (`_recover/_api.py:138-139`). `recoverable_eval_logs()` and
+  `inspect log recover --list` now list such a crashed log while its buffer
+  remains, where today a `-recovered.eval` sibling hides it; a log whose
+  recovered sibling has results is still excluded.
 - **`eval-retry`**: no change apart from the printed record and help text; its recovery passes
   `trust_log=True`, so it imports the task file and rebuilds metric options
   as today, and recovered results and finalization are unchanged.
@@ -1407,8 +1434,17 @@ Legitimate flows:
   - A metric that is registered but raises when computed also keeps the
     buffer under `cleanup=True`, and a recovery whose metrics compute still
     removes it.
+  - Between the two calls, `recoverable_eval_logs()` (and
+    `inspect log recover --list`) lists the crashed log, for both buffer
+    types; after the second call it does not.
   These fail on the current code, where the first call removes the buffer
   and the second raises `RecoveryNotAvailable`.
+- `tests/log/test_recover_api.py` discovery tests:
+  `test_recoverable_eval_logs_excludes_already_recovered` gives its
+  simulated `test-recovered.eval` header a `results` value, so it keeps
+  testing an ordinary completed recovery; a new test with a sibling that
+  has no `results` and a remaining buffer lists the original, and one with
+  no `results` and no buffer does not.
 - `tests/test_eval_set.py`: an eval set with a task-file custom metric,
   interrupted so a `started` log with a buffer remains, resumes with the
   metric computed (proves eval-set needs no opt-in). A unit test on
@@ -1521,8 +1557,9 @@ the PRs open, as the repo requires.
    `compute_log_metrics()`), `src/inspect_ai/log/_score.py` (resolve before
    editing),
    `src/inspect_ai/log/_recover/_api.py`, `src/inspect_ai/log/_recover/_write.py`
-   (`trust_log`; `RecoveryStats.metrics_error`, and keeping the buffer and
-   the crashed log when metrics fail),
+   (`trust_log`; `RecoveryStats.metrics_error`, keeping the buffer and the
+   crashed log when metrics fail, and listing such logs in
+   `recoverable_eval_logs()`),
    `src/inspect_ai/_cli/log.py`, `src/inspect_ai/_eval/eval.py` (both retry
    recovery calls pass `trust_log=True`), `docs/eval-logs.qmd` (the
    recompute example and a short "Logs from others" note),
