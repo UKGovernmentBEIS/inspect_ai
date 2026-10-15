@@ -84,7 +84,11 @@ from ._litellm_proxy_caching import (
     with_cache_breakpoints,
     with_tool_cache_breakpoint,
 )
-from ._litellm_proxy_errors import litellm_error_model_output, upstream_message
+from ._litellm_proxy_errors import (
+    litellm_error_model_output,
+    upstream_message,
+    with_upstream_refusals,
+)
 from ._litellm_proxy_gemini import (
     add_usage,
     malformed_function_call,
@@ -813,6 +817,7 @@ class LiteLLMProxyAPI(OpenAICompatibleAPI):
     def chat_choices_from_completion(
         self, completion: ChatCompletion, tools: list[ToolInfo]
     ) -> list[ChatCompletionChoice]:
+        completion = with_upstream_refusals(completion)
         # chat_choices_from_openai returns choices ordered by index
         sources = sorted(completion.choices, key=lambda choice: choice.index)
         return [

@@ -445,7 +445,11 @@ Probed 2026-10-15 with `meta/muse-wonder-1.0` through `main-latest` and
   is not mapped to `model_length`. Refusals were not reproduced. The native
   provider promotes Meta's structured refusal field (Responses `refusal`
   part, chat `message.refusal`) from `stop` to `content_filter`. The proxy
-  records it as refusal content and stop details, but keeps `stop`.
+  records it as refusal content and stop details, but keeps `stop`. On
+  non-streamed chat, LiteLLM (1.96 and `main-latest`, every route) moves
+  `message.refusal` into `message.provider_specific_fields` and returns
+  `refusal: null`, so the refusal reads as an empty response. Streamed
+  deltas keep it.
 - **Usage and cost.** On Responses, usage matches Meta's on both versions.
   On chat, Meta's `completion_tokens` includes reasoning (direct: 52, of
   which 41 reasoning). `main-latest` passes it through, but 1.96 reports 1
@@ -470,10 +474,25 @@ Probed 2026-10-15 with `meta/muse-wonder-1.0` through `main-latest` and
    - `tool_choice="none"` sends no tools and no `tool_choice` (Meta accepts a
      tool call history without tools, on both paths).
 5. A structured refusal becomes `content_filter` for Meta models
-   (`_flag_refusal_stop` from the native provider).
+   (`_flag_refusal_stop` from the native provider). For every vendor, a
+   non-streamed chat refusal is read back from `provider_specific_fields`
+   (`with_upstream_refusals`), so it is refusal content with refusal stop
+   details, as from the vendor's own API.
 6. Not changed: context overflow (Meta's error is not identifiable).
 
 All of 2–4 verified live on `main-latest`, on both paths.
+
+**Tests.** `muse-wonder-1.0` is in the live round-trip matrix (Responses
+only: chat returns no reasoning), the live Responses default test,
+`test_live_reasoning_effort_lowered` (every effort on both paths, with the
+value sent upstream; shared with Grok), and `test_live_meta_request_shaping`
+(a forced and a `none` tool choice, and `logprobs`, `stop` and `n`, on both
+paths, with the request sent upstream). Offline: a `meta` fake in the
+round-trip matrix (Responses), `muse-wonder-1.0` in the effort guarantee with
+a fake that rejects `none` in Meta's wording, and `muse-context` (stays an
+error), `muse-policy` (a `content_policy_violation` 400), `muse-refusal` (the
+structured refusal, on all four paths) and `muse-rate-limit` error scenarios.
+Live, on `main-latest` and 1.96.0: 10 passed each.
 
 ### Grok
 
@@ -558,7 +577,7 @@ it reaches `handle_stream_error`, so the provider checks
 `PermissionDeniedError` there too (it is never retried).
 
 **Tests.** `grok-4.7` is in the live round-trip matrix, the live Responses
-default test, and `test_live_grok_reasoning_effort` (every effort on both
+default test, and `test_live_reasoning_effort_lowered` (every effort on both
 paths, with the value sent upstream). Offline: an `xai` fake in the round-trip
 matrix, `grok-4.7` in the effort guarantee with a fake that rejects `none` and
 `max` in xAI's wording, and `grok-context`, `grok-refusal` and `grok-rate-limit`

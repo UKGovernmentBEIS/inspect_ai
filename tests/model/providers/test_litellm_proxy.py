@@ -2122,6 +2122,25 @@ def test_upstream_message_keeps_unparsed_message() -> None:
     assert upstream_message("litellm.BadRequestError: ") == "litellm.BadRequestError: "
 
 
+@skip_if_no_openai_package
+@pytest.mark.parametrize(
+    "message",
+    [
+        # as LiteLLM returns a non-streamed refusal (verified on 1.96 and later)
+        {"refusal": None, "provider_specific_fields": {"refusal": "No."}},
+        {"refusal": "No."},
+    ],
+)
+def test_chat_refusal_from_provider_specific_fields(message: dict[str, Any]) -> None:
+    completion = _completion({"content": None} | message)
+    [choice] = _provider().chat_choices_from_completion(completion, [])
+    assert isinstance(choice.message.content, list)
+    [content] = choice.message.content
+    assert isinstance(content, ContentText)
+    assert content.text == "No." and content.refusal
+    assert choice.stop_details is not None and choice.stop_details.type == "refusal"
+
+
 def _bad_request(message: str) -> BadRequestError:
     request = httpx2.Request("POST", "http://proxy/v1/chat/completions")
     return BadRequestError(
@@ -2230,7 +2249,8 @@ def test_provider_stream_error_xai_refusal() -> None:
 
 
 # Upstream errors and refusals through a proxy (`test_helpers.litellm_proxy.errors`):
-# the stop reason of the output, or the retry kind of the raised error.
+# the stop reason of the output, the retry kind of the raised error, or "error"
+# for an error raised and not retried.
 ERROR_EXPECTATIONS: dict[str, str] = {
     "anthropic-context": "model_length",
     "anthropic-blocked": "content_filter",
@@ -2252,6 +2272,10 @@ ERROR_EXPECTATIONS: dict[str, str] = {
     "grok-context": "model_length",
     "grok-refusal": "content_filter",
     "grok-rate-limit": "retry:rate_limit",
+    "muse-context": "error",
+    "muse-policy": "content_filter",
+    "muse-refusal": "content_filter",
+    "muse-rate-limit": "retry:rate_limit",
     "azure-content-filter": "content_filter",
 }
 
@@ -2331,7 +2355,11 @@ async def test_litellm_proxy_error_handling(
     except Exception as ex:
         output = ex
 
-    if expected.startswith("retry:"):
+    if expected == "error":
+        assert isinstance(output, Exception), output
+        decision = api.should_retry(output)
+        assert not (isinstance(decision, RetryDecision) and decision.retry), output
+    elif expected.startswith("retry:"):
         assert isinstance(output, Exception), output
         decision = api.should_retry(output)
         assert isinstance(decision, RetryDecision) and decision.retry, output
@@ -2507,14 +2535,38 @@ def _xai_effort_rejection(body: dict[str, Any]) -> Reply | None:
     return Reply(400, {"code": "invalid-argument", "error": error})
 
 
+def _meta_effort_rejection(body: dict[str, Any]) -> Reply | None:
+    """Meta's rejection of `none` for muse-wonder-1.0 (verified live)."""
+    effort = (
+        body.get("reasoning_effort")
+        if "messages" in body
+        else (body.get("reasoning") or {}).get("effort")
+    )
+    if effort != "none":
+        return None
+    message = (
+        "reasoning_effort 'none' is not supported for model 'muse-wonder-1.0'. "
+        "Supported values: [minimal, low, medium, high, xhigh, max]"
+    )
+    return Reply(
+        400,
+        {"error": {"code": None, "message": message, "type": "invalid_request_error"}},
+    )
+
+
 def _strict_openai_route(request: StubRequest) -> dict[str, Any] | SSE | Reply | None:
     """The fake upstreams, plus an OpenAI model that rejects other efforts.
 
-    Also grok-4.7, which rejects `none` and `max` as xAI does.
+    Also grok-4.7, which rejects `none` and `max` as xAI does, and
+    muse-wonder-1.0, which rejects `none` as Meta does.
     """
     body = request.body or {}
     if body.get("model") == "grok-4.7":
         rejection = _xai_effort_rejection(body)
+        if rejection is not None:
+            return rejection
+    if body.get("model") == "muse-wonder-1.0":
+        rejection = _meta_effort_rejection(body)
         if rejection is not None:
             return rejection
     if body.get("model") == "strict-openai":
@@ -2564,6 +2616,7 @@ EFFORT_DEPLOYMENTS = {
     "gpt-4.1": "openai/gpt-4.1",
     "grok-4": "xai/grok-4",
     "grok-4.7": "xai/grok-4.7",
+    "muse-wonder-1.0": "meta/muse-wonder-1.0",
     "deepseek-reasoner": "deepseek/deepseek-reasoner",
     "strict-openai": "openai/strict-openai",
     # the strict fake as a codename identified by base_model
@@ -2726,6 +2779,9 @@ async def test_litellm_proxy_reasoning_effort_never_fails(
         ("grok-4.7", True, "max", "xhigh"),
         ("grok-4.7", False, "none", None),
         ("grok-4.7", True, "none", None),
+        ("muse-wonder-1.0", False, "none", None),
+        ("muse-wonder-1.0", True, "none", None),
+        ("muse-wonder-1.0", True, "max", "max"),
         ("strict-openai", False, "max", "high"),
         ("strict-openai", True, "max", "high"),
         ("strict-openai", False, "none", None),
