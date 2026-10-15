@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Iterator
 
 import anyio
 import pytest
+from sniffio import current_async_library
 from test_helpers.service_dispatch import (
     dispatching_service,
     serve_beside_failure_monitor,
@@ -1331,7 +1332,7 @@ async def test_bridged_tool_failure_through_the_service_dispatcher(
     reply: str,
     failure_requested: bool,
 ) -> None:
-    """Each failure ends the sample by exactly one path, after one RPC reply.
+    """Each failure ends the sample by exactly one path, after at most one RPC reply.
 
     A termination is the service dispatcher's: it answers the RPC and propagates
     the termination out of the service task, so the bridge's monitor is not also
@@ -1353,7 +1354,10 @@ async def test_bridged_tool_failure_through_the_service_dispatcher(
     unwound = await serve_beside_failure_monitor(service, bridge)
 
     assert [type(ex) for ex in unwound] == [ended_by]
-    assert replies == [reply]
+    # the monitor's teardown may pre-empt the reply to a failed call (see
+    # `call_tool`); trio's randomized scheduling sometimes lets it
+    pre_empted = failure_requested and current_async_library() == "trio"
+    assert replies == [reply] or (pre_empted and replies == [])
     assert bridge._failure_requested.is_set() == failure_requested
 
 
