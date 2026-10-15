@@ -57,7 +57,7 @@ async def install_skills(
 
 async def install_skills_shared(
     skills: Sequence[Skill],
-    sandbox: str | None,
+    sbox: SandboxEnvironment,
     user: str | None,
     dir: str | None,
 ) -> list[SkillInfo]:
@@ -66,16 +66,16 @@ async def install_skills_shared(
     Skill tools in different tool state scopes keep their own skill lists but
     install into the same sandbox files. The files in the sandbox decide what
     is installed: a skill file that is missing is written, one that already
-    holds the same bytes is left as is, and one that holds different bytes
-    raises an error before any file of that skill is written. Files are
+    holds the same bytes is not written again, and one that holds different
+    bytes raises an error before any file of that skill is written. Files are
     compared by a SHA-256 digest computed in the sandbox, so no file size
-    limit applies. A file whose write, ownership change or mode change is
-    interrupted is removed, so the next install writes it again. Installs
-    into one sandbox are serialised by one lock per sample sandbox.
+    limit applies. Written and existing files alike are given the user and
+    executable mode, so an install that was interrupted after a write is
+    completed by the next one. The caller holds `install_lock(sbox)`.
 
     Args:
         skills: Resolved skills to install.
-        sandbox: Sandbox environment name to copy skills to.
+        sbox: Sandbox environment to copy skills to.
         user: User to write skills files with.
         dir: Directory to install into (defaults to "./skills").
 
@@ -86,28 +86,36 @@ async def install_skills_shared(
         RuntimeError: If a skill file already exists in the sandbox with
             different contents.
     """
-    sbox = sandbox_env(sandbox)
     skills_dir = await _resolve_skills_dir(sbox, user, dir)
-    lock = _install_locks.setdefault(sbox, anyio.Lock())
-    async with lock:
-        for skill in skills:
-            missing: list[_SkillFile] = []
-            for file in _skill_files(skills_dir, skill):
-                existing = await _sandbox_digest(sbox, file.path)
-                if existing is None:
-                    missing.append(file)
-                elif existing != hashlib.sha256(_file_bytes(file.contents)).hexdigest():
-                    raise RuntimeError(
-                        f"Skill '{skill.name}' cannot be installed: {file.path} "
-                        "already exists in the sandbox with different contents."
-                    )
-            for file in missing:
-                await _write_skill_file_or_remove(sbox, user, file)
+    for skill in skills:
+        files = _skill_files(skills_dir, skill)
+        missing: list[_SkillFile] = []
+        for file in files:
+            existing = await _sandbox_digest(sbox, file.path)
+            if existing is None:
+                missing.append(file)
+            elif existing != hashlib.sha256(_file_bytes(file.contents)).hexdigest():
+                raise RuntimeError(
+                    f"Skill '{skill.name}' cannot be installed: {file.path} "
+                    "already exists in the sandbox with different contents."
+                )
+        for file in files:
+            if file in missing:
+                await _write_file_or_remove(sbox, file)
+            await _set_file_owner_and_mode(sbox, user, file)
     return [_skill_info(skills_dir, skill) for skill in skills]
 
 
-# one lock per sample sandbox (held weakly, so it goes with the sample), so a
-# skill's files are complete before another tool reads them
+def install_lock(sbox: SandboxEnvironment) -> anyio.Lock:
+    """The lock that serialises skill installs into a sample sandbox.
+
+    Held weakly, so it goes with the sample. Skill tools also check and fill
+    their cached skill list under it, so the first tool to install for a
+    store instance sets that list.
+    """
+    return _install_locks.setdefault(sbox, anyio.Lock())
+
+
 _install_locks: WeakKeyDictionary[SandboxEnvironment, anyio.Lock] = WeakKeyDictionary()
 
 
@@ -203,14 +211,20 @@ async def _write_skill(
 async def _write_skill_file(
     sbox: SandboxEnvironment, user: str | None, file: _SkillFile
 ) -> None:
+    await sbox.write_file(file.path, _write_contents(file))
+    await _set_file_owner_and_mode(sbox, user, file)
+
+
+def _write_contents(file: _SkillFile) -> str | bytes:
     # if it's a path read it as bytes
-    contents = file.contents
-    if isinstance(contents, Path):
-        contents = _file_bytes(contents)
+    return (
+        _file_bytes(file.contents) if isinstance(file.contents, Path) else file.contents
+    )
 
-    # write the file
-    await sbox.write_file(file.path, contents)
 
+async def _set_file_owner_and_mode(
+    sbox: SandboxEnvironment, user: str | None, file: _SkillFile
+) -> None:
     # change user if required
     if user:
         try:
@@ -223,14 +237,19 @@ async def _write_skill_file(
         await _checked_exec(sbox, user, ["chmod", "+x", file.path])
 
 
-async def _write_skill_file_or_remove(
-    sbox: SandboxEnvironment, user: str | None, file: _SkillFile
-) -> None:
+async def _write_file_or_remove(sbox: SandboxEnvironment, file: _SkillFile) -> None:
+    """Write a skill file, removing it if the write fails.
+
+    The write is shielded from cancellation: a sandbox write can go on after
+    its caller is cancelled (a cancelled `docker exec` detaches), and a write
+    that lands after the install lock is released would leave a file the
+    next install skips or rejects. A failed write may leave part of the file,
+    which would be rejected as different contents, so it is removed.
+    """
     try:
-        await _write_skill_file(sbox, user, file)
-    except BaseException:
-        # a file left without its ownership or mode still has the skill's
-        # bytes, so the next install would skip it: remove it
+        with anyio.CancelScope(shield=True):
+            await sbox.write_file(file.path, _write_contents(file))
+    except Exception:
         with anyio.CancelScope(shield=True):
             try:
                 await _checked_exec(sbox, None, ["rm", "-f", file.path])

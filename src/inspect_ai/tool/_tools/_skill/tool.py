@@ -6,10 +6,11 @@ from pydantic import Field
 
 from inspect_ai.tool._tool import Tool, ToolError, tool
 from inspect_ai.tool._tool_def import ToolDef
+from inspect_ai.util import sandbox as sandbox_env
 from inspect_ai.util._store_model import StoreModel, store_as
 from inspect_ai.util._tool_state import tool_state_instance
 
-from .install import install_skills_shared
+from .install import install_lock, install_skills_shared
 from .read import read_skills
 from .types import Skill, SkillInfo
 
@@ -49,12 +50,17 @@ def skill(
         Args:
            command: The skill name (no arguments). E.g., "pdf" or "xlsx"
         """
-        # see if we need to install the skills
+        # see if we need to install the skills (double-checked under the
+        # sandbox's install lock so the first of concurrent first-callers
+        # sets the list)
         installed = store_as(InstalledSkills, instance=tool_state_instance(instance))
         if installed.skills is None:
-            installed.skills = await install_skills_shared(
-                resolved_skills, sandbox, user, dir
-            )
+            sbox = sandbox_env(sandbox)
+            async with install_lock(sbox):
+                if installed.skills is None:
+                    installed.skills = await install_skills_shared(
+                        resolved_skills, sbox, user, dir
+                    )
 
         # lookup skill
         skill_info = next((si for si in installed.skills if si.name == command), None)

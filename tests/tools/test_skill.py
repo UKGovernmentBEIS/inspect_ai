@@ -14,9 +14,9 @@ from inspect_ai.agent import react
 from inspect_ai.dataset import Sample
 from inspect_ai.scorer import includes
 from inspect_ai.solver import Generate, Solver, TaskState, fork, solver
-from inspect_ai.tool import Tool, bash, skill
+from inspect_ai.tool import Tool, ToolError, bash, skill
 from inspect_ai.tool._tool_def import ToolDef
-from inspect_ai.tool._tools._skill.install import install_skills
+from inspect_ai.tool._tools._skill.install import install_lock, install_skills
 from inspect_ai.tool._tools._skill.read import SkillParsingError, _read_skill
 from inspect_ai.tool._tools._skill.types import Skill
 from inspect_ai.util import (
@@ -682,15 +682,36 @@ class _FileSandbox(CannedSandbox):
 
 
 class _BlockingSandbox(_FileSandbox):
-    """Blocks the first `stage` command (chown or chmod) until cancelled."""
+    """Blocks the first `stage` (write, chown or chmod) of an install.
+
+    A blocked chown or chmod waits until cancelled. A blocked write waits for
+    `release`; if its caller is cancelled first, the backend still writes
+    part of the file afterwards (kept in `late`), as a detached `docker exec`
+    can.
+    """
 
     def __init__(self, stage: str) -> None:
         super().__init__()
         self.stage = stage
         self.block = True
         self.blocked = anyio.Event()
+        self.release = anyio.Event()
         self.blocked_path = ""
-        self.finalized: list[str] = []
+        self.late: dict[str, bytes] = {}
+        self.finalized: list[tuple[str, str]] = []
+
+    async def write_file(self, file: str, contents: str | bytes) -> None:
+        if self.stage == "write" and self.block:
+            self.block = False
+            self.blocked_path = file
+            self.blocked.set()
+            try:
+                await self.release.wait()
+            except anyio.get_cancelled_exc_class():
+                data = contents.encode() if isinstance(contents, str) else contents
+                self.late[file] = data[: len(data) // 2]
+                raise
+        await super().write_file(file, contents)
 
     async def exec(
         self,
@@ -708,7 +729,8 @@ class _BlockingSandbox(_FileSandbox):
                 self.blocked_path = cmd[-1]
                 self.blocked.set()
                 await anyio.sleep_forever()
-            self.finalized.append(cmd[-1])
+        if cmd[4:5] in (["chown"], ["chmod"]):
+            self.finalized.append((cmd[4], cmd[-1]))
         return await super().exec(
             cmd, input, cwd, env, user, timeout, timeout_retry, concurrency
         )
@@ -938,7 +960,7 @@ class TestSkillToolStateScope:
             assert error is None
         assert len(written) == 1 and written[0].endswith("skills/example/SKILL.md")
 
-    @pytest.mark.parametrize("stage", ["chown", "chmod"])
+    @pytest.mark.parametrize("stage", ["write", "chown", "chmod"])
     async def test_interrupted_install_is_redone(self, stage: str) -> None:
         sandbox = _BlockingSandbox(stage)
         _use_sandbox(sandbox)
@@ -958,14 +980,102 @@ class TestSkillToolStateScope:
             tg.start_soon(first_install)
             await sandbox.blocked.wait()
             tg.cancel_scope.cancel()
+            sandbox.release.set()
+        sandbox.files.update(sandbox.late)
         assert sandbox.blocked_path
-        assert sandbox.blocked_path not in sandbox.files
 
         sandbox.block = False
+        sandbox.finalized.clear()
         with tool_state_scope("w-2"):
             await skill([with_script], user="1000")(command="example")
-        assert sandbox.blocked_path in sandbox.files
-        assert sandbox.blocked_path in sandbox.finalized
+        expected = {
+            "/work/skills/example/SKILL.md": with_script.skill_md().encode(),
+            "/work/skills/example/scripts/run.sh": b"echo hello",
+        }
+        assert sandbox.files == expected
+        assert ("chown" if stage == "write" else stage, sandbox.blocked_path) in (
+            sandbox.finalized
+        )
+
+    async def test_failed_write_is_removed(self) -> None:
+        class FailingSandbox(_FileSandbox):
+            fail = True
+
+            async def write_file(self, file: str, contents: str | bytes) -> None:
+                if self.fail:
+                    self.fail = False
+                    self.files[file] = b"part"
+                    raise RuntimeError("write failed")
+                await super().write_file(file, contents)
+
+        sandbox = FailingSandbox()
+        _use_sandbox(sandbox)
+        init_subtask_store(Store())
+        with tool_state_scope("w-1"):
+            with pytest.raises(RuntimeError, match="write failed"):
+                await skill([self.SKILL])(command="example")
+        assert sandbox.files == {}
+        with tool_state_scope("w-2"):
+            await skill([self.SKILL])(command="example")
+        assert sandbox.files == {
+            "/work/skills/example/SKILL.md": self.SKILL.skill_md().encode()
+        }
+
+    async def test_concurrent_first_calls_for_one_instance_keep_the_first_list(
+        self,
+    ) -> None:
+        sandbox = _BlockingSandbox("write")
+        _use_sandbox(sandbox)
+        init_subtask_store(Store())
+        alpha = Skill(name="alpha", description="Alpha.", instructions="Alpha.")
+        beta = Skill(name="beta", description="Beta.", instructions="Beta.")
+        first = skill([alpha], instance="team")
+        second = skill([beta], instance="team")
+        errors: list[str] = []
+
+        async def call_second() -> None:
+            try:
+                await second(command="beta")
+            except ToolError as ex:
+                errors.append(ex.message)
+
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(first, "alpha")
+            await sandbox.blocked.wait()
+            tg.start_soon(call_second)
+            while install_lock(sandbox).statistics().tasks_waiting == 0:
+                await anyio.lowlevel.checkpoint()
+            sandbox.release.set()
+
+        # as before tool state scopes: the first tool to install sets the list
+        assert errors == ["Unknown skill: beta"]
+        await first(command="alpha")
+        assert list(sandbox.files) == ["/work/skills/alpha/SKILL.md"]
+
+    async def test_existing_identical_script_is_made_executable(self) -> None:
+        local = _CountingLocalSandbox()
+        try:
+            _use_sandbox(local)
+            init_subtask_store(Store())
+            dir = Path(local.directory.name) / "skills"
+            contents = "#!/bin/sh\necho hello\n"
+            with_script = Skill(
+                name="example",
+                description="Example.",
+                instructions="Do it.",
+                scripts={"run.sh": contents},
+            )
+            script = dir / "example" / "scripts" / "run.sh"
+            script.parent.mkdir(parents=True)
+            script.write_text(contents)
+            script.chmod(0o644)
+            (dir / "example" / "SKILL.md").write_text(with_script.skill_md())
+
+            await skill([with_script], dir=str(dir))(command="example")
+            assert local.written == []
+            assert os.access(script, os.X_OK)
+        finally:
+            local.directory.cleanup()
 
     async def test_comparison_is_not_limited_by_read_file_size(self) -> None:
         local = _CountingLocalSandbox()
