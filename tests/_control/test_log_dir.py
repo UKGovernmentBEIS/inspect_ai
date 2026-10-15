@@ -2448,6 +2448,46 @@ async def test_overlapping_shards_are_conflicts(
     assert one["status"] == "completed"
 
 
+@pytest.mark.parametrize(
+    "shards", [{"0": [1, 2], "1": [2]}, {"0": [2], "1": [2]}], ids=["mixed", "all"]
+)
+async def test_a_conflicted_sample_still_sets_the_task_start(
+    tmp_path: Path, finished_log: EvalLog, shards: dict[str, list[int]]
+) -> None:
+    source = finished_log.model_copy(deep=True)
+    assert source.samples is not None
+    starts = {1: "2026-01-01T00:09:00+00:00", 2: "2026-01-01T00:01:00+00:00"}
+    source.samples = [
+        s.model_copy(update={"started_at": starts.get(int(s.id), s.started_at)})
+        for s in source.samples
+    ]
+    await _shard_set(tmp_path, source, shards)
+    _, [row] = await _index(tmp_path)
+    assert row["samples"]["conflicted"] == 1
+    # the earliest sample start, though only the conflicted sample has it
+    assert row["started_at"] == _iso_to_timestamp(starts[2])
+
+
+def test_cli_capped_sample_list_counts_conflict_rows(
+    tmp_path: Path, finished_log: EvalLog, no_discovery: None
+) -> None:
+    anyio.run(
+        functools.partial(_shard_set, tmp_path, finished_log, {"0": [1], "1": [1]})
+    )
+    for selector in ([_SET_ID], []):
+        human = _ctl(tmp_path, "sample", "list", *selector, "--limit", "1")
+        assert human.exit_code == 0, human.output
+        assert "showing 1 of 2 samples (2 completed)" in human.stdout
+    human = _ctl(
+        tmp_path, "sample", "list", _SET_ID, "--limit", "1", "--status", "completed"
+    )
+    assert human.exit_code == 0, human.output
+    assert "showing 1 of 2 matching samples (2 total: 2 completed)" in human.stdout
+    # the JSON counts still leave the conflict out
+    payload = _json(_ctl(tmp_path, "sample", "list", _SET_ID, "--limit", "1", "--json"))
+    assert payload["counts"]["completed"] == 0 and payload["conflicted"] == 1
+
+
 async def test_mismatched_shards_are_counted(
     tmp_path: Path, finished_log: EvalLog
 ) -> None:

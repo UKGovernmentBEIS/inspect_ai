@@ -842,7 +842,7 @@ working. Values, over the current attempt:
 | `run_id`, `eval_id`, `task`, `task_id`, `model`, `solver`, `epochs` | From the plan (shard sets: see "Logical tasks"). |
 | `log_location` | The current log (unsharded), or the merged log / companion path (shard set). |
 | `status` | `running` if any current member's log status is `started`, else `completed` (live's two values). |
-| `started_at` | Earliest sample `started_at` seen, else the earliest member's `created`. |
+| `started_at` | Earliest sample `started_at` seen (each holder's record of a conflicted key included), else the earliest member's `created`. |
 | `completed_at` | Latest member `stats.completed_at` when no member is `started`, else null. |
 | `samples.total` | The authoritative total when one exists, else the known-key count as a lower bound ("Totals" under "Sample identity"). |
 | `samples.completed` / `errored` / `cancelled` | Keys whose selected source maps to that status. |
@@ -916,7 +916,8 @@ the existing filters, sort and cap: `--status` through
   member's status and `conflict: true`; the envelope's `counts` count
   distinct keys and leave conflicted keys out, and the envelope gains
   `conflicted` (their number), so row count and `counts` can differ only
-  by the conflicted rows.
+  by the conflicted rows. The human footer of a capped listing counts
+  those rows too, so its "of N" is the number of rows `--all` returns.
 - Additive per-row keys: `shard` (`"<k>"` or null), `log_location` (the
   member `.eval` holding the chosen record, so a caller can hand it to
   `inspect log` commands) and `conflict`.

@@ -739,6 +739,13 @@ def task_row(view: TaskView) -> dict[str, Any]:
         if choice.kind == "conflict":
             conflicted += 1
             overlapping.update(m.plan.file.location for m in choice.holders)
+            # a conflicted key adds to no count, but its samples did start
+            for holder in choice.holders:
+                candidate = member_candidate(holder, key.key)
+                assert candidate is not None
+                started = _iso_to_timestamp(candidate.summary.started_at)
+                if started is not None:
+                    sample_starts.append(started)
             continue
         if choice.summary is None:
             continue
@@ -881,6 +888,8 @@ class SampleListing(NamedTuple):
     samples: list[dict[str, Any]]
     truncated: bool
     conflicted: int
+    conflict_counts: dict[str, int]
+    """The status histogram of the conflict rows, which ``counts`` leaves out."""
 
 
 def sample_listing(
@@ -928,9 +937,10 @@ def sample_listing(
         rows = [r for r in rows if r["error"] is not None or (r["retries"] or 0) > 0]
 
     counts = dict.fromkeys(SAMPLE_STATUSES, 0)
+    conflict_counts = dict.fromkeys(SAMPLE_STATUSES, 0)
     for row in rows:
-        if not row["conflict"]:
-            counts[row["status"]] = counts.get(row["status"], 0) + 1
+        histogram = conflict_counts if row["conflict"] else counts
+        histogram[row["status"]] = histogram.get(row["status"], 0) + 1
     if sample_filter != "errors":
         pending_unlisted = totals(_authoritative(view), len(keys)).pending_unlisted
         counts["pending"] += pending_unlisted or 0
@@ -949,7 +959,11 @@ def sample_listing(
     if truncated:
         rows = rows[:limit]
     return SampleListing(
-        counts=counts, samples=rows, truncated=truncated, conflicted=conflicted
+        counts=counts,
+        samples=rows,
+        truncated=truncated,
+        conflicted=conflicted,
+        conflict_counts=conflict_counts,
     )
 
 

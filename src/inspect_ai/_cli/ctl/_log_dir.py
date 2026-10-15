@@ -298,6 +298,8 @@ class _SamplesRead(NamedTuple):
     counts: dict[str, int]
     truncated: bool
     conflicted: int
+    conflict_counts: dict[str, int]
+    """The status histogram of the conflict rows, which ``counts`` leaves out."""
 
 
 class _SamplesReads(NamedTuple):
@@ -345,6 +347,7 @@ def _read_samples(
                     counts=dict.fromkeys(SAMPLE_STATUSES, 0),
                     truncated=False,
                     conflicted=0,
+                    conflict_counts=dict.fromkeys(SAMPLE_STATUSES, 0),
                 )
             )
             continue
@@ -365,6 +368,7 @@ def _read_samples(
                 counts=listing.counts,
                 truncated=listing.truncated,
                 conflicted=listing.conflicted,
+                conflict_counts=listing.conflict_counts,
             )
         )
     _warn_unreadable(warn)
