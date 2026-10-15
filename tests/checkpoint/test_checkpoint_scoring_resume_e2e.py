@@ -22,7 +22,6 @@ inside the sandbox, which only works with a Linux container.
 
 from __future__ import annotations
 
-import json
 import os
 import signal
 import subprocess
@@ -32,6 +31,7 @@ from pathlib import Path
 import pytest
 from test_helpers.utils import skip_if_no_docker
 
+from checkpoint.docker_projects import checkpoint_docker_projects
 from checkpoint.resume_scoring_kill_harness import (
     ANSWER,
     BUDGET_ENV,
@@ -76,48 +76,6 @@ def _run_killed_attempt(log_dir: str, retry_from: str | None, tests_dir: Path) -
     )
 
 
-# compose-project name prefix for the harness's `resume_scoring_task` evals
-# (mirrors `task_project_name`: `inspect-{task[:12].rstrip('_')}-i{suffix}`)
-_PROJECT_PREFIX = "inspect-resume_scori-"
-
-
-def _inspect_projects() -> set[str]:
-    """Names of this harness's docker compose projects currently known to docker.
-
-    Must be scoped to this test's own task: docker state is machine-global,
-    and under xdist a global before/after diff sweeps up — and force-removes —
-    live containers belonging to concurrently running tests on other workers
-    (meridianlabs-ai/actions#264).
-    """
-    result = subprocess.run(
-        ["docker", "compose", "ls", "--all", "--format", "json"],
-        capture_output=True,
-        text=True,
-    )
-    if result.returncode != 0:
-        return set()
-    try:
-        projects = json.loads(result.stdout or "[]")
-    except json.JSONDecodeError:
-        return set()
-    return {
-        p.get("Name", "")
-        for p in projects
-        if p.get("Name", "").startswith(_PROJECT_PREFIX)
-    }
-
-
-def _force_remove_project(name: str) -> None:
-    """Best-effort force-remove the containers of a leaked compose project."""
-    ids = subprocess.run(
-        ["docker", "ps", "-aq", "--filter", f"label=com.docker.compose.project={name}"],
-        capture_output=True,
-        text=True,
-    ).stdout.split()
-    if ids:
-        subprocess.run(["docker", "rm", "-f", *ids], capture_output=True)
-
-
 @skip_if_no_docker
 @pytest.mark.slow
 def test_checkpoint_scoring_phase_resume_over_budget(
@@ -142,15 +100,11 @@ def test_checkpoint_scoring_phase_resume_over_budget(
     log_dir = str(tmp_path / "logs")
     tests_dir = Path(__file__).parent.parent
 
-    projects_before = _inspect_projects()
-    try:
+    with checkpoint_docker_projects(tmp_path):
         _run_killed_attempt(log_dir, None, tests_dir)
 
         reset_generates()
         resume = eval_retry(read_eval_log(_latest_log(log_dir)), log_dir=log_dir)[0]
-    finally:
-        for name in _inspect_projects() - projects_before:
-            _force_remove_project(name)
 
     assert resume.status == "success"
     assert resume.samples is not None and len(resume.samples) == 1
@@ -185,20 +139,13 @@ def test_checkpoint_scoring_phase_resume(
     log_dir = str(tmp_path / "logs")
     tests_dir = Path(__file__).parent.parent
 
-    # A hard kill skips sandbox teardown, so the killed attempt leaks its
-    # sandbox container. Track inspect projects before/after and force-remove
-    # the ones this test leaks (the final resume cleans up its own).
-    projects_before = _inspect_projects()
-    try:
+    with checkpoint_docker_projects(tmp_path):
         # --- attempt #0: fresh eval; agent completes, scorer hard-kills ------
         _run_killed_attempt(log_dir, None, tests_dir)
 
         # --- final resume: runs in this process, scoring-phase only ----------
         reset_generates()
         resume = eval_retry(read_eval_log(_latest_log(log_dir)), log_dir=log_dir)[0]
-    finally:
-        for name in _inspect_projects() - projects_before:
-            _force_remove_project(name)
 
     assert resume.status == "success"
     assert resume.samples is not None and len(resume.samples) == 1

@@ -154,10 +154,6 @@ class TogetherAIAPI(OpenAICompatibleAPI):
     @override
     def completion_params(self, config: GenerateConfig, tools: bool) -> dict[str, Any]:
         params = super().completion_params(config, tools)
-        if "logprobs" in params:
-            params["logprobs"] = 1
-        if "top_logprobs" in params:
-            del params["top_logprobs"]
 
         # Together accepts `low`/`medium`/`high` for all reasoning models, plus
         # `xhigh`/`max` on some (e.g. DeepSeek V4 Pro). `minimal` is never accepted

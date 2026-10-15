@@ -5,7 +5,6 @@ import functools
 import json
 import logging
 import os
-import time
 from contextvars import ContextVar
 from copy import copy, deepcopy
 from datetime import datetime, timezone
@@ -41,6 +40,7 @@ from tenacity import (
 )
 from tenacity.wait import WaitBaseT
 
+from inspect_ai._sentinel._context import is_agent_generate
 from inspect_ai._util.constants import (
     DEFAULT_MAX_CONNECTIONS,
     DEFAULT_MAX_CONNECTIONS_BATCH,
@@ -71,11 +71,12 @@ from inspect_ai._util.retry import report_http_retry
 from inspect_ai._util.rich import format_traceback
 from inspect_ai._util.trace import trace_action
 from inspect_ai._util.working import (
-    report_sample_waiting_time,
-    sample_waiting,
+    add_sample_wait,
+    sample_clock,
+    sample_wait,
     sample_working_time,
 )
-from inspect_ai.model._generate_overrides import generate_config_override
+from inspect_ai.model._generate_overrides import generate_config_override_for_attempt
 from inspect_ai.model._retry import model_retry_config
 from inspect_ai.tool import Tool, ToolChoice, ToolFunction, ToolInfo
 from inspect_ai.tool._mcp._remote import is_mcp_server_tool
@@ -121,9 +122,15 @@ from ._generate_config import (
     set_active_generate_config,
 )
 from ._model_call import ModelCall, as_error_response
-from ._model_data.model_data import ModelCost
-from ._model_output import ModelFallback, ModelOutput, ModelUsage
-from ._stream import ModelStreamObserver, StreamHandler, model_stream_observer
+from ._model_data.model_data import ModelCost, ModelInfo
+from ._model_output import ModelFallback, ModelOutput, ModelUsage, ServedModelUsage
+from ._response_headers import ResponseHeaders, track_response_headers
+from ._stream import (
+    ModelStreamObserver,
+    NoStreamDataError,
+    StreamHandler,
+    model_stream_observer,
+)
 from ._throughput import record_generate, throughput_view
 from ._tokens import count_media_tokens, count_text_tokens, count_tokens
 
@@ -213,14 +220,21 @@ class GenerateInput(NamedTuple):
     """Model configuration."""
 
 
+class _PreparedInput(NamedTuple):
+    input: list[ChatMessage]
+    tdefs: list[ToolDef]
+    tools: list[ToolInfo]
+    tool_choice: ToolChoice
+
+
 @dataclasses.dataclass(frozen=True)
 class RetryDecision:
     """Classification of a retryable exception for `ModelAPI.should_retry`.
 
     `should_retry()` may return either a plain `bool` (legacy: any True
     is treated as a generic transient retry) or a `RetryDecision` to
-    additionally classify the retry kind and pass server-suggested wait
-    times to the adaptive concurrency controller.
+    additionally classify the retry kind for the adaptive concurrency
+    controller and separately record any server-suggested wait time.
 
     `RetryDecision` is truthy iff `retry` is True, so existing callers
     written against the `bool` return (`if api.should_retry(ex): ...`)
@@ -242,7 +256,11 @@ class RetryDecision:
     """
 
     retry_after: float | None = None
-    """Recommended seconds to wait before retrying, if the server provided one (e.g. via `Retry-After`)."""
+    """Recommended seconds to wait before retrying, if the server provided one (e.g. via `Retry-After`).
+
+    Exposed and reserved for future use: nothing currently consumes it — it
+    affects neither Inspect's retry backoff nor the adaptive concurrency cooldown.
+    """
 
     def __bool__(self) -> bool:
         return self.retry
@@ -352,6 +370,15 @@ class ModelAPI(abc.ABC):
         """
         self._apply_api_key_overrides()
 
+    async def refresh_credentials(self) -> None:
+        """Refresh credentials after an authentication failure.
+
+        Providers that can update credentials in place should override this
+        method to avoid interrupting concurrent requests using their client.
+        """
+        await self.aclose()
+        self.initialize()
+
     async def aclose(self) -> None:
         """Async close method for closing any client allocated for the model."""
         self.close()
@@ -395,6 +422,31 @@ class ModelAPI(abc.ABC):
             if info is not None and info.family:
                 return info.family
         return self.service_model_name()
+
+    def cache_write_ttl(self) -> str | None:
+        """Prompt-cache TTL billed for cache writes in the current call context.
+
+        Consulted when recording usage after each generate/compact call ("1h"
+        bills cache writes at a higher rate than the default 5m). Providers
+        that bill cache writes at a TTL-dependent rate override this; the
+        TTL may vary per call, so it is a method rather than an attribute.
+        """
+        return None
+
+    def served_model_usage(self, output: ModelOutput) -> list[ServedModelUsage] | None:
+        """Usage of a generate call split by the model that served it.
+
+        Used to price a call that the provider served with a model other than
+        the one called (a refusal fallback, a router, or a deployment whose
+        name differs from its model). Each entry is priced at the rates of its
+        model; if any entry's model has no cost data, the whole call is priced
+        at the called model's rates. Return `None` (the default) when the
+        called model served the call.
+
+        Args:
+           output: Output of the generate call.
+        """
+        return None
 
     @abc.abstractmethod
     async def generate(
@@ -521,20 +573,6 @@ class ModelAPI(abc.ABC):
         """
         return "default"
 
-    def apply_redacted_reasoning_tokens_to_input(self) -> bool:
-        """Whether compaction should add `redacted_reasoning_tokens` to its input estimate.
-
-        Override and return True for providers whose `usage.input_tokens`
-        omits redacted reasoning content on re-injection (e.g., OpenAI
-        Responses with `store=false` + `include=["reasoning.encrypted_content"]`).
-
-        Note: bridge-mediated workloads (`agent_bridge`) reconstruct messages
-        from provider-native input and lose this metadata, so the predictive
-        correction does not apply there. Bridge users rely on the reactive
-        `model_length` recovery.
-        """
-        return False
-
     def should_retry(self, ex: Exception) -> bool | RetryDecision:
         """Should this exception be retried?
 
@@ -642,39 +680,29 @@ class ModelAPI(abc.ABC):
         )
 
 
-REDACTED_REASONING_TOKENS_METADATA_KEY = "redacted_reasoning_tokens"
-"""Metadata key for the per-message reasoning token count that an
-all-redacted-reasoning response contributes to context on re-injection but
-is omitted from `usage.input_tokens` by some providers (e.g., OpenAI
-Responses with encrypted reasoning preservation). Compaction reads this
-to correct its threshold estimate."""
+def _check_remote_mcp_approval(tools: Sequence[ToolInfo]) -> None:
+    """Refuse remote MCP servers while an approval policy is active.
 
-
-def _stamp_redacted_reasoning_tokens(output: ModelOutput) -> None:
-    """Stamp `redacted_reasoning_tokens` onto an assistant message's metadata.
-
-    Only stamps when ALL reasoning blocks in the response are redacted; mixed
-    responses (some visible, some redacted) can't be split from a single
-    `usage.reasoning_tokens` figure, and responses with only visible reasoning
-    don't have the input-counting blind spot the metadata is meant to correct.
+    The provider runs a remote server's tools during generation, so Inspect never
+    sees those calls and cannot approve them. An active policy decides every tool
+    call (one it does not match is rejected), so it covers the server's tools too.
+    Providers can't honour every decision (Anthropic's MCP connector has no
+    approval hook and OpenAI's can't apply `modify`), so the server is refused
+    rather than sent with approval waived.
     """
-    if not (
-        output.usage
-        and output.usage.reasoning_tokens
-        and isinstance(output.message.content, list)
-    ):
-        return
+    from inspect_ai.approval._apply import have_tool_approval
 
-    reasoning_blocks = [
-        c for c in output.message.content if isinstance(c, ContentReasoning)
-    ]
-    if not reasoning_blocks or not all(c.redacted for c in reasoning_blocks):
+    if not have_tool_approval():
         return
-
-    output.message.metadata = {
-        **(output.message.metadata or {}),
-        REDACTED_REASONING_TOKENS_METADATA_KEY: output.usage.reasoning_tokens,
-    }
+    for tool in tools:
+        if is_mcp_server_tool(tool):
+            name = tool.name.removeprefix("mcp_server_")
+            raise RuntimeError(
+                f"Remote MCP server '{name}' cannot be used while an approval policy "
+                "is active: the model provider would run its tools without approval. "
+                'Use execution="local" so its tool calls go through the approval '
+                "policy."
+            )
 
 
 def _connection_pool_key(api: ModelAPI) -> str:
@@ -771,7 +799,7 @@ class ConnectionSlot:
     async def acquire(self) -> None:
         """Acquire the slot, tracking the wait as sample waiting time."""
         if not self._held:
-            async with sample_waiting():
+            with sample_wait():
                 await self._semaphore.__aenter__()
             self._held = True
 
@@ -979,10 +1007,27 @@ class Model:
         # normalize input to chat
         if isinstance(input, str):
             input = [ChatMessageUser(content=input)]
+        history = input
 
         # insert any system message provided in config
         if config.system_message:
             input = [ChatMessageSystem(content=config.system_message)] + input
+
+        prepared = await self._prepare_input(input, tools, tool_choice, config)
+
+        # outside the connection slot, since a monitor may call this model too
+        generate_step = None
+        if is_agent_generate():
+            from inspect_ai._sentinel._dispatch import sentinel_before_generate
+
+            generate_step = await sentinel_before_generate(
+                model=str(self),
+                input=prepared.input,
+                history=history,
+                tools=prepared.tools,
+                tool_choice=prepared.tool_choice,
+                config=config,
+            )
 
         # enforce concurrency limits
         start_time = datetime.now(timezone.utc)
@@ -990,9 +1035,7 @@ class Model:
         async with self._connection_concurrency(config) as connection:
             # generate
             output, event = await self._generate(
-                input=input,
-                tools=tools,
-                tool_choice=tool_choice,
+                prepared=prepared,
                 config=config,
                 cache=cache,
                 connection=connection,
@@ -1022,10 +1065,22 @@ class Model:
             # snapshot at emission time) pick up the timing fields set above
             transcript()._event_updated(event)
 
-            _stamp_redacted_reasoning_tokens(output)
+            # fail the sample on a refusal if requested. Raised here, after the
+            # ModelEvent is complete (so the transcript shows the refusal and
+            # then the error) and after usage/refusal accounting has run.
+            if (
+                config.fail_on_refusal
+                and not output.empty
+                and output.stop_reason == "content_filter"
+            ):
+                raise ModelRefusalError(output, str(self), self.role)
 
-            # return output
-            return output
+        if generate_step is not None:
+            from inspect_ai._sentinel._dispatch import sentinel_after_generate
+
+            await sentinel_after_generate(generate_step, output)
+
+        return output
 
     async def generate_loop(
         self,
@@ -1116,8 +1171,8 @@ class Model:
                     log_model_retry,
                     qualified_model_name=self.api.qualified_model_name,
                 ),
-                report_sample_waiting_time,
-                self.api.retry_wait(),
+                sample_waits=True,
+                wait=self.api.retry_wait(),
                 qualified_model_name=self.api.qualified_model_name,
             )
         )
@@ -1154,7 +1209,9 @@ class Model:
                 adaptive=adaptive,
                 visible=False,
             ) as sem:
-                assert isinstance(sem, AdaptiveConcurrencyController)
+                if not isinstance(sem, AdaptiveConcurrencyController):
+                    with cleared_retry_wait():
+                        return await _count_tokens(input, config)
                 token_c = _active_controller.set(sem)
                 token_r = _request_had_retry.set(False)
                 try:
@@ -1255,17 +1312,15 @@ class Model:
                         log_model_retry,
                         qualified_model_name=self.api.qualified_model_name,
                     ),
-                    report_sample_waiting_time,
-                    self.api.retry_wait(),
+                    sample_waits=True,
+                    wait=self.api.retry_wait(),
                     qualified_model_name=self.api.qualified_model_name,
                 )
             )
             async def _compact(
                 messages: list[ChatMessage],
             ) -> tuple[list[ChatMessage], ModelUsage | None]:
-                # report_sample_waiting_time directly: unlike generate,
-                # compact has no post-call waiting reconciliation to feed
-                await wait_generate_dispatch(self, report_sample_waiting_time, slot)
+                await wait_generate_dispatch(self, slot)
                 return await self.api.compact(messages, tools, config, instructions)
 
             from inspect_ai.log._samples import cleared_retry_wait
@@ -1280,30 +1335,13 @@ class Model:
 
             return compacted_messages, usage
 
-    async def _generate(
+    async def _prepare_input(
         self,
         input: list[ChatMessage],
         tools: Sequence[Tool | ToolDef | ToolInfo | ToolSource] | ToolSource,
         tool_choice: ToolChoice | None,
         config: GenerateConfig,
-        cache: bool | CachePolicy | NotGiven = NOT_GIVEN,
-        connection: ConnectionSlot | None = None,
-        on_stream: StreamHandler | None = None,
-    ) -> tuple[ModelOutput, BaseModel]:
-        from inspect_ai.event._model import ModelEvent
-        from inspect_ai.hooks._hooks import (
-            emit_before_model_generate,
-            emit_model_cache_usage,
-            emit_model_usage,
-            get_all_hooks,
-        )
-        from inspect_ai.hooks._legacy import send_telemetry_legacy
-        from inspect_ai.log._refusal import report_refusal
-        from inspect_ai.log._samples import (
-            cleared_retry_wait,
-            track_active_model_event,
-        )
-
+    ) -> "_PreparedInput":
         # default to 'auto' for tool_choice (same as underlying model apis)
         tool_choice = tool_choice if tool_choice is not None else "auto"
 
@@ -1320,22 +1358,11 @@ class Model:
                         + 'Please use "local" execution instead.'
                     )
 
-        # if we have a specific tool selected then filter out the others
-        if isinstance(tool_choice, ToolFunction):
-            base_tools = [tool for tool in base_tools if tool.name == tool_choice.name]
+        _check_remote_mcp_approval(base_tools)
 
-        # if tool_choice is "none" or if there are no tools then fully purge
-        # the tools (as some models (e.g. openai and mistral) get confused
-        # if you pass them tool definitions along with tool_choice == "none"
-        # (they both 'semi' use the tool by placing the arguments in JSON
-        # in their output!). on the other hand, anthropic actually errors if
-        # there are tools anywhere in the message stream and no tools defined.
-        if tool_choice == "none" or len(base_tools) == 0:
-            # allow model providers to implement a tools_required() method to
-            # force tools to be passed (we need this for anthropic)
-            if not self.api.tools_required():
-                base_tools = []
-            tool_choice = "none"
+        base_tools, tool_choice = tools_for_tool_choice(
+            self.api, base_tools, tool_choice
+        )
 
         # handle reasoning history
         input = resolve_reasoning_history(input, config, self.api)
@@ -1359,6 +1386,31 @@ class Model:
 
         input = collapse_consecutive_messages_for_api(input, self.api)
         _validate_model_input_media(input)
+        return _PreparedInput(input, tdefs, base_tools, tool_choice)
+
+    async def _generate(
+        self,
+        prepared: "_PreparedInput",
+        config: GenerateConfig,
+        cache: bool | CachePolicy | NotGiven = NOT_GIVEN,
+        connection: ConnectionSlot | None = None,
+        on_stream: StreamHandler | None = None,
+    ) -> tuple[ModelOutput, BaseModel]:
+        from inspect_ai.event._model import ModelEvent
+        from inspect_ai.hooks._hooks import (
+            emit_before_model_generate,
+            emit_model_cache_usage,
+            emit_model_usage,
+            get_all_hooks,
+        )
+        from inspect_ai.hooks._legacy import send_telemetry_legacy
+        from inspect_ai.log._refusal import report_refusal
+        from inspect_ai.log._samples import (
+            cleared_retry_wait,
+            track_active_model_event,
+        )
+
+        input, tdefs, base_tools, tool_choice = prepared
 
         # resolve cache policy
         if isinstance(cache, NotGiven):
@@ -1382,14 +1434,6 @@ class Model:
             publish_partial=_model_event_sink.get() is None,
         )
 
-        # track reported waiting time during this generate call
-        reported_waiting_time = 0.0
-
-        def report_waiting_time(waiting_time: float) -> None:
-            nonlocal reported_waiting_time
-            report_sample_waiting_time(waiting_time)
-            reported_waiting_time += waiting_time
-
         # Local import: model is imported very early and the pause gate is
         # only consulted per attempt (see wait_generate_dispatch's fast path).
         from inspect_ai._control.pause import wait_generate_dispatch
@@ -1405,15 +1449,13 @@ class Model:
                     log_model_retry,
                     qualified_model_name=self.api.qualified_model_name,
                 ),
-                report_waiting_time,
-                self.api.retry_wait(),
+                sample_waits=True,
+                wait=self.api.retry_wait(),
                 qualified_model_name=self.api.qualified_model_name,
             )
         )
         async def generate() -> tuple[ModelOutput, BaseModel]:
-            # report_waiting_time (not report_sample_waiting_time): held time
-            # must also accumulate into this call's reconciliation below
-            await wait_generate_dispatch(self, report_waiting_time, connection)
+            await wait_generate_dispatch(self, connection)
 
             # type-checker can't see that we made sure tool_choice is not none in the outer frame
             assert tool_choice is not None
@@ -1483,6 +1525,10 @@ class Model:
             else:
                 cache_entry = None
 
+            # checked before the ModelEvent is recorded so that a call refused
+            # here leaves no event behind
+            _check_limits_before_dispatch()
+
             # verify that model apis are allowed
             self.verify_model_apis()
 
@@ -1497,17 +1543,8 @@ class Model:
             )
 
             # create timeout context manager if we have an attempt timeout
-            # (resolved per attempt so a live `inspect ctl config` override
-            # applies from the next attempt onward). A batched call keeps its
-            # launch value: its attempt awaits an entire provider batch, and
-            # an override cancelling that wait would resubmit the request
-            # into a new batch on every retry (duplicated provider work) —
-            # the whole-batch blast radius the batchers' admin-op override
-            # opt-out exists to avoid.
-            attempt_timeout = (
-                config.attempt_timeout
-                if config.batch
-                else generate_config_override("attempt_timeout", config.attempt_timeout)
+            attempt_timeout = generate_config_override_for_attempt(
+                "attempt_timeout", config
             )
             timeout_cm = (
                 anyio.move_on_after(attempt_timeout)
@@ -1515,8 +1552,21 @@ class Model:
                 else contextlib.nullcontext()
             )
 
+            # stall-detection scope (see design/stream-idle-timeout.md): the
+            # deadline starts infinite and the stream observer arms/bumps it
+            # on each reported chunk, so an attempt that never streams can
+            # never fire
+            stream_idle_timeout = generate_config_override_for_attempt(
+                "stream_idle_timeout", config
+            )
+            idle_scope = (
+                anyio.CancelScope() if stream_idle_timeout is not None else None
+            )
+            idle_cm = idle_scope if idle_scope is not None else contextlib.nullcontext()
+            response_headers = ResponseHeaders()
+
             with trace_action(logger, "Model", f"generate ({str(self)})"):
-                time_start = time.monotonic()
+                time_start = sample_clock()
                 try:
                     assert isinstance(event, ModelEvent)
                     # Local import to avoid an import cycle (agent → model → agent).
@@ -1531,19 +1581,30 @@ class Model:
                     )
 
                     await stream_observer.begin_attempt(event)
+                    # begin_attempt may await the on_stream retry boundary,
+                    # during which a concurrent call can reach a limit
+                    _check_limits_before_dispatch()
+                    if idle_scope is not None:
+                        assert stream_idle_timeout is not None
+                        stream_observer.arm_stall_scope(idle_scope, stream_idle_timeout)
 
                     with (
                         track_active_model_event(event),
+                        track_response_headers(response_headers),
                         _observer.track_model_event(event),
                         model_stream_observer(stream_observer),
                     ):
-                        with timeout_cm:
+                        with timeout_cm, idle_cm:
                             result = await self.api.generate(
                                 input=input,
                                 tools=call_tools,
                                 tool_choice=tool_choice,
                                 config=config,
                             )
+                        # inner scope first: when both fired, the idle scope's
+                        # sharper diagnosis wins
+                        if idle_scope is not None and idle_scope.cancel_called:
+                            raise StreamIdleTimeoutError(stream_idle_timeout)
                         if (
                             isinstance(timeout_cm, anyio.CancelScope)
                             and timeout_cm.cancel_called
@@ -1580,7 +1641,8 @@ class Model:
                     stream_observer.discard_partial_output()
                     raise
                 finally:
-                    time_elapsed = time.monotonic() - time_start
+                    time_end = sample_clock()
+                    time_elapsed = time_end - time_start
 
             if isinstance(result, tuple):
                 output, call = result
@@ -1619,6 +1681,11 @@ class Model:
             # on the actual request that succeeds w/ status 200)
             if call and call.time is not None:
                 output.time = call.time
+                # the attempt's time before its successful request went to
+                # the provider SDK's own failed requests and retry sleeps
+                # (zero means the provider did not measure the request)
+                if call.time > 0:
+                    add_sample_wait(time_start, time_end - call.time)
             else:
                 output.time = time_elapsed
 
@@ -1632,7 +1699,9 @@ class Model:
 
             # record usage
             if output.usage:
-                record_and_check_model_usage(self, output.usage, role=self.role)
+                record_and_check_model_usage(
+                    self, output.usage, role=self.role, output=output
+                )
 
                 # send telemetry to hooks
                 await emit_model_usage(
@@ -1648,12 +1717,9 @@ class Model:
 
             return output, event
 
-        # call the model (this will do retries, etc., so report waiting time
-        # as elapsed time - actual time for successful model call)
-        time_start = time.monotonic()
+        # call the model (this will do retries, etc.)
         with cleared_retry_wait():
             model_output, event = await generate()
-        total_time = time.monotonic() - time_start
 
         # record any model fallback against the active sample (here in the
         # outer frame rather than alongside usage recording so that cache
@@ -1698,14 +1764,6 @@ class Model:
             and not _request_was_cache_hit.get()
         ):
             controller.notify_success()
-        if model_output.time:
-            # we've already reported some of the waiting time in tenacity callbacks
-            # any remaining waiting time will have been due to internal retry within
-            # model providers, which we can get from:
-            #    total_time - reported_waiting_time - model_call_time
-            report_sample_waiting_time(
-                total_time - reported_waiting_time - model_output.time
-            )
 
         # report refusal
         if not model_output.empty and model_output.stop_reason == "content_filter":
@@ -1721,12 +1779,20 @@ class Model:
         # go unattributed in the throughput registry)
         model = self.api.qualified_model_name
         if isinstance(ex, Exception):
-            # attempt timeout is always retried (we rely on `timeout`
-            # and/or `max_retries` for termination). Classified as transient:
-            # _request_had_retry still flips so the eventual success won't
-            # count toward adaptive scale-up, but the controller doesn't
-            # scale down for what's essentially infra noise.
-            if isinstance(ex, AttemptTimeoutError):
+            # attempt/stream-idle timeouts are always retried (we rely on
+            # `timeout` and/or `max_retries` for termination). Classified as
+            # transient: _request_had_retry still flips so the eventual
+            # success won't count toward adaptive scale-up, but the
+            # controller doesn't scale down for what's essentially infra
+            # noise (a stalled connection included).
+            if isinstance(ex, (AttemptTimeoutError, StreamIdleTimeoutError)):
+                report_http_retry(model=model)
+                return True
+
+            # a 200 stream that ended with zero chunks (see NoStreamDataError)
+            # is retried for any provider: there is no error payload to
+            # classify from, and a retry against a healthy server succeeds
+            if isinstance(ex, NoStreamDataError):
                 report_http_retry(model=model)
                 return True
 
@@ -1787,10 +1853,7 @@ class Model:
 
     async def before_retry(self, ex: BaseException) -> None:
         if isinstance(ex, Exception) and self.api.is_auth_failure(ex):
-            # close existing model instance
-            await self.api.aclose()
-            # re-initialize
-            self.api.initialize()
+            await self.api.refresh_credentials()
 
     # function to verify that its okay to call model apis
     def verify_model_apis(self) -> None:
@@ -1851,8 +1914,11 @@ class Model:
             adaptive_sem = await get_or_create_semaphore(
                 str(model_name), adaptive.start, key, True, adaptive
             )
-            assert isinstance(adaptive_sem, AdaptiveConcurrencyController)
             async with _held_connection_slot(adaptive_sem.semaphore) as slot:
+                # Scout's multiprocessing registry only supports fixed limits.
+                if not isinstance(adaptive_sem, AdaptiveConcurrencyController):
+                    yield slot
+                    return
                 token_c = _active_controller.set(adaptive_sem)
                 token_r = _request_had_retry.set(False)
                 token_h = _request_was_cache_hit.set(False)
@@ -1888,15 +1954,19 @@ class Model:
 
         # otherwise merge operational config so its inherited everywhere
         else:
-            base_config = base_config.merge(
-                GenerateConfig(
-                    max_connections=active_config.max_connections,
-                    adaptive_connections=active_config.adaptive_connections,
-                    max_retries=active_config.max_retries,
-                    timeout=active_config.timeout,
-                    cache=active_config.cache,
-                )
+            inherited = GenerateConfig(
+                max_connections=active_config.max_connections,
+                adaptive_connections=active_config.adaptive_connections,
+                max_retries=active_config.max_retries,
+                timeout=active_config.timeout,
+                cache=active_config.cache,
             )
+            # fail_on_refusal is also inherited from the active (task/eval-wide)
+            # config, but unlike the operational fields above the role's own
+            # setting wins, so a role can opt out of an eval-wide setting.
+            if base_config.fail_on_refusal is None:
+                inherited.fail_on_refusal = active_config.fail_on_refusal
+            base_config = base_config.merge(inherited)
 
         # merge passed config
         return base_config.merge(config or GenerateConfig())
@@ -1923,6 +1993,7 @@ class Model:
         event = ModelEvent(
             model=model,
             role=self.role,
+            requested_model=_requested_model.get(),
             input=input,
             tools=tools,
             tool_choice=tool_choice,
@@ -2023,9 +2094,83 @@ or return ``None`` to allow default processing to continue.
 """
 
 
+ModelResponseFilter: TypeAlias = Callable[
+    [Model, ModelOutput, GenerateInput], Awaitable[ModelOutput | None]
+]
+"""Filter that can replace a model's output after generation.
+
+Receives the resolved ``Model``, a deep copy of the attempt's ``ModelOutput``,
+and a ``GenerateInput`` with the messages, tools, tool choice and config sent to
+the model. The output comes from ``model.generate()``, or is the one a request
+``filter`` substituted (then there is no ``model.generate()`` call and no
+``ModelEvent``). The ``GenerateInput`` holds the bridge's live objects, which are
+recorded in the ``ModelEvent`` and bridge state: do not mutate them.
+
+Return ``None`` to keep the output, or a ``ModelOutput`` with at least one choice
+to replace it. A replacement is rebuilt from its ``model_dump()`` and validated,
+including values edited in place: valid plain dicts become models, models or
+dataclasses stored in ``metadata`` or tool-call ``arguments`` come back as plain
+dicts, and ``completion`` is re-derived from the message. Reasoning
+(``ContentReasoning``) and server tool items (``ContentToolUse``) can only be
+kept unchanged or removed, and server tool items are kept all or none. A tool
+call that keeps an original call's ``id`` keeps its ``function``; give a call to
+a different function a new ``id``. Server work still pending at the end of the
+turn (Anthropic) goes with the server tool items: a message that keeps them
+takes the ``id`` of the message they came from and keeps that work, and a changed
+message that keeps none gets a new ``id`` and drops it. The
+filter also receives a model refusal
+under ``fail_on_refusal`` (from the default generation or a request ``filter``
+that generates), before it is retried or raised, and can replace it. An output
+still ``stop_reason="content_filter"``
+after the filter is handled like a model refusal (``retry_refusals``,
+``fail_on_refusal``). The ``ModelEvent`` keeps the model's
+own output; the replacement is what the agent, bridge state and later turns see.
+Model calls the filter makes run under the bridge's approval policies.
+
+An exception fails the sample as a ``ResponseFilterError``, except that a
+``LimitExceededError``, ``TerminateSampleError`` or ``ModelRefusalError`` keeps
+its normal outcome. A task group raising only such errors ends the sample with the
+first; one mixing them with any other exception is a ``ResponseFilterError``. A
+replacement is also a ``ResponseFilterError`` if it fails ``ModelOutput``
+validation, has no choices, has tool-call ``arguments`` the filter changed that
+are not JSON-serializable, or breaks the rules above for reasoning, server tool
+items and tool-call functions. Other failures to render a replacement for the agent
+behave as they would without a filter: on the sandbox bridge they reach the agent
+as an error reply it may retry, and in-process they raise from the agent's model
+call.
+"""
+
+
+ModelResolver: TypeAlias = Callable[[str], "Model | str | None"]
+"""Dynamic per-request model resolver for the agent bridge.
+
+Receives the requested model name and returns the ``Model`` (or model spec
+string) to use instead, or ``None`` to defer to the bridge's normal resolution
+(aliases / fallback / ``get_model``). On a provider-specific bridge endpoint the
+name is first qualified by that provider, so the resolver receives e.g.
+``openai/gpt-5.1`` rather than a bare ``gpt-5.1``. Lets a bridge express a routing
+*policy* (e.g. route every request to the model under test) without enumerating
+every possible model name as an alias.
+"""
+
+
 class AttemptTimeoutError(RuntimeError):
     def __init__(self, timeout: int | None) -> None:
         super().__init__(f"attempt_timeout '{timeout or 0}' exceeded.")
+
+
+class StreamIdleTimeoutError(RuntimeError):
+    """A streaming attempt delivered no chunk for `stream_idle_timeout` seconds.
+
+    Retried exactly like `AttemptTimeoutError` (transient — see
+    `Model.should_retry` and design/stream-idle-timeout.md).
+    """
+
+    def __init__(self, timeout: int | None) -> None:
+        super().__init__(
+            f"stream_idle_timeout '{timeout or 0}' exceeded (streaming "
+            "response stalled)."
+        )
 
 
 class ModelGenerateError(RuntimeError):
@@ -2048,6 +2193,46 @@ class ModelGenerateError(RuntimeError):
         super().__init__(message)
         self.status_code = status_code
         self.provider_message = provider_message
+
+
+class ModelRefusalError(Exception):
+    """A model refused a request and `fail_on_refusal` is set.
+
+    Raised by `Model.generate()` after a generation ends with
+    `stop_reason="content_filter"` when the resolved `GenerateConfig` has
+    `fail_on_refusal=True`. It is a plain `Exception` rather than a limit so
+    the sample runner records it as a sample error (the sample is not scored
+    and counts toward `fail_on_error`).
+
+    The message has a stable `Model refusal` prefix, then the model, role and
+    refusal category when known, then the start of the refusal text.
+    """
+
+    def __init__(
+        self, output: ModelOutput, model: str, role: str | None = None
+    ) -> None:
+        self.output = output
+        """The refused generation (its `stop_details` carry the category)."""
+        self.model = model
+        """Model that refused."""
+        self.role = role
+        """Model role, if the model was resolved via a role."""
+        super().__init__(_model_refusal_message(output, model, role))
+
+
+def _model_refusal_message(
+    output: ModelOutput, model: str, role: str | None, max_completion: int = 200
+) -> str:
+    details = [model]
+    if role:
+        details.append(f"role {role}")
+    stop_details = output.choices[0].stop_details if not output.empty else None
+    if stop_details is not None and stop_details.category:
+        details.append(f"category {stop_details.category}")
+    completion = output.completion.strip()
+    if len(completion) > max_completion:
+        completion = completion[:max_completion].rstrip() + "..."
+    return f"Model refusal ({', '.join(details)}): {completion}"
 
 
 class ModelName:
@@ -2527,6 +2712,27 @@ def _make_content_reducer(
 
 
 # Functions to reduce consecutive user messages to a single user message -> required for some models
+def tools_for_tool_choice(
+    api: ModelAPI, tools: list[ToolInfo], tool_choice: ToolChoice
+) -> tuple[list[ToolInfo], ToolChoice]:
+    """The tools and tool choice `Model.generate()` sends to the provider.
+
+    A `ToolFunction` choice keeps only the selected tool. With `"none"`, or no
+    tools left, the tools are purged (unless the provider's `tools_required()`
+    says otherwise) and the choice becomes `"none"`: some models (e.g. OpenAI
+    and Mistral) get confused by tool definitions alongside `"none"` and 'semi'
+    use them by placing the arguments in JSON in their output, while Anthropic
+    errors if there are tools anywhere in the message stream and none defined.
+    """
+    if isinstance(tool_choice, ToolFunction):
+        tools = [tool for tool in tools if tool.name == tool_choice.name]
+    if tool_choice == "none" or len(tools) == 0:
+        if not api.tools_required():
+            tools = []
+        tool_choice = "none"
+    return tools, tool_choice
+
+
 def collapse_consecutive_messages_for_api(
     messages: list[ChatMessage], api: ModelAPI
 ) -> list[ChatMessage]:
@@ -2790,6 +2996,22 @@ def use_model_event_sink(sink: ModelEventSink | None) -> Iterator[None]:
         _model_event_sink.reset(token)
 
 
+_requested_model: ContextVar[str | None] = ContextVar("_requested_model", default=None)
+
+
+@contextlib.contextmanager
+def requested_model(name: str) -> Iterator[None]:
+    """Record `name` as `ModelEvent.requested_model` for every generation in the block.
+
+    Not part of the public API.
+    """
+    token = _requested_model.set(name)
+    try:
+        yield
+    finally:
+        _requested_model.reset(token)
+
+
 # shared contexts for asyncio tasks
 def set_total_messages(input: str | list[ChatMessage]) -> None:
     from inspect_ai.log._samples import set_active_sample_total_messages
@@ -2836,32 +3058,36 @@ def init_sample_role_usage() -> None:
     sample_role_usage_context_var.set({})
 
 
+def _check_limits_before_dispatch() -> None:
+    """Refuse a provider dispatch once a token or cost limit has been reached.
+
+    A further call could only exceed a reached limit. Called on every attempt
+    (a concurrent call can reach a limit while a retry waits), after the
+    cache lookup (a cache hit sends nothing, so it is never refused).
+    """
+    check_token_limit(raise_for_equal=True)
+    check_cost_limit(raise_for_equal=True)
+
+
 def record_and_check_model_usage(
-    model: Model, usage: ModelUsage, role: str | None = None
+    model: Model,
+    usage: ModelUsage,
+    role: str | None = None,
+    output: ModelOutput | None = None,
 ) -> None:
     from inspect_ai.log._samples import (
         set_active_sample_token_limit_usage,
         set_active_sample_total_cost,
         set_active_sample_total_tokens,
     )
-    from inspect_ai.model._model_info import _get_model_info_direct
 
     # full "provider/model" identifier, used as the usage-bookkeeping dict key
     model_name = f"{model}"
 
     # compute cost and set on usage before recording (so ModelUsage.__add__
-    # accumulates it in the per-model usage dicts). Use the direct (non
-    # provider-resolving) lookup: the model is already instantiated, so falling
-    # back to get_model() here would re-instantiate it (reloading local weights).
-    info = _get_model_info_direct(model)
-    total_cost: float | None = None
-    # Note that we handle info=None here because None is currently a valid output of get_model_info (e.g. for mock models)
-    if info is not None and info.cost is not None:
-        # providers with a configurable prompt-cache TTL (currently Anthropic)
-        # expose it on the ModelAPI; longer TTLs bill cache writes at a higher rate
-        total_cost = compute_model_cost(
-            info.cost, usage, getattr(model.api, "cache_ttl", None)
-        )
+    # accumulates it in the per-model usage dicts)
+    total_cost = model_usage_cost(model, usage, output)
+    if total_cost is not None:
         usage.total_cost = total_cost
 
     # record usage
@@ -2892,6 +3118,82 @@ def record_and_check_model_usage(
         record_model_cost(total_cost)
         set_active_sample_total_cost(sample_total_cost())
         check_cost_limit()
+
+
+def model_usage_cost(
+    model: Model, usage: ModelUsage, output: ModelOutput | None = None
+) -> float | None:
+    """Cost of a call's usage, priced by the model that served it.
+
+    When the provider reports that another model served the call (see
+    `ModelAPI.served_model_usage()`), each part is priced at its serving
+    model's rates (the cost the provider gives, else the model's cost data). A serving model with no cost data that the model database
+    identifies as the called model (e.g. a dated snapshot of it) is priced at
+    the called model's rates. Otherwise, if a serving model has no cost data,
+    the whole call is priced at the called model's rates and a warning is
+    logged once.
+
+    Model info lookups are direct (not provider-resolving): the model is
+    already instantiated, so resolving a provider would re-instantiate it
+    (reloading local weights).
+
+    Returns:
+        Cost in dollars, or `None` when there is no cost data.
+    """
+    from inspect_ai.model._model_info import _get_model_info_direct
+
+    # providers with a configurable prompt-cache TTL (currently Anthropic)
+    # report the billed TTL; longer TTLs bill cache writes at a higher rate
+    cache_ttl = model.api.cache_write_ttl()
+
+    # info is None for models with no database entry (e.g. mock models)
+    info = _get_model_info_direct(model)
+    called_cost = info.cost if info is not None else None
+
+    served = model.api.served_model_usage(output) if output is not None else None
+    if served:
+        served_cost = 0.0
+        for part in served:
+            part_info = _get_model_info_direct(part.model)
+            part_cost = part.cost
+            if part_cost is None and part_info is not None:
+                part_cost = part_info.cost
+            if part_cost is None and same_model(part_info, info):
+                part_cost = called_cost
+            if part_cost is None:
+                if called_cost is not None:
+                    # set_model_cost() (and so --model-cost-config) only
+                    # accepts models the database knows
+                    how = (
+                        "Use set_model_cost() or --model-cost-config"
+                        if part_info is not None
+                        else "It is not in the model database, so use "
+                        "set_model_info() with a ModelInfo that includes cost"
+                    )
+                    warn_once(
+                        logger,
+                        f"No cost data for model '{part.model}', which served a "
+                        f"request to '{model}'. Pricing the request at the rates "
+                        f"of '{model}'. {how} to add pricing for '{part.model}'.",
+                    )
+                break
+            served_cost += compute_model_cost(part_cost, part.usage, cache_ttl)
+        else:
+            return served_cost
+
+    if called_cost is None:
+        return None
+    return compute_model_cost(called_cost, usage, cache_ttl)
+
+
+def same_model(a: ModelInfo | None, b: ModelInfo | None) -> bool:
+    """Whether two model info entries describe the same model (e.g. two snapshots)."""
+    return (
+        a is not None
+        and b is not None
+        and a.model is not None
+        and (a.organization, a.model) == (b.organization, b.model)
+    )
 
 
 def set_model_usage(

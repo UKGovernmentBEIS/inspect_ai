@@ -29,6 +29,7 @@ misclassify a healthy sandbox as unavailable. Two consequences worth knowing:
 """
 
 import re
+from pathlib import PurePosixPath
 from typing import NamedTuple
 
 from inspect_ai.util._subprocess import ExecResult
@@ -55,6 +56,9 @@ _NO_CONTAINER = re.compile(r'^service "[^"]*" is not running\b')
 # containerd/runc could not start the process; it names the binary it tried
 _RUNC_PREFIX = "oci runtime exec failed"
 _RUNC_NOT_FOUND = re.compile(r'exec: "([^"]*)": executable file not found')
+_RUNC_PATH_NOT_FOUND = re.compile(
+    r'exec: "([^"]*)": stat \1: no such file or directory'
+)
 
 # the binary a `timeout`-style wrapper quotes in its complaint, verbatim as
 # handed to it. GNU quotes with U+2018/U+2019, busybox with ASCII quotes.
@@ -115,7 +119,9 @@ def classify_exec_failure(
 
     if head.startswith(_RUNC_PREFIX):
         # search the original line: the binary-name comparison is case-exact
-        not_found = _RUNC_NOT_FOUND.search(lines[0])
+        not_found = _RUNC_NOT_FOUND.search(lines[0]) or _RUNC_PATH_NOT_FOUND.search(
+            lines[0]
+        )
         if not_found is not None:
             # our own wrapper has gone missing, so the provider could not reach
             # the caller's command. a binary the *caller* named is their problem,
@@ -145,7 +151,10 @@ def classify_exec_failure(
     if (
         wrapper is not None
         and result.returncode == 126
-        and head.startswith(f"{wrapper.binary}: ")
+        # GNU reports the absolute argv[0]; BusyBox reports the applet name.
+        and head.startswith(
+            (f"{wrapper.binary}: ", f"{PurePosixPath(wrapper.binary).name}: ")
+        )
         and "permission denied" in output.lower()
     ):
         quoted = _WRAPPER_QUOTED.search(output)

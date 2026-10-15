@@ -6,6 +6,7 @@ import pytest
 import inspect_ai.hooks._startup as hooks_startup_module
 from inspect_ai import eval
 from inspect_ai._eval.task.task import Task
+from inspect_ai._util.entrypoints import clear_entry_points_state, ensure_entry_points
 from inspect_ai._util.environ import environ_var
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.registry import _registry, registry_info, registry_lookup
@@ -30,7 +31,7 @@ from inspect_ai.hooks._hooks import (
     hooks,
     override_api_key,
 )
-from inspect_ai.hooks._startup import init_hooks
+from inspect_ai.hooks._startup import _load_registry_hooks, init_hooks
 from inspect_ai.solver._solver import Generate, Solver, solver
 from inspect_ai.solver._task_state import TaskState
 
@@ -590,6 +591,69 @@ def test_hooks_decorator_returns_class() -> None:
     assert isinstance(TestHooksClass, type)
     instance = TestHooksClass()
     assert isinstance(instance, Hooks)
+
+
+class _FakeEntryPoint:
+    """Stand-in for an `inspect_ai` entry point that registers a hook on load."""
+
+    def __init__(self, name: str, hook_name: str) -> None:
+        self.name = name
+        self.value = f"{name}:hooks"
+        self._hook_name = hook_name
+
+    def load(self) -> None:
+        @hooks(self._hook_name, description=f"{self._hook_name}-description")
+        def get_hooks_class() -> Type[MockMinimalHooks]:
+            return MockMinimalHooks
+
+
+def test_entry_point_hooks_load_when_a_hook_is_already_registered(
+    mock_hooks: MockHooks,
+) -> None:
+    # registry_find() only scans entry points when its own scan finds nothing, so
+    # any hook registered before startup (e.g. by the INSPECT_TELEMETRY package)
+    # used to hide every entry-point hook from the one-shot load.
+    entry_point_hook_name = "test_hooks_entry_point"
+    entry_point = _FakeEntryPoint("test_hooks_package", entry_point_hook_name)
+
+    clear_entry_points_state()
+    try:
+        with patch(
+            "inspect_ai._util.entrypoints.entry_points", return_value=[entry_point]
+        ):
+            loaded = _load_registry_hooks()
+    finally:
+        _registry.pop(f"hooks:{entry_point_hook_name}", None)
+        clear_entry_points_state()
+        ensure_entry_points()
+
+    loaded_names = {registry_info(hook).name for hook in loaded}
+    assert "test_hooks" in loaded_names
+    assert entry_point_hook_name in loaded_names
+
+
+def test_required_entry_point_hook_not_reported_missing_when_a_hook_is_already_registered(
+    mock_hooks: MockHooks,
+) -> None:
+    # The loud symptom of the same bug: with the entry-point hook hidden,
+    # INSPECT_REQUIRED_HOOKS verification raised a PrerequisiteError naming a
+    # hook that was in fact installed.
+    entry_point_hook_name = "test_hooks_entry_point_required"
+    entry_point = _FakeEntryPoint("test_hooks_package_required", entry_point_hook_name)
+
+    clear_entry_points_state()
+    try:
+        with patch(
+            "inspect_ai._util.entrypoints.entry_points", return_value=[entry_point]
+        ):
+            with environ_var("INSPECT_REQUIRED_HOOKS", entry_point_hook_name):
+                loaded = _load_registry_hooks()
+    finally:
+        _registry.pop(f"hooks:{entry_point_hook_name}", None)
+        clear_entry_points_state()
+        ensure_entry_points()
+
+    assert entry_point_hook_name in {registry_info(hook).name for hook in loaded}
 
 
 def test_required_hooks_when_all_installed(

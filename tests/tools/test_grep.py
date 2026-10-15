@@ -24,8 +24,8 @@ def test_grep_constructible() -> None:
     assert tool is not None
 
 
-def _run_grep(tool_arguments: dict) -> str:
-    task = Task(
+def _grep_task() -> Task:
+    return Task(
         dataset=[
             Sample(
                 input="Please use the tool",
@@ -38,6 +38,10 @@ def _run_grep(tool_arguments: dict) -> str:
         message_limit=3,
         sandbox="docker",
     )
+
+
+def _run_grep(tool_arguments: dict) -> str:
+    task = _grep_task()
     result = eval(
         task,
         model=get_model(
@@ -86,6 +90,58 @@ def test_grep_fixed_strings() -> None:
         }
     )
     assert "hello.py" in content
+
+
+@skip_if_no_docker
+@pytest.mark.slow
+def test_grep_uses_basic_regex() -> None:
+    content = _run_grep({"pattern": "hello|goodbye", "path": "/tmp/testdir"})
+    assert "no matches" in content.lower()
+    content = _run_grep({"pattern": r"hello\|goodbye", "path": "/tmp/testdir"})
+    assert "hello.py" in content
+    assert "goodbye.txt" in content
+
+
+@skip_if_no_docker
+@pytest.mark.slow
+def test_grep_extended_regexp() -> None:
+    content = _run_grep(
+        {"pattern": "hello|goodbye", "path": "/tmp/testdir", "extended_regexp": True}
+    )
+    assert "hello.py" in content
+    assert "goodbye.txt" in content
+
+
+@skip_if_no_docker
+@pytest.mark.slow
+def test_grep_fixed_strings_extended_regexp_exclusive() -> None:
+    task = _grep_task()
+    result = eval(
+        task,
+        model=get_model(
+            "mockllm/model",
+            custom_outputs=[
+                ModelOutput.for_tool_call(
+                    model="mockllm/model",
+                    tool_name="grep",
+                    tool_arguments={
+                        "pattern": "hello",
+                        "path": "/tmp/testdir",
+                        "fixed_strings": True,
+                        "extended_regexp": True,
+                    },
+                ),
+            ],
+        ),
+    )[0]
+    assert result.samples
+    messages = result.samples[0].messages
+    tool_call = get_tool_call(messages, "grep")
+    assert tool_call is not None
+    response = get_tool_response(messages, tool_call)
+    assert response is not None
+    assert response.error is not None
+    assert "conflicting" in response.error.message.lower()
 
 
 @skip_if_no_docker

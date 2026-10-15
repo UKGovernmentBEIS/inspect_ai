@@ -8,8 +8,11 @@ class Target(Sequence[str]):
     `text` property to access the value as a single string.
     """
 
-    def __init__(self, target: str | list[str]) -> None:
-        self.target = target if isinstance(target, list) else [target]
+    def __init__(self, target: str | Sequence[str]) -> None:
+        if isinstance(target, Sequence) and not isinstance(target, str):
+            self.target = list(target)
+        else:
+            self.target = [target]
 
     @overload
     def __getitem__(self, index: int) -> str: ...

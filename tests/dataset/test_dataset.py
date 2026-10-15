@@ -1,13 +1,18 @@
+import csv as csv_module
+import inspect
 import json as json_module
 import os
+import random
 from pathlib import Path
 from typing import Type, TypeVar
 from unittest.mock import Mock
 
+import numpy as np
 import pytest
 from pydantic import BaseModel
 from test_helpers.utils import skip_if_github_action
 
+from inspect_ai._eval.task.hf import HFFieldSpec
 from inspect_ai._util.content import ContentImage
 from inspect_ai._util.file import exists
 from inspect_ai.dataset import (
@@ -23,6 +28,38 @@ from inspect_ai.dataset._util import read_choices
 from inspect_ai.model._chat_message import ChatMessageUser
 
 T_ds = TypeVar("T_ds")
+
+
+def test_sample_positional_metadata_compatibility() -> None:
+    sample = Sample("x", None, "y", 1, {"difficulty": "easy"})
+
+    assert sample.metadata == {"difficulty": "easy"}
+
+
+def test_sample_description_is_keyword_only() -> None:
+    assert (
+        inspect.signature(Sample).parameters["description"].kind
+        == inspect.Parameter.KEYWORD_ONLY
+    )
+
+
+def test_field_spec_positional_metadata_compatibility() -> None:
+    fields = ["difficulty"]
+
+    assert FieldSpec("input", "target", "choices", "id", fields).metadata is fields
+    assert HFFieldSpec("input", "target", "choices", "id", fields).metadata is fields
+
+
+def test_field_descriptions_are_keyword_only() -> None:
+    assert (
+        inspect.signature(FieldSpec).parameters["description"].kind
+        == inspect.Parameter.KEYWORD_ONLY
+    )
+    assert (
+        inspect.signature(HFFieldSpec).parameters["description"].kind
+        == inspect.Parameter.KEYWORD_ONLY
+    )
+
 
 # test functions are parameterized by dataset type and input file
 csv = (csv_dataset, "samples.csv")
@@ -54,6 +91,8 @@ limit_dataset_params = [
     ("suffix", "reader", "file_argument"),
     [
         (".csv", "csv_dataset", "csv_file"),
+        (".tsv", "csv_dataset", "csv_file"),
+        (".tab", "csv_dataset", "csv_file"),
         (".json", "json_dataset", "json_file"),
         (".jsonl", "json_dataset", "json_file"),
     ],
@@ -71,6 +110,64 @@ def test_file_dataset_url_query_uses_path_extension(
 
     assert file_dataset(url) is expected
     assert mock_reader.call_args.kwargs[file_argument] == url
+
+
+@pytest.mark.parametrize(
+    ("suffix", "delimiter"),
+    [(".csv", None), (".tsv", "\t"), (".tab", "\t")],
+)
+def test_file_dataset_delimiter_by_extension(
+    suffix: str, delimiter: str | None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    mock_reader = Mock(return_value=object())
+    monkeypatch.setattr("inspect_ai.dataset._sources.file.csv_dataset", mock_reader)
+
+    file_dataset(f"dataset{suffix}", fieldnames=["input", "target"])
+
+    kwargs = mock_reader.call_args.kwargs
+    assert kwargs["delimiter"] == delimiter
+    assert kwargs["fieldnames"] == ["input", "target"]
+
+
+@pytest.mark.parametrize("suffix", [".tsv", ".tab", ".TSV"])
+def test_file_dataset_reads_tab_delimited(tmp_path: Path, suffix: str) -> None:
+    tsv_file = tmp_path / f"data{suffix}"
+    tsv_file.write_text('input\ttarget\n"hello, world"\tA\nfoo\tbar\n')
+
+    dataset = file_dataset(str(tsv_file))
+
+    assert len(dataset) == 2
+    assert dataset[0].input == "hello, world"
+    assert dataset[0].target == "A"
+    assert dataset[1].input == "foo"
+
+
+def test_file_dataset_tab_delimited_without_header(tmp_path: Path) -> None:
+    tsv_file = tmp_path / "data.tsv"
+    tsv_file.write_text("hello\tA\n")
+
+    dataset = file_dataset(str(tsv_file), fieldnames=["input", "target"])
+
+    assert len(dataset) == 1
+    assert dataset[0].input == "hello"
+    assert dataset[0].target == "A"
+
+
+def test_file_dataset_csv_honors_dialect_delimiter(tmp_path: Path) -> None:
+    csv_file = tmp_path / "data.csv"
+    csv_file.write_text("input\ttarget\nhello\tA\n")
+
+    dataset = file_dataset(str(csv_file), dialect="excel-tab")
+
+    assert len(dataset) == 1
+    assert dataset[0].input == "hello"
+    assert dataset[0].target == "A"
+
+
+def test_file_dataset_has_no_delimiter_parameter() -> None:
+    # custom delimiters belong to csv_dataset(); file_dataset() only
+    # defaults by extension
+    assert "delimiter" not in inspect.signature(file_dataset).parameters
 
 
 # test reading a dataset using default configuration
@@ -205,6 +302,141 @@ def test_dataset_shuffle_choices_false_does_not_shuffle(
     assert dataset_1[0].choices == dataset_2[0].choices
 
 
+SHUFFLE_RECORDS = [{"input": f"q{i}", "target": f"a{i}"} for i in range(10)]
+
+shuffle_dataset_params = [
+    (csv_dataset, ".csv"),
+    (json_dataset, ".json"),
+    (json_dataset, ".jsonl"),
+    (file_dataset, ".csv"),
+    (file_dataset, ".jsonl"),
+]
+
+
+def write_shuffle_dataset(tmp_path: Path, suffix: str) -> str:
+    dataset_file = tmp_path / f"dataset{suffix}"
+    if suffix == ".csv":
+        with open(dataset_file, "w", newline="") as f:
+            writer = csv_module.DictWriter(f, fieldnames=["input", "target"])
+            writer.writeheader()
+            writer.writerows(SHUFFLE_RECORDS)
+    elif suffix == ".json":
+        dataset_file.write_text(json_module.dumps(SHUFFLE_RECORDS))
+    else:
+        dataset_file.write_text(
+            "\n".join(json_module.dumps(record) for record in SHUFFLE_RECORDS)
+        )
+    return str(dataset_file)
+
+
+def seeded_shuffle_inputs(seed: int) -> list[str]:
+    inputs = [record["input"] for record in SHUFFLE_RECORDS]
+    random.Random(seed).shuffle(inputs)
+    return inputs
+
+
+@pytest.mark.parametrize("type,suffix", shuffle_dataset_params)
+@pytest.mark.parametrize("seed", [0, 7])
+def test_dataset_shuffle_int_is_seed(
+    type: Type[T_ds], suffix: str, seed: int, tmp_path: Path
+) -> None:
+    dataset_file = write_shuffle_dataset(tmp_path, suffix)
+
+    dataset: Dataset = type.__call__(dataset_file, shuffle=seed)
+
+    assert [sample.input for sample in dataset] == seeded_shuffle_inputs(seed)
+    assert dataset.shuffled is True
+
+
+@pytest.mark.parametrize("type,suffix", shuffle_dataset_params)
+def test_dataset_shuffle_true_with_seed_unchanged(
+    type: Type[T_ds], suffix: str, tmp_path: Path
+) -> None:
+    dataset_file = write_shuffle_dataset(tmp_path, suffix)
+
+    dataset: Dataset = type.__call__(dataset_file, shuffle=True, seed=7)
+
+    assert [sample.input for sample in dataset] == seeded_shuffle_inputs(7)
+    assert dataset.shuffled is True
+
+
+@pytest.mark.parametrize("type,suffix", shuffle_dataset_params)
+def test_dataset_shuffle_false_ignores_seed(
+    type: Type[T_ds], suffix: str, tmp_path: Path
+) -> None:
+    dataset_file = write_shuffle_dataset(tmp_path, suffix)
+
+    dataset: Dataset = type.__call__(dataset_file, shuffle=False, seed=7)
+
+    assert [sample.input for sample in dataset] == [
+        record["input"] for record in SHUFFLE_RECORDS
+    ]
+    assert dataset.shuffled is False
+
+
+@pytest.mark.parametrize("type,suffix", shuffle_dataset_params)
+@pytest.mark.parametrize("shuffle,seed", [(0, 0), (7, 7), (7, 3)])
+def test_dataset_shuffle_int_with_seed_raises(
+    type: Type[T_ds], suffix: str, shuffle: int, seed: int, tmp_path: Path
+) -> None:
+    dataset_file = write_shuffle_dataset(tmp_path, suffix)
+
+    with pytest.raises(ValueError, match="seed"):
+        type.__call__(dataset_file, shuffle=shuffle, seed=seed)
+
+
+@pytest.mark.parametrize("type,suffix", shuffle_dataset_params)
+def test_dataset_shuffle_numpy_values(
+    type: Type[T_ds], suffix: str, tmp_path: Path
+) -> None:
+    dataset_file = write_shuffle_dataset(tmp_path, suffix)
+    unshuffled = [record["input"] for record in SHUFFLE_RECORDS]
+
+    int_seed: Dataset = type.__call__(dataset_file, shuffle=np.int64(7))
+    flag_true: Dataset = type.__call__(dataset_file, shuffle=np.bool_(True), seed=7)
+    flag_false: Dataset = type.__call__(dataset_file, shuffle=np.bool_(False), seed=7)
+
+    assert [sample.input for sample in int_seed] == seeded_shuffle_inputs(7)
+    assert [sample.input for sample in flag_true] == seeded_shuffle_inputs(7)
+    assert [sample.input for sample in flag_false] == unshuffled
+    assert flag_false.shuffled is False
+
+
+@pytest.mark.parametrize("type,suffix", shuffle_dataset_params)
+def test_dataset_shuffle_none_does_not_shuffle(
+    type: Type[T_ds], suffix: str, tmp_path: Path
+) -> None:
+    dataset_file = write_shuffle_dataset(tmp_path, suffix)
+
+    dataset: Dataset = type.__call__(dataset_file, shuffle=None)
+
+    assert [sample.input for sample in dataset] == [
+        record["input"] for record in SHUFFLE_RECORDS
+    ]
+    assert dataset.shuffled is False
+
+
+@pytest.mark.parametrize("type,suffix", shuffle_dataset_params)
+def test_dataset_shuffle_negative_int_raises(
+    type: Type[T_ds], suffix: str, tmp_path: Path
+) -> None:
+    dataset_file = write_shuffle_dataset(tmp_path, suffix)
+
+    with pytest.raises(ValueError, match="non-negative"):
+        type.__call__(dataset_file, shuffle=-1)
+
+
+@pytest.mark.parametrize("type,suffix", shuffle_dataset_params)
+@pytest.mark.parametrize("shuffle", ["true", 1.5])
+def test_dataset_shuffle_invalid_type_raises(
+    type: Type[T_ds], suffix: str, shuffle: object, tmp_path: Path
+) -> None:
+    dataset_file = write_shuffle_dataset(tmp_path, suffix)
+
+    with pytest.raises(TypeError, match="shuffle"):
+        type.__call__(dataset_file, shuffle=shuffle)
+
+
 @skip_if_github_action
 def test_dataset_read_id() -> None:
     dataset = example_dataset(
@@ -242,6 +474,30 @@ def test_dataset_image_paths_file_uri() -> None:
     assert isinstance(content, ContentImage)
     assert content.image.startswith("file://")
     assert exists(content.image)
+
+
+def test_dataset_empty_string_files_not_resolved(tmp_path: Path) -> None:
+    # empty-string files/setup values are literal contents, and must not be
+    # resolved against the dataset's parent directory (which exists, so would
+    # replace the value with a directory path and later copy that whole
+    # directory into the sandbox)
+    dataset_file = tmp_path / "dataset.jsonl"
+    dataset_file.write_text(
+        json_module.dumps(
+            {
+                "input": "Say hello",
+                "target": "hello",
+                "files": {"submission/report.md": ""},
+                "setup": "",
+                "sandbox": ["docker", ""],
+            }
+        )
+        + "\n"
+    )
+    sample = json_dataset(dataset_file.as_posix())[0]
+    assert sample.files == {"submission/report.md": ""}
+    assert sample.setup == ""
+    assert sample.sandbox is not None and sample.sandbox.config == ""
 
 
 def test_dataset_auto_id() -> None:
@@ -345,10 +601,101 @@ def test_json_dataset_supports_kwargs() -> None:
     )
 
 
+@pytest.mark.parametrize("encoding", ["utf-8", "utf-8-sig"])
+@pytest.mark.parametrize("fieldnames", [None, ["input", "target"]])
+def test_csv_utf8_with_or_without_bom(
+    tmp_path: Path, encoding: str, fieldnames: list[str] | None
+) -> None:
+    csv_file = tmp_path / "data.csv"
+    body = "café \ufeff text,résumé\r\n"
+    if fieldnames is None:
+        body = "input,target\r\n" + body
+    csv_file.write_bytes(body.encode(encoding))
+
+    dataset = csv_dataset(str(csv_file), fieldnames=fieldnames)
+
+    assert len(dataset) == 1
+    assert dataset[0].input == "café \ufeff text"
+    assert dataset[0].target == "résumé"
+
+
+@pytest.mark.parametrize("encoding", ["utf-16", "cp1252"])
+def test_csv_explicit_encoding(tmp_path: Path, encoding: str) -> None:
+    csv_file = tmp_path / "data.csv"
+    csv_file.write_bytes("input,target\r\ncafé,résumé\r\n".encode(encoding))
+
+    dataset = csv_dataset(str(csv_file), encoding=encoding)
+
+    assert len(dataset) == 1
+    assert dataset[0].input == "café"
+    assert dataset[0].target == "résumé"
+
+
+def test_csv_explicit_utf8_preserves_bom(tmp_path: Path) -> None:
+    csv_file = tmp_path / "data.csv"
+    csv_file.write_bytes("café,résumé\r\n".encode("utf-8-sig"))
+
+    dataset = csv_dataset(
+        str(csv_file), encoding="utf-8", fieldnames=["input", "target"]
+    )
+
+    assert len(dataset) == 1
+    assert dataset[0].input == "\ufeffcafé"
+    assert dataset[0].target == "résumé"
+
+
 def write_ragged_csv(tmp_path: Path, body: str) -> str:
     path = tmp_path / "data.csv"
     path.write_text(body, newline="")
     return str(path)
+
+
+@pytest.mark.parametrize("dialect", ["unix", "excel", "excel-tab"])
+@pytest.mark.parametrize("fieldnames", [None, ["input", "target"]])
+def test_csv_dialect_delimiter(
+    tmp_path: Path, dialect: str, fieldnames: list[str] | None
+) -> None:
+    delimiter = csv_module.get_dialect(dialect).delimiter
+    body = f'"hello, world"{delimiter}A\n'
+    if fieldnames is None:
+        body = f"input{delimiter}target\n" + body
+
+    dataset = csv_dataset(
+        write_ragged_csv(tmp_path, body), dialect=dialect, fieldnames=fieldnames
+    )
+
+    assert len(dataset) == 1
+    assert dataset[0].input == "hello, world"
+    assert dataset[0].target == "A"
+
+
+def test_csv_registered_dialect_delimiter(tmp_path: Path) -> None:
+    csv_module.register_dialect("inspect-test-semicolon", "unix", delimiter=";")
+    try:
+        dataset = csv_dataset(
+            write_ragged_csv(tmp_path, 'input;target\n"hello; world";A\n'),
+            dialect="inspect-test-semicolon",
+        )
+        assert len(dataset) == 1
+        assert dataset[0].input == "hello; world"
+        assert dataset[0].target == "A"
+    finally:
+        csv_module.unregister_dialect("inspect-test-semicolon")
+
+
+@pytest.mark.parametrize("dialect,delimiter", [("excel-tab", ","), ("unix", "\t")])
+def test_csv_delimiter_overrides_dialect(
+    tmp_path: Path, dialect: str, delimiter: str
+) -> None:
+    dataset = csv_dataset(
+        write_ragged_csv(tmp_path, f"input{delimiter}target\nhello{delimiter}A\n"),
+        dialect=dialect,
+        delimiter=delimiter,
+    )
+
+    assert len(dataset) == 1
+    assert dataset[0].input == "hello"
+    assert dataset[0].target == "A"
 
 
 def test_csv_short_blank_row_names_the_line(tmp_path: Path) -> None:
@@ -471,3 +818,60 @@ def test_read_choices_drops_empty_entries() -> None:
     assert read_choices(None) is None
     assert read_choices(["Paris", "", "London"]) == ["Paris", "London"]
     assert read_choices(["Paris", " ", "London"]) == ["Paris", "London"]
+
+
+def test_sample_description() -> None:
+    assert Sample(input="x").description is None
+    sample = Sample(input="x", description="Add two numbers.")
+    assert sample.description == "Add two numbers."
+    assert Sample.model_validate(sample.model_dump()).description == "Add two numbers."
+
+
+@pytest.mark.parametrize("suffix", [".csv", ".json"])
+def test_dataset_field_spec_description(tmp_path: Path, suffix: str) -> None:
+    records = [
+        {"question": "1+1", "answer": "2", "summary": "Add two numbers."},
+        {"question": "2*3", "answer": "6", "summary": ""},
+    ]
+    dataset_file = tmp_path / f"dataset{suffix}"
+    if suffix == ".csv":
+        with open(dataset_file, "w", newline="") as f:
+            writer = csv_module.DictWriter(f, fieldnames=list(records[0].keys()))
+            writer.writeheader()
+            writer.writerows(records)
+    else:
+        dataset_file.write_text(json_module.dumps(records))
+
+    def read(fields: FieldSpec) -> Dataset:
+        if suffix == ".csv":
+            return csv_dataset(dataset_file.as_posix(), fields)
+        return json_dataset(dataset_file.as_posix(), fields)
+
+    dataset = read(FieldSpec(input="question", target="answer", description="summary"))
+    assert dataset[0].description == "Add two numbers."
+    # an empty value (e.g. an empty CSV cell) is no description
+    assert dataset[1].description is None
+
+    # descriptions are only read when the field is named
+    unmapped = read(FieldSpec(input="question", target="answer"))
+    assert all(sample.description is None for sample in unmapped)
+
+
+def test_dataset_description_column_not_read_by_default() -> None:
+    from inspect_ai.dataset._util import record_to_sample_fn
+
+    rec2sample = record_to_sample_fn(FieldSpec())
+    sample = rec2sample({"input": "x", "description": 42})
+    assert not isinstance(sample, list)
+    assert sample.description is None
+
+
+def test_dataset_description_must_be_string() -> None:
+    from inspect_ai.dataset._util import record_to_sample_fn
+
+    rec2sample = record_to_sample_fn(FieldSpec(description="description"))
+    with pytest.raises(ValueError, match="'description' field must be a string"):
+        rec2sample({"input": "x", "description": 42})
+    sample = rec2sample({"input": "x", "description": float("nan")})
+    assert not isinstance(sample, list)
+    assert sample.description is None

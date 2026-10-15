@@ -12,7 +12,7 @@ from typing_extensions import Unpack
 from inspect_ai._cli.common import CommonOptions, common_options, process_common_options
 from inspect_ai._cli.util import int_or_bool_flag_callback
 from inspect_ai._util.constants import PKG_PATH
-from inspect_ai.log import EvalStatus, list_eval_logs
+from inspect_ai.log import EvalStatus, IncompleteAction, list_eval_logs
 from inspect_ai.log._convert import convert_eval_logs
 from inspect_ai.log._file import (
     eval_log_json_str,
@@ -365,6 +365,25 @@ def export_config_command(log_file: str, output: str | None, fmt: str) -> None:
     help="Exclude event transcript from recovered samples (reduces output size).",
 )
 @click.option(
+    "--incomplete-action",
+    type=click.Choice(["retry", "error"]),
+    default="retry",
+    help="Disposition for samples that were in progress at crash: 'retry' "
+    "(default) marks them as cancelled errors that a later eval-retry re-runs; "
+    "'error' resolves them as operator terminations, finalizing the recovered "
+    "log with status 'success' when every expected sample is final (nothing "
+    "will retry it).",
+)
+@click.option(
+    "--incomplete-max",
+    type=click.FloatRange(min=0),
+    default=None,
+    help="Safety threshold for --incomplete-action error (count if >= 1, or "
+    "proportion of expected samples if strictly less than 1): refuse to recover "
+    "when more than this many samples are in progress. Has no effect (a warning "
+    "is logged) with --incomplete-action retry.",
+)
+@click.option(
     "--list",
     "list_mode",
     type=bool,
@@ -387,6 +406,8 @@ def recover_command(
     overwrite: bool,
     no_cleanup: bool,
     no_events: bool,
+    incomplete_action: IncompleteAction,
+    incomplete_max: float | None,
     list_mode: bool,
     json_output: bool,
     **common: Unpack[CommonOptions],
@@ -452,7 +473,11 @@ def recover_command(
         if log_file is None:
             raise click.UsageError("LOG_FILE is required when not using --list.")
 
-        from inspect_ai.log._recover import RecoveryNotAvailable, RecoveryStats
+        from inspect_ai.log._recover import (
+            RecoveryNotAvailable,
+            RecoveryStats,
+            RecoveryThresholdExceeded,
+        )
 
         stats = RecoveryStats()
         try:
@@ -462,14 +487,28 @@ def recover_command(
                 overwrite=overwrite,
                 cleanup=not no_cleanup,
                 no_events=no_events,
+                incomplete_action=incomplete_action,
+                incomplete_max=incomplete_max,
                 _stats=stats,
             )
         except RecoveryNotAvailable as e:
             raise click.UsageError(str(e))
+        except RecoveryThresholdExceeded as e:
+            raise click.ClickException(str(e))
         output_path = log.location or output
+        # keep the historical success line intact (scripts may anchor on its
+        # shape); report the status on its own line
         print(f"Recovered {stats.sample_count} samples to {output_path}")
+        print(f"  status: {log.status}")
+        if incomplete_action == "error" and stats.in_progress_count > 0:
+            print(
+                f"  {stats.in_progress_count} in-progress samples resolved "
+                f"as errors (stalled at crash)"
+            )
+        if stats.not_finalized_reason is not None:
+            print(f"  not finalized: {stats.not_finalized_reason}")
 
-        if stats.failed_count > 0:
+        if stats.failed_count > 0 and log.status == "error":
             print(f"\nTo re-run the {stats.failed_count} failed/cancelled samples:")
             print(f"  inspect eval-retry {output_path}")
 

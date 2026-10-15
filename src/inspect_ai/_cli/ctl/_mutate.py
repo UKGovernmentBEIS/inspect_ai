@@ -61,6 +61,12 @@ _CANCEL_ROUTE_MISSING = (
 )
 
 
+_DRAIN_ROUTE_MISSING = (
+    "This process is running an older inspect without the drain "
+    "endpoint; restart the eval to pick up the current version."
+)
+
+
 # the hard-pause caveat, shared by the three pause scopes' messages
 _HELD_CAVEAT = (
     "outstanding calls finish; wall-clock time limits keep running while held"

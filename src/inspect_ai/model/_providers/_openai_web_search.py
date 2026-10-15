@@ -2,9 +2,10 @@ from typing import cast
 
 from openai.types.responses import WebSearchTool, WebSearchToolParam
 
+from inspect_ai.model._openai import is_gpt_5_model
 from inspect_ai.tool._tool_info import ToolInfo
 
-COMPATIBLE_MODELS = ["gpt-4o", "gpt-4o-mini", "gpt-4.1", "o3", "o4-mini", "gpt-5"]
+COMPATIBLE_MODELS = ["gpt-4o", "gpt-4o-mini", "gpt-4.1", "o3", "o4-mini"]
 
 
 def maybe_web_search_tool(model_name: str, tool: ToolInfo) -> WebSearchToolParam | None:
@@ -14,7 +15,10 @@ def maybe_web_search_tool(model_name: str, tool: ToolInfo) -> WebSearchToolParam
             tool.name == "web_search"
             and tool.options
             and "openai" in tool.options
-            and any(model_name.startswith(model) for model in COMPATIBLE_MODELS)
+            and (
+                is_gpt_5_model(model_name)
+                or any(model_name.startswith(model) for model in COMPATIBLE_MODELS)
+            )
         )
         else None
     )

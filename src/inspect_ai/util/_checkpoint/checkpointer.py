@@ -32,14 +32,15 @@ T = TypeVar("T")
 
 @dataclass
 class ResumeCheckpoint:
-    """Per-sample resume info: where the on-disk checkpoint lives.
+    """Per-sample resume signal.
 
-    ``attempt`` distinguishes mid-agent resume from scoring-phase
-    resume; the sample source reads the latest parseable checkpoint
-    file to decide which.
+    The checkpoint itself always lives in the sample's own checkpoints
+    dir (the retry startup copy put it there — see ``_resume_copy``),
+    so no location travels here. ``attempt`` distinguishes mid-agent
+    resume from scoring-phase resume; detection reads the latest
+    parseable checkpoint file to decide which.
     """
 
-    sample_checkpoints_dir: str
     attempt: Literal["initial", "resume", "resume_for_scoring"]
 
 

@@ -77,19 +77,33 @@ def is_azure_path(path: str) -> bool:
     return scheme in AZURE_SCHEMES
 
 
-def should_suppress_azure_error(path: str, error: Exception) -> bool:
-    """Return True if an Azure auth issue should be downgraded to a warning."""
+def is_azure_listing_auth_error(path: str, error: Exception) -> bool:
+    """Return True if an Azure auth issue was raised while accessing ``path``."""
     return is_azure_path(path) and (
         is_azure_auth_error(error) or "authenticate" in str(error).lower()
     )
 
 
-def azure_warning_hint(path: str, error: Exception) -> str:
-    """Diagnostic guidance for Azure listing/authentication issues."""
+def azure_auth_guidance(path: str, error: Exception) -> str:
+    """Remediation guidance for an Azure storage authentication failure."""
     return (
-        "Azure storage authentication failed while probing "
-        f"'{path}'. Suppressed stack trace. Guidance: (a) run 'az login' or ensure role "
+        "Azure storage authentication failed while accessing "
+        f"'{path}'. Guidance: (a) run 'az login' or ensure role "
         "assignment (Storage Blob Data Reader/Contributor); (b) if using SAS set "
         "AZURE_STORAGE_SAS_TOKEN (and AZURE_STORAGE_ACCOUNT_NAME if needed); (c) if using account "
         f"key, set AZURE_STORAGE_ACCOUNT_KEY. Original error: {error}"
     )
+
+
+class AzureAuthError(PermissionError):
+    """Azure storage rejected the supplied credentials for ``path``.
+
+    Raised in place of the raw provider error so the message a user sees
+    explains how to fix the credentials rather than exposing an opaque
+    transport-level failure.
+    """
+
+    def __init__(self, path: str, error: Exception) -> None:
+        super().__init__(azure_auth_guidance(path, error))
+        self.path = path
+        self.original_error = error

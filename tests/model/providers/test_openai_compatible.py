@@ -3,6 +3,7 @@ from typing import Any, Literal
 import httpx2
 import pytest
 from openai import (
+    APIError,
     APIStatusError,
     ContentFilterFinishReasonError,
     LengthFinishReasonError,
@@ -26,8 +27,10 @@ from inspect_ai.model import (
     get_model,
 )
 from inspect_ai.model._openai import (
+    OpenAIResponseError,
     chat_choices_from_openai,
     openai_chat_completion_stream_final,
+    openai_handle_stream_error,
 )
 from inspect_ai.model._providers.openai_compatible import OpenAICompatibleAPI
 from inspect_ai.model._providers.together import TogetherAIAPI
@@ -271,7 +274,9 @@ def test_client_timeout_sets_http_timeout() -> None:
     assert timeout.read == 1800.0
     assert timeout.write == 1800.0
     assert timeout.pool == 1800.0
-    assert timeout.connect == 5.0
+    # The connect deadline is floored at the shared default rather than pinned
+    # to it, so a budget already above the floor carries through unchanged.
+    assert timeout.connect == 1800.0
 
 
 def test_client_timeout_default_uses_sdk_default() -> None:
@@ -297,7 +302,7 @@ async def test_client_timeout_preserved_after_reinitialize() -> None:
     api.initialize()
     assert not api.http_client.is_closed
     assert api.http_client.timeout.read == 1800.0
-    assert api.http_client.timeout.connect == 5.0
+    assert api.http_client.timeout.connect == 1800.0
 
 
 def test_user_supplied_http_client_not_overridden() -> None:
@@ -481,6 +486,159 @@ async def test_openai_compatible_streaming_returns_snapshot_on_content_filter(
         await api.aclose()
 
 
+def _mid_stream_error(body: dict[str, Any]) -> APIError:
+    """The exception the SDK's stream iterator raises for an error event: a plain APIError."""
+    return APIError(
+        message=str(body.get("message")),
+        request=httpx2.Request(method="POST", url="https://example.com"),
+        body=body,
+    )
+
+
+class _ErroringChunkStream(_FakeChunkStream):
+    """A chunk stream that raises mid-iteration, like the SDK on error events."""
+
+    def __init__(self, chunks: list[ChatCompletionChunk], error: APIError) -> None:
+        super().__init__(chunks)
+        self._error = error
+
+    def __aiter__(self) -> Any:
+        async def gen() -> Any:
+            for chunk in self._chunks:
+                yield chunk
+            raise self._error
+
+        return gen()
+
+
+async def test_openai_compatible_streaming_converts_mid_stream_safeguard_block(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A safeguard block raised mid-stream becomes content_filter output (like the 400 path)."""
+    api = OpenAICompatibleAPI(
+        model_name="openai-api/openai/gpt-5",
+        api_key="test",
+        base_url="https://example.com",
+        stream=True,
+    )
+
+    stream = _ErroringChunkStream(
+        [
+            _chunk(
+                dict(
+                    choices=[
+                        dict(
+                            index=0,
+                            delta=dict(role="assistant", content="par"),
+                            finish_reason=None,
+                        )
+                    ]
+                )
+            )
+        ],
+        _mid_stream_error(
+            dict(
+                message="Your prompt was blocked by our content policy.",
+                type="invalid_request_error",
+                code="content_policy_violation",
+            )
+        ),
+    )
+
+    async def fake_create(**kwargs: Any) -> _ErroringChunkStream:
+        return stream
+
+    monkeypatch.setattr(api.client.chat.completions, "create", fake_create)
+
+    try:
+        result = await api.generate(
+            input=[ChatMessageUser(content="hi")],
+            tools=[],
+            tool_choice="auto",
+            config=GenerateConfig(),
+        )
+        assert isinstance(result, tuple)
+        output, model_call = result
+        assert isinstance(output, ModelOutput)
+        assert output.choices[0].stop_reason == "content_filter"
+        assert "blocked" in output.completion
+        assert model_call.error is True
+    finally:
+        await api.aclose()
+
+
+async def test_openai_compatible_streaming_raises_unrecognized_mid_stream_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A mid-stream error that isn't a recognized block still raises."""
+    api = OpenAICompatibleAPI(
+        model_name="openai-api/openai/gpt-5",
+        api_key="test",
+        base_url="https://example.com",
+        stream=True,
+    )
+
+    error = _mid_stream_error(
+        dict(message="The server had an error.", type="server_error")
+    )
+
+    async def fake_create(**kwargs: Any) -> _ErroringChunkStream:
+        return _ErroringChunkStream([], error)
+
+    monkeypatch.setattr(api.client.chat.completions, "create", fake_create)
+
+    try:
+        with pytest.raises(APIError) as excinfo:
+            await api.generate(
+                input=[ChatMessageUser(content="hi")],
+                tools=[],
+                tool_choice="auto",
+                config=GenerateConfig(),
+            )
+        assert excinfo.value is error
+    finally:
+        await api.aclose()
+
+
+def test_openai_handle_stream_error_ignores_status_errors() -> None:
+    """Status errors are never converted mid-stream; they keep retry semantics."""
+    status_error = APIStatusError(
+        message="blocked",
+        response=httpx2.Response(
+            status_code=429,
+            request=httpx2.Request(method="POST", url="https://example.com"),
+        ),
+        body=dict(message="blocked", code="content_policy_violation"),
+    )
+    assert openai_handle_stream_error("gpt-5", status_error) is None
+
+    converted = openai_handle_stream_error(
+        "gpt-5",
+        _mid_stream_error(dict(message="blocked", code="content_policy_violation")),
+    )
+    assert isinstance(converted, ModelOutput)
+    assert converted.choices[0].stop_reason == "content_filter"
+
+
+def test_openai_handle_stream_error_converts_response_errors() -> None:
+    """Responses-API error events (OpenAIResponseError) convert by block code.
+
+    Unrecognized codes return None so `server_error`/`rate_limit_exceeded`
+    keep their retry classification.
+    """
+    converted = openai_handle_stream_error(
+        "gpt-5",
+        OpenAIResponseError(code="content_policy_violation", message="blocked"),
+    )
+    assert isinstance(converted, ModelOutput)
+    assert converted.choices[0].stop_reason == "content_filter"
+
+    unrecognized = openai_handle_stream_error(
+        "gpt-5", OpenAIResponseError(code="server_error", message="oops")
+    )
+    assert unrecognized is None
+
+
 def test_sdk_stream_state_contract() -> None:
     """The SDK contracts the stream accumulation and recovery depend on.
 
@@ -662,10 +820,59 @@ async def test_chat_completion_stream_reports_deltas() -> None:
     assert observer._tokens_current == 7
 
 
+async def test_chat_completion_stream_gated_without_on_stream(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Without an on_stream consumer only usage/heartbeat progress runs.
+
+    Explicit stream=true callers (and providers that stream by default)
+    stream without asking for stream events, so delta construction
+    (on_stream support code) must not run for them.
+    """
+    import inspect_ai.model._openai as openai_module
+
+    async def fail(delta: object) -> None:
+        raise AssertionError("delta reported without an on_stream consumer")
+
+    monkeypatch.setattr(openai_module, "report_model_stream_delta", fail)
+
+    usage = dict(prompt_tokens=3, completion_tokens=7, total_tokens=10)
+    chunks = [
+        _chunk(
+            dict(
+                choices=[
+                    dict(
+                        index=0,
+                        delta=dict(role="assistant", content="hel"),
+                        finish_reason=None,
+                    )
+                ]
+            )
+        ),
+        _chunk(
+            dict(
+                choices=[dict(index=0, delta=dict(content="lo"), finish_reason="stop")]
+            )
+        ),
+        _chunk(dict(choices=[], usage=usage)),
+    ]
+
+    fake_stream: Any = _FakeChunkStream(chunks)
+    observer = ModelStreamObserver("test", None)
+    with model_stream_observer(observer):
+        result = await openai_chat_completion_stream_final(fake_stream)
+
+    # response assembly and the usage progress channel are unaffected
+    assert result.choices[0].message.content == "hello"
+    assert observer._tokens_current == 7
+
+
 async def test_chat_completion_stream_empty_raises() -> None:
-    """A zero-chunk stream raises a descriptive error, not a bare assert."""
+    """A zero-chunk stream raises a descriptive, retryable error, not a bare assert."""
+    from inspect_ai.model._stream import NoStreamDataError
+
     fake_stream: Any = _FakeChunkStream([])
-    with pytest.raises(RuntimeError, match="without delivering any chunks"):
+    with pytest.raises(NoStreamDataError, match="without delivering any chunks"):
         await openai_chat_completion_stream_final(fake_stream)
 
 
@@ -748,6 +955,108 @@ def test_together_resolve_stream_excludes_batching() -> None:
     with model_stream_observer(ModelStreamObserver("test", collector)):
         assert _together_api().resolve_stream(config) is False
         assert _together_api(stream=True).resolve_stream(config) is False
+
+
+async def test_together_batch_sends_each_header_set_separately() -> None:
+    """Together batches are created with only their own headers, without the request id."""
+    import functools
+    import json
+    import time
+    from pathlib import Path
+    from unittest.mock import AsyncMock, MagicMock, patch
+
+    import anyio
+    from openai import AsyncOpenAI
+
+    from inspect_ai._util._async import tg_collect
+    from inspect_ai._util.background import set_background_task_group
+    from inspect_ai.model._generate_config import BatchConfig
+    from inspect_ai.model._providers._together_batch import TogetherBatcher
+    from inspect_ai.model._providers.util.batch import BatchCheckResult
+    from inspect_ai.model._providers.util.hooks import HttpxHooks
+    from inspect_ai.model._retry import model_retry_config
+
+    class CompletingTogetherBatcher(TogetherBatcher):
+        """Completes each batch at once, answering each request with its id."""
+
+        async def _check_batch(self, batch):
+            return BatchCheckResult(
+                completed_count=len(batch.requests),
+                failed_count=0,
+                created_at=int(time.time()),
+                completion_info={"result_uris": []},
+            )
+
+        async def _handle_batch_result(self, batch, completion_info):
+            return {custom_id: custom_id for custom_id in batch.requests}
+
+    uploads: list[list[str]] = []
+
+    def upload(file, purpose):
+        lines = Path(file).read_text().splitlines()
+        uploads.append(sorted(json.loads(line)["custom_id"] for line in lines))
+        return MagicMock(id=f"file-{len(uploads)}")
+
+    # AsyncTogether is created per batch with that batch's headers as defaults
+    created: list[tuple[dict[str, str], str]] = []
+
+    def async_together(api_key, base_url, default_headers):
+        client = MagicMock()
+
+        async def create(endpoint, input_file_id):
+            created.append((default_headers, input_file_id))
+            return MagicMock(job=MagicMock(id=f"job-{len(created)}"))
+
+        client.batches.create = AsyncMock(side_effect=create)
+        return client
+
+    batcher = CompletingTogetherBatcher(
+        AsyncOpenAI(api_key="test", base_url="https://api.together.xyz/v1"),
+        BatchConfig(size=10, send_delay=0.02, tick=0.001),
+        model_retry_config(
+            "test", 3, None, lambda e: True, lambda ex: None, lambda m, s: None
+        ),
+    )
+    batcher._together_sync_client = MagicMock()
+    batcher._together_sync_client.files.upload = MagicMock(side_effect=upload)
+
+    def request(name: str, org: str) -> dict[str, Any]:
+        return {
+            "model": "meta-llama/Llama-3.1-8B-Instruct-Turbo",
+            "messages": [{"role": "user", "content": name}],
+            "extra_headers": {
+                HttpxHooks.REQUEST_ID_HEADER: f"rid-{name}",
+                "x-org": org,
+            },
+        }
+
+    with patch("together.AsyncTogether", side_effect=async_together):
+        async with anyio.create_task_group() as tg:
+            set_background_task_group(tg)
+            try:
+                results = await tg_collect(
+                    [
+                        functools.partial(
+                            batcher.generate_for_request, request("a1", "a")
+                        ),
+                        functools.partial(
+                            batcher.generate_for_request, request("b1", "b")
+                        ),
+                        functools.partial(
+                            batcher.generate_for_request, request("a2", "a")
+                        ),
+                    ]
+                )
+            finally:
+                set_background_task_group(None)
+
+    assert [str(result) for result in results] == ["rid-a1", "rid-b1", "rid-a2"]
+    file_ids = {f"file-{i + 1}": custom_ids for i, custom_ids in enumerate(uploads)}
+    batches = sorted((file_ids[file_id], headers) for headers, file_id in created)
+    assert batches == [
+        (["rid-a1", "rid-a2"], {"x-org": "a"}),
+        (["rid-b1"], {"x-org": "b"}),
+    ]
 
 
 def test_together_resolve_stream_declines_logprobs() -> None:

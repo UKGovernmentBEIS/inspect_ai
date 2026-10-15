@@ -5,20 +5,32 @@ with fail_on_error, or due to a KeyboardInterrupt), the cancelled samples
 are fully logged with their errors in the eval log.
 """
 
+import asyncio
 import contextlib
 import os
 import signal
 import threading
 from pathlib import Path
+from typing import Callable
 
 import anyio
+import anyio.lowlevel
 import pytest
+from test_helpers.utils import skip_if_trio
 
-from inspect_ai import Task, eval
+from inspect_ai import Task, eval, eval_async
+from inspect_ai._util.error import is_cancellation_message
 from inspect_ai.dataset import Sample
-from inspect_ai.log import list_eval_logs, read_eval_log
+from inspect_ai.event import ErrorEvent
+from inspect_ai.log import (
+    EvalLog,
+    list_eval_logs,
+    read_eval_log,
+    read_eval_log_async,
+)
 from inspect_ai.scorer import includes
 from inspect_ai.solver import Generate, TaskState, generate, solver, user_message
+from inspect_ai.util import background
 
 
 @pytest.fixture(params=[True, False], ids=["with_sandbox", "no_sandbox"])
@@ -85,10 +97,11 @@ def _conversation_then_error_solvers() -> list:
 
 
 @solver
-def sleep_solver():
-    """All samples sleep; used with external SIGINT."""
+def sleep_solver(on_start: Callable[[], None]):
+    """All samples call `on_start` then sleep; used with external SIGINT."""
 
     async def solve(state: TaskState, generate: Generate) -> TaskState:
+        on_start()
         await anyio.sleep(60)
         return state
 
@@ -250,19 +263,26 @@ def test_keyboard_interrupt_logs_cancelled_samples(
 ):
     """When SIGINT (KeyboardInterrupt) occurs, all running samples should be cancelled and logged."""
     num_samples = 5
+    started: list[int] = []
+    all_started = threading.Event()
+
+    def on_start() -> None:
+        started.append(1)
+        if len(started) == num_samples:
+            all_started.set()
+
     task = Task(
         dataset=_make_samples(num_samples),
-        solver=[sleep_solver()],
+        solver=[sleep_solver(on_start)],
         scorer=includes(),
         sandbox=sandbox_kwarg,
     )
 
-    # send SIGINT from a background thread after samples have started
+    # send SIGINT from a background thread once every sample is running (a
+    # fixed delay can fire before eval starts on a loaded machine)
     def send_sigint() -> None:
-        import time
-
-        time.sleep(1)
-        os.kill(os.getpid(), signal.SIGINT)
+        if all_started.wait(timeout=60):
+            os.kill(os.getpid(), signal.SIGINT)
 
     sigint_thread = threading.Thread(target=send_sigint, daemon=True)
     sigint_thread.start()
@@ -279,6 +299,7 @@ def test_keyboard_interrupt_logs_cancelled_samples(
         pass
 
     sigint_thread.join(timeout=5)
+    assert all_started.is_set()
 
     # read the log that was written to disk before KeyboardInterrupt propagated
     log_files = list_eval_logs(str(tmp_path))
@@ -295,3 +316,257 @@ def test_keyboard_interrupt_logs_cancelled_samples(
     # every logged sample should have an error
     for sample in log.samples:
         assert sample.error is not None
+
+
+# --- unattributed ("foreign") cancellation escaping the solver ---------------
+
+UNATTRIBUTED_PREFIX = (
+    "RuntimeError('Sample errored: solver cancelled by an unattributed"
+)
+
+
+@solver
+def saved_cancellation_solver(
+    calls: list[int] | None = None, succeed_on_attempt: int | None = None
+):
+    """Re-raise the backend's cancellation after the scope that issued it exited.
+
+    Backend-neutral: trio's `Cancelled` has no public constructor, but a
+    library can save a real one and raise it later, which no inspect scope
+    is delivering.
+    """
+
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        if calls is not None:
+            calls.append(1)
+            if succeed_on_attempt is not None and len(calls) >= succeed_on_attempt:
+                return state
+        saved: BaseException | None = None
+        with anyio.CancelScope() as scope:
+            scope.cancel()
+            try:
+                await anyio.sleep(10)
+            except anyio.get_cancelled_exc_class() as ex:
+                saved = ex
+        assert saved is not None
+        raise saved
+
+    return solve
+
+
+@solver
+def fresh_cancelled_error_solver():
+    """The issue's reproduction: a fresh `asyncio.CancelledError` (asyncio only)."""
+
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        raise asyncio.CancelledError()
+
+    return solve
+
+
+def _assert_unattributed_sample_errors(log: EvalLog, n_samples: int) -> None:
+    assert log.status == "success"
+    assert log.samples is not None and len(log.samples) == n_samples
+    for sample in log.samples:
+        assert sample.error is not None
+        assert sample.error.message.startswith(UNATTRIBUTED_PREFIX)
+        assert not is_cancellation_message(sample.error.message)
+        assert not sample.scores
+        assert any(isinstance(event, ErrorEvent) for event in sample.events)
+    # every sample errored unscored, so no aggregate results are built
+    assert log.results is None
+
+
+async def test_unattributed_cancel_in_solver_is_sample_error(tmp_path: Path):
+    (log,) = await eval_async(
+        Task(
+            dataset=_make_samples(2),
+            solver=saved_cancellation_solver(),
+            scorer=includes(),
+        ),
+        model="mockllm/model",
+        log_dir=str(tmp_path),
+        fail_on_error=False,
+        ctl_server=False,
+    )
+    _assert_unattributed_sample_errors(log, 2)
+
+
+async def test_unattributed_cancel_in_solver_fails_eval_by_default(tmp_path: Path):
+    (log,) = await eval_async(
+        Task(
+            dataset=_make_samples(1),
+            solver=saved_cancellation_solver(),
+            scorer=includes(),
+        ),
+        model="mockllm/model",
+        log_dir=str(tmp_path),
+        ctl_server=False,
+    )
+    assert log.status == "error"
+    assert log.error is not None
+    assert log.error.message.startswith(UNATTRIBUTED_PREFIX)
+
+
+async def test_unattributed_cancel_in_solver_is_retried(tmp_path: Path):
+    calls: list[int] = []
+    cleanups: list[int] = []
+
+    async def cleanup(state: TaskState) -> None:
+        await anyio.lowlevel.checkpoint()
+        cleanups.append(1)
+
+    (log,) = await eval_async(
+        Task(
+            dataset=_make_samples(1),
+            solver=saved_cancellation_solver(calls=calls, succeed_on_attempt=2),
+            scorer=includes(),
+            cleanup=cleanup,
+        ),
+        model="mockllm/model",
+        log_dir=str(tmp_path),
+        retry_on_error=1,
+        ctl_server=False,
+    )
+    assert log.status == "success"
+    assert log.samples is not None
+    (sample,) = log.samples
+    assert sample.error is None
+    assert sample.error_retries is not None and len(sample.error_retries) == 1
+    assert sample.error_retries[0].message.startswith(UNATTRIBUTED_PREFIX)
+    assert sample.scores
+    assert len(calls) == 2
+    assert len(cleanups) == 2
+
+
+@skip_if_trio
+async def test_fresh_asyncio_cancelled_error_is_sample_error(tmp_path: Path):
+    (log,) = await eval_async(
+        Task(
+            dataset=_make_samples(2),
+            solver=fresh_cancelled_error_solver(),
+            scorer=includes(),
+        ),
+        model="mockllm/model",
+        log_dir=str(tmp_path),
+        fail_on_error=False,
+        ctl_server=False,
+    )
+    _assert_unattributed_sample_errors(log, 2)
+
+
+@skip_if_trio
+async def test_unattributed_cancel_from_background_is_sample_error(tmp_path: Path):
+    reached_after_await: list[int] = []
+
+    @solver
+    def background_cancel_solver():
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            started = anyio.Event()
+
+            async def worker() -> None:
+                await started.wait()
+                raise asyncio.CancelledError()
+
+            background(worker)
+            started.set()
+            await anyio.sleep_forever()
+            reached_after_await.append(1)
+            return state
+
+        return solve
+
+    (log,) = await eval_async(
+        Task(
+            dataset=_make_samples(1),
+            solver=background_cancel_solver(),
+            scorer=includes(),
+        ),
+        model="mockllm/model",
+        log_dir=str(tmp_path),
+        fail_on_error=False,
+        ctl_server=False,
+    )
+    _assert_unattributed_sample_errors(log, 1)
+    assert reached_after_await == []
+
+
+async def test_enclosing_cancel_is_still_a_cancellation(tmp_path: Path):
+    scopes: list[anyio.CancelScope] = []
+    cleanups: list[int] = []
+
+    @solver
+    def cancel_enclosing_solver():
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            scopes[0].cancel()
+            await anyio.sleep_forever()
+            return state
+
+        return solve
+
+    async def cleanup(state: TaskState) -> None:
+        cleanups.append(1)
+
+    with anyio.CancelScope() as scope:
+        scopes.append(scope)
+        await eval_async(
+            Task(
+                dataset=_make_samples(1),
+                solver=cancel_enclosing_solver(),
+                scorer=includes(),
+                cleanup=cleanup,
+            ),
+            model="mockllm/model",
+            log_dir=str(tmp_path),
+            fail_on_error=False,
+            ctl_server=False,
+        )
+
+    (log_info,) = list_eval_logs(str(tmp_path))
+    log = await read_eval_log_async(log_info)
+    assert log.status == "cancelled"
+    assert log.samples is not None
+    (sample,) = log.samples
+    assert sample.error is not None
+    assert is_cancellation_message(sample.error.message)
+    assert not sample.error.message.startswith(UNATTRIBUTED_PREFIX)
+    assert cleanups == [1]
+
+
+@skip_if_trio
+async def test_context_chained_cancel_is_not_unattributed(tmp_path: Path):
+    """A fresh CancelledError chained to anyio's own is anyio's, not foreign.
+
+    Today it becomes `fail_after`'s TimeoutError, which reaches the top of
+    the sample stack and is scored with a warning; asserted so that a change
+    to that path is deliberate.
+    """
+
+    @solver
+    def chained_cancel_solver():
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            with anyio.fail_after(0.01):
+                try:
+                    await anyio.sleep(10)
+                except anyio.get_cancelled_exc_class():
+                    raise asyncio.CancelledError()
+            return state
+
+        return solve
+
+    (log,) = await eval_async(
+        Task(
+            dataset=_make_samples(1),
+            solver=chained_cancel_solver(),
+            scorer=includes(),
+        ),
+        model="mockllm/model",
+        log_dir=str(tmp_path),
+        fail_on_error=False,
+        ctl_server=False,
+    )
+    assert log.status == "success"
+    assert log.samples is not None
+    (sample,) = log.samples
+    assert sample.error is None
+    assert sample.scores

@@ -23,7 +23,7 @@ from inspect_ai.tool._sandbox_tools_utils._error_mapper import (
     SandboxToolsErrorMapper,
 )
 from inspect_ai.tool._sandbox_tools_utils.sandbox import sandbox_with_injected_tools
-from inspect_ai.util._sandbox._cli import SANDBOX_CLI
+from inspect_ai.util._sandbox._cli import SANDBOX_CLI, tools_user_param
 from inspect_ai.util._sandbox._json_rpc_transport import SandboxJSONRPCTransport
 
 from ._compat import (
@@ -76,11 +76,15 @@ async def sandbox_client(  # type: ignore
     read_stream_writer, read_stream = anyio.create_memory_object_stream(0)
     write_stream, write_stream_reader = anyio.create_memory_object_stream(0)
 
+    params: dict[str, object] = {"server_params": server.model_dump()}
+    if (user := tools_user_param(sandbox_environment, None)) is not None:
+        params["user"] = user
     session_id = await exec_scalar_request(
         method="mcp_launch_server",
-        params={"server_params": server.model_dump()},
+        params=params,
         result_type=int,
         transport=transport,
+        user=sandbox_environment._tools_user,
         error_mapper=SandboxToolsErrorMapper,
         timeout=timeout,
     )
@@ -114,6 +118,7 @@ async def sandbox_client(  # type: ignore
                                 },
                                 result_type=JSONRPC_MESSAGE_VALIDATOR,
                                 transport=transport,
+                                user=sandbox_environment._tools_user,
                                 error_mapper=SandboxToolsErrorMapper,
                                 timeout=timeout,
                             )
@@ -161,6 +166,7 @@ async def sandbox_client(  # type: ignore
                                     "notification": root.model_dump(),
                                 },
                                 transport=transport,
+                                user=sandbox_environment._tools_user,
                                 timeout=timeout,
                             )
                         except Exception as ex:
@@ -203,6 +209,7 @@ async def sandbox_client(  # type: ignore
                         params={"session_id": session_id},
                         result_type=type(None),
                         transport=transport,
+                        user=sandbox_environment._tools_user,
                         error_mapper=SandboxToolsErrorMapper,
                         timeout=_KILL_SERVER_TIMEOUT,
                     )

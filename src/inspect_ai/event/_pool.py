@@ -26,7 +26,7 @@ and hash only genuinely new content.
 import dataclasses
 import json
 from collections.abc import Iterable, Mapping, Sequence
-from typing import Final, Literal, NamedTuple, TypeVar, cast
+from typing import Final, Literal, NamedTuple, TypeAlias, TypeVar, cast
 
 from pydantic import BaseModel, JsonValue
 from pydantic_core import to_jsonable_python
@@ -92,6 +92,16 @@ def _strict_eq(a: object, b: object) -> bool:
         assert isinstance(a, (list, tuple)) and isinstance(b, (list, tuple))
         return len(a) == len(b) and all(_strict_eq(x, y) for x, y in zip(a, b))
     return a == b
+
+
+def _strict_eq_prefix_len(a: Iterable[object], b: Iterable[object]) -> int:
+    """Number of leading elements that are ``_strict_eq`` (see that function)."""
+    n = 0
+    for x, y in zip(a, b):
+        if not _strict_eq(x, y):
+            break
+        n += 1
+    return n
 
 
 def _msg_hash(msg: ChatMessage) -> str:
@@ -207,8 +217,15 @@ def condense_model_event_inputs(
     return result, index, new_entries
 
 
-# Known keys for messages array in provider wire formats
-_CALL_MESSAGE_KEYS: Final = ("messages", "contents", "input", "inputs")
+CallMessageKey: TypeAlias = Literal["messages", "contents", "input", "inputs"]
+"""Key under which a provider wire request carries its messages array."""
+
+_CALL_MESSAGE_KEYS: Final[tuple[CallMessageKey, ...]] = (
+    "messages",
+    "contents",
+    "input",
+    "inputs",
+)
 
 
 def _compress_refs(indices: list[int]) -> list[tuple[int, int]]:
@@ -438,15 +455,7 @@ def condense_model_event_calls(
             if msgs and isinstance(msgs, list):
                 # Reuse the previous event's pool indices for the equal prefix;
                 # hash only the tail that diverges.
-                # _strict_eq, not ==: a prefix element drifting 0 -> 0.0 or
-                # True -> 1 is python-equal but serializes (and hashes)
-                # differently; reusing the pool index would round-trip the
-                # other value.
-                prefix_len = 0
-                for msg, prev_msg in zip(msgs, prev_msgs):
-                    if not _strict_eq(msg, prev_msg):
-                        break
-                    prefix_len += 1
+                prefix_len = _strict_eq_prefix_len(msgs, prev_msgs)
                 raw_indices = list(prev_indices[:prefix_len])
                 for msg in msgs[prefix_len:]:
                     h = _call_hash(msg)

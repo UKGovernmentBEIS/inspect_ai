@@ -2,7 +2,7 @@ import math
 from pathlib import Path
 
 from inspect_ai.log._file import read_eval_log
-from inspect_ai.model._model import compute_model_cost
+from inspect_ai.model import compute_model_cost
 from inspect_ai.model._model_data.model_data import ModelCost
 from inspect_ai.model._model_output import ModelUsage
 
@@ -172,6 +172,10 @@ def test_compute_model_cost_1h_cache_write_billed_above_5m_rate() -> None:
 
     # an unspecified TTL keeps the previous (5-minute) behaviour
     assert math.isclose(compute_model_cost(cost_data, usage), base_input * 1.25)
+
+    # "auto" is never billed as such (providers report the resolved TTL via
+    # cache_write_ttl); if it leaks through it bills at the 5-minute rate
+    assert math.isclose(compute_model_cost(cost_data, usage, "auto"), base_input * 1.25)
 
 
 def test_compute_model_cost_cache_ttl_does_not_affect_other_tokens() -> None:

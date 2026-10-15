@@ -1,4 +1,3 @@
-import sys
 from datetime import date, datetime, time, timedelta, timezone
 from logging import getLogger
 from pathlib import Path
@@ -20,22 +19,11 @@ logger = getLogger(__name__)
 
 
 def _normalize_iso_z_suffix(input: str) -> str:
-    """Normalize Z suffix in ISO format strings for Python 3.10 compatibility.
+    """Replace a trailing Z/z UTC designator with +00:00.
 
-    Python 3.10's fromisoformat() doesn't support Z suffix for UTC.
-    Python 3.11+ handles Z natively.
-
-    Args:
-        input: ISO format string (may end with Z or z)
-
-    Returns:
-        ISO format string with Z/z replaced by +00:00 (if Python < 3.11)
+    fromisoformat() rejects Z on Python 3.10 and lowercase z on all versions.
     """
-    return (
-        input
-        if sys.version_info >= (3, 11) or not input.endswith(("Z", "z"))
-        else input[:-1] + "+00:00"
-    )
+    return input[:-1] + "+00:00" if input.endswith(("Z", "z")) else input
 
 
 def is_file_older_than(path: str | Path, delta: timedelta, *, default: bool) -> bool:
@@ -157,23 +145,25 @@ def _before_validate_utc_time(v: Any) -> Any:
 
 
 def _before_validate_utc_datetime_str(v: Any) -> str:
-    """Parse and normalize ISO datetime string to UTC.
+    """Parse and normalize ISO datetime string or datetime instance to UTC.
 
     For legacy string temporal fields that cannot be converted to UtcDatetime
-    without breaking API compatibility. Accepts ISO 8601 strings, normalizes
-    to UTC, returns as ISO string.
+    without breaking API compatibility. Accepts ISO 8601 strings or datetime
+    instances, normalizes to UTC, returns as ISO string.
 
     Args:
-        v: ISO 8601 datetime string
+        v: ISO 8601 datetime string or datetime instance
 
     Returns:
         UTC-normalized ISO 8601 string
 
     Raises:
-        ValueError: If v is not a string or not a valid ISO datetime
+        ValueError: If v is not a string or datetime, or not a valid ISO datetime
     """
+    if isinstance(v, datetime):
+        return datetime_safe(v, timezone.utc).astimezone(timezone.utc).isoformat()
     if not isinstance(v, str):
-        raise ValueError(f"Expected str, got {type(v)}")
+        raise ValueError(f"Expected str or datetime, got {type(v)}")
     return (
         datetime_from_iso_format_safe(v, fallback_tz=timezone.utc)
         .astimezone(timezone.utc)

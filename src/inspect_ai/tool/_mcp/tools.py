@@ -40,21 +40,24 @@ class MCPToolSourceLocal(ToolSource):
     def __init__(self, server: MCPServer, tools: Literal["all"] | list[str]) -> None:
         self._server = server
         self._tools = tools
-        self._cached_tool_list: list[Tool] | None = None
 
     async def tools(self) -> list[Tool]:
-        if self._cached_tool_list is None:
-            # get the underlying tools
-            mcp_tools = await self._server.tools()
+        # Every Tool returned by the server closes over the MCPServerLocalSession
+        # that produced it, and those sessions are scoped per async task (see
+        # MCPServerLocal._task_session). A ToolSource, by contrast, is shared:
+        # inspect eval builds one per Task and every sample uses it. An
+        # uncached call here still costs no extra transport round trip: the
+        # session itself caches the raw tool list per scope (see
+        # MCPServerLocalSession.tools), so re-resolving on every call only
+        # repeats the fnmatch filtering and ToolDef wrapping, not the server
+        # round trip.
+        mcp_tools = await self._server.tools()
 
-            # filter them
-            def include_tool(tool: Tool) -> bool:
-                if self._tools == "all":
-                    return True
-                else:
-                    return any([fnmatch(ToolDef(tool).name, t) for t in self._tools])
+        # filter them
+        def include_tool(tool: Tool) -> bool:
+            if self._tools == "all":
+                return True
+            else:
+                return any([fnmatch(ToolDef(tool).name, t) for t in self._tools])
 
-            self._cached_tool_list = [
-                mcp_tool for mcp_tool in mcp_tools if include_tool(mcp_tool)
-            ]
-        return self._cached_tool_list
+        return [mcp_tool for mcp_tool in mcp_tools if include_tool(mcp_tool)]

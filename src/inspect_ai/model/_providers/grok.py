@@ -1,9 +1,13 @@
+import asyncio
 import json
 import os
 import time
+from collections.abc import AsyncIterator, Mapping
+from contextlib import asynccontextmanager
 from copy import copy
 from typing import Any, Literal, cast
 
+import anyio
 import grpc
 from google.protobuf.json_format import MessageToDict
 from pydantic import JsonValue
@@ -40,7 +44,7 @@ from inspect_ai._util.content import (
 )
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.images import inline_media_data_uri
-from inspect_ai.log._samples import set_active_model_event_call
+from inspect_ai.log._samples import sample_active, set_active_model_event_call
 from inspect_ai.model._call_tools import parse_tool_call
 from inspect_ai.model._chat_message import (
     ChatMessage,
@@ -58,6 +62,7 @@ from inspect_ai.model._providers.util.util import (
 )
 from inspect_ai.model._retry import batch_admin_retry_config
 from inspect_ai.model._stream import (
+    NoStreamDataError,
     StreamReasoningEvent,
     StreamTextEvent,
     StreamToolCallEvent,
@@ -83,7 +88,9 @@ from .._model_output import (
     StopReason,
     TopLogprob,
 )
+from ._first_party import FRONTIER_MODELS
 from ._grok_batch import GrokBatcher
+from ._grok_cache import GROK_CONV_ID_HEADER
 
 XAI_API_KEY = "XAI_API_KEY"
 XAI_BASE_URL = "XAI_BASE_URL"
@@ -101,6 +108,33 @@ _NON_GENERATIVE_TOKENS = (
 )
 
 
+def _client_metadata(metadata: Any) -> tuple[tuple[str, str], ...]:
+    """Normalize a caller-supplied `metadata` model arg to the SDK's shape.
+
+    `-M metadata=...` arrives as JSON, so it may be a mapping, or pairs may be
+    lists rather than the tuples `AsyncClient` expects. A mapping must be
+    handled explicitly: iterating one yields bare keys, which would unpack into
+    silently wrong header pairs.
+    """
+    if metadata is None:
+        return ()
+    if isinstance(metadata, Mapping):
+        metadata = metadata.items()
+    return tuple((str(key), str(value)) for key, value in metadata)
+
+
+def _grok_conv_id() -> str | None:
+    """Conversation id for xAI's cache server-affinity header.
+
+    A sample is Inspect's unit of conversation: every turn of its agent loop
+    shares a growing prefix, so pinning them to one server is what makes the
+    cache hit. Outside a sample there is no conversation to key on, so the
+    header is omitted and requests are load balanced as before.
+    """
+    active = sample_active()
+    return active.sample_uuid if active is not None else None
+
+
 def _sdk_supports_xhigh_effort() -> bool:
     """Whether the installed xai_sdk can express reasoning_effort="xhigh".
 
@@ -108,6 +142,26 @@ def _sdk_supports_xhigh_effort() -> bool:
     (shipped alongside grok-4.6); older SDKs reject "xhigh" client-side.
     """
     return "EFFORT_XHIGH" in chat_pb2.ReasoningEffort.keys()
+
+
+@asynccontextmanager
+async def _scope_cancellation_restored() -> AsyncIterator[None]:
+    """Let an enclosing anyio cancel scope own the cancellation of a unary gRPC call.
+
+    grpc.aio runs a unary RPC in its own task: when the awaiting task is
+    cancelled, that task swallows the (anyio-marked) CancelledError and the
+    await raises a fresh, message-less one that anyio does not recognise as its
+    own. Left alone, `fail_after` leaks a bare CancelledError instead of
+    TimeoutError and `attempt_timeout` never becomes AttemptTimeoutError. The
+    checkpoint lets an already-cancelled enclosing scope re-deliver its marked
+    cancellation (chained to grpc's); any other cancellation re-raises unchanged.
+    Streaming calls re-raise the original exception and need no guard.
+    """
+    try:
+        yield
+    except asyncio.CancelledError:
+        await anyio.lowlevel.checkpoint()
+        raise
 
 
 class GrokAPI(ModelAPI):
@@ -175,11 +229,15 @@ class GrokAPI(ModelAPI):
                 ("grpc.enable_retries", 0),
                 ("grpc.service_config", "{}"),
             ]
+        # held apart from model_args so model_client() can extend rather than
+        # collide with it when adding the conversation id header
+        self.client_metadata = _client_metadata(model_args.pop("metadata", None))
         self.model_args = model_args
 
         # initialize batcher
         self._batcher: GrokBatcher | None = None
         self._batch_client: AsyncClient | None = None
+        self._batch_api_key: str | None = None
 
         # create client
         self.initialize()
@@ -232,21 +290,36 @@ class GrokAPI(ModelAPI):
         # is_at_least_grok_4() and the DB-miss branch of input_tokens_name()
         return "grok" not in name
 
-    def model_client(self) -> AsyncClient:
+    def model_client(self, conv_id: str | None = None) -> AsyncClient:
+        metadata = self.client_metadata
+        if conv_id is not None:
+            metadata += ((GROK_CONV_ID_HEADER, conv_id),)
         return AsyncClient(
             api_key=self.api_key,
             api_host=self.base_url,
             timeout=3600,
+            metadata=metadata or None,
             **self.model_args,
         )
 
     @override
     async def count_text_tokens(self, text: str) -> int:
-        async with self.model_client() as client:
+        async with self.model_client() as client, _scope_cancellation_restored():
             tokens = await client.tokenize.tokenize_text(
                 text=text, model=self.service_model_name()
             )
             return len(tokens)
+
+    @override
+    async def refresh_credentials(self) -> None:
+        # Other requests build a client per call. The batcher shares one
+        # client that its in-flight batch operations are using, so it gets a
+        # new client rather than having this one closed under it.
+        self.initialize()
+        if self._batcher and self.api_key != self._batch_api_key:
+            self._batch_client = self.model_client()
+            self._batch_api_key = self.api_key
+            await self._batcher.replace_client(self._batch_client)
 
     @override
     async def aclose(self) -> None:
@@ -283,6 +356,12 @@ class GrokAPI(ModelAPI):
             else grok_tool_choice,
             **grok_params,
         )
+        # batch requests share one long-lived client, so they can't carry a
+        # per-conversation header (and aren't multi-turn conversations anyway)
+        conv_id = None if self._batcher else _grok_conv_id()
+        if conv_id is not None:
+            request["metadata"] = {GROK_CONV_ID_HEADER: conv_id}
+
         if self._batcher and config.response_schema is not None:
             schema_model = json_schema_to_base_model(config.response_schema.json_schema)
             # Batch queue payloads are dict-shaped; encode full schema here so the
@@ -305,7 +384,7 @@ class GrokAPI(ModelAPI):
                 # used in the direct path below.
                 chat_response = await self._batcher.generate_for_request(request)
             else:
-                async with self.model_client() as client:
+                async with self.model_client(conv_id) as client:
                     # chat call
                     chat = client.chat.create(
                         model=self.service_model_name(),
@@ -317,11 +396,12 @@ class GrokAPI(ModelAPI):
 
                     # handle structured output
                     if config.response_schema is not None:
-                        chat_response, _ = await chat.parse(
-                            json_schema_to_base_model(
-                                config.response_schema.json_schema
+                        async with _scope_cancellation_restored():
+                            chat_response, _ = await chat.parse(
+                                json_schema_to_base_model(
+                                    config.response_schema.json_schema
+                                )
                             )
-                        )
                     # stream the reponse for improved connectivity for long requests
                     elif self._resolve_streaming(config):
                         report_model_stream_start()
@@ -329,13 +409,14 @@ class GrokAPI(ModelAPI):
                         async for streamed_response, chunk in chat.stream():
                             await _report_grok_stream_chunk(chunk)
                         if streamed_response is None:
-                            raise RuntimeError(
+                            raise NoStreamDataError(
                                 "No response chunks received from streaming "
                                 f"API for model {self.service_model_name()}"
                             )
                         chat_response = streamed_response
                     else:
-                        chat_response = await chat.sample()
+                        async with _scope_cancellation_restored():
+                            chat_response = await chat.sample()
 
             model_call.set_response(
                 MessageToDict(chat_response._proto), time.monotonic() - start_time
@@ -379,6 +460,7 @@ class GrokAPI(ModelAPI):
 
         if not self._batch_client:
             self._batch_client = self.model_client()
+            self._batch_api_key = self.api_key
 
         self._batcher = GrokBatcher(
             self._batch_client,
@@ -450,12 +532,21 @@ class GrokAPI(ModelAPI):
             self.is_at_least_grok_4()
             and _get_model_info_direct(self.canonical_name()) is None
         ):
-            return "grok/grok-4.6"
+            return FRONTIER_MODELS["grok"]
         return super().input_tokens_name()
 
     def _handle_grpc_bad_request(self, ex: grpc.RpcError) -> ModelOutput | Exception:
+        """Map an INVALID_ARGUMENT context-overflow error to a model_length output.
+
+        xAI's wording has varied ("prompt length" historically, the structured
+        code "[input_too_large]" currently). Don't match "exceeds budget" alone:
+        xAI uses budget language for reasoning-token limits too.
+        """
         details = ex.details() or ""
-        if "prompt length" in details:
+        details_lower = details.lower()
+        if any(
+            marker in details_lower for marker in ("prompt length", "input_too_large")
+        ):
             return ModelOutput.from_content(
                 model=self.model_name, content=details, stop_reason="model_length"
             )
@@ -464,7 +555,11 @@ class GrokAPI(ModelAPI):
 
     def _handle_grpc_permission_denied(self, ex: grpc.RpcError) -> ModelOutput | None:
         details = ex.details() or ""
-        if "safety_check" in details.lower():
+        normalized_details = details.casefold()
+        if (
+            "safety_check" in normalized_details
+            or "can't help with that request" in normalized_details
+        ):
             return ModelOutput.from_content(
                 model=self.model_name,
                 content=details,
@@ -546,8 +641,8 @@ class GrokAPI(ModelAPI):
             gconfig["response_format"] = "json_object"
 
         # grok-3-mini and grok-4-or-later variants (4-fast, 4.1, 4.20, 4.3,
-        # 4.5, 4.6, plus future/codename models) accept reasoning_effort. The
-        # *original* grok-4 reasons but rejects the parameter and must be
+        # 4.5, 4.6, 4.7, plus future/codename models) accept reasoning_effort.
+        # The *original* grok-4 reasons but rejects the parameter and must be
         # excluded.
         if config.reasoning_effort is not None and (
             self.is_grok_3_mini()
@@ -586,6 +681,7 @@ class GrokAPI(ModelAPI):
             choices=[self._completion_choice_from_response(response, tools)],
             completion=response.content,
             usage=_model_usage_from_sampling_usage(response.usage),
+            response_id=response.id or None,
         )
 
     def _completion_choice_from_response(
@@ -611,7 +707,7 @@ class GrokAPI(ModelAPI):
         server_tool_calls: list[chat_pb2.ToolCall] = []
         client_tool_calls: list[chat_pb2.ToolCall] = []
         for tool_call in response.tool_calls:
-            if get_tool_call_type(tool_call) == "client_side_tool":
+            if self._is_client_tool_call(tool_call, tools):
                 client_tool_calls.append(tool_call)
             else:
                 server_tool_calls.append(tool_call)
@@ -680,6 +776,35 @@ class GrokAPI(ModelAPI):
         else:
             return False
 
+    def _is_client_tool_call(
+        self, tool_call: chat_pb2.ToolCall, tools: list[ToolInfo]
+    ) -> bool:
+        """Whether a returned tool call is for a client-side function tool.
+
+        xAI sometimes types a call to a client function named
+        `code_execution` as its built-in code execution tool, even though
+        the request declared it as a plain function and the server did not
+        run it. Trusting the reported type would render the call as a
+        completed server tool use and never execute it. So when the request
+        sent no native code execution tool, a code-execution-typed call whose
+        name matches a tool sent as a function is treated as a call to that
+        function. Other server types keep their reported type: a native web
+        search call, for example, may legitimately share a name with a
+        client function.
+        """
+        tool_call_type = get_tool_call_type(tool_call)
+        if tool_call_type == "client_side_tool":
+            return True
+        if tool_call_type != "code_execution_tool" or any(
+            self._is_internal_code_execution_tool(tool) for tool in tools
+        ):
+            return False
+        return any(
+            tool.name == tool_call.function.name
+            and self._grok_tool(tool).HasField("function")
+            for tool in tools
+        )
+
 
 async def _report_grok_stream_chunk(chunk: Chunk) -> None:
     """Report one streamed chunk to the model layer's stream observer.
@@ -687,26 +812,29 @@ async def _report_grok_stream_chunk(chunk: Chunk) -> None:
     Text and reasoning stream as fragments; tool calls arrive whole (id, name
     and complete arguments in one chunk). Chunks carry the server's cumulative
     usage; report it when present (a proto3 zero means "not reported"), else a
-    bare heartbeat for chunks with no content.
+    bare heartbeat for chunks with no content. Content deltas are gated on
+    `model_stream_requested()` (see `report_model_stream_delta`); the
+    usage/heartbeat progress channel runs regardless.
     """
     reported = False
-    if chunk.reasoning_content:
-        await report_model_stream_delta(
-            StreamReasoningEvent(reasoning=chunk.reasoning_content)
-        )
-        reported = True
-    if chunk.content:
-        await report_model_stream_delta(StreamTextEvent(text=chunk.content))
-        reported = True
-    for tool_call in chunk.tool_calls:
-        await report_model_stream_delta(
-            StreamToolCallEvent(
-                id=tool_call.id,
-                function=tool_call.function.name,
-                arguments=tool_call.function.arguments,
+    if model_stream_requested():
+        if chunk.reasoning_content:
+            await report_model_stream_delta(
+                StreamReasoningEvent(reasoning=chunk.reasoning_content)
             )
-        )
-        reported = True
+            reported = True
+        if chunk.content:
+            await report_model_stream_delta(StreamTextEvent(text=chunk.content))
+            reported = True
+        for tool_call in chunk.tool_calls:
+            await report_model_stream_delta(
+                StreamToolCallEvent(
+                    id=tool_call.id,
+                    function=tool_call.function.name,
+                    arguments=tool_call.function.arguments,
+                )
+            )
+            reported = True
     completion_tokens = chunk.proto.usage.completion_tokens
     if completion_tokens > 0:
         report_model_stream_progress(completion_tokens)

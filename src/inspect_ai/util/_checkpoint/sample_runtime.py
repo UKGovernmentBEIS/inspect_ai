@@ -5,7 +5,7 @@ Persisted as ``sample_runtime.json`` in the checkpoint host context.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, NamedTuple
 
 from pydantic import JsonValue
 
@@ -17,7 +17,15 @@ def dump_sample_runtime() -> dict[str, Any]:
     Presence on disk means this checkpoint has runtime state.
     ``token_interval_reference`` is filled in by the checkpointer at write
     time — the trigger lives there, not on the limit trees.
+
+    ``sample_elapsed`` is the wall-clock time of every attempt so far,
+    measured from the sample clock's start (``time_elapsed`` comes from the
+    time-limit node, whose origin restore resets after hydration, so it
+    misses the time an attempt spends before restore). ``working_elapsed``
+    is the working time of every attempt so far and ``working_waiting`` the
+    rest of ``sample_elapsed``.
     """
+    from inspect_ai._util.working import sample_timing
     from inspect_ai.model._model import (
         sample_model_fallbacks_context_var,
         sample_model_usage,
@@ -30,12 +38,10 @@ def dump_sample_runtime() -> dict[str, Any]:
         _TokenLimit,
         _tree_root,
         _TurnLimit,
-        _WorkingLimit,
         cost_limit_tree,
         time_limit_tree,
         token_limit_tree,
         turn_limit_tree,
-        working_limit_tree,
     )
 
     token_usage = ModelUsage()
@@ -58,20 +64,21 @@ def dump_sample_runtime() -> dict[str, Any]:
     if isinstance(time_root, _TimeLimit):
         time_elapsed = time_root.usage
 
+    sample_elapsed = 0.0
     working_elapsed = 0.0
-    working_waiting = 0.0
-    working_root = _tree_root(working_limit_tree)
-    if isinstance(working_root, _WorkingLimit):
-        working_elapsed = working_root.usage
-        working_waiting = working_root._waiting_time
+    timing = sample_timing()
+    if timing is not None:
+        sample_elapsed = timing.prior_wall + timing.elapsed()
+        working_elapsed = timing.prior_working + timing.working()
 
     return {
         "token_usage": token_usage.model_dump(mode="json"),
         "cost": cost,
         "turns": turns,
         "time_elapsed": time_elapsed,
+        "sample_elapsed": sample_elapsed,
         "working_elapsed": working_elapsed,
-        "working_waiting": working_waiting,
+        "working_waiting": sample_elapsed - working_elapsed,
         "model_usage": {
             name: usage.model_dump(mode="json")
             for name, usage in sample_model_usage().items()
@@ -96,9 +103,9 @@ def restore_sample_runtime(value: JsonValue | None, *, check: bool) -> None:
     Mutates live objects in place — no ``ContextVar.set()``.
 
     ``check`` separates reported usage from enforcement. Reported usage
-    (counters, elapsed time, the working-time origin behind every event's
+    (counters, elapsed time, the prior working time behind every event's
     ``working_start``) is always restored. Enforcement — the working limit's
-    anchors, the ``check()`` calls, and the time limit's cancel-scope
+    prior usage, the ``check()`` calls, and the time limit's cancel-scope
     deadline — is restored only when ``check`` is True, i.e. for a normal
     ``"resume"``. A ``"resume_for_scoring"`` attempt must be able to score a
     sample whose budget was already spent when the checkpoint fired, so it
@@ -114,11 +121,9 @@ def restore_sample_runtime(value: JsonValue | None, *, check: bool) -> None:
     if not isinstance(value, dict):
         return
 
-    import time
-
     import anyio
 
-    from inspect_ai._util.working import _sample_timing
+    from inspect_ai._util.working import sample_timing
     from inspect_ai.model._model import (
         sample_model_fallbacks_context_var,
         sample_model_usage_context_var,
@@ -176,10 +181,9 @@ def restore_sample_runtime(value: JsonValue | None, *, check: bool) -> None:
     else:
         time_root = None
 
-    working_elapsed = float(payload.get("working_elapsed") or 0.0)
-    working_waiting = float(payload.get("working_waiting") or 0.0)
+    prior = _prior_attempts(payload)
     if check:
-        # `monitor_working_limit` polls these anchors once a second with no
+        # `monitor_working_limit` polls the root once a second with no
         # attempt awareness, so seeding a spent working budget would cancel a
         # scoring resume's plan task group before it scores.
         working_root = _tree_root(working_limit_tree)
@@ -187,19 +191,15 @@ def restore_sample_runtime(value: JsonValue | None, *, check: bool) -> None:
             isinstance(working_root, _WorkingLimit)
             and working_root._start_time is not None
         ):
-            working_root._waiting_time = working_waiting
-            working_root._start_time = (
-                anyio.current_time() - working_elapsed - working_waiting
-            )
+            working_root._prior_usage = prior.working
 
-    timing = _sample_timing.get()
-    if timing.start_datetime is not None:
-        # Shift this attempt's origin back by the prior working time so
-        # `sample_working_time()` — and every event's `working_start` — keeps
-        # climbing across attempts. `waiting_time` stays attempt-local: the
-        # logged `working_time` subtracts it from this attempt's wall clock,
-        # which a restored cumulative value would drive negative.
-        timing.start_time = time.monotonic() - working_elapsed
+    timing = sample_timing()
+    if timing is not None:
+        # Carry the prior attempts so `sample_working_time()` — and every
+        # event's `working_start` — keeps climbing across attempts. The
+        # logged `working_time` stays attempt-local.
+        timing.prior_wall = prior.wall
+        timing.prior_working = prior.working
 
     model_usage = sample_model_usage_context_var.get(None)
     if model_usage is not None:
@@ -227,6 +227,33 @@ def restore_sample_runtime(value: JsonValue | None, *, check: bool) -> None:
         # cancellation for the next `await`.
         if time_root is not None:
             time_root._refresh_deadline()
+
+
+class _PriorAttempts(NamedTuple):
+    wall: float
+    working: float
+
+
+def _prior_attempts(payload: dict[str, Any]) -> _PriorAttempts:
+    """Prior attempts' wall time and working time from a dump.
+
+    Wall time prefers ``sample_elapsed``, then ``time_elapsed``, then
+    ``working_elapsed + working_waiting``. Working time is clamped to
+    ``[0, wall]``, since older snapshots can hold negative values.
+    """
+    working_elapsed = payload.get("working_elapsed")
+    working_waiting = payload.get("working_waiting")
+    if payload.get("sample_elapsed") is not None:
+        prior_wall = float(payload["sample_elapsed"])
+    elif payload.get("time_elapsed") is not None:
+        prior_wall = float(payload["time_elapsed"])
+    elif working_elapsed is not None or working_waiting is not None:
+        prior_wall = float(working_elapsed or 0.0) + float(working_waiting or 0.0)
+    else:
+        prior_wall = 0.0
+    prior_wall = max(prior_wall, 0.0)
+    prior_working = min(max(float(working_elapsed or 0.0), 0.0), prior_wall)
+    return _PriorAttempts(wall=prior_wall, working=prior_working)
 
 
 def _restore_usage_dict(current: dict[str, Any], dumped: object) -> None:

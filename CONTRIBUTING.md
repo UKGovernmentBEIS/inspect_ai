@@ -1,39 +1,34 @@
 # Contributing to Inspect AI
 
-Thanks for your interest in contributing to Inspect! We regularly accept contributions from the community and we're glad you want to help. To keep review capacity focused on work the project has agreed it wants, contributions follow a tiered policy. Please read this section first.
+Thanks for your interest in contributing to Inspect! We regularly accept contributions from the community and we're glad you want to help. To keep review capacity focused on work the project has agreed it wants, contributions run through an issue-first policy. Please read this section first.
 
 ## How contributions work
 
-Your path depends on your history with the project:
+There are two paths:
 
 - **Qualified contributors**: maintainers and individuals recorded (by
   account id) in [`.github/qualified.yml`](.github/qualified.yml) — may open
   PRs directly.
 
-- **Established contributors**: anyone with at least one merged non-trivial
-  PR in this repository (trivial documentation fixes don't count toward this)
-  — may open PRs directly, subject to a limit of 4 open PRs at a time.
-  One caveat: an issue you filed yourself doesn't establish demand. A PR
-  addressing your own issue needs that issue labeled `accepted` first, just
-  as for new contributors — self-reported problems get maintainer sign-off
-  before code, self-*discovered* fixes for problems others have reported
-  don't need it.
-- **New contributors**: if you haven't had a PR merged here yet, start from an
-  issue a maintainer has labeled `accepted` before writing code. PRs from new
-  contributors that aren't linked to an accepted issue are closed
-  automatically, with a comment explaining the available paths.
-  **Exception:** trivial documentation fixes (typos, broken links) are always
-  welcome directly.
+- **Everyone else**: start from an issue a maintainer has labeled `accepted`
+  before writing code, and reference it from your PR (`Fixes #NNN`). This
+  applies regardless of your contribution history here, and regardless of
+  who filed the issue — what matters is that a maintainer has accepted it.
+  PRs that aren't linked to an accepted issue are closed automatically, with
+  a comment explaining the available paths; if a linked issue is later
+  accepted, reopen the PR and it will pass.
+  **Exception:** trivial documentation fixes (typos, broken links — docs
+  files only, under 25 changed lines) are always welcome directly.
 
-Whatever your tier, a non-draft PR inactive for 60 days is closed with an
-invitation to reopen. And whatever your tier, check for an existing open PR
+Whatever your path, a non-draft PR inactive for 60 days is closed with an
+invitation to reopen. And whatever your path, check for an existing open PR
 addressing the same problem before opening yours: duplicates are closed in
 favor of the earlier PR unless a maintainer has asked for an alternative.
 
 Issues a maintainer has labeled `deferred` are decisions not to prioritize
-that work right now. PRs against a deferred issue are closed automatically,
-whatever your tier — comment on the issue with new evidence or demand if you
-think it should be revisited.
+that work right now. PRs against a deferred issue are closed automatically —
+comment on the issue with new evidence or demand if you think it should be
+revisited.
 
 **Why:** like most open-source projects, we now receive a large volume of
 unrequested, often agent-generated PRs. Reviewing a PR is time-consuming;
@@ -41,7 +36,7 @@ agreeing on a direction in an issue first is much easier. This policy spends
 our review time on work we've agreed we want and spares you writing code we
 can't merge.
 
-## Proposing work (new contributors)
+## Proposing work
 
 1. **Search existing issues and open PRs** to avoid duplicates.
 2. **Open an issue** describing the problem, the motivation, and (optionally)
@@ -65,7 +60,7 @@ listing.
 
 ## Using AI tools
 
-AI-assisted contributions are welcome from every tier — we use these tools
+AI-assisted contributions are welcome on both paths — we use these tools
 ourselves. The requirements:
 
 - You must understand, and be able to explain and defend, every line you
@@ -138,8 +133,58 @@ If any tests are failing, fix the code and run both commands again to verify. On
 
 ## Creating a pull request
 
-Fill in the PR template and reference the issue your PR resolves
-(`Fixes #NNN`). Run `make check` and `make test` before pushing.
+Title the PR with a [Conventional Commits](https://www.conventionalcommits.org/)
+type, then the user-facing outcome: `type: description` or
+`type(scope): description`, for example `fix: eval hang when resuming with S3
+logs` or `feat(anthropic): support Claude Haiku 5.5`. PRs are squash-merged, so
+the title becomes the commit that sets the next release's version:
+
+- `fix`, `feat`, `perf` and `revert` make a patch release (0.3.x).
+- `!` after the type or scope (`feat!: ...`) marks a breaking change. It is
+  listed in the changelog but still makes a patch release; maintainers decide
+  when to make a minor release.
+- `docs`, `refactor`, `test`, `build`, `ci`, `chore` and `style` do not make a
+  release on their own.
+
+The PR Title Lint check fails until the title follows this format; editing the
+title re-runs it.
+
+Don't edit `CHANGELOG.md`; the Changelog Lint check fails PRs that do.
+Release Please writes the changelog and the GitHub Release notes from the
+squash-merged PR titles, so your PR title is the changelog line. `feat`, `fix`,
+`perf` and `revert` titles are listed under Features, Bug Fixes, Performance
+Improvements and Reverts; other types are left out. The squash commit's message
+is the PR description, which Release Please also reads:
+
+- For a breaking change, use `feat!:` (or `fix!:`) and add a paragraph to the
+  PR description starting with `BREAKING CHANGE:` that says what users must
+  change, with a blank line after it. It is listed under "Breaking Changes".
+- A line in the description that starts with a type and colon (such as
+  `fix: ...`) right after a blank line adds its own changelog entry. To show
+  such a line without adding an entry, indent it (four spaces also renders it
+  as code). A code fence does not prevent the entry when a blank line comes
+  before the line inside it.
+- To reword the entry after the PR is merged, before the release, edit the
+  merged PR's description to start with:
+
+  ```
+  BEGIN_COMMIT_OVERRIDE
+  fix: the corrected outcome (#NNN)
+  END_COMMIT_OVERRIDE
+  ```
+
+  Include `(#NNN)`, the PR number, to keep the link to the PR. The release PR
+  picks up the change on the next push to `main`. Editing `CHANGELOG.md` in
+  the release PR does not last: Release Please rewrites the release PR.
+
+Fill in the PR template and, when addressing an accepted issue, reference it
+(`Fixes #NNN`). Explain the user-facing problem and result. In
+"Compatibility and migration," describe any impact on existing code,
+configuration, integrations, or saved logs and data, including behavior
+changes that do not alter an API signature. Say who is affected and what they
+need to change; if there is no impact, briefly explain why. In "Validation,"
+report what you ran, its outcome, and any checks you could not run. Run
+`make check` and `make test` before pushing.
 
 **Review expectations:** we aim to review every PR, given time. A PR that goes
 inactive for 60 days is closed by the stale bot with an invitation to reopen —
@@ -149,7 +194,9 @@ that isn't a judgment of you or your work.
 
 Qualified status is earned through a sustained record. As a rule of thumb, being added to the qualified list requires several
 months of PRs that mostly merge (~75%+) as well as responsive engagement in review.
-Maintainers periodically add such contributors to our list of qualified contributors.
+That record is built through the issue-first path above — accepted issues,
+then PRs that reference them. Maintainers periodically add such contributors
+to our list of qualified contributors.
 
 ## Thanks so much!
 

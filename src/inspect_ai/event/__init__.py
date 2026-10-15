@@ -11,11 +11,13 @@ from ._input import InputEvent
 from ._interrupt import InterruptEvent
 from ._logger import LoggerEvent, LoggingLevel, LoggingMessage
 from ._model import ModelEvent
+from ._review import ReviewEvent
 from ._sample_init import SampleInitEvent
 from ._sample_limit import SampleLimitEvent
 from ._sandbox import SandboxEvent
 from ._score import ScoreEvent
 from ._score_edit import ScoreEditEvent
+from ._sentinel import SentinelAction, SentinelEvent, SentinelSuspicion
 from ._span import SpanBeginEvent, SpanEndEvent
 from ._state import StateEvent
 from ._step import StepEvent
@@ -46,6 +48,10 @@ from ._tree import (
 __all__ = [
     "Event",
     "ApprovalEvent",
+    "ReviewEvent",
+    "SentinelEvent",
+    "SentinelAction",
+    "SentinelSuspicion",
     "AnchorEvent",
     "BranchEvent",
     "ErrorEvent",

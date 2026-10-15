@@ -1,14 +1,14 @@
-"""Harness for the deferred-destination-log crash test.
+"""Harness for the seeded-retry-log crash test.
 
-See ``design/retry-deferred-destination-log.md``. Run as a script::
+See ``design/retry-seeded-attempt-log.md``. Run as a script::
 
     python tests/test_helpers/retry_deferred_log_harness.py <log_dir> <probe_dir>
 
-With ``INSPECT_TEST_KILL_AT_SETTLE=1`` the process ``SIGKILL``s itself the
-moment a retry attempt's reuse sweep settles — the window in which the attempt
-has started but has not yet written its destination log. Running that attempt
-in a child process is what lets the test issue a real, unrecoverable kill
-without taking down pytest.
+With ``INSPECT_TEST_KILL_AT_SEED=1`` the process ``SIGKILL``s itself the
+moment a retry attempt has seeded its log from the prior attempt's log — the
+window in which the attempt has started but has not yet written its
+destination log. Running that attempt in a child process is what lets the
+test issue a real, unrecoverable kill without taking down pytest.
 """
 
 from __future__ import annotations
@@ -16,6 +16,7 @@ from __future__ import annotations
 import os
 import signal
 import sys
+from typing import Any
 
 import anyio
 
@@ -23,22 +24,25 @@ from inspect_ai import Task, eval_set, task
 from inspect_ai.dataset import Sample
 from inspect_ai.solver import TaskState, solver
 
-KILL_AT_SETTLE_ENV = "INSPECT_TEST_KILL_AT_SETTLE"
+KILL_AT_SEED_ENV = "INSPECT_TEST_KILL_AT_SEED"
 
 
-def _kill_at_settle() -> bool:
-    return os.environ.get(KILL_AT_SETTLE_ENV) == "1"
+def _kill_at_seed() -> bool:
+    return os.environ.get(KILL_AT_SEED_ENV) == "1"
 
 
-def install_settle_kill() -> None:
-    """Die at the reuse-sweep settle, before the settle flush writes."""
+def install_seed_kill() -> None:
+    """Die once the retry attempt's log is seeded, before log_start writes it."""
     from inspect_ai._eval.task.log import TaskLogger
 
-    async def kill_at_settle(self: TaskLogger, even_if_empty: bool = False) -> None:
+    original = TaskLogger.seed_from_prior
+
+    async def kill_at_seed(self: TaskLogger, *args: Any, **kwargs: Any) -> None:
+        await original(self, *args, **kwargs)
         os.kill(os.getpid(), signal.SIGKILL)
         await anyio.sleep_forever()  # unreachable; SIGKILL is immediate
 
-    TaskLogger._quiet_settle_flush = kill_at_settle  # type: ignore[method-assign]
+    TaskLogger.seed_from_prior = kill_at_seed  # type: ignore[method-assign]
 
 
 async def _s1_logged_clean(log_dir: str) -> bool:
@@ -74,8 +78,8 @@ def _crash_probe_solver(log_dir: str, probe_dir: str):
                         await anyio.sleep(0.1)
                 open(failed_marker, "w").close()
                 raise ValueError("s2 fails on the first attempt")
-            if _kill_at_settle():
-                # the retry attempt is expected to end by the settle kill,
+            if _kill_at_seed():
+                # the retry attempt is expected to end by the seed kill,
                 # never by finishing this sample. Bounded rather than
                 # sleep_forever so a kill that never lands surfaces as the
                 # test's own assertion (an extra log) instead of a timeout.
@@ -99,8 +103,8 @@ def crash_probe_task(log_dir: str, probe_dir: str) -> Task:
 
 def main() -> None:
     log_dir, probe_dir = sys.argv[1], sys.argv[2]
-    if _kill_at_settle():
-        install_settle_kill()
+    if _kill_at_seed():
+        install_seed_kill()
     eval_set(
         tasks=[crash_probe_task(log_dir, probe_dir)],
         log_dir=log_dir,

@@ -1,7 +1,7 @@
 import json
 from logging import getLogger
 from time import time
-from typing import Any, Iterable, Set, cast
+from typing import Any, Iterable, Sequence, Set, cast
 
 from openai.types.responses import (
     Response,
@@ -27,7 +27,6 @@ from openai.types.responses import (
     ResponseOutputText,
     ResponseToolSearchCall,
     ToolParam,
-    WebSearchToolParam,
 )
 from openai.types.responses import (
     Tool as ResponsesTool,
@@ -60,7 +59,6 @@ from openai.types.responses.response_output_item import (
     McpListTools,
     McpListToolsTool,
 )
-from openai.types.responses.tool_param import CodeInterpreter
 from pydantic import TypeAdapter
 from shortuuid import uuid
 
@@ -74,6 +72,7 @@ from inspect_ai._util.content import (
 )
 from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._util.logger import warn_once
+from inspect_ai.agent._bridge._errors import BridgePolicyError
 from inspect_ai.agent._bridge.types import AgentBridge
 from inspect_ai.model._call_tools import parse_tool_call
 from inspect_ai.model._chat_message import (
@@ -83,16 +82,13 @@ from inspect_ai.model._chat_message import (
     ChatMessageTool,
     ChatMessageUser,
 )
-from inspect_ai.model._generate_config import (
-    GenerateConfig,
-    ResponseSchema,
-)
+from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._internal import (
     CONTENT_INTERNAL_TAG,
     content_internal_tag,
     parse_content_with_internal,
 )
-from inspect_ai.model._model import Model, ModelName
+from inspect_ai.model._model import Model, ModelName, tools_for_tool_choice
 from inspect_ai.model._model_output import StopReason
 from inspect_ai.model._openai_responses import (
     RESPONSES_NAMESPACE,
@@ -128,8 +124,6 @@ from inspect_ai.model._openai_responses import (
     is_response_tool_search_call,
     is_response_web_search_call,
     is_simple_assistant_message,
-    is_tool_choice_function_param,
-    is_tool_choice_mcp_param,
     is_tool_search_output,
     is_tool_search_tool_param,
     is_web_search_tool_param,
@@ -141,6 +135,7 @@ from inspect_ai.model._openai_responses import (
     responses_model_usage,
     to_inspect_citation,
     tool_call_from_openai_tool_search_call,
+    tool_search_output_tools,
     tool_use_to_code_interpreter_param,
     tool_use_to_mcp_call_param,
     tool_use_to_mcp_list_tools_param,
@@ -165,7 +160,7 @@ from inspect_ai.tool._tools._code_execution import (
     CodeExecutionProviders,
     code_execution,
 )
-from inspect_ai.tool._tools._computer._computer import computer
+from inspect_ai.tool._tools._computer._computer import computer, is_computer_tool_info
 from inspect_ai.tool._tools._web_search._web_search import (
     WebSearchProviders,
     web_search,
@@ -176,11 +171,22 @@ from .util import (
     apply_message_ids,
     bridge_generate,
     clear_generation_params,
+    client_json_schema,
+    client_request_object,
+    client_request_string,
+    client_response_schema,
+    client_tool_options,
+    eval_tool_options,
+    narrow_to_false,
     relax_tool_choice_for_withheld,
+    resolve_bridge_model,
     resolve_generate_config,
-    resolve_inspect_model,
+    tool_choice_from_openai_string,
     validate_bridge_media,
+    validate_client_config,
+    warn_ignored_client_setting,
     withheld_bridge_tool,
+    withhold_client_request_settings,
 )
 
 logger = getLogger(__name__)
@@ -203,6 +209,38 @@ def _is_openai_responses_provider(model: Model) -> bool:
     return isinstance(model.api, OpenAIAPI)
 
 
+def _sends_responses_requests(
+    model: Model,
+    tools: Sequence[ToolInfo | Tool],
+    tool_choice: ToolChoice | None,
+    config: GenerateConfig,
+) -> bool:
+    """Whether the resolved model sends this request to the OpenAI Responses API.
+
+    Only those requests carry the fields of a forwarded client `reasoning`
+    object that `GenerateConfig` does not model (e.g. `context`); other
+    providers receive its effort and summary through `GenerateConfig`. The
+    provider decides on the tools `Model.generate()` sends it, so the tool
+    choice narrows them first (`tools_for_tool_choice`).
+    """
+    try:
+        from inspect_ai.model._providers.openai import OpenAIAPI
+        from inspect_ai.model._providers.openai_compatible import OpenAICompatibleAPI
+    except Exception:
+        return False
+    if not isinstance(model.api, OpenAIAPI | OpenAICompatibleAPI):
+        return False
+    tool_infos, _ = tools_for_tool_choice(
+        model.api,
+        [
+            tool if isinstance(tool, ToolInfo) else tool_to_tool_info(tool)
+            for tool in tools
+        ],
+        tool_choice if tool_choice is not None else "auto",
+    )
+    return model.api.uses_responses_api(tool_infos, config)
+
+
 async def inspect_responses_api_request_impl(
     json_data: dict[str, Any],
     headers: dict[str, str] | None,
@@ -210,9 +248,19 @@ async def inspect_responses_api_request_impl(
     code_execution: CodeExecutionProviders | None,
     bridge: AgentBridge,
 ) -> Response:
+    _reject_previous_response_id(json_data)
+
     # resolve model
     bridge_model_name = str(json_data["model"])
-    model = resolve_inspect_model(bridge_model_name, bridge.model_aliases, bridge.model)
+    routing = resolve_bridge_model(
+        bridge_model_name,
+        model_aliases=bridge.model_aliases,
+        model_resolver=bridge.model_resolver,
+        model=bridge.model,
+        allow_client_model_names=bridge.allow_client_model_names,
+        provider="openai",
+    )
+    model = routing.model
     model_name = model.api.model_name
     is_openai = _is_openai_responses_provider(model)
 
@@ -240,13 +288,6 @@ async def inspect_responses_api_request_impl(
                         declared_tool_keys.add(key)
                         responses_tools.append(declared)
 
-    has_computer_use = any(is_computer_tool_param(tool) for tool in responses_tools)
-    if has_computer_use and not is_openai:
-        raise RuntimeError(
-            f"computer use with the OpenAI Responses agent bridge requires an "
-            f"OpenAI model, got '{ModelName(model)}'"
-        )
-
     # convert openai tools to inspect tools (don't pass custom tools on to
     # non openai models as they don't know how to handle them). Track which
     # tool names belong to a namespace so we can restore the `namespace`
@@ -264,13 +305,32 @@ async def inspect_responses_api_request_impl(
             _harvest_tool_namespaces(tool, tool_namespaces)
         tools.extend(
             tools_from_responses_tool(
-                tool, web_search, code_execution, bridge.allow_remote_mcp
+                tool,
+                web_search,
+                code_execution,
+                bridge.allow_remote_mcp,
+                bridge=bridge,
             )
         )
     tools = [tool for tool in tools if tool]
-    responses_tool_choice: ResponsesToolChoiceParam | None = json_data.get(
-        "tool_choice", None
-    )
+
+    # checked on the converted tools, so a computer tool declared inside a
+    # namespace (top-level or in an `additional_tools` item) counts too
+    has_computer_use = _has_native_computer_tool(tools)
+    if has_computer_use and not is_openai:
+        raise RuntimeError(
+            f"computer use with the OpenAI Responses agent bridge requires an "
+            f"OpenAI model, got '{ModelName(model)}'"
+        )
+    if has_computer_use and _eval_responses_store(model) is False:
+        raise BridgePolicyError(
+            "the OpenAI computer tool requires provider-side storage, which this "
+            "eval turns off (store=False); enable it with the responses_store model "
+            "arg to allow computer use through the agent bridge"
+        )
+
+    # client-controlled; validated by tool_choice_from_responses_tool_choice below
+    responses_tool_choice: Any = json_data.get("tool_choice", None)
     tool_choice = relax_tool_choice_for_withheld(
         tool_choice_from_responses_tool_choice(responses_tool_choice), tools
     )
@@ -281,11 +341,15 @@ async def inspect_responses_api_request_impl(
     # top-level `tools` array; they are discovered via tool_search and appear as
     # namespace entries inside tool_search_output items in the conversation.
     # Harvest those too so outgoing function calls carry the right `namespace`.
+    # (As declarations for grant resolution they are read from the generation
+    # input instead, per attempt: `_declarations_in_input` below.)
     if isinstance(input, list):
         for item in input:
             if isinstance(item, dict) and is_tool_search_output(item):
                 for discovered in item.get("tools", []) or []:
-                    if is_namespace_tool_param(discovered):
+                    if isinstance(discovered, dict) and is_namespace_tool_param(
+                        discovered
+                    ):
                         _harvest_tool_namespaces(discovered, tool_namespaces)
 
     debug_log("SCAFFOLD INPUT", input)
@@ -298,6 +362,10 @@ async def inspect_responses_api_request_impl(
     config = generate_config_from_openai_responses(json_data)
     if not bridge.forward_generation_config:
         clear_generation_params(config)
+    withhold_client_request_settings(
+        bridge, config, _eval_request_settings(model, has_computer_use)
+    )
+    validate_client_config(config)
     config.extra_headers = headers
     if config.system_message:
         messages.insert(0, ChatMessageSystem(content=config.system_message))
@@ -309,9 +377,40 @@ async def inspect_responses_api_request_impl(
     # give inspect-level config priority over agent default config
     config = resolve_generate_config(model, config)
 
+    client_reasoning = json_data.get("reasoning", None)
+
+    def with_client_reasoning(
+        model: Model,
+        tools: Sequence[ToolInfo | Tool],
+        tool_choice: ToolChoice | None,
+        config: GenerateConfig,
+    ) -> GenerateConfig:
+        # the Responses provider takes the reasoning fields GenerateConfig does
+        # not model from extra_body (other providers would send them on as they
+        # are); a `reasoning` object in the Inspect model's own extra_body wins
+        if (
+            bridge.forward_generation_config
+            and isinstance(client_reasoning, dict)
+            and _sends_responses_requests(model, tools, tool_choice, config)
+        ):
+            extra_body = {"reasoning": client_reasoning} | (config.extra_body or {})
+            return config.model_copy(update={"extra_body": extra_body})
+        return config
+
     # if there is a bridge filter give it a shot first
     output, c_message = await bridge_generate(
-        bridge, model, messages, tools, tool_choice, config
+        bridge,
+        model,
+        messages,
+        tools,
+        tool_choice,
+        config,
+        requested_model=bridge_model_name,
+        declared_in_input=lambda messages: _declarations_in_input(
+            messages, web_search, code_execution, bridge
+        ),
+        routing=routing,
+        finalize_config=with_client_reasoning,
     )
     if c_message is not None:
         messages.append(c_message)
@@ -339,6 +438,181 @@ async def inspect_responses_api_request_impl(
     debug_log("SCAFFOLD RESPONSE", response)
 
     return response
+
+
+def _reject_previous_response_id(json_data: dict[str, Any]) -> None:
+    """Refuse a request that continues from a stored response.
+
+    The bridge keeps no provider-side response state: it generates from the
+    request's `input` alone, and the response ids it returns are Inspect message
+    ids that the provider never issued. Forwarding the field could only continue
+    from a response this bridge did not produce (one stored at the provider under
+    the eval's credentials), and dropping it would generate without the earlier
+    turns, so the request is refused with a 400.
+    """
+    if json_data.get("previous_response_id", None) is not None:
+        raise BridgePolicyError(
+            "previous_response_id is not supported by the agent bridge; "
+            "send the full conversation in 'input'"
+        )
+
+
+def _has_native_computer_tool(tools: list[ToolInfo | Tool]) -> bool:
+    """Whether the request sends the provider's native computer tool.
+
+    Uses the provider's own test: Inspect's `computer()` tool, unless it is a
+    verbatim function or custom declaration that only shares the name. The
+    provider turns storage on for such a request.
+    """
+    for tool in tools:
+        info = tool if isinstance(tool, ToolInfo) else tool_to_tool_info(tool)
+        if is_computer_tool_info(info) and RESPONSES_VERBATIM not in (
+            info.options or {}
+        ):
+            return True
+    return False
+
+
+def _eval_request_settings(model: Model, has_computer_use: bool) -> dict[str, Any]:
+    """The values the eval's configuration gives the Responses fields the bridge withholds.
+
+    Follows the Responses request builder: the `responses_store` model arg of the
+    OpenAI and OpenAI-compatible providers, and the OpenAI provider's
+    `service_tier` model arg, take precedence over `GenerateConfig.extra_body`.
+    When neither sets a field, `store=False` is sent (or `store=True` for a
+    request with a native computer tool) and `service_tier` and `truncation` stay
+    at the API defaults.
+    """
+    extra_body = resolve_generate_config(model, GenerateConfig()).extra_body or {}
+    service_tier = extra_body.get("service_tier", "auto")
+    try:
+        from inspect_ai.model._providers.openai import OpenAIAPI
+    except ImportError:
+        pass
+    else:
+        if isinstance(model.api, OpenAIAPI):
+            service_tier = model.api.service_tier or service_tier
+    store = _eval_responses_store(model)
+    return {
+        "service_tier": service_tier,
+        "store": store is True or (has_computer_use and store is None),
+        "truncation": extra_body.get("truncation", "disabled"),
+    }
+
+
+def _eval_responses_store(model: Model) -> bool | None:
+    """The storage setting the eval's configuration gives Responses requests, if any.
+
+    The `responses_store` model arg of the OpenAI and OpenAI-compatible providers
+    takes precedence over `store` in `GenerateConfig.extra_body`. `None` means the
+    eval did not set it, in which case the provider sends `store=False` unless the
+    request has a computer tool, which turns storage on.
+    """
+    try:
+        from inspect_ai.model._providers.openai import OpenAIAPI
+        from inspect_ai.model._providers.openai_compatible import OpenAICompatibleAPI
+    except ImportError:
+        pass
+    else:
+        if (
+            isinstance(model.api, (OpenAIAPI, OpenAICompatibleAPI))
+            and model.api.responses_store is not None
+        ):
+            return model.api.responses_store
+    extra_body = resolve_generate_config(model, GenerateConfig()).extra_body or {}
+    store = extra_body.get("store", None)
+    return store if isinstance(store, bool) else None
+
+
+def _declarations_in_input(
+    messages: list[ChatMessage],
+    web_search: WebSearchProviders | None,
+    code_execution: CodeExecutionProviders | None,
+    bridge: AgentBridge,
+) -> list[ToolInfo]:
+    """The tools declared to the model by native `tool_search` results in `messages`.
+
+    `messages_from_responses_input` carries each `tool_search_output` item as a
+    `ChatMessageTool` whose content is the discovered tools as JSON; this reads
+    them back (`_discovered_tool_declarations`). `bridge_generate` calls it on
+    the input of each generation attempt, so the declarations are the ones the
+    model saw after compaction and any filter rewrite, not the request's.
+
+    A result counts as native discovery only when the call it answers is cached
+    as a ``tool_search_call``, the same provenance the Responses encoder uses to
+    replay it as a `tool_search_output` item (the bridge seeds that cache from
+    the inbound item). An ordinary tool's result is never one, however the tool
+    is named, so a function called ``tool_search`` cannot declare a host tool
+    through its output. The discovered tools are exactly the list the encoder
+    replays to the model (`tool_search_output_tools`): validated as a whole, so
+    a result with any invalid entry (a filter's or the scaffold's rewrite)
+    declares nothing, just as the model is then told nothing; no entry is
+    salvaged for grants alone.
+    """
+    cached_calls = assistant_internal().tool_calls
+    declarations: list[ToolInfo] = []
+    for message in messages:
+        if not isinstance(message, ChatMessageTool) or message.error is not None:
+            continue
+        call = cached_calls.get(message.tool_call_id or "")
+        if call is None or call["type"] != "tool_search_call":
+            continue
+        for discovered in tool_search_output_tools(message):
+            declarations.extend(
+                _discovered_tool_declarations(
+                    discovered, web_search, code_execution, bridge
+                )
+            )
+    return declarations
+
+
+def _discovered_tool_declarations(
+    discovered: Any,
+    web_search: WebSearchProviders | None,
+    code_execution: CodeExecutionProviders | None,
+    bridge: AgentBridge,
+) -> list[ToolInfo]:
+    """The declarations a `tool_search_output` entry makes to the model.
+
+    A tool discovered through `tool_search` is declared to the model by this
+    entry rather than by the request's tools array, so the grant resolver must
+    see it too (`_declarations_in_input`, through
+    `bridge_generate(declared_in_input=)`), carrying the served description, the
+    schema and the namespace (`RESPONSES_NAMESPACE`) exactly as a top-level
+    declaration would. Conversion goes through
+    `tools_from_responses_tool`, which needs a schema: entries listed by name
+    only (Codex's deferred ``multi_agent`` tools) declare nothing a call could
+    be matched to and are skipped. Nothing here reaches the model or changes
+    what the scaffold receives.
+    """
+
+    def declarable(entry: Any) -> bool:
+        return isinstance(entry, dict) and "parameters" in entry
+
+    if is_namespace_tool_param(discovered):
+        inner = [
+            {**entry, "description": entry.get("description")}
+            for entry in discovered.get("tools", []) or []
+            if declarable(entry)
+        ]
+        if not inner:
+            return []
+        discovered = {**discovered, "tools": inner}
+    elif declarable(discovered):
+        discovered = {**discovered, "description": discovered.get("description")}
+    else:
+        return []
+    return [
+        tool
+        for tool in tools_from_responses_tool(
+            cast(ToolParam, discovered),
+            web_search,
+            code_execution,
+            bridge.allow_remote_mcp,
+            bridge=bridge,
+        )
+        if isinstance(tool, ToolInfo)
+    ]
 
 
 def _harvest_tool_namespaces(
@@ -408,37 +682,46 @@ def debug_log(caption: str, o: Any) -> None:
 
 
 def tool_choice_from_responses_tool_choice(
-    tool_choice: ResponsesToolChoiceParam | None,
+    tool_choice: Any,
 ) -> ToolChoice | None:
-    inspect_tool_choice: ToolChoice | None = None
-    if tool_choice is not None:
-        if tool_choice == "auto":
-            inspect_tool_choice = tool_choice
-        elif tool_choice == "none":
-            inspect_tool_choice = tool_choice
-        elif tool_choice == "required":
-            inspect_tool_choice = "any"
-        elif is_tool_choice_function_param(tool_choice):
-            inspect_tool_choice = ToolFunction(name=tool_choice["name"])
-        elif is_tool_choice_mcp_param(tool_choice):
-            if tool_choice["name"] is None:
-                raise RuntimeError(
-                    "MCP server tool choice requires 'name' field for agent bridge"
+    # `Any` rather than `ResponsesToolChoiceParam`: the value is client-controlled
+    # JSON, so its shape is guarded before the first subscript for a mistyped
+    # value to 400 rather than escape as a raw `TypeError`/`KeyError`.
+    if tool_choice is None:
+        return None
+    if isinstance(tool_choice, str):
+        return tool_choice_from_openai_string(tool_choice, "tool_choice")
+    tool_choice = client_request_object(tool_choice, "tool_choice")
+    tool_type = client_request_string(tool_choice.get("type", None), "tool_choice.type")
+    match tool_type:
+        case "function":
+            return ToolFunction(
+                name=client_request_string(
+                    tool_choice.get("name", None), "tool_choice.name"
                 )
-            inspect_tool_choice = ToolFunction(name=tool_choice["name"])
-        elif tool_choice.get("type") == "allowed_tools":
-            raise RuntimeError("ToolChoiceAllowedParam not supported by agent bridge")
-        elif tool_choice.get("type") == "custom":
-            raise RuntimeError("ToolChoiceCustomParam not supported by agent bridge")
-        elif "type" in tool_choice:
-            tool_type = str(tool_choice.get("type"))
-            if tool_type in ["web_search_preview", "web_search_preview_2025_03_11"]:
-                tool_type = "web_search"
-            elif tool_type == "code_interpreter":
-                tool_type = "code_execution"
-            inspect_tool_choice = ToolFunction(name=tool_type)
-
-    return inspect_tool_choice
+            )
+        case "mcp":
+            # `name` is optional on the API (any tool on the server) but the
+            # bridge can only force a single named tool.
+            if tool_choice.get("name", None) is None:
+                raise BridgePolicyError(
+                    "invalid request field in bridged request (tool_choice.name: "
+                    "MCP server tool choice requires 'name' for the agent bridge)"
+                )
+            return ToolFunction(
+                name=client_request_string(tool_choice["name"], "tool_choice.name")
+            )
+        case "allowed_tools" | "custom":
+            raise BridgePolicyError(
+                "invalid request field in bridged request (tool_choice.type: "
+                f"{tool_type!r} is not supported by the agent bridge)"
+            )
+        case "web_search_preview" | "web_search_preview_2025_03_11":
+            return ToolFunction(name="web_search")
+        case "code_interpreter":
+            return ToolFunction(name="code_execution")
+        case _:
+            return ToolFunction(name=tool_type)
 
 
 tool_choice_adapter = TypeAdapter[ResponsesToolChoice](ResponsesToolChoice)
@@ -453,12 +736,28 @@ def responses_tool_choice_param_to_tool_choice(
         return tool_choice_adapter.validate_python(tool_choice)
 
 
+_AUTO_CONTAINER = {"type": "auto"}
+"""The code interpreter container the OpenAI provider uses when the eval names none."""
+
+
 def tool_from_responses_tool(
     tool_param: ToolParam,
     web_search_providers: WebSearchProviders | None,
     code_execution_providers: CodeExecutionProviders | None,
     allow_remote_mcp: bool,
+    *,
+    bridge: AgentBridge | None = None,
 ) -> ToolInfo | Tool | None:
+    """Convert a responses ToolParam into an inspect tool, or None to skip it.
+
+    The eval's `web_search` and `code_execution` configuration governs the
+    options of a declared web search or code interpreter tool. The client may
+    set a web search `user_location` or `search_context_size` the eval leaves
+    unset (they shape results without widening what can be searched), and may
+    turn `external_web_access` off. Other differing options are ignored, with a
+    warning once per `bridge`. Without a bridge (a caller that only observes
+    the declarations) the same options are used and nothing is logged.
+    """
     if is_function_tool_param(tool_param):
         # stash the original param so the OpenAI Responses provider can re-emit
         # it verbatim: ToolParams validation is lossy (drops schema extensions
@@ -487,18 +786,37 @@ def tool_from_responses_tool(
         if web_search_providers is None:
             withheld_bridge_tool("web_search")
             return None
-        return web_search(
-            resolve_web_search_providers(tool_param, web_search_providers)
+        openai_options = web_search_providers.get("openai", None)
+        options = eval_tool_options(
+            bridge,
+            "web_search options",
+            client_tool_options(tool_param, "type"),
+            openai_options if isinstance(openai_options, dict) else {},
+            "set them with the bridge's web_search option",
+            defaults={"external_web_access": True},
+            narrowing={"external_web_access": narrow_to_false},
+            client_settable=("user_location", "search_context_size"),
         )
+        if isinstance(openai_options, dict) and options != openai_options:
+            web_search_providers = cast(
+                WebSearchProviders, {**web_search_providers, "openai": options}
+            )
+        return web_search(web_search_providers)
     elif is_code_interpreter_tool_param(tool_param):
         if code_execution_providers is None:
             withheld_bridge_tool("code_interpreter")
             return None
-        return code_execution(
-            providers=resolve_code_interpreter_providers(
-                tool_param, code_execution_providers
-            )
+        openai_options = code_execution_providers.get("openai", None)
+        warn_ignored_client_setting(
+            bridge,
+            "code_interpreter container",
+            tool_param.get("container", None),
+            openai_options.get("container", _AUTO_CONTAINER)
+            if isinstance(openai_options, dict)
+            else _AUTO_CONTAINER,
+            "set it with the bridge's code_execution option",
         )
+        return code_execution(providers=code_execution_providers)
     elif is_computer_tool_param(tool_param):
         return computer()
     elif is_mcp_tool_param(tool_param):
@@ -552,6 +870,8 @@ def tools_from_responses_tool(
     web_search_providers: WebSearchProviders | None,
     code_execution_providers: CodeExecutionProviders | None,
     allow_remote_mcp: bool,
+    *,
+    bridge: AgentBridge | None = None,
 ) -> list[ToolInfo | Tool]:
     """Convert a responses ToolParam into zero or more inspect tools.
 
@@ -573,6 +893,7 @@ def tools_from_responses_tool(
                 web_search_providers,
                 code_execution_providers,
                 allow_remote_mcp,
+                bridge=bridge,
             )
             if inner_tool is not None:
                 # Stash the namespace so openai_responses_tools can re-group
@@ -588,45 +909,13 @@ def tools_from_responses_tool(
                 flattened.append(inner_tool)
         return flattened
     tool = tool_from_responses_tool(
-        tool_param, web_search_providers, code_execution_providers, allow_remote_mcp
+        tool_param,
+        web_search_providers,
+        code_execution_providers,
+        allow_remote_mcp,
+        bridge=bridge,
     )
     return [tool] if tool is not None else []
-
-
-def resolve_code_interpreter_providers(
-    tool_param: CodeInterpreter,
-    code_execution: CodeExecutionProviders,
-) -> CodeExecutionProviders:
-    # pass through openai options if there is no special openai config
-    openai_options = code_execution.get("openai", False)
-    if openai_options is True or (
-        isinstance(openai_options, dict) and len(openai_options) == 0
-    ):
-        code_execution["openai"] = {"container": tool_param["container"]}
-
-    return code_execution
-
-
-def resolve_web_search_providers(
-    tool_param: WebSearchToolParam, web_search: WebSearchProviders
-) -> WebSearchProviders:
-    # pass through openai options if there is no special openai config
-    openai_options = web_search.get("openai", False)
-    if openai_options is True or (
-        isinstance(openai_options, dict) and len(openai_options) == 0
-    ):
-        if "user_location" in tool_param or "search_context_size" in tool_param:
-            # this came from the user in the external scaffold. we want
-            # all the fields except the type as our 'web_search' config
-            tool_param = tool_param.copy()
-            del tool_param["type"]  # type: ignore[misc]
-
-            # this came from the inspect agent_bridge() call. we want
-            # to replace it with whatever the user specified in the scaffold.
-            web_search = web_search.copy()
-            web_search["openai"] = tool_param  # type: ignore[typeddict-item]
-
-    return web_search
 
 
 tool_list_adapter = TypeAdapter(list[ResponsesTool])
@@ -671,21 +960,37 @@ def generate_config_from_openai_responses(json_data: dict[str, Any]) -> Generate
             config.reasoning_effort = reasoning["effort"]
         if "summary" in reasoning:
             config.reasoning_summary = reasoning["summary"]
+        elif "generate_summary" in reasoning:
+            # deprecated name for `summary`
+            config.reasoning_summary = reasoning["generate_summary"]
+        if "mode" in reasoning:
+            config.reasoning_mode = reasoning["mode"]
     config.temperature = json_data.get("temperature", None)
     config.top_p = json_data.get("top_p", None)
 
     # response format
-    text: dict[str, Any] | None = json_data.get("text", None)
+    text = client_request_object(json_data.get("text", None), "text")
     if text is not None:
-        format: dict[str, Any] | None = text.get("format", None)
+        format = client_request_object(text.get("format", None), "text.format")
         if format is not None:
             if format.get("type", None) == "json_schema":
-                config.response_schema = ResponseSchema(
+                config.response_schema = client_response_schema(
                     name=format.get("name", "schema"),
                     description=format.get("description", None),
-                    json_schema=JSONSchema.model_validate(format.get("schema", {})),
+                    json_schema=client_json_schema(
+                        format.get("schema", {}), "text.format.schema"
+                    ),
                     strict=format.get("strict", None),
+                    dialect_field="text.format",
                 )
+
+        # `text.verbosity` has a GenerateConfig slot and the provider already
+        # sends it (`params["text"]["verbosity"]`), but nothing read it off the
+        # request, so a client asking for terse output silently got the model
+        # default.
+        verbosity = text.get("verbosity", None)
+        if verbosity is not None:
+            config.verbosity = verbosity
 
     # extra_body params (i.e. passthrough for native responses)
     extra_body: dict[str, Any] = {}
@@ -1203,7 +1508,7 @@ def responses_output_items_from_assistant_message(
                 output.append(
                     ResponseFunctionWebSearch(
                         type="web_search_call",
-                        id=content.id,
+                        id=content.id or uuid(),
                         action=cast(
                             WebSearchAction,
                             parse_web_search_action(content.arguments),
@@ -1213,6 +1518,7 @@ def responses_output_items_from_assistant_message(
                 )
             elif content.tool_type == "code_execution":
                 code_interpreter_param = tool_use_to_code_interpreter_param(content)
+                code_interpreter_param["id"] = code_interpreter_param["id"] or uuid()
                 output.append(
                     ResponseCodeInterpreterToolCall.model_validate(
                         code_interpreter_param
@@ -1255,16 +1561,28 @@ def responses_output_items_from_assistant_message(
         elif tool_call.type == "custom":
             output.append(
                 ResponseCustomToolCall(
+                    # See note on `id` for function_call below: Responses output
+                    # items need a non-null item id for streaming clients.
+                    id=uuid(),
                     type="custom_tool_call",
                     call_id=tool_call.id,
                     name=tool_call.function,
                     input=next(iter(tool_call.arguments.values())),
+                    namespace=(tool_namespaces or {}).get(tool_call.function),
                 )
             )
         else:
             namespace = (tool_namespaces or {}).get(tool_call.function)
             output.append(
                 ResponseFunctionToolCall(
+                    # A Responses output item must carry a non-null `id` (the
+                    # item id, distinct from `call_id`). Streaming clients such
+                    # as opencode's AI SDK key the emitted tool call on this
+                    # item id; when it is null the tool call is never registered
+                    # and the turn ends with `finish_reason=stop`, so the agent
+                    # stalls after one model call. Match the id convention used
+                    # by the other tool-call item types above.
+                    id=uuid(),
                     type="function_call",
                     call_id=tool_call.id,
                     name=tool_call.function,

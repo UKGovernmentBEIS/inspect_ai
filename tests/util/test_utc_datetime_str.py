@@ -1,7 +1,10 @@
-import pytest
-from pydantic import BaseModel, ValidationError
+from datetime import datetime, time, timedelta, timezone
+from typing import Any
 
-from inspect_ai._util.dateutil import UtcDatetimeStr, iso_now
+import pytest
+from pydantic import BaseModel, TypeAdapter, ValidationError
+
+from inspect_ai._util.dateutil import UtcDatetime, UtcDatetimeStr, UtcTime, iso_now
 
 
 def validate_model(model: BaseModel, input_str: str) -> None:
@@ -35,6 +38,8 @@ def validate_model(model: BaseModel, input_str: str) -> None:
         ("2025-01-24T12:00:00", "2025-01-24T12:00:00+00:00"),
         # Z suffix converts to +00:00
         ("2025-01-24T12:00:00Z", "2025-01-24T12:00:00+00:00"),
+        # Lowercase z suffix converts to +00:00
+        ("2025-01-24T12:00:00z", "2025-01-24T12:00:00+00:00"),
         # Positive offset (UTC+5)
         ("2025-01-24T12:00:00+05:00", "2025-01-24T07:00:00+00:00"),
         # Negative offset (UTC-8)
@@ -53,6 +58,45 @@ def test_timezone_normalization(input_str: str, expected_utc: str) -> None:
     assert m.timestamp == expected_utc
     assert isinstance(m.timestamp, str)
     validate_model(m, input_str)
+
+
+@pytest.mark.parametrize("suffix", ["Z", "z"])
+def test_utc_datetime_z_suffix(suffix: str) -> None:
+    """Should parse a trailing Z or z as UTC."""
+    value = TypeAdapter(UtcDatetime).validate_python(f"2025-04-17T12:00:00{suffix}")
+    assert value == datetime(2025, 4, 17, 12, 0, 0, tzinfo=timezone.utc)
+    assert value.utcoffset() == timedelta(0)
+
+
+@pytest.mark.parametrize("suffix", ["Z", "z"])
+def test_utc_time_z_suffix(suffix: str) -> None:
+    """Should parse a trailing Z or z as UTC."""
+    value = TypeAdapter(UtcTime).validate_python(f"12:00:00{suffix}")
+    assert value == time(12, 0, 0, tzinfo=timezone.utc)
+    assert value.utcoffset() == timedelta(0)
+
+
+def test_datetime_instance_coercion() -> None:
+    """Should convert datetime instances (aware and naive) to UTC ISO string."""
+
+    class Model(BaseModel):
+        timestamp: UtcDatetimeStr
+
+    # Aware UTC datetime
+    dt1: Any = datetime(2025, 1, 24, 12, 0, 0, tzinfo=timezone.utc)
+    m1 = Model(timestamp=dt1)
+    assert m1.timestamp == "2025-01-24T12:00:00+00:00"
+
+    # Aware with offset
+    tz_minus_5 = timezone(timedelta(hours=-5))
+    dt2: Any = datetime(2025, 1, 24, 12, 0, 0, tzinfo=tz_minus_5)
+    m2 = Model(timestamp=dt2)
+    assert m2.timestamp == "2025-01-24T17:00:00+00:00"
+
+    # Naive datetime (treated as UTC)
+    dt3: Any = datetime.fromisoformat("2025-01-24T12:00:00")
+    m3 = Model(timestamp=dt3)
+    assert m3.timestamp == "2025-01-24T12:00:00+00:00"
 
 
 @pytest.mark.parametrize(

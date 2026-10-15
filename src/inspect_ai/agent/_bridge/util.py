@@ -1,10 +1,24 @@
 import inspect
+import json
 import warnings
-from contextlib import contextmanager
+from contextlib import AbstractContextManager, contextmanager, nullcontext
 from contextvars import ContextVar
 from logging import getLogger
-from typing import Iterator, Sequence, cast
+from typing import (
+    Any,
+    Callable,
+    Collection,
+    Iterator,
+    Literal,
+    Mapping,
+    NamedTuple,
+    Sequence,
+    cast,
+)
 
+from pydantic import ValidationError
+from pydantic_core import PydanticSerializationError
+from shortuuid import uuid
 from typing_extensions import TypeIs
 
 from inspect_ai._util.content import (
@@ -12,9 +26,12 @@ from inspect_ai._util.content import (
     ContentAudio,
     ContentDocument,
     ContentImage,
+    ContentReasoning,
     ContentText,
+    ContentToolUse,
     ContentVideo,
 )
+from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai._util.images import materialize_media
 from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._util.logger import warn_once
@@ -22,21 +39,32 @@ from inspect_ai._util.url import data_uri_mime_type, is_data_uri
 from inspect_ai.agent._bridge._approval import (
     MAX_CONSECUTIVE_REJECTIONS,
     apply_bridge_tool_approval,
+    bridge_approval_scope,
     terminate_for_repeated_rejections,
 )
-from inspect_ai.agent._bridge._errors import BridgePolicyError
+from inspect_ai.agent._bridge._errors import BridgePolicyError, ResponseFilterError
 from inspect_ai.agent._bridge.types import AgentBridge, message_json_hash
 from inspect_ai.model._agent_message import validate_agent_message
+from inspect_ai.model._call_tools import get_tools_info
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageUser
-from inspect_ai.model._generate_config import GenerateConfig, active_generate_config
+from inspect_ai.model._generate_config import (
+    GenerateConfig,
+    ResponseSchema,
+    active_generate_config,
+)
 from inspect_ai.model._model import (
     GenerateFilter,
     GenerateInput,
     Model,
     ModelGenerateFilter,
+    ModelName,
+    ModelRefusalError,
+    ModelResolver,
+    ModelResponseFilter,
     active_model,
     get_model,
     model_roles,
+    requested_model,
     use_model_event_sink,
 )
 from inspect_ai.model._model_output import ModelOutput
@@ -48,6 +76,16 @@ from inspect_ai.tool._tools._code_execution import CodeExecutionProviders
 from inspect_ai.tool._tools._web_search._web_search import (
     WebSearchProviders,
     _normalize_config,
+)
+from inspect_ai.util._json import JSONSchema
+from inspect_ai.util._limit import LimitExceededError
+
+from .context import (
+    _UNKNOWN_CONTEXT,
+    _UTILITY_CONTEXT,
+    agent_bridge_context_scope,
+    bridged_request_scope,
+    set_agent_bridge_context,
 )
 
 # Generation-tuning fields a scaffold may set on a bridged request that describe
@@ -73,6 +111,8 @@ _GENERATION_PARAM_FIELDS: tuple[str, ...] = (
     "reasoning_effort",
     "reasoning_tokens",
     "reasoning_summary",
+    "reasoning_mode",
+    "verbosity",
 )
 
 
@@ -85,6 +125,242 @@ def clear_generation_params(config: GenerateConfig) -> None:
     """
     for field in _GENERATION_PARAM_FIELDS:
         setattr(config, field, None)
+
+
+def validate_client_config(config: GenerateConfig) -> None:
+    """Re-validate a config built from a client request, raising on bad values.
+
+    The `generate_config_from_*` extractors assign request values straight onto
+    `GenerateConfig`, and pydantic does not validate on assignment, so a client
+    can put any value into a typed field. That value is legal in memory, is
+    serialized into the `ModelEvent`, and then fails `model_validate` when the
+    event is READ back -- which is not a per-event failure: it aborts the read of
+    the whole sample transcript (`inspect ctl sample events` returns 500, and any
+    log reader hits the same `ValidationError`). One bad request field therefore
+    costs the entire sample's transcript.
+
+    Reachable without any bridge configuration: `stop_seqs` and `seed` are not
+    generation params, so `stop_sequences: 5` or `seed: "x"` poisons the event
+    even when the bridge is dropping generation params. Forwarding them widens it
+    to `effort`, `temperature` and the rest.
+
+    Raising `BridgePolicyError` makes the bridge answer 400, which is what the
+    real provider APIs answer for these values -- so the client sees the same
+    rejection it would have seen unbridged, rather than a 200 whose transcript
+    cannot be read afterwards.
+    """
+    try:
+        GenerateConfig.model_validate(config.model_dump(mode="json", warnings=False))
+    except PydanticSerializationError as ex:
+        # The dump half can fail too, and its escape is worse than a bad value: the
+        # sandbox path logs a traceback and forwards status `None`, the in-process
+        # path raises into the SDK caller. Unreachable from a real JSON body, but the
+        # in-process Anthropic patch merges `options.extra_json` into `json_data`
+        # before SDK serialization, so a scaffold can put a live Python object here.
+        raise BridgePolicyError(
+            f"generation parameter in bridged request is not serializable ({ex})"
+        ) from ex
+    except ValidationError as ex:
+        raise BridgePolicyError(
+            "invalid generation parameter in bridged request "
+            f"({_validation_error_details(ex)})"
+        ) from ex
+
+
+def _validation_error_details(ex: ValidationError, prefix: str = "") -> str:
+    """Render a `ValidationError` as `loc: msg` pairs for a client-facing 400.
+
+    A top-level type failure (e.g. validating a plain string against a model)
+    has an empty `loc`; the path segment (and the prefix's trailing joiner) is
+    omitted then, rather than rendered as a dangling `:` separator.
+    """
+    details: list[str] = []
+    for err in ex.errors():
+        path = (prefix + ".".join(str(p) for p in err["loc"])).rstrip(".")
+        details.append(f"{path}: {err['msg']}" if path else err["msg"])
+    return "; ".join(details)
+
+
+# schema-valued positions `JSONSchema` models, i.e. where a nested schema (or a
+# collection of them) lives rather than arbitrary client JSON. `default`, `enum`
+# and `examples` hold client values that can themselves be objects with
+# schema-looking keys, so they are deliberately not walked.
+_NESTED_SCHEMA_FIELDS = ("items", "additionalProperties")
+_NESTED_SCHEMA_COLLECTIONS = ("properties", "anyOf")
+
+# annotations rather than constraints: dropping them costs the request nothing,
+# and `title` in particular is on every field of a pydantic-generated schema, so
+# reporting it would fire the warning for schemas that lost nothing at all.
+_ANNOTATIVE_SCHEMA_KEYWORDS = frozenset(
+    {"title", "$schema", "$id", "$comment", "deprecated", "readOnly", "writeOnly"}
+)
+
+
+def _unmodelled_schema_keywords(schema: Any) -> set[str]:
+    """Collect keywords in a client schema that `JSONSchema` does not model.
+
+    `JSONSchema` is a pydantic model with the default `extra="ignore"`, so any
+    keyword it lacks a field for is dropped on validation rather than rejected.
+    Walks the nested schema positions `JSONSchema` itself models; keys under
+    `properties` are client-chosen property names rather than keywords, so only
+    their values are inspected. Purely annotative keywords are not reported --
+    only ones whose loss actually weakens what the model is asked for.
+    """
+    if not isinstance(schema, dict):
+        return set()
+
+    dropped = {
+        key
+        for key in schema
+        if key not in JSONSchema.model_fields and key not in _ANNOTATIVE_SCHEMA_KEYWORDS
+    }
+
+    for field in _NESTED_SCHEMA_FIELDS:
+        dropped |= _unmodelled_schema_keywords(schema.get(field))
+    for field in _NESTED_SCHEMA_COLLECTIONS:
+        nested = schema.get(field)
+        values = (
+            nested.values()
+            if isinstance(nested, dict)
+            else nested
+            if isinstance(nested, list)
+            else ()
+        )
+        for value in values:
+            dropped |= _unmodelled_schema_keywords(value)
+
+    return dropped
+
+
+def client_json_schema(
+    schema: Any, dialect_field: str, *, dialect_keywords: frozenset[str] = frozenset()
+) -> JSONSchema:
+    """Parse a client-supplied JSON Schema, answering 400 rather than escaping.
+
+    `schema` is deliberately `Any`, not `dict`: a non-dict client value is
+    in-contract and must reach `model_validate` to produce the 400 -- callers
+    must not pre-enforce dict-ness.
+
+    `JSONSchema.model_validate` raises `ValidationError`, and an uncaught one here
+    is worse than the bad value that caused it: `provider_error_payload` reports
+    `status: None`, which the sandbox service treats as a translation failure --
+    traceback in the log, no status for the client. That is the same unreadable
+    outcome `validate_client_config` exists to prevent, so route it to the same 400.
+
+    Keywords `JSONSchema` does not model are dropped rather than rejected, so the
+    served model is constrained more weakly than the client asked. That is not an
+    edge case: pydantic emits `$defs`/`$ref` for any nested model or enum, and a
+    dropped `$ref` leaves the property an empty schema (`{}`) while it stays
+    `required`. Dropping beats a 400 here -- the real API accepts these keywords,
+    so rejecting would be a regression against talking to it unbridged -- but the
+    warning is what makes it diagnosable, since the client otherwise just sees a
+    response that fails its own validation.
+
+    Pass `dialect_keywords` when the input is not standard JSON Schema (e.g.
+    Gemini's OpenAPI-style `responseSchema`): keywords native to that dialect
+    appear on routine requests, so a JSON Schema-phrased warning about them
+    would misread the request as degraded. Keywords outside the set still warn
+    -- a dropped constraint the dialect shares with JSON Schema (e.g.
+    `minItems`) weakens the request just as much there.
+    """
+    if dropped := _unmodelled_schema_keywords(schema) - dialect_keywords:
+        warn_once(
+            logger,
+            f"The bridged request's {dialect_field} uses JSON Schema keywords "
+            f"Inspect does not model ({', '.join(sorted(dropped))}); they have "
+            "been dropped, so the model is constrained more weakly than the "
+            "request asked. A dropped '$ref' in particular leaves that property "
+            "unconstrained.",
+        )
+    try:
+        return JSONSchema.model_validate(schema)
+    except ValidationError as ex:
+        raise BridgePolicyError(
+            "invalid response schema in bridged request "
+            f"({dialect_field}: {_validation_error_details(ex)})"
+        ) from ex
+
+
+def client_response_schema(
+    *,
+    name: Any,
+    json_schema: JSONSchema,
+    dialect_field: str,
+    description: Any = None,
+    strict: Any = None,
+) -> ResponseSchema:
+    """Construct a `ResponseSchema` from client-supplied fields, answering 400.
+
+    `ResponseSchema` validates on construction, so a non-string `name` or
+    `description` (or a non-bool `strict`) read straight off the client request
+    escapes as a raw `ValidationError` -- the same status-less failure
+    `client_json_schema` exists to prevent for the sibling `schema` field. Route
+    it to the same 400 the real API answers.
+    """
+    try:
+        return ResponseSchema(
+            name=name, json_schema=json_schema, description=description, strict=strict
+        )
+    except ValidationError as ex:
+        raise BridgePolicyError(
+            "invalid response schema in bridged request "
+            f"({_validation_error_details(ex, f'{dialect_field}.')})"
+        ) from ex
+
+
+def client_request_object(value: Any, dialect_field: str) -> dict[str, Any] | None:
+    """Require a client request field to be a JSON object (or absent).
+
+    A non-dict container dereferenced with `.get` escapes as a raw
+    `AttributeError` -- the same status-less failure `client_json_schema`
+    prevents for the leaf values inside it -- so answer the 400 the real APIs
+    give for a mistyped container.
+    """
+    if value is None or isinstance(value, dict):
+        return value
+    raise BridgePolicyError(
+        f"invalid request field in bridged request ({dialect_field}: input "
+        f"should be an object, got {type(value).__name__})"
+    )
+
+
+def client_request_string(value: Any, dialect_field: str) -> str:
+    """Require a client request field to be a string.
+
+    Guards leaf values that feed unvalidated dataclasses such as `ToolFunction`:
+    a non-string tool name is legal in memory, serializes into the `ModelEvent`,
+    and then fails transcript read-back for the whole sample (a failure
+    `validate_client_config` cannot backstop, since `tool_choice` is not on
+    `GenerateConfig`). A missing one used to escape as a status-less `KeyError`.
+    Answer the 400 the real APIs give instead.
+    """
+    if isinstance(value, str):
+        return value
+    raise BridgePolicyError(
+        f"invalid request field in bridged request ({dialect_field}: input "
+        f"should be a string, got {type(value).__name__})"
+    )
+
+
+def tool_choice_from_openai_string(value: str, dialect_field: str) -> ToolChoice:
+    """Map an OpenAI string-form `tool_choice` (`auto`/`none`/`required`) to Inspect's.
+
+    Shared by the Chat Completions and Responses dialects, which accept the same
+    string set, so the accepted values and the 400 wording cannot drift apart.
+    Callers handle the object form; any other string answers 400.
+    """
+    match value:
+        case "auto":
+            return "auto"
+        case "none":
+            return "none"
+        case "required":
+            return "any"
+        case invalid:
+            raise BridgePolicyError(
+                f"invalid request field in bridged request ({dialect_field}: expected "
+                f"one of 'auto', 'none', 'required' or an object, got {invalid!r})"
+            )
 
 
 _bridge_model_generate: ContextVar[bool] = ContextVar(
@@ -128,34 +404,213 @@ def in_bridge_model_generate() -> bool:
     return _bridge_model_generate.get()
 
 
-_filter_type_cache: dict[int, bool] = {}
-
-
 def _is_model_filter(fn: GenerateFilter) -> TypeIs[ModelGenerateFilter]:
     """True when *fn* accepts a ``Model`` as its first parameter (new-style).
 
-    Returns ``False`` for legacy filters whose first parameter is ``str``.
-    Caches per object id so ``inspect.signature`` is called at most once.
-    Emits a deprecation warning the first time a legacy filter is detected.
+    Returns ``False`` for legacy filters whose first parameter is ``str``, and
+    emits a deprecation warning for them. Not cached by ``id(fn)``: a freed
+    filter's id can be reused by a filter of the other style.
     """
-    key = id(fn)
-    result = _filter_type_cache.get(key)
-    if result is None:
-        sig = inspect.signature(fn)  # type: ignore[arg-type]
-        first = next(iter(sig.parameters.values()), None)
-        if first is not None and first.annotation is str:
-            result = False
-            warnings.warn(
-                "GenerateFilter with 'str' as the first parameter is "
-                "deprecated. Update your filter to accept a 'Model' "
-                "instance instead.",
-                DeprecationWarning,
-                stacklevel=2,
+    sig = inspect.signature(fn)  # type: ignore[arg-type]
+    first = next(iter(sig.parameters.values()), None)
+    if first is not None and first.annotation is str:
+        warnings.warn(
+            "GenerateFilter with 'str' as the first parameter is "
+            "deprecated. Update your filter to accept a 'Model' "
+            "instance instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return False
+    return True
+
+
+async def _apply_response_filter(
+    response_filter: ModelResponseFilter,
+    model: Model,
+    output: ModelOutput,
+    generate_input: GenerateInput,
+) -> ModelOutput:
+    """Apply `response_filter` under the `ModelResponseFilter` contract.
+
+    The copy is taken before the `try`, so a failure copying the output is not
+    blamed on the filter. A returned output is re-validated because its models do
+    not validate assignment, so values edited in place are otherwise unchecked.
+
+    Exceptions are classified after unwrapping by hand, not with `inner_exception`,
+    which follows `__context__` and can pick the exception already being handled.
+    A group of only limits, terminations and refusals (e.g. concurrent judges
+    through `collect()`) counts as its first. A group mixing them with any other
+    exception is a filter failure. Single-exception groups are unwrapped first only
+    so that the `ResponseFilterError` message names the underlying exception.
+
+    Only tool calls the filter changed have their arguments checked for JSON: a
+    provider's own arguments (e.g. `parse_tool_call`'s YAML fallback yields dates)
+    are not the filter's to answer for.
+    """
+    candidate = output.model_copy(deep=True)
+    try:
+        filtered = await response_filter(model, candidate, generate_input)
+    except Exception as ex:
+        control_flow = (LimitExceededError, TerminateSampleError, ModelRefusalError)
+        inner: Exception = ex
+        while isinstance(inner, ExceptionGroup) and len(inner.exceptions) == 1:
+            inner = inner.exceptions[0]
+        if isinstance(inner, ExceptionGroup):
+            control, rest = inner.split(control_flow)
+            if control is not None and rest is None:
+                inner = control
+                while isinstance(inner, ExceptionGroup):
+                    inner = inner.exceptions[0]
+        if isinstance(inner, control_flow):
+            raise inner
+        raise ResponseFilterError(f"{type(inner).__name__}: {inner}") from ex
+    if filtered is None:
+        return output
+    if not isinstance(filtered, ModelOutput):
+        raise ResponseFilterError(
+            f"response_filter returned {type(filtered).__name__}, "
+            "expected a ModelOutput or None"
+        )
+    try:
+        # completion is excluded so validation re-derives it from the message
+        filtered = ModelOutput.model_validate(
+            filtered.model_dump(exclude={"completion"}, warnings=False)
+        )
+    except ValidationError as ex:
+        raise ResponseFilterError(
+            "response_filter returned an invalid ModelOutput: "
+            f"{_validation_error_details(ex)}"
+        ) from ex
+    original_arguments = {
+        call.id: call.arguments
+        for choice in output.choices
+        for call in choice.message.tool_calls or []
+    }
+    try:
+        # the one Any-typed field the dialect converters json.dumps
+        for choice in filtered.choices:
+            for call in choice.message.tool_calls or []:
+                if original_arguments.get(call.id) != call.arguments:
+                    json.dumps(call.arguments)
+    except (TypeError, ValueError, RecursionError) as ex:
+        raise ResponseFilterError(
+            "response_filter returned tool call arguments that are not "
+            f"JSON-serializable: {ex}"
+        ) from ex
+    if not filtered.choices:
+        raise ResponseFilterError(
+            "response_filter returned a ModelOutput with no choices"
+        )
+    _check_provider_owned_content(output, filtered)
+    _settle_message_ids(output, filtered)
+    return filtered
+
+
+def _settle_message_ids(original: ModelOutput, filtered: ModelOutput) -> None:
+    """Set the ids of returned messages so id-keyed replay state matches them.
+
+    Dialects key some replay state by message id. Anthropic records server work
+    still pending at the end of a turn (and the container to resume it) under the
+    message id; work with no content item yet is invisible to the filter. Server
+    tool items are kept all or none (`_check_provider_owned_content`), so a
+    message that keeps them takes the id of the message they came from, whatever
+    id the filter gave it, and keeps that work. A changed message that keeps none
+    gets a new id if it still has an original one, and drops the work.
+    Content-keyed replay state (kept server tool items, signed thinking) does not
+    depend on the message id.
+    """
+    owners = {
+        content.id: choice.message.id
+        for choice in original.choices
+        if isinstance(choice.message.content, list)
+        for content in choice.message.content
+        if isinstance(content, ContentToolUse)
+    }
+    original_messages = [choice.message for choice in original.choices]
+    original_ids = {message.id for message in original_messages if message.id}
+    for choice in filtered.choices:
+        message = choice.message
+        kept_owners = (
+            {
+                owners[content.id]
+                for content in message.content
+                if isinstance(content, ContentToolUse)
+            }
+            if isinstance(message.content, list)
+            else set()
+        )
+        if len(kept_owners) > 1:
+            raise ResponseFilterError(
+                "response_filter combined server tool items from different "
+                "choices in one message"
             )
-        else:
-            result = True
-        _filter_type_cache[key] = result
-    return result
+        if kept_owners:
+            owner = next(iter(kept_owners))
+            if owner is not None:
+                message.id = owner
+        elif message.id in original_ids and message not in original_messages:
+            message.id = uuid()
+
+
+def _check_provider_owned_content(original: ModelOutput, filtered: ModelOutput) -> None:
+    """Reject edits a dialect would silently undo when rendering for the agent.
+
+    Dialects replay provider artifacts by identity rather than from the edited
+    values: Anthropic replays signed thinking by its `reasoning`, server tool
+    blocks as whole recorded spans (a span can cover several `ContentToolUse`
+    items), and a native tool's wire name by its call id. So reasoning and server
+    tool items may only be kept unchanged or removed, server tool items are kept
+    all or none, and a call keeping an original id keeps its function.
+    """
+    original_content = [
+        content
+        for choice in original.choices
+        if isinstance(choice.message.content, list)
+        for content in choice.message.content
+    ]
+    original_tool_uses = {
+        c.id: c for c in original_content if isinstance(c, ContentToolUse)
+    }
+    original_reasoning = [
+        c for c in original_content if isinstance(c, ContentReasoning)
+    ]
+    original_functions = {
+        call.id: call.function
+        for choice in original.choices
+        for call in choice.message.tool_calls or []
+    }
+    kept_tool_uses: set[str] = set()
+    for choice in filtered.choices:
+        for call in choice.message.tool_calls or []:
+            function = original_functions.get(call.id)
+            if function is not None and call.function != function:
+                raise ResponseFilterError(
+                    f"response_filter changed the function of tool call '{call.id}' "
+                    f"from '{function}' to '{call.function}'; give a call to a "
+                    "different function a new id"
+                )
+        if not isinstance(choice.message.content, list):
+            continue
+        for content in choice.message.content:
+            if isinstance(content, ContentToolUse):
+                if original_tool_uses.get(content.id) != content:
+                    raise ResponseFilterError(
+                        f"response_filter edited or added server tool use '{content.id}'; "
+                        "server tool items can only be kept unchanged or removed"
+                    )
+                kept_tool_uses.add(content.id)
+            elif isinstance(content, ContentReasoning):
+                if content not in original_reasoning:
+                    raise ResponseFilterError(
+                        "response_filter edited or added reasoning content; "
+                        "reasoning can only be kept unchanged or removed"
+                    )
+    if kept_tool_uses and kept_tool_uses != original_tool_uses.keys():
+        raise ResponseFilterError(
+            "response_filter removed some server tool items but kept others; "
+            "keep all of them or none"
+        )
 
 
 def _operator_message_key(message: ChatMessageUser) -> str:
@@ -232,6 +687,135 @@ def _restore_operator_message_source(
         bridge._pending_operator = 0
 
 
+def _routing_context(
+    routing: "BridgeModelResolution | None",
+) -> AbstractContextManager[None]:
+    # a fresh context manager per attempt: a @contextmanager object is single-use
+    return requested_model(routing.requested) if routing else nullcontext()
+
+
+def withhold_client_request_settings(
+    bridge: AgentBridge, config: GenerateConfig, eval_values: dict[str, Any]
+) -> None:
+    """Remove the request fields the eval's configuration governs (in place).
+
+    These fields change billing, provider-side storage or context truncation, so
+    they are the eval author's decision, not the bridged agent's. `eval_values`
+    maps each such field of the client's API to the value the eval's
+    configuration gives it. The
+    fields are removed from `config.extra_body`, so the eval's `GenerateConfig` or
+    the provider's model args govern them. A client value that differs from the
+    eval's is logged once per field per bridge, since the client cannot otherwise
+    tell that it was ignored.
+    """
+    if config.extra_body is None:
+        return
+    for field, eval_value in eval_values.items():
+        warn_ignored_client_setting(
+            bridge,
+            field,
+            config.extra_body.pop(field, None),
+            eval_value,
+            "set it with GenerateConfig extra_body or a provider model arg",
+        )
+    if not config.extra_body:
+        config.extra_body = None
+
+
+def warn_ignored_client_setting(
+    bridge: AgentBridge | None,
+    setting: str,
+    client_value: Any,
+    eval_value: Any,
+    how_to_set: str,
+) -> None:
+    """Warn, once per setting per bridge, that the client's value was ignored.
+
+    Nothing is logged when the client sent no value or the eval's value is the
+    same, or when there is no bridge (a caller converting declarations it only
+    observes). `how_to_set` tells the eval author where the setting is
+    configured.
+    """
+    if (
+        bridge is None
+        or client_value is None
+        or client_value == eval_value
+        or setting in bridge._warned_request_settings
+    ):
+        return
+    bridge._warned_request_settings.add(setting)
+    logger.warning(
+        f"The agent bridge ignored the agent's {setting}={client_value!r}: "
+        f"the eval's configuration governs {setting} ({how_to_set})."
+    )
+
+
+def client_tool_options(tool_param: Mapping[str, Any], *keys: str) -> dict[str, Any]:
+    """The options a client set on a provider tool declaration, without `keys`."""
+    return {
+        key: value
+        for key, value in tool_param.items()
+        if key not in keys and value is not None
+    }
+
+
+ToolOptionNarrowing = Callable[[Any, Any], Any]
+"""Given the eval's value (or `None`) and the client's, the narrower value, or `None`."""
+
+
+def eval_tool_options(
+    bridge: AgentBridge | None,
+    setting: str,
+    client_options: dict[str, Any],
+    eval_options: dict[str, Any],
+    how_to_set: str,
+    defaults: Mapping[str, Any] | None = None,
+    narrowing: Mapping[str, ToolOptionNarrowing] | None = None,
+    client_settable: Collection[str] = (),
+) -> dict[str, Any]:
+    """The options to use for a provider tool the client declared.
+
+    The eval's options govern. A client option is applied only when the eval
+    leaves it unset and it is in `client_settable` (options that shape results
+    without widening what the tool may reach), or when a `narrowing` for it
+    yields a value, which it does only when the client asks for less than the
+    eval allows (fewer searches, no live web access). Every other client option
+    that differs from the eval's value, or from the provider default in
+    `defaults` when the eval sets none, is ignored and warned about once per
+    bridge (`warn_ignored_client_setting`).
+    """
+    options = dict(eval_options)
+    ignored: dict[str, Any] = {}
+    for key, value in client_options.items():
+        current = options.get(key, (defaults or {}).get(key, None))
+        if value == current:
+            continue
+        if key in client_settable and key not in eval_options:
+            options[key] = value
+            continue
+        narrow = (narrowing or {}).get(key, None)
+        narrowed = narrow(current, value) if narrow is not None else None
+        if narrowed is not None:
+            options[key] = narrowed
+        else:
+            ignored[key] = value
+    warn_ignored_client_setting(bridge, setting, ignored or None, {}, how_to_set)
+    return options
+
+
+def narrow_max_uses(current: Any, value: Any) -> Any:
+    """A client's lower cap on tool uses (Anthropic `max_uses`)."""
+    if isinstance(value, int) and not isinstance(value, bool) and value > 0:
+        if current is None or (isinstance(current, int) and value < current):
+            return value
+    return None
+
+
+def narrow_to_false(current: Any, value: Any) -> Any:
+    """A client turning an enabled option off (OpenAI `external_web_access`)."""
+    return False if value is False and current is not False else None
+
+
 async def bridge_generate(
     bridge: AgentBridge,
     model: Model,
@@ -239,20 +823,87 @@ async def bridge_generate(
     tools: Sequence[ToolInfo | Tool],
     tool_choice: ToolChoice | None,
     config: GenerateConfig,
+    requested_model: str | None,
+    declared_in_input: Callable[[list[ChatMessage]], Sequence[ToolInfo]] | None = None,
+    *,
+    routing: "BridgeModelResolution | None" = None,
+    finalize_config: Callable[
+        [Model, Sequence[ToolInfo | Tool], ToolChoice | None, GenerateConfig],
+        GenerateConfig,
+    ]
+    | None = None,
 ) -> tuple[ModelOutput, ChatMessageUser | None]:
     """Generate model output through the agent bridge.
+
+    `declared_in_input` extracts the tools a scaffold declared to the model inside
+    the conversation rather than the request's tools array (Responses tools
+    discovered through `tool_search`, which the model sees in a
+    `tool_search_output` result). It is applied to the input the model actually
+    generated from on each attempt, after compaction and any filter rewrite, so a
+    declaration the filter removed cannot authorize a host call and one it added
+    can; the result takes part only in resolving execution grants and is never
+    sent to the model.
 
     If a filter is configured, it will be called on each attempt (including retries).
     The filter can either return a ModelOutput directly or modify the generation inputs.
     Refusals (stop_reason="content_filter") from either the filter or model will trigger
     retries up to bridge.retry_refusals times, with inputs reset to original values for
-    each retry to ensure clean state.
+    each retry to ensure clean state. A `response_filter`, if configured, runs on each
+    attempt's output before that refusal check (see `_apply_response_filter`).
+
+    The entire call executes within a `bridged_request_scope`: the ambient
+    `AgentBridgeContext` defaults to unknown, `current_bridge_request()` carries
+    `requested_model` (the scaffold's pre-alias-resolution model slug), or
+    returns None when the scaffold sent no model, and both reset when the
+    request completes.
 
     Tool calls in the output are approved before it is handed back to the scaffold. A
     rejected call is not edited out of the response — instead the model is told it was
     rejected and generation is retried, so the scaffold sees only the replacement (see
     `_approval.apply_bridge_tool_approval`).
+
+    `routing` is how the dialect resolved `model`. Its requested name is recorded
+    on the `ModelEvent` of the client's request (whether the filter or the default
+    generation makes it), and a redirect is warned about once per name. Compaction
+    and approval calls are not the client's request and are not labelled.
+
+    `finalize_config` adjusts the config of the bridge's own generation call for
+    the model, tools, tool choice and config it is made with, after any filter
+    rewrite. It is not applied to a generation the filter makes itself.
     """
+    if routing is not None and routing.redirected:
+        _warn_redirect(routing, bridge.model)
+
+    with bridged_request_scope(requested_model):
+        return await _bridge_generate_impl(
+            bridge,
+            model,
+            input,
+            tools,
+            tool_choice,
+            config,
+            declared_in_input,
+            routing,
+            finalize_config,
+        )
+
+
+async def _bridge_generate_impl(
+    bridge: AgentBridge,
+    model: Model,
+    input: list[ChatMessage],
+    tools: Sequence[ToolInfo | Tool],
+    tool_choice: ToolChoice | None,
+    config: GenerateConfig,
+    declared_in_input: Callable[[list[ChatMessage]], Sequence[ToolInfo]] | None,
+    routing: "BridgeModelResolution | None",
+    finalize_config: Callable[
+        [Model, Sequence[ToolInfo | Tool], ToolChoice | None, GenerateConfig],
+        GenerateConfig,
+    ]
+    | None,
+) -> tuple[ModelOutput, ChatMessageUser | None]:
+    """Implementation of bridge_generate (see wrapper)."""
     # restore operator provenance lost to a bridged scaffold's round-trip (e.g.
     # claude_code re-emits an operator message as a plain user message). Done
     # before compaction/recording so the restored source persists in both the
@@ -262,7 +913,11 @@ async def bridge_generate(
     # get compaction function and run compaction once before retry loop
     compact = bridge.compaction(tools, model)
     if compact is not None:
-        input_messages, c_message = await compact.compact_input(input)
+        # compaction is the canonical "utility" kind — its own model.generate
+        # call (e.g. a summarization strategy) should read as utility rather
+        # than the ambient default.
+        with agent_bridge_context_scope(_UTILITY_CONTEXT):
+            input_messages, c_message = await compact.compact_input(input)
     else:
         input_messages = input
         c_message = None
@@ -276,70 +931,137 @@ async def bridge_generate(
     refusals = 0
     rejections = 0
     while True:
+        # Re-stamp the ambient context to the default so a filter-set context
+        # from a refused attempt doesn't leak into the next retry — attempt
+        # N+1 starts clean, same as attempt 1.
+        set_agent_bridge_context(_UNKNOWN_CONTEXT)
+
         # Reset to original inputs for each retry
         input_messages = original_input
         tools = original_tools
         tool_choice = original_tool_choice
         config = original_config
 
-        # Apply filter if we have it (can either return output or alternate inputs)
-        output: ModelOutput | None = None
-        if bridge.filter:
-            # tool_to_tool_info (via ToolDef) preserves `options` — including
-            # the INTERNAL_TOOL_TYPE marker — so the filter sees the same
-            # ToolInfo the model provider would. parse_tool_info re-derives
-            # from the function signature and drops options.
-            tool_info = [
-                tool_to_tool_info(tool) if not isinstance(tool, ToolInfo) else tool
-                for tool in tools
-            ]
-            if _is_model_filter(bridge.filter):
-                result = await bridge.filter(
-                    model, input_messages, tool_info, tool_choice, config
-                )
-            else:
-                result = await bridge.filter(
-                    model.name, input_messages, tool_info, tool_choice, config
-                )
-            if isinstance(result, ModelOutput):
-                output = result
-            elif isinstance(result, GenerateInput):
-                # Update the inputs that will be used for generation
-                input_messages, tools, tool_choice, config = result
+        with _routing_context(routing):
+            # Apply filter if we have it (can either return output or alternate inputs)
+            output: ModelOutput | None = None
+            if bridge.filter:
+                # get_tools_info (via ToolDef) preserves `options` — including the
+                # INTERNAL_TOOL_TYPE marker — so the filter sees the same ToolInfo
+                # the model provider would. parse_tool_info re-derives from the
+                # function signature and drops options.
+                tool_info = get_tools_info(tools)
+                # under the bridge's approval policies, as a filter may generate
+                with bridge_approval_scope(bridge.approval):
+                    try:
+                        if _is_model_filter(bridge.filter):
+                            result = await bridge.filter(
+                                model, input_messages, tool_info, tool_choice, config
+                            )
+                        else:
+                            result = await bridge.filter(
+                                model.name,
+                                input_messages,
+                                tool_info,
+                                tool_choice,
+                                config,
+                            )
+                    except ModelRefusalError as ex:
+                        # a filter may generate itself; its refusal reaches the
+                        # response filter as the default generation's does
+                        if bridge.response_filter is None:
+                            raise
+                        result = ex.output
+                if isinstance(result, ModelOutput):
+                    output = result
+                elif isinstance(result, GenerateInput):
+                    # Update the inputs that will be used for generation
+                    input_messages, tools, tool_choice, config = result
 
-        # Run the generation if the filter didn't. If the bridge has a
-        # model_event_sink installed, route ModelEvent emissions through it
-        # (instead of going straight to the transcript) so the caller can
-        # control when / under which span events appear.
-        if output is None:
-            with bridge_model_generate(), use_model_event_sink(bridge.model_event_sink):
-                output = await model.generate(
-                    input=input_messages,
-                    tool_choice=tool_choice,
-                    tools=tools,
-                    config=config,
-                )
+            # Run the generation if the filter didn't. If the bridge has a
+            # model_event_sink installed, route ModelEvent emissions through it
+            # (instead of going straight to the transcript) so the caller can
+            # control when / under which span events appear.
+            if output is None:
+                # under the bridge's approval policies, so remote MCP servers are refused
+                with (
+                    bridge_model_generate(),
+                    use_model_event_sink(bridge.model_event_sink),
+                    bridge_approval_scope(bridge.approval),
+                ):
+                    # with fail_on_refusal set a refusal raises rather than
+                    # returning; it still gets its retries, the last one propagates.
+                    # A response filter still gets the refused output, and the
+                    # refusal check below then retries or raises.
+                    try:
+                        output = await model.generate(
+                            input=input_messages,
+                            tool_choice=tool_choice,
+                            tools=tools,
+                            config=finalize_config(model, tools, tool_choice, config)
+                            if finalize_config is not None
+                            else config,
+                        )
+                    except ModelRefusalError as ex:
+                        if bridge.response_filter is not None:
+                            output = ex.output
+                        elif (
+                            bridge.retry_refusals is not None
+                            and refusals < bridge.retry_refusals
+                        ):
+                            refusals += 1
+                            continue
+                        else:
+                            raise
 
-        # Update the compaction baseline with the actual input token
-        # count from the generate call (most accurate source of truth)
+        # Update the compaction baseline with the actual input token count
+        # from the generate call (most accurate source of truth). Record it
+        # before the response filter: a replacement (e.g.
+        # `ModelOutput.from_content()`) may carry no usage.
         if compact is not None:
             await compact.record_output(input_messages, output)
 
+        # Inside the refusal-retry loop so a content_filter replacement is retried.
+        if bridge.response_filter is not None:
+            # under the bridge's approval policies, as a filter may generate
+            with bridge_approval_scope(bridge.approval):
+                output = await _apply_response_filter(
+                    bridge.response_filter,
+                    model,
+                    output,
+                    GenerateInput(
+                        input_messages, get_tools_info(tools), tool_choice, config
+                    ),
+                )
+
         # Check for refusal and retry if needed
-        if (
-            output.stop_reason == "content_filter"
-            and bridge.retry_refusals is not None
-            and refusals < bridge.retry_refusals
-        ):
-            refusals += 1
-            continue
+        if not output.empty and output.stop_reason == "content_filter":
+            if bridge.retry_refusals is not None and refusals < bridge.retry_refusals:
+                refusals += 1
+                continue
+            # a refusal from a filter, or one a response filter kept, did not
+            # raise from model.generate(), so fail_on_refusal is applied here
+            if model._resolve_config(config).fail_on_refusal:
+                raise ModelRefusalError(output, str(model), model.role)
 
         # Approve the tool calls the scaffold is about to run. A rejection comes back
         # as the messages to replay to the model (the rejected call plus a result for
         # every call in the response) so it can propose something else; the scaffold
-        # never sees the rejected response.
-        reviewed = await apply_bridge_tool_approval(bridge, output, input_messages)
+        # never sees the rejected response. The calls in the response handed over
+        # are the only ones the scaffold may run as host tools, once each; they
+        # resolve against the declarations this attempt generated with (tools and
+        # in-input declarations alike), which a filter may have rewritten. Approval
+        # review is "utility" work — an approver's own model calls should read as
+        # utility, not as the agent whose calls are under review.
+        with agent_bridge_context_scope(_UTILITY_CONTEXT):
+            reviewed = await apply_bridge_tool_approval(bridge, output, input_messages)
         if reviewed.rejection is None:
+            declarations: list[ToolInfo | Tool] = list(tools)
+            if declared_in_input is not None:
+                declarations.extend(declared_in_input(input_messages))
+            bridge.register_tool_execution_grants(
+                reviewed.output.message.tool_calls or [], declarations
+            )
             return reviewed.output, c_message
 
         rejections += 1
@@ -357,42 +1079,252 @@ def resolve_generate_config(
     # give config built into the model instance priority over
     # bridged agent default
     config = bridge_config.merge(model.config)
+    extra_headers = merge_extra_headers(
+        bridge_config.extra_headers, model.config.extra_headers
+    )
 
     # apply active model config if appropriate
-    is_active_model = model == active_model()
+    is_active_model = model is active_model()
     if is_active_model:
-        config = config.merge(active_generate_config())
+        active_config = active_generate_config()
+        config = config.merge(active_config)
+        extra_headers = merge_extra_headers(extra_headers, active_config.extra_headers)
 
+    config.extra_headers = extra_headers
     return config
+
+
+def merge_extra_headers(
+    client_headers: dict[str, str] | None, headers: dict[str, str] | None
+) -> dict[str, str] | None:
+    """Merge model or eval `extra_headers` over the headers a bridged client sent.
+
+    `GenerateConfig.merge` replaces `extra_headers` whole, which would drop every
+    forwarded client header whenever the model or eval sets any. Here names are
+    matched case-insensitively and `headers` wins on the same name, except that
+    `anthropic-beta` lists are combined.
+    """
+    if not client_headers:
+        return dict(headers) if headers else None
+    merged = dict(client_headers)
+    for name, value in (headers or {}).items():
+        existing = [key for key in merged if key.lower() == name.lower()]
+        if name.lower() == "anthropic-beta":
+            betas = [beta for key in existing for beta in merged[key].split(",")]
+            betas.extend(value.split(","))
+            value = ",".join(dict.fromkeys(b.strip() for b in betas if b.strip()))
+        for key in existing:
+            del merged[key]
+        merged[name] = value
+    return merged
+
+
+BridgeModelRoute = Literal[
+    "alias", "resolver", "inspect", "model", "active", "role", "passthrough", "default"
+]
+"""How the bridge chose the model for a request ("role" and "passthrough" only
+with `allow_client_model_names`)."""
+
+
+class BridgeModelResolution(NamedTuple):
+    """The model a bridged request is served by, and how it was chosen."""
+
+    model: Model
+    """Model that serves the request."""
+
+    route: BridgeModelRoute
+    """Resolution step that chose `model`."""
+
+    requested: str
+    """Model name the client requested."""
+
+    redirected: bool
+    """Whether `model` is not the model the requested name denotes."""
+
+
+def resolve_bridge_model(
+    requested: str,
+    *,
+    model_aliases: dict[str, str | Model] | None,
+    model_resolver: ModelResolver | None,
+    model: str | None,
+    allow_client_model_names: bool,
+    provider: str = "",
+) -> BridgeModelResolution:
+    """Resolve the model that serves a bridged request.
+
+    In order: an alias for the requested name, the `model_resolver`'s result,
+    `"inspect"` (the active model), the pinned `model`, then the active model when
+    the name denotes it. Any other name goes to the active model (route
+    `"default"`), unless `allow_client_model_names` is set, in which case a model
+    role or the model the name implies serves it, as for the in-process bridge.
+
+    Args:
+       requested: Model name the client sent.
+       model_aliases: Exact-name aliases.
+       model_resolver: Routing policy called with the provider-qualified name.
+       model: Model pin (`None` or `"inspect"` means no pin).
+       allow_client_model_names: Let a name reach the role or model it names.
+       provider: Provider of the endpoint the request arrived on, used to qualify
+          a bare name.
+    """
+    if model_aliases and requested in model_aliases:
+        return BridgeModelResolution(
+            get_model(model_aliases[requested]), "alias", requested, False
+        )
+
+    # A bare model name on a provider-specific bridge endpoint resolves to that provider (the
+    # endpoint implies it); otherwise get_model rejects the unqualified name.
+    qualified = requested
+    if (
+        provider
+        and "/" not in requested
+        and requested != "inspect"
+        and requested not in model_roles()
+    ):
+        qualified = f"{provider}/{requested}"
+
+    # Dynamic routing policy: checked after explicit aliases, before the pin.
+    # Returning None defers to the resolution below.
+    if model_resolver is not None:
+        resolved = model_resolver(qualified)
+        if resolved is not None:
+            return BridgeModelResolution(
+                resolved if isinstance(resolved, Model) else get_model(resolved),
+                "resolver",
+                requested,
+                False,
+            )
+
+    if requested == "inspect":
+        return BridgeModelResolution(get_model(), "inspect", requested, False)
+
+    stripped = qualified.removeprefix("inspect/")
+
+    # An explicitly configured pin overrides whatever the client asked for; it
+    # wins over roles and the active-model match below.
+    if model is not None and model != "inspect":
+        pinned = _resolve_pinned_model(model)
+        pinned_names = {str(pinned), ModelName(pinned).name}
+        return BridgeModelResolution(
+            pinned,
+            "model",
+            requested,
+            stripped not in pinned_names and requested not in pinned_names,
+        )
+
+    if allow_client_model_names and stripped in model_roles():
+        return BridgeModelResolution(get_model(role=stripped), "role", requested, False)
+
+    # Prefer the eval's own Model instance when the client names it.
+    #
+    # A bridged client may send the concrete model id instead of asking for
+    # "inspect" (claude_code sends e.g. "claude-fable-5"). get_model() memoizes on a
+    # key that includes the config JSON, so resolving by name alone handed back a
+    # DIFFERENT instance than the eval's active model -- and resolve_generate_config
+    # only applies the eval's GenerateConfig to the active model, so eval-level
+    # options were silently dropped before the provider request. Returning the active
+    # instance also avoids a second Model (and its connection pool) for one model.
+    #
+    # A bare name is also matched against the raw pre-qualification request:
+    # provider qualification above widens e.g. "gpt-4o" to "openai/gpt-4o", which no
+    # longer matches an active model on a different provider (e.g. "azureai/gpt-4o")
+    # even though the client meant the eval's own model.
+    active = active_model()
+    if active is not None and (
+        stripped in (str(active), ModelName(active).name)
+        or requested == ModelName(active).name
+    ):
+        return BridgeModelResolution(active, "active", requested, False)
+
+    if allow_client_model_names:
+        return BridgeModelResolution(
+            get_model(stripped), "passthrough", requested, False
+        )
+
+    # the client's name never reaches get_model(): only host-side
+    # configuration decides which model serves a request
+    return BridgeModelResolution(get_model(), "default", requested, True)
+
+
+def _resolve_pinned_model(model: str) -> Model:
+    spec = model.removeprefix("inspect/")
+    if spec in model_roles():
+        return get_model(role=spec)
+    active = active_model()
+    if active is not None and spec in (str(active), ModelName(active).name):
+        return active
+    return get_model(spec)
 
 
 def resolve_inspect_model(
     model_name: str,
     model_aliases: dict[str, str | Model] | None = None,
     fallback_model: str | None = None,
+    *,
+    model_resolver: ModelResolver | None = None,
+    provider: str = "",
 ) -> Model:
-    if model_aliases and model_name in model_aliases:
-        return get_model(model_aliases[model_name])
-
-    if fallback_model is not None:
-        if model_name != "inspect" or not fallback_model.startswith("inspect/"):
-            model_name = fallback_model
-
-    if model_name == "inspect":
-        return get_model()
-
-    model_name = model_name.removeprefix("inspect/")
-    if model_name in model_roles():
-        return get_model(role=model_name)
-    return get_model(model_name)
+    """Resolve the model for a sandbox bridge request (see `resolve_bridge_model`)."""
+    return resolve_bridge_model(
+        model_name,
+        model_aliases=model_aliases,
+        model_resolver=model_resolver,
+        model=fallback_model,
+        allow_client_model_names=False,
+        provider=provider,
+    ).model
 
 
-def resolve_web_search_providers(
-    providers: WebSearchProviders | None,
-) -> WebSearchProviders:
-    if providers is None:
-        providers = internal_web_search_providers()
-    return cast(WebSearchProviders, _normalize_config(providers))
+_MAX_REDIRECT_WARNINGS = 64
+_redirect_warned: set[str] = set()
+
+
+def _warn_redirect(routing: BridgeModelResolution, pin: str | None) -> None:
+    """Warn once per process for each requested name the bridge redirected.
+
+    A set rather than `warn_once`, whose history is a list scanned per message;
+    capped because the requested names come from the client.
+    """
+    if routing.requested in _redirect_warned:
+        return
+    if len(_redirect_warned) >= _MAX_REDIRECT_WARNINGS:
+        if len(_redirect_warned) == _MAX_REDIRECT_WARNINGS:
+            _redirect_warned.add(routing.requested)
+            logger.warning(
+                f"Agent bridge redirected requests for {_MAX_REDIRECT_WARNINGS} "
+                "different model names; further redirects are not reported. "
+                "Each model event records the requested name in requested_model."
+            )
+        return
+    _redirect_warned.add(routing.requested)
+
+    name = _display_model_name(routing.requested)
+    if routing.route == "model":
+        message = (
+            f"Agent bridge routed a request for model {name} to the model "
+            f"'{routing.model}'."
+        )
+        hint = f"to route it elsewhere; it was pinned by model={pin!r}."
+    else:
+        message = (
+            f"Agent bridge routed a request for model {name} to the eval model "
+            f"'{routing.model}'."
+        )
+        hint = "to route it to a model of your choice."
+    role = routing.requested.removeprefix("inspect/")
+    if role in model_roles():
+        message += (
+            f" {name} is a model role; expose it with "
+            f"model_aliases={{{name}: get_model(role={role!r})}}."
+        )
+    else:
+        message += f" Add {name} to model_aliases {hint}"
+    logger.warning(message)
+
+
+def _display_model_name(name: str) -> str:
+    return repr(name if len(name) <= 200 else name[:200] + "...")
 
 
 def internal_web_search_providers() -> WebSearchProviders:

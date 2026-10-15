@@ -1,0 +1,8 @@
+reviewers:
+  - name: fixed
+    tools: "foo*"
+    decision: terminate
+
+  - name: fixed
+    tools: "*"
+    decision: continue

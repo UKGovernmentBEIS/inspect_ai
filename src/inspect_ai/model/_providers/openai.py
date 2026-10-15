@@ -10,7 +10,6 @@ from openai import (
     AsyncOpenAI,
     BadRequestError,
     DefaultAsyncHttpxClient,
-    NotFoundError,
     NotGiven,
     RateLimitError,
     omit,
@@ -21,6 +20,7 @@ from openai.types.responses import Response
 from openai.types.shared_params.reasoning import Reasoning
 from typing_extensions import override
 
+from inspect_ai._util.http_defaults_httpx2 import default_client_kwargs
 from inspect_ai._util.logger import warn_once
 from inspect_ai.model._generate_config import has_image_output, normalized_batch_config
 from inspect_ai.model._providers.openai_completions import (
@@ -35,13 +35,16 @@ from .._chat_message import ChatMessage
 from .._generate_config import GenerateConfig
 from .._model import ModelAPI, RetryDecision
 from .._model_call import ModelCall
-from .._model_output import ModelOutput, ModelUsage
+from .._model_output import ModelOutput, ModelUsage, ServedModelUsage
 from .._openai import (
+    always_reasons_model,
     is_gpt_5_model,
+    is_gpt_5_plus_model,
     is_latest_model,
     is_o_series_model,
     openai_classify_retry,
     openai_should_retry,
+    reasons_by_default_model,
     supports_native_max_reasoning_effort,
 )
 from .._openai_responses import (
@@ -52,6 +55,7 @@ from .._openai_responses import (
     pad_tool_messages_for_token_counting,
 )
 from .._stream import model_stream_requested
+from ._first_party import FRONTIER_MODELS
 from ._openai_batch import OpenAIBatcher
 from .util import (
     check_azure_deployment_mismatch,
@@ -261,8 +265,8 @@ class OpenAIAPI(ModelAPI):
                 )
 
         # extract http_client and api_version before storing model_args
-        self.http_client = (
-            model_args.pop("http_client", None) or DefaultAsyncHttpxClient()
+        self.http_client = model_args.pop("http_client", None) or (
+            DefaultAsyncHttpxClient(**default_client_kwargs())
         )
         if self.is_azure():
             # resolve version
@@ -338,7 +342,7 @@ class OpenAIAPI(ModelAPI):
         super().initialize()
 
         if self.http_client.is_closed:
-            self.http_client = DefaultAsyncHttpxClient()
+            self.http_client = DefaultAsyncHttpxClient(**default_client_kwargs())
 
         self.client = self._create_client()
 
@@ -351,6 +355,15 @@ class OpenAIAPI(ModelAPI):
         self._completions_batcher: OpenAIBatcher[ChatCompletion] | None = None
         self._responses_batcher: OpenAIBatcher[Response] | None = None
         self._http_hooks = HttpxHooks(self.client._client, api=self)
+
+    @override
+    async def refresh_credentials(self) -> None:
+        # In-flight requests and SDK retries share this client; closing it
+        # during credential refresh would also fail other samples. Token
+        # providers run per request and need no update.
+        super().initialize()
+        if self.api_key:
+            self.client.api_key = self.api_key
 
     @override
     async def count_text_tokens(self, text: str) -> int:
@@ -373,8 +386,8 @@ class OpenAIAPI(ModelAPI):
         """Count tokens using native API for messages, tiktoken for text.
 
         For messages, uses OpenAI's input_tokens endpoint which can accurately
-        count encrypted reasoning blocks. Raises an exception if native
-        counting fails.
+        count encrypted reasoning blocks. Falls back to tiktoken if the native
+        endpoint is unavailable. All other failures propagate unchanged.
         """
         if isinstance(input, str):
             return await self.count_text_tokens(input)
@@ -383,8 +396,14 @@ class OpenAIAPI(ModelAPI):
         if self.responses_api:
             try:
                 return await self._count_tokens_native(input, config)
-            except NotFoundError:
-                pass  # endpoint not available (e.g. Azure); fall through to tiktoken
+            except APIStatusError as ex:
+                # 404 means the endpoint has no route. 405 can mean the real
+                # GET /responses/{response_id} route matched "input_tokens"
+                # when the POST /responses/input_tokens route is unavailable.
+                if ex.status_code not in (404, 405):
+                    raise
+                # Endpoint unavailable (e.g. Azure); fall through to tiktoken.
+                pass
 
         # For non-responses API, use tiktoken-based counting
         from .._tokens import count_tokens
@@ -430,7 +449,7 @@ class OpenAIAPI(ModelAPI):
     def bedrock_mantle_path(self) -> str:
         """Mantle API path for this model.
 
-        Frontier OpenAI models (gpt-5.x, codex) are served on the `/openai/v1`
+        Frontier OpenAI models (gpt-5 and later, codex) are served on the `/openai/v1`
         path; open-weight models (e.g. gpt-oss) and others use `/v1`.
         """
         return "openai/v1" if (self.is_gpt_5() or self.is_codex()) else "v1"
@@ -443,6 +462,12 @@ class OpenAIAPI(ModelAPI):
         )
 
     def reasoning_only_fallback(self) -> bool:
+        return False
+
+    def replays_reasoning_text(self) -> bool:
+        return False
+
+    def omits_empty_tool_call_text(self) -> bool:
         return False
 
     def is_o_series(self) -> bool:
@@ -464,8 +489,10 @@ class OpenAIAPI(ModelAPI):
         return is_gpt_5_model(self.model_family()) or self.is_latest()
 
     def is_gpt_5_plus(self) -> bool:
-        name = self.model_family()
-        return "gpt-5." in name or self.is_latest()
+        return is_gpt_5_plus_model(self.model_family()) or self.is_latest()
+
+    def always_reasons(self) -> bool:
+        return always_reasons_model(self.model_family())
 
     def is_gpt_5_pro(self) -> bool:
         name = self.model_family()
@@ -474,6 +501,13 @@ class OpenAIAPI(ModelAPI):
     def supports_max_reasoning_effort(self) -> bool:
         return supports_native_max_reasoning_effort(self.model_family()) or (
             self.is_latest()
+        )
+
+    def reasons_by_default(self) -> bool:
+        # strict version check, no codename fold-in: whether a codename reasons
+        # by default is unknown, and is_latest() also matches computer-use-preview
+        return (
+            reasons_by_default_model(self.model_family()) and not self.is_gpt_5_chat()
         )
 
     def is_gpt_5_chat(self) -> bool:
@@ -520,6 +554,20 @@ class OpenAIAPI(ModelAPI):
         # support image truncation.
         return True
 
+    def uses_responses_api(self, tools: list[ToolInfo], config: GenerateConfig) -> bool:
+        """Whether `generate()` sends a request with these tools to the Responses API.
+
+        Image output and native tools need the Responses API even when
+        `responses_api` is off.
+        """
+        return (
+            self.responses_api
+            or has_image_output(config.modalities)
+            or is_native_tool_configured(
+                tools, self.model_family(), config, is_latest=self.is_latest()
+            )
+        )
+
     async def generate(
         self,
         input: list[ChatMessage],
@@ -527,13 +575,7 @@ class OpenAIAPI(ModelAPI):
         tool_choice: ToolChoice,
         config: GenerateConfig,
     ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
-        use_responses = (
-            self.responses_api
-            or has_image_output(config.modalities)
-            or is_native_tool_configured(
-                tools, self.model_family(), config, is_latest=self.is_latest()
-            )
-        )
+        use_responses = self.uses_responses_api(tools, config)
         self._resolve_batcher(config, use_responses)
 
         # if reasoning summaries are unset then try to auto-detect
@@ -542,6 +584,17 @@ class OpenAIAPI(ModelAPI):
                 config = config.model_copy(update={"reasoning_summary": "none"})
 
         streaming = self._resolve_streaming(use_responses)
+
+        # explicit prompt caching is only verified against the unconfigured,
+        # direct OpenAI endpoint; Azure, Bedrock, and any custom base URL
+        # (explicit base_url, OPENAI_BASE_URL, or INSPECT_EVAL_MODEL_BASE_URL)
+        # are unverified — a resolved base_url means the request is going
+        # somewhere other than api.openai.com
+        supports_explicit_prompt_cache = (
+            not self.is_azure()
+            and not self.is_bedrock()
+            and model_base_url(self.base_url, "OPENAI_BASE_URL") is None
+        )
 
         async def generate_once(
             streaming: bool,
@@ -566,6 +619,7 @@ class OpenAIAPI(ModelAPI):
                     model_info=self,
                     batcher=self._responses_batcher,
                     streaming=streaming,
+                    supports_explicit_prompt_cache=supports_explicit_prompt_cache,
                 )
                 if use_responses
                 else generate_completions(
@@ -582,6 +636,7 @@ class OpenAIAPI(ModelAPI):
                     openai_api=self,
                     batcher=self._completions_batcher,
                     streaming=streaming,
+                    supports_explicit_prompt_cache=supports_explicit_prompt_cache,
                 )
             )
 
@@ -649,13 +704,26 @@ class OpenAIAPI(ModelAPI):
         return f"openai/{self.service_model_name()}"
 
     @override
+    def served_model_usage(self, output: ModelOutput) -> list[ServedModelUsage] | None:
+        # an Azure model name is a deployment name, which need not name the
+        # model the deployment serves
+        if (
+            self.is_azure()
+            and output.usage is not None
+            and output.model
+            and output.model != self.service_model_name()
+        ):
+            return [ServedModelUsage(f"openai/{output.model}", output.usage)]
+        return None
+
+    @override
     def input_tokens_name(self) -> str:
         """Model name used for looking up model input tokens (context window)."""
         # codename/predeployment models alias to the current frontier so the
         # context window / token accounting match (bump when a newer frontier
         # ships). Mirrors Anthropic's is_claude_latest() aliasing.
         if self.is_latest():
-            return "openai/gpt-5.6"
+            return FRONTIER_MODELS["openai"]
         return super().input_tokens_name()
 
     @override
@@ -685,14 +753,6 @@ class OpenAIAPI(ModelAPI):
         when models actually share an upstream rate-limit budget.
         """
         return f"{self.initial_api_key}:{self.model_name}"
-
-    @override
-    def apply_redacted_reasoning_tokens_to_input(self) -> bool:
-        # Responses API with store=false + include=encrypted_content re-injects
-        # encrypted reasoning blocks on every turn but excludes them from
-        # usage.input_tokens. Compaction's threshold check needs the count
-        # added back. Chat Completions is unaffected.
-        return self.responses_api
 
     async def reasoning_summaries(self) -> bool:
         # validate that reasoning summaries are supported for this account
@@ -788,7 +848,8 @@ class OpenAIAPI(ModelAPI):
             A tuple of (compacted messages, usage info).
 
         Raises:
-            NotImplementedError: If the model is not using the Responses API.
+            NotImplementedError: If the model is not using the Responses API or
+                the native compaction endpoint is unavailable.
         """
         if not self.responses_api:
             raise NotImplementedError(
@@ -807,7 +868,12 @@ class OpenAIAPI(ModelAPI):
                 input=input_params,
                 instructions=instructions if instructions is not None else omit,
             )
-        except NotFoundError:
+        except APIStatusError as ex:
+            # 404 means the endpoint has no route. 405 can mean the real
+            # GET /responses/{response_id} route matched "compact" when the
+            # POST /responses/compact route is unavailable.
+            if ex.status_code not in (404, 405):
+                raise
             raise NotImplementedError(
                 f"Native compaction endpoint not available for {self.service_model_name()}"
             ) from None

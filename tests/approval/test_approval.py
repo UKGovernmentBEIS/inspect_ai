@@ -1,7 +1,12 @@
+import logging
 from pathlib import Path
+from typing import NamedTuple
+
+import pytest
 
 from inspect_ai import Task, eval
 from inspect_ai._util.content import ContentText
+from inspect_ai._util.registry import registry_log_name
 from inspect_ai.approval import (
     Approval,
     ApprovalDecision,
@@ -12,13 +17,20 @@ from inspect_ai.approval import (
     auto_approver,
     read_approval_policies,
 )
+from inspect_ai.approval._policy import (
+    ApprovalPolicyConfig,
+    ApproverPolicyConfig,
+    approval_policies_from_config,
+)
 from inspect_ai.dataset import Sample
 from inspect_ai.event._approval import ApprovalEvent
+from inspect_ai.event._model import ModelEvent
+from inspect_ai.event._tool import ToolEvent
 from inspect_ai.log._log import EvalLog
-from inspect_ai.model import ChatMessage, ModelOutput, get_model
+from inspect_ai.model import ChatMessage, ChatMessageTool, Model, ModelOutput, get_model
 from inspect_ai.scorer import match
 from inspect_ai.solver import generate, use_tools
-from inspect_ai.tool._tool import tool
+from inspect_ai.tool._tool import Tool, tool
 from inspect_ai.tool._tool_call import ToolCall, ToolCallView
 
 
@@ -42,27 +54,27 @@ def addition():
     return execute
 
 
-def check_approval(
+class ApprovalEval(NamedTuple):
+    log: EvalLog
+    task: Task
+
+
+def resolve_policy(
     policy: str | ApprovalPolicy | list[ApprovalPolicy] | None,
-    decision: ApprovalDecision,
-    approver: str = "auto",
-    task_policy: str | ApprovalPolicy | list[ApprovalPolicy] | None = None,
-) -> ApprovalEvent:
-    if policy is not None:
-        if isinstance(policy, str):
-            policy = (Path(__file__).parent / policy).as_posix()
+) -> str | list[ApprovalPolicy] | None:
+    if policy is None:
+        return None
 
-        policy = policy if isinstance(policy, list | str) else [policy]
+    if isinstance(policy, str):
+        return (Path(__file__).parent / policy).as_posix()
 
-    if task_policy is not None:
-        if isinstance(task_policy, str):
-            task_policy = (Path(__file__).parent / task_policy).as_posix()
+    return policy if isinstance(policy, list) else [policy]
 
-        task_policy = (
-            task_policy if isinstance(task_policy, list | str) else [task_policy]
-        )
 
-    model = get_model(
+def approval_model() -> Model:
+    # mockllm consumes custom_outputs as a one-shot iterator, so don't memoize
+    # (tests which run two evals need a fresh model for each)
+    return get_model(
         "mockllm/model",
         custom_outputs=[
             ModelOutput.for_tool_call(
@@ -72,16 +84,39 @@ def check_approval(
             ),
             ModelOutput.from_content("mockllm/model", content="2"),
         ],
+        memoize=False,
     )
 
-    task = Task(
+
+def approval_task(
+    task_policy: str | ApprovalPolicy | list[ApprovalPolicy] | None = None,
+) -> Task:
+    return Task(
         dataset=[Sample(input="What is 1 + 1?", target="2")],
         solver=[use_tools(addition()), generate()],
         scorer=match(numeric=True),
-        approval=task_policy,
+        approval=resolve_policy(task_policy),
     )
 
-    log = eval(task, model=model, approval=policy)[0]
+
+def eval_with_approval(
+    policy: str | ApprovalPolicy | list[ApprovalPolicy] | None = None,
+    task_policy: str | ApprovalPolicy | list[ApprovalPolicy] | None = None,
+) -> ApprovalEval:
+    task = approval_task(task_policy)
+
+    return ApprovalEval(
+        eval(task, model=approval_model(), approval=resolve_policy(policy))[0], task
+    )
+
+
+def check_approval(
+    policy: str | ApprovalPolicy | list[ApprovalPolicy] | None,
+    decision: ApprovalDecision,
+    approver: str = "auto",
+    task_policy: str | ApprovalPolicy | list[ApprovalPolicy] | None = None,
+) -> ApprovalEvent:
+    log = eval_with_approval(policy, task_policy).log
 
     approval = find_approval(log)
     assert approval
@@ -93,6 +128,11 @@ def check_approval(
 
 approve_all_policy = ApprovalPolicy(approver=auto_approver(), tools="*")
 reject_all_policy = ApprovalPolicy(approver=auto_approver("reject"), tools="*")
+reject_all_config = ApprovalPolicyConfig(
+    approvers=[
+        ApproverPolicyConfig(name="auto", tools="*", params={"decision": "reject"})
+    ]
+)
 
 
 def test_approve():
@@ -145,6 +185,50 @@ def test_approve_no_reject():
     )
 
 
+def test_task_approval_recorded_in_config():
+    log = eval_with_approval(task_policy=reject_all_policy).log
+    assert log.eval.config.approval == reject_all_config
+
+
+def test_task_approval_config_file_recorded_in_config():
+    log = eval_with_approval(task_policy="reject.yaml").log
+    approval = log.eval.config.approval
+    assert approval
+    assert [(a.name, a.tools, a.params) for a in approval.approvers] == [
+        ("auto", "foo*", {"decision": "reject"}),
+        ("auto", "*", {"decision": "escalate"}),
+        ("auto", ["foo*", "add*"], {"decision": "reject"}),
+    ]
+
+
+def test_eval_approval_takes_precedence_in_config():
+    result = eval_with_approval(
+        policy=reject_all_policy, task_policy=approve_all_policy
+    )
+    assert result.log.eval.config.approval == reject_all_config
+    # the merge runs against a copy, so the caller's task keeps its own policy
+    assert result.task.approval == [approve_all_policy]
+    approval = find_approval(result.log)
+    assert approval and approval.decision == "reject"
+
+
+def test_eval_approval_not_leaked_to_reused_task():
+    task = approval_task()
+
+    first = eval(task, model=approval_model(), approval=[reject_all_policy])[0]
+    assert first.eval.config.approval == reject_all_config
+    first_approval = find_approval(first)
+    assert first_approval and first_approval.decision == "reject"
+
+    second = eval(task, model=approval_model())[0]
+    assert second.eval.config.approval is None
+    assert find_approval(second) is None
+
+
+def test_no_approval_recorded_in_config():
+    assert eval_with_approval().log.eval.config.approval is None
+
+
 def test_approve_config():
     check_approval("approve.yaml", decision="approve")
 
@@ -159,6 +243,22 @@ def test_read_approval_policies_file_uri():
         "*",
         ["foo*", "add*"],
     ]
+
+
+def test_approval_policies_from_config_percent_encoded_file_uri(tmp_path: Path):
+    # Path.as_uri() percent-encodes the space in the directory name
+    policy_dir = tmp_path / "my policies"
+    policy_dir.mkdir()
+    policy_file = policy_dir / "approve.yaml"
+    policy_file.write_text(
+        'approvers:\n  - name: auto\n    tools: "*"\n    decision: approve\n'
+    )
+
+    policies = approval_policies_from_config(policy_file.as_uri())
+
+    assert len(policies) == 1
+    assert policies[0].tools == "*"
+    assert registry_log_name(policies[0].approver) == "auto"
 
 
 def test_approve_config_reject():
@@ -433,6 +533,239 @@ async def test_approver_inference_exempt_from_limits():
     # ...but its generation was not metered
     assert tokens.usage == 0
     assert turns.usage == 0
+
+
+def test_approval_policy_comma_separated_tools():
+    policy = ApprovalPolicy(
+        approver=auto_approver(), tools="web_browser*, addition, python"
+    )
+    check_approval(policy, decision="approve")
+
+
+def test_approval_policy_comma_separated_list():
+    policy = ApprovalPolicy(
+        approver=auto_approver(), tools=["web_browser*", "addition, python"]
+    )
+    check_approval(policy, decision="approve")
+
+
+@tool
+def echo(calls: list[str]) -> Tool:
+    async def execute(text: str) -> str:
+        """
+        Echo text back.
+
+        Args:
+            text (str): Text to echo.
+
+        Returns:
+            The text.
+        """
+        calls.append(text)
+        return text
+
+    return execute
+
+
+@approver
+def modifying_approver(arguments: dict[str, object], function: str = "") -> Approver:
+    """Approver which modifies each call's arguments (and its function, if given)."""
+
+    async def approve(
+        message: str,
+        call: ToolCall,
+        view: ToolCallView,
+        history: list[ChatMessage],
+    ) -> Approval:
+        return Approval(
+            decision="modify",
+            modified=ToolCall(
+                id=call.id, function=function or call.function, arguments=arguments
+            ),
+        )
+
+    return approve
+
+
+def test_modify_arguments_run_and_are_recorded() -> None:
+    """The modified arguments run; the log keeps the model's proposal beside them."""
+    policy = ApprovalPolicy(approver=modifying_approver({"x": 2, "y": 3}), tools="*")
+    log = eval_with_approval(policy).log
+
+    assert log.status == "success"
+    assert log.samples
+    sample = log.samples[0]
+
+    # the model's proposal is recorded as it was made
+    model_event = next(e for e in sample.events if isinstance(e, ModelEvent))
+    assert model_event.output.message.tool_calls
+    proposed = model_event.output.message.tool_calls[0]
+    assert proposed.arguments == {"x": 1, "y": 1}
+    approval_event = find_approval(log)
+    assert approval_event and approval_event.decision == "modify"
+    assert approval_event.call.arguments == {"x": 1, "y": 1}
+    assert approval_event.modified
+    assert approval_event.modified.arguments == {"x": 2, "y": 3}
+
+    # the tool event and tool message show what ran
+    (tool_event,) = [e for e in sample.events if isinstance(e, ToolEvent)]
+    assert (tool_event.function, tool_event.arguments) == ("addition", {"x": 2, "y": 3})
+    (tool_message,) = [m for m in sample.messages if isinstance(m, ChatMessageTool)]
+    assert tool_message.text == "5"
+
+
+def test_modify_to_another_function_fails_the_sample() -> None:
+    """A `modify` may not change the function: the sample fails and nothing runs."""
+    calls: list[str] = []
+    task = Task(
+        dataset=[Sample(input="What is 1 + 1?", target="2")],
+        solver=[use_tools(addition(), echo(calls)), generate()],
+        scorer=match(numeric=True),
+    )
+    policy = ApprovalPolicy(
+        approver=modifying_approver({"text": "2"}, function="echo"), tools="addition"
+    )
+    log = eval(task, model=approval_model(), approval=[policy])[0]
+
+    assert log.status == "error"
+    assert log.samples
+    sample = log.samples[0]
+    assert sample.error is not None
+    assert "modified call to 'echo' for a call to 'addition'" in sample.error.message
+    assert "may change only the arguments" in sample.error.message
+    assert calls == []
+    (tool_event,) = [e for e in sample.events if isinstance(e, ToolEvent)]
+    assert tool_event.function == "addition"
+    assert tool_event.failed is True
+    assert not any(isinstance(m, ChatMessageTool) for m in sample.messages)
+
+
+async def test_execute_tools_modify_to_another_function_runs_neither_tool() -> None:
+    import pytest
+
+    from inspect_ai.model._call_tools import execute_tools
+    from inspect_ai.model._chat_message import ChatMessageAssistant
+    from inspect_ai.tool._tool_def import ToolDef
+
+    proposed_calls: list[str] = []
+    target_calls: list[str] = []
+    target = ToolDef(echo(target_calls), name="target")
+    call = ToolCall(id="test", function="echo", arguments={"text": "proposed"})
+
+    with pytest.raises(RuntimeError, match="may change only the arguments"):
+        await execute_tools(
+            [ChatMessageAssistant(content=[], tool_calls=[call])],
+            [ToolDef(echo(proposed_calls)), target],
+            approval=[
+                ApprovalPolicy(
+                    approver=modifying_approver({"text": "target"}, function="target"),
+                    tools="*",
+                )
+            ],
+        )
+
+    assert proposed_calls == []
+    assert target_calls == []
+
+
+def test_modify_without_a_modified_call_rejects_the_call() -> None:
+    """A `modify` that carries no modified call must not run the original."""
+    policy = ApprovalPolicy(approver=auto_approver("modify"), tools="*")
+    log = eval_with_approval(policy).log
+
+    assert log.status == "success"
+    assert log.samples
+    sample = log.samples[0]
+    # the approval event keeps the decision the approver returned
+    approval_event = find_approval(log)
+    assert approval_event and approval_event.decision == "modify"
+    assert approval_event.modified is None
+    # the call was rejected, with an explanation the model can act on
+    (tool_event,) = [e for e in sample.events if isinstance(e, ToolEvent)]
+    assert tool_event.error is not None
+    assert tool_event.error.type == "approval"
+    (tool_message,) = [m for m in sample.messages if isinstance(m, ChatMessageTool)]
+    assert tool_message.error is not None
+    assert tool_message.error.type == "approval"
+    assert "no modified call" in tool_message.error.message
+    assert "not run" in tool_message.error.message
+
+
+async def test_execute_tools_modify_without_a_modified_call_runs_nothing() -> None:
+    from inspect_ai.model._call_tools import execute_tools
+    from inspect_ai.model._chat_message import ChatMessageAssistant
+    from inspect_ai.tool._tool_def import ToolDef
+
+    calls: list[str] = []
+    call = ToolCall(id="test", function="echo", arguments={"text": "proposed"})
+    messages, _ = await execute_tools(
+        [ChatMessageAssistant(content=[], tool_calls=[call])],
+        [ToolDef(echo(calls))],
+        approval=[ApprovalPolicy(approver=auto_approver("modify"), tools="*")],
+    )
+
+    assert calls == []
+    assert isinstance(messages[-1], ChatMessageTool)
+    assert messages[-1].error is not None
+    assert messages[-1].error.type == "approval"
+
+
+@pytest.mark.parametrize("surface", ["panel", "console"])
+async def test_human_approver_drops_modify_from_choices(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+    surface: str,
+) -> None:
+    """A human can't supply a modified call, so Modify is never presented."""
+    from inspect_ai.approval._human import acp as acp_module
+    from inspect_ai.approval._human import approver as approver_module
+    from inspect_ai.approval._human.approver import human_approver
+
+    presented: list[list[ApprovalDecision]] = []
+
+    async def no_acp(**kwargs: object) -> Approval | None:
+        return None
+
+    async def panel(
+        message: str,
+        call: ToolCall,
+        view: ToolCallView,
+        history: list[ChatMessage],
+        choices: list[ApprovalDecision],
+    ) -> Approval:
+        if surface == "console":
+            raise NotImplementedError
+        presented.append(choices)
+        return Approval(decision="approve")
+
+    def console(
+        message: str,
+        view: ToolCallView,
+        choices: list[ApprovalDecision],
+        arguments: object,
+    ) -> Approval:
+        presented.append(choices)
+        return Approval(decision="approve")
+
+    monkeypatch.setattr(acp_module, "request_human_approval_via_acp", no_acp)
+    monkeypatch.setattr(approver_module, "panel_approval", panel)
+    monkeypatch.setattr(approver_module, "console_approval", console)
+
+    with caplog.at_level(logging.WARNING):
+        approve = human_approver(["approve", "modify", "reject"])
+    assert "'modify' choice" in caplog.text
+
+    call = ToolCall(id="t1", function="bash", arguments={"cmd": "ls"})
+    await approve("run it?", call, ToolCallView(), [])
+
+    assert presented == [["approve", "reject"]]
+
+
+def test_human_approver_rejects_modify_as_the_only_choice() -> None:
+    from inspect_ai.approval._human.approver import human_approver
+
+    with pytest.raises(ValueError, match="does not support the 'modify' choice"):
+        human_approver(["modify"])
 
 
 if __name__ == "__main__":

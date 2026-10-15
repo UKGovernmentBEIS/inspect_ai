@@ -26,6 +26,7 @@ from inspect_ai.event._pool_index import (
 )
 from inspect_ai.log._condense import (
     WalkContext,
+    attachment_refs_from_object,
     attachment_refs_from_value,
     condense_event,
     events_attachment_fn,
@@ -442,7 +443,7 @@ class TranscriptEventStore:
 
     @staticmethod
     def _attachment_refs(event: Event) -> set[str]:
-        return attachment_refs_from_value(event.model_dump(mode="python"))
+        return attachment_refs_from_object(event)
 
     @staticmethod
     def _write_json_array(path: Path, rows: Iterable[tuple[str]]) -> None:

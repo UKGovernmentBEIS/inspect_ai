@@ -30,6 +30,7 @@ if TYPE_CHECKING:
     from inspect_ai.approval import Approver
     from inspect_ai.hooks._hooks import Hooks
     from inspect_ai.model import ModelAPI
+    from inspect_ai.review import Reviewer
     from inspect_ai.scorer import Metric, Scorer, ScoreReducer
     from inspect_ai.solver import Plan, Solver
     from inspect_ai.tool import Tool
@@ -41,6 +42,7 @@ RegistryType = Literal[
     "agent",
     "approver",
     "hooks",
+    "reviewer",
     "metric",
     "modelapi",
     "plan",
@@ -55,13 +57,23 @@ RegistryType = Literal[
     "scanner",
     "scanjob",
     "validation_predicate",
+    "monitor",
+    "protocol",
+    "swarm_controller",
+    "swarm_channel",
 ]
 """Enumeration of registry object types.
 
 These are the types of objects in this system that can be
-registered using a decorator (e.g. `@task`, `@solver`).
+registered using a decorator (e.g. `@task`, `@solver`). The "monitor",
+"protocol", "swarm_controller" and "swarm_channel" types are constructed via
+`create_registry_object()` rather than `registry_create()`; see the note above
+the `registry_create()` overloads.
 Registered objects can in turn be created dynamically using
 the `registry_create()` function.
+
+The "monitor" and "protocol" types are experimental: not yet a stable API;
+may change without notice.
 """
 
 _REGISTRY_TYPE_VALUES: frozenset[str] = frozenset(get_args(RegistryType))
@@ -271,19 +283,7 @@ def registry_lookup(type: RegistryType, name: str) -> object | None:
     Returns:
         Object or None if not found.
     """
-
-    def _lookup() -> object | None:
-        # first try
-        object = _registry.get(registry_key(type, name))
-        if object:
-            return object
-        # unnamespaced objects can also be found in inspect_ai
-        elif name.find("/") == -1:
-            return _registry.get(registry_key(type, f"{PKG_NAME}/{name}"))
-        else:
-            return None
-
-    o = _lookup()
+    o = _registry_get(type, name)
 
     # try to recover
     if o is None:
@@ -292,9 +292,29 @@ def registry_lookup(type: RegistryType, name: str) -> object | None:
             package = name.split("/")[0]
             ensure_entry_points(package)
 
-        return _lookup()
+        return _registry_get(type, name)
     else:
         return o
+
+
+def registry_has(type: RegistryType, name: str) -> bool:
+    """Whether `name` is already registered as `type`, without loading entry points.
+
+    Safe to call from a decorator at import time, where `registry_lookup()`
+    could trigger entry-point loading mid-import.
+    """
+    return _registry_get(type, name) is not None
+
+
+def _registry_get(type: RegistryType, name: str) -> object | None:
+    object = _registry.get(registry_key(type, name))
+    if object:
+        return object
+    # unnamespaced objects can also be found in inspect_ai
+    elif name.find("/") == -1:
+        return _registry.get(registry_key(type, f"{PKG_NAME}/{name}"))
+    else:
+        return None
 
 
 def registry_package_name(name: str) -> str | None:
@@ -335,6 +355,12 @@ def registry_create(type: Literal["agent"], name: str, **kwargs: Any) -> Agent: 
 def registry_create(
     type: Literal["approver"], name: str, **kwargs: Any
 ) -> Approver: ...
+
+
+@overload
+def registry_create(
+    type: Literal["reviewer"], name: str, **kwargs: Any
+) -> "Reviewer": ...
 
 
 @overload
@@ -393,6 +419,10 @@ def registry_create(type: Literal["scanner"], name: str, **kwargs: Any) -> Any: 
 
 @overload
 def registry_create(type: Literal["scanjob"], name: str, **kwargs: Any) -> Any: ...
+
+
+# No "monitor"/"protocol"/"swarm_controller"/"swarm_channel" overloads: they are
+# built with create_registry_object(), so registry_create() is a type error.
 
 
 def registry_create(type: RegistryType, name: str, **kwargs: Any) -> object:  # type: ignore[return]

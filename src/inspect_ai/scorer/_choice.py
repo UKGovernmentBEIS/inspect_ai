@@ -5,7 +5,7 @@ from inspect_ai.solver._multiple_choice import (
 )
 from inspect_ai.solver._task_state import Choices, TaskState
 
-from ._metric import CORRECT, INCORRECT, Score
+from ._metric import CORRECT, INCORRECT, NOANSWER, Score
 from ._metrics import accuracy, stderr
 from ._scorer import Scorer, scorer
 from ._target import Target
@@ -16,13 +16,29 @@ def _choices_are_shuffled(choices: Choices) -> bool:
 
 
 def _score_target(target: Target, choices: Choices) -> tuple[list[int], list[str]]:
-    # Filter out separator characters (e.g. "A,B" or "A, B") so that only
-    # actual answer letters/digits are mapped to choice indices.
-    target_positions = [
-        answer_index(target_character)
-        for target_character in target.text
-        if target_character not in (",", " ")
+    target_answers: list[str] = []
+    for target_value in target:
+        for token in target_value.replace(",", " ").split():
+            if token.isnumeric():
+                target_answers.append(token)
+            else:
+                target_answers.extend(token)
+
+    target_positions = [answer_index(answer) for answer in target_answers]
+
+    # a target that references a position beyond the task's choices is a
+    # dataset error (e.g. a "10" target in a 30-option task resolves to
+    # index 35): raise loudly rather than silently scoring incorrect forever
+    out_of_range = [
+        answer
+        for answer, position in zip(target_answers, target_positions)
+        if position >= len(choices)
     ]
+    if out_of_range:
+        raise ValueError(
+            f"Choice scorer target references answer(s) beyond the task's "
+            f"{len(choices)} choices: {', '.join(out_of_range)}"
+        )
 
     choice_positions = [i for i, choice in enumerate(choices) if choice.correct is True]
 
@@ -63,6 +79,9 @@ def choice() -> Scorer:
     async def score(state: TaskState, target: Target) -> Score:
         choices = state.choices
 
+        if not choices:
+            raise ValueError("The choice scorer requires samples with choices")
+
         if _choices_are_shuffled(choices):
             explanation = _shuffled_explanation(choices)
             # Unshuffle the choices so that we can score them correctly against
@@ -79,8 +98,37 @@ def choice() -> Scorer:
 
         target_matches_choices = generated_selected_choices == sorted(target_positions)
 
+        if target_matches_choices:
+            return Score(
+                value=CORRECT,
+                answer=", ".join(answers),
+                explanation=explanation,
+            )
+
+        # The model left no usable answer. An empty completion means there
+        # is nothing to grade; any other completion without a selected
+        # choice means the model did not follow the requested ANSWER
+        # format. The sample stays in the denominator either way, but the
+        # reason lets analysis separate the two causes (see ScoreReason).
+        # These branches only run when no choice was selected: a marked
+        # choice keeps its answer even if the completion text is empty.
+        if not generated_selected_choices:
+            completion = state.output.completion or ""
+            if not completion.strip():
+                return Score(
+                    value=NOANSWER,
+                    answer="",
+                    explanation=explanation,
+                    reason="no_response",
+                )
+            return Score(
+                value=INCORRECT,
+                answer="",
+                explanation=explanation,
+                reason="invalid_response_format",
+            )
         return Score(
-            value=CORRECT if target_matches_choices else INCORRECT,
+            value=INCORRECT,
             answer=", ".join(answers),
             explanation=explanation,
         )

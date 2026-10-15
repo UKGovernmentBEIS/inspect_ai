@@ -1,4 +1,6 @@
 import re
+import subprocess
+import sys
 from itertools import count
 from pathlib import Path
 from typing import Literal
@@ -40,6 +42,40 @@ def find_element_id(input: list[ChatMessage], pattern: str) -> int:
     match = re.search(rf"\[(\d+)\]\s*{pattern}", text)
     assert match, f"Could not find element matching {pattern} in accessibility tree"
     return int(match.group(1))
+
+
+def test_web_browser_logs_deprecation_warning(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    # deprecation_warning() emits once per call site, so call exactly once here
+    tools = web_browser()
+
+    deprecations = [r for r in caplog.records if r.message.startswith("DEPRECATED:")]
+    assert len(deprecations) == 1, [r.message for r in caplog.records]
+    message = deprecations[0].message
+    assert "`web_browser()` tool is deprecated" in message
+    assert "https://github.com/UKGovernmentBEIS/inspect_ai/issues/5497" in message
+    assert Path(__file__).name in message
+
+    # behaviour is otherwise unchanged: the full tool list is still returned
+    assert len(tools) == 8
+
+
+def test_web_browser_import_does_not_warn() -> None:
+    """Importing the symbol (as inspect_evals does at registry load) stays silent."""
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "import logging; logging.basicConfig(level=logging.WARNING); "
+            "from inspect_ai.tool import web_browser",
+        ],
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
+    assert result.returncode == 0, result.stderr
+    assert "DEPRECATED" not in result.stderr, result.stderr
 
 
 @skip_if_no_docker

@@ -24,7 +24,7 @@ def resolve_bedrock_base_url(
     Uses an explicit `base_url` or one of `base_url_vars` if provided, otherwise
     derives the region-specific Mantle endpoint. We derive the endpoint ourselves
     (rather than relying on the OpenAI SDK) because the correct path is
-    model-dependent: frontier OpenAI models (gpt-5.x, codex) are served at
+    model-dependent: frontier OpenAI models (gpt-5 and later, codex) are served at
     `/openai/v1`, while open-weight models (e.g. gpt-oss) and others are served
     at `/v1` (the OpenAI SDK always derives `/openai/v1`).
 

@@ -34,6 +34,7 @@ from inspect_ai.model import (
     ContentText,
     ModelUsage,
 )
+from inspect_ai.scorer import Score
 
 file = Path(__file__)
 
@@ -141,6 +142,38 @@ def test_logged_sample_input_preserves_content() -> None:
     assert logged.input[0].content[0] == ContentReasoning(
         reasoning="raw chain of thought"
     )
+
+
+def test_sample_summary_preserves_score_reason() -> None:
+    sample = EvalSample(
+        id=1,
+        epoch=1,
+        input="x",
+        target="y",
+        scores={"match": Score(value=0, reason="invalid_response_format")},
+    )
+    scores = sample.summary().scores
+    assert scores is not None
+    assert scores["match"].reason == "invalid_response_format"
+
+
+def test_sample_summary_prefers_explicit_reason_over_stale_metadata() -> None:
+    sample = EvalSample(
+        id=1,
+        epoch=1,
+        input="x",
+        target="y",
+        scores={
+            "match": Score(
+                value=0,
+                reason="current_reason",
+                metadata={"unscored_reason": "stale_reason"},
+            )
+        },
+    )
+    scores = sample.summary().scores
+    assert scores is not None
+    assert scores["match"].reason == "current_reason"
 
 
 def test_sample_summary_includes_role_usage() -> None:

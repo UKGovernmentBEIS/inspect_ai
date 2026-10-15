@@ -3,7 +3,7 @@ from test_helpers.utils import skip_if_trio
 
 from inspect_ai import Task, eval
 from inspect_ai.dataset import Sample
-from inspect_ai.model import ModelOutput, get_model
+from inspect_ai.model import ChatMessageUser, ModelOutput, ModelUsage, get_model
 from inspect_ai.model._chat_message import ChatMessage
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._providers.mockllm import MockLLM
@@ -82,6 +82,49 @@ async def test_mock_generate_not_enough() -> None:
     with pytest.raises(ValueError) as e_info:
         await model.generate(input="unused input")
         assert "custom_outputs ran out of values" in str(e_info.value)
+
+
+@skip_if_trio
+async def test_mock_generate_callable_default_token_usage() -> None:
+    def custom_fn(
+        input: list[ChatMessage],
+        tools: list[ToolInfo],
+        tool_choice: ToolChoice,
+        config: GenerateConfig,
+    ) -> ModelOutput:
+        return ModelOutput.from_content(model="mockllm", content="hello world")
+
+    model = get_model("mockllm/test", custom_outputs=custom_fn)
+    output = await model.generate([ChatMessageUser(content="hi")])
+
+    assert output.usage is not None
+    assert output.usage.input_tokens > 0
+    assert output.usage.output_tokens == len("hello world")
+    assert (
+        output.usage.total_tokens
+        == output.usage.input_tokens + output.usage.output_tokens
+    )
+
+
+@skip_if_trio
+async def test_mock_generate_custom_callable_explicit_usage() -> None:
+    explicit_usage = ModelUsage(input_tokens=10, output_tokens=20, total_tokens=30)
+
+    def custom_output_generator(
+        input: list[ChatMessage],
+        tools: list[ToolInfo],
+        tool_choice: ToolChoice,
+        config: GenerateConfig,
+    ) -> ModelOutput:
+        out = ModelOutput.from_content(
+            model="mockllm", content="response with explicit usage"
+        )
+        out.usage = explicit_usage
+        return out
+
+    model = get_model("mockllm/model", custom_outputs=custom_output_generator)
+    response = await model.generate(input="test")
+    assert response.usage == explicit_usage
 
 
 @skip_if_trio

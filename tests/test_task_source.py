@@ -127,6 +127,236 @@ def test_sample_complete_receives_owning_task() -> None:
     assert sorted(name for name, _ in seen) == ["a", "b"]
 
 
+def test_sample_complete_fires_for_per_sample_cancel() -> None:
+    """A per-sample `cancel` interrupt still notifies the TaskSource.
+
+    The task keeps running after an operator cancels one sample, so the
+    source hears about it (as cancelled) like any other completing sample.
+    """
+    from inspect_ai.log._samples import sample_active
+
+    completed: list[str] = []
+
+    @solver(name="task_source_self_cancel_solver")
+    def self_cancel_solver() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            if state.sample_id == "a":
+                active = sample_active()
+                assert active is not None
+                active.interrupt("cancel")
+                await anyio.sleep(10)
+            return state
+
+        return solve
+
+    class _Src(TaskSource):
+        def initial_tasks(self) -> list[Task]:
+            return [
+                Task(
+                    dataset=[Sample(id="a", input="x"), Sample(id="b", input="x")],
+                    solver=self_cancel_solver(),
+                    name="per_sample_cancel",
+                )
+            ]
+
+        async def sample_complete(self, sample: EvalSample, task: Task) -> None:
+            completed.append(str(sample.id))
+
+        async def next_tasks(self) -> list[Task] | None:
+            return None
+
+    logs = eval(tasks=_Src(), model="mockllm/model", display="none")
+    assert logs[0].status == "success"
+    assert sorted(completed) == ["a", "b"]
+
+
+def test_sample_complete_skipped_for_task_cancel() -> None:
+    """A task-level cancel does not notify the TaskSource for the unwound sample.
+
+    The sample completion block is shielded while a cancellation is being
+    resolved, so delivering the sample there would run user callback code
+    uncancellable (a callback that blocks would hang ^C). The task's unwind
+    also means any follow-up tasks could never run under it; the source still
+    sees the sample in the log handed to `task_complete`.
+    """
+    from inspect_ai._control.cancel import cancel_task as ctl_cancel_task
+    from inspect_ai._control.eval_state import get_eval_states
+
+    completed: list[str] = []
+    tasks_completed: list[str] = []
+
+    @solver(name="task_source_task_cancel_solver")
+    def task_cancel_solver() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            result = ctl_cancel_task(get_eval_states()[0].task_id, action="cancel")
+            assert result is not None and result["ok"] is True
+            await anyio.sleep(10)
+            return state
+
+        return solve
+
+    class _Src(TaskSource):
+        def initial_tasks(self) -> list[Task]:
+            return [
+                Task(
+                    dataset=[Sample(id="a", input="x")],
+                    solver=task_cancel_solver(),
+                    name="task_cancel",
+                )
+            ]
+
+        async def sample_complete(self, sample: EvalSample, task: Task) -> None:
+            completed.append(str(sample.id))
+
+        async def task_complete(self, log: EvalLog) -> None:
+            tasks_completed.append(log.eval.task)
+
+        async def next_tasks(self) -> list[Task] | None:
+            return None
+
+    logs = eval(tasks=_Src(), model="mockllm/model", display="none")
+    log = logs[0]
+    assert log.status == "error"
+    assert log.error is not None and "cancelled by user" in log.error.message
+    assert log.samples is not None and len(log.samples) == 1
+    assert log.samples[0].error is not None
+    assert completed == []
+    assert tasks_completed == ["task_cancel"]
+
+
+def test_sample_abandoned_fires_for_queued_sample_cancel() -> None:
+    """Cancelling a sample still parked in the queue notifies the TaskSource.
+
+    With one slot, whichever seed wins it cancels the parked sibling before it
+    starts. Nothing is ever logged for the sibling, so the source hears about
+    it via `sample_abandoned` (with the sample, epoch and task) rather than
+    `sample_complete`, which fires only for the sample that ran.
+    """
+    from inspect_ai._control.cancel import cancel_sample
+    from inspect_ai._control.eval_state import get_eval_states
+
+    completed: list[str] = []
+    abandoned: list[tuple[str, int, str]] = []
+    ran: list[str] = []
+
+    async def on_complete(sample: EvalSample, task: Task) -> list[Task] | None:
+        completed.append(str(sample.id))
+        return None
+
+    async def on_abandoned(sample: Sample, epoch: int, task: Task) -> None:
+        abandoned.append((str(sample.id), epoch, task.name))
+
+    @solver(name="task_source_queued_cancel_solver")
+    def cancel_parked_sibling() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            ran.append(str(state.sample_id))
+            parked = "b" if state.sample_id == "a" else "a"
+            eval_id = get_eval_states()[0].eval_id
+            with anyio.fail_after(60):
+                while True:
+                    probe = await cancel_sample(
+                        eval_id, parked, 1, action="cancel", dry_run=True
+                    )
+                    if probe is not None and probe.get("status") == "cancelled":
+                        break
+                    await anyio.sleep(0.01)
+            result = await cancel_sample(eval_id, parked, 1, action="cancel")
+            assert result is not None
+            assert result["ok"] is True and result["changed"] is True
+            return state
+
+        return solve
+
+    source = TaskSource.from_tasks(
+        [
+            Task(
+                dataset=[Sample(id="a", input="x"), Sample(id="b", input="x")],
+                solver=cancel_parked_sibling(),
+                name="queued_cancel",
+            )
+        ],
+        sample_complete=on_complete,
+        sample_abandoned=on_abandoned,
+    )
+    logs = eval(tasks=source, model="mockllm/model", display="none", max_samples=1)
+    assert logs[0].status == "success"
+    (running,) = ran
+    parked = "b" if running == "a" else "a"
+    assert completed == [running]
+    assert abandoned == [(parked, 1, "queued_cancel")]
+    assert [str(s.id) for s in (logs[0].samples or [])] == [running]
+
+
+def test_task_cancel_reaches_suspended_sample_abandoned() -> None:
+    """A task stays cancellable while its `sample_abandoned` callback blocks.
+
+    The hook fires after the run's terminal count, so for the task's last
+    sample the counters already read complete when the callback runs. A
+    TaskSource-driven eval must therefore not stamp itself finished on the
+    counters alone (it registers as dynamic, like a SampleSource task):
+    otherwise `ctl task cancel` would no-op as "task already finished" while
+    the callback held the fanout open. The cancel is issued from inside the
+    suspended callback; it must be accepted, unwind the callback (its cleanup
+    runs) and end the eval.
+    """
+    from inspect_ai._control.cancel import CancelTaskResult, cancel_sample
+    from inspect_ai._control.cancel import cancel_task as ctl_cancel_task
+    from inspect_ai._control.eval_state import get_eval_states
+
+    attempts = 0
+    cancel_results: list[CancelTaskResult | None] = []
+    callback_cleanup: list[str] = []
+
+    @solver(name="task_source_drain_window_error_solver")
+    def erroring_solver() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            nonlocal attempts
+            attempts += 1
+            raise RuntimeError("boom")
+
+        return solve
+
+    async def cleanup(state: TaskState) -> None:
+        # per-sample cancel in the errored attempt's drain window: the retry
+        # is suppressed and the run abandoned without a log record
+        if attempts == 1:
+            eval_id = get_eval_states()[0].eval_id
+            result = await cancel_sample(eval_id, "a", 1, action="cancel")
+            assert result is not None and result["ok"] is True
+
+    async def on_abandoned(sample: Sample, epoch: int, task: Task) -> None:
+        # the task's only sample is counted terminal by now; the task-level
+        # cancel must still be accepted and reach this suspended callback
+        cancel_results.append(
+            ctl_cancel_task(get_eval_states()[0].task_id, action="cancel")
+        )
+        try:
+            await anyio.sleep(10)
+        finally:
+            callback_cleanup.append(str(sample.id))
+
+    source = TaskSource.from_tasks(
+        [
+            Task(
+                dataset=[Sample(id="a", input="x")],
+                solver=erroring_solver(),
+                cleanup=cleanup,
+                name="cancel_during_abandoned",
+            )
+        ],
+        sample_abandoned=on_abandoned,
+    )
+    logs = eval(tasks=source, model="mockllm/model", display="none", retry_on_error=2)
+    assert attempts == 1
+    (cancel,) = cancel_results
+    assert cancel is not None and cancel["ok"] is True
+    assert cancel["changed"] is True, cancel
+    assert callback_cleanup == ["a"]
+    log = logs[0]
+    assert log.status == "error"
+    assert log.error is not None and "cancelled by user" in log.error.message
+
+
 def test_task_source_factory_seed_and_callbacks() -> None:
     # task_source() builds a TaskSource from a seed + callbacks (no subclass).
     # next_tasks closes over shared state to produce two more generations.

@@ -57,7 +57,11 @@ Inspect includes some simple built in metrics for calculating accuracy, mean, et
 
 -   `ci()`
 
-    Confidence interval for the mean, reported as a mapping with `lower` and `upper` bounds. Defaults to a 95% Student-t interval (`mean ± t · stderr`, with `n - 1` degrees of freedom, or `clusters - 1` when `cluster=` is set); pass `level=` to change the confidence level or `method="bootstrap"` for a percentile (cluster) bootstrap interval. Useful for deciding, for example, whether two models' accuracy intervals overlap.
+    Confidence interval for the mean, reported as a mapping with `lower` and `upper` bounds. Defaults to a 95% Student-t interval (`mean ± t · stderr`, with `n - 1` degrees of freedom, or `clusters - 1` when `cluster=` is set); pass `level=` to change the confidence level or `method="bootstrap"` for a percentile (cluster) bootstrap interval. Useful for deciding, for example, whether two models' accuracy intervals overlap. For binary scores, prefer `ci_wilson()`.
+
+-   `ci_wilson()`
+
+    Wilson score confidence interval for the mean of binary (0/1) scores, treating it as a binomial proportion. Prefer this over `ci()` for binary scores such as accuracy: the bounds always stay within [0, 1] and remain well calibrated for small samples and proportions near 0 or 1. Pass `level=` to change the confidence level; with `cluster=` the interval uses an effective sample size derived from the clustered standard error.
 
 -   `frequency()`
 
@@ -326,6 +330,12 @@ If a task is run over more than one `epoch`, multiple scores will be generated f
 
 By default, the reduced view is built with `mean`. You may specify other strategies by passing an `Epochs`, which includes both a count and one or more reducers to combine sample scores with. For example:
 
+::: callout-note
+An integer epoch override changes the count and preserves the reducer defined by the task. This applies to `eval(..., epochs=n)`, `eval_set(..., epochs=n)`, and `--epochs n`. To replace the task reducer, pass `Epochs(n, reducer)` or combine `--epochs n` with `--epochs-reducer reducer`. Combine `--epochs n` with `--no-epochs-reducer` to disable epoch reduction.
+
+A task with a fixed custom reducer can define its count directly in `Task`; the reducer remains active when users override the count. An `epochs` task parameter is useful when changing the count should also change the reducer configuration.
+:::
+
 ``` python
 @task
 def gpqa():
@@ -372,6 +382,7 @@ Inspect includes several built in reducers which are summarised below.
 | mean | Reduce to the average of all scores. |
 | median | Reduce to the median of all scores |
 | mode | Reduce to the most common score. |
+| majority | Reduce to the score held by more than half of the scores being reduced, otherwise unscored. |
 | max | Reduce to the maximum of all scores. |
 | pass_at\_{k} | Probability of at least 1 correct sample given `k` epochs (<https://arxiv.org/pdf/2107.03374>) |
 | pass_k\_{k} | Probability that all `k` epoch attempts succeed (<https://arxiv.org/pdf/2406.12045>) |

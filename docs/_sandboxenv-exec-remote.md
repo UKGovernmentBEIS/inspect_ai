@@ -22,4 +22,4 @@ async def exec_remote(
     ...
 ```
 
-The `exec_remote()` options (`ExecRemoteStreamingOptions` and `ExecRemoteAwaitableOptions`) include a `user` field that requests the command run as the specified user (equivalent to `docker exec --user`). This requires the sandbox tools server to be running as root inside the container. If the server cannot switch users, a `ToolException` is raised.
+The `exec_remote()` options (`ExecRemoteStreamingOptions` and `ExecRemoteAwaitableOptions`) include a `user` field that requests the command run as the specified user (equivalent to `docker exec --user`). This requires the sandbox tools server to be running as root inside the container. If the server cannot switch users, a `ToolException` is raised. When `user` is omitted, the command runs as the sandbox's default user (the user `sandbox().exec()` runs as).

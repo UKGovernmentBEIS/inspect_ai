@@ -55,8 +55,7 @@ SANDBOX_CONFIGS = [
         config=None,
         requires_docker=False,
         xfails={
-            "test_exec_as_user": "local sandbox ignores the user= parameter",
-            "test_exec_as_nonexistent_user": "local sandbox ignores the user= parameter",
+            "test_exec_as_user": "local sandbox cannot switch users",
             "test_exec_timeout_not_raised_on_fast_signal_death": (
                 "local sandbox doesn't wrap commands with in-container `timeout`, so "
                 "the signal exit code semantics differ (returns -15 not 143)"
@@ -174,3 +173,45 @@ def sandbox_env(request, _config_and_env: ConfigAndEnv) -> SandboxEnvironment:
         request.node.add_marker(pytest.mark.xfail(reason=reason, strict=True))
 
     return _config_and_env.env
+
+
+@pytest.mark.parametrize("user", [None, "root"])
+async def test_docker_timeout_ignores_untrusted_path(
+    sandbox_env: SandboxEnvironment, user: str | None
+) -> None:
+    """Timeout uses system utilities while the requested command keeps its PATH."""
+    if not isinstance(sandbox_env, DockerSandboxEnvironment):
+        pytest.skip("Docker-specific timeout wrapper")
+
+    result = await sandbox_env.exec(["mktemp", "-d"])
+    assert result.success, result.stderr
+    directory = result.stdout.strip()
+    try:
+        await sandbox_env.write_file(
+            f"{directory}/timeout", "#!/bin/sh\nprintf 'planted timeout ran\\n'\n"
+        )
+        await sandbox_env.write_file(
+            f"{directory}/path-probe", '#!/bin/sh\nprintf "%s" "$1"\n'
+        )
+        result = await sandbox_env.exec(
+            [
+                "chmod",
+                "755",
+                directory,
+                f"{directory}/timeout",
+                f"{directory}/path-probe",
+            ]
+        )
+        assert result.success, result.stderr
+
+        argument = "literal spaces; $HOME $(id)"
+        result = await sandbox_env.exec(
+            ["path-probe", argument],
+            env={"PATH": directory},
+            user=user,
+            timeout=10,
+        )
+        assert result.success, result.stderr
+        assert result.stdout == argument
+    finally:
+        await sandbox_env.exec(["rm", "-rf", directory])

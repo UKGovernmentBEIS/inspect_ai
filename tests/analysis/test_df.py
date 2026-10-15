@@ -14,6 +14,7 @@ from inspect_ai.analysis import (
     EventInfo,
     EventTiming,
     MessageColumns,
+    ModelEventColumns,
     SampleSummary,
     evals_df,
     events_df,
@@ -24,6 +25,7 @@ from inspect_ai.analysis._dataframe.evals.columns import EvalTask
 from inspect_ai.analysis._dataframe.extract import score_details
 from inspect_ai.analysis._dataframe.samples.columns import SampleScores
 from inspect_ai.analysis._dataframe.util import resolve_logs
+from inspect_ai.dataset import Sample
 from inspect_ai.log import (
     EvalLog,
     MetadataEdit,
@@ -34,6 +36,9 @@ from inspect_ai.log import (
     read_eval_log,
     write_eval_log,
 )
+from inspect_ai.model import get_model
+from inspect_ai.model._model import requested_model
+from inspect_ai.solver import Generate, TaskState, solver
 
 LOGS_DIR = Path(__file__).parent / "test_logs"
 SECURITY_GUIDE_LOG = LOGS_DIR / "2025-05-12T20-28-26-04-00_security-guide.json"
@@ -333,6 +338,23 @@ def test_evals_df_includes_token_limit_type_column():
     assert "token_limit_type" in df.columns
 
 
+def test_evals_df_sentinel_column(tmp_path: Path) -> None:
+    from inspect_ai.log import SentinelConfig
+
+    [plain] = eval(Task(), model="mockllm/model", log_dir=str(tmp_path / "plain"))
+    with_sentinel = plain.model_copy(deep=True)
+    with_sentinel.eval.config.sentinel = SentinelConfig.model_validate(
+        [{"name": "d4_rule", "params": {"reason": "no"}}]
+    )
+    write_eval_log(with_sentinel, str(tmp_path / "sentinel" / "log.eval"))
+
+    df = evals_df(tmp_path / "sentinel")
+    assert "d4_rule" in df["sentinel"].iloc[0]
+    df = evals_df(tmp_path / "plain")
+    assert "sentinel" in df.columns
+    assert df["sentinel"].isna().all()
+
+
 def test_messages_df():
     df = messages_df(LOGS_DIR)
     assert len(df) == 34
@@ -373,6 +395,39 @@ def test_events_df_filter():
     assert len(df) == 4
 
 
+def test_events_df_model_event_requested_model(tmp_path: Path):
+    @solver
+    def bridged_then_direct():
+        async def solve(state: TaskState, generate: Generate):
+            model = get_model()
+            with requested_model("gpt-4o-mini"):
+                await model.generate("bridged")
+            await model.generate("direct")
+            return state
+
+        return solve
+
+    task = Task(dataset=[Sample(input="Say hello.")], solver=bridged_then_direct())
+    log = eval(task, model="mockllm/model", log_dir=str(tmp_path))[0]
+
+    df = events_df(
+        log,
+        columns=EventInfo + ModelEventColumns,
+        filter=lambda e: e.event == "model",
+    )
+    assert df["model_event_model"].tolist() == ["mockllm/model", "mockllm/model"]
+    requested = df["model_event_requested_model"]
+    assert requested.iloc[0] == "gpt-4o-mini"
+    assert pd.isna(requested.iloc[1])
+
+    # logs written before the field have no value
+    old = events_df(
+        LOGS_DIR, columns=ModelEventColumns, filter=lambda e: e.event == "model"
+    )
+    assert len(old) > 0
+    assert old["model_event_requested_model"].isna().all()
+
+
 def test_eval_df_display_name():
     with tempfile.TemporaryDirectory() as log_dir:
         eval(Task(display_name="My Task"), model="mockllm/model", log_dir=log_dir)
@@ -381,6 +436,31 @@ def test_eval_df_display_name():
         eval(Task(name="my_task"), model="mockllm/model", log_dir=log_dir)
         df = evals_df(log_dir)
         assert df["task_display_name"].to_list().sort() == ["My Task", "my_task"].sort()
+
+
+def test_df_description_columns():
+    with tempfile.TemporaryDirectory() as log_dir:
+        eval(
+            Task(
+                dataset=[
+                    Sample(id=1, input="x", description="Say x."),
+                    Sample(id=2, input="y"),
+                ],
+                description="Say the input.",
+            ),
+            model="mockllm/model",
+            log_dir=log_dir,
+        )
+        assert evals_df(log_dir)["task_description"].to_list() == ["Say the input."]
+        for full in [False, True]:
+            df = samples_df(log_dir, full=full).sort_values("id")
+            descriptions = df["description"].to_list()
+            assert descriptions[0] == "Say x."
+            assert pd.isna(descriptions[1])
+
+    # logs written before descriptions existed read as missing
+    assert evals_df(LOGS_DIR)["task_description"].isna().all()
+    assert samples_df(LOGS_DIR)["description"].isna().all()
 
 
 def test_samples_df_with_sample_scores():

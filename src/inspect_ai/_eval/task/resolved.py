@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import Any, Set
+from typing import Any, Sequence, Set
 
 from inspect_ai._eval.task import Task
 from inspect_ai._eval.task.run import EvalSampleSource
@@ -35,6 +35,11 @@ class ResolvedTask:
             return any(
                 [True if sample.sandbox else False for sample in self.task.dataset]
             )
+
+
+def resolved_task_names(tasks: Sequence[ResolvedTask]) -> list[str]:
+    """Distinct task names, in order — the universe `task:id` sample selectors resolve against."""
+    return list(dict.fromkeys(task.task.name for task in tasks))
 
 
 def resolved_model_names(tasks: list[ResolvedTask]) -> list[str]:

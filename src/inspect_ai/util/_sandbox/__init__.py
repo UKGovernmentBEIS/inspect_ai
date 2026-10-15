@@ -5,6 +5,7 @@ from .compose import (
     ComposeConfig,
     ComposeHealthcheck,
     ComposeService,
+    ComposeVolumeMount,
     is_compose_yaml,
     is_dockerfile,
     parse_compose_yaml,
@@ -19,6 +20,7 @@ from .environment import (
     SandboxEnvironmentSpec,
     SandboxEnvironmentType,
     SandboxUnavailableError,
+    SandboxUserUnsupportedError,
 )
 from .events import SandboxTimeoutError
 from .exec_remote import (
@@ -44,6 +46,7 @@ __all__ = [
     "ComposeConfig",
     "ComposeHealthcheck",
     "ComposeService",
+    "ComposeVolumeMount",
     "ExecCompleted",
     "ExecOutput",
     "ExecRemoteAwaitableOptions",
@@ -65,6 +68,7 @@ __all__ = [
     "SandboxConnection",
     "SandboxTimeoutError",
     "SandboxUnavailableError",
+    "SandboxUserUnsupportedError",
     "sandboxenv",
     "sandbox",
     "sandbox_with",

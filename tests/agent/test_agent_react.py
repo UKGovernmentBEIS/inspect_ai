@@ -17,7 +17,12 @@ from inspect_ai.agent._types import (
 )
 from inspect_ai.dataset import Sample
 from inspect_ai.log import EvalLog
-from inspect_ai.model import ChatMessageUser, ModelOutput, get_model
+from inspect_ai.model import (
+    ChatMessageUser,
+    GenerateConfig,
+    ModelOutput,
+    get_model,
+)
 from inspect_ai.model._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
@@ -268,6 +273,80 @@ def check_custom_submit(log: EvalLog, name: str, description: str) -> None:
 
 def addition_dataset() -> list[Sample]:
     return [Sample(input="What is 1 + 1?", target=["2", "2.0", "Two"])]
+
+
+def test_react_agent_long_submission_not_truncated() -> None:
+    """A submitted answer larger than max_tool_output reaches the completion intact.
+
+    The submit result is the scored answer, not model-facing tool output, so
+    clipping it would score a truncation notice in place of what the model
+    actually wrote.
+    """
+    answer = "A" * 2000
+    log = eval(
+        Task(
+            dataset=addition_dataset(),
+            solver=react(),
+            config=GenerateConfig(max_tool_output=100),
+        ),
+        model=mockllm_model_with_submissions([answer]),
+    )[0]
+    assert log.status == "success"
+    assert log.samples
+    # answer_only is False by default, so the answer is appended to the
+    # content the model generated alongside the submit call
+    assert log.samples[0].output.completion.endswith(answer)
+
+
+@tool
+def custom_submit_tool():
+    async def execute(answer: str) -> str:
+        """The tool used to submit.
+
+        Args:
+            answer: The submitted answer.
+        """
+        return answer
+
+    return execute
+
+
+def _run_custom_submit(answer: str, submit_tool: ToolDef) -> EvalLog:
+    return eval(
+        Task(
+            dataset=addition_dataset(),
+            solver=react(submit=AgentSubmit(tool=submit_tool)),
+            config=GenerateConfig(max_tool_output=100),
+        ),
+        model=mockllm_model_with_submissions([answer]),
+    )[0]
+
+
+def test_react_agent_custom_submit_tool_long_submission_not_truncated() -> None:
+    """The exemption is defaulted onto a caller-supplied submit ToolDef too."""
+    answer = "B" * 2000
+    log = _run_custom_submit(answer, ToolDef(custom_submit_tool(), name="submit"))
+    assert log.status == "success"
+    assert log.samples
+    assert log.samples[0].output.completion.endswith(answer)
+
+
+def test_react_agent_custom_submit_tool_explicit_max_output_respected() -> None:
+    """React defaults the submit exemption but never overrides an explicit one.
+
+    Truncating a submission is normally a bug (the notice gets scored in place
+    of the answer), but a caller who asks for a cap on their own submit tool
+    gets it.
+    """
+    answer = "C" * 2000
+    log = _run_custom_submit(
+        answer, ToolDef(custom_submit_tool(), name="submit", max_output=500)
+    )
+    assert log.status == "success"
+    assert log.samples
+    completion = log.samples[0].output.completion
+    assert answer not in completion
+    assert len(completion) < len(answer)
 
 
 def test_react_agent_no_submit() -> None:
@@ -943,3 +1022,102 @@ def test_react_agent_retry_refusals_recovery() -> None:
     assert log.status == "success"
     assert log.results
     assert log.results.scores[0].metrics["accuracy"].value == 1
+
+
+def _refusal(i: int = 0) -> ModelOutput:
+    return ModelOutput.from_content(
+        model="mockllm/model",
+        content=f"I cannot help ({i}).",
+        stop_reason="content_filter",
+    )
+
+
+def _submit_two() -> ModelOutput:
+    return ModelOutput.for_tool_call(
+        model="mockllm/model",
+        tool_name="submit",
+        tool_arguments={"answer": "2"},
+    )
+
+
+def _model_event_count(log: EvalLog) -> int:
+    assert log.samples
+    return sum(1 for event in log.samples[0].events if event.event == "model")
+
+
+def test_react_agent_fail_on_refusal_after_retries() -> None:
+    """With fail_on_refusal, retry_refusals=N still applies: N+1 refusals fail the sample."""
+    task = Task(
+        dataset=addition_dataset(),
+        solver=react(tools=[addition()], retry_refusals=2),
+        scorer=includes(),
+    )
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[_refusal(0), _refusal(1), _refusal(2), _submit_two()],
+    )
+
+    log = eval(task, model=model, fail_on_refusal=True, fail_on_error=False)[0]
+    assert log.samples
+    error = log.samples[0].error
+    assert error is not None
+    assert "Model refusal (mockllm/model): I cannot help (2)." in error.message
+    # initial attempt + 2 retries, then the sample failed
+    assert _model_event_count(log) == 3
+
+
+def test_react_agent_fail_on_refusal_retry_recovers() -> None:
+    """Refusals within the retry budget don't fail the sample."""
+    task = Task(
+        dataset=addition_dataset(),
+        solver=react(tools=[addition()], retry_refusals=2),
+        scorer=includes(),
+    )
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[_refusal(0), _refusal(1), _submit_two()],
+    )
+
+    log = eval(task, model=model, fail_on_refusal=True)[0]
+    assert log.status == "success"
+    assert log.results
+    assert log.results.scores[0].metrics["accuracy"].value == 1
+    assert log.samples
+    assert log.samples[0].error is None
+
+
+def test_react_agent_fail_on_refusal_no_retries() -> None:
+    """Without retry_refusals a single refusal fails the sample."""
+    task = Task(
+        dataset=addition_dataset(),
+        solver=react(tools=[addition()]),
+        scorer=includes(),
+    )
+    model = get_model("mockllm/model", custom_outputs=[_refusal(), _submit_two()])
+
+    log = eval(task, model=model, fail_on_refusal=True, fail_on_error=False)[0]
+    assert log.samples
+    assert log.samples[0].error is not None
+    assert _model_event_count(log) == 1
+
+
+def test_react_agent_fail_on_refusal_no_submit() -> None:
+    """The react_no_submit() loop gets the same retry-then-fail behaviour."""
+    task = Task(
+        dataset=addition_dataset(),
+        solver=react(tools=[addition()], submit=False, retry_refusals=1),
+        scorer=includes(),
+    )
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            _refusal(0),
+            _refusal(1),
+            ModelOutput.from_content(model="mockllm/model", content="2"),
+        ],
+    )
+
+    log = eval(task, model=model, fail_on_refusal=True, fail_on_error=False)[0]
+    assert log.samples
+    assert log.samples[0].error is not None
+    assert _model_event_count(log) == 2

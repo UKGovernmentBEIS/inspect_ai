@@ -1,0 +1,8 @@
+FROM python:3.12-bookworm
+RUN useradd --create-home --uid 1111 nonroot
+# Docker resolves `exec --user root` through the container's /etc/passwd, so
+# dropping root's entry makes every root exec fail. Inspect then treats the
+# sandbox as rootless and runs the sandbox tools as the default user. This
+# relies on the docker provider passing the user by name; a numeric `--user 0`
+# would resolve without passwd and the rootless tests would fail on ownership.
+RUN sed -i '/^root:/d' /etc/passwd

@@ -39,9 +39,9 @@ from openai.types.responses import (
     ResponseReasoningItem,
     ResponseReasoningItemParam,
     ResponseToolSearchCall,
+    ResponseToolSearchOutputItem,
     ResponseUsage,
     ToolChoiceFunctionParam,
-    ToolChoiceMcpParam,
     ToolChoiceTypesParam,
     ToolParam,
     ToolSearchToolParam,
@@ -124,6 +124,9 @@ from openai.types.responses.response_output_text import (
 from openai.types.responses.response_output_text_param import (
     Annotation as AnnotationParam,
 )
+from openai.types.responses.response_reasoning_item_param import (
+    Content as ReasoningTextParam,
+)
 from openai.types.responses.response_reasoning_item_param import Summary as SummaryParam
 from openai.types.responses.response_tool_search_output_item_param_param import (
     ResponseToolSearchOutputItemParamParam,
@@ -183,6 +186,7 @@ from inspect_ai.model._model_output import (
     TopLogprob,
     collect_stop_details,
 )
+from inspect_ai.model._openai import is_gpt_5_model
 from inspect_ai.tool._mcp._config import MCPServerConfigHTTP
 from inspect_ai.tool._mcp._remote import is_mcp_server_tool
 from inspect_ai.tool._tool_call import ToolCall
@@ -190,6 +194,7 @@ from inspect_ai.tool._tool_choice import ToolChoice
 from inspect_ai.tool._tool_info import ToolInfo
 from inspect_ai.util._json import json_schema_dump
 
+from ._openai import _cache_breakpoint
 from ._providers._openai_computer_use import (
     computer_call_output,
     maybe_computer_use_tool,
@@ -229,14 +234,34 @@ class ResponsesModelInfo(Protocol):
     def is_gpt(self) -> bool: ...
     def is_gpt_5(self) -> bool: ...
     def is_gpt_5_plus(self) -> bool: ...
+    def always_reasons(self) -> bool: ...
     def is_gpt_5_pro(self) -> bool: ...
     def supports_max_reasoning_effort(self) -> bool: ...
+    def reasons_by_default(self) -> bool: ...
     def is_gpt_5_chat(self) -> bool: ...
     def is_o_series(self) -> bool: ...
     def is_o1(self) -> bool: ...
     def is_o3_mini(self) -> bool: ...
     def is_deep_research(self) -> bool: ...
     def is_codex(self) -> bool: ...
+    def replays_reasoning_text(self) -> bool:
+        """Send readable reasoning that has no encrypted content back as reasoning `content`.
+
+        OpenAI rejects reasoning input items with non-empty `content`, so this
+        is only for services that accept it (e.g. a LiteLLM proxy, which
+        converts it to the upstream provider's reasoning field). Without it,
+        reasoning from a model with no encrypted reasoning is not sent back.
+        """
+        ...
+
+    def omits_empty_tool_call_text(self) -> bool:
+        """Leave out empty text returned alongside tool calls when replaying.
+
+        By default, empty text that came from the model (it has a message id)
+        is replayed. Some upstream providers behind a LiteLLM proxy reject an
+        assistant message with empty text content.
+        """
+        ...
 
 
 def _extract_compaction_from_content_data(
@@ -291,17 +316,33 @@ def _extract_agent_message_from_internal(
     return None
 
 
+def message_bypasses_content_conversion(message: ChatMessage) -> bool:
+    """Whether `message` takes a native-replay path in the Responses API.
+
+    A compaction marker or stashed Codex `agent_message` is replayed
+    verbatim instead of being converted through
+    `_openai_responses_content_list_param` — the function that emits
+    `prompt_cache_breakpoint` — so a mark on such a message can never be
+    honored, regardless of its (eligible) role.
+    """
+    return message.role == "user" and (
+        _extract_compaction_from_content_data(message.content) is not None
+        or _extract_agent_message_from_internal(message.content) is not None
+    )
+
+
 async def openai_responses_inputs(
     messages: list[ChatMessage],
     model_info: ResponsesModelInfo | None = None,
     synthesize_phase: bool = False,
     swap_todo_write: bool = False,
+    cache_breakpoints: bool = False,
 ) -> list[ResponseInputItemParam]:
     return [
         item
         for message in messages
         for item in await _openai_input_item_from_chat_message(
-            message, model_info, synthesize_phase, swap_todo_write
+            message, model_info, synthesize_phase, swap_todo_write, cache_breakpoints
         )
     ]
 
@@ -311,9 +352,12 @@ async def _openai_input_item_from_chat_message(
     model_info: ResponsesModelInfo | None = None,
     synthesize_phase: bool = False,
     swap_todo_write: bool = False,
+    cache_breakpoints: bool = False,
 ) -> list[ResponseInputItemParam]:
     if message.role == "system":
-        content = await _openai_responses_content_list_param(message.content)
+        content = await _openai_responses_content_list_param(
+            message.content, cache_breakpoints
+        )
         return [Message(type="message", role="developer", content=content)]
     elif message.role == "user":
         # Check if this is a compaction marker message
@@ -332,7 +376,9 @@ async def _openai_input_item_from_chat_message(
             Message(
                 type="message",
                 role="user",
-                content=await _openai_responses_content_list_param(message.content),
+                content=await _openai_responses_content_list_param(
+                    message.content, cache_breakpoints
+                ),
             )
         ]
     elif message.role == "assistant":
@@ -390,10 +436,18 @@ async def _openai_input_item_from_chat_message(
         raise ValueError(f"Unexpected message role '{message.role}'")
 
 
-def _tool_search_output_param_from_tool_message(
-    message: ChatMessageTool,
-) -> ResponseToolSearchOutputItemParamParam:
-    # tools were carried as JSON in the tool message content; parse them back
+def tool_search_output_tools(message: ChatMessageTool) -> list[Any]:
+    """The discovered tools a `tool_search` result message carries, as sent on the wire.
+
+    The tools were carried as JSON in the tool message content
+    (`messages_from_responses_input`); this parses them back and validates the
+    whole list as `list[ToolParam]`. Validation is all-or-nothing: if any entry
+    is invalid (content cleared by compaction, a rewrite, a malformed entry) the
+    result is an empty list, and that is what the `tool_search_output` item
+    replayed to the model carries. Anything else that reasons about what the
+    model was told by a tool-search result (the agent bridge's grant resolution)
+    must go through this same function so it cannot disagree with the wire.
+    """
     content = message.content
     tools_json = (
         content
@@ -409,14 +463,19 @@ def _tool_search_output_param_from_tool_message(
         # exhausted on the first pass and the wire body carries an empty `tools`
         # array (OpenAI then rejects it as "empty array"). dump_python
         # materializes the iterators into plain lists that survive re-serialization.
-        tools = tool_search_tools_adapter.dump_python(validated, mode="json")
+        tools: list[Any] = tool_search_tools_adapter.dump_python(validated, mode="json")
     except (ValidationError, ValueError):
-        # e.g. content cleared by compaction; fall back to an empty tool list
         tools = []
+    return tools
+
+
+def _tool_search_output_param_from_tool_message(
+    message: ChatMessageTool,
+) -> ResponseToolSearchOutputItemParamParam:
     return ResponseToolSearchOutputItemParamParam(
         type="tool_search_output",
         call_id=message.tool_call_id or str(message.function),
-        tools=tools,
+        tools=tool_search_output_tools(message),
         execution="client",
         status="completed",
     )
@@ -468,18 +527,23 @@ async def _openai_responses_custom_tool_call_output(
 
 async def _openai_responses_content_list_param(
     content: str | list[Content],
+    cache_breakpoints: bool = False,
 ) -> ResponseInputMessageContentListParam:
     return [
-        await _openai_responses_content_param(c)
+        await _openai_responses_content_param(c, cache_breakpoints)
         for c in ([ContentText(text=content)] if isinstance(content, str) else content)
     ]
 
 
 async def _openai_responses_content_param(
     content: Content,
+    cache_breakpoints: bool = False,
 ) -> ResponseInputContentParam:  # type: ignore[return]
     if isinstance(content, ContentText):
-        return ResponseInputTextParam(type="input_text", text=content.text)
+        part = ResponseInputTextParam(type="input_text", text=content.text)
+        if cache_breakpoints and _cache_breakpoint(content):
+            part["prompt_cache_breakpoint"] = {"mode": "explicit"}
+        return part
     elif isinstance(content, ContentImage):
         return ResponseInputImageParam(
             type="input_image",
@@ -807,24 +871,6 @@ def content_from_response_input_content_param(
         raise RuntimeError(f"Unexpected input from responses API: {input}")
 
 
-def is_tool_choice_function_param(
-    tool_choice: ResponsesToolChoiceParam,
-) -> TypeGuard[ToolChoiceFunctionParam]:
-    if not isinstance(tool_choice, str):
-        return tool_choice.get("type") == "function"
-    else:
-        return False
-
-
-def is_tool_choice_mcp_param(
-    tool_choice: ResponsesToolChoiceParam,
-) -> TypeGuard[ToolChoiceMcpParam]:
-    if not isinstance(tool_choice, str):
-        return tool_choice.get("type") == "mcp"
-    else:
-        return False
-
-
 def responses_model_usage(usage: ModelUsage | None) -> ResponseUsage | None:
     if usage is not None:
         return ResponseUsage(
@@ -1041,6 +1087,11 @@ def _process_response_output_items(
                     ToolSearchCall, output.model_dump(exclude_none=True)
                 )
                 tool_calls.append(tool_call)
+            case ResponseToolSearchOutputItem():
+                # Companion result of a ResponseToolSearchCall. Tool-message replay
+                # rebuilds this from the cached call and ChatMessageTool content, so
+                # do not cache it under call_id or it will overwrite the call.
+                pass
             case _:
                 raise ValueError(f"Unexpected output type: {output.__class__}")
 
@@ -1179,6 +1230,7 @@ def read_reasoning_item_param(
 
 def responses_reasoning_from_reasoning(
     content: ContentReasoning,
+    replay_reasoning_text: bool = False,
 ) -> ResponseReasoningItemParam:
     encrypted_content: str | None = content.reasoning if content.redacted else None
 
@@ -1193,16 +1245,31 @@ def responses_reasoning_from_reasoning(
     if not content.redacted and content.summary:
         summary_params.append(SummaryParam(type="summary_text", text=content.summary))
 
-    return ResponseReasoningItemParam(
+    # Responses API rejects non-empty content on reasoning input items
+    # (array_above_max_length); reasoning replays via encrypted_content.
+    reasoning_text: list[ReasoningTextParam] = []
+    if (
+        replay_reasoning_text
+        and not content.redacted
+        and encrypted_content is None
+        and content.reasoning
+    ):
+        reasoning_text = [
+            ReasoningTextParam(type="reasoning_text", text=content.reasoning)
+        ]
+
+    param = ResponseReasoningItemParam(  # type: ignore[typeddict-item]
         type="reasoning",
-        # OpenAI returns 'None' when store=False even though the schema requires the id
-        id=content.signature,  # type: ignore[typeddict-item]
-        # Responses API rejects non-empty content on reasoning input items
-        # (array_above_max_length); reasoning replays via encrypted_content.
-        content=[],
+        content=reasoning_text,
         summary=summary_params,
         encrypted_content=encrypted_content,
     )
+    # OpenAI returns 'None' when store=False even though the schema requires the
+    # id. Omit the key entirely rather than sending an explicit null, which some
+    # backends (e.g. vLLM) reject.
+    if content.signature is not None:
+        param["id"] = content.signature
+    return param
 
 
 mcp_tool_adapter = TypeAdapter(list[McpListToolsToolParam])
@@ -1446,6 +1513,9 @@ def _openai_input_items_from_chat_message_assistant(
     )
 
     if message.tool_calls:
+        omit_model_text = (
+            model_info is not None and model_info.omits_empty_tool_call_text()
+        )
         content_items = [
             content
             for content in content_items
@@ -1453,7 +1523,7 @@ def _openai_input_items_from_chat_message_assistant(
                 isinstance(content, ContentText)
                 and content.text == ""
                 and not content.refusal
-                and content.internal is None
+                and (content.internal is None or omit_model_text)
             )
         ]
 
@@ -1487,18 +1557,18 @@ def _openai_input_items_from_chat_message_assistant(
     def flush_pending_context_text() -> None:
         nonlocal pending_response_output_id, pending_response_phase
         if len(pending_response_output) > 0:
-            msg_param = ResponseOutputMessageParam(
+            msg_param = ResponseOutputMessageParam(  # type: ignore[typeddict-item]
                 type="message",
                 role="assistant",
-                # this actually can be `None`, and it will in fact be `None` when the
-                # assistant message is synthesized by the scaffold as opposed to being
-                # replayed from the model
-                # Is it okay to dynamically generate this here? We need this in
-                # order to read this back into the equivalent BaseModel for the bridge
-                id=pending_response_output_id,  # type: ignore[typeddict-item]
                 content=pending_response_output.copy(),
                 status="completed",
             )
+            # the id will be `None` when the assistant message is synthesized by
+            # the scaffold as opposed to being replayed from the model. Omit the
+            # key entirely rather than sending an explicit null, which some
+            # backends (e.g. vLLM) reject.
+            if pending_response_output_id is not None:
+                msg_param["id"] = pending_response_output_id
             if pending_response_phase is not None:
                 msg_param["phase"] = pending_response_phase  # type: ignore[typeddict-item]
             items.append(msg_param)
@@ -1534,7 +1604,13 @@ def _openai_input_items_from_chat_message_assistant(
                     )
                 )
             case ContentReasoning():
-                items.append(responses_reasoning_from_reasoning(content))
+                items.append(
+                    responses_reasoning_from_reasoning(
+                        content,
+                        replay_reasoning_text=model_info is not None
+                        and model_info.replays_reasoning_text(),
+                    )
+                )
             case ContentToolUse(
                 id=id,
                 tool_type=tool_type,
@@ -2293,11 +2369,14 @@ def is_namespace_tool_param(tool_param: ToolParam) -> TypeGuard[NamespaceToolPar
 def maybe_code_interpreter_tool(
     model_name: str, tool: ToolInfo
 ) -> CodeInterpreter | None:
-    COMPATIBLE_MODELS = ["gpt-4o", "gpt-4o-mini", "gpt-4.1", "o3", "o4-mini", "gpt-5"]
+    COMPATIBLE_MODELS = ["gpt-4o", "gpt-4o-mini", "gpt-4.1", "o3", "o4-mini"]
     if (
         tool.name == "code_execution"
         and tool.options
-        and any(model_name.startswith(model) for model in COMPATIBLE_MODELS)
+        and (
+            is_gpt_5_model(model_name)
+            or any(model_name.startswith(model) for model in COMPATIBLE_MODELS)
+        )
     ):
         providers: dict[str, Any] = tool.options.get("providers", {})
         options: dict[str, Any] | bool = providers.get("openai", False)

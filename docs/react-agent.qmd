@@ -164,6 +164,8 @@ react(
 
 Retries will be triggered when `ModelOutput` has a `stop_reason` of "content_filter".
 
+Once retries are exhausted the agent stops and the sample proceeds to scoring. If you would rather have a refusal fail the sample (so it shows up as a sample error instead of a low score), set the `fail_on_refusal` generation option; see [Failing on Refusals](fallbacks.qmd#failing-on-refusals).
+
 ## Continuation
 
 In some cases models in a tool use loop will simply fail to call a tool (or just talk about calling the `submit()` tool but not actually call it!). This is typically an oversight, and models simply need to be encouraged to call `submit()` or alternatively continue if they haven't yet completed the task.

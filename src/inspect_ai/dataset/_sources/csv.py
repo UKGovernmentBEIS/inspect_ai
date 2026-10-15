@@ -13,7 +13,12 @@ from .._dataset import (
     MemoryDataset,
     RecordToSample,
 )
-from .._util import data_to_samples, record_to_sample_fn, shuffle_choices_if_requested
+from .._util import (
+    data_to_samples,
+    record_to_sample_fn,
+    resolve_shuffle,
+    shuffle_choices_if_requested,
+)
 
 
 def _raise_ragged_row(
@@ -49,16 +54,16 @@ def csv_dataset(
     csv_file: str,
     sample_fields: FieldSpec | RecordToSample | None = None,
     auto_id: bool = False,
-    shuffle: bool = False,
+    shuffle: bool | int = False,
     seed: int | None = None,
     shuffle_choices: bool | int | None = None,
     limit: int | None = None,
     dialect: str = "unix",
-    encoding: str = "utf-8",
+    encoding: str = "utf-8-sig",
     name: str | None = None,
     fs_options: dict[str, Any] | None = None,
     fieldnames: list[str] | None = None,
-    delimiter: str = ",",
+    delimiter: str | None = None,
 ) -> Dataset:
     r"""Read dataset from CSV file.
 
@@ -72,12 +77,13 @@ def csv_dataset(
             `FieldSpec` to specify mapping fields by name; Pass a `RecordToSample` to
             handle mapping with a custom function that returns one or more samples.
         auto_id: Assign an auto-incrementing ID for each sample.
-        shuffle: Randomly shuffle the dataset order.
-        seed: Seed used for random shuffle.
+        shuffle: Randomly shuffle the dataset order. An int (including 0) is used as the seed, so `shuffle=0` shuffles.
+        seed: Seed used for random shuffle. Only valid with a boolean `shuffle`.
         shuffle_choices: Whether to shuffle the choices. If an int is passed, this will be used as the seed when shuffling.
         limit: Limit the number of records to read.
         dialect: CSV dialect ("unix", "excel" or"excel-tab"). Defaults to "unix". See https://docs.python.org/3/library/csv.html#dialects-and-formatting-parameters for more details
-        encoding: Text encoding for file (defaults to "utf-8").
+        encoding: Text encoding for file (defaults to "utf-8-sig", which accepts
+            UTF-8 with or without a byte-order mark).
         name: Optional name for dataset (for logging). If not specified,
             defaults to the stem of the filename
         fs_options: Optional. Additional arguments to pass through
@@ -86,11 +92,14 @@ def csv_dataset(
         fieldnames: Optional. A list of fieldnames to use for the CSV.
             If None, the values in the first row of the file will be used as the fieldnames.
             Useful for files without a header.
-        delimiter: Optional. The delimiter to use when parsing the file. Defaults to ",".
+        delimiter: Optional. Override the dialect's delimiter when parsing the file.
+            Defaults to the dialect's delimiter ("," for the default "unix" dialect).
 
     Returns:
         Dataset read from CSV file.
     """
+    resolved_shuffle = resolve_shuffle(shuffle, seed)
+
     # resolve data_to_sample function
     data_to_sample = record_to_sample_fn(sample_fields)
 
@@ -125,8 +134,8 @@ def csv_dataset(
         resolve_sample_files(dataset)
 
         # shuffle if requested
-        if shuffle:
-            dataset.shuffle(seed=seed)
+        if resolved_shuffle.enabled:
+            dataset.shuffle(seed=resolved_shuffle.seed)
 
         shuffle_choices_if_requested(dataset, shuffle_choices)
 
@@ -141,8 +150,9 @@ def csv_dataset_reader(
     file: TextIOWrapper,
     dialect: str = "unix",
     fieldnames: list[str] | None = None,
-    delimiter: str = ",",
+    delimiter: str | None = None,
 ) -> "csv.DictReader[str]":
-    return csv.DictReader(
-        file, dialect=dialect, fieldnames=fieldnames, delimiter=delimiter
+    fmtparams: dict[str, Any] = (
+        {"delimiter": delimiter} if delimiter is not None else {}
     )
+    return csv.DictReader(file, dialect=dialect, fieldnames=fieldnames, **fmtparams)

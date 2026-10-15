@@ -8,12 +8,17 @@ in each event rather than the full conversation history:
   reuse the same message objects across turns, so the identity fast path
   hits for the entire shared history without any serialization.
 - ``CallPoolIndex`` exploits the append-mostly structure of provider wire
-  requests: the previous event's message list is retained and the shared
-  prefix matched by plain equality; only the divergent suffix is hashed.
-  The prefix scan is O(shared-history) comparisons with a small constant
-  (no serialization or allocation); it is not O(new) like the message
-  index, but in practice most events share a long stable prefix so the
-  total work per event stays low.
+  requests: several recent request lineages are retained (up to
+  ``_CALL_PREV_SLOTS``, evicted at random past that, and dropped once
+  unmatched for ``_CALL_PREV_MAX_IDLE`` prefix scans) and each new request
+  takes the best prefix match among them; only the divergent suffix is
+  hashed. A request that fully consumes the lineage it matched replaces it;
+  a partial match forks off as a sibling lineage, so concurrently
+  interleaved streams keep prefix-hitting independently. The prefix scan is
+  O(shared-history) comparisons per lineage with a small constant (no
+  serialization or allocation); it is not O(new) like the message index,
+  but in practice most events share a long stable prefix so the total work
+  per event stays low.
 
 Correctness never depends on these assumptions: a merge happens only when
 serialization-equivalent equality (``_strict_eq``; plain ``==`` would
@@ -53,8 +58,9 @@ value that was never pooled at that position.
 
 import copy
 import dataclasses
+import random
 from collections.abc import Callable, Sequence
-from typing import Any
+from typing import Any, Final, NamedTuple
 
 from pydantic import BaseModel, JsonValue
 
@@ -64,10 +70,16 @@ from . import (
     _pool,  # accessed as module attributes so monkeypatching _pool._msg_hash is visible here
 )
 from ._model import ModelEvent
-from ._pool import _CALL_MESSAGE_KEYS, _compress_refs, _strict_eq
+from ._pool import (
+    _CALL_MESSAGE_KEYS,
+    _compress_refs,
+    _strict_eq,
+    _strict_eq_prefix_len,
+)
 
 _BUCKET_CONTENT_LIMIT = 256 * 1024
-"""Max single content-string length (bytes) for a message to be bucketed.
+"""Max single content-string length (characters, not bytes: the payload class
+this gate targets is base64, so the two coincide) for a message to be bucketed.
 
 Set to include the largest observed text/tool content: typical agentic
 evals sit at p99 ≈ 8.5KB, while long-conversation chat evals (e.g. the
@@ -230,22 +242,93 @@ class MessagePoolIndex:
                 del self._hash_index[hash_added]
 
 
+_CALL_PREV_SLOTS: Final = 8
+"""Retained previous-request slots per CallPoolIndex.
+
+Two slots per concurrent generate stream (one for the raw request lineage,
+one for the transcript-condensed lineage the same stream also notifies), so
+8 slots cover ~4 interleaved streams. Beyond capacity, degradation is
+proportional under random eviction (see ``CallPoolIndex._evict_rng``) rather
+than a cliff to zero, and is bounded above by the pre-cache full-walk cost.
+Each slot pins one deep-copied request snapshot; for a raw lineage that can
+be the sole owner of the full raw content across turns (strings shared with
+live objects where they exist) — a deliberate memory tradeoff, bounded per
+lineage.
+"""
+
+
+_CALL_PREV_MAX_IDLE: Final = 4 * _CALL_PREV_SLOTS
+"""Prefix scans a lineage may go unmatched before it is dropped.
+
+Retention is only a problem for *abandoned* lineages — a compaction cycle,
+or a fork that never resumes. A live lineage is re-matched every turn, and
+its content is kept alive by the condensed event anyway; an abandoned one
+is pinned by nothing else and nothing else reclaims it.
+
+The value is a heuristic, not a measured threshold. The floor it has to
+clear is the interleave depth the slots exist for: ``_CALL_PREV_SLOTS``
+lineages taken round-robin touch each one every 8 scans, so 4x that leaves
+headroom for bursty interleaving before a live lineage is dropped. The
+ceiling is what a wrong guess costs: a parked stream that resumes after its
+slot aged out pays exactly one full re-hash of its history and then
+re-establishes a lineage, which is the pre-index cost for that single call.
+"""
+
+
+# identity comparison: lineages are unique objects, never compared by value
+@dataclasses.dataclass(eq=False)
+class _PrevRequest:
+    """One retained request lineage: pre-walk snapshots and their pool indices."""
+
+    msgs: list[JsonValue]
+    indices: list[int]
+    last_used: int
+    """Scan counter value when this lineage was last created or matched."""
+
+
+class PrefixMatch(NamedTuple):
+    """A ``match_prefix`` result, consumed by the following ``set_prev``."""
+
+    indices: tuple[int, ...]
+    """Pool indices of the matched prefix (empty if nothing matched)."""
+
+    slot: _PrevRequest | None = None
+    """Lineage the prefix came from, if any."""
+
+
 class CallPoolIndex:
     """Prefix-diff lookup index for provider wire-request message lists.
 
     Wire-format call messages have no stable ids and no object reuse, so
-    instead this index exploits the append-only growth pattern: the
-    previous event's message list is retained and compared element-by-element
-    against new requests; the matching prefix is reused directly.
+    instead this index exploits the append-only growth pattern: retained
+    lineages (see ``_CALL_PREV_SLOTS``) are compared element-by-element
+    against new requests; the best-matching prefix is reused directly.
 
     A hash index covers the non-prefix tail so individual messages can still
     be deduplicated across events.
 
-    Memory tradeoff (deliberate): ``_prev_msgs`` keeps the previous request's
-    raw (pre-walk) content for the cheap ``_strict_eq`` prefix compare, pinning
-    ~one request per sample until the next event -- bounded, ``log_model_api``
-    only. Fingerprinting instead would free it but re-serialize the prefix
-    every event, reintroducing the O(N^2) hashing this index removed.
+    Memory tradeoff (deliberate): each retained lineage pins one deep-copied
+    request snapshot until replaced -- up to ``_CALL_PREV_SLOTS`` per sample,
+    ``log_model_api`` only. A raw-form lineage can be the sole owner of its
+    request's content strings across turns (the transcript condenses the live
+    event's call after notifying). Fingerprinting instead would free them but
+    re-serialize the prefix every event, reintroducing the O(N^2) hashing
+    this index removed.
+
+    A lineage nothing has matched in ``_CALL_PREV_MAX_IDLE`` prefix scans
+    is dropped at the next append: only abandoned lineages (a compaction cycle,
+    a fork that never resumes) hold content nothing else owns, and nothing
+    else reclaims them. Dropping one costs at most a re-walk.
+
+    Eviction beyond ``_CALL_PREV_SLOTS`` is random, not LRU: N interleaved
+    streams accessed round-robin make LRU evict exactly the lineage each
+    stream needs next, so at cap+1 lineages every lineage misses and
+    re-hashes its whole history every turn. That cliff's size scales with
+    conversation depth, so there is no single figure for it; random
+    eviction keeps misses proportional to the excess instead. Guarded by
+    ``test_buffer_condense_linear_across_slot_cap`` in
+    ``tests/log/test_condense_linear.py``: its beyond-cap budget passes
+    under this random eviction and fails if this index is made LRU.
 
     Supports ``mark()``/``restore()`` to unwind state when a surrounding
     database transaction rolls back.
@@ -254,41 +337,66 @@ class CallPoolIndex:
     def __init__(self) -> None:
         # walked-form content hash -> pool index
         self._hash_index: dict[str, int] = {}
-        # previous event's pre-walk wire messages and their pool indices
-        self._prev_msgs: list[JsonValue] = []
-        self._prev_indices: list[int] = []
+        # retained previous-request lineages
+        self._prevs: list[_PrevRequest] = []
+        # monotonic count of prefix scans, for staleness eviction
+        self._calls = 0
         # undo log of hashes added (for mark/restore)
         self._added_hashes: list[str] = []
+        # Seeded for reproducibility; eviction choice affects performance
+        # only, never output content.
+        self._evict_rng = random.Random(0)
 
     @property
     def size(self) -> int:
         """Number of distinct pool entries indexed."""
         return len(self._hash_index)
 
-    def match_prefix(self, msgs: Sequence[JsonValue]) -> list[int]:
-        """Pool indices for the longest shared prefix with the previous request.
+    def match_prefix(self, msgs: Sequence[JsonValue]) -> PrefixMatch:
+        """Pool indices for the longest shared prefix with a retained request.
 
-        Comparison stops at the first element that differs from the
-        corresponding element in the previous request; later elements
-        are ignored even if equal.
+        Compares against each retained lineage (see ``_CALL_PREV_SLOTS``) and
+        returns the best match; comparison stops at the first differing
+        element.
+
+        Ties in match length break toward a lineage the request fully
+        consumes, so a request repeating a strict prefix of a longer lineage
+        replaces the slot it created last time instead of appending an
+        identical sibling on every repeat.
 
         Args:
             msgs: New request's message list (pre-walk wire format).
 
         Returns:
-            List of pool indices for the matched prefix. Empty if no prefix
-            matches or no previous request has been recorded.
+            The matched prefix's pool indices and the lineage they came from
+            (empty indices and no lineage if nothing matched). Hand the whole
+            result to the following ``set_prev`` for the same ``msgs``.
         """
-        indices: list[int] = []
-        for msg, prev_msg, prev_index in zip(msgs, self._prev_msgs, self._prev_indices):
-            # _strict_eq, not ==: a prefix element drifting 0 -> 0.0 or
-            # True -> 1 is python-equal but serializes (and hashes)
-            # differently; reusing the pool index would round-trip the
-            # other value
-            if not _strict_eq(msg, prev_msg):
-                break
-            indices.append(prev_index)
-        return indices
+        self._calls += 1
+        best = PrefixMatch(indices=())
+        best_full = False
+        # newest lineage first: a request usually extends the most recently
+        # cached lineage, so the best match is normally the first candidate
+        for prev in reversed(self._prevs):
+            prefix_len = min(_strict_eq_prefix_len(msgs, prev.msgs), len(prev.indices))
+            # the predicate mirrors set_prev's replacement test
+            full = prefix_len == len(prev.msgs)
+            # ties break toward a fully consumed lineage (see docstring); a
+            # plain `>=` would prefer the *last* tie, which can be partial
+            if (prefix_len, full) > (len(best.indices), best_full):
+                best = PrefixMatch(indices=tuple(prev.indices[:prefix_len]), slot=prev)
+                best_full = full
+                # consuming both sides fully is the maximum of that ordering,
+                # so no remaining lineage can win. Exiting on a full match of
+                # `msgs` alone would take a partial match over a later exact
+                # one and fork a duplicate slot.
+                if full and prefix_len == len(msgs):
+                    break
+        # stamp the slot the scan SELECTED, not every slot it visited: the
+        # early exit above means "visited" is not a usage signal
+        if best.slot is not None:
+            best.slot.last_used = self._calls
+        return best
 
     def get_by_hash(self, hash_value: str) -> int | None:
         """Look up a pool index by walked-form content hash.
@@ -315,37 +423,64 @@ class CallPoolIndex:
             self._added_hashes.append(hash_value)
 
     def set_prev(
-        self, msgs: Sequence[JsonValue], indices: Sequence[int], prefix_len: int = 0
+        self,
+        msgs: Sequence[JsonValue],
+        indices: Sequence[int],
+        match: PrefixMatch | None = None,
     ) -> None:
-        """Record the request just condensed for prefix-matching the next one.
+        """Record the request just condensed for prefix-matching later ones.
 
-        Retains a deep copy of each message *value*, not the caller's own
-        objects: the next event's ``match_prefix`` compares against these, so
-        if they aliased the caller's dicts, an eval that mutates an
-        already-logged ``call.request`` in place (playback shaping with
-        ``log_model_api``) would make the next event match the prefix against
-        content that was never pooled at that position — returning a stale pool
-        index and silently dropping the new content from the pool.
-
-        Only the divergent tail (``msgs[prefix_len:]``) is deep-copied; the
-        ``prefix_len`` leading snapshots are carried over from the previous
-        call unchanged. ``match_prefix`` already proved they are ``_strict_eq``
-        to the incoming prefix, so reusing them is exact, and it keeps the
-        per-event copy cost proportional to the new messages rather than to the
-        full history (a full deep copy each event would be O(history) per
-        event). ``prefix_len`` defaults to ``0`` (copy everything), which is
-        always safe for callers that do not track the matched prefix.
+        Retains a deep copy of each message *value* (see class notes on
+        in-place mutation). Given a ``match``, only the divergent tail is
+        copied: the matched prefix's snapshots are carried over from the
+        lineage that produced them — carrying from any other lineage would
+        retain snapshots claiming pool indices for content never pooled at
+        those positions. That lineage is replaced only when the match
+        consumed it fully (the request extends it); a partial match keeps it
+        and appends the new entry as a sibling lineage instead, since a
+        partial match means the two lineages diverged from a shared prefix
+        and replacing would merge them. With no match the entry is appended.
+        Every call first drops any lineage unmatched for
+        ``_CALL_PREV_MAX_IDLE`` prefix scans; an append still at cap after
+        that evicts a random existing lineage (see class docstring: LRU is
+        pathological here).
 
         Args:
             msgs: Pre-walk wire-format message list.
             indices: Corresponding pool indices, parallel to ``msgs``.
-            prefix_len: Length of the leading run of ``msgs`` already known
-                (via ``match_prefix``) to equal the previously retained
-                messages; their snapshots are reused instead of re-copied.
+            match: The ``match_prefix`` result for these same ``msgs``. That
+                pairing is a precondition: a match taken for a *different*
+                message list carries snapshots that disagree with
+                ``indices``. Omitting it (copy everything) is always safe
+                for callers that do not prefix-match.
         """
-        carried = self._prev_msgs[:prefix_len]
-        self._prev_msgs = carried + [copy.deepcopy(m) for m in msgs[prefix_len:]]
-        self._prev_indices = list(indices)
+        # Staleness eviction (see _CALL_PREV_MAX_IDLE), before the capacity
+        # rules so it can make room instead of evicting at random, and before
+        # the `match` is resolved so the drop guard below covers a `prev` this
+        # aged out (a caller may interpose scans between the paired calls).
+        self._prevs = [
+            p for p in self._prevs if self._calls - p.last_used <= _CALL_PREV_MAX_IDLE
+        ]
+        prev = match.slot if match is not None else None
+        prefix_len = len(match.indices) if match is not None else 0
+        if prev is not None and prev not in self._prevs:
+            # dropped since the match (restore(), or aged out above): nothing
+            # valid to carry
+            prev, prefix_len = None, 0
+        carried = prev.msgs[:prefix_len] if prev is not None else []
+        entry = _PrevRequest(
+            msgs=carried + [copy.deepcopy(m) for m in msgs[prefix_len:]],
+            indices=list(indices),
+            last_used=self._calls,
+        )
+        # see docstring: replace only when the match fully consumed the
+        # lineage, else keep it and append a sibling
+        if prev is not None and prefix_len == len(prev.msgs):
+            self._prevs.remove(prev)
+        elif len(self._prevs) >= _CALL_PREV_SLOTS:
+            # random, not LRU (see class docstring)
+            del self._prevs[self._evict_rng.randrange(len(self._prevs))]
+        self._prevs.append(entry)
 
     def mark(self) -> int:
         """Return a mark for later ``restore()``.
@@ -362,8 +497,8 @@ class CallPoolIndex:
         retry skip an insert and emit dangling refs). The prefix-match
         state is accelerator-only, so it is dropped rather than rewound:
         the next event's prefix scan misses and falls through to hash
-        dedup, which is always safe. Rewinding it would require holding a
-        snapshot of ``_prev_msgs`` across the marked window, reintroducing
+        dedup, which is always safe. Rewinding it would require holding
+        snapshots of ``_prevs`` across the marked window, reintroducing
         aliasing to reason about for a path that only runs after a
         database transaction failure.
 
@@ -372,8 +507,10 @@ class CallPoolIndex:
         """
         while len(self._added_hashes) > mark:
             del self._hash_index[self._added_hashes.pop()]
-        self._prev_msgs = []
-        self._prev_indices = []
+        # drop ALL lineages, not just the newest: any slot's indices may
+        # reference pool rows the rolled-back transaction created (a match
+        # taken before this point names a dropped lineage; set_prev ignores it)
+        self._prevs = []
 
 
 def condense_model_event_with_indices(
@@ -459,9 +596,9 @@ def condense_model_event_with_indices(
         msg_key = next((k for k in _CALL_MESSAGE_KEYS if k in call.request), None)
         msgs = call.request.get(msg_key) if msg_key else None
         if msgs and isinstance(msgs, list):
-            call_indices = calls.match_prefix(msgs)
-            prefix_len = len(call_indices)
-            for msg_value in msgs[prefix_len:]:
+            match = calls.match_prefix(msgs)
+            call_indices = list(match.indices)
+            for msg_value in msgs[len(match.indices) :]:
                 walked_value = walk_call_message(msg_value)
                 call_hash = _pool._call_hash(walked_value)
                 call_index = calls.get_by_hash(call_hash)
@@ -469,7 +606,7 @@ def condense_model_event_with_indices(
                     call_index = add_call(call_hash, walked_value)
                 calls.add_hash(call_hash, call_index)
                 call_indices.append(call_index)
-            calls.set_prev(msgs, call_indices, prefix_len=prefix_len)
+            calls.set_prev(msgs, call_indices, match=match)
             new_request = {k: v for k, v in call.request.items() if k != msg_key}
             update["call"] = call.model_copy(
                 update={

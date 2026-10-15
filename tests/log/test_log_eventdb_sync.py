@@ -1,13 +1,15 @@
 import hashlib
+import json
 import math
 import tempfile
 from pathlib import Path
-from typing import cast
+from typing import Any, cast
 
 import pytest
 
 from inspect_ai.event import ScoreEvent
 from inspect_ai.event._info import InfoEvent
+from inspect_ai.event._model import ModelEvent
 from inspect_ai.event._validate import validate_events
 from inspect_ai.log._log import EvalSampleSummary
 from inspect_ai.log._recorders.buffer import filestore as filestore_module
@@ -27,6 +29,9 @@ from inspect_ai.log._recorders.buffer.filestore import (
 )
 from inspect_ai.log._recorders.buffer.types import SampleData, Samples
 from inspect_ai.log._recorders.types import SampleEvent
+from inspect_ai.model._chat_message import ChatMessageUser
+from inspect_ai.model._generate_config import GenerateConfig
+from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.scorer import Score
 
 
@@ -100,8 +105,8 @@ def test_sync_one_sample(
     assert len(manifest.segments) == 1, "Should have one new segment"
     segment = manifest.segments[0]
     # last_event_id should be at least 2 (event1, event2)
-    assert segment.last_event_id >= 2
-    assert segment.last_attachment_id == 0
+    assert segment["last_event_id"] >= 2
+    assert segment["last_attachment_id"] == 0
 
     # 5) Check that filestore returns the sample in get_samples
     fs_samples = filestore.get_samples()
@@ -329,7 +334,7 @@ def test_sync_multiple_samples(
     assert len(manifest.segments) == 1
 
     # Each sample references that single segment
-    seg_id = manifest.segments[0].id
+    seg_id = manifest.segments[0]["id"]
     for sm in manifest.samples:
         assert seg_id in {sample_segment_id(segment) for segment in sm.segments}
 
@@ -361,15 +366,27 @@ def test_pending_segments_use_per_sample_maxima(
 
     assert manifest is not None
     assert len(manifest.segments) == 1
-    assert manifest.segments[0].last_event_id == 3
+    assert manifest.segments[0]["last_event_id"] == 3
 
     sample_a = next(s for s in manifest.samples if s.summary.id == "a")
     sample_b = next(s for s in manifest.samples if s.summary.id == "b")
     assert sample_a.segments == [
-        SampleSegment(id=1, last_event_id=1, last_attachment_id=0)
+        SampleSegment(
+            id=1,
+            last_event_id=1,
+            last_attachment_id=0,
+            last_message_pool_id=0,
+            last_call_pool_id=0,
+        )
     ]
     assert sample_b.segments == [
-        SampleSegment(id=1, last_event_id=3, last_attachment_id=0)
+        SampleSegment(
+            id=1,
+            last_event_id=3,
+            last_attachment_id=0,
+            last_message_pool_id=0,
+            last_call_pool_id=0,
+        )
     ]
 
     pending = filestore.get_pending_segments("a", 1, after_event_id=1)
@@ -405,7 +422,13 @@ def test_sync_continues_from_legacy_integer_segments(
     sample = manifest.samples[0]
     assert sample.segments == [
         1,
-        SampleSegment(id=2, last_event_id=2, last_attachment_id=0),
+        SampleSegment(
+            id=2,
+            last_event_id=2,
+            last_attachment_id=0,
+            last_message_pool_id=0,
+            last_call_pool_id=0,
+        ),
     ]
     assert [
         event.event["data"] for event in filestore.read_segment_data(2, "a", 1).events
@@ -447,6 +470,204 @@ def test_sync_removed_sample(
     assert m2.samples[0].summary.id == "keep"
 
 
+def _log_attempt(db: SampleBufferDatabase, uuid: str, label: str) -> None:
+    """Start sample ("s1", 1) and log an info event and a pooled model event."""
+    db.start_sample(
+        EvalSampleSummary(id="s1", epoch=1, input="x", target="y", uuid=uuid)
+    )
+    db.log_events(
+        [
+            SampleEvent(id="s1", epoch=1, event=InfoEvent(data=label)),
+            SampleEvent(
+                id="s1",
+                epoch=1,
+                event=ModelEvent(
+                    model="test-model",
+                    input=[ChatMessageUser(content=label)],
+                    tools=[],
+                    tool_choice="auto",
+                    config=GenerateConfig(),
+                    output=ModelOutput.from_content("test-model", "response"),
+                ),
+            ),
+        ]
+    )
+
+
+def _synced_attempt(filestore: SampleBufferFilestore) -> tuple[list[str], list[str]]:
+    """Info event data and the resolved model input contents a reader sees for ("s1", 1)."""
+    sample_data = filestore.get_sample_data("s1", 1)
+    assert sample_data is not None
+    pool = [json.loads(entry.data) for entry in sample_data.message_pool]
+    infos: list[str] = []
+    inputs: list[str] = []
+    for sample_event in sample_data.events:
+        event = sample_event.event
+        assert isinstance(event, dict)
+        if event["event"] == "info":
+            infos.append(cast(str, event["data"]))
+        elif event["event"] == "model":
+            for start, end in cast(list[list[int]], event["input_refs"]):
+                inputs.extend(message["content"] for message in pool[start:end])
+    return infos, inputs
+
+
+@pytest.mark.parametrize(
+    "restart_uuid",
+    [
+        pytest.param("uuid-1", id="retry-same-uuid"),
+        pytest.param("uuid-2", id="requeue-new-uuid"),
+    ],
+)
+def test_sync_restarted_sample_drops_previous_attempt_segments(
+    db_and_filestore: tuple[SampleBufferDatabase, SampleBufferFilestore],
+    restart_uuid: str,
+) -> None:
+    """A sample removed and restarted with no sync in between keeps only the new attempt's segments."""
+    db, filestore = db_and_filestore
+
+    _log_attempt(db, "uuid-1", "attempt-1")
+    sync_to_filestore(db, filestore)
+    m1 = filestore.read_manifest()
+    assert m1 is not None
+    assert [sample_segment_id(s) for s in m1.samples[0].segments] == [1]
+
+    # removal and restart with no sync in between
+    db.remove_samples([("s1", 1)])
+    _log_attempt(db, restart_uuid, "attempt-2")
+    sync_to_filestore(db, filestore)
+
+    m2 = filestore.read_manifest()
+    assert m2 is not None
+    assert len(m2.samples) == 1
+    assert m2.samples[0].summary.uuid == restart_uuid
+    assert [sample_segment_id(s) for s in m2.samples[0].segments] == [2]
+    assert _synced_attempt(filestore) == (["attempt-2"], ["attempt-2"])
+
+    # later syncs continue from the new attempt's segment
+    db.log_events([SampleEvent(id="s1", epoch=1, event=InfoEvent(data="more"))])
+    sync_to_filestore(db, filestore)
+    m3 = filestore.read_manifest()
+    assert m3 is not None
+    assert [sample_segment_id(s) for s in m3.samples[0].segments] == [2, 3]
+    assert _synced_attempt(filestore) == (["attempt-2", "more"], ["attempt-2"])
+
+
+def test_sync_failure_keeps_removal_for_next_sync(
+    db_and_filestore: tuple[SampleBufferDatabase, SampleBufferFilestore],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A failed sync does not lose a removal: the next sync still drops the previous attempt's segments."""
+    db, filestore = db_and_filestore
+
+    _log_attempt(db, "uuid-1", "attempt-1")
+    sync_to_filestore(db, filestore)
+
+    db.remove_samples([("s1", 1)])
+    _log_attempt(db, "uuid-1", "attempt-2")
+
+    def fail_write_manifest(manifest: Manifest) -> None:
+        raise OSError("upload failed")
+
+    with monkeypatch.context() as m:
+        m.setattr(filestore, "write_manifest", fail_write_manifest)
+        with pytest.raises(OSError, match="upload failed"):
+            sync_to_filestore(db, filestore)
+
+    sync_to_filestore(db, filestore)
+    manifest = filestore.read_manifest()
+    assert manifest is not None
+    assert len(manifest.samples) == 1
+    assert _synced_attempt(filestore) == (["attempt-2"], ["attempt-2"])
+
+
+@pytest.mark.parametrize(
+    "boundary", ["reading_manifest", "before_sample_data", "after_sample_data"]
+)
+@pytest.mark.parametrize(
+    "restart_uuid",
+    [
+        pytest.param("uuid-1", id="retry-same-uuid"),
+        pytest.param("uuid-2", id="requeue-new-uuid"),
+    ],
+)
+def test_sync_overlapping_restart_publishes_no_mixed_attempt(
+    db_and_filestore: tuple[SampleBufferDatabase, SampleBufferFilestore],
+    monkeypatch: pytest.MonkeyPatch,
+    restart_uuid: str,
+    boundary: str,
+) -> None:
+    """A removal and restart while a sync is reading never publishes a row mixing both attempts."""
+    db, filestore = db_and_filestore
+
+    _log_attempt(db, "uuid-1", "attempt-1")
+    sync_to_filestore(db, filestore)
+
+    def restart() -> None:
+        db.remove_samples([("s1", 1)])
+        _log_attempt(db, restart_uuid, "attempt-2")
+
+    # the removal lands after the sync took the removal set: while it reads
+    # the manifest, after it read the summaries, or after it read the data
+    with monkeypatch.context() as m:
+        if boundary == "reading_manifest":
+            read_manifest = filestore.read_manifest
+
+            def racing_read_manifest() -> Manifest | None:
+                manifest = read_manifest()
+                restart()
+                return manifest
+
+            m.setattr(filestore, "read_manifest", racing_read_manifest)
+        else:
+            get_sample_data = db.get_sample_data
+
+            def racing_get_sample_data(**kwargs: Any) -> SampleData | None:
+                if boundary == "before_sample_data":
+                    restart()
+                    return get_sample_data(**kwargs)
+                data = get_sample_data(**kwargs)
+                restart()
+                return data
+
+            m.setattr(db, "get_sample_data", racing_get_sample_data)
+
+        sync_to_filestore(db, filestore)
+
+    raced = filestore.read_manifest()
+    assert raced is not None
+    assert raced.samples == []
+    assert filestore.get_sample_data("s1", 1) is None
+
+    sync_to_filestore(db, filestore)
+    manifest = filestore.read_manifest()
+    assert manifest is not None
+    assert len(manifest.samples) == 1
+    assert manifest.samples[0].summary.uuid == restart_uuid
+    assert _synced_attempt(filestore) == (["attempt-2"], ["attempt-2"])
+
+
+@pytest.mark.parametrize("log_shared", [None, 0])
+def test_removals_not_recorded_without_sync(
+    tmp_path: Path, log_shared: int | None
+) -> None:
+    """A buffer with shared sync off keeps no record of the samples it removes."""
+    db = SampleBufferDatabase(
+        location=str(tmp_path / "test.eval"),
+        db_dir=tmp_path / "db",
+        log_shared=log_shared,
+    )
+    try:
+        for i in range(3):
+            db.start_sample(
+                EvalSampleSummary(id=f"s{i}", epoch=1, input="x", target="y")
+            )
+        db.remove_samples([(f"s{i}", 1) for i in range(3)])
+        assert db.take_removed_since_sync() == set()
+    finally:
+        db.cleanup()
+
+
 def test_sync_incremental(
     db_and_filestore: tuple[SampleBufferDatabase, SampleBufferFilestore],
 ) -> None:
@@ -469,7 +690,7 @@ def test_sync_incremental(
     m1 = filestore.read_manifest()
     assert m1 and len(m1.segments) == 1
     seg1 = m1.segments[0]
-    assert seg1.last_event_id >= 2
+    assert seg1["last_event_id"] >= 2
 
     # Second batch
     db.log_events(
@@ -484,8 +705,8 @@ def test_sync_incremental(
     m2 = filestore.read_manifest()
     assert m2 and len(m2.segments) == 2
     seg2 = m2.segments[-1]
-    assert seg2.id > seg1.id
-    assert seg2.last_event_id >= 4
+    assert seg2["id"] > seg1["id"]
+    assert seg2["last_event_id"] >= 4
 
     # Confirm filestore returns all 4 events
     sample_data = filestore.get_sample_data("inc", 1)

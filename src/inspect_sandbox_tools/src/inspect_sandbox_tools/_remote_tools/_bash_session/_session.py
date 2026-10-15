@@ -1,15 +1,16 @@
 import asyncio
 
+from ..._util.user_switch import RunAs
 from ._process import Process
 from .tool_types import BashRestartResult, InteractResult
 
 
 class Session:
     @classmethod
-    async def create(cls, user: str | None = None) -> "Session":
+    async def create(cls, user: str | RunAs | None = None) -> "Session":
         return cls(await Process.create(user=user), user=user)
 
-    def __init__(self, process: Process, user: str | None = None) -> None:
+    def __init__(self, process: Process, user: str | RunAs | None = None) -> None:
         self._process = process
         self._user = user
         self._retired_processes: list[Process] = []

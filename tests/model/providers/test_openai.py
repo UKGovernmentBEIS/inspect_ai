@@ -1,19 +1,86 @@
 import base64
 import json
+from contextlib import nullcontext
+from pathlib import Path
 
+import httpx2
+import openai
 import pytest
-from test_helpers.utils import skip_if_no_openai
+from openai import DefaultAsyncHttpxClient
+from test_helpers.output_cache import check_output_cache_round_trip
+from test_helpers.utils import skip_if_no_openai, skip_if_no_openai_model
 
 from inspect_ai import Task, eval
 from inspect_ai.dataset._dataset import Sample
 from inspect_ai.model import (
     ChatMessageUser,
     GenerateConfig,
+    Model,
     get_model,
 )
 from inspect_ai.model._chat_message import ChatMessageSystem
 from inspect_ai.model._internal import parse_content_with_internal
 from inspect_ai.model._openai import openai_completion_params
+from inspect_ai.tool import tool
+
+
+def _openai_model_with_status_response(status_code: int, path: str) -> Model:
+    async def handler(request: httpx2.Request) -> httpx2.Response:
+        assert request.method == "POST"
+        assert request.url.path == path
+        return httpx2.Response(
+            status_code,
+            headers={"allow": "GET"} if status_code == 405 else {},
+            json={"detail": f"HTTP {status_code}"},
+            request=request,
+        )
+
+    http_client = DefaultAsyncHttpxClient(transport=httpx2.MockTransport(handler))
+    return get_model(
+        "openai/test",
+        api_key="test",
+        base_url="http://test/v1",
+        http_client=http_client,
+        responses_api=True,
+        memoize=False,
+    )
+
+
+@pytest.mark.parametrize("status_code", [404, 405])
+async def test_openai_count_tokens_falls_back_for_unavailable_endpoint(
+    status_code: int,
+) -> None:
+    async with _openai_model_with_status_response(
+        status_code, "/v1/responses/input_tokens"
+    ) as model:
+        assert await model.count_tokens([ChatMessageUser(content="hello")]) == 1
+
+
+async def test_openai_count_tokens_propagates_other_endpoint_errors() -> None:
+    async with _openai_model_with_status_response(
+        403, "/v1/responses/input_tokens"
+    ) as model:
+        with pytest.raises(openai.PermissionDeniedError):
+            await model.count_tokens([ChatMessageUser(content="hello")])
+
+
+@pytest.mark.parametrize("status_code", [404, 405])
+async def test_openai_compact_reports_unavailable_endpoint(
+    status_code: int,
+) -> None:
+    async with _openai_model_with_status_response(
+        status_code, "/v1/responses/compact"
+    ) as model:
+        with pytest.raises(NotImplementedError, match="endpoint not available"):
+            await model.compact([ChatMessageUser(content="hello")], [])
+
+
+async def test_openai_compact_propagates_other_endpoint_errors() -> None:
+    async with _openai_model_with_status_response(
+        403, "/v1/responses/compact"
+    ) as model:
+        with pytest.raises(openai.PermissionDeniedError):
+            await model.compact([ChatMessageUser(content="hello")], [])
 
 
 @pytest.mark.anyio
@@ -36,6 +103,25 @@ async def test_openai_api() -> None:
     message = ChatMessageUser(content="This is a test string. What are you?")
     response = await model.generate(input=[message])
     assert len(response.completion) >= 1
+
+
+@skip_if_no_openai
+async def test_openai_output_cache(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    await check_output_cache_round_trip("openai/gpt-4o-mini", monkeypatch, tmp_path)
+
+
+@skip_if_no_openai
+@pytest.mark.parametrize("model_name", ["openai/gpt-5.5", "openai/gpt-5.6-luna"])
+async def test_openai_temperature_dropped_for_default_reasoning_models(
+    model_name: str,
+) -> None:
+    # gpt-5.5+ reject sampling params when reasoning at the server default
+    # effort; inspect must drop them rather than send a request that 400s
+    model = get_model(model_name, config=GenerateConfig(temperature=0.5))
+    output = await model.generate([ChatMessageUser(content="Say hello.")])
+    assert output.completion
 
 
 @skip_if_no_openai
@@ -219,7 +305,7 @@ async def test_chat_completions_forwards_config_extra_headers():
     client.chat.completions.create = AsyncMock(return_value=mock_completion)
 
     http_hooks = MagicMock(spec=HttpxHooks)
-    http_hooks.start_request = MagicMock(return_value="req_1")
+    http_hooks.request = MagicMock(return_value=nullcontext("req_1"))
     http_hooks.end_request = MagicMock(return_value=None)
 
     openai_api = MagicMock()
@@ -289,6 +375,83 @@ def test_openai_resolve_streaming_declines_azure_chat_completions() -> None:
         )
     # without an on_stream callback, auto never streams
     assert api("openai/gpt-4o")._resolve_streaming(use_responses=False) is False
+
+
+async def test_azure_usage_priced_by_served_model() -> None:
+    """An Azure deployment is priced by the model the response says served it."""
+    from inspect_ai.model import ModelCost, set_model_cost
+    from inspect_ai.model._model_info import clear_model_info_cache
+
+    async def handler(request: httpx2.Request) -> httpx2.Response:
+        return httpx2.Response(
+            200,
+            json={
+                "id": "chatcmpl-test",
+                "object": "chat.completion",
+                "created": 0,
+                "model": "gpt-4o-mini-2024-07-18",
+                "choices": [
+                    {
+                        "index": 0,
+                        "message": {"role": "assistant", "content": "Hello"},
+                        "finish_reason": "stop",
+                    }
+                ],
+                "usage": {
+                    "prompt_tokens": 3,
+                    "completion_tokens": 4,
+                    "total_tokens": 7,
+                },
+            },
+            request=request,
+        )
+
+    def cost(rate: float) -> ModelCost:
+        return ModelCost(
+            input=rate, output=rate, input_cache_write=rate, input_cache_read=rate
+        )
+
+    # the deployment is named for one model but serves another
+    set_model_cost("openai/azure/gpt-4o", cost(1000.0))
+    set_model_cost("openai/gpt-4o-mini-2024-07-18", cost(100.0))
+    try:
+        http_client = DefaultAsyncHttpxClient(transport=httpx2.MockTransport(handler))
+        async with get_model(
+            "openai/azure/gpt-4o",
+            api_key="test",
+            base_url="https://test.openai.azure.com",
+            http_client=http_client,
+            responses_api=False,
+            memoize=False,
+        ) as model:
+            output = await model.generate("hello")
+        assert output.model == "gpt-4o-mini-2024-07-18"
+        assert output.usage is not None
+        # 7 tokens at the served model's $100/M, not the deployment's $1000/M
+        assert output.usage.total_cost == pytest.approx(0.0007)
+    finally:
+        clear_model_info_cache()
+
+
+def test_served_model_usage_azure_only() -> None:
+    from inspect_ai.model import ModelOutput, ModelUsage, ServedModelUsage
+    from inspect_ai.model._providers.openai import OpenAIAPI
+
+    usage = ModelUsage(input_tokens=3, output_tokens=4, total_tokens=7)
+
+    def served(model_name: str, output_model: str) -> object:
+        api = OpenAIAPI(
+            model_name=model_name,
+            base_url="https://test.openai.azure.com",
+            api_key="test-key",
+        )
+        return api.served_model_usage(ModelOutput(model=output_model, usage=usage))
+
+    assert served("azure/my-deployment", "gpt-4o-mini-2024-07-18") == [
+        ServedModelUsage("openai/gpt-4o-mini-2024-07-18", usage)
+    ]
+    assert served("azure/gpt-4o", "gpt-4o") is None
+    assert served("gpt-4o", "gpt-4o-2024-08-06") is None
 
 
 def test_openai_streaming_model_arg_normalized() -> None:
@@ -471,7 +634,7 @@ async def test_chat_completions_streaming_with_non_strict_tools():
     client.chat.completions.create = AsyncMock(return_value=_FakeChunkStream())
 
     http_hooks = MagicMock(spec=HttpxHooks)
-    http_hooks.start_request = MagicMock(return_value="req_1")
+    http_hooks.request = MagicMock(return_value=nullcontext("req_1"))
     http_hooks.end_request = MagicMock(return_value=None)
 
     openai_api = MagicMock()
@@ -513,3 +676,353 @@ async def test_chat_completions_streaming_with_non_strict_tools():
     assert request["stream"] is True
     assert request["stream_options"] == {"include_usage": True}
     assert "strict" not in request["tools"][0]["function"]
+
+
+async def test_chat_completions_streaming_converts_mid_stream_safeguard_block() -> None:
+    """A safeguard block raised mid-stream (as a plain APIError) becomes content_filter output."""
+    from typing import Any
+    from unittest.mock import AsyncMock, MagicMock
+
+    import httpx2
+    from openai import APIError
+    from openai._types import NOT_GIVEN
+
+    from inspect_ai.model._model_output import ModelOutput
+    from inspect_ai.model._providers.openai_completions import generate_completions
+    from inspect_ai.model._providers.util.hooks import HttpxHooks
+
+    error = APIError(
+        message="Your prompt was blocked by our content policy.",
+        request=httpx2.Request("POST", "https://test/v1/chat/completions"),
+        body=dict(
+            message="Your prompt was blocked by our content policy.",
+            type="invalid_request_error",
+            code="content_policy_violation",
+        ),
+    )
+
+    class _FakeStream:
+        async def __aenter__(self) -> "_FakeStream":
+            return self
+
+        async def __aexit__(self, *exc: object) -> None:
+            return None
+
+        def __aiter__(self) -> Any:
+            async def gen() -> Any:
+                raise error
+                yield  # pragma: no cover
+
+            return gen()
+
+    client = MagicMock()
+    client.chat.completions.create = AsyncMock(return_value=_FakeStream())
+
+    http_hooks = MagicMock(spec=HttpxHooks)
+    http_hooks.request = MagicMock(return_value=nullcontext("req_1"))
+    http_hooks.end_request = MagicMock(return_value=None)
+
+    openai_api = MagicMock()
+    openai_api.api_model_name.return_value = "gpt-4o"
+    openai_api.service_model_name.return_value = "gpt-4o"
+    openai_api.service_tier = None
+    openai_api.is_o_series.return_value = False
+    openai_api.is_gpt.return_value = True
+    openai_api.is_gpt_5.return_value = False
+
+    result = await generate_completions(
+        client=client,
+        http_hooks=http_hooks,
+        model_name="gpt-4o",
+        input=[ChatMessageUser(content="hi")],
+        tools=[],
+        tool_choice="auto",
+        config=GenerateConfig(),
+        prompt_cache_key=NOT_GIVEN,
+        prompt_cache_retention=NOT_GIVEN,
+        safety_identifier=NOT_GIVEN,
+        openai_api=openai_api,
+        batcher=None,
+        streaming=True,
+    )
+
+    assert isinstance(result, tuple)
+    output, model_call = result
+    assert isinstance(output, ModelOutput)
+    assert output.choices[0].stop_reason == "content_filter"
+    assert "blocked" in output.completion
+    assert model_call.error is True
+
+
+# -- GPT-6 Astra (live) --
+#
+# Astra always reasons and rejects sampling params, so these exercise the
+# frontier request shape end to end. gpt-6-astra is gated per-account, so they
+# skip (rather than fail with 404 model_not_found) when the key lacks access.
+
+
+@skip_if_no_openai
+@skip_if_no_openai_model("gpt-6-astra")
+async def test_openai_gpt_6_astra_generate() -> None:
+    # temperature is dropped (with a warning) rather than sent, so this must not 400
+    model = get_model(
+        "openai/gpt-6-astra",
+        config=GenerateConfig(temperature=0.5, reasoning_effort="low"),
+    )
+    output = await model.generate([ChatMessageUser(content="Say hello.")])
+    assert output.completion
+    assert output.usage is not None
+
+
+@skip_if_no_openai
+@skip_if_no_openai_model("gpt-6-astra")
+async def test_openai_gpt_6_astra_max_reasoning_effort() -> None:
+    model = get_model(
+        "openai/gpt-6-astra", config=GenerateConfig(reasoning_effort="max")
+    )
+    output = await model.generate([ChatMessageUser(content="What is 2 + 2?")])
+    assert "4" in output.completion
+
+
+@skip_if_no_openai
+@skip_if_no_openai_model("gpt-6-astra")
+async def test_openai_gpt_6_astra_tool_call() -> None:
+    @tool
+    def addition():
+        async def execute(x: int, y: int):
+            """Add two numbers.
+
+            Args:
+                x: First number.
+                y: Second number.
+            """
+            return x + y
+
+        return execute
+
+    model = get_model("openai/gpt-6-astra")
+    output = await model.generate(
+        [ChatMessageUser(content="Use the addition tool to add 3 and 4.")],
+        tools=[addition()],
+    )
+    assert output.message.tool_calls
+    assert output.message.tool_calls[0].function == "addition"
+
+
+# -- GPT-6 Sol / Luna (live) --
+#
+# Unlike Astra, Sol and Luna accept `reasoning_effort="none"`, in which case
+# sampling params are sent through. Both are gated per-account like Astra.
+
+
+async def _gpt_6_generate(model_name: str) -> None:
+    # no effort set: the model reasons at its default (medium) and temperature
+    # is dropped with a warning rather than sent, so this must not 400
+    model = get_model(f"openai/{model_name}", config=GenerateConfig(temperature=0.5))
+    output = await model.generate([ChatMessageUser(content="Say hello.")])
+    assert output.completion
+    assert output.usage is not None
+
+
+async def _gpt_6_none_effort_with_temperature(model_name: str) -> None:
+    # `none` is sent as-is and temperature is sent alongside it
+    model = get_model(
+        f"openai/{model_name}",
+        config=GenerateConfig(reasoning_effort="none", temperature=0.5),
+    )
+    output = await model.generate([ChatMessageUser(content="Say hello.")])
+    assert output.completion
+    assert output.usage is not None
+    assert (output.usage.reasoning_tokens or 0) == 0
+
+
+async def _gpt_6_max_effort(model_name: str) -> None:
+    model = get_model(
+        f"openai/{model_name}", config=GenerateConfig(reasoning_effort="max")
+    )
+    output = await model.generate([ChatMessageUser(content="What is 2 + 2?")])
+    assert "4" in output.completion
+
+
+@skip_if_no_openai
+@skip_if_no_openai_model("gpt-6-sol")
+async def test_openai_gpt_6_sol_generate() -> None:
+    await _gpt_6_generate("gpt-6-sol")
+
+
+@skip_if_no_openai
+@skip_if_no_openai_model("gpt-6-sol")
+async def test_openai_gpt_6_sol_none_effort_with_temperature() -> None:
+    await _gpt_6_none_effort_with_temperature("gpt-6-sol")
+
+
+@skip_if_no_openai
+@skip_if_no_openai_model("gpt-6-sol")
+async def test_openai_gpt_6_sol_max_reasoning_effort() -> None:
+    await _gpt_6_max_effort("gpt-6-sol")
+
+
+@skip_if_no_openai
+@skip_if_no_openai_model("gpt-6-luna")
+async def test_openai_gpt_6_luna_generate() -> None:
+    await _gpt_6_generate("gpt-6-luna")
+
+
+@skip_if_no_openai
+@skip_if_no_openai_model("gpt-6-luna")
+async def test_openai_gpt_6_luna_none_effort_with_temperature() -> None:
+    await _gpt_6_none_effort_with_temperature("gpt-6-luna")
+
+
+@skip_if_no_openai
+@skip_if_no_openai_model("gpt-6-luna")
+async def test_openai_gpt_6_luna_max_reasoning_effort() -> None:
+    await _gpt_6_max_effort("gpt-6-luna")
+
+
+# -- GPT-6.1 Sol (live) --
+#
+# Like Astra (and unlike GPT-6 Sol), GPT-6.1 Sol always reasons: `none` is
+# rejected and sampling params are dropped regardless of effort.
+
+
+@skip_if_no_openai
+@skip_if_no_openai_model("gpt-6.1-sol")
+async def test_openai_gpt_6_1_sol_generate() -> None:
+    await _gpt_6_generate("gpt-6.1-sol")
+
+
+@skip_if_no_openai
+@skip_if_no_openai_model("gpt-6.1-sol")
+async def test_openai_gpt_6_1_sol_low_effort_with_temperature() -> None:
+    # temperature is dropped (with a warning) even with an explicit effort
+    model = get_model(
+        "openai/gpt-6.1-sol",
+        config=GenerateConfig(temperature=0.5, reasoning_effort="low"),
+    )
+    output = await model.generate([ChatMessageUser(content="Say hello.")])
+    assert output.completion
+
+
+@skip_if_no_openai
+@skip_if_no_openai_model("gpt-6.1-sol")
+async def test_openai_gpt_6_1_sol_max_reasoning_effort() -> None:
+    await _gpt_6_max_effort("gpt-6.1-sol")
+
+
+# -- skip_if_no_openai_model gate (no network) --
+
+
+class _FakeOpenAIClient:
+    """Stands in for openai.AsyncOpenAI: `models.retrieve` raises `error` if set."""
+
+    def __init__(self, error: Exception | None) -> None:
+        self._error = error
+        self.models = self
+        self.closed = False
+
+    async def retrieve(self, model: str) -> None:
+        if self._error is not None:
+            raise self._error
+
+    async def close(self) -> None:
+        self.closed = True
+
+
+def _install_fake_openai(
+    monkeypatch: pytest.MonkeyPatch, error: Exception | None
+) -> list[_FakeOpenAIClient]:
+    import openai
+    from test_helpers import utils
+
+    clients: list[_FakeOpenAIClient] = []
+
+    def make_client(*args: object, **kwargs: object) -> _FakeOpenAIClient:
+        clients.append(_FakeOpenAIClient(error))
+        return clients[-1]
+
+    monkeypatch.setattr(openai, "AsyncOpenAI", make_client)
+    monkeypatch.setattr(utils, "_openai_model_access", {})
+    return clients
+
+
+def _openai_api_error(status: int, code: str | None) -> Exception:
+    # openai >= 3 is built on httpx2, so its errors expect httpx2 responses
+    import httpx2
+    import openai
+
+    request = httpx2.Request("GET", "https://api.openai.com/v1/models/gpt-6-astra")
+    response = httpx2.Response(status, request=request)
+    message = f"Error code: {status} - {code}"
+    body = {"code": code}
+    if status == 404:
+        return openai.NotFoundError(message, response=response, body=body)
+    if status == 403:
+        return openai.PermissionDeniedError(message, response=response, body=body)
+    return openai.AuthenticationError(message, response=response, body=body)
+
+
+@pytest.mark.parametrize(
+    "error",
+    [
+        pytest.param(_openai_api_error(404, "model_not_found"), id="model_not_found"),
+        pytest.param(_openai_api_error(403, None), id="permission_denied"),
+    ],
+)
+async def test_skip_if_no_openai_model_skips_without_access(
+    monkeypatch: pytest.MonkeyPatch, error: Exception
+) -> None:
+    clients = _install_fake_openai(monkeypatch, error)
+    ran = False
+
+    @skip_if_no_openai_model("gpt-6-astra")
+    async def gated() -> None:
+        nonlocal ran
+        ran = True
+
+    with pytest.raises(pytest.skip.Exception, match="no access to model gpt-6-astra"):
+        await gated()
+    assert not ran
+    assert [c.closed for c in clients] == [True]
+
+
+async def test_skip_if_no_openai_model_runs_with_access_and_probes_once(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    clients = _install_fake_openai(monkeypatch, None)
+    runs = 0
+
+    @skip_if_no_openai_model("gpt-6-astra")
+    async def gated() -> None:
+        nonlocal runs
+        runs += 1
+
+    await gated()
+    await gated()
+    assert runs == 2
+    assert len(clients) == 1
+
+
+@pytest.mark.parametrize(
+    "error",
+    [
+        pytest.param(_openai_api_error(401, "invalid_api_key"), id="bad_key"),
+        # a 404 that isn't model_not_found (e.g. a gateway without /models)
+        pytest.param(_openai_api_error(404, None), id="endpoint_not_found"),
+    ],
+)
+async def test_skip_if_no_openai_model_propagates_other_errors(
+    monkeypatch: pytest.MonkeyPatch, error: Exception
+) -> None:
+    clients = _install_fake_openai(monkeypatch, error)
+
+    @skip_if_no_openai_model("gpt-6-astra")
+    async def gated() -> None:
+        pass
+
+    # the error must not be cached: a bad key or an outage re-probes on the
+    # next test (or flaky retry) instead of poisoning the per-process cache
+    for _ in range(2):
+        with pytest.raises(type(error)):
+            await gated()
+    assert [c.closed for c in clients] == [True, True]

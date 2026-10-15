@@ -385,6 +385,31 @@ def test_sample_interrupt_fires_on_interrupt_hook_with_user_cancel_cause() -> No
     sample.tg.cancel_scope.cancel.assert_called_once_with()
 
 
+def test_sample_interrupt_before_start_defers_until_started() -> None:
+    """`interrupt()` on a sample with no task group stamps and returns.
+
+    The initializing window (registered, not yet started — see
+    design/ctl/initializing-sample-cancel.md): the intent is stamped and the
+    sample reads terminal, but the hook and the scope cancel wait for the
+    firing call the task runner makes right after `start(tg)`, so a binder
+    sees the same sequence it sees for a running sample.
+    """
+    sample = _make_active_sample()
+    causes: list[str] = []
+    sample.on_interrupt = lambda cause: causes.append(cause)
+
+    sample.interrupt("cancel")  # no task group yet: must not raise
+    assert sample.interrupt_action == "cancel"
+    assert sample.terminal
+    assert causes == []
+
+    # the runner's start-time self-check: fire the pending intent
+    sample.tg = MagicMock()
+    sample.interrupt(sample.interrupt_action)
+    assert causes == ["user_cancel"]
+    sample.tg.cancel_scope.cancel.assert_called_once_with()
+
+
 def test_sample_limit_exceeded_fires_on_interrupt_hook_with_limit_cause() -> None:
     """`limit_exceeded()` fires the hook with cause="limit", NOT "user_cancel".
 
