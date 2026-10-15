@@ -1116,8 +1116,6 @@ async def run_task_retry_attempts(
                 raise ex.exceptions[0]
             else:
                 raise
-        except anyio.get_cancelled_exc_class():
-            pass
         finally:
             remove_dispatch_waker(wake.set)
             remove_task_dispatcher(dispatcher_stats)
@@ -1327,22 +1325,24 @@ class SandboxManager:
 
 @asynccontextmanager
 async def _run_task_screen(tasks: list[TaskSpec]) -> AsyncIterator[TaskScreen]:
-    """Open the display's task screen, keeping the run's logs on a late cancel.
+    """Open the display's task screen for a run that absorbs cancellation.
 
-    The run absorbs an external cancellation and returns the logs it has.
-    Trio raises a cancellation again at every checkpoint inside the cancelled
-    scope, so a display whose teardown awaits (the rich display's update-loop
-    task group) would raise it again and the logs would be lost. Once the
-    body has finished, a cancellation from the display's teardown is absorbed
-    too; one raised before or inside the body still propagates.
+    A cancellation of the run body is absorbed, so the run returns the logs
+    it has. Trio raises that cancellation again at every checkpoint inside
+    the cancelled scope, so a display whose teardown awaits (the rich
+    display's update-loop task group) raises it again; that one is absorbed
+    too. A cancellation from the teardown of a body that was not cancelled,
+    or from the display's setup, propagates.
     """
-    body_finished = False
+    body_cancelled = False
     try:
         async with display().task_screen(tasks, parallel=True) as screen:
-            yield screen
-            body_finished = True
+            try:
+                yield screen
+            except anyio.get_cancelled_exc_class():
+                body_cancelled = True
     except anyio.get_cancelled_exc_class():
-        if not body_finished:
+        if not body_cancelled:
             raise
 
 
