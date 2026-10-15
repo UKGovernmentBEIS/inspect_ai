@@ -24,7 +24,7 @@ from typing_extensions import override
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.logger import warn_once
 from inspect_ai.log._samples import sample_active
-from inspect_ai.tool import ToolChoice, ToolInfo
+from inspect_ai.tool import ToolChoice, ToolFunction, ToolInfo
 from inspect_ai.tool._tool_info import INTERNAL_TOOL_TYPE
 from inspect_ai.tool._tools._computer._computer import is_computer_tool_info
 
@@ -84,7 +84,11 @@ from ._litellm_proxy_caching import (
     with_cache_breakpoints,
     with_tool_cache_breakpoint,
 )
-from ._litellm_proxy_errors import litellm_error_model_output, upstream_message
+from ._litellm_proxy_errors import (
+    litellm_error_model_output,
+    upstream_message,
+    with_upstream_refusals,
+)
 from ._litellm_proxy_gemini import (
     add_usage,
     malformed_function_call,
@@ -124,14 +128,26 @@ from ._litellm_proxy_vendor import (
     deployment_route,
     frontier_base_model,
     grok_4_or_later,
+    is_meta_api_base,
     is_openai_api_base,
     is_xai_api_base,
     upstream_vendor,
 )
 from ._openai_web_search import maybe_web_search_tool
+from .meta import (
+    META_CHAT_UNSUPPORTED_PARAMS,
+    META_TOOL_CHOICE_WARNING,
+    META_UNSUPPORTED_PARAM_WARNING,
+    _flag_refusal_stop,
+)
 from .openai_compatible import ModelInfo as CompatibleModelInfo
 from .openai_compatible import OpenAICompatibleAPI
-from .util import environment_prerequisite_error, model_base_url
+from .util import (
+    environment_prerequisite_error,
+    forced_tool_choice_degraded_metadata,
+    is_forced_tool_choice,
+    model_base_url,
+)
 
 logger = getLogger(__name__)
 
@@ -219,9 +235,10 @@ class LiteLLMProxyAPI(OpenAICompatibleAPI):
     skip the listing, the registration and the check.
 
     When `responses_api` is not passed, GPT-5, o-series and Codex models
-    served directly by OpenAI, and Grok 4+ models served directly by xAI,
-    use the Responses API, as with the native `openai` and `grok`
-    providers; everything else uses Chat Completions.
+    served directly by OpenAI, Grok 4+ models served directly by xAI, and
+    models served by the Meta Model API use the Responses API, as with the
+    native `openai`, `grok` and `meta` providers; everything else uses Chat
+    Completions.
 
     Chat Completions requests to Claude 4.6+ that carry a `reasoning_effort`
     ask for summarized thinking (`-M thinking_display=omitted` to not).
@@ -537,8 +554,14 @@ class LiteLLMProxyAPI(OpenAICompatibleAPI):
         xAI: Grok 4 or later. On Chat Completions, xAI returns only a summary
         of the reasoning; on Responses, its encrypted reasoning is carried to
         the next turn, as the native `grok` provider does.
+
+        Meta: every model (the Muse models all reason). On Chat Completions,
+        the Meta Model API returns no reasoning; the native `meta` provider
+        uses the Responses API by default.
         """
         family = self.model_family()
+        if self._responses_route == "meta":
+            return True
         if self._responses_route == "xai":
             return grok_4_or_later(family)
         return is_gpt_5_model(family) or is_o_series_model(family) or "codex" in family
@@ -625,7 +648,63 @@ class LiteLLMProxyAPI(OpenAICompatibleAPI):
             self._check_web_search(tool, config)
         if self.responses_api:
             tools = [self._as_function_tool(tool, config) for tool in tools]
-        return super().resolve_tools(tools, tool_choice, config)
+        tools, tool_choice, config = super().resolve_tools(tools, tool_choice, config)
+        if self._vendor == "meta":
+            tools, tool_choice, config = self._meta_request(tools, tool_choice, config)
+        return tools, tool_choice, config
+
+    def _meta_request(
+        self, tools: list[ToolInfo], tool_choice: ToolChoice, config: GenerateConfig
+    ) -> tuple[list[ToolInfo], ToolChoice, GenerateConfig]:
+        """Tools, tool choice and config the Meta Model API accepts.
+
+        As in the native `meta` provider: a forced tool choice is sent as
+        `auto` (with a warning, and `tool_choice_degraded` in the output
+        metadata; see `generate`), and `logprobs` / `top_logprobs` are
+        dropped with a warning (see `completion_params` for the Chat
+        Completions parameters). The API also rejects `tool_choice="none"`,
+        so for it no tools are sent, which keeps the model from calling them.
+        """
+        model = self.service_model_name()
+        if is_forced_tool_choice(tool_choice):
+            choice = (
+                f'"{tool_choice.name}"'
+                if isinstance(tool_choice, ToolFunction)
+                else '"any"'
+            )
+            warn_once(
+                logger, META_TOOL_CHOICE_WARNING.format(choice=choice, model=model)
+            )
+            tool_choice = "auto"
+        elif tool_choice == "none":
+            tools = []
+        updates: dict[str, Any] = {}
+        for parameter in ("logprobs", "top_logprobs"):
+            if getattr(config, parameter) is not None:
+                warn_once(
+                    logger,
+                    META_UNSUPPORTED_PARAM_WARNING.format(
+                        parameter=parameter, model=model
+                    ),
+                )
+                updates[parameter] = None
+        return tools, tool_choice, config.model_copy(update=updates)
+
+    @override
+    def completion_params(self, config: GenerateConfig, tools: bool) -> dict[str, Any]:
+        """For Meta models, without the Chat Completions parameters the API rejects."""
+        params = super().completion_params(config, tools)
+        if self._vendor == "meta":
+            for parameter in META_CHAT_UNSUPPORTED_PARAMS:
+                if parameter in params:
+                    del params[parameter]
+                    warn_once(
+                        logger,
+                        META_UNSUPPORTED_PARAM_WARNING.format(
+                            parameter=parameter, model=self.service_model_name()
+                        ),
+                    )
+        return params
 
     def _as_function_tool(self, tool: ToolInfo, config: GenerateConfig) -> ToolInfo:
         """`tool`, sent as a function tool if OpenAI would otherwise host it.
@@ -738,6 +817,7 @@ class LiteLLMProxyAPI(OpenAICompatibleAPI):
     def chat_choices_from_completion(
         self, completion: ChatCompletion, tools: list[ToolInfo]
     ) -> list[ChatCompletionChoice]:
+        completion = with_upstream_refusals(completion)
         # chat_choices_from_openai returns choices ordered by index
         sources = sorted(completion.choices, key=lambda choice: choice.index)
         return [
@@ -890,6 +970,12 @@ class LiteLLMProxyAPI(OpenAICompatibleAPI):
                             }
                         )
                         result = (output, call) if call is not None else output
+                if self._vendor == "meta" and isinstance(output, ModelOutput):
+                    _flag_refusal_stop(output)
+                    if tools and is_forced_tool_choice(tool_choice):
+                        output.metadata = (
+                            output.metadata or {}
+                        ) | forced_tool_choice_degraded_metadata(tool_choice)
                 return result
             if rejection.kind == "parameter":
                 self._effort_unsupported = True
@@ -1172,18 +1258,22 @@ def _error_message(ex: APIError) -> str:
     return message if isinstance(message, str) else ex.message
 
 
-def _responses_route(deployment: ProxyDeployment) -> Literal["openai", "xai"] | None:
+def _responses_route(
+    deployment: ProxyDeployment,
+) -> Literal["openai", "xai", "meta"] | None:
     """The vendor whose own Responses API serves a deployment, if any.
 
-    LiteLLM passes Responses requests for the `openai` and `xai` routes to
-    the vendor's API unconverted. Another `api_base` is usually a compatible
-    server, which may not serve the Responses API.
+    LiteLLM passes Responses requests for the `openai`, `xai` and `meta`
+    routes to the vendor's API unconverted. Another `api_base` is usually a
+    compatible server, which may not serve the Responses API.
     """
     route = deployment_route(deployment.model, deployment.custom_llm_provider)
     if route == "openai" and is_openai_api_base(deployment.api_base):
         return "openai"
     if route == "xai" and is_xai_api_base(deployment.api_base):
         return "xai"
+    if route == "meta" and is_meta_api_base(deployment.api_base):
+        return "meta"
     return None
 
 
