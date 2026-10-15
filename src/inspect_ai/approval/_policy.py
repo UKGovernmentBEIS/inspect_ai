@@ -82,16 +82,14 @@ class ArgumentPattern:
     """One `name=value` item of a tool pattern's argument list."""
 
     name: str
-    """Glob for the argument name."""
+    """The argument name (not a glob)."""
 
     value: str
     """Glob for the argument value, rendered by `_render_argument()`."""
 
     def matches(self, arguments: dict[str, Any]) -> bool:
-        return any(
-            fnmatch.fnmatch(name, self.name)
-            and fnmatch.fnmatch(_render_argument(value), self.value)
-            for name, value in arguments.items()
+        return self.name in arguments and fnmatch.fnmatch(
+            _render_argument(arguments[self.name]), self.value
         )
 
 
@@ -122,10 +120,8 @@ class ToolPattern:
             return False
         if not all(pattern.matches(call.arguments) for pattern in self.arguments):
             return False
-        return not self.closed or all(
-            any(fnmatch.fnmatch(name, pattern.name) for pattern in self.arguments)
-            for name in call.arguments
-        )
+        names = {pattern.name for pattern in self.arguments}
+        return not self.closed or all(name in names for name in call.arguments)
 
 
 def tool_pattern(pattern: str) -> ToolPattern:
@@ -134,7 +130,8 @@ def tool_pattern(pattern: str) -> ToolPattern:
     A name-only pattern (`bash`, `web_browser*`) is a prefix glob on the
     function name. A pattern with arguments (`computer(action='key'`) is a glob
     on the function name, then `name=value` items, each matched against the
-    argument of that name wherever it appears in the call. String values are
+    argument of that name wherever it appears in the call. Argument names are
+    literal, not globs. String values are
     rendered in single quotes, with a backslash before each `'` and backslash
     they contain; other values as in `format_function_call()`. The last value
     is a prefix glob unless the pattern ends with `)`, which also rules out
@@ -142,7 +139,8 @@ def tool_pattern(pattern: str) -> ToolPattern:
     arguments.
 
     Raises:
-        ValueError: An argument item is not `name=value` or `*`.
+        ValueError: An argument item is not `name=value` or `*`, or its name
+            contains a glob character.
     """
     if "(" not in pattern:
         glob = pattern if pattern.endswith("*") else f"{pattern}*"
@@ -162,7 +160,13 @@ def tool_pattern(pattern: str) -> ToolPattern:
                 f"Invalid approval policy tool pattern '{pattern}': expected "
                 f"name=value or * in the argument list, got '{item}'."
             )
-        arguments.append(ArgumentPattern(name=name.strip(), value=value.strip()))
+        name = name.strip()
+        if any(char in name for char in "*?[]"):
+            raise ValueError(
+                f"Invalid approval policy tool pattern '{pattern}': argument "
+                f"names must be literal, got '{name}'."
+            )
+        arguments.append(ArgumentPattern(name=name, value=value.strip()))
     if arguments and not items.closed and stripped[-1] != "*":
         last = arguments[-1]
         if not last.value.endswith("*"):

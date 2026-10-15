@@ -22,6 +22,7 @@ from inspect_ai.approval._policy import (
     ApproverPolicyConfig,
     approval_policies_from_config,
     policy_approver,
+    tool_pattern,
 )
 from inspect_ai.dataset import Sample
 from inspect_ai.event._approval import ApprovalEvent
@@ -894,3 +895,13 @@ async def test_policy_documented_patterns_still_match() -> None:
 def test_policy_argument_pattern_must_be_name_value() -> None:
     with pytest.raises(ValueError, match="expected name=value"):
         policy_approver([ApprovalPolicy(auto_approver(), "computer(*'key'*")])
+
+
+def test_policy_argument_names_are_literal() -> None:
+    # a name glob would let one argument supply the value while another
+    # passes on its name alone
+    call = make_tool_call("t", x="safe", x_other="dangerous")
+    with pytest.raises(ValueError, match="argument names must be literal"):
+        policy_approver([ApprovalPolicy(auto_approver(), "t(x*='safe')")])
+    assert not tool_pattern("t(x='safe')").matches(call)
+    assert tool_pattern("t(x='safe', *)").matches(call)

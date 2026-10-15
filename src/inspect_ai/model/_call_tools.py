@@ -924,6 +924,8 @@ async def call_tool(
         # record the arguments that run: the model's proposal stays in the
         # ModelEvent and the ApprovalEvent
         call = approval.modified
+        if canonical_arguments is not None:
+            call = replace(call, arguments=canonical_arguments(call.arguments))
         event.arguments = call.arguments
         event.view = tool_call_view(call, tools)
 

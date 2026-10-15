@@ -3250,3 +3250,66 @@ def test_a_raising_viewer_rejects_the_call_before_the_sentinel() -> None:
     assert message.error is not None
     assert message.error.type == "approval"
     assert "viewer for tool 'addition_raising_viewer' failed" in message.error.message
+
+
+@protocol
+def d3_public_memory_only() -> Protocol:
+    async def decide(context: Context, step: BeforeToolCall) -> Decision | None:
+        if not step.call.arguments["path"].startswith("/memories/public/"):
+            return Decision.reject("outside /memories/public")
+        return None
+
+    return decide
+
+
+@approver
+def d3_memory_path_approver(path: str) -> Approver:
+    async def approve(
+        message: str, call: ToolCall, view: ToolCallView, history: list[ChatMessage]
+    ) -> Approval:
+        return Approval(
+            decision="modify",
+            modified=replace(call, arguments={**call.arguments, "path": path}),
+        )
+
+    return approve
+
+
+def test_an_approvers_modified_memory_path_reaches_the_sentinel_canonical() -> None:
+    from inspect_ai.tool import memory
+
+    seen: Seen = []
+    task = Task(
+        dataset=[Sample(input="Write a note.", target="ok")],
+        solver=[use_tools(memory()), generate()],
+        sentinel=[observe_only([d3_recording(seen)]), d3_public_memory_only()],
+        approval=[
+            ApprovalPolicy(
+                d3_memory_path_approver("/memories/public/../secret.txt"), "*"
+            )
+        ],
+    )
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.for_tool_call(
+                "mockllm/model",
+                tool_name="memory",
+                tool_arguments={
+                    "command": "create",
+                    "path": "/memories/public/note.txt",
+                    "file_text": "x",
+                },
+            ),
+            ModelOutput.from_content("mockllm/model", content="done"),
+        ],
+        memoize=False,
+    )
+    log = eval(task, model=model)[0]
+    assert log.status == "success", log.error
+
+    # the sentinel decides on the path the write would use, and rejects it
+    assert [step.call.arguments["path"] for _, step in seen] == ["/memories/secret.txt"]
+    [message] = tool_messages(log)
+    assert message.error is not None
+    assert message.error.type == "approval"
