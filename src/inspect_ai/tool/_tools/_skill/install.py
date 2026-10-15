@@ -100,9 +100,7 @@ async def install_skills_shared(
                     "already exists in the sandbox with different contents."
                 )
         for file in files:
-            if file in missing:
-                await _write_file_or_remove(sbox, file)
-            await _set_file_owner_and_mode(sbox, user, file)
+            await _install_file(sbox, user, file, write=file in missing)
     return [_skill_info(skills_dir, skill) for skill in skills]
 
 
@@ -237,22 +235,26 @@ async def _set_file_owner_and_mode(
         await _checked_exec(sbox, user, ["chmod", "+x", file.path])
 
 
-async def _write_file_or_remove(sbox: SandboxEnvironment, file: _SkillFile) -> None:
-    """Write a skill file, removing it if the write fails.
+async def _install_file(
+    sbox: SandboxEnvironment, user: str | None, file: _SkillFile, write: bool
+) -> None:
+    """Write a skill file if `write`, then set its owner and mode.
 
-    The write is shielded from cancellation: a sandbox write can go on after
-    its caller is cancelled (a cancelled `docker exec` detaches), and a write
-    that lands after the install lock is released would leave a file the
-    next install skips or rejects. A failed write may leave part of the file,
-    which would be rejected as different contents, so it is removed.
+    Shielded from cancellation: a sandbox command can go on after its caller
+    is cancelled (a cancelled `docker exec` detaches), and a write or `chown`
+    that lands after the install lock is released could leave a file the
+    next install rejects, or undo that install's owner. A failed write may
+    leave part of the file, which would be rejected as different contents,
+    so it is removed.
     """
-    try:
-        with anyio.CancelScope(shield=True):
-            await sbox.write_file(file.path, _write_contents(file))
-    except Exception:
-        with anyio.CancelScope(shield=True):
+    with anyio.CancelScope(shield=True):
+        if write:
             try:
-                await _checked_exec(sbox, None, ["rm", "-f", file.path])
-            except Exception as ex:
-                logger.warning(f"Unable to remove skill file {file.path}: {ex}")
-        raise
+                await sbox.write_file(file.path, _write_contents(file))
+            except Exception:
+                try:
+                    await _checked_exec(sbox, None, ["rm", "-f", file.path])
+                except Exception as ex:
+                    logger.warning(f"Unable to remove skill file {file.path}: {ex}")
+                raise
+        await _set_file_owner_and_mode(sbox, user, file)

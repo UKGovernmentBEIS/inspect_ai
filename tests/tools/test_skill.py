@@ -654,13 +654,15 @@ def test_skill_end_to_end() -> None:
 class _FileSandbox(CannedSandbox):
     """Keeps written files in memory and answers the installer's commands.
 
-    `pwd` gives /work, the digest script hashes the in-memory file, `rm -f`
-    removes it, and writes yield so concurrent installs interleave.
+    `pwd` gives /work, the digest script hashes the in-memory file, `chown`
+    records the owner, `rm -f` removes the file, and writes yield so
+    concurrent installs interleave.
     """
 
     def __init__(self, files: dict[str, bytes] | None = None) -> None:
         super().__init__(self._answer)
         self.files = dict(files or {})
+        self.owners: dict[str, str] = {}
 
     def _answer(self, cmd: list[str], user: str | None) -> ExecResult[str]:
         if cmd[-1] == "pwd":
@@ -672,8 +674,11 @@ class _FileSandbox(CannedSandbox):
             return ExecResult(
                 True, 0, f"{hashlib.sha256(contents).hexdigest()}  -\n", ""
             )
+        if cmd[4:5] == ["chown"]:
+            self.owners[cmd[-1]] = cmd[-2]
         if cmd[4:6] == ["rm", "-f"]:
             self.files.pop(cmd[-1], None)
+            self.owners.pop(cmd[-1], None)
         return ExecResult(True, 0, "", "")
 
     async def write_file(self, file: str, contents: str | bytes) -> None:
@@ -685,10 +690,10 @@ class _FileSandbox(CannedSandbox):
 class _BlockingSandbox(_FileSandbox):
     """Blocks the first `stage` (write, chown or chmod) of an install.
 
-    A blocked chown or chmod waits until cancelled. A blocked write waits for
-    `release`; if its caller is cancelled first, the backend still writes
-    part of the file afterwards (kept in `late`), as a detached `docker exec`
-    can.
+    The blocked operation waits for `release`. If its caller is cancelled
+    first, the backend still carries it out later, as a detached
+    `docker exec` can: a write lands half the file and a command runs. These
+    late effects are kept until `apply_late()`.
     """
 
     def __init__(self, stage: str) -> None:
@@ -698,19 +703,28 @@ class _BlockingSandbox(_FileSandbox):
         self.blocked = anyio.Event()
         self.release = anyio.Event()
         self.blocked_path = ""
-        self.late: dict[str, bytes] = {}
+        self.late_files: dict[str, bytes] = {}
+        self.late_cmds: list[list[str]] = []
         self.finalized: list[tuple[str, str]] = []
+
+    async def _block(self, path: str) -> None:
+        self.block = False
+        self.blocked_path = path
+        self.blocked.set()
+        await self.release.wait()
+
+    def apply_late(self) -> None:
+        self.files.update(self.late_files)
+        for cmd in self.late_cmds:
+            self._answer(cmd, None)
 
     async def write_file(self, file: str, contents: str | bytes) -> None:
         if self.stage == "write" and self.block:
-            self.block = False
-            self.blocked_path = file
-            self.blocked.set()
             try:
-                await self.release.wait()
+                await self._block(file)
             except anyio.get_cancelled_exc_class():
                 data = contents.encode() if isinstance(contents, str) else contents
-                self.late[file] = data[: len(data) // 2]
+                self.late_files[file] = data[: len(data) // 2]
                 raise
         await super().write_file(file, contents)
 
@@ -725,11 +739,12 @@ class _BlockingSandbox(_FileSandbox):
         timeout_retry: bool = True,
         concurrency: bool = True,
     ) -> ExecResult[str]:
-        if cmd[4:5] == [self.stage]:
-            if self.block:
-                self.blocked_path = cmd[-1]
-                self.blocked.set()
-                await anyio.sleep_forever()
+        if cmd[4:5] == [self.stage] and self.block:
+            try:
+                await self._block(cmd[-1])
+            except anyio.get_cancelled_exc_class():
+                self.late_cmds.append(cmd)
+                raise
         if cmd[4:5] in (["chown"], ["chmod"]):
             self.finalized.append((cmd[4], cmd[-1]))
         return await super().exec(
@@ -982,18 +997,19 @@ class TestSkillToolStateScope:
             await sandbox.blocked.wait()
             tg.cancel_scope.cancel()
             sandbox.release.set()
-        sandbox.files.update(sandbox.late)
         assert sandbox.blocked_path
 
-        sandbox.block = False
         sandbox.finalized.clear()
         with tool_state_scope("w-2"):
-            await skill([with_script], user="1000")(command="example")
+            await skill([with_script], user="2000")(command="example")
+        # whatever the cancelled install left running lands now
+        sandbox.apply_late()
         expected = {
             "/work/skills/example/SKILL.md": with_script.skill_md().encode(),
             "/work/skills/example/scripts/run.sh": b"echo hello",
         }
         assert sandbox.files == expected
+        assert sandbox.owners == {path: "2000" for path in expected}
         assert ("chown" if stage == "write" else stage, sandbox.blocked_path) in (
             sandbox.finalized
         )
