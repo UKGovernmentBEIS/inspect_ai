@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import hashlib
 import os
-import tempfile
+import uuid
 from pathlib import Path
 
 import httpx
@@ -164,12 +164,10 @@ def gdrive_download(file_id: str, sha256: str, dest: Path) -> Path:
 
 def _partial_path(dest: Path) -> Path:
     # Unique per call so concurrent downloads of the same `dest` never share
-    # (and rename or unlink) each other's tempfile.
-    fd, name = tempfile.mkstemp(
-        dir=dest.parent, prefix=f"{dest.name}.", suffix=".partial"
-    )
-    os.close(fd)
-    return Path(name)
+    # (and rename or unlink) each other's tempfile. Only the name is chosen
+    # here: creating the file with mkstemp would make it (and so `dest`) 0600
+    # rather than respecting the umask.
+    return dest.with_name(f"{dest.name}.{uuid.uuid4().hex}.partial")
 
 
 def _sha256_of(path: Path) -> str:

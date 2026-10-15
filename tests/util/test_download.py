@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import os
 import sys
 from pathlib import Path
 from typing import Iterator
@@ -341,3 +342,22 @@ def test_overlapping_gdrive_downloads_of_same_dest_both_succeed(
 
     assert dest.read_bytes() == content
     assert list(tmp_path.iterdir()) == [dest]
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX permission bits")
+@pytest.mark.parametrize(
+    "umask,expected", [(0o022, 0o644), (0o002, 0o664)], ids=["umask022", "umask002"]
+)
+def test_download_respects_umask(tmp_path: Path, umask: int, expected: int) -> None:
+    content = b"shared cache"
+    dest = tmp_path / "f.bin"
+
+    stream_mock = _stream_factory(_FakeStream(200, content))
+    previous = os.umask(umask)
+    try:
+        with patch("inspect_ai._util.download.httpx.stream", stream_mock):
+            download("http://example.com/x", _sha256(content), dest)
+    finally:
+        os.umask(previous)
+
+    assert dest.stat().st_mode & 0o777 == expected
