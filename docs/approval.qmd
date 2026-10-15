@@ -330,4 +330,4 @@ The `ToolCallViewer` gets passed the `ToolCall` and returns a `ToolCallView` tha
 
 The `context` is typically used for stateful tools that need to present some context from the current state. For example, the web browsing tool provides a snippet from the currently loaded page.
 
-If a viewer raises an exception while approval is active, the call is rejected and the model is told why. Approvers never see a fallback rendering in its place.
+If a viewer raises an exception while approval or a sentinel that checks tool calls before they run is active, the call is rejected and the model is told why. Approvers and sentinel monitors never see a fallback rendering in its place. Steps after the call has run, such as tool result review, still use the default rendering.

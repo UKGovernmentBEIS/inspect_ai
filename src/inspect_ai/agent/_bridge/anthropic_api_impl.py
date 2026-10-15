@@ -191,7 +191,14 @@ async def inspect_anthropic_api_request_impl(
 
     # if there is a bridge filter give it a shot first
     output, c_message = await bridge_generate(
-        bridge, model, messages, tools, tool_choice, config, routing=routing
+        bridge,
+        model,
+        messages,
+        tools,
+        tool_choice,
+        config,
+        requested_model=bridge_model_name,
+        routing=routing,
     )
     if c_message is not None:
         messages.append(c_message)

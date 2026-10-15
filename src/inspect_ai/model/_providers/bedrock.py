@@ -70,7 +70,7 @@ from .util import (
     normalize_stream_arg,
     rejects_forced_tool_choice,
 )
-from .util.hooks import ConverseHooks
+from .util.hooks import ConverseHooks, header_recording_config
 
 logger = getLogger(__name__)
 
@@ -759,7 +759,6 @@ class BedrockAPI(ModelAPI):
         tool_choice: ToolChoice,
         config: GenerateConfig,
     ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
-        from aiobotocore.config import AioConfig
         from botocore.exceptions import ClientError
 
         # The bedrock client
@@ -767,7 +766,7 @@ class BedrockAPI(ModelAPI):
             async with self.session.create_client(
                 service_name="bedrock-runtime",
                 endpoint_url=self.base_url,
-                config=AioConfig(
+                config=header_recording_config(
                     read_timeout=self.read_timeout,
                     connect_timeout=self.connect_timeout,
                     retries=dict(mode="adaptive"),

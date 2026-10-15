@@ -15,6 +15,7 @@ from pydantic import (
 from shortuuid import uuid
 from typing_extensions import TypedDict
 
+from inspect_ai._sentinel._config import SentinelConfig
 from inspect_ai._util.constants import DESERIALIZING
 from inspect_ai._util.dateutil import UtcDatetimeStr
 from inspect_ai._util.error import EvalError, exception_message
@@ -118,6 +119,14 @@ class EvalConfig(BaseModel):
     review: ReviewPolicyConfig | None = Field(default=None)
     """Review policy for tool results."""
 
+    sentinel: SentinelConfig | None = Field(default=None)
+    """Sentinel monitors and protocols, as the configuration that rebuilds them.
+
+    One entry (a lone monitor or protocol, which is the root itself), a list of entries, or a mapping of instance names to entries. Logs load without `inspect_sentinel` installed.
+
+    Experimental: not yet a stable API; may change without notice.
+    """
+
     notification: bool | str | None = Field(default=None)
     """Notification routing for human-in-the-loop interactions.
 
@@ -172,7 +181,11 @@ class EvalConfig(BaseModel):
     """Maximum clock time per sample."""
 
     working_limit: int | None = Field(default=None)
-    """Meximum working time per sample."""
+    """Maximum working time per sample.
+
+    Work done while any wait is open is not charged, so working time can
+    undercount; set `time_limit` as well to bound clock time.
+    """
 
     cost_limit: float | None = Field(default=None)
     """Maximum cost (in dollars) per sample."""
@@ -302,6 +315,9 @@ class EvalSampleSummary(BaseModel):
     target: str | list[str]
     """Sample target value(s)"""
 
+    description: str | None = Field(default=None)
+    """Short statement of what the sample asks of the agent."""
+
     metadata: dict[str, Any] = Field(default_factory=dict)
     """Sample metadata (only fields < 1k; strings truncated to 1k)."""
 
@@ -327,7 +343,13 @@ class EvalSampleSummary(BaseModel):
     """Total time that the sample was running."""
 
     working_time: float | None = Field(default=None)
-    """Time spent working (model generation, sandbox calls, etc.)"""
+    """Time spent working (model generation, sandbox calls, etc.)
+
+    Clock time minus the time when any wait (retries, rate limits, shared
+    resources, approval, human input) was open in the sample. Other work done
+    during a wait, such as concurrent tool calls or sub-agents, is not counted,
+    so set `time_limit` alongside `working_limit` to bound clock time.
+    """
 
     uuid: str | None = Field(default=None)
     """Globally unique identifier for sample run (exists for samples created in Inspect >= 0.3.70)"""
@@ -439,6 +461,9 @@ class EvalSample(BaseModel):
     target: str | list[str]
     """Sample target value(s)"""
 
+    description: str | None = Field(default=None)
+    """Short statement of what the sample asks of the agent."""
+
     sandbox: SandboxEnvironmentSpec | None = Field(default=None)
     """Sandbox environment type and optional config file."""
 
@@ -529,7 +554,13 @@ class EvalSample(BaseModel):
     """Total time that the sample was running."""
 
     working_time: float | None = Field(default=None)
-    """Time spent working (model generation, sandbox calls, etc.)"""
+    """Time spent working (model generation, sandbox calls, etc.)
+
+    Clock time minus the time when any wait (retries, rate limits, shared
+    resources, approval, human input) was open in the sample. Other work done
+    during a wait, such as concurrent tool calls or sub-agents, is not counted,
+    so set `time_limit` alongside `working_limit` to bound clock time.
+    """
 
     uuid: str | None = Field(default=None)
     """Globally unique identifier for sample run (exists for samples created in Inspect >= 0.3.70)"""
@@ -592,6 +623,7 @@ class EvalSample(BaseModel):
             input=self.input,
             choices=self.choices,
             target=self.target,
+            description=self.description,
             metadata=self.metadata,
             scores=self.scores,
             model_usage=self.model_usage,
@@ -1102,6 +1134,9 @@ class EvalSpec(BaseModel):
 
     task_display_name: str | None = Field(default=None)
     """Task display name."""
+
+    task_description: str | None = Field(default=None)
+    """Short statement of what the task asks of the agent."""
 
     task_registry_name: str | None = Field(default=None)
     """Task registry name."""
