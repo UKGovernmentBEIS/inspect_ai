@@ -11,15 +11,11 @@ termination protocol; each caller's disposition is tested with that caller
 human_cli).
 """
 
-import sys
 from unittest.mock import MagicMock, patch
 
 import anyio
 import anyio.abc
 import pytest
-
-if sys.version_info < (3, 11):
-    from exceptiongroup import ExceptionGroup
 
 from inspect_ai._util.content import ContentImage, ContentText
 from inspect_ai._util.exception import TerminateSampleError, TerminateTaskError

@@ -10,7 +10,6 @@ extractors, and the `service.py` wrapper that turns an exception into a
 from __future__ import annotations
 
 import ast
-import sys
 from pathlib import Path
 from typing import Any, Callable, cast
 
@@ -46,9 +45,6 @@ from inspect_ai.tool._tools._code_execution import CodeExecutionProviders
 from inspect_ai.tool._tools._web_search._web_search import WebSearchProviders
 from inspect_ai.util._limit import LimitExceededError
 from inspect_ai.util._sandbox.service import find_control_flow
-
-if sys.version_info < (3, 11):
-    from exceptiongroup import ExceptionGroup
 
 
 class _ProviderError(Exception):

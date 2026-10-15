@@ -1,12 +1,8 @@
 import itertools
-import sys
 
 import anyio
 
 from inspect_ai._util._async import current_async_backend
-
-if sys.version_info < (3, 11):
-    from exceptiongroup import ExceptionGroup
 
 
 def inner_exception(exc: Exception) -> Exception:

@@ -1,6 +1,5 @@
 import json
 import re
-import sys
 from contextlib import AsyncExitStack
 from logging import getLogger
 from pathlib import PurePosixPath
@@ -15,9 +14,6 @@ from typing import (
 
 import anyio
 from pydantic import JsonValue
-
-if sys.version_info < (3, 11):
-    from exceptiongroup import BaseExceptionGroup
 
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.exception import TerminateSampleError

@@ -1,11 +1,6 @@
-import sys
 from typing import Awaitable, TypeVar, cast
 
 import anyio
-
-if sys.version_info < (3, 11):
-    from exceptiongroup import ExceptionGroup
-
 
 T = TypeVar("T")
 
