@@ -1378,7 +1378,11 @@ def _unaggregated_scorer() -> Scorer:
 async def test_score_dict_keeps_header_scorer_with_sample_scores_only(
     tmp_path: pathlib.Path, streamed: bool
 ) -> None:
-    """A scorer without metrics scores only samples; appending a dict keeps it in the header."""
+    """A scorer without metrics keeps its header entry when a dict is appended.
+
+    Such a scorer scores only samples. Recomputing metrics afterwards leaves the
+    results, reductions and headline as scoring left them.
+    """
     task = Task(
         dataset=[
             Sample(input="a", target="a", id=1),
@@ -1411,6 +1415,19 @@ async def test_score_dict_keeps_header_scorer_with_sample_scores_only(
         ("_unaggregated_scorer", None),
         ("match", "strict"),
     ]
+
+    if streamed:
+        scored.samples = samples
+    assert scored.results is not None
+    entries = _score_entries(scored)
+    reductions = _reductions(scored)
+    headline = scored.results.headline
+
+    recompute_metrics(scored)
+
+    assert _score_entries(scored) == entries
+    assert _reductions(scored) == reductions
+    assert scored.results.headline == headline
 
 
 @scorer(metrics=[accuracy()])
