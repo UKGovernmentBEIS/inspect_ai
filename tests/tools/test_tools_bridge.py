@@ -1405,6 +1405,135 @@ def test_sandbox_bridge_host_tool_exception_ends_the_sample() -> None:
     assert completed == []
 
 
+@pytest.mark.parametrize(
+    "service_failure",
+    [
+        pytest.param(TerminateSampleError("stop now"), id="terminate"),
+        pytest.param(RuntimeError("ordinary failure"), id="ordinary-error"),
+    ],
+)
+@pytest.mark.parametrize(
+    "service_cancelled", [False, True], ids=["raised", "cancelled-mid-reply"]
+)
+async def test_bridge_exit_keeps_a_termination_the_scaffold_outran(
+    monkeypatch: pytest.MonkeyPatch,
+    service_failure: Exception,
+    service_cancelled: bool,
+) -> None:
+    """A termination survives the scaffold finishing before it is raised.
+
+    Runs the real `sandbox_agent_bridge` exit with sandbox and proxy I/O faked.
+    The service method fails, the dispatcher writes its reply, and the scaffold
+    returns from the bridge body on reading it, while the reply's request-file
+    removal is still running. The service then either raises once the proxy is
+    killed, or is cancelled mid-removal by the bridge's teardown. A termination
+    must end the bridge either way. Negative control: after an ordinary error
+    reply the service fails in teardown, which once the agent completed is
+    still only logged as a cleanup error.
+    """
+    from test_helpers.service_dispatch import dispatching_service
+
+    from inspect_ai.agent._bridge.sandbox import bridge as bridge_module
+    from inspect_ai.util._sandbox.service import SandboxService
+
+    reply_readable = anyio.Event()
+    proxy_killed = anyio.Event()
+    handler_done = anyio.Event()
+    replies: list[str | None] = []
+
+    class Proxy:
+        async def kill(self) -> None:
+            proxy_killed.set()
+            if not service_cancelled:
+                await handler_done.wait()
+
+    class Sandbox:
+        _tools_user = "root"
+
+        async def exec_remote(self, **kwargs: object) -> Proxy:
+            return Proxy()
+
+    async def sandbox_with_injected_tools(**kwargs: object) -> Sandbox:
+        return Sandbox()
+
+    async def monitor_proxy(proxy: Proxy) -> None:
+        await anyio.sleep_forever()
+
+    async def run_model_service(
+        sandbox: object,
+        web_search: object,
+        code_execution: object,
+        bridge: object,
+        instance: str,
+        started: anyio.Event,
+    ) -> None:
+        async def method() -> str:
+            raise service_failure
+
+        service = dispatching_service(monkeypatch, "stop", method, {}, replies)
+        service._responses_dir = "/resp"
+
+        async def write_text_file(directory: str, name: str, contents: str) -> None:
+            replies.append(json.loads(contents)["error"])
+            reply_readable.set()
+
+        async def remove_request_file(request_file: str) -> None:
+            await proxy_killed.wait()
+            if service_cancelled:
+                await anyio.sleep_forever()
+
+        monkeypatch.setattr(service, "_write_text_file", write_text_file)
+        monkeypatch.setattr(service, "_remove_request_file", remove_request_file)
+        monkeypatch.setattr(
+            service,
+            "_write_response",
+            SandboxService._write_response.__get__(service),
+        )
+        started.set()
+        try:
+            await service._handle_request_tracked("/req/r1.json", "r1")
+        finally:
+            handler_done.set()
+        raise RuntimeError("service teardown")
+
+    monkeypatch.setattr(
+        bridge_module, "sandbox_with_injected_tools", sandbox_with_injected_tools
+    )
+    monkeypatch.setattr(bridge_module, "run_model_service", run_model_service)
+    monkeypatch.setattr(bridge_module, "_monitor_proxy", monitor_proxy)
+
+    warnings: list[str] = []
+    monkeypatch.setattr(
+        bridge_module.logger,
+        "warning",
+        lambda message, *a, **k: warnings.append(message),
+    )
+    terminated: TerminateSampleError | None = None
+    with anyio.fail_after(10):
+        try:
+            async with bridge_module.sandbox_agent_bridge():
+                # the scaffold reads its reply and returns
+                await reply_readable.wait()
+        except TerminateSampleError as ex:
+            terminated = ex
+
+    if isinstance(service_failure, TerminateSampleError):
+        assert terminated is service_failure
+        assert replies == ["Terminating: stop now"]
+        assert warnings == []
+    else:
+        assert terminated is None
+        assert warnings == (
+            []
+            if service_cancelled
+            else [
+                "Error during sandbox_agent_bridge cleanup (agent completed "
+                "successfully): service teardown"
+            ]
+        )
+        assert replies == ["Error calling method stop: ordinary failure"]
+
+
 def _assert_terminated_once(log: EvalLog, reason: str) -> None:
     """The sample ended by one termination with `reason`, not in error."""
     assert log.status == "success"

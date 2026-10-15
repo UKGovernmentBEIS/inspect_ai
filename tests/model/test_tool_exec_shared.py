@@ -15,6 +15,7 @@ import sys
 from unittest.mock import MagicMock, patch
 
 import anyio
+import anyio.abc
 import pytest
 
 if sys.version_info < (3, 11):
@@ -336,6 +337,117 @@ async def test_grouped_terminate_answers_rpc_then_propagates(monkeypatch):
 
     assert len(responses) == 1
     assert responses[0][1] is not None and "Terminating" in responses[0][1]
+
+
+async def _serve_until_cancelled(service, cancel_when: anyio.Event) -> list:
+    """Serve the request, cancelling its task group once `cancel_when` is set.
+
+    Stands in for the service's owner cancelling it, as `sandbox_agent_bridge`
+    does when the agent finishes. Returns the exceptions the group unwound with.
+    """
+    from test_helpers.service_dispatch import group_leaves
+
+    async def cancel(tg: anyio.abc.TaskGroup) -> None:
+        await cancel_when.wait()
+        tg.cancel_scope.cancel()
+
+    with anyio.fail_after(5):
+        try:
+            async with anyio.create_task_group() as tg:
+                tg.start_soon(service._handle_request_tracked, "/req/r1.json", "r1")
+                tg.start_soon(cancel, tg)
+        except Exception as ex:
+            return group_leaves(ex)
+    return []
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("readable", [False, True], ids=["unwritten", "readable"])
+async def test_terminate_survives_cancellation_during_the_reply(monkeypatch, readable):
+    """The termination propagates even if the service is cancelled mid-reply.
+
+    The dispatcher answers a terminating request before raising. Its caller can
+    read the reply and finish before the write returns (a bridged scaffold
+    exits on it), and the caller's owner then cancels the service. The
+    termination must not depend on the reply completing.
+    """
+    responses: list = []
+
+    async def method() -> str:
+        raise TerminateSampleError("kill")
+
+    service = _fake_service(method, monkeypatch, responses)
+    in_reply = anyio.Event()
+
+    async def blocked_write_response(request_file, request_id, result, error=None):
+        if readable:
+            responses.append((result, error))
+        in_reply.set()
+        await anyio.sleep_forever()
+
+    monkeypatch.setattr(service, "_write_response", blocked_write_response)
+
+    unwound = await _serve_until_cancelled(service, in_reply)
+
+    assert [type(ex) for ex in unwound] == [TerminateSampleError]
+    assert responses == ([(None, "Terminating: kill")] if readable else [])
+
+
+@pytest.mark.anyio
+async def test_terminate_reply_is_bounded(monkeypatch):
+    """A reply that never completes delays the termination only so long."""
+    from inspect_ai.util._sandbox import service as service_module
+
+    monkeypatch.setattr(service_module, "TERMINATING_REPLY_TIMEOUT", 0.1)
+
+    async def method() -> str:
+        raise TerminateSampleError("kill")
+
+    service = _fake_service(method, monkeypatch, [])
+
+    async def hung_write_response(request_file, request_id, result, error=None):
+        await anyio.sleep_forever()
+
+    monkeypatch.setattr(service, "_write_response", hung_write_response)
+
+    with anyio.fail_after(5):
+        with pytest.raises(TerminateSampleError, match="kill"):
+            await service._handle_request_tracked("/req/r1.json", "r1")
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("cancelled_in", ["method", "error-reply"])
+async def test_unrelated_cancellation_is_unchanged(monkeypatch, cancelled_in):
+    """Cancelling a request that is not terminating raises nothing.
+
+    Negative control for the termination path: cancelled while the method runs,
+    or while an ordinary error is being answered, the request just ends.
+    """
+    responses: list = []
+    cancel_when = anyio.Event()
+
+    async def method() -> str:
+        if cancelled_in == "method":
+            cancel_when.set()
+            await anyio.sleep_forever()
+        raise RuntimeError("ordinary failure")
+
+    service = _fake_service(method, monkeypatch, responses)
+
+    async def blocked_write_response(request_file, request_id, result, error=None):
+        responses.append((result, error))
+        cancel_when.set()
+        await anyio.sleep_forever()
+
+    monkeypatch.setattr(service, "_write_response", blocked_write_response)
+
+    unwound = await _serve_until_cancelled(service, cancel_when)
+
+    assert unwound == []
+    if cancelled_in == "method":
+        assert responses == []
+    else:
+        assert responses == [(None, "Error calling method boom: ordinary failure")]
 
 
 @pytest.mark.anyio

@@ -115,6 +115,10 @@ POLLING_INTERVAL = 0.1
 # can't hold the service open indefinitely.
 NORMAL_EXIT_DRAIN_TIMEOUT = 30.0
 
+# Bound on the reply to a request that terminates the sample. The termination
+# is raised when the reply is written, fails, is cancelled, or times out.
+TERMINATING_REPLY_TIMEOUT = 30.0
+
 SERVICE_NAME_PATTERN = re.compile(r"[A-Za-z_][A-Za-z0-9_]{0,127}")
 FILENAME_TOKEN_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}")
 
@@ -630,17 +634,23 @@ class SandboxService:
             except Exception as err:
                 # sample termination raised by a service method (bare or
                 # wrapped in an ExceptionGroup) must propagate out of the
-                # service to be enacted — answer the RPC exactly once first
-                # so the sandbox-side caller isn't left polling forever
+                # service to be enacted — try to answer the RPC exactly once
+                # first so the sandbox-side caller isn't left polling forever
                 control = find_control_flow(err)
                 if control is not None:
-                    await self._write_response(
-                        request_file,
-                        request_id,
-                        None,
-                        f"Terminating: {control}",
-                    )
-                    raise control from err
+                    # the termination is raised however the reply ends: a
+                    # caller that reads it may finish and have its owner
+                    # cancel this service before the write returns
+                    try:
+                        with anyio.move_on_after(TERMINATING_REPLY_TIMEOUT):
+                            await self._write_response(
+                                request_file,
+                                request_id,
+                                None,
+                                f"Terminating: {control}",
+                            )
+                    finally:
+                        raise control from err
                 # Log the host-side traceback, but do NOT put it in the response.
                 # This text is delivered into the sandbox and, for bridged MCP
                 # tools, surfaces verbatim as tool output the model reads. The
