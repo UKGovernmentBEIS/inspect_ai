@@ -208,7 +208,7 @@ def model_retry_config(
         # every retried attempt, including the last one of a call that runs
         # out of retries
         def after_retryable_attempt(rs: RetryCallState) -> None:
-            add_sample_wait(attempt_start, sample_clock())
+            add_sample_wait(attempt_start, sample_clock(), completed=False)
             if attempts is not None:
                 attempts.retried()
 

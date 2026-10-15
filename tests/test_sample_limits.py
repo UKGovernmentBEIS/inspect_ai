@@ -21,7 +21,11 @@ from inspect_ai import Task, eval
 from inspect_ai._util._async import tg_collect
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.registry import _registry
-from inspect_ai._util.working import add_sample_wait, sample_clock
+from inspect_ai._util.working import (
+    add_sample_wait,
+    report_sample_waiting_time,
+    sample_clock,
+)
 from inspect_ai.approval import (
     Approval,
     ApprovalPolicy,
@@ -1489,6 +1493,41 @@ def test_sibling_work_during_backoff_is_working(
 
     sample = _run_timing_solver(backoff_beside_work())
     assert _waiting(sample) < 0.1
+
+
+@pytest.mark.parametrize("helper", ["report_sample_waiting_time", "add_sample_wait"])
+def test_late_wait_after_generate_in_tool_is_waiting(
+    flaky_model: None, helper: str
+) -> None:
+    """A tool reporting its finished model call as a wait is not charged for it."""
+
+    @tool
+    def reporting_tool() -> Tool:
+        async def execute() -> str:
+            """Tool that reports its model call as waiting."""
+            model = get_model("flakytiming/m", attempt_seconds=0.5, memoize=False)
+            start = sample_clock()
+            await model.generate("report")
+            if helper == "report_sample_waiting_time":
+                report_sample_waiting_time(sample_clock() - start)
+            else:
+                add_sample_wait(start, sample_clock())
+            return "done"
+
+        return execute
+
+    @solver
+    def report_in_tool() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            await execute_tools(_tool_calls("reporting_tool"), [reporting_tool()])
+            return state
+
+        return solve
+
+    sample = _run_timing_solver(report_in_tool())
+    (event,) = [e for e in sample.events if isinstance(e, ToolEvent)]
+    assert _event_waiting(event) >= 0.45
+    assert _waiting(sample) >= 0.45
 
 
 def test_semaphore_wait_beside_generate_is_working(flaky_model: None) -> None:

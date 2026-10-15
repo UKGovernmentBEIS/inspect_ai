@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import contextlib
+import functools
 import random
 from contextvars import Context, copy_context
 from dataclasses import dataclass, field
@@ -13,6 +15,7 @@ from test_helpers.utils import skip_if_no_docker
 
 from inspect_ai import eval
 from inspect_ai._eval.task.task import Task
+from inspect_ai._util.registry import _registry
 from inspect_ai._util.working import (
     ModelAttempts,
     SampleTiming,
@@ -29,12 +32,17 @@ from inspect_ai._util.working import (
     sample_working_time,
     untracked_sandbox_execs,
 )
+from inspect_ai.model._chat_message import ChatMessage
 from inspect_ai.model._generate_config import GenerateConfig
-from inspect_ai.model._model import get_model
+from inspect_ai.model._model import ModelAPI, get_model
+from inspect_ai.model._model_call import ModelCall
 from inspect_ai.model._model_output import ModelOutput
+from inspect_ai.model._registry import modelapi
 from inspect_ai.model._retry import batch_admin_retry_config, model_retry_config
 from inspect_ai.solver._solver import generate
 from inspect_ai.solver._use_tools import use_tools
+from inspect_ai.tool._tool_choice import ToolChoice
+from inspect_ai.tool._tool_info import ToolInfo
 from inspect_ai.tool._tools._execute import bash
 from inspect_ai.util._limit import (
     LimitExceededError,
@@ -732,14 +740,17 @@ async def test_work_inside_suspension_is_not_known_work(
     assert sample_working_time() == 1
 
 
-async def test_retried_attempt_keeps_sibling_work(sample_clock: _MockTime) -> None:
+@pytest.mark.parametrize("inside_tool", [False, True])
+async def test_retried_attempt_keeps_sibling_work(
+    sample_clock: _MockTime, inside_tool: bool
+) -> None:
     """Only the part of a retried attempt with no other known work is waiting.
 
     The attempt runs 0-8 and is classified as retried at 8; a sibling tool
-    call runs 1-4.
+    call runs 1-4. Inside a tool, the sibling's finished work is handed to
+    the tool, and the retry's wait leaves it charged.
     """
     attempts = ModelAttempts()
-    sibling = _Task()
 
     @retry(
         **model_retry_config(
@@ -753,7 +764,7 @@ async def test_retried_attempt_keeps_sibling_work(sample_clock: _MockTime) -> No
             attempts=attempts,
         )
     )
-    async def attempt() -> None:
+    async def attempt(sibling: _Task) -> None:
         with attempts.attempt():
             sample_clock.advance(1)
             tool = sibling.enter(known_work())
@@ -765,11 +776,12 @@ async def test_retried_attempt_keeps_sibling_work(sample_clock: _MockTime) -> No
             raise RuntimeError("retryable")
 
     with working_limit(None) as limit:
-        with pytest.raises(Exception):
-            await attempt()
-        attempts.commit()  # nothing pending: the retry loop dropped it
-        assert sample_waiting_time() == 5
-        assert limit.usage == 3
+        with known_work() if inside_tool else contextlib.nullcontext():
+            with pytest.raises(Exception):
+                await attempt(_Task())
+            attempts.commit()  # nothing pending: the retry loop dropped it
+            assert sample_waiting_time() == 5
+            assert limit.usage == 3
 
 
 async def test_attempt_charged_unless_retried(sample_clock: _MockTime) -> None:
@@ -881,6 +893,134 @@ async def test_late_wait_keeps_sibling_work(sample_clock: _MockTime) -> None:
     assert sample_waiting_time() == 0
 
 
+@pytest.mark.parametrize("helper", ["report_sample_waiting_time", "add_sample_wait"])
+@pytest.mark.parametrize("operation", ["generate", "exec", "known_work"])
+@pytest.mark.parametrize("sibling", [False, True])
+async def test_late_wait_withdraws_completed_operation(
+    sample_clock: _MockTime, helper: str, operation: str, sibling: bool
+) -> None:
+    """A wait reported inside a tool withdraws the tool's finished operations.
+
+    Inside a tool, an operation runs over `[0, 5]` and returns; the tool then
+    reports `[0, 5]` as waiting. An independent sibling working over `[1, 2]`
+    stays charged.
+    """
+    other = _Task()
+
+    def elapse() -> None:
+        sample_clock.advance(1)
+        sibling_work = other.enter(known_work()) if sibling else None
+        sample_clock.advance(1)
+        if sibling_work is not None:
+            other.exit(sibling_work)
+        sample_clock.advance(3)
+
+    def output(*_: Any) -> ModelOutput:
+        elapse()
+        return ModelOutput()
+
+    with working_limit(None) as scope:
+        with known_work():
+            if operation == "generate":
+                model = get_model("mockllm/model", custom_outputs=output, memoize=False)
+                await model.generate("hello")
+            elif operation == "exec":
+                await SandboxEnvironmentProxy(_GatedSandbox(sample_clock, elapse)).exec(
+                    ["work"]
+                )
+            else:
+                with known_work():
+                    elapse()
+            assert sample_working_time() == 5
+            if helper == "report_sample_waiting_time":
+                report_sample_waiting_time(5)
+            else:
+                add_sample_wait(0, 5)
+            working = 1 if sibling else 0
+            assert sample_working_time() == working
+            assert sample_waiting_time() == 5 - working
+            assert scope.usage == working
+        assert sample_working_time() == working
+        assert sample_waiting_time() == 5 - working
+        assert scope.usage == working
+
+
+async def test_sdk_retry_wait_keeps_finished_sibling_work(
+    sample_clock: _MockTime,
+) -> None:
+    """The SDK-retry part of an attempt does not withdraw a sibling that finished.
+
+    Inside a tool, a generate runs over `[0, 5]` and its request took the
+    last 2 s; a task the tool started works over `[1, 2]` and returns.
+    """
+
+    class ClockAPI(ModelAPI):
+        async def generate(
+            self,
+            input: list[ChatMessage],
+            tools: list[ToolInfo],
+            tool_choice: ToolChoice,
+            config: GenerateConfig,
+        ) -> tuple[ModelOutput, ModelCall]:
+            sample_clock.advance(1)
+            work = sibling.enter(known_work())
+            sample_clock.advance(1)
+            sibling.exit(work)
+            sample_clock.advance(3)
+            return ModelOutput(), ModelCall.create({}, {}, time=2)
+
+    @modelapi(name="working_clock")
+    def working_clock() -> type[ModelAPI]:
+        return ClockAPI
+
+    try:
+        with known_work():
+            sibling = _Task()
+            await get_model("working_clock/m", memoize=False).generate("hello")
+    finally:
+        del _registry["modelapi:working_clock"]
+    assert sample_waiting_time() == 2
+    assert sample_working_time() == 3
+
+
+async def test_late_wait_at_top_level_leaves_finished_work(
+    sample_clock: _MockTime,
+) -> None:
+    """Outside any known work, a late report has no finished work to withdraw."""
+    with known_work():
+        sample_clock.advance(5)
+    report_sample_waiting_time(5)
+    assert sample_waiting_time() == 0
+    with sample_wait():
+        with known_work():
+            sample_clock.advance(5)
+    assert sample_waiting_time() == 5
+
+
+async def test_closed_span_passes_later_work_up(sample_clock: _MockTime) -> None:
+    """Work finishing under a closed span reaches the open work above it.
+
+    An outer tool runs an inner tool, which starts a task and returns; the
+    task works over `[0, 5]` and reports it as waiting, then the outer tool
+    reports the same interval.
+    """
+    outer = _Task()
+    outer_work = outer.enter(known_work())
+    inner = _Task(outer)
+    inner_work = inner.enter(known_work())
+    background = _Task(inner)
+    inner.exit(inner_work)
+    work = background.enter(known_work())
+    sample_clock.advance(5)
+    background.exit(work)
+    assert sample_waiting_time() == 0
+    outer.ctx.run(add_sample_wait, 0, 5)
+    assert sample_waiting_time() == 5
+    sample_clock.advance(1)
+    outer.exit(outer_work)
+    assert sample_working_time() == 1
+
+
 async def test_task_outliving_inner_span_holds_open_ancestor(
     sample_clock: _MockTime,
 ) -> None:
@@ -985,11 +1125,17 @@ async def test_untracked_sandbox_execs_are_not_known_work(
 
 
 class _GatedSandbox(SandboxEnvironment):
-    """`poll` waits for `release`; any other command takes 5 s on the sample clock."""
+    """`poll` waits for `release`; any other command runs `work`.
 
-    def __init__(self, clock: _MockTime) -> None:
+    `work` defaults to taking 5 s on the sample clock.
+    """
+
+    def __init__(
+        self, clock: _MockTime, work: Callable[[], object] | None = None
+    ) -> None:
         super().__init__()
         self.clock = clock
+        self.work = work or (lambda: clock.advance(5))
         self.release = anyio.Event()
 
     async def exec(
@@ -1006,7 +1152,7 @@ class _GatedSandbox(SandboxEnvironment):
         if cmd == ["poll"]:
             await self.release.wait()
         else:
-            self.clock.advance(5)
+            self.work()
         return ExecResult(success=True, returncode=0, stdout="", stderr="")
 
     async def write_file(self, file: str, contents: str | bytes) -> None:
@@ -1039,7 +1185,8 @@ async def test_random_work_and_waits_match_reference(seed: int) -> None:
     Waits and known work open and close in separate tasks, nested in each
     other's contexts (closed spans' contexts included, as for a task that
     outlives the span that started it), with late waits reported from inside
-    work and attempts classified after the fact.
+    work (withdrawing finished work too, or not) and attempts classified
+    after the fact.
     """
     rng = random.Random(seed)
     clock = _MockTime()
@@ -1070,8 +1217,14 @@ async def test_random_work_and_waits_match_reference(seed: int) -> None:
             now = clock.get_time()
             start = rng.uniform(-1, now + 1)
             end = rng.uniform(start, now + 2)
+            completed = rng.random() < 0.7
             model.late_wait(
-                context, start, end, add_sample_wait, suspended=rng.random() < 0.3
+                context,
+                start,
+                end,
+                functools.partial(add_sample_wait, completed=completed),
+                suspended=rng.random() < 0.3,
+                completed=completed,
             )
         elif op < 0.9:
             scope = working_limit(None)
@@ -1116,6 +1269,8 @@ class _Span:
     closed: bool = False
     done: bool = False  # an attempt that has been classified
     dropped: bool = False
+    handed_off: bool = False  # its work is final and passed up
+    holder: _Span | None = None  # the span its counted work is with
 
 
 class _RuleModel:
@@ -1134,6 +1289,7 @@ class _RuleModel:
         task.enter(cm)
         now = self.clock.get_time()
         span = _Span(task, _Task(task), cm, parent, attempts, now, active=now)
+        span.holder = span
         if parent is not None:
             self._hold(parent)
         self.spans.append(span)
@@ -1144,6 +1300,8 @@ class _RuleModel:
         span.closed = True
         if span.holds == 0 and span.parent is not None:
             self._release(span.parent)
+        if span.attempts is None:
+            self._hand_off(span)
 
     def open_wait(self, span: _Span | None, suspended: bool = False) -> None:
         """Open a wait in a task started in `span` (inside a suspension, if set).
@@ -1175,11 +1333,16 @@ class _RuleModel:
             # the retry loop runs in the context that started the attempt
             span.dropped = True
             self.late_wait(
-                span.parent, span.opened, self.clock.get_time(), add_sample_wait
+                span.parent,
+                span.opened,
+                self.clock.get_time(),
+                functools.partial(add_sample_wait, completed=False),
+                completed=False,
             )
             span.attempts.retried()
         else:
             span.attempts.commit()
+        self._hand_off(span)
 
     def late_wait(
         self,
@@ -1188,11 +1351,14 @@ class _RuleModel:
         end: float,
         report: Callable[[float, float], None],
         suspended: bool = False,
+        completed: bool = True,
     ) -> None:
         """Report a wait after the fact from inside `context`'s work.
 
         With `suspended`, the report is made inside a `sample_wait()` opened
-        at that instant, as an approver or monitor would.
+        at that instant, as an approver or monitor would. With `completed`,
+        it withdraws the work handed to the spans it walks, as well as their
+        own.
         """
 
         def run() -> None:
@@ -1211,13 +1377,18 @@ class _RuleModel:
         while context is not None:
             active = context.active is not None
             self._end(context)
-            context.segments = [
-                piece
-                for s, e in context.segments
-                for piece in ([(s, e)] if e <= start or s >= end else [])
-                + ([(s, start)] if s < start < e else [])
-                + ([(end, e)] if s < end < e else [])
-            ]
+            if completed:
+                owned = [s for s in self.spans if s.holder is context]
+            else:
+                owned = [] if context.handed_off else [context]
+            for span in owned:
+                span.segments = [
+                    piece
+                    for s, e in span.segments
+                    for piece in ([(s, e)] if e <= start or s >= end else [])
+                    + ([(s, start)] if s < start < e else [])
+                    + ([(end, e)] if s < end < e else [])
+                ]
             if active:
                 context.active = now
             context = context.parent
@@ -1250,6 +1421,16 @@ class _RuleModel:
                     self._release(span.parent)
             else:
                 span.active = self.clock.get_time()
+
+    def _hand_off(self, span: _Span) -> None:
+        """Pass the work `span` holds to its first parent still taking it."""
+        span.handed_off = True
+        target = span
+        while target.handed_off and target.parent is not None:
+            target = target.parent
+        for other in self.spans:
+            if other.holder is span:
+                other.holder = target
 
     def _end(self, span: _Span) -> None:
         if span.active is not None:
