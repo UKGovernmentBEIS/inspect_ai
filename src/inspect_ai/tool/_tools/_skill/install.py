@@ -142,9 +142,8 @@ def _check_file_names(skill: Skill) -> None:
 def install_lock(sbox: SandboxEnvironment) -> anyio.Lock:
     """The lock that serialises skill installs into a sample sandbox.
 
-    Held weakly, so it goes with the sample. Skill tools also check and fill
-    their cached skill list under it, so the first tool to install for a
-    store instance sets that list.
+    Held weakly, so it goes with the sample. It is per sandbox rather than
+    per directory, so installs into different directories also take turns.
     """
     return _install_locks.setdefault(sbox, anyio.Lock())
 
