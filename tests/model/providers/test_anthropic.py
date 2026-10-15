@@ -268,6 +268,205 @@ def test_anthropic_full_thinking_removes_display_budget() -> None:
     assert "display" not in params["thinking"]
 
 
+def test_anthropic_raw_thinking_only_when_full_thinking_beta_takes_effect() -> None:
+    """Raw thinking is expected only with the beta and no `thinking.display`."""
+    api = AnthropicAPI(model_name="claude-opus-4-7", api_key="test-key")
+    beta = {"anthropic-beta": f"other-beta,{_FULL_THINKING_BETA}"}
+    assert api._returns_raw_thinking({"extra_headers": beta})
+    assert api._returns_raw_thinking(
+        {"extra_headers": beta, "thinking": {"type": "adaptive"}}
+    )
+    assert not api._returns_raw_thinking(
+        {"extra_headers": beta, "thinking": {"type": "adaptive", "display": "omitted"}}
+    )
+    assert not api._returns_raw_thinking({"extra_headers": {}})
+    # a `thinking` in extra_body replaces the request's in the sent body
+    assert not api._returns_raw_thinking(
+        {
+            "extra_headers": beta,
+            "thinking": {"type": "adaptive"},
+            "extra_body": {"thinking": {"type": "adaptive", "display": "omitted"}},
+        }
+    )
+    assert api._returns_raw_thinking(
+        {
+            "extra_headers": beta,
+            "thinking": {"type": "adaptive", "display": "omitted"},
+            "extra_body": {"thinking": {"type": "adaptive"}},
+        }
+    )
+    api.client._custom_headers = {"anthropic-beta": _FULL_THINKING_BETA}
+    assert api._returns_raw_thinking({})
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("batch", [False, True])
+async def test_anthropic_generate_stores_raw_thinking_as_reasoning(
+    batch: bool, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A per-request full-thinking beta yields raw reasoning through generate.
+
+    Batch submission pops the request's headers before the response arrives, so
+    this also covers deciding on raw thinking before the request is sent.
+    """
+    from unittest.mock import MagicMock
+
+    import anyio
+    from anthropic.types import Message, TextBlock, ThinkingBlock, Usage
+
+    from inspect_ai._util.background import set_background_task_group
+    from inspect_ai.model._generate_config import BatchConfig
+    from inspect_ai.model._providers._anthropic_batch import AnthropicBatcher
+    from inspect_ai.model._providers.util.batch import BatchCheckResult
+    from inspect_ai.model._retry import model_retry_config
+
+    message = Message(
+        id="msg_1",
+        type="message",
+        role="assistant",
+        model="claude-opus-4-7",
+        stop_reason="end_turn",
+        content=[
+            ThinkingBlock(type="thinking", thinking="raw steps", signature="sig-1"),
+            TextBlock(type="text", text="done"),
+        ],
+        usage=Usage(input_tokens=1, output_tokens=1),
+    )
+
+    class CompletingAnthropicBatcher(AnthropicBatcher):
+        """Completes each batch at once, answering each request with `message`."""
+
+        async def _check_batch(self, batch):
+            return BatchCheckResult(
+                completed_count=len(batch.requests),
+                failed_count=0,
+                created_at=0,
+                completion_info=True,
+            )
+
+        async def _handle_batch_result(self, batch, completion_info):
+            return {custom_id: message for custom_id in batch.requests}
+
+    api = AnthropicAPI(
+        model_name="claude-opus-4-7",
+        api_key="test-key",
+        betas=[_FULL_THINKING_BETA],
+        streaming=False,
+    )
+    config = GenerateConfig(max_tokens=64, reasoning_effort="high")
+    batches_create = AsyncMock(return_value=MagicMock(id="batch_1"))
+    if batch:
+        batch_config = BatchConfig(size=1, send_delay=0.01, tick=0.001)
+        config = config.merge(GenerateConfig(batch=batch_config))
+        monkeypatch.setattr(api.client.messages.batches, "create", batches_create)
+        api._batcher = CompletingAnthropicBatcher(
+            api.client,
+            batch_config,
+            model_retry_config(
+                "test", 3, None, lambda e: True, lambda ex: None, lambda m, s: None
+            ),
+        )
+    else:
+        monkeypatch.setattr(
+            api.client.messages, "create", AsyncMock(return_value=message)
+        )
+
+    async with anyio.create_task_group() as tg:
+        set_background_task_group(tg)
+        try:
+            output, _ = await api.generate(
+                [ChatMessageUser(content="go")], [], "auto", config
+            )
+        finally:
+            set_background_task_group(None)
+
+    if batch:
+        (call,) = batches_create.call_args_list
+        assert _FULL_THINKING_BETA in call.kwargs["extra_headers"]["anthropic-beta"]
+    assert not isinstance(output, Exception)
+    reasoning = output.message.content[0]
+    assert isinstance(reasoning, ContentReasoning)
+    assert (reasoning.reasoning, reasoning.signature) == ("raw steps", "sig-1")
+    assert reasoning.summary is None and not reasoning.redacted
+
+
+@pytest.mark.anyio
+async def test_anthropic_raw_thinking_round_trips_through_think_tag() -> None:
+    """Raw thinking replays as its thinking block after an OpenAI completions bridge."""
+    from anthropic.types import ThinkingBlock
+
+    from inspect_ai.model._openai import messages_from_openai, openai_assistant_content
+    from inspect_ai.model._providers.anthropic import (
+        content_and_tool_calls_from_assistant_content_blocks,
+        init_sample_anthropic_assistant_internal,
+        message_block_params,
+    )
+
+    block = ThinkingBlock(type="thinking", thinking="raw steps", signature="sig-1")
+    init_sample_anthropic_assistant_internal()
+    content, _ = content_and_tool_calls_from_assistant_content_blocks(
+        [block], [], raw_thinking=True
+    )
+    text, _ = openai_assistant_content(
+        ChatMessageAssistant(content=[*content, ContentText(text="done")])
+    )
+    [restored_message] = await messages_from_openai(
+        [{"role": "assistant", "content": text}]
+    )
+    restored = restored_message.content[0]
+    assert isinstance(restored, ContentReasoning)
+    assert restored.internal == content[0].internal
+
+    expected = {"type": "thinking", "thinking": "raw steps", "signature": "sig-1"}
+    assert await message_block_params(restored) == [expected]
+
+    # the recorded block is found by signature even without the raw marker
+    unmarked = ContentReasoning(reasoning="raw steps", signature="sig-1")
+    assert await message_block_params(unmarked) == [expected]
+
+
+@pytest.mark.anyio
+async def test_anthropic_raw_thinking_parses_into_reasoning_and_replays() -> None:
+    """Raw thinking lands in `reasoning` (not `summary`) and rebuilds its block."""
+    from anthropic.types import ThinkingBlock
+
+    from inspect_ai.model._providers.anthropic import (
+        content_and_tool_calls_from_assistant_content_blocks,
+        init_sample_anthropic_assistant_internal,
+        message_block_params,
+    )
+
+    block = ThinkingBlock(type="thinking", thinking="raw steps", signature="sig-1")
+    init_sample_anthropic_assistant_internal()
+    content, _ = content_and_tool_calls_from_assistant_content_blocks(
+        [block], [], raw_thinking=True
+    )
+    reasoning = content[0]
+    assert isinstance(reasoning, ContentReasoning)
+    assert (reasoning.reasoning, reasoning.signature) == ("raw steps", "sig-1")
+    assert reasoning.summary is None and not reasoning.redacted
+
+    expected = {"type": "thinking", "thinking": "raw steps", "signature": "sig-1"}
+    assert await message_block_params(reasoning) == [expected]
+
+    # replay from a log, without this sample's recorded thinking blocks
+    init_sample_anthropic_assistant_internal()
+    restored = ContentReasoning.model_validate(reasoning.model_dump())
+    assert await message_block_params(restored) == [expected]
+
+    # readable reasoning with a signature from another provider stays text
+    other = ContentReasoning(reasoning="other steps", signature="rs_1")
+    assert await message_block_params(other) == [
+        {"type": "text", "text": "<think>other steps</think>"}
+    ]
+
+    # without the beta the thinking is a summary, as before
+    content, _ = content_and_tool_calls_from_assistant_content_blocks([block], [])
+    assert isinstance(content[0], ContentReasoning)
+    assert (content[0].summary, content[0].reasoning) == ("raw steps", "sig-1")
+    assert content[0].redacted
+
+
 def test_anthropic_thinking_keeps_display_without_full_thinking_beta() -> None:
     """Without the beta, 'display' stays 'summarized' on both thinking paths."""
     adaptive = AnthropicAPI(model_name="claude-opus-4-7", api_key="test-key")
@@ -662,6 +861,7 @@ async def test_anthropic_generate_handles_midstream_content_filter(
         pending_tool_uses: Any = None,
         pending_mcp_tool_uses: Any = None,
         span_recorder: Any = None,
+        raw_thinking: Any = None,
     ) -> tuple[dict[str, Any], ModelOutput]:
         raise APIStatusError(
             "Output blocked by content filtering policy",
@@ -1199,6 +1399,7 @@ async def test_anthropic_top_level_cache_control_skipped_on_bedrock_vertex(
         pending_tool_uses: Any = None,
         pending_mcp_tool_uses: Any = None,
         span_recorder: Any = None,
+        raw_thinking: Any = None,
     ) -> tuple[dict[str, Any], ModelOutput]:
         captured.update(request)
         return {}, ModelOutput.from_content(
@@ -2196,6 +2397,7 @@ async def test_anthropic_forced_tool_choice_request_wiring(
         pending_tool_uses: Any = None,
         pending_mcp_tool_uses: Any = None,
         span_recorder: Any = None,
+        raw_thinking: Any = None,
     ) -> tuple[dict[str, Any], ModelOutput]:
         captured.update(request)
         return {}, ModelOutput.from_content(
@@ -2288,6 +2490,7 @@ async def test_anthropic_forced_tool_choice_with_thinking_records_metadata(
         pending_tool_uses: Any = None,
         pending_mcp_tool_uses: Any = None,
         span_recorder: Any = None,
+        raw_thinking: Any = None,
     ) -> tuple[dict[str, Any], ModelOutput]:
         captured.update(request)
         return {}, ModelOutput.from_content(
