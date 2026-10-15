@@ -1,3 +1,5 @@
+from enum import StrEnum
+
 from inspect_ai._util.download import download, gdrive_download
 from inspect_ai._util.images import (
     MediaKind,
@@ -13,7 +15,6 @@ from inspect_ai._util.registry import (
     registry_create,
     registry_info,
 )
-from inspect_ai._util.strenum import StrEnum
 from inspect_ai._util.trace import trace_action, trace_message
 from inspect_ai.util._limit import (
     Limit,
