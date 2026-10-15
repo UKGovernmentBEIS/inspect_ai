@@ -7,10 +7,15 @@ and published to PyPI and npm by GitHub Actions with trusted publishing.
 
 1. **PR titles set the version.** PRs are squash-merged and their titles follow
    Conventional Commits (enforced by `pr-title-lint.yml`). Since the last
-   release, any `fix`, `feat`, `perf` or `revert` makes the next release a patch
-   (0.3.x); a breaking change (`feat!:`) makes it a minor (0.x.0). Other types
-   make no release on their own. Config: `.release-please-config.json`; the
-   last released version: `.release-please-manifest.json`.
+   release, any `fix`, `feat`, `perf` or `revert`, or any breaking change (`!`
+   on any type, including `chore!:`), makes the next release a patch (0.3.x).
+   Other types make no release on their own, except a commit whose message ends
+   with a `Release-As: X.Y.Z` footer, which makes a release of that version. A
+   breaking change is listed under "⚠ BREAKING CHANGES" but still makes a
+   patch: the config sets `"versioning": "always-bump-patch"`, which ignores
+   breaking changes when choosing the version (see [Minor or major
+   release](#minor-or-major-release)). Config: `.release-please-config.json`;
+   the last released version: `.release-please-manifest.json`.
 2. **Release PR.** On every push to `main`, `release.yml` runs Release Please,
    which opens or updates the release PR (branch
    `release-please--branches--main`, title `chore(main): release X.Y.Z`). The
@@ -55,8 +60,11 @@ to its commit message instead. With the setting:
 
 - a `BREAKING CHANGE:` paragraph is listed under "⚠ BREAKING CHANGES"; it
   runs to the next blank line, so it needs a blank line after it;
-- a paragraph that starts with a Conventional Commits header (`fix: ...`) adds
-  an entry of its own;
+- a line that starts with a Conventional Commits header (`fix: ...`) right
+  after a blank line adds an entry of its own. The parser splits on a blank
+  line followed by a header and does not track Markdown fences, so indenting
+  the line prevents the entry and a fence does not when a blank line comes
+  before the line inside it;
 - `BEGIN_COMMIT_OVERRIDE` ... `END_COMMIT_OVERRIDE` in a merged PR's
   description replaces that commit's message, which is how an entry is
   reworded before the release. Release Please reads it when it next updates
@@ -83,11 +91,35 @@ with it trigger no other workflows, so:
   (`.github/actions/build-dist`, `.github/actions/publish-dist`) and
   `npm-publish.yml` as a called workflow, so the two paths cannot drift.
 
+`publish-dist` verifies the downloaded files and drops those PyPI already
+has; the upload itself, `pypa/gh-action-pypi-publish`, is a step of each
+publish job rather than of the composite. It runs its upload in a Docker
+image named from `github.action_repository`, which is empty inside a nested
+composite action (actions/runner#2473), so the name fell back to the calling
+repository (`ghcr.io/UKGovernmentBEIS/...`, which Docker rejects as
+uppercase); that is how the 0.3.279 publish failed.
+`release.yml`'s publish job runs `publish-dist` from the run's own commit
+(a second checkout into `.ci/`), not from the tag, so a recovery dispatch on
+`main` publishes an older tag with the current publish steps.
+
 Trusted publishers: PyPI matches the workflow file that runs the publishing
 job, so `release.yml` and `publish.yml` each need a PyPI publisher. npm matches
 the calling workflow, so `release.yml` and `npm-publish.yml` each need an npm
 publisher. The `pypi` and `npm` environments must allow deployments from
 `main` (release.yml) and from version tags (break-glass).
+
+## Minor or major release
+
+`"versioning": "always-bump-patch"` makes every release a patch, including
+releases with breaking changes, so a minor or major release must be set
+explicitly. Merge a PR that adds `"release-as": "X.Y.0"` to the `"."` package
+in `.release-please-config.json`; the release PR then proposes that version.
+`release-as` sets the version but does not create a release: if nothing that
+makes a release (step 1) has merged since the last release, there is no release
+PR until something does. After it is released, merge a PR that removes
+`release-as`; otherwise every later release PR proposes the same version again.
+(Temporarily switching `versioning` back to `default` makes a minor release
+only if a breaking change has merged since the last release.)
 
 ## Retries and recovery
 
@@ -148,7 +180,9 @@ Re-running the Release workflow is safe at any point.
   on a version tag: `publish.yml` and `npm-publish.yml` run on the release
   event.
 - **Dispatch `publish.yml`** on the tag, typing the tag to confirm; this may
-  publish a tag that is not on `main`. Dispatch `npm-publish.yml` on the tag
+  publish a tag that is not on `main`. It runs the workflow and actions as
+  they are at the tag, so it cannot publish a tag whose publish steps are
+  broken (such as 0.3.279); use the recovery dispatch of `release.yml`. Dispatch `npm-publish.yml` on the tag
   with dry-run unchecked.
 - **Local:** `python scripts/pypi-release.py release X.Y.Z` (PyPI only; its
   tag push no longer triggers npm, so dispatch `npm-publish.yml`).

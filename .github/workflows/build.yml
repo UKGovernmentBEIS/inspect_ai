@@ -106,15 +106,13 @@ jobs:
         if: github.event_name != 'pull_request' || steps.filter.outputs.code == 'true'
         run: uv sync
 
-      # TEMPORARY: stays until inspect_sentinel is published on PyPI, then a
-      # requirements-dev.txt entry replaces it (its git-ref dependency on
-      # inspect-ai conflicts with the editable install). --no-deps so the drift
-      # test in tests/log/test_event_discriminator.py runs instead of skipping.
-      # Pinned to a commit so a sentinel change cannot break inspect_ai CI
-      # unannounced; bump it deliberately when inspect_ai needs newer sentinel code.
+      # TEMPORARY: the dispatcher requires inspect_sentinel with
+      # meridianlabs-ai/inspect_sentinel#87 (Host wraps HostNative), installed from
+      # sentinel main. Remove when a release with it
+      # is on PyPI and requirements-dev.txt requires it.
       - name: Install inspect_sentinel (TEMPORARY)
         if: github.event_name != 'pull_request' || steps.filter.outputs.code == 'true'
-        run: uv pip install --no-deps "inspect_sentinel @ git+https://github.com/meridianlabs-ai/inspect_sentinel@7deac5b02780fab18eeb343395802d24db3cffcd"
+        run: uv pip install --no-deps "inspect_sentinel @ git+https://github.com/meridianlabs-ai/inspect_sentinel@main"
 
       - name: Run mypy
         if: github.event_name != 'pull_request' || steps.filter.outputs.code == 'true'
@@ -339,15 +337,13 @@ jobs:
           uv sync
           uv pip install --no-deps ./tests/test_package
 
-      # TEMPORARY: stays until inspect_sentinel is published on PyPI, then a
-      # requirements-dev.txt entry replaces it (its git-ref dependency on
-      # inspect-ai conflicts with the editable install). --no-deps so the drift
-      # test in tests/log/test_event_discriminator.py runs instead of skipping.
-      # Pinned to a commit so a sentinel change cannot break inspect_ai CI
-      # unannounced; bump it deliberately when inspect_ai needs newer sentinel code.
+      # TEMPORARY: the dispatcher requires inspect_sentinel with
+      # meridianlabs-ai/inspect_sentinel#87 (Host wraps HostNative), installed from
+      # sentinel main. Remove when a release with it
+      # is on PyPI and requirements-dev.txt requires it.
       - name: Install inspect_sentinel (TEMPORARY)
         if: env.RUN_TESTS == 'true'
-        run: uv pip install --no-deps "inspect_sentinel @ git+https://github.com/meridianlabs-ai/inspect_sentinel@7deac5b02780fab18eeb343395802d24db3cffcd"
+        run: uv pip install --no-deps "inspect_sentinel @ git+https://github.com/meridianlabs-ai/inspect_sentinel@main"
 
       - name: Test with pytest
         if: env.RUN_TESTS == 'true'
@@ -371,7 +367,7 @@ jobs:
 
       - name: Upload test order log
         if: ${{ !cancelled() && env.RUN_TESTS == 'true' }}
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: test-report-log-${{ matrix.python-version }}
           path: test-report-log.jsonl

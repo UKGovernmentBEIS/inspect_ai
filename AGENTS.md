@@ -42,6 +42,14 @@ Devin, and similar) preparing contributions. Human contributors: see
    failing test)? If the need is speculative or the fix unverified, do not
    proceed. File an issue with your evidence instead.
 
+When commenting on someone else's issue or PR without an assignment
+or review request, including when posting a PR review, identify
+yourself as an AI agent. State that you are not a project maintainer
+and that your comment or review does not represent the maintainers'
+views or decisions. Do not imply that you can accept an issue,
+approve a PR, or speak for the project. This does not apply to agents
+acting for project maintainers.
+
 If you do open a PR: reference the accepted issue (`Fixes #NNN`); run
 `make check` and `make test` and report results honestly; for non-trivial
 changes, run at least one code review pass in a fresh context on a strong
@@ -262,7 +270,7 @@ for changes in gated-test areas, as described above.
 
 Title the PR with the user-facing outcome — the bug a user hit or the capability they gain — not the mechanism of the fix: "fix: eval hang when resuming with S3 logs", not "fix: add AsyncFilesystem to log recorder". A good test: would a user scanning titles recognize their problem or their feature request? PRs with no user-facing outcome (refactoring, dev tooling, docs) describe the change itself instead; their types (`refactor`, `ci`, `docs`, ...) are left out of the changelog, so the carve-out doesn't reach it.
 
-The title starts with a Conventional Commits type (enforced by the PR Title Lint check), as in "fix: eval hang when resuming with S3 logs" or "feat(anthropic): support Claude Haiku 5.5". The squash-merged title is what Release Please reads to version the next release: `fix`, `feat`, `perf` and `revert` make a patch release; `!` after the type or scope (`feat!:`) marks a breaking change and makes a minor release; `docs`, `refactor`, `test`, `build`, `ci`, `chore` and `style` make no release on their own. Pick the type from what users get, not from the files touched: a bug fix that also adds tests is `fix`.
+The title starts with a Conventional Commits type (enforced by the PR Title Lint check), as in "fix: eval hang when resuming with S3 logs" or "feat(anthropic): support Claude Haiku 5.5". The squash-merged title is what Release Please reads to version the next release: `fix`, `feat`, `perf` and `revert` make a patch release; `!` after the type or scope (`feat!:`) marks a breaking change, which is listed in the changelog but still makes a patch release (Release Please is configured to always bump the patch version); `docs`, `refactor`, `test`, `build`, `ci`, `chore` and `style` make no release on their own. Pick the type from what users get, not from the files touched: a bug fix that also adds tests is `fix`.
 
 Before opening a non-trivial PR, run at least one code review pass in a fresh context — a reviewer that hasn't seen the authoring conversation (e.g. `/code-review` or a subagent) — using a strong (frontier-class) model; in our experience reviews from small fast-tier models rarely surface real issues. Fix or explicitly dismiss each finding before opening, and disclose the pass in the `### Agent review` section.
 
@@ -271,7 +279,7 @@ When asked to open a PR, don't stop at creation — monitor it afterward: watch 
 Don't edit `CHANGELOG.md`; the Changelog Lint check (`no-changelog-edits`) fails any PR that does, except the release PR. Release Please writes the changelog and the GitHub Release notes at release time from the squash-merged PR titles: `feat`, `fix`, `perf` and `revert` titles become entries, and other types are left out. The PR title is therefore the changelog line, so keep it short (~25 words), state the user-visible behavior change, and leave out internal names and issue numbers (Release Please links the PR). The squash commit's message is the PR description, which Release Please also reads:
 
 - For a breaking change, use `feat!:` (or `fix!:`) and add a paragraph to the PR description starting with `BREAKING CHANGE:` that says what users must change, followed by a blank line (the note runs to the next blank line).
-- A description paragraph that starts with a type and colon (e.g. `fix: ...`) adds its own changelog entry; indent it or put it in a code block.
+- A description line that starts with a type and colon (e.g. `fix: ...`) right after a blank line adds its own changelog entry; to show one without adding an entry, indent it (a code fence does not prevent the entry when a blank line comes before the line inside it).
 - To reword a merged PR's entry before the release, put `BEGIN_COMMIT_OVERRIDE`, the corrected title with ` (#NNN)` (the PR number) appended, and `END_COMMIT_OVERRIDE`, each on its own line, at the top of the merged PR's description. Edits to `CHANGELOG.md` in the release PR do not last: Release Please rewrites that PR on every push to `main`.
 
 Never change a submodule gitlink (e.g. `src/inspect_ai/_view/ts-mono`) unless the task is about that submodule. After any merge/rebase, check `git status`; if it shows the submodule modified, reset the pointer to the base and commit: `git checkout origin/main -- src/inspect_ai/_view/ts-mono`. (`git submodule update` will NOT fix this — it syncs the working tree to the already-recorded pointer, not the reverse.) When a change legitimately requires a coordinated ts-mono update (e.g. regenerated types), follow `.agents/skills/land-ts-mono/SKILL.md`.
