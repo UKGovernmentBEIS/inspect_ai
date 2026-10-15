@@ -40,7 +40,8 @@ from anyio.streams.memory import MemoryObjectSendStream
 from pydantic import BaseModel
 from typing_extensions import is_typeddict
 
-from inspect_ai._sentinel._context import SentinelFailure, active_sentinel
+from inspect_ai._sentinel._context import SentinelFailure, checks_tool_calls
+from inspect_ai._sentinel._scope import AgentScope, sentinel_scope
 from inspect_ai._util.content import (
     Content,
     ContentAudio,
@@ -56,7 +57,7 @@ from inspect_ai._util.json import exceeds_max_depth
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.text import truncate_string_to_bytes
 from inspect_ai._util.trace import trace_action
-from inspect_ai._util.working import sample_waiting_time
+from inspect_ai._util.working import sample_clock, sample_working_time_since
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.tool import Tool, ToolCall, ToolError, ToolInfo
 from inspect_ai.tool._tool import (
@@ -428,6 +429,7 @@ async def _execute_tools_impl(
                             executed_call,
                             tool_message,
                             result,
+                            truncated,
                             conversation,
                         )
                 except anyio.get_cancelled_exc_class():
@@ -490,16 +492,16 @@ async def _execute_tools_impl(
         result_output: ModelOutput | None = None
 
         for stage in stages:
-            # Pre-create pending events and waiting-time baselines so they
-            # reflect the moment this stage actually starts. (The tool
-            # transcript event itself is recorded inside call_tool by
-            # call_tool_task; the baseline lets us compute working time.)
+            # Pre-create pending events and start times so they reflect the
+            # moment this stage actually starts. (The tool transcript event
+            # itself is recorded inside call_tool by call_tool_task; the start
+            # time lets us compute working time.)
             stage_events: dict[int, ToolEvent] = {}
             waiting_starts: dict[int, float] = {}
             stage_results: dict[int, StreamItem | None] = {}
             for idx in stage:
                 call = tool_calls[idx]
-                waiting_starts[idx] = sample_waiting_time()
+                waiting_starts[idx] = sample_clock()
                 stage_events[idx] = ToolEvent(
                     id=call.id,
                     function=call.function,
@@ -546,7 +548,7 @@ async def _execute_tools_impl(
                     result=skipped_event.result,
                     truncated=skipped_event.truncated,
                     error=skipped_event.error,
-                    waiting_time=0,
+                    working_time=sample_working_time_since(waiting_starts[idx]),
                     agent=None,
                     failed=None,
                     message_id=tool_message.id,
@@ -587,7 +589,7 @@ async def _execute_tools_impl(
                         result=result_event.result,
                         truncated=result_event.truncated,
                         error=result_event.error,
-                        waiting_time=sample_waiting_time() - waiting_start,
+                        working_time=sample_working_time_since(waiting_start),
                         agent=result_event.agent,
                         failed=None,
                         message_id=result.messages[0].id,
@@ -627,12 +629,11 @@ async def _execute_tools_impl(
                             # call actually finished, not when the whole
                             # stage exits. Fast siblings of slow tools would
                             # otherwise look as slow as the slowest call.
-                            waiting_time_end = sample_waiting_time()
                             event._set_result(
                                 result=result_event.result,
                                 truncated=result_event.truncated,
                                 error=result_event.error,
-                                waiting_time=waiting_time_end - waiting_start,
+                                working_time=sample_working_time_since(waiting_start),
                                 agent=result_event.agent,
                                 failed=True if call_exception else None,
                                 message_id=(
@@ -695,12 +696,11 @@ async def _execute_tools_impl(
                         op_result_event,
                         None,
                     )
-                    waiting_time_end = sample_waiting_time()
                     event._set_result(
                         result=op_result_event.result,
                         truncated=op_result_event.truncated,
                         error=op_result_event.error,
-                        waiting_time=waiting_time_end - waiting_start,
+                        working_time=sample_working_time_since(waiting_start),
                         agent=op_result_event.agent,
                         # Operator-cancel preserves pre-existing serial
                         # semantics: failed=None, the "timeout" error
@@ -783,12 +783,11 @@ async def _execute_tools_impl(
                     )
                     result_messages.append(tool_message)
 
-                    waiting_time_end = sample_waiting_time()
                     event._set_result(
                         result=cancellation_event.result,
                         truncated=cancellation_event.truncated,
                         error=cancellation_event.error,
-                        waiting_time=waiting_time_end - waiting_start,
+                        working_time=sample_working_time_since(waiting_start),
                         agent=cancellation_event.agent,
                         failed=True,
                         message_id=tool_message.id,
@@ -923,7 +922,7 @@ async def call_tool(
         event.arguments = call.arguments
         event.view = tool_call_view(call, tools)
 
-    if active_sentinel() is not None:
+    if checks_tool_calls():
         from inspect_ai._sentinel._dispatch import (
             apply_sentinel_decision,
             sentinel_before_tool_call,
@@ -969,7 +968,8 @@ async def call_tool(
                 transcript()._event(event)
                 if on_execute is not None:
                     on_execute(call)
-                result: ToolResult = await tool_def.tool(**arguments)
+                with sentinel_scope(AgentScope.OFF):
+                    result: ToolResult = await tool_def.tool(**arguments)
                 agent_span_id = getattr(tool_def.tool, "agent_span_id", None)
                 return CalledTool(result, [], None, None, agent_span_id)
 
@@ -980,6 +980,7 @@ async def _apply_tool_review(
     call: ToolCall,
     result: ChatMessageTool,
     output: ToolResult,
+    truncated: tuple[int, int] | None,
     conversation: list[ChatMessage],
 ) -> None:
     """Give the active review policies and sentinel the executed call's result.
@@ -1005,7 +1006,7 @@ async def _apply_tool_review(
     if review is not None and review.decision == "terminate":
         raise TerminateSampleError("Tool result reviewer requested termination.")
 
-    if active_sentinel() is not None:
+    if checks_tool_calls():
         from inspect_ai._sentinel._dispatch import sentinel_after_tool_call
 
         await sentinel_after_tool_call(
@@ -1013,6 +1014,7 @@ async def _apply_tool_review(
             call,
             result,
             output,
+            truncated,
             tool_def.viewer if tool_def else None,
             conversation,
         )
