@@ -235,7 +235,8 @@ in the right place, in upstream request N+1:
 The tests run offline against fake upstreams and live against real providers:
 Claude Sonnet 4.5, Sonnet 5, Opus 5.5 and Fable 5.1, Gemini 3.1 Pro, 3.5 Flash,
 3 Flash and 2.5 Flash, GPT-6 Astra, GPT-5.5 and gpt-5-mini, Bedrock Claude
-Sonnet 4.5, Kimi K2.6, and Together gpt-oss-120b and DeepSeek V4.1. Bedrock
+Sonnet 4.5, Kimi K2.6, Together gpt-oss-120b and DeepSeek V4.1, and Grok 4.7
+(see "Grok"). Bedrock
 Claude Sonnet 5 is untested: the test AWS account has no access to it. They
 cover chat completions and Responses, streaming and not, and a tool loop plus
 a text follow-up. The newest models show the same results as their
@@ -471,6 +472,17 @@ and removes `strict` from tool schemas on chat. Parallel tool calls work.
    header wins. The constant is shared with the native provider through
    `_grok_cache.py`, which does not import `xai_sdk`.
 
+On the Responses path a 403 reaches `handle_stream_error`, not
+`handle_bad_request`, so the provider checks `PermissionDeniedError` there
+too (it is never retried).
+
+**Tests.** `grok-4.7` is in the live round-trip matrix, the live Responses
+default test, and `test_live_grok_reasoning_effort` (every effort on both
+paths, with the value sent upstream). Offline: an `xai` fake in the round-trip
+matrix, `grok-4.7` in the effort guarantee with a fake that rejects `none` and
+`max` in xAI's wording, and `xai-context`, `xai-refusal` and `xai-rate-limit`
+error scenarios. Live, on `main-latest` and 1.96.0: 12 passed.
+
 ### Working around LiteLLM behavior
 
 Users run many LiteLLM versions, and LiteLLM fixes bugs over time. Handling of
@@ -499,7 +511,7 @@ Inspect retries rate limit and transient errors, and turns context window
 and content policy errors into model output (`model_length`,
 `content_filter`) rather than failing the sample. The proxy's errors were
 probed with a fake upstream that returns each provider's native errors
-(Anthropic, OpenAI, Gemini, Bedrock, DeepSeek, Moonshot, Azure), across chat
+(Anthropic, OpenAI, Gemini, Bedrock, DeepSeek, Moonshot, xAI, Azure), across chat
 and Responses, streaming and not, with the proxy's own retries off
 (`test_litellm_proxy_error_handling` in `test_litellm_proxy.py`).
 

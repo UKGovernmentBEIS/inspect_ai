@@ -2119,6 +2119,9 @@ ERROR_EXPECTATIONS: dict[str, str] = {
     "bedrock-guardrail": "content_filter",
     "deepseek-context": "model_length",
     "moonshot-context": "model_length",
+    "xai-context": "model_length",
+    "xai-refusal": "content_filter",
+    "xai-rate-limit": "retry:rate_limit",
     "azure-content-filter": "content_filter",
 }
 
@@ -2341,9 +2344,32 @@ SUMMARIZED = {"type": "adaptive", "display": "summarized"}
 """The `thinking` the provider sends to Claude 4.6+ with an effort."""
 
 
+def _xai_effort_rejection(body: dict[str, Any]) -> Reply | None:
+    """XAI's rejection of an effort grok-4.7 doesn't take (verified live)."""
+    effort = (
+        body.get("reasoning_effort")
+        if "messages" in body
+        else (body.get("reasoning") or {}).get("effort")
+    )
+    if effort == "none":
+        error = "This model does not support `reasoning_effort` value `none`."
+    elif effort == "max":
+        error = "Invalid reasoning effort."
+    else:
+        return None
+    return Reply(400, {"code": "invalid-argument", "error": error})
+
+
 def _strict_openai_route(request: StubRequest) -> dict[str, Any] | SSE | Reply | None:
-    """The fake upstreams, plus an OpenAI model that rejects other efforts."""
+    """The fake upstreams, plus an OpenAI model that rejects other efforts.
+
+    Also grok-4.7, which rejects `none` and `max` as xAI does.
+    """
     body = request.body or {}
+    if body.get("model") == "grok-4.7":
+        rejection = _xai_effort_rejection(body)
+        if rejection is not None:
+            return rejection
     if body.get("model") == "strict-openai":
         param = "reasoning_effort" if "messages" in body else "reasoning.effort"
         effort = (
@@ -2390,6 +2416,7 @@ EFFORT_DEPLOYMENTS = {
     "gpt-5.5": "openai/gpt-5.5",
     "gpt-4.1": "openai/gpt-4.1",
     "grok-4": "xai/grok-4",
+    "grok-4.7": "xai/grok-4.7",
     "deepseek-reasoner": "deepseek/deepseek-reasoner",
     "strict-openai": "openai/strict-openai",
     # the strict fake as a codename identified by base_model
@@ -2548,6 +2575,10 @@ async def test_litellm_proxy_reasoning_effort_never_fails(
         ("gpt-5.5", False, "minimal", "low"),
         ("gpt-4.1", False, "high", None),
         ("grok-4", False, "high", None),
+        ("grok-4.7", False, "max", "xhigh"),
+        ("grok-4.7", True, "max", "xhigh"),
+        ("grok-4.7", False, "none", None),
+        ("grok-4.7", True, "none", None),
         ("strict-openai", False, "max", "high"),
         ("strict-openai", True, "max", "high"),
         ("strict-openai", False, "none", None),

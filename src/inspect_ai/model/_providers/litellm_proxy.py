@@ -11,6 +11,7 @@ from openai import (
     APIResponseValidationError,
     APIStatusError,
     BadRequestError,
+    PermissionDeniedError,
 )
 from openai.types.chat import (
     ChatCompletion,
@@ -1131,8 +1132,10 @@ class LiteLLMProxyAPI(OpenAICompatibleAPI):
     def handle_stream_error(
         self, ex: APIError | OpenAIResponseError
     ) -> ModelOutput | None:
-        # status, validation and connection errors keep their retry handling
-        if not isinstance(
+        # status, validation and connection errors keep their retry handling;
+        # a 403 is never retried, and the Responses path sends it here rather
+        # than to handle_bad_request (e.g. an xAI refusal)
+        if isinstance(ex, PermissionDeniedError) or not isinstance(
             ex, APIStatusError | APIResponseValidationError | APIConnectionError
         ):
             message = (
