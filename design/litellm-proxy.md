@@ -452,18 +452,24 @@ true` (offline, both versions). `prompt_cache_key` is rejected by
 **Requests.** LiteLLM sends no `max_tokens` for xAI (no truncation default)
 and removes `strict` from tool schemas on chat. Parallel tool calls work.
 
-**Proposed changes:**
+**Changes made:**
 
-1. Use the Responses API by default for `xai` deployments (api_base unset or
-   `api.x.ai`) and grok 4+ families, so tool loops keep encrypted reasoning;
-   also stream it by default.
-2. Lower rejected efforts for xAI: recognize both wordings (`max` → `xhigh`,
-   `none` dropped), or map them before sending, as the native provider does.
-3. Errors: add `input_too_large` to the context window markers, read
-   `{"error": "<string>"}` bodies in `upstream_message`, and map xAI's refusal
-   wording to `content_filter` whatever the status.
-4. Send `x-grok-conv-id` for grok deployments (ignored unless the operator
-   forwards client headers), and document the setting.
+1. The Responses API is the default for Grok 4 and later (by family,
+   including codenames with `base_model`) when every deployment has the
+   `xai` route and an `api_base` that is unset or an `x.ai` host. It streams
+   by default, as on the OpenAI route (§9).
+2. Both rejection wordings are recognized (`_litellm_proxy_reasoning_effort`).
+   "Invalid reasoning effort." names no value, so it counts as rejecting the
+   value sent. `max` is lowered to `xhigh` and `none` is dropped, with the
+   usual warning (verified live on both paths).
+3. `input_too_large` is a context window marker, `upstream_message` reads
+   `{"error": "<string>"}` bodies, and `safety_check` / "can't help with that
+   request" are content policy markers for any status (403 errors reach
+   `handle_bad_request`). The refusal wording is the native provider's and is
+   unverified over REST.
+4. `x-grok-conv-id` (the sample id) is sent for grok models; a caller's own
+   header wins. The constant is shared with the native provider through
+   `_grok_cache.py`, which does not import `xai_sdk`.
 
 ### Working around LiteLLM behavior
 
@@ -958,6 +964,10 @@ provider): a proxy can send every `openai/` deployment to another server with
 through `model_info.base_model`, which the model info gate asks for. Azure is
 excluded until verified. Responses to the OpenAI route streams by default
 (#43010 affects Anthropic only).
+
+The same default applies to Grok 4 and later on the `xai` route with an
+unset or `x.ai` `api_base`, whose Responses requests LiteLLM also passes to
+the vendor's API unconverted (see "Grok"). A mix of routes gets no default.
 
 Verified live (gpt-5-mini, gpt-5.5, gpt-6-astra): encrypted reasoning
 replays across a tool loop, streamed and not; `store` is false; built-in web

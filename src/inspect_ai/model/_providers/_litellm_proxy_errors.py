@@ -25,9 +25,15 @@ CONTEXT_WINDOW_MARKERS = (
     "input is too long",  # bedrock
     "exceeds the maximum number of tokens allowed",  # gemini
     "exceeded model token limit",  # moonshot
+    "input_too_large",  # xai
 )
 
-CONTENT_POLICY_MARKERS = ("litellm.contentpolicyviolationerror",)
+CONTENT_POLICY_MARKERS = (
+    "litellm.contentpolicyviolationerror",
+    # xai refusals, which LiteLLM does not map (the grok provider's markers)
+    "safety_check",
+    "can't help with that request",
+)
 
 # the proxy appends routing details after the upstream message
 _TRAILER = re.compile(r"\n(model=|\nLiteLLM: model group )")
@@ -80,5 +86,6 @@ def _json_error_message(text: str) -> str | None:
     except ValueError:
         return None
     error = body.get("error", body) if isinstance(body, dict) else None
-    message = error.get("message") if isinstance(error, dict) else None
+    # `{"error": {"message": ...}}`, or `{"code": ..., "error": "..."}` (xAI)
+    message = error.get("message") if isinstance(error, dict) else error
     return message if isinstance(message, str) and message else None

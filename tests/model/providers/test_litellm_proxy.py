@@ -14,6 +14,7 @@ import uuid
 from collections.abc import AsyncIterator, Iterator
 from dataclasses import dataclass, field
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from types import SimpleNamespace
 from typing import Any, Literal, NamedTuple
 
 import httpx
@@ -873,6 +874,15 @@ def _route_provider(
         ),
         ([_route_row("openai/gpt-5"), _route_row("azure/gpt-5")], False),
         ([_route_row("anthropic/claude-sonnet-5")], False),
+        # xAI's own API, for Grok 4 and later (including codenames)
+        ([_route_row("xai/grok-4.7")], True),
+        ([_route_row("xai/grok-4-1-fast-reasoning")], True),
+        ([_route_row("xai/grok-4.7", api_base="https://api.x.ai/v1")], True),
+        ([_route_row("xai/sherlock-think", base_model="xai/grok-4.7")], True),
+        ([_route_row("xai/grok-3-mini")], False),
+        ([_route_row("xai/grok-4.7", api_base=VLLM_BASE)], False),
+        ([_route_row("openrouter/x-ai/grok-4.7")], False),
+        ([_route_row("xai/grok-4.7"), _route_row("openai/gpt-5")], False),
     ],
 )
 def test_responses_default_route(
@@ -917,6 +927,8 @@ def test_responses_explicit_kept_for_other_routes(
         # Responses to OpenAI streams, by default or explicitly
         (_route_row("openai/gpt-5"), {}, True),
         (_route_row("openai/gpt-5.5"), {"responses_api": True}, True),
+        # as does Responses to xAI
+        (_route_row("xai/grok-4.7"), {}, True),
         # Responses to other upstreams doesn't (LiteLLM #43010)
         (_route_row("anthropic/claude-sonnet-5"), {"responses_api": True}, False),
         (
@@ -939,6 +951,42 @@ def test_responses_streaming(
 ) -> None:
     provider = _route_provider(model_info_stub, [row], **model_args)
     assert provider.resolve_stream(GenerateConfig()) is streams
+
+
+@skip_if_no_openai_package
+@pytest.mark.parametrize(
+    "model,active,headers,expected",
+    [
+        ("xai/grok-4.7", True, None, {"x-grok-conv-id": "sample-uuid-1"}),
+        (
+            "xai/grok-4.7",
+            True,
+            {"x-other": "1"},
+            {"x-grok-conv-id": "sample-uuid-1", "x-other": "1"},
+        ),
+        # a caller-supplied header wins
+        ("xai/grok-4.7", True, {"X-Grok-Conv-Id": "mine"}, {"X-Grok-Conv-Id": "mine"}),
+        # no conversation to key on outside a sample
+        ("xai/grok-4.7", False, None, None),
+        ("anthropic/claude-sonnet-5", True, None, None),
+    ],
+)
+def test_grok_conv_id_header(
+    model_info_stub: ModelInfoStub,
+    monkeypatch: pytest.MonkeyPatch,
+    model: str,
+    active: bool,
+    headers: dict[str, str] | None,
+    expected: dict[str, str] | None,
+) -> None:
+    monkeypatch.setattr(
+        litellm_proxy_module,
+        "sample_active",
+        lambda: SimpleNamespace(sample_uuid="sample-uuid-1") if active else None,
+    )
+    provider = _route_provider(model_info_stub, [_route_row(model)])
+    config = provider._with_grok_conv_id(GenerateConfig(extra_headers=headers))
+    assert config.extra_headers == expected
 
 
 def _wire_tool_types(provider: LiteLLMProxyAPI, tools: list[Tool]) -> dict[str, str]:
@@ -1891,6 +1939,33 @@ LITELLM_ERROR_MESSAGES = [
         id="moonshot",
     ),
     pytest.param(
+        'litellm.BadRequestError: XaiException - {"code":"invalid-argument",'
+        '"error":"Failed to start sampling: [input_too_large] The prompt is too '
+        "long for this model's context window (601243 tokens > 500000 tokens)\"}"
+        "\n\nLiteLLM: model group 'g' failed with the error above. No fallback "
+        "was attempted.",
+        "model_length",
+        "Failed to start sampling: [input_too_large] The prompt is too long for "
+        "this model's context window (601243 tokens > 500000 tokens)",
+        id="xai-context-window",
+    ),
+    pytest.param(
+        'litellm.APIError: APIError: XaiException - {"code": '
+        '"permission-denied", "error": "Content violates usage guidelines. '
+        "Failed check: SAFETY_CHECK_TYPE_CSAM\"}\n\nLiteLLM: model group 'g' "
+        "failed with the error above. No fallback was attempted.",
+        "content_filter",
+        "Content violates usage guidelines. Failed check: SAFETY_CHECK_TYPE_CSAM",
+        id="xai-safety-check",
+    ),
+    pytest.param(
+        'litellm.BadRequestError: XaiException - {"code": "permission-denied", '
+        '"error": "I can\'t help with that request."}',
+        "content_filter",
+        "I can't help with that request.",
+        id="xai-refusal",
+    ),
+    pytest.param(
         "litellm.BadRequestError: litellm.ContentPolicyViolationError: "
         'ContentPolicyViolationError: OpenAIException - {"error": {"message": '
         '"Invalid prompt: your prompt was flagged.", "type": '
@@ -2189,6 +2264,27 @@ PARAMETER_REJECTED = (
             '"reasoning.effort",\n    "code": "unsupported_value"\n  }\n}',
             "none",
             "value",
+        ),
+        # xAI (grok-4.7), which LiteLLM forwards unmapped
+        (
+            'litellm.BadRequestError: XaiException - {"code":"invalid-argument",'
+            '"error":"This model does not support `reasoning_effort` value '
+            '`none`."}',
+            "none",
+            "value",
+        ),
+        (
+            'litellm.BadRequestError: XaiException - {"code":"invalid-argument",'
+            '"error":"Invalid reasoning effort."}',
+            "max",
+            "value",
+        ),
+        (
+            'litellm.BadRequestError: XaiException - {"code":"invalid-argument",'
+            '"error":"This model does not support `reasoning_effort` value '
+            '`none`."}',
+            "high",
+            None,
         ),
         # an unsupported value for another parameter
         (
