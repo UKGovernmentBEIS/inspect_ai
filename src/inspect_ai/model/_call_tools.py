@@ -76,6 +76,7 @@ from inspect_ai.util._anyio import inner_exception
 from inspect_ai.util._limit import LimitExceededError, apply_limits
 from inspect_ai.util._sandbox.environment import SandboxUnavailableError
 from inspect_ai.util._sandbox.events import SandboxTimeoutError
+from inspect_ai.util._sandbox.service import CONTROL_FLOW_EXCEPTIONS
 from inspect_ai.util._span import AGENT_SPAN_TYPE, span
 
 from ._chat_message import (
@@ -245,7 +246,7 @@ async def _execute_tools_impl(
                         agent_span_id = called.agent_span_id
                 # unwrap exception group
                 except Exception as ex:
-                    inner_ex = inner_exception(ex)
+                    inner_ex = decisive_tool_exception(ex)
                     raise inner_ex.with_traceback(inner_ex.__traceback__)
 
             except SentinelFailure as ex:
@@ -610,7 +611,7 @@ async def _execute_tools_impl(
                             waiting_starts,
                         )
             except Exception as ex:
-                stage_exception = inner_exception(ex)
+                stage_exception = decisive_tool_exception(ex)
 
             # Splice results into `result_messages` in declared order so the
             # message list matches the order of tool_calls (Anthropic and
@@ -1361,7 +1362,7 @@ class MappedToolCallError(NamedTuple):
 def tool_call_error(ex: Exception, function: str) -> MappedToolCallError | None:
     """Map a tool-execution exception to the error the caller reports.
 
-    Callers must normalize exception groups (inner_exception()) first.
+    Callers must reduce exception groups (decisive_tool_exception()) first.
     Control-flow exceptions are classified where they have a tool-error
     rendering (limits) — callers with propagation semantics re-raise after
     recording. Unexpected exceptions (including non-embedded-null-byte
@@ -1450,6 +1451,50 @@ def tool_call_error(ex: Exception, function: str) -> MappedToolCallError | None:
         return MappedToolCallError(error=ToolCallError("unknown", ex.message))
     else:
         return None
+
+
+def decisive_tool_exception(ex: Exception) -> Exception:
+    """The exception that decides a tool failure's disposition.
+
+    A tool can raise an `ExceptionGroup` (concurrent children failing together,
+    or a child raising during cancellation cleanup). Reducing it to one
+    arbitrary leaf can hide a termination, an unexpected exception or a limit
+    behind an expected tool error, so every leaf is considered, in group order
+    (the group structure only, not causes or context): the first sample
+    termination wins, then the first unexpected exception (one
+    `tool_call_error()` does not map), then the first `LimitExceededError`
+    (an output limit is the tool's own, an expected error); otherwise the
+    first leaf, as every leaf is an expected tool error. A non-group exception
+    is returned as is.
+
+    Callers classify the result and apply the disposition the exception would
+    get if raised bare.
+
+    Args:
+        ex: The exception raised by tool execution.
+
+    Returns:
+        The decisive leaf (`ex` itself if it is not a group).
+    """
+    leaves = _group_leaves(ex)
+    for leaf in leaves:
+        if isinstance(leaf, CONTROL_FLOW_EXCEPTIONS):
+            return leaf
+    for leaf in leaves:
+        # the function name only shapes messages, not the classification
+        if tool_call_error(leaf, "") is None:
+            return leaf
+    for leaf in leaves:
+        if isinstance(leaf, LimitExceededError):
+            return leaf
+    return leaves[0]
+
+
+def _group_leaves(ex: Exception) -> list[Exception]:
+    """The leaves of an exception group in group order (`[ex]` otherwise)."""
+    if isinstance(ex, ExceptionGroup):
+        return [leaf for child in ex.exceptions for leaf in _group_leaves(child)]
+    return [ex]
 
 
 class ClassifiedToolException(NamedTuple):
