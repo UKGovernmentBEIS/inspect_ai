@@ -2044,3 +2044,92 @@ def test_an_interrupted_delete_on_s3_is_finished_by_a_rerun(
         merge_eval_log_shards(merged)
     assert merge_eval_log_shards(merged, delete_shards=True).shards_deleted
     assert _s3_keys(f"{s3_root}/") == [f"{s3_root}/{NAME}.eval"]
+
+
+def test_merge_refuses_a_recovered_shards_directory_name(tmp_path: Path) -> None:
+    import shutil
+
+    _, shards = _paths(tmp_path)
+    neighbour = _run(shards, "0", sample_id=[1, 2, 3])
+    recovered = f"{tmp_path}/{NAME}-recovered.shards"
+    shutil.copytree(shards, recovered)
+    before = _files(str(tmp_path))
+    with pytest.raises(ValueError, match=f"{NAME}.shards"):
+        merge_eval_log_shards(recovered, delete_shards=True)
+    assert _files(str(tmp_path)) == before
+    assert os.path.exists(neighbour.location)
+
+
+# characters a file:// URI encodes or a URL parser reads specially
+_RESERVED = "sp ace%20d#ir?x"
+
+
+def test_merge_of_a_local_file_uri_with_reserved_characters(tmp_path: Path) -> None:
+    from inspect_ai._util.file import to_uri
+
+    root = tmp_path / _RESERVED
+    merged, shards = _paths(root)
+    _run(shards, "0", sample_id=[1, 2, 3])
+    uri = to_uri(merged)
+    result = merge_eval_log_shards(uri, allow_incomplete=True)
+    assert result.written and result.log.location == uri
+    assert _keys(merged) == {("1", 1), ("2", 1), ("3", 1)}
+    _run(shards, "1", sample_id=[4, 5, 6])
+    result = merge_eval_log_shards(to_uri(shards), delete_shards=True)
+    assert result.written and result.shards_deleted
+    assert read_eval_log(merged, header_only=True).status == "success"
+    assert not os.path.exists(shards)
+
+
+def test_delete_shards_keeps_exact_names_with_reserved_characters(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / _RESERVED
+    merged, shards = _paths(root)
+    old = _run(shards, "0", sample_id=[1, 2, 3])
+    current = _run(shards, "0", sample_id=[1, 2, 3])
+    # a literal %20, # and ? in an older attempt's name and a buffer's name
+    literal = f"{os.path.dirname(old.location)}/{T0}_lit%20na#me?.eval"
+    os.replace(old.location, literal)
+    _touch(Path(f"{shards}/0/.buffer/a%20b/seg#1?.zip"))
+    # neighbours whose names are the decoded forms are kept
+    neighbours = [
+        tmp_path / "sp ace d#ir?x" / "keep.eval",
+        Path(
+            f"{shards}/0/{T0}_lit na#me?.eval".replace(f"{NAME}.shards", "other.shards")
+        ),
+    ]
+    for path in neighbours:
+        _touch(path)
+    result = merge_eval_log_shards(merged, sample_ids=[1, 2, 3], delete_shards=True)
+    assert result.shards_deleted
+    assert not os.path.exists(shards)
+    assert not os.path.exists(literal) and not os.path.exists(current.location)
+    assert all(path.exists() for path in neighbours)
+
+
+def test_cli_notice_names_the_imported_task_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from click.testing import CliRunner
+
+    from inspect_ai._cli.log import log_command
+    from inspect_ai._util import registry
+
+    monkeypatch.chdir(tmp_path)
+    Path("trust_task.py").write_text(_TRUST_TASK)
+    shards = f"{NAME}.shards"
+    for k, ids in (("0", [1, 2]), ("1", [3, 4])):
+        eval(
+            "trust_task.py",
+            model="mockllm/model",
+            log_dir=f"{shards}/{k}",
+            display="none",
+            sample_id=ids,
+        )
+    monkeypatch.delitem(registry._registry, "metric:shard_trust_answers")
+    result = CliRunner().invoke(log_command, ["merge-shards", f"{NAME}.eval", "--json"])
+    assert result.exit_code == 0, result.output
+    assert "Notice: imported trust_task.py to resolve metrics." in result.stderr
+    [item] = json.loads(result.stdout)
+    assert item["status"] == "success"

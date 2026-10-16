@@ -1,7 +1,6 @@
 """Building the merged log's zip, recomputing metrics as samples pass through."""
 
 import json
-import logging
 import zipfile
 from collections.abc import Awaitable, Callable, Sequence
 from typing import Any, BinaryIO, NamedTuple
@@ -29,8 +28,6 @@ from inspect_ai.log._recorders.recorder import SampleRecordKey
 from inspect_ai.scorer._metric import SampleScore
 
 from ._errors import ShardSetError
-
-logger = logging.getLogger(__name__)
 
 
 class _SampleInputs(NamedTuple):
@@ -155,11 +152,6 @@ def _recompute_results(
     )
     from inspect_ai._eval.task.results import eval_results
 
-    imported = task_file_import(template)
-    if imported is not None:
-        logger.warning(
-            f"Importing {imported} to resolve the metrics of the merged log."
-        )
     scorers = resolve_scorers_info(template)
     return eval_results(
         samples=total_samples,

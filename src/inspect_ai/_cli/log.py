@@ -629,14 +629,21 @@ def _merge_target_kind(log: str) -> Literal["log", "shards", "dir"]:
 
 def _shard_sets(log_dir: str) -> list[str]:
     """The shards directories in a log directory, as the eval-set startup finds them."""
-    from inspect_ai._util.file import filesystem
+    from inspect_ai._util.file import filesystem, local_path
+    from inspect_ai.log._shards._publish import is_local
     from inspect_ai.log._shards._walk import shards_dir_of
 
+    local = is_local(log_dir)
+    if local:
+        log_dir = local_path(log_dir)
     if not filesystem(log_dir).exists(log_dir):
         raise FileNotFoundError(f"No such log directory: {log_dir}")
     found: dict[str, None] = {}
     for info in list_eval_logs(log_dir, descending=False):
-        shards_dir = shards_dir_of(log_dir, info.name)
+        # a local listing names files "file://" + path with nothing encoded,
+        # so the path is the rest of the name, not its decoded form
+        name = info.name.removeprefix("file://") if local else info.name
+        shards_dir = shards_dir_of(log_dir, name)
         if shards_dir is not None:
             found[shards_dir] = None
     return sorted(found)
@@ -686,6 +693,7 @@ def _merge_item(
                 sample_count=sample_count,
                 allow_incomplete=allow_incomplete,
                 delete_shards=delete_shards,
+                warn_task_file=False,
             )
         )
     except ShardSetIncomplete as ex:

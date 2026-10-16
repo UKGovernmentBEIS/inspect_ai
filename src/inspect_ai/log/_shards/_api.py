@@ -2,6 +2,7 @@
 
 import functools
 import json
+import logging
 import tempfile
 import zipfile
 from collections.abc import Awaitable, Sequence
@@ -13,7 +14,7 @@ import anyio
 from inspect_ai._util._async import run_coroutine, tg_collect
 from inspect_ai._util.async_zip import AsyncZipReader, is_torn_read
 from inspect_ai._util.asyncfiles import AsyncFilesystem, is_s3_filename
-from inspect_ai._util.file import FileInfo, basename
+from inspect_ai._util.file import FileInfo, basename, local_path
 from inspect_ai._util.log_layout import (
     eval_log_for_shards_dir,
     eval_shards_dir,
@@ -51,9 +52,11 @@ from ._plan import (
     recorded_selection,
     selected_total,
 )
-from ._publish import merge_guard, merged_log_copy, publish
+from ._publish import is_local, merge_guard, merged_log_copy, publish
 from ._walk import ShardDir, list_shard_set
 from ._write import task_file_import, write_merged_zip
+
+logger = logging.getLogger(__name__)
 
 _MAX_RESTARTS = 3
 _MAX_CONCURRENT_READS = 16
@@ -225,12 +228,22 @@ async def merge_shards(
     sample_count: int | None = None,
     allow_incomplete: bool = False,
     delete_shards: bool = False,
+    warn_task_file: bool = True,
 ) -> MergeOutcome:
-    """Implement :func:`merge_eval_log_shards`, reporting what the CLI shows."""
+    """Implement :func:`merge_eval_log_shards`, reporting what the CLI shows.
+
+    `warn_task_file` logs a warning when metric recomputation imports the
+    task file; the CLI turns it off and prints its own notice.
+    """
     given = given_selection(sample_ids, sample_count)
     if delete_shards and allow_incomplete:
         raise ValueError("delete_shards cannot be combined with allow_incomplete.")
-    merged_path, shards_dir = merge_paths(log)
+    location, shards_dir = merge_paths(log)
+    merged_path = location
+    if is_local(merged_path):
+        # a local file:// URI is read and written as its path: the zip reader
+        # and the walk's percent-encoded children need the decoded form
+        merged_path, shards_dir = local_path(merged_path), local_path(shards_dir)
 
     async with AsyncFilesystem() as fs:
         with merge_guard(merged_path):
@@ -246,6 +259,7 @@ async def merge_shards(
                         given,
                         allow_incomplete=allow_incomplete,
                         delete_shards=delete_shards,
+                        warn_task_file=warn_task_file,
                     )
                     break
                 except _ShardChanged as ex:
@@ -259,7 +273,7 @@ async def merge_shards(
                 await remove_shards_dir(merged_path, fs=fs)
 
     header = merge_pass.header
-    header.location = merged_path
+    header.location = location
     return MergeOutcome(
         result=ShardMergeResult(
             log=header, written=merge_pass.written, shards_deleted=delete_shards
@@ -275,7 +289,15 @@ def merge_paths(log: str) -> tuple[str, str]:
     location = log.rstrip("/\\")
     name = basename(location)
     if name.endswith(".shards") and name != ".shards":
-        return eval_log_for_shards_dir(location), location
+        merged = eval_log_for_shards_dir(location)
+        if eval_shards_dir(merged) != location:
+            raise ValueError(
+                f"{log} is named after a recovered log, which a merge does not "
+                f"write: the shards directory of {merged} is "
+                f"{eval_shards_dir(merged)}. Rename the directory to drop "
+                "'-recovered'."
+            )
+        return merged, location
     if name.endswith(".eval"):
         shards_dir = eval_shards_dir(location)
         merged = eval_log_for_shards_dir(shards_dir)
@@ -317,6 +339,7 @@ async def _merge_pass(
     *,
     allow_incomplete: bool,
     delete_shards: bool,
+    warn_task_file: bool,
 ) -> _Pass:
     listing = await list_shard_set(fs, shards_dir)
     if listing.stray:
@@ -434,6 +457,13 @@ async def _merge_pass(
 
             name = log_basename(merged_path)
             total = selected_total(selection, held_ids) * epochs
+            # decided before recomputation imports the file and registers
+            # its metrics
+            imported = task_file_import(base)
+            if imported is not None and warn_task_file:
+                logger.warning(
+                    f"Importing {imported} to resolve the metrics of the merged log."
+                )
             with tempfile.TemporaryFile(dir=temp_dir) as out:
                 header = await write_merged_zip(
                     out,
@@ -473,7 +503,7 @@ async def _merge_pass(
         etag=etag,
         records=set(keys),
         new_samples=len(set(keys) - records),
-        task_file_imported=task_file_import(base),
+        task_file_imported=imported,
         status=status,
     )
 

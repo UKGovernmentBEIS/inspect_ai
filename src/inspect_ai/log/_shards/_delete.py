@@ -71,6 +71,8 @@ async def remove_shards_dir(
             await remove_shards_dir(log, include_log=include_log, fs=owned)
         return
 
+    if is_local(log):
+        log = local_path(log)
     shards_dir = eval_shards_dir(log)
     objects = await _list_objects(fs, shards_dir)
     if objects.other:
@@ -88,7 +90,7 @@ async def remove_shards_dir(
 
     left = await _list_objects(fs, shards_dir)
     if is_local(shards_dir):
-        await anyio.to_thread.run_sync(_remove_empty_dirs, local_path(shards_dir))
+        await anyio.to_thread.run_sync(_remove_empty_dirs, shards_dir)
     remaining = left.superseded + left.current + left.other
     if remaining:
         raise ShardSetError(
@@ -117,14 +119,14 @@ async def _delete_all(fs: AsyncFilesystem, paths: list[str]) -> Exception | None
 
 
 async def _list_objects(fs: AsyncFilesystem, shards_dir: str) -> _Objects:
-    files: list[FileInfo] = []
-    if not is_local(shards_dir) or os.path.isdir(local_path(shards_dir)):
-        # local listings come back as file:// URIs; keep a plain path plain
-        plain = "://" not in shards_dir
+    if is_local(shards_dir):
+        files, linked_dirs = await anyio.to_thread.run_sync(_walk_local, shards_dir)
+    else:
         files = [
-            info.model_copy(update={"name": local_path(info.name)}) if plain else info
+            info
             async for info in fs.iter_files(shards_dir, recursive=True, detail=True)
         ]
+        linked_dirs = []
     attempts: dict[str, list[FileInfo]] = {}
     superseded: list[str] = []
     other: list[str] = []
@@ -139,8 +141,12 @@ async def _list_objects(fs: AsyncFilesystem, shards_dir: str) -> _Objects:
                 other.append(info.name)
         elif parts[1] == _BUFFER_DIR:
             superseded.append(info.name)
-        elif not parts[1].endswith(_CHECKPOINTS_SUFFIX):
+        elif not _in_checkpoints(parts):
             other.append(info.name)
+    for link in linked_dirs:
+        parts = _relative_parts(shards_dir, link)
+        if not _in_checkpoints(parts):
+            other.append(link)
     current: list[str] = []
     for shard_attempts in attempts.values():
         shard_attempts.sort(key=attempt_sort_key)
@@ -149,14 +155,51 @@ async def _list_objects(fs: AsyncFilesystem, shards_dir: str) -> _Objects:
     return _Objects(sorted(superseded), sorted(current), sorted(other))
 
 
+def _walk_local(shards_dir: str) -> tuple[list[FileInfo], list[str]]:
+    """Every file under a local shards directory, by its exact path.
+
+    Also the symbolic links to directories, which the walk does not follow.
+    Listing through fsspec would return ``file://`` names that do not encode
+    reserved characters, so they could not be turned back into paths.
+    """
+    files: list[FileInfo] = []
+    linked_dirs: list[str] = []
+    if not os.path.isdir(shards_dir):
+        return files, linked_dirs
+    for dirpath, dirnames, filenames in os.walk(shards_dir):
+        for name in dirnames:
+            path = os.path.join(dirpath, name)
+            if os.path.islink(path):
+                linked_dirs.append(path)
+        for name in filenames:
+            path = os.path.join(dirpath, name)
+            stat = os.lstat(path)
+            files.append(
+                FileInfo(
+                    name=path,
+                    type="file",
+                    size=stat.st_size,
+                    mtime=stat.st_mtime * 1000,
+                )
+            )
+    return files, linked_dirs
+
+
+def _in_checkpoints(parts: list[str]) -> bool:
+    """Whether a path below a shards directory is in a shard's checkpoint directory."""
+    return (
+        len(parts) >= 3
+        and not parts[0].startswith(".")
+        and parts[1].endswith(_CHECKPOINTS_SUFFIX)
+    )
+
+
 def _relative_parts(base: str, path: str) -> list[str]:
     if is_s3_filename(base):
         prefix = base.rstrip("/") + "/"
         relative = path[len(prefix) :] if path.startswith(prefix) else path
     else:
-        relative = os.path.relpath(
-            os.path.abspath(local_path(path)), os.path.abspath(local_path(base))
-        )
+        relative = os.path.relpath(os.path.abspath(path), os.path.abspath(base))
     return [part for part in re.split(r"[/\\]", relative) if part]
 
 
@@ -169,7 +212,7 @@ def _remove_empty_dirs(shards_dir: str) -> None:
         return
     for dirpath, _, _ in os.walk(shards_dir, topdown=False):
         parts = _relative_parts(shards_dir, dirpath)
-        if len(parts) >= 2 and parts[1].endswith(_CHECKPOINTS_SUFFIX):
+        if len(parts) >= 2 and _in_checkpoints([*parts, ""]):
             continue
         with suppress(OSError):
             if not os.listdir(dirpath):

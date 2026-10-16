@@ -130,3 +130,22 @@ def test_merge_shards_deletes_shards(tmp_path: Path) -> None:
     [item] = json.loads(result.output)
     assert item["shards_deleted"] is True
     assert not shards.exists()
+
+
+def test_merge_shards_of_a_log_directory_with_reserved_characters(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "sp ace%20d#ir?x"
+    shards = root / f"{NAME}.shards"
+    _shard(shards, "0", [1, 2, 3, 4])
+    recovered = root / NAME.replace("Zx7Run1Id", "Rec1").__add__("-recovered.shards")
+    _shard(recovered, "0", [1, 2])
+    result = _merge(str(root), "--json")
+    items = json.loads(result.output)
+    assert result.exit_code == 1
+    good = next(i for i in items if i["log"] and i["log"].endswith(f"{NAME}.eval"))
+    assert good["status"] == "success" and good["error"] is None
+    assert (root / f"{NAME}.eval").exists()
+    bad = next(i for i in items if i is not good)
+    assert "recovered" in bad["error"]
+    assert list(recovered.glob("0/*.eval"))
