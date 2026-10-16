@@ -1,6 +1,5 @@
 import inspect
 import json
-import sys
 import warnings
 from contextlib import AbstractContextManager, contextmanager, nullcontext
 from contextvars import ContextVar
@@ -83,9 +82,6 @@ from inspect_ai.tool._tools._web_search._web_search import (
 from inspect_ai.util._json import JSONSchema
 from inspect_ai.util._limit import LimitExceededError
 from inspect_ai.util._span import current_span_id
-
-if sys.version_info < (3, 11):
-    from exceptiongroup import ExceptionGroup
 
 if TYPE_CHECKING:
     from inspect_ai.event._model import ModelEvent

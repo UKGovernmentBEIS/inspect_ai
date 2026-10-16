@@ -145,7 +145,7 @@ async with sandbox_agent_bridge(
     ...
 ```
 
-Header names are case-insensitive. A comma-separated value is checked one item at a time, so list each item separately (a listed value cannot contain a comma). Items you did not list are dropped with a warning, and the header is dropped if none remain. A header you did not list is logged once by name. `Accept-Encoding` cannot be listed. Credentials (such as `Authorization`, `x-api-key`, `api-key`, `x-goog-api-key`, and AWS `x-amz-` headers) and transport headers (such as `Host` and `Content-Type`) cannot be forwarded. On both bridges, a forwarded `Accept-Encoding` keeps only the encodings Inspect can decode (`zstd` needs Python 3.14 or the `backports.zstd` package).
+Header names are case-insensitive. A comma-separated value is checked one item at a time, so list each item separately (a listed value cannot contain a comma). Items you did not list are dropped with a warning, and the header is dropped if none remain. A header you did not list is logged once by name. `Accept-Encoding` cannot be listed. Credentials (such as `Authorization`, `x-api-key`, `api-key`, `x-goog-api-key`, and AWS `x-amz-` headers) and transport headers (such as `Host` and `Content-Type`) cannot be forwarded. On both bridges, a forwarded `Accept-Encoding` keeps only the encodings Inspect can decode (`br` needs the `brotli` package, and `zstd` needs Python 3.14 or the `backports.zstd` package).
 
 Headers configured on the Inspect model itself (e.g. the Anthropic `betas` model arg or `extra_headers`) are always sent. When the model or eval sets `extra_headers`, they are merged with the forwarded headers: their value wins for a header both set, except that `anthropic-beta` values are combined.
 
@@ -221,6 +221,8 @@ Two consequences follow:
 
 - An agent that retries a `tools/call` after a transport failure is denied, since the proposal has already executed once. The agent should return the error to the model, which re-proposes the call.
 - Only the primary choice of a multi-choice response is granted; alternate choices that carry tool calls are dropped (with a warning). Request a single choice (`n=1`) from a bridged agent.
+
+If a tool's parameters do not allow additional properties, the call may leave out proposed arguments the tool does not declare. Some agents add such fields for their own use and drop them before calling the tool; the tool could not accept them anyway.
 
 An agent that legitimately calls a host tool programmatically, outside a model turn, can opt a server out with `require_proposal=False`. That server's tools then execute for any `tools/call` it receives, and the bridge no longer guarantees that they run only for calls the model made:
 

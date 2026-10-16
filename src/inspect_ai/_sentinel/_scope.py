@@ -48,6 +48,10 @@ def current_scope() -> AgentScope:
     return _scope.get().scope
 
 
+def in_final_scope() -> bool:
+    return _scope.get().final
+
+
 def enter_scope(scope: AgentScope, *, final: bool = False) -> Token[_Scope]:
     # innermost wins, except that nothing inside a final scope changes it
     current = _scope.get()
