@@ -66,7 +66,7 @@ Inspect includes some simple built in metrics for calculating accuracy, mean, et
 
 - [categorical()](./reference/inspect_ai.scorer.html.md#categorical)
 
-  Convenience helper for categorical scorers. Returns [frequency()](./reference/inspect_ai.scorer.html.md#frequency) with optional declared categories, typically from a [StrEnum](./reference/inspect_ai.util.html.md#strenum), so zero-count categories are included and metrics can be recomputed from logs.
+  Convenience helper for categorical scorers. Returns [frequency()](./reference/inspect_ai.scorer.html.md#frequency) with optional declared categories, typically from a `StrEnum`, so zero-count categories are included and metrics can be recomputed from logs.
 
 - [krippendorff_alpha()](./reference/inspect_ai.scorer.html.md#krippendorff_alpha)
 

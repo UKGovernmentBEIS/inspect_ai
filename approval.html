@@ -2,7 +2,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
 
 <meta charset="utf-8">
-<meta name="generator" content="quarto-1.10.18">
+<meta name="generator" content="quarto-1.9.37">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
@@ -12,13 +12,10 @@
 /* Default styles provided by pandoc.
 ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
 */
+code{white-space: pre-wrap;}
 span.smallcaps{font-variant: small-caps;}
-div.columns{display: flex; gap: 1.5em;}
-div.column{flex: auto;}
-@media screen {
-div.columns{gap: min(4vw, 1.5em);}
-div.column{overflow-x: auto;}
-}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
 div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
 ul.task-list{list-style: none;}
 ul.task-list li input[type="checkbox"] {
@@ -80,10 +77,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <script src="site_libs/quarto-html/tippy.umd.min.js"></script>
 <script src="site_libs/quarto-html/anchor.min.js"></script>
 <link href="site_libs/quarto-html/tippy.css" rel="stylesheet">
-<link href="site_libs/quarto-html/quarto-syntax-highlighting-64a204ab8560d761af7679ceaba22944.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<link href="site_libs/quarto-html/quarto-syntax-highlighting-7f8f88aac4f3542376d5c11b86a4c14d.css" rel="stylesheet" id="quarto-text-highlighting-styles">
 <script src="site_libs/bootstrap/bootstrap.min.js"></script>
 <link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
-<link href="site_libs/bootstrap/bootstrap-6be907ae78873760d36834dbe5a66008.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<link href="site_libs/bootstrap/bootstrap-60b6846f58d02926bc6ca5ecd6f15c48.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
 <script src="site_libs/quarto-contrib/glightbox/glightbox.min.js"></script>
 <link href="site_libs/quarto-contrib/glightbox/glightbox.min.css" rel="stylesheet">
 <link href="site_libs/quarto-contrib/glightbox/lightbox.css" rel="stylesheet">
@@ -785,6 +782,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>The simplest approval policy is interactive human approval of all tool calls. You can enable this policy by using the <code>--approval human</code> CLI option (or the <code>approval = "human"</code>) argument to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval">eval()</a></span>:</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb1"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval browser.py <span class="at">--approval</span> human</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>This example provides the model with the built-in <a href="./tools-standard.html#sec-web-browser">web browser</a> tool and asks it to navigate to a web and perform a search.</p>
+<p>The human approver offers approve, reject and terminate by default (<code>human_approver(choices=...)</code> changes this). It cannot offer modify, since an operator has no way to enter a modified tool call: if <code>choices</code> includes <code>"modify"</code>, it is dropped with a warning, and if <code>"modify"</code> is the only choice, <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.approval.html#human_approver">human_approver()</a></span> raises an error.</p>
 </section>
 <section id="auto-approver" class="level2">
 <h2 class="anchored" data-anchor-id="auto-approver">Auto Approver</h2>
@@ -915,7 +913,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </tr>
 <tr class="even">
 <td>modify</td>
-<td>The modified arguments are passed to the agent. A modified call to a different function fails the sample with an error.</td>
+<td>The modified arguments are passed to the agent. A modified call to a different function fails the sample with an error. A <code>modify</code> with no modified call is treated as a rejection.</td>
 </tr>
 <tr class="odd">
 <td>reject</td>
@@ -942,7 +940,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <li><p>Automatic approvals by the <code>auto</code> approver are not shown at all. If you want a visible record of every decision, use an approver other than <code>auto</code>.</p></li>
 </ul>
 <p>A <code>modify</code> decision leaves the original call intact in the log: the recorded model output and approval event show what the model proposed, and the approval event’s <code>modified</code> field shows what was substituted.</p>
-<p>For a sandbox bridge with <a href="./agent-bridge.html#bridged-tools">bridged tools</a>, the decision also determines what the agent can execute on the host. A bridged tool runs only for a call the model proposed in a bridged generation, once per proposal, with the arguments as approved (so a <code>modify</code> decision grants the modified call, not the original); a <code>tools/call</code> with no matching proposal is denied and the agent surfaces the error to the model, which re-proposes. This holds with no approval policy configured as well. A server registered with <code>BridgedToolsSpec(require_proposal=False)</code> gives up this correspondence: its tools run for any <code>tools/call</code> the agent sends. See <a href="./agent-bridge.html#bridged-tools-execution">Execution Contract</a>.</p>
+<p>For a sandbox bridge with <a href="./agent-bridge.html#bridged-tools">bridged tools</a>, the decision also determines what the agent can execute on the host. A bridged tool runs only for a call the model proposed in a bridged generation, once per proposal, with the arguments as approved (so a <code>modify</code> decision grants the modified call, not the original); a <code>tools/call</code> with no matching proposal is denied and the agent surfaces the error to the model, which re-proposes. This holds with no approval policy configured as well. A server registered with <code>BridgedToolsSpec(require_proposal=False)</code> gives up this correspondence: its tools run for any <code>tools/call</code> the agent sends. See <a href="./agent-bridge.html#bridged-tools-execution">Execution Contract</a>. Under Codex CLI’s code mode the model proposes only the <code>exec</code> call that runs its script, so policies review that call and the host tool calls the script makes are reviewed by no policy (and need <code>require_proposal=False</code> to run at all).</p>
 </section>
 <section id="remote-mcp" class="level2">
 <h2 class="anchored" data-anchor-id="remote-mcp">Remote MCP Servers</h2>
@@ -979,7 +977,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </tr>
 <tr class="even">
 <td>modify</td>
-<td>The tool call is approved with modification (included in <code>modified</code> field of <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.approval.html#approver">Approver</a></span>)</td>
+<td>The tool call is approved with modification (the modified call goes in the <code>modified</code> field of <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.approval.html#approval">Approval</a></span>)</td>
 </tr>
 <tr class="odd">
 <td>reject</td>
@@ -995,6 +993,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </tr>
 </tbody>
 </table>
+<p>A <code>modify</code> decision must carry the modified call in <code>modified</code>. Without one, the decision is treated as a rejection: the tool does not run, and the model is told that a modification was chosen but no modified call was supplied. The approval event still records the <code>modify</code> decision.</p>
 <p>A <code>modify</code> decision may change only the arguments of the tool call. If the modified call names a different function, neither tool runs and the sample fails with an error, since this is a bug in the approver rather than something to report to the model. For a modified call, the tool event records the arguments that ran, while the model output and the approval event keep the call the model proposed.</p>
 <p>Here’s a more complicated custom approver that implements an allow list for bash commands. Imagine that we’ve implemented this approver within a Python package named <code>evaltools</code>:</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb12"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="at">@approver</span></span>

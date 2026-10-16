@@ -1,13 +1,5 @@
 # Task Sources – Inspect
 
-> **NOTE:**
->
-> Task sources require the development version of Inspect, which you can install from GitHub:
->
-> ``` bash
-> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-> ```
-
 ## Overview
 
 The `tasks` argument to [eval()](./reference/inspect_ai.html.md#eval) is normally static: you pass a [Task](./reference/inspect_ai.html.md#task) (or list of tasks) and the run executes those. A [TaskSource](./reference/inspect_ai.html.md#tasksource) generates tasks dynamically instead — a seed plus follow-ups that depend on results — all under one run id.

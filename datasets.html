@@ -2,7 +2,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
 
 <meta charset="utf-8">
-<meta name="generator" content="quarto-1.10.18">
+<meta name="generator" content="quarto-1.9.37">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
@@ -12,13 +12,10 @@
 /* Default styles provided by pandoc.
 ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
 */
+code{white-space: pre-wrap;}
 span.smallcaps{font-variant: small-caps;}
-div.columns{display: flex; gap: 1.5em;}
-div.column{flex: auto;}
-@media screen {
-div.columns{gap: min(4vw, 1.5em);}
-div.column{overflow-x: auto;}
-}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
 div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
 ul.task-list{list-style: none;}
 ul.task-list li input[type="checkbox"] {
@@ -80,10 +77,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <script src="site_libs/quarto-html/tippy.umd.min.js"></script>
 <script src="site_libs/quarto-html/anchor.min.js"></script>
 <link href="site_libs/quarto-html/tippy.css" rel="stylesheet">
-<link href="site_libs/quarto-html/quarto-syntax-highlighting-64a204ab8560d761af7679ceaba22944.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<link href="site_libs/quarto-html/quarto-syntax-highlighting-7f8f88aac4f3542376d5c11b86a4c14d.css" rel="stylesheet" id="quarto-text-highlighting-styles">
 <script src="site_libs/bootstrap/bootstrap.min.js"></script>
 <link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
-<link href="site_libs/bootstrap/bootstrap-6be907ae78873760d36834dbe5a66008.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<link href="site_libs/bootstrap/bootstrap-60b6846f58d02926bc6ca5ecd6f15c48.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
 <script id="quarto-search-options" type="application/json">{
   "location": "navbar",
   "copy-button": false,
@@ -818,21 +815,26 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <td>Optional. Unique identifier for sample.</td>
 </tr>
 <tr class="odd">
+<td><code>description</code></td>
+<td><code>str | None</code></td>
+<td>Optional. Short statement of what the sample asks of the agent (recorded in the eval log).</td>
+</tr>
+<tr class="even">
 <td><code>metadata</code></td>
 <td><code>dict[str | Any] | None</code></td>
 <td>Optional. Arbitrary metadata associated with the sample.</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>sandbox</code></td>
 <td><code>str | tuple[str,str]</code></td>
 <td>Optional. Sandbox environment type (or optionally a tuple with type and config file)</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>files</code></td>
 <td><code>dict[str | str] | None</code></td>
 <td>Optional. Files that go along with the sample (copied to sandbox environments).</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>setup</code></td>
 <td><code>str | None</code></td>
 <td>Optional. Setup script to run for sample (executed within default sandbox environment).</td>
@@ -894,6 +896,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a>        metadata<span class="op">=</span>[<span class="st">"label_confidence"</span>],</span>
 <span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a>    ),</span>
 <span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>To read <code>Sample.description</code> (a short statement of what the sample asks of the agent) from a dataset field, name the field with <code>FieldSpec(description=...)</code>. Descriptions are not read unless the field is named, so existing datasets with a <code>description</code> column are unaffected. The description is recorded with the sample in the eval log and appears as the <code>description</code> column of <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#samples_df">samples_df()</a></span>.</p>
 <p>If you need to do more than just map field names and actually do custom processing of the data, you can instead pass a function which takes a <code>record</code> (represented as a <code>dict</code>) from the underlying file and returns a <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.dataset.html#sample">Sample</a></span>. For example:</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.dataset <span class="im">import</span> Sample, json_dataset</span>
 <span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a></span>

@@ -89,7 +89,7 @@ inspect eval-set [OPTIONS] [TASKS]...
 | `--cost-limit` | float | Limit on total cost (in dollars) for each sample. | `Sentinel.UNSET` |
 | `--model-cost-config` | text | YAML or JSON file with model prices for cost tracking. | `Sentinel.UNSET` |
 | `--time-limit` | integer | Limit on total running time for each sample. | `Sentinel.UNSET` |
-| `--working-limit` | integer | Limit on total working time (e.g. model generation, tool calls, etc.) for each sample. | `Sentinel.UNSET` |
+| `--working-limit` | integer | Limit on total working time (e.g. model generation, tool calls, etc.) for each sample. Work done while any wait is open is not charged, so also set –time-limit to bound wall clock time. | `Sentinel.UNSET` |
 | `--fail-on-error` | float | Threshold of sample errors to tolerage (by default, evals fail when any error occurs). Value between 0 to 1 to set a proportion; value greater than 1 to set a count. | `Sentinel.UNSET` |
 | `--no-fail-on-error` | boolean | Do not fail the eval if errors occur within samples (instead, continue running other samples) | `False` |
 | `--continue-on-fail` | boolean | Do not immediately fail the eval if the error threshold is exceeded (instead, continue running other samples until the eval completes, and then possibly fail the eval). | None |

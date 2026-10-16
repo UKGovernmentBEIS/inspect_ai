@@ -1,13 +1,5 @@
 # Sample Sources – Inspect
 
-> **NOTE:**
->
-> Sample sources require the development version of Inspect, which you can install from GitHub:
->
-> ``` bash
-> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-> ```
-
 ## Overview
 
 The `dataset` argument to [Task](./reference/inspect_ai.html.md#task) is normally static: you pass a [Dataset](./reference/inspect_ai.dataset.html.md#dataset) (or list of samples) and the task runs exactly those. A [SampleSource](./reference/inspect_ai.html.md#samplesource) generates samples dynamically instead — a seed plus follow-ups that depend on results — all within one task and one log.

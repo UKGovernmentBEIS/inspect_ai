@@ -46,13 +46,27 @@ Appropriate timeouts will vary depending on the nature of your task so please vi
 
 ### Working Limit
 
-The `working_limit` differs from the `time_limit` in that it measures only the time spent working (as opposed to retrying in response to rate limits or waiting on other shared resources). Working time is computed based on total clock time minus time spent on (a) unsuccessful model generations (e.g. rate limited requests); and (b) waiting on shared resources (e.g. Docker containers or subprocess execution).
+The `working_limit` differs from the `time_limit` in that it measures only the time spent working (as opposed to retrying in response to rate limits or waiting on other shared resources). Working time is clock time minus the time the sample spends waiting. The sample is waiting while any of these is in progress:
+
+- Waiting for a model connection or a [concurrency()](./reference/inspect_ai.util.html.md#concurrency) slot (including `max_sandboxes` and `max_subprocesses`).
+- A model request that fails and is retried (e.g. a rate limited request), and the backoff before the retry.
+- A batch request waiting to be submitted.
+- Tool approval or review, by a person or a model.
+- Waiting for a person to answer a question.
+- A model call held by `inspect ctl pause --now`.
+- Code inside [suspend_working_limit()](./reference/inspect_ai.util.html.md#suspend_working_limit).
+
+Waits that overlap count once, so working time is never negative and never more than clock time.
+
+> **WARNING:**
+>
+> Work done while any wait is in progress is not charged. While one part of a sample waits, other work in the same sample is free: concurrent tasks, parallel tool calls, sub-agents, background processes in a sandbox, and the work of in-process agent libraries. Working time can therefore undercount, and a sample can run much longer than its working limit. Always set a `time_limit` alongside a `working_limit` to bound clock time.
 
 > **NOTE:**
 >
-> In order to distinguish successful generate requests from rate limited and retried requests, Inspect installs hooks into the HTTP client of various model packages. This is not possible for some models (`azureai`) and in these cases the `working_time` will include any internal retries that the model client performs.
+> To tell a successful request apart from retries inside the model client, Inspect measures the request through hooks into the HTTP client of most model packages. When a provider reports no request time (for example `azureai`, `sagemaker` and in-process providers such as `hf`), or measures the whole call (`grok`), the `working_time` includes any retries the model client performs.
 
-Here we set an `working_limit` of 10 minutes (10 x 60 seconds) for each sample within a task:
+Here we set a `working_limit` of 10 minutes (10 x 60 seconds) for each sample within a task, with a `time_limit` of 30 minutes as a backstop on clock time:
 
 ``` python
 @task
@@ -65,9 +79,16 @@ def intercode_ctf():
             generate(),
         ],
         working_limit=10 * 60,
+        time_limit=30 * 60,
         scorer=includes(),
         sandbox="docker",
     )
+```
+
+Or at the CLI:
+
+``` bash
+inspect eval ctf.py --working-limit 600 --time-limit 1800
 ```
 
 ### Message Limit
@@ -358,20 +379,49 @@ Internally, this uses [`anyio`’s cancellation scopes](https://anyio.readthedoc
 
 ### Working Limit
 
-The `working_limit` differs from the `time_limit` in that it measures only the time spent working (as opposed to retrying in response to rate limits or waiting on other shared resources). Working time is computed based on total clock time minus time spent on (a) unsuccessful model generations (e.g. rate limited requests); and (b) waiting on shared resources (e.g. Docker containers or subprocess execution).
+The `working_limit` differs from the `time_limit` in that it measures only the time spent working (as opposed to retrying in response to rate limits or waiting on other shared resources). Working time is clock time minus the time the sample spends waiting. The sample is waiting while any of these is in progress:
+
+- Waiting for a model connection or a [concurrency()](./reference/inspect_ai.util.html.md#concurrency) slot (including `max_sandboxes` and `max_subprocesses`).
+- A model request that fails and is retried (e.g. a rate limited request), and the backoff before the retry.
+- A batch request waiting to be submitted.
+- Tool approval or review, by a person or a model.
+- Waiting for a person to answer a question.
+- A model call held by `inspect ctl pause --now`.
+- Code inside [suspend_working_limit()](./reference/inspect_ai.util.html.md#suspend_working_limit).
+
+Waits that overlap count once, so working time is never negative and never more than clock time.
+
+> **WARNING:**
+>
+> Work done while any wait is in progress is not charged. While one part of a sample waits, other work in the same sample is free: concurrent tasks, parallel tool calls, sub-agents, background processes in a sandbox, and the work of in-process agent libraries. Working time can therefore undercount, and a sample can run much longer than its working limit. Always set a `time_limit` alongside a `working_limit` to bound clock time.
 
 > **NOTE:**
 >
-> In order to distinguish successful generate requests from rate limited and retried requests, Inspect installs hooks into the HTTP client of various model packages. This is not possible for some models (`azureai`) and in these cases the `working_time` will include any internal retries that the model client performs.
+> To tell a successful request apart from retries inside the model client, Inspect measures the request through hooks into the HTTP client of most model packages. When a provider reports no request time (for example `azureai`, `sagemaker` and in-process providers such as `hf`), or measures the whole call (`grok`), the `working_time` includes any retries the model client performs.
 
-To limit the working time to 10 minutes:
+To limit the working time to 10 minutes, with a 30 minute backstop on clock time:
 
 ``` python
-with working_limit(10 * 60):
+with time_limit(30 * 60), working_limit(10 * 60):
     ...
 ```
 
 Unlike time limits, this is not driven by `anyio`. It is checked periodically such as from [generate()](./reference/inspect_ai.solver.html.md#generate) and after each [Solver](./reference/inspect_ai.solver.html.md#solver) runs.
+
+#### Suspending Working Limits
+
+To count the time spent in a block of code as waiting, use [suspend_working_limit()](./reference/inspect_ai.util.html.md#suspend_working_limit):
+
+``` python
+with working_limit(10 * 60):
+    await generate()  # counts as working time
+    with suspend_working_limit():
+        # time spent here counts as waiting
+        await wait_for_operator()
+    await generate()  # counts again
+```
+
+Unlike [suspend_token_limit()](./reference/inspect_ai.util.html.md#suspend_token_limit) and `suspend_turn_limit()`, which only affect code inside the block, [suspend_working_limit()](./reference/inspect_ai.util.html.md#suspend_working_limit) makes the whole sample count as waiting while the block is open, including work done by other tasks in the sample. Only code in the eval process can call it (not agent code running in a sandbox). Inspect already does this for tool approval and review.
 
 ### Message Limit
 

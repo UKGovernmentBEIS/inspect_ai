@@ -390,7 +390,7 @@ if len(errors) > 0:
 | Type | Description |
 |----|----|
 | [EvalInfo](./reference/inspect_ai.analysis.html.md#evalinfo) | Descriptive information (e.g. created, tags, metadata, git commit, etc.) |
-| [EvalTask](./reference/inspect_ai.analysis.html.md#evaltask) | Task configuration (name, file, args, solver, etc.) |
+| [EvalTask](./reference/inspect_ai.analysis.html.md#evaltask) | Task configuration (name, description, file, args, solver, etc.) |
 | [EvalModel](./reference/inspect_ai.analysis.html.md#evalmodel) | Model name, args, generation config, etc. |
 | [EvalDataset](./reference/inspect_ai.log.html.md#evaldataset) | Dataset name, location, sample ids, etc. |
 | [EvalConfiguration](./reference/inspect_ai.analysis.html.md#evalconfiguration) | Epochs, approval, sample limits, etc. |
@@ -465,6 +465,7 @@ SampleSummary: list[Column] = [
     SampleColumn("input", path=sample_input_as_str, required=True),
     SampleColumn("choices", path="choices", full=False),
     SampleColumn("target", path="target", required=True, value=list_as_str),
+    SampleColumn("description", path="description"),
     SampleColumn("metadata_*", path="metadata"),
     SampleColumn("score_*", path="scores", value=score_values),
     SampleColumn("model_usage", path="model_usage"),
@@ -482,7 +483,11 @@ SampleSummary: list[Column] = [
 ]
 ```
 
+The `description` column is the sample’s `description` (`None` when the sample has none, including logs written by older versions of Inspect).
+
 The `turn_count` column is the number of turns (top-level model generations) used by the sample, and `token_limit_usage` is the metered value of the sample’s token limit, respecting the limit’s type (`None` when no token limit was configured). Both are `None` for logs written by older versions of Inspect.
+
+The `working_time` column is clock time minus the time when any wait was open in the sample, so work done during a wait is not counted. See [Working Limit](./setting-limits.html.md#working-limit) for its limitations.
 
 The `fallbacks` column is the total number of generate calls served by a [fallback model](./providers.html.md#anthropic-refusal-fallback) (0 if none). For the full per-pair rollup, add a custom column reading the underlying summary field: `SampleColumn("model_fallbacks", path="model_fallbacks")`.
 
@@ -661,7 +666,7 @@ Because events are so heterogeneous, there is no default `columns` specification
 | Type | Description |
 |----|----|
 | [EventInfo](./reference/inspect_ai.analysis.html.md#eventinfo) | Event type and span id. |
-| [EventTiming](./reference/inspect_ai.analysis.html.md#eventtiming) | Start and end times (both clock time and working time) |
+| [EventTiming](./reference/inspect_ai.analysis.html.md#eventtiming) | Start and end times (both clock time and working time; see [Working Limit](./setting-limits.html.md#working-limit)) |
 | [ModelEventColumns](./reference/inspect_ai.analysis.html.md#modeleventcolumns) | Read data from model events. |
 | [ToolEventColumns](./reference/inspect_ai.analysis.html.md#tooleventcolumns) | Read data from tool events. |
 

@@ -2,7 +2,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
 
 <meta charset="utf-8">
-<meta name="generator" content="quarto-1.10.18">
+<meta name="generator" content="quarto-1.9.37">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
@@ -12,13 +12,10 @@
 /* Default styles provided by pandoc.
 ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
 */
+code{white-space: pre-wrap;}
 span.smallcaps{font-variant: small-caps;}
-div.columns{display: flex; gap: 1.5em;}
-div.column{flex: auto;}
-@media screen {
-div.columns{gap: min(4vw, 1.5em);}
-div.column{overflow-x: auto;}
-}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
 div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
 ul.task-list{list-style: none;}
 ul.task-list li input[type="checkbox"] {
@@ -43,10 +40,10 @@ ul.task-list li input[type="checkbox"] {
 <script src="site_libs/quarto-html/tippy.umd.min.js"></script>
 <script src="site_libs/quarto-html/anchor.min.js"></script>
 <link href="site_libs/quarto-html/tippy.css" rel="stylesheet">
-<link href="site_libs/quarto-html/quarto-syntax-highlighting-64a204ab8560d761af7679ceaba22944.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<link href="site_libs/quarto-html/quarto-syntax-highlighting-7f8f88aac4f3542376d5c11b86a4c14d.css" rel="stylesheet" id="quarto-text-highlighting-styles">
 <script src="site_libs/bootstrap/bootstrap.min.js"></script>
 <link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
-<link href="site_libs/bootstrap/bootstrap-6be907ae78873760d36834dbe5a66008.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<link href="site_libs/bootstrap/bootstrap-60b6846f58d02926bc6ca5ecd6f15c48.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
 <script id="quarto-search-options" type="application/json">{
   "location": "navbar",
   "copy-button": false,
@@ -197,10 +194,27 @@ ul.task-list li input[type="checkbox"] {
     <h2 id="toc-title">On this page</h2>
    
   <ul>
-  <li><a href="#october-2026" id="toc-october-2026" class="nav-link active" data-scroll-target="#october-2026">0.3.277 (06 October 2026)</a></li>
-  <li><a href="#october-2026-1" id="toc-october-2026-1" class="nav-link" data-scroll-target="#october-2026-1">0.3.276 (02 October 2026)</a></li>
-  <li><a href="#october-2026-2" id="toc-october-2026-2" class="nav-link" data-scroll-target="#october-2026-2">0.3.275 (01 October 2026)</a></li>
-  <li><a href="#october-2026-3" id="toc-october-2026-3" class="nav-link" data-scroll-target="#october-2026-3">0.3.274 (01 October 2026)</a></li>
+  <li><a href="#section" id="toc-section" class="nav-link active" data-scroll-target="#section">0.3.281 (2026-10-15)</a>
+  <ul class="collapse">
+  <li><a href="#breaking-changes" id="toc-breaking-changes" class="nav-link" data-scroll-target="#breaking-changes">Breaking Changes</a></li>
+  <li><a href="#features" id="toc-features" class="nav-link" data-scroll-target="#features">Features</a></li>
+  <li><a href="#bug-fixes" id="toc-bug-fixes" class="nav-link" data-scroll-target="#bug-fixes">Bug Fixes</a></li>
+  </ul></li>
+  <li><a href="#section-1" id="toc-section-1" class="nav-link" data-scroll-target="#section-1">0.3.280 (2026-10-14)</a>
+  <ul class="collapse">
+  <li><a href="#features-1" id="toc-features-1" class="nav-link" data-scroll-target="#features-1">Features</a></li>
+  <li><a href="#bug-fixes-1" id="toc-bug-fixes-1" class="nav-link" data-scroll-target="#bug-fixes-1">Bug Fixes</a></li>
+  <li><a href="#reverts" id="toc-reverts" class="nav-link" data-scroll-target="#reverts">Reverts</a></li>
+  </ul></li>
+  <li><a href="#section-2" id="toc-section-2" class="nav-link" data-scroll-target="#section-2">0.3.279 (2026-10-12)</a>
+  <ul class="collapse">
+  <li><a href="#bug-fixes-2" id="toc-bug-fixes-2" class="nav-link" data-scroll-target="#bug-fixes-2">Bug Fixes</a></li>
+  </ul></li>
+  <li><a href="#october-2026" id="toc-october-2026" class="nav-link" data-scroll-target="#october-2026">0.3.278 (09 October 2026)</a></li>
+  <li><a href="#october-2026-1" id="toc-october-2026-1" class="nav-link" data-scroll-target="#october-2026-1">0.3.277 (06 October 2026)</a></li>
+  <li><a href="#october-2026-2" id="toc-october-2026-2" class="nav-link" data-scroll-target="#october-2026-2">0.3.276 (02 October 2026)</a></li>
+  <li><a href="#october-2026-3" id="toc-october-2026-3" class="nav-link" data-scroll-target="#october-2026-3">0.3.275 (01 October 2026)</a></li>
+  <li><a href="#october-2026-4" id="toc-october-2026-4" class="nav-link" data-scroll-target="#october-2026-4">0.3.274 (01 October 2026)</a></li>
   <li><a href="#september-2026" id="toc-september-2026" class="nav-link" data-scroll-target="#september-2026">0.3.273 (29 September 2026)</a></li>
   <li><a href="#september-2026-1" id="toc-september-2026-1" class="nav-link" data-scroll-target="#september-2026-1">0.3.272 (28 September 2026)</a></li>
   <li><a href="#september-2026-2" id="toc-september-2026-2" class="nav-link" data-scroll-target="#september-2026-2">0.3.271 (26 September 2026)</a></li>
@@ -475,13 +489,126 @@ ul.task-list li input[type="checkbox"] {
 </nav>
     </div>
 <!-- main -->
-<main class="content" id="quarto-document-content"><header id="title-block-header" class="quarto-title-block"></header>
+<main class="content" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default">
+<div class="quarto-title">
+<h1 class="title">Changelog</h1>
+</div>
 
 
 
+<div class="quarto-title-meta">
 
+    
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<section id="section" class="level2">
+<h2 class="anchored" data-anchor-id="section"><a href="https://github.com/UKGovernmentBEIS/inspect_ai/compare/0.3.280...0.3.281">0.3.281</a> (2026-10-15)</h2>
+<section id="breaking-changes" class="level3">
+<h3 class="anchored" data-anchor-id="breaking-changes">Breaking Changes</h3>
+<ul>
+<li>require Python 3.11 and test on Python 3.14 (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/5862">#5862</a>)</li>
+</ul>
+</section>
+<section id="features" class="level3">
+<h3 class="anchored" data-anchor-id="features">Features</h3>
+<ul>
+<li>add swarm_controller and swarm_channel registry types (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/5860">#5860</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/a11afc94322a431782f57c0f48a3d6b7666413c3">a11afc9</a>)</li>
+<li><strong>agent-bridge:</strong> forward allowed Anthropic betas, Accept-Encoding and Responses reasoning context (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/5708">#5708</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/be4fd1fba7bd6c31bf5f708a4d90f3fca969ae07">be4fd1f</a>)</li>
+<li>let agent bridges transform model responses with <code>response_filter</code> (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/5715">#5715</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/19f9349d2a21572333854f987a46c02327754ef1">19f9349</a>)</li>
+<li>require Python 3.11 and test on Python 3.14 (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/5862">#5862</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/f612192808ddcb2575a205df16469c28a3bf7716">f612192</a>)</li>
+<li>sentinel monitors can call context.host.score (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/5865">#5865</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/b0a5cd1d3b0c5f240df3ba696d3edd1d15e78bb1">b0a5cd1</a>)</li>
+</ul>
+</section>
+<section id="bug-fixes" class="level3">
+<h3 class="anchored" data-anchor-id="bug-fixes">Bug Fixes</h3>
+<ul>
+<li>Antigravity host tool calls being denied as unproposed by the sandbox agent bridge (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/5717">#5717</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/46e79a4f46f288cbbd67a43842dde684d598a469">46e79a4</a>)</li>
+<li>count overlapping waits once in working time and add suspend_working_limit() (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/5758">#5758</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/974c17d43738702adde22f404293d07c316242af">974c17d</a>)</li>
+<li><strong>litellm-proxy:</strong> Grok models keep reasoning across turns, accept every reasoning effort, and report refusals (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/5874">#5874</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/71581988aaabd7a7c44c31fe25fe907a01e81680">7158198</a>)</li>
+<li><strong>litellm-proxy:</strong> Meta Muse models keep reasoning across turns, accept unsupported parameters, and report refusals (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/5878">#5878</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/08f8600926ee7383c0b582faada2640c6c6f0740">08f8600</a>)</li>
+<li><strong>litellm:</strong> stop the function-calling hint making Gemini loop on tool calls (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/5761">#5761</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/0c3b3e46ee76afd2115c2aae09a719c01900f1c5">0c3b3e4</a>)</li>
+<li>prevent StoreModel validation leaks and make store and instance read-only (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/5748">#5748</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/aaad90c850d82f302c5a8750f6f5c9775bfe3eaf">aaad90c</a>)</li>
+<li>reject unknown sandbox names even when only one environment exists (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/5723">#5723</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/3f9c2e3fb4cc4799577971f61d29a5c8cd381ed4">3f9c2e3</a>)</li>
+<li><strong>sandbox:</strong> Docker <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#read_file">read_file()</a></span> no longer unpacks agent-controlled archives on the host or fills its disk (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/5829">#5829</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/86c1157328b8d83ce02bf830484bba45afae053c">86c1157</a>)</li>
+</ul>
+</section>
+</section>
+<section id="section-1" class="level2">
+<h2 class="anchored" data-anchor-id="section-1"><a href="https://github.com/UKGovernmentBEIS/inspect_ai/compare/0.3.279...0.3.280">0.3.280</a> (2026-10-14)</h2>
+<section id="features-1" class="level3">
+<h3 class="anchored" data-anchor-id="features-1">Features</h3>
+<ul>
+<li><strong>agent-bridge:</strong> filters can now tell which agent a bridged model request belongs to (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/4791">#4791</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/1b78969d6350bd8ce84bba84a92cbaddf8b175d6">1b78969</a>)</li>
+<li><strong>google:</strong> support Gemini 4 Argon (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/5843">#5843</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/76e69f92b9e4f84fda6214d69c15842f8e20dd49">76e69f9</a>)</li>
+<li>keep the response headers of a model call (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/5795">#5795</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/1b167913bce1c6bb9dbf85bd67edbc02015b706c">1b16791</a>)</li>
+</ul>
+</section>
+<section id="bug-fixes-1" class="level3">
+<h3 class="anchored" data-anchor-id="bug-fixes-1">Bug Fixes</h3>
+<ul>
+<li>Behavior change: Docker sandboxes now block writable host mounts by default; use read-only mounts, Sample.files or Docker-managed volumes, or the unsafe opt-in (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/5830">#5830</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/d7495e8020d362f22aa7ac8ae238c3c9c6ca5602">d7495e8</a>)</li>
+<li>Groq and OpenAI on Bedrock requests failing during credential refresh (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/5707">#5707</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/618d6f0a49c9b6d969e1244717f78cc081400879">618d6f0</a>)</li>
+<li>remove duplicated type: ignore comments that ast-serialize 0.13 rejects (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/5835">#5835</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/81c1668d31030eebf7ff55e8376c2650b4f811ed">81c1668</a>)</li>
+<li>slow reads of local .eval logs (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/5783">#5783</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/bf3724303c4fbb8c8842a6fe1d15aba6aba8d1eb">bf37243</a>)</li>
+<li>store and state changes crashing, replaying wrong, or logging unchanged NaNs (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/5751">#5751</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/31a5661544bc1c49dba9af8c5fed00087ef3fe9f">31a5661</a>)</li>
+</ul>
+</section>
+<section id="reverts" class="level3">
+<h3 class="anchored" data-anchor-id="reverts">Reverts</h3>
+<ul>
+<li>remove the short-lived inspect_ai.core package added in 0.3.277; core data types stay at their original import paths (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/5828">#5828</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/295dabaaba23ffc8dc0480b9506344054e73fcc1">295daba</a>)</li>
+</ul>
+</section>
+</section>
+<section id="section-2" class="level2">
+<h2 class="anchored" data-anchor-id="section-2"><a href="https://github.com/UKGovernmentBEIS/inspect_ai/compare/0.3.278...0.3.279">0.3.279</a> (2026-10-12)</h2>
+<section id="bug-fixes-2" class="level3">
+<h3 class="anchored" data-anchor-id="bug-fixes-2">Bug Fixes</h3>
+<ul>
+<li>Internal improvements.</li>
+</ul>
+</section>
+</section>
 <section id="october-2026" class="level2">
-<h2 class="anchored" data-anchor-id="october-2026">0.3.277 (06 October 2026)</h2>
+<h2 class="anchored" data-anchor-id="october-2026">0.3.278 (09 October 2026)</h2>
+<ul>
+<li>Tasks and samples can carry a <code>description</code> of what they ask of the agent, recorded in the eval log and in <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#evals_df">evals_df()</a></span> and <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#samples_df">samples_df()</a></span>.</li>
+<li>Tool review now also reviews <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#handoff">handoff()</a></span> calls, as approval does.</li>
+<li>Compaction: Fixed compaction triggering early and reporting inflated token counts on OpenAI reasoning models, which counted replayed reasoning twice.</li>
+<li>Compaction: Removed <code>ModelAPI.apply_redacted_reasoning_tokens_to_input()</code> and stopped adding <code>redacted_reasoning_tokens</code> to assistant message metadata.</li>
+<li>Compaction: Overflow recovery in <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#react">react()</a></span> no longer forces compaction again when the retry after a forced compaction also overflows, which could resend the same request indefinitely.</li>
+<li>Grok: Fixed batch mode failing after a credential refresh (e.g.&nbsp;on an expired API key), including batches already in progress.</li>
+<li>Models: Setting <code>text</code> on a <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#chatmessage">ChatMessage</a></span> with a list of content now replaces the existing text in place instead of moving it after images and other media; a message with no text still gets the new text appended. <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#prompt_template">prompt_template()</a></span>, <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#chain_of_thought">chain_of_thought()</a></span> and <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#multiple_choice">multiple_choice()</a></span> set <code>text</code>, so multimodal evals that put text before media now send the prompt in the order they wrote it, and their baselines may shift on rerun. (#4770)</li>
+<li>Solver: <code>TaskState.input_text</code> no longer raises when the last user message has no text; image-only and other non-text messages return placeholders such as <code>[image]</code>, and an empty message returns <code>""</code>.</li>
+<li>Bugfix: Hugging Face task loading reads the Hub-delivered <code>eval.yaml</code> in UTF-8 rather than the locale default, so task configs with non-ASCII characters no longer crash or silently corrupt on Windows with a non-UTF-8 code page (or on a C-locale system).</li>
+<li>Anthropic: Support for Claude Haiku 5.5 (<code>claude-haiku-5-5</code>): <code>reasoning_effort="none"</code> disables thinking, computer use uses the computer toolset on the Claude API and Vertex, and <code>fallback_models</code> is ignored with a warning.</li>
+<li>Anthropic: With <code>reasoning_effort</code> on Claude 4.6+, forced tool choice (except on Fable/Mythos 5.1, Opus 5.5, Sonnet 5.5), <code>tool_choice="none"</code> and <code>parallel_tool_calls=False</code> are now honored; forced turns skip thinking.</li>
+<li>Bugfix: <code>inspect log convert --stream</code> (and <code>convert_eval_logs(stream=...)</code>) no longer drops the error message and traceback from logs of failed evals.</li>
+<li>Fixed <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#storemodel">StoreModel</a></span> skipping field validation when constructed with an empty <code>instance</code> string.</li>
+<li>Fixed the human reviewer filling in tool arguments inside tool output that contains <code>{{...}}</code> (three or more braces).</li>
+<li>Tools: Tools with <code>*args</code> or <code>**kwargs</code> no longer advertise required <code>args</code>/<code>kwargs</code> parameters to models; declare model-chosen arguments with an explicit <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#toolparams">ToolParams</a></span> schema instead.</li>
+<li>Control Channel: <code>inspect ctl model throughput</code> now reports each model’s input, output and cache read/write tokens per minute, in the table and in <code>--json</code> output; the table’s output column is now per minute instead of per second.</li>
+<li>Bugfix: An approver’s <code>modify</code> decision with no modified call now rejects the tool call instead of running the original, and the human approver no longer offers Modify.</li>
+<li>Deep Agent: <code>deepagent(background=True)</code> run from a scorer can now dispatch background subagents instead of failing.</li>
+<li>Anthropic: Forced web searches now work on Claude 4.6+, and <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#web_search">web_search()</a></span> now honors <code>allowed_callers</code> and <code>type</code> in its <code>anthropic</code> options.</li>
+<li>Agent Bridge: Web search from a bridged Anthropic client, such as Claude Code’s WebSearch, now uses the tool version the client declared unless the eval sets one.</li>
+<li>Agent Bridge: A provider error delivered during a streamed response now reaches the bridged agent as an error instead of a malformed HTTP 200 success.</li>
+<li>Agent Bridge: A bridged Anthropic client now sees conflict, timeout, and billing errors as such instead of as generic server errors.</li>
+<li>Agent Bridge: Sandboxed agents now receive exhausted provider errors with their original status and error details.</li>
+<li>Dependencies: Require <code>nest_asyncio2</code> &gt;= 1.7.4, fixing cancel scope errors (e.g.&nbsp;from Mistral streaming) after Inspect is called synchronously from a notebook or another running event loop.</li>
+</ul>
+</section>
+<section id="october-2026-1" class="level2">
+<h2 class="anchored" data-anchor-id="october-2026-1">0.3.277 (06 October 2026)</h2>
 <ul>
 <li>Fixed trace logs growing to many gigabytes when model output caching is enabled.</li>
 <li>Fixed model calls and token counting in multiprocess Scout scans using the default model configuration.</li>
@@ -528,21 +655,21 @@ ul.task-list li input[type="checkbox"] {
 <li>Agent Bridge: For both <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#agent_bridge">agent_bridge()</a></span> and <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#sandbox_agent_bridge">sandbox_agent_bridge()</a></span>, the eval’s configuration now governs <code>service_tier</code>, <code>store</code>, <code>truncation</code> and provider tool options such as web search domains, which the agent’s requests no longer override; requests with <code>previous_response_id</code> are refused.</li>
 </ul>
 </section>
-<section id="october-2026-1" class="level2">
-<h2 class="anchored" data-anchor-id="october-2026-1">0.3.276 (02 October 2026)</h2>
+<section id="october-2026-2" class="level2">
+<h2 class="anchored" data-anchor-id="october-2026-2">0.3.276 (02 October 2026)</h2>
 <ul>
 <li>LiteLLM Proxy: Gemini tool results that are JSON objects are sent under <code>content</code>, as the <code>google</code> provider sends them; LiteLLM otherwise passed the object as the function response itself and Vertex rejected documents with <code>$ref</code> keys (an OpenAPI spec read with <code>curl</code>) with a 400.</li>
 </ul>
 </section>
-<section id="october-2026-2" class="level2">
-<h2 class="anchored" data-anchor-id="october-2026-2">0.3.275 (01 October 2026)</h2>
+<section id="october-2026-3" class="level2">
+<h2 class="anchored" data-anchor-id="october-2026-3">0.3.275 (01 October 2026)</h2>
 <ul>
 <li>LiteLLM Proxy: Gemini models accept any <code>reasoning_effort</code>, mapped to the levels or thinking budgets the native Google provider uses.</li>
 <li>LiteLLM Proxy: Gemini tool calls replayed through the proxy keep their thought signatures when the proxy’s <code>model_name</code> does not contain “gemini” (LiteLLM otherwise replaced them with a placeholder); requests with tools carry the function-calling hint; and a turn returned as a malformed function call (no text or tool call, or a call written as code) is retried with a corrective exchange, as with the <code>google</code> provider.</li>
 </ul>
 </section>
-<section id="october-2026-3" class="level2">
-<h2 class="anchored" data-anchor-id="october-2026-3">0.3.274 (01 October 2026)</h2>
+<section id="october-2026-4" class="level2">
+<h2 class="anchored" data-anchor-id="october-2026-4">0.3.274 (01 October 2026)</h2>
 <ul>
 <li>Sandbox tools: the root check now runs once at sample start, before solver/agent execution begins; an inconclusive check warns before falling back to the sandbox’s default user, and a check that could not run, or a later root failure, is an error.</li>
 <li>Local sandbox: <code>exec(user=...)</code> now rejects unsupported users instead of ignoring them; the current effective user’s name or UID is accepted on POSIX.</li>

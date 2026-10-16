@@ -2,7 +2,7 @@
 
 ## Overview
 
-Reasoning models like OpenAI GPT-5, Claude 4 and 5, and Gemini 3 have some additional options that can be used to tailor their behaviour. They also in some cases make available full or summarized reasoning traces for the chains of thought that led to their response.
+Reasoning models like OpenAI GPT-5, Claude 4 and 5, and Gemini 3 and 4 have some additional options that can be used to tailor their behaviour. They also in some cases make available full or summarized reasoning traces for the chains of thought that led to their response.
 
 ## Reasoning Effort
 
@@ -38,13 +38,13 @@ Note that GPT-5.6 models treat `reasoning_effort` as a ceiling rather than a flo
 
 #### Anthropic Claude 4.6+ and Claude 5
 
-Opus 4.6, Opus 4.7, Opus 4.8, Sonnet 4.6, and the Claude 5 models all use [adaptive thinking](https://platform.claude.com/docs/en/build-with-claude/adaptive-thinking) with the `effort` parameter. When `reasoning_effort` is not set, Opus 4.6/4.7 and Sonnet 4.6 let the model auto-select effort, while Opus 4.8, Sonnet 5, Sonnet 5.5, Opus 5, and Fable/Mythos 5.x default to `high` server-side and Opus 5.5 defaults to `medium`.
+Opus 4.6, Opus 4.7, Opus 4.8, Sonnet 4.6, and the Claude 5 models all use [adaptive thinking](https://platform.claude.com/docs/en/build-with-claude/adaptive-thinking) with the `effort` parameter. When `reasoning_effort` is not set, Opus 4.6/4.7 and Sonnet 4.6 let the model auto-select effort, while Opus 4.8, Sonnet 5, Sonnet 5.5, Opus 5, and Fable/Mythos 5.x default to `high` server-side and Opus 5.5 and Haiku 5.5 default to `medium`.
 
-For Fable/Mythos 5.x and Opus 5.5 thinking is **always on** and cannot be disabled: passing `none` does not turn reasoning off — Inspect omits the `thinking` field and the model reasons at the configured `effort` (or the server-side default if none is set). Sonnet 5 and Opus 5 do accept `none` and disable thinking (Opus 5 only at effort `high` or below). Sonnet 5.5 rejects disabled thinking, so for `none` Inspect sends `between_tools`, its lowest thinking setting: no up-front thinking, with short progress notes between tool calls returned as reasoning. It is accepted only at effort `high` or below, so a higher `effort` is lowered to `high` with a warning.
+For Fable/Mythos 5.x and Opus 5.5 thinking is **always on** and cannot be disabled: passing `none` does not turn reasoning off — Inspect omits the `thinking` field and the model reasons at the configured `effort` (or the server-side default if none is set). Sonnet 5, Opus 5, and Haiku 5.5 do accept `none` and disable thinking (Opus 5 and Haiku 5.5 only at effort `high` or below, so a higher `effort` is lowered to `high` with a warning). Sonnet 5.5 rejects disabled thinking, so for `none` Inspect sends `between_tools`, its lowest thinking setting: no up-front thinking, with short progress notes between tool calls returned as reasoning. It is accepted only at effort `high` or below, so a higher `effort` is lowered to `high` with a warning.
 
 | Inspect input | API value |
 |----|----|
-| `none` | omitted (off by default) on Opus 4.6/Sonnet 4.6; disabled on Opus 4.7/4.8, Sonnet 5, Opus 5; `between_tools` on Sonnet 5.5; omitted (still on) for Fable/Mythos 5.x and Opus 5.5 |
+| `none` | omitted (off by default) on Opus 4.6/Sonnet 4.6; disabled on Opus 4.7/4.8, Sonnet 5, Opus 5, Haiku 5.5; `between_tools` on Sonnet 5.5; omitted (still on) for Fable/Mythos 5.x and Opus 5.5 |
 | `minimal` / `low` | `low` |
 | `medium` | `medium` |
 | `high` | `high` |
@@ -65,17 +65,19 @@ These models do not accept `effort` natively, so Inspect automatically bridges `
 
 Note that you can also pass `reasoning_tokens` explicitly for these models.
 
-#### Google Gemini 3
+#### Google Gemini 3 and later
 
-Gemini 3 Flash 3.0–3.6 and Flash-Lite 3.1–3.5 expose four thinking levels (`MINIMAL`, `LOW`, `MEDIUM`, `HIGH`). Gemini 3 Pro / Pro 3.1 and Gemini 3.7 Flash and later omit `MINIMAL` (the API rejects it), so Inspect maps `minimal` to `LOW` there and logs a warning. The same fail-safe applies to names without a version (rolling aliases such as `gemini-flash-latest`, predeployment codenames) and to versions newer than those listed, until Inspect has confirmed they accept `MINIMAL`.
+Gemini 3 Flash 3.0–3.6 and Flash-Lite 3.1–3.5 expose four thinking levels (`MINIMAL`, `LOW`, `MEDIUM`, `HIGH`). Gemini 3 Pro / Pro 3.1, Gemini 3.7 Flash and later, and Gemini 4 Argon omit `MINIMAL` (the API rejects it), so Inspect maps `minimal` to `LOW` there and logs a warning. The same fail-safe applies to names without a version (rolling aliases such as `gemini-flash-latest`, predeployment codenames) and to versions newer than those listed, until Inspect has confirmed they accept `MINIMAL`.
 
-| Inspect input | API value (Flash ≤ 3.6, Flash-Lite ≤ 3.5) | API value (other Gemini 3) |
+| Inspect input | API value (Flash ≤ 3.6, Flash-Lite ≤ 3.5) | API value (other Gemini 3+) |
 |----|----|----|
-| `none` | thinking disabled | thinking disabled |
+| `none` | thinking disabled | thinking disabled (Pro: stays on, warning) |
 | `minimal` | `MINIMAL` | `LOW` |
 | `low` | `LOW` | `LOW` |
 | `medium` | `MEDIUM` | `MEDIUM` |
 | `high` / `xhigh` / `max` | `HIGH` | `HIGH` |
+
+Pro models cannot disable thinking, so for them `none` leaves thinking on and logs a warning. Inspect also treats Pro names it has not verified (such as a future Gemini 4 Pro) this way.
 
 #### Google Gemini 2.5
 
@@ -203,6 +205,7 @@ When Inspect does not pass `reasoning_effort`, each provider applies its own def
 |--------------------------------------|-----------------|
 | anthropic/claude-fable-5             | high            |
 | anthropic/claude-fable-5-1           | high            |
+| anthropic/claude-haiku-5-5           | medium          |
 | anthropic/claude-mythos-5            | high            |
 | anthropic/claude-mythos-5-1          | high            |
 | anthropic/claude-opus-4-6            | adaptive        |
@@ -228,6 +231,7 @@ When Inspect does not pass `reasoning_effort`, each provider applies its own def
 | google/gemini-3.6-flash              | medium          |
 | google/gemini-3.7-flash              | medium          |
 | google/gemini-3.8-flash              | medium          |
+| google/gemini-4-argon                | medium          |
 | grok/grok-3-mini                     | low             |
 | grok/grok-4                          | no effort scale |
 | grok/grok-4.3                        | low             |

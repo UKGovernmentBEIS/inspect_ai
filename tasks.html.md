@@ -53,10 +53,12 @@ While many tasks can be defined with only a dataset, solver, and scorer, there a
 | `score_on_error` | Score samples that error rather than failing the run. | [Handling Errors](./handling-errors.html.md) |
 | `message_limit`, `token_limit`, `time_limit`, `working_limit`, `cost_limit` | Limits to apply to sample execution. | [Sample Limits](./setting-limits.html.md#sample-limits) |
 | `early_stopping` | Stop a task early based on previously scored samples. | [Early Stopping](./early-stopping.html.md) |
-| `name`, `display_name`, `version`, `metadata`, `tags` | Identifying attributes recorded in the eval log. | [Eval Logs](./eval-logs.html.md) |
+| `name`, `display_name`, `description`, `version`, `metadata`, `tags` | Identifying attributes recorded in the eval log. | [Eval Logs](./eval-logs.html.md) |
 | `viewer` | Log viewer config (e.g. how scanner results render). | [Task Views](./task-views.html.md) |
 
 You by and large don’t need to worry about these options until you want to use the features they are linked to.
+
+Use `description` for a short statement of what the task asks of the agent. It is recorded in the eval log header (`EvalSpec.task_description`) and appears as the `task_description` column of [evals_df()](./reference/inspect_ai.analysis.html.md#evals_df). It does not affect task identity in [Eval Sets](./eval-sets.html.md). Samples can carry their own `description` as well (see [Dataset Samples](./datasets.html.md#dataset-samples)).
 
 ## Parameters
 
@@ -421,6 +423,8 @@ The table below lists task and runtime parameters and the layers at which each c
 | `version` | yes | yes |  |  |
 | `metadata` | yes | yes (overwrites) | yes (merges) | `--metadata` |
 | `tags` | yes | yes (overwrites) | yes (merges) | `--tags` |
+| **Description** |  |  |  |  |
+| `description` | yes | yes |  |  |
 | **Sample selection** |  |  |  |  |
 | `limit` |  |  | yes | `--limit` |
 | `sample_id` |  |  | yes | `--sample-id` |

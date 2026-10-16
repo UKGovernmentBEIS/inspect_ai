@@ -2,7 +2,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
 
 <meta charset="utf-8">
-<meta name="generator" content="quarto-1.10.18">
+<meta name="generator" content="quarto-1.9.37">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
@@ -12,13 +12,10 @@
 /* Default styles provided by pandoc.
 ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
 */
+code{white-space: pre-wrap;}
 span.smallcaps{font-variant: small-caps;}
-div.columns{display: flex; gap: 1.5em;}
-div.column{flex: auto;}
-@media screen {
-div.columns{gap: min(4vw, 1.5em);}
-div.column{overflow-x: auto;}
-}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
 div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
 ul.task-list{list-style: none;}
 ul.task-list li input[type="checkbox"] {
@@ -80,10 +77,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <script src="site_libs/quarto-html/tippy.umd.min.js"></script>
 <script src="site_libs/quarto-html/anchor.min.js"></script>
 <link href="site_libs/quarto-html/tippy.css" rel="stylesheet">
-<link href="site_libs/quarto-html/quarto-syntax-highlighting-64a204ab8560d761af7679ceaba22944.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<link href="site_libs/quarto-html/quarto-syntax-highlighting-7f8f88aac4f3542376d5c11b86a4c14d.css" rel="stylesheet" id="quarto-text-highlighting-styles">
 <script src="site_libs/bootstrap/bootstrap.min.js"></script>
 <link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
-<link href="site_libs/bootstrap/bootstrap-6be907ae78873760d36834dbe5a66008.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<link href="site_libs/bootstrap/bootstrap-60b6846f58d02926bc6ca5ecd6f15c48.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
 <script id="quarto-search-options" type="application/json">{
   "location": "navbar",
   "copy-button": false,
@@ -753,7 +750,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <li><a href="#stateful-tools" id="toc-stateful-tools" class="nav-link" data-scroll-target="#stateful-tools">Stateful Tools</a></li>
   <li><a href="#tool-choice" id="toc-tool-choice" class="nav-link" data-scroll-target="#tool-choice">Tool Choice</a></li>
   <li><a href="#sec-tool-descriptions" id="toc-sec-tool-descriptions" class="nav-link" data-scroll-target="#sec-tool-descriptions">Tool Descriptions</a></li>
-  <li><a href="#sec-dynamic-tools" id="toc-sec-dynamic-tools" class="nav-link" data-scroll-target="#sec-dynamic-tools">Dynamic Tools</a></li>
+  <li><a href="#sec-dynamic-tools" id="toc-sec-dynamic-tools" class="nav-link" data-scroll-target="#sec-dynamic-tools">Dynamic Tools</a>
+  <ul class="collapse">
+  <li><a href="#variable-arguments" id="toc-variable-arguments" class="nav-link" data-scroll-target="#variable-arguments">Variable Arguments</a></li>
+  </ul></li>
   </ul>
 </nav>
     </div>
@@ -1144,7 +1144,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb14-80"><a href="#cb14-80" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> execute</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>We make available an <code>instance</code> parameter that enables creation of multiple instances of the <code>web_surfer()</code> tool. We then pass this <code>instance</code> to the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#store_as">store_as()</a></span> function (to store our own tool’s message history) and the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#web_browser">web_browser()</a></span> function (so that we also provision a unique browser for the web surfer session).</p>
 <p>For example, this creates a distinct instance of the <code>web_surfer()</code> with its own state and browser:</p>
-<div id="63cef7f5" class="cell">
+<div id="c70a257d" class="cell">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb15"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> shortuuid <span class="im">import</span> uuid</span>
 <span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a>react(..., tools<span class="op">=</span>[web_surfer(instance<span class="op">=</span>uuid())])</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
@@ -1231,8 +1231,32 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>If on the other hand you want to get the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#tooldef">ToolDef</a></span> for an existing tool (e.g.&nbsp;to discover its name, description, and parameters) you can just pass the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#tool">Tool</a></span> to the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#tooldef">ToolDef</a></span> constructor (including whatever overrides for <code>name</code>, etc. you want):</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb22"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.tool <span class="im">import</span> ToolDef, bash</span>
 <span id="cb22-2"><a href="#cb22-2" aria-hidden="true" tabindex="-1"></a>bash_def <span class="op">=</span> ToolDef(bash())</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<section id="variable-arguments" class="level3">
+<h3 class="anchored" data-anchor-id="variable-arguments">Variable Arguments</h3>
+<p>Models pass tool arguments by name, so <code>*args</code> and <code>**kwargs</code> parameters are not included in a tool’s inferred parameters (previously they were advertised as required <code>args</code> and <code>kwargs</code> properties). <code>*args</code> never receives tool arguments.</p>
+<p>To accept arguments that the model chooses at runtime, describe them with an explicit <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#toolparams">ToolParams</a></span> schema and accept them with <code>**kwargs</code>. Arguments in the schema that don’t match a named parameter are passed to <code>**kwargs</code>, converted using its type annotation:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb23"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.tool <span class="im">import</span> ToolDef, ToolParam, ToolParams</span>
+<span id="cb23-2"><a href="#cb23-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb23-3"><a href="#cb23-3" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> search(query: <span class="bu">str</span>, <span class="op">**</span>filters: <span class="bu">str</span>):</span>
+<span id="cb23-4"><a href="#cb23-4" aria-hidden="true" tabindex="-1"></a>    ...</span>
+<span id="cb23-5"><a href="#cb23-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb23-6"><a href="#cb23-6" aria-hidden="true" tabindex="-1"></a>search_def <span class="op">=</span> ToolDef(</span>
+<span id="cb23-7"><a href="#cb23-7" aria-hidden="true" tabindex="-1"></a>    tool<span class="op">=</span>search,</span>
+<span id="cb23-8"><a href="#cb23-8" aria-hidden="true" tabindex="-1"></a>    name<span class="op">=</span><span class="st">"search"</span>,</span>
+<span id="cb23-9"><a href="#cb23-9" aria-hidden="true" tabindex="-1"></a>    description<span class="op">=</span><span class="st">"Search the document index."</span>,</span>
+<span id="cb23-10"><a href="#cb23-10" aria-hidden="true" tabindex="-1"></a>    parameters<span class="op">=</span>ToolParams(</span>
+<span id="cb23-11"><a href="#cb23-11" aria-hidden="true" tabindex="-1"></a>        properties<span class="op">=</span>{</span>
+<span id="cb23-12"><a href="#cb23-12" aria-hidden="true" tabindex="-1"></a>            <span class="st">"query"</span>: ToolParam(<span class="bu">type</span><span class="op">=</span><span class="st">"string"</span>, description<span class="op">=</span><span class="st">"Search query."</span>),</span>
+<span id="cb23-13"><a href="#cb23-13" aria-hidden="true" tabindex="-1"></a>            <span class="st">"author"</span>: ToolParam(<span class="bu">type</span><span class="op">=</span><span class="st">"string"</span>, description<span class="op">=</span><span class="st">"Filter by author."</span>),</span>
+<span id="cb23-14"><a href="#cb23-14" aria-hidden="true" tabindex="-1"></a>            <span class="st">"year"</span>: ToolParam(<span class="bu">type</span><span class="op">=</span><span class="st">"string"</span>, description<span class="op">=</span><span class="st">"Filter by year."</span>),</span>
+<span id="cb23-15"><a href="#cb23-15" aria-hidden="true" tabindex="-1"></a>        },</span>
+<span id="cb23-16"><a href="#cb23-16" aria-hidden="true" tabindex="-1"></a>        required<span class="op">=</span>[<span class="st">"query"</span>],</span>
+<span id="cb23-17"><a href="#cb23-17" aria-hidden="true" tabindex="-1"></a>    ),</span>
+<span id="cb23-18"><a href="#cb23-18" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>Only arguments declared in the schema are accepted unless it sets <code>additionalProperties</code>. A tool declared with <code>**kwargs: Any</code> receives all of the tool call’s arguments unconverted.</p>
 
 
+</section>
 </section>
 
 </main> <!-- /main -->

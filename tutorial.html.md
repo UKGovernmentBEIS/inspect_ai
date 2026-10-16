@@ -9,6 +9,7 @@ Below are several examples of Inspect evaluations. Each example is standalone, s
 | [Benchmarks](#sec-benchmarks) | Basic benchmarks with model grading and multiple choice. |
 | [Agent Evals](#sec-agents) | Tool-using agents running in a sandbox. |
 | [Custom Scorers](#sec-custom-scorers) | More sophisticated model-graders (math equivalence). |
+| [Custom Solvers](#sec-custom-solvers) | Conditional generation based on model output. |
 | [Custom Tools](#sec-custom-tools) | Providing models with Python functions to call. |
 | [Log Analysis](#sec-analysis) | The log viewer and reading Pandas dataframes from logs. |
 | [Coding Agents](#sec-coding-agents) | Using coding agents like Claude Code and Codex CLI. |
@@ -75,7 +76,7 @@ A solver is a pipeline. Here [system_message()](./reference/inspect_ai.solver.ht
 The `@task` decorator lets `inspect eval` discover and run the task by name. Run it from the command line:
 
 ``` bash
-inspect eval security_guide.py --model openai/gpt-5
+inspect eval security_guide.py --model openai/gpt-5 --model-role grader=google/gemini-2.5-pro
 ```
 
 When it finishes you’ll get a results summary and a link to the log. To explore that log interactively, launch the log viewer with `inspect view`:
@@ -110,6 +111,7 @@ from inspect_ai.solver import multiple_choice
         input=record["ctx"],
         choices=record["endings"],
         target=chr(ord("A") + int(record["label"])),
+        metadata={"activity": record["activity_label"]},
     )
 
 @task
@@ -118,7 +120,8 @@ def hellaswag():
 2        dataset=hf_dataset(
             path="hellaswag",
             split="validation",
-            sample_fields=record_to_sample
+            sample_fields=record_to_sample,
+            shuffle_choices=42,
         ),
 3        solver=multiple_choice(),
 4        scorer=choice(),
@@ -126,10 +129,10 @@ def hellaswag():
 ```
 
 1  
-HellaSwag stores the answer as an integer index, so we convert it to a choice letter (`A`, `B`, …). For datasets whose columns already line up, you can skip the function and use a declarative [FieldSpec](./reference/inspect_ai.dataset.html.md#fieldspec) instead.
+HellaSwag stores the answer as an integer index, so we convert it to a choice letter (`A`, `B`, …). We also keep the activity label in sample `metadata`. For datasets whose columns already line up, you can skip the function and use a declarative [FieldSpec](./reference/inspect_ai.dataset.html.md#fieldspec) instead.
 
 2  
-[hf_dataset()](./reference/inspect_ai.dataset.html.md#hf_dataset) loads directly from Hugging Face. Inspect also reads CSV, JSON, and in-memory lists of [Sample](./reference/inspect_ai.dataset.html.md#sample).
+[hf_dataset()](./reference/inspect_ai.dataset.html.md#hf_dataset) loads directly from Hugging Face. `shuffle_choices=42` randomizes the order of each sample’s choices with a reproducible seed and updates the target letter to match. Inspect also reads CSV, JSON, and in-memory lists of [Sample](./reference/inspect_ai.dataset.html.md#sample).
 
 3  
 [multiple_choice()](./reference/inspect_ai.solver.html.md#multiple_choice) formats the question and choices and calls the model. We don’t call [generate()](./reference/inspect_ai.solver.html.md#generate) ourselves because [multiple_choice()](./reference/inspect_ai.solver.html.md#multiple_choice) does it internally.
@@ -204,7 +207,7 @@ Here we assembled the agent ourselves from [react()](./reference/inspect_ai.agen
 
 Built-in scorers cover exact/inclusion matching, multiple choice, and model grading, but sometimes you need your own logic. For the [MATH](https://arxiv.org/abs/2103.03874) dataset, answers can be logically equivalent without being string-identical (`2x+3` vs `3+2x`), so we write a scorer that asks a model to judge equivalence:
 
-    math.py
+    math_500.py
 
 ``` python
 import re
@@ -217,7 +220,7 @@ from inspect_ai.solver import TaskState
 
 # Grader prompt (the full version adds a few worked examples).
 EQUIVALENCE_TEMPLATE = """
-Are these two expressions equivalent? Answer Yes or No.
+Are these two expressions equivalent? Answer Yes or No without any additional symbols.
 
 Expression 1: %(expression1)s
 Expression 2: %(expression2)s
@@ -292,7 +295,90 @@ def math():
     )
 ```
 
+Run it, limiting to 50 samples while developing:
+
+``` bash
+inspect eval math_500.py --limit 50 --model openai/gpt-5
+```
+
 See [Scoring](./scoring.html.md) for the full scorer and metric APIs.
+
+## Custom Solvers
+
+Built-in solvers can be chained together for many evaluation workflows. For more custom behaviour—such as multi-turn dialogue, conditional generation, or other logic that depends on the current [TaskState](./reference/inspect_ai.solver.html.md#taskstate) - you can write your own solver.
+
+This task asks a simple question directly, but allows the model to request a hint by replying with `NEED_HINT`. The custom solver branches on that first response:
+
+    capitals.py
+
+``` python
+from inspect_ai import Task, task
+from inspect_ai.dataset import Sample
+from inspect_ai.model import ChatMessageUser
+from inspect_ai.scorer import match
+from inspect_ai.solver import Generate, Solver, TaskState, solver
+
+
+1@solver
+def use_hint_if_requested() -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+2        state = await generate(state)
+
+        if state.output.completion.strip() == "NEED_HINT":
+3            hint = str(state.metadata["hint"])
+4            state.messages.append(
+                ChatMessageUser(content=f"Hint: {hint}")
+            )
+5            state = await generate(state)
+
+        return state
+
+    return solve
+
+
+@task
+def capitals():
+    return Task(
+        dataset=[
+            Sample(
+                input=(
+                    "What is the capital of Australia? "
+                    "Reply with only the answer. If you need help, "
+                    "reply with NEED_HINT."
+                ),
+                target="Canberra",
+                metadata={
+                    "hint": "It is not Sydney or Melbourne and starts with C."
+                },
+            ),
+        ],
+        solver=use_hint_if_requested(),
+        scorer=match(),
+    )
+```
+
+1  
+The `@solver` decorator registers the solver and captures its name and parameters in the log.
+
+2  
+`generate` is the same model-generation function used by the built-in [generate()](./reference/inspect_ai.solver.html.md#generate) solver. It appends the assistant message to `state.messages` and updates `state.output`.
+
+3  
+`state.output.completion` is the model’s current text response. If it is the `NEED_HINT` marker, the solver reads this sample’s `hint` from `state.metadata`.
+
+4  
+`state.messages` is the conversation history. Appending a [ChatMessageUser](./reference/inspect_ai.model.html.md#chatmessageuser) adds the hint as a follow-up user message.
+
+5  
+The second generation only runs for samples where the model requested a hint. Otherwise the solver returns the first response.
+
+Run it from the command line:
+
+``` bash
+inspect eval capitals.py --model openai/gpt-5
+```
+
+See [Solvers](./solvers.html.md) for the full solver API.
 
 ## Custom Tools
 
@@ -337,7 +423,7 @@ Args:
 
 Type annotations and descriptions are *required* for tool declarations so that the model can be informed which types to pass back to the tool function and what the purpose of each parameter is.
 
-Make the tool available to the model with [use_tools()](./reference/inspect_ai.solver.html.md#use_tools):
+Make the tool available to the model with [use_tools()](./reference/inspect_ai.solver.html.md#use_tools), or pass it to [react()](./react-agent.html.md):
 
 ``` python
 from inspect_ai import Task, task
@@ -354,6 +440,12 @@ def addition_problem():
         solver=[use_tools(add()), generate()],
         scorer=match(numeric=True),
     )
+```
+
+Run it from the command line:
+
+``` bash
+inspect eval addition.py --model openai/gpt-5
 ```
 
 Inspect includes many [standard tools](./tools-standard.html.md) (code execution, web search, web browsing, computer use, etc.) so check the built-in tools before writing your own.

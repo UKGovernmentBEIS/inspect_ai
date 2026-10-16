@@ -2,7 +2,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
 
 <meta charset="utf-8">
-<meta name="generator" content="quarto-1.10.18">
+<meta name="generator" content="quarto-1.9.37">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
@@ -12,13 +12,10 @@
 /* Default styles provided by pandoc.
 ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
 */
+code{white-space: pre-wrap;}
 span.smallcaps{font-variant: small-caps;}
-div.columns{display: flex; gap: 1.5em;}
-div.column{flex: auto;}
-@media screen {
-div.columns{gap: min(4vw, 1.5em);}
-div.column{overflow-x: auto;}
-}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
 div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
 ul.task-list{list-style: none;}
 ul.task-list li input[type="checkbox"] {
@@ -80,10 +77,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <script src="site_libs/quarto-html/tippy.umd.min.js"></script>
 <script src="site_libs/quarto-html/anchor.min.js"></script>
 <link href="site_libs/quarto-html/tippy.css" rel="stylesheet">
-<link href="site_libs/quarto-html/quarto-syntax-highlighting-64a204ab8560d761af7679ceaba22944.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<link href="site_libs/quarto-html/quarto-syntax-highlighting-7f8f88aac4f3542376d5c11b86a4c14d.css" rel="stylesheet" id="quarto-text-highlighting-styles">
 <script src="site_libs/bootstrap/bootstrap.min.js"></script>
 <link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
-<link href="site_libs/bootstrap/bootstrap-6be907ae78873760d36834dbe5a66008.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<link href="site_libs/bootstrap/bootstrap-60b6846f58d02926bc6ca5ecd6f15c48.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
 <script id="quarto-search-options" type="application/json">{
   "location": "navbar",
   "copy-button": false,
@@ -807,7 +804,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <li><p><span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#frequency">frequency()</a></span></p>
 <p>Frequency of each distinct categorical score value. By default this reports proportions over scored observations; pass <code>normalize=False</code> to report counts. If a task uses epochs, <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#frequency">frequency()</a></span> receives unreduced epoch scores, so each scored sample epoch is an observation.</p></li>
 <li><p><span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#categorical">categorical()</a></span></p>
-<p>Convenience helper for categorical scorers. Returns <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#frequency">frequency()</a></span> with optional declared categories, typically from a <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#strenum">StrEnum</a></span>, so zero-count categories are included and metrics can be recomputed from logs.</p></li>
+<p>Convenience helper for categorical scorers. Returns <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#frequency">frequency()</a></span> with optional declared categories, typically from a <code>StrEnum</code>, so zero-count categories are included and metrics can be recomputed from logs.</p></li>
 <li><p><span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#krippendorff_alpha">krippendorff_alpha()</a></span></p>
 <p>Krippendorff’s α coefficient of inter-rater agreement across multiple judges or scorers. Each sample’s <code>Score.value</code> must be a sequence of per-judge ratings (one element per judge) — produce these by pairing <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#multi_scorer">multi_scorer()</a></span> with the <code>collect</code> reducer (see <a href="#multi-judge-reliability">Multi-Judge Reliability</a>); the metric computes α across all samples. Pick the measurement scale that matches your ratings:</p>
 <ul>

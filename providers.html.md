@@ -11,7 +11,7 @@ Inspect has support for a wide variety of language model APIs and can be extende
 | Open (Hosted) | [Groq](./providers.html.md#groq), [Together AI](./providers.html.md#together-ai), [Fireworks AI](./providers.html.md#fireworks-ai), [Cloudflare](./providers.html.md#cloudflare), [HF Inference Providers](./providers.html.md#hugging-face-inference-providers), [SambaNova](./providers.html.md#sambanova) |
 | Open (Local) | [Hugging Face](./providers.html.md#hugging-face), [vLLM](./providers.html.md#vllm), [Ollama](./providers.html.md#ollama), [Lllama-cpp-python](./providers.html.md#llama-cpp-python), [SGLang](./providers.html.md#sglang), [TransformerLens](./providers.html.md#transformer-lens), [nnterp](./providers.html.md#nnterp) |
 
-\
+  
 
 If the provider you are using is not listed above, you may still be able to use it if:
 
@@ -246,14 +246,6 @@ inspect eval arc.py --model anthropic/claude-sonnet-4-0 -M betas=context-1m-2025
 
 ### Refusal Fallback
 
-> **NOTE:**
->
-> The model fallback feature described below requires the development version of Inspect. You can install the development version from GitHub with:
->
-> ``` bash
-> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-> ```
-
 Claude 5 classifiers can decline a request, returning a refusal (surfaced by Inspect as `stop_reason="content_filter"`). Such a request can usually be served by another Claude model. Set the `fallback_models` generate config to retry refused requests on one or more fallback models (tried in order) within the same request, using Anthropic’s [server-side fallback](https://platform.claude.com/docs/en/build-with-claude/refusals-and-fallback):
 
 ``` bash
@@ -266,7 +258,7 @@ Or via the [eval()](./reference/inspect_ai.html.md#eval) / [GenerateConfig](./re
 eval("arc.py", model="anthropic/claude-fable-5", fallback_models=["claude-opus-4-8"])
 ```
 
-This is a feature of the first-party Anthropic API only — it is not supported on Bedrock, Vertex, or Azure, nor with [batch mode](./models-batch.html.md), and is ignored (with a warning) in those cases.
+This is a feature of the first-party Anthropic API only — it is not supported on Bedrock, Vertex, or Azure, nor with [batch mode](./models-batch.html.md) or Claude Haiku 5.5 (which has no permitted fallback targets), and is ignored (with a warning) in those cases.
 
 See the [Fallbacks](./fallbacks.html.md) article for complete documentation, including what gets recorded in logs, dataframes, and the viewer when fallbacks occur.
 
@@ -304,11 +296,11 @@ inspect eval arc.py --model anthropic/claude-sonnet-4-0 -M streaming=true
 
 ### Computer Use
 
-When the [computer()](./tools-standard.html.md#sec-computer) tool is used with a Claude model, Inspect binds it to Anthropic’s native computer use support. On the Claude API and Vertex, Claude Opus 5.5 and Sonnet 5.5 (which reject the earlier tool there), Fable 5/5.1, and Mythos 5/5.1 use Anthropic’s [computer toolset](https://platform.claude.com/docs/en/agents-and-tools/tool-use/computer-use-tool) (`computer_toolset_20260801`). Other models, including Opus 5, Sonnet 5, and Opus 4.8, keep the legacy `computer_20251124` tool. Anthropic offers the toolset only on the Claude API and Vertex, so on Bedrock and Foundry every model (Opus 5.5, Sonnet 5.5, and Fable/Mythos included) uses the legacy tool.
+When the [computer()](./tools-standard.html.md#sec-computer) tool is used with a Claude model, Inspect binds it to Anthropic’s native computer use support. On the Claude API and Vertex, Claude Opus 5.5, Sonnet 5.5, and Haiku 5.5 (which reject the earlier tool there), Fable 5/5.1, and Mythos 5/5.1 use Anthropic’s [computer toolset](https://platform.claude.com/docs/en/agents-and-tools/tool-use/computer-use-tool) (`computer_toolset_20260801`). Other models, including Opus 5, Sonnet 5, and Opus 4.8, keep the legacy `computer_20251124` tool. Anthropic offers the toolset only on the Claude API and Vertex, so on Bedrock and Foundry every model (Opus 5.5, Sonnet 5.5, Haiku 5.5, and Fable/Mythos included) uses the legacy tool.
 
 With the toolset, each computer action arrives as its own tool call. Inspect executes the actions in one assistant turn in order and stops at the first failure, reporting the remaining actions to the model as not executed. Logs record each action as a `computer` tool call with an `action` argument, exactly as with the legacy tool.
 
-Use the `computer_toolset` model arg (`-M`) to force either mode where the platform supports it (`false` is rejected only for Opus 5.5 and Sonnet 5.5 on the Claude API or Vertex, where the legacy tool returns an error). The toolset requires Claude Opus 4.8, Sonnet 5, Opus 5 or later on the Claude API or Vertex; for example, to use it with Opus 5:
+Use the `computer_toolset` model arg (`-M`) to force either mode where the platform supports it (`false` is rejected only for Opus 5.5, Sonnet 5.5, and Haiku 5.5 on the Claude API or Vertex, where the legacy tool returns an error). The toolset requires Claude Opus 4.8, Sonnet 5, Opus 5 or later on the Claude API or Vertex; for example, to use it with Opus 5:
 
 ``` bash
 inspect eval computer.py --model anthropic/claude-opus-5 -M computer_toolset=true
@@ -621,7 +613,7 @@ The `grok` provider also supports a `disable_retry` model argument that disables
 inspect eval arc.py --model grok/grok-3-mini -M disable_retry=true
 ```
 
-This might be done if you are attempting to accurately track sample `working_time`—typically HTTP retries are subtracted from working time but the Grok provider uses GRPC which has no hooks available for requests and responses (while other providers do).
+This might be done if you are attempting to accurately track sample `working_time`—typically HTTP retries are subtracted from working time but the Grok provider uses GRPC which has no hooks available for requests and responses (while other providers do). See [Working Limit](./setting-limits.html.md#working-limit) for what working time excludes and its limitations.
 
 The `grok` provider also supports a `service_tier` model argument that selects the xAI processing tier for requests (introduced alongside Grok 4.6; requires `xai_sdk` \>= 1.17). For example, to use [Priority Processing](https://docs.x.ai/developers/grok-4-6) (billed at higher token rates):
 
@@ -1698,7 +1690,7 @@ model_list:
       supports_adaptive_thinking: true
 ```
 
-`base_model` also lets LiteLLM accept parameters it would otherwise reject for an unknown model, such as reasoning effort and (for Bedrock) tool choice. For Anthropic, OpenAI, Google and xAI models the error message suggests that vendor’s current frontier model.
+`base_model` also lets LiteLLM accept parameters it would otherwise reject for an unknown model, such as reasoning effort and (for Bedrock) tool choice. For Anthropic, OpenAI, Google, xAI and Meta models the error message suggests that vendor’s current frontier model.
 
 For a Claude 4.6 or later model under a name LiteLLM doesn’t know (such as a codename), also set `supports_reasoning` and `supports_adaptive_thinking` as above. LiteLLM uses adaptive thinking only for Claude models it recognizes by their upstream name, and `base_model` does not change this. Without the flags, LiteLLM either sends extended thinking with a reasoning effort, which Claude 4.7 and later reject (Inspect then fails with an error naming this fix), or, without `base_model`, refuses the reasoning effort (Inspect then sends none and warns with this fix).
 
@@ -1719,11 +1711,30 @@ A model that does not accept a conversation ending with an assistant message (as
 
 ### Gemini Models
 
-When the upstream model is a Gemini model (recognized by its name), requests with tools follow the native `google` provider’s handling of malformed function calls:
+When the upstream model is a Gemini model (recognized by its name), requests with tools follow the native `google` provider’s retry of malformed function calls, but not its function-calling hint:
 
-- The system prompt carries a function-calling hint that discourages Gemini from writing a function call as code (`print(default_api.bash(...))`).
+- No function-calling hint is added to the system prompt. In live trials through the proxy, the hint made Gemini 2.5 Pro loop on repeated tool calls and did not reduce malformed calls.
 - A turn that comes back as a malformed function call is retried up to 3 times with a corrective exchange, with tool calling required when the tool choice was `auto`. LiteLLM reports Gemini’s `MALFORMED_FUNCTION_CALL` as an ordinary stop, so Inspect recognizes such a turn by its shape: no text and no tool call, or text that is a function call written as code. When the retries run out, the assistant message says that it had trouble calling a function. Usage covers every attempt, and `ModelOutput.metadata` records `malformed_function_call_attempts`.
 - Each replayed tool call carries its thought signature in `provider_specific_fields` as well as in its id. LiteLLM strips the id-embedded signature when the proxy’s `model_name` does not contain “gemini” and then sends a placeholder signature, which Google documents as degrading the model.
+
+### Grok Models
+
+When the upstream model is an xAI Grok model (recognized by its name, or the `xai` provider), requests follow the native `grok` provider:
+
+- Grok 4 and later models served directly by xAI use the Responses API (see [Responses API and Streaming](#litellm-proxy-streaming)), so their encrypted reasoning is carried from one turn to the next. On the Chat Completions API, xAI returns only a summary of the reasoning. As with the `grok` provider, any model name on LiteLLM’s `xai` provider other than Grok 2 and Grok 3 (including predeployment codenames) counts as Grok 4 or later.
+- `reasoning_effort` values the model rejects are lowered: `max` to `xhigh`, and `none` is not sent.
+- Requests made within a sample carry its id in the `x-grok-conv-id` header, which keeps the sample’s requests on one xAI server so that they reuse its prompt cache. The proxy forwards the header only when its config has `forward_client_headers_to_llm_api: true` under `general_settings`.
+- xAI’s context window errors end the turn with stop reason `model_length`, and its safety refusals with `content_filter`.
+
+### Meta Models
+
+When the upstream model is a Meta Muse model (recognized by LiteLLM’s `meta` provider, other than for Llama models, or by a `muse-` name not under another host’s path), requests follow the native `meta` provider:
+
+- Models served directly by the Meta Model API use the Responses API (see [Responses API and Streaming](#litellm-proxy-streaming)), so their encrypted reasoning is carried from one turn to the next. On the Chat Completions API, Meta returns no reasoning.
+- Meta does not accept a forced tool choice. A `tool_choice` of `"any"` or a specific tool is sent as `"auto"`, with a warning and `tool_choice_degraded` in the output metadata. For `tool_choice="none"` no tools are sent.
+- `logprobs` and `top_logprobs`, and on the Chat Completions API `stop_seqs`, `logit_bias` and `num_choices`, are dropped with a warning.
+- A refusal ends the turn with stop reason `content_filter`.
+- Meta reports a prompt over the context window as a generic invalid request, so it ends in an error rather than stop reason `model_length`.
 
 ### Reasoning Effort
 
@@ -1733,9 +1744,9 @@ When the proxy or upstream model rejects the requested `reasoning_effort`, Inspe
 
 ### Responses API and Streaming
 
-GPT-5 and later, o-series and Codex models served directly by OpenAI use the proxy’s Responses API, as they do with the `openai` provider, so their reasoning is carried from one turn to the next. This applies when every deployment of the model uses LiteLLM’s `openai` provider with no `api_base` other than OpenAI’s (Azure deployments and OpenAI-compatible servers are not included). A predeployment model qualifies when its deployment sets `model_info.base_model` (see [Model Info](#litellm-proxy-model-info)). Other models use the Chat Completions API. Pass `-M responses_api=true` or `-M responses_api=false` to choose the API. Through the proxy, web search is the only OpenAI built-in tool used on the Responses API; [computer()](./reference/inspect_ai.tool.html.md#computer), [code_execution()](./reference/inspect_ai.tool.html.md#code_execution) and remote MCP servers are sent as ordinary tools, as on the Chat Completions API.
+GPT-5 and later, o-series and Codex models served directly by OpenAI use the proxy’s Responses API, as they do with the `openai` provider, so their reasoning is carried from one turn to the next. This applies when every deployment of the model uses LiteLLM’s `openai` provider with no `api_base` other than OpenAI’s (Azure deployments and OpenAI-compatible servers are not included). A predeployment model qualifies when its deployment sets `model_info.base_model` (see [Model Info](#litellm-proxy-model-info)). The same applies to Grok 4 and later models whose deployments all use LiteLLM’s `xai` provider with no `api_base` other than xAI’s, and to Meta models whose deployments all use LiteLLM’s `meta` provider with no `api_base` other than Meta’s. Other models use the Chat Completions API. Pass `-M responses_api=true` or `-M responses_api=false` to choose the API. Through the proxy, web search is the only OpenAI built-in tool used on the Responses API; [computer()](./reference/inspect_ai.tool.html.md#computer), [code_execution()](./reference/inspect_ai.tool.html.md#code_execution) and remote MCP servers are sent as ordinary tools, as on the Chat Completions API.
 
-Requests stream by default, so long generations don’t hit client or proxy timeouts, except Responses API requests for models not served by OpenAI. Pass `-M stream=false` to disable streaming.
+Requests stream by default, so long generations don’t hit client or proxy timeouts, except Responses API requests for models not served by OpenAI, xAI or Meta. Pass `-M stream=false` to disable streaming.
 
 ### Web Search
 
@@ -1747,8 +1758,8 @@ The [web_search()](./reference/inspect_ai.tool.html.md#web_search) tool uses Ope
 |----|----|
 | `require_model_info` | Fail if the model has no context window (default: `true`). |
 | `model_info` | Read the proxy’s `/model/info` listing (default: `true`). With `false`, Inspect does not look up the upstream model and requests are shaped by the proxy model name alone. |
-| `stream` | Stream requests (default: `true`, except Responses API requests for models not served by OpenAI). |
-| `responses_api` | Use the Responses API (default: `true` for GPT-5 and later, o-series and Codex models served by OpenAI, `false` otherwise). |
+| `stream` | Stream requests (default: `true`, except Responses API requests for models not served by OpenAI, xAI or Meta). |
+| `responses_api` | Use the Responses API (default: `true` for GPT-5 and later, o-series and Codex models served by OpenAI, Grok 4 and later models served by xAI, and Meta models served by Meta; `false` otherwise). |
 | `thinking_display` | Thinking text Claude 4.6 and later models return when a `reasoning_effort` is set: `summarized` (default) or `omitted`. |
 
 The following environment variables are supported by the LiteLLM Proxy provider:

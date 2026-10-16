@@ -52,7 +52,7 @@ You can use the following functions to create interfaces to the various types of
 | [mcp_server_stdio()](./reference/inspect_ai.tool.html.md#mcp_server_stdio) | Stdio interface to MCP server. Use this for MCP servers that run locally. |
 | [mcp_server_http()](./reference/inspect_ai.tool.html.md#mcp_server_http) | HTTP interface to MCP server. Use this for MCP servers available via a URL endpoint. |
 | [mcp_server_sandbox()](./reference/inspect_ai.tool.html.md#mcp_server_sandbox) | Sandbox interface to MCP server. Use this for MCP servers that run in an Inspect sandbox. |
-| [mcp_server_sse()](./reference/inspect_ai.tool.html.md#mcp_server_sse) | SSE interface to MCP server (Note that the SSE interface has been [deprecated](https://mcp-framework.com/docs/Transports/sse/)) |
+| [mcp_server_sse()](./reference/inspect_ai.tool.html.md#mcp_server_sse) | SSE interface to MCP server (Note that the SSE interface has been [deprecated](https://mcp-framework.com/docs/transports/sse/)) |
 
 We’ll cover using stdio and http based servers in the section below. Sandbox servers require some additional container configuration, and are covered separately in [Sandboxes](#sandboxes).
 

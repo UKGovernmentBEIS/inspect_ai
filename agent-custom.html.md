@@ -195,6 +195,8 @@ Call `compact_input()` prior to `model.generate()`—pass the compacted `input` 
 3  
 Call `record_output()` after `model.generate()` to calibrate token estimation using the model’s actual reported usage. This improves the accuracy of compaction threshold detection.
 
+To recover from a context window overflow (`stop_reason == "model_length"`), call `compact_input()` with `force=True`, which compacts regardless of the threshold, and generate again. The handler does not check that a forced compaction reduced the input. If the retry also overflows, truncate the messages or stop rather than forcing compaction again.
+
 > **NOTE: Note**
 >
 > The returned `compact` handler maintains internal state for a single growing conversation history. Concurrent calls within the same conversation are safe, but do not share one handler across divergent message histories — the compacted result mixes them.
@@ -283,7 +285,7 @@ blue_team_activity = store_as(Activity, instance="blue_team")
 
 ## Agent Limits
 
-The Inspect [limits system](./setting-limits.html.md#scoped-limits) enables you to set a variety of limits on execution including tokens consumed, messages used in conversations, clock time, and working time (clock time minus time taken retrying in response to rate limits or waiting on other shared resources).
+The Inspect [limits system](./setting-limits.html.md#scoped-limits) enables you to set a variety of limits on execution including tokens consumed, messages used in conversations, clock time, and working time (clock time minus time taken retrying in response to rate limits or waiting on other shared resources; see [Working Limit](./setting-limits.html.md#working-limit) for its limitations).
 
 Limits are often applied at the sample level or using a context manager. It is also possible to specify limits when executing an agent using any of the techniques described above.
 
