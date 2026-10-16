@@ -182,12 +182,19 @@ def tool_pattern(pattern: str) -> ToolPattern:
                 f"Invalid tool pattern '{pattern}': argument names must be "
                 f"literal, got '{name}'."
             )
-        if _value_runs_on(value):
+        run_on = _value_runs_on(value)
+        if run_on == "unclosed":
             raise ValueError(
                 f"Invalid tool pattern '{pattern}': the value of '{name}' may "
                 f"run into the next pattern. {_NEXT_TOOL_HINT} A value that "
                 f"contains a comma must be closed with a quote, as in "
                 f"{name}='a, b*'."
+            )
+        elif run_on == "trailing":
+            raise ValueError(
+                f"Invalid tool pattern '{pattern}': the value of '{name}' has "
+                f"text after its closing quote. Put a backslash before a quote "
+                f"inside a value, as in {name}='it\\'s'. {_NEXT_TOOL_HINT}"
             )
         arguments.append(ArgumentPattern(name=name, value=value))
     if arguments and not items.closed and stripped[-1] != "*":
@@ -207,16 +214,17 @@ _NEXT_TOOL_HINT = (
 )
 
 
-def _value_runs_on(value: str) -> bool:
+def _value_runs_on(value: str) -> Literal["unclosed", "trailing"] | None:
     """Whether a quoted value may have taken in the next pattern of a string.
 
-    True when the quote is never closed and a comma follows it, or when text
-    other than a glob follows the closing quote. Either way a comma that
-    should have ended this pattern was read as part of the value.
+    `"unclosed"` when the quote is never closed and a comma follows it,
+    `"trailing"` when text other than a glob follows the closing quote (an
+    unescaped quote inside the value, or a comma that should have ended this
+    pattern read as part of the value).
     """
     start = len(value) - len(value.lstrip("*?"))
     if start == len(value) or value[start] not in "'\"":
-        return False
+        return None
     escaped = False
     for index in range(start + 1, len(value)):
         char = value[index]
@@ -225,8 +233,8 @@ def _value_runs_on(value: str) -> bool:
         elif char == "\\":
             escaped = True
         elif char == value[start]:
-            return value[index + 1 :].strip("*?") != ""
-    return "," in value[start:]
+            return "trailing" if value[index + 1 :].strip("*?") else None
+    return "unclosed" if "," in value[start:] else None
 
 
 class _SplitPattern(NamedTuple):

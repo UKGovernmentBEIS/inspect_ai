@@ -939,6 +939,13 @@ async def test_policy_quoted_values_with_and_without_commas() -> None:
     assert await matched_approvers("bash(cmd='a, *'", call) == both
 
 
+def test_policy_unescaped_quote_in_value_is_explained() -> None:
+    with pytest.raises(ValueError, match="text after its closing quote") as error:
+        policy_approver([ApprovalPolicy(auto_approver(), "bash(cmd='it's'")])
+    assert "cmd='it\\'s'" in str(error.value)
+    assert tool_pattern("bash(cmd='it\\'s'").matches(make_tool_call("bash", cmd="it's"))
+
+
 def test_policy_argument_names_are_literal() -> None:
     # a name glob would let one argument supply the value while another
     # passes on its name alone
