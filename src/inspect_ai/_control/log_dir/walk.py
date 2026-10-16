@@ -77,7 +77,7 @@ class ShardSetFiles(NamedTuple):
 
     merged: list[LogFile]
     """The merged logs beside the companion (``<name>.eval`` and
-    ``<name>-recovered.eval``), newest first."""
+    ``<name>-recovered.eval``), newest first. Only the newest is read."""
 
     stray: list[StrayFile]
     """Logs in the companion that are not shard attempts."""
@@ -147,12 +147,10 @@ async def walk_log_dir(
             elif is_log_file(name, [".json"]):
                 json_logs.append(info.name)
         companions = [d for d in listing.dirs if find_sets and _is_companion(d)]
-        merged = {
-            companion: [
-                f for f in files if log_basename(f.name) == _set_name(companion)
-            ]
-            for companion in companions
-        }
+        by_basename: dict[str, list[LogFile]] = {}
+        for f in files:
+            by_basename.setdefault(log_basename(f.name), []).append(f)
+        merged = {c: by_basename.get(_set_name(c), []) for c in companions}
         claimed = {f.location for logs in merged.values() for f in logs}
         eval_files.extend(f for f in files if f.location not in claimed)
         subdirs = [d for d in listing.dirs if d not in merged and _descend(basename(d))]

@@ -64,6 +64,7 @@ from inspect_ai._control.state import _iso_to_timestamp
 from inspect_ai._util.async_zip import AsyncZipReader, ZipCrcError
 from inspect_ai._util.asyncfiles import AsyncFilesystem, FileContent
 from inspect_ai._util.file import local_path
+from inspect_ai._util.log_layout import log_basename
 from inspect_ai.dataset import Sample
 from inspect_ai.event import InfoEvent, ModelEvent
 from inspect_ai.log import (
@@ -2223,7 +2224,14 @@ async def test_a_shard_set_is_one_row_over_its_shards(
         "overlapping": 0,
         "mismatched": 0,
     }
-    assert row["incomplete"] is False
+    if merged == "both":
+        # the older merged log is not read and is listed
+        [older] = row["unreadable"]
+        assert older["log_location"] == str(tmp_path / f"{_SET_NAME}.eval")
+        assert "an older merged log" in older["reason"]
+        assert row["incomplete"] is True
+    else:
+        assert row["unreadable"] == [] and row["incomplete"] is False
 
 
 async def test_a_superseded_shard_attempt_is_not_read(
@@ -2333,7 +2341,7 @@ def test_a_merged_log_with_no_task_id_keeps_the_sets_key(
         assert result.exit_code == 0, (args, result.output)
 
 
-async def test_an_unreadable_recovered_merged_log_falls_back_to_the_original(
+async def test_an_unreadable_newest_merged_log_keys_the_set_by_its_name(
     tmp_path: Path, finished_log: EvalLog
 ) -> None:
     # a file name pattern without {id}: only a readable merged log gives the id
@@ -2344,11 +2352,15 @@ async def test_an_unreadable_recovered_merged_log_falls_back_to_the_original(
     recovered = tmp_path / f"{name}-recovered.eval"
     recovered.write_bytes(b"not a zip")
     _, [row] = await _index(tmp_path)
-    assert row["task_id"] == minted and row["current_attempt"] == "shards"
-    assert row["eval_id"] == "MERGEDEVAL000000000000"
-    assert row["log_location"] == str(merged)
+    # the older plain merged log is not read, so its task id is not used
+    assert row["task_id"] == name and row["current_attempt"] == "shards"
+    assert row["eval_id"] is None
+    assert row["log_location"] == str(recovered)
     assert row["incomplete"] is True
-    assert [u["log_location"] for u in row["unreadable"]] == [str(recovered)]
+    failure, older = row["unreadable"]
+    assert failure["log_location"] == str(recovered)
+    assert older["log_location"] == str(merged)
+    assert "an older merged log" in older["reason"]
 
 
 async def test_an_unreadable_merged_log_of_a_superseded_shard_set_is_reported(
@@ -2416,6 +2428,32 @@ async def test_the_walk_agrees_with_eval_set_on_shard_paths(
     assert shard_files == {log for log in logs if is_shard_path(str(base), log)}
     sets = {Path(s.location) for s in listing.shard_sets}
     assert sets == {"dir": {companion}, "companion": {nested}, "shard": set()}[root]
+
+
+async def test_the_walk_pairs_companions_with_logs_in_linear_work(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # accumulated runs: each log beside a companion with no shard attempt
+    n = 60
+    for i in range(n):
+        for suffix in ("", "-recovered"):
+            (tmp_path / f"run{i}{suffix}.eval").write_bytes(b"log")
+        checkpoint = tmp_path / f"run{i}.shards" / "0" / "x.checkpoints" / "1"
+        checkpoint.parent.mkdir(parents=True)
+        checkpoint.write_bytes(b"checkpoint")
+    calls = 0
+
+    def counting(location: str) -> str:
+        nonlocal calls
+        calls += 1
+        return log_basename(location)
+
+    monkeypatch.setattr("inspect_ai._control.log_dir.walk.log_basename", counting)
+    async with AsyncFilesystem() as fs:
+        listing = await walk_log_dir(fs, str(tmp_path))
+    assert len(listing.eval_files) == 2 * n and listing.shard_sets == []
+    # once per log, not once per log and companion
+    assert calls == 2 * n
 
 
 async def test_a_merged_log_without_its_companion_is_an_ordinary_row(
@@ -2533,31 +2571,25 @@ async def test_a_second_shard_set_for_a_task_id_is_reported_not_read(
     assert str(first) in unreadable["reason"]
 
 
-@pytest.mark.parametrize("merged", ["fallback", "unreadable"])
-def test_a_second_shard_sets_unreadable_merged_logs_are_reported(
-    tmp_path: Path, finished_log: EvalLog, no_discovery: None, merged: str
+def test_a_second_shard_sets_unreadable_merged_log_is_reported(
+    tmp_path: Path, finished_log: EvalLog, no_discovery: None
 ) -> None:
     anyio.run(functools.partial(_shard_set, tmp_path / "a", finished_log, {"0": [1]}))
     second = anyio.run(
         functools.partial(_shard_set, tmp_path / "b", finished_log, {"0": [2]})
     )
-    # a duplicate's shards are not read, so this one is never reported
+    # a duplicate's shards and older merged log are not read or listed
     broken = second / "1" / f"{_SHARD_STAMP}_alpha_SHARD1TASK000000000000.eval"
     broken.parent.mkdir()
     broken.write_bytes(b"not a zip")
-    plain = tmp_path / "b" / f"{_SET_NAME}.eval"
-    if merged == "fallback":
-        anyio.run(functools.partial(_merged, tmp_path / "b", finished_log))
-    else:
-        plain.write_bytes(b"not a zip")
+    (tmp_path / "b" / f"{_SET_NAME}.eval").write_bytes(b"not a zip")
     recovered = tmp_path / "b" / f"{_SET_NAME}-recovered.eval"
     recovered.write_bytes(b"not a zip")
 
     payload = _json(_ctl(tmp_path, "task", "list", "--json"))
     [row] = payload["tasks"]
     assert row["task_id"] == _SET_ID and row["samples"]["total"] == 1
-    failed = {str(recovered)} | ({str(plain)} if merged == "unreadable" else set())
-    expected = failed | {str(second)}
+    expected = {str(recovered), str(second)}
     assert {u["log_location"] for u in row["unreadable"]} == expected
     assert {u["log_location"] for u in payload["unreadable"]} == expected
     listing = _json(_ctl(tmp_path, "sample", "list", _SET_ID, "--json"))

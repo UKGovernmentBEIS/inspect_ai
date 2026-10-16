@@ -565,10 +565,10 @@ one attempt.
   retry, or an original beside its `-recovered` copy)
   are superseded and not read, matching the parent's newest-wins rule.
 - Its merged log is the `.eval` in the companion's parent directory whose
-  `log_basename` is `X`: `X.eval` or `X-recovered.eval`, the newest when
-  both exist, or the other when the newest cannot be read (the unreadable
-  one is listed in the task row's `unreadable`). It does not get a row of
-  its own.
+  `log_basename` is `X`: `X.eval` or `X-recovered.eval`, the newest by
+  attempt order when both exist. The other is not read and is listed in
+  the task row's `unreadable` as an older merged log, so the row is
+  `incomplete`. It does not get a row of its own.
 - The shard set is one attempt of the logical task identified by the
   merged log's `eval.task_id` when the merged log exists and records one,
   and otherwise by
@@ -590,11 +590,12 @@ one attempt.
   including one an unsharded retry supersedes, which is otherwise not
   read. Its shards are read only when the set is current. A merged log
   that cannot be read is listed in the task row's `unreadable`, and the
-  set takes the id of its other merged log, or the id parsed from `X`
-  when none can be read.
+  set takes the id parsed from `X`, as with no merged log, even when an
+  older merged log is readable. Under a file name pattern without `{id}`
+  such a set does not fold with its retry (decision: Ransom, 2026-10-16).
 - A task id has at most one shard set: the first companion by path. A
   second companion with the same task id is not read beyond its merged
-  log; the companion, and any of its merged logs that cannot be read, are
+  log; the companion, and its merged log when it cannot be read, are
   listed in the task row's `unreadable`, so the row
   is `incomplete` (decision: Ransom, 2026-10-13). Shard sets with
   different task ids are separate tasks.
