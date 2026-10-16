@@ -112,8 +112,8 @@ async def sentinel_before_tool_call(
         call=call,
         view=resolve_tool_call_view(call, viewer),
         input=list(producer.input) if producer is not None else None,
-        history=history,
-        sent=sent_messages(conversation),
+        agent_messages=history,
+        history=sent_messages(conversation),
         tools=list(producer.tools) if producer is not None else None,
     )
     return await _run(step)
@@ -158,8 +158,8 @@ async def sentinel_after_tool_call(
         output=output,
         view=resolve_tool_call_view(call, viewer),
         input=list(producer.input) if producer is not None else None,
-        history=history,
-        sent=sent_messages(conversation),
+        agent_messages=history,
+        history=sent_messages(conversation),
         tools=list(producer.tools) if producer is not None else None,
         truncated=Truncation(*truncated) if truncated is not None else False,
     )
@@ -196,8 +196,8 @@ async def sentinel_before_generate(
         model=model,
         conversation=conversation,
         input=input,
-        history=history,
-        sent=sent_messages(conversation),
+        agent_messages=history,
+        history=sent_messages(conversation),
         tools=tools,
         tool_choice=tool_choice,
         config=config,
@@ -217,8 +217,8 @@ async def sentinel_after_generate(before: BeforeGenerate, output: ModelOutput) -
         model=before.model,
         conversation=before.conversation,
         input=before.input,
-        history=before.history,
-        sent=sent_messages(before.conversation),
+        agent_messages=before.agent_messages,
+        history=sent_messages(before.conversation),
         tools=before.tools,
         tool_choice=before.tool_choice,
         config=before.config,
@@ -449,8 +449,8 @@ class _HostNative:
         # the approval surfaces show the conversation; a step whose host could
         # not provide the scaffold's history shows what the model saw instead,
         # and nothing when that is unknown too
-        if step.history is not None:
-            conversation = step.history
+        if step.agent_messages is not None:
+            conversation = step.agent_messages
         elif step.input is not None:
             conversation = step.input
         else:

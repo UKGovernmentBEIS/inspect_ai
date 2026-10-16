@@ -1161,9 +1161,9 @@ def test_context_and_step_come_from_the_sample(
     assert step.conversation == sample.uuid
     assert step.call.function == "addition"
     assert step.view.call is not None
-    # in-process Inspect always provides history
-    assert step.history is not None
-    assert step.history[-1].role == "assistant"
+    # in-process Inspect always provides the agent's messages
+    assert step.agent_messages is not None
+    assert step.agent_messages[-1].role == "assistant"
     model_events = [e for e in sample.events if isinstance(e, ModelEvent)]
     assert step.input is not None
     assert [m.text for m in step.input] == [m.text for m in model_events[0].input]
@@ -2044,7 +2044,7 @@ def test_a_modified_call_on_a_non_modify_decision_is_not_dropped(
         call=call,
         view=ToolCallView(),
         input=[],
-        history=[],
+        agent_messages=[],
     )
     reported = Reported(
         name="p", path="p", function="f", report=Decision(action=action, modified=call)
@@ -3214,19 +3214,19 @@ Sent = list[tuple[Any, list[ChatMessage] | None]]
 @monitor
 def d3_reads_sent(seen: Any) -> MonitorGroup:
     async def before(context: Context, step: BeforeGenerate) -> Observation | None:
-        seen.append((step, step.sent))
+        seen.append((step, step.history))
         return None
 
     async def after(context: Context, step: AfterGenerate) -> Observation | None:
-        seen.append((step, step.sent))
+        seen.append((step, step.history))
         return None
 
     async def before_tool(context: Context, step: BeforeToolCall) -> Observation | None:
-        seen.append((step, step.sent))
+        seen.append((step, step.history))
         return None
 
     async def after_tool(context: Context, step: AfterToolCall) -> Observation | None:
-        seen.append((step, step.sent))
+        seen.append((step, step.history))
         return None
 
     return MonitorGroup(before, after, before_tool, after_tool)
@@ -3573,7 +3573,7 @@ def test_nothing_is_recorded_without_a_sentinel() -> None:
     assert log.status == "success", log.error
 
 
-# A reference model of step.sent's rules, checked against _sent.py on random
+# A reference model of step.history's rules, checked against _sent.py on random
 # request sequences. The reference refolds the whole sequence for every
 # request, with no incremental state, no alias index and no identity shortcut.
 
@@ -3785,7 +3785,7 @@ def _check_random_cases(seed: int, cases: int) -> None:
         if _first_divergence(case) is not None:
             minimal = _shrink(case)
             raise AssertionError(
-                f"step.sent differs from the reference (seed {seed}, case {number}); "
+                f"step.history differs from the reference (seed {seed}, case {number}); "
                 f"minimal sequence (role:id:content#object):\n{_describe_case(minimal)}\n"
                 f"{_first_divergence(minimal)}"
             )
