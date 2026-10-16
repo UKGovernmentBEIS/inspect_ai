@@ -2276,6 +2276,19 @@ def test_cli_cache_entries_change_what_is_fetched_never_what_is_returned(
     assert answers() == cold
     assert json.loads(entry.read_text())["schema_version"] == cache.SCHEMA_VERSION
 
+    # entries whose header fails validation with other exception types
+    data = json.loads(entry.read_text())
+    header = data["plan"]["header"]
+    for malformed in [
+        {**header, "eval": {**header["eval"], "sandbox": []}},  # IndexError
+        {**header, "results": 1},  # TypeError
+    ]:
+        entry.write_text(
+            json.dumps({**data, "plan": {**data["plan"], "header": malformed}})
+        )
+        assert answers() == cold
+        assert json.loads(entry.read_text()) == data
+
 
 async def test_failed_and_cancelled_reads_store_no_snapshot(
     log_dir: Path, monkeypatch: pytest.MonkeyPatch, _isolate_log_dir_cache: Path

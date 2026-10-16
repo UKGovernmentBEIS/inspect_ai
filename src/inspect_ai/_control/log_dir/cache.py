@@ -258,7 +258,8 @@ class LogDirCache:
                 raise ValueError(f"schema version {entry.schema_version}")
             if entry.location != key:
                 raise ValueError(f"entry for {entry.location}")
-        except ValueError as ex:
+        # some header validators raise IndexError or TypeError on bad input
+        except (ValueError, IndexError, TypeError) as ex:
             logger.debug(f"discarding log-dir cache entry {path}: {ex}")
             with suppress(OSError):
                 path.unlink(missing_ok=True)
