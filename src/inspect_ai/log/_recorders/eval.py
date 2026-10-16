@@ -1670,6 +1670,8 @@ class ZipLogFile:
             self._zip = None
             self._temp_file.close()
             self._temp_file = seeded
+            # a prefix from an earlier seed describes the replaced file
+            self._clear_compose_prefix()
             self._open()
             assert self._zip is not None
 

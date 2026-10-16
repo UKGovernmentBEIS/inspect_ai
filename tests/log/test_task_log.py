@@ -1001,8 +1001,11 @@ async def test_task_logger_stale_flush_compose_prefix_violation_fails_the_finish
         )
     temp = zip_log._temp_file
     position = temp.tell()
-    temp.seek(zip_log._zip.start_dir // 2)
-    temp.write(b"\0")
+    offset = zip_log._zip.start_dir // 2
+    temp.seek(offset)
+    byte = temp.read(1)[0]
+    temp.seek(offset)
+    temp.write(bytes([byte ^ 0xFF]))
     temp.seek(position)
 
     logger.flush_pending = [("sample", 1)]

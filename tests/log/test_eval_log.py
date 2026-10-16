@@ -2825,6 +2825,54 @@ async def test_seeded_start_flush_uploads_whole_without_a_usable_prefix(
     )
 
 
+@pytest.mark.parametrize("replacement", ["restricted", "local_prior"])
+async def test_seed_replacement_drops_the_earlier_compose_prefix(
+    mock_s3: None,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    replacement: str,
+) -> None:
+    # a second seed whose copy cannot compose must not keep the first seed's
+    # prefix: it describes a temp file that no longer exists
+    from inspect_ai.log._file import read_eval_log_sample_summaries_async
+    from inspect_ai.log._log import EvalPlan
+    from inspect_ai.log._recorders.eval import EvalRecorder
+
+    first = await _write_seed_prior(
+        _s3_log_dir("replaced-prior"), _large_seed_samples(*_LARGE_PRIOR)
+    )
+    second = (
+        first
+        if replacement == "restricted"
+        else await _write_seed_prior(
+            str(tmp_path / "prior"), _large_seed_samples(*_LARGE_PRIOR)
+        )
+    )
+    keep: set[tuple[str | int, int]] | None = (
+        {(1, 1)} if replacement == "restricted" else None
+    )
+
+    spec = _seed_spec("retry-attempt")
+    recorder = EvalRecorder(_s3_log_dir("replaced-retry"))
+    location = await recorder.log_init(spec)
+    await recorder.log_seed(spec, first, keep=None)
+    zip_log = recorder.data[recorder._log_file_key(spec)]
+    if current_async_backend() == "asyncio":
+        assert zip_log._compose_prefix is not None
+    await recorder.log_seed(spec, second, keep=keep)
+    assert zip_log._compose_prefix is None
+    assert zip_log._compose_prefix_digest is None
+
+    calls, _ = _spy_s3(monkeypatch)
+    await recorder.log_start(spec, EvalPlan())
+    await recorder.flush(spec)
+
+    assert not [name for name, _ in calls if name == "upload_part_copy"]
+    assert await _s3_object(location) == _temp_bytes(zip_log)
+    summaries = await read_eval_log_sample_summaries_async(location)
+    assert {s.id for s in summaries} == ({1} if keep else {1, 2, 3, 4})
+
+
 @skip_if_trio
 async def test_seeded_start_flush_uploads_whole_when_prior_changed(
     mock_s3: None, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
