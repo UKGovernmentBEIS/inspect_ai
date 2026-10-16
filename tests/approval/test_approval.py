@@ -998,6 +998,45 @@ async def test_an_approver_changes_a_call_with_modify(
     assert message.text == result
 
 
+@approver
+def renaming_modify_approver(selected: str) -> Approver:
+    """Approver which renames the call it is given, then returns a modify."""
+
+    async def approve(
+        message: str,
+        call: ToolCall,
+        view: ToolCallView,
+        history: list[ChatMessage],
+    ) -> Approval:
+        call.function = "other"
+        return Approval(
+            decision="modify",
+            modified=ToolCall(
+                id=call.id, function=selected, arguments={"x": 7, "y": 1}
+            ),
+        )
+
+    return approve
+
+
+async def test_a_modify_keeps_the_function_as_shown() -> None:
+    """A modify may select only the function shown, whatever the approver renamed."""
+    message = await execute_with_approval(
+        ToolCall(id="1", function="addition", arguments={"x": 10, "y": 1}),
+        [addition()],
+        [ApprovalPolicy(renaming_modify_approver("addition"), "*")],
+    )
+    assert message.error is None
+    assert message.text == "8"
+
+    with pytest.raises(RuntimeError, match="may change only the arguments"):
+        await execute_with_approval(
+            ToolCall(id="1", function="addition", arguments={"x": 10, "y": 1}),
+            [addition()],
+            [ApprovalPolicy(renaming_modify_approver("other"), "*")],
+        )
+
+
 @dataclass
 class NonNegative:
     n: int
@@ -1063,6 +1102,30 @@ async def test_lazy_iterable_runs_with_its_values() -> None:
     assert message.error is None
     assert [call.arguments for call in calls] == [{"lazy": {"values": [1, 2, 3]}}]
     assert received == [{"lazy": [1, 2, 3]}]
+
+
+@tool
+def nan_scale() -> Tool:
+    async def execute(x: float) -> str:
+        """Return a number.
+
+        Args:
+            x: The number.
+        """
+        return str(x)
+
+    return execute
+
+
+async def test_without_oversight_a_nan_argument_runs() -> None:
+    """Without approval or a sentinel, nothing is compared, so NaN runs as on main."""
+    message = await execute_with_approval(
+        ToolCall(id="1", function="nan_scale", arguments={"x": float("nan")}),
+        [nan_scale()],
+        None,
+    )
+    assert message.error is None
+    assert message.text == "nan"
 
 
 async def test_without_oversight_the_call_runs_as_given() -> None:

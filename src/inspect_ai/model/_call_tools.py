@@ -950,13 +950,13 @@ async def call_tool(
         else:
             raise ToolApprovalError(approval.explanation if approval else None)
     if approval and approval.modified:
-        error = modified_function_error(call, approval.modified)
+        error = modified_function_error(shown, approval.modified)
         if error is not None:
             await record_pending_tool_event()
             raise RuntimeError(error)
         call, arguments = await revalidated_tool_call(approval.modified, tool_def)
         shown = shown_to_callbacks(call)
-    elif _changed_in_place(call, shown):
+    elif approval is not None and _changed_in_place(call, shown):
         await record_pending_tool_event()
         raise ToolApprovalError(_CHANGED_IN_PLACE)
 

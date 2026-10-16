@@ -52,12 +52,14 @@ decision. Before the approval chain, and again before the before-tool
 sentinel, a copy of the call is taken (S = B, or the call a modify selected).
 After each:
 
-- approve: the call's id, function and arguments must still equal S (JSON
-  equality). Otherwise it is an approval error ("changed in place; return a
-  modify") and the call does not run. An approver that edits the call and
-  escalates fails at the end of the chain.
+- approve: if an approver or monitor decided, the call's id, function and
+  arguments must still equal S (JSON equality). Otherwise it is an approval
+  error ("changed in place; return a modify") and the call does not run. An
+  approver that edits the call and escalates fails at the end of the chain.
+  With no approval policy and no sentinel nothing is compared.
 - modify: the selected call is validated as in step 7, and it becomes S and
-  C. An edit to the call the callback was given does not matter.
+  C. An approver's selection must keep the function in S. An edit to the call
+  the callback was given does not matter.
 - reject, terminate: as before.
 
 Not supported and not checked (decision: Ransom, 2026-10-16):
