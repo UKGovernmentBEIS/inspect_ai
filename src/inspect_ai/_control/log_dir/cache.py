@@ -258,9 +258,11 @@ class LogDirCache:
                 raise ValueError(f"schema version {entry.schema_version}")
             if entry.location != key:
                 raise ValueError(f"entry for {entry.location}")
-        # some header validators raise IndexError or TypeError on bad input
-        except (ValueError, IndexError, TypeError) as ex:
-            logger.debug(f"discarding log-dir cache entry {path}: {ex}")
+        # The log model's validators can raise any exception type on bad input
+        # (IndexError, TypeError, KeyError, ...). The entry is disposable, so
+        # any failure here discards it and the log is read instead.
+        except Exception as ex:
+            logger.debug(f"discarding log-dir cache entry {path}: {ex!r}")
             with suppress(OSError):
                 path.unlink(missing_ok=True)
             return None
