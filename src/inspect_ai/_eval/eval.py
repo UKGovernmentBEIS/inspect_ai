@@ -1,6 +1,7 @@
 import contextlib
 import functools
 import logging
+import math
 import os
 from contextlib import nullcontext
 from contextvars import Token, copy_context
@@ -9,6 +10,7 @@ from pathlib import Path
 from typing import Any, Literal, cast
 
 import anyio
+import anyio.lowlevel
 from anyio.abc import TaskGroup
 
 from inspect_ai._control.eval_state import reset_run_registries
@@ -1251,6 +1253,7 @@ async def _eval_async_inner(
     else:
         # shielded: under trio a Ctrl-C leaves the run's scope cancelled. In
         # `else` so a second Ctrl-C here does not start the hooks above.
+        cancelled = anyio.current_effective_deadline() == -math.inf
         with anyio.CancelScope(shield=True):
             # cleanup sample buffers if required
             await cleanup_sample_buffers(log_dir)
@@ -1259,6 +1262,11 @@ async def _eval_async_inner(
                 await emit_run_end(eval_set_id, run_id, logs)
             except UnboundLocalError:
                 await emit_run_end(eval_set_id, run_id, EvalLogs([]))
+
+        # a cancellation (e.g. asyncio's Ctrl-C) that arrived during the
+        # shielded cleanup of a run that was not cancelled still ends it
+        if not cancelled:
+            await anyio.lowlevel.checkpoint_if_cancelled()
 
     finally:
         _eval_async_running = False
