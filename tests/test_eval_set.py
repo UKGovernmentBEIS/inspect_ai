@@ -75,11 +75,14 @@ from inspect_ai.log._recorders.types import SampleEvent
 from inspect_ai.model import CachePolicy, Model, get_model
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.scorer import (
+    CORRECT,
+    INCORRECT,
     Metric,
     SampleScore,
     Score,
     Scorer,
     Target,
+    accuracy,
     exact,
     mean,
     metric,
@@ -1635,6 +1638,261 @@ def test_task_identifier_with_model_args_arg():
 
         all_logs = list_all_eval_logs(log_dir)
         assert len(all_logs) == 2
+
+
+def _resolved_identifier(task: Task, model: Model) -> str:
+    resolved = resolve_tasks([task], {}, model, None, None, None)[0]
+    return task_identifier(
+        resolved, EvalSetArgsInTaskIdentifier(config=GenerateConfig())
+    )
+
+
+def _assert_logged_score(log: EvalLog, name: str, accuracy_value: float) -> None:
+    assert log.results is not None
+    scores = log.results.scores
+    assert len(scores) == 1
+    assert scores[0].name == name
+    assert scores[0].metrics["accuracy"].value == accuracy_value
+
+
+def test_task_identifier_includes_scorer_and_metrics() -> None:
+    """Scorer and metric changes alter the identifier and match the written log."""
+
+    @scorer(metrics=[accuracy()], name="metric_only_scorer")
+    def with_accuracy() -> Scorer:
+        async def score(state: TaskState, target: Target) -> Score:
+            return Score(value=CORRECT)
+
+        return score
+
+    @scorer(metrics=[mean()], name="metric_only_scorer")
+    def with_mean() -> Scorer:
+        async def score(state: TaskState, target: Target) -> Score:
+            return Score(value=CORRECT)
+
+        return score
+
+    model = get_model("mockllm/model")
+
+    def task_for(chosen: Scorer) -> Task:
+        return Task(
+            name="metric_identity_task",
+            version=1,
+            dataset=[Sample(input="hello", target="hello")],
+            solver=[],
+            scorer=chosen,
+        )
+
+    accuracy_task = task_for(with_accuracy())
+    mean_task = task_for(with_mean())
+    task_metric = Task(
+        name="metric_identity_task",
+        version=1,
+        dataset=[Sample(input="hello", target="hello")],
+        solver=[],
+        scorer=with_accuracy(),
+        metrics=[mean()],
+    )
+    assert _resolved_identifier(accuracy_task, model) != _resolved_identifier(
+        mean_task, model
+    )
+    assert _resolved_identifier(accuracy_task, model) != _resolved_identifier(
+        task_metric, model
+    )
+    assert _resolved_identifier(accuracy_task, model) == _resolved_identifier(
+        task_for(with_accuracy()), model
+    )
+
+    def unscored() -> Task:
+        return Task(
+            name="unscored_identity_task",
+            version=1,
+            dataset=[Sample(input="hello", target="hello")],
+            solver=[],
+        )
+
+    with tempfile.TemporaryDirectory() as log_dir:
+        success, logs = eval_set(
+            tasks=unscored(),
+            log_dir=log_dir,
+            model="mockllm/model",
+        )
+        assert success
+        written = read_eval_log(logs[0].location)
+        assert _resolved_identifier(unscored(), model) == task_identifier(written, None)
+        assert _resolved_identifier(unscored(), model) == _resolved_identifier(
+            unscored(), model
+        )
+
+
+def test_task_identifier_ignores_grader_transport_config() -> None:
+    """A grader's transport settings don't change identity; its generation settings do."""
+
+    @scorer(metrics=[accuracy()], name="grader_scorer")
+    def grader(model: Model) -> Scorer:
+        async def score(state: TaskState, target: Target) -> Score:
+            return Score(value=CORRECT)
+
+        return score
+
+    def make_task(**config: Any) -> Task:
+        return Task(
+            name="grader_identity_task",
+            dataset=[Sample(input="hello", target="hello")],
+            solver=[],
+            scorer=grader(get_model("mockllm/model", config=GenerateConfig(**config))),
+        )
+
+    model = get_model("mockllm/model")
+    base = _resolved_identifier(make_task(max_connections=5, temperature=0.2), model)
+    assert base == _resolved_identifier(
+        make_task(max_connections=10, max_retries=3, temperature=0.2), model
+    )
+    assert base != _resolved_identifier(
+        make_task(max_connections=5, temperature=0.9), model
+    )
+
+    with tempfile.TemporaryDirectory() as log_dir:
+        _, first = eval_set(
+            tasks=make_task(max_connections=5, temperature=0.2),
+            log_dir=log_dir,
+            model="mockllm/model",
+        )
+        _, second = eval_set(
+            tasks=make_task(max_connections=10, temperature=0.2),
+            log_dir=log_dir,
+            model="mockllm/model",
+        )
+        assert basename(second[0].location) == basename(first[0].location)
+
+
+def test_eval_set_reruns_when_scorer_changes() -> None:
+    """Changing only the scorer re-runs; repeating that scorer reuses the log."""
+    calls = {"a": 0, "b": 0}
+
+    @scorer(metrics=[accuracy()], name="scorer_a")
+    def scorer_a() -> Scorer:
+        async def score(state: TaskState, target: Target) -> Score:
+            calls["a"] += 1
+            return Score(value=CORRECT)
+
+        return score
+
+    @scorer(metrics=[accuracy()], name="scorer_b")
+    def scorer_b() -> Scorer:
+        async def score(state: TaskState, target: Target) -> Score:
+            calls["b"] += 1
+            return Score(value=INCORRECT)
+
+        return score
+
+    def make_task(chosen: Scorer) -> Task:
+        return Task(
+            name="scorer_identity_task",
+            version=1,
+            dataset=[Sample(input="hello", target="hello")],
+            solver=[],
+            scorer=chosen,
+        )
+
+    model = get_model("mockllm/model")
+    args = EvalSetArgsInTaskIdentifier(config=GenerateConfig())
+    assert _resolved_identifier(make_task(scorer_a()), model) != _resolved_identifier(
+        make_task(scorer_b()), model
+    )
+
+    with tempfile.TemporaryDirectory() as log_dir:
+        success, logs = eval_set(
+            tasks=make_task(scorer_a()),
+            log_dir=log_dir,
+            model="mockllm/model",
+            log_dir_allow_dirty=True,
+        )
+        assert success
+        assert calls == {"a": 1, "b": 0}
+        _assert_logged_score(logs[0], "scorer_a", 1.0)
+
+        success, logs = eval_set(
+            tasks=make_task(scorer_b()),
+            log_dir=log_dir,
+            model="mockllm/model",
+            log_dir_allow_dirty=True,
+        )
+        assert success
+        assert calls == {"a": 1, "b": 1}
+        _assert_logged_score(logs[0], "scorer_b", 0.0)
+        written = read_eval_log(logs[0].location)
+        resolved = resolve_tasks([make_task(scorer_b())], {}, model, None, None, None)[
+            0
+        ]
+        assert task_identifier(resolved, args) == task_identifier(written, None)
+
+        success, again = eval_set(
+            tasks=make_task(scorer_b()),
+            log_dir=log_dir,
+            model="mockllm/model",
+            log_dir_allow_dirty=True,
+        )
+        assert success
+        assert calls == {"a": 1, "b": 1}
+        _assert_logged_score(again[0], "scorer_b", 0.0)
+
+
+def test_eval_set_scorer_change_rejects_clean_log_dir() -> None:
+    """Without log_dir_allow_dirty, a scorer change is rejected like other identity changes."""
+    calls = {"b": 0}
+
+    @scorer(metrics=[accuracy()], name="clean_dir_scorer_a")
+    def scorer_a() -> Scorer:
+        async def score(state: TaskState, target: Target) -> Score:
+            return Score(value=CORRECT)
+
+        return score
+
+    @scorer(metrics=[accuracy()], name="clean_dir_scorer_b")
+    def scorer_b() -> Scorer:
+        async def score(state: TaskState, target: Target) -> Score:
+            calls["b"] += 1
+            return Score(value=INCORRECT)
+
+        return score
+
+    def make_task(chosen: Scorer) -> Task:
+        return Task(
+            name="clean_dir_scorer_task",
+            dataset=[Sample(input="hello", target="hello")],
+            solver=[],
+            scorer=chosen,
+        )
+
+    with tempfile.TemporaryDirectory() as log_dir:
+        success, _ = eval_set(
+            tasks=make_task(scorer_a()), log_dir=log_dir, model="mockllm/model"
+        )
+        assert success
+        with pytest.raises(PrerequisiteError, match="not associated with a task"):
+            eval_set(
+                tasks=make_task(scorer_b()), log_dir=log_dir, model="mockllm/model"
+            )
+        assert calls == {"b": 0}
+
+
+def test_task_identifier_log_without_recorded_scorers_does_not_match() -> None:
+    """Logs that predate recorded scorers cannot prove the scorer matches."""
+    log = read_eval_log(
+        "tests/test_eval_set/2024-08-29T15-11-18+00-00_popularity_5EAmX6wjMFqea6WY7XHzZp.json"
+    )
+    resolved = resolve_tasks(
+        "examples/popularity.py", {}, get_model("mockllm/model"), None, None, None
+    )[0]
+    task_with(resolved.task, config=GenerateConfig(temperature=1.0))
+    args = EvalSetArgsInTaskIdentifier(config=GenerateConfig())
+    assert task_identifier(resolved, args) == task_identifier(log, None)
+
+    legacy = log.model_copy(
+        update={"eval": log.eval.model_copy(update={"scorers": None})}
+    )
+    assert task_identifier(resolved, args) != task_identifier(legacy, None)
 
 
 def resolved_tasks_have_unique_identifiers(resolved_tasks: list[ResolvedTask]) -> bool:
