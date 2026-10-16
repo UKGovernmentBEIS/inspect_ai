@@ -42,7 +42,7 @@ Commands are grouped by resource noun (`task`, `sample`, `model`, `process`), pl
 
 A bare noun implies `list`: `inspect ctl task` ≡ `inspect ctl task list`, and likewise for `sample` and `process`. All commands accept `--json` for structured output, which makes them straightforward to use from scripts and from coding agents like Claude Code. The `list` / `show` / `errors` / `events` / `messages` / `store` / `anomalies` commands are read-only. The others direct the run deliberately: `config` retunes launch parameters (concurrency changes never interrupt in-flight work; the per-sample limit overrides deliberately reach in-flight samples), `task log-flush` forces a log write that would happen anyway, `process keep`/`release` only affect what happens after the eval finishes, `task pause`/`resume`, `model pause`/`resume`, and `process pause`/`resume` stop and restart dispatch reversibly — leaving in-flight work untouched unless `pause --now` asks for a hard pause (which also holds in-flight samples at their next model call), `task cancel` / `sample cancel` interrupt work explicitly, `task drain` stops new samples while in-flight ones finish naturally, `sample requeue` re-runs an errored or cancelled sample (all idempotently, with `--dry-run` support), and `task score` / `sample score` score a running task's samples (or one sample) without ending them (each in-flight sample is briefly held while its work-so-far is scored).
 
-The endpoint is a Unix domain socket under the current user's Inspect data directory. It is not reachable over the network or by other users on the same machine, and it requires no configuration.
+The endpoint is a Unix domain socket under the current user's Inspect data directory. It is not reachable over the network or by other users on the same machine, and it requires no configuration. To follow a run from its logs instead, for example from another machine, see [Reading a Log Directory](#reading-a-log-directory).
 
 ## Launch Handoff
 
@@ -551,6 +551,46 @@ inspect ctl process release
 You can also latch keep-alive onto an eval that is *already running* (launched without `--ctl-server=keep`) with `inspect ctl process keep`.
 
 If more than one process is parked, `release` lists their pids and you disambiguate by passing one (`inspect ctl process release <pid>`). Release also works ahead of time: issued while the eval is still running, it means "exit when done" — the process skips the park and exits as soon as the eval finishes (it never cancels in-flight work). `keep` and `release` are last-write-wins, so a `keep` issued after a `release` (while the eval is still running) restores the park. From Python, pass `ctl_server="keep"` to `eval()` or `eval_set()`. For eval sets, keep-alive requires `retry_immediate=True` (the default).
+
+## Reading a Log Directory
+
+`inspect ctl task list` and the `sample` reads can read a run's `.eval` logs instead of a live process. Pass `--log-dir` with a local path or an S3 (or other fsspec) URL:
+
+```bash
+inspect ctl task list --log-dir s3://my-bucket/logs
+inspect ctl sample errors gpqa --log-dir s3://my-bucket/logs
+```
+
+Use it when the eval runs on another machine, or after it has finished. It needs only read access to the directory and writes nothing there. It never runs task code or recomputes metrics.
+
+Data is only as fresh as the log: a completed sample normally reaches it within about 60 seconds. Running samples are visible only when the eval runs with `--log-shared`, as of its last sync (every 10 seconds by default). These are usual intervals, not guarantees: a failed upload or a stopped worker delays them. Human output starts with a line on stderr that says where the data comes from.
+
+| Command | With `--log-dir` |
+|----|----|
+| `task list` | Live-only fields (pause state, `refusals`, `http_retries`, `pid`, ...) are null. |
+| `sample list`, `sample errors` | Running rows have no `activity` or idle time. `--active-since` is not supported: poll the full listing. |
+| `sample show` | A running or not-yet-flushed sample shows its summary from the shared buffer, without error history. |
+| `sample events` | A running sample's events run up to the last buffer sync. |
+| `sample messages`, `sample store` | Samples in the log only. For a running or not-yet-flushed sample, use `sample events --type model`. |
+| Other commands | Not available: `--log-dir` is an unknown option there. |
+
+: {tbl-colwidths=[35,65]}
+
+With `--json`, task rows carry `source: "log_dir"` and these extra fields:
+
+| Field | Description |
+|----|----|
+| `updated_at` | When the task's log or shared buffer last changed. A running task whose `updated_at` stops moving may have a stopped worker: nothing in the logs tells a crashed worker from a slow one. |
+| `samples.total_final` | `false` while `samples.total` is a lower bound (the run is not finished, or the log does not record its total). |
+| `samples.unfinished` | Samples not yet completed, errored or cancelled. |
+| `live_samples` | `buffer`, `none` or `partial`: whether running samples are visible. Unless it is `buffer`, `samples.in_flight` is null. |
+| `incomplete`, `unreadable` | Logs that could not be read, with the reason. |
+
+: {tbl-colwidths=[35,65]}
+
+Sample rows add `log_location`, the log to open with `inspect log` commands. Errors use the usual `--json` envelope, with two kinds of their own: `unsupported` (an option or a read the logs cannot serve) and `storage_error` (reading the directory failed, for example on permissions, credentials or throttling, or a log kept changing during the read).
+
+Each invocation lists the directory and reads only the logs that changed since the last one. What it parsed is cached under the Inspect data directory (`ctl/log-dir-cache`), which is safe to delete at any time. Polling more often than every 30 seconds gains nothing.
 
 ## Disabling the Control Server
 

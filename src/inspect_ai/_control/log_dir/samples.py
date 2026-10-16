@@ -334,17 +334,21 @@ async def _read_sample(
 ) -> _SampleRead:
     """Read the located sample member, re-reading on a torn read.
 
-    A re-read goes through a fresh central directory, so the log may have
-    been replaced since the summaries were read: the summary is then re-read
-    from that version too, so the two never describe different records.
+    A re-read, or a read for a plan with no central directory (one from the
+    cache), goes through a fresh central directory, so the log may have been
+    replaced since the summaries were read: the summary is then re-read from
+    that version too, so the two never describe different records, unless
+    the central directory's ETag shows it is the summaries' version.
     """
-    location = located.member.plan.file.location
+    plan = located.member.plan
+    location = plan.file.location
     key = SampleKey(str(located.summary.id), located.summary.epoch)
 
     async def read(reader: AsyncZipReader, fresh: bool) -> _SampleRead:
         summary: EvalSampleSummary | None = located.summary
-        if fresh:
-            summary = (await read_summaries(reader, located.member.plan.file)).get(key)
+        etag = (await reader.entries()).etag if fresh else None
+        if fresh and (etag is None or etag != plan.version):
+            summary = (await read_summaries(reader, plan.file)).get(key)
         sample = await read_eval_log_sample_async(
             location,
             located.summary.id,
@@ -358,5 +362,5 @@ async def _read_sample(
         fs,
         location,
         read,
-        central_directory=located.member.plan.central_directory,
+        central_directory=plan.central_directory,
     )

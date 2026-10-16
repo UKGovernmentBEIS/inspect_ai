@@ -35,8 +35,9 @@ class LogPlan:
     """One log's identity, read from its central directory and header."""
 
     file: LogFile
-    central_directory: CentralDirectory
-    """The central directory the header was read through."""
+    central_directory: CentralDirectory | None
+    """The central directory the header was read through (``None`` for a plan
+    from the cache, which holds no central directory)."""
 
     header: EvalLog
     """``header.json`` for a finished log; for a running one, a header built
@@ -46,8 +47,13 @@ class LogPlan:
     """Whether the log has ``header.json``."""
 
     version: str | None = None
-    """The version of the log object ``central_directory`` was read from
-    (see :func:`~.consistency.read_version`); ``None`` when unknown."""
+    """The version of the log object ``header`` was read from (see
+    :func:`~.consistency.read_version`); ``None`` when unknown, or when the
+    plan came from the cache and the log has changed since."""
+
+    header_crc: int | None = None
+    """CRC-32 of the member ``header`` was read from (``header.json`` or
+    ``_journal/start.json``)."""
 
     @property
     def running(self) -> bool:
