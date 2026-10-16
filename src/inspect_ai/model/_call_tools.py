@@ -4,7 +4,6 @@ import string
 import types
 import typing
 from collections.abc import Collection
-from contextlib import AbstractContextManager, nullcontext
 from copy import copy, deepcopy
 from dataclasses import is_dataclass, replace
 from datetime import date, datetime, time
@@ -69,11 +68,7 @@ from inspect_ai.tool._tool import (
     ToolSource,
     tool_result_content,
 )
-from inspect_ai.tool._tool_call import (
-    ToolCallContent,
-    ToolCallError,
-    unchanged_in_place,
-)
+from inspect_ai.tool._tool_call import ToolCallContent, ToolCallError
 from inspect_ai.tool._tool_def import ToolDef, tool_def_fields, tool_defs
 from inspect_ai.tool._tool_info import parse_docstring
 from inspect_ai.tool._tool_params import ToolParams
@@ -427,17 +422,8 @@ async def _execute_tools_impl(
                 output=output,
             )
             if tool_exception is None and executed_call is not None:
-                # under oversight the call that ran is not the model's own,
-                # which the conversation reviewers see holds
-                proposal_unchanged = (
-                    unchanged_in_place(
-                        call, None, RuntimeError(_PROPOSAL_CHANGED_AFTER_CALL)
-                    )
-                    if executed_call is not call
-                    else nullcontext()
-                )
                 try:
-                    with _observer.track_tool_call(call.id, event), proposal_unchanged:
+                    with _observer.track_tool_call(call.id, event):
                         await _apply_tool_review(
                             tdefs,
                             message.text,
@@ -909,8 +895,15 @@ async def call_tool(
         except ToolApprovalError:
             await record_pending_tool_event()
             raise
-        event.view = _tool_view(tool_def, validated.call, validate=False)
+        event.view = tool_call_view(deepcopy(validated.call), tools)
         return validated
+
+    def shown_to_callbacks(decided: ToolCall) -> ToolCall:
+        # a copy the next approve decision must match; the event records it,
+        # so a later callback cannot change what the log says ran
+        shown = deepcopy(decided)
+        event.arguments = shown.arguments
+        return shown
 
     # if there was an error parsing the ToolCall, raise that
     if call.parse_error:
@@ -928,27 +921,17 @@ async def call_tool(
     if tool_def is None:
         raise await record_tool_parsing_error(f"Tool {call.function} not found")
 
-    # approvers and viewers see the validated call, so an invalid call is
-    # never presented for approval
+    # approvers and sentinel monitors see the validated call, so an invalid
+    # call is never presented for approval
     try:
         validated = validated_tool_call(call, tool_def)
     except ToolParsingError as ex:
         raise await record_tool_parsing_error(ex.message)
-    proposed = call
-    overseen = validated.call is not call
-    if overseen:
-        # under oversight the event records the call as shown
-        event.arguments = validated.call.arguments
-        event.view = _tool_view(tool_def, validated.call, validate=False)
+    if validated.call is not call:
+        # under oversight the event shows the call as approvers see it
+        event.view = tool_call_view(deepcopy(validated.call), tools)
     call, arguments = validated
-
-    def proposal_unchanged() -> AbstractContextManager[None]:
-        # under oversight callbacks are given the call as shown, but the
-        # conversation they see holds the model's own, which the result answers:
-        # an edit there leaves the conversation inconsistent, so the sample fails
-        if not overseen:
-            return nullcontext()
-        return unchanged_in_place(proposed, None, RuntimeError(_PROPOSAL_CHANGED))
+    shown = shown_to_callbacks(call)
 
     # if we have a tool approver, apply it now
     from inspect_ai.approval._apply import (
@@ -956,14 +939,9 @@ async def call_tool(
         modified_function_error,
     )
 
-    try:
-        with proposal_unchanged():
-            approved, approval = await apply_tool_approval(
-                message, call, tool_def.viewer, conversation
-            )
-    except (ToolApprovalError, RuntimeError):
-        await record_pending_tool_event()
-        raise
+    approved, approval = await apply_tool_approval(
+        message, call, tool_def.viewer, conversation
+    )
     if not approved:
         await record_pending_tool_event()
         if approval and approval.decision == "terminate":
@@ -977,6 +955,10 @@ async def call_tool(
             await record_pending_tool_event()
             raise RuntimeError(error)
         call, arguments = await revalidated_tool_call(approval.modified, tool_def)
+        shown = shown_to_callbacks(call)
+    elif _changed_in_place(call, shown):
+        await record_pending_tool_event()
+        raise ToolApprovalError(_CHANGED_IN_PLACE)
 
     if checks_tool_calls():
         from inspect_ai._sentinel._dispatch import (
@@ -985,16 +967,19 @@ async def call_tool(
         )
 
         try:
-            with proposal_unchanged():
-                decision = await sentinel_before_tool_call(
-                    message, call, tool_def.viewer, conversation
-                )
+            decision = await sentinel_before_tool_call(
+                message, call, tool_def.viewer, conversation
+            )
             modified = apply_sentinel_decision(decision, call)
-        except (SentinelFailure, ToolApprovalError, TerminateSampleError, RuntimeError):
+            selected = decision is not None and decision.action == "modify"
+            if not selected and _changed_in_place(call, shown):
+                raise ToolApprovalError(_CHANGED_IN_PLACE)
+        except (SentinelFailure, ToolApprovalError, TerminateSampleError):
             await record_pending_tool_event()
             raise
-        if modified is not call:
+        if selected:
             call, arguments = await revalidated_tool_call(modified, tool_def)
+            shown_to_callbacks(call)
 
     # call the tool
     with trace_action(
@@ -1023,16 +1008,23 @@ async def call_tool(
                 return CalledTool(result, [], None, None, agent_span_id)
 
 
-_PROPOSAL_CHANGED = (
-    "An approver or sentinel monitor changed the model's tool call in the "
-    "conversation in place. Callbacks must not change the conversation; to change "
-    "a call, return a modify decision with a new call."
+_CHANGED_IN_PLACE = (
+    "An approver or sentinel monitor changed the tool call in place, so the call "
+    "was not run. To change a call, return a modify decision with a new ToolCall."
 )
 
-_PROPOSAL_CHANGED_AFTER_CALL = (
-    "A tool result reviewer or sentinel monitor changed the model's tool call in "
-    "place after it ran. Reviewers and monitors must not change the call."
-)
+
+def _changed_in_place(call: ToolCall, shown: ToolCall) -> bool:
+    """Whether a callback changed `call` in place since it was `shown`.
+
+    Approvers and sentinel monitors change a call only by returning a modify
+    decision, so a call they approve must still be the one they were shown.
+    """
+    return (
+        call.id != shown.id
+        or call.function != shown.function
+        or not json_equal(call.arguments, shown.arguments)
+    )
 
 
 async def _apply_tool_review(
@@ -1052,8 +1044,6 @@ async def _apply_tool_review(
 
     Raises:
         TerminateSampleError: A reviewer or the sentinel requested termination.
-        RuntimeError: A reviewer or the sentinel changed the call or its view
-            in place.
     """
     from inspect_ai.review._apply import apply_tool_review
 
@@ -1702,36 +1692,18 @@ def tool_param(type_hint: Type[Any], input: Any) -> Any:
 
 
 def tool_call_view(call: ToolCall, tdefs: list[ToolDef]) -> ToolCallContent | None:
-    """The tool's own view of `call` for the transcript, if it has a viewer.
-
-    Like approval, the viewer sees only the validated call
-    (`validated_tool_call()`); an invalid call gets the default rendering.
-    """
     tool_def = next((tool for tool in tdefs if tool.name == call.function), None)
-    if tool_def is None or call.parse_error is not None:
-        return None
-    return _tool_view(tool_def, call, validate=True)
-
-
-def _tool_view(
-    tool_def: ToolDef, call: ToolCall, validate: bool
-) -> ToolCallContent | None:
-    """The tool's own view of `call`, validating it first unless it already is."""
-    if tool_def.viewer is None:
-        return None
-    try:
-        if validate:
-            call = validated_tool_call(call, tool_def).call
-        # a viewer gets a copy, so it cannot change the call that runs
-        return tool_def.viewer(deepcopy(call)).call
-    except ToolParsingError:
-        return None
-    except Exception as ex:
-        warn_once(
-            logger,
-            f"Error in viewer for tool '{call.function}': {ex}. "
-            "Falling back to default rendering.",
-        )
+    if tool_def and tool_def.viewer:
+        try:
+            return tool_def.viewer(call).call
+        except Exception as ex:
+            warn_once(
+                logger,
+                f"Error in viewer for tool '{call.function}': {ex}. "
+                "Falling back to default rendering.",
+            )
+            return None
+    else:
         return None
 
 

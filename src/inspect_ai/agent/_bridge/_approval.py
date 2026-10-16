@@ -22,7 +22,6 @@ dispatcher call the scaffold receives.
 
 import sys
 from contextlib import AbstractContextManager, nullcontext
-from dataclasses import replace
 from logging import getLogger
 from typing import TYPE_CHECKING, Any, NamedTuple, NoReturn
 
@@ -31,8 +30,7 @@ from inspect_ai._util.logger import warn_once
 from inspect_ai.agent._bridge.types import AgentBridge
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageTool
 from inspect_ai.model._model_output import ModelOutput
-from inspect_ai.tool._tool import ToolApprovalError
-from inspect_ai.tool._tool_call import ShownCall, ToolCall, ToolCallError
+from inspect_ai.tool._tool_call import ToolCall, ToolCallError
 
 if TYPE_CHECKING:
     from inspect_ai.approval._policy import ApprovalPolicy
@@ -116,7 +114,6 @@ async def apply_bridge_tool_approval(
         the response was rejected.
     """
     from inspect_ai.approval._apply import (
-        CHANGED_IN_PLACE,
         apply_tool_approval,
         have_tool_approval,
         modified_function_error,
@@ -138,12 +135,9 @@ async def apply_bridge_tool_approval(
         if not approval_active:
             return BridgeApproval(output, None)
 
-        if not output.message.tool_calls:
+        tool_calls = output.message.tool_calls
+        if not tool_calls:
             return BridgeApproval(output, None)
-        # the calls as they are now (a new list, since approvers can reach the
-        # response's own list through their history), to check the response
-        # against once every call is approved
-        tool_calls = list(output.message.tool_calls)
 
         # approvers see the assistant turn under review, matching the native path
         # where the conversation ends with the message carrying the tool calls: an
@@ -152,36 +146,15 @@ async def apply_bridge_tool_approval(
         approval_history = history + [output.message]
         message = output.message.text
         modified: dict[str, dict[str, Any]] = {}
-        shown = [ShownCall.of(call) for call in tool_calls]
-        # each modify decision's call as selected, by the index of the call it
-        # replaces: the approver (or a later one) still holds it
-        selected: dict[int, tuple[ToolCall, ShownCall]] = {}
-
-        def changed_since_shown() -> int | None:
-            changed = changed_in_place(tool_calls, shown, output.message.tool_calls)
-            if changed is None:
-                changed = next(
-                    (i for i, (call, s) in selected.items() if s.changed(call)), None
-                )
-            return changed
-
-        for index, call in enumerate(tool_calls):
+        for call in tool_calls:
             dispatched = bridge.dispatched_call(call)
             reviewed = dispatched.target if dispatched else call
             # no viewer: bridged tools reach us as ToolInfo from the scaffold's
             # request, not as ToolDef, so there is no registered viewer to resolve.
             # apply_tool_approval falls back to its default rendering.
-            try:
-                approved, approval = await apply_tool_approval(
-                    message, reviewed, None, approval_history
-                )
-            except ToolApprovalError as ex:
-                # an approver changed the call in place: like the native path,
-                # the model is told and the response is not handed over
-                return BridgeApproval(
-                    output,
-                    refused_in_place(output, tool_calls, shown, index, ex.message),
-                )
+            approved, approval = await apply_tool_approval(
+                message, reviewed, None, approval_history
+            )
             if not approved:
                 explanation = (approval.explanation if approval else None) or (
                     f"Tool call '{reviewed.function}' was rejected by the approval "
@@ -190,16 +163,6 @@ async def apply_bridge_tool_approval(
                 if approval is not None and approval.decision == "terminate":
                     bridge.request_terminate(
                         f"Tool call approver requested termination: {explanation}"
-                    )
-                # an earlier approver may have changed the response the rejection
-                # replays
-                changed = changed_since_shown()
-                if changed is not None:
-                    return BridgeApproval(
-                        output,
-                        refused_in_place(
-                            output, tool_calls, shown, changed, CHANGED_IN_PLACE
-                        ),
                     )
                 return BridgeApproval(
                     output, rejection_messages(output, call, explanation)
@@ -211,23 +174,10 @@ async def apply_bridge_tool_approval(
                     failure = RuntimeError(error)
                     bridge.request_fail(failure)
                     raise failure
-                selected[index] = (approval.modified, ShownCall.of(approval.modified))
                 arguments = approval.modified.arguments
                 modified[call.id] = (
                     dispatched.dispatch(arguments) if dispatched else arguments
                 )
-
-        # every approver sees the whole response in its history, so a call
-        # already approved (or a dispatcher call's envelope) can be changed after
-        # its own check, as can a modify decision's selected call: the response
-        # and the selections are checked as a whole before they are handed over
-        # and granted
-        changed = changed_since_shown()
-        if changed is not None:
-            return BridgeApproval(
-                output,
-                refused_in_place(output, tool_calls, shown, changed, CHANGED_IN_PLACE),
-            )
 
     # modifications are adopted only now that the whole response is approved: a later
     # rejection discards every call, and rewriting an earlier one as we went would
@@ -236,49 +186,6 @@ async def apply_bridge_tool_approval(
         return BridgeApproval(with_modified_arguments(output, modified), None)
 
     return BridgeApproval(output, None)
-
-
-def changed_in_place(
-    calls: list[ToolCall], shown: list[ShownCall], current: list[ToolCall] | None
-) -> int | None:
-    """The index of the first call of a response that was changed in place, if any.
-
-    Args:
-        calls: The response's tool calls when approval started (a list of
-            their own, which approvers cannot reach).
-        shown: Each call as it was then.
-        current: The response's tool calls now. Calls added, removed,
-            replaced or reordered count as a change to the first call.
-    """
-    current = current or []
-    if len(current) != len(calls) or any(a is not b for a, b in zip(current, calls)):
-        return 0
-    return next(
-        (index for index, (call, s) in enumerate(zip(calls, shown)) if s.changed(call)),
-        None,
-    )
-
-
-def refused_in_place(
-    output: ModelOutput,
-    calls: list[ToolCall],
-    shown: list[ShownCall],
-    index: int,
-    explanation: str,
-) -> list[ChatMessage]:
-    """The retry input for a response refused because it was changed in place.
-
-    It replays the calls as the model proposed them (from `shown`), since the
-    response itself may no longer hold them, and blames the call at `index`.
-    """
-    proposed = [
-        replace(call, id=s.id, function=s.function, arguments=s.arguments)
-        for call, s in zip(calls, shown)
-    ]
-    message = output.message.model_copy(update={"tool_calls": proposed})
-    choice = output.choices[0].model_copy(update={"message": message})
-    as_proposed = output.model_copy(update={"choices": [choice, *output.choices[1:]]})
-    return rejection_messages(as_proposed, proposed[index], explanation)
 
 
 def with_modified_arguments(

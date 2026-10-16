@@ -9,7 +9,6 @@ from inspect_ai.tool._tool_call import (
     ToolCall,
     ToolCallViewer,
     resolve_tool_call_view,
-    unchanged_in_place,
 )
 from inspect_ai.util._limit import (
     suspend_token_limit,
@@ -20,11 +19,6 @@ from inspect_ai.util._limit import (
 from ._policy import ReviewPolicy, policy_reviewer
 from ._review import Review
 from ._reviewer import Reviewer
-
-CHANGED_IN_PLACE = (
-    "A tool result reviewer changed the tool call or its view in place after it "
-    "ran. Reviewers must not change the call."
-)
 
 
 async def apply_tool_review(
@@ -39,10 +33,6 @@ async def apply_tool_review(
 
     Returns:
         The review, or `None` when no review policies are registered.
-
-    Raises:
-        RuntimeError: A reviewer changed the call or its view in place. The
-            call has already run, so the sample fails.
     """
     reviewer = _tool_reviewer.get(None)
     if reviewer is None:
@@ -54,7 +44,6 @@ async def apply_tool_review(
     # that inference charged to the agent's own budget, and time spent
     # reviewing counts as waiting
     with (
-        unchanged_in_place(call, view, RuntimeError(CHANGED_IN_PLACE)),
         suspend_token_limit(),
         suspend_turn_limit(),
         suspend_working_limit(),

@@ -879,40 +879,27 @@ def mutating_viewer(call: ToolCall) -> ToolCallView:
     return ToolCallView()
 
 
-@pytest.mark.parametrize(
-    "policy,runs",
-    [
-        (recording_approver([]), "write"),
-        (modifying_approver({"step": {"name": "test", "status": "done"}}), "test"),
-    ],
-    ids=["approve", "modify"],
-)
-async def test_a_viewer_cannot_change_the_call_that_runs(
-    policy: Approver, runs: str
-) -> None:
-    """Viewers get copies, so the approved call is the one that runs."""
+async def test_a_viewer_cannot_change_the_call_that_runs() -> None:
+    """The viewer for the logged view gets a copy of the call that runs."""
     init_transcript(Transcript())
     received: list[dict[str, Any]] = []
+    modified = {"step": {"name": "test", "status": "done"}}
     message = await execute_with_approval(
         ToolCall(id="1", function="step_tool", arguments={"step": {"name": "write"}}),
         [ToolDef(step_tool(received), viewer=mutating_viewer)],
-        [ApprovalPolicy(policy, "*")],
+        [ApprovalPolicy(modifying_approver(deepcopy(modified)), "*")],
     )
 
     assert message.error is None
-    status: Literal["pending", "done"] = "pending" if runs == "write" else "done"
-    assert received == [{"step": Step(name=runs, status=status)}]
-    assert logged_tool_event().arguments == {"step": {"name": runs, "status": status}}
-    # the approver was shown, and the log records, the call as shown
-    (approval,) = [e for e in transcript().events if isinstance(e, ApprovalEvent)]
-    assert approval.call.arguments == {"step": {"name": "write", "status": "pending"}}
+    assert received == [{"step": Step(name="test", status="done")}]
+    assert logged_tool_event().arguments == modified
 
 
 @approver
 def in_place_approver(
-    edit: Literal["arguments", "view", "function", "id"], decision: ApprovalDecision
+    edit: Literal["arguments", "function", "id"], decision: ApprovalDecision
 ) -> Approver:
-    """Approver which changes the call or its view in place."""
+    """Approver which changes the call in place."""
 
     async def approve(
         message: str,
@@ -924,11 +911,8 @@ def in_place_approver(
             call.arguments["x"] = 5
         elif edit == "function":
             call.function = "other"
-        elif edit == "id":
-            call.id = "renamed"
         else:
-            assert view.call is not None
-            view.call.content = "addition(x=5, y=1)"
+            call.id = "renamed"
         if decision == "modify":
             arguments = {"x": 7, "y": 1}
             return Approval(
@@ -947,15 +931,12 @@ def in_place_approver(
     [
         ("arguments", "escalate"),
         ("arguments", "approve"),
-        ("arguments", "modify"),
-        ("view", "escalate"),
-        ("view", "approve"),
         ("function", "approve"),
         ("id", "approve"),
     ],
 )
 async def test_an_approver_cannot_change_the_call_in_place(
-    edit: Literal["arguments", "view", "function", "id"], decision: ApprovalDecision
+    edit: Literal["arguments", "function", "id"], decision: ApprovalDecision
 ) -> None:
     """An in-place edit is refused: an approver changes a call with `modify`."""
     init_transcript(Transcript())
@@ -971,7 +952,7 @@ async def test_an_approver_cannot_change_the_call_in_place(
 
     assert message.error is not None
     assert message.error.type == "approval"
-    assert "changed the tool call or its view in place" in message.error.message
+    assert "changed the tool call in place" in message.error.message
     assert message.text == ""
     assert len(seen) == (1 if decision == "escalate" else 0)
     event = logged_tool_event()
@@ -998,58 +979,23 @@ def copying_approver() -> Approver:
     return approve
 
 
-async def test_an_approver_changes_a_call_with_modify() -> None:
+@pytest.mark.parametrize(
+    "policy,result",
+    [(copying_approver(), "6"), (in_place_approver("arguments", "modify"), "8")],
+    ids=["copy", "in-place"],
+)
+async def test_an_approver_changes_a_call_with_modify(
+    policy: Approver, result: str
+) -> None:
+    """A modify runs as selected, whatever happened to the call it was given."""
     message = await execute_with_approval(
         ToolCall(id="1", function="addition", arguments={"x": 10, "y": 1}),
         [addition()],
-        [ApprovalPolicy(copying_approver(), "*")],
+        [ApprovalPolicy(policy, "*")],
     )
 
     assert message.error is None
-    assert message.text == "6"
-
-
-@approver
-def proposal_editing_approver(edit: Literal["id", "function", "arguments"]) -> Approver:
-    """Approver which changes the model's own call in the conversation, then approves."""
-
-    async def approve(
-        message: str,
-        call: ToolCall,
-        view: ToolCallView,
-        history: list[ChatMessage],
-    ) -> Approval:
-        response = history[-1]
-        assert isinstance(response, ChatMessageAssistant) and response.tool_calls
-        proposed = response.tool_calls[0]
-        assert proposed is not call
-        if edit == "id":
-            proposed.id = "renamed"
-        elif edit == "function":
-            proposed.function = "other"
-        else:
-            proposed.arguments["x"] = 5
-        return Approval(decision="approve")
-
-    return approve
-
-
-@pytest.mark.parametrize("edit", ["id", "function", "arguments"])
-async def test_an_approver_cannot_change_the_models_call_in_place(
-    edit: Literal["id", "function", "arguments"],
-) -> None:
-    """An edit to the conversation's call fails the sample: the result answers it."""
-    init_transcript(Transcript())
-    call = ToolCall(id="1", function="addition", arguments={"x": 10, "y": 1})
-    with pytest.raises(RuntimeError, match="changed the model's tool call"):
-        await execute_tools(
-            [ChatMessageAssistant(content=[], tool_calls=[call])],
-            [addition()],
-            approval=[ApprovalPolicy(proposal_editing_approver(edit), "*")],
-        )
-    # the tool did not run
-    (event,) = [e for e in transcript().events if isinstance(e, ToolEvent)]
-    assert event.result == ""
+    assert message.text == result
 
 
 @dataclass

@@ -69,9 +69,7 @@ from inspect_ai.solver import Generate, Solver, TaskState, generate, solver, use
 from inspect_ai.tool import (
     Tool,
     ToolCall,
-    ToolCallContent,
     ToolCallView,
-    ToolDef,
     ToolFunction,
     ToolInfo,
     ToolResult,
@@ -872,75 +870,57 @@ async def test_a_sentinel_sees_and_modifies_the_converted_call(
         assert message.error is not None and message.error.type == error
 
 
-InPlaceEdit = Literal["arguments", "function", "id", "call-content", "context"]
+InPlaceEdit = Literal["arguments", "function", "id"]
 
 
-def edit_in_place(call: ToolCall, view: ToolCallView, edit: InPlaceEdit) -> None:
+def edit_in_place(call: ToolCall, edit: InPlaceEdit) -> None:
     if edit == "arguments":
         call.arguments["items"]["a"]["name"] = "z"
     elif edit == "function":
         call.function = "other"
-    elif edit == "id":
-        call.id = "renamed"
-    elif edit == "call-content":
-        assert view.call is not None
-        view.call.content = "list_items(z)"
     else:
-        assert view.context is not None
-        view.context.content = "changed"
-
-
-def shared_view_items() -> ToolDef:
-    """`list_items` with a viewer that returns the same view every time."""
-    view = ToolCallView(
-        context=ToolCallContent(format="text", content="context"),
-        call=ToolCallContent(format="text", content="list_items(a)"),
-    )
-    return ToolDef(list_items(), viewer=lambda call: view)
-
-
-IN_PLACE_EDITS = ["arguments", "function", "id", "call-content", "context"]
+        call.id = "renamed"
 
 
 @protocol
 def d3_edit_before(edit: InPlaceEdit) -> Protocol:
     async def mutate(context: Context, step: BeforeToolCall) -> Decision | None:
-        edit_in_place(step.call, step.view, edit)
+        edit_in_place(step.call, edit)
         return None
 
     return mutate
 
 
-@pytest.mark.parametrize("edit", IN_PLACE_EDITS)
+@pytest.mark.parametrize("edit", ["arguments", "function", "id"])
 async def test_a_sentinel_cannot_change_the_call_in_place(edit: InPlaceEdit) -> None:
+    """A sentinel changes a call only with a modify decision."""
     init_transcript(Transcript())
     call = ToolCall(
         id="1", function="list_items", arguments={"items": {"a": {"name": "a"}}}
     )
     with active(d3_edit_before(edit)):
         result = await execute_tools(
-            [ChatMessageAssistant(content=[], tool_calls=[call])],
-            [shared_view_items()],
+            [ChatMessageAssistant(content=[], tool_calls=[call])], [list_items()]
         )
 
     [message] = result.messages
     assert isinstance(message, ChatMessageTool)
     assert message.error is not None and message.error.type == "approval"
-    assert "changed the tool call or its view in place" in message.error.message
+    assert "changed the tool call in place" in message.error.message
     assert message.text == ""
 
 
 @protocol
-def d3_edit_after(edit: InPlaceEdit) -> Protocol:
+def d3_edit_after() -> Protocol:
     async def mutate(context: Context, step: AfterToolCall) -> Decision | None:
-        edit_in_place(step.call, step.view, edit)
+        edit_in_place(step.call, "arguments")
         return None
 
     return mutate
 
 
 @reviewer
-def d3_editing_reviewer(edit: InPlaceEdit) -> Reviewer:
+def d3_editing_reviewer() -> Reviewer:
     async def review_(
         message: str,
         call: ToolCall,
@@ -949,103 +929,35 @@ def d3_editing_reviewer(edit: InPlaceEdit) -> Reviewer:
         view: ToolCallView,
         history: list[ChatMessage],
     ) -> Review:
-        edit_in_place(call, view, edit)
+        edit_in_place(call, "arguments")
         return Review(decision="continue")
 
     return review_
 
 
-@pytest.mark.parametrize("edit", IN_PLACE_EDITS)
 @pytest.mark.parametrize("callback", ["sentinel", "reviewer"])
-async def test_after_call_callbacks_cannot_change_the_call_in_place(
-    callback: str, edit: InPlaceEdit
-) -> None:
+async def test_the_log_keeps_the_call_that_ran(callback: str) -> None:
+    """An edit after the tool ran is not checked, but it cannot change the log."""
     init_transcript(Transcript())
     call = ToolCall(
         id="1", function="list_items", arguments={"items": {"a": {"name": "a"}}}
     )
     messages: list[ChatMessage] = [ChatMessageAssistant(content=[], tool_calls=[call])]
-    with pytest.raises(
-        RuntimeError, match="changed the tool call or its view in place"
-    ):
-        if callback == "sentinel":
-            with active(d3_edit_after(edit)):
-                await execute_tools(messages, [shared_view_items()])
-        else:
-            await execute_tools(
-                messages,
-                [shared_view_items()],
-                review=[ReviewPolicy(d3_editing_reviewer(edit), "*")],
-            )
+    if callback == "sentinel":
+        with active(d3_edit_after()):
+            result = await execute_tools(messages, [list_items()])
+    else:
+        result = await execute_tools(
+            messages,
+            [list_items()],
+            review=[ReviewPolicy(d3_editing_reviewer(), "*")],
+        )
 
-
-def edit_proposal(history: Sequence[ChatMessage] | None) -> None:
-    """Change the model's own call in the conversation."""
-    assert history
-    response = history[-1]
-    assert isinstance(response, ChatMessageAssistant) and response.tool_calls
-    response.tool_calls[0].id = "renamed"
-
-
-@protocol
-def d3_edit_proposal_before() -> Protocol:
-    async def mutate(context: Context, step: BeforeToolCall) -> Decision | None:
-        edit_proposal(step.history)
-        return None
-
-    return mutate
-
-
-@protocol
-def d3_edit_proposal_after() -> Protocol:
-    async def mutate(context: Context, step: AfterToolCall) -> Decision | None:
-        edit_proposal(step.history)
-        return None
-
-    return mutate
-
-
-@reviewer
-def d3_proposal_editing_reviewer() -> Reviewer:
-    async def review_(
-        message: str,
-        call: ToolCall,
-        result: ChatMessageTool,
-        output: ToolResult,
-        view: ToolCallView,
-        history: list[ChatMessage],
-    ) -> Review:
-        edit_proposal(history)
-        return Review(decision="continue")
-
-    return review_
-
-
-@pytest.mark.parametrize("callback", ["before", "after", "reviewer"])
-async def test_callbacks_cannot_change_the_models_call_in_place(callback: str) -> None:
-    """Under oversight callbacks see the model's own call in the conversation."""
-    init_transcript(Transcript())
-    call = ToolCall(
-        id="1", function="list_items", arguments={"items": {"a": {"name": "a"}}}
-    )
-    messages: list[ChatMessage] = [ChatMessageAssistant(content=[], tool_calls=[call])]
-    approval = [ApprovalPolicy(d3_approver([], "approve"), "*")]
-    with pytest.raises(RuntimeError, match="changed the model's tool call"):
-        if callback == "reviewer":
-            await execute_tools(
-                messages,
-                [list_items()],
-                approval=approval,
-                review=[ReviewPolicy(d3_proposal_editing_reviewer(), "*")],
-            )
-        else:
-            protocol = (
-                d3_edit_proposal_before()
-                if callback == "before"
-                else d3_edit_proposal_after()
-            )
-            with active(protocol):
-                await execute_tools(messages, [list_items()], approval=approval)
+    [message] = result.messages
+    assert isinstance(message, ChatMessageTool)
+    assert message.error is None and message.text == "a"
+    [event] = transcript_tool_events()
+    assert event.arguments == {"items": {"a": {"name": "a"}}}
 
 
 def test_a_review_terminate_skips_the_after_call_sentinel() -> None:

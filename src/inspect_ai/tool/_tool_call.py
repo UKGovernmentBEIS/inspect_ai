@@ -1,10 +1,7 @@
 import re
-from collections.abc import Iterator
-from contextlib import contextmanager
-from copy import deepcopy
 from dataclasses import dataclass, field
 from logging import getLogger
-from typing import Any, Callable, Literal, NamedTuple
+from typing import Any, Callable, Literal
 
 from pydantic import BaseModel, Field, JsonValue, field_validator
 from pydantic.dataclasses import dataclass as pydantic_dataclass
@@ -12,7 +9,6 @@ from typing_extensions import TypedDict
 
 from inspect_ai._util.content import Content
 from inspect_ai._util.format import format_function_call
-from inspect_ai._util.json import json_equal
 from inspect_ai._util.logger import warn_once
 
 
@@ -109,8 +105,7 @@ def resolve_tool_call_view(
 ) -> ToolCallView:
     if viewer:
         try:
-            # a viewer gets a copy, so it cannot change the call being decided on
-            view = viewer(deepcopy(call))
+            view = viewer(call)
             if not view.call:
                 view.call = default_tool_call_viewer(call).call
             return view
@@ -121,46 +116,6 @@ def resolve_tool_call_view(
                 "Falling back to default rendering.",
             )
     return default_tool_call_viewer(call)
-
-
-class ShownCall(NamedTuple):
-    """A call (and its view) as shown to a callback, to detect edits in place."""
-
-    id: str
-    function: str
-    arguments: dict[str, Any]
-    view: dict[str, Any] | None
-
-    @classmethod
-    def of(cls, call: ToolCall, view: ToolCallView | None = None) -> "ShownCall":
-        rendered = view.model_dump() if view is not None else None
-        return cls(call.id, call.function, deepcopy(call.arguments), rendered)
-
-    def changed(self, call: ToolCall, view: ToolCallView | None = None) -> bool:
-        """Whether `call` (or `view`) no longer matches what was shown."""
-        return (
-            call.id != self.id
-            or call.function != self.function
-            or not json_equal(call.arguments, self.arguments)
-            or (view is not None and view.model_dump() != self.view)
-        )
-
-
-@contextmanager
-def unchanged_in_place(
-    call: ToolCall, view: ToolCallView | None, error: Exception
-) -> Iterator[None]:
-    """Raise `error` if the block changes the call or the view in place.
-
-    Approvers, sentinel monitors and result reviewers change a call by
-    returning a modified one. An edit in place would change the call that runs
-    or is logged without that decision, so it is refused rather than guarded
-    against with copies.
-    """
-    shown = ShownCall.of(call, view)
-    yield
-    if shown.changed(call, view):
-        raise error
 
 
 def default_tool_call_viewer(call: ToolCall) -> ToolCallView:

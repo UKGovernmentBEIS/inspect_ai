@@ -5,12 +5,10 @@ from contextvars import ContextVar
 from inspect_ai._sentinel._scope import AgentScope, sentinel_scope
 from inspect_ai.approval._approval import Approval
 from inspect_ai.model._chat_message import ChatMessage
-from inspect_ai.tool._tool import ToolApprovalError
 from inspect_ai.tool._tool_call import (
     ToolCall,
     ToolCallViewer,
     resolve_tool_call_view,
-    unchanged_in_place,
 )
 from inspect_ai.util._limit import (
     suspend_token_limit,
@@ -24,12 +22,6 @@ from ._policy import ApprovalPolicy, policy_approver
 MODIFY_WITHOUT_CALL = (
     "The approver chose to modify this tool call but supplied no modified call, "
     "so the call was not run."
-)
-
-CHANGED_IN_PLACE = (
-    "An approver changed the tool call or its view in place, so the call was not "
-    "run. To change a call, an approver must return "
-    'Approval(decision="modify", modified=...) with a new ToolCall.'
 )
 
 
@@ -47,7 +39,6 @@ async def apply_tool_approval(
         # shouldn't have that inference charged to the agent's own budget, and
         # time spent approving, by a person or a model, counts as waiting)
         with (
-            unchanged_in_place(call, view, ToolApprovalError(CHANGED_IN_PLACE)),
             suspend_token_limit(),
             suspend_turn_limit(),
             suspend_working_limit(),

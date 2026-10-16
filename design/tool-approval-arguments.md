@@ -2,11 +2,13 @@
 
 ## Overview
 
-An approver or sentinel monitor decides on the call the tool will run. While
-approval or a sentinel is active, the approver sees the call's arguments as
-converted for the tool, serialized as JSON. The tool runs what is rebuilt from
-the JSON the approver approved, and that JSON must serialize back to itself.
-An invalid call is a parsing error and never reaches an approver.
+For native tool calls, an approver or sentinel monitor decides on the call the
+tool will run. While approval or a sentinel is active, the approver sees the
+call's arguments as converted for the tool, serialized as JSON. The tool runs
+what is rebuilt from the JSON the approver approved, and that JSON must
+serialize back to itself. An invalid call is a parsing error and never reaches
+an approver. Approvers of a bridged agent's calls get the arguments the
+scaffold supplies, without this preparation.
 
 The code is `validated_tool_call()` and `modified_tool_call()` in
 [`_call_tools.py`](../src/inspect_ai/model/_call_tools.py).
@@ -28,40 +30,45 @@ approved, D the check.
    computed fields. This is B. A serializer error is a parsing error.
 5. Check that B rebuilds to itself (step 7). If not, the call is a parsing
    error and is not shown.
-6. Approvers, sentinel monitors and the tool's viewer see B. An approval
-   makes C = B. A modify makes C the selected JSON, validated against the
-   schema.
+6. Approvers and sentinel monitors see B, rendered by the tool's viewer. An
+   approval makes C = B, if the call is unchanged (see below). A modify makes
+   C the selected JSON, validated against the schema.
 7. Check: convert C again and serialize it (D). D must equal C by JSON
    equality (`5 == 5.0`, but `True != 1`). For a modify, a difference is an
    approval error that asks for the full call as shown.
 8. Convert C once more and run the tool with the result. This fresh build
    means a lazy iterable consumed by the check still reaches the tool with
-   its values. The ToolEvent records C, and its view is rendered from C
+   its values. The ToolEvent records a copy of C, so a later callback cannot
+   change what the log says ran, and its view is rendered from a copy of C
    without converting again.
 
 Conversion always works on a copy of the call's arguments, so a constructor
-that changes its input in place cannot change the call. Viewers are given a
-copy of the call. Approvers, sentinel monitors and result reviewers must not
-change the call or its view in place; they change a call with a `modify`
-decision. An in-place edit is refused:
+that changes its input in place cannot change the call.
 
-- After the approval chain or the before-tool sentinel, a call whose id,
-  function, arguments or view differ from what was shown is an approval error
-  and does not run.
-- Under oversight, callbacks are given the call as shown, while the
-  conversation they see holds the model's own call, which the result answers.
-  A callback that changes the model's call there, before or after the tool
-  runs, fails the sample, since the conversation can no longer be answered
-  consistently.
-- For a bridged agent, a refused response is replayed to the model with its
-  calls as proposed and the approval error, and the model generates again.
-  Every approver sees the whole response in its history, so all of its calls
-  (and dispatcher calls' envelopes), the list of calls itself (no call added,
-  removed, replaced or reordered) and each `modify` decision's selected call
-  are checked again before the response is handed over, and before a
-  rejection is replayed.
-- After the tool runs, a reviewer or monitor that changed the call or its view
-  fails the sample.
+## Changing a call
+
+Approvers and sentinel monitors change a call only by returning a `modify`
+decision. Before the approval chain, and again before the before-tool
+sentinel, a copy of the call is taken (S = B, or the call a modify selected).
+After each:
+
+- approve: the call's id, function and arguments must still equal S (JSON
+  equality). Otherwise it is an approval error ("changed in place; return a
+  modify") and the call does not run. An approver that edits the call and
+  escalates fails at the end of the chain.
+- modify: the selected call is validated as in step 7, and it becomes S and
+  C. An edit to the call the callback was given does not matter.
+- reject, terminate: as before.
+
+Not supported and not checked (decision: Ransom, 2026-10-16):
+
+- edits to the `ToolCallView`, which is display only;
+- edits by callbacks that run after the tool (result reviewers, after-tool
+  sentinel monitors): the tool has run and the log holds a copy;
+- edits to the model's call in the conversation, or to the other calls in the
+  same assistant turn: callbacks are given the prepared call, so these cannot
+  change what runs;
+- bridged agents, whose approval is as before this change.
 
 Parameters the call leaves out are not shown. They get their Python defaults
 when the arguments are rebuilt, as without oversight. Curried handoff
@@ -113,7 +120,8 @@ arguments are not converted.
   conversion, since the approver now sees the converted value. A modify must
   include every field. The tool runs what is rebuilt from the approved JSON
   (decision: Ransom, 2026-10-15).
-- 2026-10-15: approvers, sentinel monitors and reviewers that change a call
-  or its view in place are refused with one check, instead of each being
-  given a copy. `modify` is the supported way to change a call
-  (decision: Ransom, 2026-10-15).
+- 2026-10-16: in-place edits are not supported; `modify` is the only way to
+  change a call. One check runs after the approval chain and after the
+  before-tool sentinel; the cases under "Changing a call" are not checked.
+  This replaces the 2026-10-15 plan to check every callback boundary, which
+  kept finding new ones (decision: Ransom, 2026-10-16).
