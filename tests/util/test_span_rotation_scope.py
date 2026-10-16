@@ -19,6 +19,7 @@ from inspect_ai.log._transcript import Transcript, init_transcript, transcript
 from inspect_ai.util._span import (
     SpanRotationScope,
     current_span_id,
+    parent_span,
     span,
     span_id_provider,
 )
@@ -195,3 +196,28 @@ async def test_close_is_idempotent() -> None:
     await scope.open("checkpoint 2")
     assert current_span_id() is not None
     await scope.close()
+
+
+async def test_parent_span_places_events_and_spans_under_the_given_parent() -> None:
+    async with span("current"):
+        current = current_span_id()
+        with parent_span("elsewhere"):
+            info = InfoEvent(data="placed")
+            async with span("child"):
+                child = current_span_id()
+        assert current_span_id() == current
+
+    assert info.span_id == "elsewhere"
+    [begin] = [
+        e
+        for e in transcript().events
+        if isinstance(e, SpanBeginEvent) and e.id == child
+    ]
+    assert begin.parent_id == "elsewhere"
+
+
+async def test_parent_span_none_leaves_the_current_span() -> None:
+    async with span("current"):
+        current = current_span_id()
+        with parent_span(None):
+            assert current_span_id() == current

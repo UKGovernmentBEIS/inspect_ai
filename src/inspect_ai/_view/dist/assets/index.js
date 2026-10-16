@@ -48926,7 +48926,7 @@ var TreeNode$2 = /*#__PURE__*/ (0, import_react.memo)((t0) => {
 				entries.length > limit && /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("button", {
 					type: "button",
 					className: TreeNode_module_default.showMore,
-					onClick: () => setLimit(_temp4$28),
+					onClick: () => setLimit(_temp4$29),
 					children: [
 						"Show",
 						" ",
@@ -48965,7 +48965,7 @@ function _temp3$39(entry) {
 		value: entry.value
 	}, entry.id);
 }
-function _temp4$28(l) {
+function _temp4$29(l) {
 	return l + CHUNK_SIZE;
 }
 //#endregion
@@ -71034,7 +71034,7 @@ var kDefaultScorePanelSort = {
 */ var useScorePanelSort = () => {
 	const $ = (0, import_compiler_runtime.c)(5);
 	const stored = useStore(_temp3$34);
-	const setPropertyValue = useStore(_temp4$27);
+	const setPropertyValue = useStore(_temp4$28);
 	let t0;
 	if ($[0] !== setPropertyValue) {
 		t0 = (sort) => {
@@ -71535,7 +71535,7 @@ function _temp3$34(state) {
 	const value = state.app.propertyBags[kScorePanelSortBag]?.[kScorePanelSortKey];
 	return isScorePanelSortState(value) ? value : void 0;
 }
-function _temp4$27(state_0) {
+function _temp4$28(state_0) {
 	return state_0.appActions.setPropertyValue;
 }
 function _temp5$15(state) {
@@ -72794,7 +72794,7 @@ var ApplicationNavbar = (t0) => {
 	const isDark = useResolvedIsDark(themePreference);
 	const loading = useSelectedLogLoading() || loadingProp;
 	const isShowing = useStore(_temp3$33);
-	const setShowing = useStore(_temp4$26);
+	const setShowing = useStore(_temp4$27);
 	let t2;
 	if ($[0] === Symbol.for("react.memo_cache_sentinel")) {
 		t2 = isVscode();
@@ -72888,7 +72888,7 @@ function _temp2$48(s_0) {
 function _temp3$33(state) {
 	return state.app.dialogs.options;
 }
-function _temp4$26(state_0) {
+function _temp4$27(state_0) {
 	return state_0.appActions.setShowingOptionsDialog;
 }
 var NavbarButton_module_default = {
@@ -73234,7 +73234,7 @@ var ColumnSelectorPopover = (t0) => {
 		t11 = () => {
 			onVisibilityChange({
 				...currentVisibility,
-				...Object.fromEntries(columnGroups.base.map(_temp4$25))
+				...Object.fromEntries(columnGroups.base.map(_temp4$26))
 			});
 		};
 		$[24] = columnGroups.base;
@@ -73522,7 +73522,7 @@ function _temp2$47(col_1) {
 function _temp3$32(col_2) {
 	return [getFieldKey(col_2), true];
 }
-function _temp4$25(col_3) {
+function _temp4$26(col_3) {
 	return [getFieldKey(col_3), false];
 }
 function _temp5$14(col_4) {
@@ -82833,7 +82833,7 @@ var LogListGrid = (t0) => {
 	const { reset: resetMatches } = fileMatches;
 	let t14;
 	if ($[42] !== rows || $[43] !== searchColumns || $[44] !== showFind) {
-		t14 = showFind ? buildSearchIndex(rows.filter(_temp3$31), searchColumns, _temp4$24) : void 0;
+		t14 = showFind ? buildSearchIndex(rows.filter(_temp3$31), searchColumns, _temp4$25) : void 0;
 		$[42] = rows;
 		$[43] = searchColumns;
 		$[44] = showFind;
@@ -83087,7 +83087,7 @@ function _temp2$46(row_2) {
 function _temp3$31(row_3) {
 	return row_3.type !== "file";
 }
-function _temp4$24(row_4) {
+function _temp4$25(row_4) {
 	return row_4.id;
 }
 function _temp5$13(row_6) {
@@ -83759,7 +83759,7 @@ var LogsPanel = (t0) => {
 	const handleColumnVisibilityChange = t21;
 	let t22;
 	if ($[63] !== logItems) {
-		t22 = logItems.filter(_temp4$23);
+		t22 = logItems.filter(_temp4$24);
 		$[63] = logItems;
 		$[64] = t22;
 	} else t22 = $[64];
@@ -84000,7 +84000,7 @@ function _temp2$44(state_0) {
 function _temp3$29(state_1) {
 	return state_1.logs.listing.columnVisibility;
 }
-function _temp4$23(item_0) {
+function _temp4$24(item_0) {
 	return item_0.type === "pending-task";
 }
 function _temp5$12(prev) {
@@ -86370,7 +86370,7 @@ var MarkerBody = (t0) => {
 		} else t5 = $[11];
 		return t5;
 	}
-	const firstUuid = members.find(_temp4$22)?.uuid;
+	const firstUuid = members.find(_temp4$23)?.uuid;
 	const t1 = `${members.length} events`;
 	let t2;
 	if ($[12] !== head.time) {
@@ -86784,7 +86784,7 @@ function _temp2$43(m) {
 function _temp3$28(p) {
 	return p.value;
 }
-function _temp4$22(m) {
+function _temp4$23(m) {
 	return m.uuid !== void 0;
 }
 function _temp5$11(member, i) {
@@ -88641,7 +88641,7 @@ var ModelTokenTable = (t0) => {
 									const cfgEntries = cfg ? Object.entries(cfg).filter(_temp$67) : [];
 									const argEntries = args ? Object.entries(args).filter(_temp2$42) : [];
 									if (cfgEntries.length === 0 && argEntries.length === 0) return null;
-									const renderSection = _temp4$21;
+									const renderSection = _temp4$22;
 									return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 										className: ModelTokenTable_module_default.configSection,
 										children: [cfgEntries.length > 0 && renderSection("config", cfgEntries), argEntries.length > 0 && renderSection("args", argEntries)]
@@ -88771,7 +88771,7 @@ function _temp3$27(t0) {
 		children: formatConfigValue(v_1, "null")
 	})] }, k_0);
 }
-function _temp4$21(label, entries) {
+function _temp4$22(label, entries) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 		className: ModelTokenTable_module_default.configSectionLabel,
 		children: label
@@ -90058,7 +90058,7 @@ var ConnectionLogModal = (t0) => {
 					shared_roles.length > 1 ? "shared" : "used",
 					" by",
 					" ",
-					shared_roles.map(_temp4$20)
+					shared_roles.map(_temp4$21)
 				]
 			}), showFilters && /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
 				className: ConnectionLogModal_module_default.filters,
@@ -90151,7 +90151,7 @@ function _temp2$40(retune) {
 function _temp3$26(a, b) {
 	return a.time - b.time || (a.kind === b.kind ? 0 : a.kind === "config" ? -1 : 1);
 }
-function _temp4$20(role, i) {
+function _temp4$21(role, i) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", { children: [i > 0 ? ", " : "", /*#__PURE__*/ (0, import_jsx_runtime.jsx)("b", { children: role })] }, role);
 }
 function _temp5$10(row_0, i_0) {
@@ -95955,9 +95955,8 @@ var ModelEventView_module_default = {
 /**
 * The user/system messages which immediately preceded a model call — the
 * "recent messages" panel of ModelEventView. Walks backward from the end of
-* the input, collecting trailing user/system messages (and tool messages when
-* the client renders no tool events), stopping at the first assistant/tool
-* message. Everything earlier is hidden behind "show all messages".
+* the input, collecting trailing user/system messages (and tool messages no
+* tool event shows), stopping at the first assistant/tool message. Everything earlier is hidden behind "show all messages".
 */ function recentInputMessages(input, options) {
 	const result = [];
 	if (!options.agentResultsFiltered) {
@@ -95967,7 +95966,8 @@ var ModelEventView_module_default = {
 			result.push(lastMessage);
 			offset = -1;
 		}
-		for (const msg of input.slice(offset).reverse()) if (msg.role === "user" && !msg.tool_call_id || msg.role === "system" || options.hasToolEvents === false && msg.role === "tool") result.unshift(msg);
+		for (const msg of input.slice(offset).reverse()) if (msg.role === "user" && !msg.tool_call_id || msg.role === "system" || msg.role === "tool" && !shownByToolEvent(msg, options)) result.unshift(msg);
+		else if (msg.role === "tool" && options.toolEventIds !== void 0) continue;
 		else break;
 	}
 	if (result.length === input.length && result.length > 0) {
@@ -95976,6 +95976,11 @@ var ModelEventView_module_default = {
 	}
 	return result;
 }
+var shownByToolEvent = (message, options) => {
+	if (options.hasToolEvents === false) return false;
+	if (options.toolEventIds === void 0) return true;
+	return !!message.tool_call_id && options.toolEventIds.has(message.tool_call_id);
+};
 /**
 * A user message the agent bridge synthesized from a Codex Multi-Agent V2
 * `agent_message` item (inter-agent handoff). The bridge preserves the raw
@@ -96071,7 +96076,7 @@ function groupRetryAttempts(events) {
 //#endregion
 //#region ../../packages/inspect-components/src/transcript/ModelEventView.tsx
 var ModelEventView = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(114);
+	const $ = (0, import_compiler_runtime.c)(118);
 	const { eventNode, showToolCalls, className, context, eventCallbacks } = t0;
 	const successEvent = eventNode.event;
 	const attempts = context?.retryAttempts?.get(retryAttemptKey(successEvent));
@@ -96118,125 +96123,147 @@ var ModelEventView = (t0) => {
 	const stopDetails = firstChoice?.stop_details;
 	const showStopReason = !!firstChoice && (!!stopDetails || firstChoice.stop_reason !== "stop");
 	context?.hasToolEvents;
+	context?.toolEventIds;
 	const agentResultsFiltered = !!event.agentResultsFiltered;
 	const t5 = context?.hasToolEvents;
-	let t6;
-	if ($[10] !== agentResultsFiltered || $[11] !== event.input || $[12] !== t5) {
-		t6 = recentInputMessages(event.input, {
+	const t6 = context?.toolEventIds;
+	let t7;
+	if ($[10] !== agentResultsFiltered || $[11] !== event.input || $[12] !== t5 || $[13] !== t6) {
+		t7 = recentInputMessages(event.input, {
 			agentResultsFiltered,
-			hasToolEvents: t5
+			hasToolEvents: t5,
+			toolEventIds: t6
 		});
 		$[10] = agentResultsFiltered;
 		$[11] = event.input;
 		$[12] = t5;
 		$[13] = t6;
-	} else t6 = $[13];
-	const userMessages = t6;
+		$[14] = t7;
+	} else t7 = $[14];
+	const userMessages = t7;
 	const hasHiddenMessages = event.input.length > userMessages.length;
 	const [showAllMessages, setShowAllMessages] = (0, import_react.useState)(false);
-	let t7;
-	if ($[14] !== event.pending || $[15] !== isCancelled || $[16] !== outputMessages) {
-		t7 = event.pending || isCancelled ? outputMessages.filter(_temp2$37) : outputMessages;
-		$[14] = event.pending;
-		$[15] = isCancelled;
-		$[16] = outputMessages;
-		$[17] = t7;
-	} else t7 = $[17];
-	const outputs = t7;
 	let t8;
-	if ($[18] !== event.input || $[19] !== outputs || $[20] !== showAllMessages || $[21] !== userMessages) {
-		t8 = showAllMessages ? [...event.input, ...outputs] : [...userMessages, ...outputs];
-		$[18] = event.input;
-		$[19] = outputs;
+	if ($[15] !== context?.toolEventIds || $[16] !== event.input || $[17] !== event.pending || $[18] !== isCancelled || $[19] !== outputMessages || $[20] !== showAllMessages || $[21] !== userMessages) {
+		t8 = () => {
+			const outputs = event.pending || isCancelled ? outputMessages.filter(_temp2$37) : outputMessages;
+			const messages = showAllMessages ? [...event.input, ...outputs] : [...userMessages, ...outputs];
+			const toolEventIds = context?.toolEventIds;
+			return toolEventIds ? messages.map((m_0) => withoutToolCallsIn(m_0, toolEventIds)) : messages;
+		};
+		$[15] = context?.toolEventIds;
+		$[16] = event.input;
+		$[17] = event.pending;
+		$[18] = isCancelled;
+		$[19] = outputMessages;
 		$[20] = showAllMessages;
 		$[21] = userMessages;
 		$[22] = t8;
 	} else t8 = $[22];
-	const summaryMessages = t8;
+	context?.toolEventIds;
 	let t9;
-	if ($[23] !== context?.messageLabels) {
-		t9 = () => {
-			const map = context?.messageLabels;
-			if (!map) return { show: false };
-			return { messageLabels: map };
-		};
-		$[23] = context?.messageLabels;
+	if ($[23] !== t8) {
+		t9 = t8();
+		$[23] = t8;
 		$[24] = t9;
 	} else t9 = $[24];
-	context?.messageLabels;
+	const summaryMessages = t9;
 	let t10;
-	if ($[25] !== t9) {
-		t10 = t9();
-		$[25] = t9;
-		$[26] = t10;
-	} else t10 = $[26];
-	const summaryLabels = t10;
-	const panelTitle = event.role ? `Model Call (${event.role}): ${event.model}` : `Model Call: ${event.model}`;
+	if ($[25] !== context?.hasToolEvents || $[26] !== userMessages) {
+		t10 = context?.hasToolEvents !== false && !userMessages.some(_temp3$25);
+		$[25] = context?.hasToolEvents;
+		$[26] = userMessages;
+		$[27] = t10;
+	} else t10 = $[27];
+	const collapseSummaryToolMessages = t10;
+	context?.messageLabels;
 	let t11;
-	if ($[27] !== callTime || $[28] !== event || $[29] !== isCancelled || $[30] !== isFailed || $[31] !== panelTitle || $[32] !== totalUsage) {
-		t11 = isFailed ? `${panelTitle} · FAILED${formatFailureTime(event)}` : isCancelled ? `${panelTitle} · Cancelled${formatFailureTime(event)}` : formatTitle(panelTitle, totalUsage, callTime);
-		$[27] = callTime;
-		$[28] = event;
-		$[29] = isCancelled;
-		$[30] = isFailed;
-		$[31] = panelTitle;
-		$[32] = totalUsage;
-		$[33] = t11;
-	} else t11 = $[33];
-	const titleString = t11;
-	const fallback = event.output.fallback;
+	bb0: {
+		const map = context?.messageLabels;
+		if (!map) {
+			let t12;
+			if ($[28] === Symbol.for("react.memo_cache_sentinel")) {
+				t12 = { show: false };
+				$[28] = t12;
+			} else t12 = $[28];
+			t11 = t12;
+			break bb0;
+		}
+		let t12;
+		if ($[29] !== map) {
+			t12 = { messageLabels: map };
+			$[29] = map;
+			$[30] = t12;
+		} else t12 = $[30];
+		t11 = t12;
+	}
+	const summaryLabels = t11;
+	const panelTitle = event.role ? `Model Call (${event.role}): ${event.model}` : `Model Call: ${event.model}`;
 	let t12;
-	if ($[34] !== fallback) {
-		t12 = fallback ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", {
+	if ($[31] !== callTime || $[32] !== event || $[33] !== isCancelled || $[34] !== isFailed || $[35] !== panelTitle || $[36] !== totalUsage) {
+		t12 = isFailed ? `${panelTitle} · FAILED${formatFailureTime(event)}` : isCancelled ? `${panelTitle} · Cancelled${formatFailureTime(event)}` : formatTitle(panelTitle, totalUsage, callTime);
+		$[31] = callTime;
+		$[32] = event;
+		$[33] = isCancelled;
+		$[34] = isFailed;
+		$[35] = panelTitle;
+		$[36] = totalUsage;
+		$[37] = t12;
+	} else t12 = $[37];
+	const titleString = t12;
+	const fallback = event.output.fallback;
+	let t13;
+	if ($[38] !== fallback) {
+		t13 = fallback ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", {
 			className: ModelEventView_module_default.fallbackBadge,
 			children: ["· fallback → ", fallback.fallback_model]
 		}) : void 0;
-		$[34] = fallback;
-		$[35] = t12;
-	} else t12 = $[35];
-	const fallbackBadge = t12;
-	let t13;
-	if ($[36] !== context) {
-		t13 = context?.turnInfo ? {
+		$[38] = fallback;
+		$[39] = t13;
+	} else t13 = $[39];
+	const fallbackBadge = t13;
+	let t14;
+	if ($[40] !== context) {
+		t14 = context?.turnInfo ? {
 			turnNumber: context.turnInfo.turnNumber,
 			totalTurns: context.turnInfo.totalTurns,
 			isAnchor: context.turnIsAnchor ?? true
 		} : void 0;
-		$[36] = context;
-		$[37] = t13;
-	} else t13 = $[37];
-	const turnNav = t13;
-	let t14;
-	if ($[38] !== attempts || $[39] !== selectedAttemptKey || $[40] !== setSelectedAttemptKey) {
-		t14 = attempts ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(RetryChip, {
+		$[40] = context;
+		$[41] = t14;
+	} else t14 = $[41];
+	const turnNav = t14;
+	let t15;
+	if ($[42] !== attempts || $[43] !== selectedAttemptKey || $[44] !== setSelectedAttemptKey) {
+		t15 = attempts ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(RetryChip, {
 			attempts,
 			selectedKey: selectedAttemptKey,
 			onSelect: setSelectedAttemptKey,
 			keyOf: retryAttemptKey
 		}) : void 0;
-		$[38] = attempts;
-		$[39] = selectedAttemptKey;
-		$[40] = setSelectedAttemptKey;
-		$[41] = t14;
-	} else t14 = $[41];
-	const retryChip = t14;
-	let t15;
-	if ($[42] !== event.timestamp || $[43] !== event.working_start) {
-		t15 = event.timestamp ? formatTiming(event.timestamp, event.working_start) : void 0;
-		$[42] = event.timestamp;
-		$[43] = event.working_start;
-		$[44] = t15;
-	} else t15 = $[44];
+		$[42] = attempts;
+		$[43] = selectedAttemptKey;
+		$[44] = setSelectedAttemptKey;
+		$[45] = t15;
+	} else t15 = $[45];
+	const retryChip = t15;
 	let t16;
-	if ($[45] !== fallbackBadge || $[46] !== retryChip) {
-		t16 = fallbackBadge || retryChip ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [fallbackBadge, retryChip] }) : void 0;
-		$[45] = fallbackBadge;
-		$[46] = retryChip;
-		$[47] = t16;
-	} else t16 = $[47];
+	if ($[46] !== event.timestamp || $[47] !== event.working_start) {
+		t16 = event.timestamp ? formatTiming(event.timestamp, event.working_start) : void 0;
+		$[46] = event.timestamp;
+		$[47] = event.working_start;
+		$[48] = t16;
+	} else t16 = $[48];
 	let t17;
-	if ($[48] !== context?.inlineExpansionUX || $[49] !== hasHiddenMessages || $[50] !== showAllMessages) {
-		t17 = context?.inlineExpansionUX && hasHiddenMessages && !showAllMessages && /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+	if ($[49] !== fallbackBadge || $[50] !== retryChip) {
+		t17 = fallbackBadge || retryChip ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [fallbackBadge, retryChip] }) : void 0;
+		$[49] = fallbackBadge;
+		$[50] = retryChip;
+		$[51] = t17;
+	} else t17 = $[51];
+	let t18;
+	if ($[52] !== context?.inlineExpansionUX || $[53] !== hasHiddenMessages || $[54] !== showAllMessages) {
+		t18 = context?.inlineExpansionUX && hasHiddenMessages && !showAllMessages && /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 			className: clsx("text-size-small", ModelEventView_module_default.showAllLink),
 			children: /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("button", {
 				type: "button",
@@ -96249,40 +96276,39 @@ var ModelEventView = (t0) => {
 				}), "Show all messages"]
 			})
 		});
-		$[48] = context?.inlineExpansionUX;
-		$[49] = hasHiddenMessages;
-		$[50] = showAllMessages;
-		$[51] = t17;
-	} else t17 = $[51];
-	const t18 = `${eventNode.id}-model-output`;
-	const t19 = showToolCalls ? "complete" : "omit";
-	const t20 = context?.hasToolEvents !== false;
+		$[52] = context?.inlineExpansionUX;
+		$[53] = hasHiddenMessages;
+		$[54] = showAllMessages;
+		$[55] = t18;
+	} else t18 = $[55];
+	const t19 = `${eventNode.id}-model-output`;
+	const t20 = context?.toolEventIds || showToolCalls ? "complete" : "omit";
 	let t21;
-	if ($[52] !== t19 || $[53] !== t20) {
+	if ($[56] !== collapseSummaryToolMessages || $[57] !== t20) {
 		t21 = {
-			callStyle: t19,
-			collapseToolMessages: t20
+			callStyle: t20,
+			collapseToolMessages: collapseSummaryToolMessages
 		};
-		$[52] = t19;
-		$[53] = t20;
-		$[54] = t21;
-	} else t21 = $[54];
+		$[56] = collapseSummaryToolMessages;
+		$[57] = t20;
+		$[58] = t21;
+	} else t21 = $[58];
 	let t22;
-	if ($[55] !== summaryLabels || $[56] !== summaryMessages || $[57] !== t18 || $[58] !== t21) {
+	if ($[59] !== summaryLabels || $[60] !== summaryMessages || $[61] !== t19 || $[62] !== t21) {
 		t22 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ChatView, {
-			id: t18,
+			id: t19,
 			messages: summaryMessages,
 			tools: t21,
 			labels: summaryLabels
 		});
-		$[55] = summaryLabels;
-		$[56] = summaryMessages;
-		$[57] = t18;
-		$[58] = t21;
-		$[59] = t22;
-	} else t22 = $[59];
+		$[59] = summaryLabels;
+		$[60] = summaryMessages;
+		$[61] = t19;
+		$[62] = t21;
+		$[63] = t22;
+	} else t22 = $[63];
 	let t23;
-	if ($[60] !== event.error || $[61] !== event.pending || $[62] !== isCancelled) {
+	if ($[64] !== event.error || $[65] !== event.pending || $[66] !== isCancelled) {
 		t23 = isCancelled ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 			className: ModelEventView_module_default.cancelled,
 			children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("i", { className: TranscriptIcons.cancel }), /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", { children: event.error })]
@@ -96296,29 +96322,29 @@ var ModelEventView = (t0) => {
 			className: clsx(ModelEventView_module_default.progress),
 			children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(GeneratingIndicator, {})
 		}) : void 0;
-		$[60] = event.error;
-		$[61] = event.pending;
-		$[62] = isCancelled;
-		$[63] = t23;
-	} else t23 = $[63];
+		$[64] = event.error;
+		$[65] = event.pending;
+		$[66] = isCancelled;
+		$[67] = t23;
+	} else t23 = $[67];
 	let t24;
-	if ($[64] !== t17 || $[65] !== t22 || $[66] !== t23) {
+	if ($[68] !== t18 || $[69] !== t22 || $[70] !== t23) {
 		t24 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 			"data-name": "Summary",
 			className: ModelEventView_module_default.container,
 			children: [
-				t17,
+				t18,
 				t22,
 				t23
 			]
 		});
-		$[64] = t17;
-		$[65] = t22;
-		$[66] = t23;
-		$[67] = t24;
-	} else t24 = $[67];
+		$[68] = t18;
+		$[69] = t22;
+		$[70] = t23;
+		$[71] = t24;
+	} else t24 = $[71];
 	let t25;
-	if ($[68] !== event.completed || $[69] !== event.output.usage || $[70] !== event.timestamp || $[71] !== event.working_time) {
+	if ($[72] !== event.completed || $[73] !== event.output.usage || $[74] !== event.timestamp || $[75] !== event.working_time) {
 		t25 = event.output.usage ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ModelUsagePanel, {
 			usage: event.output.usage,
 			timing: {
@@ -96327,25 +96353,25 @@ var ModelEventView = (t0) => {
 				working_time: event.working_time
 			}
 		}) : void 0;
-		$[68] = event.completed;
-		$[69] = event.output.usage;
-		$[70] = event.timestamp;
-		$[71] = event.working_time;
-		$[72] = t25;
-	} else t25 = $[72];
+		$[72] = event.completed;
+		$[73] = event.output.usage;
+		$[74] = event.timestamp;
+		$[75] = event.working_time;
+		$[76] = t25;
+	} else t25 = $[76];
 	let t26;
-	if ($[73] !== firstChoice || $[74] !== showStopReason || $[75] !== stopDetails) {
+	if ($[77] !== firstChoice || $[78] !== showStopReason || $[79] !== stopDetails) {
 		t26 = showStopReason && /*#__PURE__*/ (0, import_jsx_runtime.jsx)(StopReasonBadge, {
 			reason: firstChoice.stop_reason,
 			details: stopDetails
 		});
-		$[73] = firstChoice;
-		$[74] = showStopReason;
-		$[75] = stopDetails;
-		$[76] = t26;
-	} else t26 = $[76];
+		$[77] = firstChoice;
+		$[78] = showStopReason;
+		$[79] = stopDetails;
+		$[80] = t26;
+	} else t26 = $[80];
 	let t27;
-	if ($[77] !== entries) {
+	if ($[81] !== entries) {
 		t27 = Object.keys(entries).length > 0 && /*#__PURE__*/ (0, import_jsx_runtime.jsx)(EventSection, {
 			title: "Configuration",
 			className: clsx(ModelEventView_module_default.tableSelection, ModelEventView_module_default.config),
@@ -96354,17 +96380,17 @@ var ModelEventView = (t0) => {
 				options: { plain: true }
 			})
 		});
-		$[77] = entries;
-		$[78] = t27;
-	} else t27 = $[78];
+		$[81] = entries;
+		$[82] = t27;
+	} else t27 = $[82];
 	let t28;
-	if ($[79] !== event) {
+	if ($[83] !== event) {
 		t28 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ProviderIds, { event });
-		$[79] = event;
-		$[80] = t28;
-	} else t28 = $[80];
+		$[83] = event;
+		$[84] = t28;
+	} else t28 = $[84];
 	let t29;
-	if ($[81] !== t25 || $[82] !== t26 || $[83] !== t27 || $[84] !== t28) {
+	if ($[85] !== t25 || $[86] !== t26 || $[87] !== t27 || $[88] !== t28) {
 		t29 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 			"data-name": "Info",
 			className: ModelEventView_module_default.container,
@@ -96378,34 +96404,34 @@ var ModelEventView = (t0) => {
 				]
 			})
 		});
-		$[81] = t25;
-		$[82] = t26;
-		$[83] = t27;
-		$[84] = t28;
-		$[85] = t29;
-	} else t29 = $[85];
+		$[85] = t25;
+		$[86] = t26;
+		$[87] = t27;
+		$[88] = t28;
+		$[89] = t29;
+	} else t29 = $[89];
 	const t30 = `${eventNode.id}-model-input-full`;
 	let t31;
-	if ($[86] !== event.input || $[87] !== outputMessages) {
+	if ($[90] !== event.input || $[91] !== outputMessages) {
 		t31 = [...event.input, ...outputMessages];
-		$[86] = event.input;
-		$[87] = outputMessages;
-		$[88] = t31;
-	} else t31 = $[88];
+		$[90] = event.input;
+		$[91] = outputMessages;
+		$[92] = t31;
+	} else t31 = $[92];
 	const t32 = context?.hasToolEvents !== false;
 	let t33;
-	if ($[89] !== t32) {
+	if ($[93] !== t32) {
 		t33 = { collapseToolMessages: t32 };
-		$[89] = t32;
-		$[90] = t33;
-	} else t33 = $[90];
+		$[93] = t32;
+		$[94] = t33;
+	} else t33 = $[94];
 	let t34;
-	if ($[91] === Symbol.for("react.memo_cache_sentinel")) {
+	if ($[95] === Symbol.for("react.memo_cache_sentinel")) {
 		t34 = { show: false };
-		$[91] = t34;
-	} else t34 = $[91];
+		$[95] = t34;
+	} else t34 = $[95];
 	let t35;
-	if ($[92] !== t30 || $[93] !== t31 || $[94] !== t33) {
+	if ($[96] !== t30 || $[97] !== t31 || $[98] !== t33) {
 		t35 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 			"data-name": "Messages",
 			className: ModelEventView_module_default.container,
@@ -96416,13 +96442,13 @@ var ModelEventView = (t0) => {
 				labels: t34
 			})
 		});
-		$[92] = t30;
-		$[93] = t31;
-		$[94] = t33;
-		$[95] = t35;
-	} else t35 = $[95];
+		$[96] = t30;
+		$[97] = t31;
+		$[98] = t33;
+		$[99] = t35;
+	} else t35 = $[99];
 	let t36;
-	if ($[96] !== event.tool_choice || $[97] !== event.tools) {
+	if ($[100] !== event.tool_choice || $[101] !== event.tools) {
 		t36 = event.tools.length > 1 && /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 			"data-name": "Tools",
 			className: ModelEventView_module_default.container,
@@ -96431,30 +96457,30 @@ var ModelEventView = (t0) => {
 				toolChoice: event.tool_choice
 			})
 		});
-		$[96] = event.tool_choice;
-		$[97] = event.tools;
-		$[98] = t36;
-	} else t36 = $[98];
+		$[100] = event.tool_choice;
+		$[101] = event.tools;
+		$[102] = t36;
+	} else t36 = $[102];
 	let t37;
-	if ($[99] !== event.call) {
+	if ($[103] !== event.call) {
 		t37 = event.call ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(APIView, {
 			"data-name": "API",
 			call: event.call,
 			className: ModelEventView_module_default.container
 		}) : "";
-		$[99] = event.call;
-		$[100] = t37;
-	} else t37 = $[100];
+		$[103] = event.call;
+		$[104] = t37;
+	} else t37 = $[104];
 	let t38;
-	if ($[101] !== className || $[102] !== eventCallbacks || $[103] !== eventNode.id || $[104] !== t15 || $[105] !== t16 || $[106] !== t24 || $[107] !== t29 || $[108] !== t35 || $[109] !== t36 || $[110] !== t37 || $[111] !== titleString || $[112] !== turnNav) {
+	if ($[105] !== className || $[106] !== eventCallbacks || $[107] !== eventNode.id || $[108] !== t16 || $[109] !== t17 || $[110] !== t24 || $[111] !== t29 || $[112] !== t35 || $[113] !== t36 || $[114] !== t37 || $[115] !== titleString || $[116] !== turnNav) {
 		t38 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(EventPanel, {
 			eventNodeId: eventNode.id,
 			className,
 			title: titleString,
-			subTitle: t15,
+			subTitle: t16,
 			icon: TranscriptIcons.model,
 			turnNav,
-			headerExtra: t16,
+			headerExtra: t17,
 			eventCallbacks,
 			collapsibleContent: true,
 			children: [
@@ -96465,20 +96491,20 @@ var ModelEventView = (t0) => {
 				t37
 			]
 		});
-		$[101] = className;
-		$[102] = eventCallbacks;
-		$[103] = eventNode.id;
-		$[104] = t15;
-		$[105] = t16;
-		$[106] = t24;
-		$[107] = t29;
-		$[108] = t35;
-		$[109] = t36;
-		$[110] = t37;
-		$[111] = titleString;
-		$[112] = turnNav;
-		$[113] = t38;
-	} else t38 = $[113];
+		$[105] = className;
+		$[106] = eventCallbacks;
+		$[107] = eventNode.id;
+		$[108] = t16;
+		$[109] = t17;
+		$[110] = t24;
+		$[111] = t29;
+		$[112] = t35;
+		$[113] = t36;
+		$[114] = t37;
+		$[115] = titleString;
+		$[116] = turnNav;
+		$[117] = t38;
+	} else t38 = $[117];
 	return t38;
 };
 var ProviderIds = (t0) => {
@@ -96515,7 +96541,7 @@ var ProviderIds = (t0) => {
 	} else t4 = $[5];
 	let t5;
 	if ($[6] !== requestIds) {
-		t5 = requestIds.map(_temp3$25);
+		t5 = requestIds.map(_temp4$20);
 		$[6] = requestIds;
 		$[7] = t5;
 	} else t5 = $[7];
@@ -96798,13 +96824,24 @@ var ToolChoiceView = (t0) => {
 		return t1;
 	}
 };
+var withoutToolCallsIn = (message, toolEventIds) => {
+	if (message.role !== "assistant" || !message.tool_calls?.length) return message;
+	const toolCalls = message.tool_calls.filter((call) => !toolEventIds.has(call.id));
+	return toolCalls.length === message.tool_calls.length ? message : {
+		...message,
+		tool_calls: toolCalls
+	};
+};
 function _temp$53(choice) {
 	return choice.message;
 }
 function _temp2$37(m) {
 	return !isLivePlaceholderMessage(m);
 }
-function _temp3$25(requestId, index) {
+function _temp3$25(m_1) {
+	return m_1.role === "tool";
+}
+function _temp4$20(requestId, index) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ProviderIdRow, {
 		label: requestId.header,
 		id: requestId.id,
@@ -101933,6 +101970,46 @@ var extractToolResultItemText = (item) => {
 	}
 	return result;
 }
+var noToolEvents = /* @__PURE__ */ new Set();
+/**
+* For each event node, the ids of the tool events at its level: its siblings
+* under the same parent. Native tool calls all have a tool event beside the
+* model event that proposed them, but a bridged agent's own tool calls have
+* none (only the host tools the bridge runs for it do), so whether a call or
+* its result message is shown by a tool event is decided per call id.
+*
+* A node's parent is the nearest preceding node strictly shallower than it,
+* found with the same monotonic stack as `computeHasToolEventsAtDepth`.
+*/ function computeToolEventIdsAtLevel(eventNodes) {
+	const levelKeys = new Array(eventNodes.length);
+	const idsByLevel = /* @__PURE__ */ new Map();
+	const shallowerStack = [];
+	for (let i = 0; i < eventNodes.length; i++) {
+		const node = eventNodes[i];
+		if (!node) continue;
+		const depth = node.depth;
+		while (shallowerStack.length > 0 && shallowerStack[shallowerStack.length - 1].depth >= depth) shallowerStack.pop();
+		const parent = shallowerStack.length > 0 ? shallowerStack[shallowerStack.length - 1].index : -1;
+		shallowerStack.push({
+			index: i,
+			depth
+		});
+		const levelKey = `${parent}:${depth}`;
+		levelKeys[i] = levelKey;
+		if (node.event.event === "tool") {
+			let ids = idsByLevel.get(levelKey);
+			if (!ids) {
+				ids = /* @__PURE__ */ new Set();
+				idsByLevel.set(levelKey, ids);
+			}
+			ids.add(node.event.id);
+		}
+	}
+	return eventNodes.map((_node, i) => {
+		const levelKey = levelKeys[i];
+		return levelKey && idsByLevel.get(levelKey) || noToolEvents;
+	});
+}
 //#endregion
 //#region ../../packages/inspect-components/src/transcript/timeline/retryOrdering.ts
 /**
@@ -102829,7 +102906,7 @@ var kFocusExcludedEvents = /* @__PURE__ */ new Set([
 /**
 * Renders the Transcript component.
 */ var TranscriptVirtualListComponent = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(57);
+	const $ = (0, import_compiler_runtime.c)(60);
 	const { id, listHandle, eventNodes, scrollRef, running, backfilling, scrollToTopOnFinish: t1, initialEventId, navOwned, followRequested, className, turnMap, relativeIndent, disableVirtualization, onNativeFindChanged, onAutoCollapse, renderAgentCard, eventCallbacks, eventNodeContext, selection, visibleRangeRef } = t0;
 	const scrollToTopOnFinish = t1 === void 0 ? true : t1;
 	const useVirtualization = !disableVirtualization;
@@ -102868,25 +102945,32 @@ var kFocusExcludedEvents = /* @__PURE__ */ new Set([
 		$[8] = t5;
 	} else t5 = $[8];
 	const hasToolEventsLookup = t5;
-	const nonVirtualGridRef = (0, import_react.useRef)(null);
 	let t6;
+	if ($[9] !== eventNodes) {
+		t6 = computeToolEventIdsAtLevel(eventNodes);
+		$[9] = eventNodes;
+		$[10] = t6;
+	} else t6 = $[10];
+	const toolEventIdsLookup = t6;
+	const nonVirtualGridRef = (0, import_react.useRef)(null);
 	let t7;
-	if ($[9] !== initialEventId || $[10] !== useVirtualization) {
-		t6 = () => {
+	let t8;
+	if ($[11] !== initialEventId || $[12] !== useVirtualization) {
+		t7 = () => {
 			if (!useVirtualization && initialEventId) (nonVirtualGridRef.current?.querySelector(`[id="${initialEventId}"]`))?.scrollIntoView({ block: "start" });
 		};
-		t7 = [initialEventId, useVirtualization];
-		$[9] = initialEventId;
-		$[10] = useVirtualization;
-		$[11] = t6;
-		$[12] = t7;
+		t8 = [initialEventId, useVirtualization];
+		$[11] = initialEventId;
+		$[12] = useVirtualization;
+		$[13] = t7;
+		$[14] = t8;
 	} else {
-		t6 = $[11];
-		t7 = $[12];
+		t7 = $[13];
+		t8 = $[14];
 	}
-	(0, import_react.useEffect)(t6, t7);
+	(0, import_react.useEffect)(t7, t8);
 	let map;
-	if ($[13] !== eventNodeContext || $[14] !== eventNodes || $[15] !== hasToolEventsLookup || $[16] !== turnMap) {
+	if ($[15] !== eventNodeContext || $[16] !== eventNodes || $[17] !== hasToolEventsLookup || $[18] !== toolEventIdsLookup || $[19] !== turnMap) {
 		map = /* @__PURE__ */ new Map();
 		let prevTurnNumber;
 		for (const [i, node] of eventNodes.entries()) {
@@ -102896,6 +102980,7 @@ var kFocusExcludedEvents = /* @__PURE__ */ new Set([
 			const turnIsAnchor = turnInfo !== void 0 && turnInfo.turnNumber !== prevTurnNumber;
 			map.set(node.id, {
 				hasToolEvents,
+				toolEventIds: toolEventIdsLookup[i],
 				turnInfo,
 				turnIsAnchor,
 				...eventNodeContext,
@@ -102904,17 +102989,18 @@ var kFocusExcludedEvents = /* @__PURE__ */ new Set([
 			});
 			prevTurnNumber = turnInfo?.turnNumber;
 		}
-		$[13] = eventNodeContext;
-		$[14] = eventNodes;
-		$[15] = hasToolEventsLookup;
-		$[16] = turnMap;
-		$[17] = map;
-	} else map = $[17];
+		$[15] = eventNodeContext;
+		$[16] = eventNodes;
+		$[17] = hasToolEventsLookup;
+		$[18] = toolEventIdsLookup;
+		$[19] = turnMap;
+		$[20] = map;
+	} else map = $[20];
 	const contextMap = map;
 	const eventLabels = eventNodeContext?.eventLabels;
-	let t8;
-	if ($[18] !== contextMap || $[19] !== eventCallbacks || $[20] !== eventLabels || $[21] !== eventNodes || $[22] !== onAutoCollapse || $[23] !== relativeIndent || $[24] !== renderAgentCard || $[25] !== selection) {
-		t8 = (index, item) => {
+	let t9;
+	if ($[21] !== contextMap || $[22] !== eventCallbacks || $[23] !== eventLabels || $[24] !== eventNodes || $[25] !== onAutoCollapse || $[26] !== relativeIndent || $[27] !== renderAgentCard || $[28] !== selection) {
+		t9 = (index, item) => {
 			const depth = relativeIndent ? item.depth - (eventNodes[0]?.depth ?? 0) : item.depth;
 			const previousIndex = index - 1;
 			const nextIndex = index + 1;
@@ -102958,49 +103044,49 @@ var kFocusExcludedEvents = /* @__PURE__ */ new Set([
 				children: renderedNode
 			}, item.id);
 		};
-		$[18] = contextMap;
-		$[19] = eventCallbacks;
-		$[20] = eventLabels;
-		$[21] = eventNodes;
-		$[22] = onAutoCollapse;
-		$[23] = relativeIndent;
-		$[24] = renderAgentCard;
-		$[25] = selection;
-		$[26] = t8;
-	} else t8 = $[26];
-	const renderRow = t8;
+		$[21] = contextMap;
+		$[22] = eventCallbacks;
+		$[23] = eventLabels;
+		$[24] = eventNodes;
+		$[25] = onAutoCollapse;
+		$[26] = relativeIndent;
+		$[27] = renderAgentCard;
+		$[28] = selection;
+		$[29] = t9;
+	} else t9 = $[29];
+	const renderRow = t9;
 	const isBackfilling = backfilling === true;
-	let t9;
-	if ($[27] !== eventNodes || $[28] !== isBackfilling || $[29] !== running) {
-		t9 = running === true && !isBackfilling && transcriptToolsRunning(eventNodes);
-		$[27] = eventNodes;
-		$[28] = isBackfilling;
-		$[29] = running;
-		$[30] = t9;
-	} else t9 = $[30];
-	const toolsRunning = t9;
-	const showFooter = isBackfilling || toolsRunning;
 	let t10;
-	if ($[31] !== isBackfilling || $[32] !== toolsRunning) {
-		t10 = () => renderTranscriptFooter({
+	if ($[30] !== eventNodes || $[31] !== isBackfilling || $[32] !== running) {
+		t10 = running === true && !isBackfilling && transcriptToolsRunning(eventNodes);
+		$[30] = eventNodes;
+		$[31] = isBackfilling;
+		$[32] = running;
+		$[33] = t10;
+	} else t10 = $[33];
+	const toolsRunning = t10;
+	const showFooter = isBackfilling || toolsRunning;
+	let t11;
+	if ($[34] !== isBackfilling || $[35] !== toolsRunning) {
+		t11 = () => renderTranscriptFooter({
 			backfilling: isBackfilling,
 			toolsRunning
 		});
-		$[31] = isBackfilling;
-		$[32] = toolsRunning;
-		$[33] = t10;
-	} else t10 = $[33];
-	const Footer = t10;
-	let t11;
-	if ($[34] !== Footer) {
-		t11 = { Footer };
-		$[34] = Footer;
-		$[35] = t11;
-	} else t11 = $[35];
-	const components = t11;
+		$[34] = isBackfilling;
+		$[35] = toolsRunning;
+		$[36] = t11;
+	} else t11 = $[36];
+	const Footer = t11;
 	let t12;
-	if ($[36] !== className || $[37] !== components || $[38] !== eventNodes || $[39] !== followRequested || $[40] !== id || $[41] !== initialEventIndex || $[42] !== isBackfilling || $[43] !== listHandle || $[44] !== navOwned || $[45] !== renderRow || $[46] !== running || $[47] !== scrollRef || $[48] !== scrollToTopOnFinish || $[49] !== showFooter || $[50] !== toolsRunning || $[51] !== useVirtualization || $[52] !== visibleRangeRef) {
-		t12 = useVirtualization ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(VirtualList, {
+	if ($[37] !== Footer) {
+		t12 = { Footer };
+		$[37] = Footer;
+		$[38] = t12;
+	} else t12 = $[38];
+	const components = t12;
+	let t13;
+	if ($[39] !== className || $[40] !== components || $[41] !== eventNodes || $[42] !== followRequested || $[43] !== id || $[44] !== initialEventIndex || $[45] !== isBackfilling || $[46] !== listHandle || $[47] !== navOwned || $[48] !== renderRow || $[49] !== running || $[50] !== scrollRef || $[51] !== scrollToTopOnFinish || $[52] !== showFooter || $[53] !== toolsRunning || $[54] !== useVirtualization || $[55] !== visibleRangeRef) {
+		t13 = useVirtualization ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(VirtualList, {
 			ref: listHandle,
 			className,
 			persistenceKey: id,
@@ -103030,38 +103116,38 @@ var kFocusExcludedEvents = /* @__PURE__ */ new Set([
 				toolsRunning
 			})]
 		});
-		$[36] = className;
-		$[37] = components;
-		$[38] = eventNodes;
-		$[39] = followRequested;
-		$[40] = id;
-		$[41] = initialEventIndex;
-		$[42] = isBackfilling;
-		$[43] = listHandle;
-		$[44] = navOwned;
-		$[45] = renderRow;
-		$[46] = running;
-		$[47] = scrollRef;
-		$[48] = scrollToTopOnFinish;
-		$[49] = showFooter;
-		$[50] = toolsRunning;
-		$[51] = useVirtualization;
-		$[52] = visibleRangeRef;
-		$[53] = t12;
-	} else t12 = $[53];
-	const list = t12;
-	const t13 = selection?.onToggle;
-	let t14;
-	if ($[54] !== list || $[55] !== t13) {
-		t14 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(TranscriptRowToggleContext.Provider, {
-			value: t13,
+		$[39] = className;
+		$[40] = components;
+		$[41] = eventNodes;
+		$[42] = followRequested;
+		$[43] = id;
+		$[44] = initialEventIndex;
+		$[45] = isBackfilling;
+		$[46] = listHandle;
+		$[47] = navOwned;
+		$[48] = renderRow;
+		$[49] = running;
+		$[50] = scrollRef;
+		$[51] = scrollToTopOnFinish;
+		$[52] = showFooter;
+		$[53] = toolsRunning;
+		$[54] = useVirtualization;
+		$[55] = visibleRangeRef;
+		$[56] = t13;
+	} else t13 = $[56];
+	const list = t13;
+	const t14 = selection?.onToggle;
+	let t15;
+	if ($[57] !== list || $[58] !== t14) {
+		t15 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(TranscriptRowToggleContext.Provider, {
+			value: t14,
 			children: list
 		});
-		$[54] = list;
-		$[55] = t13;
-		$[56] = t14;
-	} else t14 = $[56];
-	return t14;
+		$[57] = list;
+		$[58] = t14;
+		$[59] = t15;
+	} else t15 = $[59];
+	return t15;
 };
 var TranscriptVirtualList = /*#__PURE__*/ (0, import_react.memo)(TranscriptVirtualListComponent);
 TranscriptVirtualList.displayName = "TranscriptVirtualList";
@@ -103888,7 +103974,8 @@ var kExitFocusIcon = "bi bi-arrows-angle-contract";
 						eventCallbacks,
 						eventNodeContext: {
 							hasToolEvents: true,
-							...checks
+							...checks,
+							toolEventIds: void 0
 						}
 					})]
 				})
