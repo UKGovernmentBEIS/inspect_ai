@@ -113,13 +113,14 @@ one known wait is open anywhere in the sample. Otherwise it is
 
 | Known work | Where the span opens and closes |
 | --- | --- |
-| A model `generate` attempt in flight | `ModelAttempts.attempt()` around the provider call in `Model._generate` (`_model.py`), from just before `api.generate` to its return. The connection-slot wait, the pause hold and the cache lookup come before it, and the backoff after it. |
+| A model `generate`, `compact()` or `count_tokens()` attempt in flight | `ModelAttempts.attempt()` around the provider call in `Model._generate`, `Model.compact` and `Model.count_tokens` (`_model.py`), from just before `api.generate`, `api.compact` or `api.count_tokens` to its return. The connection-slot or pool wait, the pause hold and the cache lookup come before it, and the backoff after it. |
 | A sandbox exec | `SandboxEnvironmentProxy.exec` (`util/_sandbox/events.py`), except Inspect's own plumbing: the sandbox service's setup and queue commands, and commands a task runs inside the proxy's `no_events()` (`exec_remote`'s polls, sandbox tools injection, the human agent's setup). That code runs its execs inside `untracked_sandbox_execs()`, a task-local flag, so the exclusion never depends on a command's text, and another task's exec on the same sandbox stays known work. |
 | A tool call | `call_tool()` in `call_tool_task` (`model/_call_tools.py`), including its approval and sentinel stages, and a bridged host tool call in the sandbox agent bridge's service (`agent/_bridge/sandbox/service.py`) |
 
-Cache hits open no attempt. `compact()` and `count_tokens()` attempts are
-not known work: they are not generate calls (their retries and backoff
-remain known waits).
+Cache hits open no attempt. `compact()` and `count_tokens()` are model
+requests made for the sample, as `generate` is (decision: Ransom,
+2026-10-16), so their attempts are known work and their retries and backoff
+are known waits.
 
 Known work excludes the waits inside it. A span is **held** while a wait or
 a nested span is open in its own task context, which includes the tasks it
@@ -196,7 +197,7 @@ Under the rule:
   attempts in a call that eventually runs out of retries, which today are
   charged.
 - **An attempt that fails without a retry** (a non-retryable error, or a
-  cancellation) is working time: `Model._generate` adds its intervals to
+  cancellation) is working time: the model call adds its intervals to
   the work set when the retry loop exits.
 - **SDK-internal retries are a known wait.** When an attempt succeeds, the
   part of it before `attempt end - call.time` is added as a wait interval:
@@ -208,7 +209,8 @@ Under the rule:
   and the HTTP-hook fallback for a request id that was never registered)
   mean the request was not measured, so nothing is credited and the whole
   successful attempt is charged. `grok` times the whole call, so its split
-  is empty.
+  is empty. `compact()` and `count_tokens()` return no `ModelCall`, so a
+  successful attempt of theirs is charged whole too.
 - **The reconciliation is removed.** Both of its parts are now intervals.
   Cache hits open no attempt and credit nothing.
 
@@ -241,7 +243,8 @@ wait and the work spans that are open or awaiting classification:
   (`add_sample_wait`, `report_sample_waiting_time`, a retried attempt in the
   retry loop) would otherwise be covered by the reporting context's own
   work, which was active while the wait was not yet known: a tool calling
-  `count_tokens()` whose attempt is retried, for example. So the wait is
+  `generate()` whose attempt is retried, for example, since the retried
+  interval starts before the provider call. So the wait is
   withdrawn from the known work of the reporting context and the work
   enclosing it, as if it had held them while open. This holds for a wait
   reported from inside a suspension too (an approver reporting its wait):
@@ -268,7 +271,8 @@ wait and the work spans that are open or awaiting classification:
   attempt, and an attempt's SDK-internal retries) withdraw only the
   intervals counted by the spans on the reporting context's chain, wherever
   those have been handed, such as the work of an inner tool that returned
-  while its background task's `count_tokens()` attempt was in flight. The
+  while its background task's `generate()` was preparing an attempt that
+  was then retried. The
   attempt's own work is dropped or trimmed on the attempt itself, and work
   that other tasks under the same span finished meanwhile stays charged.
 - **Size.** Each list grows at most by one entry per span, usually less,
@@ -406,11 +410,12 @@ during a known wait, and it does not try to detect that work:
 
 - **Unseen work during a wait is free.** This covers a background process
   started through a sandbox exec tool, a sandboxed CLI agent's local
-  commands, an in-process agent library's own `asyncio.gather()`, a
-  solver's or scorer's own code between known work, and `compact()` and
-  `count_tokens()` calls. Work is seen only when it goes through a generate
-  call, a sandbox exec or a tool call. A sandboxed agent's model requests
-  through the agent bridge are generate calls and so are known work.
+  commands, an in-process agent library's own `asyncio.gather()`, and a
+  solver's or scorer's own code between known work. Work is seen only when
+  it goes through a model request (`generate`, `compact()`,
+  `count_tokens()`), a sandbox exec or a tool call. A sandboxed agent's
+  model requests through the agent bridge are generate calls and so are
+  known work.
 - **A held span hides its sibling tasks' unseen work.** A tool call that
   starts several tasks is held while any of them waits, so its other tasks'
   unseen work during that wait is free. Their known work is still charged.
@@ -574,8 +579,13 @@ block on `anyio.Event`s, so ordering is fixed.
     tool started after the tool returned; and the retry loop's waits (a
     retried attempt, SDK-internal retries) leave work another task finished
     under the same tool charged but withdraw the work of an inner tool that
-    returned during the attempt (`count_tokens()`, `compact()`, and a
-    generate's work before its provider call, with and without a sibling);
+    returned during the attempt (a generate's work before its provider
+    call, with and without a sibling; the same readings for
+    `count_tokens()` and `compact()`, whose attempt holds the inner tool);
+  - a `count_tokens()` or `compact()` attempt through the real `Model`
+    methods: a successful one beside another task's open wait is working,
+    and a retried one is waiting, also inside a tool, which is not charged
+    for it; scoped usage agrees;
   - a task that outlives the inner tool that started it still holds the
     outer tool, for waits and retried model attempts, and a wait that
     outlasts its span keeps the span above held;
@@ -599,7 +609,8 @@ block on `anyio.Event`s, so ordering is fixed.
     unchanged when everything closes.
 
   Sample tests in `tests/test_sample_limits.py`: a tool call or a
-  successful generate beside a call in retry backoff is working; a task
+  successful generate, `count_tokens()` or `compact()` beside a call in
+  retry backoff is working; a task
   queued on a semaphore while its holder generates is working; a model
   approver's generate leaves an idle agent waiting; `count_tokens()` and
   `compact()` retries inside a tool are waiting; an attempt whose provider
@@ -634,7 +645,8 @@ block on `anyio.Event`s, so ordering is fixed.
 
 Known work (2026-10-15) adds the work set, `known_work()` and
 `ModelAttempts` to `_util/working.py`, the attempt span to
-`Model._generate` and the retry config's `after` callback, and the spans in
+`Model._generate`, `Model.compact`, `Model.count_tokens` and the retry
+config's `after` callback, and the spans in
 `SandboxEnvironmentProxy.exec`, `_call_tools.py` and the bridge's host tool
 service.
 
@@ -682,6 +694,14 @@ decisions was superseded on 2026-10-15; their known work is now charged.
    runs at all four sentinel stages count as waiting, as approvers and
    reviewers do. The cost is the same as for approvals: while a monitor
    runs, other work in the sample is not charged.
+3. **Known work scope.** Ransom, 2026-10-16: `compact()` and
+   `count_tokens()` attempts are known work, like `generate`; bridged host
+   tool calls stay known work, like native tool calls; a late report from
+   one tool inside an agent running as a tool may withdraw a sibling tool's
+   finished work (see "Accepted limitations"); and a top-level tool call's
+   work is dropped from late reports once it returns, since the work it
+   holds then is mostly finished nested operations that a wait opened by a
+   task outliving it would not have stopped.
 
 ## Not this design
 

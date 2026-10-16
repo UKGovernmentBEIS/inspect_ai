@@ -1020,6 +1020,90 @@ async def test_late_wait_after_parentless_tool_closes_leaves_its_work(
     assert sample_working_time() == 6
 
 
+@pytest.mark.parametrize("operation", ["count_tokens", "compact"])
+@pytest.mark.parametrize("case", ["beside_wait", "retried", "retried_in_tool"])
+async def test_token_count_and_compact_attempts_are_known_work(
+    sample_clock: _MockTime,
+    monkeypatch: pytest.MonkeyPatch,
+    operation: str,
+    case: str,
+) -> None:
+    """A `count_tokens()` or `compact()` attempt is known work, like a generate.
+
+    Each attempt takes 2. Beside another task's open wait, a successful
+    attempt is working. A retried attempt is waiting, and a tool around it is
+    not charged for it; the attempt that then succeeds is working.
+    """
+    attempts = 0
+
+    async def attempt() -> None:
+        nonlocal attempts
+        attempts += 1
+        sample_clock.advance(2)
+        if case != "beside_wait" and attempts == 1:
+            raise RuntimeError("retryable")
+
+    class ClockAPI(ModelAPI):
+        async def generate(
+            self,
+            input: list[ChatMessage],
+            tools: list[ToolInfo],
+            tool_choice: ToolChoice,
+            config: GenerateConfig,
+        ) -> ModelOutput:
+            raise NotImplementedError()
+
+        async def count_tokens(
+            self, input: str | list[ChatMessage], config: GenerateConfig | None = None
+        ) -> int:
+            await attempt()
+            return 1
+
+        async def compact(
+            self,
+            input: list[ChatMessage],
+            tools: list[ToolInfo],
+            config: GenerateConfig,
+            instructions: str | None = None,
+        ) -> tuple[list[ChatMessage], ModelUsage | None]:
+            await attempt()
+            return input, None
+
+        def should_retry(self, ex: Exception) -> bool:
+            return isinstance(ex, RuntimeError)
+
+    async def no_sleep(seconds: float) -> None:
+        pass
+
+    monkeypatch.setattr("inspect_ai.model._retry._sleep", no_sleep)
+
+    @modelapi(name="working_attempt_clock")
+    def working_attempt_clock() -> type[ModelAPI]:
+        return ClockAPI
+
+    waiting = 0 if case == "beside_wait" else 2
+    try:
+        model = get_model("working_attempt_clock/m", memoize=False)
+        wait = _Task().wait() if case == "beside_wait" else None
+        with working_limit(None) as scope:
+            tool = known_work() if case == "retried_in_tool" else None
+            with tool if tool is not None else contextlib.nullcontext():
+                if operation == "count_tokens":
+                    await model.count_tokens("count")
+                else:
+                    await model.compact([ChatMessageUser(content="compact")], [])
+                assert sample_working_time() == 2
+                assert sample_waiting_time() == waiting
+                assert scope.usage == 2
+        if wait is not None:
+            wait.close()
+        assert sample_working_time() == 2
+        assert sample_waiting_time() == waiting
+        assert scope.usage == 2
+    finally:
+        del _registry["modelapi:working_attempt_clock"]
+
+
 @pytest.mark.parametrize("operation", ["count_tokens", "compact", "generate"])
 @pytest.mark.parametrize("sibling", [False, True])
 async def test_retry_wait_withdraws_closed_ancestors_own_work(
@@ -1031,9 +1115,11 @@ async def test_retry_wait_withdraws_closed_ancestors_own_work(
     """A retried attempt's wait withdraws the work of a tool that has returned.
 
     Inside an outer tool, an inner tool starts a background task and returns
-    at 2. The task's model operation (for generate, its work before the
-    provider call) runs from 0 and its attempt fails at 5 and is retried. A
-    sibling under the outer tool works over `[1, 2]` and stays charged.
+    at 2. The task's model call runs from 0 and its attempt fails at 5 and is
+    retried. For generate, the time before the provider call is the inner
+    tool's own work; for `count_tokens()` and `compact()`, the attempt holds
+    the inner tool. A sibling under the outer tool works over `[1, 2]` and
+    stays charged.
     """
     ready, inner_closed = anyio.Event(), anyio.Event()
     other: _Task | None = None

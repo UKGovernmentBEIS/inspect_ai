@@ -1463,11 +1463,11 @@ def _second_tool() -> Tool:
     return execute
 
 
-@pytest.mark.parametrize("sibling", ["tool", "generate"])
+@pytest.mark.parametrize("sibling", ["tool", "generate", "count_tokens", "compact"])
 def test_sibling_work_during_backoff_is_working(
     flaky_model: None, sibling: str
 ) -> None:
-    """A tool call or generate beside a call in retry backoff is charged."""
+    """A tool call or model request beside a call in retry backoff is charged."""
 
     @solver
     def backoff_beside_work() -> Solver:
@@ -1478,6 +1478,10 @@ def test_sibling_work_during_backoff_is_working(
             async def work() -> None:
                 if sibling == "tool":
                     await execute_tools(_tool_calls("_second_tool"), [_second_tool()])
+                elif sibling == "count_tokens":
+                    await slow.count_tokens("slow")
+                elif sibling == "compact":
+                    await slow.compact([ChatMessageUser(content="slow")], [])
                 else:
                     await slow.generate("slow")
 
