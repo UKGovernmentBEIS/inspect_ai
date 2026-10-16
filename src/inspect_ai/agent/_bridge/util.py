@@ -1,6 +1,5 @@
 import inspect
 import json
-import sys
 import warnings
 from contextlib import AbstractContextManager, contextmanager, nullcontext
 from contextvars import ContextVar
@@ -80,9 +79,6 @@ from inspect_ai.tool._tools._web_search._web_search import (
 )
 from inspect_ai.util._json import JSONSchema
 from inspect_ai.util._limit import LimitExceededError
-
-if sys.version_info < (3, 11):
-    from exceptiongroup import ExceptionGroup
 
 from .context import (
     _UNKNOWN_CONTEXT,
