@@ -949,7 +949,11 @@ async def call_tool(
             raise TerminateSampleError(message)
         else:
             raise ToolApprovalError(approval.explanation if approval else None)
-    if approval and approval.modified:
+    if (
+        approval is not None
+        and approval.decision == "modify"
+        and approval.modified is not None
+    ):
         error = modified_function_error(shown, approval.modified)
         if error is not None:
             await record_pending_tool_event()

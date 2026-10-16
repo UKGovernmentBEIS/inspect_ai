@@ -56,7 +56,9 @@ After each:
   arguments must still equal S (JSON equality). Otherwise it is an approval
   error ("changed in place; return a modify") and the call does not run. An
   approver that edits the call and escalates fails at the end of the chain.
-  With no approval policy and no sentinel nothing is compared.
+  An approve runs the call as shown even if its `Approval` carries a
+  `modified` call (on `main` that call ran). With no approval policy and no
+  sentinel nothing is compared.
 - modify: the selected call is validated as in step 7, and it becomes S and
   C. A selection must keep the function in S, or the sample fails. An edit
   to the call the callback was given does not matter.

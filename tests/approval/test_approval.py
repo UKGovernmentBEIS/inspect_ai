@@ -999,6 +999,44 @@ async def test_an_approver_changes_a_call_with_modify(
 
 
 @approver
+def approving_with_modified_approver(edit: bool) -> Approver:
+    """Approver which approves, with a `modified` call attached."""
+
+    async def approve(
+        message: str,
+        call: ToolCall,
+        view: ToolCallView,
+        history: list[ChatMessage],
+    ) -> Approval:
+        if edit:
+            call.arguments["x"] = 5
+        modified = ToolCall(
+            id=call.id, function=call.function, arguments={"x": 7, "y": 1}
+        )
+        return Approval(decision="approve", modified=modified)
+
+    return approve
+
+
+@pytest.mark.parametrize("edit", [False, True], ids=["unchanged", "in-place"])
+async def test_an_approve_runs_the_call_as_shown(edit: bool) -> None:
+    """An approve runs the call as shown, even with a `modified` call attached."""
+    message = await execute_with_approval(
+        ToolCall(id="1", function="addition", arguments={"x": 10, "y": 1}),
+        [addition()],
+        [ApprovalPolicy(approving_with_modified_approver(edit), "*")],
+    )
+
+    if edit:
+        assert message.error is not None and message.error.type == "approval"
+        assert "changed the tool call in place" in message.error.message
+        assert message.text == ""
+    else:
+        assert message.error is None
+        assert message.text == "11"
+
+
+@approver
 def renaming_modify_approver(selected: str) -> Approver:
     """Approver which renames the call it is given, then returns a modify."""
 
