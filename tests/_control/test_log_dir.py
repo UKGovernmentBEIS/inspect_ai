@@ -30,6 +30,7 @@ from inspect_ai._control.log_dir.consistency import (
     read_consistently,
 )
 from inspect_ai._control.log_dir.samples import (
+    SampleAmbiguousError,
     SampleNotFoundError,
     SampleUnsupportedError,
     sample_detail,
@@ -39,6 +40,7 @@ from inspect_ai._control.log_dir.samples import (
 )
 from inspect_ai._control.log_dir.select import (
     KnownKey,
+    LogPlan,
     MemberSnapshot,
     SampleKey,
     select_source,
@@ -47,6 +49,8 @@ from inspect_ai._control.log_dir.select import (
 from inspect_ai._control.log_dir.snapshot import (
     LogDirIndex,
     LogicalTask,
+    StrayLogError,
+    TaskView,
     identity_row,
     index_log_dir,
     read_plan,
@@ -59,12 +63,15 @@ from inspect_ai._control.log_dir.walk import walk_log_dir
 from inspect_ai._control.state import _iso_to_timestamp
 from inspect_ai._util.async_zip import AsyncZipReader, ZipCrcError
 from inspect_ai._util.asyncfiles import AsyncFilesystem, FileContent
+from inspect_ai._util.file import local_path
+from inspect_ai._util.log_layout import log_basename
 from inspect_ai.dataset import Sample
 from inspect_ai.event import InfoEvent, ModelEvent
 from inspect_ai.log import (
     EvalLog,
     EvalSample,
     EvalSpec,
+    list_eval_logs,
     read_eval_log_async,
     write_eval_log_async,
 )
@@ -84,6 +91,7 @@ from inspect_ai.log._recorders.buffer.types import (
     SampleData,
 )
 from inspect_ai.log._recorders.eval import EvalRecorder
+from inspect_ai.log._shards._walk import is_shard_path
 from inspect_ai.model import GenerateConfig
 from inspect_ai.scorer import match
 from inspect_ai.solver import Generate, Solver, TaskState, generate, solver
@@ -128,6 +136,7 @@ _LOG_DIR_TASK_ROW_KEYS = {
     "updated_at",
     "live_samples",
     "current_attempt",
+    "shards",
     "incomplete",
     "unreadable",
 }
@@ -194,6 +203,13 @@ async def _index(root: Path | str) -> tuple[LogDirIndex, list[dict[str, Any]]]:
         index = await index_log_dir(fs, str(root))
         views = await read_task_views(fs, index.tasks)
     return index, [task_row(view) for view in views]
+
+
+def _current_plan(task: LogicalTask) -> LogPlan:
+    """The plan of a task whose current attempt is an unsharded log."""
+    plan = task.current.run
+    assert plan is not None and task.current.shard_set is None
+    return plan
 
 
 async def _write_running_log(
@@ -431,7 +447,7 @@ async def test_select_source_reports_a_key_two_members_hold_as_a_conflict(
 ) -> None:
     index, _ = await _index(log_dir)
     async with AsyncFilesystem() as fs:
-        member = await read_snapshot(fs, index.tasks[0].current)
+        member = await read_snapshot(fs, _current_plan(index.tasks[0]))
     other = MemberSnapshot(plan=member.plan, summaries=dict(member.summaries))
     key = KnownKey(SampleKey("1", 1), 1)
     assert select_source([member], key).kind == "log"
@@ -449,7 +465,9 @@ async def test_sample_listing_filters_caps_and_gates_content(log_dir: Path) -> N
 
     full = sample_listing(view)
     assert full.counts["completed"] == 2 and full.counts["error"] == 1
-    assert {r["log_location"] for r in full.samples} == {view.member.plan.file.location}
+    assert {r["log_location"] for r in full.samples} == {
+        view.members[0].plan.file.location
+    }
     assert all(r["shard"] is None and r["conflict"] is False for r in full.samples)
     # metadata-only default: status says "error", the message is withheld
     [errored] = [r for r in full.samples if r["status"] == "error"]
@@ -572,9 +590,11 @@ async def test_a_log_replaced_after_its_plan_was_read_is_re_read(
         )
         replaced.status = "started"
         await write_eval_log_async(replaced, str(path))
-        member = await read_snapshot(fs, index.tasks[0].current)
+        member = await read_snapshot(fs, _current_plan(index.tasks[0]))
     # the stale central directory failed the CRC check and was re-read
-    assert member.plan.central_directory != index.tasks[0].current.central_directory
+    assert (
+        member.plan.central_directory != _current_plan(index.tasks[0]).central_directory
+    )
     assert member.summaries[SampleKey("2", 1)].error is None
 
 
@@ -591,7 +611,7 @@ async def test_exhausted_re_reads_fail_the_read_and_mark_list_reads_incomplete(
     monkeypatch.setattr("inspect_ai._util.async_zip._check_crc", always_torn)
     async with AsyncFilesystem() as fs:
         with pytest.raises(LogChangedError, match="changed during the read"):
-            await read_snapshot(fs, index.tasks[0].current)
+            await read_snapshot(fs, _current_plan(index.tasks[0]))
         [view] = await read_task_views(fs, index.tasks)
     # per read: the first attempt reuses the plan's central directory and
     # reads summaries.json; each re-read starts again from header.json
@@ -600,7 +620,7 @@ async def test_exhausted_re_reads_fail_the_read_and_mark_list_reads_incomplete(
     )
     row = task_row(view)
     assert row["incomplete"] is True
-    assert row["unreadable"][0]["log_location"] == view.task.current.file.location
+    assert row["unreadable"][0]["log_location"] == view.task.current.location
     assert row["samples"]["total"] == 0
     assert sample_listing(view).samples == []
 
@@ -839,6 +859,25 @@ async def test_s3_walk_lists_each_directory_once_and_never_a_buffer(
     assert len(listing.eval_files) == 2
     # root and sub: one delimited LIST each, whatever the buffers hold
     assert s3_requests == Counter({"ListObjectsV2": 2})
+
+
+@skip_if_trio
+async def test_s3_walk_does_not_list_a_checkpoint_directory_in_a_companion(
+    mock_s3: None, finished_log: EvalLog, s3_requests: Counter[str]
+) -> None:
+    prefix = "log-dir-companion-checkpoints"
+    name = Path(finished_log.location).name
+    _upload(finished_log.location, f"{prefix}/run.shards/0/{name}")
+    boto3.client("s3").put_object(
+        Bucket="test-bucket",
+        Key=f"{prefix}/run.shards/stray.checkpoints/1__1/a/b/checkpoint",
+        Body=b"",
+    )
+    async with AsyncFilesystem() as fs:
+        listing = await walk_log_dir(fs, f"s3://test-bucket/{prefix}")
+    assert len(listing.shard_sets) == 1
+    # root, companion, 0/ and stray.checkpoints/; nothing below the last
+    assert s3_requests == Counter({"ListObjectsV2": 4})
 
 
 @skip_if_trio
@@ -1616,11 +1655,10 @@ async def test_a_key_flushed_after_the_plan_read_is_read_from_the_log(
     _write_buffer(running.location, [(_buffer_summary(2, completed=True), [])])
     async with AsyncFilesystem() as fs:
         index = await index_log_dir(fs, str(tmp_path))
-        plan = index.tasks[0].current
+        plan = _current_plan(index.tasks[0])
         # unchanged since the plan: its central directory is reused
         [view] = await read_task_views(fs, index.tasks)
-        assert view.member is not None
-        assert view.member.plan.central_directory is plan.central_directory
+        assert view.members[0].plan.central_directory is plan.central_directory
 
         # the worker flushes sample 2 and drops it from the manifest, both
         # after this poll's listing and plan read
@@ -1633,8 +1671,7 @@ async def test_a_key_flushed_after_the_plan_read_is_read_from_the_log(
 
         [view] = await read_task_views(fs, index.tasks)
     # the freshness check after the manifest saw the new log
-    assert view.member is not None
-    assert view.member.plan.central_directory is not plan.central_directory
+    assert view.members[0].plan.central_directory is not plan.central_directory
     assert _statuses(sample_listing(view))[2] == "error"
     assert task_row(view)["samples"]["unfinished"] == 0
 
@@ -2075,3 +2112,809 @@ def test_cli_buffer_events_that_do_not_parse_are_invalid_response(
     assert error["kind"] == "invalid_response"
     assert error["exception"] == "inspect_ai.LogUnparseableError"
     assert f"{buffer}/" in error["message"] and "segment.1.zip" in error["message"]
+
+
+# --- shard sets ----------------------------------------------------------------
+
+_SET_ID = "SHARDSETTASK0000000000"
+_SET_NAME = f"2026-02-01T00-00-00+00-00_alpha_{_SET_ID}"
+_SHARD_STAMP = "2026-02-01T00-00-01+00-00"
+
+
+async def _shard(
+    source: EvalLog,
+    shards: Path,
+    k: str,
+    ids: list[int],
+    *,
+    stamp: str = _SHARD_STAMP,
+    **eval_update: Any,
+) -> Path:
+    """Write ``source``, cut to the samples ``ids``, as an attempt of shard ``k``."""
+    assert source.samples is not None and source.results is not None
+    log = source.model_copy(deep=True)
+    task_id = f"SHARD{k}TASK".ljust(22, "0")
+    log.eval = log.eval.model_copy(
+        update={
+            "task_id": task_id,
+            "eval_id": f"SHARD{k}EVAL".ljust(22, "0"),
+            "dataset": log.eval.dataset.model_copy(
+                update={"sample_ids": ids, "samples": len(ids)}
+            ),
+            **eval_update,
+        }
+    )
+    log.samples = [s for s in source.samples if s.id in ids]
+    log.results = source.results.model_copy(
+        update={"total_samples": len(ids), "completed_samples": len(ids)}
+    )
+    path = shards / k / f"{stamp}_alpha_{task_id}.eval"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    await write_eval_log_async(log, str(path))
+    return path
+
+
+async def _shard_set(
+    root: Path,
+    source: EvalLog,
+    shards: dict[str, list[int]],
+    *,
+    name: str = _SET_NAME,
+) -> Path:
+    """A ``<name>.shards/`` companion under ``root`` with one attempt per shard."""
+    companion = root / f"{name}.shards"
+    for k, ids in shards.items():
+        await _shard(source, companion, k, ids)
+    return companion
+
+
+async def _merged(
+    root: Path,
+    source: EvalLog,
+    *,
+    suffix: str = "",
+    name: str = _SET_NAME,
+    task_id: str | None = None,
+) -> Path:
+    """The merged log beside the companion (``suffix`` ``-recovered`` for a recovered one)."""
+    log = source.model_copy(deep=True)
+    task_id = name.rsplit("_", 1)[-1] if task_id is None else task_id
+    log.eval = log.eval.model_copy(
+        update={"task_id": task_id, "eval_id": "MERGEDEVAL000000000000", "run_id": "R"}
+    )
+    path = root / f"{name}{suffix}.eval"
+    await write_eval_log_async(log, str(path))
+    return path
+
+
+async def _shard_views(root: Path) -> tuple[LogDirIndex, list[TaskView]]:
+    async with AsyncFilesystem() as fs:
+        index = await index_log_dir(fs, str(root))
+        views = await read_task_views(fs, index.tasks)
+    return index, views
+
+
+@pytest.mark.parametrize("merged", [None, "", "-recovered", "both"])
+async def test_a_shard_set_is_one_row_over_its_shards(
+    tmp_path: Path, finished_log: EvalLog, merged: str | None
+) -> None:
+    companion = await _shard_set(tmp_path, finished_log, {"0": [1], "1": [2], "2": [3]})
+    merged_log: Path | None = None
+    if merged is not None:
+        for suffix in ["", "-recovered"] if merged == "both" else [merged]:
+            merged_log = await _merged(tmp_path, finished_log, suffix=suffix)
+
+    _, rows = await _index(tmp_path)
+    # the merged log has no row of its own
+    [row] = rows
+    assert set(row) == _LIVE_TASK_ROW_KEYS | _LOG_DIR_TASK_ROW_KEYS
+    assert row["current_attempt"] == "shards"
+    assert row["log_target"] == f"shards:{companion.name}"
+    assert row["task_id"] == _SET_ID
+    assert row["task"] == "alpha" and row["model"] == finished_log.eval.model
+    assert row["attempts"] == 1
+    assert row["status"] == "completed" and row["completed_at"] is not None
+    if merged_log is None:
+        assert row["eval_id"] is None and row["run_id"] is None
+        assert row["log_location"] == str(companion)
+    else:
+        # the newest merged log: the recovered copy when both exist
+        assert row["eval_id"] == "MERGEDEVAL000000000000"
+        assert row["log_location"] == str(merged_log)
+    # without a recorded intended selection the total is a lower bound
+    assert row["samples"] == {
+        "total": 3,
+        "completed": 2,
+        "errored": 1,
+        "cancelled": 0,
+        "in_flight": 0,
+        "queued": None,
+        "conflicted": 0,
+        "unfinished": 0,
+        "total_final": False,
+        "pending_unlisted": None,
+    }
+    assert row["shards"] == {
+        "total": 3,
+        "running": 0,
+        "success": 3,
+        "error": 0,
+        "cancelled": 0,
+        "overlapping": 0,
+        "mismatched": 0,
+    }
+    if merged == "both":
+        # the older merged log is not read and is listed
+        [older] = row["unreadable"]
+        assert older["log_location"] == str(tmp_path / f"{_SET_NAME}.eval")
+        assert "an older merged log" in older["reason"]
+        assert row["incomplete"] is True
+    else:
+        assert row["unreadable"] == [] and row["incomplete"] is False
+
+
+async def test_a_superseded_shard_attempt_is_not_read(
+    tmp_path: Path, finished_log: EvalLog
+) -> None:
+    companion = await _shard_set(tmp_path, finished_log, {"0": [1], "1": [3]})
+    # an older attempt of shard 1, written last: the file-name timestamp wins
+    await _shard(
+        finished_log, companion, "1", [2, 3], stamp="2026-02-01T00-00-00+00-00"
+    )
+    index, [view] = await _shard_views(tmp_path)
+    row = task_row(view)
+    # the superseded attempt's sample 2 is not the shard's
+    assert row["samples"]["total"] == 2 and row["samples"]["errored"] == 0
+    assert row["attempts"] == 1
+
+    listing = sample_listing(view)
+    assert {r["sample_id"]: r["shard"] for r in listing.samples} == {1: "0", 3: "1"}
+
+
+async def test_an_ordinary_retry_of_a_shard_set_is_current(
+    tmp_path: Path, finished_log: EvalLog
+) -> None:
+    companion = await _shard_set(tmp_path, finished_log, {"0": [1], "1": [2]})
+    await _merged(tmp_path, finished_log)
+    # a newer attempt of shard 1 that does not parse: the prior set is not read
+    newer = companion / "1" / "2026-02-01T00-00-09+00-00_alpha_SHARD1TASK.eval"
+    newer.write_bytes(b"not a zip")
+    retry = finished_log.model_copy(deep=True)
+    retry.eval = retry.eval.model_copy(update={"task_id": _SET_ID})
+    # older by name and by mtime than the shards: it is current regardless
+    retry_log = await _attempt(retry, tmp_path, "2026-01-01T00-00-00+00-00")
+    os.utime(retry_log, (1, 1))
+
+    index, [view] = await _shard_views(tmp_path)
+    row = task_row(view)
+    assert row["current_attempt"] == "log"
+    assert row["log_location"] == str(retry_log)
+    assert row["eval_id"] == finished_log.eval.eval_id
+    assert row["attempts"] == 2
+    assert row["log_target"].startswith("shards:")
+    assert row["samples"]["total"] == 3 and row["samples"]["total_final"] is True
+    assert row["shards"] is None and row["incomplete"] is False
+    async with AsyncFilesystem() as fs:
+        detail = await sample_detail(fs, index.tasks[0], "3", 1)
+    assert detail["status"] == "completed"
+
+
+async def test_an_unreadable_ordinary_retry_of_a_shard_set_blocks_sample_reads(
+    tmp_path: Path, finished_log: EvalLog
+) -> None:
+    await _shard_set(tmp_path, finished_log, {"0": [1], "1": [2]})
+    await _merged(tmp_path, finished_log)
+    # a crashed eval_set() retry, older by name and by mtime than the shards:
+    # it would be current if it parsed, so the shards may not hold its samples
+    retry = tmp_path / f"2026-01-01T00-00-00+00-00_alpha_{_SET_ID}.eval"
+    retry.write_bytes(b"not a zip")
+    os.utime(retry, (1, 1))
+
+    index, [view] = await _shard_views(tmp_path)
+    row = task_row(view)
+    assert row["current_attempt"] == "shards"
+    assert row["shards"]["total"] == 2 and row["shards"]["success"] == 2
+    assert row["attempts"] == 2 and row["incomplete"] is True
+    assert [u["log_location"] for u in row["unreadable"]] == [str(retry)]
+
+    task = index.tasks[0]
+    async with AsyncFilesystem() as fs:
+        for read in (sample_detail, sample_events, sample_messages, sample_store):
+            with pytest.raises(LogUnparseableError) as raised:
+                await read(fs, task, "1", 1)
+            assert raised.value.location == str(retry)
+
+
+async def test_a_shard_set_is_keyed_by_its_merged_logs_task_id(
+    tmp_path: Path, finished_log: EvalLog
+) -> None:
+    # a file name pattern without {id}: the merge's task_id is not in the name
+    name = "2026-02-01T00-00-00+00-00_alpha"
+    minted = "MINTEDTASKID0000000000"
+    companion = await _shard_set(tmp_path, finished_log, {"0": [1]}, name=name)
+    await _merged(tmp_path, finished_log, name=name, task_id=minted)
+    _, [row] = await _index(tmp_path)
+    assert row["task_id"] == minted and row["current_attempt"] == "shards"
+
+    # an eval_set() retry inherits the merged log's task_id and folds with it
+    retry = finished_log.model_copy(deep=True)
+    retry.eval = retry.eval.model_copy(update={"task_id": minted})
+    retry_log = await _attempt(retry, tmp_path, "2026-03-01T00-00-00+00-00")
+    _, [row] = await _index(tmp_path)
+    assert row["current_attempt"] == "log" and row["attempts"] == 2
+    assert row["log_location"] == str(retry_log)
+    assert row["log_target"] == f"shards:{companion.name}"
+
+
+def test_a_merged_log_with_no_task_id_keeps_the_sets_key(
+    tmp_path: Path, finished_log: EvalLog, no_discovery: None
+) -> None:
+    anyio.run(functools.partial(_shard_set, tmp_path, finished_log, {"0": [1]}))
+    anyio.run(functools.partial(_merged, tmp_path, finished_log, task_id=""))
+    payload = _json(_ctl(tmp_path, "task", "list", "--json"))
+    [row] = payload["tasks"]
+    assert row["task_id"] == _SET_ID and row["current_attempt"] == "shards"
+    assert row["eval_id"] == "MERGEDEVAL000000000000"
+    for args in (["sample", "list"], ["sample", "show"]):
+        result = _ctl(tmp_path, *args, _SET_ID, *(["1"] if "show" in args else []))
+        assert result.exit_code == 0, (args, result.output)
+
+
+async def test_an_unreadable_newest_merged_log_keys_the_set_by_its_name(
+    tmp_path: Path, finished_log: EvalLog
+) -> None:
+    # a file name pattern without {id}: only a readable merged log gives the id
+    name = "2026-02-01T00-00-00+00-00_alpha"
+    minted = "MINTEDTASKID0000000000"
+    await _shard_set(tmp_path, finished_log, {"0": [1]}, name=name)
+    merged = await _merged(tmp_path, finished_log, name=name, task_id=minted)
+    recovered = tmp_path / f"{name}-recovered.eval"
+    recovered.write_bytes(b"not a zip")
+    _, [row] = await _index(tmp_path)
+    # the older plain merged log is not read, so its task id is not used
+    assert row["task_id"] == name and row["current_attempt"] == "shards"
+    assert row["eval_id"] is None
+    assert row["log_location"] == str(recovered)
+    assert row["incomplete"] is True
+    failure, older = row["unreadable"]
+    assert failure["log_location"] == str(recovered)
+    assert older["log_location"] == str(merged)
+    assert "an older merged log" in older["reason"]
+
+
+async def test_an_unreadable_merged_log_of_a_superseded_shard_set_is_reported(
+    tmp_path: Path, finished_log: EvalLog
+) -> None:
+    await _shard_set(tmp_path, finished_log, {"0": [1]})
+    merged = tmp_path / f"{_SET_NAME}.eval"
+    merged.write_bytes(b"not a zip")
+    retry = finished_log.model_copy(deep=True)
+    retry.eval = retry.eval.model_copy(update={"task_id": _SET_ID})
+    await _attempt(retry, tmp_path, "2026-03-01T00-00-00+00-00")
+    _, [row] = await _index(tmp_path)
+    # keyed by its name, it still folds with the retry
+    assert row["current_attempt"] == "log" and row["attempts"] == 2
+    assert row["shards"] is None and row["incomplete"] is True
+    assert [u["log_location"] for u in row["unreadable"]] == [str(merged)]
+
+
+async def test_a_shard_directory_with_no_attempt_is_not_a_shard(
+    tmp_path: Path, finished_log: EvalLog
+) -> None:
+    companion = tmp_path / f"{_SET_NAME}.shards"
+    # attempt-less directories that sort before the shards
+    (companion / "0" / "scans").mkdir(parents=True)
+    (companion / "0" / "scans" / "notes.txt").write_text("x")
+    (companion / "1" / ".buffer" / "stem").mkdir(parents=True)
+    (companion / "1" / ".buffer" / "stem" / "segment.0.zip").write_bytes(b"x")
+    await _shard(finished_log, companion, "2", [1], model="mockllm/first")
+    await _shard(finished_log, companion, "3", [2])
+    _, [row] = await _index(tmp_path)
+    # the first shard is the first directory with an attempt
+    assert row["task_id"] == _SET_ID and row["model"] == "mockllm/first"
+    assert row["shards"]["total"] == 2 and row["shards"]["mismatched"] == 1
+    assert row["samples"]["total"] == 2 and row["incomplete"] is False
+
+
+@pytest.mark.parametrize("root", ["dir", "companion", "shard"])
+async def test_the_walk_agrees_with_eval_set_on_shard_paths(
+    tmp_path: Path, finished_log: EvalLog, root: str
+) -> None:
+    companion = await _shard_set(tmp_path, finished_log, {"0": [1], "1": [2]})
+    await _merged(tmp_path, finished_log)
+    await _merged(tmp_path, finished_log, suffix="-recovered")
+    log_name = Path(finished_log.location).name
+    for directory in ("0/scans", ".hidden", ".hidden/sub"):
+        (companion / directory).mkdir(parents=True, exist_ok=True)
+        shutil.copy(finished_log.location, companion / directory / log_name)
+    nested = companion / "1" / "scans" / "n.shards"
+    await _shard(finished_log, nested, "0", [3])
+
+    base = {"dir": tmp_path, "companion": companion, "shard": companion / "0"}[root]
+    async with AsyncFilesystem() as fs:
+        listing = await walk_log_dir(fs, str(base))
+    shard_files = {
+        *(m.location for s in listing.shard_sets for m in s.members),
+        *(x.path for s in listing.shard_sets for x in s.stray),
+        *(x.path for x in listing.stray),
+    }
+    ordinary = {
+        *(f.location for f in listing.eval_files),
+        *(f.location for s in listing.shard_sets for f in s.merged),
+    }
+    logs = {local_path(i.name) for i in list_eval_logs(str(base), formats=["eval"])}
+    assert shard_files | ordinary == logs and not shard_files & ordinary
+    assert shard_files == {log for log in logs if is_shard_path(str(base), log)}
+    sets = {Path(s.location) for s in listing.shard_sets}
+    assert sets == {"dir": {companion}, "companion": {nested}, "shard": set()}[root]
+
+
+async def test_the_walk_pairs_companions_with_logs_in_linear_work(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # accumulated runs: each log beside a companion with no shard attempt
+    n = 60
+    for i in range(n):
+        for suffix in ("", "-recovered"):
+            (tmp_path / f"run{i}{suffix}.eval").write_bytes(b"log")
+        checkpoint = tmp_path / f"run{i}.shards" / "0" / "x.checkpoints" / "1"
+        checkpoint.parent.mkdir(parents=True)
+        checkpoint.write_bytes(b"checkpoint")
+    calls = 0
+
+    def counting(location: str) -> str:
+        nonlocal calls
+        calls += 1
+        return log_basename(location)
+
+    monkeypatch.setattr("inspect_ai._control.log_dir.walk.log_basename", counting)
+    async with AsyncFilesystem() as fs:
+        listing = await walk_log_dir(fs, str(tmp_path))
+    assert len(listing.eval_files) == 2 * n and listing.shard_sets == []
+    # once per log, not once per log and companion
+    assert calls == 2 * n
+
+
+async def test_a_merged_log_without_its_companion_is_an_ordinary_row(
+    tmp_path: Path, finished_log: EvalLog
+) -> None:
+    merged = await _merged(tmp_path, finished_log)
+    # a companion with no shard attempt is not a shard set: here what a shard
+    # deletion that keeps checkpoints leaves
+    checkpoint = tmp_path / f"{_SET_NAME}.shards" / "0" / "run.checkpoints" / "1"
+    checkpoint.parent.mkdir(parents=True)
+    checkpoint.write_bytes(b"checkpoint")
+    _, [row] = await _index(tmp_path)
+    assert row["current_attempt"] == "log" and row["shards"] is None
+    assert row["unreadable"] == [] and checkpoint.read_bytes() == b"checkpoint"
+    assert row["log_location"] == str(merged)
+    assert row["log_target"] == f"log:{_SET_ID}"
+
+
+async def test_overlapping_shards_are_conflicts(
+    tmp_path: Path, finished_log: EvalLog
+) -> None:
+    companion = await _shard_set(tmp_path, finished_log, {"0": [1, 2], "1": [2, 3]})
+    index, [view] = await _shard_views(tmp_path)
+    row = task_row(view)
+    assert row["samples"]["total"] == 3
+    assert row["samples"]["conflicted"] == 1
+    assert row["samples"]["completed"] == 2 and row["samples"]["errored"] == 0
+    assert row["samples"]["unfinished"] == 0
+    assert row["shards"]["overlapping"] == 2
+
+    listing = sample_listing(view)
+    conflicts = [r for r in listing.samples if r["conflict"]]
+    assert sorted(r["shard"] for r in conflicts) == ["0", "1"]
+    assert {r["sample_id"] for r in conflicts} == {2}
+    assert listing.conflicted == 1 and listing.counts["error"] == 0
+    assert listing.counts["completed"] == 2
+
+    async with AsyncFilesystem() as fs:
+        with pytest.raises(SampleAmbiguousError) as raised:
+            await sample_detail(fs, index.tasks[0], "2", 1)
+        one = await sample_detail(fs, index.tasks[0], "1", 1)
+    assert str(companion / "0") in str(raised.value)
+    assert str(companion / "1") in str(raised.value)
+    assert one["status"] == "completed"
+
+
+@pytest.mark.parametrize(
+    "shards", [{"0": [1, 2], "1": [2]}, {"0": [2], "1": [2]}], ids=["mixed", "all"]
+)
+async def test_a_conflicted_sample_still_sets_the_task_start(
+    tmp_path: Path, finished_log: EvalLog, shards: dict[str, list[int]]
+) -> None:
+    source = finished_log.model_copy(deep=True)
+    assert source.samples is not None
+    starts = {1: "2026-01-01T00:09:00+00:00", 2: "2026-01-01T00:01:00+00:00"}
+    source.samples = [
+        s.model_copy(update={"started_at": starts.get(int(s.id), s.started_at)})
+        for s in source.samples
+    ]
+    await _shard_set(tmp_path, source, shards)
+    _, [row] = await _index(tmp_path)
+    assert row["samples"]["conflicted"] == 1
+    # the earliest sample start, though only the conflicted sample has it
+    assert row["started_at"] == _iso_to_timestamp(starts[2])
+
+
+def test_cli_capped_sample_list_counts_conflict_rows(
+    tmp_path: Path, finished_log: EvalLog, no_discovery: None
+) -> None:
+    anyio.run(
+        functools.partial(_shard_set, tmp_path, finished_log, {"0": [1], "1": [1]})
+    )
+    for selector in ([_SET_ID], []):
+        human = _ctl(tmp_path, "sample", "list", *selector, "--limit", "1")
+        assert human.exit_code == 0, human.output
+        assert "showing 1 of 2 samples (2 completed)" in human.stdout
+    human = _ctl(
+        tmp_path, "sample", "list", _SET_ID, "--limit", "1", "--status", "completed"
+    )
+    assert human.exit_code == 0, human.output
+    assert "showing 1 of 2 matching samples (2 total: 2 completed)" in human.stdout
+    for selector in ([_SET_ID], []):
+        human = _ctl(tmp_path, "sample", "list", *selector, "--status", "running")
+        assert human.exit_code == 0, human.output
+        assert "(no matching samples: 0 of 2)" in human.stdout
+    # the JSON counts still leave the conflict out
+    payload = _json(_ctl(tmp_path, "sample", "list", _SET_ID, "--limit", "1", "--json"))
+    assert payload["counts"]["completed"] == 0 and payload["conflicted"] == 1
+
+
+async def test_mismatched_shards_are_counted(
+    tmp_path: Path, finished_log: EvalLog
+) -> None:
+    companion = await _shard_set(tmp_path, finished_log, {"0": [1], "1": [2]})
+    await _shard(finished_log, companion, "2", [3], model="mockllm/other")
+    _, [row] = await _index(tmp_path)
+    assert row["shards"]["mismatched"] == 1
+    # identity comes from the first shard
+    assert row["model"] == finished_log.eval.model
+
+
+async def test_a_second_shard_set_for_a_task_id_is_reported_not_read(
+    tmp_path: Path, finished_log: EvalLog
+) -> None:
+    first = await _shard_set(tmp_path / "a", finished_log, {"0": [1]})
+    second = await _shard_set(tmp_path / "b", finished_log, {"0": [2], "1": [3]})
+    _, [row] = await _index(tmp_path)
+    assert row["log_target"] == f"shards:a/{first.name}"
+    assert row["attempts"] == 1
+    assert row["shards"]["total"] == 1 and row["samples"]["total"] == 1
+    assert row["incomplete"] is True
+    [unreadable] = row["unreadable"]
+    assert unreadable["log_location"] == str(second)
+    assert "second shard set" in unreadable["reason"]
+    assert str(first) in unreadable["reason"]
+
+
+def test_a_second_shard_sets_unreadable_merged_log_is_reported(
+    tmp_path: Path, finished_log: EvalLog, no_discovery: None
+) -> None:
+    anyio.run(functools.partial(_shard_set, tmp_path / "a", finished_log, {"0": [1]}))
+    second = anyio.run(
+        functools.partial(_shard_set, tmp_path / "b", finished_log, {"0": [2]})
+    )
+    # a duplicate's shards and older merged log are not read or listed
+    broken = second / "1" / f"{_SHARD_STAMP}_alpha_SHARD1TASK000000000000.eval"
+    broken.parent.mkdir()
+    broken.write_bytes(b"not a zip")
+    (tmp_path / "b" / f"{_SET_NAME}.eval").write_bytes(b"not a zip")
+    recovered = tmp_path / "b" / f"{_SET_NAME}-recovered.eval"
+    recovered.write_bytes(b"not a zip")
+
+    payload = _json(_ctl(tmp_path, "task", "list", "--json"))
+    [row] = payload["tasks"]
+    assert row["task_id"] == _SET_ID and row["samples"]["total"] == 1
+    expected = {str(recovered), str(second)}
+    assert {u["log_location"] for u in row["unreadable"]} == expected
+    assert {u["log_location"] for u in payload["unreadable"]} == expected
+    listing = _json(_ctl(tmp_path, "sample", "list", _SET_ID, "--json"))
+    assert {u["log_location"] for u in listing["unreadable"]} == expected
+
+
+async def test_an_unreadable_shard_marks_the_row_and_blocks_sample_reads(
+    tmp_path: Path, finished_log: EvalLog
+) -> None:
+    companion = await _shard_set(tmp_path, finished_log, {"0": [1], "1": [2]})
+    broken = companion / "2" / f"{_SHARD_STAMP}_alpha_SHARD2TASK000000000000.eval"
+    broken.parent.mkdir()
+    broken.write_bytes(b"not a zip")
+    # the readable shards finished long ago; the unreadable one was just written
+    for path in companion.glob("[01]/*.eval"):
+        os.utime(path, (1000, 1000))
+    os.utime(broken, (5000, 5000))
+
+    index, [view] = await _shard_views(tmp_path)
+    row = task_row(view)
+    # every member's listing counts toward updated_at, readable or not
+    assert row["updated_at"] == pytest.approx(5000)
+    assert row["incomplete"] is True
+    assert [u["log_location"] for u in row["unreadable"]] == [str(broken)]
+    assert row["samples"]["total"] == 2
+    # the unread shard may still be running
+    assert row["status"] == "running" and row["completed_at"] is None
+    assert row["samples"]["in_flight"] is None
+    assert row["shards"]["total"] == 3 and row["shards"]["success"] == 2
+
+    # the key may be in the unread shard, so no read answers
+    async with AsyncFilesystem() as fs:
+        with pytest.raises(LogUnparseableError):
+            await sample_detail(fs, index.tasks[0], "1", 1)
+
+
+async def test_a_shard_set_with_no_readable_shard_keeps_its_listing_times(
+    tmp_path: Path,
+) -> None:
+    companion = tmp_path / f"{_SET_NAME}.shards"
+    for k, mtime in (("0", 1000), ("1", 3000)):
+        broken = companion / k / "bad.eval"
+        broken.parent.mkdir(parents=True)
+        broken.write_bytes(b"not a zip")
+        os.utime(broken, (mtime, mtime))
+    _, [row] = await _index(tmp_path)
+    assert row["current_attempt"] == "shards" and row["task_id"] == _SET_ID
+    assert row["updated_at"] == pytest.approx(3000)
+    assert row["status"] == "running" and row["incomplete"] is True
+    assert row["shards"]["total"] == 2 and row["shards"]["running"] == 0
+
+
+async def test_stray_and_nested_logs_in_a_companion(
+    tmp_path: Path, finished_log: EvalLog
+) -> None:
+    companion = await _shard_set(tmp_path, finished_log, {"0": [1]})
+    stray = companion / Path(finished_log.location).name
+    shutil.copy(finished_log.location, stray)
+    (companion / "0" / "notes.json").write_text("{}")
+    # a log nested below a shard directory is an ordinary log
+    nested = companion / "0" / "scans" / Path(finished_log.location).name
+    nested.parent.mkdir()
+    shutil.copy(finished_log.location, nested)
+
+    _, rows = await _index(tmp_path)
+    by_attempt = {r["current_attempt"]: r for r in rows}
+    assert set(by_attempt) == {"log", "shards"}
+    assert by_attempt["log"]["log_location"] == str(nested)
+    sharded = by_attempt["shards"]
+    assert sharded["incomplete"] is True
+    assert [u["log_location"] for u in sharded["unreadable"]] == [str(stray)]
+    assert "not in a shard directory" in sharded["unreadable"][0]["reason"]
+
+
+async def test_stray_logs_of_a_companion_without_shards_are_unattributed(
+    tmp_path: Path, finished_log: EvalLog
+) -> None:
+    companion = tmp_path / f"{_SET_NAME}.shards"
+    companion.mkdir()
+    shutil.copy(finished_log.location, companion / "stray.eval")
+    index, rows = await _index(tmp_path)
+    assert rows == [] and index.unreadable_tasks == []
+    [stray] = index.unattributed
+    assert isinstance(stray.error, StrayLogError)
+
+
+async def test_the_walk_lists_shard_directories_once_and_no_deeper(
+    tmp_path: Path, finished_log: EvalLog, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    companion = await _shard_set(tmp_path, finished_log, {"0": [1], "1": [2]})
+    for skipped in (
+        "0/.buffer/x",
+        "0/run.checkpoints/1",
+        ".buffer/x",
+        # checkpoint directories directly in the companion: their sample
+        # repositories are not listed
+        "stray.checkpoints/1__1/a/b",
+        ".stray.checkpoints/1__1/a",
+    ):
+        (companion / skipped).mkdir(parents=True)
+    (companion / "1" / "scans" / "x.shards" / "0").mkdir(parents=True)
+    (companion / ".hidden" / "sub").mkdir(parents=True)
+    listed: list[str] = []
+    original = AsyncFilesystem.list_dir
+
+    async def spy(self: AsyncFilesystem, base: str) -> Any:
+        listed.append(base)
+        return await original(self, base)
+
+    monkeypatch.setattr(AsyncFilesystem, "list_dir", spy)
+    async with AsyncFilesystem() as fs:
+        listing = await walk_log_dir(fs, str(tmp_path))
+    [shard_set] = listing.shard_sets
+    assert [m.shard for m in shard_set.members] == ["0", "1"]
+    # the companion's dot-directories are listed once for stray logs; a
+    # companion nested below a shard is walked as an ordinary directory
+    assert sorted(Path(p).relative_to(tmp_path).as_posix() for p in listed) == [
+        ".",
+        companion.name,
+        f"{companion.name}/.buffer",
+        f"{companion.name}/.hidden",
+        f"{companion.name}/.hidden/sub",
+        f"{companion.name}/.stray.checkpoints",
+        f"{companion.name}/0",
+        f"{companion.name}/1",
+        f"{companion.name}/1/scans",
+        f"{companion.name}/1/scans/x.shards",
+        f"{companion.name}/1/scans/x.shards/0",
+        f"{companion.name}/stray.checkpoints",
+    ]
+
+
+async def test_attempts_order_by_the_parsed_timestamp(
+    tmp_path: Path, finished_log: EvalLog
+) -> None:
+    # as text, "T10:30" sorts after "T10-45" (":" > "-"); as a time it is earlier
+    await _attempt(finished_log, tmp_path, "2026-01-01T10:30:00+00:00")
+    newer = await _attempt(finished_log, tmp_path, "2026-01-01T10-45-00+00-00")
+    _, [row] = await _index(tmp_path)
+    assert row["log_location"] == str(newer)
+
+
+async def test_a_running_shard_reads_its_buffer_and_every_shard_is_current(
+    tmp_path: Path, finished_log: EvalLog
+) -> None:
+    companion = await _shard_set(tmp_path, finished_log, {"1": [3]})
+    running = await _start_running_log(
+        companion / "0", finished_log, logged=[1], sample_ids=[1, 2], log_shared=10
+    )
+    _write_buffer(running.location, [(_buffer_summary(2), [[_info("a", "e1")]])])
+
+    index, [view] = await _shard_views(tmp_path)
+    row = task_row(view)
+    assert row["status"] == "running" and row["live_samples"] == "buffer"
+    assert row["samples"]["in_flight"] == 1 and row["samples"]["total"] == 3
+    assert row["shards"]["running"] == 1 and row["shards"]["success"] == 1
+    async with AsyncFilesystem() as fs:
+        assert (await sample_detail(fs, index.tasks[0], "2", 1))["status"] == "running"
+
+    # the running shard admits a key the finished shard holds: the read sees
+    # both, rather than answering from one
+    _write_buffer(running.location, [(_buffer_summary(3), [])])
+    async with AsyncFilesystem() as fs:
+        with pytest.raises(SampleAmbiguousError):
+            await sample_detail(fs, index.tasks[0], "3", 1)
+
+
+@skip_if_trio
+async def test_s3_walk_of_a_shard_set_lists_each_shard_once(
+    mock_s3: None, finished_log: EvalLog, s3_requests: Counter[str]
+) -> None:
+    prefix = "log-dir-shards"
+    name = Path(finished_log.location).name
+    for k in range(5):
+        _upload(finished_log.location, f"{prefix}/{_SET_NAME}.shards/{k}/{name}")
+        for i in range(50):
+            boto3.client("s3").put_object(
+                Bucket="test-bucket",
+                Key=f"{prefix}/{_SET_NAME}.shards/{k}/.buffer/x/segment.{i}.zip",
+                Body=b"",
+            )
+    async with AsyncFilesystem() as fs:
+        listing = await walk_log_dir(fs, f"s3://test-bucket/{prefix}")
+    [shard_set] = listing.shard_sets
+    assert len(shard_set.members) == 5
+    assert shard_set.path == f"{_SET_NAME}.shards"
+    # N + 2: the root, the companion and each shard, whatever the buffers hold
+    assert s3_requests == Counter({"ListObjectsV2": 7})
+
+
+def test_cli_two_shard_sets_route_by_their_targets(
+    tmp_path: Path, finished_log: EvalLog, no_discovery: None
+) -> None:
+    other_name = "2026-03-01T00-00-00+00-00_alpha_OTHERSETTASK0000000000"
+    anyio.run(
+        functools.partial(_shard_set, tmp_path, finished_log, {"0": [1], "1": [2]})
+    )
+    # the other set's sample 2 completed
+    assert finished_log.samples is not None
+    other = finished_log.model_copy(deep=True)
+    assert other.samples is not None
+    other.samples = [
+        s.model_copy(update={"error": None}) if s.id == 2 else s for s in other.samples
+    ]
+    anyio.run(
+        functools.partial(
+            _shard_set, tmp_path / "sub", other, {"0": [2]}, name=other_name
+        )
+    )
+
+    for task_id, status in ((_SET_ID, "error"), ("OTHERSETTASK", "completed")):
+        shown = _json(_ctl(tmp_path, "sample", "show", task_id, "2", "--json"))
+        assert shown["status"] == status
+        for read in ("events", "messages", "store"):
+            result = _ctl(tmp_path, "sample", read, task_id, "2", "--json")
+            assert result.exit_code == 0, (read, result.output)
+
+    rows = _json(_ctl(tmp_path, "sample", "list", "--json"))["samples"]
+    assert Counter(r["task_id"] for r in rows) == {
+        _SET_ID: 2,
+        "OTHERSETTASK0000000000": 1,
+    }
+
+
+def test_cli_task_list_shards_lists_each_shard_as_a_task(
+    tmp_path: Path, finished_log: EvalLog, no_discovery: None
+) -> None:
+    companion = anyio.run(
+        functools.partial(_shard_set, tmp_path, finished_log, {"0": [1], "1": [2]})
+    )
+    older = "2026-02-01T00-00-00+00-00"
+    anyio.run(functools.partial(_shard, finished_log, companion, "1", [3], stamp=older))
+    anyio.run(functools.partial(_merged, tmp_path, finished_log))
+    shutil.copy(finished_log.location, companion / Path(finished_log.location).name)
+
+    shard_1 = companion / "1" / f"{_SHARD_STAMP}_alpha_SHARD1TASK000000000000.eval"
+    for args in (["task", "list"], ["task"]):
+        payload = _json(_ctl(tmp_path, *args, "--shards", "--json"))
+        rows = {t["task_id"]: t for t in payload["tasks"]}
+        # each shard, the merged log and the stray log are ordinary tasks
+        assert set(rows) == {
+            "SHARD0TASK000000000000",
+            "SHARD1TASK000000000000",
+            _SET_ID,
+            finished_log.eval.task_id,
+        }
+        assert {(t["current_attempt"], t["shards"]) for t in rows.values()} == {
+            ("log", None)
+        }
+        # a shard's attempts fold by the usual newest-wins rule
+        assert rows["SHARD1TASK000000000000"]["attempts"] == 2
+        assert rows["SHARD1TASK000000000000"]["log_location"] == str(shard_1)
+        assert payload["incomplete"] is False
+
+    payload = _json(_ctl(tmp_path, "task", "list", "--json"))
+    [row] = payload["tasks"]
+    assert row["task_id"] == _SET_ID and row["current_attempt"] == "shards"
+    # a full task id resolves to the one logical row
+    assert _ctl(tmp_path, "sample", "list", _SET_ID, "--json").exit_code == 0
+
+    human = _ctl(tmp_path, "task", "list")
+    assert human.exit_code == 0, human.output
+    assert "shards" in human.stdout
+    assert "sharded; the sample totals cover the shards found" in human.stdout
+    assert "1 sample errored — see `inspect ctl sample errors" in human.stdout
+    human = _ctl(tmp_path, "task", "list", "--shards")
+    assert human.exit_code == 0, human.output
+    assert "sharded" not in human.stdout
+    # the merged log's row repeats its shards' samples, so no summed footer
+    assert "errored — see" not in human.stdout
+
+
+def test_cli_shards_is_a_no_op_in_live_mode(monkeypatch: pytest.MonkeyPatch) -> None:
+    from _control.conftest import cli_runner
+    from inspect_ai._cli.ctl import ctl_command
+
+    monkeypatch.setattr("inspect_ai._cli.ctl._http.list_discovered_servers", list)
+    result = cli_runner().invoke(ctl_command, ["task", "list", "--shards", "--json"])
+    assert result.exit_code == 0, result.output
+    assert set(_json(result)) == {"as_of", "tasks"}
+
+
+def test_cli_read_only_over_a_shard_set(
+    tmp_path: Path, finished_log: EvalLog, no_discovery: None
+) -> None:
+    anyio.run(
+        functools.partial(_shard_set, tmp_path, finished_log, {"0": [1], "1": [2]})
+    )
+    anyio.run(functools.partial(_merged, tmp_path, finished_log))
+
+    def snapshot() -> dict[str, tuple[int, int]]:
+        return {
+            str(p): (p.stat().st_size, p.stat().st_mtime_ns)
+            for p in tmp_path.rglob("*")
+        }
+
+    before = snapshot()
+    for args in (
+        ["task", "list", "--shards"],
+        ["sample", "list"],
+        ["sample", "errors"],
+        ["sample", "show", _SET_ID, "1"],
+        ["sample", "events", _SET_ID, "1"],
+        ["sample", "messages", _SET_ID, "1"],
+        ["sample", "store", _SET_ID, "1"],
+    ):
+        result = _ctl(tmp_path, *args, "--json")
+        assert result.exit_code == 0, (args, result.output)
+    assert snapshot() == before
