@@ -148,10 +148,19 @@ class PerplexityAPI(OpenAICompatibleAPI):
         if web_search is not None:
             extra_body["tools"] = _with_web_search(extra_body.get("tools"), web_search)
             # generate_responses sends no tool choice, as it sends no tools
+            forced: str | dict[str, str] | None = None
             if tool_choice == "any":
-                extra_body["tool_choice"] = "required"
+                forced = "required"
             elif isinstance(tool_choice, ToolFunction):
-                extra_body["tool_choice"] = {"type": "web_search"}
+                forced = {"type": "web_search"}
+            if forced is not None:
+                raw_choice = extra_body.get("tool_choice", forced)
+                if raw_choice != forced:
+                    raise ValueError(
+                        f"tool_choice {tool_choice!r} forces a web search, which "
+                        f"conflicts with tool_choice {raw_choice!r} in extra_body."
+                    )
+                extra_body["tool_choice"] = forced
 
         tool_results: dict[str, list[dict[str, Any]]] = {}
 

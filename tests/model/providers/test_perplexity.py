@@ -439,6 +439,36 @@ async def test_perplexity_extra_body_tool_choice(
 
 
 @pytest.mark.anyio
+@pytest.mark.parametrize("tool_choice", ["any", ToolFunction(name="web_search")])
+async def test_perplexity_forced_search_conflicts_with_extra_body_tool_choice(
+    monkeypatch: pytest.MonkeyPatch, tool_choice: ToolChoice
+) -> None:
+    model = get_model("perplexity/sonar", api_key="sk-test", memoize=False)
+    requests: list[dict[str, Any]] = []
+
+    async def fake_create(**kwargs: Any) -> Response:
+        requests.append(kwargs)
+        return _agent_response("a", 1)
+
+    assert isinstance(model.api, PerplexityAPI)
+    monkeypatch.setattr(model.api.client.responses, "create", fake_create)
+    try:
+        with pytest.raises(ValueError, match="conflicts with tool_choice 'none'"):
+            await model.generate(
+                [ChatMessageUser(content="a")],
+                tools=[web_search({"perplexity": True})],
+                tool_choice=tool_choice,
+                config=GenerateConfig(
+                    extra_body={"tools": [{"type": "fetch_url"}], "tool_choice": "none"}
+                ),
+            )
+    finally:
+        await model.api.aclose()
+
+    assert requests == []
+
+
+@pytest.mark.anyio
 async def test_perplexity_agent_api_response(monkeypatch: pytest.MonkeyPatch) -> None:
     requests: list[dict[str, Any]] = []
     provider = _provider(
