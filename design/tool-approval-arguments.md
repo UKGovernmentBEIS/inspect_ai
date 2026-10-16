@@ -75,10 +75,13 @@ Not supported and not checked (decision: Ransom, 2026-10-16):
 - bridged agents, whose approval is as before this change.
 
 Top-level parameters the call leaves out are not shown. They get their Python
-defaults when the arguments are rebuilt, as without oversight. Field defaults
-inside a model or dataclass are shown. Curried handoff
-arguments are Python values from the developer: they are not shown, not
-converted, and reach the agent as given.
+defaults when the arguments are rebuilt, as without oversight. Defaults filled
+in when a Pydantic model is constructed are shown. Dataclass fields keep
+`main`'s conversion, which does not apply the default of a field the call
+leaves out: the field is converted from a missing value instead (a parsing
+error for an `int`, the text `"None"` for a `str`). Curried handoff arguments
+are Python values from the developer: they are not shown, not converted, and
+reach the agent as given.
 
 | Case | Model sends | Approver sees | Outcome |
 |---|---|---|---|
