@@ -160,7 +160,7 @@ queue:
 
 | Known wait | Where the span opens and closes |
 | --- | --- |
-| `concurrency()` semaphore wait, including max sandboxes and max subprocesses | `sample_waiting_for()` (`src/inspect_ai/_util/working.py:76`), around the acquire |
+| `concurrency()` semaphore wait, including max sandboxes and max subprocesses | `sample_waiting_for()` (`src/inspect_ai/_util/working.py:692`), around the acquire |
 | Model connection-slot wait, including the adaptive limiter | `ConnectionSlot.acquire` (`_model.py:799`) |
 | Retry backoff sleep (`generate`, `compact`, `count_tokens`) | a tenacity `sleep=` wrapper in `model_retry_config()` (`_retry.py`), installed when `sample_waits` is set (it replaces the `report_waiting_time` callback), so batch admin loops stay excluded |
 | Retried model attempts and provider-SDK retries | closed intervals added when known (see "Model attempts") |
@@ -613,11 +613,15 @@ block on `anyio.Event`s, so ordering is fixed.
     are not;
   - a bridged agent launched by one blocking exec inside
     `sandbox_agent_bridge()` (the real bridge, with its sandbox and model
-    service transport stubbed) whose model request fails, backs off and
-    succeeds reads the failed attempt and backoff as waiting and the
-    successful request as working, live and closed and in scoped usage; the
-    same exec outside a bridge is known work, and a launch run inside
-    `no_events()`, as `exec_remote` polls, is not;
+    service transport stubbed), beside another task's open wait, whose
+    model request fails, backs off and succeeds reads the failed attempt
+    and backoff as waiting and the successful request as working, live and
+    closed and in scoped usage; the same exec outside a bridge is known
+    work, and a launch through the real `exec_remote()` start and poll
+    calls is not;
+  - a bridged host tool call through the bridge service's `call_tool` is
+    known work beside another task's open wait, and a wait inside it is
+    waiting;
   - seeded random sequences of nested spans (including contexts of closed
     spans), waits (some opened by a task started inside a suspension),
     late waits reported from inside work (some from inside a suspension,
