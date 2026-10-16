@@ -5,6 +5,7 @@ import functools
 import json
 import logging
 import os
+import weakref
 from contextvars import ContextVar
 from copy import copy, deepcopy
 from datetime import datetime, timezone
@@ -19,6 +20,7 @@ from typing import (
     Literal,
     Mapping,
     NamedTuple,
+    NoReturn,
     Protocol,
     Sequence,
     Type,
@@ -31,7 +33,7 @@ if TYPE_CHECKING:
     from inspect_ai.tool import ToolInfo
 
 import anyio
-from pydantic import BaseModel
+from pydantic import BaseModel, JsonValue, TypeAdapter, ValidationError
 from pydantic_core import to_jsonable_python
 from shortuuid import uuid
 from tenacity import (
@@ -1994,7 +1996,7 @@ class Model:
             model=model,
             role=self.role,
             requested_model=_requested_model.get(),
-            input=input,
+            input=_snapshot_messages(input),
             tools=tools,
             tool_choice=tool_choice,
             config=config,
@@ -2978,6 +2980,99 @@ class ModelEventSink(Protocol):
 _model_event_sink: ContextVar[ModelEventSink | None] = ContextVar(
     "_model_event_sink", default=None
 )
+
+
+_message_snapshots: weakref.WeakValueDictionary[str, ChatMessage] = (
+    weakref.WeakValueDictionary()
+)
+"""Latest snapshot of each message id, held while a logged event holds it."""
+
+
+def _snapshot_messages(messages: list[ChatMessage]) -> list[ChatMessage]:
+    """Copy messages so later in-place edits do not change a logged input.
+
+    Each message is deep copied unless the last copy made for its id still
+    matches it, in which case that copy is reused. Successive events then
+    share the objects of unchanged messages, which keeps memory proportional
+    to message versions and lets the log's message pool dedup them by
+    identity.
+
+    Raises:
+        TypeError: A message's metadata holds something other than JSON data.
+            The match check compares plain JSON types only; objects (slotted
+            dataclasses, models with extra fields) and container subclasses
+            (OrderedDict, defaultdict) would compare wrongly.
+    """
+    from inspect_ai.event._pool import _strict_eq
+
+    snapshots: list[ChatMessage] = []
+    for message in messages:
+        snapshot = (
+            _message_snapshots.get(message.id) if message.id is not None else None
+        )
+        if snapshot is None or not _strict_eq(snapshot, message):
+            _check_metadata_is_json(message)
+            snapshot = message.model_copy(deep=True)
+            if message.id is not None:
+                _message_snapshots[message.id] = snapshot
+        snapshots.append(snapshot)
+    return snapshots
+
+
+_json_value_adapter: TypeAdapter[JsonValue] = TypeAdapter(JsonValue)
+
+
+def _check_metadata_is_json(message: ChatMessage) -> None:
+    if message.metadata is None:
+        return
+    try:
+        _json_value_adapter.validate_python(message.metadata)
+    except ValidationError as ex:
+        error = ex.errors()[0]
+        # locations alternate a JSON type tag with a key or index
+        path = "".join(f"[{key!r}]" for key in error["loc"][1::2])
+        if error["type"] == "recursion_loop":
+            raise TypeError(
+                f"Message metadata must be JSON data, but metadata{path} "
+                "contains itself or is nested too deeply."
+            ) from ex
+        _raise_metadata_type_error(path, type(error["input"]), ex)
+    # the validator accepts subclasses (OrderedDict, list subclasses) and
+    # returns plain copies, but the snapshot keeps the original values
+    found = _non_plain_json(message.metadata)
+    if found is not None:
+        _raise_metadata_type_error(*found, None)
+
+
+def _non_plain_json(value: object) -> tuple[str, type] | None:
+    """Path and type of the first value whose type is not a plain JSON type.
+
+    Expects a value that already validated as JSON (finite and acyclic).
+    """
+    stack: list[tuple[object, str]] = [(value, "")]
+    while stack:
+        current, path = stack.pop()
+        if type(current) is dict:
+            for key, item in current.items():
+                if type(key) is not str:
+                    return f"{path}[{key!r}]", type(key)
+                stack.append((item, f"{path}[{key!r}]"))
+        elif type(current) is list:
+            stack.extend((item, f"{path}[{i}]") for i, item in enumerate(current))
+        elif type(current) not in (str, int, float, bool, type(None)):
+            return path, type(current)
+    return None
+
+
+def _raise_metadata_type_error(
+    path: str, value_type: type, cause: Exception | None
+) -> NoReturn:
+    raise TypeError(
+        f"Message metadata must be JSON data (dicts with string keys, lists, "
+        f"strings, numbers, booleans and None), but metadata{path} has type "
+        f"{value_type.__name__}. Convert it to plain data first, "
+        f"for example with model_dump() or dataclasses.asdict()."
+    ) from cause
 
 
 @contextlib.contextmanager
