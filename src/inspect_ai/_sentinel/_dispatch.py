@@ -13,6 +13,7 @@ from inspect_sentinel import (
     BeforeToolCall,
     Context,
     Decision,
+    Escalations,
     EvalContext,
     Failed,
     HumanAnswer,
@@ -410,7 +411,12 @@ class _HostNative:
             config=config or GenerateConfig(),
         )
 
-    async def ask_human(self, step: Step, choices: Sequence[str]) -> HumanAnswer:
+    async def ask_human(
+        self,
+        step: Step,
+        escalations: Escalations,
+        choices: Sequence[str],
+    ) -> HumanAnswer:
         if isinstance(step, BeforeGenerate):
             raise NotImplementedError(
                 f"inspect_ai cannot ask a person at the {_stage(step)} stage; "
@@ -445,10 +451,12 @@ class _HostNative:
             conversation = []
         approve = human_approver(choices=offered)
         if isinstance(step, AfterGenerate):
-            approval = await _ask_about_turn(approve, step, offered, conversation)
+            approval = await _ask_about_turn(
+                approve, step, escalations, offered, conversation
+            )
         else:
             approval = await approve(
-                step.message, step.call, _human_view(step), conversation
+                step.message, step.call, _human_view(step, escalations), conversation
             )
         if approval.decision in offered:
             return HumanAnswer(decision=approval.decision, reason=approval.explanation)
@@ -464,10 +472,12 @@ class _HostNative:
 _HUMAN_CHOICES = ("approve", "reject", "terminate")
 
 
-def _human_view(step: BeforeToolCall | AfterToolCall) -> ToolCallView:
+def _human_view(
+    step: BeforeToolCall | AfterToolCall, escalations: Escalations
+) -> ToolCallView:
     view = step.view
-    if step.escalations:
-        lines = _escalation_lines(step)
+    if escalations:
+        lines = _escalation_lines(escalations)
         escalated = f"**Escalated by**\n\n{fenced(lines)}"
         if view.call is None:
             call = ToolCallContent(format="markdown", content=escalated)
@@ -489,13 +499,13 @@ def _human_view(step: BeforeToolCall | AfterToolCall) -> ToolCallView:
     return view
 
 
-def _escalation_lines(step: Step) -> str:
+def _escalation_lines(escalations: Escalations) -> str:
     return escape_placeholders(
         "\n".join(
             f"- {e.name}: {e.report.explanation}"
             if e.report.explanation
             else f"- {e.name}"
-            for e in step.escalations
+            for e in escalations
         )
     )
 
@@ -503,6 +513,7 @@ def _escalation_lines(step: Step) -> str:
 async def _ask_about_turn(
     approve: Approver,
     step: AfterGenerate,
+    escalations: Escalations,
     offered: list[ApprovalDecision],
     conversation: list[ChatMessage],
 ) -> Approval:
@@ -510,7 +521,7 @@ async def _ask_about_turn(
     # person is asked
     from inspect_ai.approval._human.acp import finish_approval_card
 
-    prompt = _turn_prompt(step)
+    prompt = _turn_prompt(step, escalations)
     status: Literal["completed", "failed"] = "failed"
     try:
         approval = await approve(prompt.message, prompt.call, prompt.view, conversation)
@@ -529,7 +540,7 @@ class _Prompt(NamedTuple):
     view: ToolCallView
 
 
-def _turn_prompt(step: AfterGenerate) -> _Prompt:
+def _turn_prompt(step: AfterGenerate, escalations: Escalations) -> _Prompt:
     """The assistant turn as one prompt for the human approval surfaces.
 
     The surfaces show one tool call, so the turn becomes a single view: the
@@ -573,8 +584,8 @@ def _turn_prompt(step: AfterGenerate) -> _Prompt:
     )
     text = safe(message.text) if message else ""
     blocks: list[str] = []
-    if step.escalations:
-        escalated = safe(_escalation_lines(step))
+    if escalations:
+        escalated = safe(_escalation_lines(escalations))
         blocks.append(f"**Escalated by**\n\n{fenced(escalated)}")
     count = f"**The turn makes {_calls(len(calls))}.**"
     if safe.escaped:
