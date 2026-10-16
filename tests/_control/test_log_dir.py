@@ -64,7 +64,11 @@ from inspect_ai._control.state import _iso_to_timestamp
 from inspect_ai._util.async_zip import AsyncZipReader, ZipCrcError
 from inspect_ai._util.asyncfiles import AsyncFilesystem, FileContent
 from inspect_ai._util.file import local_path
-from inspect_ai._util.log_layout import log_basename
+from inspect_ai._util.log_layout import (
+    eval_log_name,
+    log_basename,
+    merged_log_task_id,
+)
 from inspect_ai.dataset import Sample
 from inspect_ai.event import InfoEvent, ModelEvent
 from inspect_ai.log import (
@@ -2117,7 +2121,7 @@ def test_cli_buffer_events_that_do_not_parse_are_invalid_response(
 # --- shard sets ----------------------------------------------------------------
 
 _SET_ID = "SHARDSETTASK0000000000"
-_SET_NAME = f"2026-02-01T00-00-00+00-00_alpha_{_SET_ID}"
+_SET_NAME = f"2026-02-01T00-00-00-00-00_alpha_{_SET_ID}"
 _SHARD_STAMP = "2026-02-01T00-00-01+00-00"
 
 
@@ -2360,7 +2364,7 @@ def test_a_merged_log_with_no_task_id_keeps_the_sets_key(
         assert result.exit_code == 0, (args, result.output)
 
 
-async def test_an_unreadable_newest_merged_log_keys_the_set_by_its_name(
+async def test_an_unreadable_newest_merged_log_keys_the_set_as_the_merge_does(
     tmp_path: Path, finished_log: EvalLog
 ) -> None:
     # a file name pattern without {id}: only a readable merged log gives the id
@@ -2371,8 +2375,12 @@ async def test_an_unreadable_newest_merged_log_keys_the_set_by_its_name(
     recovered = tmp_path / f"{name}-recovered.eval"
     recovered.write_bytes(b"not a zip")
     _, [row] = await _index(tmp_path)
-    # the older plain merged log is not read, so its task id is not used
-    assert row["task_id"] == name and row["current_attempt"] == "shards"
+    # the older plain merged log is not read, so its task id is not used;
+    # the set gets the id a merge would give it
+    assert row["task_id"] == merged_log_task_id(
+        name, task=finished_log.eval.task, model=finished_log.eval.model
+    )
+    assert row["current_attempt"] == "shards"
     assert row["eval_id"] is None
     assert row["log_location"] == str(recovered)
     assert row["incomplete"] is True
@@ -2380,6 +2388,43 @@ async def test_an_unreadable_newest_merged_log_keys_the_set_by_its_name(
     assert failure["log_location"] == str(recovered)
     assert older["log_location"] == str(merged)
     assert "an older merged log" in older["reason"]
+
+
+@pytest.mark.parametrize(
+    "pattern", ["{task}_{id}", "{task}", "{id}_{task}", "{model}_{task}"]
+)
+@pytest.mark.parametrize("merged", ["absent", "readable", "unreadable"])
+async def test_a_shard_set_keeps_the_merges_task_id_with_or_without_its_log(
+    tmp_path: Path,
+    finished_log: EvalLog,
+    monkeypatch: pytest.MonkeyPatch,
+    pattern: str,
+    merged: str,
+) -> None:
+    monkeypatch.setenv("INSPECT_EVAL_LOG_FILE_PATTERN", pattern)
+    model = finished_log.eval.model
+    name = eval_log_name(
+        task="alpha",
+        task_id="LAUNCHERID",
+        created="2026-02-01T00:00:00+00:00",
+        model=model,
+    )
+    task_id = merged_log_task_id(name, task=finished_log.eval.task, model=model)
+    await _shard_set(tmp_path, finished_log, {"0": [1]}, name=name)
+    if merged == "readable":
+        await _merged(tmp_path, finished_log, name=name, task_id=task_id)
+    elif merged == "unreadable":
+        (tmp_path / f"{name}.eval").write_bytes(b"not a zip")
+    _, [row] = await _index(tmp_path)
+    assert row["task_id"] == task_id and row["current_attempt"] == "shards"
+
+    # a retry that inherited the merged log's task id folds with the set
+    retry = finished_log.model_copy(deep=True)
+    retry.eval = retry.eval.model_copy(update={"task_id": task_id})
+    await _attempt(retry, tmp_path, "2026-03-01T00-00-00+00-00")
+    _, [row] = await _index(tmp_path)
+    assert row["task_id"] == task_id
+    assert row["current_attempt"] == "log" and row["attempts"] == 2
 
 
 async def test_an_unreadable_merged_log_of_a_superseded_shard_set_is_reported(
@@ -2802,7 +2847,7 @@ async def test_s3_walk_of_a_shard_set_lists_each_shard_once(
 def test_cli_two_shard_sets_route_by_their_targets(
     tmp_path: Path, finished_log: EvalLog, no_discovery: None
 ) -> None:
-    other_name = "2026-03-01T00-00-00+00-00_alpha_OTHERSETTASK0000000000"
+    other_name = "2026-03-01T00-00-00-00-00_alpha_OTHERSETTASK0000000000"
     anyio.run(
         functools.partial(_shard_set, tmp_path, finished_log, {"0": [1], "1": [2]})
     )

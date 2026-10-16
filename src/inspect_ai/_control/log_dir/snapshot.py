@@ -33,6 +33,7 @@ from inspect_ai._util.async_zip import AsyncZipReader
 from inspect_ai._util.asyncfiles import AsyncFilesystem
 from inspect_ai._util.constants import get_deserializing_context
 from inspect_ai._util.file import local_path
+from inspect_ai._util.log_layout import merged_log_task_id
 from inspect_ai.log._file import _try_parse_filename
 from inspect_ai.log._log import EvalLog, EvalSampleSummary
 from inspect_ai.log._recorders.eval import (
@@ -371,18 +372,43 @@ async def _add_shard_sets(
     def run_of(shard_set: ShardSetFiles) -> LogPlan | Unreadable | None:
         return merged[shard_set.merged[0].location] if shard_set.merged else None
 
-    def key_of(shard_set: ShardSetFiles) -> str:
+    def merged_task_id(shard_set: ShardSetFiles) -> str | None:
         run = run_of(shard_set)
         if isinstance(run, LogPlan) and run.header.eval.task_id:
             return run.header.eval.task_id
-        return _set_key(shard_set.location)
+        return None
+
+    # without a merged task id, the first shard's header gives the task and
+    # model that the merge's task id is derived with
+    first_members = [
+        s.members[0] for s in shard_sets if merged_task_id(s) is None and s.members
+    ]
+    results: dict[str, LogPlan | Unreadable] = dict(
+        zip(
+            (f.location for f in first_members),
+            await tg_collect(
+                [functools.partial(plan_or_failure, f) for f in first_members]
+            ),
+        )
+    )
+
+    def key_of(shard_set: ShardSetFiles) -> str:
+        task_id = merged_task_id(shard_set)
+        if task_id is not None:
+            return task_id
+        shard = (
+            results.get(shard_set.members[0].location) if shard_set.members else None
+        )
+        return _set_key(shard_set.location, shard)
 
     first: dict[str, ShardSetFiles] = {}
     for shard_set in shard_sets:
         first.setdefault(key_of(shard_set), shard_set)
     current = {key: s for key, s in first.items() if key not in tasks}
-    members = [f for s in current.values() for f in s.members]
-    results = dict(
+    members = [
+        f for s in current.values() for f in s.members if f.location not in results
+    ]
+    results.update(
         zip(
             (f.location for f in members),
             await tg_collect([functools.partial(plan_or_failure, f) for f in members]),
@@ -450,15 +476,20 @@ def _stray(stray: StrayFile) -> Unreadable:
     )
 
 
-def _set_key(companion: str) -> str:
+def _set_key(companion: str, shard: LogPlan | Unreadable | None) -> str:
     """The task id of a shard set with no readable merged log.
 
-    ``{id}`` parsed from ``<name>``, else ``<name>``: the merged log's
-    ``task_id`` under a file name pattern with ``{id}``. The shared
-    ``merged_log_task_id`` (sharding implementation PR 5) replaces this.
+    The task id the merge gives its merged log (:func:`merged_log_task_id`),
+    from the task and model in ``shard``, the set's first shard. Without a
+    readable shard, ``{id}`` parsed from ``<name>``, else ``<name>``.
     """
+    name = basename(companion).rsplit(".", 1)[0]
+    if isinstance(shard, LogPlan):
+        return merged_log_task_id(
+            name, task=shard.header.eval.task, model=shard.header.eval.model
+        )
     _, task_id = _file_identity(companion)
-    return task_id or basename(companion).rsplit(".", 1)[0]
+    return task_id or name
 
 
 def _created(task: LogicalTask) -> str:

@@ -1928,15 +1928,29 @@ def test_merge_on_s3(s3_shards: tuple[str, str], s3_root: str) -> None:
     assert all(e.etag for e in first.log.eval.shards.ledger)
     assert not merge_eval_log_shards(merged).written
 
+    def change(k: str) -> None:
+        # rewrite the shard's attempt in place: a re-run within the same
+        # second could tie with it in attempt order
+        [key] = [
+            key
+            for key in _s3_keys(f"{s3_root}/{NAME}.shards/{k}/")
+            if key.endswith(".eval")
+        ]
+        log = read_eval_log(f"s3://test-bucket/{key}")
+        assert log.samples is not None
+        for sample in log.samples:
+            sample.metadata["changed"] = True
+        write_eval_log(log, f"s3://test-bucket/{key}")
+
     # a changed shard is merged again, carrying the other
-    _run(shards, "1", sample_id=[4, 5, 6])
+    change("1")
     second = merge_eval_log_shards(merged)
     assert second.written and second.log.eval.eval_id == first.log.eval.eval_id
     log = read_eval_log(merged)
     assert sorted(s.id for s in log.samples or []) == [1, 2, 3, 4, 5, 6]
 
     # a call that writes, verifies the published object and deletes
-    _run(shards, "0", sample_id=[1, 2, 3])
+    change("0")
     result = merge_eval_log_shards(merged, delete_shards=True)
     assert result.written and result.shards_deleted
     assert _s3_keys(f"{s3_root}/") == [f"{s3_root}/{NAME}.eval"]
@@ -2133,3 +2147,33 @@ def test_cli_notice_names_the_imported_task_file(
     assert "Notice: imported trust_task.py to resolve metrics." in result.stderr
     [item] = json.loads(result.stdout)
     assert item["status"] == "success"
+
+
+@pytest.mark.parametrize("suffix", [".shards", ".eval"])
+def test_merge_refuses_an_encoded_recovered_name(tmp_path: Path, suffix: str) -> None:
+    import shutil
+
+    from inspect_ai._util.file import to_uri
+
+    _, shards = _paths(tmp_path)
+    neighbour = _run(shards, "0", sample_id=[1, 2, 3])
+    recovered = f"{tmp_path}/{NAME}-recovered.shards"
+    shutil.copytree(shards, recovered)
+    before = _files(str(tmp_path))
+    encoded = to_uri(f"{tmp_path}/{NAME}") + "%2Drecovered" + suffix
+    with pytest.raises(ValueError, match="recovered"):
+        merge_eval_log_shards(encoded, delete_shards=True)
+    assert _files(str(tmp_path)) == before
+    assert os.path.exists(neighbour.location)
+
+
+def test_merge_paths_keep_literal_percent_signs() -> None:
+    from inspect_ai.log._shards._api import merge_paths
+
+    paths = merge_paths("/logs/run%2Drecovered.eval")
+    assert paths.merged == "/logs/run%2Drecovered.eval"
+    assert paths.shards_dir == "/logs/run%2Drecovered.shards"
+    s3 = merge_paths("s3://bucket/run%2Drecovered.shards/")
+    assert s3.location == "s3://bucket/run%2Drecovered.eval"
+    with pytest.raises(ValueError, match="recovered"):
+        merge_paths("file:///logs/run%2Drecovered.eval")

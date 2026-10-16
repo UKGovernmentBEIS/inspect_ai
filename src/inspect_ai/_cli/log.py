@@ -681,7 +681,7 @@ def _merge_item(
     if target is None:
         return item
     try:
-        item["log"] = merge_paths(target)[0]
+        item["log"] = merge_paths(target).location
     except ValueError as ex:
         item["error"] = str(ex)
         return item

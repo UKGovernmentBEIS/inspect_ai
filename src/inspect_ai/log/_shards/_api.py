@@ -14,7 +14,7 @@ import anyio
 from inspect_ai._util._async import run_coroutine, tg_collect
 from inspect_ai._util.async_zip import AsyncZipReader, is_torn_read
 from inspect_ai._util.asyncfiles import AsyncFilesystem, is_s3_filename
-from inspect_ai._util.file import FileInfo, basename, local_path
+from inspect_ai._util.file import FileInfo, basename, local_path, to_uri
 from inspect_ai._util.log_layout import (
     eval_log_for_shards_dir,
     eval_shards_dir,
@@ -238,12 +238,7 @@ async def merge_shards(
     given = given_selection(sample_ids, sample_count)
     if delete_shards and allow_incomplete:
         raise ValueError("delete_shards cannot be combined with allow_incomplete.")
-    location, shards_dir = merge_paths(log)
-    merged_path = location
-    if is_local(merged_path):
-        # a local file:// URI is read and written as its path: the zip reader
-        # and the walk's percent-encoded children need the decoded form
-        merged_path, shards_dir = local_path(merged_path), local_path(shards_dir)
+    location, merged_path, shards_dir = merge_paths(log)
 
     async with AsyncFilesystem() as fs:
         with merge_guard(merged_path):
@@ -284,8 +279,33 @@ async def merge_shards(
     )
 
 
-def merge_paths(log: str) -> tuple[str, str]:
-    """The merged log and its shards directory, from either."""
+class MergePaths(NamedTuple):
+    """The paths of a merge (see :func:`merge_paths`)."""
+
+    location: str
+    """The merged log, in the form the argument was given in."""
+
+    merged: str
+    """The merged log as read and written."""
+
+    shards_dir: str
+    """Its shards directory, as read."""
+
+
+def merge_paths(log: str) -> MergePaths:
+    """The merged log and its shards directory, from either.
+
+    A local ``file://`` URI is decoded to its path before anything is derived
+    or checked from it, so an encoded name cannot pass a check its decoded
+    form fails; the zip reader and the walk also need the decoded path.
+    """
+    target = local_path(log) if is_local(log) else log
+    merged, shards_dir = _derive_paths(target)
+    location = to_uri(merged) if log.startswith("file://") else merged
+    return MergePaths(location, merged, shards_dir)
+
+
+def _derive_paths(log: str) -> tuple[str, str]:
     location = log.rstrip("/\\")
     name = basename(location)
     if name.endswith(".shards") and name != ".shards":
