@@ -1,6 +1,5 @@
 import json
 import re
-import sys
 from pathlib import Path
 from typing import Any, Literal, NamedTuple, cast, get_args
 from unittest.mock import AsyncMock
@@ -78,9 +77,6 @@ from inspect_ai.tool._tool_info import ToolInfo
 from inspect_ai.tool._tool_params import ToolParam, ToolParams
 from inspect_ai.util import ExecResult, collect, token_limit
 from inspect_ai.util._limit import LimitExceededError
-
-if sys.version_info < (3, 11):
-    from exceptiongroup import ExceptionGroup
 
 
 class _FakeProxy:

@@ -1,7 +1,6 @@
 """Run one sandbox service request through the real dispatcher, with faked I/O."""
 
 import json
-import sys
 from typing import Any, Awaitable, Callable
 
 import anyio
@@ -13,9 +12,6 @@ from inspect_ai.agent._bridge.sandbox.bridge import _monitor_failure
 from inspect_ai.agent._bridge.sandbox.types import SandboxAgentBridge
 from inspect_ai.util._sandbox.service import SandboxService
 from inspect_ai.util._subprocess import ExecResult
-
-if sys.version_info < (3, 11):
-    from exceptiongroup import BaseExceptionGroup
 
 REQUEST_ID = "r1"
 REQUEST_FILE = f"/req/{REQUEST_ID}.json"
