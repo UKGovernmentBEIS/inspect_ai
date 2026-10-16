@@ -128,8 +128,9 @@ converted before the tool runs, as before this change, and nothing is
 serialized or rebuilt. The tool gets the converted values, and the ToolEvent
 records the model's arguments. The only differences from earlier releases
 are that validation and conversion happen before the approval step, a
-conversion error is a parsing error to the model, and curried handoff
-arguments are not converted.
+conversion error is a parsing error to the model, curried handoff arguments
+are not converted, conversion works on a copy of the arguments, and the
+ToolEvent keeps its own copy of them.
 
 ## Decisions
 
