@@ -442,12 +442,14 @@ def resolve_task_sandbox(
             # docker compatible sandbox
             if resolved_sandbox.config is None and task.sandbox is not None:
                 if is_docker_compatible_config(
-                    task.sandbox.config
+                    task.sandbox.config, declared_type=task.sandbox.type
                 ) and is_docker_compatible_sandbox_type(resolved_sandbox.type):
                     resolved_sandbox = SandboxEnvironmentSpec(
                         resolved_sandbox.type, task.sandbox.config
                     )
-                elif is_docker_compatible_config(task.sandbox.config):
+                elif is_docker_compatible_config(
+                    task.sandbox.config, declared_type=task.sandbox.type
+                ):
                     warn_once(
                         logger,
                         f"Task '{task.name}' declares sandbox '{task.sandbox.type}' "

@@ -297,7 +297,9 @@ async def resolve_sandbox(
                 (sample.sandbox.type == task_sandbox.type)
                 # have a docker compatible config => docker compatible sandbox type
                 or (
-                    is_docker_compatible_config(sample.sandbox.config)
+                    is_docker_compatible_config(
+                        sample.sandbox.config, declared_type=sample.sandbox.type
+                    )
                     and is_docker_compatible_sandbox_type(task_sandbox.type)
                 )
             )
@@ -310,7 +312,9 @@ async def resolve_sandbox(
             if (
                 sample.sandbox is not None
                 and sample.sandbox.config is not None
-                and is_docker_compatible_config(sample.sandbox.config)
+                and is_docker_compatible_config(
+                    sample.sandbox.config, declared_type=sample.sandbox.type
+                )
             ):
                 subject = f"A sample in task '{task_name}'" if task_name else "A sample"
                 warn_once(
