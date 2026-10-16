@@ -2,6 +2,7 @@ from typing import cast
 
 import anyio
 
+from inspect_ai.tool import Tool
 from inspect_ai.util import display_type, input_panel, sandbox
 from inspect_ai.util._sandbox.events import SandboxEnvironmentProxy
 
@@ -21,6 +22,7 @@ def human_cli(
     user: str | None = None,
     instructions: str | None = None,
     bashrc: str | None = None,
+    tools: list[Tool] | None = None,
 ) -> Agent:
     """Human CLI agent for tasks that run in a sandbox.
 
@@ -43,6 +45,7 @@ def human_cli(
        user: User to login as. Defaults to the sandbox environment's default user.
        instructions: Additional instructions beyond the default task command instructions.
        bashrc: Additional content to include in the .bashrc file for the human cli shell.
+       tools: List of tools available for the human to call via `task tool <name>`.
 
     Returns:
        Agent: Human CLI agent.
@@ -73,6 +76,7 @@ def human_cli(
                         intermediate_scoring,
                         record_session,
                         instructions,
+                        tools,
                     )
 
                     # install agent tools
