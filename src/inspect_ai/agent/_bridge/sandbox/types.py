@@ -311,7 +311,9 @@ class SandboxAgentBridge(AgentBridge):
             )
         if matched is None:
             return None
-        return self._tool_execution_grants.pop(matched)
+        grant = self._tool_execution_grants[matched]
+        del self._tool_execution_grants[matched]
+        return grant
 
     def dispatched_call(self, call: ToolCall) -> DispatchedCall | None:
         """The bridged tool call `call` makes through a dispatcher (`_dispatched_call`)."""
