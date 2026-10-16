@@ -90,17 +90,12 @@ from .._model_output import (
 )
 from ._first_party import FRONTIER_MODELS
 from ._grok_batch import GrokBatcher
+from ._grok_cache import GROK_CONV_ID_HEADER
 
 XAI_API_KEY = "XAI_API_KEY"
 XAI_BASE_URL = "XAI_BASE_URL"
 GROK_API_KEY = "GROK_API_KEY"
 GROK_BASE_URL = "GROK_BASE_URL"
-
-# xAI's prompt cache is per-server, and requests are otherwise load balanced
-# across servers. This header pins a conversation to one server so its turns
-# hit the cache the earlier turns populated.
-# https://docs.x.ai/developers/advanced-api-usage/prompt-caching/maximizing-cache-hits
-GROK_CONV_ID_HEADER = "x-grok-conv-id"
 
 # xAI model-name tokens for non-generative models (image/video generation,
 # embeddings) that must never be treated as a "latest" frontier chat model

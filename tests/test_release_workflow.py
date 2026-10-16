@@ -9,6 +9,8 @@ tests/tools/sandbox_tools_utils/test_sandbox_tools_digests.py.
 
 from __future__ import annotations
 
+import base64
+import hashlib
 import importlib.util
 import json
 import os
@@ -599,6 +601,219 @@ def test_cli_reports_errors(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 # ---------------------------------------------------------------------------
+# breaking-changes-heading: Release Please's heading, renamed on each update
+# ---------------------------------------------------------------------------
+
+GENERATED = "### \u26a0 BREAKING CHANGES"
+RENAMED = "### Breaking Changes"
+PR_NUMBER = 5900
+
+
+def _section(version: str, heading: str, previous: str = "0.3.280") -> str:
+    return (
+        f"## [{version}](https://github.com/{GH_REPO}/compare/{previous}...{version})"
+        " (2026-10-15)\n\n\n"
+        f"{heading}\n\n"
+        "* require Python 3.11 \u2014 see the \u26a0 note ([#5862](x))\n\n"
+        "### Features\n\n"
+        "* add swarm types ([#5860](x)) ([a11afc9](y))\n"
+    )
+
+
+def _changelog(new_heading: str, old_heading: str = GENERATED) -> str:
+    return (
+        "# Changelog\n\n"
+        + _section("0.3.282", new_heading, "0.3.281")
+        + "\n"
+        + _section("0.3.281", old_heading)
+        + "\n## 0.3.150 (2025-11-02)\n\n- Older hand-written notes.\n"
+    )
+
+
+def _body(heading: str) -> str:
+    return (
+        "Merging this PR tags the release.\n---\n\n\n"
+        + _section("0.3.282", heading, "0.3.281")
+        + "\n---\nThis PR was generated with [Release Please](https://github.com/"
+        "googleapis/release-please). See [documentation](https://github.com/"
+        "googleapis/release-please#release-please)."
+    )
+
+
+class ReleasePRGitHub(FakeGitHub):
+    """Adds the release PR, its CHANGELOG.md blob and the writes to FakeGitHub."""
+
+    def __init__(self, changelog: str | None, body: str) -> None:
+        super().__init__()
+        self.changelog = None if changelog is None else changelog.encode("utf-8")
+        self.body = body
+        self.open_prs = [(PR_NUMBER, False)]  # (number, from a fork)
+        self.commits: list[dict[str, Any]] = []
+        self.patches: list[dict[str, Any]] = []
+
+    def _blob_sha(self) -> str:
+        assert self.changelog is not None
+        return hashlib.sha1(
+            b"blob %d\0" % len(self.changelog) + self.changelog
+        ).hexdigest()
+
+    def __call__(self, args: Sequence[str]) -> str:
+        args = list(args)
+        if args[:3] == ["gh", "pr", "list"]:
+            self.calls.append(args)
+            assert args[args.index("--head") + 1] == BRANCH
+            assert args[args.index("--state") + 1] == "open"
+            return json.dumps(
+                [
+                    {"number": n, "body": self.body, "isCrossRepository": fork}
+                    for n, fork in self.open_prs
+                ]
+            )
+        if args[:2] == ["gh", "api"] and "--input" in args:
+            self.calls.append(args)
+            if self.fail(args):
+                raise subprocess.CalledProcessError(1, args, stderr=self.fail_stderr)
+            payload = json.loads(Path(args[args.index("--input") + 1]).read_text())
+            if args[2] == "graphql":
+                commit = payload["variables"]["input"]
+                assert commit["expectedHeadOid"] == self.branch_head
+                (change,) = commit["fileChanges"]["additions"]
+                assert change["path"] == "CHANGELOG.md"
+                self.changelog = base64.b64decode(change["contents"])
+                self.commits.append(commit)
+                self.branch_head = f"{len(self.commits):040x}"
+                return json.dumps(
+                    {"data": {"createCommitOnBranch": {"commit": {"oid": "x"}}}}
+                )
+            assert args[2:5] == ["-X", "PATCH", f"repos/{GH_REPO}/pulls/{PR_NUMBER}"]
+            self.body = payload["body"]
+            self.patches.append(payload)
+            return "{}"
+        if args[:2] == ["gh", "api"] and "/contents/CHANGELOG.md?ref=" in args[2]:
+            self.calls.append(args)
+            assert args[2].endswith(f"?ref={self.branch_head}")
+            if self.changelog is None:
+                raise subprocess.CalledProcessError(
+                    1, args, stderr="gh: Not Found (HTTP 404)"
+                )
+            return self._blob_sha() + "\n"
+        if args[:2] == ["gh", "api"] and "/git/blobs/" in args[2]:
+            self.calls.append(args)
+            assert self.changelog is not None
+            assert args[2].endswith(self._blob_sha())
+            # GitHub wraps the base64 content at 60 characters.
+            encoded = base64.b64encode(self.changelog).decode("ascii")
+            return "\n".join(encoded[i : i + 60] for i in range(0, len(encoded), 60))
+        return super().__call__(args)
+
+    def writes(self) -> int:
+        return len(self.commits) + len(self.patches)
+
+
+def _rename(gh: ReleasePRGitHub) -> list[str]:
+    return release_workflow.breaking_changes_heading(gh, GH_REPO, BRANCH)
+
+
+def test_heading_is_renamed_in_the_body_and_the_newest_changelog_section() -> None:
+    gh = ReleasePRGitHub(_changelog(GENERATED), _body(GENERATED))
+    assert _rename(gh) == ["CHANGELOG.md", "body"]
+    # Everything else is byte-identical, including the older section's
+    # heading (hand-fixed releases keep whatever they shipped with).
+    assert gh.changelog == _changelog(RENAMED).encode("utf-8")
+    assert gh.body == _body(RENAMED)
+    (commit,) = gh.commits
+    assert commit["branch"] == {
+        "repositoryNameWithOwner": GH_REPO,
+        "branchName": BRANCH,
+    }
+    assert re.match(r"chore: ", commit["message"]["headline"])
+
+
+def test_renaming_again_changes_nothing() -> None:
+    gh = ReleasePRGitHub(_changelog(GENERATED), _body(GENERATED))
+    _rename(gh)
+    head = gh.branch_head
+    assert _rename(gh) == []
+    assert gh.writes() == 2
+    assert gh.branch_head == head
+
+
+def test_release_without_breaking_changes_is_left_alone() -> None:
+    changelog = _changelog("### Bug Fixes", old_heading="### Bug Fixes")
+    gh = ReleasePRGitHub(changelog, _body("### Bug Fixes"))
+    assert _rename(gh) == []
+    assert gh.writes() == 0
+    assert gh.changelog == changelog.encode("utf-8")
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        f"{GENERATED} (extra)",
+        f"#{GENERATED}",
+        f" {GENERATED}",
+        "### \u26a0\ufe0f BREAKING CHANGES",
+        "### BREAKING CHANGES",
+        f"* mentions {GENERATED} inline",
+    ],
+)
+def test_only_the_exact_heading_line_is_renamed(line: str) -> None:
+    gh = ReleasePRGitHub(_changelog(line), _body(line))
+    assert _rename(gh) == []
+    assert gh.writes() == 0
+
+
+def test_crlf_body_keeps_its_line_endings() -> None:
+    body = _body(GENERATED).replace("\n", "\r\n")
+    gh = ReleasePRGitHub(_changelog(RENAMED), body)
+    assert _rename(gh) == ["body"]
+    assert gh.body == _body(RENAMED).replace("\n", "\r\n")
+    assert gh.commits == []
+
+
+def test_already_renamed_changelog_with_generated_body_updates_the_body_only() -> None:
+    # A previous run committed the CHANGELOG.md rename but failed on the body.
+    gh = ReleasePRGitHub(_changelog(RENAMED), _body(GENERATED))
+    assert _rename(gh) == ["body"]
+    assert gh.commits == []
+
+
+def test_no_open_release_pr_changes_nothing() -> None:
+    gh = ReleasePRGitHub(_changelog(GENERATED), _body(GENERATED))
+    gh.open_prs = []
+    assert _rename(gh) == []
+    assert [c[:3] for c in gh.calls] == [["gh", "pr", "list"]]
+
+
+def test_fork_pr_with_the_release_branch_name_is_ignored() -> None:
+    gh = ReleasePRGitHub(_changelog(GENERATED), _body(GENERATED))
+    gh.open_prs = [(PR_NUMBER - 1, True)]
+    assert _rename(gh) == []
+    assert gh.writes() == 0
+
+
+def test_branch_without_a_changelog_still_gets_its_body_renamed() -> None:
+    gh = ReleasePRGitHub(None, _body(GENERATED))
+    assert _rename(gh) == ["body"]
+    assert gh.commits == []
+
+
+def test_failed_commit_fails_the_command(monkeypatch: pytest.MonkeyPatch) -> None:
+    # e.g. Release Please pushed again after the branch head was read.
+    gh = ReleasePRGitHub(_changelog(GENERATED), _body(GENERATED))
+    gh.fail = lambda args: args[:3] == ["gh", "api", "graphql"]
+    gh.fail_stderr = "gh: Expected branch to point to x"
+    monkeypatch.setattr(release_workflow, "run", gh)
+    assert (
+        release_workflow.main(
+            ["--repo", GH_REPO, "breaking-changes-heading", "--branch", BRANCH]
+        )
+        == 1
+    )
+    assert gh.writes() == 0
+
+
+# ---------------------------------------------------------------------------
 # Workflow wiring
 # ---------------------------------------------------------------------------
 
@@ -713,11 +928,26 @@ def test_release_pr_gets_every_required_check() -> None:
 
 
 def test_release_notes_are_release_pleases() -> None:
-    """Nothing in release.yml rewrites the GitHub Release or CHANGELOG.md."""
+    """release.yml changes Release Please's notes only by renaming one heading."""
     workflow = (REPO / ".github" / "workflows" / "release.yml").read_text()
     assert "gh release edit" not in workflow
     assert "release_changelog" not in workflow
     assert not (REPO / ".github" / "scripts" / "release_changelog.py").exists()
+
+
+def test_heading_is_renamed_before_the_release_pr_checks_are_dispatched() -> None:
+    steps = _load(".github/workflows/release.yml")["jobs"]["release-please"]["steps"]
+    names = [s.get("id") or s.get("name") for s in steps]
+    rename = steps[names.index("Rename the breaking changes heading")]
+    assert names.index("pr") < names.index("Rename the breaking changes heading")
+    assert names.index("Rename the breaking changes heading") < names.index(
+        "Run checks on the release PR"
+    )
+    assert rename["if"] == "steps.pr.outputs.open == 'true'"
+    # A failed rename must not fail the job and skip the publish jobs.
+    assert rename["continue-on-error"] is True
+    assert rename["env"] == {"GH_TOKEN": "${{ github.token }}"}
+    assert 'breaking-changes-heading --branch "$RELEASE_BRANCH"' in rename["run"]
 
 
 # ---------------------------------------------------------------------------
