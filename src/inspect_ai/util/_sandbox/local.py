@@ -136,7 +136,7 @@ class LocalSandboxEnvironment(SandboxEnvironment):
         Path(file).parent.mkdir(parents=True, exist_ok=True)
 
         if isinstance(contents, str):
-            with open(file, "w", encoding="utf-8") as f:
+            with open(file, "w", newline="", encoding="utf-8") as f:
                 f.write(contents)
         else:
             with open(file, "wb") as f:

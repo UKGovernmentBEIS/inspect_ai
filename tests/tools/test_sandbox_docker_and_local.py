@@ -215,3 +215,40 @@ async def test_docker_timeout_ignores_untrusted_path(
         assert result.stdout == argument
     finally:
         await sandbox_env.exec(["rm", "-rf", directory])
+
+
+async def test_local_write_file_preserves_newlines() -> None:
+    r"""Text written to the local sandbox reads back byte-identical.
+
+    On a Windows host, text mode translates ``\\n`` to ``os.linesep`` on write
+    while ``read_file()`` opens with ``newline=""``. Without the same ``newline=""``
+    on the write side, a ``write_file()``/``read_file()`` round trip returns
+    ``\\r\\n`` for every ``\\n`` and an answer scored against the written string
+    is marked incorrect. This is the local-sandbox counterpart of the portable
+    check in ``test_read_and_write_file_text``.
+    """
+    sandbox_env = LocalSandboxEnvironment()
+    cases = {
+        "bare-newline": "line one\nline two\n",
+        "existing-crlf": "line one\r\nline two\r\n",
+        "lone-cr": "line one\rline two\r",
+        "mixed": "a\nb\r\nc\rd\n",
+        "no-newline": "single line",
+    }
+
+    for name, contents in cases.items():
+        file_name = f"newline-round-trip-{name}.txt"
+        try:
+            await sandbox_env.write_file(file_name, contents)
+            if name == "lone-cr":
+                # A lone \r is not a line terminator for str.splitlines(), so
+                # compare the raw bytes to prove nothing was rewritten.
+                raw = await sandbox_env.read_file(file_name, text=False)
+                assert raw == contents.encode("utf-8"), (
+                    f"{name}: expected {contents.encode('utf-8')!r}, got {raw!r}"
+                )
+            else:
+                text = await sandbox_env.read_file(file_name, text=True)
+                assert text == contents, f"{name}: expected {contents!r}, got {text!r}"
+        finally:
+            Path(sandbox_env.directory.name, file_name).unlink(missing_ok=True)
