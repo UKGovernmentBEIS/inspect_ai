@@ -376,6 +376,9 @@ async def test_review_policy_tools_and_arguments_match_as_for_approval() -> None
     assert await reviewed(key, "computer", action="key")
     assert await reviewed(key, "bash, computer", action="key")
 
+    # quoted values matched strings only
+    assert not await reviewed(call("computer", action=10), "computer(action='*'")
+
     with pytest.raises(ValueError, match="'arguments'"):
         ReviewPolicy(fixed_reviewer(), "bash(cmd='ls', timeout=10)")
 
@@ -730,6 +733,16 @@ def test_review_policies_from_config_object() -> None:
 
     assert only.tools == "*"
     assert callable(only.reviewer)
+
+
+def test_saved_review_config_with_refused_pattern_raises() -> None:
+    # a log's saved config still parses, but eval_retry() rebuilds the policies
+    config = ReviewPolicyConfig.model_validate(
+        {"reviewers": [{"name": "fixed", "tools": "bash(cmd='rm"}]}
+    )
+
+    with pytest.raises(ValueError, match="'arguments'"):
+        review_policies_from_config(config)
 
 
 def test_review_policy_arguments_from_config() -> None:

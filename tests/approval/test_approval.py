@@ -844,6 +844,12 @@ async def test_policy_legacy_argument_form() -> None:
     # the value is a glob
     assert await routed(make_tool_call("bash", cmd="rm -rf /"), "bash(cmd='rm *'")
 
+    # quoted values matched strings only
+    for value in (10, True, ["key"], None):
+        call = make_tool_call("computer", action=value)
+        assert not await routed(call, "computer(action='*'")
+    assert not await routed(make_tool_call("f", timeout=10), "f(timeout='10'")
+
 
 @pytest.mark.parametrize(
     "tools",
@@ -860,6 +866,19 @@ async def test_policy_legacy_argument_form() -> None:
 def test_policy_refuses_other_argument_forms(tools: str) -> None:
     with pytest.raises(ValueError, match="'arguments'"):
         ApprovalPolicy(auto_approver(), tools)
+
+
+def test_saved_policy_config_with_refused_pattern_raises() -> None:
+    # a log's saved config still parses, but eval_retry() rebuilds the policies
+    saved = {"approvers": [{"name": "auto", "tools": "bash(cmd='rm"}]}
+    config = ApprovalPolicyConfig.model_validate(saved)
+    assert config.approvers[0].arguments is None
+    with pytest.raises(ValueError, match="'arguments'"):
+        approval_policies_from_config(config)
+
+    saved = {"approvers": [{"name": "auto", "tools": "computer(action='key'"}]}
+    [policy] = approval_policies_from_config(ApprovalPolicyConfig.model_validate(saved))
+    assert policy.arguments is None
 
 
 def test_policy_refuses_legacy_form_with_arguments() -> None:

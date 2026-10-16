@@ -46,6 +46,9 @@ class _ToolPattern(NamedTuple):
     arguments: dict[str, str]
     """Globs for argument values, by argument name."""
 
+    legacy: bool
+    """Whether this is the legacy form, which matches string values only."""
+
     only_arguments: bool
     """Whether the call may have no other arguments."""
 
@@ -62,8 +65,8 @@ def tool_call_matcher(
 
     The legacy form `name(arg='value'` (optionally closed with `)`) matches as
     it did when patterns were matched against the formatted call text: the
-    function named exactly, `value` as a glob over the whole value, and with
-    `)` no other arguments. Any other `tools` entry containing `(` is refused.
+    function named exactly, `value` as a glob over the whole of a string value,
+    and with `)` no other arguments. Any other `tools` entry containing `(` is refused.
 
     Raises:
         ValueError: If `tools` or `arguments` cannot be compiled.
@@ -92,19 +95,34 @@ def tool_call_matcher(
                     + "combined with 'arguments'. Put the argument in 'arguments' instead."
                 )
             function, name, glob, closed = legacy.groups()
-            patterns.append(_ToolPattern(function, {name: glob}, closed is not None))
+            patterns.append(
+                _ToolPattern(
+                    function=function,
+                    arguments={name: glob},
+                    legacy=True,
+                    only_arguments=closed is not None,
+                )
+            )
         else:
             for function in spec.split(","):
                 function = function.strip()
                 if function:
                     glob = function if function.endswith("*") else f"{function}*"
-                    patterns.append(_ToolPattern(glob, arguments or {}, False))
+                    patterns.append(
+                        _ToolPattern(
+                            function=glob,
+                            arguments=arguments or {},
+                            legacy=False,
+                            only_arguments=False,
+                        )
+                    )
 
     def matches(call: ToolCall) -> bool:
         return any(
             fnmatch.fnmatch(call.function, pattern.function)
             and all(
                 name in call.arguments
+                and (not pattern.legacy or isinstance(call.arguments[name], str))
                 and fnmatch.fnmatchcase(_argument_text(call.arguments[name]), glob)
                 for name, glob in pattern.arguments.items()
             )

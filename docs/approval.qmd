@@ -67,7 +67,7 @@ approvers:
     tools: "*"
 ```
 
-An argument glob must match the whole value: `key` matches only `key`, while `*_click` matches `left_click`, `right_click` and the other click actions. A string is matched as is; any other value is matched as its JSON (e.g. `true` or `10`). Every listed argument must be present and match, and the call may have other arguments.
+An argument glob must match the whole value: `key` matches only `key`, while `*_click` matches `left_click`, `right_click` and the other click actions. A string is matched as is; any other value is matched as its JSON (e.g. `true` or `10`). Every listed argument must be present and match, and the call may have other arguments. Globs must be strings, so quote boolean or numeric values in config files, for example `arguments: {timeout: "10", sudo: "true"}`.
 
 In Python, pass `arguments` to `ApprovalPolicy`:
 
@@ -77,6 +77,8 @@ ApprovalPolicy(human_approver(), "computer", arguments={"action": "key"})
 
 ::: {.callout-note}
 Earlier versions matched arguments within `tools`, as in `computer(action='key'`. This legacy form still works for one argument with a single-quoted value. Use `arguments` instead. Any other `tools` pattern containing `(` raises an error.
+
+Older logs still open, but `eval_retry()` restores the policies saved in the log and raises an error for a pattern that is no longer supported. Updating the task's current policies does not replace the saved ones. Migrate the saved approval or review configuration in a copy of the log, or start a new evaluation with migrated policies.
 :::
 
 ## Approvers in Code
