@@ -56,7 +56,8 @@ class ToolEvent(BaseEvent):
     """Working time for tool call (clock time minus the sample's waiting time).
 
     The sample is waiting while a wait is open and no model call, sandbox
-    command or tool call is running. Other work done during a wait is not
+    command or tool call is running (not counting commands run with
+    `exec_remote()` or inside `sandbox_agent_bridge()`). Other work done during a wait is not
     counted, so set `time_limit` alongside `working_limit` to bound clock time.
     """
 

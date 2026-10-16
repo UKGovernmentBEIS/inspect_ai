@@ -588,7 +588,9 @@ def untracked_sandbox_execs() -> Iterator[None]:
     """Sandbox execs this task runs inside the block are not known work.
 
     For Inspect's own plumbing (sandbox service queues, `exec_remote` polls,
-    tool injection), which is not the sample's work.
+    tool injection), and for execs whose work Inspect cannot see, such as a
+    bridged agent's launcher or the human agent's service. Such an exec does
+    not override a known wait; with no wait open, its time is working.
     """
     token = _untracked_sandbox_execs.set(True)
     try:

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import contextlib
 import functools
+import json
 import random
 from contextvars import Context, copy_context
 from dataclasses import dataclass, field
@@ -33,6 +34,9 @@ from inspect_ai._util.working import (
     untracked_sandbox_execs,
 )
 from inspect_ai.agent import sandbox_agent_bridge
+from inspect_ai.agent._agent import AgentState
+from inspect_ai.agent._bridge.sandbox.service import call_tool
+from inspect_ai.agent._bridge.sandbox.types import SandboxAgentBridge
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageUser
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model import ModelAPI, get_model
@@ -42,6 +46,7 @@ from inspect_ai.model._registry import modelapi
 from inspect_ai.model._retry import batch_admin_retry_config, model_retry_config
 from inspect_ai.solver._solver import generate
 from inspect_ai.solver._use_tools import use_tools
+from inspect_ai.tool._tool import Tool, tool
 from inspect_ai.tool._tool_choice import ToolChoice
 from inspect_ai.tool._tool_info import ToolInfo
 from inspect_ai.tool._tools._execute import bash
@@ -1351,7 +1356,45 @@ async def test_untracked_sandbox_execs_are_not_known_work(
     assert sample_waiting_time() == 5
 
 
-@pytest.mark.parametrize("launch", ["bridge", "exec", "no_events"])
+@pytest.mark.parametrize("own_wait", [False, True])
+async def test_bridged_host_tool_call_is_known_work(
+    sample_clock: _MockTime, own_wait: bool
+) -> None:
+    """A bridged host tool call is known work, like a native tool call.
+
+    The tool runs 5 s beside another task's open wait, through the bridge's
+    `call_tool` service method. A wait inside the call holds it.
+    """
+
+    @tool
+    def clock_tool() -> Tool:
+        async def execute() -> str:
+            """Run for 5 s on the sample clock."""
+            with sample_wait() if own_wait else contextlib.nullcontext():
+                sample_clock.advance(5)
+            return "done"
+
+        return execute
+
+    bridge = SandboxAgentBridge(
+        state=AgentState(messages=[]),
+        filter=None,
+        retry_refusals=None,
+        compaction=None,
+        port=13131,
+        model=None,
+        bridged_tools={"srv": {"clock_tool": clock_tool()}},
+        proposal_exempt_servers={"srv"},
+    )
+    wait = _Task().wait()
+    with working_limit(None) as scope:
+        assert await call_tool(bridge)("srv", "clock_tool", {}) == "done"
+    wait.close()
+    reading = sample_working_time(), sample_waiting_time(), scope.usage
+    assert reading == ((0, 5, 0) if own_wait else (5, 0, 5))
+
+
+@pytest.mark.parametrize("launch", ["bridge", "exec", "exec_remote"])
 async def test_bridged_agent_launch_is_not_known_work(
     sample_clock: _MockTime, monkeypatch: pytest.MonkeyPatch, launch: str
 ) -> None:
@@ -1359,14 +1402,42 @@ async def test_bridged_agent_launch_is_not_known_work(
 
     The agent runs in one blocking exec. Its model request (in the bridge's
     service task, started first) fails after 1 s, backs off for 5 s and then
-    succeeds in 1 s. Inside `sandbox_agent_bridge()` the launcher is not known
-    work, so the failed attempt and backoff are waiting and the successful
-    request is working. The controls: the same exec outside a bridge is known
-    work, and a launch whose execs run inside `no_events()` (as
-    `exec_remote`'s polls do) is not.
+    succeeds in 1 s, beside another task's wait open throughout. Inside
+    `sandbox_agent_bridge()` the launcher is not known work, so the failed
+    attempt and backoff are waiting and the successful request is working.
+    The controls: the same exec outside a bridge is known work, and an
+    `exec_remote` launch outside a bridge is known work only for its start.
     """
-    sandbox = _GatedSandbox(sample_clock)
+
+    class RemoteSandbox(_GatedSandbox):
+        """Answers `exec_remote`'s requests; its poll waits for `release`."""
+
+        async def exec(
+            self,
+            cmd: list[str],
+            input: str | bytes | None = None,
+            cwd: str | None = None,
+            env: dict[str, str] | None = None,
+            user: str | None = None,
+            timeout: int | None = None,
+            timeout_retry: bool = True,
+            concurrency: bool = True,
+        ) -> ExecResult[str]:
+            if input is None:
+                return await super().exec(cmd)
+            result: dict[str, object] = {"pid": 42}
+            if json.loads(input)["method"] == "exec_remote_poll":
+                await self.release.wait()
+                result = {"state": "completed", "exit_code": 0, "seq": 0}
+                result.update(stdout="", stderr="")
+            response = {"jsonrpc": "2.0", "result": result, "id": 1}
+            return ExecResult(
+                success=True, returncode=0, stdout=json.dumps(response), stderr=""
+            )
+
+    sandbox = RemoteSandbox(sample_clock)
     proxy = SandboxEnvironmentProxy(sandbox)
+    proxy._tools_injected = True
     launched, served = anyio.Event(), anyio.Event()
     readings: list[tuple[float, float, float]] = []
     attempts = 0
@@ -1434,9 +1505,8 @@ async def test_bridged_agent_launch_is_not_known_work(
         async with anyio.create_task_group() as tg:
             tg.start_soon(run)
             launched.set()
-            if launch == "no_events":
-                with proxy.no_events():
-                    await proxy.exec(["poll"])
+            if launch == "exec_remote":
+                await proxy.exec_remote(["agent"], stream=False)
             else:
                 await proxy.exec(["poll"])
 
@@ -1453,6 +1523,7 @@ async def test_bridged_agent_launch_is_not_known_work(
 
     try:
         with working_limit(None) as scope:
+            wait = _Task().wait()
             if launch == "bridge":
                 async with sandbox_agent_bridge():
                     await agent()
@@ -1463,6 +1534,7 @@ async def test_bridged_agent_launch_is_not_known_work(
                     await started.wait()
                     await agent()
                     tg.cancel_scope.cancel()
+            wait.close()
             readings.append(reading())
     finally:
         del _registry["modelapi:working_bridge_clock"]

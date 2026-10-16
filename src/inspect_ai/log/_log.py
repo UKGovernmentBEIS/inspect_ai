@@ -348,8 +348,9 @@ class EvalSampleSummary(BaseModel):
 
     Clock time minus the time when a wait (retries, rate limits, shared
     resources, approval, human input) was open in the sample and no model
-    call, sandbox command or tool call was running. Other work done during a
-    wait is not counted, so set `time_limit` alongside `working_limit` to
+    call, sandbox command or tool call was running (not counting commands run
+    with `exec_remote()` or inside `sandbox_agent_bridge()`). Other work done
+    during a wait is not counted, so set `time_limit` alongside `working_limit` to
     bound clock time.
     """
 
@@ -560,8 +561,9 @@ class EvalSample(BaseModel):
 
     Clock time minus the time when a wait (retries, rate limits, shared
     resources, approval, human input) was open in the sample and no model
-    call, sandbox command or tool call was running. Other work done during a
-    wait is not counted, so set `time_limit` alongside `working_limit` to
+    call, sandbox command or tool call was running (not counting commands run
+    with `exec_remote()` or inside `sandbox_agent_bridge()`). Other work done
+    during a wait is not counted, so set `time_limit` alongside `working_limit` to
     bound clock time.
     """
 
