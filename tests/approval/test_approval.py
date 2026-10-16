@@ -883,7 +883,7 @@ async def test_a_viewer_cannot_change_the_call_that_runs() -> None:
     """The viewer for the logged view gets a copy of the call that runs."""
     init_transcript(Transcript())
     received: list[dict[str, Any]] = []
-    modified = {"step": {"name": "test", "status": "done"}}
+    modified: dict[str, object] = {"step": {"name": "test", "status": "done"}}
     message = await execute_with_approval(
         ToolCall(id="1", function="step_tool", arguments={"step": {"name": "write"}}),
         [ToolDef(step_tool(received), viewer=mutating_viewer)],
