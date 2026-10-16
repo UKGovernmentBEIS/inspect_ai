@@ -137,10 +137,17 @@ async def test_perplexity_api_without_web_search() -> None:
 @pytest.mark.anyio
 @skip_if_no_perplexity
 @pytest.mark.parametrize("tool_choice", ["any", ToolFunction(name="web_search")])
-async def test_perplexity_forced_web_search(tool_choice: ToolChoice) -> None:
-    model = get_model("perplexity/sonar", config=GenerateConfig(max_tokens=50))
+@pytest.mark.parametrize("extra_body", [None, {"tools": [{"type": "fetch_url"}]}])
+async def test_perplexity_forced_web_search(
+    tool_choice: ToolChoice, extra_body: dict[str, Any] | None
+) -> None:
+    model = get_model(
+        "perplexity/sonar",
+        config=GenerateConfig(max_tokens=50, extra_body=extra_body),
+    )
 
-    # a prompt the model answers without searching unless forced to
+    # a prompt the model answers without searching unless forced to; with
+    # fetch_url attached too, the forced choice must still be search
     response = await model.generate(
         input=[ChatMessageUser(content="Reply with the single word OK.")],
         tools=[web_search({"perplexity": True})],
@@ -373,7 +380,7 @@ async def test_perplexity_web_search_only_when_requested(
     [
         ("auto", None),
         ("none", None),
-        ("any", "required"),
+        ("any", {"type": "web_search"}),
         (ToolFunction(name="web_search"), {"type": "web_search"}),
     ],
 )
@@ -619,6 +626,83 @@ async def test_perplexity_extra_body_keeps_request_fields(
     assert request["include"] == ["reasoning.encrypted_content"]
     assert request["max_output_tokens"] == 100
     assert "stream" not in request
+
+
+@pytest.mark.anyio
+async def test_perplexity_forced_search_with_extra_body_tools(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    model = get_model("perplexity/sonar", api_key="sk-test", memoize=False)
+    requests: list[dict[str, Any]] = []
+
+    async def fake_create(**kwargs: Any) -> Response:
+        requests.append(kwargs)
+        return _agent_response("a", 1)
+
+    assert isinstance(model.api, PerplexityAPI)
+    monkeypatch.setattr(model.api.client.responses, "create", fake_create)
+    fetch_url = {"type": "fetch_url"}
+    try:
+        await model.generate(
+            [ChatMessageUser(content="a")],
+            tools=[web_search({"perplexity": True})],
+            tool_choice="any",
+            config=GenerateConfig(extra_body={"tools": [fetch_url]}),
+        )
+        # the one tool choice in extra_body applies to web_search() as well
+        await model.generate(
+            [ChatMessageUser(content="a")],
+            tools=[web_search({"perplexity": True})],
+            tool_choice="auto",
+            config=GenerateConfig(
+                extra_body={"tools": [fetch_url], "tool_choice": "none"}
+            ),
+        )
+    finally:
+        await model.api.aclose()
+
+    forced, raw_none = (request["extra_body"] for request in requests)
+    # "required" could be met by fetch_url alone
+    assert forced["tool_choice"] == {"type": "web_search"}
+    assert raw_none == {
+        "tools": [fetch_url, {"type": "web_search"}],
+        "tool_choice": "none",
+    }
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    "option,hint",
+    [
+        ("search_language_filter", None),
+        ("reasoning_effort", "reasoning_effort generation config"),
+        ("return_images", "image_search"),
+        ("num_images", "image_search"),
+        ("image_domain_filter", "image_search"),
+        ("image_format_filter", "image_search"),
+        ("return_videos", None),
+        ("num_videos", None),
+        ("media_response", None),
+        ("return_related_questions", None),
+        ("stream_mode", None),
+    ],
+)
+async def test_perplexity_rejects_sonar_options(option: str, hint: str | None) -> None:
+    provider = PerplexityAPI(model_name="sonar", api_key="sk-test")
+    try:
+        with pytest.raises(ValueError, match="Sonar parameters") as exc:
+            await provider.generate(
+                [ChatMessageUser(content="a")],
+                [_web_search_tool({option: "x"})],
+                "auto",
+                GenerateConfig(),
+            )
+    finally:
+        await provider.aclose()
+
+    assert option in str(exc.value)
+    if hint is not None:
+        assert hint in str(exc.value)
 
 
 @pytest.mark.anyio

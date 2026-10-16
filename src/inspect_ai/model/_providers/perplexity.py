@@ -27,23 +27,39 @@ RETIRED_SONAR_MODELS = ["sonar-pro", "sonar-reasoning-pro", "sonar-deep-research
 # their sources. Each is kept in `ModelOutput.metadata` under its type.
 TOOL_RESULT_ITEMS = {"search_results": "results", "fetch_url_results": "contents"}
 
-# Sonar search parameters. The Agent API's web_search tool ignores them, so
-# passing one as a web_search option would silently drop it. (`search_type` is
-# not listed: the tool takes it, and rejects Sonar's values for it.)
-SONAR_SEARCH_OPTIONS = [
-    "search_mode",
-    "web_search_options",
-    "search_context_size",
-    "search_domain_filter",
-    "search_recency_filter",
-    "search_after_date_filter",
-    "search_before_date_filter",
-    "last_updated_after_filter",
-    "last_updated_before_filter",
-    "num_search_results",
-    "disable_search",
-    "enable_search_classifier",
-]
+# Sonar request parameters, with what to use instead where Inspect supports
+# it. The Agent API's web_search tool ignores them, so passing one as a
+# web_search option would silently drop it. (`search_type` is not listed: the
+# tool takes it, and rejects Sonar's values for it.)
+_IMAGES = "Images need Perplexity's image_search tool, which Inspect does not support."
+SONAR_SEARCH_OPTIONS: dict[str, str | None] = {
+    "search_mode": None,
+    "web_search_options": None,
+    "search_context_size": (
+        "Use the token budgets max_tokens and max_tokens_per_page in place of "
+        "search_context_size."
+    ),
+    "search_domain_filter": None,
+    "search_recency_filter": None,
+    "search_after_date_filter": None,
+    "search_before_date_filter": None,
+    "last_updated_after_filter": None,
+    "last_updated_before_filter": None,
+    "search_language_filter": None,
+    "num_search_results": None,
+    "disable_search": None,
+    "enable_search_classifier": None,
+    "reasoning_effort": "Use the reasoning_effort generation config option.",
+    "return_images": _IMAGES,
+    "num_images": _IMAGES,
+    "image_domain_filter": _IMAGES,
+    "image_format_filter": _IMAGES,
+    "return_videos": None,
+    "num_videos": None,
+    "media_response": None,
+    "return_related_questions": None,
+    "stream_mode": None,
+}
 
 
 class PerplexityAPI(OpenAICompatibleAPI):
@@ -120,16 +136,16 @@ class PerplexityAPI(OpenAICompatibleAPI):
                 if isinstance(maybe_opts, dict):
                     sonar_options = [k for k in maybe_opts if k in SONAR_SEARCH_OPTIONS]
                     if sonar_options:
-                        budgets = (
-                            " Use the token budgets max_tokens and "
-                            "max_tokens_per_page in place of search_context_size."
-                            if "search_context_size" in sonar_options
-                            else ""
+                        hints = dict.fromkeys(
+                            hint
+                            for k in sonar_options
+                            if (hint := SONAR_SEARCH_OPTIONS[k]) is not None
                         )
                         raise ValueError(
                             f"Perplexity web_search options {sonar_options} are Sonar "
-                            f"parameters, which the Agent API does not accept.{budgets} "
-                            "See https://docs.perplexity.ai/docs/agent-api/migrate-from-sonar/how-to#parameter-reference"
+                            "parameters, which the Agent API does not accept. "
+                            + "".join(f"{hint} " for hint in hints)
+                            + "See https://docs.perplexity.ai/docs/agent-api/migrate-from-sonar/how-to#parameter-reference"
                         )
                     web_search = {"type": "web_search", **maybe_opts}
                 elif maybe_opts is True:
@@ -148,10 +164,10 @@ class PerplexityAPI(OpenAICompatibleAPI):
         if web_search is not None:
             extra_body["tools"] = _with_web_search(extra_body.get("tools"), web_search)
             # generate_responses sends no tool choice, as it sends no tools
-            forced: str | dict[str, str] | None = None
-            if tool_choice == "any":
-                forced = "required"
-            elif isinstance(tool_choice, ToolFunction):
+            forced: dict[str, str] | None = None
+            # web_search is the only Inspect tool, so "any" forces it too
+            # ("required" could be met by a tool in extra_body instead)
+            if tool_choice == "any" or isinstance(tool_choice, ToolFunction):
                 forced = {"type": "web_search"}
             if forced is not None:
                 raw_choice = extra_body.get("tool_choice", forced)
