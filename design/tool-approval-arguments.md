@@ -35,7 +35,8 @@ approved, D the check.
    C the selected JSON, validated against the schema.
 7. Check: convert C again and serialize it (D). D must equal C by JSON
    equality (`5 == 5.0`, but `True != 1`). For a modify, a difference is an
-   approval error that asks for the full call as shown.
+   approval error, reported to the model and recorded with the tool event,
+   saying a modify must give the full call as shown.
 8. Convert C once more and run the tool with the result. This fresh build
    means a lazy iterable consumed by the check still reaches the tool with
    its values. The ToolEvent records a copy of C, so a later callback cannot

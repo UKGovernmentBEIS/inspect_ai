@@ -69,7 +69,9 @@ from inspect_ai.solver import Generate, Solver, TaskState, generate, solver, use
 from inspect_ai.tool import (
     Tool,
     ToolCall,
+    ToolCallContent,
     ToolCallView,
+    ToolDef,
     ToolFunction,
     ToolInfo,
     ToolResult,
@@ -735,6 +737,65 @@ def test_an_approvers_modify_reaches_the_sentinel() -> None:
     assert [step.call.arguments for _, step in seen] == [{"x": 7, "y": 1}]
     [message] = tool_messages(log)
     assert message.text == "8"
+
+
+def arguments_view(arguments: dict[str, Any]) -> str:
+    return str(sorted(arguments.items()))
+
+
+def arguments_viewer(call: ToolCall) -> ToolCallView:
+    content = arguments_view(call.arguments)
+    return ToolCallView(call=ToolCallContent(format="text", content=content))
+
+
+@reviewer
+def d3_viewing_reviewer(views: list[str | None]) -> Reviewer:
+    async def review_(
+        message: str,
+        call: ToolCall,
+        result: ChatMessageTool,
+        output: ToolResult,
+        view: ToolCallView,
+        history: list[ChatMessage],
+    ) -> Review:
+        views.append(call.view.content if call.view else None)
+        return Review(decision="continue")
+
+    return review_
+
+
+@pytest.mark.parametrize("modifier", ["approver", "sentinel"])
+async def test_a_modified_call_has_a_view_of_its_arguments(modifier: str) -> None:
+    """A modify built with `replace()` does not keep the view of the call it replaced."""
+    init_transcript(Transcript())
+    call = ToolCall(id="1", function="addition", arguments={"x": 1, "y": 1})
+    messages: list[ChatMessage] = [ChatMessageAssistant(content=[], tool_calls=[call])]
+    tools = [ToolDef(addition(), viewer=arguments_viewer)]
+    views: list[str | None] = []
+    review = [ReviewPolicy(d3_viewing_reviewer(views), "*")]
+    seen: Seen = []
+    if modifier == "approver":
+        selected = {"x": 7, "y": 1}
+        with active(observe_only([d3_recording(seen)])):
+            result = await execute_tools(
+                messages,
+                tools,
+                approval=[ApprovalPolicy(d3_approver([], "modify", x=7), "*")],
+                review=review,
+            )
+        [(_, step)] = seen
+        assert step.call.view is not None
+        assert step.call.view.content == arguments_view(selected)
+    else:
+        selected = {"x": 10, "y": 20}
+        with active(d3_modify()):
+            result = await execute_tools(messages, tools, review=review)
+
+    [message] = result.messages
+    assert isinstance(message, ChatMessageTool)
+    assert message.error is None
+    assert views == [arguments_view(selected)]
+    assert call.view is None
 
 
 def test_an_approval_reject_skips_the_sentinel() -> None:

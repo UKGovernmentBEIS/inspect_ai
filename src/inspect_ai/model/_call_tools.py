@@ -895,8 +895,12 @@ async def call_tool(
         except ToolApprovalError:
             await record_pending_tool_event()
             raise
+        # the selected call may carry a view of other arguments (a modify built
+        # with `replace()`), so it gets the view rendered for the event
         event.view = tool_call_view(deepcopy(validated.call), tools)
-        return validated
+        return validated._replace(
+            call=replace(validated.call, view=deepcopy(event.view))
+        )
 
     def shown_to_callbacks(decided: ToolCall) -> ToolCall:
         # a copy the next approve decision must match; the event records it,
@@ -1566,8 +1570,8 @@ def modified_tool_call(selected: ToolCall, tool_def: ToolDef) -> ValidatedToolCa
     if changed is not None:
         raise ToolApprovalError(
             f"The modified value for '{changed}' changes when it is converted "
-            "for the tool, so the call was not run. Copy the full call as shown "
-            "(including any defaults it fills in) and change only what you need."
+            "for the tool, so the call was not run. A modify decision must give "
+            "the full call as shown, including any defaults it fills in."
         )
     return ValidatedToolCall(selected, _rebuilt_arguments(selected.arguments, tool_def))
 

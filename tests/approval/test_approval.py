@@ -8,7 +8,14 @@ from pathlib import Path
 from typing import Any, Literal, NamedTuple
 
 import pytest
-from pydantic import BaseModel, Field, field_serializer, field_validator
+from pydantic import (
+    BaseModel,
+    Field,
+    computed_field,
+    field_serializer,
+    field_validator,
+    model_validator,
+)
 
 from inspect_ai import Task, eval
 from inspect_ai._util.content import ContentText
@@ -696,6 +703,24 @@ class Unserializable(BaseModel):
         raise ValueError("cannot serialize")
 
 
+class Named(BaseModel):
+    file_name: str = Field(alias="fileName")
+
+    @computed_field
+    def stem(self) -> str:
+        return self.file_name.split(".")[0]
+
+
+class Consuming(BaseModel):
+    values: list[int]
+
+    @model_validator(mode="before")
+    @classmethod
+    def consume(cls, data: Any) -> Any:
+        data["values"].append(0)
+        return data
+
+
 @tool
 def step_tool(received: list[dict[str, Any]]) -> Tool:
     async def execute(
@@ -707,6 +732,8 @@ def step_tool(received: list[dict[str, Any]]) -> Tool:
         lazy: Lazy | None = None,
         split: SplitAlias | None = None,
         unserializable: Unserializable | None = None,
+        named: Named | None = None,
+        consuming: Consuming | None = None,
     ) -> str:
         """Record its arguments.
 
@@ -719,6 +746,8 @@ def step_tool(received: list[dict[str, Any]]) -> Tool:
             lazy: A lazy iterable.
             split: A model with different validation and serialization aliases.
             unserializable: A model whose serializer fails.
+            named: A model with an alias and a computed field.
+            consuming: A model whose validator changes its input in place.
         """
         arguments = {
             "step": step,
@@ -729,6 +758,8 @@ def step_tool(received: list[dict[str, Any]]) -> Tool:
             "lazy": list(lazy.values) if lazy is not None else None,
             "split": split,
             "unserializable": unserializable,
+            "named": named,
+            "consuming": consuming,
         }
         received.append({k: v for k, v in arguments.items() if v is not None})
         return "done"
@@ -872,6 +903,53 @@ async def test_modify_runs_only_as_selected(
         assert event.error is not None
         assert event.error.type == error
         assert received == []
+
+
+async def test_a_model_is_shown_by_alias_without_computed_fields() -> None:
+    calls: list[ToolCall] = []
+    received: list[dict[str, Any]] = []
+    shown = {"named": {"fileName": "a.txt"}}
+    message = await execute_with_approval(
+        ToolCall(id="1", function="step_tool", arguments=deepcopy(shown)),
+        [step_tool(received)],
+        [ApprovalPolicy(recording_approver(calls), "*")],
+    )
+    assert message.error is None
+    assert [call.arguments for call in calls] == [shown]
+
+    selected: dict[str, object] = {"named": {"fileName": "b.txt"}}
+    message = await execute_with_approval(
+        ToolCall(id="2", function="step_tool", arguments=deepcopy(shown)),
+        [step_tool(received)],
+        [ApprovalPolicy(modifying_approver(deepcopy(selected)), "*")],
+    )
+    assert message.error is None
+    assert [r["named"].file_name for r in received] == ["a.txt", "b.txt"]
+
+
+@pytest.mark.parametrize("oversight", [True, False], ids=["approval", "no-approval"])
+async def test_a_constructor_cannot_change_the_call(oversight: bool) -> None:
+    """Conversion gets a copy, so a validator that changes its input leaves the call."""
+    init_transcript(Transcript())
+    calls: list[ToolCall] = []
+    received: list[dict[str, Any]] = []
+    arguments = {"consuming": {"values": [1]}}
+    call = ToolCall(id="1", function="step_tool", arguments=deepcopy(arguments))
+    message = await execute_with_approval(
+        call,
+        [step_tool(received)],
+        [ApprovalPolicy(recording_approver(calls), "*")] if oversight else None,
+    )
+
+    assert call.arguments == arguments
+    if oversight:
+        # the shown value [1, 0] would rebuild as [1, 0, 0]
+        assert message.error is not None and message.error.type == "parsing"
+        assert calls == [] and received == []
+    else:
+        assert message.error is None
+        assert [r["consuming"].values for r in received] == [[1, 0]]
+        assert logged_tool_event().arguments == arguments
 
 
 def mutating_viewer(call: ToolCall) -> ToolCallView:
