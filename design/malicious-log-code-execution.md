@@ -189,7 +189,7 @@ download weights or start servers on construction.
 | `eval_set()` resume of any other log | D | |
 | `inspect_ai.analysis.model_info()` | E | only for names missing from the model database |
 | `eval_retry()`, `inspect eval-retry` | A, B, C via recovery; then the task file, solver file, model, sandbox, approval, review and ACP settings from the log | run operation (`src/inspect_ai/_eval/eval.py:1684-1960`) |
-| `inspect score`, `score()`, `resolve_scorers()` | scorer names and options from the log (without `--scorer`), with the scorer fallback that imports the recorded task file for an unregistered recorded scorer or bare `--scorer` name, in either action (`loader.py:833-856`); C for `--action overwrite`; model and model roles from the log | run operation with the log's scorers (`src/inspect_ai/_cli/score.py:206`, `score.py:263-275`, `:347-349`) |
+| `inspect score`, `score()`, `resolve_scorers()` | scorer names and options from the log (without `--scorer`), with the scorer fallback that imports the recorded task file whenever building a recorded scorer or bare `--scorer` name from the registry raises `ValueError` (not registered, or a registered factory rejecting its options), in either action (`loader.py:833-856`); C for `--action overwrite`; model and model roles from the log | run operation with the log's scorers (`src/inspect_ai/_cli/score.py:206`, `score.py:263-275`, `:347-349`) |
 
 In eval-set, B only ever imports the user's own task file: a log is paired
 with a task only when its task identifier, which starts with `task_file`,
@@ -303,8 +303,8 @@ operation, with no task-file import and under step 3's restrictions.
 | Operation | Python files the log can make Inspect import, after this design |
 |---|---|
 | read operations | none, unless the caller passes `trust_log=True` (`inspect log recover --trust-log`) to recompute or recover, which imports the recorded task file |
-| `inspect score` without `--scorer` | the recorded task file, only when a recorded scorer name is not registered (today's fallback, recorded by step 7) |
-| `inspect score --scorer NAME`, `score(log, scorers)` | none for metrics. The recorded task file only when `--scorer` is a bare name that is not registered: today's fallback, kept and recorded (decision: Ransom, 2026-10-14; step 6) |
+| `inspect score` without `--scorer` | the recorded task file, only when a recorded scorer cannot be built from the registry (today's fallback, recorded by step 7) |
+| `inspect score --scorer NAME`, `score(log, scorers)` | none for metrics. The recorded task file only when `--scorer` is a bare name the registry cannot build: today's fallback, kept and recorded (decision: Ransom, 2026-10-14; step 6) |
 | `eval-retry` | the recorded task file and the recorded solver file. A log with no `task_file` and an `hf/` task name instead makes the retry fetch that Hugging Face repo's `eval.yaml`, which names no file (only allowlisted built-in solvers and scorers, though an existing working-directory path with the same name shadows one, as for any spec) but chooses the dataset and the arguments of the solvers and scorers it names |
 
 In every class, registry names may load installed packages' entry points and
@@ -772,10 +772,15 @@ longer calls `scorer_from_spec()`, which parses `<path>@<name>` or an
 existing path as a file (`loader.py:789`). It calls a small function in
 `loader.py`, `scorer_from_log_name()`, which is the bare-name branch of
 `scorer_from_spec()` (`loader.py:828-862`) moved out: the registry
-(`scorer_from_registry()`, step 1), and for a name that is not registered,
+(`scorer_from_registry()`, step 1), and when that raises `ValueError`,
 today's fallback unchanged, `load_module(task_path)` on the recorded task
 file and the registry again, with the same return-annotation check and
-`PrerequisiteError` messages. `scorer_from_spec()` calls it for bare names,
+`PrerequisiteError` messages. The catch stays as broad as today's
+(`loader.py:833-835`): it covers a name that is not registered and also a
+registered scorer or scanner factory that raises `ValueError` for the
+recorded options (for example `precomputed_scores` with an invalid
+`on_missing`), so the fallback triggers in exactly the cases it does
+today. Below, "the registry cannot build it" means either case. `scorer_from_spec()` calls it for bare names,
 so a bare `--scorer NAME` keeps exactly today's fallback to the recorded
 task file (decision: Ransom, 2026-10-14). A recorded name containing `@`,
 or one that happens to be an existing path, is looked up in the registry
@@ -787,8 +792,8 @@ the task file, it logs, at `INFO`,
 `Imported task file /abs/path/evals/task.py (recorded in the log) to load scorer 'my_scorer'.`
 and `inspect score` prints the line as part of the step 7 record. This
 covers both a recorded scorer and a bare `--scorer NAME`. Like today's
-fallback, it runs once per unregistered scorer, and each import prints its
-line.
+fallback, it runs once per scorer the registry cannot build, and each
+import prints its line.
 
 **The log's metrics resolve before scoring, trusted only with the log's
 scorers.** `score_async()` calls `metrics_from_log_header()` (used when
@@ -822,7 +827,7 @@ After step 6 the only file a log can make `inspect score` import is its
 recorded task file, through the scorer fallback, which is what step 7
 reports. This does not stop a log from naming an arbitrary task file:
 rescoring with the log's scorers imports it by design, and a bare
-unregistered `--scorer NAME` does too, because the user named a scorer they
+`--scorer NAME` the registry cannot build does too, because the user named a scorer they
 expect to find there, it is the same file, and `inspect score --help` says
 to use the command only on trusted logs (step 7).
 
@@ -1101,7 +1106,7 @@ an eval set resumes from. After this design:
   metric options are rebuilt without restriction, as today. With the user's
   scorers (`--scorer`, or `score(log, scorers)`) the log's metrics import
   nothing and their options are restricted by step 3; only a bare
-  `--scorer` name that is not registered still falls back to the recorded
+  `--scorer` name the registry cannot build still falls back to the recorded
   task file (decision: Ransom, 2026-10-14). Metric resolution happens before
   any scorer runs. The log's model and model roles are still built (under
   "Not this design").
@@ -1161,9 +1166,12 @@ What the tests must prove:
   resume on both recovery paths, `evals_df()` with `model_info()`,
   `read_eval_log()`, `inspect log dump`, `inspect info`, and the view
   server's log endpoints): no marker, no spy hit. Fixture 1 gets default
-  metrics; fixture 2 raises the step 2 `LookupError` and fixture 3
-  `DisallowedRegistryArg`, each naming the metric (and option path) and
-  ending with the `trust_log` advice. Fixtures 1 and 3 fail on `main` today,
+  metrics. For recompute, edit and direct recovery, fixture 2 raises the
+  step 2 `LookupError` and fixture 3 `DisallowedRegistryArg`, each naming
+  the metric (and option path) and ending with the `trust_log` advice.
+  Eval-set resume, on both recovery paths, instead logs the warning with
+  that message, recovers the log without results and completes the eval
+  set (step 2's `_untrusted_metrics="warn"`). Fixtures 1 and 3 fail on `main` today,
   so they are the regression tests for steps 1 and 3.
 - **A failed edit or recovery changes nothing.** `edit_score()` on
   fixtures 2 and 3 leaves the log unchanged; the retry with
@@ -1192,7 +1200,9 @@ What the tests must prove:
 - **Recorded scorer names are registry names.** A recorded scorer name of
   the form `<path>@<name>` is not imported; an unregistered recorded scorer
   and a bare unregistered `--scorer` both load from the recorded task file
-  as today and print the record line; `--scorer path.py@name` still loads
+  as today and print the record line, and so does a registered scorer whose
+  factory raises `ValueError` for the recorded options (the fallback's
+  trigger is unchanged); `--scorer path.py@name` still loads
   that file; a recorded option named `name` still reaches the factory.
 - **Legitimate flows keep working.** `ScorerInfo.from_name()` returns the
   defaults for unregistered names and for core scorers that need arguments
