@@ -7,6 +7,7 @@ from typing import Any, Literal, cast
 
 import anyio
 import pytest
+from pydantic import BaseModel, field_validator
 from test_helpers.transcript import FakeTranscriptHistoryProvider
 from test_helpers.utils import skip_if_no_mcp_package
 from typing_extensions import assert_type
@@ -68,7 +69,9 @@ from inspect_ai.solver import Generate, Solver, TaskState, generate, solver, use
 from inspect_ai.tool import (
     Tool,
     ToolCall,
+    ToolCallContent,
     ToolCallView,
+    ToolDef,
     ToolFunction,
     ToolInfo,
     ToolResult,
@@ -736,6 +739,65 @@ def test_an_approvers_modify_reaches_the_sentinel() -> None:
     assert message.text == "8"
 
 
+def arguments_view(arguments: dict[str, Any]) -> str:
+    return str(sorted(arguments.items()))
+
+
+def arguments_viewer(call: ToolCall) -> ToolCallView:
+    content = arguments_view(call.arguments)
+    return ToolCallView(call=ToolCallContent(format="text", content=content))
+
+
+@reviewer
+def d3_viewing_reviewer(views: list[str | None]) -> Reviewer:
+    async def review_(
+        message: str,
+        call: ToolCall,
+        result: ChatMessageTool,
+        output: ToolResult,
+        view: ToolCallView,
+        history: list[ChatMessage],
+    ) -> Review:
+        views.append(call.view.content if call.view else None)
+        return Review(decision="continue")
+
+    return review_
+
+
+@pytest.mark.parametrize("modifier", ["approver", "sentinel"])
+async def test_a_modified_call_has_a_view_of_its_arguments(modifier: str) -> None:
+    """A modify built with `replace()` does not keep the view of the call it replaced."""
+    init_transcript(Transcript())
+    call = ToolCall(id="1", function="addition", arguments={"x": 1, "y": 1})
+    messages: list[ChatMessage] = [ChatMessageAssistant(content=[], tool_calls=[call])]
+    tools = [ToolDef(addition(), viewer=arguments_viewer)]
+    views: list[str | None] = []
+    review = [ReviewPolicy(d3_viewing_reviewer(views), "*")]
+    seen: Seen = []
+    if modifier == "approver":
+        selected = {"x": 7, "y": 1}
+        with active(observe_only([d3_recording(seen)])):
+            result = await execute_tools(
+                messages,
+                tools,
+                approval=[ApprovalPolicy(d3_approver([], "modify", x=7), "*")],
+                review=review,
+            )
+        [(_, step)] = seen
+        assert step.call.view is not None
+        assert step.call.view.content == arguments_view(selected)
+    else:
+        selected = {"x": 10, "y": 20}
+        with active(d3_modify()):
+            result = await execute_tools(messages, tools, review=review)
+
+    [message] = result.messages
+    assert isinstance(message, ChatMessageTool)
+    assert message.error is None
+    assert views == [arguments_view(selected)]
+    assert call.view is None
+
+
 def test_an_approval_reject_skips_the_sentinel() -> None:
     approved: list[ToolCall] = []
     seen: Seen = []
@@ -758,6 +820,244 @@ def test_a_sentinel_modify_is_not_re_approved() -> None:
     assert [call.arguments for call in approved] == [{"x": 1, "y": 1}]
     [message] = tool_messages(log)
     assert message.text == "30"
+
+
+def test_the_sentinel_sees_only_validated_calls() -> None:
+    seen: Seen = []
+    task = Task(
+        dataset=[Sample(input="What is 1 + 1?", target="2")],
+        solver=[use_tools(addition()), generate()],
+        sentinel=observe_only([d3_recording(seen)]),
+    )
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.for_tool_call(
+                "mockllm/model",
+                tool_name="addition",
+                tool_arguments={"x": "one", "y": 1},
+            ),
+            ModelOutput.from_content("mockllm/model", content="done"),
+        ],
+        memoize=False,
+    )
+    log = eval(task, model=model)[0]
+    assert log.status == "success", log.error
+    assert seen == []
+    [message] = tool_messages(log)
+    assert message.error is not None and message.error.type == "parsing"
+
+
+@protocol
+def d3_modify_invalid() -> Protocol:
+    async def rewrite(context: Context, step: BeforeToolCall) -> Decision | None:
+        modified = replace(step.call, arguments={"x": "ten", "y": 20})
+        return Decision(action="modify", modified=modified, explanation="words")
+
+    return rewrite
+
+
+def test_a_sentinel_modify_is_validated() -> None:
+    log = run(d3_modify_invalid())
+    assert log.status == "success", log.error
+    [message] = tool_messages(log)
+    assert message.error is not None and message.error.type == "parsing"
+
+    # the failure is logged with the modified arguments that caused it
+    assert log.samples
+    [event] = [e for e in log.samples[0].events if isinstance(e, ToolEvent)]
+    event = ToolEvent.model_validate_json(event.model_dump_json())
+    assert event.arguments == {"x": "ten", "y": 20}
+    assert event.error is not None and event.error.type == "parsing"
+
+
+class Item(BaseModel):
+    name: str
+
+    @field_validator("name")
+    @classmethod
+    def lowercase(cls, name: str) -> str:
+        return name.lower()
+
+
+@tool
+def list_items() -> Tool:
+    async def execute(items: dict[str, Item]) -> str:
+        """List items.
+
+        Args:
+            items: Items by key.
+        """
+        return ",".join(item.name for item in items.values())
+
+    return execute
+
+
+@protocol
+def d3_modify_items(seen: list[ToolCall], items: dict[str, Any]) -> Protocol:
+    async def rewrite(context: Context, step: BeforeToolCall) -> Decision | None:
+        seen.append(step.call)
+        modified = replace(step.call, arguments={"items": items})
+        return Decision(action="modify", modified=modified, explanation="rename")
+
+    return rewrite
+
+
+@pytest.mark.parametrize(
+    "name,error", [("b", None), ("B", "approval")], ids=["as-shown", "changes"]
+)
+async def test_a_sentinel_sees_and_modifies_the_converted_call(
+    name: str, error: str | None
+) -> None:
+    init_transcript(Transcript())
+    seen: list[ToolCall] = []
+    call = ToolCall(
+        id="1", function="list_items", arguments={"items": {"a": {"name": "A"}}}
+    )
+    with active(d3_modify_items(seen, {"b": {"name": name}})):
+        result = await execute_tools(
+            [ChatMessageAssistant(content=[], tool_calls=[call])], [list_items()]
+        )
+
+    assert [c.arguments for c in seen] == [{"items": {"a": {"name": "a"}}}]
+    [message] = result.messages
+    assert isinstance(message, ChatMessageTool)
+    [event] = transcript_tool_events()
+    assert event.arguments == {"items": {"b": {"name": name}}}
+    if error is None:
+        assert message.error is None
+        assert message.text == "b"
+    else:
+        assert message.error is not None and message.error.type == error
+
+
+@protocol
+def d3_renaming_modify(rename: bool) -> Protocol:
+    async def rewrite(context: Context, step: BeforeToolCall) -> Decision | None:
+        if rename:
+            step.call.function = "other"
+        modified = replace(step.call, arguments={"items": {"b": {"name": "b"}}})
+        return Decision(action="modify", modified=modified, explanation="rename")
+
+    return rewrite
+
+
+async def test_a_sentinel_modify_keeps_the_function_as_shown() -> None:
+    """A sentinel's modify may select only the function shown."""
+    init_transcript(Transcript())
+    call = ToolCall(
+        id="1", function="list_items", arguments={"items": {"a": {"name": "a"}}}
+    )
+    with active(d3_renaming_modify(rename=False)):
+        result = await execute_tools(
+            [ChatMessageAssistant(content=[], tool_calls=[call])], [list_items()]
+        )
+    [message] = result.messages
+    assert isinstance(message, ChatMessageTool)
+    assert message.error is None and message.text == "b"
+
+    init_transcript(Transcript())
+    call = ToolCall(
+        id="1", function="list_items", arguments={"items": {"a": {"name": "a"}}}
+    )
+    with active(d3_renaming_modify(rename=True)):
+        with pytest.raises(RuntimeError, match="may change only the arguments"):
+            await execute_tools(
+                [ChatMessageAssistant(content=[], tool_calls=[call])], [list_items()]
+            )
+    # neither tool ran
+    [event] = transcript_tool_events()
+    assert event.result == ""
+
+
+InPlaceEdit = Literal["arguments", "function", "id"]
+
+
+def edit_in_place(call: ToolCall, edit: InPlaceEdit) -> None:
+    if edit == "arguments":
+        call.arguments["items"]["a"]["name"] = "z"
+    elif edit == "function":
+        call.function = "other"
+    else:
+        call.id = "renamed"
+
+
+@protocol
+def d3_edit_before(edit: InPlaceEdit) -> Protocol:
+    async def mutate(context: Context, step: BeforeToolCall) -> Decision | None:
+        edit_in_place(step.call, edit)
+        return None
+
+    return mutate
+
+
+@pytest.mark.parametrize("edit", ["arguments", "function", "id"])
+async def test_a_sentinel_cannot_change_the_call_in_place(edit: InPlaceEdit) -> None:
+    """A sentinel changes a call only with a modify decision."""
+    init_transcript(Transcript())
+    call = ToolCall(
+        id="1", function="list_items", arguments={"items": {"a": {"name": "a"}}}
+    )
+    with active(d3_edit_before(edit)):
+        result = await execute_tools(
+            [ChatMessageAssistant(content=[], tool_calls=[call])], [list_items()]
+        )
+
+    [message] = result.messages
+    assert isinstance(message, ChatMessageTool)
+    assert message.error is not None and message.error.type == "approval"
+    assert "changed the tool call in place" in message.error.message
+    assert message.text == ""
+
+
+@protocol
+def d3_edit_after() -> Protocol:
+    async def mutate(context: Context, step: AfterToolCall) -> Decision | None:
+        edit_in_place(step.call, "arguments")
+        return None
+
+    return mutate
+
+
+@reviewer
+def d3_editing_reviewer() -> Reviewer:
+    async def review_(
+        message: str,
+        call: ToolCall,
+        result: ChatMessageTool,
+        output: ToolResult,
+        view: ToolCallView,
+        history: list[ChatMessage],
+    ) -> Review:
+        edit_in_place(call, "arguments")
+        return Review(decision="continue")
+
+    return review_
+
+
+@pytest.mark.parametrize("callback", ["sentinel", "reviewer"])
+async def test_the_log_keeps_the_call_that_ran(callback: str) -> None:
+    """An edit after the tool ran is not checked, but it cannot change the log."""
+    init_transcript(Transcript())
+    call = ToolCall(
+        id="1", function="list_items", arguments={"items": {"a": {"name": "a"}}}
+    )
+    messages: list[ChatMessage] = [ChatMessageAssistant(content=[], tool_calls=[call])]
+    if callback == "sentinel":
+        with active(d3_edit_after()):
+            result = await execute_tools(messages, [list_items()])
+    else:
+        result = await execute_tools(
+            messages,
+            [list_items()],
+            review=[ReviewPolicy(d3_editing_reviewer(), "*")],
+        )
+
+    [message] = result.messages
+    assert isinstance(message, ChatMessageTool)
+    assert message.error is None and message.text == "a"
+    [event] = transcript_tool_events()
+    assert event.arguments == {"items": {"a": {"name": "a"}}}
 
 
 def test_a_review_terminate_skips_the_after_call_sentinel() -> None:

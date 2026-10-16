@@ -3,8 +3,9 @@ import json
 import string
 import types
 import typing
+from collections.abc import Collection
 from copy import copy, deepcopy
-from dataclasses import is_dataclass
+from dataclasses import is_dataclass, replace
 from datetime import date, datetime, time
 from enum import EnumMeta
 from logging import getLogger
@@ -37,7 +38,7 @@ if TYPE_CHECKING:
 import anyio
 import yaml
 from anyio.streams.memory import MemoryObjectSendStream
-from pydantic import BaseModel
+from pydantic import BaseModel, TypeAdapter
 from typing_extensions import is_typeddict
 
 from inspect_ai._sentinel._context import SentinelFailure, checks_tool_calls
@@ -53,7 +54,7 @@ from inspect_ai._util.content import (
 from inspect_ai._util.dateutil import datetime_from_iso_format_safe
 from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai._util.format import format_function_call
-from inspect_ai._util.json import exceeds_max_depth
+from inspect_ai._util.json import exceeds_max_depth, json_equal
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.text import truncate_string_to_bytes
 from inspect_ai._util.trace import trace_action
@@ -879,6 +880,35 @@ async def call_tool(
         await record_pending_tool_event()
         return ToolParsingError(error)
 
+    async def revalidated_tool_call(
+        selected: ToolCall, tool_def: ToolDef
+    ) -> ValidatedToolCall:
+        # the event records the modified call, so a failure is logged with the
+        # arguments that caused it (the model's proposal stays in the
+        # ModelEvent and the ApprovalEvent)
+        event.arguments = selected.arguments
+        event.view = None
+        try:
+            validated = modified_tool_call(selected, tool_def)
+        except ToolParsingError as ex:
+            raise await record_tool_parsing_error(ex.message)
+        except ToolApprovalError:
+            await record_pending_tool_event()
+            raise
+        # the selected call may carry a view of other arguments (a modify built
+        # with `replace()`), so it gets the view rendered for the event
+        event.view = tool_call_view(deepcopy(validated.call), tools)
+        return validated._replace(
+            call=replace(validated.call, view=deepcopy(event.view))
+        )
+
+    def shown_to_callbacks(decided: ToolCall) -> ToolCall:
+        # a copy the next approve decision must match; the event records it,
+        # so a later callback cannot change what the log says ran
+        shown = deepcopy(decided)
+        event.arguments = shown.arguments
+        return shown
+
     # if there was an error parsing the ToolCall, raise that
     if call.parse_error:
         raise await record_tool_parsing_error(call.parse_error)
@@ -894,6 +924,19 @@ async def call_tool(
     tool_def = next((tool for tool in tools if tool.name == call.function), None)
     if tool_def is None:
         raise await record_tool_parsing_error(f"Tool {call.function} not found")
+
+    # approvers and sentinel monitors see the validated call, so an invalid
+    # call is never presented for approval
+    try:
+        validated = validated_tool_call(call, tool_def)
+    except ToolParsingError as ex:
+        raise await record_tool_parsing_error(ex.message)
+    if validated.call is not call:
+        # under oversight the event and the call show the call as approvers see it
+        event.view = tool_call_view(deepcopy(validated.call), tools)
+        validated.call.view = deepcopy(event.view)
+    call, arguments = validated
+    shown = shown_to_callbacks(call)
 
     # if we have a tool approver, apply it now
     from inspect_ai.approval._apply import (
@@ -911,16 +954,20 @@ async def call_tool(
             raise TerminateSampleError(message)
         else:
             raise ToolApprovalError(approval.explanation if approval else None)
-    if approval and approval.modified:
-        error = modified_function_error(call, approval.modified)
+    if (
+        approval is not None
+        and approval.decision == "modify"
+        and approval.modified is not None
+    ):
+        error = modified_function_error(shown, approval.modified)
         if error is not None:
             await record_pending_tool_event()
             raise RuntimeError(error)
-        # record the arguments that run: the model's proposal stays in the
-        # ModelEvent and the ApprovalEvent
-        call = approval.modified
-        event.arguments = call.arguments
-        event.view = tool_call_view(call, tools)
+        call, arguments = await revalidated_tool_call(approval.modified, tool_def)
+        shown = shown_to_callbacks(call)
+    elif approval is not None and _changed_in_place(call, shown):
+        await record_pending_tool_event()
+        raise ToolApprovalError(_CHANGED_IN_PLACE)
 
     if checks_tool_calls():
         from inspect_ai._sentinel._dispatch import (
@@ -933,25 +980,30 @@ async def call_tool(
                 message, call, tool_def.viewer, conversation
             )
             modified = apply_sentinel_decision(decision, call)
+            selected = decision is not None and decision.action == "modify"
+            if not selected and _changed_in_place(call, shown):
+                raise ToolApprovalError(_CHANGED_IN_PLACE)
         except (SentinelFailure, ToolApprovalError, TerminateSampleError):
             await record_pending_tool_event()
             raise
-        if modified is not call:
-            call = modified
-            event.arguments = call.arguments
-            event.view = tool_call_view(call, tools)
+        if selected:
+            if modified.function != shown.function:
+                await record_pending_tool_event()
+                raise RuntimeError(
+                    _SENTINEL_MODIFIED_FUNCTION.format(
+                        modified.function, shown.function
+                    )
+                )
+            call, arguments = await revalidated_tool_call(modified, tool_def)
+            shown_to_callbacks(call)
 
-    # validate the schema of the passed object
-    validation_errors = validate_tool_input(call.arguments, tool_def.parameters)
-    if validation_errors:
-        raise await record_tool_parsing_error(validation_errors)
-
-    # get arguments (with creation of dataclasses, pydantic objects, etc.)
-    arguments = tool_params(call.arguments, tool_def.tool)
-
-    # call the tool
+    # call the tool (curried handoff values are the developer's objects, so
+    # only the model's arguments are traced)
+    traced = arguments
+    if isinstance(tool_def.tool, AgentTool):
+        traced = {k: v for k, v in arguments.items() if k not in tool_def.tool.kwargs}
     with trace_action(
-        logger, "Tool Call", format_function_call(tool_def.name, arguments, width=1000)
+        logger, "Tool Call", format_function_call(tool_def.name, traced, width=1000)
     ):
         if isinstance(tool_def.tool, AgentTool):
             async with span(tool_def.tool.name, type="handoff"):
@@ -959,7 +1011,9 @@ async def call_tool(
                     transcript()._event(event)
                     if on_execute is not None:
                         on_execute(call)
-                    handoff_result = await agent_handoff(tool_def, call, conversation)
+                    handoff_result = await agent_handoff(
+                        tool_def, call, arguments, conversation
+                    )
                     return CalledTool(*handoff_result, None)
 
         # normal tool call
@@ -972,6 +1026,32 @@ async def call_tool(
                     result: ToolResult = await tool_def.tool(**arguments)
                 agent_span_id = getattr(tool_def.tool, "agent_span_id", None)
                 return CalledTool(result, [], None, None, agent_span_id)
+
+
+_CHANGED_IN_PLACE = (
+    "An approver or sentinel monitor changed the tool call in place, so the call "
+    "was not run. To change a call, return a modify decision with a new ToolCall."
+)
+
+
+_SENTINEL_MODIFIED_FUNCTION = (
+    "A sentinel monitor returned a modified call to '{}' for a call to '{}'. A "
+    "'modify' decision may change only the arguments of a tool call, not the "
+    "function called."
+)
+
+
+def _changed_in_place(call: ToolCall, shown: ToolCall) -> bool:
+    """Whether a callback changed `call` in place since it was `shown`.
+
+    Approvers and sentinel monitors change a call only by returning a modify
+    decision, so a call they approve must still be the one they were shown.
+    """
+    return (
+        call.id != shown.id
+        or call.function != shown.function
+        or not json_equal(call.arguments, shown.arguments)
+    )
 
 
 async def _apply_tool_review(
@@ -1021,7 +1101,10 @@ async def _apply_tool_review(
 
 
 async def agent_handoff(
-    tool_def: ToolDef, call: ToolCall, conversation: list[ChatMessage]
+    tool_def: ToolDef,
+    call: ToolCall,
+    arguments: dict[str, Any],
+    conversation: list[ChatMessage],
 ) -> tuple[ToolResult, list[ChatMessage], ModelOutput | None, str]:
     from inspect_ai.agent._agent import AgentState, agent_display_name
     from inspect_ai.agent._handoff import AgentTool
@@ -1093,15 +1176,6 @@ async def agent_handoff(
     agent_conversation = [
         m for m in agent_conversation if not isinstance(m, ChatMessageSystem)
     ]
-
-    # inject curried args
-    arguments = {**call.arguments, **agent_tool.kwargs}
-
-    # parse arguments (inject a `state` placeholder so tool_params doesn't
-    # treat the agent's required `state` parameter as missing — the handoff
-    # harness injects the real AgentState below)
-    arguments = tool_params({**arguments, "state": None}, agent_tool.agent)
-    del arguments["state"]
 
     # run the agent with limits
     limit_error: LimitExceededError | None = None
@@ -1317,7 +1391,17 @@ def type_hint_includes_none(type_hint: Type[Any] | None) -> bool:
     return False
 
 
-def tool_params(input: dict[str, Any], func: Callable[..., Any]) -> dict[str, Any]:
+def tool_params(
+    input: dict[str, Any], func: Callable[..., Any], skip: Collection[str] = ()
+) -> dict[str, Any]:
+    """Convert a tool call's arguments to the parameters of `func`.
+
+    Args:
+        input: The arguments, as the model supplied them.
+        func: The tool (or agent) function.
+        skip: Parameters the caller supplies itself, which are neither
+            converted nor required.
+    """
     # parse function typeinfo
     signature = inspect.signature(func)
     type_hints = get_type_hints(func)
@@ -1325,7 +1409,7 @@ def tool_params(input: dict[str, Any], func: Callable[..., Any]) -> dict[str, An
 
     # if the function takes **kwargs: Any then just pass the tool arguments through
     if "kwargs" in type_hints and type_hints["kwargs"] == Any:
-        return input
+        return {name: value for name, value in input.items() if name not in skip}
 
     # build params
     params: dict[str, Any] = {}
@@ -1342,6 +1426,8 @@ def tool_params(input: dict[str, Any], func: Callable[..., Any]) -> dict[str, An
             continue
 
         named_params.add(param_name)
+        if param_name in skip:
+            continue
 
         # get type hint (fallback to docstring as required)
         type_hint = param_type_hint(param_name, type_hints, docstring)
@@ -1352,7 +1438,9 @@ def tool_params(input: dict[str, Any], func: Callable[..., Any]) -> dict[str, An
 
         # yield parameter (fail if not passed and there is no default)
         if param_name in input:
-            params[param_name] = tool_param(type_hint, input.get(param_name))
+            params[param_name] = _converted_param(
+                param_name, type_hint, input.get(param_name)
+            )
         elif param.default is not inspect.Parameter.empty:
             params[param_name] = param.default
         elif type_hint_includes_none(type_hint):
@@ -1371,9 +1459,23 @@ def tool_params(input: dict[str, Any], func: Callable[..., Any]) -> dict[str, An
         )
         for name, value in input.items():
             if name not in named_params:
-                params[name] = tool_param(kwargs_type, value)
+                params[name] = _converted_param(name, kwargs_type, value)
 
     return params
+
+
+def _converted_param(name: str, type_hint: Type[Any], value: Any) -> Any:
+    # conversion runs before approval, so a value it cannot convert (a bad
+    # date or enum value, a failing constructor) goes back to the model
+    try:
+        return tool_param(type_hint, value)
+    except ToolParsingError:
+        raise
+    except Exception as ex:
+        detail = str(ex) or type(ex).__name__
+        raise ToolParsingError(
+            f"Unable to convert argument '{name}' for the tool: {detail}"
+        ) from ex
 
 
 def param_type_hint(
@@ -1397,6 +1499,153 @@ def param_type_hint(
         return type_hint
 
     return None
+
+
+class ValidatedToolCall(NamedTuple):
+    """Outcome of `validated_tool_call()`."""
+
+    call: ToolCall
+    """The call approvers, sentinel monitors and viewers see."""
+
+    arguments: dict[str, Any]
+    """The arguments the tool receives."""
+
+
+def validated_tool_call(call: ToolCall, tool_def: ToolDef) -> ValidatedToolCall:
+    """Validate and convert a call's arguments before it is approved.
+
+    The arguments are checked against the tool's schema and converted to the
+    tool's parameter types. While approval or a sentinel is active, the
+    returned call holds the converted arguments serialized as JSON, and the
+    returned arguments are rebuilt from that JSON, which must serialize back
+    to itself. Otherwise the call is returned unchanged. See
+    `design/tool-approval-arguments.md`.
+
+    Raises:
+        ToolParsingError: The arguments fail the schema or cannot be
+            converted, or (while approval or a sentinel is active) cannot be
+            serialized or do not rebuild to the same JSON.
+    """
+    validation_errors = validate_tool_input(call.arguments, tool_def.parameters)
+    if validation_errors:
+        raise ToolParsingError(validation_errors)
+
+    if not _tool_calls_overseen():
+        return ValidatedToolCall(call, _rebuilt_arguments(call.arguments, tool_def))
+
+    shown = replace(call, arguments=_serialized_arguments(call.arguments, tool_def))
+    try:
+        changed = _changed_on_rebuild(shown.arguments, tool_def)
+    except ToolParsingError as ex:
+        raise ToolParsingError(
+            "The arguments cannot be shown to approvers or monitors: as "
+            "converted for the tool and serialized, they do not convert back. "
+            f"{ex.message}"
+        ) from ex
+    if changed is not None:
+        raise ToolParsingError(
+            f"Argument '{changed}' cannot be shown to approvers or monitors: as "
+            "converted for the tool and serialized, it does not convert back to "
+            "the same value."
+        )
+    return ValidatedToolCall(shown, _rebuilt_arguments(shown.arguments, tool_def))
+
+
+def modified_tool_call(selected: ToolCall, tool_def: ToolDef) -> ValidatedToolCall:
+    """Validate an approver's or sentinel's modified call, which runs as selected.
+
+    The selected arguments are the JSON the tool's arguments are rebuilt
+    from, so they must serialize back to exactly that JSON: a modify gives
+    every argument and field in full, as shown.
+
+    Raises:
+        ToolParsingError: The modified arguments are invalid.
+        ToolApprovalError: Rebuilding an argument for the tool changes it.
+    """
+    validation_errors = validate_tool_input(selected.arguments, tool_def.parameters)
+    if validation_errors:
+        raise ToolParsingError(validation_errors)
+
+    changed = _changed_on_rebuild(selected.arguments, tool_def)
+    if changed is not None:
+        raise ToolApprovalError(
+            f"The modified value for '{changed}' changes when it is converted "
+            "for the tool, so the call was not run. A modify decision must give "
+            "the full call as shown, including any defaults it fills in."
+        )
+    return ValidatedToolCall(selected, _rebuilt_arguments(selected.arguments, tool_def))
+
+
+def _tool_calls_overseen() -> bool:
+    """Whether an approval policy or a sentinel will see tool calls."""
+    from inspect_ai.approval._apply import have_tool_approval
+
+    return have_tool_approval() or checks_tool_calls()
+
+
+def _rebuilt_arguments(arguments: dict[str, Any], tool_def: ToolDef) -> dict[str, Any]:
+    """The tool's arguments converted from a call's, with curried handoff values.
+
+    Conversion gets a copy of the call's arguments, since a constructor (a
+    validator, `__post_init__`) can change its input in place.
+    """
+    from inspect_ai.agent._handoff import AgentTool
+
+    arguments = deepcopy(arguments)
+    if isinstance(tool_def.tool, AgentTool):
+        # agent_handoff passes the real `state`, and the developer's curried
+        # arguments are Python values that go to the agent as given
+        curried = tool_def.tool.kwargs
+        converted = tool_params(
+            arguments, tool_def.tool.agent, skip={"state", *curried}
+        )
+        return {**converted, **curried}
+    return tool_params(arguments, tool_def.tool)
+
+
+def _serialized_arguments(
+    arguments: dict[str, Any], tool_def: ToolDef
+) -> dict[str, Any]:
+    """A call's arguments as converted for the tool, serialized as JSON.
+
+    Only the arguments the call gives are serialized: parameters it leaves
+    out get their Python defaults when the arguments are rebuilt, and curried
+    handoff values are not part of the call.
+    """
+    from inspect_ai.agent._handoff import AgentTool
+
+    converted = _rebuilt_arguments(arguments, tool_def)
+    curried = tool_def.tool.kwargs if isinstance(tool_def.tool, AgentTool) else {}
+    return {
+        name: _serialized(name, converted[name])
+        for name in arguments
+        if name in converted and name not in curried
+    }
+
+
+def _changed_on_rebuild(arguments: dict[str, Any], tool_def: ToolDef) -> str | None:
+    """The first argument that does not serialize back to itself when rebuilt."""
+    rebuilt = _serialized_arguments(arguments, tool_def)
+    for name in [*arguments, *(name for name in rebuilt if name not in arguments)]:
+        if name not in rebuilt or not json_equal(rebuilt[name], arguments.get(name)):
+            return name
+    return None
+
+
+_JSON_VALUE = TypeAdapter[Any](Any)
+
+
+def _serialized(name: str, value: Any) -> Any:
+    """An argument value as JSON, with models dumped by alias and without computed fields."""
+    try:
+        return _JSON_VALUE.dump_python(
+            value, mode="json", by_alias=True, exclude_computed_fields=True
+        )
+    except Exception as ex:
+        raise ToolParsingError(
+            f"Argument '{name}' cannot be shown to approvers or monitors: "
+            f"serializing it failed ({ex})."
+        ) from ex
 
 
 def tool_param(type_hint: Type[Any], input: Any) -> Any:
