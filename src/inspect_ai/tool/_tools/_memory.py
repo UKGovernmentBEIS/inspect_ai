@@ -34,7 +34,7 @@ def memory(
         initial_data: Optional dict mapping file paths to content for pre-seeding
             the memory store. Keys should be valid /memories paths (e.g.,
             "/memories/file.txt"). Values are resolved via resource(), supporting
-            inline strings, file paths, or remote resources (s3://, https://).
+            inline strings, file paths, or remote resources (`s3://`, `https://`).
             Seeding happens once on first tool execution.
         readonly: If True, only the view command is available. Write operations
             (create, str_replace, insert, delete, rename) are not exposed.
