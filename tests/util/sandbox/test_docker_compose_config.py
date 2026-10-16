@@ -10,15 +10,28 @@ import pytest
 import yaml
 from test_helpers.utils import skip_if_no_docker
 
+from inspect_ai import eval_async, eval_retry_async
 from inspect_ai._util.error import PrerequisiteError
-from inspect_ai.util import ComposeConfig, ComposeService, ExecResult
+from inspect_ai.util import (
+    ComposeConfig,
+    ComposeService,
+    ExecResult,
+    SandboxEnvironmentSpec,
+)
+from inspect_ai.util._sandbox.compose import (
+    AUTO_COMPOSE_PROJECT_DIRECTORY_KEY,
+    resolve_compose_sandbox,
+)
 from inspect_ai.util._sandbox.docker import compose as compose_module
+from inspect_ai.util._sandbox.docker import config as config_module
 from inspect_ai.util._sandbox.docker import docker as docker_module
 from inspect_ai.util._sandbox.docker import mounts as mounts_module
 from inspect_ai.util._sandbox.docker import prereqs as prereqs_module
 from inspect_ai.util._sandbox.docker.compose import (
+    compose_build,
     compose_down,
     compose_exec,
+    compose_ps,
     compose_services,
     compose_up,
 )
@@ -29,6 +42,358 @@ from inspect_ai.util._sandbox.docker.config import (
 from inspect_ai.util._sandbox.docker.docker import DockerSandboxEnvironment
 from inspect_ai.util._sandbox.docker.mounts import validate_compose_mounts
 from inspect_ai.util._sandbox.docker.util import ComposeProject, task_project_name
+
+
+@pytest.fixture
+def generated_compose_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    directory = tmp_path.resolve() / "generated"
+    directory.mkdir()
+    monkeypatch.setattr(config_module, "auto_compose_dir", lambda: directory)
+    return directory
+
+
+@skip_if_no_docker
+@pytest.mark.slow
+@pytest.mark.parametrize("sample_config", [False, True])
+async def test_compose_paths_in_file_task_eval(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    generated_compose_dir: Path,
+    sample_config: bool,
+) -> None:
+    launch = tmp_path / "launch"
+    launch.mkdir(exist_ok=True)
+    (launch / "marker.txt").write_text("wrong")
+    monkeypatch.chdir(launch)
+    task_files = []
+    for name in ("one", "two"):
+        directory = tmp_path / name
+        directory.mkdir(exist_ok=True)
+        (directory / "marker.txt").write_text(name)
+        (directory / "vars.env").write_text(f"INSPECT_PATH_TEST={name}\n")
+        (directory / ".env").write_text(f"INSPECT_PATH_DOTENV={name}\n")
+        task_file = directory / "task.py"
+        task_file.write_text(
+            """import os
+from inspect_ai import Task, task
+from inspect_ai.dataset import Sample
+from inspect_ai.solver import solver
+from inspect_ai.util import ComposeConfig, ComposeService, sandbox
+
+@solver
+def check_paths():
+    async def solve(state, generate):
+        result = await sandbox().exec(["sh", "-c", 'cat /workspace/marker.txt; printf "\\n%s\\n%s" "$INSPECT_PATH_TEST" "$DOTENV_VALUE"'])
+        assert result.success, result.stderr
+        assert result.stdout.splitlines() == [state.input] * 3, result.stdout
+        if os.environ.get("INSPECT_PATH_FAIL_ONCE"):
+            raise RuntimeError("deliberate retry")
+        return state
+    return solve
+
+@task
+def paths():
+    config = ComposeConfig(services={"default": ComposeService(
+        image="aisiuk/inspect-tool-support", command="tail -f /dev/null",
+        network_mode="none", volumes=[".:/workspace:ro"],
+        env_file="./vars.env", environment={"DOTENV_VALUE": "${INSPECT_PATH_DOTENV}"},
+    )})
+    spec = ("docker", config)
+    return Task(dataset=[Sample(input=NAME, sandbox=spec if SAMPLE_CONFIG else None)],
+                sandbox=None if SAMPLE_CONFIG else spec, solver=check_paths())
+""".replace("NAME", repr(name)).replace("SAMPLE_CONFIG", repr(sample_config))
+        )
+        task_files.append(os.path.relpath(task_file, launch))
+
+    monkeypatch.setenv("INSPECT_PATH_FAIL_ONCE", "1")
+    with anyio.fail_after(120):
+        logs = await eval_async(
+            task_files,
+            model="mockllm/model",
+            max_tasks=2,
+            max_samples=2,
+            max_sandboxes=2,
+            log_dir=str(tmp_path / "logs"),
+        )
+    assert len(logs) == 2
+    assert all(
+        log.error and log.error.message == "RuntimeError('deliberate retry')"
+        for log in logs
+    ), [log.error for log in logs]
+    assert list(generated_compose_dir.iterdir()) == []
+    monkeypatch.delenv("INSPECT_PATH_FAIL_ONCE")
+    with anyio.fail_after(120):
+        retried = await eval_retry_async(logs, log_dir=str(tmp_path / "retried"))
+    assert all(log.status == "success" for log in retried), [
+        log.error for log in retried
+    ]
+    assert list(generated_compose_dir.iterdir()) == []
+
+
+@pytest.mark.parametrize("name", ["task", "$VALUE", "$$", "${VALUE}"])
+async def test_bound_compose_config_roundtrip(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    generated_compose_dir: Path,
+    name: str,
+) -> None:
+    config = ComposeConfig(services={"default": ComposeService(image="alpine")})
+    original = SandboxEnvironmentSpec("docker", config)
+    directory = str(tmp_path / name)
+    bound = resolve_compose_sandbox(original, directory)
+    assert bound is not None
+    assert original.config == config
+    assert AUTO_COMPOSE_PROJECT_DIRECTORY_KEY not in config.extensions
+    restored = SandboxEnvironmentSpec.model_validate_json(bound.model_dump_json())
+    assert restored == bound
+    assert resolve_compose_sandbox(restored, str(tmp_path / "other")) == bound
+    assert resolve_compose_sandbox(original, str(tmp_path / "other")) != bound
+    monkeypatch.chdir(tmp_path)
+    project = await ComposeProject.create("inspect-roundtrip", restored.config)
+    assert project.project_directory == directory
+    reopened = await ComposeProject.create(project.name, project.config)
+    assert reopened.project_directory == directory
+
+
+@skip_if_no_docker
+@pytest.mark.parametrize("explicit", [False, True])
+async def test_dockerfile_ignores_task_dotenv(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    generated_compose_dir: Path,
+    explicit: bool,
+) -> None:
+    (tmp_path / "Dockerfile").write_text("FROM alpine\n")
+    (tmp_path / ".env").write_text("PASSWORD=abc${def\n")
+    monkeypatch.chdir(tmp_path)
+    project = await ComposeProject.create(
+        "inspect-dockerfile-dotenv", "Dockerfile" if explicit else None
+    )
+    services: dict[str, Any] = dict(await compose_services(project))
+    assert services["default"]["build"]["context"] == str(tmp_path)
+    assert project.project_directory is None
+
+
+@skip_if_no_docker
+@pytest.mark.parametrize("reopen", [False, True])
+async def test_programmatic_compose_relative_paths(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    generated_compose_dir: Path,
+    mount_daemon: dict[str, Any],
+    reopen: bool,
+) -> None:
+    task_dir = tmp_path.resolve() / "task"
+    task_dir.mkdir()
+    (task_dir / "data").mkdir()
+    (task_dir / "vars.env").write_text("INSPECT_PATH_TEST=task\n")
+    (generated_compose_dir / "vars.env").write_text("INSPECT_PATH_TEST=wrong\n")
+    (task_dir / ".env").write_text("INSPECT_PATH_TEST_DOTENV=./data\n")
+    monkeypatch.delenv("INSPECT_PATH_TEST_DOTENV", raising=False)
+    monkeypatch.setenv("INSPECT_PATH_TEST_SOURCE", "./data")
+    monkeypatch.chdir(task_dir)
+    config = ComposeConfig.model_validate(
+        {
+            "services": {
+                "default": {
+                    "image": "alpine",
+                    "build": {"context": "."},
+                    "env_file": "./vars.env",
+                    "volumes": [
+                        ".:/workspace:ro",
+                        "../:/parent:ro",
+                        {
+                            "type": "bind",
+                            "source": "./data",
+                            "target": "/data",
+                            "read_only": True,
+                        },
+                        "${INSPECT_PATH_TEST_SOURCE}:/from-environment:ro",
+                        "${INSPECT_PATH_TEST_DOTENV}:/from-dotenv:ro",
+                        f"{task_dir}/data:/absolute:ro",
+                        "cache:/cache",
+                        "/anonymous",
+                    ],
+                }
+            },
+            "volumes": {"cache": {}},
+        }
+    )
+    original = config.model_dump()
+    project = await ComposeProject.create("inspect-relative-paths", config)
+    assert project.config is not None
+    assert Path(project.config).parent == generated_compose_dir
+    assert config.model_dump() == original
+
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    monkeypatch.chdir(elsewhere)
+    if reopen:
+        project = await ComposeProject.create(project.name, project.config)
+
+    services: dict[str, Any] = dict(await compose_services(project))
+    service = services["default"]
+    assert service["build"]["context"] == str(task_dir)
+    assert service["environment"]["INSPECT_PATH_TEST"] == "task"
+    mounts = {mount["target"]: mount for mount in service["volumes"]}
+    for target, source in {
+        "/workspace": task_dir,
+        "/parent": task_dir.parent,
+        "/data": task_dir / "data",
+        "/from-environment": task_dir / "data",
+        "/from-dotenv": task_dir / "data",
+        "/absolute": task_dir / "data",
+    }.items():
+        assert mounts[target]["source"] == str(source)
+        assert mounts[target]["read_only"] is True
+    assert mounts["/cache"]["type"] == "volume"
+    assert mounts["/cache"]["source"] == "cache"
+    assert mounts["/anonymous"]["type"] == "volume"
+    assert "source" not in mounts["/anonymous"]
+
+
+@skip_if_no_docker
+@pytest.mark.parametrize(
+    "directory_name",
+    [
+        "spaces and 'quotes'",
+        "literal-$VALUE",
+        "literal-${VALUE}",
+        "literal-${unfinished",
+        "literal-$$",
+        "literal-$$$VALUE",
+        "literal-$$$$VALUE",
+        "literal-$(echo VALUE)",
+        "unicode-\N{SNOWMAN}",
+        "hash-#-brackets-[]{}-&;`",
+        pytest.param(
+            'quotes-"-backslash-\\-colon-:',
+            marks=pytest.mark.skipif(
+                os.name == "nt", reason="POSIX filename characters"
+            ),
+        ),
+        pytest.param(
+            "whitespace-\t\n",
+            marks=pytest.mark.skipif(
+                os.name == "nt", reason="POSIX filename characters"
+            ),
+        ),
+        pytest.param(
+            "literal-${VALUE:-fallback}-${VALUE:?required}",
+            marks=pytest.mark.skipif(
+                os.name == "nt", reason="POSIX filename characters"
+            ),
+        ),
+    ],
+)
+async def test_saved_compose_directory_preserves_special_characters(
+    tmp_path: Path,
+    generated_compose_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    mount_daemon: dict[str, Any],
+    directory_name: str,
+) -> None:
+    task_dir = tmp_path.resolve() / directory_name
+    task_dir.mkdir(exist_ok=True)
+    (task_dir / "context").mkdir(exist_ok=True)
+    (task_dir / "vars.env").write_text("INSPECT_PATH_TEST=task\n")
+    monkeypatch.setenv("VALUE", "wrong-directory")
+    monkeypatch.setenv("INSPECT_PATH_BUILD_CONTEXT", "context")
+    monkeypatch.chdir(task_dir)
+    config = ComposeConfig.model_validate(
+        {
+            "services": {
+                "default": {
+                    "image": "alpine",
+                    "env_file": "./vars.env",
+                    "volumes": [".:/data:ro"],
+                },
+                "build_short": {"build": "."},
+                "build_long": {"build": {"context": "${INSPECT_PATH_BUILD_CONTEXT}"}},
+            }
+        }
+    )
+    project = await ComposeProject.create("inspect-literal-directory", config)
+    monkeypatch.chdir(tmp_path)
+    project = await ComposeProject.create(project.name, project.config)
+    assert project.project_directory == str(task_dir)
+    services: dict[str, Any] = dict(await compose_services(project))
+    # Compose escapes literal dollars when serializing its resolved configuration.
+    assert services["default"]["volumes"][0]["source"] == str(task_dir).replace(
+        "$", "$$"
+    )
+    assert services["default"]["environment"]["INSPECT_PATH_TEST"] == "task"
+    assert services["build_short"]["build"]["context"] == str(task_dir).replace(
+        "$", "$$"
+    )
+    assert services["build_long"]["build"]["context"] == str(
+        task_dir / "context"
+    ).replace("$", "$$")
+
+
+@skip_if_no_docker
+@pytest.mark.parametrize("opt_in", [False, True])
+async def test_programmatic_relative_mount_still_requires_write_opt_in(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    generated_compose_dir: Path,
+    opt_in: bool,
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    config = ComposeConfig.model_validate(
+        {
+            "services": {"default": {"image": "alpine", "volumes": [".:/workspace"]}},
+            "x-inspect_docker_sandbox": {"unsafe_allow_writable_host_mounts": opt_in},
+        }
+    )
+    project = await ComposeProject.create("inspect-relative-writable", config)
+    if opt_in:
+        services: dict[str, Any] = dict(await compose_services(project))
+        assert services["default"]["volumes"][0]["source"] == str(tmp_path.resolve())
+    else:
+        with pytest.raises(PrerequisiteError, match="writable host bind"):
+            await compose_services(project)
+
+
+@skip_if_no_docker
+@pytest.mark.parametrize("generated", [False, True])
+async def test_existing_compose_files_keep_their_path_base(
+    tmp_path: Path,
+    generated_compose_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    mount_daemon: dict[str, Any],
+    generated: bool,
+) -> None:
+    directory = generated_compose_dir if generated else tmp_path.resolve()
+    path = directory / "compose.yaml"
+    contents: dict[str, Any] = {
+        "services": {"default": {"image": "alpine", "volumes": [".:/workspace:ro"]}}
+    }
+    if not generated:
+        contents[AUTO_COMPOSE_PROJECT_DIRECTORY_KEY] = "/ignored-for-user-compose-files"
+    path.write_text(yaml.safe_dump(contents))
+    monkeypatch.chdir(tmp_path.parent)
+    project = await ComposeProject.create("inspect-existing-paths", str(path))
+    assert project.project_directory is None
+    services: dict[str, Any] = dict(await compose_services(project))
+    assert services["default"]["volumes"][0]["source"] == str(directory)
+
+
+@pytest.mark.parametrize("directory", [None, "", "relative", 42, {}])
+async def test_generated_compose_rejects_invalid_saved_directory(
+    generated_compose_dir: Path, directory: Any
+) -> None:
+    path = generated_compose_dir / "invalid.yaml"
+    path.write_text(
+        yaml.safe_dump(
+            {
+                "services": {"default": {"image": "alpine"}},
+                AUTO_COMPOSE_PROJECT_DIRECTORY_KEY: directory,
+            }
+        )
+    )
+    with pytest.raises(ValueError, match="expected an absolute directory path"):
+        await ComposeProject.create("inspect-invalid-paths", str(path))
 
 
 @skip_if_no_docker
@@ -526,16 +891,33 @@ async def test_host_mount_attacks_require_opt_in(attack: str, tmp_path: Path) ->
 
 @skip_if_no_docker
 @pytest.mark.slow
-async def test_read_only_host_and_managed_volume_runtime(tmp_path: Path) -> None:
-    (tmp_path / "sentinel").write_text("input")
+@pytest.mark.parametrize(
+    ("relative", "directory_name"),
+    [(False, "task"), (True, "task"), (True, "literal-$VALUE-${unfinished-$$ 'quote'")],
+)
+async def test_read_only_host_and_managed_volume_runtime(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    generated_compose_dir: Path,
+    relative: bool,
+    directory_name: str,
+) -> None:
+    task_dir = tmp_path.resolve() / directory_name
+    task_dir.mkdir(exist_ok=True)
+    (task_dir / "sentinel").write_text("input")
+    (task_dir / "vars.env").write_text("INSPECT_PATH_TEST=task\n")
+    monkeypatch.setenv("VALUE", "wrong-directory")
+    monkeypatch.chdir(task_dir)
+    source = "." if relative else str(task_dir)
     config = ComposeConfig.model_validate(
         {
             "services": {
                 "default": {
                     "image": "aisiuk/inspect-tool-support",
                     "command": ["sleep", "infinity"],
+                    "env_file": "./vars.env",
                     "network_mode": "none",
-                    "volumes": [f"{tmp_path.resolve()}:/input:ro", "output:/output"],
+                    "volumes": [f"{source}:/input:ro", "output:/output"],
                 }
             },
             "volumes": {"output": {}},
@@ -544,6 +926,7 @@ async def test_read_only_host_and_managed_volume_runtime(tmp_path: Path) -> None
     project = await ComposeProject.create(
         name=task_project_name("safe-mounts"), config=config
     )
+    monkeypatch.chdir(tmp_path.parent)
     try:
         await compose_up(project, await compose_services(project))
         result = await compose_exec(
@@ -554,13 +937,56 @@ async def test_read_only_host_and_managed_volume_runtime(tmp_path: Path) -> None
             ["-T", "default", "touch", "/input/new"], project=project, timeout=30
         )
         assert not result.success
-        assert not (tmp_path / "new").exists()
+        assert not (task_dir / "new").exists()
         result = await compose_exec(
             ["-T", "default", "touch", "/output/new"], project=project, timeout=30
         )
         assert result.success, result.stderr
     finally:
+        project = await ComposeProject.create(project.name, project.config)
         await compose_down(project)
+        assert await compose_ps(project, all=True) == []
+        assert project.config is not None
+        Path(project.config).unlink()
+
+
+@skip_if_no_docker
+@pytest.mark.slow
+@pytest.mark.parametrize("dockerfile", [False, True])
+async def test_auto_compose_build_from_literal_directory(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    generated_compose_dir: Path,
+    dockerfile: bool,
+) -> None:
+    task_dir = tmp_path.resolve() / "literal-$VALUE-$$ 'quote'"
+    task_dir.mkdir(exist_ok=True)
+    (task_dir / "sentinel").write_text("input")
+    dockerfile_path = task_dir / "Dockerfile"
+    dockerfile_path.write_text(
+        "FROM aisiuk/inspect-tool-support\nCOPY sentinel /build-sentinel\n"
+    )
+    monkeypatch.setenv("VALUE", "wrong-directory")
+    monkeypatch.chdir(task_dir)
+    config = ComposeConfig(
+        services={"default": ComposeService(build=".", command=["sleep", "infinity"])}
+    )
+    project = await ComposeProject.create(
+        task_project_name("literal-build"),
+        str(dockerfile_path) if dockerfile else config,
+    )
+    monkeypatch.chdir(tmp_path)
+    try:
+        await compose_build(project)
+        await compose_up(project, await compose_services(project))
+        result = await compose_exec(
+            ["-T", "default", "cat", "/build-sentinel"], project=project, timeout=30
+        )
+        assert result.success and result.stdout == "input"
+    finally:
+        project = await ComposeProject.create(project.name, project.config)
+        await compose_down(project)
+        assert await compose_ps(project, all=True) == []
         assert project.config is not None
         Path(project.config).unlink()
 

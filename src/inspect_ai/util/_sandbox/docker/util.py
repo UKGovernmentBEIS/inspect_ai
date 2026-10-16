@@ -6,11 +6,17 @@ from pathlib import Path
 import yaml
 from shortuuid import uuid
 
-from ..compose import ComposeConfig, is_dockerfile
-from ..environment import SandboxEnvironmentConfigType
+from ..compose import (
+    AUTO_COMPOSE_PROJECT_DIRECTORY_KEY,
+    ComposeConfig,
+    is_dockerfile,
+    resolve_compose_sandbox,
+)
+from ..environment import SandboxEnvironmentConfigType, SandboxEnvironmentSpec
 from .config import (
     COMPOSE_DOCKERFILE_YAML,
     auto_compose_file,
+    auto_compose_project_directory,
     ensure_auto_compose_file,
     resolve_compose_file,
 )
@@ -27,6 +33,7 @@ class ComposeProject:
     sample_id: int | str | None
     epoch: int | None
     env: dict[str, str] | None
+    project_directory: str | None
 
     @classmethod
     async def create(
@@ -45,14 +52,24 @@ class ComposeProject:
         if isinstance(config, str):
             config_path = Path(config).resolve()
         elif isinstance(config, ComposeConfig):
-            # serialize ComposeConfig to YAML and write to auto-compose file
+            bound = resolve_compose_sandbox(
+                SandboxEnvironmentSpec("docker", config), os.getcwd()
+            )
+            assert bound is not None and isinstance(bound.config, ComposeConfig)
+            data = bound.config.model_dump(
+                mode="json", by_alias=True, exclude_none=True
+            )
+            # Compose interpolates extension values too; escape only the literal
+            # directory, leaving user-supplied Compose expressions intact.
+            data[AUTO_COMPOSE_PROJECT_DIRECTORY_KEY] = data[
+                AUTO_COMPOSE_PROJECT_DIRECTORY_KEY
+            ].replace("$", "$$")
             config_yaml = yaml.dump(
-                config.model_dump(mode="json", by_alias=True, exclude_none=True),
+                data,
                 default_flow_style=False,
                 sort_keys=False,
             )
-            # Use project name for unique file, resolve paths against CWD
-            config = auto_compose_file(config_yaml, name, base_dir=os.getcwd())
+            config = auto_compose_file(config_yaml, name)
         elif config is not None:
             raise ValueError(
                 f"Unsupported config type: {type(config)}. Expected str or ComposeConfig."
@@ -80,7 +97,14 @@ class ComposeProject:
         ensure_auto_compose_file(config, name)
 
         # return project
-        return ComposeProject(name, config, sample_id=sample_id, epoch=epoch, env=env)
+        return ComposeProject(
+            name,
+            config,
+            sample_id=sample_id,
+            epoch=epoch,
+            env=env,
+            project_directory=auto_compose_project_directory(config),
+        )
 
     def __init__(
         self,
@@ -89,12 +113,14 @@ class ComposeProject:
         sample_id: int | str | None,
         epoch: int | None,
         env: dict[str, str] | None,
+        project_directory: str | None = None,
     ) -> None:
         self.name = name
         self.config = config
         self.sample_id = sample_id
         self.epoch = epoch
         self.env = env
+        self.project_directory = project_directory
 
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, ComposeProject):

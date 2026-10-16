@@ -6,7 +6,13 @@ import yaml
 
 from inspect_ai._util.appdirs import inspect_data_dir
 
-from ..compose import AUTO_COMPOSE_SUBDIR, AUTO_COMPOSE_YAML, COMPOSE_FILES, DOCKERFILE
+from ..compose import (
+    AUTO_COMPOSE_PROJECT_DIRECTORY_KEY,
+    AUTO_COMPOSE_SUBDIR,
+    AUTO_COMPOSE_YAML,
+    COMPOSE_FILES,
+    DOCKERFILE,
+)
 
 logger = getLogger(__name__)
 
@@ -141,13 +147,13 @@ def auto_compose_file(
     Args:
         contents: The YAML content to write
         project_name: Unique project name (used as filename)
-        base_dir: Directory to resolve relative build paths against (e.g., CWD)
+        base_dir: Directory to resolve generated Dockerfile build contexts against
 
     Returns:
         Absolute path to the created compose file
     """
     if base_dir:
-        contents = _update_build_context(contents, base_dir)
+        contents = _resolve_build_context(contents, base_dir)
 
     compose_dir = auto_compose_dir()
     path = compose_dir / f"{project_name}.yaml"
@@ -164,21 +170,34 @@ def _auto_compose_file_local(contents: str, parent: str = "") -> str:
     return Path(path).resolve().as_posix()
 
 
-def _update_build_context(yaml_content: str, base_dir: str) -> str:
-    """Resolve relative build.context paths to absolute paths.
+def auto_compose_project_directory(file: str | None) -> str | None:
+    """Read the original directory retained for generated Compose configurations.
 
-    When auto-compose files are stored in a central directory, relative paths
-    like "." won't work. This resolves relative paths against base_dir,
-    leaving absolute paths unchanged.
-
-    Args:
-        yaml_content: The YAML content to update
-        base_dir: Base directory to resolve relative paths against (e.g., CWD)
-
-    Returns:
-        Updated YAML content with absolute build context paths
+    Persisting it in the generated file lets CLI cleanup recover the same path
+    semantics in another process. Older files have no recorded directory and
+    retain Compose's default behavior. The stored value uses Compose's ``$$``
+    escaping for literal dollar signs.
     """
+    if file is None or not is_auto_compose_file(file):
+        return None
+    with open(file, encoding="utf-8") as f:
+        config = yaml.safe_load(f)
+    if not isinstance(config, dict) or AUTO_COMPOSE_PROJECT_DIRECTORY_KEY not in config:
+        return None
+    directory = config[AUTO_COMPOSE_PROJECT_DIRECTORY_KEY]
+    if not isinstance(directory, str) or not Path(directory).is_absolute():
+        raise ValueError(
+            f"Invalid {AUTO_COMPOSE_PROJECT_DIRECTORY_KEY} in {file}: "
+            "expected an absolute directory path."
+        )
+    return directory.replace("$$", "$")
+
+
+def _resolve_build_context(yaml_content: str, base_dir: str) -> str:
+    """Keep generated Dockerfile build contexts valid after relocating the YAML."""
     data = yaml.safe_load(yaml_content)
+    # Escape the literal directory, preserving user-supplied Compose expressions.
+    escaped_base_dir = str(Path(base_dir).resolve()).replace("$", "$$")
     if data and "services" in data:
         for service in data["services"].values():
             if "build" in service:
@@ -186,10 +205,12 @@ def _update_build_context(yaml_content: str, base_dir: str) -> str:
                     ctx = service["build"].get("context", ".")
                     if not Path(ctx).is_absolute():
                         # Resolve relative path against base_dir
-                        service["build"]["context"] = str(Path(base_dir) / ctx)
+                        service["build"]["context"] = str(Path(escaped_base_dir) / ctx)
                 elif isinstance(service["build"], str):
                     # build is just a context path string
                     ctx = service["build"]
                     if not Path(ctx).is_absolute():
-                        service["build"] = {"context": str(Path(base_dir) / ctx)}
+                        service["build"] = {
+                            "context": str(Path(escaped_base_dir) / ctx)
+                        }
     return yaml.dump(data, default_flow_style=False, sort_keys=False)

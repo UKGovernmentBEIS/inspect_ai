@@ -16,7 +16,10 @@ from typing import Annotated, Any, Callable, TypeGuard, cast
 import yaml
 from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, model_validator
 
-from inspect_ai.util._sandbox.environment import SandboxEnvironment
+from inspect_ai.util._sandbox.environment import (
+    SandboxEnvironment,
+    SandboxEnvironmentSpec,
+)
 from inspect_ai.util._sandbox.registry import registry_find_sandboxenv
 
 COMPOSE_FILES = [
@@ -33,6 +36,10 @@ AUTO_COMPOSE_YAML = ".compose.yaml"
 
 # Central directory for auto-compose files
 AUTO_COMPOSE_SUBDIR = "docker-compose"
+
+# Private extension preserving the task directory through config serialization
+# and later CLI cleanup. In memory this is a literal, absolute path.
+AUTO_COMPOSE_PROJECT_DIRECTORY_KEY = "x-inspect-project-directory"
 
 # Pattern for auto-compose filenames (e.g., "foo-compose.yaml", ".compose.yaml")
 COMPOSE_PATTERN = re.compile(r"[-.]compose\.yaml$")
@@ -449,6 +456,29 @@ class ComposeConfig(ComposeModel):
         if not isinstance(other, ComposeConfig):
             return NotImplemented
         return self.model_dump() == other.model_dump()
+
+
+def resolve_compose_sandbox(
+    sandbox: SandboxEnvironmentSpec | None, run_dir: str
+) -> SandboxEnvironmentSpec | None:
+    """Bind programmatic Compose paths without mutating the caller's config."""
+    if sandbox is None or not isinstance(sandbox.config, ComposeConfig):
+        return sandbox
+    config = sandbox.config
+    if AUTO_COMPOSE_PROJECT_DIRECTORY_KEY in config.extensions:
+        directory = config.extensions[AUTO_COMPOSE_PROJECT_DIRECTORY_KEY]
+        if not isinstance(directory, str) or not Path(directory).is_absolute():
+            raise ValueError(
+                f"Invalid {AUTO_COMPOSE_PROJECT_DIRECTORY_KEY}: "
+                "expected an absolute directory path."
+            )
+        return sandbox
+    return SandboxEnvironmentSpec(
+        sandbox.type,
+        config.model_copy(
+            update={AUTO_COMPOSE_PROJECT_DIRECTORY_KEY: str(Path(run_dir).resolve())}
+        ),
+    )
 
 
 def parse_compose_yaml(

@@ -714,8 +714,10 @@ class TestResolveTaskSandboxDockerCompatibility:
 
         assert result is not None
         assert result.type == "mock_docker_compatible"
-        # ComposeConfig should be forwarded
-        assert result.config == compose_config
+        assert isinstance(result.config, ComposeConfig)
+        assert result.config.services == compose_config.services
+        assert result.config.extensions["x-inspect-project-directory"] == str(tmp_path)
+        assert compose_config.extensions == {}
 
     def test_no_task_sandbox_uses_override(self, tmp_path):
         """When task has no sandbox, override should be used as-is."""
@@ -803,10 +805,16 @@ class TestResolveSandboxForTaskAndSampleStartup:
         # the raw task sandbox would yield type "docker" here instead)
         assert result is not None
         assert result.sandbox.type == "mock_docker_compatible"
-        assert result.sandbox.config == compose_config
+        assert isinstance(result.sandbox.config, ComposeConfig)
+        assert result.sandbox.config.services == compose_config.services
+        assert result.sandbox.config.extensions["x-inspect-project-directory"] == str(
+            tmp_path
+        )
 
         # and the collected spec is exactly what the execution path resolves
-        execution = await resolve_sandbox(resolved_task_sandbox, sample)
+        execution = await resolve_sandbox(
+            resolved_task_sandbox, sample, run_dir=str(tmp_path)
+        )
         assert result.sandbox == execution
 
 
