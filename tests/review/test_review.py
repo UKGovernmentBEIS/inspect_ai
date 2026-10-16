@@ -34,6 +34,8 @@ from inspect_ai.review import (
 from inspect_ai.review._policy import (
     ReviewerPolicyConfig,
     ReviewPolicyConfig,
+    config_from_review_policies,
+    policy_reviewer,
     review_policies_from_config,
 )
 from inspect_ai.scorer import match
@@ -342,6 +344,43 @@ async def test_a_result_no_policy_covers_continues_without_review() -> None:
 
     assert tool_message(messages).content == [ContentText(text="2")]
     assert review_events() == []
+
+
+async def reviewed(call: ToolCall, tools: str, **arguments: str) -> bool:
+    """Whether a policy for `tools` and `arguments` reviews `call`."""
+    init_transcript(Transcript())
+    result = ChatMessageTool(content="", tool_call_id=call.id, function=call.function)
+    review_policy = (
+        ReviewPolicy(fixed_reviewer("terminate"), tools, arguments=arguments)
+        if arguments
+        else ReviewPolicy(fixed_reviewer("terminate"), tools)
+    )
+    review_ = policy_reviewer([review_policy])
+    decision = await review_("", call, result, "", ToolCallView(), [])
+    return decision.decision == "terminate"
+
+
+async def test_review_policy_tools_and_arguments_match_as_for_approval() -> None:
+    def call(function: str, **arguments: object) -> ToolCall:
+        return ToolCall(id="1", function=function, arguments=arguments)
+
+    assert await reviewed(call("left_click"), "*_click")
+    assert not await reviewed(call("type", text="left_click"), "*_click")
+
+    injected = call("computer", action="type', mode='safe")
+    assert not await reviewed(injected, "computer(action='type'")
+    key = call("computer", text="Return", action="key")
+    assert await reviewed(key, "computer(action='key'")
+
+    assert not await reviewed(injected, "computer", action="type", mode="safe")
+    assert await reviewed(key, "computer", action="key")
+    assert await reviewed(key, "bash, computer", action="key")
+
+    # quoted values matched strings only
+    assert not await reviewed(call("computer", action=10), "computer(action='*'")
+
+    with pytest.raises(ValueError, match="'arguments'"):
+        ReviewPolicy(fixed_reviewer(), "bash(cmd='ls', timeout=10)")
 
 
 # --- what the reviewer sees ----------------------------------------------------
@@ -694,3 +733,30 @@ def test_review_policies_from_config_object() -> None:
 
     assert only.tools == "*"
     assert callable(only.reviewer)
+
+
+def test_saved_review_config_with_refused_pattern_raises() -> None:
+    # a log's saved config still parses, but eval_retry() rebuilds the policies
+    config = ReviewPolicyConfig.model_validate(
+        {"reviewers": [{"name": "fixed", "tools": "bash(cmd='rm"}]}
+    )
+
+    with pytest.raises(ValueError, match="'arguments'"):
+        review_policies_from_config(config)
+
+
+def test_review_policy_arguments_from_config() -> None:
+    config = ReviewPolicyConfig.model_validate(
+        {
+            "reviewers": [
+                {"name": "fixed", "tools": "computer", "arguments": {"action": "key"}}
+            ]
+        }
+    )
+
+    [only] = review_policies_from_config(config)
+
+    assert only.arguments == {"action": "key"}
+    [round_trip] = config_from_review_policies([only]).reviewers
+    assert round_trip.arguments == {"action": "key"}
+    assert round_trip.params == {}

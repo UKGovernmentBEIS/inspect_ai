@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import NamedTuple
 
 import pytest
+from pydantic_core import PydanticSerializationError
 
 from inspect_ai import Task, eval
 from inspect_ai._util.content import ContentText
@@ -21,6 +22,8 @@ from inspect_ai.approval._policy import (
     ApprovalPolicyConfig,
     ApproverPolicyConfig,
     approval_policies_from_config,
+    config_from_approval_policies,
+    policy_approver,
 )
 from inspect_ai.dataset import Sample
 from inspect_ai.event._approval import ApprovalEvent
@@ -28,10 +31,13 @@ from inspect_ai.event._model import ModelEvent
 from inspect_ai.event._tool import ToolEvent
 from inspect_ai.log._log import EvalLog
 from inspect_ai.model import ChatMessage, ChatMessageTool, Model, ModelOutput, get_model
+from inspect_ai.model._call_tools import parse_tool_call
 from inspect_ai.scorer import match
 from inspect_ai.solver import generate, use_tools
 from inspect_ai.tool._tool import Tool, tool
 from inspect_ai.tool._tool_call import ToolCall, ToolCallView
+from inspect_ai.tool._tool_info import ToolInfo
+from inspect_ai.tool._tool_params import ToolParam, ToolParams
 
 
 # define tool
@@ -766,6 +772,158 @@ def test_human_approver_rejects_modify_as_the_only_choice() -> None:
 
     with pytest.raises(ValueError, match="does not support the 'modify' choice"):
         human_approver(["modify"])
+
+
+async def routed(call: ToolCall, tools: str | list[str], **arguments: str) -> bool:
+    """Whether a policy for `tools` and `arguments` decides on `call`."""
+    policy = (
+        ApprovalPolicy(auto_approver(), tools, arguments=arguments)
+        if arguments
+        else ApprovalPolicy(auto_approver(), tools)
+    )
+    approve = policy_approver([policy])
+    approval = await approve("", call, ToolCallView(), [])
+    return approval.decision == "approve"
+
+
+def make_tool_call(function: str, **arguments: object) -> ToolCall:
+    return ToolCall(id="1", function=function, arguments=arguments)
+
+
+async def test_policy_name_glob_does_not_match_argument_text() -> None:
+    assert await routed(make_tool_call("left_click"), "*_click")
+    assert not await routed(make_tool_call("type", text="left_click"), "*_click")
+
+
+async def test_policy_argument_value_cannot_supply_another_argument() -> None:
+    call = make_tool_call("computer", action="type', mode='safe")
+    assert not await routed(call, "computer(action='type'")
+    assert not await routed(call, "computer", action="type", mode="safe")
+    assert await routed(call, "computer", action="type', mode='safe")
+
+
+async def test_policy_arguments_match_in_any_order() -> None:
+    call = make_tool_call("computer", text="Return", action="key")
+    assert await routed(call, "computer(action='key'")
+    assert await routed(call, "computer", action="key")
+
+
+async def test_policy_comma_list_of_names_with_arguments() -> None:
+    for function in ("web_browser_type", "computer"):
+        call = make_tool_call(function, action="key")
+        assert await routed(call, "web_browser_type, computer", action="key")
+    call = make_tool_call("computer", action="type")
+    assert not await routed(call, "web_browser_type, computer", action="key")
+
+
+async def test_policy_arguments_are_whole_value_globs() -> None:
+    call = make_tool_call("bash", cmd="ls -la", timeout=10, sudo=True)
+    assert await routed(call, "bash", cmd="ls*")
+    assert not await routed(call, "bash", cmd="ls")
+    assert not await routed(call, "bash", cmd="LS*")
+
+    # other values are matched as their JSON
+    assert await routed(call, "bash", timeout="1?", sudo="true")
+    assert not await routed(call, "bash", timeout="1")
+
+    # every listed argument must be present
+    assert not await routed(call, "bash", cmd="ls*", user="*")
+
+
+async def test_policy_arguments_match_parsed_non_json_values() -> None:
+    # the parser's YAML fallback can produce dates and other non-JSON values
+    tools = [
+        ToolInfo(
+            name="f",
+            description="f",
+            parameters=ToolParams(properties={"value": ToolParam(type="array")}),
+        )
+    ]
+    call = parse_tool_call("1", "f", "- 2024-01-01\n- !!binary YQ==", tools)
+    assert call.parse_error is None
+    assert await routed(call, "f", value='*"2024-01-01", "a"*')
+    assert not await routed(call, "f", value="2024*")
+
+    # other types are not guessed at
+    with pytest.raises(PydanticSerializationError):
+        await routed(make_tool_call("f", value=object()), "f", value="*")
+
+
+async def test_policy_legacy_argument_form() -> None:
+    patterns = ["computer(action='key'", "computer(action='left_click'"]
+    assert await routed(make_tool_call("computer", action="key", text="a"), patterns)
+    assert await routed(make_tool_call("computer", action="left_click"), patterns)
+
+    # the value and the function are matched whole, as they were in the call text
+    call = make_tool_call("computer", action="left_click_drag")
+    assert not await routed(call, patterns)
+    assert not await routed(make_tool_call("computer_use", action="key"), patterns)
+
+    # `)` closes the argument list
+    assert await routed(make_tool_call("bash", cmd="ls"), "bash(cmd='ls')")
+    call = make_tool_call("bash", cmd="ls", timeout=10)
+    assert not await routed(call, "bash(cmd='ls')")
+
+    # the value is a glob
+    assert await routed(make_tool_call("bash", cmd="rm -rf /"), "bash(cmd='rm *'")
+
+    # quoted values matched strings only
+    for value in (10, True, ["key"], None):
+        call = make_tool_call("computer", action=value)
+        assert not await routed(call, "computer(action='*'")
+    assert not await routed(make_tool_call("f", timeout=10), "f(timeout='10'")
+
+
+@pytest.mark.parametrize(
+    "tools",
+    [
+        "bash(cmd='ls', timeout=10)",
+        "computer(action='key', web_browser_type",
+        "web_browser_type, computer(action='key'",
+        "computer(*'key'*",
+        'bash(cmd="ls"',
+        "bash(cmd='it\\'s'",
+        "bash(cmd='ls'), python",
+    ],
+)
+def test_policy_refuses_other_argument_forms(tools: str) -> None:
+    with pytest.raises(ValueError, match="'arguments'"):
+        ApprovalPolicy(auto_approver(), tools)
+
+
+def test_saved_policy_config_with_refused_pattern_raises() -> None:
+    # a log's saved config still parses, but eval_retry() rebuilds the policies
+    saved = {"approvers": [{"name": "auto", "tools": "bash(cmd='rm"}]}
+    config = ApprovalPolicyConfig.model_validate(saved)
+    assert config.approvers[0].arguments is None
+    with pytest.raises(ValueError, match="'arguments'"):
+        approval_policies_from_config(config)
+
+    saved = {"approvers": [{"name": "auto", "tools": "computer(action='key'"}]}
+    [policy] = approval_policies_from_config(ApprovalPolicyConfig.model_validate(saved))
+    assert policy.arguments is None
+
+
+def test_policy_refuses_legacy_form_with_arguments() -> None:
+    with pytest.raises(ValueError, match="'arguments'"):
+        ApprovalPolicy(auto_approver(), "computer(action='key'", {"text": "*"})
+
+
+def test_policy_arguments_from_config(tmp_path: Path) -> None:
+    config = tmp_path / "approval.yaml"
+    config.write_text(
+        "approvers:\n"
+        "  - name: auto\n"
+        "    tools: computer\n"
+        "    arguments: {action: key}\n"
+        "    decision: reject\n"
+    )
+    policies = read_approval_policies(config.as_posix())
+    assert policies[0].arguments == {"action": "key"}
+
+    round_trip = config_from_approval_policies(policies).approvers[0]
+    assert round_trip.arguments == {"action": "key"}
+    assert round_trip.params == {"decision": "reject"}
 
 
 if __name__ == "__main__":

@@ -1,13 +1,14 @@
 import fnmatch
-import sys
+import json
+import re
 from dataclasses import dataclass
-from typing import Any, Generator, cast
+from typing import Any, Callable, Generator, NamedTuple, cast
 
 from pydantic import BaseModel, Field, model_validator
+from pydantic_core import to_jsonable_python
 
 from inspect_ai._util.config import read_config_object
 from inspect_ai._util.file import exists, local_path
-from inspect_ai._util.format import format_function_call
 from inspect_ai._util.registry import create_registry_object, registry_lookup
 from inspect_ai.model._chat_message import ChatMessage
 from inspect_ai.tool._tool_call import ToolCall, ToolCallView
@@ -26,7 +27,125 @@ class ApprovalPolicy:
     """Approver for policy."""
 
     tools: str | list[str]
-    """Tools to use this approver for (can be full tool names or globs)."""
+    """Tools to use this approver for: function names or globs (a name without `*` also matches longer names it begins)."""
+
+    arguments: dict[str, str] | None = None
+    """Arguments the call must have: each argument name maps to a glob matched against the argument's value (a string as is, any other value as JSON)."""
+
+    def __post_init__(self) -> None:
+        tool_call_matcher(self.tools, self.arguments)
+
+
+# the legacy form `name(arg='value'`, optionally closed with `)`
+_LEGACY_TOOL_PATTERN = re.compile(r"([^\s(),']+)\((\w+)='([^']*)'(\))?")
+
+
+class _ToolPattern(NamedTuple):
+    function: str
+    """Glob for the function name."""
+
+    arguments: dict[str, str]
+    """Globs for argument values, by argument name."""
+
+    legacy: bool
+    """Whether this is the legacy form, which matches string values only."""
+
+    only_arguments: bool
+    """Whether the call may have no other arguments."""
+
+
+def tool_call_matcher(
+    tools: str | list[str], arguments: dict[str, str] | None = None
+) -> Callable[[ToolCall], bool]:
+    """Compile the `tools` and `arguments` of a policy into a tool call predicate.
+
+    `tools` takes function names or globs, as one string, a comma-separated
+    string, or a list. A name not ending in `*` is prefix matched. A call
+    matches when its function matches one of them and every entry of
+    `arguments` names an argument of the call whose value matches its glob.
+
+    The legacy form `name(arg='value'` (optionally closed with `)`) matches as
+    it did when patterns were matched against the formatted call text: the
+    function named exactly, `value` as a glob over the whole of a string value,
+    and with `)` no other arguments. Any other `tools` entry containing `(` is refused.
+
+    Raises:
+        ValueError: If `tools` or `arguments` cannot be compiled.
+    """
+    if arguments is not None and not all(
+        isinstance(name, str) and isinstance(glob, str)
+        for name, glob in arguments.items()
+    ):
+        raise ValueError(
+            f"Invalid policy arguments {arguments!r}: each argument name must map to a string glob."
+        )
+    specs = [tools] if isinstance(tools, str) else tools
+    patterns: list[_ToolPattern] = []
+    for spec in specs:
+        if "(" in spec:
+            legacy = _LEGACY_TOOL_PATTERN.fullmatch(spec.strip())
+            if legacy is None:
+                raise ValueError(
+                    f"Invalid tool pattern {spec!r}: 'tools' takes function names or globs. "
+                    + "Match arguments with the policy's 'arguments' field, for example "
+                    + "tools='computer', arguments={'action': 'key*'}."
+                )
+            if arguments:
+                raise ValueError(
+                    f"Invalid tool pattern {spec!r}: the form name(arg='value' cannot be "
+                    + "combined with 'arguments'. Put the argument in 'arguments' instead."
+                )
+            function, name, glob, closed = legacy.groups()
+            patterns.append(
+                _ToolPattern(
+                    function=function,
+                    arguments={name: glob},
+                    legacy=True,
+                    only_arguments=closed is not None,
+                )
+            )
+        else:
+            for function in spec.split(","):
+                function = function.strip()
+                if function:
+                    glob = function if function.endswith("*") else f"{function}*"
+                    patterns.append(
+                        _ToolPattern(
+                            function=glob,
+                            arguments=arguments or {},
+                            legacy=False,
+                            only_arguments=False,
+                        )
+                    )
+
+    def matches(call: ToolCall) -> bool:
+        return any(
+            fnmatch.fnmatch(call.function, pattern.function)
+            and all(
+                name in call.arguments
+                and (not pattern.legacy or isinstance(call.arguments[name], str))
+                and fnmatch.fnmatchcase(_argument_text(call.arguments[name]), glob)
+                for name, glob in pattern.arguments.items()
+            )
+            and (
+                not pattern.only_arguments
+                or call.arguments.keys() == pattern.arguments.keys()
+            )
+            for pattern in patterns
+        )
+
+    return matches
+
+
+def _argument_text(value: Any) -> str:
+    """Text an argument glob is matched against: a string as is, else its JSON.
+
+    Values the tool call parser can produce beyond JSON (dates, bytes, sets) are
+    converted as Pydantic serializes them; any other type raises.
+    """
+    if isinstance(value, str):
+        return value
+    return json.dumps(to_jsonable_python(value), ensure_ascii=False)
 
 
 def policy_approver(policies: str | list[ApprovalPolicy]) -> Approver:
@@ -34,29 +153,17 @@ def policy_approver(policies: str | list[ApprovalPolicy]) -> Approver:
     if isinstance(policies, str):
         policies = approval_policies_from_config(policies)
 
-    # compile policy into approvers and regexes for matching
-    policy_matchers: list[tuple[list[str], Approver]] = []
-    for policy in policies:
-        tool_specs = [policy.tools] if isinstance(policy.tools, str) else policy.tools
-        tools: list[str] = []
-        for spec in tool_specs:
-            tools.extend([t.strip() for t in spec.split(",") if t.strip()])
-        globs = [tool if tool.endswith("*") else f"{tool}*" for tool in tools]
-        policy_matchers.append((globs, policy.approver))
+    # compile policy into approvers and matchers
+    policy_matchers = [
+        (tool_call_matcher(policy.tools, policy.arguments), policy.approver)
+        for policy in policies
+    ]
 
     # generator for policies that match a tool_call
     def tool_approvers(tool_call: ToolCall) -> Generator[Approver, None, None]:
-        for policy_matcher in iter(policy_matchers):
-            function_call = format_function_call(
-                tool_call.function, tool_call.arguments, width=sys.maxsize
-            )
-            if any(
-                [
-                    fnmatch.fnmatch(function_call, pattern)
-                    for pattern in policy_matcher[0]
-                ]
-            ):
-                yield policy_matcher[1]
+        for matches, approver in policy_matchers:
+            if matches(tool_call):
+                yield approver
 
     async def approve(
         message: str,
@@ -96,6 +203,10 @@ class ApproverPolicyConfig(BaseModel):
         tools: web_browser*, bash, pyhton
         choices: [approve, reject]
 
+      - name: human
+        tools: computer
+        arguments: {action: key}
+
       - name: auto
         tools: *
         decision: approve
@@ -104,6 +215,7 @@ class ApproverPolicyConfig(BaseModel):
 
     name: str
     tools: str | list[str]
+    arguments: dict[str, str] | None = Field(default=None)
     params: dict[str, Any] = Field(default_factory=dict)
 
     model_config = {
@@ -115,7 +227,7 @@ class ApproverPolicyConfig(BaseModel):
     def collect_unknown_fields(cls, data: Any) -> Any:
         if not isinstance(data, dict):
             return data
-        known_fields = set(["name", "tools", "params"])
+        known_fields = set(["name", "tools", "arguments", "params"])
         unknown_fields = {k: v for k, v in data.items() if k not in known_fields}
 
         if unknown_fields:
@@ -152,14 +264,19 @@ def approval_policies_from_config(
 ) -> list[ApprovalPolicy]:
     # create approver policy
     def create_approval_policy(
-        name: str, tools: str | list[str], params: dict[str, Any] = {}
+        name: str,
+        tools: str | list[str],
+        arguments: dict[str, str] | None,
+        params: dict[str, Any] = {},
     ) -> ApprovalPolicy:
         approver = cast(Approver, create_registry_object("approver", name, params))
-        return ApprovalPolicy(approver, tools)
+        return ApprovalPolicy(approver, tools, arguments)
 
     # map config -> policy
     def policy_from_config(config: ApproverPolicyConfig) -> ApprovalPolicy:
-        return create_approval_policy(config.name, config.tools, config.params)
+        return create_approval_policy(
+            config.name, config.tools, config.arguments, config.params
+        )
 
     # resolve config if its a string
     if isinstance(policy_config, str):
@@ -191,7 +308,9 @@ def config_from_approval_policies(
         name = registry_log_name(policy.approver)
         params = registry_params(policy.approver)
         approvers.append(
-            ApproverPolicyConfig(name=name, tools=policy.tools, params=params)
+            ApproverPolicyConfig(
+                name=name, tools=policy.tools, arguments=policy.arguments, params=params
+            )
         )
 
     return ApprovalPolicyConfig(approvers=approvers)
