@@ -978,6 +978,13 @@ async def call_tool(
             await record_pending_tool_event()
             raise
         if selected:
+            if modified.function != shown.function:
+                await record_pending_tool_event()
+                raise RuntimeError(
+                    _SENTINEL_MODIFIED_FUNCTION.format(
+                        modified.function, shown.function
+                    )
+                )
             call, arguments = await revalidated_tool_call(modified, tool_def)
             shown_to_callbacks(call)
 
@@ -1011,6 +1018,13 @@ async def call_tool(
 _CHANGED_IN_PLACE = (
     "An approver or sentinel monitor changed the tool call in place, so the call "
     "was not run. To change a call, return a modify decision with a new ToolCall."
+)
+
+
+_SENTINEL_MODIFIED_FUNCTION = (
+    "A sentinel monitor returned a modified call to '{}' for a call to '{}'. A "
+    "'modify' decision may change only the arguments of a tool call, not the "
+    "function called."
 )
 
 

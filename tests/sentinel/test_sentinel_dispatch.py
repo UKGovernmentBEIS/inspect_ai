@@ -870,6 +870,45 @@ async def test_a_sentinel_sees_and_modifies_the_converted_call(
         assert message.error is not None and message.error.type == error
 
 
+@protocol
+def d3_renaming_modify(rename: bool) -> Protocol:
+    async def rewrite(context: Context, step: BeforeToolCall) -> Decision | None:
+        if rename:
+            step.call.function = "other"
+        modified = replace(step.call, arguments={"items": {"b": {"name": "b"}}})
+        return Decision(action="modify", modified=modified, explanation="rename")
+
+    return rewrite
+
+
+async def test_a_sentinel_modify_keeps_the_function_as_shown() -> None:
+    """A sentinel's modify may select only the function shown."""
+    init_transcript(Transcript())
+    call = ToolCall(
+        id="1", function="list_items", arguments={"items": {"a": {"name": "a"}}}
+    )
+    with active(d3_renaming_modify(rename=False)):
+        result = await execute_tools(
+            [ChatMessageAssistant(content=[], tool_calls=[call])], [list_items()]
+        )
+    [message] = result.messages
+    assert isinstance(message, ChatMessageTool)
+    assert message.error is None and message.text == "b"
+
+    init_transcript(Transcript())
+    call = ToolCall(
+        id="1", function="list_items", arguments={"items": {"a": {"name": "a"}}}
+    )
+    with active(d3_renaming_modify(rename=True)):
+        with pytest.raises(RuntimeError, match="may change only the arguments"):
+            await execute_tools(
+                [ChatMessageAssistant(content=[], tool_calls=[call])], [list_items()]
+            )
+    # neither tool ran
+    [event] = transcript_tool_events()
+    assert event.result == ""
+
+
 InPlaceEdit = Literal["arguments", "function", "id"]
 
 
