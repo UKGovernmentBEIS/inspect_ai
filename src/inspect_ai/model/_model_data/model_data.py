@@ -61,7 +61,10 @@ class OrganizationData(BaseModel):
 
 def load_organizations_from_yaml(file_path: Path) -> Dict[str, OrganizationData]:
     """Load and validate organization data from a YAML file"""
-    with open(file_path, "r") as f:
+    # Bundled data ships with the package and is always UTF-8; read it with
+    # an explicit encoding so a non-UTF-8 platform locale (e.g. Windows cp936)
+    # cannot raise UnicodeDecodeError on every model call. See #5433.
+    with open(file_path, "r", encoding="utf-8") as f:
         data = yaml.safe_load(f)
 
     if not data:

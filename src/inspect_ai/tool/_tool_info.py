@@ -137,6 +137,12 @@ def _parse_tool_info_shared(func: Callable[..., Any]) -> ToolInfo:
     info = ToolInfo(name=func_name, description="")
 
     for param_name, param in signature.parameters.items():
+        if param.kind in (
+            inspect.Parameter.VAR_POSITIONAL,
+            inspect.Parameter.VAR_KEYWORD,
+        ):
+            continue
+
         tool_param = ToolParam()
 
         # Look up docstring info from pre-built dict

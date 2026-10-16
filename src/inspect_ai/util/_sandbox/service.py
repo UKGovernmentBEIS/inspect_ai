@@ -27,6 +27,7 @@ from ._framework_directory import (
     split_framework_path,
     try_ensure_framework_directory_as_root,
 )
+from ._privileged import image_path_lookup, privileged_exec
 from .environment import SandboxEnvironment
 from .limits import OutputLimitExceededError, override_max_exec_output_size
 
@@ -754,9 +755,16 @@ class SandboxService:
         Reads and removals stay path-based: below the verified shared parent every
         component is owned by the service user or root, so no other principal can
         swap one in. Writes go through the verified directory instead.
+
+        The command runs as the service user (the sandbox default user, root in
+        most images, unless the service was given one) with its utilities pinned
+        to the system directories, so what the service reads from its queues is
+        decided by the real ``find``/``cat``/``rm`` and not by a program that
+        user planted on the image's ``PATH``.
         """
         try:
-            return await self._sandbox.exec(
+            return await privileged_exec(
+                self._sandbox,
                 cmd,
                 user=self._user,
                 input=input,
@@ -860,8 +868,10 @@ def sandbox_service_script(name: str) -> str:
 async def validate_sandbox_python(
     service_name: str, sandbox: SandboxEnvironment, user: str | None = None
 ) -> None:
-    # validate python in sandbox
-    result = await sandbox.exec(["which", "python3"], user=user, concurrency=False)
+    # The client script runs under whatever `python3` the image's PATH offers
+    # the sandbox user (slim, conda and venv images ship none in /usr/bin), so
+    # that PATH is the one to search.
+    result = await image_path_lookup(sandbox, "python3", user=user, concurrency=False)
     if not result.success:
         raise PrerequisiteError(
             f"The {service_name} requires that Python be installed in the sandbox."

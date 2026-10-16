@@ -196,7 +196,6 @@ class SessionScreen(Screen[None]):
         Binding("r", "prompt_letter('r')", show=False, priority=True),
         Binding("e", "prompt_letter('e')", show=False, priority=True),
         Binding("t", "prompt_letter('t')", show=False, priority=True),
-        Binding("m", "prompt_letter('m')", show=False, priority=True),
         Binding("s", "prompt_letter('s')", show=False, priority=True),
     ]
 
@@ -721,7 +720,7 @@ class SessionScreen(Screen[None]):
     def action_approval_decide(self, option_id: str) -> None:
         """Resolve the current pending approval via a bare-letter shortcut.
 
-        The screen's ``a`` / ``r`` / ``e`` / ``t`` / ``m`` bindings
+        The screen's ``a`` / ``r`` / ``e`` / ``t`` bindings
         all dispatch here with the corresponding option id. Gated by
         :meth:`check_action` to fire only in ``approval`` lifecycle,
         so this is a defence-in-depth no-op if it somehow lands
@@ -729,8 +728,8 @@ class SessionScreen(Screen[None]):
 
         Silently no-ops when the chosen ``option_id`` isn't in the
         request's configured options — ``human_approver(choices=...)``
-        can restrict the choice set per call. Pressing ``m`` for a
-        request that doesn't offer ``modify`` should do nothing,
+        can restrict the choice set per call. Pressing ``e`` for a
+        request that doesn't offer ``escalate`` should do nothing,
         not raise.
         """
         if self._state.lifecycle != "approval":
@@ -881,7 +880,7 @@ class SessionScreen(Screen[None]):
 
         Both the approval card and the cancel card carve letters out
         of the composer's typing surface (``a`` / ``r`` / ``e`` /
-        ``t`` / ``m`` for approval, ``s`` / ``e`` for cancel).
+        ``t`` for approval, ``s`` / ``e`` for cancel).
         Textual's binding table is keyed by letter, so we register
         each letter once and dispatch here based on which card is
         mounted.
@@ -902,7 +901,6 @@ class SessionScreen(Screen[None]):
                 "r": "reject",
                 "e": "escalate",
                 "t": "terminate",
-                "m": "modify",
             }
             target = approval_letter_map.get(letter)
             if target is not None:
@@ -1226,5 +1224,5 @@ class SessionScreen(Screen[None]):
                 return True
             return False
         if self._state.current_pending_approval() is not None:
-            return letter in ("a", "r", "e", "t", "m")
+            return letter in ("a", "r", "e", "t")
         return False

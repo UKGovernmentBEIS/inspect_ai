@@ -93,6 +93,12 @@ from ._layout.staging_dir import (
     is_remote_destination,
 )
 from ._repo_ops import drop_orphan_snapshots
+from ._restore_scope import (
+    RestoreRoots,
+    enforce_home_owner,
+    home_owner_uid,
+    remove_existing_symlinks,
+)
 from ._resume_copy import copy_payload_files
 from ._snapshot import (
     SandboxSnapshotSession,
@@ -348,9 +354,10 @@ async def hydrate(
     # the same name set. (The resume payload copy is *not* driven by
     # this set — it copies whatever storage areas the source actually
     # has; see `copy_payload_files`.)
-    sandbox_backup_paths = await resolve_sandbox_backup_paths(
+    resolved_backup_paths = await resolve_sandbox_backup_paths(
         config.sandbox_paths or {}
     )
+    sandbox_backup_paths = resolved_backup_paths.paths
 
     # Strategy pin (§4.7 of the design): the strategy that starts a
     # sample's checkpoint lineage is the strategy for its lifetime. On
@@ -374,6 +381,7 @@ async def hydrate(
                 for name, paths in (config.sandbox_paths or {}).items()
                 if not paths
             },
+            unscopable=resolved_backup_paths.unscopable,
         )
         if pinned is None:
             # Pre-pin dir (validated all-default above): write the pin so
@@ -540,25 +548,49 @@ async def _hydrate_sandbox(
     Call order per the Protocol contract: ``setup`` on both paths, then
     on resume ``discard_orphans`` (keep exactly the snapshots some
     committed checkpoint records for this sandbox) → ``restore``
-    (materialize the latest committed snapshot into the fresh sandbox).
-    Orphan discard is skipped, and ``restore`` gets ``ref=None``, only
-    when no committed checkpoint records a snapshot for this sandbox.
-    The retry startup copy already replicated the storage area into
-    this attempt (see ``_resume_copy``).
+    (materialize the latest committed snapshot into the fresh sandbox,
+    scoped to this attempt's capture paths). A sandbox no committed
+    checkpoint records is an error: the host can vouch for nothing in
+    its storage area, so there is no snapshot to restore. The retry
+    startup copy already replicated the storage area into this attempt
+    (see ``_resume_copy``).
+
+    On resume, two things happen against the untouched image before
+    ``setup`` places anything in the sandbox (see ``_restore_scope``):
+    for an auto-included home dir its owner is read, and every restored
+    node is re-owned to it after the restore (the strategies restore
+    recorded uid/gid as root); and every symlink the image ships under a
+    capture root is deleted, so neither the strategy's own state (which
+    lives under the root when the default user is root) nor a snapshot
+    node is written through one. A hydration that fails after this point
+    fails the sample, so the pass leaves nothing a later attempt sees.
     """
     env = sandbox(name)
-    strategy, ctx, _ = session
+    strategy, ctx, paths = session
+    label = f"resume: sandbox {name!r}"
+    home = paths.home
+    owner: int | None = None
+    if resume is not None:
+        if home is not None:
+            owner = await home_owner_uid(env, home, label=label)
+        roots = RestoreRoots.from_include(paths.include, label=label)
+        await remove_existing_symlinks(env, roots, label=label)
     with trace_action(logger, action, f"sandbox {name} setup"):
         await strategy.setup(env, ctx)
     if resume is None:
         return
 
     committed = committed_snapshots_for(committed_checkpoints, name)
-    if committed:
-        await strategy.discard_orphans(committed, ctx)
-    ref = committed[-1].details if committed else None
+    if not committed:
+        raise RuntimeError(
+            f"resume: no committed checkpoint records a snapshot for sandbox "
+            f"{name!r}; refusing to restore an unrecorded snapshot into it"
+        )
+    await strategy.discard_orphans(committed, ctx)
     with trace_action(logger, action, f"sandbox {name} restore"):
-        await strategy.restore(env, ref, ctx)
+        await strategy.restore(env, paths, committed[-1].details, ctx)
+    if home is not None and owner is not None:
+        await enforce_home_owner(env, home, owner, label=label)
 
 
 async def _inherit_restic_config(sample_root: str, resume_source: str) -> ResticConfig:

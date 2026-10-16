@@ -25,14 +25,13 @@ Each ``Sample`` should have either:
 from __future__ import annotations
 
 import logging
-import math
 
 from inspect_ai._util.logger import warn_once
 from inspect_ai.model._model import get_model
 from inspect_ai.solver._task_state import TaskState
 
 from ._metric import Score
-from ._metrics.perplexity import perplexity_per_seq, perplexity_per_token
+from ._metrics.perplexity import _exp_or_inf, perplexity_per_seq, perplexity_per_token
 from ._scorer import Scorer, scorer
 from ._target import Target
 
@@ -122,18 +121,19 @@ def target_perplexity(
         target_lps = all_lps[-n:]
         sum_log_probs = sum(lp.logprob for lp in target_lps)
         nll = -sum_log_probs / n
+        perplexity_value = _exp_or_inf(nll)
 
         return Score(
             value=nll,
             explanation=(
                 f"target tokens={n}, "
                 f"per-token NLL={nll:.4f}, "
-                f"perplexity={math.exp(nll):.4f}"
+                f"perplexity={perplexity_value:.4f}"
             ),
             metadata={
                 "num_tokens": n,
                 "sum_log_probs": sum_log_probs,
-                "perplexity": math.exp(nll),
+                "perplexity": perplexity_value,
             },
         )
 

@@ -1,8 +1,10 @@
 """End-to-end tests for the skill() tool."""
 
+import os
 from pathlib import Path
 
 import pytest
+from test_helpers.sandbox import CannedSandbox
 from test_helpers.utils import flaky_retry, skip_if_no_docker, skip_if_no_openai
 
 from inspect_ai import Task, eval
@@ -10,8 +12,12 @@ from inspect_ai.agent import react
 from inspect_ai.dataset import Sample
 from inspect_ai.scorer import includes
 from inspect_ai.tool import bash, skill
+from inspect_ai.tool._tools._skill.install import install_skills
 from inspect_ai.tool._tools._skill.read import SkillParsingError, _read_skill
 from inspect_ai.tool._tools._skill.types import Skill
+from inspect_ai.util import SandboxUserUnsupportedError
+from inspect_ai.util._sandbox.local import LocalSandboxEnvironment
+from inspect_ai.util._subprocess import ExecResult
 
 # Path to test skills directory
 SKILLS_DIR = Path(__file__).parent / "skills"
@@ -42,8 +48,6 @@ class TestSkillNameUniqueness:
 
     async def test_duplicate_names_in_install_skills(self) -> None:
         """install_skills() rejects duplicate skill names before sandbox setup."""
-        from inspect_ai.tool._tools._skill.install import install_skills
-
         sk1 = Skill(name="pdf", description="First.", instructions="1.")
         sk2 = Skill(name="pdf", description="Second.", instructions="2.")
         # Should fail with ValueError, not ProcessLookupError (no sandbox)
@@ -56,6 +60,71 @@ class TestSkillNameUniqueness:
         sk2 = Skill(name="xlsx", description="Excel.", instructions="2.")
         tool = skill([sk1, sk2])
         assert tool is not None
+
+
+class TestSkillInstallation:
+    async def test_install_as_local_current_user(self) -> None:
+        if os.name != "posix":
+            pytest.skip("requires POSIX user identities")
+        local = LocalSandboxEnvironment()
+        sk = Skill(
+            name="example",
+            description="Example",
+            instructions="Example",
+            scripts={"run.sh": "echo hello"},
+        )
+        try:
+            [installed] = await install_skills(
+                [sk], sandbox=local, user=str(os.geteuid()), dir=local.directory.name
+            )
+            path = Path(installed.location)
+            assert path.read_text() == sk.skill_md()
+            assert path.stat().st_uid == os.geteuid()
+            script = path.parent / "scripts" / "run.sh"
+            assert script.read_text() == "echo hello"
+            assert script.stat().st_mode & 0o100
+        finally:
+            local.directory.cleanup()
+
+    @pytest.mark.parametrize(
+        "root_result, fallback_success, expected_users",
+        [
+            (SandboxUserUnsupportedError("no root"), True, ["root", "1000"]),
+            (SandboxUserUnsupportedError("no root"), False, ["root", "1000"]),
+            (TimeoutError("timeout"), True, ["root"]),
+            (PermissionError("permission denied"), True, ["root"]),
+            (ExecResult(False, 1, "", "chown failed"), True, ["root"]),
+        ],
+    )
+    async def test_chown_fallback(
+        self,
+        root_result: Exception | ExecResult[str],
+        fallback_success: bool,
+        expected_users: list[str],
+    ) -> None:
+        def policy(cmd: list[str], user: str | None) -> ExecResult[str]:
+            if user == "root":
+                if isinstance(root_result, Exception):
+                    raise root_result
+                return root_result
+            return ExecResult(
+                fallback_success, 0 if fallback_success else 1, "", "chown failed"
+            )
+
+        sandbox = CannedSandbox(policy)
+        sk = Skill(name="example", description="Example", instructions="Example")
+        if isinstance(root_result, SandboxUserUnsupportedError) and fallback_success:
+            await install_skills([sk], sandbox=sandbox, user="1000", dir="/skills")
+        else:
+            error_type = (
+                type(root_result)
+                if isinstance(root_result, Exception)
+                and not isinstance(root_result, SandboxUserUnsupportedError)
+                else RuntimeError
+            )
+            with pytest.raises(error_type):
+                await install_skills([sk], sandbox=sandbox, user="1000", dir="/skills")
+        assert [user for _, user in sandbox.exec_calls] == expected_users
 
 
 class TestSkillParsing:

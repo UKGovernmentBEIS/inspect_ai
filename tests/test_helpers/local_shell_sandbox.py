@@ -2,13 +2,21 @@
 
 File APIs map to host paths and ``user="root"`` is ignored, so code whose
 in-sandbox side is plain ``sh`` (tar, dd, find, comm, restic-as-a-binary)
-executes for real against a temp dir — no Docker required.
+executes for real against a temp dir — no Docker required. Framework
+commands pin ``PATH`` to the system directories; the checkpoint
+``conftest`` points that pin at :func:`sandbox_path`, whose ``tar``
+writes what a Linux sandbox's tar writes (see :func:`linux_like_path`).
 """
 
 from __future__ import annotations
 
+import atexit
+import functools
 import os
+import shlex
+import shutil
 import subprocess
+import tempfile
 from pathlib import Path
 from typing import Literal, Union, overload
 
@@ -18,17 +26,60 @@ from inspect_ai.util._sandbox.environment import (
 )
 from inspect_ai.util._subprocess import ExecResult
 
+_BSDTAR_SHIM = """#!/bin/sh
+# bsdtar's default format adds PAX headers (nanosecond mtimes, extended
+# attributes) and AppleDouble members that GNU and busybox tar never write;
+# create archives the way a Linux sandbox's tar does.
+case "$1" in
+  -c*|c*|--create) exec {tar} --format gnutar --no-xattrs --no-mac-metadata "$@" ;;
+esac
+exec {tar} "$@"
+"""
+
+
+def linux_like_path(host_path: str, shim_dir: Path) -> str:
+    """``host_path``, with a ``tar`` in ``shim_dir`` first when the host tar is bsdtar.
+
+    A Linux sandbox's tar (GNU or busybox) writes plain ustar and GNU
+    long headers. macOS ships bsdtar, whose default format adds a PAX
+    header to any member with a nanosecond mtime or an extended
+    attribute (every file on macOS carries ``com.apple.provenance``),
+    which the restore-scope header scan refuses. When the ``tar`` on
+    ``host_path`` reports itself as bsdtar, a shim that creates archives
+    in GNU format without xattrs or AppleDouble members and passes every
+    other invocation through is written to ``shim_dir``; otherwise
+    ``host_path`` comes back unchanged and nothing is written.
+    """
+    tar = shutil.which("tar", path=host_path)
+    if tar is None:
+        return host_path
+    version = subprocess.run([tar, "--version"], capture_output=True, text=True)
+    if not version.stdout.startswith("bsdtar"):
+        return host_path
+    shim_dir.mkdir(parents=True, exist_ok=True)
+    shim = shim_dir / "tar"
+    shim.write_text(_BSDTAR_SHIM.format(tar=shlex.quote(tar)))
+    shim.chmod(0o755)
+    return f"{shim_dir}{os.pathsep}{host_path}"
+
+
+@functools.lru_cache(maxsize=None)
+def sandbox_path() -> str:
+    """The ``PATH`` the fake runs ``exec`` with: :func:`linux_like_path` over the host's.
+
+    Built once per process. Tests that shim ``tar`` themselves should
+    resolve the real one from this path, not the host's.
+    """
+    shim_dir = Path(tempfile.mkdtemp(prefix="inspect-linux-like-tar-"))
+    atexit.register(shutil.rmtree, shim_dir, ignore_errors=True)
+    return linux_like_path(os.environ.get("PATH", os.defpath), shim_dir)
+
 
 class LocalShellSandbox(SandboxEnvironment):
     """Sandbox fake that executes ``exec`` on the host shell.
 
-    ``extra_env`` overlays the inherited environment (e.g. a ``PATH``
-    with a shim dir prepended) for every ``exec``; a per-call ``env``
-    is layered on top of that.
+    A per-call ``env`` is layered over the inherited environment.
     """
-
-    def __init__(self, extra_env: dict[str, str] | None = None) -> None:
-        self._extra_env = extra_env
 
     async def exec(
         self,
@@ -42,14 +93,13 @@ class LocalShellSandbox(SandboxEnvironment):
         concurrency: bool = True,
     ) -> ExecResult[str]:
         input_bytes = input.encode() if isinstance(input, str) else input
-        # macOS bsdtar emits AppleDouble ``._*`` members for files with
-        # extended attributes; a Linux sandbox never does, and the egress
-        # member validation rightly rejects them. COPYFILE_DISABLE is a no-op
+        # COPYFILE_DISABLE keeps macOS bsdtar from adding AppleDouble ``._*``
+        # members should a command reach it past the tar shim; a no-op
         # elsewhere.
         run_env = {
             **os.environ,
+            "PATH": sandbox_path(),
             "COPYFILE_DISABLE": "1",
-            **(self._extra_env or {}),
             **(env or {}),
         }
         proc = subprocess.run(

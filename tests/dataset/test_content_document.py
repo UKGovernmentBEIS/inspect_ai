@@ -67,6 +67,24 @@ def test_data_uri_pdf():
     assert doc.mime_type == "application/pdf"
 
 
+@pytest.mark.parametrize(
+    "document,mime_type,filename",
+    [
+        ("data:text/plain,Hello", "text/plain", "document.plain"),
+        ("data:text/plain,Hello;world", "text/plain", "document.plain"),
+        ("data:application/pdf,%25PDF-1.4", "application/pdf", "document.pdf"),
+        ("data:,Hello;world", "application/octet-stream", "document.octet-stream"),
+    ],
+)
+def test_data_uri_without_parameters(
+    document: str, mime_type: str, filename: str
+) -> None:
+    doc = ContentDocument(document=document)
+    assert doc.mime_type == mime_type
+    assert doc.filename == filename
+    assert ContentDocument.model_validate_json(doc.model_dump_json()) == doc
+
+
 def test_data_uri_with_explicit_name():
     """Test data URI with explicit name."""
     doc = ContentDocument(
@@ -215,8 +233,7 @@ def test_data_uri_mime_type_function():
     """Test the data_uri_mime_type helper function."""
     assert data_uri_mime_type("data:image/png;base64,abc") == "image/png"
     assert data_uri_mime_type("data:application/pdf;base64,xyz") == "application/pdf"
-    # data_uri_mime_type expects a semicolon after mime type
-    assert data_uri_mime_type("data:text/plain,Hello") is None
+    assert data_uri_mime_type("data:text/plain,Hello") == "text/plain"
     assert data_uri_mime_type("data:,Hello") is None
     assert data_uri_mime_type("not-a-data-uri") is None
     assert data_uri_mime_type("") is None
@@ -238,16 +255,17 @@ def test_model_serialization():
     }
 
 
-def test_model_deserialization():
+@pytest.mark.parametrize("document", ["/path/to/report.pdf", "data:text/plain,Hello"])
+def test_model_deserialization(document: str) -> None:
     """Test that the model deserializes correctly."""
     data = {
         "type": "document",
-        "document": "/path/to/report.pdf",
+        "document": document,
         "filename": "Custom Report",
         "mime_type": "application/pdf",
     }
     doc = ContentDocument.model_validate(data)
 
-    assert doc.document == "/path/to/report.pdf"
+    assert doc.document == document
     assert doc.filename == "Custom Report"
     assert doc.mime_type == "application/pdf"

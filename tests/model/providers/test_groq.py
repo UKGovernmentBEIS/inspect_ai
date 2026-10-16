@@ -710,3 +710,42 @@ async def test_groq_stream_end_to_end() -> None:
     assert len(response.completion) >= 1
     streamed = "".join(e.text for e in events if isinstance(e, StreamTextEvent))
     assert streamed == response.completion
+
+
+async def test_groq_output_records_response_id() -> None:
+    from unittest.mock import AsyncMock, patch
+
+    from groq.types.chat import ChatCompletion, ChatCompletionMessage
+    from groq.types.chat.chat_completion import Choice
+    from groq.types.completion_usage import CompletionUsage
+
+    from inspect_ai.model._providers.groq import GroqAPI
+
+    api = GroqAPI(model_name="llama-3.3-70b-versatile", api_key="test-key")
+    completion = ChatCompletion(
+        id="groq-response",
+        object="chat.completion",
+        created=0,
+        model="llama-3.3-70b-versatile",
+        choices=[
+            Choice(
+                index=0,
+                finish_reason="stop",
+                message=ChatCompletionMessage(role="assistant", content="hi"),
+            )
+        ],
+        usage=CompletionUsage(prompt_tokens=1, completion_tokens=1, total_tokens=2),
+    )
+
+    with patch.object(
+        api.client.chat.completions, "create", AsyncMock(return_value=completion)
+    ):
+        output, _ = await api.generate(
+            input=[ChatMessageUser(content="hello")],
+            tools=[],
+            tool_choice="none",
+            config=GenerateConfig(),
+        )
+
+    assert isinstance(output, ModelOutput)
+    assert output.response_id == "groq-response"

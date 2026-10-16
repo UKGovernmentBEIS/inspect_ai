@@ -14,6 +14,22 @@ from ._scorer import Scorer
 from ._target import Target
 
 
+def no_response(completion: str) -> bool:
+    """Whether the model produced nothing that could be scored.
+
+    An empty or whitespace-only completion never produced output that could
+    violate a format, so `no_response` is the correct `ScoreReason` for it
+    rather than `invalid_response_format`.
+
+    Args:
+        completion: The raw model completion, never an extracted answer.
+
+    Returns:
+        True when the raw completion is empty or whitespace only.
+    """
+    return not completion.strip()
+
+
 def str_match_scorer(match: Callable[[str, str], tuple[str, bool]]) -> Scorer:
     """Scorer that uses a matching function.
 
@@ -22,16 +38,30 @@ def str_match_scorer(match: Callable[[str, str], tuple[str, bool]]) -> Scorer:
     """
 
     async def score(state: TaskState, target: Target) -> Score:
+        # Decided once, above the loop, because a raw-empty completion can reach
+        # the CORRECT return as well as the INCORRECT one. match() with a target
+        # of "." normalizes that target to empty, and "".endswith("") is True;
+        # includes() with an empty target is contained in anything. Both score
+        # CORRECT off a completion the model never produced. The accepted scope
+        # tags a raw-empty completion regardless of the value it ended up with,
+        # so the value is preserved here and only the reason is added.
+        empty = no_response(state.output.completion or "")
         answer: str | None = None
         for value in target:
             answer, matched = match(state.output.completion, value)
             if matched:
                 return Score(
-                    value=CORRECT, answer=answer, explanation=state.output.completion
+                    value=CORRECT,
+                    answer=answer,
+                    reason="no_response" if empty else None,
+                    explanation=state.output.completion,
                 )
 
         return Score(
-            value=INCORRECT, answer=answer, explanation=state.output.completion
+            value=INCORRECT,
+            answer=answer,
+            reason="no_response" if empty else None,
+            explanation=state.output.completion,
         )
 
     return score

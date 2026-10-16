@@ -14,9 +14,10 @@ checkpointer call sites (see the extraction table in
 The sandbox proposes a snapshot id. The host checks that it identifies
 a newly received snapshot with the expected tag, resolves it to its
 full id, and returns that id for recording. This does not authenticate
-the captured state. With a committed record, restore uses that id and
-orphan discard keeps only recorded snapshots. Without a record for this
-sandbox, restore falls back to ``latest`` and skips orphan discard.
+the captured state. Restore uses the recorded id, lists that snapshot
+on the host and refuses one that reaches outside this attempt's capture
+roots (see ``ingress_sandbox``); orphan discard keeps only recorded
+snapshots. A sandbox with no committed record is never restored.
 """
 
 from __future__ import annotations
@@ -30,6 +31,7 @@ from inspect_ai.util._sandbox.environment import SandboxEnvironment
 from .._copy import probe_dd_fullblock
 from .._layout.schemas import SnapshotDetails
 from .._repo_ops import checkpoint_tag, forget_unrecorded_snapshots
+from .._restore_scope import RestoreRoots, check_recorded_roots
 from .._sandbox_restic import (
     egress_sandbox,
     ingress_sandbox,
@@ -91,7 +93,8 @@ class ResticIncrementalStrategy(SandboxSnapshotStrategy):
             snapshot_id,
             MAX_LISTED_FILES,
         )
-        # `strategy` rides as an extra field (see `snapshot_strategy_name`).
+        # `strategy` and `roots` ride as extra fields (see
+        # `snapshot_strategy_name` and `_restore_scope.recorded_roots`).
         return SnapshotDetails.model_validate(
             dict(
                 snapshot_id=snapshot_id,
@@ -100,23 +103,27 @@ class ResticIncrementalStrategy(SandboxSnapshotStrategy):
                 files=files,
                 additional_files=extra or None,
                 strategy=self.name,
+                roots=list(paths.include),
             )
         )
 
     async def restore(
         self,
         env: SandboxEnvironment,
-        ref: SnapshotDetails | None,
+        paths: SandboxBackupPaths,
+        ref: SnapshotDetails,
         ctx: SnapshotContext,
     ) -> None:
-        # `ref is None` only in the degenerate resume with no committed
-        # record for this sandbox (orphan discard is skipped in exactly
-        # that case): fall back to whatever the adopted repo calls latest.
+        label = f"restic snapshot restore for sandbox {ctx.sandbox_name!r}"
+        roots = RestoreRoots.from_include(paths.include, label=label)
+        check_recorded_roots(ref, roots, label=label)
         await ingress_sandbox(
             env,
             ctx.storage_dir,
             ctx.secret,
-            snapshot_id=ref.snapshot_id if ref is not None else None,
+            snapshot_id=ref.snapshot_id,
+            roots=roots,
+            host_restic=await self._host_restic(),
         )
 
     async def discard_orphans(

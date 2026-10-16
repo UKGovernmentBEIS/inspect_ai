@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from textwrap import dedent
 from typing import Any, Awaitable, Callable, Sequence, cast
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import anyio
 import pytest
@@ -27,9 +27,9 @@ from inspect_ai.util._sandbox._framework_directory import (
     _USER_MISMATCH_MARKER,
     _VERIFIED_MARKER,
     _VIOLATION_MARKER,
-    SHELL_PATH,
     FrameworkDirectoryError,
 )
+from inspect_ai.util._sandbox._privileged import SHELL_PATH, pinned_command
 from inspect_ai.util._sandbox.environment import SandboxEnvironment
 from inspect_ai.util._sandbox.limits import OutputLimitExceededError
 from inspect_ai.util._sandbox.service import (
@@ -40,6 +40,17 @@ from inspect_ai.util._sandbox.service import (
     sandbox_service,
 )
 from inspect_ai.util._subprocess import ExecResult
+
+
+def _argv(cmd: list[str]) -> list[str]:
+    """The command a service ``exec`` issues, unwrapped from its PATH-pinning shell.
+
+    The service runs its commands through ``privileged_exec`` (see ``_privileged``);
+    the fakes below dispatch on the wrapped command, as the real utilities would.
+    """
+    if len(cmd) > 4 and cmd == pinned_command(cmd[4:]):
+        return cmd[4:]
+    return cmd
 
 
 @pytest.mark.slow
@@ -502,9 +513,13 @@ class _RequestReadSandbox:
         *,
         user: str | None = None,
         input: str | None = None,
+        cwd: str | None = None,
+        env: dict[str, str] | None = None,
         timeout: int | None = None,
+        timeout_retry: bool = True,
         concurrency: bool = True,
     ) -> ExecResult[str]:
+        cmd = _argv(cmd)
         self.calls.append(cmd)
         call = framework_directory_call(cmd)
         if call is not None:
@@ -558,6 +573,86 @@ async def test_handle_request_oversized_raise_writes_error_and_removes_file() ->
     assert request_file in fake.removed
     assert fake.calls[0] == ["cat", "--", request_file]
     _assert_no_shell_interpolation(fake.calls)
+
+
+@pytest.mark.parametrize("grouped", [False, True], ids=["bare", "grouped"])
+async def test_handle_request_bridged_tool_limit_keeps_service_handling(
+    grouped: bool,
+) -> None:
+    """A bridged host tool's `LimitExceededError` reaches the dispatcher unchanged.
+
+    The dispatcher ends the sample for a bare `LimitExceededError` (pre-existing
+    behaviour) and treats anything else, including a task-group
+    `ExceptionGroup` wrapping one, as a plain RPC error. The bridge's `call_tool`
+    classifies the unwrapped exception but must re-raise the original, or a
+    grouped limit would newly end the sample.
+    """
+    from inspect_ai.agent._agent import AgentState
+    from inspect_ai.agent._bridge.sandbox.service import call_tool
+    from inspect_ai.agent._bridge.sandbox.types import SandboxAgentBridge
+    from inspect_ai.tool import tool
+    from inspect_ai.util._limit import LimitExceededError
+
+    @tool
+    def limited():
+        async def execute(text: str) -> str:
+            """Exceed a limit, directly or from a child task.
+
+            Args:
+                text: Ignored.
+            """
+
+            async def child() -> None:
+                raise LimitExceededError("token", value=2, limit=1)
+
+            if grouped:
+                async with anyio.create_task_group() as tg:
+                    tg.start_soon(child)
+            await child()
+            return text
+
+        return execute
+
+    bridge = SandboxAgentBridge(
+        state=AgentState(messages=[]),
+        filter=None,
+        retry_refusals=None,
+        compaction=None,
+        port=13131,
+        model=None,
+        bridged_tools={"srv": {"limited": limited()}},
+        # called directly, outside a model turn: opt out of the proposal requirement
+        proposal_exempt_servers={"srv"},
+    )
+    request_id = "11111111-2222-3333-4444-555555555555"
+    fake = _RequestReadSandbox(
+        cat_stdout=json.dumps(
+            {
+                "id": request_id,
+                "method": "call_tool",
+                "params": {
+                    "server": "srv",
+                    "tool": "limited",
+                    "arguments": {"text": "hi"},
+                },
+            }
+        )
+    )
+    service = _service_with_dirs(fake)
+    service.add_method("call_tool", call_tool(bridge))
+    request_file = f"{service._requests_dir}/{request_id}.json"
+
+    # a MagicMock rather than a bare stub: the log handler reads other
+    # attributes of the active sample when the dispatcher logs the error
+    active = MagicMock()
+    with patch("inspect_ai.log._samples.sample_active", return_value=active):
+        await service._handle_request(request_file)
+
+    response = json.loads(fake.writes[f"{service._responses_dir}/{request_id}.json"])
+    assert response["result"] is None
+    assert response["error"] is not None
+    assert not bridge._failure_requested.is_set()
+    assert active.limit_exceeded.call_count == (0 if grouped else 1)
 
 
 async def test_write_response_goes_through_the_verified_responses_dir() -> None:
@@ -833,9 +928,13 @@ class _RealListingSandbox(_RequestReadSandbox):
         *,
         user: str | None = None,
         input: str | None = None,
+        cwd: str | None = None,
+        env: dict[str, str] | None = None,
         timeout: int | None = None,
+        timeout_retry: bool = True,
         concurrency: bool = True,
     ) -> ExecResult[str]:
+        cmd = _argv(cmd)
         if cmd[0] == "find":
             self.calls.append(cmd)
             completed = subprocess.run(cmd, capture_output=True, text=True)
@@ -1160,9 +1259,13 @@ class _QueueSandbox:
         *,
         user: str | None = None,
         input: str | None = None,
+        cwd: str | None = None,
+        env: dict[str, str] | None = None,
         timeout: int | None = None,
+        timeout_retry: bool = True,
         concurrency: bool = True,
     ) -> ExecResult[str]:
+        cmd = _argv(cmd)
         call = framework_directory_call(cmd)
         if call is not None:
             if (target := _tee_target(call)) is not None:
@@ -1300,9 +1403,13 @@ class _DelayedWriteSandbox(_QueueSandbox):
         *,
         user: str | None = None,
         input: str | None = None,
+        cwd: str | None = None,
+        env: dict[str, str] | None = None,
         timeout: int | None = None,
+        timeout_retry: bool = True,
         concurrency: bool = True,
     ) -> ExecResult[str]:
+        cmd = _argv(cmd)
         call = framework_directory_call(cmd)
         if (
             call is not None

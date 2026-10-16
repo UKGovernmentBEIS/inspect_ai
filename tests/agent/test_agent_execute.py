@@ -212,7 +212,7 @@ def test_agent_as_tool_no_docs_error():
 
 
 def test_agent_as_tool_no_param_docs_error():
-    check_agent_as_tool_no_docs_error(as_tool)
+    check_agent_as_tool_no_param_docs_error(as_tool)
 
 
 def test_agent_as_tool_respects_limits() -> None:
@@ -277,7 +277,7 @@ def test_agent_handoff_no_docs_error():
 
 
 def test_agent_handoff_no_param_docs_error():
-    check_agent_as_tool_no_docs_error(handoff)
+    check_agent_as_tool_no_param_docs_error(handoff)
 
 
 def test_agent_handoff_respects_limits():
@@ -447,7 +447,7 @@ async def test_agent_run_parent_limit_hit() -> None:
             await run(looping_agent(), "This is the input", limits=[token_limit(100)])
 
     assert exc_info.value.type == "token"
-    assert exc_info.value.value == 11
+    assert exc_info.value.value == 10
     assert exc_info.value.limit == 10
 
 

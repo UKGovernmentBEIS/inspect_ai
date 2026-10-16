@@ -4,7 +4,7 @@ import os
 import shlex
 from logging import getLogger
 from pathlib import Path
-from typing import Any, Literal, cast
+from typing import Any, Literal, cast, overload
 
 import yaml
 from pydantic import BaseModel
@@ -16,12 +16,14 @@ from inspect_ai.util._concurrency import concurrency as concurrency_manager
 from inspect_ai.util._display import display_type, display_type_plain
 from inspect_ai.util._subprocess import (
     ExecResult,
+    StdoutReader,
     SubprocessRun,
     run_subprocess,
     subprocess,
 )
 
 from .config import is_auto_compose_file
+from .mounts import validate_compose_mounts
 from .prereqs import (
     DOCKER_COMPOSE_REQUIRED_VERSION_PULL_POLICY,
     validate_docker_compose,
@@ -34,6 +36,12 @@ logger = getLogger(__name__)
 # How long to wait for compose environment to pass a health check
 COMPOSE_WAIT = 600
 
+# Allowance for the work `compose up` does before its health wait starts (creating
+# and starting containers, waiting on their dependencies), which Docker does not
+# count against the `--wait-timeout` of its health wait (each dependency wait gets
+# its own `--wait-timeout`) but which does count against our timeout
+COMPOSE_STARTUP_ALLOWANCE = 60
+
 
 async def compose_up(
     project: ComposeProject, services: dict[str, ComposeService]
@@ -42,17 +50,22 @@ async def compose_up(
     up_command = ["up", "--detach", "--wait"]
 
     # are there healthchecks in the service definitions? if so then peg our timeout
-    # at the maximum total wait time. otherwise, pick a reasonable default
+    # at the maximum total wait time plus time to start. otherwise, pick a reasonable
+    # default
     healthcheck_time = services_healthcheck_time(services)
     if healthcheck_time > 0:
-        timeout: int = healthcheck_time
+        timeout: int = COMPOSE_STARTUP_ALLOWANCE + healthcheck_time
         trace_message(
-            logger, TRACE_DOCKER, f"Docker services healthcheck timeout: {timeout}"
+            logger,
+            TRACE_DOCKER,
+            f"Docker services startup timeout: {timeout} (healthcheck estimate {healthcheck_time})",
         )
     else:
         timeout = COMPOSE_WAIT
 
-    # align global wait timeout to maximum healthcheck timeout
+    # keep docker's wait longer than our timeout, so a service that is still starting
+    # when our timeout expires fails with a TimeoutError (the result of `up` is not
+    # checked, see below)
     up_command.extend(["--wait-timeout", str(timeout + 1)])
 
     # Start the environment. Note that we don't check the result because docker will
@@ -98,25 +111,30 @@ async def compose_down(project: ComposeProject, quiet: bool = True) -> None:
         )
 
 
-async def compose_cp(
-    src: str,
-    dest: str,
-    project: ComposeProject,
-    cwd: str | Path | None = None,
-    output_limit: int | None = None,
-    timeout_retry: bool = True,
-) -> None:
+async def compose_cp_archive(
+    src: str, project: ComposeProject, read_archive: StdoutReader
+) -> bytes:
+    """Copy `src` out of a service container as a tar archive.
+
+    Docker Compose writes the archive to stdout instead of extracting it on the
+    host. The archive is built from container state, so nothing from it is
+    written to the host filesystem. `read_archive` reads it from stdout; if it
+    raises, the copy is stopped and the exception propagates.
+
+    Raises:
+      RuntimeError: If the copy fails.
+    """
     result = await compose_command(
-        ["cp", "-L", "--", src, dest],
+        ["cp", "-L", "--", src, "-"],
         project=project,
         timeout=600,  # 10-minute timeout for file copies
-        timeout_retry=timeout_retry,
-        cwd=cwd,
-        output_limit=output_limit,
+        text=False,
+        stdout_reader=read_archive,
     )
     if not result.success:
-        msg = f"Failed to copy file from '{src}' to '{dest}': {result.stderr}"
-        raise RuntimeError(msg)
+        stderr = result.stderr.decode(errors="replace")
+        raise RuntimeError(f"Failed to copy file from '{src}': {stderr}")
+    return result.stdout
 
 
 async def compose_check_running(
@@ -269,7 +287,9 @@ async def compose_services(project: ComposeProject) -> dict[str, ComposeService]
     result = await compose_command(["config"], project=project, timeout=300)
     if not result.success:
         raise RuntimeError(f"Error reading docker config: {result.stderr}")
-    return cast(dict[str, ComposeService], yaml.safe_load(result.stdout)["services"])
+    config = yaml.safe_load(result.stdout)
+    await validate_compose_mounts(config, project.name)
+    return cast(dict[str, ComposeService], config["services"])
 
 
 class Project(BaseModel):
@@ -328,6 +348,7 @@ async def compose_cleanup_images(
                         logger.warning(msg)
 
 
+@overload
 async def compose_command(
     command: list[str],
     *,
@@ -341,7 +362,46 @@ async def compose_command(
     capture_output: bool = True,
     output_limit: int | None = None,
     ansi: Literal["never", "always", "auto"] | None = None,
-) -> ExecResult[str]:
+    text: Literal[True] = True,
+    stdout_reader: StdoutReader | None = None,
+) -> ExecResult[str]: ...
+
+
+@overload
+async def compose_command(
+    command: list[str],
+    *,
+    project: ComposeProject,
+    timeout: int | None,
+    timeout_retry: bool = True,
+    concurrency: bool = True,
+    input: str | bytes | None = None,
+    cwd: str | Path | None = None,
+    forward_env: bool = True,
+    capture_output: bool = True,
+    output_limit: int | None = None,
+    ansi: Literal["never", "always", "auto"] | None = None,
+    text: Literal[False],
+    stdout_reader: StdoutReader | None = None,
+) -> ExecResult[bytes]: ...
+
+
+async def compose_command(
+    command: list[str],
+    *,
+    project: ComposeProject,
+    timeout: int | None,
+    timeout_retry: bool = True,
+    concurrency: bool = True,
+    input: str | bytes | None = None,
+    cwd: str | Path | None = None,
+    forward_env: bool = True,
+    capture_output: bool = True,
+    output_limit: int | None = None,
+    ansi: Literal["never", "always", "auto"] | None = None,
+    text: bool = True,
+    stdout_reader: StdoutReader | None = None,
+) -> ExecResult[str] | ExecResult[bytes]:
     # The base docker compose command
     compose_command = ["docker", "compose"]
 
@@ -378,7 +438,9 @@ async def compose_command(
     )
 
     # function to run command (wrapped in concurrency limiter)
-    async def run_command(command_timeout: int | None) -> SubprocessRun[str]:
+    async def run_command(
+        command_timeout: int | None,
+    ) -> SubprocessRun[str] | SubprocessRun[bytes]:
         concurrency_ctx = (
             concurrency_manager("docker-cli", docker_cli_concurrency, visible=False)
             if concurrency
@@ -387,6 +449,7 @@ async def compose_command(
         async with concurrency_ctx:
             return await run_subprocess(
                 compose_command,
+                text=text,
                 input=input,
                 cwd=cwd,
                 env=env,
@@ -394,6 +457,7 @@ async def compose_command(
                 capture_output=capture_output,
                 output_limit=output_limit,
                 concurrency=concurrency,
+                stdout_reader=stdout_reader,
             )
 
     # we have observed underlying unreliability in docker compose in some linux

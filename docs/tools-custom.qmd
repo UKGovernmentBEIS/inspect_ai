@@ -157,6 +157,8 @@ Some tools need to retain state across invocations (for example, the `bash_sessi
 
 For example, imagine we were creating a `web_surfer()` tool that builds  on the `web_browser()` tool to complete sequences of browser actions in service of researching a topic. We might want to ask multiple questions of the web surfer and have it retain its message history and browser state.
 
+Note that `web_browser()` is [deprecated](tools-standard.qmd#sec-web-browser); it is used here only to illustrate how a stateful tool is composed.
+
 Here's the complete source code for this tool. 
 
 ```python
@@ -358,3 +360,32 @@ from inspect_ai.tool import ToolDef, bash
 bash_def = ToolDef(bash())
 ```
 
+
+### Variable Arguments
+
+Models pass tool arguments by name, so `*args` and `**kwargs` parameters are not included in a tool's inferred parameters (previously they were advertised as required `args` and `kwargs` properties). `*args` never receives tool arguments.
+
+To accept arguments that the model chooses at runtime, describe them with an explicit `ToolParams` schema and accept them with `**kwargs`. Arguments in the schema that don't match a named parameter are passed to `**kwargs`, converted using its type annotation:
+
+``` python
+from inspect_ai.tool import ToolDef, ToolParam, ToolParams
+
+async def search(query: str, **filters: str):
+    ...
+
+search_def = ToolDef(
+    tool=search,
+    name="search",
+    description="Search the document index.",
+    parameters=ToolParams(
+        properties={
+            "query": ToolParam(type="string", description="Search query."),
+            "author": ToolParam(type="string", description="Filter by author."),
+            "year": ToolParam(type="string", description="Filter by year."),
+        },
+        required=["query"],
+    ),
+)
+```
+
+Only arguments declared in the schema are accepted unless it sets `additionalProperties`. A tool declared with `**kwargs: Any` receives all of the tool call's arguments unconverted.
