@@ -12,7 +12,12 @@ import pytest
 from test_helpers.utils import skip_if_trio
 
 from inspect_ai._util.async_bytes_reader import adapt_to_reader
-from inspect_ai._util.async_zip import AsyncZipReader, CentralDirectory, ZipCrcError
+from inspect_ai._util.async_zip import (
+    AsyncZipReader,
+    CentralDirectory,
+    ZipCrcError,
+    is_torn_read,
+)
 from inspect_ai._util.asyncfiles import AsyncFilesystem
 from inspect_ai._util.compression_transcoding import _DeflateCompressStream
 from inspect_ai._util.zip_common import ZipCompressionMethod, ZipEntry
@@ -719,3 +724,51 @@ async def test_reader_reuses_a_given_central_directory(
         reader = AsyncZipReader(fs, str(crc_zip), central_directory=cd)
         assert await reader.entries() is cd
         assert json.loads(await reader.read_member_fully("member.json"))["value"]
+
+
+def _client_error(code: str) -> Exception:
+    from botocore.exceptions import ClientError
+
+    return ClientError({"Error": {"Code": code, "Message": code}}, "GetObject")
+
+
+def _validation_error() -> Exception:
+    from pydantic import BaseModel, ValidationError
+
+    class Model(BaseModel):
+        x: int
+
+    try:
+        Model.model_validate({"x": "not an int"})
+    except ValidationError as ex:
+        return ex
+    raise AssertionError("expected a validation error")
+
+
+@pytest.mark.parametrize(
+    "error,torn",
+    [
+        (ZipCrcError("crc"), True),
+        (zlib.error("bad data"), True),
+        (struct.error("unpack"), True),
+        (EOFError(), True),
+        (ijson.JSONError("json"), True),
+        (json.JSONDecodeError("json", "", 0), True),
+        (_client_error("InvalidRange"), True),
+        (_client_error("AccessDenied"), False),
+        (_client_error("ExpiredToken"), False),
+        (_validation_error(), False),
+        (FileNotFoundError("gone"), False),
+        (OSError("disk"), False),
+    ],
+)
+def test_is_torn_read(error: Exception, torn: bool) -> None:
+    assert is_torn_read(error) is torn
+
+
+def test_is_torn_read_covers_zstd_errors() -> None:
+    import zstandard
+
+    with pytest.raises(zstandard.ZstdError) as raised:
+        zstandard.ZstdDecompressor().decompress(b"not zstd")
+    assert is_torn_read(raised.value)

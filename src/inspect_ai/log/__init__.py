@@ -83,6 +83,12 @@ from ._recover import (
 from ._resolve import resolve_sample_events_data
 from ._retry import retryable_eval_logs
 from ._score import edit_score
+from ._shards._api import (
+    ShardMergeResult,
+    merge_eval_log_shards,
+    merge_eval_log_shards_async,
+)
+from ._shards._errors import ShardSelectionError, ShardSetError, ShardSetIncomplete
 from ._transcript import (
     Transcript,
     TranscriptHistory,
@@ -116,6 +122,12 @@ __all__ = [
     "EvalScore",
     "EvalShardEntry",
     "EvalShards",
+    "ShardMergeResult",
+    "ShardSelectionError",
+    "ShardSetError",
+    "ShardSetIncomplete",
+    "merge_eval_log_shards",
+    "merge_eval_log_shards_async",
     "EvalSpec",
     "EvalStats",
     "EvalStatus",
