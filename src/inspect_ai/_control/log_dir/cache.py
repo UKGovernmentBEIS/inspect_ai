@@ -3,14 +3,13 @@
 With it, a poll of an unchanged directory costs the listing, and a changed
 log costs only what changed. One JSON file per log URI (named by its
 SHA-256) under ``inspect_data_dir("ctl")/log-dir-cache/``, created 0700,
-holding:
+holding the Inspect version that parsed it and:
 
 - the plan: the header read from ``header.json`` or ``_journal/start.json``,
   used while the log's version is unchanged. Once the version changes the plan
   is read again through the new central directory, reusing a running log's
   start record while its CRC-32 is unchanged;
-- the sample summaries of that version (local and S3 logs only, see
-  :func:`_versioned`);
+- the sample summaries of that version;
 - for a running log, the journal summary members already parsed, keyed by
   member name, CRC-32 and compressed size, so a changed running log costs its
   central directory plus its new journal members.
@@ -24,8 +23,12 @@ written only from a read that passed its consistency checks, atomically
 never what it returns: concurrent pollers may overwrite each other's
 entries, and any entry that survives describes a real version of its log,
 which a reader uses only while the log still has that version. An entry
-that does not parse, or has another schema version, is discarded. Above
-:data:`MAX_CACHE_BYTES`, the least recently used entries are removed.
+that does not parse, has another schema version, or was written by another
+Inspect version, is discarded. An entry that cannot be serialized is not
+written. Above :data:`MAX_CACHE_BYTES`, the least recently used entries are
+removed.
+
+Only local and S3 logs are cached (see :func:`_cacheable`).
 
 The cache is active only inside :func:`use_cache`, as the CLI's reads are;
 the reader functions consult :func:`active_cache`. See "Cache" in
@@ -39,16 +42,18 @@ import os
 from collections.abc import Iterator
 from contextlib import contextmanager, suppress
 from contextvars import ContextVar
+from importlib.metadata import version as package_version
 from logging import getLogger
 from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field
+from pydantic_core import PydanticSerializationError
 
 from inspect_ai._util.appdirs import inspect_data_dir
 from inspect_ai._util.async_zip import AsyncZipReader, CentralDirectory
 from inspect_ai._util.asyncfiles import is_s3_filename
 from inspect_ai._util.atomic_write import atomic_write_bytes
-from inspect_ai._util.constants import get_deserializing_context
+from inspect_ai._util.constants import PKG_NAME, get_deserializing_context
 from inspect_ai._util.discovery import DISCOVERY_DIR_MODE
 from inspect_ai._util.file import filesystem, local_path
 from inspect_ai.log._log import EvalLog, EvalSampleSummary
@@ -64,6 +69,11 @@ SCHEMA_VERSION = 1
 
 MAX_CACHE_BYTES = 256 * 1024 * 1024
 """Size above which the least recently used entries are removed."""
+
+INSPECT_VERSION = package_version(PKG_NAME)
+"""The Inspect version whose log models parse the cached values; an entry from
+any other version is discarded, since its parser may have dropped or defaulted
+fields this one reads."""
 
 
 class _Plan(BaseModel):
@@ -86,6 +96,9 @@ class _Entry(BaseModel):
     model_config = ConfigDict(ser_json_inf_nan="constants")
 
     schema_version: int
+    inspect_version: str
+    """The Inspect version that parsed the entry's values."""
+
     location: str
     """The log's cache key (see :func:`_cache_key`)."""
 
@@ -159,7 +172,6 @@ class LogDirCache:
             entry is None
             or entry.summaries is None
             or version is None
-            or not _versioned(file.location)
             or version != entry.plan.version
         ):
             return None
@@ -182,7 +194,6 @@ class LogDirCache:
         same_version = (
             entry is not None
             and plan.version is not None
-            and _versioned(plan.file.location)
             and entry.plan.version == plan.version
         )
         self._store(
@@ -203,11 +214,7 @@ class LogDirCache:
         plan = snapshot.plan
         self._store(
             plan,
-            summaries=(
-                list(snapshot.summaries.values())
-                if _versioned(plan.file.location)
-                else None
-            ),
+            summaries=list(snapshot.summaries.values()),
             journal=journal.members(plan.central_directory),
         )
 
@@ -243,6 +250,8 @@ class LogDirCache:
             total -= size
 
     def _entry(self, file: LogFile) -> _Entry | None:
+        if not _cacheable(file.location):
+            return None
         key = _cache_key(file.location)
         if key not in self._entries:
             self._entries[key] = self._load(key)
@@ -263,6 +272,8 @@ class LogDirCache:
             )
             if entry.schema_version != SCHEMA_VERSION:
                 raise ValueError(f"schema version {entry.schema_version}")
+            if entry.inspect_version != INSPECT_VERSION:
+                raise ValueError(f"written by Inspect {entry.inspect_version}")
             if entry.location != key:
                 raise ValueError(f"entry for {entry.location}")
         # The log model's validators can raise any exception type on bad input
@@ -285,9 +296,12 @@ class LogDirCache:
         summaries: list[EvalSampleSummary] | None,
         journal: dict[str, _JournalMember],
     ) -> None:
+        if not _cacheable(plan.file.location):
+            return
         key = _cache_key(plan.file.location)
         entry = _Entry(
             schema_version=SCHEMA_VERSION,
+            inspect_version=INSPECT_VERSION,
             location=key,
             plan=_Plan(
                 header=plan.header,
@@ -300,7 +314,14 @@ class LogDirCache:
         )
         path = self._path(key)
         try:
-            atomic_write_bytes(str(path), entry.model_dump_json().encode(), fsync=False)
+            data = entry.model_dump_json().encode()
+        # the log reader accepts strings the serializer refuses (an escaped lone
+        # surrogate); such a log is read without a cache entry
+        except PydanticSerializationError as ex:
+            logger.debug(f"not caching {plan.file.location}: {ex}")
+            return
+        try:
+            atomic_write_bytes(str(path), data, fsync=False)
         except OSError as ex:
             logger.debug(f"could not write log-dir cache entry {path}: {ex}")
             return
@@ -356,7 +377,7 @@ def _log_plan(file: LogFile, entry: _Entry) -> LogPlan:
         central_directory=None,
         header=header,
         finished=entry.plan.finished,
-        version=entry.plan.version if _versioned(file.location) else None,
+        version=entry.plan.version,
         header_crc=entry.plan.header_crc,
     )
 
@@ -379,14 +400,13 @@ def _still_listed(
     return listed
 
 
-def _versioned(location: str) -> bool:
-    """Whether the log's version names its content, so values keyed by it are reused.
+def _cacheable(location: str) -> bool:
+    """Whether the log's version names its content, so the log is cached.
 
     True for S3 (the ETag) and local files (inode, mtime and size). Other
     backends' metadata can stay the same across a rewrite (an Azure log's
-    version comes from its creation time and size), so their plans and
-    summaries are read again on every poll; only the journal members and start
-    record, checked against the fresh central directory, are reused.
+    version comes from its creation time and size), so nothing read from
+    their logs is cached.
     """
     return is_s3_filename(location) or filesystem(location).is_local()
 

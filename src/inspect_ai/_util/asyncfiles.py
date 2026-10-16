@@ -635,7 +635,7 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
                         Bucket=bucket,
                         Key=key,
                         Range=s3_range_header(start, end),
-                        **({"IfMatch": if_match} if if_match is not None else {}),
+                        **_s3_if_match(if_match),
                     )
                     return _StreamingBodyByteReceiveStream(response["Body"])
                 return _BytesByteReceiveStream(
@@ -1397,6 +1397,16 @@ def s3_range_header(start: int, end: int | None) -> str:
     return f"bytes={start}-" if end is None else f"bytes={start}-{end - 1}"
 
 
+def _s3_if_match(etag: str | None) -> dict[str, str]:
+    """``get_object``'s ``IfMatch`` argument pinning a read to ``etag``.
+
+    ETags are kept without their quotes; an HTTP entity tag needs them.
+    """
+    if etag is None:
+        return {}
+    return {"IfMatch": '"' + etag.strip('"') + '"'}
+
+
 def s3_read_file_bytes(
     s3: Any,
     bucket: str,
@@ -1410,7 +1420,7 @@ def s3_read_file_bytes(
         Bucket=bucket,
         Key=key,
         Range=s3_range_header(start, end),
-        **({"IfMatch": if_match} if if_match is not None else {}),
+        **_s3_if_match(if_match),
     )
     return cast(bytes, response["Body"].read())
 

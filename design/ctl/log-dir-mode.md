@@ -492,8 +492,9 @@ The walk produces a listing of logical tasks without paging through
   format is deprecated and its reads are whole-file parses
   (`endpoint-cost-audit.md`, finding 2); the sharding design is
   `.eval`-only.
-- The listing keeps each file's size, mtime and ETag (or `mtime`+`size`
-  where the backend has no ETag), which the cache keys on.
+- The listing keeps each file's size, mtime and ETag. S3 reuse uses the
+  listing ETag; local reuse uses a fresh stat (inode, `mtime_ns` and size).
+  Logs on other backends are not cached ("Cache").
 - A delimited listing of a directory costs one LIST per 1,000 entries, so a
   walk over one sharded run costs `N + 2` LISTs for `N` shards (root,
   `<name>.shards/`, each `<k>/`), whatever the buffers and checkpoints
@@ -1024,7 +1025,7 @@ of what changed. `src/inspect_ai/_control/log_dir/cache.py`:
 - **Location.** `inspect_data_dir("ctl")/log-dir-cache/`, created 0700 like
   the control discovery directory. One JSON file per log URI, named by
   `sha256(uri)` (a local log by its absolute path), holding a schema
-  version and:
+  version, the Inspect version that parsed it, and:
   - the plan, used as is while the listing reports the version it was
     read from. A log whose version changed has its plan read again through
     its new central directory (so task identity, status and buffer
@@ -1045,13 +1046,11 @@ of what changed. `src/inspect_ai/_control/log_dir/cache.py`:
   - the observed key set (plan ids and summary keys, both tied to the
     log's version) used to skip re-reading unchanged logs. It is derived
     from the cached plan and summaries rather than stored separately.
-- **Backends.** Only local and S3 logs have a version that names their
-  content. Other backends (GCS, Azure, other fsspec filesystems) report
-  metadata that can stay the same across a rewrite: an Azure log's version
-  comes from its creation time and size. For them the plan and summaries
-  are read again on every poll, and only the values checked against the
-  fresh central directory are reused: journal members by CRC-32 and size,
-  and a running log's `_journal/start.json` by CRC-32.
+- **Backends.** Only local and S3 logs are cached: only their version
+  names their content. Other backends (GCS, Azure, other fsspec
+  filesystems) report metadata that can stay the same across a rewrite (an
+  Azure log's version comes from its creation time and size), so their
+  logs are read in full on every poll, as without the cache.
 - **Not cached**: manifest contents (they change every sync), sample
   members and segments (large; each invocation reads what it pages).
 - **Writes**: only from validated member views, atomically (temp file,
@@ -1063,8 +1062,11 @@ of what changed. `src/inspect_ai/_control/log_dir/cache.py`:
   reader that finds it stale (its version differs from the object's)
   simply re-reads.
 - **Bounds.** Pruned oldest-access-first above 256 MB. Entries with an
-  unknown schema version, or that fail to parse or validate, are discarded
-  and rebuilt, logged at debug; the cache never changes what a read
+  unknown schema version, written by another Inspect version (whose log
+  models may parse the same bytes differently), or that fail to parse or
+  validate, are discarded and rebuilt, logged at debug. An entry that
+  cannot be serialized (a string with a lone surrogate, which the log
+  reader accepts) is not written. The cache never changes what a read
   returns, only whether it is fetched.
 - **Scope.** Keyed by URI, so two directories never share entries; nothing
   in the log directory is written. Only the CLI's reads use it (the reader
@@ -1083,7 +1085,9 @@ CLI's existing fan-out cap. Request kinds:
   one LIST per 1,000 entries for a flat directory.
 - *plan*: CD (one GET of up to 64 KiB, or the whole object when smaller;
   one more GET when a large log's central directory does not fit) plus
-  `header.json` or `start.json` (one GET). Cached per file, so paid once.
+  `header.json` or `start.json` (one GET). Cached for the current log
+  version. A changed version rereads the directory; an unchanged
+  `start.json` is reused by CRC-32.
 - *manifest*: one GET, only for a running member whose plan has
   `log_shared` set and whose directory has a `.buffer/` prefix. It returns
   the content with its ETag and Last-Modified (new

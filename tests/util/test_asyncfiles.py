@@ -728,13 +728,30 @@ async def test_read_file_bytes_s3_pinned_to_an_etag_fails_once_the_object_change
     s3.put_object(Bucket="test-bucket", Key="if_match/a.bin", Body=b"0123456789")
     etag = s3.head_object(Bucket="test-bucket", Key="if_match/a.bin")["ETag"]
     url = f"{S3_BUCKET}/if_match/a.bin"
+    sent: list[str | None] = []
+
+    def record(request: Any, **kwargs: Any) -> None:
+        sent.append(request.headers.get("If-Match"))
+
     async with AsyncFilesystem() as fs:
+        client = (
+            await fs.s3_client_async()
+            if current_async_backend() == "asyncio"
+            else fs.s3_client()
+        )
+        client.meta.events.register("before-send.s3.GetObject", record)
         pinned = await fs.read_file_bytes_fully(url, 2, 5, if_match=etag.strip('"'))
         s3.put_object(Bucket="test-bucket", Key="if_match/a.bin", Body=b"abcdefghij")
         with pytest.raises(ObjectChangedError):
             await fs.read_file_bytes_fully(url, 2, 5, if_match=etag.strip('"'))
         unpinned = await fs.read_file_bytes_fully(url, 2, 5)
     assert (pinned, unpinned) == (b"234", b"cde")
+    # an HTTP entity tag, quoted
+    assert [h.decode() if isinstance(h, bytes) else h for h in sent] == [
+        etag,
+        etag,
+        None,
+    ]
 
 
 async def test_write_file_local():

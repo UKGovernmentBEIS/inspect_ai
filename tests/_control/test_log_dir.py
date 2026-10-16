@@ -15,7 +15,7 @@ import shutil
 import time
 import zipfile
 from collections import Counter
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Literal, NamedTuple
@@ -2288,7 +2288,7 @@ def _padded(data: bytes, size: int) -> bytes:
 
 
 async def test_a_same_size_azure_rewrite_is_read_again(
-    log_dir: Path, monkeypatch: pytest.MonkeyPatch
+    log_dir: Path, monkeypatch: pytest.MonkeyPatch, _isolate_log_dir_cache: Path
 ) -> None:
     # neither package ships type information
     azure_fs = importlib.import_module("adlfs").AzureBlobFileSystem
@@ -2348,6 +2348,8 @@ async def test_a_same_size_azure_rewrite_is_read_again(
             assert await _per_sample_reads(warm.dir_index.tasks[0]) == (
                 await _per_sample_reads(uncached.dir_index.tasks[0])
             )
+        # nothing read from a backend without a content version is cached
+        assert _cache_files(_isolate_log_dir_cache) == []
     finally:
         memory.rm(root, recursive=True)
 
@@ -2394,8 +2396,20 @@ def test_cli_cache_entries_change_what_is_fetched_never_what_is_returned(
     assert answers() == cold
     assert json.loads(entry.read_text())["schema_version"] == cache.SCHEMA_VERSION
 
-    # entries whose header validators raise other exception types
+    # an entry written by another Inspect version, whose parser may have
+    # dropped a field (here sample 2's error), or by one that recorded none,
+    # is discarded and rebuilt
     data = json.loads(entry.read_text())
+    assert data["inspect_version"] == cache.INSPECT_VERSION
+    dropped = [{**s, "error": None} for s in data["summaries"]]
+    older = {**data, "inspect_version": "0.0.1", "summaries": dropped}
+    unversioned = {k: v for k, v in data.items() if k != "inspect_version"}
+    for other in [older, unversioned]:
+        entry.write_text(json.dumps(other))
+        assert answers() == cold
+        assert json.loads(entry.read_text()) == data
+
+    # entries whose header validators raise other exception types
     header = data["plan"]["header"]
     for malformed in [
         {**header, "eval": {**header["eval"], "sandbox": []}},  # IndexError
@@ -2407,6 +2421,67 @@ def test_cli_cache_entries_change_what_is_fetched_never_what_is_returned(
         )
         assert answers() == cold
         assert json.loads(entry.read_text()) == data
+
+
+def _edit_member(path: Path, member: str, edit: Callable[[Any], None]) -> None:
+    """Rewrite one JSON member of the ``.eval`` log at ``path`` in place."""
+    import json
+
+    with zipfile.ZipFile(path) as src:
+        members = {info.filename: src.read(info.filename) for info in src.infolist()}
+    data = json.loads(members[member])
+    edit(data)
+    members[member] = json.dumps(data).encode()
+    with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as out:
+        for name, content in members.items():
+            out.writestr(name, content)
+
+
+def _set_metadata(header: Any) -> None:
+    header["eval"]["metadata"] = {"note": "\ud800"}
+
+
+def _set_first_input(summaries: Any) -> None:
+    summaries[0]["input"] = "\ud800"
+
+
+@pytest.mark.parametrize(
+    "member,edit,running",
+    [
+        ("header.json", _set_metadata, False),
+        ("summaries.json", _set_first_input, False),
+        ("_journal/summaries/1.json", _set_first_input, True),
+    ],
+)
+async def test_a_log_the_cache_cannot_serialize_is_read_without_an_entry(
+    log_dir: Path,
+    finished_log: EvalLog,
+    member: str,
+    edit: Callable[[Any], None],
+    running: bool,
+    _isolate_log_dir_cache: Path,
+) -> None:
+    import json
+
+    # an escaped lone surrogate parses, but does not serialize
+    if running:
+        [finished] = list(log_dir.glob("*.eval"))
+        finished.unlink()
+        path = await _write_running_log(
+            log_dir, finished_log, logged=[1, 2], sample_ids=[1, 2, 3]
+        )
+    else:
+        [path] = list(log_dir.glob("*.eval"))
+    _edit_member(path, member, edit)
+    uncached = await _poll(log_dir, cache=None)
+    assert _answers(await _poll(log_dir)) == _answers(uncached)
+    assert _answers(await _poll(log_dir)) == _answers(uncached)
+    # only the parts that serialize are cached: the plan without its summaries
+    entries = [json.loads(f.read_text()) for f in _cache_files(_isolate_log_dir_cache)]
+    if member == "header.json":
+        assert entries == []
+    else:
+        assert [(e["summaries"], e["journal"]) for e in entries] == [(None, {})]
 
 
 async def test_failed_and_cancelled_reads_store_no_snapshot(
