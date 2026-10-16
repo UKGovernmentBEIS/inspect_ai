@@ -16,7 +16,7 @@ import anyio
 from inspect_ai._util._async import tg_collect
 from inspect_ai._util.asyncfiles import AsyncFilesystem
 from inspect_ai._util.constants import EVAL_LOG_FORMAT
-from inspect_ai._util.file import FileInfo, basename, local_path
+from inspect_ai._util.file import FileInfo, basename, dirname, local_path
 from inspect_ai._util.log_layout import _RECOVERED_SUFFIX, _SHARDS_SUFFIX
 from inspect_ai.log._file import _timestamp_prefix_re, is_log_file
 
@@ -242,6 +242,29 @@ def is_shard_path(root: str, path: str) -> bool:
         if part.endswith(_SHARDS_SUFFIX) and part != _SHARDS_SUFFIX:
             return len(relative) - depth <= 3
     return False
+
+
+def shards_dir_of(root: str, path: str) -> str | None:
+    """The ``<name>.shards`` directory whose shard set holds ``path``, if any.
+
+    The companion :func:`is_shard_path` places ``path`` in, in the form
+    ``path`` was given in; ``None`` when it is not a shard path.
+
+    Raises:
+        ValueError: If ``path`` is not below ``root``.
+    """
+    if not is_shard_path(root, path):
+        return None
+    relative = _location_parts(path)[len(_location_parts(root)) :]
+    depth = next(
+        i
+        for i, part in enumerate(relative[:-1])
+        if part.endswith(_SHARDS_SUFFIX) and part != _SHARDS_SUFFIX
+    )
+    companion = path.rstrip("/\\")
+    for _ in range(len(relative) - 1 - depth):
+        companion = dirname(companion)
+    return companion
 
 
 def _shard_sort_key(shard: ShardDir) -> tuple[bool, int, str]:
