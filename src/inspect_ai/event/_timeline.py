@@ -1263,15 +1263,19 @@ def _get_system_prompt(agent: TimelineSpan) -> str | None:
 def _is_tool_spawned_agent(span: TimelineSpan) -> bool:
     """Check whether span is a tool span shown as an agent.
 
-    A tool whose body calls a model directly becomes an agent span holding
-    its own ToolEvent (recorded with the tool span's id). For the caller,
-    that span is a tool call.
+    A tool whose body calls a model directly becomes an agent span named
+    after the tool, which opens with its own ToolEvent (recorded with the
+    tool span's id). For the caller, that span is a tool call. An explicit
+    agent span opens with its own work instead, even when older logs give
+    its tool calls the agent span's id.
     """
-    return span.span_type == "agent" and any(
-        isinstance(item, TimelineEvent)
-        and isinstance(item.event, ToolEvent)
-        and item.event.span_id == span.id
-        for item in span.content
+    first = span.content[0] if span.content else None
+    return (
+        span.span_type == "agent"
+        and isinstance(first, TimelineEvent)
+        and isinstance(first.event, ToolEvent)
+        and first.event.span_id == span.id
+        and first.event.function.lower() == span.name
     )
 
 
