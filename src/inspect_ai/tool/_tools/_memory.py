@@ -9,6 +9,7 @@ from inspect_ai.tool import Tool, ToolError, tool
 from inspect_ai.tool._tool_canonical import set_tool_canonical_arguments
 from inspect_ai.util import StoreModel, store_as
 from inspect_ai.util._resource import resource
+from inspect_ai.util._tool_state import tool_state_instance
 
 SNIPPET_LINES: int = 4
 
@@ -35,13 +36,14 @@ def memory(
         initial_data: Optional dict mapping file paths to content for pre-seeding
             the memory store. Keys should be valid /memories paths (e.g.,
             "/memories/file.txt"). Values are resolved via resource(), supporting
-            inline strings, file paths, or remote resources (s3://, https://).
+            inline strings, file paths, or remote resources (`s3://`, `https://`).
             Seeding happens once on first tool execution.
         readonly: If True, only the view command is available. Write operations
             (create, str_replace, insert, delete, rename) are not exposed.
         instance: Optional instance name for the memory store. Enables multiple
             independent memory tools within a single sample (each with its own
-            files and seeding), rather than sharing one store.
+            files and seeding), rather than sharing one store. Defaults to
+            the current `tool_state_scope()`, if any.
 
     Returns:
         Memory tool for file operations in /memories directory.
@@ -112,7 +114,7 @@ def memory(
         Returns:
             Result message string
         """
-        store = store_as(MemoryStore, instance=instance)
+        store = store_as(MemoryStore, instance=tool_state_instance(instance))
         _seed(store)
 
         match command:
@@ -162,7 +164,7 @@ def _readonly_execute(
         Returns:
             Result message string
         """
-        store = store_as(MemoryStore, instance=instance)
+        store = store_as(MemoryStore, instance=tool_state_instance(instance))
         _seed(store)
         return _view(store, path, view_range)
 

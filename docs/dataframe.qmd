@@ -334,6 +334,8 @@ df = prepare(df, [
 
 The examples above all use built-in column specifications (e.g. `EvalModel`, `EvalResults`, `SampleSummary`, etc.). These specifications exist as a convenient starting point but can be replaced fully or partially by your own custom definitions.
 
+Custom `EventColumn` and `MessageColumn` extraction functions must not mutate messages in place, as message renders are cached within each sample and later rows may otherwise use stale content.
+
 Column definitions specify how JSON data is mapped into dataframe columns, and are specified using subclasses of the `Column` class (e.g. `EvalColumn`, `SampleColumn`). For example, here is the definition of the built-in `EvalTask` column group:
 
 ``` python
