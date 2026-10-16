@@ -330,8 +330,13 @@ def test_a_sentinel_carries_its_args() -> None:
         ),
         ("rule", "reason", "takes key=value"),
         ("FILE", "reason=env", "cannot be used with the sentinel config file"),
+        (
+            "rule",
+            "ok=1 reason=[",
+            r"INSPECT_EVAL_SENTINEL_ARGS 'reason=\[' does not have a valid YAML value",
+        ),
     ],
-    ids=["without a sentinel", "not key=value", "with a config file"],
+    ids=["without a sentinel", "not key=value", "with a config file", "invalid YAML"],
 )
 def test_sentinel_args_the_cli_refuses_are_refused_here(
     sentinel: str | None, args: str, match: str, tmp_path: Path

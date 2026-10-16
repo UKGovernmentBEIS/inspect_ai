@@ -2,6 +2,7 @@ import importlib
 from collections.abc import Mapping, Sequence
 from typing import TYPE_CHECKING, Annotated, Any, TypeAlias, Union, cast
 
+import yaml
 from pydantic import (
     BaseModel,
     ConfigDict,
@@ -137,9 +138,16 @@ def sentinel_with_args(
             f"{args_source} cannot be used with the sentinel config file '{sentinel}'; "
             "set params in the file instead."
         )
-    return SentinelConfig.model_validate(
-        {"name": sentinel, "params": parse_cli_args(args)}
-    )
+    params: dict[str, Any] = {}
+    for arg in args:
+        try:
+            params.update(parse_cli_args([arg]))
+        except yaml.YAMLError as ex:
+            raise PrerequisiteError(
+                f"{args_source} {arg!r} does not have a valid YAML value: "
+                f"{getattr(ex, 'problem', None) or ex}."
+            ) from None
+    return SentinelConfig.model_validate({"name": sentinel, "params": params})
 
 
 def _require_sentinel() -> None:
