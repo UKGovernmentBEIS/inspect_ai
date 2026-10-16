@@ -17,180 +17,118 @@ from datetime import datetime, timezone
 from typing import Any, AsyncIterator, Callable, Iterator
 
 
-class _IntervalSet:
-    """Merged, disjoint, sorted closed intervals with prefix sums of lengths."""
+class _Timeline:
+    """Closed waits and closed known work, as sorted, disjoint segments.
+
+    Each segment records whether a closed wait covers it and how many spans'
+    closed work covers it; time in no segment has neither. Adjacent segments
+    with the same state are merged. Prefix sums give the length of the
+    waiting segments (a wait and no work) and of all segments (a wait or
+    work) before each segment.
+    """
 
     def __init__(self) -> None:
         self._starts: list[float] = []
         self._ends: list[float] = []
-        # `_cum[i]` is the total length of intervals `0..i-1`
-        self._cum: list[float] = []
+        self._waited: list[bool] = []
+        self._counts: list[int] = []
+        # `_waiting[i]` and `_covered[i]` are the totals of segments `0..i-1`
+        self._waiting: list[float] = []
+        self._covered: list[float] = []
 
-    def add(self, start: float, end: float) -> None:
-        """Merge `[start, end]` into the set."""
-        if end > start:
-            self.add_all([(start, end)])
+    def change(
+        self, start: float, end: float, wait: bool = False, work: int = 0
+    ) -> None:
+        """Mark `[start, end]` as waited if `wait`, and add `work` to its work count.
 
-    def add_all(self, intervals: list[tuple[float, float]]) -> None:
-        """Merge sorted, disjoint, non-empty intervals into the set."""
-        if not intervals:
-            return
-        # existing intervals that overlap or touch the span of the new ones
-        i = bisect_left(self._ends, intervals[0][0])
-        j = bisect_right(self._starts, intervals[-1][1])
-        merged: list[tuple[float, float]] = []
-        for s, e in sorted(
-            [(self._starts[k], self._ends[k]) for k in range(i, j)] + intervals
-        ):
-            if merged and s <= merged[-1][1]:
-                merged[-1] = (merged[-1][0], max(merged[-1][1], e))
-            else:
-                merged.append((s, e))
-        self._splice(i, j, merged)
-
-    def remove(self, start: float, end: float) -> None:
-        """Remove `[start, end]` from the set."""
+        A negative `work` withdraws work added before; the count stops at zero.
+        """
         if end <= start:
             return
-        # existing intervals that overlap (start, end)
-        i = bisect_right(self._ends, start)
-        j = bisect_left(self._starts, end)
-        if i >= j:
-            return
-        kept: list[tuple[float, float]] = []
-        if self._starts[i] < start:
-            kept.append((self._starts[i], start))
-        if self._ends[j - 1] > end:
-            kept.append((end, self._ends[j - 1]))
-        self._splice(i, j, kept)
+        # segments that overlap or touch `[start, end]`, so equal neighbours merge
+        i = bisect_left(self._ends, start)
+        j = bisect_right(self._starts, end)
+        pieces: list[tuple[float, float, bool, int]] = []
 
-    def gaps(self, start: float, end: float) -> list[tuple[float, float]]:
-        """The parts of `[start, end]` not covered by the set."""
-        gaps: list[tuple[float, float]] = []
-        cursor = start
-        i = bisect_right(self._ends, start)
-        j = bisect_left(self._starts, end)
-        for k in range(i, j):
-            if self._starts[k] > cursor:
-                gaps.append((cursor, self._starts[k]))
-            cursor = max(cursor, self._ends[k])
-        if cursor < end:
-            gaps.append((cursor, end))
-        return gaps
-
-    def overlaps(self, start: float, end: float) -> list[tuple[float, float]]:
-        """The parts of `[start, end]` covered by the set."""
-        i = bisect_right(self._ends, start)
-        j = bisect_left(self._starts, end)
-        return [
-            (max(self._starts[k], start), min(self._ends[k], end)) for k in range(i, j)
-        ]
-
-    def measure(self, a: float, b: float) -> float:
-        """Length of the set within `[a, b]`."""
-        return self._before(b) - self._before(a) if b > a else 0.0
-
-    def _before(self, x: float) -> float:
-        """Length of the set before `x`."""
-        i = bisect_right(self._starts, x) - 1
-        if i < 0:
-            return 0.0
-        return self._cum[i] + min(x, self._ends[i]) - self._starts[i]
-
-    def _splice(self, i: int, j: int, intervals: list[tuple[float, float]]) -> None:
-        self._starts[i:j] = [s for s, _ in intervals]
-        self._ends[i:j] = [e for _, e in intervals]
-        self._cum[i:j] = [0.0] * len(intervals)
-        total = self._cum[i - 1] + self._ends[i - 1] - self._starts[i - 1] if i else 0.0
-        for k in range(i, len(self._starts)):
-            self._cum[k] = total
-            total += self._ends[k] - self._starts[k]
-
-
-class _CountedSet:
-    """Disjoint, sorted intervals, each with how many spans' work covers it."""
-
-    def __init__(self) -> None:
-        self._starts: list[float] = []
-        self._ends: list[float] = []
-        self._counts: list[int] = []
-
-    def add(self, start: float, end: float) -> list[tuple[float, float]]:
-        """Count `[start, end]` once more; returns the parts newly covered."""
-        covered: list[tuple[float, float]] = []
-        pieces: list[tuple[float, float, int]] = []
-        i, j = self._overlapping(start, end)
-        cursor = start
-        for k in range(i, j):
-            s, e, c = self._starts[k], self._ends[k], self._counts[k]
-            if s < start:
-                pieces.append((s, start, c))
-                s = start
-            if s > cursor:
-                pieces.append((cursor, s, 1))
-                covered.append((cursor, s))
-            pieces.append((s, min(e, end), c + 1))
-            if e > end:
-                pieces.append((end, e, c))
-            cursor = min(e, end)
-        if cursor < end:
-            pieces.append((cursor, end, 1))
-            covered.append((cursor, end))
-        self._splice(i, j, pieces)
-        return covered
-
-    def remove(self, start: float, end: float) -> list[tuple[float, float]]:
-        """Count `[start, end]` (previously added) once less; returns the parts uncovered."""
-        uncovered: list[tuple[float, float]] = []
-        pieces: list[tuple[float, float, int]] = []
-        i, j = self._overlapping(start, end)
-        for k in range(i, j):
-            s, e, c = self._starts[k], self._ends[k], self._counts[k]
-            if s < start:
-                pieces.append((s, start, c))
-                s = start
-            if c > 1:
-                pieces.append((s, min(e, end), c - 1))
+        def put(s: float, e: float, waited: bool, count: int) -> None:
+            if e <= s or not (waited or count):
+                return
+            if pieces and pieces[-1][1] == s and pieces[-1][2:] == (waited, count):
+                pieces[-1] = (pieces[-1][0], e, waited, count)
             else:
-                uncovered.append((s, min(e, end)))
-            if e > end:
-                pieces.append((end, e, c))
-        self._splice(i, j, pieces)
-        return uncovered
+                pieces.append((s, e, waited, count))
 
-    def gaps(self, start: float, end: float) -> list[tuple[float, float]]:
-        """The parts of `[start, end]` not covered."""
-        gaps: list[tuple[float, float]] = []
         cursor = start
-        i, j = self._overlapping(start, end)
         for k in range(i, j):
-            if self._starts[k] > cursor:
-                gaps.append((cursor, self._starts[k]))
-            cursor = max(cursor, self._ends[k])
-        if cursor < end:
-            gaps.append((cursor, end))
-        return gaps
+            s, e = self._starts[k], self._ends[k]
+            waited, count = self._waited[k], self._counts[k]
+            put(s, min(e, start), waited, count)
+            put(cursor, s, wait, max(work, 0))
+            put(max(s, start), min(e, end), waited or wait, max(count + work, 0))
+            put(max(s, end), e, waited, count)
+            cursor = max(cursor, min(e, end))
+        put(cursor, end, wait, max(work, 0))
+        self._splice(i, j, pieces)
 
-    def _overlapping(self, start: float, end: float) -> tuple[int, int]:
-        return bisect_right(self._ends, start), bisect_left(self._starts, end)
+    def waiting(self, a: float, b: float) -> float:
+        """Length of `[a, b]` covered by a closed wait and no closed work."""
+        return self._waiting_before(b) - self._waiting_before(a) if b > a else 0.0
 
-    def _splice(self, i: int, j: int, pieces: list[tuple[float, float, int]]) -> None:
-        pieces = [p for p in pieces if p[1] > p[0]]
-        self._starts[i:j] = [s for s, _, _ in pieces]
-        self._ends[i:j] = [e for _, e, _ in pieces]
-        self._counts[i:j] = [c for _, _, c in pieces]
+    def covered(self, a: float, b: float) -> float:
+        """Length of `[a, b]` covered by a closed wait or closed work."""
+        return self._covered_before(b) - self._covered_before(a) if b > a else 0.0
+
+    def _segment(self, x: float) -> tuple[int, float]:
+        """The last segment starting at or before `x`, and its length before `x`."""
+        k = bisect_right(self._starts, x) - 1
+        return k, (min(x, self._ends[k]) - self._starts[k] if k >= 0 else 0.0)
+
+    def _waiting_before(self, x: float) -> float:
+        k, part = self._segment(x)
+        if k < 0:
+            return 0.0
+        return self._waiting[k] + (part if self._is_waiting(k) else 0.0)
+
+    def _covered_before(self, x: float) -> float:
+        k, part = self._segment(x)
+        return self._covered[k] + part if k >= 0 else 0.0
+
+    def _is_waiting(self, k: int) -> bool:
+        return self._waited[k] and not self._counts[k]
+
+    def _splice(
+        self, i: int, j: int, pieces: list[tuple[float, float, bool, int]]
+    ) -> None:
+        self._starts[i:j] = [s for s, _, _, _ in pieces]
+        self._ends[i:j] = [e for _, e, _, _ in pieces]
+        self._waited[i:j] = [w for _, _, w, _ in pieces]
+        self._counts[i:j] = [c for _, _, _, c in pieces]
+        self._waiting[i:j] = [0.0] * len(pieces)
+        self._covered[i:j] = [0.0] * len(pieces)
+        waiting, covered = 0.0, 0.0
+        if i:
+            length = self._ends[i - 1] - self._starts[i - 1]
+            waiting = self._waiting[i - 1] + (
+                length if self._is_waiting(i - 1) else 0.0
+            )
+            covered = self._covered[i - 1] + length
+        for k in range(i, len(self._starts)):
+            self._waiting[k], self._covered[k] = waiting, covered
+            length = self._ends[k] - self._starts[k]
+            covered += length
+            if self._is_waiting(k):
+                waiting += length
 
 
 @dataclass
 class SampleTiming:
     """Working-time state for one attempt of a sample.
 
-    Keeps, for the whole attempt, the closed waits, the closed known work
-    (counted per span, so one span's work can be withdrawn), the closed waits
-    not covered by known work, and the union of closed waits and work. While
-    any wait is open, the live wait runs from the start of the oldest open
-    wait to now. Work still in progress (open spans, and model attempts not
-    yet classified) is kept on its spans and read live.
+    Keeps, for the whole attempt, one timeline of the closed waits and the
+    closed known work (counted per span, so one span's work can be
+    withdrawn). While any wait is open, the live wait runs from the start of
+    the oldest open wait to now. Work still in progress (open spans, and model
+    attempts not yet classified) is kept on its spans and read live.
     """
 
     start_time: float = 0.0
@@ -210,14 +148,8 @@ class SampleTiming:
     open_waits: int = 0
     open_start: float | None = None
 
-    # closed waits
-    _all_waits: _IntervalSet = field(default_factory=_IntervalSet)
-    # closed known work
-    _work: _CountedSet = field(default_factory=_CountedSet)
-    # closed waits minus closed known work
-    _waits: _IntervalSet = field(default_factory=_IntervalSet)
     # closed waits and closed known work
-    _covered: _IntervalSet = field(default_factory=_IntervalSet)
+    _timeline: _Timeline = field(default_factory=_Timeline)
     # spans whose work is not yet closed (open, or pending classification)
     _spans: dict["_WorkSpan", None] = field(default_factory=dict)
 
@@ -259,9 +191,7 @@ class SampleTiming:
         start, end = self._clip(start, end)
         if end <= start:
             return
-        self._all_waits.add(start, end)
-        self._covered.add(start, end)
-        self._waits.add_all(self._work.gaps(start, end))
+        self._timeline.change(start, end, wait=True)
         chain: list[_WorkSpan] = []
         while owner is not None:
             chain.append(owner)
@@ -278,17 +208,12 @@ class SampleTiming:
         start, end = self._clip(start, end)
         if end <= start:
             return None
-        for s, e in self._work.add(start, end):
-            self._covered.add(s, e)
-            self._waits.remove(s, e)
+        self._timeline.change(start, end, work=1)
         return start, end
 
     def remove_work(self, start: float, end: float) -> None:
         """Withdraw known work counted by `add_work()`."""
-        for s, e in self._work.remove(start, end):
-            self._waits.add_all(self._all_waits.overlaps(s, e))
-            for gap_start, gap_end in self._all_waits.gaps(s, e):
-                self._covered.remove(gap_start, gap_end)
+        self._timeline.change(start, end, work=-1)
 
     def waiting(self, a: float, b: float) -> float:
         """Length of `[a, b]` covered by a known wait and by no known work."""
@@ -315,12 +240,12 @@ class SampleTiming:
 
     def _uncovered_waiting(self, a: float, b: float) -> float:
         """Waiting within `[a, b]`, not counting work still in progress."""
-        waiting = self._waits.measure(a, b)
+        waiting = self._timeline.waiting(a, b)
         if self.open_start is not None:
             lo = max(a, self.open_start)
             if b > lo:
                 # the live wait, outside the closed waits and closed work
-                waiting += (b - lo) - self._covered.measure(lo, b)
+                waiting += (b - lo) - self._timeline.covered(lo, b)
         return waiting
 
     def _live_work(self, a: float, b: float) -> list[tuple[float, float]]:

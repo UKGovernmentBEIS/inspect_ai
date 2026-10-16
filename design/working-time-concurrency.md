@@ -19,8 +19,9 @@ work Inspect can see. Work it cannot see (a background process, a
 sandboxed agent's own commands, an in-process library's `gather()`) stays
 free during a wait.
 
-The sample keeps a second merged interval set, of known work, beside the
-wait set. A reading is the length of the waits not covered by known work,
+The sample keeps known work beside the waits, on one timeline that
+records for each stretch of time whether a closed wait covers it and how
+many spans' closed work does. A reading is the length of the waits not covered by known work,
 so it still lies in `[0, elapsed]`. A model attempt in flight is known work
 until the retry policy classifies it as retried, when its interval becomes
 a wait again, as before.
@@ -227,18 +228,24 @@ report of `[1,3]` must bring them to 3 and to 2 respectively.
 
 The same holds for known work, which can be dropped after the fact (a
 retried attempt). So the sample keeps, for the whole attempt and with no
-folding, three merged sets with prefix sums: closed known work `K`, closed
-waits not covered by known work `E`, and the union of closed waits and
-closed work `U`. Beside them it keeps the start time of the oldest open
-wait and the work spans that are open or awaiting classification:
+folding, one timeline of closed waits and closed known work: a sorted list
+of disjoint segments, each recording whether a closed wait covers it and
+how many spans' closed work covers it. Time in no segment has neither.
+Adjacent segments with the same state are merged. Two prefix sums go with
+it: the length of the waiting segments (a wait and no work), `E`, and the
+length of all segments (a wait or work), `U`. Beside the timeline the
+sample keeps the start time of the oldest open wait and the work spans
+that are open or awaiting classification:
 
 - **Adding an interval.** It is clipped to the current attempt, from the
-  sample clock's start to now, and merged into the sorted lists.
-  Overlapping and adjacent intervals become one, so every addition, live or
-  late, is de-duplicated exactly. A wait adds to `U`, and its gaps in `K`
-  to `E`. Work adds to `K` and `U`, and is removed from `E`. A span's
-  interval is added when the span is held or closes; an attempt's intervals
-  wait for its classification.
+  sample clock's start to now. Adding a wait or work, and withdrawing work,
+  are one operation: split the segments at the interval's ends, set the
+  wait flag or change the work count over it, merge neighbours whose state
+  is now equal, and refresh the prefix sums from the first changed segment.
+  Overlapping additions only change a segment's state, so every addition,
+  live or late, is de-duplicated exactly. A span's interval is added when
+  the span is held or closes; an attempt's intervals wait for its
+  classification.
 - **Late waits and their own work.** A wait added after the fact
   (`add_sample_wait`, `report_sample_waiting_time`, a retried attempt in the
   retry loop) would otherwise be covered by the reporting context's own
@@ -250,17 +257,17 @@ wait and the work spans that are open or awaiting classification:
   reported from inside a suspension too (an approver reporting its wait):
   the suspension stops new work from opening there, but the work around it
   still owns its earlier time. Other tasks' work over the interval is
-  kept. For this, `K` counts how many spans cover each
-  point, each span keeps the intervals it added, and the closed waits `W`
-  are kept too: a withdrawal decrements the counts, and where `K` no longer
-  covers, `E` regains `W` and `U` loses what `W` does not cover.
+  kept. For this, the timeline counts how many spans' work covers each
+  segment, and each span keeps the intervals it added. A withdrawal
+  decrements the counts; a segment whose count reaches zero is waiting if
+  a closed wait covers it, and leaves the timeline otherwise.
 - **Late waits and finished work.** A custom call is usually reported after
   it returns, by when its model calls, sandbox commands and nested work
   have closed. So when a span's work is final (at close, or for a model
   attempt when the retry loop commits or drops it), it hands the intervals
   it counted, and those handed to it, to its parent span. Each interval
-  keeps the span that counted it. `K` is unchanged; only the record of
-  which span can withdraw them moves up. A late report walks the same chain
+  keeps the span that counted it. The timeline is unchanged; only the
+  record of which span can withdraw them moves up. A late report walks the same chain
   of spans and withdraws their handed-up intervals as well as their own: a
   tool that reports a five-second generate it just made reads 0 working.
   A closed span still held by a task it started passes what it receives on
@@ -275,10 +282,11 @@ wait and the work spans that are open or awaiting classification:
   was then retried. The
   attempt's own work is dropped or trimmed on the attempt itself, and work
   that other tasks under the same span finished meanwhile stays charged.
-- **Size.** Each list grows at most by one entry per span, usually less,
-  because overlapping spans merge. A sample has at most a few thousand
-  spans, so memory is small. Prior attempts are carried as totals in the
-  checkpoint (see "Resume accounting").
+- **Size.** Every segment boundary is an end of an added interval, so the
+  timeline holds at most two segments per interval added, usually fewer,
+  because segments with equal state merge. A sample has at most a few
+  thousand spans, so memory is small. Prior attempts are carried as totals
+  in the checkpoint (see "Resume accounting").
 - **Readings.** The live wait is `L = [oldest open wait start, now]` while
   any known wait is open. The live work is the merged intervals of the
   open and unclassified spans, a handful at any time. For a window `J`,
@@ -286,12 +294,13 @@ wait and the work spans that are open or awaiting classification:
 
   `x(J) = |E ∩ J| + |L ∩ J| - |U ∩ L ∩ J|`
 
-  and `waiting(a, b) = x([a, b]) - Σ x(J)` over the live-work intervals
-  `J` within `[a, b]`. Each term is a bisect into a prefix-sum list, so a
-  reading costs `O(s log n)` for `s` live spans and `n` closed intervals.
-  Working time over `[a, b]` is `(b - a) - waiting(a, b)` and always lies
-  in `[0, b - a]`. When a live span closes, it is merged into the closed
-  sets, and every reading is unchanged at that instant.
+  where `E` is the waiting segments and `U` all segments, and
+  `waiting(a, b) = x([a, b]) - Σ x(J)` over the live-work intervals `J`
+  within `[a, b]`. Each term is a bisect into the timeline and a prefix-sum
+  lookup, so a reading costs `O(s log n)` for `s` live spans and `n`
+  segments. Working time over `[a, b]` is `(b - a) - waiting(a, b)` and
+  always lies in `[0, b - a]`. When a live span closes, it is added to the
+  timeline, and every reading is unchanged at that instant.
 
 ### Approvals and limit suspension
 
@@ -643,7 +652,8 @@ block on `anyio.Event`s, so ordering is fixed.
    `sample_working_time_since(start)`.
 5. **Docs, CHANGELOG and the tests above.**
 
-Known work (2026-10-15) adds the work set, `known_work()` and
+Known work (2026-10-15) replaces the wait set with the timeline of waits
+and work, and adds `known_work()` and
 `ModelAttempts` to `_util/working.py`, the attempt span to
 `Model._generate`, `Model.compact`, `Model.count_tokens` and the retry
 config's `after` callback, and the spans in
