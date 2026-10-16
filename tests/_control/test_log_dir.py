@@ -8,12 +8,15 @@ design/ctl/log-dir-mode.md). The CLI surface is tested in test_ctl.py.
 
 import errno
 import functools
+import importlib
+import io
 import os
 import shutil
 import time
 import zipfile
 from collections import Counter
 from collections.abc import Iterator
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Literal, NamedTuple
 
@@ -67,6 +70,7 @@ from inspect_ai._control.log_dir.walk import walk_log_dir
 from inspect_ai._control.state import _iso_to_timestamp
 from inspect_ai._util.async_zip import AsyncZipReader, ZipCrcError
 from inspect_ai._util.asyncfiles import AsyncFilesystem, FileContent
+from inspect_ai._util.file import filesystem
 from inspect_ai.dataset import Sample
 from inspect_ai.event import InfoEvent, ModelEvent
 from inspect_ai.log import (
@@ -2245,9 +2249,9 @@ async def test_a_log_replaced_between_its_version_lookup_and_its_read_gets_no_ol
     assert replaced.samples is not None
     replaced.samples[1] = replaced.samples[1].model_copy(update={"error": None})
 
-    # a backend whose listing carries no version (as GCS or Azure), so the
-    # plan is read again; the log is replaced after its version is looked up
-    # and before its central directory is read
+    # the listing carries no version, so the plan is read again; the log is
+    # replaced after its version is looked up and before its central
+    # directory is read
     async def unlisted(fs: AsyncFilesystem, file: Any) -> None:
         return None
 
@@ -2273,6 +2277,79 @@ async def test_a_log_replaced_between_its_version_lookup_and_its_read_gets_no_ol
 
     assert unlisted_time(warm) == unlisted_time(uncached)
     assert _answers(await _poll(log_dir)) == _answers(uncached)
+
+
+def _padded(data: bytes, size: int) -> bytes:
+    """The ZIP ``data`` grown to ``size`` bytes with an archive comment."""
+    buffer = io.BytesIO(data)
+    with zipfile.ZipFile(buffer, "a") as archive:
+        archive.comment = b" " * (size - len(data))
+    return buffer.getvalue()
+
+
+async def test_a_same_size_azure_rewrite_is_read_again(
+    log_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # neither package ships type information
+    azure_fs = importlib.import_module("adlfs").AzureBlobFileSystem
+    memory = filesystem("memory://").fs
+    memory_type = type(memory)
+
+    # Azure's metadata as adlfs reports it: a lowercase etag and
+    # last_modified, which Inspect's file info does not read, so a log's
+    # version comes from its creation time and size
+    properties: dict[str, dict[str, Any]] = {}
+    real_info = memory_type.info
+
+    def azure_info(self: Any, path: str, **kwargs: Any) -> Any:
+        info = real_info(self, path, **kwargs)
+        return {**info, **properties.get(info["name"], {})}
+
+    monkeypatch.setattr(memory_type, "info", azure_info)
+    monkeypatch.setattr(memory_type, "created", azure_fs.created)
+    monkeypatch.setattr(memory_type, "modified", azure_fs.modified)
+
+    [path] = list(log_dir.glob("*.eval"))
+    replaced = await read_eval_log_async(str(path))
+    assert replaced.samples is not None
+    replaced.samples[1] = replaced.samples[1].model_copy(update={"error": None})
+    await write_eval_log_async(replaced, str(log_dir / "replaced" / path.name))
+    old = path.read_bytes()
+    new = (log_dir / "replaced" / path.name).read_bytes()
+    size = max(len(old), len(new))
+    old, new = _padded(old, size), _padded(new, size)
+
+    root = f"/ctl-azure-{os.getpid()}-{time.time_ns()}"
+    name = f"{root}/{path.name}"
+    created = datetime(2026, 1, 1, tzinfo=timezone.utc)
+
+    def upload(data: bytes, etag: str, modified: datetime) -> None:
+        memory.pipe_file(name, data)
+        properties[name] = {
+            "etag": etag,
+            "last_modified": modified,
+            "creation_time": created,
+        }
+
+    try:
+        upload(old, "0x1", created)
+        cold = await _poll(f"memory://{root}")
+        assert _statuses(sample_listing(cold.views[0]))[2] == "error"
+        async with AsyncFilesystem() as fs:
+            before = await consistency.log_version(fs, f"memory://{name}")
+            upload(new, "0x2", datetime(2026, 1, 2, tzinfo=timezone.utc))
+            assert await consistency.log_version(fs, f"memory://{name}") == before
+
+        warm = await _poll(f"memory://{root}")
+        uncached = await _poll(f"memory://{root}", cache=None)
+        assert _statuses(sample_listing(warm.views[0]))[2] == "completed"
+        assert _answers(warm) == _answers(uncached)
+        with use_cache(open_cache()):
+            assert await _per_sample_reads(warm.dir_index.tasks[0]) == (
+                await _per_sample_reads(uncached.dir_index.tasks[0])
+            )
+    finally:
+        memory.rm(root, recursive=True)
 
 
 def test_cli_cache_entries_change_what_is_fetched_never_what_is_returned(

@@ -1033,11 +1033,10 @@ of what changed. `src/inspect_ai/_control/log_dir/cache.py`:
     was read from;
   - the header-derived status fields and the parsed summaries, keyed by the
     file's ETag (locally its inode, `mtime_ns` and size, the freshness
-    check's form), valid only while the listing reports the same key. A
-    backend whose listing has no ETag has its plan read again on every
-    poll, with the version (ETag, else mtime and size) looked up before and
-    after the central-directory read; a log replaced in between gets no
-    version, so nothing cached for it is reused;
+    check's form), valid only while the listing reports the same key. The
+    version is looked up before and after a local central-directory read; a
+    log replaced in between gets no version, so nothing cached for it is
+    reused;
   - for a running log, the journal summary members already parsed, keyed by
     member name, CRC-32 and compressed size from the central directory.
     Journal members are append-only, so a changed running log costs its
@@ -1046,6 +1045,13 @@ of what changed. `src/inspect_ai/_control/log_dir/cache.py`:
   - the observed key set (plan ids and summary keys, both tied to the
     log's version) used to skip re-reading unchanged logs. It is derived
     from the cached plan and summaries rather than stored separately.
+- **Backends.** Only local and S3 logs have a version that names their
+  content. Other backends (GCS, Azure, other fsspec filesystems) report
+  metadata that can stay the same across a rewrite: an Azure log's version
+  comes from its creation time and size. For them the plan and summaries
+  are read again on every poll, and only the values checked against the
+  fresh central directory are reused: journal members by CRC-32 and size,
+  and a running log's `_journal/start.json` by CRC-32.
 - **Not cached**: manifest contents (they change every sync), sample
   members and segments (large; each invocation reads what it pages).
 - **Writes**: only from validated member views, atomically (temp file,

@@ -9,7 +9,8 @@ holding:
   used while the log's version is unchanged. Once the version changes the plan
   is read again through the new central directory, reusing a running log's
   start record while its CRC-32 is unchanged;
-- the sample summaries of that version;
+- the sample summaries of that version (local and S3 logs only, see
+  :func:`_versioned`);
 - for a running log, the journal summary members already parsed, keyed by
   member name, CRC-32 and compressed size, so a changed running log costs its
   central directory plus its new journal members.
@@ -158,6 +159,7 @@ class LogDirCache:
             entry is None
             or entry.summaries is None
             or version is None
+            or not _versioned(file.location)
             or version != entry.plan.version
         ):
             return None
@@ -180,6 +182,7 @@ class LogDirCache:
         same_version = (
             entry is not None
             and plan.version is not None
+            and _versioned(plan.file.location)
             and entry.plan.version == plan.version
         )
         self._store(
@@ -200,7 +203,11 @@ class LogDirCache:
         plan = snapshot.plan
         self._store(
             plan,
-            summaries=list(snapshot.summaries.values()),
+            summaries=(
+                list(snapshot.summaries.values())
+                if _versioned(plan.file.location)
+                else None
+            ),
             journal=journal.members(plan.central_directory),
         )
 
@@ -349,7 +356,7 @@ def _log_plan(file: LogFile, entry: _Entry) -> LogPlan:
         central_directory=None,
         header=header,
         finished=entry.plan.finished,
-        version=entry.plan.version,
+        version=entry.plan.version if _versioned(file.location) else None,
         header_crc=entry.plan.header_crc,
     )
 
@@ -370,6 +377,18 @@ def _still_listed(
         ):
             listed[path] = member
     return listed
+
+
+def _versioned(location: str) -> bool:
+    """Whether the log's version names its content, so values keyed by it are reused.
+
+    True for S3 (the ETag) and local files (inode, mtime and size). Other
+    backends' metadata can stay the same across a rewrite (an Azure log's
+    version comes from its creation time and size), so their plans and
+    summaries are read again on every poll; only the journal members and start
+    record, checked against the fresh central directory, are reused.
+    """
+    return is_s3_filename(location) or filesystem(location).is_local()
 
 
 def _cache_key(location: str) -> str:
