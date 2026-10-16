@@ -1,8 +1,9 @@
 """Regression coverage for cancellation after scoring and before sample logging."""
 
 import asyncio
+import contextlib
 from pathlib import Path
-from typing import Any, Literal, overload
+from typing import Any, AsyncIterator, Literal, overload
 
 import anyio
 import pytest
@@ -10,7 +11,12 @@ from pydantic import BaseModel
 from test_helpers.utils import skip_if_trio
 from typing_extensions import override
 
-from inspect_ai import Task, eval_async
+import inspect_ai._display.core.active as active_display_module
+import inspect_ai.util._display as display_type_module
+from inspect_ai import Task, eval, eval_async
+from inspect_ai._display.core.display import TaskScreen, TaskSpec
+from inspect_ai._eval.run import _run_task_screen
+from inspect_ai._util._async import current_async_backend
 from inspect_ai._util.background import background_task_group
 from inspect_ai._util.error import is_cancellation_message
 from inspect_ai.dataset import Sample
@@ -159,7 +165,7 @@ async def _interrupted_eval(
         if scorer_override is None
         else scorer_override
     )
-    await eval_async(
+    returned = await eval_async(
         Task(
             dataset=[Sample(id="scored", input="x", target="y")],
             solver=[_interrupt_after_scoring_solver()],
@@ -176,7 +182,14 @@ async def _interrupted_eval(
     )
     logs = await list_eval_logs_async(str(tmp_path))
     assert len(logs) == 1
-    return await read_eval_log_async(logs[0].name)
+    log = await read_eval_log_async(logs[0].name)
+    if log.status == "cancelled" and current_async_backend() == "asyncio":
+        # asyncio returns no logs for a run whose task group is cancelled
+        assert returned == []
+    else:
+        assert [r.eval.eval_id for r in returned] == [log.eval.eval_id]
+        assert returned[0].status == log.status
+    return log
 
 
 def _logged_sample(log: EvalLog) -> EvalSample:
@@ -193,6 +206,90 @@ async def test_interrupted_sandbox_cleanup_keeps_scored_sample(tmp_path: Path) -
     assert sample.scores
     assert sample.error is not None
     assert is_cancellation_message(sample.error.message)
+
+
+@pytest.fixture
+def sync_rich_eval_first(
+    tmp_path_factory: pytest.TempPathFactory, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Run a sync `eval()` with the rich display before the test's event loop.
+
+    The sync run leaves its display in place for later runs in the process,
+    so the test's `eval_async()` uses the rich display. The display created
+    by earlier tests is cleared first and the display state is restored
+    afterwards.
+    """
+    monkeypatch.setattr(
+        display_type_module, "_display_type", display_type_module._display_type
+    )
+    monkeypatch.setattr(active_display_module, "_active_display", None)
+    eval(
+        Task(dataset=[Sample(input="x", target="y")]),
+        model="mockllm/model",
+        log_dir=str(tmp_path_factory.mktemp("sync_eval")),
+        display="rich",
+    )
+
+
+@pytest.mark.usefixtures("sync_rich_eval_first")
+async def test_interrupted_cleanup_after_sync_eval_keeps_scored_sample(
+    tmp_path: Path,
+) -> None:
+    """A teardown cancel keeps the cancelled log when the rich display is active."""
+    log = await _interrupted_eval("cleanup", tmp_path)
+
+    assert log.status == "cancelled"
+    sample = _logged_sample(log)
+    assert sample.scores
+    assert sample.error is not None
+    assert is_cancellation_message(sample.error.message)
+
+
+class _CheckpointTeardownDisplay:
+    """Display whose task screen teardown awaits, optionally cancelling first."""
+
+    def __init__(self, cancel_in_teardown: anyio.CancelScope | None = None) -> None:
+        self.cancel_in_teardown = cancel_in_teardown
+
+    @contextlib.asynccontextmanager
+    async def task_screen(
+        self, tasks: list[TaskSpec], parallel: bool
+    ) -> AsyncIterator[TaskScreen]:
+        yield TaskScreen()
+        if self.cancel_in_teardown is not None:
+            self.cancel_in_teardown.cancel()
+        await anyio.sleep(0)
+
+
+async def test_run_task_screen_absorbs_teardown_cancel_after_body_cancel(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A cancelled run body returns, though the display's teardown re-raises the cancel."""
+    monkeypatch.setattr(
+        "inspect_ai._eval.run.display", lambda: _CheckpointTeardownDisplay()
+    )
+    returned = False
+    with anyio.CancelScope() as scope:
+        async with _run_task_screen([]):
+            scope.cancel()
+            await anyio.sleep(0)
+        returned = True
+    assert returned
+
+
+async def test_run_task_screen_propagates_teardown_cancel_after_normal_body(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A cancel that first arrives in the display's teardown still propagates."""
+    with anyio.CancelScope() as scope:
+        monkeypatch.setattr(
+            "inspect_ai._eval.run.display",
+            lambda: _CheckpointTeardownDisplay(cancel_in_teardown=scope),
+        )
+        async with _run_task_screen([]):
+            pass
+        pytest.fail("teardown cancel was absorbed")
+    assert scope.cancelled_caught
 
 
 @pytest.mark.timeout(10, method="thread")

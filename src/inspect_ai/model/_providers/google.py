@@ -102,6 +102,8 @@ from inspect_ai.model._model_output import (
     StopCategory,
     StopDetails,
     collect_stop_details,
+    sum_usage,
+    usage_input_tokens,
 )
 from inspect_ai.model._providers._google_batch import GoogleBatcher, batch_request_dict
 from inspect_ai.model._providers._google_citations import (
@@ -154,7 +156,6 @@ from inspect_ai.util._json import json_schema_dump
 from ._first_party import FRONTIER_MODELS
 from ._gemini_function_calling import (
     DEFAULT_MALFORMED_FUNCTION_MESSAGE,
-    FUNCTION_CALLING_HINT,
     MALFORMED_FUNCTION_RETRY_PROMPT,
     MAX_TOOL_CALLING_ATTEMPTS,
     malformed_function_apology,
@@ -474,10 +475,7 @@ class GoogleGenAIAPI(ModelAPI):
                 else:
                     gemini_tool_config = None
                 system_instruction = await extract_system_message_as_parts(
-                    client,
-                    input,
-                    tools,
-                    include_function_calling_hint=not has_native_tools,
+                    client, input
                 )
                 # Map modalities to Google's response_modalities
                 response_modalities = None
@@ -527,6 +525,10 @@ class GoogleGenAIAPI(ModelAPI):
                 )
 
                 response: GenerateContentResponse | None = None
+                # every attempt of the retry loop below is billed; the first one
+                # is the request built from the input
+                usage: ModelUsage | None = None
+                input_context_tokens: int | None = None
 
                 try:
                     # google sometimes requires retries for malformed function calls
@@ -552,6 +554,12 @@ class GoogleGenAIAPI(ModelAPI):
                                 contents=gemini_contents,  # type: ignore[arg-type]
                                 config=parameters,
                             )
+                        attempt_usage = usage_metadata_to_model_usage(
+                            response.usage_metadata
+                        )
+                        if tool_calling_attempts == 0:
+                            input_context_tokens = usage_input_tokens(attempt_usage)
+                        usage = sum_usage(usage, attempt_usage)
                         # retry for MALFORMED_FUNCTION_CALL
                         if (
                             response.candidates
@@ -586,7 +594,11 @@ class GoogleGenAIAPI(ModelAPI):
                         {"error": {"message": str(ex.message), "code": ex.code}},
                         http_hooks.end_request(request_id),
                     )
-                    return self.handle_client_error(ex), model_call
+                    handled = self.handle_client_error(ex)
+                    if isinstance(handled, ModelOutput):
+                        handled.usage = usage
+                        handled.input_context_tokens = input_context_tokens
+                    return handled, model_call
 
                 assert response is not None  # mypy confused by retry loop
 
@@ -602,7 +614,8 @@ class GoogleGenAIAPI(ModelAPI):
                     choices=completion_choices_from_candidates(
                         model_name, response, has_computer_use
                     ),
-                    usage=usage_metadata_to_model_usage(response.usage_metadata),
+                    usage=usage,
+                    input_context_tokens=input_context_tokens,
                     response_id=response.response_id,
                 )
 
@@ -813,12 +826,14 @@ class GoogleGenAIAPI(ModelAPI):
                 else m
                 for m in input
             ]
-            contents: list[ContentUnion] = [
+            count_contents = [
                 await content(
                     client, m, emulate_reasoning=not self.is_gemini_thinking()
                 )
                 for m in count_messages
             ]
+            acknowledge_safety_decisions(count_contents)
+            contents: list[ContentUnion] = list(count_contents)
             try:
                 response = await client.aio.models.count_tokens(
                     model=self.service_model_name(), contents=contents
@@ -1409,8 +1424,42 @@ async def as_chat_messages(
         consecutive_tool_message_reducer, chat_messages, []
     )
 
+    acknowledge_safety_decisions(chat_messages)
+
     # return messages
     return chat_messages
+
+
+def acknowledge_safety_decisions(contents: list[Content]) -> None:
+    """Acknowledge results of replayed calls that carry a `safety_decision`.
+
+    The API rejects a result without `safety_acknowledgement` when its call
+    carries a `safety_decision`. Calls read from a Gemini response have it
+    removed, but histories imported with `messages_from_google()` or through
+    the agent bridge keep it. Results are matched to calls of the latest
+    model turn by id, then by name, since imported results need not carry
+    their call's id.
+    """
+    unanswered: list[FunctionCall] = []
+    for content in contents:
+        if content.role == "model":
+            unanswered = []
+        for part in content.parts or []:
+            if part.function_call is not None:
+                unanswered.append(part.function_call)
+            elif part.function_response is not None:
+                response = part.function_response
+                call = next(
+                    (c for c in unanswered if response.id and c.id == response.id),
+                    None,
+                ) or next((c for c in unanswered if c.name == response.name), None)
+                if call is None:
+                    continue
+                unanswered.remove(call)
+                if "safety_decision" in (call.args or {}):
+                    response.response = (response.response or {}) | {
+                        "safety_acknowledgement": "true"
+                    }
 
 
 def consecutive_tool_message_reducer(
@@ -1682,15 +1731,14 @@ async def content(
         return Content(role="model", parts=content_parts)
 
     elif isinstance(message, ChatMessageTool):
-        content_text = (
-            message.error.message if message.error is not None else message.text
-        )
-        response_dict: dict[str, object] = {
-            "content": content_text,
-            "safety_acknowledgement": "true",
-        }
         if message.function == "computer":
-            response_dict["url"] = ""
+            response_dict: dict[str, object] = {
+                "content": message.error.message
+                if message.error is not None
+                else message.text,
+                "safety_acknowledgement": "true",
+                "url": "",
+            }
             response_name = (
                 message.tool_call_id.rsplit("_", 1)[0]
                 if message.tool_call_id
@@ -1699,6 +1747,7 @@ async def content(
             # Computer-use models support multimodal function responses.
             fn_response_parts = await computer_tool_result_parts(message)
         else:
+            response_dict = function_response_body(message)
             response_name = message.function or ""
             fn_response_parts = None
         response = FunctionResponse(
@@ -1723,6 +1772,21 @@ async def content(
                 if isinstance(item, ContentImage):
                     parts.append(await content_part(client, item))
         return Content(role="user", parts=parts)
+
+
+def function_response_body(message: ChatMessageTool) -> dict[str, object]:
+    """The `FunctionResponse.response` for a non-computer tool result.
+
+    Uses the keys the Gemini API documents: `output` for the result and
+    `error` for a failed call. The older `{"content": ...}` body made
+    gemini-2.5-pro repeat tool calls after a result, sometimes without end.
+
+    No `safety_acknowledgement`: the API requires one only when the replayed
+    call carries a `safety_decision` (see `acknowledge_safety_decisions()`).
+    """
+    if message.error is not None:
+        return {"error": message.error.message}
+    return {"output": message.text}
 
 
 async def content_part(client: Client, content: InspectContent | str) -> Part:
@@ -1757,8 +1821,6 @@ async def chat_content_to_part(
 async def extract_system_message_as_parts(
     client: Client,
     messages: list[ChatMessage],
-    tools: list[ToolInfo],
-    include_function_calling_hint: bool = True,
 ) -> list[File | Part | Image | str] | None:
     system_parts: list[File | Part | Image | str] = []
     for message in messages:
@@ -1772,13 +1834,6 @@ async def extract_system_message_as_parts(
                 )
             else:
                 raise ValueError(f"Unsupported system message content: {content}")
-
-    # if there are function declaration tools then inject a hint to prevent
-    # MALFORMED_FUNCTION_CALL. skipped for native-only tools (e.g. code execution)
-    # as sending it causes FAILED_PRECONDITION from the API.
-    # (see https://github.com/googleapis/python-genai/issues/430#issuecomment-3592369131)
-    if len(tools) > 0 and include_function_calling_hint:
-        system_parts.append(Part(text=FUNCTION_CALLING_HINT))
 
     # if every part is text then return list[str] rather than list[Part]
     # works around issue w/ open-telemetry not expecting parts
