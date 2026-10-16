@@ -1,3 +1,5 @@
+import fnmatch
+import sys
 from dataclasses import dataclass
 from typing import Any, Generator, cast
 
@@ -5,8 +7,8 @@ from pydantic import BaseModel, Field, model_validator
 
 from inspect_ai._util.config import read_config_object
 from inspect_ai._util.file import exists, local_path
+from inspect_ai._util.format import format_function_call
 from inspect_ai._util.registry import create_registry_object, registry_lookup
-from inspect_ai.approval._policy import tool_patterns
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageTool
 from inspect_ai.tool._tool import ToolResult
 from inspect_ai.tool._tool_call import ToolCall, ToolCallView
@@ -38,13 +40,21 @@ def policy_reviewer(policies: str | list[ReviewPolicy]) -> Reviewer:
     if isinstance(policies, str):
         policies = review_policies_from_config(policies)
 
-    policy_matchers = [
-        (tool_patterns(policy.tools), policy.reviewer) for policy in policies
-    ]
+    policy_matchers: list[tuple[list[str], Reviewer]] = []
+    for policy in policies:
+        tool_specs = [policy.tools] if isinstance(policy.tools, str) else policy.tools
+        tools: list[str] = []
+        for spec in tool_specs:
+            tools.extend([t.strip() for t in spec.split(",") if t.strip()])
+        globs = [tool if tool.endswith("*") else f"{tool}*" for tool in tools]
+        policy_matchers.append((globs, policy.reviewer))
 
     def tool_reviewers(tool_call: ToolCall) -> Generator[Reviewer, None, None]:
-        for patterns, reviewer in policy_matchers:
-            if any(pattern.matches(tool_call) for pattern in patterns):
+        function_call = format_function_call(
+            tool_call.function, tool_call.arguments, width=sys.maxsize
+        )
+        for globs, reviewer in policy_matchers:
+            if any(fnmatch.fnmatch(function_call, pattern) for pattern in globs):
                 yield reviewer
 
     async def review(

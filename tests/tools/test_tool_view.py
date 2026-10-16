@@ -16,6 +16,7 @@ from inspect_ai.tool._tool_call import (
     ToolCall,
     ToolCallContent,
     ToolCallView,
+    resolve_tool_call_view,
 )
 from inspect_ai.tool._tool_def import ToolDef
 
@@ -116,6 +117,18 @@ def test_tool_call_view_returns_view_when_viewer_succeeds():
 
     assert result is not None
     assert result.content == "rendered ok"
+
+
+def test_resolve_tool_call_view_falls_back_when_viewer_raises() -> None:
+    def raising_viewer(call: ToolCall) -> ToolCallView:
+        raise TypeError("not a string")
+
+    # the default mode, used after the call has run (after-tool sentinel,
+    # tool result review), keeps the default rendering
+    call = ToolCall(id="1", function="viewer_fallback_tool", arguments={"x": 1})
+    view = resolve_tool_call_view(call, raising_viewer)
+    assert view.call is not None
+    assert "viewer_fallback_tool" in view.call.content
 
 
 async def test_apply_tool_approval_rejects_when_viewer_raises() -> None:

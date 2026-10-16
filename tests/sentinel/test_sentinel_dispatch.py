@@ -3251,6 +3251,38 @@ def test_a_raising_viewer_rejects_the_call_before_the_sentinel() -> None:
     assert "viewer for tool 'addition_raising_viewer' failed" in message.error.message
 
 
+def test_a_raising_viewer_falls_back_after_the_tool_runs() -> None:
+    after: list[AfterToolCall] = []
+    task = Task(
+        dataset=[Sample(input="What is 1 + 1?", target="2")],
+        solver=[use_tools(addition_raising_viewer()), generate()],
+        sentinel=observe_only([d3_recording_after(after)]),
+    )
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.for_tool_call(
+                "mockllm/model",
+                tool_name="addition_raising_viewer",
+                tool_arguments={"x": 1, "y": 1},
+            ),
+            ModelOutput.from_content("mockllm/model", content="done"),
+        ],
+        memoize=False,
+    )
+    log = eval(task, model=model)[0]
+    assert log.status == "success", log.error
+
+    # with no approver and no before-tool monitor the tool runs, and the
+    # after-tool monitor gets the default rendering
+    [message] = tool_messages(log)
+    assert message.error is None
+    assert message.text == "2"
+    [step] = after
+    assert step.view.call is not None
+    assert "addition_raising_viewer" in step.view.call.content
+
+
 @protocol
 def d3_public_memory_only() -> Protocol:
     async def decide(context: Context, step: BeforeToolCall) -> Decision | None:

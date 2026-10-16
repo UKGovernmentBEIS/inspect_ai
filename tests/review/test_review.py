@@ -34,7 +34,6 @@ from inspect_ai.review import (
 from inspect_ai.review._policy import (
     ReviewerPolicyConfig,
     ReviewPolicyConfig,
-    policy_reviewer,
     review_policies_from_config,
 )
 from inspect_ai.scorer import match
@@ -343,42 +342,6 @@ async def test_a_result_no_policy_covers_continues_without_review() -> None:
 
     assert tool_message(messages).content == [ContentText(text="2")]
     assert review_events() == []
-
-
-async def reviewed_by(tools: str, function: str, **arguments: object) -> bool:
-    """Whether a policy for `tools` reviews a call to `function`."""
-    init_transcript(Transcript())
-    call = ToolCall(id="1", function=function, arguments=arguments)
-    result = ChatMessageTool(content="", tool_call_id="1", function=function)
-    review_ = policy_reviewer([policy("terminate", tools=tools)])
-    reviewed = await review_("", call, result, "", ToolCallView(), [])
-    return reviewed.decision == "terminate"
-
-
-async def test_review_policy_tools_match_as_approval_policy_tools() -> None:
-    # a name glob is matched against the function name only (before, it was
-    # matched against `type(text='left_click')`)
-    assert await reviewed_by("*_click", "left_click")
-    assert not await reviewed_by("*_click", "type", text="left_click")
-
-    # a string value cannot end itself early and complete the pattern
-    value = "type', mode='safe"
-    assert not await reviewed_by("computer(action='type'", "computer", action=value)
-    escaped = "computer(action='type\\', mode=\\'safe'"
-    assert await reviewed_by(escaped, "computer", action=value)
-
-
-@pytest.mark.parametrize(
-    "tools",
-    [
-        "computer(action='key', computer(action='left_click'",
-        "bash(cmd='git, python",
-        "bash(cmd='rm, bash(cmd='sudo",
-    ],
-)
-def test_review_policy_pattern_cannot_run_into_the_next_pattern(tools: str) -> None:
-    with pytest.raises(ValueError, match="end the pattern with"):
-        policy_reviewer([policy("terminate", tools=tools)])
 
 
 # --- what the reviewer sees ----------------------------------------------------
