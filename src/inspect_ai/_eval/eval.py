@@ -1,6 +1,7 @@
 import contextlib
 import functools
 import logging
+import math
 import os
 from contextlib import nullcontext
 from contextvars import Token, copy_context
@@ -9,6 +10,7 @@ from pathlib import Path
 from typing import Any, Literal, cast
 
 import anyio
+import anyio.lowlevel
 from anyio.abc import TaskGroup
 
 from inspect_ai._control.eval_state import reset_run_registries
@@ -1243,21 +1245,31 @@ async def _eval_async_inner(
                 )
                 await wait_for_shutdown_async(_ctl_server)
 
-        # cleanup sample buffers if required
-        await cleanup_sample_buffers(log_dir)
-
-        try:
-            await emit_run_end(eval_set_id, run_id, logs)
-        except UnboundLocalError:
-            await emit_run_end(eval_set_id, run_id, EvalLogs([]))
-        _eval_async_running = False
-
     except BaseException as e:
-        await emit_run_end(eval_set_id, run_id, EvalLogs([]), e)
-        _eval_async_running = False
+        with anyio.CancelScope(shield=True):
+            await emit_run_end(eval_set_id, run_id, EvalLogs([]), e)
         raise e
 
+    else:
+        # shielded: under trio a Ctrl-C leaves the run's scope cancelled. In
+        # `else` so a second Ctrl-C here does not start the hooks above.
+        cancelled = anyio.current_effective_deadline() == -math.inf
+        with anyio.CancelScope(shield=True):
+            # cleanup sample buffers if required
+            await cleanup_sample_buffers(log_dir)
+
+            try:
+                await emit_run_end(eval_set_id, run_id, logs)
+            except UnboundLocalError:
+                await emit_run_end(eval_set_id, run_id, EvalLogs([]))
+
+        # a cancellation (e.g. asyncio's Ctrl-C) that arrived during the
+        # shielded cleanup of a run that was not cancelled still ends it
+        if not cancelled:
+            await anyio.lowlevel.checkpoint_if_cancelled()
+
     finally:
+        _eval_async_running = False
         # Stop accepting task additions for this run.
         if enqueuer_token is not None:
             clear_task_enqueuer(enqueuer_token)
@@ -1753,6 +1765,9 @@ async def eval_retry_async(
     # eval them in turn
     eval_logs: list[EvalLog] = []
     for i, eval_log in enumerate(retry_eval_logs):
+        # don't start another retry once the caller is cancelled (under trio
+        # a Ctrl-C leaves the scope cancelled after the interrupted eval)
+        await anyio.lowlevel.checkpoint_if_cancelled()
         if i in finalized_indexes:
             eval_logs.append(eval_log)
             continue
