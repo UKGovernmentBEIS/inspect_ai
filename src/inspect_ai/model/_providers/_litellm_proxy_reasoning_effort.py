@@ -38,6 +38,8 @@ _VALUE_REJECTED = (
     ),
     # xAI (e.g. `none` for grok-4.7)
     re.compile(r"does not support `reasoning_effort` value `(\w+)`"),
+    # Meta (e.g. `none` for muse-wonder-1.0)
+    re.compile(r"reasoning_effort '(\w+)' is not supported for model"),
 )
 # Value rejections that name no value (a request sends only one). Were a model
 # to reject every value this way, the ladder is walked once (one failed request

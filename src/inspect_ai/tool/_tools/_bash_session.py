@@ -12,6 +12,7 @@ from inspect_ai.util import StoreModel, store_as
 from inspect_ai.util._sandbox._cli import SANDBOX_CLI, tools_user_param
 from inspect_ai.util._sandbox._json_rpc_transport import SandboxJSONRPCTransport
 from inspect_ai.util._sandbox.limits import SandboxEnvironmentLimits
+from inspect_ai.util._tool_state import tool_state_instance
 
 from .._tool import Tool, ToolParsingError, tool
 
@@ -101,7 +102,8 @@ def bash_session(
           empty string. The model may need to make multiple tool calls to obtain
           all output from a given command.
       user: Username to run commands as
-      instance: Instance id (each unique instance id has its own bash process)
+      instance: Instance id (each unique instance id has its own bash process).
+          Defaults to the current `tool_state_scope()`, if any.
 
     Returns:
       String with output from the shell.
@@ -192,7 +194,7 @@ def bash_session(
                         f"Do not provide 'input' with '{action}' action."
                     )
 
-        store = store_as(BashSessionStore, instance=instance)
+        store = store_as(BashSessionStore, instance=tool_state_instance(instance))
         sandbox = await sandbox_with_injected_tools()
 
         # Create transport for all RPC calls

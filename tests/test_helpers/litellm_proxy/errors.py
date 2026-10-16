@@ -9,7 +9,7 @@ fake upstream finds it in a request.
 from collections.abc import Callable
 from typing import Any, NamedTuple
 
-from .stubs import SSE, Reply, StubRequest
+from .stubs import SSE, Reply, StubRequest, openai_responses_sse
 
 USAGE = {"input_tokens": 10, "output_tokens": 5}
 
@@ -141,10 +141,83 @@ def _gemini_safety(request: StubRequest) -> dict[str, Any] | SSE:
     )
 
 
+META_REFUSAL = "This request violates our policies."
+
+
+def _meta_refusal(request: StubRequest) -> dict[str, Any] | SSE:
+    """Meta's structured refusal, in the native meta provider's shapes.
+
+    A `refusal` output part on Responses, and `message.refusal` on chat.
+    """
+    body = request.body
+    if "/responses" in request.path:
+        response = {
+            "id": "resp_1",
+            "object": "response",
+            "created_at": 0,
+            "status": "completed",
+            "model": body["model"],
+            "output": [
+                {
+                    "type": "message",
+                    "id": "msg_1",
+                    "role": "assistant",
+                    "status": "completed",
+                    "content": [{"type": "refusal", "refusal": META_REFUSAL}],
+                }
+            ],
+            "parallel_tool_calls": True,
+            "tool_choice": "auto",
+            "tools": [],
+            "usage": {
+                "input_tokens": 5,
+                "input_tokens_details": {"cached_tokens": 0},
+                "output_tokens": 5,
+                "output_tokens_details": {"reasoning_tokens": 0},
+                "total_tokens": 10,
+            },
+        }
+        return openai_responses_sse(response) if body.get("stream") else response
+    base = {"id": "chatcmpl-1", "created": 0, "model": body["model"]}
+    usage = {"prompt_tokens": 5, "completion_tokens": 5, "total_tokens": 10}
+    if not body.get("stream"):
+        message = {"role": "assistant", "content": None, "refusal": META_REFUSAL}
+        return base | {
+            "object": "chat.completion",
+            "choices": [{"index": 0, "message": message, "finish_reason": "stop"}],
+            "usage": usage,
+        }
+    chunk = base | {"object": "chat.completion.chunk"}
+    return SSE(
+        [
+            (
+                None,
+                chunk
+                | {
+                    "choices": [
+                        {
+                            "index": 0,
+                            "delta": {"role": "assistant", "refusal": META_REFUSAL},
+                            "finish_reason": None,
+                        }
+                    ]
+                },
+            ),
+            (
+                None,
+                chunk
+                | {"choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}]},
+            ),
+            (None, chunk | {"choices": [], "usage": usage}),
+            (None, "[DONE]"),
+        ]
+    )
+
+
 class ErrorScenario(NamedTuple):
     provider: str
     """Upstream provider format: anthropic, openai, gemini, bedrock, deepseek,
-    moonshot, xai or azure."""
+    moonshot, xai, meta or azure."""
 
     respond: Reply | dict[str, Any] | Callable[[StubRequest], dict[str, Any] | SSE]
     """An error `Reply`, a 200 body, or a function from the request to a body."""
@@ -329,6 +402,37 @@ ERROR_SCENARIOS: dict[str, ErrorScenario] = {
     "grok-rate-limit": ErrorScenario(
         "xai",
         Reply(429, _xai_error("resource-exhausted", "Too many requests")),
+    ),
+    # Meta: the context window error as returned live by muse-wonder-1.0 (it
+    # names no cause, so it stays an error); the policy block and refusal use
+    # the native meta provider's shapes. Named for the model, as for Grok.
+    "muse-context": ErrorScenario(
+        "meta",
+        Reply(
+            400,
+            _openai_error(
+                "The request contains invalid parameters. Check the request body "
+                "for any errors or inconsistencies.",
+                "invalid_request_error",
+                None,
+            ),
+        ),
+    ),
+    "muse-policy": ErrorScenario(
+        "meta",
+        Reply(
+            400,
+            _openai_error(
+                "Your prompt was blocked by our content policy.",
+                "invalid_request_error",
+                "content_policy_violation",
+            ),
+        ),
+    ),
+    "muse-refusal": ErrorScenario("meta", _meta_refusal),
+    "muse-rate-limit": ErrorScenario(
+        "meta",
+        Reply(429, _openai_error("Too many requests", "rate_limit_error", None)),
     ),
     "azure-content-filter": ErrorScenario(
         "azure",
