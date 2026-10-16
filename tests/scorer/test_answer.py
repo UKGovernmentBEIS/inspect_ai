@@ -92,6 +92,27 @@ async def test_line_success():
 
 
 @pytest.mark.anyio
+@pytest.mark.parametrize("trailing", [" ", "  ", "\t", "\r", " \t\r", "\r\n"])
+async def test_line_ignores_trailing_whitespace(trailing: str):
+    scorer = answer("line")
+    state = simple_task_state(model_output=f"ANSWER: 42{trailing}")
+    result = await scorer(state, Target(["42"]))
+
+    assert result.answer == "42"
+    assert result.text == CORRECT
+
+
+@pytest.mark.anyio
+async def test_line_keeps_embedded_spaces():
+    scorer = answer("line")
+    state = simple_task_state(model_output="ANSWER: forty  two \t")
+    result = await scorer(state, Target(["forty  two"]))
+
+    assert result.answer == "forty  two"
+    assert result.text == CORRECT
+
+
+@pytest.mark.anyio
 async def test_line_failure():
     scorer = answer("line")
     state = simple_task_state(model_output="ANSWER:\nThis is a whole new line")
