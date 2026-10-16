@@ -444,6 +444,71 @@ async def test_approval_sees_canonical_path() -> None:
     assert "x" in result
 
 
+async def test_approval_sees_canonical_readonly_and_rename_paths() -> None:
+    """Readonly memory and rename's two paths are approved in canonical form."""
+    from inspect_ai.approval import Approval, ApprovalPolicy, Approver
+    from inspect_ai.approval._registry import approver
+    from inspect_ai.model._call_tools import execute_tools
+    from inspect_ai.model._chat_message import (
+        ChatMessage,
+        ChatMessageAssistant,
+        ChatMessageTool,
+    )
+    from inspect_ai.tool._tool import Tool
+    from inspect_ai.tool._tool_call import ToolCall, ToolCallView
+
+    approved: list[dict[str, object]] = []
+
+    @approver
+    def recording() -> Approver:
+        async def approve(
+            message: str,
+            call: ToolCall,
+            view: ToolCallView,
+            history: list[ChatMessage],
+        ) -> Approval:
+            approved.append(call.arguments)
+            return Approval(decision="approve")
+
+        return approve
+
+    async def run(tool: Tool, arguments: dict[str, object]) -> ChatMessageTool:
+        call = ToolCall(id="1", function="memory", arguments=arguments)
+        messages, _ = await execute_tools(
+            [ChatMessageAssistant(content=[], tool_calls=[call])],
+            [tool],
+            approval=[ApprovalPolicy(recording(), "*")],
+        )
+        assert isinstance(messages[-1], ChatMessageTool)
+        return messages[-1]
+
+    reader = memory(initial_data={"/memories/seed.txt": "seed"}, readonly=True)
+    viewed = await run(reader, {"command": "view", "path": "/memories/x/../seed.txt"})
+    assert viewed.error is None
+    assert "seed" in viewed.text
+    assert approved[-1] == {"command": "view", "path": "/memories/seed.txt"}
+
+    tool = memory()
+    await tool(command="create", path="/memories/old.txt", file_text="x")
+    renamed = await run(
+        tool,
+        {
+            "command": "rename",
+            "old_path": "/memories/a/../old.txt",
+            "new_path": "/memories/b/../new.txt",
+        },
+    )
+    assert renamed.error is None
+    assert approved[-1] == {
+        "command": "rename",
+        "old_path": "/memories/old.txt",
+        "new_path": "/memories/new.txt",
+    }
+    result = await tool(command="view", path="/memories/new.txt")
+    assert isinstance(result, str)
+    assert "x" in result
+
+
 async def test_tool_state_scopes_keep_separate_memory() -> None:
     """Default-instance memory tools in two scopes keep separate files."""
     tool = memory()
