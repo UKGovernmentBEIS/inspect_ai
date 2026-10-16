@@ -346,6 +346,7 @@ NUM_SAMPLES = 3
 with_sandbox = sys.argv[1] == "with_sandbox"
 run_ends = []
 sigint_in_hook = False
+sigint_in_cleanup = False
 events = []
 
 if with_sandbox:
@@ -363,11 +364,24 @@ if with_sandbox:
 @hooks(name="run_end_probe", description="Records run ends.")
 class RunEndProbe(Hooks):
     async def on_run_end(self, data: RunEnd) -> None:
-        run_ends.append(data.run_id)
+        run_ends.append(data)
         events.append("hook")
         if sigint_in_hook:
             signal.raise_signal(signal.SIGINT)
         await anyio.sleep(0)
+
+
+cleanup_sample_buffers = eval_module.cleanup_sample_buffers
+
+
+async def recording_cleanup(log_dir):
+    events.append("cleanup")
+    if sigint_in_cleanup:
+        signal.raise_signal(signal.SIGINT)
+    await cleanup_sample_buffers(log_dir)
+
+
+eval_module.cleanup_sample_buffers = recording_cleanup
 
 
 @solver
@@ -421,6 +435,7 @@ for display in ["rich", "plain", "log"]:
 
     log_dir = tempfile.mkdtemp()
     hooks_before = len(run_ends)
+    events.clear()
     try:
         run_eval(display, log_dir, interrupt=True)
     except KeyboardInterrupt as ex:
@@ -434,7 +449,12 @@ for display in ["rich", "plain", "log"]:
     assert log.status == "cancelled", (display, log.status)
     assert log.samples is not None and len(log.samples) == NUM_SAMPLES, display
     assert all(sample.error is not None for sample in log.samples), display
+    assert events == ["cleanup", "hook"], (display, events)
     assert len(run_ends) == hooks_before + 1, (display, run_ends)
+    run_end = run_ends[-1]
+    assert run_end.exception is None, (display, repr(run_end.exception))
+    assert [run_log.status for run_log in run_end.logs] == ["cancelled"], display
+    assert run_end.logs[0].eval.eval_id == log.eval.eval_id, display
 
 # a second Ctrl-C raised in the run-end hook interrupts without rerunning it
 sigint_in_hook = True
@@ -450,18 +470,8 @@ for display in ["rich", "plain", "log"]:
 sigint_in_hook = False
 
 # a second Ctrl-C raised in buffer cleanup interrupts without starting the hooks
-# (with the rich display the first Ctrl-C ends the run before buffer cleanup)
-cleanup_sample_buffers = eval_module.cleanup_sample_buffers
-
-
-async def cleanup_with_sigint(log_dir):
-    events.append("cleanup")
-    signal.raise_signal(signal.SIGINT)
-    await cleanup_sample_buffers(log_dir)
-
-
-eval_module.cleanup_sample_buffers = cleanup_with_sigint
-for display in ["plain", "log"]:
+sigint_in_cleanup = True
+for display in ["rich", "plain", "log"]:
     events.clear()
     try:
         run_eval(display, tempfile.mkdtemp(), interrupt=True)
@@ -470,7 +480,7 @@ for display in ["plain", "log"]:
     else:
         raise AssertionError(f"{display}: no KeyboardInterrupt")
     assert events == ["cleanup"], (display, events)
-eval_module.cleanup_sample_buffers = cleanup_sample_buffers
+sigint_in_cleanup = False
 
 # a later eval() in the same process still runs
 assert run_eval("rich", tempfile.mkdtemp(), interrupt=False).status == "success"
@@ -479,7 +489,7 @@ assert run_eval("rich", tempfile.mkdtemp(), interrupt=False).status == "success"
 
 @pytest.mark.parametrize("sandbox", ["with_sandbox", "no_sandbox"])
 def test_keyboard_interrupt_under_trio(sandbox: str):
-    """Under trio, Ctrl-C during eval() logs the cancelled samples, runs run-end hooks and raises KeyboardInterrupt.
+    """Under trio, Ctrl-C during eval() logs the cancelled samples, gives run-end hooks that log and raises KeyboardInterrupt.
 
     Covers the rich, plain and log displays, that an eval() error without a
     SIGINT is not masked, that a second SIGINT raised in a run-end hook does
