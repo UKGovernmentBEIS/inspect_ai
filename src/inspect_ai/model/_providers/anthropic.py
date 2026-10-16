@@ -337,6 +337,13 @@ class _ResolvedCacheTtl(NamedTuple):
 
 _CACHE_DIAGNOSIS_BETA = "cache-diagnosis-2026-04-07"
 _THINKING_BINDING_BETA = "thinking-binding-controls-2026-08-01"
+# returns the model's raw thinking rather than a summary, but only on requests
+# that leave `thinking.display` unset (see completion_config)
+_FULL_THINKING_BETA = "dev-full-thinking-2025-05-14"
+# marks reasoning that holds raw thinking from the full-thinking beta, so replay
+# can rebuild its thinking block (readable reasoning from other providers can
+# also carry a signature, which this API would reject)
+_RAW_THINKING_INTERNAL: JsonValue = {"anthropic_thinking": "raw"}
 _CACHE_MISS_WARNING = (
     "anthropic cache diagnostics: cache miss detected (reason: {reason})."
 )
@@ -1147,6 +1154,7 @@ class AnthropicAPI(ModelAPI):
         | None = None,
         pending_mcp_tool_uses: dict[str, BetaMCPToolUseBlock] | None = None,
         span_recorder: "_ServerToolSpanRecorder | None" = None,
+        raw_thinking: bool | None = None,
     ) -> tuple[dict[str, Any], ModelOutput]:
         """
         This helper function is split out so that it can be easily call itself recursively in cases where the model requires a continuation
@@ -1154,6 +1162,10 @@ class AnthropicAPI(ModelAPI):
         It considers the result from the initial request the "head" and the result
         from the continuation the "tail".
         """
+        # decide before sending: batch submission pops the request's headers
+        # and extra_body, and continuations inherit the head's value
+        if raw_thinking is None:
+            raw_thinking = self._returns_raw_thinking(request)
         # each continuation re-sends the same cache_control, so it refreshes the
         # cache entry at its own prefill -- record it as the gap baseline
         _last_request_start.set(time.monotonic())
@@ -1200,6 +1212,7 @@ class AnthropicAPI(ModelAPI):
             pending_mcp_tool_uses=pending_mcp_tool_uses,
             cache_diagnostics=self.cache_diagnostics_enabled(config),
             span_recorder=span_recorder,
+            raw_thinking=raw_thinking,
         )
 
         if continuation_required:
@@ -1219,6 +1232,7 @@ class AnthropicAPI(ModelAPI):
                 pending_tool_uses=pending_tool_uses,
                 pending_mcp_tool_uses=pending_mcp_tool_uses,
                 span_recorder=span_recorder,
+                raw_thinking=raw_thinking,
             )
 
             head_content = _content_list(head_model_output.message.content)
@@ -1243,6 +1257,23 @@ class AnthropicAPI(ModelAPI):
         # params (for MCP tool use/result) in the payload which causes Message to emit
         # Pydantic UserWarning for. We can remove this when remote MCP is out of beta
         return head_message.model_dump(warnings="none"), head_model_output
+
+    def _returns_raw_thinking(self, request: dict[str, Any]) -> bool:
+        """Whether the API returns raw thinking (not a summary) for `request`.
+
+        The full-thinking beta takes effect only when `thinking.display` is
+        unset; any display value (e.g. "summarized" or "omitted") wins. A
+        `thinking` in extra_body replaces the request's in the sent body.
+        """
+        header = request.get("extra_headers", {}).get("anthropic-beta", "")
+        betas = [b.strip() for b in header.split(",")] + self._client_default_betas()
+        extra_body = request.get(EXTRA_BODY) or {}
+        thinking = (
+            extra_body["thinking"]
+            if "thinking" in extra_body
+            else request.get("thinking")
+        ) or {}
+        return _FULL_THINKING_BETA in betas and "display" not in thinking
 
     def _client_default_betas(self) -> list[str]:
         """Betas set as client default headers (e.g. oauth-2025-04-20)."""
@@ -1372,10 +1403,9 @@ class AnthropicAPI(ModelAPI):
 
             # set thinking (remove 'display' for full-thinking). the beta may
             # arrive via per-request betas or as a client default header.
-            full_thinking_beta = "dev-full-thinking-2025-05-14"
             if (
-                full_thinking_beta in betas
-                or full_thinking_beta in self._client_default_betas()
+                _FULL_THINKING_BETA in betas
+                or _FULL_THINKING_BETA in self._client_default_betas()
             ):
                 thinking.pop("display", None)
             params["thinking"] = thinking
@@ -3922,6 +3952,16 @@ class _AssistantInternal:
     thinking_blocks: dict[str, ThinkingBlockParam | RedactedThinkingBlockParam] = field(
         default_factory=dict
     )
+    raw_thinking_signatures: set[str] = field(default_factory=set)
+    """Hashed signatures of thinking blocks parsed as raw thinking (from the
+    full-thinking beta).
+
+    Recorded when a response is parsed and consulted whenever a thinking block
+    is parsed. Whether a response holds raw thinking is decided from the
+    request that produced it, which history re-parsed via the agent bridge
+    doesn't have, so this keeps those blocks raw reasoning rather than
+    summaries. Keyed by signature (like `thinking_blocks`) so it survives the
+    agent bridge and checkpoint restore."""
     tool_call_internal_names: dict[str, str | None] = field(default_factory=dict)
     client_tool_call_positions: dict[str, int] = field(default_factory=dict)
     """Client tool call position within its assistant message content, keyed by
@@ -3987,6 +4027,9 @@ def init_sample_anthropic_assistant_internal(value: JsonValue | None = None) -> 
     internal = assistant_internal()
     internal.thinking_blocks.update(
         cast("dict[str, Any]", value.get("thinking_blocks", {}))
+    )
+    internal.raw_thinking_signatures.update(
+        cast("list[str]", value.get("raw_thinking_signatures", []))
     )
     internal.tool_call_internal_names.update(
         cast("dict[str, str | None]", value.get("tool_call_internal_names", {}))
@@ -4067,6 +4110,7 @@ def dump_anthropic_assistant_internal() -> JsonValue | None:
         JsonValue,
         {
             "thinking_blocks": dict(internal.thinking_blocks),
+            "raw_thinking_signatures": sorted(internal.raw_thinking_signatures),
             "tool_call_internal_names": dict(internal.tool_call_internal_names),
             "client_tool_call_positions": dict(internal.client_tool_call_positions),
             "server_mcp_tool_uses": {
@@ -4332,6 +4376,7 @@ async def model_output_from_message(
     pending_mcp_tool_uses: dict[str, BetaMCPToolUseBlock] | None = None,
     cache_diagnostics: bool = False,
     span_recorder: _ServerToolSpanRecorder | None = None,
+    raw_thinking: bool = False,
 ) -> tuple[ModelOutput, bool]:
     # record server tool spans for verbatim replay on subsequent turns
     if span_recorder is None:
@@ -4343,6 +4388,7 @@ async def model_output_from_message(
         tools,
         pending_tool_uses=pending_tool_uses,
         pending_mcp_tool_uses=pending_mcp_tool_uses,
+        raw_thinking=raw_thinking,
         span_recorder=span_recorder,
     )
 
@@ -4580,6 +4626,7 @@ def content_and_tool_calls_from_assistant_content_blocks(
     | None = None,
     pending_mcp_tool_uses: dict[str, BetaMCPToolUseBlock] | None = None,
     span_recorder: _ServerToolSpanRecorder | None = None,
+    raw_thinking: bool = False,
 ) -> tuple[list[Content], list[ToolCall] | None]:
     # when no span recorder is provided (e.g. parsing scaffold conversation
     # history via the agent bridge) record spans locally and register them in
@@ -4904,20 +4951,36 @@ def content_and_tool_calls_from_assistant_content_blocks(
             )
 
         elif isinstance(content_block, ThinkingBlock):
-            # anthropic reasoning is now always a summary (save for Sonnet 3.7):
-            # https://platform.claude.com/docs/en/build-with-claude/extended-thinking#differences-in-thinking-across-model-versions
-            content.append(
-                ContentReasoning(
-                    summary=content_block.thinking,
-                    reasoning=content_block.signature,
-                    redacted=True,
+            # history re-parsed via the agent bridge carries no request to
+            # infer raw thinking from, so recognise blocks parsed raw earlier
+            signature_key = mm3_hash(content_block.signature)
+            raw_signatures = assistant_internal().raw_thinking_signatures
+            if raw_thinking:
+                raw_signatures.add(signature_key)
+            if signature_key in raw_signatures:
+                # the full-thinking beta returns the raw thinking itself
+                content.append(
+                    ContentReasoning(
+                        reasoning=content_block.thinking,
+                        signature=content_block.signature,
+                        internal=_RAW_THINKING_INTERNAL,
+                    )
                 )
-            )
+            else:
+                # otherwise anthropic reasoning is a summary (save for Sonnet 3.7):
+                # https://platform.claude.com/docs/en/build-with-claude/extended-thinking#differences-in-thinking-across-model-versions
+                content.append(
+                    ContentReasoning(
+                        summary=content_block.thinking,
+                        reasoning=content_block.signature,
+                        redacted=True,
+                    )
+                )
 
             # reasoning won't round trip through bridges w/ simplistic handling
             # (e.g. OpenAI completions) so we also save for replay)
-            assistant_internal().thinking_blocks[mm3_hash(content_block.signature)] = (
-                cast(ThinkingBlockParam, content_block.model_dump(exclude_none=True))
+            assistant_internal().thinking_blocks[signature_key] = cast(
+                ThinkingBlockParam, content_block.model_dump(exclude_none=True)
             )
 
         elif isinstance(content_block, RedactedThinkingBlock):
@@ -5530,6 +5593,14 @@ beta_text_block_param_adapter = TypeAdapter[Union[str, Iterable[BetaTextBlockPar
 )
 
 
+def _is_raw_thinking(content: ContentReasoning) -> bool:
+    """Whether `content` holds raw thinking from the full-thinking beta."""
+    return (
+        isinstance(content.internal, dict)
+        and content.internal.get("anthropic_thinking") == "raw"
+    )
+
+
 async def message_block_params(
     content: Content,
 ) -> list[MessageBlockParam]:
@@ -5558,15 +5629,30 @@ async def message_block_params(
         return [await image_block_param(content.image)]
 
     elif isinstance(content, ContentReasoning):
-        # lookup in assistant internal
-        thinking_block_param = assistant_internal().thinking_blocks.get(
-            mm3_hash(content.reasoning), None
-        )
+        # lookup in assistant internal, which keys thinking blocks on their
+        # signature (raw thinking carries it in `signature`, summarized
+        # thinking in `reasoning`) and redacted blocks on their data (in
+        # `reasoning`). only blocks this provider recorded can hit, so
+        # looking up a signature from another provider is safe.
+        thinking_blocks = assistant_internal().thinking_blocks
+        thinking_block_param = (
+            thinking_blocks.get(mm3_hash(content.signature))
+            if content.signature
+            else None
+        ) or thinking_blocks.get(mm3_hash(content.reasoning))
         if thinking_block_param is not None:
             return [thinking_block_param]
         else:
             # reconstruct reasoning
-            if content.summary is not None:
+            if _is_raw_thinking(content) and content.signature:
+                return [
+                    ThinkingBlockParam(
+                        type="thinking",
+                        thinking=content.reasoning,
+                        signature=content.signature,
+                    )
+                ]
+            elif content.summary is not None:
                 return [
                     ThinkingBlockParam(
                         type="thinking",
