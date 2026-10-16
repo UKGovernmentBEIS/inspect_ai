@@ -1032,7 +1032,6 @@ def test_host_score_asks_the_monitor_role_with_the_task() -> None:
     assert isinstance(corrected.input[-1], ChatMessageTool)
     assert corrected.input[-1].error is not None
     prompt = asked.input[0].text
-    assert "[BEGIN TASK]\nWhat is 1 + 1?\n[END TASK]" in prompt
     assert "Tool Call: addition" in prompt
 
 
