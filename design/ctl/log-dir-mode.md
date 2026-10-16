@@ -1033,7 +1033,11 @@ of what changed. `src/inspect_ai/_control/log_dir/cache.py`:
     was read from;
   - the header-derived status fields and the parsed summaries, keyed by the
     file's ETag (locally its inode, `mtime_ns` and size, the freshness
-    check's form), valid only while the listing reports the same key;
+    check's form), valid only while the listing reports the same key. A
+    backend whose listing has no ETag has its plan read again on every
+    poll, with the version (ETag, else mtime and size) looked up before and
+    after the central-directory read; a log replaced in between gets no
+    version, so nothing cached for it is reused;
   - for a running log, the journal summary members already parsed, keyed by
     member name, CRC-32 and compressed size from the central directory.
     Journal members are append-only, so a changed running log costs its
@@ -1053,9 +1057,9 @@ of what changed. `src/inspect_ai/_control/log_dir/cache.py`:
   reader that finds it stale (its version differs from the object's)
   simply re-reads.
 - **Bounds.** Pruned oldest-access-first above 256 MB. Entries with an
-  unknown schema version, or that fail to parse, are discarded and rebuilt,
-  logged at debug; the cache never changes what a read returns, only
-  whether it is fetched.
+  unknown schema version, or that fail to parse or validate, are discarded
+  and rebuilt, logged at debug; the cache never changes what a read
+  returns, only whether it is fetched.
 - **Scope.** Keyed by URI, so two directories never share entries; nothing
   in the log directory is written. Only the CLI's reads use it (the reader
   functions consult the cache made active for the invocation).

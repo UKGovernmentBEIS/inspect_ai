@@ -158,13 +158,15 @@ async def read_version(
 
     On S3 the version is the ETag of the responses that returned the central
     directory (pinned to one ETag by ``pin_version``), so it names exactly
-    those bytes. Elsewhere there is no such
-    response, so the version is looked up *before* the read: a replacement in
-    between leaves an older version than the bytes, which the freshness check
-    then reports as changed (an extra re-read, never a stale answer).
+    those bytes. Elsewhere there is no such response, so the version is
+    looked up before and after the read; when the two differ the log was
+    replaced in between and the version is ``None`` (unknown), which callers
+    treat as changed.
     """
     if is_s3_filename(location):
         cd = await read()
         return cd, cd.etag
-    version = await log_version(fs, location)
-    return await read(), version
+    before = await log_version(fs, location)
+    cd = await read()
+    after = await log_version(fs, location)
+    return cd, before if before == after else None

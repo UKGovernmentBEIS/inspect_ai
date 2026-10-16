@@ -2234,6 +2234,47 @@ async def test_a_changed_log_is_re_read_and_an_older_entry_written_over_a_newer_
     assert _answers(third) == _answers(second)
 
 
+async def test_a_log_replaced_between_its_version_lookup_and_its_read_gets_no_older_summaries(
+    log_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from inspect_ai._control.log_dir import snapshot as snapshot_module
+
+    [path] = list(log_dir.glob("*.eval"))
+    await _poll(log_dir)
+    replaced = await read_eval_log_async(str(path))
+    assert replaced.samples is not None
+    replaced.samples[1] = replaced.samples[1].model_copy(update={"error": None})
+
+    # a backend whose listing carries no version (as GCS or Azure), so the
+    # plan is read again; the log is replaced after its version is looked up
+    # and before its central directory is read
+    async def unlisted(fs: AsyncFilesystem, file: Any) -> None:
+        return None
+
+    real_log_version = consistency.log_version
+    pending = [replaced]
+
+    async def replaced_after_lookup(fs: AsyncFilesystem, location: str) -> str | None:
+        version = await real_log_version(fs, location)
+        if pending:
+            await write_eval_log_async(pending.pop(), str(path))
+        return version
+
+    monkeypatch.setattr(snapshot_module, "listed_version", unlisted)
+    monkeypatch.setattr(consistency, "log_version", replaced_after_lookup)
+    warm = await _poll(log_dir)
+    assert not pending
+    assert _statuses(sample_listing(warm.views[0]))[2] == "completed"
+    uncached = await _poll(log_dir, cache=None)
+
+    # updated_at is the listing's mtime, taken before the replacement
+    def unlisted_time(poll: _Poll) -> list[Any]:
+        return [({**row, "updated_at": None}, rows) for row, rows in _answers(poll)]
+
+    assert unlisted_time(warm) == unlisted_time(uncached)
+    assert _answers(await _poll(log_dir)) == _answers(uncached)
+
+
 def test_cli_cache_entries_change_what_is_fetched_never_what_is_returned(
     log_dir: Path,
     finished_log: EvalLog,
