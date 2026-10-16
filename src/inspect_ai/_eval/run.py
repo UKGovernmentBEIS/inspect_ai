@@ -1,7 +1,6 @@
 import functools
 import logging
 import os
-import sys
 from contextlib import ExitStack
 from copy import copy
 from dataclasses import dataclass, replace
@@ -16,6 +15,10 @@ from typing import (
     cast,
 )
 
+import anyio
+from anyio.abc import TaskGroup
+from typing_extensions import Unpack
+
 from inspect_ai._eval.task.constants import TASK_ALL_PARAMS_ATTR
 from inspect_ai._util._async import Wake
 from inspect_ai._util.environ import environ_vars
@@ -24,13 +27,6 @@ from inspect_ai._util.task import task_display_name
 from inspect_ai._util.trace import trace_action
 from inspect_ai.util._anyio import inner_exception
 from inspect_ai.util._checkpoint import CheckpointConfig
-
-if sys.version_info < (3, 11):
-    from exceptiongroup import ExceptionGroup
-
-import anyio
-from anyio.abc import TaskGroup
-from typing_extensions import Unpack
 
 if TYPE_CHECKING:
     from inspect_sentinel._integration import Sentinels
