@@ -8,7 +8,7 @@ The `working_limit` differs from the `time_limit` in that it measures only the t
 - A model call held by `inspect ctl pause --now`.
 - Code inside `suspend_working_limit()`.
 
-There is one exception: while any task in the sample is running a model request, a sandbox command, or a tool call, the sample is working, even if another task is waiting. A model request that fails and is retried does not count as working. A tool call or sandbox command that is itself waiting (for example for approval or a `max_subprocesses` slot) is not counted as working for that time. Model requests and tool calls made inside a wait (for example by a model approver or a monitor) are not counted as working either.
+There is one exception: while any task in the sample is running a model request, a sandbox command, or a tool call, the sample is working, even if another task is waiting. A model request that fails and is retried does not count as working. A tool call or sandbox command that is itself waiting (for example for approval or a `max_subprocesses` slot) is not counted as working for that time. Model requests and tool calls made inside a wait (for example by a model approver or a monitor) are not counted as working either. Sandbox commands run inside `sandbox_agent_bridge()`, such as the one that launches a bridged agent, are not counted as working, because Inspect cannot see when that agent is working; its model requests and bridged tool calls are.
 
 Waits that overlap count once, so working time is never negative and never more than clock time.
 

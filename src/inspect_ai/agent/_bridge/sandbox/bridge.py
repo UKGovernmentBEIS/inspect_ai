@@ -8,6 +8,7 @@ from shortuuid import uuid
 
 from inspect_ai._sentinel._context import warn_sentinel_bridged
 from inspect_ai._util.exception import TerminateSampleError
+from inspect_ai._util.working import untracked_sandbox_execs
 from inspect_ai.model._compaction.types import CompactionStrategy
 from inspect_ai.model._model import (
     GenerateFilter,
@@ -89,6 +90,11 @@ async def sandbox_agent_bridge(
     requests with `previous_response_id` are refused, and of the agent's HTTP
     headers only `Accept-Encoding` and those listed in `forward_client_headers`
     are forwarded.
+
+    Sandbox commands run inside the block, such as the one that launches the
+    agent, do not count as working time, because Inspect cannot see when a
+    bridged agent is working. The agent's model requests and bridged tool
+    calls do count.
 
     Args:
         state: Initial state for agent bridge. Used as a basis for yielding
@@ -290,7 +296,8 @@ async def sandbox_agent_bridge(
 
             # main agent
             try:
-                yield bridge
+                with untracked_sandbox_execs():
+                    yield bridge
                 agent_completed = True
             finally:
                 with anyio.CancelScope(shield=True):

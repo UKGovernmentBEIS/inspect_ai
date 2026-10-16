@@ -32,6 +32,7 @@ from inspect_ai._util.working import (
     sample_working_time,
     untracked_sandbox_execs,
 )
+from inspect_ai.agent import sandbox_agent_bridge
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageUser
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model import ModelAPI, get_model
@@ -1348,6 +1349,129 @@ async def test_untracked_sandbox_execs_are_not_known_work(
         await proxy.exec(["work"])
     wait.close()
     assert sample_waiting_time() == 5
+
+
+@pytest.mark.parametrize("launch", ["bridge", "exec", "no_events"])
+async def test_bridged_agent_launch_is_not_known_work(
+    sample_clock: _MockTime, monkeypatch: pytest.MonkeyPatch, launch: str
+) -> None:
+    """A bridged agent's launcher exec does not hide the agent's model waits.
+
+    The agent runs in one blocking exec. Its model request (in the bridge's
+    service task, started first) fails after 1 s, backs off for 5 s and then
+    succeeds in 1 s. Inside `sandbox_agent_bridge()` the launcher is not known
+    work, so the failed attempt and backoff are waiting and the successful
+    request is working. The controls: the same exec outside a bridge is known
+    work, and a launch whose execs run inside `no_events()` (as
+    `exec_remote`'s polls do) is not.
+    """
+    sandbox = _GatedSandbox(sample_clock)
+    proxy = SandboxEnvironmentProxy(sandbox)
+    launched, served = anyio.Event(), anyio.Event()
+    readings: list[tuple[float, float, float]] = []
+    attempts = 0
+
+    class ClockAPI(ModelAPI):
+        async def generate(
+            self,
+            input: list[ChatMessage],
+            tools: list[ToolInfo],
+            tool_choice: ToolChoice,
+            config: GenerateConfig,
+        ) -> ModelOutput:
+            nonlocal attempts
+            attempts += 1
+            sample_clock.advance(1)
+            if attempts == 1:
+                raise RuntimeError("retryable")
+            return ModelOutput()
+
+        def should_retry(self, ex: Exception) -> bool:
+            return isinstance(ex, RuntimeError)
+
+    def reading() -> tuple[float, float, float]:
+        return sample_working_time(), sample_waiting_time(), scope.usage
+
+    async def backoff(seconds: float) -> None:
+        sample_clock.advance(5)
+        readings.append(reading())
+
+    async def service(started: anyio.Event) -> None:
+        started.set()
+        await launched.wait()
+        await get_model("working_bridge_clock/m", memoize=False).generate("agent")
+        served.set()
+        await anyio.sleep_forever()
+
+    class Process:
+        def __aiter__(self) -> Process:
+            return self
+
+        async def __anext__(self) -> Any:
+            await anyio.sleep_forever()
+
+        async def kill(self) -> None:
+            pass
+
+    class BridgeSandbox:
+        _tools_user = None
+
+        async def exec_remote(self, cmd: list[str], options: Any) -> Process:
+            return Process()
+
+    async def injected_sandbox(sandbox_name: str | None = None) -> BridgeSandbox:
+        return BridgeSandbox()
+
+    async def model_service(*args: Any) -> None:
+        await service(args[-1])
+
+    async def agent() -> None:
+        async def run() -> None:
+            await served.wait()
+            readings.append(reading())
+            sandbox.release.set()
+
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(run)
+            launched.set()
+            if launch == "no_events":
+                with proxy.no_events():
+                    await proxy.exec(["poll"])
+            else:
+                await proxy.exec(["poll"])
+
+    monkeypatch.setattr("inspect_ai.model._retry._sleep", backoff)
+    bridge_module = "inspect_ai.agent._bridge.sandbox.bridge"
+    monkeypatch.setattr(
+        f"{bridge_module}.sandbox_with_injected_tools", injected_sandbox
+    )
+    monkeypatch.setattr(f"{bridge_module}.run_model_service", model_service)
+
+    @modelapi(name="working_bridge_clock")
+    def working_bridge_clock() -> type[ModelAPI]:
+        return ClockAPI
+
+    try:
+        with working_limit(None) as scope:
+            if launch == "bridge":
+                async with sandbox_agent_bridge():
+                    await agent()
+            else:
+                async with anyio.create_task_group() as tg:
+                    started = anyio.Event()
+                    tg.start_soon(service, started)
+                    await started.wait()
+                    await agent()
+                    tg.cancel_scope.cancel()
+            readings.append(reading())
+    finally:
+        del _registry["modelapi:working_bridge_clock"]
+
+    # during the backoff, once served (launcher still open), and after
+    if launch == "exec":
+        assert readings == [(6, 0, 6), (7, 0, 7), (7, 0, 7)]
+    else:
+        assert readings == [(0, 6, 0), (1, 6, 1), (1, 6, 1)]
 
 
 class _GatedSandbox(SandboxEnvironment):

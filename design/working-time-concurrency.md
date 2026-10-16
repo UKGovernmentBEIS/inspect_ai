@@ -115,7 +115,7 @@ one known wait is open anywhere in the sample. Otherwise it is
 | Known work | Where the span opens and closes |
 | --- | --- |
 | A model `generate`, `compact()` or `count_tokens()` attempt in flight | `ModelAttempts.attempt()` around the provider call in `Model._generate`, `Model.compact` and `Model.count_tokens` (`_model.py`), from just before `api.generate`, `api.compact` or `api.count_tokens` to its return. The connection-slot or pool wait, the pause hold and the cache lookup come before it, and the backoff after it. |
-| A sandbox exec | `SandboxEnvironmentProxy.exec` (`util/_sandbox/events.py`), except Inspect's own plumbing: the sandbox service's setup and queue commands, and commands a task runs inside the proxy's `no_events()` (`exec_remote`'s polls, sandbox tools injection, the human agent's setup and the execs of its service handlers, including intermediate scoring). That code runs its execs inside `untracked_sandbox_execs()`, a task-local flag, so the exclusion never depends on a command's text, and another task's exec on the same sandbox stays known work. |
+| A sandbox exec | `SandboxEnvironmentProxy.exec` (`util/_sandbox/events.py`), except Inspect's own plumbing: the sandbox service's setup and queue commands, and commands a task runs inside the proxy's `no_events()` (`exec_remote`'s polls, sandbox tools injection, the human agent's setup and the execs of its service handlers, including intermediate scoring), and execs run inside `sandbox_agent_bridge()`, such as the one that launches a bridged agent (decision: Ransom, 2026-10-16: Inspect cannot see when a bridged agent is working). That code runs its execs inside `untracked_sandbox_execs()`, a task-local flag, so the exclusion never depends on a command's text, and another task's exec on the same sandbox stays known work. |
 | A tool call | `call_tool()` in `call_tool_task` (`model/_call_tools.py`), including its approval and sentinel stages, and a bridged host tool call in the sandbox agent bridge's service (`agent/_bridge/sandbox/service.py`) |
 
 Cache hits open no attempt. `compact()` and `count_tokens()` are model
@@ -424,7 +424,11 @@ during a known wait, and it does not try to detect that work:
   it goes through a model request (`generate`, `compact()`,
   `count_tokens()`), a sandbox exec or a tool call. A sandboxed agent's
   model requests through the agent bridge are generate calls and so are
-  known work.
+  known work, and its bridged host tool calls are tool calls. The exec
+  that launches it is not, and neither is any other exec the solver runs
+  inside `sandbox_agent_bridge()`: the bridge's body runs inside
+  `untracked_sandbox_execs()`, while its model service, started before the
+  body, stays tracked.
 - **A held span hides its sibling tasks' unseen work.** A tool call that
   starts several tasks is held while any of them waits, so its other tasks'
   unseen work during that wait is free. Their known work is still charged.
@@ -607,6 +611,13 @@ block on `anyio.Event`s, so ordering is fixed.
     is still known work, an exec whose arguments name the services
     directory is known work, and execs inside `untracked_sandbox_execs()`
     are not;
+  - a bridged agent launched by one blocking exec inside
+    `sandbox_agent_bridge()` (the real bridge, with its sandbox and model
+    service transport stubbed) whose model request fails, backs off and
+    succeeds reads the failed attempt and backoff as waiting and the
+    successful request as working, live and closed and in scoped usage; the
+    same exec outside a bridge is known work, and a launch run inside
+    `no_events()`, as `exec_remote` polls, is not;
   - seeded random sequences of nested spans (including contexts of closed
     spans), waits (some opened by a task started inside a suspension),
     late waits reported from inside work (some from inside a suspension,
@@ -626,9 +637,11 @@ block on `anyio.Event`s, so ordering is fixed.
   call succeeded but whose usage telemetry then failed and was retried is
   waiting, with and without a measured `call.time`; a local sandbox exec
   beside a wait is working; a sandbox exec queued for a
-  `max_subprocesses` slot is waiting; and a tool that reports its finished
+  `max_subprocesses` slot is waiting; a tool that reports its finished
   generate as a wait, through either helper, is not charged for it in the
-  tool event or the sample. The lone-wait cases above are unchanged.
+  tool event or the sample; and, in Docker, a bridged agent launched by a
+  blocking exec whose chat completion is retried once gets the failed
+  attempt and backoff as waiting. The lone-wait cases above are unchanged.
 
 ## Implementation plan
 
@@ -711,7 +724,9 @@ decisions was superseded on 2026-10-15; their known work is now charged.
    finished work (see "Accepted limitations"); and a top-level tool call's
    work is dropped from late reports once it returns, since the work it
    holds then is mostly finished nested operations that a wait opened by a
-   task outliving it would not have stopped.
+   task outliving it would not have stopped. Execs inside
+   `sandbox_agent_bridge()`, including a bridged agent's launcher, are not
+   known work, since Inspect cannot see when a bridged agent is working.
 
 ## Not this design
 

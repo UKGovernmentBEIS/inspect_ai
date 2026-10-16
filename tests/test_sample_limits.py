@@ -1,4 +1,5 @@
 import functools
+import json
 import tempfile
 from pathlib import Path
 from random import randint
@@ -26,6 +27,7 @@ from inspect_ai._util.working import (
     report_sample_waiting_time,
     sample_clock,
 )
+from inspect_ai.agent import sandbox_agent_bridge
 from inspect_ai.approval import (
     Approval,
     ApprovalPolicy,
@@ -1621,6 +1623,48 @@ def test_sandbox_exec_beside_wait_is_working() -> None:
 
     sample = _run_timing_solver(exec_beside_wait(), sandbox="local")
     assert _waiting(sample) < 0.1
+
+
+@skip_if_no_docker
+@pytest.mark.slow
+def test_bridged_agent_model_waits_are_waiting(flaky_model: None) -> None:
+    """A bridged agent's model retries are waiting though its launcher exec runs.
+
+    The agent is one blocking exec that sends a chat completion through
+    `sandbox_agent_bridge()`; the request fails once after 0.5 s, backs off
+    and succeeds.
+    """
+
+    @solver
+    def bridged_agent() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            model = get_model(
+                "flakytiming/m", fail_times=1, attempt_seconds=0.5, memoize=False
+            )
+            async with sandbox_agent_bridge(model_aliases={"inspect": model}) as bridge:
+                request = {
+                    "model": "inspect",
+                    "messages": [{"role": "user", "content": "bridged"}],
+                }
+                script = (
+                    "import urllib.request\n"
+                    "request = urllib.request.Request(\n"
+                    f"    'http://127.0.0.1:{bridge.port}/v1/chat/completions',\n"
+                    f"    data={json.dumps(request)!r}.encode(),\n"
+                    "    headers={'Content-Type': 'application/json'},\n"
+                    ")\n"
+                    "print(urllib.request.urlopen(request).read().decode())\n"
+                )
+                await sandbox().write_file("bridged_agent.py", script)
+                result = await sandbox().exec(["python3", "bridged_agent.py"])
+                assert result.success, result.stderr
+            return state
+
+        return solve
+
+    sample = _run_timing_solver(bridged_agent(), sandbox="docker")
+    # the failed 0.5 s attempt and its backoff
+    assert _waiting(sample) >= 0.5 + _BACKOFF - 0.05
 
 
 def test_queued_sandbox_exec_is_waiting() -> None:
