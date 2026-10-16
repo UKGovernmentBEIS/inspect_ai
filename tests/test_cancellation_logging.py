@@ -507,10 +507,12 @@ def test_keyboard_interrupt_under_trio(sandbox: str):
 
 
 _INTERRUPT_DURING_FINALIZATION_SCRIPT = """
+import os
 import signal
 import tempfile
 
 import anyio
+import anyio.lowlevel
 
 import inspect_ai._display.core.active as active_display
 import inspect_ai._eval.eval as eval_module
@@ -518,7 +520,9 @@ import inspect_ai.util._display as display_state
 from inspect_ai import Task, eval
 from inspect_ai.dataset import Sample
 from inspect_ai.hooks import Hooks, RunEnd, hooks
+from inspect_ai.log import list_eval_logs, read_eval_log
 from inspect_ai.scorer import includes
+from inspect_ai.solver import generate, solver
 
 events = []
 run_ends = []
@@ -539,6 +543,8 @@ class RunEndProbe(Hooks):
         run_ends.append(data)
         events.append("hook")
         await interrupt_in("hook")
+        await anyio.lowlevel.checkpoint()
+        events.append("hook returned")
 
 
 cleanup_sample_buffers = eval_module.cleanup_sample_buffers
@@ -553,21 +559,31 @@ async def recording_cleanup(log_dir):
 eval_module.cleanup_sample_buffers = recording_cleanup
 
 
-def run_eval(display):
+@solver
+def sigint_in_sample():
+    async def solve(state, generate):
+        signal.raise_signal(signal.SIGINT)
+        await anyio.sleep(60)
+        return state
+
+    return solve
+
+
+def run_eval(display, solver=generate(), log_dir=None):
     active_display._active_display = None
     display_state._display_type = None
     return eval(
-        Task(dataset=[Sample(input="x", target="x")], scorer=includes()),
+        Task(dataset=[Sample(input="x", target="x")], solver=solver, scorer=includes()),
         model="mockllm/model",
-        log_dir=tempfile.mkdtemp(),
+        log_dir=log_dir or tempfile.mkdtemp(),
         display=display,
         ctl_server=False,
     )
 
 
 expected = {
-    "cleanup": ["cleanup", "cleanup finished", "hook"],
-    "hook": ["cleanup", "hook", "hook finished"],
+    "cleanup": ["cleanup", "cleanup finished", "hook", "hook returned"],
+    "hook": ["cleanup", "hook", "hook finished", "hook returned"],
 }
 for where in ["cleanup", "hook"]:
     for display in ["rich", "plain", "log"]:
@@ -586,8 +602,24 @@ for where in ["cleanup", "hook"]:
         assert [log.status for log in run_end.logs] == ["success"], (where, display)
         assert signal.getsignal(signal.SIGINT) is signal.default_int_handler
 
-# a later eval() in the same process still runs
 sigint_in = None
+
+# asyncio: a Ctrl-C while samples run returns, with the cancelled log on disk
+# but not in the result or RunEnd.logs, after the awaiting hook finishes
+if os.environ["INSPECT_ASYNC_BACKEND"] == "asyncio":
+    for display in ["rich", "plain", "log"]:
+        events.clear()
+        run_ends.clear()
+        log_dir = tempfile.mkdtemp()
+        assert run_eval(display, sigint_in_sample(), log_dir) == [], display
+        assert events == ["cleanup", "hook", "hook returned"], (display, events)
+        (run_end,) = run_ends
+        assert run_end.exception is None, (display, repr(run_end.exception))
+        assert run_end.logs == [], display
+        (log_info,) = list_eval_logs(log_dir)
+        assert read_eval_log(log_info.name).status == "cancelled", display
+
+# a later eval() in the same process still runs
 assert run_eval("rich")[0].status == "success"
 """
 
@@ -597,10 +629,103 @@ def test_keyboard_interrupt_during_run_finalization(backend: str):
     """A first Ctrl-C during buffer cleanup or run-end hooks of a finished run raises KeyboardInterrupt.
 
     The cleanup and hooks still finish, once, and a later eval() still runs.
+    On asyncio, a Ctrl-C while samples run returns once an awaiting hook
+    finishes.
     """
     result = subprocess.run(
         [sys.executable, "-I", "-c", _INTERRUPT_DURING_FINALIZATION_SCRIPT],
         env={**os.environ, "INSPECT_ASYNC_BACKEND": backend},
+        capture_output=True,
+        text=True,
+        timeout=180,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+_TRIO_EVAL_RETRY_INTERRUPT_SCRIPT = """
+import signal
+import tempfile
+
+import anyio
+
+import inspect_ai._display.core.active as active_display
+import inspect_ai.util._display as display_state
+from inspect_ai import Task, eval, eval_retry, task
+from inspect_ai.dataset import Sample
+from inspect_ai.hooks import Hooks, RunStart, hooks
+from inspect_ai.solver import solver
+
+retrying = False
+run_starts = []
+retried_samples = []
+
+
+@hooks(name="run_start_probe", description="Records run starts.")
+class RunStartProbe(Hooks):
+    async def on_run_start(self, data: RunStart) -> None:
+        run_starts.append(data.run_id)
+
+
+@solver
+def fail_then_interrupt():
+    async def solve(state, generate):
+        if not retrying:
+            raise RuntimeError("fail so there is something to retry")
+        retried_samples.append(state.sample_id)
+        signal.raise_signal(signal.SIGINT)
+        await anyio.sleep(60)
+        return state
+
+    return solve
+
+
+@task
+def retry_probe():
+    return Task(dataset=[Sample(input="x", target="x")], solver=fail_then_interrupt())
+
+
+def use_display(display):
+    active_display._active_display = None
+    display_state._display_type = None
+
+
+for display in ["rich", "plain", "log"]:
+    log_dir = tempfile.mkdtemp()
+    retrying = False
+    failed = []
+    for _ in range(2):
+        use_display(display)
+        failed.extend(
+            eval(
+                retry_probe(),
+                model="mockllm/model",
+                log_dir=log_dir,
+                display=display,
+                ctl_server=False,
+            )
+        )
+    assert [log.status for log in failed] == ["error", "error"], display
+
+    retrying = True
+    run_starts.clear()
+    retried_samples.clear()
+    use_display(display)
+    try:
+        eval_retry(failed, log_dir=log_dir, display=display, ctl_server=False)
+    except KeyboardInterrupt as ex:
+        assert type(ex) is KeyboardInterrupt, repr(ex)
+    else:
+        raise AssertionError(f"{display}: no KeyboardInterrupt")
+    assert len(run_starts) == 1, (display, run_starts)
+    assert len(retried_samples) == 1, (display, retried_samples)
+"""
+
+
+def test_keyboard_interrupt_under_trio_stops_eval_retry():
+    """Under trio, Ctrl-C during the first of two retries does not start the second."""
+    result = subprocess.run(
+        [sys.executable, "-I", "-c", _TRIO_EVAL_RETRY_INTERRUPT_SCRIPT],
+        env={**os.environ, "INSPECT_ASYNC_BACKEND": "trio"},
         capture_output=True,
         text=True,
         timeout=180,

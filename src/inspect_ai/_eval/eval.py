@@ -1765,6 +1765,9 @@ async def eval_retry_async(
     # eval them in turn
     eval_logs: list[EvalLog] = []
     for i, eval_log in enumerate(retry_eval_logs):
+        # don't start another retry once the caller is cancelled (under trio
+        # a Ctrl-C leaves the scope cancelled after the interrupted eval)
+        await anyio.lowlevel.checkpoint_if_cancelled()
         if i in finalized_indexes:
             eval_logs.append(eval_log)
             continue
