@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from typing import Any, Callable, Generator, NamedTuple, cast
 
 from pydantic import BaseModel, Field, model_validator
+from pydantic_core import to_jsonable_python
 
 from inspect_ai._util.config import read_config_object
 from inspect_ai._util.file import exists, local_path
@@ -137,7 +138,14 @@ def tool_call_matcher(
 
 
 def _argument_text(value: Any) -> str:
-    return value if isinstance(value, str) else json.dumps(value, ensure_ascii=False)
+    """Text an argument glob is matched against: a string as is, else its JSON.
+
+    Values the tool call parser can produce beyond JSON (dates, bytes, sets) are
+    converted as Pydantic serializes them; any other type raises.
+    """
+    if isinstance(value, str):
+        return value
+    return json.dumps(to_jsonable_python(value), ensure_ascii=False)
 
 
 def policy_approver(policies: str | list[ApprovalPolicy]) -> Approver:

@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import NamedTuple
 
 import pytest
+from pydantic_core import PydanticSerializationError
 
 from inspect_ai import Task, eval
 from inspect_ai._util.content import ContentText
@@ -30,10 +31,13 @@ from inspect_ai.event._model import ModelEvent
 from inspect_ai.event._tool import ToolEvent
 from inspect_ai.log._log import EvalLog
 from inspect_ai.model import ChatMessage, ChatMessageTool, Model, ModelOutput, get_model
+from inspect_ai.model._call_tools import parse_tool_call
 from inspect_ai.scorer import match
 from inspect_ai.solver import generate, use_tools
 from inspect_ai.tool._tool import Tool, tool
 from inspect_ai.tool._tool_call import ToolCall, ToolCallView
+from inspect_ai.tool._tool_info import ToolInfo
+from inspect_ai.tool._tool_params import ToolParam, ToolParams
 
 
 # define tool
@@ -824,6 +828,25 @@ async def test_policy_arguments_are_whole_value_globs() -> None:
 
     # every listed argument must be present
     assert not await routed(call, "bash", cmd="ls*", user="*")
+
+
+async def test_policy_arguments_match_parsed_non_json_values() -> None:
+    # the parser's YAML fallback can produce dates and other non-JSON values
+    tools = [
+        ToolInfo(
+            name="f",
+            description="f",
+            parameters=ToolParams(properties={"value": ToolParam(type="array")}),
+        )
+    ]
+    call = parse_tool_call("1", "f", "- 2024-01-01\n- !!binary YQ==", tools)
+    assert call.parse_error is None
+    assert await routed(call, "f", value='*"2024-01-01", "a"*')
+    assert not await routed(call, "f", value="2024*")
+
+    # other types are not guessed at
+    with pytest.raises(PydanticSerializationError):
+        await routed(make_tool_call("f", value=object()), "f", value="*")
 
 
 async def test_policy_legacy_argument_form() -> None:
