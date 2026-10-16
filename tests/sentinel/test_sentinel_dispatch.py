@@ -3344,3 +3344,6 @@ def test_an_approvers_modified_memory_path_reaches_the_sentinel_canonical() -> N
     [message] = tool_messages(log)
     assert message.error is not None
     assert message.error.type == "approval"
+    assert log.samples
+    [tool_event] = [e for e in log.samples[0].events if isinstance(e, ToolEvent)]
+    assert tool_event.arguments["path"] == "/memories/secret.txt"
