@@ -68,6 +68,7 @@ from inspect_ai.tool._tool_call import (
     ToolCallContent,
     ToolCallView,
     ToolCallViewer,
+    ToolCallViewError,
     default_tool_call_viewer,
     resolve_tool_call_view,
     substitute_tool_call_content,
@@ -103,12 +104,16 @@ async def sentinel_before_tool_call(
 ) -> Decision | None:
     if not _watches(BeforeToolCall):
         return None
+    try:
+        view = resolve_tool_call_view(call, viewer, reject_on_error=True)
+    except ToolCallViewError as ex:
+        raise ToolApprovalError(str(ex)) from ex
     producer = _producing_event(call, history)
     step = BeforeToolCall(
         conversation=_conversation(),
         message=message,
         call=call,
-        view=resolve_tool_call_view(call, viewer),
+        view=view,
         input=list(producer.input) if producer is not None else None,
         history=history,
         tools=list(producer.tools) if producer is not None else None,
