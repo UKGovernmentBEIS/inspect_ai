@@ -1,15 +1,23 @@
+import base64
+from unittest.mock import MagicMock
+
 import pytest
+from openai.types.chat import ChatCompletionAssistantMessageParam
 
 from inspect_ai._util.content import ContentAudio, ContentReasoning, ContentText
+from inspect_ai.model._chat_message import ChatMessageAssistant
 from inspect_ai.model._openai import (
     messages_from_openai,
     messages_to_openai,
+    openai_assistant_content,
     openai_chat_completion_part,
 )
 from inspect_ai.model._openai_responses import (
     _openai_input_items_from_chat_message_assistant,
 )
+from inspect_ai.model._providers.google import content as google_content_from_message
 from inspect_ai.model._providers.openai_compatible import ModelInfo
+from inspect_ai.tool import ToolCall
 
 
 # Minimal stubs for OpenAI message params
@@ -260,3 +268,69 @@ async def test_user_input_audio_is_normalized_to_data_uri():
 
     serialized = await openai_chat_completion_part(audio)
     assert serialized["input_audio"] == {"data": audio_data, "format": "mp3"}
+
+
+def _gemini_tool_call_message() -> ChatMessageAssistant:
+    # the shape of a Gemini 3 tool-calling output from the google provider: a
+    # thought summary, text, and the redacted anchor that carries the function
+    # call's thought signature
+    return ChatMessageAssistant(
+        content=[
+            ContentReasoning(reasoning="Plan the listing", redacted=False),
+            ContentText(text="Let me look."),
+            ContentReasoning(
+                reasoning=base64.b64encode(b"sig-1").decode(),
+                redacted=True,
+                internal={"gemini_function_call_id": "call_1"},
+            ),
+        ],
+        tool_calls=[
+            ToolCall(id="call_1", function="bash", arguments={"command": "ls"})
+        ],
+    )
+
+
+async def _bridge_round_trip(as_list: bool) -> ChatMessageAssistant:
+    message = _gemini_tool_call_message()
+    text, _ = openai_assistant_content(message)
+    oai_message: ChatCompletionAssistantMessageParam = {
+        "role": "assistant",
+        "content": [{"type": "text", "text": text}] if as_list else text,
+        "tool_calls": [
+            {
+                "id": "call_1",
+                "type": "function",
+                "function": {"name": "bash", "arguments": '{"command": "ls"}'},
+            }
+        ],
+    }
+    chat_msgs = await messages_from_openai([oai_message])
+    assert len(chat_msgs) == 1
+    assert isinstance(chat_msgs[0], ChatMessageAssistant)
+    return chat_msgs[0]
+
+
+@pytest.mark.parametrize("as_list", [False, True])
+async def test_assistant_multiple_smuggled_reasoning_blocks_round_trip(as_list: bool):
+    original = _gemini_tool_call_message()
+    restored = await _bridge_round_trip(as_list)
+    assert restored.content == original.content
+
+
+@pytest.mark.parametrize("as_list", [False, True])
+async def test_assistant_smuggled_gemini_anchor_replays_thought_signature(
+    as_list: bool,
+):
+    restored = await _bridge_round_trip(as_list)
+
+    google_content = await google_content_from_message(
+        MagicMock(), restored, emulate_reasoning=False
+    )
+
+    assert google_content.parts is not None
+    function_call_parts = [
+        p for p in google_content.parts if p.function_call is not None
+    ]
+    assert len(function_call_parts) == 1
+    assert function_call_parts[0].thought_signature == b"sig-1"
+    assert not any("<think" in (p.text or "") for p in google_content.parts)
