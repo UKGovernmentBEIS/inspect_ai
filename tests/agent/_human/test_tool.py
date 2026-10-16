@@ -1,5 +1,4 @@
 import argparse
-import sys
 from dataclasses import dataclass
 
 import pytest
@@ -9,9 +8,6 @@ from inspect_ai.agent._human.commands.tool import ToolCommand, tool_result_to_st
 from inspect_ai.agent._human.state import HumanAgentState
 from inspect_ai.tool import ToolDef, ToolError, tool
 from inspect_ai.util import JSONSchema
-
-if sys.version_info < (3, 11):
-    from exceptiongroup import ExceptionGroup
 
 
 def _agent_state() -> HumanAgentState:
@@ -2762,3 +2758,150 @@ async def test_input_derived_validation_reply_is_capped() -> None:
 
     assert len(result) < 1000
     assert "truncated" in result
+
+
+# --- review pass 3 (2026-10-15): overlapping cancellation, bounded terminal --
+# --- rendering -----------------------------------------------------------------
+
+
+@pytest.mark.anyio
+async def test_operator_and_parent_cancel_together_finalize_event() -> None:
+    """An operator cancel and a parent cancel in the same turn still finalize.
+
+    The call's own scope doesn't absorb the cancellation when an enclosing
+    scope is cancelled too, so the cancellation escapes past the operator-
+    cancel finalizer; the event must not stay pending.
+    """
+    import anyio
+
+    from inspect_ai.log._transcript import Transcript, init_transcript, transcript
+
+    started = anyio.Event()
+    handler = ToolCommand([_sleeper_tool("sleeper", started)]).service(
+        state=_agent_state()
+    )
+    init_transcript(Transcript())
+
+    async def call() -> None:
+        await handler(tool="sleeper", arguments={})
+
+    with anyio.fail_after(10):
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(call)
+            await started.wait()
+            event = next(e for e in transcript().events if e.event == "tool")
+            event._cancel()
+            tg.cancel_scope.cancel()
+
+    assert event.pending is None
+    assert event.error is not None and event.error.type == "timeout"
+    assert [e for e in transcript().pending_events if e.event == "tool"] == []
+
+
+@pytest.mark.anyio
+async def test_parent_cancel_alone_finalizes_as_cancelled() -> None:
+    """Control: a parent cancellation without an operator cancel."""
+    import anyio
+
+    from inspect_ai.log._transcript import Transcript, init_transcript, transcript
+
+    started = anyio.Event()
+    handler = ToolCommand([_sleeper_tool("sleeper", started)]).service(
+        state=_agent_state()
+    )
+    init_transcript(Transcript())
+
+    async def call() -> None:
+        await handler(tool="sleeper", arguments={})
+
+    with anyio.fail_after(10):
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(call)
+            await started.wait()
+            tg.cancel_scope.cancel()
+
+    event = next(e for e in transcript().events if e.event == "tool")
+    assert event.pending is None
+    assert event.error is not None and event.error.message == "Tool call was cancelled."
+
+
+def _many_parts_tool(text: str, parts: int, max_output: int, name: str = "many"):
+    content = [ContentText(text=text)] * parts
+
+    async def execute() -> list[ContentText]:
+        """Return many large text parts.
+
+        Returns:
+            The parts.
+        """
+        return content
+
+    return ToolDef(
+        execute,
+        name=name,
+        description="Return many parts.",
+        parameters={},
+        max_output=max_output,
+    ).as_tool()
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("char", ["x", "é"], ids=["ascii", "multibyte"])
+async def test_large_structured_result_renders_without_joining(char) -> None:
+    """The terminal reply for a large multi-part result is built from the parts.
+
+    Joining (and UTF-8 encoding) every part before capping allocated the
+    whole result on the event loop: ~96 MiB extra for 32 x 1 MiB parts with
+    max_output=1024.
+    """
+    import tracemalloc
+
+    from inspect_ai.log._transcript import Transcript, init_transcript, transcript
+
+    part = char * (1024 * 1024)
+    handler = ToolCommand(
+        [_many_parts_tool(part, 32, 1024), _many_parts_tool(char, 2, 1024, "warm")]
+    ).service(state=_agent_state())
+    init_transcript(Transcript())
+    # the first call does one-time lazy initialisation (~19 MiB), which is
+    # not rendering; measure a warm call
+    await handler(tool="warm", arguments={})
+
+    tracemalloc.start()
+    try:
+        tracemalloc.reset_peak()
+        result = str(await handler(tool="many", arguments={}))
+        _, peak = tracemalloc.get_traced_memory()
+    finally:
+        tracemalloc.stop()
+
+    assert peak < 4 * 1024 * 1024, peak
+    assert "truncated" in result
+    assert len(result.encode()) < 4096
+    event = next(
+        e for e in transcript().events if e.event == "tool" and e.function == "many"
+    )
+    assert isinstance(event.result, list) and len(event.result) == 32
+
+
+@pytest.mark.parametrize(
+    "parts",
+    [
+        ["héllo wörld " * 50, "short", "ü" * 3000],
+        ["a" * 10, "b" * 10],
+        ["€" * 700],
+        ["x" * 400, "é" * 400, "y" * 400],
+        ["", "", "abc" * 100, ""],
+        ["é"] * 900,
+        ["\n" * 50, "z" * 500, "\n" * 50],
+    ],
+)
+@pytest.mark.parametrize("limit", [16, 64, 1000, 5000])
+def test_bounded_rendering_matches_full_rendering(parts, limit) -> None:
+    """The bounded terminal rendering equals truncating the full join."""
+    from inspect_ai.agent._human.commands.tool import _terminal_text
+    from inspect_ai.model._call_tools import truncate_tool_output
+
+    full = "\n".join(parts)
+    expected = truncate_tool_output("t", full, limit)
+    assert _terminal_text("t", parts, limit) == (expected.output if expected else full)

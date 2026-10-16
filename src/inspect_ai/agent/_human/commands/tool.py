@@ -3,7 +3,6 @@ from __future__ import annotations
 import contextlib
 import json
 import math
-import sys
 from argparse import Namespace
 from textwrap import dedent
 from typing import Any, AsyncIterator, Awaitable, Callable, Literal, NamedTuple
@@ -29,6 +28,7 @@ from inspect_ai.model._call_tools import (
     truncate_tool_output,
     validate_tool_input,
 )
+from inspect_ai.model._generate_config import active_generate_config
 from inspect_ai.tool import Tool, ToolParams
 from inspect_ai.tool._tool import ToolResult
 from inspect_ai.tool._tool_call import ToolCall, ToolCallError
@@ -37,9 +37,6 @@ from inspect_ai.util._limit import LimitExceededError
 from inspect_ai.util._sandbox.limits import OutputLimitExceededError
 from inspect_ai.util._sandbox.service import find_control_flow
 from inspect_ai.util._span import span
-
-if sys.version_info < (3, 11):
-    from exceptiongroup import ExceptionGroup
 
 from ..._handoff import AgentTool
 from ..state import HumanAgentState
@@ -241,32 +238,94 @@ def _decisive_exception(ex: Exception, tool: str) -> _DecisiveException:
     return leaves[0]
 
 
+_OPERATOR_CANCEL_ERROR = ToolCallError(
+    "timeout", "Command timed out before completing."
+)
+"""What the model path records for an operator cancel of a tool call."""
+
+
 def tool_result_to_str(result: ToolResult) -> str:
     """Convert ToolResult to string for CLI display."""
+    return "\n".join(_terminal_parts(result))
+
+
+def _terminal_parts(result: ToolResult) -> list[str]:
+    """The lines a result renders as in the terminal (joined with newlines)."""
     if isinstance(result, str):
-        return result
+        return [result]
     elif isinstance(result, (int, float, bool)):
-        return str(result)
+        return [str(result)]
     elif isinstance(result, ContentText):
-        return result.text
+        return [result.text]
     elif isinstance(result, list):
-        if len(result) == 0:
-            return ""
         # render text parts; note non-text parts rather than discarding the
         # text alongside them (the full result is preserved in the ToolEvent)
-        parts: list[str] = []
-        for c in result:
-            if isinstance(c, ContentText):
-                parts.append(c.text)
-            else:
-                parts.append(_omitted(getattr(c, "type", "non-text")))
-        return "\n".join(parts)
+        return [
+            c.text
+            if isinstance(c, ContentText)
+            else _omitted(getattr(c, "type", "non-text"))
+            for c in result
+        ]
     elif isinstance(result, ContentBase):
         # any non-text content (image, audio, video, document, data, ...) —
         # never dump raw payloads (e.g. base64 data URIs) into the terminal
-        return _omitted(result.type)
+        return [_omitted(result.type)]
     else:
-        return str(result)
+        return [str(result)]
+
+
+def _terminal_text(tool: str, parts: list[str], max_output: int | None) -> str:
+    """The newline-joined parts, truncated to the tool's output limit.
+
+    Equal to truncate_tool_output() on the full join, without building it:
+    middle truncation keeps at most `limit` bytes from each end, and every
+    character is at least one byte, so only the first and last `limit`
+    characters of the join can appear in the output. A large structured
+    result is therefore never joined or encoded whole on the event loop.
+    """
+    # resolved as truncate_tool_output() does (0 or less disables truncation)
+    limit = max_output
+    if limit is None:
+        limit = active_generate_config().max_tool_output
+    if limit is None:
+        limit = 16 * 1024
+    total = sum(len(part) for part in parts) + max(len(parts) - 1, 0)
+    if limit <= 0 or total <= 2 * limit:
+        text = "\n".join(parts)
+    else:
+        text = _join_head(parts, limit) + _join_tail(parts, limit)
+    truncated = truncate_tool_output(tool, text, max_output)
+    return truncated.output if truncated else text
+
+
+def _join_head(parts: list[str], chars: int) -> str:
+    """The first `chars` characters of the newline-joined parts."""
+    pieces: list[str] = []
+    for index, part in enumerate(parts):
+        if index > 0 and chars > 0:
+            pieces.append("\n")
+            chars -= 1
+        if chars <= 0:
+            break
+        piece = part[:chars]
+        pieces.append(piece)
+        chars -= len(piece)
+    return "".join(pieces)
+
+
+def _join_tail(parts: list[str], chars: int) -> str:
+    """The last `chars` characters of the newline-joined parts."""
+    pieces: list[str] = []
+    for index, part in enumerate(reversed(parts)):
+        if index > 0 and chars > 0:
+            pieces.append("\n")
+            chars -= 1
+        if chars <= 0:
+            break
+        piece = part[-chars:] if chars < len(part) else part
+        pieces.append(piece)
+        chars -= len(piece)
+    return "".join(reversed(pieces))
 
 
 class ToolCommand(HumanAgentCommand):
@@ -507,30 +566,33 @@ def tool(args):
             finalize(error=ToolCallError("parsing", validation_errors))
             return _capped(tool, f"Error: {validation_errors}", max_output)
 
-        with cancel_scope:
-            try:
-                # tool_params() runs typed arguments' constructors and
-                # validators (user code), so it shares the tool body's
-                # exception disposition, as on the model path
-                params = tool_params(kwargs, tool_fn)
-                result = await tool_fn(**params)
-            except Exception as ex:
-                return self._tool_exception(tool, ex, max_output, finalize)
-            except BaseException:
-                # outer cancellation (the service shutting down) or another
-                # BaseException: finalize so the event doesn't stay pending
-                # forever, then re-raise. An operator cancel of this call is
-                # absorbed by cancel_scope and finalized below.
-                if not cancel_scope.cancel_called:
-                    finalize(error=ToolCallError("unknown", "Tool call was cancelled."))
-                raise
+        try:
+            with cancel_scope:
+                try:
+                    # tool_params() runs typed arguments' constructors and
+                    # validators (user code), so it shares the tool body's
+                    # exception disposition, as on the model path
+                    params = tool_params(kwargs, tool_fn)
+                    result = await tool_fn(**params)
+                except Exception as ex:
+                    return self._tool_exception(tool, ex, max_output, finalize)
+        except BaseException:
+            # an outer cancellation (service teardown, sample cancel) or
+            # another BaseException escapes cancel_scope, including when an
+            # operator cancel of this call landed in the same turn; the
+            # event must not stay pending
+            if event.pending:
+                finalize(
+                    error=_OPERATOR_CANCEL_ERROR
+                    if cancel_scope.cancel_called
+                    else ToolCallError("unknown", "Tool call was cancelled.")
+                )
+            raise
 
         if cancel_scope.cancelled_caught:
             # same outcome the model path records for an operator cancel
-            finalize(
-                error=ToolCallError("timeout", "Command timed out before completing.")
-            )
-            return "Error: Command timed out before completing."
+            finalize(error=_OPERATOR_CANCEL_ERROR)
+            return f"Error: {_OPERATOR_CANCEL_ERROR.message}"
 
         # success: shared massaging/truncation — structured content is
         # preserved in the event untruncated (the terminal rendering is
@@ -539,9 +601,7 @@ def tool(args):
         finalize(result=content, truncated=truncated)
         if isinstance(content, str):
             return content
-        rendered = tool_result_to_str(result)
-        rendered_truncated = truncate_tool_output(tool, rendered, max_output)
-        return rendered_truncated.output if rendered_truncated else rendered
+        return _terminal_text(tool, _terminal_parts(result), max_output)
 
     def _tool_exception(
         self,
