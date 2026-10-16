@@ -1,0 +1,374 @@
+{
+  "description": "Older log shape: a sub-agent (own system prompt) has two model calls and a direct child agent between them, no tool call. The child agent calls a tool, whose ToolEvent carries the child agent's span id. The child is not a tool span, so the helper is not single-turn and is not classified as utility.",
+  "events": [
+    {
+      "event": "span_begin",
+      "id": "solvers",
+      "name": "solvers",
+      "type": "solvers",
+      "parent_id": null,
+      "timestamp": "2026-01-01T00:00:01Z",
+      "uuid": "sb-solvers"
+    },
+    {
+      "event": "span_begin",
+      "id": "bridge",
+      "name": "bridge",
+      "type": "agent",
+      "parent_id": "solvers",
+      "timestamp": "2026-01-01T00:00:02Z",
+      "uuid": "sb-bridge"
+    },
+    {
+      "event": "model",
+      "uuid": "m1",
+      "span_id": "bridge",
+      "timestamp": "2026-01-01T00:00:03Z",
+      "completed": "2026-01-01T00:00:04Z",
+      "model": "mockllm/model",
+      "input": [
+        {
+          "role": "system",
+          "content": "You are the main assistant."
+        },
+        {
+          "role": "user",
+          "content": "What is 1 + 1?"
+        }
+      ],
+      "tools": [],
+      "tool_choice": "none",
+      "config": {},
+      "output": {
+        "model": "mockllm/model",
+        "choices": [
+          {
+            "message": {
+              "role": "assistant",
+              "content": "",
+              "tool_calls": [
+                {
+                  "id": "call_1",
+                  "function": "search",
+                  "arguments": {
+                    "query": "1 + 1"
+                  }
+                }
+              ]
+            },
+            "stop_reason": "tool_calls"
+          }
+        ],
+        "usage": {
+          "input_tokens": 5,
+          "output_tokens": 1,
+          "total_tokens": 6
+        }
+      }
+    },
+    {
+      "event": "tool",
+      "uuid": "t1",
+      "span_id": "bridge",
+      "timestamp": "2026-01-01T00:00:05Z",
+      "completed": "2026-01-01T00:00:06Z",
+      "id": "call_1",
+      "function": "search",
+      "arguments": {
+        "query": "1 + 1"
+      },
+      "result": "found it",
+      "events": []
+    },
+    {
+      "event": "span_begin",
+      "id": "helper",
+      "name": "helper",
+      "type": "agent",
+      "parent_id": "bridge",
+      "timestamp": "2026-01-01T00:00:10Z",
+      "uuid": "sb-helper"
+    },
+    {
+      "event": "model",
+      "uuid": "h1",
+      "span_id": "helper",
+      "timestamp": "2026-01-01T00:00:11Z",
+      "completed": "2026-01-01T00:00:12Z",
+      "model": "mockllm/model",
+      "input": [
+        {
+          "role": "system",
+          "content": "You are a helper."
+        },
+        {
+          "role": "user",
+          "content": "help"
+        }
+      ],
+      "tools": [],
+      "tool_choice": "none",
+      "config": {},
+      "output": {
+        "model": "mockllm/model",
+        "choices": [
+          {
+            "message": {
+              "role": "assistant",
+              "content": "done",
+              "tool_calls": null
+            },
+            "stop_reason": "stop"
+          }
+        ],
+        "usage": {
+          "input_tokens": 5,
+          "output_tokens": 1,
+          "total_tokens": 6
+        }
+      }
+    },
+    {
+      "event": "span_begin",
+      "id": "sub",
+      "name": "sub",
+      "type": "agent",
+      "parent_id": "helper",
+      "timestamp": "2026-01-01T00:00:13Z",
+      "uuid": "sb-sub"
+    },
+    {
+      "event": "model",
+      "uuid": "s1",
+      "span_id": "sub",
+      "timestamp": "2026-01-01T00:00:14Z",
+      "completed": "2026-01-01T00:00:15Z",
+      "model": "mockllm/model",
+      "input": [
+        {
+          "role": "system",
+          "content": "You are a sub-agent."
+        },
+        {
+          "role": "user",
+          "content": "work"
+        }
+      ],
+      "tools": [],
+      "tool_choice": "none",
+      "config": {},
+      "output": {
+        "model": "mockllm/model",
+        "choices": [
+          {
+            "message": {
+              "role": "assistant",
+              "content": "",
+              "tool_calls": [
+                {
+                  "id": "call_t-sub",
+                  "function": "lookup",
+                  "arguments": {}
+                }
+              ]
+            },
+            "stop_reason": "stop"
+          }
+        ],
+        "usage": {
+          "input_tokens": 5,
+          "output_tokens": 1,
+          "total_tokens": 6
+        }
+      }
+    },
+    {
+      "event": "tool",
+      "uuid": "t-sub",
+      "span_id": "sub",
+      "timestamp": "2026-01-01T00:00:15.500Z",
+      "completed": "2026-01-01T00:00:16Z",
+      "id": "call_t-sub",
+      "function": "lookup",
+      "arguments": {},
+      "result": "ok",
+      "events": []
+    },
+    {
+      "event": "model",
+      "uuid": "s2",
+      "span_id": "sub",
+      "timestamp": "2026-01-01T00:00:17Z",
+      "completed": "2026-01-01T00:00:18Z",
+      "model": "mockllm/model",
+      "input": [
+        {
+          "role": "system",
+          "content": "You are a sub-agent."
+        },
+        {
+          "role": "user",
+          "content": "finish"
+        }
+      ],
+      "tools": [],
+      "tool_choice": "none",
+      "config": {},
+      "output": {
+        "model": "mockllm/model",
+        "choices": [
+          {
+            "message": {
+              "role": "assistant",
+              "content": "done",
+              "tool_calls": null
+            },
+            "stop_reason": "stop"
+          }
+        ],
+        "usage": {
+          "input_tokens": 5,
+          "output_tokens": 1,
+          "total_tokens": 6
+        }
+      }
+    },
+    {
+      "event": "span_end",
+      "id": "sub",
+      "timestamp": "2026-01-01T00:00:19Z",
+      "uuid": "se-sub"
+    },
+    {
+      "event": "model",
+      "uuid": "h2",
+      "span_id": "helper",
+      "timestamp": "2026-01-01T00:00:21Z",
+      "completed": "2026-01-01T00:00:22Z",
+      "model": "mockllm/model",
+      "input": [
+        {
+          "role": "system",
+          "content": "You are a helper."
+        },
+        {
+          "role": "user",
+          "content": "answer"
+        }
+      ],
+      "tools": [],
+      "tool_choice": "none",
+      "config": {},
+      "output": {
+        "model": "mockllm/model",
+        "choices": [
+          {
+            "message": {
+              "role": "assistant",
+              "content": "done",
+              "tool_calls": null
+            },
+            "stop_reason": "stop"
+          }
+        ],
+        "usage": {
+          "input_tokens": 5,
+          "output_tokens": 1,
+          "total_tokens": 6
+        }
+      }
+    },
+    {
+      "event": "span_end",
+      "id": "helper",
+      "timestamp": "2026-01-01T00:00:23Z",
+      "uuid": "se-helper"
+    },
+    {
+      "event": "model",
+      "uuid": "m3",
+      "span_id": "bridge",
+      "timestamp": "2026-01-01T00:00:28Z",
+      "completed": "2026-01-01T00:00:29Z",
+      "model": "mockllm/model",
+      "input": [
+        {
+          "role": "system",
+          "content": "You are the main assistant."
+        },
+        {
+          "role": "user",
+          "content": "Answer."
+        }
+      ],
+      "tools": [],
+      "tool_choice": "none",
+      "config": {},
+      "output": {
+        "model": "mockllm/model",
+        "choices": [
+          {
+            "message": {
+              "role": "assistant",
+              "content": "2"
+            },
+            "stop_reason": "stop"
+          }
+        ],
+        "usage": {
+          "input_tokens": 5,
+          "output_tokens": 1,
+          "total_tokens": 6
+        }
+      }
+    },
+    {
+      "event": "span_end",
+      "id": "bridge",
+      "timestamp": "2026-01-01T00:00:30Z",
+      "uuid": "se-bridge"
+    },
+    {
+      "event": "span_end",
+      "id": "solvers",
+      "timestamp": "2026-01-01T00:00:31Z",
+      "uuid": "se-solvers"
+    }
+  ],
+  "expected": {
+    "init": null,
+    "agent": {
+      "id": "bridge",
+      "name": "main",
+      "event_uuids": [
+        "m1",
+        "t1",
+        "m3"
+      ],
+      "children": [
+        {
+          "id": "helper",
+          "name": "helper",
+          "utility": false,
+          "event_uuids": [
+            "h1",
+            "h2"
+          ],
+          "children": [
+            {
+              "id": "sub",
+              "name": "sub",
+              "utility": false,
+              "event_uuids": [
+                "s1",
+                "t-sub",
+                "s2"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "scoring": null
+  }
+}

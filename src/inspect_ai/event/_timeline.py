@@ -1260,11 +1260,31 @@ def _get_system_prompt(agent: TimelineSpan) -> str | None:
     return None  # No ModelEvent found
 
 
+def _is_tool_spawned_agent(span: TimelineSpan) -> bool:
+    """Check whether span is a tool span shown as an agent.
+
+    A tool whose body calls a model directly becomes an agent span named
+    after the tool, which opens with its own ToolEvent (recorded with the
+    tool span's id). For the caller, that span is a tool call. An explicit
+    agent span opens with its own work instead, even when older logs give
+    its tool calls the agent span's id.
+    """
+    first = span.content[0] if span.content else None
+    return (
+        span.span_type == "agent"
+        and isinstance(first, TimelineEvent)
+        and isinstance(first.event, ToolEvent)
+        and first.event.span_id == span.id
+        and first.event.function.lower() == span.name
+    )
+
+
 def _is_single_turn(agent: TimelineSpan) -> bool:
     """Check if agent has a single turn or single tool-calling turn.
 
     A single turn is 1 ModelEvent with no ToolEvents.
     A single tool-calling turn is 2 ModelEvents with a ToolEvent between them.
+    A tool span shown as a tool-spawned agent counts as the ToolEvent it holds.
 
     Args:
         agent: The span node to check.
@@ -1280,6 +1300,8 @@ def _is_single_turn(agent: TimelineSpan) -> bool:
                 direct_events.append("model")
             elif isinstance(item.event, ToolEvent):
                 direct_events.append("tool")
+        elif _is_tool_spawned_agent(item):
+            direct_events.append("tool")
 
     model_count = direct_events.count("model")
     tool_count = direct_events.count("tool")
