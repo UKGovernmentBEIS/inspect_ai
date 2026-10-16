@@ -102,6 +102,8 @@ from inspect_ai.model._model_output import (
     StopCategory,
     StopDetails,
     collect_stop_details,
+    sum_usage,
+    usage_input_tokens,
 )
 from inspect_ai.model._providers._google_batch import GoogleBatcher, batch_request_dict
 from inspect_ai.model._providers._google_citations import (
@@ -527,6 +529,10 @@ class GoogleGenAIAPI(ModelAPI):
                 )
 
                 response: GenerateContentResponse | None = None
+                # every attempt of the retry loop below is billed; the first one
+                # is the request built from the input
+                usage: ModelUsage | None = None
+                input_context_tokens: int | None = None
 
                 try:
                     # google sometimes requires retries for malformed function calls
@@ -552,6 +558,12 @@ class GoogleGenAIAPI(ModelAPI):
                                 contents=gemini_contents,  # type: ignore[arg-type]
                                 config=parameters,
                             )
+                        attempt_usage = usage_metadata_to_model_usage(
+                            response.usage_metadata
+                        )
+                        if tool_calling_attempts == 0:
+                            input_context_tokens = usage_input_tokens(attempt_usage)
+                        usage = sum_usage(usage, attempt_usage)
                         # retry for MALFORMED_FUNCTION_CALL
                         if (
                             response.candidates
@@ -586,7 +598,11 @@ class GoogleGenAIAPI(ModelAPI):
                         {"error": {"message": str(ex.message), "code": ex.code}},
                         http_hooks.end_request(request_id),
                     )
-                    return self.handle_client_error(ex), model_call
+                    handled = self.handle_client_error(ex)
+                    if isinstance(handled, ModelOutput):
+                        handled.usage = usage
+                        handled.input_context_tokens = input_context_tokens
+                    return handled, model_call
 
                 assert response is not None  # mypy confused by retry loop
 
@@ -602,7 +618,8 @@ class GoogleGenAIAPI(ModelAPI):
                     choices=completion_choices_from_candidates(
                         model_name, response, has_computer_use
                     ),
-                    usage=usage_metadata_to_model_usage(response.usage_metadata),
+                    usage=usage,
+                    input_context_tokens=input_context_tokens,
                     response_id=response.response_id,
                 )
 
