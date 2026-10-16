@@ -92,9 +92,11 @@ async def sandbox_agent_bridge(
     are forwarded.
 
     Sandbox commands run inside the block, such as the one that launches the
-    agent, do not count as working time, because Inspect cannot see when a
-    bridged agent is working. The agent's model requests and bridged tool
-    calls do count.
+    agent, are not known work, because Inspect cannot see when a bridged agent
+    is working: they do not count as working while a known wait (such as a
+    model retry) is in progress. Otherwise their time counts as working, as
+    any time does. The agent's model requests and bridged tool calls are
+    known work.
 
     Args:
         state: Initial state for agent bridge. Used as a basis for yielding
