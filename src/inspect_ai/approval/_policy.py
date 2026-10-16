@@ -35,15 +35,9 @@ def policy_approver(policies: str | list[ApprovalPolicy]) -> Approver:
         policies = approval_policies_from_config(policies)
 
     # compile policy into approvers and patterns for matching
-    policy_matchers: list[tuple[list[ToolPattern], Approver]] = []
-    for policy in policies:
-        tool_specs = [policy.tools] if isinstance(policy.tools, str) else policy.tools
-        patterns: list[ToolPattern] = []
-        for spec in tool_specs:
-            patterns.extend(
-                tool_pattern(t.strip()) for t in _split_top_level(spec) if t.strip()
-            )
-        policy_matchers.append((patterns, policy.approver))
+    policy_matchers = [
+        (tool_patterns(policy.tools), policy.approver) for policy in policies
+    ]
 
     # generator for policies that match a tool_call
     def tool_approvers(tool_call: ToolCall) -> Generator[Approver, None, None]:
@@ -95,7 +89,7 @@ class ArgumentPattern:
 
 @dataclass(frozen=True)
 class ToolPattern:
-    """A pattern in `ApprovalPolicy.tools`, matched against a tool call.
+    """A pattern in an approval or review policy's `tools`.
 
     The function name and the arguments are matched separately, so argument
     text cannot make a call match a pattern written for another function or
@@ -122,6 +116,22 @@ class ToolPattern:
             return False
         names = {pattern.name for pattern in self.arguments}
         return not self.closed or all(name in names for name in call.arguments)
+
+
+def tool_patterns(tools: str | list[str]) -> list[ToolPattern]:
+    """Parse the `tools` of an approval or review policy.
+
+    Each string is a comma-separated list of patterns. Commas inside quotes or
+    an argument list do not split it, so a pattern with arguments that does
+    not end with `)` takes the rest of the string.
+    """
+    specs = [tools] if isinstance(tools, str) else tools
+    return [
+        tool_pattern(item.strip())
+        for spec in specs
+        for item in _split_top_level(spec)
+        if item.strip()
+    ]
 
 
 def tool_pattern(pattern: str) -> ToolPattern:
@@ -157,14 +167,16 @@ def tool_pattern(pattern: str) -> ToolPattern:
         name, equals, value = item.partition("=")
         if not equals or not name.strip():
             raise ValueError(
-                f"Invalid approval policy tool pattern '{pattern}': expected "
-                f"name=value or * in the argument list, got '{item}'."
+                f"Invalid tool pattern '{pattern}': expected name=value or * "
+                f"in the argument list, got '{item}'. To list another tool "
+                f"after this pattern, end the pattern with ', *)' or give the "
+                f"tool as a separate list item."
             )
         name = name.strip()
         if any(char in name for char in "*?[]"):
             raise ValueError(
-                f"Invalid approval policy tool pattern '{pattern}': argument "
-                f"names must be literal, got '{name}'."
+                f"Invalid tool pattern '{pattern}': argument names must be "
+                f"literal, got '{name}'."
             )
         arguments.append(ArgumentPattern(name=name, value=value.strip()))
     if arguments and not items.closed and stripped[-1] != "*":
@@ -219,8 +231,7 @@ def _split_top_level(text: str, closing: bool = False) -> list[str] | _SplitPatt
             if depth == 0 and closing:
                 if text[index + 1 :].strip() not in ("", "*"):
                     raise ValueError(
-                        f"Invalid approval policy tool pattern: unexpected text "
-                        f"after ')' in '{text}'."
+                        f"Invalid tool pattern: unexpected text after ')' in '{text}'."
                     )
                 closed = True
                 break

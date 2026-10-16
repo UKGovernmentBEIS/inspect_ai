@@ -897,6 +897,25 @@ def test_policy_argument_pattern_must_be_name_value() -> None:
         policy_approver([ApprovalPolicy(auto_approver(), "computer(*'key'*")])
 
 
+async def test_policy_open_pattern_takes_the_rest_of_the_string() -> None:
+    # before, the comma split this into two patterns; now the open argument
+    # list takes the rest of the string and the error says how to fix it
+    with pytest.raises(ValueError, match="end the pattern with ', \\*\\)'"):
+        policy_approver(
+            [ApprovalPolicy(auto_approver(), "computer(action='key', web_browser_type")]
+        )
+
+    both = ["matched", "other"]
+    call = make_tool_call("web_browser_type", text="hello")
+    for tools in (
+        ["computer(action='key'", "web_browser_type"],
+        "computer(action='key', *), web_browser_type",
+    ):
+        assert await matched_approvers(tools, call) == both
+        key = make_tool_call("computer", action="key", text="Return")
+        assert await matched_approvers(tools, key) == both
+
+
 def test_policy_argument_names_are_literal() -> None:
     # a name glob would let one argument supply the value while another
     # passes on its name alone
