@@ -451,7 +451,7 @@ async def test_modify_without_a_modified_call_is_rejected() -> None:
     run = await run_bridge(
         [tool_calls_output(original), tool_calls_output(replacement)],
         approval=[
-            ApprovalPolicy(auto_approver("modify"), "bash(cmd='rm"),
+            ApprovalPolicy(auto_approver("modify"), "bash", arguments={"cmd": "rm*"}),
             ApprovalPolicy(auto_approver("approve"), "*"),
         ],
     )
@@ -471,7 +471,9 @@ async def test_sandbox_modify_without_a_modified_call_grants_nothing() -> None:
     bridge = sandbox_bridge_with_tool(
         tool,
         [
-            ApprovalPolicy(auto_approver("modify"), "read_file(path='secret"),
+            ApprovalPolicy(
+                auto_approver("modify"), "read_file", arguments={"path": "secret*"}
+            ),
             ApprovalPolicy(auto_approver("approve"), "*"),
         ],
     )
@@ -504,7 +506,7 @@ async def test_reject_regenerates_and_hides_the_rejected_call() -> None:
     run = await run_bridge(
         [tool_calls_output(rejected), tool_calls_output(replacement)],
         approval=[
-            ApprovalPolicy(reject_approver(), "bash(cmd='rm"),
+            ApprovalPolicy(reject_approver(), "bash", arguments={"cmd": "rm*"}),
             ApprovalPolicy(auto_approver("approve"), "*"),
         ],
     )
@@ -522,7 +524,11 @@ async def test_reject_replays_the_rejection_to_the_model() -> None:
             ModelOutput.from_content(model="mockllm/model", content="understood"),
         ],
         approval=[
-            ApprovalPolicy(reject_approver("Destructive command."), "bash(cmd='rm"),
+            ApprovalPolicy(
+                reject_approver("Destructive command."),
+                "bash",
+                arguments={"cmd": "rm*"},
+            ),
             ApprovalPolicy(auto_approver("approve"), "*"),
         ],
     )
@@ -554,7 +560,11 @@ async def test_reject_all_gives_every_call_a_result_naming_the_culprit() -> None
             ModelOutput.from_content(model="mockllm/model", content="understood"),
         ],
         approval=[
-            ApprovalPolicy(reject_approver("Destructive command."), "bash(cmd='rm"),
+            ApprovalPolicy(
+                reject_approver("Destructive command."),
+                "bash",
+                arguments={"cmd": "rm*"},
+            ),
             ApprovalPolicy(auto_approver("approve"), "*"),
         ],
     )

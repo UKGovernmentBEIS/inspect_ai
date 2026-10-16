@@ -315,8 +315,22 @@
       },
       "ApproverPolicyConfig": {
         "additionalProperties": true,
-        "description": "Configuration format for approver policies.\n\nFor example, here is a configuration in YAML:\n\n```yaml\napprovers:\n  - name: human\n    tools: web_browser*, bash, pyhton\n    choices: [approve, reject]\n\n  - name: auto\n    tools: *\n    decision: approve\n```",
+        "description": "Configuration format for approver policies.\n\nFor example, here is a configuration in YAML:\n\n```yaml\napprovers:\n  - name: human\n    tools: web_browser*, bash, pyhton\n    choices: [approve, reject]\n\n  - name: human\n    tools: computer\n    arguments: {action: key}\n\n  - name: auto\n    tools: *\n    decision: approve\n```",
         "properties": {
+          "arguments": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Arguments"
+          },
           "name": {
             "title": "Name",
             "type": "string"
@@ -8636,8 +8650,22 @@
       },
       "ReviewerPolicyConfig": {
         "additionalProperties": true,
-        "description": "Configuration format for reviewer policies.\n\nFor example, here is a configuration in YAML:\n\n```yaml\nreviewers:\n  - name: mypackage/output_monitor\n    tools: bash, python\n\n  - name: human\n    tools: \"*\"\n```",
+        "description": "Configuration format for reviewer policies.\n\nFor example, here is a configuration in YAML:\n\n```yaml\nreviewers:\n  - name: mypackage/output_monitor\n    tools: bash, python\n\n  - name: mypackage/click_monitor\n    tools: computer\n    arguments: {action: \"*_click\"}\n\n  - name: human\n    tools: \"*\"\n```",
         "properties": {
+          "arguments": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Arguments"
+          },
           "name": {
             "title": "Name",
             "type": "string"
