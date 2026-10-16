@@ -425,6 +425,40 @@ async def test_anthropic_raw_thinking_round_trips_through_think_tag() -> None:
     assert await message_block_params(unmarked) == [expected]
 
 
+def test_anthropic_raw_thinking_survives_history_reparse() -> None:
+    """Re-parsing a raw thinking block (as the agent bridge does) keeps it raw."""
+    from anthropic.types import ThinkingBlock, ThinkingBlockParam
+
+    from inspect_ai.model._providers.anthropic import (
+        content_and_tool_calls_from_assistant_content_blocks,
+        dump_anthropic_assistant_internal,
+        init_sample_anthropic_assistant_internal,
+    )
+
+    block = ThinkingBlock(type="thinking", thinking="raw steps", signature="sig-1")
+    param = ThinkingBlockParam(type="thinking", thinking="raw steps", signature="sig-1")
+    init_sample_anthropic_assistant_internal()
+    generated, _ = content_and_tool_calls_from_assistant_content_blocks(
+        [block], [], raw_thinking=True
+    )
+
+    # the bridge re-parses the scaffold's history as params, with no request
+    reparsed, _ = content_and_tool_calls_from_assistant_content_blocks([param], [])
+    assert reparsed == generated
+
+    # and after restoring the sample's state (e.g. resuming from a checkpoint)
+    dumped = dump_anthropic_assistant_internal()
+    init_sample_anthropic_assistant_internal()
+    init_sample_anthropic_assistant_internal(dumped)
+    restored, _ = content_and_tool_calls_from_assistant_content_blocks([param], [])
+    assert restored == generated
+
+    # thinking this sample never parsed as raw is still a summary
+    other = ThinkingBlock(type="thinking", thinking="summary", signature="sig-2")
+    [summary], _ = content_and_tool_calls_from_assistant_content_blocks([other], [])
+    assert isinstance(summary, ContentReasoning) and summary.redacted
+
+
 @pytest.mark.anyio
 async def test_anthropic_raw_thinking_parses_into_reasoning_and_replays() -> None:
     """Raw thinking lands in `reasoning` (not `summary`) and rebuilds its block."""

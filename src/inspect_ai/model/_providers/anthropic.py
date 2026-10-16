@@ -3952,6 +3952,16 @@ class _AssistantInternal:
     thinking_blocks: dict[str, ThinkingBlockParam | RedactedThinkingBlockParam] = field(
         default_factory=dict
     )
+    raw_thinking_signatures: set[str] = field(default_factory=set)
+    """Hashed signatures of thinking blocks parsed as raw thinking (from the
+    full-thinking beta).
+
+    Recorded when a response is parsed and consulted whenever a thinking block
+    is parsed. Whether a response holds raw thinking is decided from the
+    request that produced it, which history re-parsed via the agent bridge
+    doesn't have, so this keeps those blocks raw reasoning rather than
+    summaries. Keyed by signature (like `thinking_blocks`) so it survives the
+    agent bridge and checkpoint restore."""
     tool_call_internal_names: dict[str, str | None] = field(default_factory=dict)
     client_tool_call_positions: dict[str, int] = field(default_factory=dict)
     """Client tool call position within its assistant message content, keyed by
@@ -4017,6 +4027,9 @@ def init_sample_anthropic_assistant_internal(value: JsonValue | None = None) -> 
     internal = assistant_internal()
     internal.thinking_blocks.update(
         cast("dict[str, Any]", value.get("thinking_blocks", {}))
+    )
+    internal.raw_thinking_signatures.update(
+        cast("list[str]", value.get("raw_thinking_signatures", []))
     )
     internal.tool_call_internal_names.update(
         cast("dict[str, str | None]", value.get("tool_call_internal_names", {}))
@@ -4097,6 +4110,7 @@ def dump_anthropic_assistant_internal() -> JsonValue | None:
         JsonValue,
         {
             "thinking_blocks": dict(internal.thinking_blocks),
+            "raw_thinking_signatures": sorted(internal.raw_thinking_signatures),
             "tool_call_internal_names": dict(internal.tool_call_internal_names),
             "client_tool_call_positions": dict(internal.client_tool_call_positions),
             "server_mcp_tool_uses": {
@@ -4937,7 +4951,13 @@ def content_and_tool_calls_from_assistant_content_blocks(
             )
 
         elif isinstance(content_block, ThinkingBlock):
+            # history re-parsed via the agent bridge carries no request to
+            # infer raw thinking from, so recognise blocks parsed raw earlier
+            signature_key = mm3_hash(content_block.signature)
+            raw_signatures = assistant_internal().raw_thinking_signatures
             if raw_thinking:
+                raw_signatures.add(signature_key)
+            if signature_key in raw_signatures:
                 # the full-thinking beta returns the raw thinking itself
                 content.append(
                     ContentReasoning(
@@ -4959,8 +4979,8 @@ def content_and_tool_calls_from_assistant_content_blocks(
 
             # reasoning won't round trip through bridges w/ simplistic handling
             # (e.g. OpenAI completions) so we also save for replay)
-            assistant_internal().thinking_blocks[mm3_hash(content_block.signature)] = (
-                cast(ThinkingBlockParam, content_block.model_dump(exclude_none=True))
+            assistant_internal().thinking_blocks[signature_key] = cast(
+                ThinkingBlockParam, content_block.model_dump(exclude_none=True)
             )
 
         elif isinstance(content_block, RedactedThinkingBlock):
