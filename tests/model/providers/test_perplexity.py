@@ -53,6 +53,7 @@ async def test_perplexity_api() -> None:
                 }
             )
         ],
+        tool_choice="any",
     )
 
     assert len(response.completion) >= 1
@@ -106,6 +107,7 @@ async def test_perplexity_search_token_budgets() -> None:
                     }
                 )
             ],
+            tool_choice="any",
         )
         return _snippet_lengths(output)
 
@@ -203,7 +205,11 @@ async def test_perplexity_fetch_url() -> None:
     model = get_model(
         "perplexity/sonar",
         config=GenerateConfig(
-            max_tokens=200, extra_body={"tools": [{"type": "fetch_url"}]}
+            max_tokens=200,
+            extra_body={
+                "tools": [{"type": "fetch_url"}],
+                "tool_choice": {"type": "fetch_url"},
+            },
         ),
     )
 
