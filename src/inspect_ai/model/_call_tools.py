@@ -928,8 +928,9 @@ async def call_tool(
     except ToolParsingError as ex:
         raise await record_tool_parsing_error(ex.message)
     if validated.call is not call:
-        # under oversight the event shows the call as approvers see it
+        # under oversight the event and the call show the call as approvers see it
         event.view = tool_call_view(deepcopy(validated.call), tools)
+        validated.call.view = deepcopy(event.view)
     call, arguments = validated
     shown = shown_to_callbacks(call)
 
@@ -992,9 +993,13 @@ async def call_tool(
             call, arguments = await revalidated_tool_call(modified, tool_def)
             shown_to_callbacks(call)
 
-    # call the tool
+    # call the tool (curried handoff values are the developer's objects, so
+    # only the model's arguments are traced)
+    traced = arguments
+    if isinstance(tool_def.tool, AgentTool):
+        traced = {k: v for k, v in arguments.items() if k not in tool_def.tool.kwargs}
     with trace_action(
-        logger, "Tool Call", format_function_call(tool_def.name, arguments, width=1000)
+        logger, "Tool Call", format_function_call(tool_def.name, traced, width=1000)
     ):
         if isinstance(tool_def.tool, AgentTool):
             async with span(tool_def.tool.name, type="handoff"):

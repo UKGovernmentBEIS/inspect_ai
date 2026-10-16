@@ -52,13 +52,14 @@ decision. Before the approval chain, and again before the before-tool
 sentinel, a copy of the call is taken (S = B, or the call a modify selected).
 After each:
 
-- approve: if an approver or monitor decided, the call's id, function and
-  arguments must still equal S (JSON equality). Otherwise it is an approval
-  error ("changed in place; return a modify") and the call does not run. An
-  approver that edits the call and escalates fails at the end of the chain.
-  An approve runs the call as shown even if its `Approval` carries a
-  `modified` call (on `main` that call ran). With no approval policy and no
-  sentinel nothing is compared.
+- approve: after an approval, and after the before-tool sentinel unless it
+  selects a modify, the call's id, function and arguments must still equal S
+  (JSON equality). The sentinel check also applies when no monitor returns a
+  decision. Otherwise it is an approval error ("changed in place; return a
+  modify") and the call does not run. An approver that edits the call and
+  escalates fails at the end of the chain. An approve runs the call as shown
+  even if its `Approval` carries a `modified` call (on `main` that call ran).
+  With no approval policy and no sentinel nothing is compared.
 - modify: the selected call is validated as in step 7, and it becomes S and
   C. A selection must keep the function in S, or the sample fails. An edit
   to the call the callback was given does not matter.
@@ -115,7 +116,9 @@ serialization aliases differ, alternative input aliases, a field serializer
 that changes the type), a call can be approved, but a modify built from the
 shown JSON fails schema validation. A schema check on the shown JSON would
 refuse every call to such a tool under oversight, with a parsing error the
-model cannot fix; without it, only modify is affected.
+model cannot fix; without it, only modify is affected. This applies only to
+shown JSON that passes the rebuild check: a split alias that does not rebuild
+is refused before approval, as in the table.
 
 ## Without oversight
 

@@ -239,7 +239,7 @@ There are five possible approval decisions:
 
 A `modify` decision must carry the modified call in `modified`. Without one, the decision is treated as a rejection: the tool does not run, and the model is told that a modification was chosen but no modified call was supplied. The approval event still records the `modify` decision.
 
-A `modify` decision may change only the arguments of the tool call. If the modified call names a different function, neither tool runs and the sample fails with an error, since this is a bug in the approver rather than something to report to the model. For a modified call, the tool event records the arguments that ran, while the model output and the approval event keep the call the model proposed.
+A `modify` decision may change only the arguments of the tool call. If the modified call names a different function, neither tool runs and the sample fails with an error, since this is a bug in the approver rather than something to report to the model. For a modified native call, the tool event records the arguments that ran, the model output keeps the call the model proposed, and the approval event keeps the call as presented for approval, with the modified call in `modified`.
 
 
 Here's a more complicated custom approver that implements an allow list for bash commands. Imagine that we've implemented this approver within a Python package named `evaltools`:

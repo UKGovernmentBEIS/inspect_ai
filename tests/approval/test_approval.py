@@ -895,6 +895,30 @@ async def test_a_viewer_cannot_change_the_call_that_runs() -> None:
     assert logged_tool_event().arguments == modified
 
 
+async def test_the_call_shown_has_a_view_of_its_converted_arguments() -> None:
+    """The prepared call's view is rendered from what the approver sees."""
+    viewed: list[dict[str, Any]] = []
+    calls: list[ToolCall] = []
+    viewer = json_viewer(viewed)
+    raw: dict[str, Any] = {"step": {"name": "WRITE"}}
+    call = ToolCall(id="1", function="step_tool", arguments=raw)
+    call.view = viewer(deepcopy(call)).call
+    message = await execute_with_approval(
+        call,
+        [ToolDef(step_tool([]), viewer=viewer)],
+        [ApprovalPolicy(recording_approver(calls), "*")],
+    )
+
+    shown = {"step": {"name": "write", "status": "pending"}}
+    assert message.error is None
+    (approved,) = calls
+    assert approved.arguments == shown
+    assert approved.view is not None
+    assert approved.view.content == json.dumps(shown, sort_keys=True)
+    assert call.view is not None
+    assert call.view.content == json.dumps(raw, sort_keys=True)
+
+
 @approver
 def in_place_approver(
     edit: Literal["arguments", "function", "id"], decision: ApprovalDecision
@@ -1227,6 +1251,40 @@ async def test_curried_handoff_arguments_are_passed_as_given() -> None:
     (values,) = received
     assert values["note"] is note
     assert values["tags"] is tags
+
+
+class Unprintable:
+    """A developer object that fails if it is formatted."""
+
+    def __str__(self) -> str:
+        raise AssertionError("a curried value was formatted")
+
+    __repr__ = __str__
+
+
+@pytest.mark.parametrize("oversight", [True, False], ids=["approval", "no-approval"])
+async def test_curried_handoff_arguments_are_not_traced(oversight: bool) -> None:
+    """Only the model's handoff arguments are formatted for the trace."""
+    from inspect_ai.agent import handoff
+
+    received: list[dict[str, Any]] = []
+    note = Unprintable()
+    call = ToolCall(
+        id="1", function="transfer_to_amount_agent", arguments={"amount": 5}
+    )
+    messages, _ = await execute_tools(
+        [
+            ChatMessageUser(content="go"),
+            ChatMessageAssistant(content="", tool_calls=[call]),
+        ],
+        [handoff(amount_agent(received), note=note)],
+        approval=[ApprovalPolicy(auto_approver(), "*")] if oversight else None,
+    )
+    (message,) = [m for m in messages if isinstance(m, ChatMessageTool)]
+
+    assert message.error is None
+    (values,) = received
+    assert values["note"] is note
 
 
 def test_modify_arguments_run_and_are_recorded() -> None:
