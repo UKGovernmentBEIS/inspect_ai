@@ -74,8 +74,9 @@ Not supported and not checked (decision: Ransom, 2026-10-16):
   change what runs;
 - bridged agents, whose approval is as before this change.
 
-Parameters the call leaves out are not shown. They get their Python defaults
-when the arguments are rebuilt, as without oversight. Curried handoff
+Top-level parameters the call leaves out are not shown. They get their Python
+defaults when the arguments are rebuilt, as without oversight. Field defaults
+inside a model or dataclass are shown. Curried handoff
 arguments are Python values from the developer: they are not shown, not
 converted, and reach the agent as given.
 
@@ -88,6 +89,7 @@ converted, and reach the agent as given.
 | Modify that leaves out a default | approver selects `{"name": "a"}` | | approval error: rebuilds with `status` added |
 | Lazy iterable field | `{"values": [1, 2]}` | `{"values": [1, 2]}` | runs with 1, 2 |
 | Validation alias differs from serialization alias | `{"in": 1}` | nothing | parsing error: `{"out": 1}` does not convert back |
+| Field serializer that changes the type (`int` as text) | `{"item": {"count": 5}}` | `{"item": {"count": "5"}}` | runs with 5; a modify that copies the shown JSON fails the schema |
 
 ## What is refused, and why
 
@@ -103,6 +105,14 @@ Under oversight, a call is refused when:
 These shapes are refused rather than supported because they are not used by
 real tools. The shapes in use (plain values, models, lists of models, and
 model-or-dict unions) round-trip.
+
+The shown JSON is not checked against the tool's schema. Where a parameter's
+serialized form does not match the schema (a model field whose validation and
+serialization aliases differ, alternative input aliases, a field serializer
+that changes the type), a call can be approved, but a modify built from the
+shown JSON fails schema validation. A schema check on the shown JSON would
+refuse every call to such a tool under oversight, with a parsing error the
+model cannot fix; without it, only modify is affected.
 
 ## Without oversight
 
@@ -129,3 +139,10 @@ arguments are not converted.
   before-tool sentinel; the cases under "Changing a call" are not checked.
   This replaces the 2026-10-15 plan to check every callback boundary, which
   kept finding new ones (decision: Ransom, 2026-10-16).
+- 2026-10-16: the shown JSON is not checked against the schema, so a call
+  whose serialized form does not match it can be approved but not modified
+  (decision: Ransom, 2026-10-16).
+- 2026-10-16: top-level parameters the call leaves out stay unshown and get
+  their Python defaults on rebuild. Showing them would refuse tools whose
+  default does not round-trip, such as `x: int = None` (decision: Ransom,
+  2026-10-16).
