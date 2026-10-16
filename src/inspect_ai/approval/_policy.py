@@ -149,8 +149,9 @@ def tool_pattern(pattern: str) -> ToolPattern:
     arguments.
 
     Raises:
-        ValueError: An argument item is not `name=value` or `*`, or its name
-            contains a glob character.
+        ValueError: An argument item is not `name=value` or `*`, its name
+            contains a glob character, or it runs into what may be the next
+            pattern in a comma-separated string.
     """
     if "(" not in pattern:
         glob = pattern if pattern.endswith("*") else f"{pattern}*"
@@ -165,20 +166,30 @@ def tool_pattern(pattern: str) -> ToolPattern:
         if item == "" or item == "*":
             continue
         name, equals, value = item.partition("=")
-        if not equals or not name.strip():
+        name, value = name.strip(), value.strip()
+        if (
+            not equals
+            or not name
+            or any(char in name for char in "()'\"")
+            or len(name.split()) > 1
+        ):
             raise ValueError(
                 f"Invalid tool pattern '{pattern}': expected name=value or * "
-                f"in the argument list, got '{item}'. To list another tool "
-                f"after this pattern, end the pattern with ', *)' or give the "
-                f"tool as a separate list item."
+                f"in the argument list, got '{item}'. {_NEXT_TOOL_HINT}"
             )
-        name = name.strip()
         if any(char in name for char in "*?[]"):
             raise ValueError(
                 f"Invalid tool pattern '{pattern}': argument names must be "
                 f"literal, got '{name}'."
             )
-        arguments.append(ArgumentPattern(name=name, value=value.strip()))
+        if _value_runs_on(value):
+            raise ValueError(
+                f"Invalid tool pattern '{pattern}': the value of '{name}' may "
+                f"run into the next pattern. {_NEXT_TOOL_HINT} A value that "
+                f"contains a comma must be closed with a quote, as in "
+                f"{name}='a, b*'."
+            )
+        arguments.append(ArgumentPattern(name=name, value=value))
     if arguments and not items.closed and stripped[-1] != "*":
         last = arguments[-1]
         if not last.value.endswith("*"):
@@ -188,6 +199,34 @@ def tool_pattern(pattern: str) -> ToolPattern:
         arguments=arguments,
         closed=items.closed and not any_others,
     )
+
+
+_NEXT_TOOL_HINT = (
+    "To list another tool after this pattern, end the pattern with ', *)' or "
+    "give the tool as a separate list item."
+)
+
+
+def _value_runs_on(value: str) -> bool:
+    """Whether a quoted value may have taken in the next pattern of a string.
+
+    True when the quote is never closed and a comma follows it, or when text
+    other than a glob follows the closing quote. Either way a comma that
+    should have ended this pattern was read as part of the value.
+    """
+    start = len(value) - len(value.lstrip("*?"))
+    if start == len(value) or value[start] not in "'\"":
+        return False
+    escaped = False
+    for index in range(start + 1, len(value)):
+        char = value[index]
+        if escaped:
+            escaped = False
+        elif char == "\\":
+            escaped = True
+        elif char == value[start]:
+            return value[index + 1 :].strip("*?") != ""
+    return "," in value[start:]
 
 
 class _SplitPattern(NamedTuple):

@@ -69,7 +69,7 @@ approvers:
 
 The function name and the arguments are matched separately. A name glob such as `*_click` matches only function names. Each `name=value` item matches the argument of that name wherever it appears in the call. The value may be a glob, but the name must be written in full. String values are written in single quotes; a `'` or backslash inside a value is preceded by a backslash. The last value is prefix matched and other arguments are allowed, which is why these patterns don't end with `)`. A pattern that ends with `)` matches its last value exactly and allows no other arguments. A `*` item, as in `bash(cmd='ls', *)`, allows other arguments. Any other item that is not `name=value`, or an argument name with a glob character, is an error.
 
-A pattern with arguments that does not end with `)` takes the rest of a comma-separated string, so `"computer(action='key', web_browser_type"` is an error. To list other tools after such a pattern, end it with `, *)`, as in `computer(action='key', *), web_browser_type`, or give each pattern as a separate list item.
+A pattern with arguments that does not end with `)` takes the rest of a comma-separated string, so `"computer(action='key', web_browser_type"` is an error. To list other tools after such a pattern, end it with `, *)`, as in `computer(action='key', *), web_browser_type`, or give each pattern as a separate list item. A string value that contains a comma must be closed with a quote, as in `bash(cmd='a, b*'`.
 
 ## Approvers in Code
 

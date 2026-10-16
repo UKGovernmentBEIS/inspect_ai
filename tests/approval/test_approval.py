@@ -916,6 +916,29 @@ async def test_policy_open_pattern_takes_the_rest_of_the_string() -> None:
         assert await matched_approvers(tools, key) == both
 
 
+# each was read as one pattern that matched neither intended tool
+RUN_ON_PATTERNS = [
+    "computer(action='key', computer(action='left_click'",
+    "bash(cmd='git, python",
+    "bash(cmd='rm, bash(cmd='sudo",
+]
+
+
+@pytest.mark.parametrize("tools", RUN_ON_PATTERNS)
+def test_policy_pattern_cannot_run_into_the_next_pattern(tools: str) -> None:
+    with pytest.raises(ValueError, match="end the pattern with"):
+        policy_approver([ApprovalPolicy(auto_approver(), tools)])
+
+
+async def test_policy_quoted_values_with_and_without_commas() -> None:
+    both = ["matched", "other"]
+    call = make_tool_call("bash", cmd="git status")
+    assert await matched_approvers("bash(cmd='git", call) == both
+    call = make_tool_call("bash", cmd="a, b")
+    assert await matched_approvers("bash(cmd='a, b'", call) == both
+    assert await matched_approvers("bash(cmd='a, *'", call) == both
+
+
 def test_policy_argument_names_are_literal() -> None:
     # a name glob would let one argument supply the value while another
     # passes on its name alone

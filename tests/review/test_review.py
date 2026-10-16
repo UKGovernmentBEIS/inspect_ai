@@ -368,6 +368,19 @@ async def test_review_policy_tools_match_as_approval_policy_tools() -> None:
     assert await reviewed_by(escaped, "computer", action=value)
 
 
+@pytest.mark.parametrize(
+    "tools",
+    [
+        "computer(action='key', computer(action='left_click'",
+        "bash(cmd='git, python",
+        "bash(cmd='rm, bash(cmd='sudo",
+    ],
+)
+def test_review_policy_pattern_cannot_run_into_the_next_pattern(tools: str) -> None:
+    with pytest.raises(ValueError, match="end the pattern with"):
+        policy_reviewer([policy("terminate", tools=tools)])
+
+
 # --- what the reviewer sees ----------------------------------------------------
 
 
