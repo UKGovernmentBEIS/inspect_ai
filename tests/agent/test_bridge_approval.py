@@ -9,6 +9,7 @@ than by editing the response the scaffold sees.
 import inspect
 import json
 import logging
+import re
 from collections import deque
 from contextlib import contextmanager
 from pathlib import PurePosixPath
@@ -4070,6 +4071,62 @@ async def test_unmapped_tool_exception_fails_the_sample_and_is_recorded_failed()
     assert event.failed is True
     assert event.error is None
     assert bridge._failure is error
+
+
+@pytest.mark.parametrize("require_proposal", [True, False], ids=["required", "exempt"])
+async def test_a_schema_that_cannot_be_checked_fails_the_sample_and_is_recorded(
+    require_proposal: bool,
+) -> None:
+    """An error checking the arguments is a programming error, as in the tool body."""
+    mock = AsyncMock(return_value="contents")
+
+    async def execute(**kwargs: Any) -> str:
+        return await mock(**kwargs)
+
+    invalid_pattern = ToolParams(
+        properties={"path": ToolParam(type="string", description="path", pattern="[")},
+        required=["path"],
+    )
+    bridge = SandboxAgentBridge(
+        state=AgentState(messages=[]),
+        filter=None,
+        retry_refusals=None,
+        compaction=None,
+        port=13131,
+        model=None,
+        bridged_tools={
+            "host": {
+                "read_file": ToolDef(
+                    execute,
+                    name="read_file",
+                    description=READ_FILE,
+                    parameters=invalid_pattern,
+                ).as_tool()
+            }
+        },
+        proposal_exempt_servers=set() if require_proposal else {"host"},
+    )
+    call = ToolCall(id="proposed", function="read_file", arguments={"path": "a"})
+
+    with recorded_transcript() as recorded:
+        if require_proposal:
+            await propose(bridge, call)
+        with pytest.raises(re.error) as raised:
+            await call_host_tool(bridge)("host", "read_file", {"path": "a"})
+
+    mock.assert_not_awaited()
+    assert bridge._failure is raised.value
+    [event] = recorded.tool_events
+    assert recorded.completions(event) == 1
+    assert event.failed is True
+    assert event.error is None
+    assert event.arguments == {"path": "a"}
+    if require_proposal:
+        assert event.id == "proposed"
+        assert bridge_metadata(event)["grant"] == "consumed"
+        assert bridge_metadata(event)["proposal_id"] == "proposed"
+    else:
+        assert bridge_metadata(event)["grant"] == "exempt"
 
 
 async def test_tool_error_from_a_task_group_is_classified_unwrapped() -> None:

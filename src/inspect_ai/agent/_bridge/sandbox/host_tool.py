@@ -156,11 +156,12 @@ class _BridgeMetadata:
 async def _record_rejection(
     tool: str,
     arguments: dict[str, JsonValue],
-    error: ToolCallError,
+    error: ToolCallError | None,
     metadata: _BridgeMetadata,
     *,
     event_id: str | None = None,
     view: ToolCallContent | None = None,
+    failed: bool | None = None,
 ) -> None:
     """Record a request that did not execute as a completed event in its own `tool` span."""
     event = ToolEvent(
@@ -176,7 +177,7 @@ async def _record_rejection(
         error=error,
         working_time=0.0,
         agent=None,
-        failed=None,
+        failed=failed,
         message_id=None,
     )
     recorded = False
@@ -209,11 +210,28 @@ async def _execute_granted(
     event_id = grant.proposal.take_id() if grant is not None else uuid()
     view = grant.proposal.call.view if grant is not None else None
 
-    tool_def = ToolDef(tool_fn)
-    # jsonschema reports a non-object as a validation error like any other
-    validation_errors = validate_tool_input(
-        cast(dict[str, Any], arguments), tool_def.parameters
-    )
+    try:
+        tool_def = ToolDef(tool_fn)
+        # jsonschema reports a non-object as a validation error like any other
+        validation_errors = validate_tool_input(
+            cast(dict[str, Any], arguments), tool_def.parameters
+        )
+    except Exception as ex:
+        # classified as an exception from the tool itself (below)
+        inner_ex = inner_exception(ex)
+        mapped = tool_call_error(inner_ex, tool)
+        if mapped is None:
+            bridge.request_fail(inner_ex)
+        await _record_rejection(
+            tool,
+            arguments if isinstance(arguments, dict) else {},
+            mapped.error if mapped is not None else None,
+            metadata,
+            event_id=event_id,
+            view=view,
+            failed=True if mapped is None else None,
+        )
+        raise
     if validation_errors:
         await _record_rejection(
             tool,
