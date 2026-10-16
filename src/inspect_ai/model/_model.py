@@ -71,6 +71,7 @@ from inspect_ai._util.retry import report_http_retry
 from inspect_ai._util.rich import format_traceback
 from inspect_ai._util.trace import trace_action
 from inspect_ai._util.working import (
+    ModelAttempts,
     add_sample_wait,
     sample_clock,
     sample_wait,
@@ -1160,6 +1161,8 @@ class Model:
 
         config = self._resolve_config(config)
 
+        attempts = ModelAttempts()
+
         # Retry handler for token counting (429/timeouts retried with the
         # same backoff as `generate`). Count-token calls still need a
         # concurrency bound -- a caller can fan out many counts inside one
@@ -1180,12 +1183,22 @@ class Model:
                 sample_waits=True,
                 wait=self.api.retry_wait(),
                 qualified_model_name=self.api.qualified_model_name,
+                attempts=attempts,
             )
         )
+        async def _count_tokens_retried(
+            input: str | list[ChatMessage], config: GenerateConfig | None
+        ) -> int:
+            with attempts.attempt():
+                return await self.api.count_tokens(input, config)
+
         async def _count_tokens(
             input: str | list[ChatMessage], config: GenerateConfig | None
         ) -> int:
-            return await self.api.count_tokens(input, config)
+            try:
+                return await _count_tokens_retried(input, config)
+            finally:
+                attempts.commit()
 
         model_name = ModelName(self)
         key = f"ModelCountTokens({_connection_pool_key(self.api)})"
@@ -1306,6 +1319,7 @@ class Model:
             f"{model_name}_compact", 10, key, False
         )
         async with _held_connection_slot(compact_sem.semaphore) as slot:
+            attempts = ModelAttempts()
 
             @retry(
                 **model_retry_config(
@@ -1321,19 +1335,24 @@ class Model:
                     sample_waits=True,
                     wait=self.api.retry_wait(),
                     qualified_model_name=self.api.qualified_model_name,
+                    attempts=attempts,
                 )
             )
             async def _compact(
                 messages: list[ChatMessage],
             ) -> tuple[list[ChatMessage], ModelUsage | None]:
                 await wait_generate_dispatch(self, slot)
-                return await self.api.compact(messages, tools, config, instructions)
+                with attempts.attempt():
+                    return await self.api.compact(messages, tools, config, instructions)
 
             from inspect_ai.log._samples import cleared_retry_wait
 
             # Call compact with retry handling
             with cleared_retry_wait():
-                compacted_messages, usage = await _compact(input)
+                try:
+                    compacted_messages, usage = await _compact(input)
+                finally:
+                    attempts.commit()
 
             # Record and check usage
             if usage:
@@ -1444,6 +1463,8 @@ class Model:
         # only consulted per attempt (see wait_generate_dispatch's fast path).
         from inspect_ai._control.pause import wait_generate_dispatch
 
+        attempts = ModelAttempts()
+
         @retry(
             **model_retry_config(
                 self.api.model_name,
@@ -1458,6 +1479,7 @@ class Model:
                 sample_waits=True,
                 wait=self.api.retry_wait(),
                 qualified_model_name=self.api.qualified_model_name,
+                attempts=attempts,
             )
         )
         async def generate() -> tuple[ModelOutput, BaseModel]:
@@ -1571,7 +1593,10 @@ class Model:
             idle_cm = idle_scope if idle_scope is not None else contextlib.nullcontext()
             response_headers = ResponseHeaders()
 
-            with trace_action(logger, "Model", f"generate ({str(self)})"):
+            with (
+                trace_action(logger, "Model", f"generate ({str(self)})"),
+                attempts.attempt(),
+            ):
                 time_start = sample_clock()
                 try:
                     assert isinstance(event, ModelEvent)
@@ -1696,7 +1721,8 @@ class Model:
                 # the provider SDK's own failed requests and retry sleeps
                 # (zero means the provider did not measure the request)
                 if call.time > 0:
-                    add_sample_wait(time_start, time_end - call.time)
+                    add_sample_wait(time_start, time_end - call.time, completed=False)
+                    attempts.exclude_before(time_end - call.time)
             else:
                 output.time = time_elapsed
 
@@ -1730,7 +1756,11 @@ class Model:
 
         # call the model (this will do retries, etc.)
         with cleared_retry_wait():
-            model_output, event = await generate()
+            try:
+                model_output, event = await generate()
+            finally:
+                # the last attempt, successful or failed without a retry
+                attempts.commit()
 
         # record any model fallback against the active sample (here in the
         # outer frame rather than alongside usage recording so that cache
