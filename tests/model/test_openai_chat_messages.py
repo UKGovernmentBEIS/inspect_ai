@@ -311,6 +311,25 @@ async def _bridge_round_trip(as_list: bool) -> ChatMessageAssistant:
 
 
 @pytest.mark.parametrize("as_list", [False, True])
+async def test_assistant_smuggled_reasoning_keeps_text_indentation(as_list: bool):
+    original = ChatMessageAssistant(
+        content=[
+            ContentReasoning(reasoning="plan"),
+            ContentText(text="def f():"),
+            ContentReasoning(reasoning="choose result"),
+            ContentText(text="    return 1"),
+        ]
+    )
+    text, _ = openai_assistant_content(original)
+    oai_message: ChatCompletionAssistantMessageParam = {
+        "role": "assistant",
+        "content": [{"type": "text", "text": text}] if as_list else text,
+    }
+    chat_msgs = await messages_from_openai([oai_message])
+    assert chat_msgs[0].content == original.content
+
+
+@pytest.mark.parametrize("as_list", [False, True])
 async def test_assistant_multiple_smuggled_reasoning_blocks_round_trip(as_list: bool):
     original = _gemini_tool_call_message()
     restored = await _bridge_round_trip(as_list)

@@ -122,16 +122,17 @@ def split_content_with_reasoning(content: str) -> list[str | ReasoningCapsule]:
 
     This is the inverse of serializing each reasoning block of a message with
     `reasoning_to_think_tag` between its text (as agent bridges do for the
-    chat completions API). Text between blocks is stripped and empty text is
-    omitted.
+    chat completions API). The serializer separates blocks and text with
+    newlines, so only newlines are stripped from the ends of each text segment;
+    other whitespace, such as code indentation, is kept. Empty text is omitted.
     """
     segments: list[str | ReasoningCapsule] = []
     while (block := _parse_think_block(content)) is not None:
-        if text := content[: block.start].strip():
+        if text := content[: block.start].strip("\n"):
             segments.append(text)
         segments.append(block.capsule)
         content = content[block.end :]
-    if text := content.strip():
+    if text := content.strip("\n"):
         segments.append(text)
     return segments
 
