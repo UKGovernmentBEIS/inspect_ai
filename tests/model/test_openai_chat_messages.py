@@ -1,6 +1,13 @@
+import re
+
 import pytest
 
 from inspect_ai._util.content import ContentAudio, ContentReasoning, ContentText
+from inspect_ai.model._chat_message import ChatMessageAssistant
+from inspect_ai.model._internal import (
+    CONTENT_INTERNAL_TAG,
+    parse_content_with_internal,
+)
 from inspect_ai.model._openai import (
     messages_from_openai,
     messages_to_openai,
@@ -260,3 +267,31 @@ async def test_user_input_audio_is_normalized_to_data_uri():
 
     serialized = await openai_chat_completion_part(audio)
     assert serialized["input_audio"] == {"data": audio_data, "format": "mp3"}
+
+
+async def test_assistant_message_content_internal_round_trip() -> None:
+    """Ensure ContentText.internal is serialized with single tag and round-trips without stray brackets."""
+    m = ChatMessageAssistant(
+        content=[
+            ContentText(text="hello world", internal={"key": "val"}),
+        ]
+    )
+    openai_msgs = await messages_to_openai([m])
+    content = openai_msgs[0]["content"]
+    assert isinstance(content, str)
+    # Must NOT have double brackets <<content-internal>...</content-internal>>
+    assert "<<" not in content
+    assert ">>" not in content
+    assert "<content-internal>" in content
+    assert "</content-internal>" in content
+
+    # Parse back with parse_content_with_internal: text must be pristine without stray '<>'
+    cleaned, internal = parse_content_with_internal(content, CONTENT_INTERNAL_TAG)
+    assert cleaned == "hello world"
+    assert internal == {"key": "val"}
+
+    # Must also match the web viewer's regex anchor (trailing > in double-bracket would break this)
+    viewer_pattern = re.compile(
+        r"<content-internal>([A-Za-z0-9+/]+={0,2})</content-internal>\s*$"
+    )
+    assert viewer_pattern.search(content) is not None
