@@ -862,6 +862,25 @@ async def test_s3_walk_lists_each_directory_once_and_never_a_buffer(
 
 
 @skip_if_trio
+async def test_s3_walk_does_not_list_a_checkpoint_directory_in_a_companion(
+    mock_s3: None, finished_log: EvalLog, s3_requests: Counter[str]
+) -> None:
+    prefix = "log-dir-companion-checkpoints"
+    name = Path(finished_log.location).name
+    _upload(finished_log.location, f"{prefix}/run.shards/0/{name}")
+    boto3.client("s3").put_object(
+        Bucket="test-bucket",
+        Key=f"{prefix}/run.shards/stray.checkpoints/1__1/a/b/checkpoint",
+        Body=b"",
+    )
+    async with AsyncFilesystem() as fs:
+        listing = await walk_log_dir(fs, f"s3://test-bucket/{prefix}")
+    assert len(listing.shard_sets) == 1
+    # root, companion, 0/ and stray.checkpoints/; nothing below the last
+    assert s3_requests == Counter({"ListObjectsV2": 4})
+
+
+@skip_if_trio
 async def test_s3_request_counts_for_list_and_sample_reads(
     mock_s3: None, finished_log: EvalLog, s3_requests: Counter[str]
 ) -> None:
@@ -2680,9 +2699,18 @@ async def test_the_walk_lists_shard_directories_once_and_no_deeper(
     tmp_path: Path, finished_log: EvalLog, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     companion = await _shard_set(tmp_path, finished_log, {"0": [1], "1": [2]})
-    for skipped in ("0/.buffer/x", "0/run.checkpoints/1", ".buffer/x"):
+    for skipped in (
+        "0/.buffer/x",
+        "0/run.checkpoints/1",
+        ".buffer/x",
+        # checkpoint directories directly in the companion: their sample
+        # repositories are not listed
+        "stray.checkpoints/1__1/a/b",
+        ".stray.checkpoints/1__1/a",
+    ):
         (companion / skipped).mkdir(parents=True)
     (companion / "1" / "scans" / "x.shards" / "0").mkdir(parents=True)
+    (companion / ".hidden" / "sub").mkdir(parents=True)
     listed: list[str] = []
     original = AsyncFilesystem.list_dir
 
@@ -2701,11 +2729,15 @@ async def test_the_walk_lists_shard_directories_once_and_no_deeper(
         ".",
         companion.name,
         f"{companion.name}/.buffer",
+        f"{companion.name}/.hidden",
+        f"{companion.name}/.hidden/sub",
+        f"{companion.name}/.stray.checkpoints",
         f"{companion.name}/0",
         f"{companion.name}/1",
         f"{companion.name}/1/scans",
         f"{companion.name}/1/scans/x.shards",
         f"{companion.name}/1/scans/x.shards/0",
+        f"{companion.name}/stray.checkpoints",
     ]
 
 

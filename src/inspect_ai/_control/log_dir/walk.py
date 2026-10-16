@@ -179,7 +179,7 @@ async def walk_log_dir(
             [
                 functools.partial(visit, d, False, False)
                 for d in listing.unlisted_dirs
-                if _descend(basename(d))
+                if _descend_below(companion, d)
             ]
         )
 
@@ -208,6 +208,14 @@ def basename(location: str) -> str:
 def _descend(name: str) -> bool:
     """Whether the walk lists a subdirectory with this name."""
     return name != _BUFFER_DIR and not name.endswith(_CHECKPOINTS_SUFFIX)
+
+
+def _descend_below(companion: str, directory: str) -> bool:
+    """Whether the walk lists ``directory``, found below ``companion``.
+
+    No directory on the path between them may be one it skips.
+    """
+    return all(_descend(part) for part in _relative(companion, directory).split("/"))
 
 
 def _is_companion(directory: str) -> bool:

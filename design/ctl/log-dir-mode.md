@@ -477,7 +477,11 @@ The walk produces a listing of logical tasks without paging through
     `unlisted_dirs` (every directory in a `<k>/` other than `.buffer/`,
     such as `scans/`, and the directories inside a dot-directory of the
     companion) by these same rules, so `*.checkpoints/` is skipped and no
-    `.buffer/` is listed there either.
+    `.buffer/` is listed there either. A directory in `unlisted_dirs` is
+    skipped when any directory between it and the companion is one these
+    rules skip: the shared walk lists a `*.checkpoints/` directly in the
+    companion as a would-be shard, and its sample directories are not
+    descended.
   - `<name>.shards/` below a companion (in a shard's ancillary directory):
     an ordinary subdirectory, descended like any other; its logs are
     ordinary logs.
