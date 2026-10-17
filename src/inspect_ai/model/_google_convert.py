@@ -2,6 +2,7 @@
 
 import base64
 import json
+from logging import getLogger
 from typing import TYPE_CHECKING, Any, Literal, Sequence, Union
 
 from pydantic_core import to_jsonable_python
@@ -32,6 +33,8 @@ from inspect_ai.tool import ToolCall, ToolCallError
 
 if TYPE_CHECKING:
     from google.genai.types import Content, ContentDict, GenerateContentResponse, Part
+
+logger = getLogger(__name__)
 
 
 async def messages_from_google(
@@ -245,15 +248,22 @@ async def content_from_google_parts(
 
         # Handle inline data (images)
         elif part.inline_data and part.inline_data.mime_type and part.inline_data.data:
-            content.append(
-                ContentImage(
-                    image=as_data_uri(
-                        part.inline_data.mime_type,
-                        part.inline_data.data.decode("utf-8"),
+            inline_mime_type = part.inline_data.mime_type or ""
+            if inline_mime_type.startswith("image/"):
+                content.append(
+                    ContentImage(
+                        image=as_data_uri(
+                            inline_mime_type,
+                            base64.b64encode(part.inline_data.data).decode(),
+                        )
                     )
                 )
-            )
-            working_reasoning_block = None
+                working_reasoning_block = None
+            else:
+                logger.warning(
+                    f"Unsupported inline_data MIME type '{inline_mime_type}', "
+                    f"skipping inline content."
+                )
 
         # Handle file data (audio, video, documents)
         elif part.file_data is not None:
