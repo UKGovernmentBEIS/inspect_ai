@@ -1071,6 +1071,8 @@ class Model:
                 if output.time is not None
                 else (completed - start_time).total_seconds()
             )
+            # The completion snapshot deferred its hook delivery for this update.
+            event._defer_sample_hook = False
 
             # re-emit so subscribers (e.g. the sample buffer, which serializes a
             # snapshot at emission time) pick up the timing fields set above
@@ -2107,6 +2109,12 @@ class Model:
                     event.call.response = as_error_response(str(result))
 
             event.pending = None
+            # generate() publishes this event again after it stamps timing.
+            # Hold the hook delivery until that snapshot. An exception is
+            # published only here (generate() does not get the event back),
+            # so hooks still see the failure.
+            if isinstance(result, ModelOutput):
+                event._defer_sample_hook = True
             if sink is None:
                 transcript()._event_updated(event)
             else:

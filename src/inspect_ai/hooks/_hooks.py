@@ -17,6 +17,7 @@ from inspect_ai._util.registry import (
     registry_name,
 )
 from inspect_ai.event import Event
+from inspect_ai.event._model import ModelEvent
 from inspect_ai.hooks._legacy import override_api_key_legacy
 from inspect_ai.log._log import (
     EvalLog,
@@ -755,6 +756,13 @@ def emit_sample_event(
     if active is None or active.event_send is None:
         return
     if event.pending:
+        return
+    # A successful model call is published when the provider returns, then
+    # again after generate() stamps timing. The sample buffer keeps both
+    # snapshots. Hooks count the call once, from the timed snapshot.
+    # Failures are published only on the first of those, so they are not
+    # marked and still go out.
+    if isinstance(event, ModelEvent) and event._defer_sample_hook:
         return
     data = SampleEvent(
         eval_set_id=eval_set_id,

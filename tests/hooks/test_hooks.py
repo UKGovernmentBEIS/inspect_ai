@@ -757,6 +757,96 @@ def test_required_hooks_when_one_missing(
     assert "missing: {'fake'}" in str(exc_info.value)
 
 
+def test_model_events_are_delivered_once(mock_hooks: MockHooks) -> None:
+    """A completed model call is delivered to hooks once, with its timing set."""
+    from inspect_ai.event._model import ModelEvent
+    from inspect_ai.event._tool import ToolEvent
+    from inspect_ai.model import ModelOutput, get_model
+    from inspect_ai.solver import generate, use_tools
+    from inspect_ai.tool import tool
+
+    @tool
+    def add():
+        async def execute(x: int, y: int) -> int:
+            """Add two integers.
+
+            Args:
+                x: First number.
+                y: Second number.
+            """
+            return x + y
+
+        return execute
+
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.for_tool_call("mockllm/model", "add", {"x": 1, "y": 2}),
+            ModelOutput.from_content("mockllm/model", "3"),
+        ],
+    )
+    log = eval(
+        Task(
+            dataset=[Sample(input="Add 1 and 2")],
+            solver=[use_tools(add()), generate()],
+        ),
+        model=model,
+        display="none",
+    )[0]
+
+    logged = [event for event in log.samples[0].events if isinstance(event, ModelEvent)]
+    delivered = [
+        data.event
+        for data in mock_hooks.sample_event_events
+        if isinstance(data.event, ModelEvent)
+    ]
+    assert len(logged) == 2
+    assert [event.uuid for event in delivered] == [event.uuid for event in logged]
+    assert all(event.completed is not None for event in delivered)
+
+    logged_tools = [
+        event for event in log.samples[0].events if isinstance(event, ToolEvent)
+    ]
+    delivered_tools = [
+        data.event
+        for data in mock_hooks.sample_event_events
+        if isinstance(data.event, ToolEvent)
+    ]
+    assert len(logged_tools) == 1
+    assert [event.uuid for event in delivered_tools] == [
+        event.uuid for event in logged_tools
+    ]
+
+
+def test_failed_model_events_are_still_delivered(mock_hooks: MockHooks) -> None:
+    """A model call that raises is still delivered to hooks once."""
+    from inspect_ai.event._model import ModelEvent
+    from inspect_ai.model import get_model
+
+    def fail(input: object, tools: object, tool_choice: object, config: object) -> None:
+        raise RuntimeError("provider down")
+
+    model = get_model("mockllm/model", custom_outputs=fail)
+    log = eval(
+        Task(dataset=[Sample(input="hello")]),
+        model=model,
+        display="none",
+        fail_on_error=False,
+        max_retries=0,
+    )[0]
+
+    assert log.samples is not None
+    logged = [event for event in log.samples[0].events if isinstance(event, ModelEvent)]
+    delivered = [
+        data.event
+        for data in mock_hooks.sample_event_events
+        if isinstance(data.event, ModelEvent)
+    ]
+    assert len(logged) == 1
+    assert [event.uuid for event in delivered] == [event.uuid for event in logged]
+    assert delivered[0].error is not None
+
+
 def test_sample_events_are_emitted(mock_hooks: MockHooks) -> None:
     eval(Task(dataset=[Sample("sample_1")]), model="mockllm/model")
 
