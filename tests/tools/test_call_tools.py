@@ -228,15 +228,21 @@ def test_dataclass_non_init_schema():
         {"constant": 99, "items": [], "doubled": 0},
     ],
 )
-async def test_dataclass_non_init_fields(extra):
+@pytest.mark.parametrize("custom_schema", [False, True])
+async def test_dataclass_non_init_fields(extra, custom_schema):
+    tool_def = ToolDef(non_init_tool())
+    if custom_schema:
+        schema = tool_def.parameters.properties["data"].items
+        assert schema is not None
+        schema.additionalProperties = True
     call = make_call("non_init_tool", {"data": [{"value": 5, **extra}]})
     messages, _ = await execute_tools(
         [ChatMessageAssistant(content=[], tool_calls=[call])],
-        [ToolDef(non_init_tool())],
+        [tool_def],
     )
 
     assert isinstance(messages[-1], ChatMessageTool)
-    if extra:
+    if extra and not custom_schema:
         assert messages[-1].error is not None
         assert messages[-1].error.type == "parsing"
         assert "Additional properties are not allowed" in messages[-1].error.message
