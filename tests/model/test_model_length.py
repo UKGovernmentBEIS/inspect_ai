@@ -35,7 +35,7 @@ CLOUDFLARE_LLAMA_3_3_70B = "cloudflare/@cf/meta/llama-3.3-70b-instruct-fp8-fast"
 TOGETHER_MINI_MAX_27 = "together/MiniMaxAI/MiniMax-M2.7"
 BEDROCK_NOVA_LITE_1_0 = "bedrock/amazon.nova-lite-v1:0"
 MOONSHOT_KIMI_K3 = "moonshot/kimi-k3"
-DEEPSEEK_V4_FLASH = "deepseek/deepseek-v4-flash"
+DEEPSEEK_FLASH = "deepseek/deepseek-flash"
 
 MODELS = {
     GPT_4O: 128000,
@@ -51,7 +51,7 @@ MODELS = {
     TOGETHER_MINI_MAX_27: 196000,
     BEDROCK_NOVA_LITE_1_0: 128000,
     MOONSHOT_KIMI_K3: 1048576,
-    DEEPSEEK_V4_FLASH: 1048576,
+    DEEPSEEK_FLASH: 1048576,
 }
 
 
@@ -148,4 +148,4 @@ async def test_model_length_moonshot():
 
 @skip_if_no_deepseek
 async def test_model_length_deepseek():
-    await check_model_length(DEEPSEEK_V4_FLASH)
+    await check_model_length(DEEPSEEK_FLASH)

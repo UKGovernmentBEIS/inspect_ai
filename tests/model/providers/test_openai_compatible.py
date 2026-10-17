@@ -957,6 +957,108 @@ def test_together_resolve_stream_excludes_batching() -> None:
         assert _together_api(stream=True).resolve_stream(config) is False
 
 
+async def test_together_batch_sends_each_header_set_separately() -> None:
+    """Together batches are created with only their own headers, without the request id."""
+    import functools
+    import json
+    import time
+    from pathlib import Path
+    from unittest.mock import AsyncMock, MagicMock, patch
+
+    import anyio
+    from openai import AsyncOpenAI
+
+    from inspect_ai._util._async import tg_collect
+    from inspect_ai._util.background import set_background_task_group
+    from inspect_ai.model._generate_config import BatchConfig
+    from inspect_ai.model._providers._together_batch import TogetherBatcher
+    from inspect_ai.model._providers.util.batch import BatchCheckResult
+    from inspect_ai.model._providers.util.hooks import HttpxHooks
+    from inspect_ai.model._retry import model_retry_config
+
+    class CompletingTogetherBatcher(TogetherBatcher):
+        """Completes each batch at once, answering each request with its id."""
+
+        async def _check_batch(self, batch):
+            return BatchCheckResult(
+                completed_count=len(batch.requests),
+                failed_count=0,
+                created_at=int(time.time()),
+                completion_info={"result_uris": []},
+            )
+
+        async def _handle_batch_result(self, batch, completion_info):
+            return {custom_id: custom_id for custom_id in batch.requests}
+
+    uploads: list[list[str]] = []
+
+    def upload(file, purpose):
+        lines = Path(file).read_text().splitlines()
+        uploads.append(sorted(json.loads(line)["custom_id"] for line in lines))
+        return MagicMock(id=f"file-{len(uploads)}")
+
+    # AsyncTogether is created per batch with that batch's headers as defaults
+    created: list[tuple[dict[str, str], str]] = []
+
+    def async_together(api_key, base_url, default_headers):
+        client = MagicMock()
+
+        async def create(endpoint, input_file_id):
+            created.append((default_headers, input_file_id))
+            return MagicMock(job=MagicMock(id=f"job-{len(created)}"))
+
+        client.batches.create = AsyncMock(side_effect=create)
+        return client
+
+    batcher = CompletingTogetherBatcher(
+        AsyncOpenAI(api_key="test", base_url="https://api.together.xyz/v1"),
+        BatchConfig(size=10, send_delay=0.02, tick=0.001),
+        model_retry_config(
+            "test", 3, None, lambda e: True, lambda ex: None, lambda m, s: None
+        ),
+    )
+    batcher._together_sync_client = MagicMock()
+    batcher._together_sync_client.files.upload = MagicMock(side_effect=upload)
+
+    def request(name: str, org: str) -> dict[str, Any]:
+        return {
+            "model": "meta-llama/Llama-3.1-8B-Instruct-Turbo",
+            "messages": [{"role": "user", "content": name}],
+            "extra_headers": {
+                HttpxHooks.REQUEST_ID_HEADER: f"rid-{name}",
+                "x-org": org,
+            },
+        }
+
+    with patch("together.AsyncTogether", side_effect=async_together):
+        async with anyio.create_task_group() as tg:
+            set_background_task_group(tg)
+            try:
+                results = await tg_collect(
+                    [
+                        functools.partial(
+                            batcher.generate_for_request, request("a1", "a")
+                        ),
+                        functools.partial(
+                            batcher.generate_for_request, request("b1", "b")
+                        ),
+                        functools.partial(
+                            batcher.generate_for_request, request("a2", "a")
+                        ),
+                    ]
+                )
+            finally:
+                set_background_task_group(None)
+
+    assert [str(result) for result in results] == ["rid-a1", "rid-b1", "rid-a2"]
+    file_ids = {f"file-{i + 1}": custom_ids for i, custom_ids in enumerate(uploads)}
+    batches = sorted((file_ids[file_id], headers) for headers, file_id in created)
+    assert batches == [
+        (["rid-a1", "rid-a2"], {"x-org": "a"}),
+        (["rid-b1"], {"x-org": "b"}),
+    ]
+
+
 def test_together_resolve_stream_declines_logprobs() -> None:
     """Auto mode declines to stream when logprobs is requested.
 

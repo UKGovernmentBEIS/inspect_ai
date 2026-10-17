@@ -2,13 +2,8 @@
 
 from __future__ import annotations
 
-import sys
-
 import anyio
 import pytest
-
-if sys.version_info < (3, 11):
-    from exceptiongroup import BaseExceptionGroup  # noqa: F401
 
 from inspect_ai.agent import (
     AgentChannel,

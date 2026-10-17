@@ -1,3 +1,4 @@
+import ast
 import asyncio
 import fcntl
 import json
@@ -248,6 +249,52 @@ def test_prepare_socket_parent_rejects_unsafe_long_path_fallback(
         server_module._prepare_socket_parent()
 
 
+def test_directory_creation_is_confined_to_verified_helper() -> None:
+    """Guard against security regressions from unchecked directory adoption.
+
+    Reusing an unverified directory can make Inspect trust state controlled by
+    another sandbox user. Walk the AST of every Python module in
+    ``inspect_sandbox_tools`` (the code injected into and run inside sandboxes)
+    to flag direct ``mkdir`` and ``makedirs`` calls outside
+    ``ensure_private_server_dir`` in ``_util/server_dir.py``.
+
+    See the ownership, ancestor and verification-before-use requirements in
+    ``src/inspect_ai/util/_sandbox/_framework_directory.py`` (host contract) and
+    ``src/inspect_sandbox_tools/src/inspect_sandbox_tools/_util/server_dir.py``
+    (injected tools contract).
+
+    This checks call names and placement, not safety. Renamed functions, shell
+    commands and directory creation inside libraries are not detected.
+    """
+    package_dir = Path(__file__).parents[1] / "src" / "inspect_sandbox_tools"
+    assert package_dir.is_dir(), package_dir
+    offenders: list[str] = []
+    for path in sorted(package_dir.rglob("*.py")):
+        relative_path = path.relative_to(package_dir).as_posix()
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        for statement in tree.body:
+            if (
+                relative_path == "_util/server_dir.py"
+                and isinstance(statement, ast.FunctionDef)
+                and statement.name == "ensure_private_server_dir"
+            ):
+                continue
+            for node in ast.walk(statement):
+                if not isinstance(node, ast.Call):
+                    continue
+                match node.func:
+                    case ast.Attribute(attr=name) | ast.Name(id=name):
+                        if name in {"mkdir", "makedirs"}:
+                            offenders.append(
+                                f"{relative_path}:{node.lineno}: {ast.unparse(node.func)}"
+                            )
+    assert not offenders, (
+        "Raw directory creation outside _util/server_dir.py:ensure_private_server_dir; "
+        "use that helper and follow its documented ownership and ancestor requirements:\n"
+        + "\n".join(offenders)
+    )
+
+
 def test_ensure_private_server_dir_creates_and_reuses_private_directory(
     tmp_path: Path,
 ) -> None:
@@ -381,8 +428,7 @@ def test_ensure_private_server_dir_rejects_planted_entry(
         with pytest.raises(
             RuntimeError,
             match=re.escape(
-                f"Sandbox-tools server directory {server_dir} cannot be trusted: "
-                f"{reason}"
+                f"Sandbox-tools directory {server_dir} cannot be trusted: {reason}"
             ),
         ):
             ensure_private_server_dir(server_dir)
@@ -611,7 +657,7 @@ def test_start_server_cli_refuses_planted_server_dir() -> None:
 
         assert result.returncode != 0
         assert (
-            f"Sandbox-tools server directory {server_dir} cannot be trusted: "
+            f"Sandbox-tools directory {server_dir} cannot be trusted: "
             "it is a symbolic link"
         ) in result.stderr
         assert not any(target.iterdir())

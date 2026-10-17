@@ -26,8 +26,11 @@ from inspect_sandbox_tools._util.constants import (
 )
 from inspect_sandbox_tools._util.json_rpc_chunking import (
     JSON_RPC_RESPONSE_CHUNK_METHOD,
+    ChunkSpill,
+    UnreservedChunkSpill,
     chunk_json_rpc_response_if_needed,
     handle_json_rpc_response_chunk_request,
+    reserve_chunk_spill,
 )
 from inspect_sandbox_tools._util.json_rpc_helpers import json_rpc_unix_call
 from inspect_sandbox_tools._util.load_tools import load_tools
@@ -193,6 +196,7 @@ async def _exec(request: str | None) -> None:
     # user's identity) and setuid before dispatching. The CLI is short-lived (one
     # invocation per request), so in-process setuid is safe. HOME follows the user
     # only when an identity switch happens, as in the server's tools.
+    spill: ChunkSpill | UnreservedChunkSpill | None = None
     if tool_name in in_process_tools:
         run_as: str | RunAs | None = None
         if isinstance(request_data.get("params"), dict):
@@ -210,6 +214,9 @@ async def _exec(request: str | None) -> None:
             request_json_str = json.dumps(request_data)
             target = switch_target(run_as, can_switch_user=os.getuid() == 0)
             if target is not None:
+                # Chunk storage is private to the tools user; reserve the spill
+                # file now, since the descriptor stays writable after the switch.
+                spill = reserve_chunk_spill()
                 switch_user(target)
                 os.environ["HOME"] = get_home_dir(target)
 
@@ -218,7 +225,7 @@ async def _exec(request: str | None) -> None:
         if tool_name in in_process_tools
         else _dispatch_remote_method
     )(request_json_str)
-    print(chunk_json_rpc_response_if_needed(request_data, response))
+    print(chunk_json_rpc_response_if_needed(request_data, response, spill=spill))
 
 
 async def _dispatch_local_method(request_json_str: str) -> JSONRPCResponseJSON:

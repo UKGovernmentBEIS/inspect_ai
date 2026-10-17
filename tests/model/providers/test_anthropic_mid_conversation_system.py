@@ -18,7 +18,7 @@ from inspect_ai.model import (
     GenerateConfig,
     get_model,
 )
-from inspect_ai.model._providers.anthropic import AnthropicAPI
+from inspect_ai.model._providers.anthropic import AnthropicAPI, cache_control_param
 from inspect_ai.tool import ToolCall
 
 
@@ -61,6 +61,40 @@ async def test_mid_conv_system_kept_when_trailing_4_8() -> None:
     assert [b["text"] for b in system_param] == ["lead"]
     assert [m["role"] for m in msgs] == ["user", "assistant", "user", "system"]
     assert msgs[-1]["content"] == "from now on, French"
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("cache_prompt", [None, False])
+async def test_mid_conv_system_multi_block_text_kept_separate(
+    cache_prompt: bool | None,
+) -> None:
+    """An unmarked mid-conversation system message keeps one block per part.
+
+    The upfront eligibility check already disqualifies any *marked*
+    mid-conversation system message, so this inline (unmarked) case must
+    keep the original per-block conversion rather than flattening into a
+    single newline-joined block.
+    """
+    api = AnthropicAPI(model_name="claude-opus-4-8", api_key="test-key")
+    input: list[ChatMessage] = [
+        ChatMessageUser(content="q"),
+        ChatMessageSystem(
+            content=[ContentText(text="first"), ContentText(text="second")]
+        ),
+        ChatMessageAssistant(content="a"),
+        ChatMessageUser(content="next"),
+    ]
+    _, _, _, msgs, _ = await api.resolve_chat_input(
+        input=input,
+        tools=[],
+        config=GenerateConfig(cache_prompt=cache_prompt),
+        cache_ttl=None,
+    )
+    system_msg = next(m for m in msgs if m["role"] == "system")
+    assert system_msg["content"] == [
+        {"type": "text", "text": "first"},
+        {"type": "text", "text": "second"},
+    ]
 
 
 @pytest.mark.anyio
@@ -110,6 +144,42 @@ async def test_mid_conv_system_invalid_position_hoisted(
     assert [b["text"] for b in system_param] == ["lead", "bad-position"]
     assert [m["role"] for m in msgs] == ["user", "assistant", "user"]
     assert any("repositioned" in w for w in warnings)
+
+
+@pytest.mark.anyio
+async def test_mid_conv_marked_system_hoisted_forces_whole_layout_fallback() -> None:
+    """An invalid-position marked system message that gets hoisted must not be partially honored.
+
+    Hoisting relocates the caller's chosen boundary, so the whole request
+    must fall back to normal automatic caching rather than partially
+    honoring the relocated system mark alongside a surviving user mark.
+    """
+    api = AnthropicAPI(model_name="claude-opus-4-8", api_key="test-key")
+    input: list[ChatMessage] = [
+        ChatMessageUser(content=[ContentText(text="rubric", cache_breakpoint=True)]),
+        ChatMessageAssistant(content="hello"),  # no server tool use: invalid prev
+        ChatMessageSystem(content=[ContentText(text="mid", cache_breakpoint=True)]),
+        ChatMessageUser(content="more"),
+    ]
+    (
+        system_param,
+        _,
+        _,
+        message_params,
+        auto_cache,
+    ) = await api.resolve_chat_input(
+        input=input, tools=[], config=GenerateConfig(), cache_ttl=None
+    )
+    # whole-request fallback: neither the hoisted system mark nor the
+    # surviving user mark is honored; normal automatic caching applies
+    # instead (a plain mark on the last system block, same as an unmarked
+    # request would get)
+    assert auto_cache is True
+    assert system_param is not None
+    assert system_param[-1]["cache_control"] == cache_control_param(None)
+    rubric_message = message_params[0]
+    assert isinstance(rubric_message["content"], list)
+    assert "cache_control" not in rubric_message["content"][0]
 
 
 @pytest.mark.anyio

@@ -88,6 +88,14 @@ async def execute_action(args: Namespace) -> ToolResult:
             return await computer.middle_click(
                 getattr(args, "coordinate", None), getattr(args, "text", None)
             )
+        case "back_click":
+            return await computer.back_click(
+                getattr(args, "coordinate", None), getattr(args, "text", None)
+            )
+        case "forward_click":
+            return await computer.forward_click(
+                getattr(args, "coordinate", None), getattr(args, "text", None)
+            )
         case "double_click":
             return await computer.double_click(
                 getattr(args, "coordinate", None), getattr(args, "text", None)

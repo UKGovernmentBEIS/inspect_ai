@@ -11,6 +11,7 @@ from typing import (
     Literal,
     NamedTuple,
     Protocol,
+    TypeGuard,
     TypeVar,
     overload,
 )
@@ -35,6 +36,7 @@ from inspect_ai.log._condense import (
     CallWalkCache,
     WalkContext,
     attachment_refs_from_object,
+    resolve_events_attachments,
 )
 from inspect_ai.model._chat_message import ChatMessageBase
 from inspect_ai.model._model_call import ModelCall
@@ -46,7 +48,7 @@ if TYPE_CHECKING:
 logger = getLogger(__name__)
 
 
-ET = TypeVar("ET", bound=BaseEvent)
+ET = TypeVar("ET", bound=Event)
 
 
 @dataclass(frozen=True)
@@ -443,6 +445,70 @@ class TranscriptHistory:
             return events[index:]
         return events
 
+    @overload
+    def find_last(self, predicate: Callable[[Event], TypeGuard[ET]]) -> ET | None: ...
+
+    @overload
+    def find_last(self, predicate: Callable[[Event], bool]) -> Event | None: ...
+
+    def find_last(self, predicate: Callable[[Event], bool]) -> Event | None:
+        """Return the most recent event, by logical position, that matches `predicate`.
+
+        Searches newest first and stops at the first match, so finding a
+        recent event reads only recent history. The search covers the history
+        as it was when `find_last` was called: events that `predicate` itself
+        adds (eg. by logging) are not searched.
+
+        With a history provider, the trailing resident window is searched
+        first, then evicted events are read back from the provider in pages
+        that grow from 16 to 256 events, strictly newest first, so older
+        events kept in memory (pinned or pending) are found in their logical
+        place. Without a provider, the resident events are searched newest
+        first. No events are retained.
+
+        Args:
+            predicate: Called with each event until it returns `True`.
+
+        Returns:
+            The most recent matching event, or `None` if no event matches.
+
+        Raises:
+            TranscriptHistoryUnavailableError: If the search requires history
+                that is unavailable; without a provider, this occurs after no
+                resident event matches and events have been evicted.
+        """
+        transcript = self._transcript
+        events = transcript._events  # appended to, or replaced on eviction
+        resident = len(events)
+        count = transcript._event_count
+        truncated = transcript._events_truncated
+        provider = transcript._history_provider
+        trailing = max(0, min(transcript._resident_tail, resident))
+
+        if not truncated or provider is None:
+            for index in range(resident - 1, -1, -1):
+                if predicate(events[index]):
+                    return events[index]
+            if truncated:
+                raise TranscriptHistoryUnavailableError(
+                    "Full transcript history is not available from this Transcript"
+                )
+            return None
+
+        for index in range(resident - 1, resident - trailing - 1, -1):
+            if predicate(events[index]):
+                return events[index]
+        end = count - trailing
+        window = 16
+        while end > 0:
+            start = max(0, end - window)
+            for event in reversed(provider.events_from(start, end - start)):
+                if predicate(event):
+                    return event
+            end = start
+            window = min(window * 2, 256)
+        return None
+
 
 class Transcript:
     """Transcript of events."""
@@ -649,21 +715,37 @@ class Transcript:
         *,
         notify_subscribers: bool = False,
     ) -> None:
-        events = self._normalize_seeded_events(events)
+        """Append condensed events restored from a checkpoint.
+
+        The events are stored and delivered to subscribers with their
+        ``attachment://`` references resolved from ``attachments``, except
+        ``ModelEvent.call``, which stays condensed (resolving every restored
+        call payload is costly and only the raw API-call view reads it).
+        ``attachments`` is retained and each event's references are counted
+        from its condensed form, so the checkpointer can seed its transcript
+        store from the condensed events and bounded eviction releases them as
+        before. The caller's events are not mutated.
+        """
+        condensed_events = self._normalize_seeded_events(events)
         event_keys: list[str] = []
         new_event_keys: set[str] = set()
-        for event in events:
+        for event in condensed_events:
             event_key = self._ensure_event_key(event)
             if event_key in self._resident_event_ids or event_key in new_event_keys:
                 raise ValueError(f"Duplicate event uuid: {event_key}")
             event_keys.append(event_key)
             new_event_keys.add(event_key)
 
+        resolved_events = resolve_events_attachments(
+            condensed_events, attachments, "core"
+        )
         self._attachments.update(attachments)
-        for event, event_key in zip(events, event_keys):
+        for condensed, event, event_key in zip(
+            condensed_events, resolved_events, event_keys
+        ):
             self._events.append(event)
             self._resident_event_ids.add(event_key)
-            self._set_attachment_refs(event)
+            self._set_attachment_refs(condensed)
             self._event_count += 1
             self._update_pin_state(event)
             self._update_pending(event)

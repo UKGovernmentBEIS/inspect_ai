@@ -326,6 +326,106 @@ def test_hf_dataset_shuffle_sets_shuffled_flag(tmp_path, monkeypatch):
     assert ds_unshuffled.shuffled is False
 
 
+@pytest.mark.parametrize("seed", [0, 7])
+def test_hf_dataset_shuffle_int_is_seed(seed, tmp_path, monkeypatch):
+    records = [{"input": f"Q{i}", "target": f"A{i}"} for i in range(6)]
+
+    def fake_load_dataset(*_a, **_k):
+        return _FakeHFDataset(records)
+
+    _install_fake_datasets_full(
+        monkeypatch, tmp_path, fake_load_dataset, lambda *_a, **_k: None
+    )
+
+    from inspect_ai.dataset import hf_dataset
+
+    ds_int = hf_dataset(path="org/ds", split="test", shuffle=seed, cached=False)
+    ds_seed = hf_dataset(
+        path="org/ds", split="test", shuffle=True, seed=seed, cached=False
+    )
+
+    assert [s.input for s in ds_int] == [s.input for s in ds_seed]
+    assert [s.input for s in ds_int] != [r["input"] for r in records]
+    assert ds_int.shuffled is True
+
+
+@pytest.mark.parametrize("shuffle,seed", [(0, 0), (7, 3)])
+def test_hf_dataset_shuffle_int_with_seed_raises(shuffle, seed, tmp_path, monkeypatch):
+    records = [{"input": "a", "target": "1"}, {"input": "b", "target": "2"}]
+
+    def fake_load_dataset(*_a, **_k):
+        return _FakeHFDataset(records)
+
+    _install_fake_datasets_full(
+        monkeypatch, tmp_path, fake_load_dataset, lambda *_a, **_k: None
+    )
+
+    from inspect_ai.dataset import hf_dataset
+
+    with pytest.raises(ValueError, match="seed"):
+        hf_dataset(
+            path="org/ds", split="test", shuffle=shuffle, seed=seed, cached=False
+        )
+
+
+def test_hf_dataset_auto_id_stable_with_int_shuffle(tmp_path, monkeypatch):
+    # an int shuffle must take the same auto_id recovery path as shuffle=True
+    records = [{"input": f"Q{i}", "target": f"A{i}"} for i in range(6)]
+
+    def fake_load_dataset(*_a, **_k):
+        return _FakeHFDataset(records)
+
+    _install_fake_datasets_full(
+        monkeypatch, tmp_path, fake_load_dataset, lambda *_a, **_k: None
+    )
+
+    from inspect_ai.dataset import hf_dataset
+
+    ds = hf_dataset(path="org/ds", split="test", auto_id=True, shuffle=0, cached=False)
+
+    assert {s.input: s.id for s in ds} == {f"Q{i}": i + 1 for i in range(6)}
+    assert [s.input for s in ds] != [r["input"] for r in records]
+
+
+def test_hf_dataset_auto_id_custom_mapping_int_shuffle(tmp_path, monkeypatch):
+    # an int shuffle must take the same materialize path as shuffle=True
+    from inspect_ai.dataset import Sample, hf_dataset
+
+    records = [{"input": f"Q{i}", "target": f"A{i}"} for i in range(6)]
+
+    def fake_load_dataset(*_a, **_k):
+        return _FakeHFDataset(records)
+
+    _install_fake_datasets_full(
+        monkeypatch, tmp_path, fake_load_dataset, lambda *_a, **_k: None
+    )
+
+    def to_sample(record):
+        return Sample(input=record["input"], target=record["target"])
+
+    ds_int = hf_dataset(
+        path="org/ds",
+        split="test",
+        sample_fields=to_sample,
+        auto_id=True,
+        shuffle=0,
+        cached=False,
+    )
+    ds_seed = hf_dataset(
+        path="org/ds",
+        split="test",
+        sample_fields=to_sample,
+        auto_id=True,
+        shuffle=True,
+        seed=0,
+        cached=False,
+    )
+
+    assert [s.input for s in ds_int] == [s.input for s in ds_seed]
+    assert [s.input for s in ds_int] != [r["input"] for r in records]
+    assert {s.input: s.id for s in ds_int} == {f"Q{i}": i + 1 for i in range(6)}
+
+
 def test_hf_dataset_auto_id_stable_across_shuffle_seeds(tmp_path, monkeypatch):
     # Regression (#4459): with auto_id + shuffle the id must attach to the
     # record, not the shuffled position, so a given record keeps the same
