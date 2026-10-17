@@ -1,5 +1,7 @@
 """Tests for Google GenAI model API conversion functions."""
 
+import logging
+
 import pytest
 from google.genai.types import (
     Blob,
@@ -791,3 +793,40 @@ async def test_messages_from_google_inline_data_without_mime_type() -> None:
     assert len(message.content) == 1
     assert isinstance(message.content[0], ContentText)
     assert message.content[0].text == "Here is the image:"
+
+
+async def test_messages_from_google_inline_data_non_image_skipped(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test non-image inline_data (e.g. audio) is skipped with a warning.
+
+    The convert path only knows how to build a ContentImage from inline
+    bytes, so inline data with a non-image MIME type must be dropped with
+    a warning rather than wrapped in a ContentImage.
+    """
+    contents = [
+        Content(
+            role="model",
+            parts=[
+                Part(text="Here is the audio:"),
+                Part(
+                    inline_data=Blob(
+                        mime_type="audio/mp3",
+                        data=b"\xff\xfb\x90D\x00\x00\x00\x00\x00\x00",
+                    )
+                ),
+            ],
+        ),
+    ]
+
+    with caplog.at_level(logging.WARNING, logger="inspect_ai.model._google_convert"):
+        result = await messages_from_google(contents)
+
+    message = result[0]
+    assert isinstance(message, ChatMessageAssistant)
+    assert isinstance(message.content, list)
+    assert len(message.content) == 1
+    assert isinstance(message.content[0], ContentText)
+    assert message.content[0].text == "Here is the audio:"
+
+    assert any("audio/mp3" in record.getMessage() for record in caplog.records)
