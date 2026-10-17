@@ -280,6 +280,23 @@ class AgentBridge:
         """
         return None
 
+    def bridged_identity_calls(
+        self, call: ToolCall, declarations: Sequence[ToolInfo | Tool]
+    ) -> list[ToolCall]:
+        """The tool identities `call` executes as, for approval (default: itself).
+
+        A sandbox bridge resolves a proposal to the bridged host tools its
+        declaration denotes, ignoring the name the scaffold gave it (scaffolds
+        rename MCP tools freely). Approving those calls under the resolved
+        names keeps policies matched against the tool that actually runs,
+        so a scaffold's rename cannot route a call past the policies scoped
+        to that tool. `declarations` are the tools the scaffold declared to
+        the model in the request that produced the call. In-process bridges
+        execute no host tools, so a call is only ever itself;
+        `SandboxAgentBridge` overrides this with its grant resolution.
+        """
+        return [call]
+
     def compaction(
         self, tools: Sequence[ToolInfo | Tool], model: Model
     ) -> Compact | None:

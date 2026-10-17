@@ -159,10 +159,7 @@ class SandboxAgentBridge(AgentBridge):
         the response never reached the scaffold, but only ever authorizes the
         exact proposed action.
         """
-        declared: dict[str, list[ToolInfo]] = {}
-        for tool in tools:
-            if isinstance(tool, ToolInfo):
-                declared.setdefault(tool.name, []).append(tool)
+        declared = _declarations_by_name(tools)
         for call in calls:
             targets, arguments = _proposed_call(
                 self.bridged_tools, self.served_tools, call, declared
@@ -287,6 +284,27 @@ class SandboxAgentBridge(AgentBridge):
         """The bridged tool call `call` makes through a dispatcher (`_dispatched_call`)."""
         return _dispatched_call(self.bridged_tools, call)
 
+    def bridged_identity_calls(
+        self, call: ToolCall, declarations: Sequence[ToolInfo | Tool]
+    ) -> list[ToolCall]:
+        """The bridged tools `call` denotes, as calls to approve it under.
+
+        The same resolution `register_tool_execution_grants` uses
+        (`_proposed_call`): the scaffold's declared name is ignored and the
+        declaration is matched to the served description, so approval sees
+        the tool that will actually execute (and mint a grant) rather than
+        the name the scaffold invented. A call denoting no bridged tool is
+        returned unchanged; without a grant it executes nothing.
+        """
+        declared = _declarations_by_name(declarations)
+        proposed = _proposed_call(self.bridged_tools, self.served_tools, call, declared)
+        if not proposed.targets:
+            return [call]
+        return [
+            ToolCall(id=call.id, function=target.tool, arguments=call.arguments)
+            for target in proposed.targets
+        ]
+
     def request_fail(self, error: Exception) -> None:
         """Fail the sample with `error` from a bridged generation or tool call.
 
@@ -348,6 +366,17 @@ class _ProposedCall(NamedTuple):
 
 
 _NO_PROPOSAL = _ProposedCall([], {})
+
+
+def _declarations_by_name(
+    tools: Sequence[ToolInfo | Tool],
+) -> dict[str, list[ToolInfo]]:
+    """The declarations the scaffold made to the model, by name."""
+    declared: dict[str, list[ToolInfo]] = {}
+    for tool in tools:
+        if isinstance(tool, ToolInfo):
+            declared.setdefault(tool.name, []).append(tool)
+    return declared
 
 
 def _proposed_call(

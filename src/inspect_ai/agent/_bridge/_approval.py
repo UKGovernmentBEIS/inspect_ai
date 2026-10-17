@@ -23,14 +23,16 @@ dispatcher call the scaffold receives.
 import sys
 from contextlib import AbstractContextManager, nullcontext
 from logging import getLogger
-from typing import TYPE_CHECKING, Any, NamedTuple, NoReturn
+from typing import TYPE_CHECKING, Any, NamedTuple, NoReturn, Sequence
 
 from inspect_ai._util.format import format_function_call
 from inspect_ai._util.logger import warn_once
 from inspect_ai.agent._bridge.types import AgentBridge
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageTool
 from inspect_ai.model._model_output import ModelOutput
+from inspect_ai.tool import Tool
 from inspect_ai.tool._tool_call import ToolCall, ToolCallError
+from inspect_ai.tool._tool_info import ToolInfo
 
 if TYPE_CHECKING:
     from inspect_ai.approval._policy import ApprovalPolicy
@@ -88,6 +90,7 @@ async def apply_bridge_tool_approval(
     bridge: AgentBridge,
     output: ModelOutput,
     history: list[ChatMessage],
+    declarations: Sequence[ToolInfo | Tool] = (),
 ) -> BridgeApproval:
     """Approve the tool calls in a bridged model response.
 
@@ -95,6 +98,14 @@ async def apply_bridge_tool_approval(
     human isn't asked to decide on calls that are about to be discarded anyway.
     `terminate` doesn't return, and neither does a `modify` decision that changes the
     function called: that is an error in the approver, and fails the sample.
+
+    A call is reviewed under the identity it will execute as: a dispatcher call
+    (`AgentBridge.dispatched_call`) as the target it names, and a proposal that
+    resolves to bridged host tools (`AgentBridge.bridged_identity_calls`) under
+    each of those tools' names. A sandbox bridge resolves grants by the declared
+    description rather than the scaffold's name (scaffolds rename MCP tools),
+    so reviewing under the declared name alone would let a scaffold's rename
+    route a call past the policies scoped to the tool that runs it.
 
     A multi-choice response whose alternate choices carry tool calls is reduced to
     the primary choice (with a warning) when approval is active, since only the
@@ -108,6 +119,8 @@ async def apply_bridge_tool_approval(
         bridge: Bridge whose `approval` policies (if any) apply for this call.
         output: Model output about to be handed to the scaffold.
         history: Conversation that produced `output`.
+        declarations: Tools the scaffold declared to the model in the request
+            that produced `output` (used to resolve bridged identities).
 
     Returns:
         The response for the scaffold, plus the messages to replay to the model when
@@ -148,36 +161,40 @@ async def apply_bridge_tool_approval(
         modified: dict[str, dict[str, Any]] = {}
         for call in tool_calls:
             dispatched = bridge.dispatched_call(call)
-            reviewed = dispatched.target if dispatched else call
-            # no viewer: bridged tools reach us as ToolInfo from the scaffold's
-            # request, not as ToolDef, so there is no registered viewer to resolve.
-            # apply_tool_approval falls back to its default rendering.
-            approved, approval = await apply_tool_approval(
-                message, reviewed, None, approval_history
-            )
-            if not approved:
-                explanation = (approval.explanation if approval else None) or (
-                    f"Tool call '{reviewed.function}' was rejected by the approval "
-                    "policy."
+            if dispatched is not None:
+                identities = [dispatched.target]
+            else:
+                identities = bridge.bridged_identity_calls(call, declarations)
+            for reviewed in identities:
+                # no viewer: bridged tools reach us as ToolInfo from the scaffold's
+                # request, not as ToolDef, so there is no registered viewer to resolve.
+                # apply_tool_approval falls back to its default rendering.
+                approved, approval = await apply_tool_approval(
+                    message, reviewed, None, approval_history
                 )
-                if approval is not None and approval.decision == "terminate":
-                    bridge.request_terminate(
-                        f"Tool call approver requested termination: {explanation}"
+                if not approved:
+                    explanation = (approval.explanation if approval else None) or (
+                        f"Tool call '{reviewed.function}' was rejected by the approval "
+                        "policy."
                     )
-                return BridgeApproval(
-                    output, rejection_messages(output, call, explanation)
-                )
+                    if approval is not None and approval.decision == "terminate":
+                        bridge.request_terminate(
+                            f"Tool call approver requested termination: {explanation}"
+                        )
+                    return BridgeApproval(
+                        output, rejection_messages(output, call, explanation)
+                    )
 
-            if approval is not None and approval.modified is not None:
-                error = modified_function_error(reviewed, approval.modified)
-                if error is not None:
-                    failure = RuntimeError(error)
-                    bridge.request_fail(failure)
-                    raise failure
-                arguments = approval.modified.arguments
-                modified[call.id] = (
-                    dispatched.dispatch(arguments) if dispatched else arguments
-                )
+                if approval is not None and approval.modified is not None:
+                    error = modified_function_error(reviewed, approval.modified)
+                    if error is not None:
+                        failure = RuntimeError(error)
+                        bridge.request_fail(failure)
+                        raise failure
+                    arguments = approval.modified.arguments
+                    modified[call.id] = (
+                        dispatched.dispatch(arguments) if dispatched else arguments
+                    )
 
     # modifications are adopted only now that the whole response is approved: a later
     # rejection discards every call, and rewriting an earlier one as we went would

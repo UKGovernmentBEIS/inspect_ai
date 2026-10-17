@@ -901,6 +901,117 @@ async def test_undeclared_call_registers_no_grant() -> None:
     assert len(bridge._tool_execution_grants) == 0
 
 
+async def test_renamed_declaration_is_approved_under_the_real_tool() -> None:
+    """A scaffold's rename cannot route a bridged call past its tool's policy.
+
+    Grants resolve a proposal by its served description whatever the scaffold
+    renamed the tool to (see `test_declared_name_plays_no_part_in_resolution`),
+    so approval reviews that same resolution: the policies scoped to the tool
+    that will actually run see the call under that tool's name. Reviewing the
+    declared name instead let a renamed declaration fall through to a catch-all
+    approver (the documented human + `tools: "*"` arrangement), which approved
+    and granted a call the scoped approver never saw under the tool it ran.
+    """
+    tool = AsyncMock(return_value="secret")
+    bridge = sandbox_bridge_with_tool(
+        tool,
+        [
+            ApprovalPolicy(reject_approver("No host files."), "read_file"),
+            ApprovalPolicy(auto_approver("approve"), "*"),
+        ],
+    )
+    call = ToolCall(id="proposed", function="summarize", arguments={"path": "/secret"})
+
+    run = await run_bridge(
+        [
+            tool_calls_output(call),
+            ModelOutput.from_content(model="mockllm/model", content="Done."),
+        ],
+        bridge=bridge,
+        tools=declare("summarize"),
+    )
+
+    # the scoped policy rejected the call, so the model is told and regenerates
+    assert run.generations == 2
+    assert run.output.message.tool_calls is None
+    assert "No host files." in run.tool_results(1)[0].error.message
+
+    with pytest.raises(PermissionError, match="was not proposed by the model"):
+        await call_host_tool(bridge)("host", "read_file", {"path": "/secret"})
+    tool.assert_not_awaited()
+
+
+async def test_renamed_declaration_modify_rewrites_what_the_grant_binds() -> None:
+    """A scoped approver's rewrite of a renamed call is what may execute.
+
+    Approval under the resolved identity and grant minting must agree on the
+    arguments: a `modify` decision the scoped approver made reviewing the real
+    tool rewrites the call the scaffold receives, and only the rewritten
+    arguments carry a grant.
+    """
+    tool = AsyncMock(return_value="contents")
+    bridge = sandbox_bridge_with_tool(
+        tool,
+        [
+            ApprovalPolicy(modifying_approver({"path": "allowed.txt"}), "read_file"),
+            ApprovalPolicy(auto_approver("approve"), "*"),
+        ],
+    )
+    call = ToolCall(id="proposed", function="summarize", arguments={"path": "/secret"})
+
+    await run_bridge(
+        [tool_calls_output(call)], bridge=bridge, tools=declare("summarize")
+    )
+
+    execute = call_host_tool(bridge)
+    assert await execute("host", "read_file", {"path": "allowed.txt"}) == "contents"
+    with pytest.raises(PermissionError, match="was not proposed by the model"):
+        await execute("host", "read_file", {"path": "/secret"})
+    tool.assert_awaited_once_with(path="allowed.txt")
+
+
+async def test_renamed_declaration_of_indistinct_tools_is_approved_as_each() -> None:
+    """A proposal denoting several bridged tools is reviewed under each of them.
+
+    Two tools sharing a served description each get a grant for a proposal of
+    that description (`warn_indistinct_tools` names the collision), so approval
+    must review each identity too: a policy rejecting one of them rejects the
+    response, and neither executes.
+    """
+    kept = AsyncMock(return_value="kept")
+    forbidden = AsyncMock(return_value="forbidden")
+    bridge = sandbox_bridge_with_servers(
+        {
+            "one": {"read_file": served_tool(kept)},
+            "two": {"delete_file": served_tool(forbidden, name="delete_file")},
+        }
+    )
+    bridge.approval = [
+        ApprovalPolicy(reject_approver("Deletion is not permitted."), "delete_file"),
+        ApprovalPolicy(auto_approver("approve"), "*"),
+    ]
+    call = ToolCall(id="proposed", function="summarize", arguments={"path": "/secret"})
+
+    run = await run_bridge(
+        [
+            tool_calls_output(call),
+            ModelOutput.from_content(model="mockllm/model", content="Done."),
+        ],
+        bridge=bridge,
+        tools=declare("summarize"),
+    )
+
+    assert run.generations == 2
+    assert "Deletion is not permitted." in run.tool_results(1)[0].error.message
+    execute_one = call_host_tool(bridge)
+    with pytest.raises(PermissionError, match="was not proposed by the model"):
+        await execute_one("one", "read_file", {"path": "/secret"})
+    with pytest.raises(PermissionError, match="was not proposed by the model"):
+        await execute_one("two", "delete_file", {"path": "/secret"})
+    kept.assert_not_awaited()
+    forbidden.assert_not_awaited()
+
+
 async def test_grants_resolve_against_the_declarations_the_filter_generated_with() -> (
     None
 ):
