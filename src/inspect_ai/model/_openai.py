@@ -745,11 +745,9 @@ def openai_completion_usage(usage: ModelUsage) -> CompletionUsage:
                     if usage.reasoning_tokens is not None
                     else None
         )
-    return CompletionUsage(
-        
+    return CompletionUsage(        
         completion_tokens=usage.output_tokens,
-        prompt_tokens=(
-            
+        prompt_tokens=(            
             usage.input_tokens + input_tokens_cache_read + input_tokens_cache_write
         ),
         prompt_tokens_details=prompt_tokens_details,
