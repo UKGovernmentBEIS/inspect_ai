@@ -818,6 +818,34 @@ def test_model_events_are_delivered_once(mock_hooks: MockHooks) -> None:
     ]
 
 
+def test_model_event_is_delivered_when_a_usage_limit_trips(
+    mock_hooks: MockHooks,
+) -> None:
+    """A successful call that then exceeds a token limit is still delivered once."""
+    from inspect_ai.event._model import ModelEvent
+    from inspect_ai.model import ModelOutput, ModelUsage, get_model
+
+    output = ModelOutput.from_content("mockllm/model", "Hello")
+    output.usage = ModelUsage(total_tokens=10)
+    model = get_model("mockllm/model", custom_outputs=[output])
+    log = eval(
+        Task(dataset=[Sample(input="hello")], token_limit=1),
+        model=model,
+        display="none",
+    )[0]
+
+    assert log.samples is not None
+    logged = [event for event in log.samples[0].events if isinstance(event, ModelEvent)]
+    delivered = [
+        data.event
+        for data in mock_hooks.sample_event_events
+        if isinstance(data.event, ModelEvent)
+    ]
+    assert len(logged) == 1
+    assert logged[0].error is None
+    assert [event.uuid for event in delivered] == [event.uuid for event in logged]
+
+
 def test_failed_model_events_are_still_delivered(mock_hooks: MockHooks) -> None:
     """A model call that raises is still delivered to hooks once."""
     from inspect_ai.event._model import ModelEvent
