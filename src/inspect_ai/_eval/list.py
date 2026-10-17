@@ -20,10 +20,14 @@ def list_tasks(
     """List the tasks located at the specified locations.
 
     Args:
-        globs (str | list[str]): File location(s). Can be
-           globs (e.g. have bash-style wildcards).
-        absolute (bool): Return absolute paths (defaults
-           to False)
+        globs (str | list[str]): Local file or directory location(s),
+           absolute or relative to root_dir. Can be globs
+           (e.g. have bash-style wildcards).
+        absolute (bool): Return resolved absolute paths (defaults
+           to False). Otherwise paths are relative to root_dir,
+           using ../ for locations outside it. On Windows, relative
+           output requires the same drive or UNC share. All returned
+           paths use forward slashes.
         root_dir (Path): Base directory to scan from
            (defaults to current working directory)
         filter (Callable[[TaskInfo], bool] | None):
@@ -31,6 +35,10 @@ def list_tasks(
 
     Returns:
         List of TaskInfo
+
+    Raises:
+        ValueError: Relative output cannot represent a task on a different
+            Windows drive or UNC share. Use absolute=True in that case.
     """
     # resolve globs
     globs = globs if isinstance(globs, list) else [globs]
@@ -59,11 +67,20 @@ def task_files(globs: list[str] = [], root_dir: Path | None = None) -> list[Path
     # resolve the first level of globs
     paths: list[Path] = []
     for glob in globs:
+        glob_root = root_dir
+        glob_path = Path(glob)
+        if glob_path.is_absolute():
+            glob_root = Path(glob_path.anchor)
+            trailing_sep = glob.endswith((os.sep, "/"))
+            glob = str(glob_path.relative_to(glob_root))
+            if trailing_sep and glob != ".":
+                glob += os.sep
+
         # we will have matched a set of directories and files
         # (depending on how the user wrote the globs). for
         # each file, add it to to our list if its a task file;
         # for each dir, recursively search it for task files
-        expanded = list(root_dir.glob(glob))
+        expanded = [glob_root] if glob == "." else list(glob_root.glob(glob))
         for path in expanded:
             if path.is_dir():
                 paths.extend(tasks_in_dir(path))
@@ -128,4 +145,16 @@ def task_path(path: Path, root_dir: Path, absolute: bool) -> str:
     if absolute:
         return path.resolve().as_posix()
     else:
-        return path.relative_to(root_dir.resolve()).as_posix()
+        try:
+            return path.relative_to(root_dir.resolve()).as_posix()
+        except ValueError:
+            try:
+                return Path(
+                    os.path.relpath(path.resolve(), root_dir.resolve())
+                ).as_posix()
+            except ValueError as ex:
+                raise ValueError(
+                    f"Cannot make task path '{path}' relative to '{root_dir}'. "
+                    "Use absolute=True (CLI: --absolute) for paths on different "
+                    "drives or UNC shares."
+                ) from ex
