@@ -249,7 +249,7 @@ async def content_from_google_parts(
                 ContentImage(
                     image=as_data_uri(
                         part.inline_data.mime_type,
-                        part.inline_data.data.decode("utf-8"),
+                        base64.b64encode(part.inline_data.data).decode(),
                     )
                 )
             )

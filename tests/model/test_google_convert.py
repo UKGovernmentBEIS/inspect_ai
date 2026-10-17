@@ -2,6 +2,7 @@
 
 import pytest
 from google.genai.types import (
+    Blob,
     Candidate,
     Content,
     ContentDict,
@@ -14,7 +15,7 @@ from google.genai.types import (
 )
 from test_helpers.utils import skip_if_no_mcp_package
 
-from inspect_ai._util.content import ContentReasoning, ContentText
+from inspect_ai._util.content import ContentImage, ContentReasoning, ContentText
 from inspect_ai.model import (
     messages_from_google,
     model_output_from_google,
@@ -711,3 +712,82 @@ async def test_messages_from_google_multiple_tool_responses_in_user() -> None:
     assert isinstance(result[2], ChatMessageUser)
     assert isinstance(result[3], ChatMessageTool)
     assert result[3].function == "tool2"
+
+
+async def test_messages_from_google_inline_image_binary_bytes() -> None:
+    """Test inline_data image with binary bytes converts to a base64 data URI."""
+    contents = [
+        Content(
+            role="model",
+            parts=[
+                Part(
+                    inline_data=Blob(
+                        mime_type="image/png",
+                        data=b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR"
+                        b"\x00\x00\x00\x01\x00\x00\x00\x01\x08\x02\x00\x00\x00",
+                    )
+                )
+            ],
+        ),
+    ]
+
+    result = await messages_from_google(contents)
+
+    message = result[0]
+    assert isinstance(message, ChatMessageAssistant)
+    assert isinstance(message.content, list)
+    assert len(message.content) == 1
+    image = message.content[0]
+    assert isinstance(image, ContentImage)
+    assert (
+        image.image == "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAAA="
+    )
+
+
+async def test_messages_from_google_inline_image_mime_type_verbatim() -> None:
+    """Test inline_data data URI uses the MIME type the response provides."""
+    contents = [
+        Content(
+            role="model",
+            parts=[
+                Part(
+                    inline_data=Blob(
+                        mime_type="image/webp",
+                        data=b"RIFF\x24\x00\x00\x00WEBPVP8 \r\n\xff\xd8",
+                    )
+                )
+            ],
+        ),
+    ]
+
+    result = await messages_from_google(contents)
+
+    message = result[0]
+    assert isinstance(message, ChatMessageAssistant)
+    assert isinstance(message.content, list)
+    assert len(message.content) == 1
+    image = message.content[0]
+    assert isinstance(image, ContentImage)
+    assert image.image == "data:image/webp;base64,UklGRiQAAABXRUJQVlA4IA0K/9g="
+
+
+async def test_messages_from_google_inline_data_without_mime_type() -> None:
+    """Test inline_data without a mime_type is skipped rather than defaulted."""
+    contents = [
+        Content(
+            role="model",
+            parts=[
+                Part(text="Here is the image:"),
+                Part(inline_data=Blob(data=b"\x89PNG\r\n\x1a\n")),
+            ],
+        ),
+    ]
+
+    result = await messages_from_google(contents)
+
+    message = result[0]
+    assert isinstance(message, ChatMessageAssistant)
+    assert isinstance(message.content, list)
+    assert len(message.content) == 1
+    assert isinstance(message.content[0], ContentText)
+    assert message.content[0].text == "Here is the image:"
