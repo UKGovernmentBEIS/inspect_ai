@@ -148,6 +148,24 @@ class TestSkillInstallation:
                 await install_skills([sk], sandbox=sandbox, user="1000", dir="/skills")
         assert [user for _, user in sandbox.exec_calls] == expected_users
 
+    async def test_nested_files_install_at_posix_paths(self, tmp_path: Path) -> None:
+        """Files in subdirectories land in the matching sandbox subdirectory."""
+        skill_dir = tmp_path / "test-skill"
+        (skill_dir / "scripts" / "bash").mkdir(parents=True)
+        (skill_dir / "assets" / "templates" / "email").mkdir(parents=True)
+        (skill_dir / "SKILL.md").write_text(create_skill_md())
+        (skill_dir / "scripts" / "bash" / "run.sh").write_text("echo hello")
+        (skill_dir / "assets" / "templates" / "email" / "welcome.txt").write_text("Hi")
+
+        sandbox = CannedSandbox.returning(ExecResult(True, 0, "", ""))
+        await install_skills([skill_dir], sandbox=sandbox, dir="/skills")
+
+        assert sorted(sandbox.written) == [
+            "/skills/test-skill/SKILL.md",
+            "/skills/test-skill/assets/templates/email/welcome.txt",
+            "/skills/test-skill/scripts/bash/run.sh",
+        ]
+
 
 class TestSkillParsing:
     def test_valid_skill_minimal(self, tmp_path: Path) -> None:
