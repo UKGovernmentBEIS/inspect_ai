@@ -228,13 +228,23 @@ def test_dataclass_non_init_schema():
         {"constant": 99, "items": [], "doubled": 0},
     ],
 )
-@pytest.mark.parametrize("custom_schema", [False, True])
-async def test_dataclass_non_init_fields(extra, custom_schema):
+@pytest.mark.parametrize("schema_kind", ["inferred", "permissive", "explicit"])
+async def test_dataclass_non_init_fields(extra, schema_kind):
+    transcript = Transcript()
+    init_transcript(transcript)
     tool_def = ToolDef(non_init_tool())
-    if custom_schema:
+    if schema_kind != "inferred":
         schema = tool_def.parameters.properties["data"].items
         assert schema is not None
-        schema.additionalProperties = True
+        if schema_kind == "permissive":
+            schema.additionalProperties = True
+        else:
+            assert schema.properties is not None
+            schema.properties.update(
+                constant=ToolParam(type="integer"),
+                items=ToolParam(type="array", items=ToolParam(type="integer")),
+                doubled=ToolParam(type="integer"),
+            )
     call = make_call("non_init_tool", {"data": [{"value": 5, **extra}]})
     messages, _ = await execute_tools(
         [ChatMessageAssistant(content=[], tool_calls=[call])],
@@ -242,15 +252,23 @@ async def test_dataclass_non_init_fields(extra, custom_schema):
     )
 
     assert isinstance(messages[-1], ChatMessageTool)
-    if extra and not custom_schema:
+    if extra:
         assert messages[-1].error is not None
         assert messages[-1].error.type == "parsing"
-        assert "Additional properties are not allowed" in messages[-1].error.message
+        if schema_kind == "inferred":
+            assert "Additional properties are not allowed" in messages[-1].error.message
+        else:
+            assert "non-init dataclass fields" in messages[-1].error.message
         for name in extra:
             assert name in messages[-1].error.message
     else:
         assert messages[-1].error is None
         assert messages[-1].content == "[(5, 7, [5], 10)]"
+
+    (event,) = [e for e in transcript.events if isinstance(e, ToolEvent)]
+    assert event.error == messages[-1].error
+    assert event.message_id == messages[-1].id
+    assert event.completed is not None
 
 
 async def test_deeply_nested_dict_arguments_rejected_as_parse_error():

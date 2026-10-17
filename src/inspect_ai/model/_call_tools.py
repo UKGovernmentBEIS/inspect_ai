@@ -947,7 +947,11 @@ async def call_tool(
         raise await record_tool_parsing_error(validation_errors)
 
     # get arguments (with creation of dataclasses, pydantic objects, etc.)
-    arguments = tool_params(call.arguments, tool_def.tool)
+    try:
+        arguments = tool_params(call.arguments, tool_def.tool)
+    except ToolParsingError:
+        await record_pending_tool_event()
+        raise
 
     # call the tool
     with trace_action(
@@ -1431,6 +1435,15 @@ def tool_param(type_hint: Type[Any], input: Any) -> Any:
         elif is_dataclass(type_hint):
             dataclass_data: dict[str, Any] = {}
             fields = type_hint.__dataclass_fields__  # type: ignore
+            non_init_fields = [
+                name
+                for name, field in fields.items()
+                if not field.init and name in input
+            ]
+            if non_init_fields:
+                raise ToolParsingError(
+                    f"Unexpected non-init dataclass fields: {', '.join(non_init_fields)}"
+                )
             for name, field in fields.items():
                 if not field.init:
                     continue
