@@ -10,6 +10,7 @@ from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.url import data_uri_mime_type, data_uri_to_base64, is_data_uri
 from inspect_ai.model._call_tools import (
+    decisive_tool_exception,
     get_tools_info,
     tool_call_error,
     tool_result_content_list,
@@ -21,7 +22,6 @@ from inspect_ai.tool._tool import ToolParsingError
 from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.tool._tools._code_execution import CodeExecutionProviders
 from inspect_ai.tool._tools._web_search._web_search import WebSearchProviders
-from inspect_ai.util._anyio import inner_exception
 from inspect_ai.util._limit import LimitExceededError
 from inspect_ai.util._sandbox import SandboxEnvironment, sandbox_service
 from inspect_ai.util._sandbox.service import find_control_flow
@@ -282,17 +282,19 @@ def call_tool(
     Arguments are validated against the tool's schema as for a native call, so
     a scaffold's malformed arguments surface as a `ToolParsingError` the model
     can recover from; they are otherwise forwarded as the scaffold sent them.
-    Exceptions are classified after unwrapping any task-group
-    `ExceptionGroup`, as `execute_tools` does, and with the same
-    `tool_call_error` mapping. Those a native call would show the model
-    propagate unchanged as the RPC error the scaffold reads as tool output.
+    An `ExceptionGroup` is decided by its most serious leaf
+    (`decisive_tool_exception`), as in `execute_tools`, and classified with the
+    same `tool_call_error` mapping. Those a native call would show the model
+    propagate unchanged as the RPC error the scaffold reads as tool output,
+    except a `LimitExceededError`: the service dispatcher routes a bare one to
+    the sample, so a group decided by a limit raises that limit.
 
     A termination (`TerminateSampleError`, bare or anywhere in the exception as
     `find_control_flow` finds it) also propagates unchanged: the service
     dispatcher answers the RPC and propagates the termination out of the service
     task, which ends the sample as a native tool's termination does. Any other
     exception is a bug in the eval's tool, which natively fails the sample: the
-    unwrapped exception is signalled through `bridge.request_fail` so the
+    decisive exception is signalled through `bridge.request_fail` so the
     bridge's monitor task ends the sample at once, and the original still
     propagates so the RPC unwinds with an error reply (the teardown may pre-empt
     its delivery; the scaffold's turn is over either way).
@@ -341,16 +343,17 @@ def call_tool(
             with sentinel_scope(AgentScope.OFF):
                 result = await tool_fn(**arguments)
         except Exception as ex:
-            # classify the unwrapped exception, but let the original propagate:
-            # the service dispatcher special-cases a bare LimitExceededError
-            # (ending the sample), and unwrapping a grouped one would newly
-            # route it there. A termination is the dispatcher's to enact.
-            inner_ex = inner_exception(ex)
-            if (
-                find_control_flow(ex) is None
-                and tool_call_error(inner_ex, tool) is None
-            ):
-                bridge.request_fail(inner_ex)
+            # A termination is the dispatcher's to enact. Otherwise a group is
+            # handled as its decisive leaf would be if raised bare, but the
+            # original propagates so the scaffold's error reply is unchanged,
+            # except that a decided limit is raised itself: the dispatcher
+            # routes a bare LimitExceededError to the sample.
+            if find_control_flow(ex) is None:
+                decisive = decisive_tool_exception(ex)
+                if tool_call_error(decisive, tool) is None:
+                    bridge.request_fail(decisive)
+                elif decisive is not ex and isinstance(decisive, LimitExceededError):
+                    raise decisive from ex
             raise
 
         # Plain strings are returned verbatim (the MCP `tools/call` text part

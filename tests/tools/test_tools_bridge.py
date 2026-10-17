@@ -7,12 +7,15 @@ via the MCP protocol using BridgedToolsSpec and sandbox_agent_bridge.
 import json
 from contextlib import contextmanager
 from pathlib import Path
-from typing import TYPE_CHECKING, Iterator
+from typing import TYPE_CHECKING, Callable, Iterator
+from unittest.mock import MagicMock, patch
 
 import anyio
 import pytest
 from sniffio import current_async_library
 from test_helpers.service_dispatch import (
+    REQUEST_FILE,
+    REQUEST_ID,
     dispatching_service,
     serve_beside_failure_monitor,
 )
@@ -39,6 +42,7 @@ from inspect_ai.solver import Solver, solver
 from inspect_ai.tool import Tool, ToolError, tool
 from inspect_ai.tool._mcp._config import MCPServerConfigHTTP
 from inspect_ai.tool._tool import ToolParsingError
+from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.util import sandbox
 from inspect_ai.util._limit import LimitExceededError
 from inspect_ai.util._sandbox.environment import SandboxUnavailableError
@@ -1355,6 +1359,150 @@ async def test_bridged_tool_failure_through_the_service_dispatcher(
     pre_empted = failure_requested and current_async_library() == "trio"
     assert replies == [reply] or (pre_empted and replies == [])
     assert bridge._failure_requested.is_set() == failure_requested
+
+
+_GROUP_REPEATS = 50
+"""Order-sensitive group cases repeat with fresh exceptions: reducing a group
+to one leaf picked in set (address) order chose the decisive leaf only some
+of the time."""
+
+
+def _token_limit() -> LimitExceededError:
+    return LimitExceededError("token", value=1001, limit=1000)
+
+
+def _ordered(leaves: list[Exception], reverse: bool) -> list[Exception]:
+    return leaves[::-1] if reverse else leaves
+
+
+def _grouped_host_tool(leaves: Callable[[], list[Exception]] | Exception) -> Tool:
+    """A host tool raising a fresh group of `leaves()` (or one bare exception)."""
+
+    async def execute() -> str:
+        """Raise.
+
+        Returns:
+            Never returns.
+        """
+        if isinstance(leaves, Exception):
+            raise leaves
+        raise ExceptionGroup("tool errors", leaves())
+
+    return ToolDef(
+        execute, name="grouped", description="Raise.", parameters={}
+    ).as_tool()
+
+
+async def _serve_grouped(
+    monkeypatch: pytest.MonkeyPatch, host_tool: Tool
+) -> tuple[str | None, MagicMock, "SandboxAgentBridge"]:
+    """Serve one host tool call through the real dispatcher.
+
+    Returns the RPC error reply, the mock active sample the dispatcher routes
+    limits to, and the bridge (whose `_failure` is the requested failure).
+    """
+    bridge = _bridge_with_tools([host_tool])
+    replies: list[str | None] = []
+    service = dispatching_service(
+        monkeypatch,
+        "call_tool",
+        call_tool(bridge),
+        {"server": "srv", "tool": "grouped", "arguments": {}},
+        replies,
+    )
+    active = MagicMock()
+    with patch("inspect_ai.log._samples.sample_active", return_value=active):
+        await service._handle_request_tracked(REQUEST_FILE, REQUEST_ID)
+    assert len(replies) == 1
+    return replies[0], active, bridge
+
+
+@pytest.mark.parametrize("fatal_first", [False, True])
+async def test_bridged_group_with_fatal_leaf_fails_the_sample(
+    monkeypatch: pytest.MonkeyPatch, fatal_first: bool
+) -> None:
+    def leaves() -> list[Exception]:
+        return _ordered([ToolError("retry"), RuntimeError("fatal defect")], fatal_first)
+
+    for _ in range(_GROUP_REPEATS):
+        reply, active, bridge = await _serve_grouped(
+            monkeypatch, _grouped_host_tool(leaves)
+        )
+        assert reply is not None
+        assert isinstance(bridge._failure, RuntimeError)
+        assert str(bridge._failure) == "fatal defect"
+        assert active.limit_exceeded.call_count == 0
+
+
+@pytest.mark.parametrize("limit_first", [False, True])
+async def test_bridged_group_with_limit_leaf_reaches_the_sample(
+    monkeypatch: pytest.MonkeyPatch, limit_first: bool
+) -> None:
+    """The dispatcher routes the limit to the sample, as it does a bare one."""
+    bare_reply, bare_active, _ = await _serve_grouped(
+        monkeypatch, _grouped_host_tool(_token_limit())
+    )
+    assert bare_active.limit_exceeded.call_count == 1
+
+    def leaves() -> list[Exception]:
+        return _ordered([ToolError("retry"), _token_limit()], limit_first)
+
+    for _ in range(_GROUP_REPEATS):
+        reply, active, bridge = await _serve_grouped(
+            monkeypatch, _grouped_host_tool(leaves)
+        )
+        assert reply == bare_reply
+        assert active.limit_exceeded.call_count == 1
+        (routed,) = active.limit_exceeded.call_args.args
+        assert isinstance(routed, LimitExceededError)
+        assert bridge._failure is None
+
+
+async def test_bridged_group_of_expected_errors_replies_as_today(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    for _ in range(_GROUP_REPEATS):
+        reply, active, bridge = await _serve_grouped(
+            monkeypatch,
+            _grouped_host_tool(lambda: [ToolError("first"), ToolError("second")]),
+        )
+        assert reply == (
+            "Error calling method call_tool: tool errors (2 sub-exceptions)"
+        )
+        assert active.limit_exceeded.call_count == 0
+        assert bridge._failure is None
+
+
+async def test_bridged_nested_group_with_fatal_leaf_fails_the_sample(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def leaves() -> list[Exception]:
+        return [
+            ExceptionGroup("a", [ToolError("retry")]),
+            ExceptionGroup("b", [_token_limit(), RuntimeError("fatal defect")]),
+        ]
+
+    for _ in range(_GROUP_REPEATS):
+        _, active, bridge = await _serve_grouped(
+            monkeypatch, _grouped_host_tool(leaves)
+        )
+        assert isinstance(bridge._failure, RuntimeError)
+        assert active.limit_exceeded.call_count == 0
+
+
+@pytest.mark.parametrize("terminate_first", [False, True])
+async def test_bridged_group_with_termination_terminates(
+    monkeypatch: pytest.MonkeyPatch, terminate_first: bool
+) -> None:
+    def leaves() -> list[Exception]:
+        return _ordered(
+            [_token_limit(), RuntimeError("defect"), TerminateSampleError("stop")],
+            terminate_first,
+        )
+
+    for _ in range(_GROUP_REPEATS):
+        with pytest.raises(TerminateSampleError):
+            await _serve_grouped(monkeypatch, _grouped_host_tool(leaves))
 
 
 @skip_if_no_docker
