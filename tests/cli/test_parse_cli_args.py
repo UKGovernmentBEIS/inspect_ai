@@ -67,25 +67,25 @@ def test_boolean_flag_without_value_skipped() -> None:
     assert result == {}
 
 
-def test_shared_parser_task_model_args_preserve_existing_comma_splitting() -> None:
-    """The shared parser preserves existing comma-splitting behavior for task/model args."""
+def test_shared_parser_preserves_quoted_commas_by_default() -> None:
+    """Task and model args preserve YAML quoting as well as the plain list shorthand."""
     # Unquoted comma splits to list
     res1 = parse_cli_args(["target=alpha,beta"])
     assert res1 == {"target": ["alpha", "beta"]}
 
-    # Quoted comma also splits to list (existing shared parser behavior)
+    # Quoted comma remains a string
     res2 = parse_cli_args(['target="alpha,beta"'])
-    assert res2 == {"target": ["alpha", "beta"]}
+    assert res2 == {"target": "alpha,beta"}
 
-    # Single-quoted comma splits to list
+    # Single-quoted comma remains a string
     res3 = parse_cli_args(["target='alpha,beta'"])
-    assert res3 == {"target": ["alpha", "beta"]}
+    assert res3 == {"target": "alpha,beta"}
 
-    # Numbers in quotes split to list
+    # Quoted numbers remain a string
     res4 = parse_cli_args(['gpu_ids="0,1"'])
-    assert res4 == {"gpu_ids": ["0", "1"]}
+    assert res4 == {"gpu_ids": "0,1"}
 
-    # Explicit preserve_quoted_commas=False matches default
+    # Explicit opt-out retains the earlier parser behavior
     res5 = parse_cli_args(['target="alpha,beta"'], preserve_quoted_commas=False)
     assert res5 == {"target": ["alpha", "beta"]}
 
@@ -144,13 +144,13 @@ def test_quoted_commas_preserved_in_parse_cli_args_with_flag() -> None:
     ],
 )
 @pytest.mark.parametrize("force_str", [False, True])
-def test_env_comma_lists_and_yaml_values(
+def test_comma_lists_and_yaml_values(
     raw: str, expected: object, force_str: bool
 ) -> None:
-    """When preserve_quoted_commas=True, only plain strings use the comma-separated list shorthand."""
-    assert parse_cli_args(
-        [f"label={raw}"], force_str=force_str, preserve_quoted_commas=True
-    ) == {"label": str(expected) if force_str else expected}
+    """Only plain strings use the comma-separated list shorthand."""
+    assert parse_cli_args([f"label={raw}"], force_str=force_str) == {
+        "label": str(expected) if force_str else expected
+    }
 
 
 def test_process_common_options_env_quoted_commas(
