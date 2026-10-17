@@ -15,7 +15,7 @@ from inspect_ai.model import (
 )
 from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec
 
-from ._dataset import (def read_messages(
+from ._dataset import (
     Dataset,
     DatasetRecord,
     FieldSpec,
