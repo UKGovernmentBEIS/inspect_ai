@@ -28,6 +28,9 @@ class ContentText(ContentBase):
     citations: Sequence[Citation] | None = Field(default=None)
     """Citations supporting the text block."""
 
+    cache_breakpoint: bool | None = Field(default=None)
+    """Place an explicit prompt-cache boundary after this block, replacing the provider's automatic breakpoints for the whole request. Unsupported placements (e.g. tool results, mid-conversation system messages, empty blocks) or models fall back to normal automatic caching. Anthropic Claude API and OpenAI `gpt-5.6`+ only."""
+
 
 class ContentReasoning(ContentBase):
     """Reasoning content.
@@ -97,7 +100,7 @@ class ContentImage(ContentBase):
     detail: Literal["auto", "low", "high", "original"] = Field(default="auto")
     """Specifies the detail level of the image.
 
-    Currently only supported for OpenAI. Learn more in the    [Vision guide](https://platform.openai.com/docs/guides/vision/low-or-high-fidelity-image-understanding).
+    Currently only supported for OpenAI. Learn more in the [Vision guide](https://developers.openai.com/api/docs/guides/images-vision#choose-an-image-detail-level).
     """
 
 

@@ -3,6 +3,7 @@ from typing import Any
 from typing_extensions import override
 
 from .._generate_config import GenerateConfig
+from .._model_output import ModelOutput, ServedModelUsage
 from .._reasoning import clamp_reasoning_effort_to_low_medium_high
 from .openai_compatible import OpenAICompatibleAPI
 from .util import sample_cache_affinity_key
@@ -60,13 +61,20 @@ class FireworksAIAPI(OpenAICompatibleAPI):
             return self._model_slug()
         return super().input_tokens_name()
 
+    @override
+    def served_model_usage(self, output: ModelOutput) -> list[ServedModelUsage] | None:
+        # a router (`accounts/fireworks/routers/...`) serves a request with
+        # the model it currently resolves to
+        if output.usage is None or not output.model:
+            return None
+        served = f"fireworks/{_fireworks_slug(output.model)}"
+        if served == self.canonical_name():
+            return None
+        return [ServedModelUsage(served, output.usage)]
+
     def _model_slug(self) -> str:
         """Model name with the Fireworks account prefix removed."""
-        prefix = "accounts/fireworks/models/"
-        name = self.service_model_name()
-        if name.startswith(prefix):
-            name = name[len(prefix) :]
-        return name
+        return _fireworks_slug(self.service_model_name())
 
     def is_gpt_oss(self) -> bool:
         return "gpt-oss" in self.model_family().lower()
@@ -108,3 +116,11 @@ class FireworksAIAPI(OpenAICompatibleAPI):
     @override
     def should_stream(self, config: GenerateConfig) -> bool:
         return config.max_tokens is not None and config.max_tokens > 16000
+
+
+def _fireworks_slug(name: str) -> str:
+    """Model name with the Fireworks account prefix removed."""
+    prefix = "accounts/fireworks/models/"
+    if name.startswith(prefix):
+        name = name[len(prefix) :]
+    return name

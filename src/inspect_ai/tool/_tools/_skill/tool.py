@@ -1,3 +1,4 @@
+import weakref
 from pathlib import Path
 from textwrap import dedent
 from typing import Sequence
@@ -7,16 +8,14 @@ from pydantic import Field
 
 from inspect_ai.tool._tool import Tool, ToolError, tool
 from inspect_ai.tool._tool_def import ToolDef
+from inspect_ai.util import sandbox as sandbox_env
+from inspect_ai.util._store import Store
 from inspect_ai.util._store_model import StoreModel, store_as
+from inspect_ai.util._tool_state import tool_state_instance
 
-from .install import install_skills
+from .install import install_lock, install_skills_shared
 from .read import read_skills
 from .types import Skill, SkillInfo
-
-# Per-instance locks serialise the lazy install on the first concurrent
-# call so parallel skill tool calls don't race on file writes/chown/chmod
-# in the sandbox. After install completes, lookups are pure reads.
-_install_locks: dict[str | None, anyio.Lock] = {}
 
 
 @tool(parallel=True)
@@ -37,6 +36,7 @@ def skill(
         instance: Optional instance name for the skill store. Enables
             multiple independent skill tool instances within a single
             sample (e.g., different subagents with different skill sets).
+            Defaults to the current `tool_state_scope()`, if any.
         sandbox: Sandbox environment name to copy skills to.
         user: User to write skills files with.
         dir: Directory to install into (defaults to "./skills").
@@ -53,17 +53,18 @@ def skill(
         Args:
            command: The skill name (no arguments). E.g., "pdf" or "xlsx"
         """
-        # see if we need to install the skills (double-checked under a
-        # per-instance lock so concurrent first-callers don't both run
-        # install_skills and race on sandbox file writes)
-        installed = store_as(InstalledSkills, instance=instance)
+        # see if we need to install the skills (double-checked under the
+        # cache's lock so the first of concurrent first-callers sets the list)
+        resolved_instance = tool_state_instance(instance)
+        installed = store_as(InstalledSkills, instance=resolved_instance)
         if installed.skills is None:
-            lock = _install_locks.setdefault(instance, anyio.Lock())
-            async with lock:
+            async with _cache_lock(installed.store, resolved_instance):
                 if installed.skills is None:
-                    installed.skills = await install_skills(
-                        resolved_skills, sandbox, user, dir
-                    )
+                    sbox = sandbox_env(sandbox)
+                    async with install_lock(sbox):
+                        installed.skills = await install_skills_shared(
+                            resolved_skills, sbox, user, dir
+                        )
 
         # lookup skill
         skill_info = next((si for si in installed.skills if si.name == command), None)
@@ -124,6 +125,23 @@ def skill(
 
 class InstalledSkills(StoreModel):
     skills: list[SkillInfo] | None = Field(default=None)
+
+
+def _cache_lock(store: Store, instance: str | None) -> anyio.Lock:
+    """The lock for filling one store's `InstalledSkills` cache for `instance`.
+
+    Tools sharing a cache may install into different sandboxes, so the
+    sandbox's install lock does not cover the cache. `Store` is not hashable,
+    so locks are keyed by its id and dropped when it is collected.
+    """
+    locks = _cache_locks.get(id(store))
+    if locks is None:
+        locks = _cache_locks[id(store)] = {}
+        weakref.finalize(store, _cache_locks.pop, id(store), None)
+    return locks.setdefault(instance, anyio.Lock())
+
+
+_cache_locks: dict[int, dict[str | None, anyio.Lock]] = {}
 
 
 def _available_skills(skills: Sequence[Skill]) -> str:

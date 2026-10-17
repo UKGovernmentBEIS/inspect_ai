@@ -291,6 +291,9 @@ class EvalState:
     """Epoch count, paired with :attr:`sample_ids` to enumerate the
     planned ``(sample_id, epoch)`` pairs."""
 
+    sample_epochs: list[tuple[str | int, int]] = field(default_factory=list)
+    """Planned ``(sample_id, epoch)`` pairs added with an explicit epoch."""
+
     run_id: str | None = None
     """Process-level run id. Same rationale as :attr:`task`."""
 
@@ -304,13 +307,16 @@ class EvalState:
     done when the source can still add samples."""
 
     dynamic: bool = False
-    """Whether this eval's planned sample set can grow while it runs (a
-    ``SampleSource``-driven task). While set, ``terminal >= total`` is not
-    proof of completion — the task may be idle awaiting its source (or have
-    an empty seed, ``total == 0``, at registration) — so the provisional
-    ``completed_at`` stamp is suppressed and consumers (task cancel, status
-    listings) correctly see the eval as running. Cleared by
-    :func:`finalize_eval`, the task's single true finish point."""
+    """Whether this eval is source-driven (a ``SampleSource`` or
+    ``TaskSource``), so ``terminal >= total`` is not proof of completion. A
+    ``SampleSource`` can still add samples — the task may be idle awaiting
+    its source, or have an empty seed (``total == 0``) at registration — and
+    either source's ``sample_abandoned`` callback runs after the run's
+    terminal count, so the last sample's count can land while the source is
+    still being told about it. While set, the provisional ``completed_at``
+    stamp is suppressed and consumers (task cancel, status listings)
+    correctly see the eval as running. Cleared by :func:`finalize_eval`, the
+    task's single true finish point."""
 
     started_at: float | None = None
     """Earliest observed sample-start time, tracked as a running minimum.
@@ -761,14 +767,19 @@ def set_task_scoring(eval_id: str, handle: "TaskScoring | None") -> None:
 
 
 def record_samples_added(
-    eval_id: str, total: int, *, sample_ids: list[str | int] | None = None
+    eval_id: str,
+    total: int,
+    *,
+    sample_ids: list[str | int] | None = None,
+    sample_epochs: list[tuple[str | int, int]] | None = None,
 ) -> None:
     """Grow a running eval's planned totals when samples are added dynamically.
 
     Called by ``task_run`` when a ``SampleSource`` injects samples mid-run:
-    ``total`` is the number of additional planned runs (samples × epochs) and
-    ``sample_ids`` the injected ids (so the per-sample listing can surface them
-    as pending). The eval is :attr:`EvalState.dynamic`, so no provisional
+    ``total`` is the number of additional planned runs, ``sample_ids`` the
+    injected ids that run every epoch and ``sample_epochs`` the ``(id, epoch)``
+    runs added with an explicit epoch (so the per-sample listing can surface
+    them as pending). The eval is :attr:`EvalState.dynamic`, so no provisional
     finish stamp needs clearing here — ``completed_at`` stays ``None`` until
     :func:`finalize_eval`. No-ops if unregistered.
     """
@@ -778,6 +789,8 @@ def record_samples_added(
             state.total += total
             if sample_ids:
                 state.sample_ids.extend(sample_ids)
+            if sample_epochs:
+                state.sample_epochs.extend(sample_epochs)
 
 
 def record_sample_event_counts(
@@ -1047,15 +1060,16 @@ def _maybe_mark_finished(state: EvalState) -> None:
     counter update from a teardown race doesn't overwrite the original
     finish time. Suppressed for a :attr:`EvalState.dynamic` eval — its
     counters reaching ``total`` doesn't mean done (the source may add more
-    samples); ``finalize_eval`` clears the flag at the task's true finish
-    point. Also drops
-    ``sample_ids`` — a finished eval has no pending samples, so the
-    planned-id list is dead weight (it's retained on the state until the
-    run boundary clears it). Caller must hold the registry lock.
+    samples, or still be hearing about the last one); ``finalize_eval``
+    clears the flag at the task's true finish point. Also drops
+    ``sample_ids`` and ``sample_epochs`` — a finished eval has no pending
+    samples, so the planned lists are dead weight (they're retained on the
+    state until the run boundary clears it). Caller must hold the registry lock.
     """
     if state.completed_at is None and not state.dynamic and state.is_finished:
         state.completed_at = time.time()
         state.sample_ids = []
+        state.sample_epochs = []
 
 
 def get_eval_state(eval_id: str) -> EvalState | None:

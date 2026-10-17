@@ -17,9 +17,10 @@ def package_data_dir(package_name: str, subdir: str | None) -> Path:
     return data_dir
 
 
-def inspect_cache_dir(subdir: str | None) -> Path:
+def inspect_cache_dir(subdir: str | None, create: bool = True) -> Path:
     cache_dir = user_cache_path(PKG_NAME)
     if subdir:
         cache_dir = cache_dir / subdir
-    cache_dir.mkdir(parents=True, exist_ok=True)
+    if create:
+        cache_dir.mkdir(parents=True, exist_ok=True)
     return cache_dir

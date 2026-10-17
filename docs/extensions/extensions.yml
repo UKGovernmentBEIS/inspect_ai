@@ -34,6 +34,12 @@
   author: "[Redwood Research](https://github.com/linuxarena/control-tower)"
   categories: ["Frameworks"]
 
+- name: "[Inspect boltons](https://github.com/tadamcz/inspect_boltons)"
+  description: |
+    Reusable tools and utilities for Inspect, in the spirit of the Python boltons library.
+  author: "[Tom Adamczewski](https://github.com/tadamcz)"
+  categories: ["Frameworks"]
+
 - name: "[Inspect Scout](https://meridianlabs-ai.github.io/inspect_scout/)"
   description: |
     Transcript analysis for Inspect evaluations.
@@ -50,6 +56,12 @@
   description: |
     Tools to summarize, cluster, and search over agent transcripts.
   author: "[Transluce](https://transluce.org/introducing-docent)"
+  categories: ["Analysis"]
+
+- name: "[Probity native result reader](https://github.com/probityai/agent-evidence-observer/blob/71ac0b2126473316655184235000647a6dd0f5cf/docs/NATIVE-CONSUMER-CI.md)"
+  description: |
+    Offline reader and publication gate for bounded native Inspect execution records, preserving errors and unstarted attempts.
+  author: "[Probity](https://github.com/probityai)"
   categories: ["Analysis"]
 
 - name: "[Inspect WandB](https://github.com/DanielPolatajko/inspect_wandb)"
@@ -136,6 +148,12 @@
   author: "[Meridian](https://github.com/meridianlabs-ai/inspect-vscode)"
   categories: ["Tooling"]
 
+- name: "[Inspect Evals Lint](https://inspect-evals-lint.generality.org/)"
+  description: |
+    Static checks for Inspect evaluations: file structure, test coverage, best practices and sandbox image pinning.
+  author: "[Generality Labs](https://github.com/Generality-Labs/inspect-evals-lint)"
+  categories: ["Tooling"]
+
 - name: "[k8s Sandbox](https://k8s-sandbox.aisi.org.uk/)"
   description: |
     Python package that provides a Kubernetes sandbox environment for Inspect.
@@ -177,6 +195,12 @@
   description: |
     Podman-backed sandbox environment for Inspect, enabling containerized tool calls without Docker.
   author: "[Vector Institute](https://github.com/VectorInstitute/inspect-podman)"
+  categories: ["Sandboxes"]
+
+- name: "[OpenShell Sandbox](https://github.com/32bitsret/inspect-openshell-sandbox)"
+  description: |
+    NVIDIA OpenShell sandbox environment for Inspect, with kernel-enforced filesystem and network policies per task.
+  author: "[Retnan Daser](https://github.com/32bitsret)"
   categories: ["Sandboxes"]
 
 

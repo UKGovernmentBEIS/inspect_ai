@@ -41,10 +41,13 @@ When a tool needs to run in a container, the system automatically injects the ap
 2. System checks for a trustworthy existing installation: `/var/tmp/.da7be258e003d428`
    must be a real directory owned by the tools user with mode 0700, in a parent that
    other users cannot use to replace it, and must hold `inspect-sandbox-tools` as a
-   regular file. The check runs as root (and confirms it really ran as uid 0) and
-   falls back to the default user only when the sandbox cannot exec as root;
-   whichever user the tools are found (or installed) under becomes the tools user.
-   A merely readable launcher is not enough.
+   regular file. The check runs as root when the root-access verdict is usable,
+   or as the default user when unusable or ambiguous; a failed probe is an error.
+   `resolve_root_access` in `inspect_ai/tool/_sandbox_tools_utils/sandbox.py`
+   decides once per sandbox at sample init, before solver/agent execution, or on
+   first use outside that lifecycle. Whichever user the tools are
+   found (or installed) under becomes the tools user. A merely readable launcher is
+   not enough.
 3. If missing, the injection process:
    - Detects container architecture (amd64/arm64) and libc (glibc/musl)
    - Selects the matching pre-built artifact from local binaries, S3, or a local Docker build
@@ -72,7 +75,11 @@ Tools communicate through a two-layer RPC architecture:
 1. Tool creates JSON-RPC request on host
 2. `SandboxJSONRPCTransport` executes: `sandbox.exec(["/var/tmp/.da7be258e003d428/inspect-sandbox-tools", "exec"], input=json_rpc_request)`
 3. JSON-RPC payload passed via stdin to the injected executable
-4. Response returns via stdout
+4. Response returns via stdout. A response larger than the host's exec output limit is
+   spilled to a chunk file in `.server/chunks` (private to the tools user) and fetched
+   by the host in continuation requests. When the executable switches to a sandbox user
+   for an in-process tool, it reserves the chunk file before switching, so the response
+   still lands in tools-user storage.
 
 **Layer 2 - Container Internal (stateful operations):**
 1. When stateful execution is needed, the injected executable acts as a client

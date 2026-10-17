@@ -55,8 +55,7 @@ SANDBOX_CONFIGS = [
         config=None,
         requires_docker=False,
         xfails={
-            "test_exec_as_user": "local sandbox ignores the user= parameter",
-            "test_exec_as_nonexistent_user": "local sandbox ignores the user= parameter",
+            "test_exec_as_user": "local sandbox cannot switch users",
             "test_exec_timeout_not_raised_on_fast_signal_death": (
                 "local sandbox doesn't wrap commands with in-container `timeout`, so "
                 "the signal exit code semantics differ (returns -15 not 143)"

@@ -4,6 +4,7 @@ from datetime import date, time, timezone
 from enum import Enum
 from typing import Any, Dict, List, Literal, Optional, Set, Tuple, Union
 
+import pytest
 from pydantic import BaseModel
 from typing_extensions import TypedDict
 
@@ -15,7 +16,7 @@ from inspect_ai.model._chat_message import (
     ChatMessageAssistant,
     ChatMessageTool,
 )
-from inspect_ai.tool import tool
+from inspect_ai.tool import ToolParam, ToolParams, tool
 from inspect_ai.tool._tool import tool_result_content
 from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_def import ToolDef
@@ -474,6 +475,39 @@ async def test_mixed_content_and_str_list_does_not_crash():
     assert "RAW STRING" in messages[-1].content
 
 
+@tool
+def value_error_tool():
+    async def execute() -> str:
+        """Raise a ValueError unrelated to null bytes."""
+        raise ValueError("ordinary value error")
+
+    return execute
+
+
+async def test_other_value_error_escapes_the_tool_call_handler():
+    """A `ValueError` other than the null-byte case is not captured as a tool failure.
+
+    Pins the pre-existing shape so the shared `tool_call_error` mapping stays
+    behaviour-neutral: the exception escapes the per-call handler (the sample
+    fails) and the event is finalised by the stage's cancellation handling
+    rather than recorded as a captured failure with no error.
+    """
+    transcript = Transcript()
+    init_transcript(transcript)
+
+    tool_def = ToolDef(value_error_tool())
+    call = make_call("value_error_tool", {})
+    with pytest.raises(ValueError, match="ordinary value error"):
+        await execute_tools(
+            [ChatMessageAssistant(content=[], tool_calls=[call])], [tool_def]
+        )
+
+    (event,) = [e for e in transcript.events if isinstance(e, ToolEvent)]
+    assert event.failed is True
+    assert event.error is not None
+    assert event.error.type == "cancelled"
+
+
 async def test_tool_event_message_id_for_multiple_calls():
     """Each ToolEvent.message_id references its own ChatMessageTool."""
     transcript = Transcript()
@@ -502,3 +536,199 @@ async def test_tool_event_message_id_for_multiple_calls():
     # ensure each event has a distinct message_id (regression: previously
     # every event pointed at the first ChatMessageTool)
     assert len({e.message_id for e in tool_events}) == 3
+
+
+async def test_tool_with_varargs_and_kwargs():
+    # control: **kwargs: Any still passes tool arguments straight through
+    from inspect_ai.tool._tool_info import parse_tool_info
+
+    @tool
+    def varargs_tool():
+        async def execute(x: int, y: str = "default", *args: Any, **kwargs: Any) -> str:
+            """Tool with varargs and kwargs.
+
+            Args:
+                x (int): An integer.
+                y (str): A string.
+                *args (Any): Variable arguments.
+                **kwargs (Any): Variable keyword arguments.
+            """
+            return f"{x}_{y}"
+
+        return execute
+
+    tool_fn = varargs_tool()
+    info = parse_tool_info(tool_fn)
+    assert "args" not in info.parameters.properties
+    assert "kwargs" not in info.parameters.properties
+    assert info.parameters.required == ["x"]
+    assert "x" in info.parameters.properties
+    assert "y" in info.parameters.properties
+
+    tool_def = ToolDef(tool_fn)
+    call = make_call("varargs_tool", {"x": 42})
+    messages, _ = await execute_tools(
+        [ChatMessageAssistant(content=[], tool_calls=[call])], [tool_def]
+    )
+    assert isinstance(messages[-1], ChatMessageTool)
+    assert messages[-1].error is None
+    assert messages[-1].content == "42_default"
+
+
+async def test_tool_with_varargs_only():
+    @tool
+    def varargs_only_tool():
+        async def execute(x: int, *args: int) -> str:
+            """Tool with varargs.
+
+            Args:
+                x (int): An integer.
+                *args (int): Variable arguments.
+            """
+            return f"{x}_{args}"
+
+        return execute
+
+    call = make_call("varargs_only_tool", {"x": 42})
+    messages, _ = await execute_tools(
+        [ChatMessageAssistant(content=[], tool_calls=[call])],
+        [ToolDef(varargs_only_tool())],
+    )
+    assert isinstance(messages[-1], ChatMessageTool)
+    assert messages[-1].error is None
+    assert messages[-1].content == "42_()"
+
+
+async def _execute_with_schema(
+    execute: Any,
+    properties: list[str],
+    arguments: dict[str, Any],
+    types: dict[str, Any] | None = None,
+) -> ChatMessageTool:
+    # explicit schema: string properties except `x`, which is an integer
+    # (unless overridden by `types`)
+    types = types or {}
+    tool_def = ToolDef(
+        execute,
+        name="schema_tool",
+        description="Tool with an explicit schema.",
+        parameters=ToolParams(
+            properties={
+                name: ToolParam(
+                    type=types.get(name, "integer" if name == "x" else "string")
+                )
+                for name in properties
+            },
+            required=properties,
+        ),
+    )
+    call = make_call("schema_tool", arguments)
+    messages, _ = await execute_tools(
+        [ChatMessageAssistant(content=[], tool_calls=[call])], [tool_def]
+    )
+    assert isinstance(messages[-1], ChatMessageTool)
+    assert messages[-1].error is None
+    return messages[-1]
+
+
+async def test_tool_explicit_schema_kwargs():
+    async def execute(**kwargs: str) -> str:
+        return repr(kwargs)
+
+    message = await _execute_with_schema(execute, ["kwargs"], {"kwargs": "hello"})
+    assert message.content == repr({"kwargs": "hello"})
+
+
+async def test_tool_explicit_schema_named_kwargs():
+    async def execute(**options: str) -> str:
+        return repr(options)
+
+    message = await _execute_with_schema(execute, ["options"], {"options": "hello"})
+    assert message.content == repr({"options": "hello"})
+
+
+async def test_tool_explicit_schema_kwargs_with_named_params():
+    async def execute(x: int, *args: int, **options: str) -> str:
+        return f"{x}_{args}_{options!r}"
+
+    message = await _execute_with_schema(
+        execute,
+        ["x", "label", "mode"],
+        {"x": 1, "label": "first", "mode": "fast"},
+    )
+    assert message.content == f"1_()_{ {'label': 'first', 'mode': 'fast'}!r}"
+
+
+async def test_tool_explicit_schema_kwargs_docstring_float():
+    # **options documented (not annotated) as float converts its values
+    async def execute(**options) -> str:
+        """Return the hexadecimal representation of a number.
+
+        Args:
+            options (float): Number to format.
+        """
+        return str(options["options"].hex())
+
+    message = await _execute_with_schema(
+        execute, ["options"], {"options": 2}, types={"options": "number"}
+    )
+    assert message.content == (2.0).hex()
+
+
+async def test_tool_explicit_schema_kwargs_docstring_int():
+    # **options documented (not annotated) as int converts its values
+    async def execute(**options) -> str:
+        """Increment a number.
+
+        Args:
+            options (int): Number to increment.
+        """
+        return str(options["options"] + 1)
+
+    message = await _execute_with_schema(execute, ["options"], {"options": "2"})
+    assert message.content == "3"
+
+
+async def test_tool_explicit_schema_kwargs_untyped():
+    # **options with no annotation or docstring type passes values through
+    async def execute(**options) -> str:
+        return repr(options)
+
+    message = await _execute_with_schema(execute, ["options"], {"options": "hello"})
+    assert message.content == repr({"options": "hello"})
+
+
+async def test_tool_explicit_schema_kwargs_unresolved_docstring_type():
+    # **options documented with a type that can't be resolved is an error
+    # (rather than silently passing values through as Any)
+    called = False
+
+    async def execute(**options) -> str:
+        """Accept values.
+
+        Args:
+            options (list[str]): Values.
+        """
+        nonlocal called
+        called = True
+        return repr(options)
+
+    tool_def = ToolDef(
+        execute,
+        name="schema_tool",
+        description="Tool with an explicit schema.",
+        parameters=ToolParams(
+            properties={
+                "options": ToolParam(type="array", items=ToolParam(type="string"))
+            },
+            required=["options"],
+        ),
+    )
+    call = make_call("schema_tool", {"options": ["a"]})
+    with pytest.raises(
+        ValueError, match="No type annotation available for parameter options"
+    ):
+        await execute_tools(
+            [ChatMessageAssistant(content=[], tool_calls=[call])], [tool_def]
+        )
+    assert not called

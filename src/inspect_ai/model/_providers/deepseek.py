@@ -19,9 +19,11 @@ DEEPSEEK_TOOL_CHOICE_WARNING = (
     'reasoning_effort="none" to disable thinking and force tool use.'
 )
 
-# DeepSeek's documented effort scale is low/high/max. The API currently
-# accepts other values but only these are contractual, so intermediate
-# values map to the nearest documented value.
+# DeepSeek's effort scale is low/high/max. The API also accepts and maps
+# other values server-side (minimal->low, medium->high, xhigh->high), but
+# only these three are contractual, so intermediate values map to the
+# nearest documented value here. xhigh deliberately maps to max (not the
+# server's high) so the top of Inspect's scale reaches the top of DeepSeek's.
 # https://api-docs.deepseek.com/guides/thinking_mode
 DEEPSEEK_EFFORT_MAP = {
     "minimal": "low",

@@ -1,6 +1,10 @@
 import json
+import threading
+from collections.abc import Iterator
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any, Literal, cast
 
+import anyio
 import pytest
 from azure.ai.inference.models import (
     AsyncStreamingChatCompletions,
@@ -12,7 +16,7 @@ from azure.core.exceptions import (
     ServiceRequestError,
 )
 from test_helpers.tasks import minimal_task
-from test_helpers.utils import skip_if_no_azureai
+from test_helpers.utils import skip_if_no_azureai, skip_if_trio
 
 from inspect_ai import eval_async
 from inspect_ai.model import GenerateConfig, Model, RetryDecision, get_model
@@ -24,6 +28,7 @@ from inspect_ai.model._providers.azureai import (
     azureai_completion_from_stream,
     chat_complection_choice,
 )
+from inspect_ai.model._response_headers import ResponseHeaders, track_response_headers
 from inspect_ai.model._stream import (
     ModelStreamObserver,
     StreamTextEvent,
@@ -547,3 +552,290 @@ async def test_azureai_stream_end_to_end() -> None:
     assert len(response.completion) >= 1
     streamed = "".join(e.text for e in events if isinstance(e, StreamTextEvent))
     assert streamed == response.completion
+
+
+async def _generate_with_completion(api: AzureAIAPI, completion: Any) -> Any:
+    from unittest.mock import AsyncMock, MagicMock, patch
+
+    from inspect_ai.model import ChatMessageUser, ModelOutput
+
+    client = MagicMock()
+    client.close = AsyncMock()
+    client.complete = AsyncMock(return_value=completion)
+    with patch(
+        "inspect_ai.model._providers.azureai.ChatCompletionsClient",
+        return_value=client,
+    ):
+        result = await api.generate(
+            input=[ChatMessageUser(content="hello")],
+            tools=[],
+            tool_choice="none",
+            config=GenerateConfig(),
+        )
+    assert isinstance(result, tuple)
+    output, _ = result
+    assert isinstance(output, ModelOutput)
+    return output
+
+
+async def test_azureai_output_records_response_id() -> None:
+    from datetime import datetime, timezone
+
+    from azure.ai.inference.models import (
+        ChatChoice,
+        ChatCompletions,
+        ChatResponseMessage,
+        CompletionsUsage,
+    )
+
+    api = AzureAIAPI(
+        model_name="test-model",
+        base_url="https://example.services.ai.azure.com/models",
+        api_key="test-key",
+        streaming=False,
+    )
+    output = await _generate_with_completion(
+        api,
+        ChatCompletions(
+            id="azure-response",
+            created=datetime(2026, 1, 1, tzinfo=timezone.utc),
+            model="test-model",
+            choices=[
+                ChatChoice(
+                    index=0,
+                    finish_reason="stop",
+                    message=ChatResponseMessage(role="assistant", content="hi"),
+                )
+            ],
+            usage=CompletionsUsage(
+                prompt_tokens=1, completion_tokens=1, total_tokens=2
+            ),
+        ),
+    )
+
+    assert output.response_id == "azure-response"
+
+
+async def test_azureai_streamed_output_without_id_has_no_response_id() -> None:
+    class _Stream:
+        def __aiter__(self) -> Any:
+            return _updates(
+                [
+                    StreamingChatCompletionsUpdate(
+                        dict(
+                            created=123,
+                            model="test-model",
+                            choices=[
+                                dict(
+                                    index=0,
+                                    delta=dict(role="assistant", content="hi"),
+                                    finish_reason="stop",
+                                )
+                            ],
+                        )
+                    )
+                ]
+            )
+
+        async def aclose(self) -> None:
+            return None
+
+    api = AzureAIAPI(
+        model_name="test-model",
+        base_url="https://example.services.ai.azure.com/models",
+        api_key="test-key",
+        streaming=True,
+    )
+    output = await _generate_with_completion(api, _Stream())
+
+    assert output.completion == "hi"
+    assert output.response_id is None
+
+
+# -- Real client ---------------------------------------------------------------
+
+_REAL_REPLY = {
+    "id": "response",
+    "object": "chat.completion",
+    "created": 0,
+    "model": "test-model",
+    "choices": [
+        {
+            "index": 0,
+            "message": {"role": "assistant", "content": "ok"},
+            "finish_reason": "stop",
+        }
+    ],
+    "usage": {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2},
+}
+
+_REAL_REPLY_CHUNK = {
+    "id": "response",
+    "object": "chat.completion.chunk",
+    "created": 0,
+    "model": "test-model",
+    "choices": [
+        {
+            "index": 0,
+            "delta": {"role": "assistant", "content": "ok"},
+            "finish_reason": "stop",
+        }
+    ],
+}
+
+
+@pytest.fixture
+def azureai_server() -> Iterator[tuple[str, list[tuple[int, str, str]]]]:
+    """A local endpoint that answers from a script of (status, served_by, body).
+
+    `body` is "whole", "cut" (the connection closes part-way through it) or
+    "stalled" (the rest never arrives).
+    """
+    script: list[tuple[int, str, str]] = []
+    release = threading.Event()
+
+    class Handler(BaseHTTPRequestHandler):
+        protocol_version = "HTTP/1.1"
+
+        def do_POST(self) -> None:
+            request = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+            status, served_by, body_kind = script.pop(0)
+            if status != 200:
+                content_type = "application/json"
+                body = json.dumps({"error": {"code": "no", "message": "no"}}).encode()
+            elif request.get("stream"):
+                content_type = "text/event-stream"
+                body = f"data: {json.dumps(_REAL_REPLY_CHUNK)}\n\ndata: [DONE]\n\n".encode()
+            else:
+                content_type = "application/json"
+                body = json.dumps(_REAL_REPLY).encode()
+            unfinished = body_kind != "whole"
+            self.send_response(status)
+            self.send_header("Content-Type", content_type)
+            # an unfinished response promises more body than it sends
+            self.send_header(
+                "Content-Length", str(len(body) + (100 if unfinished else 0))
+            )
+            self.send_header("X-Served-By", served_by)
+            # the SDK waits this long before it retries
+            self.send_header("Retry-After-Ms", "1")
+            self.end_headers()
+            self.wfile.write(body)
+            self.wfile.flush()
+            if body_kind == "stalled":
+                release.wait(10)
+            if unfinished:
+                self.close_connection = True
+
+        def log_message(self, format: str, *args: Any) -> None:
+            pass
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    thread = threading.Thread(
+        target=server.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True
+    )
+    thread.start()
+    try:
+        yield f"http://127.0.0.1:{server.server_address[1]}", script
+    finally:
+        release.set()
+        server.shutdown()
+        server.server_close()
+        thread.join()
+
+
+def _real_api(base_url: str, streaming: bool) -> AzureAIAPI:
+    return AzureAIAPI(
+        model_name="test-model", base_url=base_url, api_key="test", streaming=streaming
+    )
+
+
+async def _generate(api: AzureAIAPI) -> Any:
+    from inspect_ai.model import ChatMessageUser
+
+    return await api.generate(
+        [ChatMessageUser(content="hello")], [], "auto", GenerateConfig()
+    )
+
+
+# the Azure SDK's async transport needs an asyncio event loop
+@skip_if_trio
+@pytest.mark.parametrize("streaming", [False, True])
+@pytest.mark.parametrize("status", [200, 400])
+async def test_azureai_real_client_records_response_headers(
+    azureai_server: tuple[str, list[tuple[int, str, str]]],
+    streaming: bool,
+    status: int,
+) -> None:
+    base_url, script = azureai_server
+    script.append((status, "gateway", "whole"))
+    headers = ResponseHeaders()
+
+    with track_response_headers(headers):
+        result = await _generate(_real_api(base_url, streaming))
+
+    assert headers.latest is not None
+    assert headers.latest["x-served-by"] == "gateway"
+    if status == 200:
+        # streamed or not, the reply still arrives whole
+        output = result[0] if isinstance(result, tuple) else result
+        assert output.completion == "ok"
+
+
+@skip_if_trio
+async def test_azureai_real_client_keeps_the_latest_headers_when_the_sdk_retries(
+    azureai_server: tuple[str, list[tuple[int, str, str]]],
+) -> None:
+    base_url, script = azureai_server
+    script.extend([(503, "first", "whole"), (200, "second", "whole")])
+    headers = ResponseHeaders()
+
+    with track_response_headers(headers):
+        await _generate(_real_api(base_url, streaming=False))
+
+    assert script == []
+    assert headers.latest is not None
+    assert headers.latest["x-served-by"] == "second"
+
+
+# the SDK's transport reads a non-streaming body before it reports the
+# response, so a body that can't be read used to take the headers with it
+@skip_if_trio
+@pytest.mark.parametrize("status", [200, 503])
+async def test_azureai_real_client_records_the_headers_of_a_response_cut_short(
+    azureai_server: tuple[str, list[tuple[int, str, str]]], status: int
+) -> None:
+    base_url, script = azureai_server
+    script.append((status, "gateway", "cut"))
+    headers = ResponseHeaders()
+
+    with track_response_headers(headers), pytest.raises(IncompleteReadError):
+        await _generate(_real_api(base_url, streaming=False))
+
+    assert headers.latest is not None
+    assert headers.latest["x-served-by"] == "gateway"
+
+
+@skip_if_trio
+async def test_azureai_real_client_cancelled_reading_a_body_keeps_the_headers(
+    azureai_server: tuple[str, list[tuple[int, str, str]]],
+) -> None:
+    base_url, script = azureai_server
+    script.append((200, "gateway", "stalled"))
+    headers = ResponseHeaders()
+    api = _real_api(base_url, streaming=False)
+
+    async def call() -> None:
+        await _generate(api)
+
+    with track_response_headers(headers):
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(call)
+            # the headers have arrived and the rest of the body never will
+            with anyio.fail_after(5):
+                while headers.latest is None:
+                    await anyio.sleep(0.01)
+            tg.cancel_scope.cancel()
+
+    assert headers.latest is not None
+    assert headers.latest["x-served-by"] == "gateway"

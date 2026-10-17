@@ -38,6 +38,10 @@ READ_TIMEOUT_S = 300
 WRITE_TIMEOUT_S = 300
 STREAM_CHUNK = 8192
 
+# Request headers the proxy reads as one value; repeating one is rejected rather
+# than joined like a list-valued header.
+_SINGLE_VALUE_REQUEST_HEADERS = frozenset({"content-length", "content-type", "host"})
+
 HOP_BY_HOP = {
     "connection",
     "keep-alive",
@@ -167,11 +171,18 @@ class AsyncHTTPServer:
                 continue
             if ":" in header:
                 key, value = header.split(":", 1)
-                headers[key.strip().lower()] = value.strip()
+                key, value = key.strip().lower(), value.strip()
+                if key in headers:
+                    # A repeated list-valued header is one comma-separated value
+                    # (RFC 9110 5.3); a repeated single-valued one is ambiguous.
+                    if key in _SINGLE_VALUE_REQUEST_HEADERS:
+                        raise ValueError(f"Repeated {key} header")
+                    value = f"{headers[key]}, {value}"
+                headers[key] = value
 
         # Expect: 100-continue
-        expect = headers.get("expect")
-        if expect and expect.lower() == "100-continue":
+        expectations = headers.get("expect", "").split(",")
+        if any(item.strip().lower() == "100-continue" for item in expectations):
             try:
                 writer.write(b"HTTP/1.1 100 Continue\r\n\r\n")
                 await asyncio.wait_for(writer.drain(), timeout=WRITE_TIMEOUT_S)
@@ -589,36 +600,67 @@ def _provider_error(result: Any) -> Optional[dict[str, Any]]:
     return None
 
 
-def _openai_error_body(status: int, message: str) -> dict[str, Any]:
-    """OpenAI-dialect error body (Chat Completions and Responses)."""
-    return {
-        "error": {
-            "message": message,
-            "type": "invalid_request_error" if 400 <= status < 500 else "api_error",
-            "param": None,
-            "code": None,
-        }
+def _openai_error_body(
+    status: int, message: str, provider_body: Optional[dict[str, Any]] = None
+) -> dict[str, Any]:
+    """OpenAI-dialect error body (Chat Completions and Responses).
+
+    ``provider_body`` is the provider's own error object when the host recovered
+    one (an exhausted retry of an OpenAI-compatible endpoint, say). Its keys are
+    forwarded verbatim over the dialect's own -- clients read ``code`` values such
+    as ``insufficient_quota`` from it -- but the dialect's guaranteed keys stay
+    present: a body that lacks ``message`` (a FastAPI ``{"detail": ...}``, an empty
+    object) still yields the host's recovered message and a ``type``.
+    """
+    error: dict[str, Any] = {
+        "message": message,
+        "type": "invalid_request_error" if 400 <= status < 500 else "api_error",
+        "param": None,
+        "code": None,
     }
+    if provider_body is not None:
+        error.update(provider_body)
+    return {"error": error}
 
 
+# The inverse of `status_code_of`: every status that helper can derive from a
+# provider error body must map back to its Anthropic error type here. A status
+# missing from this table degrades to `api_error`, and on the STREAMING route
+# that error type is the only machine-readable signal the client gets -- the
+# HTTP status is already 200 by the time the error is known -- so a missing
+# entry silently reclassifies a client error as a server error.
 _ANTHROPIC_ERROR_TYPES = {
     400: "invalid_request_error",
     401: "authentication_error",
+    402: "billing_error",
     403: "permission_error",
     404: "not_found_error",
+    409: "conflict_error",
     413: "request_too_large",
     429: "rate_limit_error",
     500: "api_error",
+    504: "timeout_error",
     529: "overloaded_error",
 }
 
 
 def _anthropic_error_body(status: int, message: str) -> dict[str, Any]:
-    """Anthropic-dialect error body."""
+    """Anthropic-dialect error body.
+
+    An unlisted 4xx keeps a CLIENT classification rather than degrading to
+    `api_error`: the SDK recognizes statuses the table does not name (422 ->
+    `UnprocessableEntityError`), and Anthropic's error documentation permits
+    `invalid_request_error` for other 4xx responses. Calling a client error a
+    server error is the same defect the table above exists to prevent, one
+    status further out.
+    """
+    kind = _ANTHROPIC_ERROR_TYPES.get(status)
+    if kind is None:
+        kind = "invalid_request_error" if 400 <= status < 500 else "api_error"
     return {
         "type": "error",
         "error": {
-            "type": _ANTHROPIC_ERROR_TYPES.get(status, "api_error"),
+            "type": kind,
             "message": message,
         },
     }
@@ -734,15 +776,20 @@ async def model_proxy_server(
             stream = json_body.get("stream", False)
 
             completion = await call_bridge_model_service_async(
-                "generate_responses", json_data=json_body
+                "generate_responses", json_data=json_body, headers=request["headers"]
             )
 
             error = _provider_error(completion)
             if error is not None:
                 status = error.get("status") or _DEFAULT_ERROR_STATUS
+                body = error.get("body")
                 return {
                     "status": status,
-                    "body": _openai_error_body(status, error.get("message") or ""),
+                    "body": _openai_error_body(
+                        status,
+                        error.get("message") or "",
+                        body if isinstance(body, dict) else None,
+                    ),
                 }
 
             if stream:
@@ -1475,15 +1522,20 @@ async def model_proxy_server(
             json_body["parallel_tool_calls"] = False
 
             completion = await call_bridge_model_service_async(
-                "generate_completions", json_data=json_body
+                "generate_completions", json_data=json_body, headers=request["headers"]
             )
 
             error = _provider_error(completion)
             if error is not None:
                 status = error.get("status") or _DEFAULT_ERROR_STATUS
+                body = error.get("body")
                 return {
                     "status": status,
-                    "body": _openai_error_body(status, error.get("message") or ""),
+                    "body": _openai_error_body(
+                        status,
+                        error.get("message") or "",
+                        body if isinstance(body, dict) else None,
+                    ),
                 }
 
             if stream:
@@ -1724,7 +1776,9 @@ async def model_proxy_server(
                     PING_INTERVAL_S = 5.0
                     task = asyncio.create_task(
                         call_bridge_model_service_async(
-                            "generate_anthropic", json_data=json_body
+                            "generate_anthropic",
+                            json_data=json_body,
+                            headers=request["headers"],
                         )
                     )
                     try:
@@ -2039,7 +2093,9 @@ async def model_proxy_server(
                 }
             else:
                 completion = await call_bridge_model_service_async(
-                    "generate_anthropic", json_data=json_body
+                    "generate_anthropic",
+                    json_data=json_body,
+                    headers=request["headers"],
                 )
                 error = _provider_error(completion)
                 if error is not None:

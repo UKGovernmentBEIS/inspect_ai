@@ -58,12 +58,14 @@ While many tasks can be defined with only a dataset, solver, and scorer, there a
 | `score_on_error` | Score samples that error rather than failing the run. | [Handling Errors](handling-errors.qmd) |
 | `message_limit`, `token_limit`, `time_limit`, `working_limit`, `cost_limit` | Limits to apply to sample execution. | [Sample Limits](setting-limits.qmd#sample-limits) |
 | `early_stopping` | Stop a task early based on previously scored samples. | [Early Stopping](early-stopping.qmd) |
-| `name`, `display_name`, `version`, `metadata`, `tags` | Identifying attributes recorded in the eval log. | [Eval Logs](eval-logs.qmd) |
+| `name`, `display_name`, `description`, `version`, `metadata`, `tags` | Identifying attributes recorded in the eval log. | [Eval Logs](eval-logs.qmd) |
 | `viewer` | Log viewer config (e.g. how scanner results render). | [Task Views](task-views.qmd) |
 
 : {tbl-colwidths=\[28,42,30\]}
 
 You by and large don't need to worry about these options until you want to use the features they are linked to.
+
+Use `description` for a short statement of what the task asks of the agent. It is recorded in the eval log header (`EvalSpec.task_description`) and appears as the `task_description` column of `evals_df()`. It does not affect task identity in [Eval Sets](eval-sets.qmd). Samples can carry their own `description` as well (see [Dataset Samples](datasets.qmd#dataset-samples)).
 
 ## Parameters {#parameters}
 
@@ -460,6 +462,10 @@ The table below lists task and runtime parameters and the layers at which each c
 +---------------------------+---------------+------------------+----------------------+-----------------------------------------+
 | `tags`                    | yes           | yes (overwrites) | yes (merges)         | `--tags`                                |
 +---------------------------+---------------+------------------+----------------------+-----------------------------------------+
+| **Description**           |               |                  |                      |                                         |
++---------------------------+---------------+------------------+----------------------+-----------------------------------------+
+| `description`             | yes           | yes              |                      |                                         |
++---------------------------+---------------+------------------+----------------------+-----------------------------------------+
 | **Sample selection**      |               |                  |                      |                                         |
 +---------------------------+---------------+------------------+----------------------+-----------------------------------------+
 | `limit`                   |               |                  | yes                  | `--limit`                               |
@@ -670,7 +676,7 @@ Every component except `scorer`, `dataset`, and `metrics` can be overridden with
 
 A convenient way to distribute tasks is to include them in a Python package. This makes it very easy for others to run your task and ensure they have all of the required dependencies.
 
-Tasks in packages can be *registered* such that users can easily refer to them by name from the CLI. For example, the [Inspect Evals](https://github.com/UKGovernmentBEIS/inspect_ai) package includes a suite of tasks that can be run as follows:
+Tasks in packages can be *registered* such that users can easily refer to them by name from the CLI. For example, the [Inspect Evals](https://github.com/UKGovernmentBEIS/inspect_evals) package includes a suite of tasks that can be run as follows:
 
 ``` bash
 inspect eval inspect_evals/gaia

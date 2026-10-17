@@ -33,6 +33,7 @@ from inspect_ai._control.terminal_cache import (
 )
 
 if TYPE_CHECKING:
+    from inspect_ai.log._log import EvalSample
     from inspect_ai.model._chat_message import ChatMessage
 
 
@@ -98,7 +99,23 @@ async def sample_messages(
     )
     if source is None:
         return None
+    return page_messages(source, tail=tail, content=content, full=full, as_of=as_of)
 
+
+def page_messages(
+    source: MessagesSource,
+    *,
+    tail: int | None = None,
+    content: bool = False,
+    full: bool = False,
+    as_of: float,
+) -> dict[str, Any]:
+    """The ``{as_of, status, count, messages}`` envelope of a resolved source.
+
+    The windowing and projection half of :func:`sample_messages` (see it for
+    the arguments), shared with the ``--log-dir`` reader. ``as_of`` is the
+    caller's pre-read timestamp.
+    """
     messages, status = source
     count = len(messages)
 
@@ -160,11 +177,19 @@ async def _resolve_logged_source(
     from inspect_ai._control.state import _full_sample
 
     sample = await _full_sample(
-        eval_id, sample_id, epoch, exclude_fields={"events", "store", "output"}
+        eval_id, sample_id, epoch, exclude_fields=set(LOGGED_MESSAGES_EXCLUDE_FIELDS)
     )
     if sample is None:
         return None
+    return messages_source_from_sample(sample)
 
+
+# The heavy fields a logged sample's conversation read never consumes.
+LOGGED_MESSAGES_EXCLUDE_FIELDS = frozenset({"events", "store", "output"})
+
+
+def messages_source_from_sample(sample: "EvalSample") -> MessagesSource:
+    """The terminal source over a logged sample read without the excluded fields."""
     from inspect_ai.log._condense import resolve_sample_attachments
 
     sample = resolve_sample_attachments(sample, "core")

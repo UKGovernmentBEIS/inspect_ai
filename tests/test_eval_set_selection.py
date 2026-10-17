@@ -1403,6 +1403,7 @@ _EXPECTED_SELECTION_FIELDS: dict[int, dict[str, set[str]]] = {
             "score",
             "score_display",
             "score_on_error",
+            "sentinel",
             "tags",
             "trace",
         },

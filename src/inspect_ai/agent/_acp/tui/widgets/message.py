@@ -31,6 +31,8 @@ from textual.css.query import NoMatches
 from textual.widget import Widget
 from textual.widgets import Static
 
+from inspect_ai._util.format import display_safe
+
 from ..state import MessageGroup, Segment
 from ._collapsible import CollapsibleContent
 from ._formatting import SPINNER_FRAMES, format_duration
@@ -115,7 +117,7 @@ class _ReasoningBlock(Widget):
 
     def __init__(self, text: str) -> None:
         super().__init__()
-        self._text = text
+        self._text = _shown(text)
         # Start collapsed — only the "reasoning" link is visible.
         self.add_class("collapsed")
 
@@ -142,7 +144,7 @@ class _ReasoningBlock(Widget):
         streaming chunks without remounting (and without losing the
         expanded state if the operator already clicked).
         """
-        self._text = text
+        self._text = _shown(text)
         try:
             self.query_one(".reasoning-body", Static).update(StyledMarkdown(self._text))
         except NoMatches:
@@ -396,7 +398,7 @@ class MessageWidget(Widget):
             # truncate-or-expand decision in place so a growing
             # response gains its "… N more lines" affordance the
             # moment it crosses the cap.
-            last_widget.replace_text(seg.text)
+            last_widget.replace_text(_shown(seg.text))
         elif seg.kind == "reasoning" and isinstance(last_widget, _ReasoningBlock):
             last_widget.set_text(seg.text)
 
@@ -411,7 +413,9 @@ class MessageWidget(Widget):
                 body.mount(_ReasoningBlock(seg.text))
             else:
                 body.mount(
-                    CollapsibleContent(seg.text, max_lines=_MESSAGE_TEXT_MAX_LINES)
+                    CollapsibleContent(
+                        _shown(seg.text), max_lines=_MESSAGE_TEXT_MAX_LINES
+                    )
                 )
 
     def _compose_segment(self, seg: Segment) -> ComposeResult:
@@ -434,4 +438,15 @@ class MessageWidget(Widget):
         # transcript off-screen. Markdown rendering happens inside —
         # fenced code blocks, bold, lists, inline code all still
         # render formatted.
-        yield CollapsibleContent(seg.text, max_lines=_MESSAGE_TEXT_MAX_LINES)
+        yield CollapsibleContent(_shown(seg.text), max_lines=_MESSAGE_TEXT_MAX_LINES)
+
+
+def _shown(text: str) -> str:
+    """A message's text or reasoning as the person may safely see it.
+
+    The text comes from a model and is written to a terminal, where a control
+    character could move the cursor and overwrite other lines (such as the
+    tool calls of the turn a person is asked to approve); `display_safe`
+    shows each as a marker instead.
+    """
+    return display_safe(text).text

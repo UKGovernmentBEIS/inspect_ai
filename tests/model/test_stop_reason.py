@@ -85,4 +85,4 @@ async def test_moonshot_stop_reason() -> None:
 async def test_deepseek_stop_reason() -> None:
     # V4 thinking is on by default, so the max_tokens check exercises a
     # reasoning-only truncated response.
-    await check_stop_reason("deepseek/deepseek-v4-flash")
+    await check_stop_reason("deepseek/deepseek-flash")

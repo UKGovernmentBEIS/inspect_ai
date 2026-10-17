@@ -242,8 +242,10 @@ def deepagent(
         # The background registry lives for the duration of inner(state) so
         # the agent tool and lifecycle tools can read it via the ContextVar.
         if background_enabled:
-            with background_registry(BackgroundRegistry(max_background=max_background)):
-                return await inner(state)
+            registry = BackgroundRegistry(max_background=max_background)
+            with background_registry(registry):
+                async with registry.owned_task_group():
+                    return await inner(state)
         else:
             return await inner(state)
 
