@@ -900,6 +900,58 @@ def test_dict_metric_all_samples_unscored():
         assert math.isnan(r.metrics["mean"].value)
 
 
+def test_dict_metric_same_metric_with_other_params():
+    # Variants of a metric with other params are all computed; a metric with
+    # the same name and params (from "*" or repeated in a list) is computed once.
+    from inspect_ai._eval.task.results import scorers_from_metric_dict
+
+    sample_scores = [
+        SampleScore(
+            score=Score(value={"one": 1}), sample_id=1, sample_metadata={"group": "a"}
+        ),
+        SampleScore(
+            score=Score(value={"one": 0}), sample_id=2, sample_metadata={"group": "b"}
+        ),
+    ]
+
+    results = scorers_from_metric_dict(
+        scorer_name="test_scorer",
+        scorer_info=_scorer_info_for_dict_metrics(),
+        sample_scores=sample_scores,
+        metrics={
+            "*": [stderr(), grouped(mean(), "group")],
+            "one": [
+                stderr(),
+                stderr(cluster="group"),
+                stderr(cluster="group"),
+                grouped(mean(), "group"),
+                grouped(stderr(), "group"),
+                nested_list_metric(),
+                nested_list_metric(correct="I"),
+            ],
+        },
+    )
+
+    metrics = results[0].metrics
+    assert list(metrics) == [
+        "stderr",
+        "grouped_a",
+        "grouped_b",
+        "grouped_all",
+        "stderr2",
+        "grouped_a2",
+        "grouped_b2",
+        "grouped_all2",
+        "nested_list_metric_0",
+        "nested_list_metric_1",
+        "nested_list_metric_02",
+        "nested_list_metric_12",
+    ]
+    assert metrics["stderr2"].params == {"cluster": "group"}
+    assert metrics["grouped_a2"].params["metric"]["name"] == "stderr"
+    assert metrics["nested_list_metric_12"].params == {"correct": "I"}
+
+
 def test_aggregate_mean():
     metric = aggregate("element_acc", agg=mean())
     result = metric(
