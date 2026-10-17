@@ -1,11 +1,67 @@
+import os
+import warnings
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
 import pytest
 
+from inspect_ai.util import SandboxUserUnsupportedError
 from inspect_ai.util._sandbox._cli import SANDBOX_CLI
 from inspect_ai.util._sandbox.local import LocalSandboxEnvironment
 from inspect_ai.util._subprocess import ExecResult
+
+
+@pytest.mark.parametrize(
+    "effective_uid, user, requested_uid, supported",
+    [
+        (1000, None, None, True),
+        (1000, "1000", None, True),
+        (1000, "current", 1000, True),
+        (0, "root", 0, True),
+        (0, "0", None, True),
+        (1000, "root", 0, False),
+        (1000, "0", None, False),
+        (0, "other", 1000, False),
+        (1000, "missing", None, False),
+        (1000, "", None, False),
+    ],
+)
+async def test_local_exec_requires_current_user(
+    monkeypatch: pytest.MonkeyPatch,
+    effective_uid: int,
+    user: str | None,
+    requested_uid: int | None,
+    supported: bool,
+) -> None:
+    if os.name != "posix":
+        pytest.skip("requires POSIX user identities")
+    import pwd
+
+    def lookup(name: str) -> pwd.struct_passwd:
+        assert name == user
+        assert not name.isdecimal()
+        if requested_uid is None:
+            raise KeyError(name)
+        return pwd.struct_passwd((name, "", requested_uid, 1000, "", "/tmp", "/bin/sh"))
+
+    monkeypatch.setattr(os, "geteuid", lambda: effective_uid)
+    monkeypatch.setattr(pwd, "getpwnam", lookup)
+    run = AsyncMock(return_value=ExecResult(True, 0, "", ""))
+    monkeypatch.setattr("inspect_ai.util._sandbox.local.subprocess", run)
+    sandbox = LocalSandboxEnvironment()
+    try:
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            if supported:
+                assert (await sandbox.exec(["command"], user=user)).success
+                run.assert_awaited_once()
+            else:
+                with pytest.raises(SandboxUserUnsupportedError, match=repr(user)):
+                    await sandbox.exec(["command"], user=user)
+                run.assert_not_awaited()
+        assert not caught
+    finally:
+        sandbox.directory.cleanup()
 
 
 async def test_local_sandbox_scopes_server_dir_per_instance() -> None:

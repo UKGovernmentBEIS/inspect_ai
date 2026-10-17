@@ -16,17 +16,19 @@ from inspect_ai._control.cancel import TaskCancelAction
 # calls must resolve through the module object at call time — do not
 # "simplify" to `from ._http import _request_json` (see
 # design/ctl/cli-refactor.md).
-from . import _fetch, _http
+from . import _fetch, _http, _log_dir
 from ._failure import _envelope_failures
 from ._group import (
     _MUTATION_ENVELOPE_HELP,
     _echo_no_running_evals,
     _forward_group_options,
     _json_option,
+    _log_dir_option,
     _mirror_list_options,
     _model_option,
     _NounGroup,
     _now_option,
+    _shards_option,
     _terse_line,
     _terse_option,
     _use_terse,
@@ -80,8 +82,10 @@ task_group.hint = lambda token: (
 
 
 @task_group.command("list")
+@_log_dir_option()
+@_shards_option()
 @_json_option("an `{as_of, tasks}` envelope")
-def task_list_command(as_json: bool) -> None:
+def task_list_command(as_json: bool, shards: bool) -> None:
     """List running tasks across all live Inspect processes.
 
     Each `--json` row carries the selectors other commands take (`task_id`,
@@ -92,7 +96,7 @@ def task_list_command(as_json: bool) -> None:
 
     Example: inspect ctl task list --json
     """
-    _run_task_list(as_json)
+    _run_task_list(as_json, shards=shards)
 
 
 _mirror_list_options(task_group, task_list_command)
@@ -372,14 +376,24 @@ def task_resume_command(
 
 
 @_envelope_failures
-def _run_task_list(as_json: bool) -> None:
+def _run_task_list(as_json: bool, *, shards: bool = False) -> None:
     # Stamp as_of BEFORE the reads: anything that changes during them has a
     # timestamp >= as_of and is caught by the next poll rather than missed.
     as_of = time.time()
-    summaries = _fetch._fetch_summaries(_http.list_discovered_servers()).summaries
+    log_dir = _log_dir._log_dir_root() is not None
+    # --log-dir adds `incomplete` / `unreadable` (the logs the rows omit)
+    extra: dict[str, Any] = {}
+    if log_dir:
+        read = _log_dir._task_rows(shards=shards)
+        summaries = read.rows
+        extra = {"incomplete": bool(read.unreadable), "unreadable": read.unreadable}
+    else:
+        summaries = _fetch._fetch_summaries(_http.list_discovered_servers()).summaries
 
     if as_json:
-        _echo_raw(json_lib.dumps({"as_of": as_of, "tasks": summaries}, indent=2))
+        _echo_raw(
+            json_lib.dumps({"as_of": as_of, "tasks": summaries, **extra}, indent=2)
+        )
         return
 
     if not summaries:
@@ -387,8 +401,16 @@ def _run_task_list(as_json: bool) -> None:
         return
 
     _print_human_table(summaries)
-    _print_keep_alive_footer(summaries)
-    _print_errored_samples_footer(summaries)
+    if log_dir:
+        _log_dir._print_quiet_footer(summaries)
+        _log_dir._print_sharded_totals_note(summaries)
+        # --shards rows overlap (a merged log holds its shards' samples), so a
+        # sum over them would count an errored sample more than once
+        if not shards:
+            _print_errored_samples_footer(summaries, _log_dir._errors_command())
+    else:
+        _print_keep_alive_footer(summaries)
+        _print_errored_samples_footer(summaries)
 
 
 @_envelope_failures
@@ -977,7 +999,11 @@ def _render_score_result(
                 f"{key}={value}" for key, value in (entry.get("metrics") or {}).items()
             )
             reducer = f"/{entry['reducer']}" if entry.get("reducer") else ""
-            _echo(_sanitize_line(f"  {entry.get('scorer')}{reducer}: {pairs}"))
+            scorer = entry.get("scorer")
+            name = entry.get("name")
+            # a dict-valued scorer names its scores for its value keys; show both
+            label = scorer if not name or name == scorer else f"{scorer}/{name}"
+            _echo(_sanitize_line(f"  {label}{reducer}: {pairs}"))
     if status.get("interrupted"):
         _echo(f"Note: pass interrupted — {_sanitize_line(str(status['interrupted']))}.")
     if status.get("error"):

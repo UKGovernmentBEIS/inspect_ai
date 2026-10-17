@@ -1,3 +1,5 @@
+from enum import StrEnum
+
 from inspect_ai._util.download import download, gdrive_download
 from inspect_ai._util.images import (
     MediaKind,
@@ -13,7 +15,6 @@ from inspect_ai._util.registry import (
     registry_create,
     registry_info,
 )
-from inspect_ai._util.strenum import StrEnum
 from inspect_ai._util.trace import trace_action, trace_message
 from inspect_ai.util._limit import (
     Limit,
@@ -27,6 +28,7 @@ from inspect_ai.util._limit import (
     sample_limits,
     suspend_token_limit,
     suspend_turn_limit,
+    suspend_working_limit,
     time_limit,
     token_limit,
     turn_limit,
@@ -87,6 +89,7 @@ from ._sandbox import (
     SandboxEnvironmentSpec,
     SandboxEnvironmentType,
     SandboxUnavailableError,
+    SandboxUserUnsupportedError,
     is_compose_yaml,
     is_dockerfile,
     override_sandbox_output_limit,
@@ -106,6 +109,11 @@ from ._subprocess import (
 )
 from ._subtask import Subtask, subtask
 from ._throttle import throttle
+from ._tool_state import (
+    private_tool_instance,
+    tool_state_instance,
+    tool_state_scope,
+)
 
 __all__ = [
     "media_resolver",
@@ -158,6 +166,7 @@ __all__ = [
     "SandboxEnvironmentSpec",
     "SandboxEnvironmentType",
     "SandboxUnavailableError",
+    "SandboxUserUnsupportedError",
     "SandboxConnection",
     "sandboxenv",
     "sandbox",
@@ -170,6 +179,9 @@ __all__ = [
     "store_from_events_as",
     "StoreModel",
     "store_as",
+    "tool_state_scope",
+    "tool_state_instance",
+    "private_tool_instance",
     "span",
     "current_span_id",
     "span_id_provider",
@@ -182,6 +194,7 @@ __all__ = [
     "cost_limit",
     "suspend_token_limit",
     "suspend_turn_limit",
+    "suspend_working_limit",
     "token_limit",
     "TokenLimit",
     "turn_limit",

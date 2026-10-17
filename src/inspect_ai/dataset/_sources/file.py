@@ -15,7 +15,7 @@ def file_dataset(
     file: str,
     sample_fields: FieldSpec | RecordToSample | None = None,
     auto_id: bool = False,
-    shuffle: bool = False,
+    shuffle: bool | int = False,
     seed: int | None = None,
     shuffle_choices: bool | int | None = None,
     limit: int | None = None,
@@ -42,8 +42,8 @@ def file_dataset(
             `FieldSpec` to specify mapping fields by name; Pass a `RecordToSample` to
             handle mapping with a custom function that returns one or more samples.
         auto_id (bool): Assign an auto-incrementing ID for each sample.
-        shuffle (bool): Randomly shuffle the dataset order.
-        seed: (int | None): Seed used for random shuffle.
+        shuffle (bool | int): Randomly shuffle the dataset order. An int (including 0) is used as the seed, so `shuffle=0` shuffles.
+        seed: (int | None): Seed used for random shuffle. Only valid with a boolean `shuffle`.
         shuffle_choices: (bool | int | None): Whether to shuffle the choices. If an int is passed, this will be used as the seed when shuffling.
         limit (int | None): Limit the number of records to read.
         dialect (str): CSV dialect ("unix" or "excel", defaults to "unix"). Only

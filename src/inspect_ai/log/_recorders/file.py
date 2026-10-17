@@ -1,4 +1,3 @@
-import os
 from logging import getLogger
 from typing import Any, Callable
 
@@ -6,9 +5,8 @@ import anyio.to_thread
 from typing_extensions import override
 
 from inspect_ai._util.async_zip import AsyncZipReader
-from inspect_ai._util.constants import MODEL_NONE
-from inspect_ai._util.file import clean_filename_component, filesystem
-from inspect_ai._util.task import task_display_name
+from inspect_ai._util.file import filesystem
+from inspect_ai._util.log_layout import eval_log_name
 
 from .._log import EvalLog, EvalSample, EvalSampleSummary, EvalSpec
 from .recorder import Recorder
@@ -155,21 +153,12 @@ class FileRecorder(Recorder):
         return eval_log
 
     def _log_file_key(self, eval: EvalSpec) -> str:
-        # remove package from task name
-        task = task_display_name(eval.task)  # noqa: F841
-
-        # derive log file pattern
-        log_file_pattern = os.getenv("INSPECT_EVAL_LOG_FILE_PATTERN", "{task}_{id}")
-
-        # compute and return log file name
-        log_file_name = f"{clean_filename_component(eval.created)}_" + log_file_pattern
-        log_file_name = log_file_name.replace("{task}", clean_filename_component(task))
-        log_file_name = log_file_name.replace(
-            "{id}", clean_filename_component(eval.task_id)
+        return eval_log_name(
+            task=eval.task,
+            task_id=eval.task_id,
+            created=eval.created,
+            model=eval.model,
         )
-        model = clean_filename_component(eval.model) if eval.model != MODEL_NONE else ""
-        log_file_name = log_file_name.replace("{model}", model)
-        return log_file_name
 
     def _log_file_path(self, eval: EvalSpec) -> str:
         return f"{self.log_dir}{self.fs.sep}{self._log_file_key(eval)}{self.suffix}"

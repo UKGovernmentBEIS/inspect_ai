@@ -1,11 +1,19 @@
-import pytest
+import textwrap
+from pathlib import Path
+from unittest.mock import AsyncMock
 
+import pytest
+from test_helpers.utils import skip_if_no_docker
+
+from inspect_ai.util._sandbox.docker import compose as compose_module
+from inspect_ai.util._sandbox.docker.docker import DockerSandboxEnvironment
 from inspect_ai.util._sandbox.docker.service import (
     ComposeService,
     parse_duration,
     service_healthcheck_time,
     services_healthcheck_time,
 )
+from inspect_ai.util._sandbox.docker.util import ComposeProject
 
 
 # Duration Parser Tests
@@ -194,3 +202,91 @@ def test_total_time_mixed_services() -> None:
         },
     }
     assert services_healthcheck_time(services) == 53.0
+
+
+# Compose Up Tests
+
+
+@skip_if_no_docker
+@pytest.mark.slow
+async def test_compose_up_allows_startup_before_the_health_wait(
+    request: pytest.FixtureRequest, tmp_path: Path
+) -> None:
+    """Work compose does before its health wait doesn't use up the health estimate."""
+    # compose runs `setup` to completion before it starts its health wait
+    config = tmp_path / "compose.yaml"
+    config.write_text(
+        textwrap.dedent("""
+            services:
+              default:
+                image: python:3.12-bookworm
+                init: true
+                command: tail -f /dev/null
+                network_mode: none
+                depends_on:
+                  setup:
+                    condition: service_completed_successfully
+                healthcheck:  # 2 s estimate
+                  test: ["CMD", "true"]
+                  interval: 1s
+                  timeout: 1s
+                  retries: 1
+              setup:
+                image: python:3.12-bookworm
+                command: sleep 8
+                network_mode: none
+        """)
+    )
+    task_name = f"{__name__}_{request.node.name}"
+
+    await DockerSandboxEnvironment.task_init(task_name=task_name, config=str(config))
+    try:
+        environments = await DockerSandboxEnvironment.sample_init(
+            task_name=task_name, config=str(config), metadata={}
+        )
+        try:
+            result = await environments["default"].exec(["true"])
+            assert result.success
+        finally:
+            await DockerSandboxEnvironment.sample_cleanup(
+                task_name=task_name,
+                config=str(config),
+                environments=environments,
+                interrupted=False,
+            )
+    finally:
+        await DockerSandboxEnvironment.task_cleanup(
+            task_name=task_name, config=str(config), cleanup=True
+        )
+
+
+@pytest.mark.parametrize(
+    "service",
+    [
+        {"image": "nginx", "healthcheck": {"interval": "1s", "timeout": "1s"}},
+        {"image": "nginx"},
+    ],
+    ids=["healthcheck", "no-healthcheck"],
+)
+async def test_compose_up_timeout_expires_before_docker_wait(
+    monkeypatch: pytest.MonkeyPatch, service: ComposeService
+) -> None:
+    """Our timeout, not docker's wait, ends a wait for a service that is starting.
+
+    The result of `compose up` isn't checked, so the TimeoutError is what keeps a
+    sample from starting against a service that isn't healthy yet.
+    """
+    compose_command = AsyncMock()
+    monkeypatch.setattr(compose_module, "compose_command", compose_command)
+
+    await compose_module.compose_up(
+        ComposeProject(
+            name="inspect-test", config=None, sample_id=None, epoch=None, env=None
+        ),
+        {"default": service},
+    )
+
+    call = compose_command.await_args
+    assert call is not None
+    command = call.args[0]
+    assert call.kwargs["timeout"] < int(command[command.index("--wait-timeout") + 1])

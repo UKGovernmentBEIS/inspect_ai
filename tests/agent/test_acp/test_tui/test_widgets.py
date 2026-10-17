@@ -7,8 +7,13 @@ should stay sub-second.
 
 from __future__ import annotations
 
+import io
+from typing import Any
+
 import pytest
+from rich.console import Console
 from test_helpers.utils import skip_if_trio
+from textual._compositor import CompositorUpdate
 from textual.app import App, ComposeResult
 from textual.containers import Vertical
 from textual.widgets import Static
@@ -362,6 +367,81 @@ async def test_assistant_with_reasoning_segment_mounts_reasoning_block() -> None
         # No ^E binding leftover, no action_toggle_reasoning method.
         assert all(getattr(b, "key", None) != "ctrl+e" for b in block.BINDINGS)
         assert not hasattr(block, "action_toggle_reasoning")
+
+
+# save the cursor, go down 18 lines, wipe the line, write a benign one, and
+# restore the cursor: a model's text could overwrite a tool call shown below
+# it, e.g. in the approval card of the turn it belongs to
+_COVER = "\x1b7\x1b[18B\x1b[2K\x1b[1G   echo done\x1b8"
+_AGENT_SEQUENCES = ["\x1b7", "\x1b8", "\x1b[18B", "\x1b[2K", "\u202e"]
+
+
+def _marker(code: str) -> str:
+    return f"{chr(0x2039)}U+{code}{chr(0x203A)}"
+
+
+@skip_if_trio
+@pytest.mark.anyio
+async def test_message_text_and_reasoning_reach_the_terminal_as_markers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A model's control characters are shown as markers, never written raw.
+
+    Records the bytes Textual writes, as the terminal would receive them,
+    through the first frame, a repaint from hovering a link in the text, the
+    reasoning expanded, and a streamed chunk extending the text.
+    """
+    written: list[str] = []
+    display = App._display
+
+    def recording(self: App[Any], screen: Any, renderable: Any) -> None:
+        if isinstance(renderable, CompositorUpdate):
+            terminal = Console(file=io.StringIO(), force_terminal=True)
+            written.append(renderable.render_segments(terminal))
+        display(self, screen, renderable)
+
+    monkeypatch.setattr(App, "_display", recording)
+    text = f"Tidying up, see [the notes](https://example.com).{_COVER}"
+    group = MessageGroup(
+        message_id="m1",
+        role="assistant",
+        segments=[
+            Segment(kind="reasoning", text=f"plan{_COVER}{chr(0x202E)}"),
+            Segment(kind="text", text=text),
+        ],
+    )
+    app = _harness(lambda: MessageWidget(group))
+    async with app.run_test(size=(100, 40)) as pilot:
+        await pilot.pause()
+        mw = app.query_one(MessageWidget)
+        mw.query_one(_ReasoningBlock).on_click()
+        await pilot.pause()
+        await pilot.hover(MessageWidget, offset=(30, 2))
+        await pilot.pause()
+        mw.update_state(
+            MessageGroup(
+                message_id="m1",
+                role="assistant",
+                segments=[
+                    group.segments[0],
+                    Segment(kind="text", text=f"{text} More.{_COVER}"),
+                ],
+            )
+        )
+        await pilot.pause()
+        bodies = [_segment_text(w) for w in mw.query(".reasoning-body, #cc-body")]
+
+    output = "".join(written)
+    assert output
+    for sequence in _AGENT_SEQUENCES:
+        assert sequence not in output
+    esc = _marker("001B")
+    assert bodies == [
+        f"plan{esc}7{esc}[18B{esc}[2K{esc}[1G   echo done{esc}8{_marker('202E')}",
+        f"Tidying up, see [the notes](https://example.com).{esc}7{esc}[18B"
+        f"{esc}[2K{esc}[1G   echo done{esc}8 More.{esc}7{esc}[18B{esc}[2K"
+        f"{esc}[1G   echo done{esc}8",
+    ]
 
 
 @skip_if_trio

@@ -171,12 +171,13 @@ def _retryable_no_status_errors() -> tuple[type[BaseException], ...]:
     """Exception types (without an HTTP status code) that warrant a retry.
 
     httpx2/httpcore2 are not direct dependencies of inspect_ai — they arrive
-    transitively with openai >= 3 and anthropic >= 1, whose SDKs are built on
-    them and can surface their exception types; classify those exactly like
-    their legacy httpx/httpcore counterparts. Resolved lazily (an httpx2
-    exception can only exist if httpx2 is already imported) so that importing
-    inspect_ai doesn't pay for importing httpx2. No lock needed: inspect runs
-    on a single event loop thread, and re-running the extension is harmless.
+    transitively with openai >= 3, anthropic >= 1 and mistralai >= 3, whose
+    SDKs are built on them and can surface their exception types; classify
+    those exactly like their legacy httpx/httpcore counterparts. Resolved
+    lazily (an httpx2 exception can only exist if httpx2 is already imported)
+    so that importing inspect_ai doesn't pay for importing httpx2. No lock
+    needed: inspect runs on a single event loop thread, and re-running the
+    extension is harmless.
     """
     global _RETRYABLE_NO_STATUS_ERRORS, _httpx2_errors_added
     if not _httpx2_errors_added and "httpx2" in sys.modules:

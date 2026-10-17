@@ -372,8 +372,8 @@
 				{
 					key: `foldLeft`,
 					value: function(e, t) {
-						var n, r;
-						for (n = t(e, this.head), r = this.tail; !r.isEmpty;) n = t(n, r.head), r = r.tail;
+						var n = t(e, this.head), r = this.tail;
+						for (; !r.isEmpty;) n = t(n, r.head), r = r.tail;
 						return n;
 					}
 				},
@@ -552,8 +552,8 @@
 			}
 		}
 		O.Nil = ie, O.empty = new ie(), O.fromArray = function(e) {
-			var t, n;
-			for (t = O.empty, n = e.length - 1; n >= 0;) t = new re(e[n], t), --n;
+			var t = O.empty, n = e.length - 1;
+			for (; n >= 0;) t = new re(e[n], t), --n;
 			return t;
 		};
 		var oe = function() {
@@ -562,13 +562,13 @@
 					if (!(e instanceof t)) throw TypeError(`Cannot call a class as a function`);
 				})(this, e), this.head = t, this.tail = n;
 			}
-			var t, n, r;
-			return t = e, r = [{
+			var t = e, n, r = [{
 				key: `unapply`,
 				value: function(e) {
 					return new Option.Some([e.head, e.tail]);
 				}
-			}], (n = [{
+			}];
+			return (n = [{
 				key: `toString`,
 				value: function() {
 					return `(` + this.head + `~` + this.tail + `)`;
@@ -599,8 +599,8 @@
 			}, {
 				key: `match`,
 				value: function(e) {
-					var t, n, r, i;
-					for (t = 0, n = this.cases.length; t < n;) {
+					var t = 0, n = this.cases.length, r, i;
+					for (; t < n;) {
 						if (e instanceof (r = this.cases[t][0]) && (i = r.unapply(e)).isDefined) return this.cases[t][1](i.get);
 						t += 1;
 					}
@@ -715,8 +715,8 @@
 				{
 					key: `lineContents`,
 					value: function() {
-						var e, t;
-						return e = this.index(), t = this.line(), this.source.substring(e[t - 1], e[t]);
+						var e = this.index(), t = this.line();
+						return this.source.substring(e[t - 1], e[t]);
 					}
 				},
 				{
@@ -728,9 +728,9 @@
 				{
 					key: `longString`,
 					value: function() {
-						var e, t;
-						for (e = this.lineContents() + `
-`, t = 0; t < this.column();) this.lineContents().charAt(t) === `	` ? e += `	` : e += ` `, t += 1;
+						var e = this.lineContents() + `
+`, t = 0;
+						for (; t < this.column();) this.lineContents().charAt(t) === `	` ? e += `	` : e += ` `, t += 1;
 						return e += `^`;
 					}
 				},
@@ -773,8 +773,8 @@
 				{
 					key: `drop`,
 					value: function(e) {
-						var t, n;
-						for (t = this, n = e; n > 0;) t = t.rest(), --n;
+						var t = this, n = e;
+						for (; n > 0;) t = t.rest(), --n;
 						return t;
 					}
 				}
@@ -825,8 +825,8 @@
 					key: `literal`,
 					value: function(t) {
 						return new Oe((function(n) {
-							var r, i, a, o, s, c;
-							for (r = n.source, i = n.offset, o = 0, s = a = e._handleWhiteSpace(n); o < t.length && s < r.length && t.charAt(o) === r.charAt(s);) o += 1, s += 1;
+							var r = n.source, i = n.offset, a, o = 0, s = a = e._handleWhiteSpace(n), c;
+							for (; o < t.length && s < r.length && t.charAt(o) === r.charAt(s);) o += 1, s += 1;
 							return o === t.length ? new we(t, n.drop(s - i)) : (c = a === r.length ? `end of source` : "`" + r.charAt(a) + `'`, new Ee("`" + t + `' expected but ` + c + ` found`, n.drop(a - i)));
 						}));
 					}
@@ -836,8 +836,8 @@
 					value: function(e) {
 						if (e.toString().substring(0, 2) !== `/^`) throw "regex must start with `^' but " + e;
 						return new Oe((function(t) {
-							var n, r, i, a;
-							return n = t.source, r = t.offset, (i = e.exec(n.substring(r, n.length))) === null ? (a = r === n.length ? `end of source` : "`" + n.charAt(r) + `'`, new Ee(`string matching regex ` + e + ` expected but ` + a + ` found`, t)) : new we(i[0], t.drop(i[0].length));
+							var n = t.source, r = t.offset, i, a;
+							return (i = e.exec(n.substring(r, n.length))) === null ? (a = r === n.length ? `end of source` : "`" + n.charAt(r) + `'`, new Ee(`string matching regex ` + e + ` expected but ` + a + ` found`, t)) : new we(i[0], t.drop(i[0].length));
 						}));
 					}
 				},
@@ -846,8 +846,8 @@
 					value: function(t) {
 						if (t.toString().substring(0, 2) !== `/^`) throw "regex must start with `^' but " + t;
 						return new Oe((function(n) {
-							var r, i, a, o, s;
-							return r = n.source, i = n.offset, a = e._handleWhiteSpace(n), (o = t.exec(r.substring(a, r.length))) === null ? (s = a === r.length ? `end of source` : "`" + r.charAt(a) + `'`, new Ee(`string matching regex ` + t + ` expected but ` + s + ` found`, n.drop(a - i))) : new we(o[0], n.drop(a + o[0].length - i));
+							var r = n.source, i = n.offset, a = e._handleWhiteSpace(n), o, s;
+							return (o = t.exec(r.substring(a, r.length))) === null ? (s = a === r.length ? `end of source` : "`" + r.charAt(a) + `'`, new Ee(`string matching regex ` + t + ` expected but ` + s + ` found`, n.drop(a - i))) : new we(o[0], n.drop(a + o[0].length - i));
 						}));
 					}
 				},
@@ -855,8 +855,8 @@
 					key: `eos`,
 					value: function() {
 						return new Oe((function(t) {
-							var n, r;
-							return n = t.source, t.offset, r = e._handleWhiteSpace(t), n.length === r ? new we(``, t) : new Ee("end of source expected but `" + n.charAt(r) + `' found`, t);
+							var n = t.source, r;
+							return t.offset, r = e._handleWhiteSpace(t), n.length === r ? new we(``, t) : new Ee("end of source expected but `" + n.charAt(r) + `' found`, t);
 						}));
 					}
 				},
@@ -946,8 +946,8 @@
 					key: `rep1`,
 					value: function(e) {
 						return new Oe((function(t) {
-							var n, r, i, a;
-							if (n = [], r = t, (a = (i = e()).apply(t)) instanceof we) {
+							var n = [], r = t, i, a;
+							if ((a = (i = e()).apply(t)) instanceof we) {
 								for (; a instanceof we;) n.push(a.result), r = a.next, a = i.apply(r);
 								return new we(O.fromArray(n), r);
 							}
@@ -959,8 +959,8 @@
 					key: `repN`,
 					value: function(t, n) {
 						return t === 0 ? e.success(FP.List.empty) : new Oe((function(e) {
-							var r, i, a, o;
-							for (r = [], i = e, o = (a = n()).apply(i); o instanceof we;) {
+							var r = [], i = e, a, o = (a = n()).apply(i);
+							for (; o instanceof we;) {
 								if (r.push(o.result), i = o.next, t === r.length) return new we(O.fromArray(r), i);
 								o = a.apply(i);
 							}
@@ -1362,8 +1362,8 @@
 					value: function(t) {
 						var n = this;
 						return new e((function(e) {
-							var r, i;
-							return r = n.apply(e), i = t()(e), r.successful ? i.successful ? i.next.pos().isLessThan(r.next.pos()) ? r : i : r : i.successful ? i : r instanceof De || i.next.pos().isLessThan(r.next.pos()) ? r : i;
+							var r = n.apply(e), i = t()(e);
+							return r.successful ? i.successful ? i.next.pos().isLessThan(r.next.pos()) ? r : i : r : i.successful ? i : r instanceof De || i.next.pos().isLessThan(r.next.pos()) ? r : i;
 						})).named(`|||`);
 					}
 				},
@@ -1414,10 +1414,10 @@
 				{
 					key: `chain`,
 					value: function(e) {
-						var t, n;
-						return t = this, n = function() {
+						var t = this, n = function() {
 							return t;
-						}, k.chainl1(n, n, e);
+						};
+						return k.chainl1(n, n, e);
 					}
 				},
 				{
@@ -8782,8 +8782,8 @@
 					if (!(e instanceof t)) throw TypeError(`Cannot call a class as a function`);
 				})(this, e), t > n ? (this.start = n, this.end = t) : (this.start = t, this.end = n);
 			}
-			var t, n, r;
-			return t = e, (n = [
+			var t = e, n, r;
+			return (n = [
 				{
 					key: `difference`,
 					value: function(t) {
@@ -8822,8 +8822,8 @@
 					if (!(e instanceof t)) throw TypeError(`Cannot call a class as a function`);
 				})(this, e), this.shape = t, this.env = n;
 			}
-			var t, n, r;
-			return t = e, (n = [
+			var t = e, n, r;
+			return (n = [
 				{
 					key: `duplicateEnv`,
 					value: function() {
@@ -12683,8 +12683,8 @@
 				};
 			},
 			relativeEndPoint: function(e, t) {
-				var n;
-				return n = this.endPointDegree(e, this.relativeStartPointAngle(e)) / 180 * Math.PI, {
+				var n = this.endPointDegree(e, this.relativeStartPointAngle(e)) / 180 * Math.PI;
+				return {
 					x: t * Math.cos(n),
 					y: t * Math.sin(n)
 				};
@@ -13052,8 +13052,8 @@
 					if (s !== 0 || c !== 0) {
 						var l = new U.Point(a.x + .5 * s, a.y + .5 * c), u = Math.atan2(c, s), d = u + Math.PI / 2, f = n.twocellCurvatureEm.getOrElse(this.getDefaultCurvature()), p = Math.cos(d), m = Math.sin(d), h = this.getUpperControlPoint(a, o, l, f, p, m), g = this.getLowerControlPoint(a, o, l, f, p, m);
 						if (n.twocellShouldDrawCurve) {
-							var _, v;
-							if (v = (_ = n.twocellUpperCurveObjectSpacer) === void 0 ? new F.Object(O.empty, new F.ObjectBox.Dir(``, `-`)) : n.twocellUpperCurveObject === void 0 ? void 0 : n.twocellUpperCurveObject.getOrElse(void 0), this.toUpperCurveShape(e, a, h, o, _, v), n.lastCurve.isDefined) {
+							var _, v = (_ = n.twocellUpperCurveObjectSpacer) === void 0 ? new F.Object(O.empty, new F.ObjectBox.Dir(``, `-`)) : n.twocellUpperCurveObject === void 0 ? void 0 : n.twocellUpperCurveObject.getOrElse(void 0);
+							if (this.toUpperCurveShape(e, a, h, o, _, v), n.lastCurve.isDefined) {
 								n.angle = u;
 								var y = this.getUpperLabelPosition(a, o, l, f, p, m), b = this.getUpperLabelAngle(d, a, o, l, f, p, m);
 								n.twocellUpperLabel.foreach((function(t) {

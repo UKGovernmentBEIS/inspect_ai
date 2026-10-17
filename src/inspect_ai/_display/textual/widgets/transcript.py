@@ -3,6 +3,7 @@ from typing import Any, Callable, NamedTuple, Sequence, Type
 from pydantic import JsonValue
 from pydantic_core import to_json
 from rich.console import Group, RenderableType
+from rich.markup import escape
 from rich.table import Table
 from rich.text import Text
 from textual.containers import ScrollableContainer
@@ -35,6 +36,7 @@ from inspect_ai.event._review import ReviewEvent
 from inspect_ai.event._sample_init import SampleInitEvent
 from inspect_ai.event._sample_limit import SampleLimitEvent
 from inspect_ai.event._score import ScoreEvent
+from inspect_ai.event._sentinel import SentinelEvent
 from inspect_ai.event._span import SpanBeginEvent
 from inspect_ai.event._subtask import SubtaskEvent
 from inspect_ai.event._tool import ToolEvent
@@ -282,8 +284,15 @@ def render_tool_event(event: ToolEvent) -> EventDisplay | None:
     # treatment — the adjacent InterruptEvent already says what
     # happened; the natural-completion result body (if it raced in
     # before cancel propagated) is preserved in the eval log but
-    # suppressed from the live transcript.
-    if event.error is not None and event.error.type == "cancelled":
+    # suppressed from the live transcript. The `cancelled` + `failed`
+    # pair is the operator-cancel fingerprint (see ToolEvent._set_result);
+    # a call skipped by a halt_on_error tool also carries `cancelled` but
+    # has no InterruptEvent to explain it, so it stays visible.
+    if (
+        event.error is not None
+        and event.error.type == "cancelled"
+        and event.failed is True
+    ):
         return None
 
     # Skip pending tool events: the tool *call* is already visible
@@ -379,6 +388,28 @@ def render_review_event(event: ReviewEvent) -> EventDisplay:
     ]
 
     return EventDisplay("review", Group(*content))
+
+
+def render_sentinel_event(event: SentinelEvent) -> EventDisplay:
+    summary: str = event.action or event.kind
+    if event.status != "reported":
+        summary = f"{summary} ({event.status})"
+    if isinstance(event.suspicion, dict):
+        scores = ", ".join(f"{k} {v:.2f}" for k, v in event.suspicion.items())
+        summary = f"{summary}, suspicion {scores}"
+    elif event.suspicion is not None:
+        summary = f"{summary}, suspicion {event.suspicion:.2f}"
+    if event.error:
+        summary = f"{summary}: {event.error}"
+    if event.explanation:
+        summary = f"{summary} ({event.explanation})"
+    if event.message:
+        summary = f"{summary}, told the agent: {event.message}"
+    content: list[RenderableType] = [
+        f"[bold]{escape(event.path or event.factory)}[/bold]: {escape(summary)}"
+    ]
+
+    return EventDisplay(f"sentinel: {event.stage}", Group(*content))
 
 
 def render_info_event(event: InfoEvent) -> EventDisplay:
@@ -494,6 +525,7 @@ _renderers: list[tuple[Type[Event], EventRenderer]] = [
     (InputEvent, render_input_event),
     (ApprovalEvent, render_approval_event),
     (ReviewEvent, render_review_event),
+    (SentinelEvent, render_sentinel_event),
     (InfoEvent, render_info_event),
     (BranchEvent, render_branch_event),
     (CompactionEvent, render_compaction_event),
