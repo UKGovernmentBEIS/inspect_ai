@@ -148,9 +148,9 @@ def test_comma_lists_and_yaml_values(
     raw: str, expected: object, force_str: bool
 ) -> None:
     """Only plain strings use the comma-separated list shorthand."""
-    assert parse_cli_args(
-        [f"label={raw}"], force_str=force_str
-    ) == {"label": str(expected) if force_str else expected}
+    assert parse_cli_args([f"label={raw}"], force_str=force_str) == {
+        "label": str(expected) if force_str else expected
+    }
 
 
 def test_process_common_options_env_quoted_commas(
