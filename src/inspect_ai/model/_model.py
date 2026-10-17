@@ -1711,22 +1711,34 @@ class Model:
             complete(output, call)
 
             # record usage
-            if output.usage:
-                record_and_check_model_usage(
-                    self, output.usage, role=self.role, output=output
-                )
+            try:
+                if output.usage:
+                    record_and_check_model_usage(
+                        self, output.usage, role=self.role, output=output
+                    )
 
-                # send telemetry to hooks
-                await emit_model_usage(
-                    model_name=str(self), usage=output.usage, call_duration=output.time
-                )
-                await send_telemetry_legacy(
-                    "model_usage",
-                    json.dumps(dict(model=str(self), usage=output.usage.model_dump())),
-                )
+                    # send telemetry to hooks
+                    await emit_model_usage(
+                        model_name=str(self),
+                        usage=output.usage,
+                        call_duration=output.time,
+                    )
+                    await send_telemetry_legacy(
+                        "model_usage",
+                        json.dumps(
+                            dict(model=str(self), usage=output.usage.model_dump())
+                        ),
+                    )
 
-            if cache_policy and cache_entry:
-                cache_store(entry=cache_entry, output=output)
+                if cache_policy and cache_entry:
+                    cache_store(entry=cache_entry, output=output)
+            except BaseException:
+                # generate() is the one that clears the defer flag after it
+                # stamps timing. A limit check here aborts before that, so
+                # deliver the completion snapshot once before the error
+                # propagates.
+                _emit_deferred_model_hook(event)
+                raise
 
             return output, event
 
@@ -3075,6 +3087,16 @@ def init_role_usage(initial_usage: dict[str, ModelUsage] | None = None) -> None:
 
 def init_sample_role_usage() -> None:
     sample_role_usage_context_var.set({})
+
+
+def _emit_deferred_model_hook(event: BaseModel) -> None:
+    """Deliver a success snapshot that will not reach generate()'s timing update."""
+    from inspect_ai.event._model import ModelEvent
+    from inspect_ai.log._transcript import transcript
+
+    if isinstance(event, ModelEvent) and event._defer_sample_hook:
+        event._defer_sample_hook = False
+        transcript()._event_updated(event)
 
 
 def _check_limits_before_dispatch() -> None:
