@@ -11,6 +11,7 @@ from inspect_ai._util.constants import DESERIALIZING, MESSAGE_CACHE
 from inspect_ai._util.content import Content, ContentText
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.metadata import MT, metadata_as
+from inspect_ai._util.model_validator import model_wrap_validator
 from inspect_ai.tool import ToolCall
 from inspect_ai.tool._tool_call import ToolCallError
 
@@ -56,7 +57,7 @@ class ChatMessageBase(BaseModel):
         if self.id is None and not is_deserializing:
             self.id = uuid()
 
-    @model_validator(mode="wrap")
+    @model_wrap_validator
     @classmethod
     def _wrap(
         cls,
@@ -117,16 +118,26 @@ class ChatMessageBase(BaseModel):
         engineering) often need to interact with chat messages with
         the assumption that they are a simple string. The text property
         sets text either to content directly (if it is a `str`) or to
-        the first text content item in the message (inserting one at
-        the beginning if necessary). If there are multiple text content
-        items in the message then after the set there will be only
+        the first text content item in the message, keeping its position
+        (appending one at the end if necessary). If there are multiple text
+        content items in the message then after the set there will be only
         one remaining (image content will remain).
         """
         if isinstance(self.content, str):
             self.content = text
         else:
-            all_other = [content for content in self.content if content.type != "text"]
-            self.content = all_other + [ContentText(text=text)]
+            first_text_idx: int | None = None
+            new_content: list[Content] = []
+            for item in self.content:
+                if item.type == "text":
+                    if first_text_idx is None:
+                        first_text_idx = len(new_content)
+                        new_content.append(ContentText(text=text))
+                else:
+                    new_content.append(item)
+            if first_text_idx is None:
+                new_content.append(ContentText(text=text))
+            self.content = new_content
 
     @property
     def content_list(self) -> list[Content]:

@@ -11,6 +11,11 @@ import json
 import pathlib
 import subprocess
 import sys
+from dataclasses import dataclass, field
+from html.parser import HTMLParser
+
+import pytest
+from markdown_it import MarkdownIt
 
 SCRIPTS_DIR = pathlib.Path(__file__).parents[1] / ".github" / "scripts"
 
@@ -488,7 +493,7 @@ def test_delta_growth_renders_marker_warning_row_and_footer() -> None:
     assert body is not None
     assert body.startswith(delta.MARKER)
     assert "⚠️ Suppression ledger grew: 0 → 1 (+1)" in body
-    assert "| <code>a.py</code> | <code>r</code> | +1 |" in body
+    assert "| <code>a&#46;py</code> | <code>r</code> | +1 |" in body
     assert "maintainer sign-off" in body
 
 
@@ -508,7 +513,7 @@ def test_delta_undescribed_only_change_still_renders() -> None:
         {"a.py": {"r": {"count": 1}}},
     )
     assert body is not None
-    assert "| <code>a.py</code> | <code>r</code> | ±0 (reason-less 1 → 0) |" in body
+    assert "| <code>a&#46;py</code> | <code>r</code> | ±0 (reason-less 1 → 0) |" in body
     assert "Reason-less (baselined) suppressions: 1 → 0" in body
 
 
@@ -522,11 +527,80 @@ def test_delta_warns_when_reasonless_count_grows_without_total_growth() -> None:
     assert "maintainer sign-off" in body
 
 
-def test_delta_escapes_untrusted_table_cell_text() -> None:
-    body = render({}, {"a`\n@team|.py": {"r`\n@team|": {"count": 1}}})
+@dataclass
+class RenderedCell:
+    """One rendered table-body cell: its text and the tags nested inside it."""
+
+    text: str = ""
+    tags: list[str] = field(default_factory=list)
+
+
+class _TableCells(HTMLParser):
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.rows: list[list[RenderedCell]] = []
+        self._cell: RenderedCell | None = None
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        if tag == "tr":
+            self.rows.append([])
+        elif tag == "td":
+            self._cell = RenderedCell()
+            self.rows[-1].append(self._cell)
+        elif self._cell is not None:
+            self._cell.tags.append(tag)
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag == "td":
+            self._cell = None
+
+    def handle_data(self, data: str) -> None:
+        if self._cell is not None:
+            self._cell.text += data
+
+
+def rendered_rows(body: str) -> list[list[RenderedCell]]:
+    """The comment body's table-body rows as GitHub-flavored Markdown renders them.
+
+    markdown-it-py (a runtime dependency) follows the CommonMark spec that
+    GitHub's renderer implements; its table rule is the GFM table extension.
+    """
+    markdown = MarkdownIt("commonmark").enable(["table", "strikethrough"])
+    parser = _TableCells()
+    parser.feed(markdown.render(body))
+    return [row for row in parser.rows if row]
+
+
+@pytest.mark.parametrize(
+    "key",
+    [
+        "src/inspect_ai/_util/file.py",
+        "type: ignore[assignment]",
+        "[docs](https://example.com)",
+        "<https://example.com> https://example.com www.example.com",
+        "*em* _em_ **strong** __strong__ ~~gone~~",
+        "`code` ``code`` ` lone",
+        "![img](https://example.com/x.png)",
+        "a`\n@team|.py",
+        "<b>bold</b> &amp; &#124; <!-- c --> </code>",
+        "a\\|b \\`c",
+        "a|b|c|d",
+    ],
+)
+def test_delta_renders_untrusted_table_cell_text_literally(key: str) -> None:
+    # Both the file path and the rule name come from PR-controlled source,
+    # so both cells must show the key as typed: no active link, emphasis,
+    # image or code span, no HTML from the value, and no extra cell or row.
+    body = render({}, {key: {key: {"count": 1}}})
     assert body is not None
-    assert "<code>a` @team&#124;.py</code>" in body
-    assert "<code>r` @team&#124;</code>" in body
+    rows = rendered_rows(body)
+    assert len(rows) == 1
+    file_cell, rule_cell, change_cell = rows[0]
+    literal = key.replace("\n", " ")
+    for cell in (file_cell, rule_cell):
+        assert cell.text == literal
+        assert cell.tags == ["code"]
+    assert change_cell.text == "+1"
 
 
 def test_delta_load_rejects_malformed_and_wrong_shape(

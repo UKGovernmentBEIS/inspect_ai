@@ -15,7 +15,13 @@ async def terminate_process_tree(
     process_group: bool = False,
     known_descendants: Iterable[psutil.Process] = (),
 ) -> None:
-    """Terminate a subprocess, known/discoverable descendants, and optional group members."""
+    """Terminate a subprocess, known/discoverable descendants, and optional group members.
+
+    With ``process_group=True`` the group is signalled by id even after the
+    leader has exited, so orphaned members still die. Once every member has
+    gone that id can be reused by an unrelated process, so callers must reach
+    this only at server shutdown, never from a per-sample path.
+    """
     pid = getattr(process, "pid", None)
     if pid is None:
         await _terminate_without_pid(process, timeout)

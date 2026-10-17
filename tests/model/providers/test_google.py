@@ -1,21 +1,29 @@
 import asyncio
 import base64
+import hashlib
 import time
-from typing import Any
+from pathlib import Path
+from typing import Any, NamedTuple
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import aiohttp
 import anyio
 import pytest
-from google.genai.errors import APIError
+from google.genai import Client
+from google.genai.errors import APIError, ClientError, ServerError
 from google.genai.types import (
     Blob,
     Candidate,
     Content,
+    File,
+    FileState,
     FinishReason,
     FunctionCall,
     FunctionCallingConfigMode,
+    FunctionResponse,
+    GenerateContentConfig,
     GenerateContentResponse,
+    GenerateContentResponseUsageMetadata,
     HttpOptions,
     JobState,
     Part,
@@ -29,16 +37,26 @@ from inspect_ai._util.content import (
     Content as InspectContent,
 )
 from inspect_ai._util.content import (
+    ContentDocument,
     ContentImage,
     ContentReasoning,
     ContentText,
 )
 from inspect_ai._util.error import PrerequisiteError
+from inspect_ai._util.kvstore import KVStore
+from inspect_ai.agent._bridge.google_api_impl import messages_from_google_contents
 from inspect_ai.dataset import Sample
-from inspect_ai.model import ChatMessageAssistant, ChatMessageTool
+from inspect_ai.model import (
+    ChatMessage,
+    ChatMessageAssistant,
+    ChatMessageTool,
+    ModelOutput,
+    messages_from_google,
+)
 from inspect_ai.model._chat_message import ChatMessageUser
 from inspect_ai.model._generate_config import BatchConfig, GenerateConfig
-from inspect_ai.model._model import RetryDecision
+from inspect_ai.model._model import ModelAPI, RetryDecision
+from inspect_ai.model._providers import google as google_provider
 from inspect_ai.model._providers._google_citations import (
     distribute_citations_to_text_parts,
 )
@@ -47,6 +65,8 @@ from inspect_ai.model._providers.google import (
     _malformed_function_message,
     _malformed_function_retry,
     _report_stream_part_delta,
+    as_chat_messages,
+    chat_content_to_part,
     completion_choice_from_candidate,
     content,
 )
@@ -64,6 +84,7 @@ from inspect_ai.scorer import includes
 from inspect_ai.solver import use_tools
 from inspect_ai.tool import (
     ToolCall,
+    ToolCallError,
     ToolInfo,
     ToolParam,
     ToolParams,
@@ -176,6 +197,342 @@ def test_completion_choice_multiple_function_calls():
         assert call.id.startswith("calculator_"), (
             f"ID should start with function name: {call.id}"
         )
+
+
+def test_completion_choice_drops_safety_decision():
+    """A safety_decision is not replayed, so its result needs no acknowledgement."""
+    candidate = Candidate(
+        content=Content(
+            role="model",
+            parts=[
+                Part(
+                    function_call=FunctionCall(
+                        name="purchase",
+                        args={
+                            "item": "espresso machine",
+                            "safety_decision": {
+                                "decision": "require_confirmation",
+                                "explanation": "A purchase.",
+                            },
+                        },
+                    )
+                ),
+            ],
+        ),
+        finish_reason=FinishReason.STOP,
+    )
+
+    choice = completion_choice_from_candidate("test-model", candidate)
+
+    assert choice.message.tool_calls is not None
+    assert choice.message.tool_calls[0].arguments == {"item": "espresso machine"}
+
+
+async def test_tool_result_sent_as_output() -> None:
+    message = ChatMessageTool(
+        content="2", tool_call_id="addition_1", function="addition"
+    )
+
+    google_content = await content(MagicMock(), message)
+
+    assert google_content.parts is not None
+    response = google_content.parts[0].function_response
+    assert response is not None
+    assert response.name == "addition"
+    assert response.response == {"output": "2"}
+
+
+async def test_tool_error_sent_as_error() -> None:
+    message = ChatMessageTool(
+        content="",
+        tool_call_id="addition_1",
+        function="addition",
+        error=ToolCallError("parsing", "x must be an integer"),
+    )
+
+    google_content = await content(MagicMock(), message)
+
+    assert google_content.parts is not None
+    response = google_content.parts[0].function_response
+    assert response is not None
+    assert response.response == {"error": "x must be an integer"}
+
+
+async def test_computer_tool_result_keeps_computer_use_shape() -> None:
+    message = ChatMessageTool(
+        content="clicked", tool_call_id="click_at_abc", function="computer"
+    )
+
+    google_content = await content(MagicMock(), message)
+
+    assert google_content.parts is not None
+    response = google_content.parts[0].function_response
+    assert response is not None
+    assert response.name == "click_at"
+    assert response.response == {
+        "content": "clicked",
+        "safety_acknowledgement": "true",
+        "url": "",
+    }
+
+
+SAFETY_DECISION = {"decision": "require_confirmation", "explanation": "A purchase."}
+
+
+def _function_responses(contents: list[Content]) -> list[dict[str, Any] | None]:
+    return [
+        part.function_response.response
+        for c in contents
+        for part in c.parts or []
+        if part.function_response is not None
+    ]
+
+
+@pytest.mark.parametrize(
+    "response,expected",
+    [
+        ({"output": "Order placed.", "safety_acknowledgement": "true"}, "output"),
+        ({"error": "Card declined.", "safety_acknowledgement": "true"}, "error"),
+    ],
+)
+async def test_imported_safety_decision_result_is_acknowledged(
+    response: dict[str, Any], expected: str
+) -> None:
+    messages = await messages_from_google(
+        [
+            Content(role="user", parts=[Part(text="Buy the espresso machine.")]),
+            Content(
+                role="model",
+                parts=[
+                    Part(
+                        function_call=FunctionCall(
+                            name="purchase",
+                            args={
+                                "item": "machine",
+                                "safety_decision": SAFETY_DECISION,
+                            },
+                        )
+                    )
+                ],
+            ),
+            Content(
+                role="user",
+                parts=[
+                    Part(
+                        function_response=FunctionResponse(
+                            name="purchase", response=response
+                        )
+                    )
+                ],
+            ),
+        ]
+    )
+
+    contents = await as_chat_messages(MagicMock(), messages)
+
+    assert _function_responses(contents) == [
+        {expected: response[expected], "safety_acknowledgement": "true"}
+    ]
+
+
+async def test_bridged_safety_decision_result_is_acknowledged() -> None:
+    messages = messages_from_google_contents(
+        [
+            {"role": "user", "parts": [{"text": "Buy the espresso machine."}]},
+            {
+                "role": "model",
+                "parts": [
+                    {
+                        "functionCall": {
+                            "name": "purchase",
+                            "args": {
+                                "item": "machine",
+                                "safety_decision": SAFETY_DECISION,
+                            },
+                        }
+                    }
+                ],
+            },
+            {
+                "role": "user",
+                "parts": [
+                    {
+                        "functionResponse": {
+                            "name": "purchase",
+                            "response": {"output": "Order placed."},
+                        }
+                    }
+                ],
+            },
+        ],
+        None,
+    )
+
+    contents = await as_chat_messages(MagicMock(), messages)
+
+    responses = _function_responses(contents)
+    assert len(responses) == 1
+    assert responses[0] is not None
+    assert responses[0]["safety_acknowledgement"] == "true"
+
+
+async def test_result_without_safety_decision_is_not_acknowledged() -> None:
+    messages: list[ChatMessage] = [
+        ChatMessageUser(content="What is 1 + 1?"),
+        ChatMessageAssistant(
+            content="",
+            tool_calls=[
+                ToolCall(id="addition_1", function="addition", arguments={"x": 1})
+            ],
+        ),
+        ChatMessageTool(content="2", tool_call_id="addition_1", function="addition"),
+    ]
+
+    contents = await as_chat_messages(MagicMock(), messages)
+
+    assert _function_responses(contents) == [{"output": "2"}]
+
+
+async def test_imported_result_matches_call_of_its_own_turn() -> None:
+    """An earlier unanswered call to the same function does not take the result."""
+    messages = await messages_from_google(
+        [
+            Content(role="user", parts=[Part(text="Buy the espresso machine.")]),
+            # a call whose result was cut from the history
+            Content(
+                role="model",
+                parts=[
+                    Part(
+                        function_call=FunctionCall(
+                            name="purchase", args={"item": "grinder"}
+                        )
+                    )
+                ],
+            ),
+            Content(role="user", parts=[Part(text="Buy the machine instead.")]),
+            Content(
+                role="model",
+                parts=[
+                    Part(
+                        function_call=FunctionCall(
+                            name="purchase",
+                            args={
+                                "item": "machine",
+                                "safety_decision": SAFETY_DECISION,
+                            },
+                        )
+                    )
+                ],
+            ),
+            Content(
+                role="user",
+                parts=[
+                    Part(
+                        function_response=FunctionResponse(
+                            name="purchase", response={"output": "Order placed."}
+                        )
+                    )
+                ],
+            ),
+        ]
+    )
+
+    contents = await as_chat_messages(MagicMock(), messages)
+
+    assert _function_responses(contents) == [
+        {"output": "Order placed.", "safety_acknowledgement": "true"}
+    ]
+
+
+async def test_count_tokens_acknowledges_safety_decision() -> None:
+    mock_client = _create_mock_google_count_tokens_client()
+    messages: list[ChatMessage] = [
+        ChatMessageUser(content="Buy the espresso machine."),
+        ChatMessageAssistant(
+            content="",
+            tool_calls=[
+                ToolCall(
+                    id="purchase_1",
+                    function="purchase",
+                    arguments={"item": "machine", "safety_decision": SAFETY_DECISION},
+                )
+            ],
+        ),
+        ChatMessageTool(
+            content="Order placed.", tool_call_id="purchase_1", function="purchase"
+        ),
+    ]
+
+    with patch("inspect_ai.model._providers.google.Client", return_value=mock_client):
+        api = GoogleGenAIAPI(
+            model_name="gemini-3-flash-preview", base_url=None, api_key="test-key"
+        )
+        assert await api.count_tokens(messages) == 7
+
+    contents = mock_client.aio.models.count_tokens.call_args.kwargs["contents"]
+    assert _function_responses(contents) == [
+        {"output": "Order placed.", "safety_acknowledgement": "true"}
+    ]
+
+
+@skip_if_no_google
+async def test_replayed_safety_decision_is_acknowledged_live() -> None:
+    """Gemini 3 rejects a replayed safety_decision whose result is not acknowledged."""
+    from inspect_ai.model import get_model
+    from inspect_ai.tool._tools._computer._computer import _COMPUTER_TOOL_PARAMETERS
+
+    model = "gemini-3-flash-preview"
+    choice = completion_choice_from_candidate(
+        model,
+        Candidate(
+            content=Content(
+                role="model",
+                parts=[
+                    Part(
+                        function_call=FunctionCall(
+                            name="purchase", args={"item": "espresso machine"}
+                        ),
+                        thought_signature=b"skip_thought_signature_validator",
+                    )
+                ],
+            ),
+            finish_reason=FinishReason.STOP,
+        ),
+    )
+    assert choice.message.tool_calls is not None
+    tool_call = choice.message.tool_calls[0]
+    # as kept by a history imported from elsewhere
+    tool_call.arguments["safety_decision"] = SAFETY_DECISION
+    messages: list[ChatMessage] = [
+        ChatMessageUser(content="Buy the espresso machine with the purchase tool."),
+        choice.message,
+        ChatMessageTool(
+            content="Order placed.", tool_call_id=tool_call.id, function="purchase"
+        ),
+    ]
+    tools = [
+        ToolInfo(
+            name="purchase",
+            description="Buy an item and charge the user's card.",
+            parameters=ToolParams(
+                properties={"item": ToolParam(type="string")}, required=["item"]
+            ),
+        ),
+        ToolInfo(
+            name="computer",
+            description="Use a computer.",
+            parameters=ToolParams(
+                properties={
+                    k: ToolParam(type="string") for k in _COMPUTER_TOOL_PARAMETERS
+                }
+            ),
+        ),
+    ]
+
+    output = await get_model(f"google/{model}").generate(messages, tools=tools)
+
+    assert output.error is None
+    assert output.completion
 
 
 def test_completion_choice_inline_data_image():
@@ -751,6 +1108,114 @@ async def test_google_count_tokens_none_config_uses_default_http_timeout() -> No
     assert http_options.timeout == 3_600_000
 
 
+def _capture_google_warnings(monkeypatch: pytest.MonkeyPatch) -> list[str]:
+    import inspect_ai._util.logger as logger_module
+    import inspect_ai.model._providers.google as google_module
+
+    warnings: list[str] = []
+    monkeypatch.setattr(logger_module, "_warned", [])
+    monkeypatch.setattr(google_module.logger, "warning", warnings.append)
+    return warnings
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    "input",
+    ["Hello world", [ChatMessageUser(content="Hello world")]],
+    ids=["str", "messages"],
+)
+async def test_google_count_tokens_falls_back_when_endpoint_unavailable(
+    input: str | list[ChatMessage], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    warnings = _capture_google_warnings(monkeypatch)
+    mock_client = _create_mock_google_count_tokens_client()
+    mock_client.aio.models.count_tokens.side_effect = ClientError(
+        404, {"error": {"code": 404, "message": "Not Found"}}
+    )
+
+    with patch("inspect_ai.model._providers.google.Client", return_value=mock_client):
+        api = GoogleGenAIAPI(
+            model_name="gemini-2.0-flash", base_url=None, api_key="test-key"
+        )
+        expected = await ModelAPI.count_tokens(api, input)
+        assert await api.count_tokens(input) == expected
+        # endpoint is not called again once it has returned 404
+        assert await api.count_tokens(input) == expected
+
+    assert mock_client.aio.models.count_tokens.await_count == 1
+    assert len(warnings) == 1
+    assert "not available" in warnings[0]
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    "error",
+    [
+        ClientError(400, {"error": {"code": 400, "message": "Bad request"}}),
+        ClientError(403, {"error": {"code": 403, "message": "Forbidden"}}),
+    ],
+    ids=["400", "403"],
+)
+async def test_google_count_tokens_falls_back_on_non_retryable_errors(
+    error: APIError, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    warnings = _capture_google_warnings(monkeypatch)
+    mock_client = _create_mock_google_count_tokens_client()
+    mock_client.aio.models.count_tokens.side_effect = error
+
+    with patch("inspect_ai.model._providers.google.Client", return_value=mock_client):
+        api = GoogleGenAIAPI(
+            model_name="gemini-2.0-flash", base_url=None, api_key="test-key"
+        )
+        expected = await ModelAPI.count_tokens(api, "Hello world")
+        assert await api.count_tokens("Hello world") == expected
+        # not memoized: the endpoint is tried again on the next call
+        assert await api.count_tokens("Hello world") == expected
+
+    assert mock_client.aio.models.count_tokens.await_count == 2
+    assert len(warnings) == 1
+    assert str(error.code) in warnings[0]
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    "error",
+    [
+        ClientError(401, {"error": {"code": 401, "message": "Unauthorized"}}),
+        ClientError(429, {"error": {"code": 429, "message": "Too many requests"}}),
+        ServerError(503, {"error": {"code": 503, "message": "Unavailable"}}),
+    ],
+    ids=["401", "429", "503"],
+)
+async def test_google_count_tokens_propagates_retryable_and_auth_errors(
+    error: APIError,
+) -> None:
+    mock_client = _create_mock_google_count_tokens_client()
+    mock_client.aio.models.count_tokens.side_effect = error
+
+    with patch("inspect_ai.model._providers.google.Client", return_value=mock_client):
+        api = GoogleGenAIAPI(
+            model_name="gemini-2.0-flash", base_url=None, api_key="test-key"
+        )
+        with pytest.raises(APIError) as exc_info:
+            await api.count_tokens("Hello world")
+
+    assert exc_info.value is error
+
+
+@pytest.mark.anyio
+async def test_google_count_tokens_propagates_non_api_errors() -> None:
+    mock_client = _create_mock_google_count_tokens_client()
+    mock_client.aio.models.count_tokens.side_effect = ValueError("boom")
+
+    with patch("inspect_ai.model._providers.google.Client", return_value=mock_client):
+        api = GoogleGenAIAPI(
+            model_name="gemini-2.0-flash", base_url=None, api_key="test-key"
+        )
+        with pytest.raises(ValueError, match="boom"):
+            await api.count_tokens("Hello world")
+
+
 @pytest.mark.anyio
 async def test_google_generate_preserves_request_extra_headers() -> None:
     mock_generate = AsyncMock(return_value=GenerateContentResponse(candidates=[]))
@@ -889,6 +1354,154 @@ async def test_malformed_function_call_retry_adds_feedback_messages():
         roles = [c.role for c in contents]
         assert "model" in roles
         assert "user" in roles
+
+
+async def test_function_tools_add_no_system_instruction():
+    mock_generate = AsyncMock(return_value=_create_success_response_with_tool_call())
+    mock_client = _create_mock_google_client(mock_generate)
+
+    with patch("inspect_ai.model._providers.google.Client", return_value=mock_client):
+        api = GoogleGenAIAPI(
+            model_name="gemini-2.5-pro", base_url=None, api_key="test-key"
+        )
+        await api.generate(
+            input=[ChatMessageUser(content="Call my_tool")],
+            tools=[_create_test_tool()],
+            tool_choice="auto",
+            config=GenerateConfig(),
+        )
+
+    config = mock_generate.call_args.kwargs["config"]
+    assert config.tools
+    assert config.system_instruction is None
+
+
+def _with_usage(
+    response: GenerateContentResponse, prompt: int, candidates: int, thoughts: int
+) -> GenerateContentResponse:
+    response.usage_metadata = GenerateContentResponseUsageMetadata(
+        prompt_token_count=prompt,
+        cached_content_token_count=1,
+        candidates_token_count=candidates,
+        thoughts_token_count=thoughts,
+        total_token_count=prompt + candidates + thoughts,
+    )
+    return response
+
+
+@pytest.mark.anyio
+async def test_malformed_function_call_retry_sums_usage():
+    """Usage covers every billed attempt of the retry loop, not just the last."""
+    mock_generate = AsyncMock(
+        side_effect=[
+            _with_usage(_create_malformed_response(), 10, 2, 3),
+            _with_usage(_create_malformed_response(), 20, 4, 5),
+            _with_usage(_create_success_response_with_tool_call(), 30, 6, 7),
+        ]
+    )
+    mock_client = _create_mock_google_client(mock_generate)
+
+    with patch("inspect_ai.model._providers.google.Client", return_value=mock_client):
+        api = GoogleGenAIAPI(
+            model_name="gemini-2.0-flash",
+            base_url=None,
+            api_key="test-key",
+        )
+
+        output, _ = await api.generate(
+            input=[ChatMessageUser(content="Call my_tool")],
+            tools=[_create_test_tool()],
+            tool_choice="auto",
+            config=GenerateConfig(),
+        )
+
+    assert mock_generate.call_count == 3
+    assert output.choices[0].message.tool_calls is not None
+    assert output.usage is not None
+    # input excludes the 1 cached token per request
+    assert output.usage.input_tokens == 9 + 19 + 29
+    assert output.usage.input_tokens_cache_read == 3
+    assert output.usage.output_tokens == 5 + 9 + 13
+    assert output.usage.reasoning_tokens == 3 + 5 + 7
+    assert output.usage.total_tokens == 15 + 29 + 43
+    # the context size is the first attempt's prompt, not the sum
+    assert output.input_context_tokens == 10
+
+
+@pytest.mark.anyio
+async def test_malformed_function_call_retry_exhausted_sums_usage():
+    """When every attempt is malformed, usage still covers all of them once."""
+    mock_generate = AsyncMock(
+        side_effect=[
+            _with_usage(_create_malformed_response(), 10, 2, 0),
+            _with_usage(_create_malformed_response(), 20, 4, 0),
+            _with_usage(_create_malformed_response(), 30, 6, 0),
+        ]
+    )
+    mock_client = _create_mock_google_client(mock_generate)
+
+    with patch("inspect_ai.model._providers.google.Client", return_value=mock_client):
+        api = GoogleGenAIAPI(
+            model_name="gemini-2.0-flash",
+            base_url=None,
+            api_key="test-key",
+        )
+
+        output, _ = await api.generate(
+            input=[ChatMessageUser(content="Call my_tool")],
+            tools=[_create_test_tool()],
+            tool_choice="auto",
+            config=GenerateConfig(),
+        )
+
+    assert mock_generate.call_count == 3
+    assert output.usage is not None
+    assert output.usage.input_tokens == 9 + 19 + 29
+    assert output.usage.output_tokens == 2 + 4 + 6
+    assert output.usage.total_tokens == 12 + 24 + 36
+    assert output.input_context_tokens == 10
+
+
+@pytest.mark.anyio
+async def test_malformed_function_call_retry_error_keeps_earlier_usage():
+    """A retry rejected as too long keeps the usage of the attempts before it."""
+    mock_generate = AsyncMock(
+        side_effect=[
+            _with_usage(_create_malformed_response(), 10, 2, 0),
+            ClientError(
+                400,
+                {
+                    "error": {
+                        "code": 400,
+                        "message": "input exceeds the maximum number of tokens",
+                        "status": "INVALID_ARGUMENT",
+                    }
+                },
+            ),
+        ]
+    )
+    mock_client = _create_mock_google_client(mock_generate)
+
+    with patch("inspect_ai.model._providers.google.Client", return_value=mock_client):
+        api = GoogleGenAIAPI(
+            model_name="gemini-2.0-flash",
+            base_url=None,
+            api_key="test-key",
+        )
+
+        output, _ = await api.generate(
+            input=[ChatMessageUser(content="Call my_tool")],
+            tools=[_create_test_tool()],
+            tool_choice="auto",
+            config=GenerateConfig(),
+        )
+
+    assert isinstance(output, ModelOutput)
+    assert output.stop_reason == "model_length"
+    assert output.usage is not None
+    assert output.usage.input_tokens == 9
+    assert output.usage.output_tokens == 2
+    assert output.input_context_tokens == 10
 
 
 # Tests for count_tokens with unpaired tool messages
@@ -2108,3 +2721,242 @@ def test_model_client_preserves_verify_false_for_aiohttp() -> None:
     client = api.model_client(HttpOptions(client_args={"verify": False}))
 
     assert client._api_client._async_client_session_request_args["ssl"] is False
+
+
+class _FakeFiles:
+    """Records Files API uploads and serves them back by name."""
+
+    def __init__(self) -> None:
+        self.files: dict[str, File] = {}
+        self.uploads: list[str] = []
+        self.gets: list[str] = []
+
+    def upload(self, *, file: Any, config: dict[str, Any]) -> File:
+        name = f"files/{len(self.files)}"
+        self.files[name] = File(
+            name=name,
+            uri=f"https://example.com/{name}",
+            mime_type=config["mime_type"],
+            state=FileState.ACTIVE,
+        )
+        self.uploads.append(config["mime_type"])
+        return self.files[name]
+
+    def get(self, *, name: str) -> File:
+        self.gets.append(name)
+        return self.files[name]
+
+
+class _GoogleFiles(NamedTuple):
+    client: Client
+    files: _FakeFiles
+    db_path: Path
+
+
+@pytest.fixture
+def google_files(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> _GoogleFiles:
+    db_path = tmp_path / "google_files.db"
+    monkeypatch.setattr(
+        google_provider,
+        "inspect_kvstore",
+        lambda name, max_entries=None: KVStore(db_path.as_posix(), max_entries),
+    )
+    client = Client(api_key="test-key")
+    fake = _FakeFiles()
+    monkeypatch.setattr(client, "_files", fake)
+    return _GoogleFiles(client, fake, db_path)
+
+
+def _document(mime_type: str, data: bytes = b"a,b\n1,2\n") -> ContentDocument:
+    return ContentDocument(
+        document=f"data:{mime_type};base64,{base64.b64encode(data).decode()}"
+    )
+
+
+async def test_google_files_cache_keys_on_mime_type(
+    google_files: _GoogleFiles,
+) -> None:
+    client, fake, _ = google_files
+    csv_part = await chat_content_to_part(client, _document("text/csv"))
+    text_part = await chat_content_to_part(client, _document("text/plain"))
+
+    assert fake.uploads == ["text/csv", "text/plain"]
+    assert csv_part.file_data and text_part.file_data
+    assert csv_part.file_data.mime_type == "text/csv"
+    assert text_part.file_data.mime_type == "text/plain"
+    assert csv_part.file_data.file_uri != text_part.file_data.file_uri
+
+
+async def test_google_files_cache_reuses_same_bytes_and_mime_type(
+    google_files: _GoogleFiles,
+) -> None:
+    client, fake, _ = google_files
+    first = await chat_content_to_part(client, _document("text/csv"))
+    second = await chat_content_to_part(client, _document("text/csv"))
+
+    assert fake.uploads == ["text/csv"]
+    assert fake.gets == ["files/0"]
+    assert first.file_data and second.file_data
+    assert first.file_data.file_uri == second.file_data.file_uri
+    assert second.file_data.mime_type == "text/csv"
+
+
+async def test_google_files_cache_ignores_old_format_entries(
+    google_files: _GoogleFiles,
+) -> None:
+    client, fake, db_path = google_files
+    data = b"a,b\n1,2\n"
+    # an entry written by the previous cache, keyed by the bytes' sha256 only
+    old = fake.upload(file=None, config={"mime_type": "text/csv"})
+    fake.uploads.clear()
+    with KVStore(db_path.as_posix()) as files_db:
+        files_db.put(hashlib.sha256(data).hexdigest(), str(old.name))
+
+    part = await chat_content_to_part(client, _document("text/csv", data))
+
+    assert fake.gets == []
+    assert fake.uploads == ["text/csv"]
+    assert part.file_data and part.file_data.mime_type == "text/csv"
+    assert part.file_data.file_uri != old.uri
+
+
+async def test_google_files_cache_scoped_to_api_key(
+    google_files: _GoogleFiles, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    client, fake, db_path = google_files
+    await chat_content_to_part(client, _document("text/csv"))
+    other_client = Client(api_key="other-key")
+    monkeypatch.setattr(other_client, "_files", fake)
+    await chat_content_to_part(other_client, _document("text/csv"))
+
+    assert fake.uploads == ["text/csv", "text/csv"]
+    assert fake.gets == []
+    with KVStore(db_path.as_posix()) as files_db:
+        rows = files_db.conn.execute("SELECT key, value FROM kv_store").fetchall()
+    assert len(rows) == 2
+    stored = " ".join(" ".join(row) for row in rows)
+    assert "test-key" not in stored and "other-key" not in stored
+
+
+@pytest.mark.anyio
+async def test_google_output_records_response_id() -> None:
+    mock_generate = AsyncMock(
+        return_value=GenerateContentResponse(candidates=[], response_id="g-response")
+    )
+    mock_client = _create_mock_google_client(mock_generate)
+
+    with patch("inspect_ai.model._providers.google.Client", return_value=mock_client):
+        api = GoogleGenAIAPI(
+            model_name="gemini-2.0-flash",
+            base_url=None,
+            api_key="test-key",
+        )
+        result = await api.generate(
+            input=[ChatMessageUser(content="Hello")],
+            tools=[],
+            tool_choice="none",
+            config=GenerateConfig(),
+        )
+
+    assert isinstance(result, tuple)
+    output, _ = result
+    assert isinstance(output, ModelOutput)
+    assert output.response_id == "g-response"
+
+
+@pytest.mark.anyio
+async def test_google_streamed_response_keeps_response_id() -> None:
+    async def chunks() -> Any:
+        for text in ["hel", "lo"]:
+            yield GenerateContentResponse(
+                candidates=[
+                    Candidate(
+                        content=Content(parts=[Part(text=text)], role="model"),
+                        index=0,
+                    )
+                ],
+                response_id="g-stream-response",
+            )
+
+    client = MagicMock()
+    client.aio.models.generate_content_stream = AsyncMock(return_value=chunks())
+    api = GoogleGenAIAPI(
+        model_name="gemini-2.0-flash", base_url=None, api_key="test-key"
+    )
+
+    response = await api._stream_generate_content(
+        client, "gemini-2.0-flash", [], GenerateContentConfig()
+    )
+
+    assert response.response_id == "g-stream-response"
+
+
+def test_google_explicit_api_key_overrides_ambient_adc(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An explicit API key must win over GOOGLE_USE_ADC's ambient default."""
+    monkeypatch.setenv("GOOGLE_USE_ADC", "true")
+    monkeypatch.setenv("GOOGLE_API_KEY", "ambient-key")
+
+    def unexpected_adc_resolution(*_args: Any, **_kwargs: Any) -> Any:
+        pytest.fail(
+            "ambient ADC should not be resolved when an explicit API key is supplied"
+        )
+
+    monkeypatch.setattr(
+        "inspect_ai.model._providers.google.resolve_google_credentials",
+        unexpected_adc_resolution,
+    )
+
+    api = GoogleGenAIAPI(
+        model_name="gemini-2.0-flash",
+        base_url=None,
+        api_key="explicit-key",
+    )
+
+    assert api.api_key == "explicit-key"
+    assert api._oauth is False
+
+
+def test_google_ambient_adc_overrides_environment_api_key(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Ambient ADC must take precedence over an API key found only in the environment."""
+    monkeypatch.setenv("GOOGLE_USE_ADC", "true")
+    monkeypatch.setenv("GOOGLE_API_KEY", "ambient-key")
+    credentials = MagicMock()
+    monkeypatch.setattr(
+        "inspect_ai.model._providers.google.resolve_google_credentials",
+        lambda *_args, **_kwargs: credentials,
+    )
+
+    api = GoogleGenAIAPI(
+        model_name="gemini-2.0-flash",
+        base_url=None,
+        api_key=None,
+    )
+
+    assert api._oauth is True
+    assert api._credentials is credentials
+
+
+def test_google_explicit_use_adc_overrides_api_key(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An explicit use_adc=true remains authoritative over a supplied API key."""
+    monkeypatch.setenv("GOOGLE_USE_ADC", "false")
+    credentials = MagicMock()
+    monkeypatch.setattr(
+        "inspect_ai.model._providers.google.resolve_google_credentials",
+        lambda *_args, **_kwargs: credentials,
+    )
+
+    api = GoogleGenAIAPI(
+        model_name="gemini-2.0-flash",
+        base_url=None,
+        api_key="explicit-key",
+        use_adc=True,
+    )
+
+    assert api._oauth is True
+    assert api._credentials is credentials

@@ -1,13 +1,15 @@
 import json
 import tempfile
 from pathlib import Path
-from typing import Generator
+from sqlite3 import Connection
+from typing import Generator, Iterator
 
 import pytest
 
 from inspect_ai.event._model import ModelEvent
 from inspect_ai.log._log import EvalSampleSummary
 from inspect_ai.log._recorders.buffer import SampleBufferDatabase
+from inspect_ai.log._recorders.buffer.types import MessagePoolData
 from inspect_ai.log._recorders.types import SampleEvent
 from inspect_ai.model._chat_message import ChatMessageAssistant, ChatMessageUser
 from inspect_ai.model._generate_config import GenerateConfig
@@ -521,3 +523,53 @@ def test_buffer_pool_dedup_uses_content_hash_not_msg_id(
     last = data.events[-1].event
     assert isinstance(last, dict)
     assert last["input_refs"] == [[0, 1], [0, 1]]
+
+
+def test_get_sample_data_is_consistent_with_concurrent_removal(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A reader in another process keeps one snapshot while the eval removes the sample.
+
+    Failure injection: the eval removes the sample (as it does once the sample is
+    flushed) after the reader has read the events but before it reads the pool.
+    """
+    writer = SampleBufferDatabase(location="test_location", db_dir=tmp_path)
+    writer.start_sample(
+        EvalSampleSummary(id="s1", epoch=1, input="test", target="target")
+    )
+    writer.log_events(
+        [
+            SampleEvent(
+                id="s1",
+                epoch=1,
+                event=_make_model_event([ChatMessageUser(content="Hello")]),
+            )
+        ]
+    )
+    reader = SampleBufferDatabase(
+        location="test_location", create=False, db_dir=tmp_path
+    )
+    get_message_pool = SampleBufferDatabase._get_message_pool
+
+    def remove_sample_then_get_message_pool(
+        self: SampleBufferDatabase,
+        conn: Connection,
+        id: str | int,
+        epoch: int,
+        after_id: int | None = None,
+    ) -> Iterator[MessagePoolData]:
+        writer.remove_samples([(id, epoch)])
+        return get_message_pool(self, conn, id, epoch, after_id)
+
+    monkeypatch.setattr(
+        SampleBufferDatabase, "_get_message_pool", remove_sample_then_get_message_pool
+    )
+    data = reader.get_sample_data("s1", 1)
+    monkeypatch.undo()
+    reader.close()
+    writer.cleanup()
+
+    assert data is not None
+    (event,) = data.events
+    assert event.event["input_refs"] == [[0, 1]]
+    assert len(data.message_pool) == 1

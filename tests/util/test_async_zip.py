@@ -12,7 +12,7 @@ import pytest
 from test_helpers.utils import skip_if_trio
 
 from inspect_ai._util.async_bytes_reader import adapt_to_reader
-from inspect_ai._util.async_zip import AsyncZipReader, CentralDirectory
+from inspect_ai._util.async_zip import AsyncZipReader, CentralDirectory, ZipCrcError
 from inspect_ai._util.asyncfiles import AsyncFilesystem
 from inspect_ai._util.compression_transcoding import _DeflateCompressStream
 from inspect_ai._util.zip_common import ZipCompressionMethod, ZipEntry
@@ -628,3 +628,94 @@ async def test_read_multi_frame_zstd_member(
     assert data == payload, (
         f"round-trip mismatch: wrote {len(payload)} bytes, read back {len(data)} bytes"
     )
+
+
+# --- opt-in CRC-32 verification (inspect ctl ... --log-dir) -------------------
+
+
+@pytest.fixture
+def crc_zip(tmp_path: Path) -> Path:
+    zip_path = tmp_path / "crc.zip"
+    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr("member.json", json.dumps({"value": "x" * 5000}))
+        zf.writestr("stored.txt", "stored bytes", compress_type=zipfile.ZIP_STORED)
+    return zip_path
+
+
+async def _stream(reader: AsyncZipReader, member: str | ZipEntry) -> bytes:
+    chunks = []
+    async with await reader.open_member(member) as stream:
+        async for chunk in stream:
+            chunks.append(chunk)
+    return b"".join(chunks)
+
+
+async def test_central_directory_keeps_member_crc(crc_zip: Path) -> None:
+    async with AsyncFilesystem() as fs:
+        cd = await AsyncZipReader(fs, str(crc_zip)).entries()
+    with zipfile.ZipFile(crc_zip) as zf:
+        expected = {info.filename: info.CRC for info in zf.infolist()}
+    assert {e.filename: e.crc32 for e in cd.entries} == expected
+
+
+@pytest.mark.parametrize("member", ["member.json", "stored.txt"])
+async def test_verify_crc_accepts_intact_members(crc_zip: Path, member: str) -> None:
+    async with AsyncFilesystem() as fs:
+        reader = AsyncZipReader(fs, str(crc_zip), verify_crc=True)
+        full = await reader.read_member_fully(member)
+        assert await _stream(reader, member) == full
+
+
+@pytest.mark.parametrize("member", ["member.json", "stored.txt"])
+async def test_verify_crc_rejects_a_mismatch_on_full_and_streamed_reads(
+    crc_zip: Path, member: str
+) -> None:
+    async with AsyncFilesystem() as fs:
+        reader = AsyncZipReader(fs, str(crc_zip), verify_crc=True)
+        entry = await reader.get_member_entry(member)
+        assert entry.crc32 is not None
+        # as if the member came from another version of the object
+        entry.crc32 ^= 1
+        with pytest.raises(ZipCrcError, match="CRC-32 mismatch"):
+            await reader.read_member_fully(member)
+        with pytest.raises(ZipCrcError, match="CRC-32 mismatch"):
+            await _stream(reader, member)
+
+
+async def test_crc_is_not_verified_by_default_or_for_raw_or_early_closed_reads(
+    crc_zip: Path,
+) -> None:
+    async with AsyncFilesystem() as fs:
+        default = AsyncZipReader(fs, str(crc_zip))
+        entry = await default.get_member_entry("member.json")
+        assert entry.crc32 is not None
+        entry.crc32 ^= 1
+        # existing callers are unchanged
+        assert await default.read_member_fully("member.json")
+        assert await _stream(default, "member.json")
+
+        verifying = AsyncZipReader(
+            fs, str(crc_zip), verify_crc=True, central_directory=await default.entries()
+        )
+        # raw bytes are compressed, so the CRC does not apply to them
+        async with await verifying.open_member_raw("member.json") as raw:
+            assert b"".join([chunk async for chunk in raw])
+        # a stream closed before its end is never validated (and raises nothing)
+        async with await verifying.open_member("member.json") as stream:
+            async for _ in stream:
+                break
+
+
+async def test_reader_reuses_a_given_central_directory(
+    crc_zip: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async with AsyncFilesystem() as fs:
+        cd = await AsyncZipReader(fs, str(crc_zip)).entries()
+
+        async def no_suffix_read(*args: object) -> None:
+            raise AssertionError("central directory re-read")
+
+        monkeypatch.setattr(fs, "read_file_suffix", no_suffix_read)
+        reader = AsyncZipReader(fs, str(crc_zip), central_directory=cd)
+        assert await reader.entries() is cd
+        assert json.loads(await reader.read_member_fully("member.json"))["value"]

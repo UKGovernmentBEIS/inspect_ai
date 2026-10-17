@@ -38,6 +38,8 @@ async def test_openai_async_client_respects_http_proxy(monkeypatch: pytest.Monke
     proxy_url = "http://127.0.0.1:9"
     for key in ("http_proxy", "HTTP_PROXY", "https_proxy", "HTTPS_PROXY"):
         monkeypatch.setenv(key, proxy_url)
+    for key in ("no_proxy", "NO_PROXY"):
+        monkeypatch.setenv(key, "")
 
     with _http_server() as port:
         async with DefaultAsyncHttpxClient() as client:

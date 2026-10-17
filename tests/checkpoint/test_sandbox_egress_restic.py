@@ -58,6 +58,7 @@ from inspect_ai.util._checkpoint._sandbox_restic.egress import (
     ingress_sandbox,
 )
 from inspect_ai.util._restic import ResticBackupSummary, resolve_restic
+from inspect_ai.util._sandbox._framework_directory import FrameworkDirectoryError
 from inspect_ai.util._subprocess import ExecResult
 
 # Slow for the same reason as tests/checkpoint/test_restore_repo.py: the
@@ -66,6 +67,12 @@ from inspect_ai.util._subprocess import ExecResult
 # invocations. Keep anything that needs neither out of this file so it stays
 # in the PR gate (see `_remove_files` in test_sandbox_egress_extract.py).
 pytestmark = pytest.mark.slow
+
+
+@pytest.fixture(autouse=True)
+def _rootless(rootless_sandbox_dir: None) -> None:
+    """Every test here drives ingress through the shell fake (see conftest)."""
+
 
 PASSWORD = "test-password"
 CHUNK = 64 * 1024
@@ -614,7 +621,8 @@ class _FreshSandbox:
         self.host_repo = tmp_path / "adopted"
         shutil.copytree(repos.repo, self.host_repo)
         self.sandbox_dir = tmp_path / "fresh-sandbox"
-        self.sandbox_dir.mkdir()
+        # Ingress adopts the tool dir only in the private mode it requires.
+        self.sandbox_dir.mkdir(mode=0o700)
         (self.sandbox_dir / "restic").symlink_to(repos.restic)
         self.env = _CountingSandbox()
 
@@ -915,6 +923,32 @@ async def test_ingress_reports_unknown_snapshot_with_restic_error(
     with pytest.raises(RuntimeError, match="restic ls failed"):
         await fresh.ingress("f" * 64)
     assert fresh.env.execs == 0
+
+
+@pytest.mark.slow
+@pytest.mark.skipif(
+    sys.platform != "linux",
+    reason="the directory verification script needs GNU/BusyBox stat",
+)
+async def test_ingress_refuses_untrusted_sandbox_dir(
+    repos: _Repos, tmp_path: Path
+) -> None:
+    """A tool dir that fails the root-only contract is refused before the repo lands.
+
+    The host-side scope check passes (it is the recorded snapshot), so the
+    directory check is the first and only exec: nothing is extracted into
+    the wider-than-0700 directory and no restore runs.
+    """
+    id1 = repos.backup("ckpt-00001")
+    fresh = _FreshSandbox(repos, tmp_path)
+    fresh.sandbox_dir.chmod(0o755)
+    (repos.src / "notes.txt").unlink()
+
+    with pytest.raises(FrameworkDirectoryError, match="mode 755"):
+        await fresh.ingress(id1)
+    assert fresh.env.execs == 1
+    assert not (fresh.sandbox_dir / "repo").exists()
+    assert not (repos.src / "notes.txt").exists()
 
 
 @pytest.mark.slow

@@ -1,10 +1,12 @@
 import re
 import string
+from collections import Counter
 from typing import Callable, List
 
 from inspect_ai._util.text import is_finite_number, strip_punctuation
 from inspect_ai.solver._task_state import TaskState
 
+from ._common import no_response
 from ._metric import CORRECT, INCORRECT, Score
 from ._metrics import mean, stderr
 from ._scorer import Scorer, scorer
@@ -35,6 +37,9 @@ def f1(
         return Score(
             value=f1_score,
             answer=answer,
+            reason="no_response"
+            if no_response(state.output.completion or "")
+            else None,
         )
 
     return score
@@ -53,7 +58,13 @@ def exact() -> Scorer:
         targets = target.target
 
         exact_score = max_exact_score(answer, targets)
-        return Score(value=CORRECT if exact_score == 1.0 else INCORRECT, answer=answer)
+        return Score(
+            value=CORRECT if exact_score == 1.0 else INCORRECT,
+            answer=answer,
+            reason="no_response"
+            if no_response(state.output.completion or "")
+            else None,
+        )
 
     return score
 
@@ -64,7 +75,9 @@ def max_f1_score(
     # Find the maximum F1 score for this answer
     max_f1 = 0.0
     for target in targets:
-        if target.strip():
+        # A target with no words after normalization (e.g. "a", "the")
+        # carries no scorable content; skip it like an empty target.
+        if _to_word_counts(target, stop_words):
             f1_score = compute_f1(answer, target, stop_words)
             max_f1 = max(max_f1, f1_score)
     return round(max_f1, 2)
@@ -75,8 +88,10 @@ def max_exact_score(answer: str, targets: List[str]) -> float:
     max_exact = 0.0
     answer_norm = _normalize(answer)
     for target in targets:
-        if target.strip():
-            target_norm = _normalize(target)
+        target_norm = _normalize(target)
+        # Skip targets with no content after normalization (e.g. "a",
+        # "the", "-"): an empty normalized target must never match.
+        if target_norm:
             exact_score = 1.0 if target_norm == answer_norm else 0.0
             max_exact = max(max_exact, exact_score)
     return max_exact
@@ -84,28 +99,29 @@ def max_exact_score(answer: str, targets: List[str]) -> float:
 
 def compute_f1(answer: str, target: str, stop_words: list[str] | None = None) -> float:
     """Takes a predicted answer and a gold answer (that are both either a string or a list of strings), and returns exact match and the SQuAD F1 metric for the prediction."""
-    answer_words = _to_words(answer, stop_words)
-    target_words = _to_words(target, stop_words)
+    answer_words = _to_word_counts(answer, stop_words)
+    target_words = _to_word_counts(target, stop_words)
 
     return _f1(answer_words=answer_words, target_words=target_words)
 
 
-def _to_words(answer: str, stop_words: list[str] | None = None) -> set[str]:
+def _to_word_counts(answer: str, stop_words: list[str] | None = None) -> Counter[str]:
     normalized = _normalize(answer, stop_words)
-    token_bag = set(normalized.split())
-    return token_bag
+    # SQuAD F1 is a bag-of-tokens measure: multiplicities matter, so a repeated
+    # token pays its precision cost (#4619 fixed this for exact match).
+    return Counter(normalized.split())
 
 
-def _f1(answer_words: set[str], target_words: set[str]) -> float:
-    intersection = len(answer_words.intersection(target_words))
+def _f1(answer_words: Counter[str], target_words: Counter[str]) -> float:
+    intersection = sum((answer_words & target_words).values())
     if not answer_words:
         precision = 1.0
     else:
-        precision = intersection / float(len(answer_words))
+        precision = intersection / float(sum(answer_words.values()))
     if not target_words:
         recall = 1.0
     else:
-        recall = intersection / float(len(target_words))
+        recall = intersection / float(sum(target_words.values()))
     f1 = (
         (2 * precision * recall) / (precision + recall)
         if not (precision == 0.0 and recall == 0.0)
