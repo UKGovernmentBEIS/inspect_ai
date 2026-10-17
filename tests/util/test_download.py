@@ -6,7 +6,7 @@ import hashlib
 import sys
 from pathlib import Path
 from typing import Iterator
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, PropertyMock, patch
 
 import httpx
 import pytest
@@ -164,6 +164,50 @@ def test_5xx_retried_then_succeeds(tmp_path: Path) -> None:
 
     assert dest.read_bytes() == content
     assert len(stream_mock.calls) == 2
+
+
+@pytest.mark.parametrize("error", [httpx.ReadTimeout, httpx.RemoteProtocolError])
+def test_long_download_retried_after_stream_failure(
+    tmp_path: Path, error: type[httpx.TransportError]
+) -> None:
+    content = b"complete download"
+    dest = tmp_path / "f.bin"
+    stream_mock = _stream_factory(
+        _FakeStream(200, b"", raise_during_iter=error("connection interrupted")),
+        _FakeStream(200, content),
+    )
+    with (
+        patch("inspect_ai._util.download.httpx.stream", stream_mock),
+        patch(
+            "tenacity.RetryCallState.seconds_since_start",
+            new_callable=PropertyMock,
+            return_value=61.0,
+        ),
+    ):
+        download("http://example.com/x", _sha256(content), dest)
+
+    assert dest.read_bytes() == content
+    assert len(stream_mock.calls) == 2
+    assert not dest.with_suffix(".bin.partial").exists()
+
+
+def test_long_download_stops_after_five_attempts(tmp_path: Path) -> None:
+    dest = tmp_path / "f.bin"
+    stream_mock = _stream_factory(*[_FakeStream(503, b"") for _ in range(5)])
+    with (
+        patch("inspect_ai._util.download.httpx.stream", stream_mock),
+        patch(
+            "tenacity.RetryCallState.seconds_since_start",
+            new_callable=PropertyMock,
+            return_value=61.0,
+        ),
+        pytest.raises(RetryError),
+    ):
+        download("http://example.com/x", _sha256(b""), dest)
+
+    assert len(stream_mock.calls) == 5
+    assert not dest.exists()
+    assert not dest.with_suffix(".bin.partial").exists()
 
 
 def test_404_not_retried(tmp_path: Path) -> None:
