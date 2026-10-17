@@ -5,22 +5,41 @@ via the MCP protocol using BridgedToolsSpec and sandbox_agent_bridge.
 """
 
 import json
+from contextlib import contextmanager
 from pathlib import Path
+from typing import TYPE_CHECKING, Iterator
 
+import anyio
 import pytest
 from test_helpers.utils import skip_if_no_docker
 
 from inspect_ai import Task, eval, task
 from inspect_ai._util.content import ContentImage, ContentText
+from inspect_ai._util.json import to_json_str_safe
 from inspect_ai.agent import BridgedToolsSpec, sandbox_agent_bridge
+from inspect_ai.agent._bridge.sandbox.service import call_tool
 from inspect_ai.dataset import Sample
+from inspect_ai.event._model import ModelEvent
 from inspect_ai.log import EvalLog
 from inspect_ai.model import get_model
+from inspect_ai.model._call_tools import tool_call_error, truncate_tool_output
+from inspect_ai.model._generate_config import (
+    GenerateConfig,
+    active_generate_config_context_var,
+)
+from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.scorer import includes
 from inspect_ai.solver import Solver, solver
-from inspect_ai.tool import tool
+from inspect_ai.tool import ToolError, tool
 from inspect_ai.tool._mcp._config import MCPServerConfigHTTP
+from inspect_ai.tool._tool import ToolParsingError
 from inspect_ai.util import sandbox
+from inspect_ai.util._limit import LimitExceededError
+from inspect_ai.util._sandbox.environment import SandboxUnavailableError
+from inspect_ai.util._sandbox.limits import OutputLimitExceededError
+
+if TYPE_CHECKING:
+    from inspect_ai.agent._bridge.sandbox.types import SandboxAgentBridge
 
 # =============================================================================
 # Shared test tools with stateful call tracking
@@ -124,11 +143,20 @@ def eval_bridged_tools_task(
 
 
 async def _mcp_http_request_with_retry(
-    url: str, request: str, max_retries: int = 30, retry_delay: float = 0.5
+    url: str,
+    request: str,
+    max_retries: int = 30,
+    retry_delay: float = 0.5,
+    headers: dict[str, str] | None = None,
 ) -> dict:
     """Send HTTP POST to MCP endpoint with retry logic for server startup."""
     import asyncio
 
+    header_args = [
+        arg
+        for name, value in (headers or {}).items()
+        for arg in ("-H", f"{name}: {value}")
+    ]
     last_error: Exception | None = None
     for attempt in range(max_retries):
         result = await sandbox().exec(
@@ -140,6 +168,7 @@ async def _mcp_http_request_with_retry(
                 "POST",
                 "-H",
                 "Content-Type: application/json",
+                *header_args,
                 "-d",
                 request,
                 url,
@@ -186,6 +215,11 @@ async def call_mcp_tools_list(config: MCPServerConfigHTTP) -> dict:
 # =============================================================================
 # E2E tests with Docker sandbox - actually invoke MCP server
 # =============================================================================
+#
+# These tests drive `tools/call` straight from the solver, outside any model
+# turn, so their specs opt out of the proposal requirement. The strict default
+# (a host tool runs once per call the model proposed) is covered in the
+# "Host tool execution" section below.
 
 
 # The nonroot compose checks the bridge still starts its in-sandbox proxy (which
@@ -207,7 +241,11 @@ def test_single_tool_call_returns_correct_result(
         async def solve(state, generate):
             async with sandbox_agent_bridge(
                 bridged_tools=[
-                    BridgedToolsSpec(name="calc", tools=[calculator_add(call_log)])
+                    BridgedToolsSpec(
+                        name="calc",
+                        tools=[calculator_add(call_log)],
+                        require_proposal=False,
+                    )
                 ]
             ) as bridge:
                 config = bridge.mcp_server_configs[0]
@@ -244,7 +282,11 @@ def test_single_tool_call_with_nonroot_default_user() -> None:
         async def solve(state, generate):
             async with sandbox_agent_bridge(
                 bridged_tools=[
-                    BridgedToolsSpec(name="calc", tools=[calculator_add(call_log)])
+                    BridgedToolsSpec(
+                        name="calc",
+                        tools=[calculator_add(call_log)],
+                        require_proposal=False,
+                    )
                 ]
             ) as bridge:
                 whoami = await sandbox().exec(["id", "-u"])
@@ -289,6 +331,7 @@ def test_multiple_tools_in_single_spec() -> None:
                     BridgedToolsSpec(
                         name="tools",
                         tools=[calculator_add(call_log), get_structured_data(call_log)],
+                        require_proposal=False,
                     )
                 ]
             ) as bridge:
@@ -331,9 +374,15 @@ def test_multiple_bridged_tools_specs() -> None:
         async def solve(state, generate):
             async with sandbox_agent_bridge(
                 bridged_tools=[
-                    BridgedToolsSpec(name="calc", tools=[calculator_add(call_log)]),
                     BridgedToolsSpec(
-                        name="data", tools=[get_structured_data(call_log)]
+                        name="calc",
+                        tools=[calculator_add(call_log)],
+                        require_proposal=False,
+                    ),
+                    BridgedToolsSpec(
+                        name="data",
+                        tools=[get_structured_data(call_log)],
+                        require_proposal=False,
                     ),
                 ]
             ) as bridge:
@@ -459,7 +508,9 @@ def test_content_returning_tool_serializes_correctly() -> None:
             async with sandbox_agent_bridge(
                 bridged_tools=[
                     BridgedToolsSpec(
-                        name="content", tools=[content_returning_tool(call_log)]
+                        name="content",
+                        tools=[content_returning_tool(call_log)],
+                        require_proposal=False,
                     )
                 ]
             ) as bridge:
@@ -494,7 +545,9 @@ def test_image_content_returning_tool_returns_mcp_image_content() -> None:
             async with sandbox_agent_bridge(
                 bridged_tools=[
                     BridgedToolsSpec(
-                        name="content", tools=[image_content_returning_tool(call_log)]
+                        name="content",
+                        tools=[image_content_returning_tool(call_log)],
+                        require_proposal=False,
                     )
                 ]
             ) as bridge:
@@ -617,14 +670,156 @@ def test_sandbox_bridge_rejection_hides_the_call_from_the_agent() -> None:
 
 @skip_if_no_docker
 @pytest.mark.slow
-def test_sandbox_bridge_executes_ungranted_host_tool_call() -> None:
-    """The execution-grant check is disabled pending #5428.
+def test_sandbox_bridge_redirects_unknown_model_to_eval_model() -> None:
+    """A model name the eval did not configure is served by the eval's model.
 
-    A direct host MCP call under an approval policy executes even though no
-    approved model call granted it.
+    Full round trip through the in-container proxy; the requested name is
+    recorded on the model event.
     """
+    seen: list[dict] = []
+
+    @solver
+    def test_solver():
+        async def solve(state, generate):
+            async with sandbox_agent_bridge(state) as bridge:
+                seen.append(
+                    await post_completions(
+                        bridge.port,
+                        {
+                            "model": "claude-haiku-4-5",
+                            "messages": [{"role": "user", "content": "Hello"}],
+                        },
+                    )
+                )
+            return state
+
+        return solve
+
+    log = eval(
+        bridged_tools_task(test_solver()),
+        model=get_model(
+            "mockllm/model",
+            custom_outputs=[
+                ModelOutput.from_content(model="mockllm/model", content="hi there")
+            ],
+        ),
+    )[0]
+    assert log.status == "success"
+
+    assert seen[0]["model"] == "model"
+    assert seen[0]["choices"][0]["message"]["content"] == "hi there"
+
+    assert log.samples is not None
+    events = [e for e in log.samples[0].events if isinstance(e, ModelEvent)]
+    assert [(e.model, e.requested_model) for e in events] == [
+        ("mockllm/model", "claude-haiku-4-5")
+    ]
+
+
+@skip_if_no_docker
+@pytest.mark.slow
+def test_sandbox_bridge_forwards_allowed_betas_and_decodes_brotli() -> None:
+    """Client headers reach the provider through the in-container proxy.
+
+    Full round trip: sandbox HTTP (Anthropic dialect) -> model proxy -> sandbox
+    service RPC -> header filter -> Anthropic provider. The provider answers
+    brotli-encoded, as Anthropic does once `br` is forwarded.
+    """
+    import importlib
+
+    import httpx2
+
+    try:
+        brotli = importlib.import_module("brotli")
+    except ImportError:
+        brotli = importlib.import_module("brotlicffi")
+
+    provider_requests: list[httpx2.Request] = []
+    message = {
+        "id": "msg_1",
+        "type": "message",
+        "role": "assistant",
+        "model": "claude-sonnet-4-5",
+        "content": [{"type": "text", "text": "decoded"}],
+        "stop_reason": "end_turn",
+        "stop_sequence": None,
+        "usage": {"input_tokens": 3, "output_tokens": 1},
+    }
+
+    def handler(request: httpx2.Request) -> httpx2.Response:
+        provider_requests.append(request)
+        return httpx2.Response(
+            200,
+            content=brotli.compress(json.dumps(message).encode()),
+            headers={"content-encoding": "br", "content-type": "application/json"},
+        )
+
+    target_model = get_model(
+        "anthropic/claude-sonnet-4-5",
+        api_key="local-fake-key",
+        memoize=False,
+        streaming=False,
+        config=GenerateConfig(max_tokens=64),
+        http_client=httpx2.AsyncClient(transport=httpx2.MockTransport(handler)),
+    )
+    seen: list[dict] = []
+
+    @solver
+    def test_solver():
+        async def solve(state, generate):
+            async with sandbox_agent_bridge(
+                state,
+                model_aliases={"agent-model": target_model},
+                forward_client_headers={"anthropic-beta": ["allowed-beta-2026-01-01"]},
+            ) as bridge:
+                seen.append(
+                    await _mcp_http_request_with_retry(
+                        f"http://localhost:{bridge.port}/v1/messages",
+                        json.dumps(
+                            {
+                                "model": "agent-model",
+                                "max_tokens": 64,
+                                "messages": [{"role": "user", "content": "hi"}],
+                            }
+                        ),
+                        headers={
+                            "anthropic-beta": (
+                                "allowed-beta-2026-01-01,unlisted-beta-2026-01-01"
+                            ),
+                            "Accept-Encoding": "br",
+                            "OpenAI-Organization": "org-sandbox",
+                        },
+                    )
+                )
+            return state
+
+        return solve
+
+    eval_bridged_tools_task(test_solver())
+
+    assert seen[0]["content"][0]["text"] == "decoded"
+    [request] = provider_requests
+    assert request.headers["anthropic-beta"] == "allowed-beta-2026-01-01"
+    assert request.headers["accept-encoding"] == "br"
+    assert "openai-organization" not in request.headers
+
+
+# =============================================================================
+# Host tool execution: a bridged tool runs once per call the model proposed
+# =============================================================================
+
+
+def approve_all() -> list:
     from inspect_ai.approval import ApprovalPolicy, auto_approver
 
+    return [ApprovalPolicy(auto_approver("approve"), "*")]
+
+
+@pytest.mark.parametrize("approval", [None, approve_all()], ids=["no-policy", "policy"])
+@skip_if_no_docker
+@pytest.mark.slow
+def test_sandbox_bridge_denies_unproposed_host_tool_call(approval: list | None) -> None:
+    """A `tools/call` no model generation proposed is denied, with the reason intact."""
     call_log: list[dict] = []
     seen: list[dict] = []
 
@@ -633,7 +828,7 @@ def test_sandbox_bridge_executes_ungranted_host_tool_call() -> None:
         async def solve(state, generate):
             async with sandbox_agent_bridge(
                 state,
-                approval=[ApprovalPolicy(auto_approver("approve"), "*")],
+                approval=approval,
                 bridged_tools=[
                     BridgedToolsSpec(name="calc", tools=[calculator_add(call_log)])
                 ],
@@ -651,19 +846,22 @@ def test_sandbox_bridge_executes_ungranted_host_tool_call() -> None:
 
     eval_bridged_tools_task(test_solver())
 
-    assert call_log == [{"tool": "calculator_add", "x": 5, "y": 3}]
-    assert seen[0]["result"]["content"][0]["text"] == "8"
+    assert call_log == []
+    # the denial reaches the agent intact as the JSON-RPC error message (the
+    # sandbox service prefixes it with the failing RPC method)
+    assert seen[0]["error"]["message"].endswith(
+        "Host tool call 'calc/calculator_add' was not proposed by the model in a "
+        "bridged generation (a bridged host tool runs once per proposed call)"
+    )
 
 
+@pytest.mark.parametrize("approval", [None, approve_all()], ids=["no-policy", "policy"])
 @skip_if_no_docker
 @pytest.mark.slow
-def test_sandbox_bridge_executes_approved_host_tool_call() -> None:
-    """An approved model call executes over MCP.
-
-    The repeat executes too while the execution-grant check is disabled
-    pending #5428.
-    """
-    from inspect_ai.approval import ApprovalPolicy, auto_approver
+def test_sandbox_bridge_executes_proposed_host_tool_call_once(
+    approval: list | None,
+) -> None:
+    """A call the model proposed grants one matching MCP execution."""
     from inspect_ai.model._chat_message import ChatMessageAssistant
     from inspect_ai.model._model_output import ChatCompletionChoice, ModelOutput
     from inspect_ai.tool._tool_call import ToolCall
@@ -676,7 +874,7 @@ def test_sandbox_bridge_executes_approved_host_tool_call() -> None:
         async def solve(state, generate):
             async with sandbox_agent_bridge(
                 state,
-                approval=[ApprovalPolicy(auto_approver("approve"), "*")],
+                approval=approval,
                 bridged_tools=[
                     BridgedToolsSpec(name="calc", tools=[calculator_add(call_log)])
                 ],
@@ -716,8 +914,8 @@ def test_sandbox_bridge_executes_approved_host_tool_call() -> None:
 
         return solve
 
-    approved = ToolCall(
-        id="approved",
+    proposed = ToolCall(
+        id="proposed",
         function="calculator_add",
         arguments={"x": 5, "y": 3},
     )
@@ -725,7 +923,7 @@ def test_sandbox_bridge_executes_approved_host_tool_call() -> None:
         model="mockllm/model",
         choices=[
             ChatCompletionChoice(
-                message=ChatMessageAssistant(content="", tool_calls=[approved]),
+                message=ChatMessageAssistant(content="", tool_calls=[proposed]),
                 stop_reason="tool_calls",
             )
         ],
@@ -737,8 +935,8 @@ def test_sandbox_bridge_executes_approved_host_tool_call() -> None:
 
     assert log.status == "success"
     assert responses[0]["result"]["content"][0]["text"] == "8"
-    assert responses[1]["result"]["content"][0]["text"] == "8"
-    assert call_log == [{"tool": "calculator_add", "x": 5, "y": 3}] * 2
+    assert "was not proposed by the model" in responses[1]["error"]["message"]
+    assert call_log == [{"tool": "calculator_add", "x": 5, "y": 3}]
 
 
 @skip_if_no_docker
@@ -806,3 +1004,475 @@ def test_sandbox_bridge_terminate_ends_the_sample() -> None:
     assert [e.decision for e in approvals] == ["terminate"]
     # the bridge unwound before the body could finish
     assert completed == []
+
+
+# =============================================================================
+# Host tool exceptions
+# =============================================================================
+#
+# Natively, `execute_tools` shows the model a fixed set of exception types as a
+# `ToolCallError` and fails the sample on anything else. The bridge's `call_tool`
+# runs in the sandbox service task, where an exception only becomes an RPC error
+# the scaffold reads as tool output, so an unexpected one has to be signalled to
+# the bridge's monitor task to end the sample the same way.
+
+
+@tool
+def raising_tool(error: Exception):
+    async def execute(text: str) -> str:
+        """Raise `error` instead of returning.
+
+        Args:
+            text: Ignored.
+        """
+        raise error
+
+    return execute
+
+
+def _bridge_with_tools(tools: list) -> "SandboxAgentBridge":
+    """A bridge whose `srv` tools are called directly, outside any model turn.
+
+    These tests exercise the service callback itself, so the server opts out of
+    the proposal requirement (`require_proposal=False` on a `BridgedToolsSpec`).
+    """
+    from inspect_ai.agent._agent import AgentState
+    from inspect_ai.agent._bridge.sandbox.types import SandboxAgentBridge
+    from inspect_ai.tool._tool_def import ToolDef
+
+    return SandboxAgentBridge(
+        state=AgentState(messages=[]),
+        filter=None,
+        retry_refusals=None,
+        compaction=None,
+        port=13131,
+        model=None,
+        bridged_tools={"srv": {ToolDef(t).name: t for t in tools}},
+        proposal_exempt_servers={"srv"},
+    )
+
+
+@pytest.mark.parametrize(
+    "error",
+    [
+        TimeoutError(),
+        PermissionError(),
+        FileNotFoundError(),
+        IsADirectoryError(),
+        UnicodeDecodeError("utf-8", b"\xff", 0, 1, "invalid start byte"),
+        ValueError("embedded null byte"),
+        ToolError("tool says no"),
+        ToolParsingError("bad arguments"),
+        LimitExceededError("token", value=2, limit=1),
+        OutputLimitExceededError("1 KiB", None),
+        SandboxUnavailableError("sandbox gone"),
+    ],
+    ids=lambda e: type(e).__name__,
+)
+def test_bridged_tool_model_facing_errors_follow_the_native_mapping(
+    error: Exception,
+) -> None:
+    """The bridge decides with `tool_call_error`, the mapping `execute_tools` uses."""
+    assert tool_call_error(error, "t") is not None
+
+
+@pytest.mark.parametrize(
+    "error",
+    [KeyError("missing"), TypeError("bad call"), ValueError("other"), RuntimeError()],
+    ids=lambda e: type(e).__name__,
+)
+def test_unexpected_exceptions_have_no_native_mapping(error: Exception) -> None:
+    assert tool_call_error(error, "t") is None
+
+
+async def test_bridged_tool_unexpected_exception_fails_the_sample() -> None:
+    """A bug in a host tool answers the RPC with an error and fails the sample."""
+    error = KeyError("missing")
+    bridge = _bridge_with_tools([raising_tool(error)])
+
+    with pytest.raises(KeyError):
+        await call_tool(bridge)("srv", "raising_tool", {"text": "hi"})
+
+    assert bridge._failure_requested.is_set()
+    assert bridge._failure is error
+
+
+async def test_bridged_tool_error_is_reported_to_the_model_only() -> None:
+    """A `ToolError` is the model's problem, as natively: the sample continues."""
+    bridge = _bridge_with_tools([raising_tool(ToolError("tool says no"))])
+
+    with pytest.raises(ToolError, match="tool says no"):
+        await call_tool(bridge)("srv", "raising_tool", {"text": "hi"})
+
+    assert not bridge._failure_requested.is_set()
+    assert bridge._failure is None
+
+
+async def test_bridged_tool_malformed_arguments_are_a_parsing_error() -> None:
+    """Bad arguments from the scaffold's model are validated as for a native call.
+
+    Without this, the `TypeError` from calling the tool with them would count as
+    an unexpected exception and fail the sample, where natively the model gets a
+    `ToolParsingError` it can recover from.
+    """
+    call_log: list[dict] = []
+    bridge = _bridge_with_tools([calculator_add(call_log)])
+    execute = call_tool(bridge)
+
+    with pytest.raises(ToolParsingError, match="'y' is a required property"):
+        await execute("srv", "calculator_add", {"x": 5})
+    with pytest.raises(ToolParsingError, match="not of type 'integer'"):
+        await execute("srv", "calculator_add", {"x": 5, "y": "three"})
+    with pytest.raises(ToolParsingError, match="Additional properties"):
+        await execute("srv", "calculator_add", {"x": 5, "y": 3, "z": 1})
+
+    assert not bridge._failure_requested.is_set()
+    assert call_log == []
+    assert await execute("srv", "calculator_add", {"x": 5, "y": 3}) == "8"
+
+
+@tool
+def raising_in_task_group_tool(error: Exception):
+    async def execute(text: str) -> str:
+        """Raise `error` from a child task, so it arrives wrapped in a group.
+
+        Args:
+            text: Ignored.
+        """
+
+        async def child() -> None:
+            raise error
+
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(child)
+        return text
+
+    return execute
+
+
+async def test_bridged_tool_grouped_tool_error_is_unwrapped_for_the_model() -> None:
+    """A mapped exception raised inside a task group is still the model's problem.
+
+    `execute_tools` unwraps the `ExceptionGroup` before classifying; so must
+    the bridge, or a recoverable error from a tool using a task group (real MCP
+    tools do) would fail the sample. The group itself still propagates, as it
+    did before, so the service dispatcher sees what it always saw.
+    """
+    from inspect_ai.util._anyio import inner_exception
+
+    bridge = _bridge_with_tools([raising_in_task_group_tool(ToolError("recoverable"))])
+
+    with pytest.raises(ExceptionGroup) as excinfo:
+        await call_tool(bridge)("srv", "raising_in_task_group_tool", {"text": "hi"})
+
+    assert isinstance(inner_exception(excinfo.value), ToolError)
+    assert not bridge._failure_requested.is_set()
+
+
+async def test_bridged_tool_grouped_unexpected_exception_fails_the_sample() -> None:
+    """The sample fails with the unwrapped exception, as it would natively."""
+    error = KeyError("missing")
+    bridge = _bridge_with_tools([raising_in_task_group_tool(error)])
+
+    with pytest.raises(ExceptionGroup):
+        await call_tool(bridge)("srv", "raising_in_task_group_tool", {"text": "hi"})
+
+    assert bridge._failure is error
+
+
+@pytest.mark.parametrize("annotated", [False, True], ids=["bare", "Any"])
+async def test_bridged_tool_with_explicit_schema_keeps_keyword_forwarding(
+    annotated: bool,
+) -> None:
+    """A tool declared via `ToolDef(parameters=...)` need not have a typed signature.
+
+    Arguments are validated against the declared schema and forwarded as sent,
+    so variadic tools (as the MCP adapter uses) keep working.
+    """
+    from typing import Any
+
+    from inspect_ai.tool._tool_def import ToolDef
+    from inspect_ai.tool._tool_params import ToolParam, ToolParams
+
+    received: list[dict] = []
+
+    async def bare(**arguments) -> str:
+        received.append(arguments)
+        return "hello"
+
+    async def typed(**arguments: Any) -> str:
+        received.append(arguments)
+        return "hello"
+
+    schema = ToolParams(
+        properties={"text": ToolParam(type="string", description="Text.")},
+        required=["text"],
+    )
+    tool = ToolDef(
+        typed if annotated else bare,
+        name="echo",
+        description="Echo.",
+        parameters=schema,
+    ).as_tool()
+    bridge = _bridge_with_tools([tool])
+    execute = call_tool(bridge)
+
+    assert await execute("srv", "echo", {"text": "hi"}) == "hello"
+    assert received == [{"text": "hi"}]
+    with pytest.raises(ToolParsingError):
+        await execute("srv", "echo", {"other": "hi"})
+    assert not bridge._failure_requested.is_set()
+
+
+async def test_bridged_tool_exception_unwinds_the_bridge_task_group() -> None:
+    """The shape `sandbox_agent_bridge` relies on.
+
+    The service answers the scaffold (an RPC error, not a hang) and signals the
+    bridge; the monitor task in the same task group then raises the exception
+    so the group unwinds with it, which is what reaches the sample runner.
+    """
+    from inspect_ai.agent._bridge.sandbox.bridge import _monitor_failure
+    from inspect_ai.util._anyio import inner_exception
+
+    bridge = _bridge_with_tools([raising_tool(KeyError("missing"))])
+    execute = call_tool(bridge)
+    scaffold_replies: list[str] = []
+
+    async def scaffold() -> None:
+        try:
+            await execute("srv", "raising_tool", {"text": "hi"})
+        except KeyError as ex:
+            scaffold_replies.append(str(ex))
+        # the scaffold carries on regardless; the monitor tears the group down
+        await anyio.sleep(30)
+
+    try:
+        # without the signal the monitor waits forever: bound the wait so a
+        # regression fails rather than hangs
+        with anyio.fail_after(10):
+            async with anyio.create_task_group() as tg:
+                tg.start_soon(_monitor_failure, bridge)
+                tg.start_soon(scaffold)
+    except Exception as ex:
+        error = inner_exception(ex)
+    else:
+        raise AssertionError("task group completed without the tool's exception")
+
+    assert isinstance(error, KeyError)
+    assert scaffold_replies == ["'missing'"]
+
+
+@skip_if_no_docker
+@pytest.mark.slow
+def test_sandbox_bridge_host_tool_exception_ends_the_sample() -> None:
+    """An unexpected host tool exception must reach the sample runner via MCP.
+
+    The bridge unwinds the agent as soon as the failure is signalled (usually
+    before the MCP error reply reaches the caller, so the reply is not asserted
+    here; the service-level test covers it), and the sample ends in error as
+    with a native tool exception.
+    """
+    completed: list[bool] = []
+
+    @solver
+    def test_solver():
+        async def solve(state, generate):
+            async with sandbox_agent_bridge(
+                bridged_tools=[
+                    BridgedToolsSpec(
+                        name="srv",
+                        tools=[raising_tool(KeyError("missing"))],
+                        require_proposal=False,
+                    )
+                ]
+            ) as bridge:
+                config = bridge.mcp_server_configs[0]
+                try:
+                    await call_mcp_tool(config, "raising_tool", {"text": "hi"})
+                except Exception:
+                    pass
+                # must not be reached: the failure unwinds the bridge
+                await anyio.sleep(30)
+                completed.append(True)
+            return state
+
+        return solve
+
+    log = eval(bridged_tools_task(test_solver()), model=get_model("mockllm/model"))[0]
+
+    assert log.status == "error"
+    assert log.error is not None
+    assert "KeyError" in log.error.message
+    assert completed == []
+
+
+@skip_if_no_docker
+@pytest.mark.slow
+def test_sandbox_bridge_host_tool_error_does_not_end_the_sample() -> None:
+    """A `ToolError` from a host tool is tool output for the model, as natively."""
+
+    @solver
+    def test_solver():
+        async def solve(state, generate):
+            async with sandbox_agent_bridge(
+                bridged_tools=[
+                    BridgedToolsSpec(
+                        name="srv",
+                        tools=[raising_tool(ToolError("tool says no"))],
+                        require_proposal=False,
+                    )
+                ]
+            ) as bridge:
+                config = bridge.mcp_server_configs[0]
+                response = await call_mcp_tool(config, "raising_tool", {"text": "hi"})
+                assert "tool says no" in response["error"]["message"]
+            return state
+
+        return solve
+
+    eval_bridged_tools_task(test_solver())
+
+
+# =============================================================================
+# Output limits
+# =============================================================================
+#
+# A bridged tool's text result is truncated to the limit and in the format a
+# native call gets (`truncate_tool_output`): the tool's own `max_output`, else
+# `max_tool_output` from the active generate config, else 16 KiB.
+
+
+@tool
+def long_output_tool():
+    async def execute(size: int) -> str:
+        """Return `size` bytes of text.
+
+        Args:
+            size: Number of bytes to return.
+        """
+        return "x" * size
+
+    return execute
+
+
+@tool(max_output=8)
+def capped_output_tool():
+    async def execute(size: int) -> str:
+        """Return `size` bytes of text, with an 8 byte output limit.
+
+        Args:
+            size: Number of bytes to return.
+        """
+        return "x" * size
+
+    return execute
+
+
+@tool
+def long_structured_tool():
+    async def execute(size: int) -> dict[str, str]:
+        """Return a structured result holding `size` bytes of text.
+
+        Args:
+            size: Number of bytes of text.
+        """
+        return {"data": "x" * size}
+
+    return execute
+
+
+@tool
+def long_content_tool():
+    async def execute(size: int) -> list[ContentText]:
+        """Return `size` bytes of text as content.
+
+        Args:
+            size: Number of bytes of text.
+        """
+        return [ContentText(text="x" * size)]
+
+    return execute
+
+
+@contextmanager
+def max_tool_output(limit: int | None) -> Iterator[None]:
+    """Set `max_tool_output` in the active generate config."""
+    token = active_generate_config_context_var.set(
+        GenerateConfig(max_tool_output=limit)
+    )
+    try:
+        yield
+    finally:
+        active_generate_config_context_var.reset(token)
+
+
+async def test_bridged_tool_result_over_default_limit_is_truncated() -> None:
+    bridge = _bridge_with_tools([long_output_tool()])
+    text = "x" * (20 * 1024)
+
+    result = await call_tool(bridge)("srv", "long_output_tool", {"size": len(text)})
+
+    expected = truncate_tool_output("long_output_tool", text, None)
+    assert expected is not None
+    assert result == expected.output
+    assert isinstance(result, str)
+    assert result.startswith(
+        "\nThe output of your call to long_output_tool was too long"
+    )
+    assert "x" * (16 * 1024) in result
+    assert "x" * (16 * 1024 + 1) not in result
+
+
+async def test_bridged_tool_result_follows_max_tool_output() -> None:
+    bridge = _bridge_with_tools([long_output_tool()])
+
+    with max_tool_output(10):
+        result = await call_tool(bridge)("srv", "long_output_tool", {"size": 50})
+        expected = truncate_tool_output("long_output_tool", "x" * 50, None)
+
+    assert expected is not None
+    assert result == expected.output
+    assert "\n" + "x" * 10 + "\n" in expected.output
+
+
+async def test_bridged_tool_result_within_limit_is_unchanged() -> None:
+    bridge = _bridge_with_tools([long_output_tool()])
+
+    with max_tool_output(10):
+        result = await call_tool(bridge)("srv", "long_output_tool", {"size": 10})
+
+    assert result == "x" * 10
+
+
+async def test_bridged_tool_max_output_wins_over_max_tool_output() -> None:
+    bridge = _bridge_with_tools([capped_output_tool()])
+
+    with max_tool_output(1000):
+        result = await call_tool(bridge)("srv", "capped_output_tool", {"size": 50})
+
+    expected = truncate_tool_output("capped_output_tool", "x" * 50, 8)
+    assert expected is not None
+    assert result == expected.output
+
+
+async def test_bridged_tool_structured_result_is_truncated_as_json() -> None:
+    bridge = _bridge_with_tools([long_structured_tool()])
+
+    with max_tool_output(10):
+        result = await call_tool(bridge)("srv", "long_structured_tool", {"size": 50})
+        expected = truncate_tool_output(
+            "long_structured_tool", to_json_str_safe({"data": "x" * 50}), None
+        )
+
+    assert expected is not None
+    assert result == expected.output
+
+
+async def test_bridged_tool_content_result_is_not_truncated() -> None:
+    """Content results aren't truncated natively, so neither are they here."""
+    bridge = _bridge_with_tools([long_content_tool()])
+
+    with max_tool_output(10):
+        result = await call_tool(bridge)("srv", "long_content_tool", {"size": 50})
+
+    assert result == to_json_str_safe([ContentText(text="x" * 50)])

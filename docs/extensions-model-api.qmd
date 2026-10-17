@@ -97,6 +97,18 @@ model_call = ModelCall.create(
 )
 ```
 
+### Recording Response Headers
+
+A proxy in front of a model can tell Inspect things in its response headers. If your provider makes its own HTTP calls, pass the headers of each response to `record_response_headers()` so that Inspect can read them. Record them as soon as they arrive, before reading the body, so that they are kept even when the body can't be read:
+
+``` python
+from inspect_ai.model import record_response_headers
+
+async with self.client.stream("POST", url, json=request) as response:
+    record_response_headers(response.headers)
+    await response.aread()
+```
+
 ## Provider Options {#sec-provider-options}
 
 The `ModelAPI` base class defines a number of properties and methods you can override to adapt Inspect's behaviour to your provider's requirements. All have sensible defaults, so you only need to override the ones relevant to your provider. The most frequently used are:
@@ -108,6 +120,7 @@ The `ModelAPI` base class defines a number of properties and methods you can ove
 | `max_tokens()` | `None` | Default `max_tokens` for generation when the user doesn't specify one. |
 | `should_retry(ex)` | `False` | Whether a given exception (e.g. a rate limit or transient server error) should trigger a retry. |
 | `is_auth_failure(ex)` | `False` | Whether an exception indicates an authentication failure (used to trigger an API key refresh). |
+| `refresh_credentials()` | close, then `initialize()` | Async. Called after an authentication failure to pick up new credentials. The OpenAI, OpenAI-compatible and Groq providers update the API key on their existing client instead. Anthropic does this for its own and Azure API keys; its `ANTHROPIC_AUTH_TOKEN`, Bedrock and Vertex clients still close and reinitialize. A subclass that keeps other credential state must update it here too. |
 | `collapse_user_messages()` | `False` | Collapse consecutive user messages into a single message (required by some providers). |
 | `collapse_assistant_messages()` | `False` | Collapse consecutive assistant messages into a single message. |
 | `tools_required()` | `False` | Whether tool definitions must be passed whenever the message stream contains tool use. |

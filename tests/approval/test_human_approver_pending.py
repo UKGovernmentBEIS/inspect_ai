@@ -36,12 +36,13 @@ def sample(monkeypatch: pytest.MonkeyPatch) -> _PendingSample:
 
 def _no_acp(monkeypatch: pytest.MonkeyPatch) -> None:
     """No ACP clients, so routing falls through to the in-proc surfaces."""
-    from inspect_ai.approval._human import approver as approver_module
+    # `human_approver` imports the shim lazily, so patch it where it lives.
+    from inspect_ai.approval._human import acp as acp_module
 
     async def none(**kwargs: object) -> Approval | None:
         return None
 
-    monkeypatch.setattr(approver_module, "request_human_approval_via_acp", none)
+    monkeypatch.setattr(acp_module, "request_human_approval_via_acp", none)
 
 
 @pytest.mark.parametrize("surface", ["panel", "console"])

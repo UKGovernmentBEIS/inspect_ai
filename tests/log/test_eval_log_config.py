@@ -6,12 +6,14 @@ import yaml
 from pydantic import BaseModel
 
 from inspect_ai import Task, eval, task
+from inspect_ai._cli.eval import RunConfigInput
 from inspect_ai.dataset import Sample
 from inspect_ai.log._config import eval_log_to_run_config_dict
 from inspect_ai.log._file import list_eval_logs, read_eval_log
 from inspect_ai.log._log import EvalConfig, EvalDataset, EvalLog, EvalSpec
 from inspect_ai.model import GenerateConfig, get_model
 from inspect_ai.solver import SolverSpec, solver
+from inspect_ai.util._limit import TokenLimit
 from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec
 
 
@@ -205,3 +207,23 @@ def test_sandbox_basemodel_config(capsys) -> None:
 
     assert d["sandbox"] == "docker"
     assert "DockerConfig" in capsys.readouterr().err
+
+
+def test_exported_output_token_limit_round_trips() -> None:
+    """An output-only token limit survives export and run-config parsing."""
+    log = eval(
+        config_test_task,
+        model="mockllm/model",
+        token_limit=TokenLimit(tokens=1000, type="output"),
+        limit=1,
+    )[0]
+    assert log.eval.config.token_limit == 1000
+    assert log.eval.config.token_limit_type == "output"
+
+    exported = eval_log_to_run_config_dict(log)
+    assert exported["eval_config"]["token_limit"] == 1000
+    assert exported["eval_config"]["token_limit_type"] == "output"
+
+    params = RunConfigInput.model_validate(exported).to_params()
+    assert params["token_limit"] == TokenLimit(tokens=1000, type="output")
+    assert "token_limit_type" not in params

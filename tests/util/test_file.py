@@ -1,4 +1,5 @@
 import importlib
+import json
 import os
 import sys
 import weakref
@@ -13,10 +14,11 @@ import fsspec.core  # type: ignore
 import pytest
 from test_helpers.utils import skip_if_trio
 
-from inspect_ai._util.error import PrerequisiteError
+from inspect_ai._util.error import PrerequisiteError, WriteConflictError
 from inspect_ai._util.file import (
     HF_FILESYSTEM_REQUIRED_VERSION,
     absolute_file_path,
+    acquire_exclusive_lock,
     basename,
     cleanup_s3_sessions,
     filesystem,
@@ -193,6 +195,60 @@ def test_hf_filesystem_old_dependency(installed_version: str):
 )
 def test_strip_trailing_sep(path: str, expected: str) -> None:
     assert strip_trailing_sep(path) == expected
+
+
+_AZURE_OPTIONS = {"account_name": "inspectunittest", "anon": True}
+_ABFSS_URL = "abfss://mycontainer@myaccount.dfs.core.windows.net/inspect-logs"
+
+
+@pytest.mark.parametrize(
+    "path,fs_options,location,uri",
+    [
+        ("s3://bucket/logs/", {}, "s3://bucket/logs", "s3://bucket/logs"),
+        ("s3://bucket/logs", {}, "s3://bucket/logs", "s3://bucket/logs"),
+        ("s3://bucket/", {}, "s3://bucket", "s3://bucket"),
+        # adlfs keeps a trailing slash when stripping the protocol, and lists
+        # names as abfs:// without the account
+        (
+            "az://container/logs/",
+            _AZURE_OPTIONS,
+            "az://container/logs",
+            "abfs://container/logs",
+        ),
+        ("az://container/", _AZURE_OPTIONS, "az://container", "abfs://container"),
+        (f"{_ABFSS_URL}/", {}, _ABFSS_URL, "abfs://mycontainer/inspect-logs"),
+        (_ABFSS_URL, {}, _ABFSS_URL, "abfs://mycontainer/inspect-logs"),
+        (
+            "webhdfs://user@namenode:9870/logs/",
+            {},
+            "webhdfs://user@namenode:9870/logs",
+            "webhdfs:///logs",
+        ),
+        ("logs/", {}, "file://{cwd}/logs", "file://{cwd}/logs"),
+        ("file://{cwd}/logs/", {}, "file://{cwd}/logs", "file://{cwd}/logs"),
+        ("/", {}, "file:///", "file:///"),
+    ],
+)
+def test_dir_location_and_uri(
+    path: str,
+    fs_options: dict[str, Any],
+    location: str,
+    uri: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("AZURE_STORAGE_ACCOUNT_NAME", raising=False)
+    monkeypatch.delenv("AZURE_ACCOUNT_NAME", raising=False)
+    cwd = tmp_path.as_posix()
+    path = path.format(cwd=cwd)
+    fs = filesystem(path, fs_options)
+    with patch.object(fs.fs, "info", side_effect=AssertionError("info called")):
+        assert fs.dir_location(path) == location.format(cwd=cwd)
+        assert fs.dir_as_uri(path) == uri.format(cwd=cwd)
+    # the location opens the same filesystem without the original options
+    if not fs_options:
+        filesystem(f"{fs.dir_location(path)}/eval-set.json")
 
 
 @pytest.mark.parametrize(
@@ -391,21 +447,22 @@ async def test_cleanup_s3_sessions_disarms_s3fs_finalizer(real_s3fs: Any) -> Non
     """cleanup_s3_sessions detaches s3fs's GC-time close_session finalizer.
 
     The finalizer would otherwise exit the already-exited client a second time
-    as a bare task on the running loop, failing with "Session was never entered".
+    as a bare task on the running loop, which fails with "Session was never
+    entered" on aiobotocore < 3.9.2.
     """
     fs = real_s3fs(cache_regions=False)
     await fs.set_session()
     finalizers = _close_session_finalizers(fs)
     assert len(finalizers) == 1 and finalizers[0].alive
-    creator = fs._s3creator
+    http_session = fs._s3creator._client._endpoint.http_session
+    assert http_session._sessions is not None
 
     await cleanup_s3_sessions()
 
     assert _close_session_finalizers(fs) == []
     assert not finalizers[0].alive
-    # the creator was exited once; a second exit is what the finalizer would do
-    with pytest.raises(AssertionError, match="Session was never entered"):
-        await creator.__aexit__(None, None, None)
+    # the creator's HTTP session was exited
+    assert http_session._sessions is None
 
 
 @skip_if_trio
@@ -492,3 +549,77 @@ async def test_cleanup_s3_sessions_no_s3creator() -> None:
         await cleanup_s3_sessions()
 
         mock_s3fs.clear_instance_cache.assert_called_once()
+
+
+def test_exclusive_lock_refuses_a_second_holder(tmp_path: Path) -> None:
+    lock = tmp_path / "log.merge.lock"
+    holder = {"pid": 123, "host": "worker-1", "started": "2026-10-08T12:00:00"}
+    with acquire_exclusive_lock(str(lock), holder):
+        assert json.loads(lock.read_text()) == holder
+        with pytest.raises(WriteConflictError) as exc_info:
+            with acquire_exclusive_lock(to_uri(str(lock)), {"pid": 456}):
+                pytest.fail("second holder entered the lock")
+        message = str(exc_info.value)
+        assert str(lock) in message
+        assert "worker-1" in message and "123" in message
+        # the refused acquire leaves the holder's lock alone
+        assert json.loads(lock.read_text()) == holder
+    assert not lock.exists()
+
+    with acquire_exclusive_lock(str(lock), {"pid": 456}):
+        assert json.loads(lock.read_text()) == {"pid": 456}
+    assert not lock.exists()
+
+
+def test_exclusive_lock_left_by_a_crash_is_reported_not_overridden(
+    tmp_path: Path,
+) -> None:
+    lock = tmp_path / "log.merge.lock"
+    lock.write_text('{"pid": 99, "host": "crashed"}')
+    with pytest.raises(WriteConflictError, match="crashed"):
+        with acquire_exclusive_lock(str(lock), {"pid": 1}):
+            pass
+    assert lock.read_text() == '{"pid": 99, "host": "crashed"}'
+
+
+def test_exclusive_lock_released_after_exception(tmp_path: Path) -> None:
+    lock = tmp_path / "log.merge.lock"
+    with pytest.raises(RuntimeError, match="boom"):
+        with acquire_exclusive_lock(str(lock), {"pid": 1}):
+            raise RuntimeError("boom")
+    assert not lock.exists()
+
+
+def test_exclusive_lock_released_when_info_is_not_serializable(
+    tmp_path: Path,
+) -> None:
+    lock = tmp_path / "log.merge.lock"
+    with pytest.raises(TypeError):
+        with acquire_exclusive_lock(str(lock), {"pid": object()}):
+            pytest.fail("entered the lock")
+    assert not lock.exists()
+
+
+async def test_exclusive_lock_released_after_cancellation(tmp_path: Path) -> None:
+    lock = tmp_path / "log.merge.lock"
+    held = anyio.Event()
+
+    async def hold() -> None:
+        with acquire_exclusive_lock(str(lock), {"pid": 1}):
+            held.set()
+            await anyio.sleep_forever()
+
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(hold)
+        await held.wait()
+        assert lock.exists()
+        tg.cancel_scope.cancel()
+    assert not lock.exists()
+
+
+def test_exclusive_lock_does_not_remove_a_replaced_lock(tmp_path: Path) -> None:
+    lock = tmp_path / "log.merge.lock"
+    with acquire_exclusive_lock(str(lock), {"pid": 1}):
+        lock.unlink()
+        lock.write_text('{"pid": 2}')
+    assert lock.read_text() == '{"pid": 2}'

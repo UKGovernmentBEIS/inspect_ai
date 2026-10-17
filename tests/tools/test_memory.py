@@ -3,7 +3,7 @@
 import pytest
 
 from inspect_ai.tool import ToolError, memory
-from inspect_ai.util import Store
+from inspect_ai.util import Store, store, tool_state_scope
 from inspect_ai.util._store import init_subtask_store
 
 
@@ -379,3 +379,60 @@ async def test_memory_readonly_no_write_params() -> None:
     # Passing write-specific params like file_text raises TypeError.
     with pytest.raises(TypeError):
         await ro_tool(command="view", path="/memories", file_text="nope")
+
+
+async def test_tool_state_scopes_keep_separate_memory() -> None:
+    """Default-instance memory tools in two scopes keep separate files."""
+    tool = memory()
+    with tool_state_scope("w-1"):
+        await tool(command="create", path="/memories/a.txt", file_text="from w-1")
+    with tool_state_scope("w-2"):
+        with pytest.raises(ToolError, match="does not exist"):
+            await tool(command="view", path="/memories/a.txt")
+        await tool(command="create", path="/memories/a.txt", file_text="from w-2")
+    with tool_state_scope("w-1"):
+        content = await tool(command="view", path="/memories/a.txt")
+        assert isinstance(content, str) and "from w-1" in content
+    assert "MemoryStore:files" not in store()
+    assert "/memories/a.txt" in store().get("MemoryStore:@w-1:files")
+    assert "/memories/a.txt" in store().get("MemoryStore:@w-2:files")
+
+
+async def test_tool_state_scopes_keep_separate_readonly_memory() -> None:
+    """Readonly memory reads and seeds the files of its own scope."""
+    writer = memory()
+    reader = memory(initial_data={"/memories/seed.txt": "seed"}, readonly=True)
+    with tool_state_scope("w-1"):
+        await writer(command="create", path="/memories/a.txt", file_text="w-1")
+        content = await reader(command="view", path="/memories/a.txt")
+        assert isinstance(content, str) and "w-1" in content
+    with tool_state_scope("w-2"):
+        with pytest.raises(ToolError, match="does not exist"):
+            await reader(command="view", path="/memories/a.txt")
+        content = await reader(command="view", path="/memories/seed.txt")
+        assert isinstance(content, str) and "seed" in content
+    assert "MemoryStore:files" not in store()
+
+
+async def test_tool_state_scope_keeps_explicit_instance_shared() -> None:
+    """An explicit instance is shared across scopes."""
+    tool = memory(instance="team")
+    with tool_state_scope("w-1"):
+        await tool(command="create", path="/memories/a.txt", file_text="board")
+    with tool_state_scope("w-2"):
+        content = await tool(command="view", path="/memories/a.txt")
+        assert isinstance(content, str) and "board" in content
+
+
+async def test_tool_state_scope_does_not_share_with_explicit_instance() -> None:
+    """A scope named like an explicit instance keeps its own memory."""
+    with tool_state_scope("team"):
+        await memory()(command="create", path="/memories/a.txt", file_text="w")
+    with pytest.raises(ToolError, match="does not exist"):
+        await memory(instance="team")(command="view", path="/memories/a.txt")
+
+
+async def test_no_tool_state_scope_keeps_default_keys() -> None:
+    """Outside a scope the default instance keeps today's store keys."""
+    await memory()(command="create", path="/memories/a.txt", file_text="x")
+    assert "/memories/a.txt" in store().get("MemoryStore:files")

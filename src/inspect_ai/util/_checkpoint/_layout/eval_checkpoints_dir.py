@@ -1,54 +1,22 @@
-"""Eval checkpoints dir path computation.
+"""Eval checkpoints dir resolution from checkpoint config.
 
 For an eval log at ``<log>.eval`` with no override, the eval
 checkpoints dir lives at ``<log-base>.checkpoints/`` (sibling to the
 log; ``.eval`` stripped from the basename). With a ``checkpoints_location``
 override on :class:`CheckpointConfig`, the dir lands at
 ``<override>/<log-base>.checkpoints/`` (the override is the *evals
-checkpoints dir*; the per-eval subdir name is unchanged).
+checkpoints dir*; the per-eval subdir name is unchanged). The path rule
+itself is :func:`inspect_ai._util.log_layout.eval_checkpoints_dir`.
 
 Pure path computation — no filesystem side effects.
 """
 
 from __future__ import annotations
 
-from inspect_ai._util.file import basename, dirname
+# re-exported: the package facade and checkpoint callers import it from here
+from inspect_ai._util.log_layout import eval_checkpoints_dir as eval_checkpoints_dir
 
 from ..config import CheckpointConfig, checkpoint_vetoed
-
-_LOG_SUFFIX = ".eval"
-_RECOVERED_SUFFIX = "-recovered"
-
-
-def log_basename(log_location: str) -> str:
-    """Return the log's basename with recovery and log suffixes stripped.
-
-    Used to derive the per-eval ``<log-base>.checkpoints/`` directory
-    name (durable, alongside the log) and the matching per-eval working
-    dir under ``inspect_cache_dir("checkpoints")/`` (ephemeral, host
-    cache). Single owner of the ``.eval`` / ``-recovered`` suffix
-    conventions.
-    """
-    base = basename(log_location)
-    if base.endswith(_LOG_SUFFIX):
-        base = base[: -len(_LOG_SUFFIX)]
-    if base.endswith(_RECOVERED_SUFFIX):
-        base = base[: -len(_RECOVERED_SUFFIX)]
-    return base
-
-
-def eval_checkpoints_dir(log_location: str, override_root: str | None) -> str:
-    """Compute the eval checkpoints dir path.
-
-    Strips a trailing ``.eval`` from the log basename and appends
-    ``.checkpoints``. Parent is ``override_root`` (the *evals
-    checkpoints dir*) if provided, else the log's directory. Any
-    trailing slash on the parent is stripped so the join never
-    produces an empty path segment (which S3 honors literally as an
-    extra "directory").
-    """
-    parent = (override_root if override_root else dirname(log_location)).rstrip("/")
-    return f"{parent}/{log_basename(log_location)}.checkpoints"
 
 
 def eval_checkpoints_dir_from_config(
