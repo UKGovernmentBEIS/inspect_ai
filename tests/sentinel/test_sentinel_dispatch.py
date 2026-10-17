@@ -12,7 +12,11 @@ from test_helpers.utils import skip_if_no_mcp_package
 from typing_extensions import assert_type
 
 from inspect_ai import Task, eval
-from inspect_ai._sentinel._config import resolve_sentinel_root, resolve_sentinel_spec
+from inspect_ai._sentinel._config import (
+    SENTINEL_MIN_VERSION,
+    resolve_sentinel_root,
+    resolve_sentinel_spec,
+)
 from inspect_ai._sentinel._context import init_sentinel
 from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai.agent import (
@@ -928,7 +932,7 @@ def test_an_escalate_returned_to_the_host_fails_the_sample(
     assert sample.limit is None
     assert sample.error is not None
     assert f"returned an escalate at the {stage} stage" in sample.error.message
-    assert "inspect_sentinel 0.1.3 or later" in sample.error.message
+    assert f"inspect_sentinel {SENTINEL_MIN_VERSION} or later" in sample.error.message
     assert tool_messages(log) == []
     [event] = [e for e in sample.events if isinstance(e, ToolEvent)]
     assert event.failed is True
