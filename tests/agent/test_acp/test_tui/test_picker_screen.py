@@ -1680,11 +1680,18 @@ async def test_picker_footer_shows_navigate_hint_when_table_focused() -> None:
         # The DataTable should be focused once rows are populated.
         assert app.focused is not None
         assert type(app.focused).__name__ == "_NavDataTable"
-        descriptions = [
-            getattr(child, "description", None)
-            for child in app.screen.walk_children()
-            if type(child).__name__ == "FooterKey"
-        ]
+        # Footer recomposes its keys after a refresh once the bindings
+        # change, so poll rather than read once.
+        descriptions: list[object] = []
+        for _ in range(20):
+            descriptions = [
+                getattr(child, "description", None)
+                for child in app.screen.walk_children()
+                if type(child).__name__ == "FooterKey"
+            ]
+            if "navigate" in descriptions:
+                break
+            await pilot.pause()
         assert "navigate" in descriptions
 
 

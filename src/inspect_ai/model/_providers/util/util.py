@@ -194,6 +194,23 @@ def is_claude_sonnet_5_5_model(model_name: str) -> bool:
     return _CLAUDE_SONNET_5_5_OR_LATER.search(model_name) is not None
 
 
+# Haiku 5.5 and later point releases, with the same exclusions as Opus above
+_CLAUDE_HAIKU_5_5_OR_LATER = re.compile(
+    r"claude-haiku-5[-.](?:[5-9]|[1-9]\d)(?![0-9A-Za-z])"
+)
+
+
+def is_claude_haiku_5_5_model(model_name: str) -> bool:
+    """Haiku 5.5 or a later Haiku 5 point release.
+
+    Haiku 5.5 binds thinking blocks to the conversation prefix and rejects
+    `computer_20251124` on the Claude API and Vertex, as Sonnet 5.5 does, but
+    accepts forced tool choice and `disabled` thinking (at effort `high` or
+    below). These behaviors are assumed to persist in later point releases.
+    """
+    return _CLAUDE_HAIKU_5_5_OR_LATER.search(model_name) is not None
+
+
 def rejects_forced_tool_choice(model_name: str) -> bool:
     """Whether the model returns a 400 for `tool_choice` `any` / a specific tool."""
     return (
