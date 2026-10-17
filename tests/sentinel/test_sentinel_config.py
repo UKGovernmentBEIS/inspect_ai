@@ -23,6 +23,7 @@ from inspect_ai._display.core.config import task_config_str
 from inspect_ai._display.core.display import TaskProfile
 from inspect_ai._eval.eval_set_manifest import INSPECT_EVAL_SET_CAPTURE, EvalSetCapture
 from inspect_ai._eval.eval_set_overrides import INSPECT_EVAL_SET_OVERRIDES
+from inspect_ai._sentinel._config import SENTINEL_MIN_VERSION
 from inspect_ai._sentinel._context import active_sentinel
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.registry import registry_info
@@ -555,6 +556,54 @@ def test_missing_package_error(monkeypatch: pytest.MonkeyPatch) -> None:
         eval(sentinel_task(), model="mockllm/model", sentinel="d2_rule")
     log = eval(sentinel_task(), model="mockllm/model")[0]
     assert active_root(log) is None
+
+
+def report_sentinel_version(monkeypatch: pytest.MonkeyPatch, reported: str) -> None:
+    from importlib.metadata import version
+
+    def fake_version(package: str) -> str:
+        return reported if package == "inspect-sentinel" else version(package)
+
+    monkeypatch.setattr("inspect_ai._util.version.version", fake_version)
+    monkeypatch.setattr("inspect_ai._sentinel._config.version", fake_version)
+
+
+@pytest.mark.parametrize("reported", ["0.1.2", "0.1.3.dev4"])
+def test_older_package_error(
+    monkeypatch: pytest.MonkeyPatch, reported: str, tmp_path: Path
+) -> None:
+    global ran
+    ran = False
+    report_sentinel_version(monkeypatch, reported)
+    with pytest.raises(PrerequisiteError) as raised:
+        sentinel_task(RULE_CONFIG)
+    message = str(raised.value.message)
+    assert f"inspect-sentinel>={SENTINEL_MIN_VERSION}" in message
+    assert f"you have version {reported} installed" in message
+    assert (
+        f'pip install --upgrade "inspect-sentinel>={SENTINEL_MIN_VERSION}"' in message
+    )
+    with pytest.raises(PrerequisiteError, match="inspect-sentinel>="):
+        eval(
+            Task(dataset=[Sample(input="x")], solver=mark_ran()),
+            model="mockllm/model",
+            sentinel="d2_rule",
+            log_dir=str(tmp_path),
+        )
+    assert not ran
+    assert not list(tmp_path.glob("*.eval"))
+    log = eval(sentinel_task(), model="mockllm/model", log_dir=str(tmp_path))[0]
+    assert active_root(log) is None
+
+
+# a git install of sentinel main reports a dev build of the next release
+@pytest.mark.parametrize("reported", [SENTINEL_MIN_VERSION, "0.1.4.dev3", "0.2.0"])
+def test_supported_package_versions(
+    monkeypatch: pytest.MonkeyPatch, reported: str
+) -> None:
+    report_sentinel_version(monkeypatch, reported)
+    log = eval(sentinel_task(), model="mockllm/model", sentinel="d2_rule")[0]
+    assert active_root(log) == "d2_rule"
 
 
 @pytest.mark.parametrize(
