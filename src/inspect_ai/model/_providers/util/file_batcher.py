@@ -11,7 +11,7 @@ from inspect_ai._util._async import tg_collect
 from inspect_ai.model._generate_config import BatchConfig
 from inspect_ai.model._retry import ModelRetryConfig
 
-from .batch import Batch, Batcher, BatchRequest
+from .batch import Batch, Batcher, BatchRequest, pop_batch_headers
 
 ResponseT = TypeVar("ResponseT")
 CompletedBatchInfoT = TypeVar("CompletedBatchInfoT")
@@ -52,19 +52,14 @@ class FileBatcher(Batcher[ResponseT, CompletedBatchInfoT]):
     @override
     async def _create_batch(self, batch: list[BatchRequest[ResponseT]]) -> str:
         """Create a batch by generating JSONL file and submitting to provider."""
-        extra_headers: dict[str, str] = {}
+        extra_headers = pop_batch_headers(batch)
 
         with tempfile.NamedTemporaryFile(
             delete=True, suffix=".jsonl", mode="w+b"
         ) as temp_file:
             for request in batch:
-                # Extract common metadata (headers, request IDs)
-                extra_headers, custom_id = self._process_request_metadata(
-                    request, extra_headers
-                )
-
                 # Format as provider-specific JSONL entry
-                jsonl_entry = self._jsonl_line_for_request(request, custom_id)
+                jsonl_entry = self._jsonl_line_for_request(request, request.custom_id)
 
                 # Write to file
                 temp_file.write(json.dumps(jsonl_entry).encode() + b"\n")
@@ -188,22 +183,6 @@ class FileBatcher(Batcher[ResponseT, CompletedBatchInfoT]):
         pass
 
     # Private gunk
-
-    def _process_request_metadata(
-        self, request: BatchRequest[ResponseT], existing_headers: dict[str, str]
-    ) -> tuple[dict[str, str], str]:
-        """Extract headers and custom_id from request, updating existing headers."""
-        from .hooks import HttpxHooks
-
-        extra_headers = request.request.pop("extra_headers", {})
-        # Merge with any existing headers
-        merged_headers = existing_headers | extra_headers
-
-        request_id = extra_headers.pop(HttpxHooks.REQUEST_ID_HEADER, None)
-        if request_id is not None:
-            request.custom_id = request_id
-
-        return merged_headers, request.custom_id
 
     async def _parse_result_file(
         self, file_uri: str

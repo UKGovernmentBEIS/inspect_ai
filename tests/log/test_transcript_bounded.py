@@ -1,12 +1,13 @@
 import contextvars
 import dataclasses
 import json
-from typing import Any, NoReturn, Sequence
+from typing import Any, NoReturn, Sequence, TypeGuard, cast
 from unittest.mock import patch
 
 import numpy as np
 import pytest
 from test_helpers.transcript import FakeTranscriptHistoryProvider, make_model_event
+from typing_extensions import assert_type
 
 from inspect_ai._util.constants import DEFAULT_LOG_MODEL_API_CALLS
 from inspect_ai.dataset._dataset import Sample
@@ -22,6 +23,7 @@ from inspect_ai.log._condense import (
 )
 from inspect_ai.log._transcript import (
     Transcript,
+    TranscriptHistoryUnavailableError,
     transcript,
     transcript_bounded_enabled,
 )
@@ -646,6 +648,38 @@ def test_extend_restored_events_notifies_subscribers() -> None:
 
     assert transcript.history.resident_events == [restored]
     assert subscriber_events == [restored]
+
+
+def test_extend_restored_events_resolves_attachments() -> None:
+    condensed_message = ChatMessageUser(content="attachment://text-ref")
+    call = ModelCall.create(
+        {"messages": [{"role": "user", "content": "attachment://call-ref"}]}, None
+    )
+    restored = make_model_event([condensed_message], uuid="restored-1", call=call)
+    attachments = {"text-ref": "restored text", "call-ref": "restored call"}
+    transcript = Transcript(bounded=True, resident_tail=1, log_model_api=True)
+    delivered: list[dict[str, Any]] = []
+    transcript._subscribe(lambda event: delivered.append(event.model_dump(mode="json")))
+
+    transcript._extend_restored_events([restored], attachments, notify_subscribers=True)
+
+    # subscribers see the event resolved except its model call
+    assert delivered[0]["input"][0]["content"] == "restored text"
+    assert delivered[0]["call"]["request"]["messages"][0]["content"] == (
+        "attachment://call-ref"
+    )
+    resident = transcript.history.resident_events[0]
+    assert isinstance(resident, ModelEvent)
+    assert resident.input[0].content == "restored text"
+    assert resident.call is call
+    # the caller's event is not mutated
+    assert restored.input == [condensed_message]
+    assert condensed_message.content == "attachment://text-ref"
+    # restored attachments are released when the event is evicted
+    assert transcript.attachments == attachments
+    transcript._event(InfoEvent(uuid="filler-1", data="x"))
+    assert transcript.history.resident_events_truncated is True
+    assert transcript.attachments == {}
 
 
 def test_transcript_subscriber_exception_does_not_skip_processing(
@@ -1412,3 +1446,211 @@ def test_call_walk_cache_only_core_passthrough() -> None:
     assert walked is call  # untouched, by identity
     assert tr.attachments == {}  # no attachments created
     assert tr._call_walk_cache._slots == []
+
+
+class _CountingProvider(FakeTranscriptHistoryProvider):
+    def __init__(self, events: Sequence[Event]) -> None:
+        super().__init__(events)
+        self.read = 0
+
+    def events_from(self, start: int, limit: int | None = None) -> Sequence[Event]:
+        events = super().events_from(start, limit)
+        self.read += len(events)
+        return events
+
+
+def _history_transcript(
+    events: list[Event], provider: FakeTranscriptHistoryProvider | None
+) -> Transcript:
+    transcript = Transcript(bounded=True, resident_tail=3, history_provider=provider)
+    for event in events:
+        transcript._event(event)
+    return transcript
+
+
+def _is_data(value: object) -> Any:
+    return lambda event: isinstance(event, InfoEvent) and event.data == value
+
+
+def test_find_last_narrows_to_a_type_guard_predicates_type() -> None:
+    transcript = Transcript()
+    transcript._event(InfoEvent(data=1))
+
+    def is_info(event: Event) -> TypeGuard[InfoEvent]:
+        return isinstance(event, InfoEvent)
+
+    found = transcript.history.find_last(is_info)
+    assert_type(found, InfoEvent | None)
+    assert found is not None and found.data == 1
+    assert_type(transcript.history.find_last(lambda event: True), Event | None)
+
+
+def test_find_last_unbounded_returns_the_newest_match() -> None:
+    transcript = Transcript()
+    for value in [1, 2, 1, 3]:
+        transcript._event(InfoEvent(data=value))
+    found = transcript.history.find_last(_is_data(1))
+    assert found is transcript.history.resident_events[2]
+    assert transcript.history.find_last(_is_data(9)) is None
+
+
+@pytest.mark.parametrize(
+    "value,max_read",
+    [(499, 0), (495, 16), (10, 500), (-1, 500)],
+    ids=["resident", "just_evicted", "far_back", "absent"],
+)
+def test_find_last_with_a_provider_reads_back_only_as_far_as_the_match(
+    value: int, max_read: int
+) -> None:
+    events: list[Event] = [InfoEvent(data=i) for i in range(500)]
+    provider = _CountingProvider(events)
+    transcript = _history_transcript(events, provider)
+    found = transcript.history.find_last(_is_data(value))
+    if value < 0:
+        assert found is None
+        assert provider.read == 497
+    else:
+        assert isinstance(found, InfoEvent) and found.data == value
+    assert provider.read <= max_read
+
+
+def test_find_last_visits_every_event_once_newest_first() -> None:
+    events: list[Event] = [InfoEvent(data=i) for i in range(300)]
+    transcript = _history_transcript(events, FakeTranscriptHistoryProvider(events))
+    visited: list[Any] = []
+
+    def record(event: Event) -> bool:
+        visited.append(cast(InfoEvent, event).data)
+        return False
+
+    assert transcript.history.find_last(record) is None
+    assert visited == list(reversed(range(300)))
+
+
+def test_find_last_without_a_provider_finds_resident_events_kept_out_of_order() -> None:
+    sample_init = SampleInitEvent(sample=Sample(input="input", id="sample"), state={})
+    pending = InfoEvent(data="pending", pending=True)
+    events: list[Event] = [
+        sample_init,
+        pending,
+        *[InfoEvent(data=i) for i in range(10)],
+    ]
+    transcript = _history_transcript(events, None)
+    assert transcript.history.resident_events_truncated
+    assert (
+        transcript.history.find_last(lambda event: isinstance(event, SampleInitEvent))
+        is sample_init
+    )
+    assert transcript.history.find_last(_is_data("pending")) is pending
+    assert transcript.history.find_last(_is_data(9)) is events[-1]
+
+
+def test_find_last_without_a_provider_raises_when_evicted_events_are_needed() -> None:
+    events: list[Event] = [InfoEvent(data=i) for i in range(10)]
+    transcript = _history_transcript(events, None)
+    with pytest.raises(TranscriptHistoryUnavailableError):
+        transcript.history.find_last(_is_data(0))
+
+
+def test_find_last_prefers_a_newer_evicted_match_to_an_older_resident_one() -> None:
+    events: list[Event] = [
+        InfoEvent(data=0, pending=True),
+        *[InfoEvent(data=i) for i in range(1, 10)],
+    ]
+    transcript = _history_transcript(events, FakeTranscriptHistoryProvider(events))
+    assert events[0] in transcript.history.resident_events
+    found = transcript.history.find_last(
+        lambda event: isinstance(event, InfoEvent) and event.data in (0, 5)
+    )
+    assert isinstance(found, InfoEvent) and found.data == 5
+
+
+class _PageRecordingProvider(FakeTranscriptHistoryProvider):
+    def __init__(self, events: Sequence[Event]) -> None:
+        super().__init__(events)
+        self.pages: list[tuple[int, int | None]] = []
+
+    def events_from(self, start: int, limit: int | None = None) -> Sequence[Event]:
+        self.pages.append((start, limit))
+        return super().events_from(start, limit)
+
+
+def test_find_last_pages_grow_to_256_and_cover_the_evicted_history() -> None:
+    events: list[Event] = [InfoEvent(data=i) for i in range(1000)]
+    provider = _PageRecordingProvider(events)
+    transcript = _history_transcript(events, provider)
+    assert transcript.history.find_last(lambda event: False) is None
+    assert [limit for _, limit in provider.pages] == [16, 32, 64, 128, 256, 256, 245]
+    end = 997
+    for start, limit in provider.pages:
+        assert limit is not None and start + limit == end
+        end = start
+    assert end == 0
+
+
+def test_find_last_searches_the_history_as_it_was_when_called() -> None:
+    events: list[Event] = [InfoEvent(data=i) for i in range(10)]
+    provider = FakeTranscriptHistoryProvider(events)
+    transcript = _history_transcript(events, provider)
+    visited: list[Any] = []
+
+    def append_then_match_new(event: Event) -> bool:
+        visited.append(cast(InfoEvent, event).data)
+        if len(visited) == 1:
+            for i in range(10, 15):
+                new = InfoEvent(data=i)
+                transcript._event(new)
+                provider._events.append(new)
+        data = cast(InfoEvent, event).data
+        return isinstance(data, int) and data >= 10
+
+    assert transcript.history.find_last(append_then_match_new) is None
+    assert visited == list(reversed(range(10)))
+
+
+class _AppendingProvider(FakeTranscriptHistoryProvider):
+    transcript: Transcript | None = None
+    appended = False
+
+    def events_from(self, start: int, limit: int | None = None) -> Sequence[Event]:
+        if not self.appended and self.transcript is not None:
+            self.appended = True
+            for i in range(100, 105):
+                new = InfoEvent(data=i)
+                self.transcript._event(new)
+                self._events.append(new)
+        return super().events_from(start, limit)
+
+
+def test_find_last_ignores_events_added_while_reading_the_provider() -> None:
+    events: list[Event] = [InfoEvent(data=i) for i in range(30)]
+    provider = _AppendingProvider(events)
+    transcript = _history_transcript(events, provider)
+    provider.transcript = transcript
+    visited: list[Any] = []
+
+    def record(event: Event) -> bool:
+        visited.append(cast(InfoEvent, event).data)
+        return False
+
+    assert transcript.history.find_last(record) is None
+    assert provider.appended
+    assert visited == list(reversed(range(30)))
+
+
+def test_find_last_is_not_unavailable_when_eviction_starts_during_the_search() -> None:
+    transcript = Transcript(bounded=True, resident_tail=3)
+    for i in range(3):
+        transcript._event(InfoEvent(data=i))
+    visited: list[Any] = []
+
+    def append_until_evicting(event: Event) -> bool:
+        visited.append(cast(InfoEvent, event).data)
+        if len(visited) == 1:
+            for i in range(3, 8):
+                transcript._event(InfoEvent(data=i))
+        return False
+
+    assert transcript.history.find_last(append_until_evicting) is None
+    assert transcript.history.resident_events_truncated
+    assert visited == [2, 1, 0]

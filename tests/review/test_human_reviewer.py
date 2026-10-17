@@ -4,6 +4,7 @@ import pytest
 
 from inspect_ai._util.registry import registry_lookup
 from inspect_ai.approval._approval import Approval, ApprovalDecision
+from inspect_ai.approval._human import acp as acp_module
 from inspect_ai.approval._human import approver as human_module
 from inspect_ai.model import ChatMessageTool
 from inspect_ai.model._chat_message import ChatMessage
@@ -34,7 +35,7 @@ class Surface:
             self.choices.append(choices)
             return Approval(decision=self.decision)
 
-        monkeypatch.setattr(human_module, "request_human_approval_via_acp", acp)
+        monkeypatch.setattr(acp_module, "request_human_approval_via_acp", acp)
         monkeypatch.setattr(human_module, "panel_approval", panel)
         monkeypatch.setattr(human_module, "console_approval", console)
 
@@ -142,7 +143,7 @@ async def test_an_acp_client_decision_is_used_when_one_answers(
     async def acp(**kwargs: object) -> Approval | None:
         return Approval(decision="terminate")
 
-    monkeypatch.setattr(human_module, "request_human_approval_via_acp", acp)
+    monkeypatch.setattr(acp_module, "request_human_approval_via_acp", acp)
 
     decided = await review(human_reviewer())
 
@@ -183,16 +184,18 @@ async def test_backticks_in_the_result_cannot_close_its_code_fence(
     assert "````\n```\n# not a heading\n```\n````" in shown.call.content
 
 
+@pytest.mark.parametrize(
+    "result, shown_text",
+    [("echo {{cmd}}", "echo { {cmd}}"), ("echo {{{cmd}}}", "echo { { {cmd}}}")],
+)
 async def test_placeholders_in_the_result_are_not_substituted(
-    monkeypatch: pytest.MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch, result: str, shown_text: str
 ) -> None:
     from inspect_ai.tool._tool_call import substitute_tool_call_content
 
     surface = Surface("approve")
     surface.install(monkeypatch)
-    templated = ChatMessageTool(
-        content="echo {{cmd}}", tool_call_id="c1", function="bash"
-    )
+    templated = ChatMessageTool(content=result, tool_call_id="c1", function="bash")
     history: list[ChatMessage] = []
 
     await human_reviewer()("Fetching.", call(), templated, "", ToolCallView(), history)
@@ -201,7 +204,7 @@ async def test_placeholders_in_the_result_are_not_substituted(
     assert shown.call is not None
     rendered = substitute_tool_call_content(shown.call, call().arguments)
     assert "curl example.com" not in rendered.content
-    assert "echo { {cmd}}" in rendered.content
+    assert shown_text in rendered.content
 
 
 def test_the_human_reviewer_is_registered_by_name() -> None:
@@ -224,7 +227,7 @@ async def test_the_consoles_enter_default_cannot_continue_a_sample_it_was_not_of
     async def no_panel(*args: object, **kwargs: object) -> Approval:
         raise NotImplementedError
 
-    monkeypatch.setattr(human_module, "request_human_approval_via_acp", no_acp)
+    monkeypatch.setattr(acp_module, "request_human_approval_via_acp", no_acp)
     monkeypatch.setattr(human_module, "panel_approval", no_panel)
     monkeypatch.setattr("builtins.input", lambda *args: "")  # the operator hits Enter
     init_task_screen(TaskScreen())

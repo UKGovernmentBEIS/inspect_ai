@@ -9,7 +9,7 @@ Inspect includes both text matching scorers as well as model graded scorers. Bel
 :   Check whether the `target` appears at a known position: `begin`, `end` (the default), or `any`. With `location="exact"` the whole output must equal the target. Ignores case and white-space by default. Pass `numeric=True` to compare numbers rather than text; currency symbols (`$`, `€`, `£`), thousands separators (`,`), and formatting markers (`*`, `_`) are stripped first.
 
 `pattern()`
-:   Extract an answer using a regular expression and compare it with the target. Uses the captured values when capture groups are present, or the full match otherwise. For example, `pattern(r"\d+")` extracts `42` from `The answer is 42`. With multiple groups, set `match_all=True` to require every captured value to match the target (the default matches any one group). Returns `INCORRECT` (with `reason="invalid_response_format"`) when the pattern does not match.
+:   Extract an answer using a regular expression and compare it with the target. Uses the captured values when capture groups are present, or the full match otherwise. For example, `pattern(r"\d+")` extracts `42` from `The answer is 42`. With multiple groups, set `match_all=True` to require every captured value to match the target (the default matches any one group). Returns `INCORRECT` (with `reason="invalid_response_format"`) when the pattern does not match, or `reason="no_response"` when the completion was empty.
 
 `answer()`
 :   For prompts that instruct the model to end with `ANSWER: X`. Extracts the letter, word, or remainder of the line that follows.
@@ -42,7 +42,7 @@ Inspect includes both text matching scorers as well as model graded scorers. Bel
 
 ## When the output doesn't match
 
-`includes()`, `match()`, and `exact()` return `INCORRECT` for a non-matching response. `pattern()` and `answer()` return `INCORRECT` when the extracted answer is wrong or the required pattern is absent. An absent pattern also sets `reason="invalid_response_format"`.
+`includes()`, `match()`, and `exact()` return `INCORRECT` for a non-matching response. `pattern()` and `answer()` return `INCORRECT` when the extracted answer is wrong or the required pattern is absent. An absent pattern also sets `reason="invalid_response_format"`. An empty or whitespace-only completion sets `reason="no_response"` on all six, since there was no output to violate a format.
 
 These incorrect scores contribute `0.0` to the default metrics. See [Scoring Policy](scoring-policy.qmd) for how scores, unscored results, and errors affect metrics and coverage.
 

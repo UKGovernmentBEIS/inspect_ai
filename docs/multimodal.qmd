@@ -89,7 +89,7 @@ pre-run boundary can preserve fixed-dataset path and URL handling by passing
 `input_media_policy="trusted_pre_run"`. Do not use that policy for tasks created
 during an eval.
 
-See [Media Reference Authority](../design/media-authority.md) for the full threat
+See [Media Reference Authority](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/design/media-authority.md) for the full threat
 model, source table, and residual risks.
 
 ## Images {#provider-notes}
@@ -131,7 +131,7 @@ input = [
 
 ### Detail
 
-Some providers support a `detail` option that control over how the model processes the image and generates its textual understanding. Valid options are `auto` (the default), `low`, and `high`. See the [Open AI documentation](https://platform.openai.com/docs/guides/vision#low-or-high-fidelity-image-understanding) for more information on using this option. The Mistral, AzureAI, and Groq APIs also support the `detail` parameter. For example, here we explicitly specify image detail:
+Some providers support a `detail` option that control over how the model processes the image and generates its textual understanding. Valid options are `auto` (the default), `low`, and `high`. See the [Open AI documentation](https://developers.openai.com/api/docs/guides/images-vision#choose-an-image-detail-level) for more information on using this option. The Mistral, AzureAI, and Groq APIs also support the `detail` parameter. For example, here we explicitly specify image detail:
 
 ``` python
 ContentImage(image="picture.png", detail="low")

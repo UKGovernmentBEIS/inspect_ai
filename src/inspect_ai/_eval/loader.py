@@ -28,6 +28,7 @@ from inspect_ai._util.registry import (
 )
 from inspect_ai.agent._agent import Agent
 from inspect_ai.agent._as_solver import as_solver
+from inspect_ai.log import EvalLog
 from inspect_ai.model import Model
 from inspect_ai.scorer._metric import Metric, MetricSpec, metric_create
 from inspect_ai.scorer._scorer import Scorer, ScorerSpec, scorer_create
@@ -47,6 +48,7 @@ from inspect_ai.util._sandbox.environment import (
     resolve_sandbox_environment,
 )
 from inspect_ai.util._sandbox.registry import registry_find_sandboxenv
+from inspect_ai.viewer import ViewerConfig
 
 from .list import task_files
 from .registry import task_create, task_source_create
@@ -342,6 +344,8 @@ def resolve_previous_task(
         copy.deepcopy(prior_stats.role_usage) if prior_stats.role_usage else None
     )
 
+    _retain_untrusted_content(loaded_task, previous_task.log)
+
     return ResolvedTask(
         task=loaded_task,
         task_args=loaded_task_args,
@@ -373,6 +377,22 @@ def resolve_previous_task(
         initial_role_usage=initial_role_usage,
         input_media_policy="trusted_pre_run",
     )
+
+
+def _retain_untrusted_content(task: Task, previous_log: EvalLog) -> None:
+    """Keep a previous run's `trust_content=False` on the retried task.
+
+    The retry reloads the task from its definition, which loses a viewer
+    config applied with `task_with()`, but the retried log carries the previous
+    run's samples, so their content stays untrusted.
+    """
+    previous_viewer = previous_log.eval.viewer
+    if previous_viewer is None or previous_viewer.trust_content is not False:
+        return
+    if task.viewer is None:
+        task.viewer = ViewerConfig(trust_content=False)
+    elif task.viewer.trust_content is not False:
+        task.viewer = task.viewer.model_copy(update={"trust_content": False})
 
 
 def resolve_task_args(task: Task) -> dict[str, Any]:

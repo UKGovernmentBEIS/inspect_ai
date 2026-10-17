@@ -57,6 +57,9 @@ class _WindowSums(NamedTuple):
     total_tokens: int
     requests: int
     retries: int
+    input_tokens: int
+    cache_read_tokens: int
+    cache_write_tokens: int
 
 
 @dataclass
@@ -69,6 +72,9 @@ class _Bucket:
     total_tokens: int = 0
     requests: int = 0
     retries: int = 0
+    input_tokens: int = 0
+    cache_read_tokens: int = 0
+    cache_write_tokens: int = 0
 
 
 class TokenBuckets:
@@ -96,6 +102,9 @@ class TokenBuckets:
         total_tokens: int = 0,
         requests: int = 0,
         retries: int = 0,
+        input_tokens: int = 0,
+        cache_read_tokens: int = 0,
+        cache_write_tokens: int = 0,
     ) -> None:
         epoch = int(now // BUCKET_SECONDS)
         bucket = self._buckets[epoch % BUCKET_COUNT]
@@ -105,23 +114,41 @@ class TokenBuckets:
             bucket.total_tokens = 0
             bucket.requests = 0
             bucket.retries = 0
+            bucket.input_tokens = 0
+            bucket.cache_read_tokens = 0
+            bucket.cache_write_tokens = 0
         bucket.output_tokens += output_tokens
         bucket.total_tokens += total_tokens
         bucket.requests += requests
         bucket.retries += retries
+        bucket.input_tokens += input_tokens
+        bucket.cache_read_tokens += cache_read_tokens
+        bucket.cache_write_tokens += cache_write_tokens
 
     def window_sums(self, now: float, window: float) -> _WindowSums:
         window = min(window, HORIZON_SECONDS)
         lo_epoch = int((now - window) // BUCKET_SECONDS)
         hi_epoch = int(now // BUCKET_SECONDS)
         output_tokens = total_tokens = requests = retries = 0
+        input_tokens = cache_read_tokens = cache_write_tokens = 0
         for bucket in self._buckets:
             if lo_epoch <= bucket.epoch <= hi_epoch:
                 output_tokens += bucket.output_tokens
                 total_tokens += bucket.total_tokens
                 requests += bucket.requests
                 retries += bucket.retries
-        return _WindowSums(output_tokens, total_tokens, requests, retries)
+                input_tokens += bucket.input_tokens
+                cache_read_tokens += bucket.cache_read_tokens
+                cache_write_tokens += bucket.cache_write_tokens
+        return _WindowSums(
+            output_tokens=output_tokens,
+            total_tokens=total_tokens,
+            requests=requests,
+            retries=retries,
+            input_tokens=input_tokens,
+            cache_read_tokens=cache_read_tokens,
+            cache_write_tokens=cache_write_tokens,
+        )
 
 
 class BackoffInterval(NamedTuple):
@@ -148,6 +175,9 @@ class ModelThroughput:
     requests: int = 0
     output_tokens: int = 0
     total_tokens: int = 0
+    input_tokens: int = 0
+    input_tokens_cache_read: int = 0
+    input_tokens_cache_write: int = 0
     retries_rate_limit: int = 0
     retries_transient: int = 0
     retry_wait_seconds: float = 0.0
@@ -169,6 +199,9 @@ class ModelThroughputView:
     model: str
     window_seconds: float
     output_tokens_per_second: float
+    input_tokens_per_minute: float
+    cache_read_tokens_per_minute: float
+    cache_write_tokens_per_minute: float
     requests_per_minute: float
     retries_per_minute: float
     backoff_ratio: float
@@ -177,6 +210,9 @@ class ModelThroughputView:
     requests: int
     output_tokens: int
     total_tokens: int
+    input_tokens: int
+    input_tokens_cache_read: int
+    input_tokens_cache_write: int
     retries_rate_limit: int
     retries_transient: int
     retry_wait_seconds: float
@@ -234,16 +270,28 @@ def record_generate(model: str, usage: ModelUsage, now: float | None = None) -> 
     Called from ``record_and_check_model_usage()`` — which cache hits bypass
     via their early return, so cached reads (which consume no provider
     capacity) never inflate the reported rate.
+
+    Input tokens follow ``ModelUsage``: ``input_tokens`` excludes cache reads
+    and writes, which are counted separately (a provider that reports no
+    cache usage counts as 0).
     """
     record, now = _record(model, now)
+    cache_read = usage.input_tokens_cache_read or 0
+    cache_write = usage.input_tokens_cache_write or 0
     record.requests += 1
     record.output_tokens += usage.output_tokens
     record.total_tokens += usage.total_tokens
+    record.input_tokens += usage.input_tokens
+    record.input_tokens_cache_read += cache_read
+    record.input_tokens_cache_write += cache_write
     record.buckets.add(
         now,
         output_tokens=usage.output_tokens,
         total_tokens=usage.total_tokens,
         requests=1,
+        input_tokens=usage.input_tokens,
+        cache_read_tokens=cache_read,
+        cache_write_tokens=cache_write,
     )
 
 
@@ -363,6 +411,9 @@ def _model_view(
         model=model,
         window_seconds=effective,
         output_tokens_per_second=sums.output_tokens / effective,
+        input_tokens_per_minute=sums.input_tokens * 60.0 / effective,
+        cache_read_tokens_per_minute=sums.cache_read_tokens * 60.0 / effective,
+        cache_write_tokens_per_minute=sums.cache_write_tokens * 60.0 / effective,
         requests_per_minute=sums.requests * 60.0 / effective,
         retries_per_minute=sums.retries * 60.0 / effective,
         backoff_ratio=backoff / effective,
@@ -370,6 +421,9 @@ def _model_view(
         requests=record.requests,
         output_tokens=record.output_tokens,
         total_tokens=record.total_tokens,
+        input_tokens=record.input_tokens,
+        input_tokens_cache_read=record.input_tokens_cache_read,
+        input_tokens_cache_write=record.input_tokens_cache_write,
         retries_rate_limit=record.retries_rate_limit,
         retries_transient=record.retries_transient,
         retry_wait_seconds=record.retry_wait_seconds,
@@ -440,6 +494,16 @@ def throughput_report(window: int = DEFAULT_WINDOW_SECONDS) -> dict[str, Any]:
                 "model": view.model,
                 "window_seconds": round(view.window_seconds, 1),
                 "output_tokens_per_second": round(view.output_tokens_per_second, 1),
+                "output_tokens_per_minute": round(
+                    view.output_tokens_per_second * 60.0, 1
+                ),
+                "input_tokens_per_minute": round(view.input_tokens_per_minute, 1),
+                "cache_read_tokens_per_minute": round(
+                    view.cache_read_tokens_per_minute, 1
+                ),
+                "cache_write_tokens_per_minute": round(
+                    view.cache_write_tokens_per_minute, 1
+                ),
                 "requests_per_minute": round(view.requests_per_minute, 1),
                 "retries_per_minute": round(view.retries_per_minute, 1),
                 "backoff_ratio": round(view.backoff_ratio, 2),
@@ -448,6 +512,9 @@ def throughput_report(window: int = DEFAULT_WINDOW_SECONDS) -> dict[str, Any]:
                     "requests": view.requests,
                     "output_tokens": view.output_tokens,
                     "total_tokens": view.total_tokens,
+                    "input_tokens": view.input_tokens,
+                    "input_tokens_cache_read": view.input_tokens_cache_read,
+                    "input_tokens_cache_write": view.input_tokens_cache_write,
                     "retries": {
                         "rate_limit": view.retries_rate_limit,
                         "transient": view.retries_transient,

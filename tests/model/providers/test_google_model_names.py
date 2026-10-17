@@ -12,6 +12,14 @@ import pytest
 
 from inspect_ai.model import get_model
 from inspect_ai.model._model_info import get_model_input_tokens
+from inspect_ai.model._providers._google_reasoning import (
+    gemini_3_plus,
+    gemini_has_thinking_config,
+    gemini_is_latest,
+    gemini_thinking_budget,
+    gemini_thinking_level,
+    gemini_thinking_only,
+)
 from inspect_ai.model._providers.google import GoogleGenAIAPI
 
 
@@ -39,6 +47,7 @@ KNOWN_MODELS = [
     "gemini-3.6-flash",
     "gemini-3.7-flash",
     "gemini-3.8-flash",
+    "gemini-4-argon",
 ]
 
 NON_GENERATIVE_MODELS = [
@@ -95,6 +104,8 @@ def test_pro_codename_is_thinking_only() -> None:
         ("gemini-3.7-flash", False),
         ("gemini-3.8-flash", False),
         ("gemini-4-flash", False),
+        ("gemini-4-argon", False),
+        ("vertex/gemini-4-argon", False),
         ("gemini-3.1-flash-lite", True),
         ("gemini-3.1-flash-lite-preview", True),
         ("gemini-3.5-flash-lite", True),
@@ -131,6 +142,10 @@ def test_pro_codename_is_thinking_only() -> None:
             "vertex/projects/flash-lite-team/locations/us-central1/publishers/google/models/gemini-3.6-flash",
             True,
         ),
+        (
+            "vertex/projects/flash-lite-team/locations/us-central1/publishers/google/models/gemini-4-argon",
+            False,
+        ),
     ],
 )
 def test_supports_minimal_thinking(model_name: str, expected: bool) -> None:
@@ -140,6 +155,7 @@ def test_supports_minimal_thinking(model_name: str, expected: bool) -> None:
 @pytest.mark.parametrize(
     "model_name,expected",
     [
+        ("gemini-4-argon", (4,)),
         ("gemini-3.8-flash", (3, 8)),
         ("gemini-3-pro", (3,)),
         ("gemini-2.5-flash-lite", (2, 5)),
@@ -149,6 +165,10 @@ def test_supports_minimal_thinking(model_name: str, expected: bool) -> None:
         (
             "vertex/projects/gemini-3-research/publishers/google/models/gemini-3.8-flash",
             (3, 8),
+        ),
+        (
+            "vertex/projects/gemini-3-research/publishers/google/models/gemini-4-argon",
+            (4,),
         ),
     ],
 )
@@ -160,7 +180,7 @@ def test_gemini_version(model_name: str, expected: tuple[int, ...] | None) -> No
 def test_codename_aliases_to_frontier_context_window(model_name: str) -> None:
     # input_tokens_name() aliases to the current frontier so the context window
     # resolves correctly instead of falling back to the 128K default.
-    assert _api(model_name).input_tokens_name() == "google/gemini-3.8-flash"
+    assert _api(model_name).input_tokens_name() == "google/gemini-4-argon"
 
 
 @pytest.mark.parametrize("model_name", KNOWN_MODELS)
@@ -175,7 +195,9 @@ def test_future_gemini_version_aliases_to_frontier() -> None:
     api = _api("gemini-4-pro")
     assert api.is_latest() is False
     assert api.is_gemini_3_plus() is True
-    assert api.input_tokens_name() == "google/gemini-3.8-flash"
+    # unverified Pro names keep the fail-safe (thinking cannot be disabled)
+    assert api.is_gemini_thinking_only() is True
+    assert api.input_tokens_name() == "google/gemini-4-argon"
 
 
 def test_latest_scoped_to_dev_endpoint() -> None:
@@ -189,3 +211,116 @@ def test_latest_scoped_to_dev_endpoint() -> None:
 def test_codename_context_window_resolves() -> None:
     model = get_model("google/foo-bar-22", api_key="test-key")
     assert get_model_input_tokens(model) == 1048576
+
+
+@pytest.mark.parametrize(
+    "family,effort,expected",
+    [
+        ("gemini-3.6-flash", "minimal", "minimal"),
+        ("gemini-3.1-flash-lite", "minimal", "minimal"),
+        ("gemini-3-pro", "minimal", "low"),
+        ("gemini-3.7-flash", "minimal", "low"),
+        ("gemini-4-argon", "minimal", "low"),
+        ("gemini-4-argon", "low", "low"),
+        ("gemini-4-argon", "medium", "medium"),
+        ("gemini-4-argon", "high", "high"),
+        ("gemini-4-argon", "xhigh", "high"),
+        ("gemini-4-argon", "max", "high"),
+        ("gemini-4-argon", "none", None),
+        ("nimbus-preview", "minimal", "low"),
+        ("gemini-3-pro", "low", "low"),
+        ("gemini-3-pro", "medium", "medium"),
+        ("gemini-3-pro", "high", "high"),
+        ("gemini-3-pro", "xhigh", "high"),
+        ("nimbus-preview", "max", "high"),
+        ("gemini-3-pro", "none", None),
+        ("gemini-3-pro", None, None),
+    ],
+)
+def test_gemini_thinking_level(
+    family: str, effort: str | None, expected: str | None
+) -> None:
+    assert gemini_thinking_level(effort, family) == expected
+
+
+@pytest.mark.parametrize(
+    "family,expected",
+    [
+        ("nimbus-preview", True),
+        ("orion-pro-preview", True),
+        ("gemini-3-pro", False),
+        ("gemini-flash-latest", False),
+        ("gemma-3-27b-it", False),
+        ("text-embedding-004", False),
+    ],
+)
+def test_gemini_is_latest(family: str, expected: bool) -> None:
+    assert gemini_is_latest(family) is expected
+
+
+@pytest.mark.parametrize(
+    "family,thinking_config,three_plus,thinking_only",
+    [
+        ("gemini-1.5-pro", False, False, False),
+        ("gemini-2.0-flash", False, False, False),
+        ("gemini-2.5-flash", True, False, False),
+        ("gemini-2.5-pro", True, False, True),
+        ("gemini-3-pro", True, True, True),
+        ("gemini-3.8-flash", True, True, False),
+        ("gemini-3.1-pro-preview", True, True, True),
+        ("gemini-4-argon", True, True, False),
+        ("gemini-4-pro", True, True, True),
+        ("gemini-pro-latest", True, True, True),
+        (
+            "projects/my-project/locations/us-central1/publishers/google/models/gemini-4-argon",
+            True,
+            True,
+            False,
+        ),
+        (
+            "projects/my-project/locations/us-central1/publishers/google/models/gemini-3.8-flash",
+            True,
+            True,
+            False,
+        ),
+        ("gemini-flash-latest", True, True, False),
+        ("nimbus-preview", True, True, False),
+        ("orion-pro-preview", True, True, True),
+    ],
+)
+def test_gemini_generations(
+    family: str, thinking_config: bool, three_plus: bool, thinking_only: bool
+) -> None:
+    latest = gemini_is_latest(family)
+    assert gemini_has_thinking_config(family, latest) is thinking_config
+    assert gemini_3_plus(family, latest) is three_plus
+    assert gemini_thinking_only(family, latest) is thinking_only
+
+
+@pytest.mark.parametrize(
+    "family,effort,expected",
+    [
+        ("gemini-2.5-flash", "high", 16000),
+        ("gemini-2.5-flash", "max", 24576),
+        ("gemini-2.5-flash-lite", "xhigh", 24576),
+        ("gemini-2.5-pro", "max", 32000),
+        ("gemini-2.5-flash", "xhigh", 24576),
+        # a project id containing "-pro" does not raise the cap
+        (
+            "projects/my-project/locations/us-central1/publishers/google/models/gemini-2.5-flash",
+            "max",
+            24576,
+        ),
+        (
+            "projects/my-project/locations/us-central1/publishers/google/models/gemini-2.5-pro",
+            "max",
+            32000,
+        ),
+        ("gemini-2.5-pro", "none", None),
+        ("gemini-2.5-pro", None, None),
+    ],
+)
+def test_gemini_thinking_budget(
+    family: str, effort: str | None, expected: int | None
+) -> None:
+    assert gemini_thinking_budget(effort, family) == expected

@@ -229,7 +229,7 @@ async def test_sample_hold_parks_generate(monkeypatch: pytest.MonkeyPatch) -> No
 
     async def attempt() -> None:
         _bind_sample(sample)
-        await wait_generate_dispatch(model, lambda t: None)
+        await wait_generate_dispatch(model)
         passed.set()
 
     async with anyio.create_task_group() as tg:
@@ -255,14 +255,14 @@ async def test_sample_hold_ignores_other_samples_and_pass_context() -> None:
     async def other_sample_attempt() -> None:
         _bind_sample(_FakeGateSample())
         with anyio.fail_after(5):
-            await wait_generate_dispatch(model, lambda t: None)
+            await wait_generate_dispatch(model)
 
     async with anyio.create_task_group() as tg:
         tg.start_soon(other_sample_attempt)
 
     # the pass's own grader calls (no active sample bound) pass too
     with anyio.fail_after(5):
-        await wait_generate_dispatch(model, lambda t: None)
+        await wait_generate_dispatch(model)
 
 
 async def test_sample_hold_escapes_on_interrupt() -> None:
@@ -276,7 +276,7 @@ async def test_sample_hold_escapes_on_interrupt() -> None:
     async def attempt() -> None:
         _bind_sample(sample)
         with anyio.fail_after(5):
-            await wait_generate_dispatch(model, lambda t: None)
+            await wait_generate_dispatch(model)
 
     async with anyio.create_task_group() as tg:
         tg.start_soon(attempt)
@@ -510,8 +510,75 @@ async def test_score_pass_never_scores_completed_samples(
     # the fold alone feeds the interim metrics
     assert score_pass.metrics is not None
     (entry,) = score_pass.metrics
+    # a scalar scorer names its one score for itself: name == scorer
+    assert entry["name"] == "match_target"
     assert entry["scorer"] == "match_target"
     assert entry["metrics"]["accuracy"] == 1.0
+
+
+async def test_score_pass_interim_metrics_preserve_scorer_for_dict_scorers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Interim metrics carry each score's originating scorer, not just its key.
+
+    A dict-valued scorer names its scores for its value keys, so two scorers
+    sharing a key (here both emit ``hijack``) produce entries alike in
+    ``name`` — only ``scorer`` tells them apart, which a consumer needs to
+    resolve a HeadlineMetric. Regression for the control response serializing
+    ``score.name`` where it meant ``score.scorer``.
+    """
+
+    @scorer(metrics={"crash": [accuracy()], "hijack": [accuracy()]})
+    def bands_scorer():
+        async def score(state: TaskState, target: Target) -> Score:
+            return Score(value={"crash": 1.0, "hijack": 1.0})
+
+        return score
+
+    @scorer(metrics={"hijack": [accuracy()]})
+    def adjudicated_scorer():
+        async def score(state: TaskState, target: Target) -> Score:
+            return Score(value={"hijack": 0.0})
+
+        return score
+
+    async def summaries() -> list[EvalSampleSummary]:
+        return [
+            _summary(
+                "scored",
+                scores={
+                    "bands_scorer": Score(value={"crash": 1.0, "hijack": 1.0}),
+                    "adjudicated_scorer": Score(value={"hijack": 0.0}),
+                },
+            )
+        ]
+
+    register_eval("e1", 1, task_id="t1", live=FakeLiveEvalData(summaries=summaries))
+    _patch_active_samples(monkeypatch, [])
+
+    handle = TaskScoring(
+        scorers=[bands_scorer(), adjudicated_scorer()],
+        scorer_names=["bands_scorer", "adjudicated_scorer"],
+        model=get_model("mockllm/model", memoize=False),
+        model_roles=None,
+        generate_config=GenerateConfig(),
+        epochs_reducer=None,
+        metrics=None,
+        score_on_error=False,
+    )
+
+    score_pass = await _run_pass("t1", handle)
+    assert score_pass.metrics is not None
+    # each entry names both its score key (name) and originating scorer
+    by_key = {(e["scorer"], e["name"]) for e in score_pass.metrics}
+    assert ("bands_scorer", "crash") in by_key
+    assert ("bands_scorer", "hijack") in by_key
+    assert ("adjudicated_scorer", "hijack") in by_key
+    # the two `hijack` entries are alike in name — only `scorer` disambiguates
+    hijack = [e for e in score_pass.metrics if e["name"] == "hijack"]
+    assert len(hijack) == 2
+    assert {e["scorer"] for e in hijack} == {"bands_scorer", "adjudicated_scorer"}
+    assert all("accuracy" in e["metrics"] for e in score_pass.metrics)
 
 
 async def test_score_pass_dispositions(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -581,7 +648,7 @@ async def _park_solver_loop(
 
     _sample_active.set(active)
     while not stop.is_set():
-        await wait_generate_dispatch(model, lambda t: None)
+        await wait_generate_dispatch(model)
         await anyio.sleep(0.01)
 
 

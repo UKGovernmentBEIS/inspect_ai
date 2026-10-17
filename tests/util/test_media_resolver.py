@@ -1,28 +1,21 @@
 import base64
-import ipaddress
 import os
-import socket
 import tempfile
-from collections.abc import AsyncIterator
 from contextvars import Token
 from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, patch
 
 import anyio
-import httpcore
 import httpx
 import pytest
+from test_helpers.utils import no_network
 
 from inspect_ai._util.images import (
-    _PROVIDER_IMAGE_MAX_BYTES,
     MediaKind,
     UnresolvedMediaError,
     _get_resolver,
-    _is_public_ip_address,
     _media_resolvers,
-    _provider_image_response_data_uri,
-    _PublicNetworkBackend,
     file_as_data,
     file_as_data_uri,
     inline_media_data,
@@ -423,18 +416,17 @@ class TestFileAsDataSniffing:
 
 
 class TestProviderImageDataUri:
-    async def test_inline_image_is_returned_without_network_access(self) -> None:
+    def test_inline_image_is_returned_without_network_access(self) -> None:
         image = "data:image/png;base64,iVBORw0KGgo="
-        with patch("inspect_ai._util.images.httpcore.AsyncConnectionPool") as pool:
-            assert await provider_image_data_uri(image) == image
-        pool.assert_not_called()
+        with no_network() as (getaddrinfo, connect):
+            assert provider_image_data_uri(image) == image
+        getaddrinfo.assert_not_called()
+        connect.assert_not_called()
 
-    async def test_mime_less_inline_image_is_sniffed(self) -> None:
+    def test_mime_less_inline_image_is_sniffed(self) -> None:
         image = "data:;base64,iVBORw0KGgo="
 
-        assert await provider_image_data_uri(image) == (
-            "data:image/png;base64,iVBORw0KGgo="
-        )
+        assert provider_image_data_uri(image) == "data:image/png;base64,iVBORw0KGgo="
 
     @pytest.mark.parametrize(
         ("image", "message"),
@@ -443,221 +435,36 @@ class TestProviderImageDataUri:
             ("data:image/png;base64,bm90cG5n", "recognized raster image"),
         ],
     )
-    async def test_invalid_inline_image_is_rejected(
-        self, image: str, message: str
-    ) -> None:
+    def test_invalid_inline_image_is_rejected(self, image: str, message: str) -> None:
         with pytest.raises(ValueError, match=message):
-            await provider_image_data_uri(image)
+            provider_image_data_uri(image)
 
-    async def test_oversized_inline_image_is_rejected(self) -> None:
+    def test_oversized_inline_image_is_rejected(self) -> None:
         image = "data:image/png;base64,iVBORw0KGgpY"
         with (
             patch("inspect_ai._util.images._PROVIDER_IMAGE_MAX_BYTES", 8),
             pytest.raises(ValueError, match="20 MiB"),
         ):
-            await provider_image_data_uri(image)
+            provider_image_data_uri(image)
 
     @pytest.mark.parametrize(
-        ("url", "message"),
+        "image",
         [
-            ("http://example.com/image.png", "HTTPS"),
-            ("https://user:pass@example.com/image.png", "credentials"),
-            ("https://example.com:8443/image.png", "default HTTPS port"),
-        ],
-    )
-    async def test_unsafe_url_is_rejected(self, url: str, message: str) -> None:
-        with pytest.raises(ValueError, match=message):
-            await provider_image_data_uri(url)
-
-    @pytest.mark.parametrize(
-        "url",
-        [
-            "https://127.0.0.1/image.png",
+            "https://example.com/image.png",
+            "http://example.com/image.png",
             "https://169.254.169.254/latest/meta-data",
-            "https://224.0.0.1/image.png",
-            "https://[::1]/image.png",
-            "https://[::ffff:127.0.0.1]/image.png",
-            "https://[::ffff:0:169.254.169.254]/image.png",
-            "https://[64:ff9b::169.254.169.254]/image.png",
-            "https://[64:ff9b::192.168.0.1]/image.png",
-            "https://[64:ff9b::224.0.0.1]/image.png",
-            "https://[64:ff9b:1::a9fe:a9fe]/image.png",
-            "https://[ff02::1]/image.png",
+            "file:///etc/passwd",
+            "/tmp/image.png",
         ],
     )
-    async def test_private_ip_address_is_rejected(self, url: str) -> None:
-        with pytest.raises(ValueError, match="public address"):
-            await provider_image_data_uri(url)
-
-    @pytest.mark.parametrize(
-        "address",
-        [
-            "93.184.216.34",
-            "2606:2800:220:1:248:1893:25c8:1946",
-            "::ffff:0:93.184.216.34",
-            "64:ff9b::93.184.216.34",
-        ],
-    )
-    def test_public_ip_address_is_accepted(self, address: str) -> None:
-        assert _is_public_ip_address(ipaddress.ip_address(address))
-
-    async def test_private_dns_result_is_rejected(self) -> None:
-        address_info = [
-            (
-                socket.AF_INET,
-                socket.SOCK_STREAM,
-                socket.IPPROTO_TCP,
-                "",
-                ("169.254.169.254", 443),
-            )
-        ]
-        with patch(
-            "inspect_ai._util.images.anyio.getaddrinfo",
-            new=AsyncMock(return_value=address_info),
-        ):
-            with pytest.raises(ValueError, match="public address"):
-                await _PublicNetworkBackend().connect_tcp("metadata.test", 443)
-
-    async def test_dns_result_is_pinned_to_validated_address(self) -> None:
-        address_info = [
-            (
-                socket.AF_INET,
-                socket.SOCK_STREAM,
-                socket.IPPROTO_TCP,
-                "",
-                ("93.184.216.34", 443),
-            )
-        ]
-        stream = AsyncMock(spec=httpcore.AsyncNetworkStream)
-        delegate = AsyncMock(spec=httpcore.AsyncNetworkBackend)
-        delegate.connect_tcp.return_value = stream
-
-        with patch(
-            "inspect_ai._util.images.anyio.getaddrinfo",
-            new=AsyncMock(return_value=address_info),
-        ):
-            result = await _PublicNetworkBackend(delegate).connect_tcp(
-                "example.com", 443, timeout=1.0
-            )
-
-        assert result is stream
-        delegate.connect_tcp.assert_awaited_once_with(
-            host="93.184.216.34",
-            port=443,
-            timeout=1.0,
-            local_address=None,
-            socket_options=None,
-        )
-
-    async def test_valid_raster_response_is_inlined(self) -> None:
-        png = b"\x89PNG\r\n\x1a\n"
-        response = (
-            b"HTTP/1.1 200 OK\r\nContent-Length: 8\r\n"
-            b"Content-Type: application/octet-stream\r\n\r\n" + png
-        )
-        backend = httpcore.AsyncMockBackend([response])
-
-        with patch(
-            "inspect_ai._util.images._PublicNetworkBackend", return_value=backend
-        ):
-            result = await provider_image_data_uri(
-                "https://example.com/image?signature=secret"
-            )
-
-        assert result == "data:image/png;base64,iVBORw0KGgo="
-
-    async def test_redirect_is_revalidated(self) -> None:
-        response = (
-            b"HTTP/1.1 302 Found\r\nContent-Length: 0\r\n"
-            b"Location: http://127.0.0.1/image.png\r\n\r\n"
-        )
-        backend = httpcore.AsyncMockBackend([response])
-
-        with patch(
-            "inspect_ai._util.images._PublicNetworkBackend", return_value=backend
-        ):
-            with pytest.raises(ValueError, match="HTTPS"):
-                await provider_image_data_uri("https://example.com/image.png")
-
-    async def test_redirect_to_private_address_is_rejected(self) -> None:
-        response = (
-            b"HTTP/1.1 302 Found\r\nContent-Length: 0\r\n"
-            b"Location: https://169.254.169.254/latest/meta-data\r\n\r\n"
-        )
-        network_backend = _PublicNetworkBackend(httpcore.AsyncMockBackend([response]))
-        address_info = [
-            (
-                socket.AF_INET,
-                socket.SOCK_STREAM,
-                socket.IPPROTO_TCP,
-                "",
-                ("93.184.216.34", 443),
-            )
-        ]
-
+    def test_non_data_uri_is_rejected_without_network_access(self, image: str) -> None:
         with (
-            patch(
-                "inspect_ai._util.images.anyio.getaddrinfo",
-                new=AsyncMock(return_value=address_info),
-            ),
-            patch(
-                "inspect_ai._util.images._PublicNetworkBackend",
-                return_value=network_backend,
-            ),
-            pytest.raises(ValueError, match="public address"),
+            no_network() as (getaddrinfo, connect),
+            pytest.raises(ValueError, match="image URLs are not downloaded"),
         ):
-            await provider_image_data_uri("https://example.com/image.png")
-
-    async def test_declared_oversized_response_is_rejected(self) -> None:
-        response = (
-            b"HTTP/1.1 200 OK\r\nContent-Length: "
-            + str(_PROVIDER_IMAGE_MAX_BYTES + 1).encode()
-            + b"\r\n\r\n"
-        )
-        backend = httpcore.AsyncMockBackend([response])
-
-        with patch(
-            "inspect_ai._util.images._PublicNetworkBackend", return_value=backend
-        ):
-            with pytest.raises(ValueError, match="20 MiB"):
-                await provider_image_data_uri("https://example.com/image.png")
-
-    async def test_streamed_oversized_response_is_rejected(self) -> None:
-        async def content() -> AsyncIterator[bytes]:
-            yield b"\x89PNG\r\n\x1a\n"
-            yield b"X"
-
-        response = httpcore.Response(status=200, content=content())
-        with (
-            patch("inspect_ai._util.images._PROVIDER_IMAGE_MAX_BYTES", 8),
-            pytest.raises(ValueError, match="20 MiB"),
-        ):
-            await _provider_image_response_data_uri(response)
-
-    async def test_non_image_response_is_rejected(self) -> None:
-        response = b"HTTP/1.1 200 OK\r\nContent-Length: 6\r\n\r\nnotpng"
-        backend = httpcore.AsyncMockBackend([response])
-
-        with patch(
-            "inspect_ai._util.images._PublicNetworkBackend", return_value=backend
-        ):
-            with pytest.raises(ValueError, match="recognized raster image"):
-                await provider_image_data_uri("https://example.com/image.png")
-
-    async def test_error_does_not_disclose_signed_query(self) -> None:
-        response = b"HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n"
-        backend = httpcore.AsyncMockBackend([response])
-
-        with patch(
-            "inspect_ai._util.images._PublicNetworkBackend", return_value=backend
-        ):
-            with pytest.raises(ValueError) as exc_info:
-                await provider_image_data_uri(
-                    "https://example.com/image?signature=secret"
-                )
-
-        assert "signature" not in str(exc_info.value)
-        assert "secret" not in str(exc_info.value)
+            provider_image_data_uri(image)
+        getaddrinfo.assert_not_called()
+        connect.assert_not_called()
 
 
 class TestInlineMedia:
