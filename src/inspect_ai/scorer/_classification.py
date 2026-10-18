@@ -158,7 +158,7 @@ def _normalize_number(text: str) -> str:
 
 
 def _tokenize(text: str) -> List[str]:
-    return re.split(" |-", text)
+    return re.split(r"\s+|-", text)
 
 
 def _normalize(text: str, stop_words: list[str] | None = None) -> str:
