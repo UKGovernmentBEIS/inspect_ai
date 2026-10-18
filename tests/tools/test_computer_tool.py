@@ -6,12 +6,13 @@ parser and dispatcher from `_resources/tool/` driven directly, minus X11.
 
 import importlib
 import logging
+import math
 import re
 import sys
 from argparse import Namespace
 from pathlib import Path
 from types import ModuleType
-from typing import Awaitable, Callable, Iterator, NamedTuple, get_args
+from typing import Any, Awaitable, Callable, Iterator, NamedTuple, get_args
 
 import pytest
 
@@ -363,3 +364,198 @@ async def test_nested_actions_repeat_rejects_invalid_values_before_pressing(
     assert tool_msg.error is not None and tool_msg.error.type == "parsing"
     assert "repeat must be" in tool_msg.error.message
     assert presses == []
+
+
+class X11(NamedTuple):
+    client: Any
+    errors: type[Exception]
+    shell_cmds: list[str]
+
+
+@pytest.fixture
+def x11(container: Container, monkeypatch: pytest.MonkeyPatch) -> X11:
+    """A 1920x1080 container-side X11Client (advertised to the model as 1366x768)."""
+    monkeypatch.setenv("WIDTH", "1920")
+    monkeypatch.setenv("HEIGHT", "1080")
+    x11_client = importlib.import_module("_x11_client")
+    client = x11_client.X11Client()
+    shell_cmds: list[str] = []
+
+    async def fake_shell(command: str, take_screenshot: bool = True) -> str:
+        shell_cmds.append(command)
+        return "ok"
+
+    monkeypatch.setattr(client, "_shell", fake_shell)
+    return X11(client, x11_client.X11ClientError, shell_cmds)
+
+
+@pytest.mark.parametrize(
+    "api,native",
+    [
+        ((0, 0), (0, 0)),
+        ((1000, 500), (1406, 703)),
+        ((1365, 767), (1919, 1079)),
+    ],
+)
+def test_x11_scale_api_coordinate_in_bounds(
+    x11: X11, api: tuple[int, int], native: tuple[int, int]
+) -> None:
+    assert x11.client._scale_coordinates("api_to_native", *api) == native
+
+
+@pytest.mark.parametrize(
+    "api",
+    [
+        (1800, 100),  # past the API width, but inside the native width
+        (100, 900),
+        (1366, 768),  # one past the last column and row
+        (1366, 100),
+        (100, 768),
+        (1920, 1080),
+        (1921, 100),
+        (-5, 100),
+        (100, -5),
+    ],
+)
+def test_x11_scale_rejects_out_of_bounds_api_coordinate(
+    x11: X11, api: tuple[int, int]
+) -> None:
+    with pytest.raises(x11.errors, match="out of bounds"):
+        x11.client._scale_coordinates("api_to_native", *api)
+
+
+def test_x11_scale_region_end_allows_screen_edge(x11: X11) -> None:
+    scale = x11.client._scale_coordinates
+    assert scale("api_to_native", 1366, 768, region_end=True) == (1920, 1080)
+    with pytest.raises(x11.errors):
+        scale("api_to_native", 1367, 768, region_end=True)
+    with pytest.raises(x11.errors):
+        scale("api_to_native", -1, 0, region_end=True)
+
+
+def test_x11_scale_native_to_api_is_not_bounds_checked(x11: X11) -> None:
+    assert x11.client._scale_coordinates("native_to_api", 1920, 1080) == (1366, 768)
+
+
+def test_x11_scale_checks_native_bounds_when_scaling_disabled(x11: X11) -> None:
+    x11.client._scaling_enabled = False
+    assert x11.client._scale_coordinates("api_to_native", 1919, 1079) == (1919, 1079)
+    for bad in [(1920, 100), (100, 1080), (-1, 100)]:
+        with pytest.raises(x11.errors):
+            x11.client._scale_coordinates("api_to_native", *bad)
+
+
+def test_x11_scale_checks_native_bounds_without_scaling_target(
+    x11: X11, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # 1:1 aspect ratio matches no entry in MAX_SCALING_TARGETS
+    monkeypatch.setattr(x11.client, "width", 1024)
+    monkeypatch.setattr(x11.client, "height", 1024)
+    assert x11.client._scale_coordinates("api_to_native", 1023, 1023) == (1023, 1023)
+    with pytest.raises(x11.errors):
+        x11.client._scale_coordinates("api_to_native", 1024, 100)
+
+
+@pytest.mark.parametrize(
+    "call",
+    [
+        lambda c: c.mouse_move((1800, 100)),
+        lambda c: c.left_click((1800, 100), None),
+        lambda c: c.scroll("down", 1, (1800, 100), None),
+        lambda c: c.left_click_drag((10, 10), (1800, 100)),
+        lambda c: c.left_click_drag((1800, 100), (10, 10)),
+        lambda c: c.zoom([0, 0, 1800, 100]),
+        lambda c: c.zoom([1366, 0, 1367, 100]),
+    ],
+    ids=[
+        "mouse_move",
+        "left_click",
+        "scroll",
+        "drag_end",
+        "drag_start",
+        "zoom_far_corner",
+        "zoom_near_corner",
+    ],
+)
+async def test_x11_actions_reject_out_of_bounds_coordinate(
+    x11: X11, call: Callable[[Any], Awaitable[object]]
+) -> None:
+    with pytest.raises(x11.errors, match="out of bounds"):
+        await call(x11.client)
+    assert not any("mousedown" in c or "click" in c for c in x11.shell_cmds)
+    assert not any("mousemove" in c and "1800" in c for c in x11.shell_cmds)
+
+
+async def test_x11_actions_send_scaled_native_coordinates(x11: X11) -> None:
+    await x11.client.mouse_move((1000, 500))
+    await x11.client.left_click_drag((1000, 500), (1365, 767))
+    assert any("mousemove --sync 1406 703" in c for c in x11.shell_cmds)
+    assert any("mousemove --sync 1919 1079 mouseup 1" in c for c in x11.shell_cmds)
+
+
+async def test_x11_zoom_accepts_full_screen_region(
+    x11: X11, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    seen: list[tuple[int, int, int, int]] = []
+
+    async def fake_screenshot(
+        zoom_region: tuple[int, int, int, int] | None = None,
+    ) -> str:
+        assert zoom_region is not None
+        seen.append(zoom_region)
+        return "ok"
+
+    monkeypatch.setattr(x11.client, "_screenshot", fake_screenshot)
+    await x11.client.zoom([0, 0, 1366, 768])
+    assert seen == [(0, 0, 1920, 1080)]
+    with pytest.raises(x11.errors):
+        await x11.client.zoom([0, 0, 1367, 768])
+
+
+@pytest.mark.parametrize(
+    "native,api",
+    [
+        ((1920, 1080), (1366, 768)),  # FWXGA
+        ((3840, 2160), (1366, 768)),  # FWXGA
+        ((2560, 1600), (1280, 800)),  # WXGA
+        ((1920, 1440), (1024, 768)),  # XGA
+        ((1280, 800), (1280, 800)),  # at the target size: no scaling
+        ((1024, 768), (1024, 768)),  # at the target size: no scaling
+    ],
+)
+def test_x11_scale_bounds_follow_advertised_size(
+    container: Container,
+    monkeypatch: pytest.MonkeyPatch,
+    native: tuple[int, int],
+    api: tuple[int, int],
+) -> None:
+    monkeypatch.setenv("WIDTH", str(native[0]))
+    monkeypatch.setenv("HEIGHT", str(native[1]))
+    x11_client = importlib.import_module("_x11_client")
+    client = x11_client.X11Client()
+    scale = client._scale_coordinates
+    assert (
+        client.options["display_width_px"],
+        client.options["display_height_px"],
+    ) == api
+
+    # last pixel maps within one scale step of the last native pixel
+    x, y = scale("api_to_native", api[0] - 1, api[1] - 1)
+    assert native[0] - math.ceil(native[0] / api[0]) <= x <= native[0] - 1
+    assert native[1] - math.ceil(native[1] / api[1]) <= y <= native[1] - 1
+
+    for bad in [
+        (api[0], 0),
+        (0, api[1]),
+        (-1, 0),
+        (0, -1),
+        (native[0], 0),
+        (0, native[1]),
+    ]:
+        with pytest.raises(x11_client.X11ClientError, match="out of bounds"):
+            scale("api_to_native", *bad)
+
+    # a region may end on the advertised width/height, but not beyond
+    assert scale("api_to_native", *api, region_end=True) == native
+    with pytest.raises(x11_client.X11ClientError):
+        scale("api_to_native", api[0] + 1, api[1], region_end=True)
