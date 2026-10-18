@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+* Computer tool now returns an error for click coordinates outside the advertised screen instead of clicking at the screen edge.
+
 ## [0.3.281](https://github.com/UKGovernmentBEIS/inspect_ai/compare/0.3.280...0.3.281) (2026-10-15)
 
 

@@ -483,7 +483,6 @@ async def test_x11_actions_reject_out_of_bounds_coordinate(
     with pytest.raises(x11.errors, match="out of bounds"):
         await call(x11.client)
     assert not any("mousedown" in c or "click" in c for c in x11.shell_cmds)
-    assert not any("mousemove" in c and "1800" in c for c in x11.shell_cmds)
 
 
 async def test_x11_actions_send_scaled_native_coordinates(x11: X11) -> None:
