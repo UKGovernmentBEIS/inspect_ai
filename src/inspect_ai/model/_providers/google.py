@@ -2491,6 +2491,9 @@ def finish_reason_to_stop_reason(finish_reason: FinishReason) -> StopReason:
             | FinishReason.BLOCKLIST
             | FinishReason.PROHIBITED_CONTENT
             | FinishReason.SPII
+            | FinishReason.IMAGE_SAFETY
+            | FinishReason.IMAGE_PROHIBITED_CONTENT
+            | FinishReason.IMAGE_RECITATION
         ):
             return "content_filter"
         case _:
