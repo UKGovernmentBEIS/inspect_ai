@@ -29,10 +29,13 @@ from inspect_ai.log._log import EvalLog
         ([-1, "-1", 1], -1, [-1]),
         ([-1, "-1", 1], "-1", ["-1"]),
         (["a_advanced", "b_basic"], "*_advanced", ["a_advanced"]),
+        ([1, 2, 10, 11, 20], [2, "1*"], [1, 2, 10, 11]),
     ],
 )
 def test_sample_id_globs_use_visible_ids(
-    ids: list[str | int], pattern: str | int, expected: list[str | int]
+    ids: list[str | int],
+    pattern: str | int | list[str | int],
+    expected: list[str | int],
 ) -> None:
     matcher = sample_id_filter(pattern)
     assert [id for id in ids if matcher.matches(id)] == expected
@@ -50,6 +53,27 @@ def test_sample_id_matching_glob_does_not_warn(monkeypatch: pytest.MonkeyPatch) 
     assert [sample.id for sample in selected] == [1, 10]
     assert len(warnings) == 1
     assert "missing*" in warnings[0]
+
+
+@pytest.mark.parametrize("dynamic", [False, True])
+def test_sample_id_glob_no_match(
+    dynamic: bool, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from inspect_ai._eval.task import util
+
+    warnings: list[str] = []
+    monkeypatch.setattr(
+        util, "warn_once", lambda logger, message: warnings.append(message)
+    )
+    dataset = MemoryDataset([Sample(id=id, input="hi") for id in (1, 2, 3)])
+    if dynamic:
+        assert len(slice_dataset(dataset, None, "0*", dynamic=True)) == 0
+        assert not warnings
+    else:
+        with pytest.raises(PrerequisiteError, match="No matches"):
+            slice_dataset(dataset, None, "0*")
+        assert len(warnings) == 1
+        assert "0*" in warnings[0]
 
 
 def test_numeric_sample_id_glob_eval(tmp_path: Path) -> None:
