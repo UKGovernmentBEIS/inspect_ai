@@ -2143,8 +2143,60 @@ def test_usage_metadata_without_thoughts():
     )
 
     assert usage is not None
+    assert usage.input_tokens == 10
     assert usage.output_tokens == 5
     assert usage.reasoning_tokens == 0
+
+
+def test_usage_metadata_includes_tool_use_prompt_tokens_in_input():
+    from google.genai.types import GenerateContentResponseUsageMetadata
+
+    from inspect_ai.model._providers.google import usage_metadata_to_model_usage
+
+    usage = usage_metadata_to_model_usage(
+        GenerateContentResponseUsageMetadata(
+            prompt_token_count=1000,
+            tool_use_prompt_token_count=4000,
+            candidates_token_count=200,
+            thoughts_token_count=300,
+            total_token_count=5500,
+        )
+    )
+
+    assert usage is not None
+    assert usage.input_tokens == 5000
+    assert usage.input_tokens_cache_read is None
+    assert usage.output_tokens == 500
+    assert usage.total_tokens == 5500
+    assert usage.input_tokens + usage.output_tokens == usage.total_tokens
+
+
+def test_usage_metadata_tool_use_prompt_tokens_with_cache():
+    from google.genai.types import GenerateContentResponseUsageMetadata
+
+    from inspect_ai.model._providers.google import usage_metadata_to_model_usage
+
+    usage = usage_metadata_to_model_usage(
+        GenerateContentResponseUsageMetadata(
+            prompt_token_count=1000,
+            cached_content_token_count=600,
+            tool_use_prompt_token_count=4000,
+            candidates_token_count=200,
+            thoughts_token_count=300,
+            total_token_count=5500,
+        )
+    )
+
+    assert usage is not None
+    # cached tokens are part of prompt_token_count only, so they come out
+    # of input_tokens once and tool-use tokens are added in full
+    assert usage.input_tokens == 4400
+    assert usage.input_tokens_cache_read == 600
+    assert usage.output_tokens == 500
+    assert (
+        usage.input_tokens + (usage.input_tokens_cache_read or 0) + usage.output_tokens
+        == usage.total_tokens
+    )
 
 
 # ---- OAuth / ADC credentials for the Gemini Developer API ----
