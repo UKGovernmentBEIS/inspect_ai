@@ -637,20 +637,12 @@ class BedrockAPI(ModelAPI):
 
         Claude 4.6 was the first Claude on which Bedrock supports adaptive
         thinking (`{"thinking": {"type": "adaptive"}}` + `output_config`).
-        Assume future unrecognised claude-4 minor versions keep adaptive.
+        Everything `is_claude_4_7_or_later` matches (4.7, Claude 5 and
+        unrecognised future claude-4 minors) keeps adaptive.
         """
         if not self.is_claude():
             return False
-        if self._is_claude_4_x(6) or self._is_claude_4_x(7):
-            return True
-        # future claude 4 minor not yet recognised
-        if re.search(r"claude-[a-zA-Z]+-4-", self.model_family()):
-            recognised = self.is_claude_4_0() or any(
-                self._is_claude_4_x(x) for x in (1, 5, 6, 7)
-            )
-            if not recognised:
-                return True
-        return False
+        return self._is_claude_4_x(6) or self.is_claude_4_7_or_later()
 
     def is_claude_4_7_or_later(self) -> bool:
         # mirrors the gating used in the native anthropic provider:
