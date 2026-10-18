@@ -5,11 +5,59 @@ import pytest
 from inspect_ai import Task, eval, eval_retry, task
 from inspect_ai._eval.eval_set_manifest import samples_selected
 from inspect_ai._eval.run import ensure_unique_ids
-from inspect_ai._eval.task.util import resolve_task_sample_ids, slice_dataset
+from inspect_ai._eval.task.util import (
+    resolve_task_sample_ids,
+    sample_id_filter,
+    slice_dataset,
+)
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.dataset import MemoryDataset, Sample
 from inspect_ai.log import read_eval_log_sample
 from inspect_ai.log._log import EvalLog
+
+
+@pytest.mark.parametrize(
+    "ids,pattern,expected",
+    [
+        ([1, 2, 10, 11, 20], "1*", [1, 10, 11]),
+        ([1, 2, 10, 11, 20], "1?", [10, 11]),
+        ([1, 2, 10, 11, 20], "[12]0", [10, 20]),
+        ([1, 2, 3], "0*", []),
+        ([5, 15, 25], "*0*", []),
+        (["001", "10", "20"], "0*", ["001"]),
+        ([1, "01", "10"], "01", [1, "01"]),
+        ([-1, "-1", 1], -1, [-1]),
+        ([-1, "-1", 1], "-1", ["-1"]),
+        (["a_advanced", "b_basic"], "*_advanced", ["a_advanced"]),
+    ],
+)
+def test_sample_id_globs_use_visible_ids(
+    ids: list[str | int], pattern: str | int, expected: list[str | int]
+) -> None:
+    matcher = sample_id_filter(pattern)
+    assert [id for id in ids if matcher.matches(id)] == expected
+
+
+def test_sample_id_matching_glob_does_not_warn(monkeypatch: pytest.MonkeyPatch) -> None:
+    from inspect_ai._eval.task import util
+
+    warnings: list[str] = []
+    monkeypatch.setattr(
+        util, "warn_once", lambda logger, message: warnings.append(message)
+    )
+    dataset = MemoryDataset([Sample(id=id, input="hi") for id in (1, 10, 20)])
+    selected = slice_dataset(dataset, None, ["1*", "missing*"])
+    assert [sample.id for sample in selected] == [1, 10]
+    assert len(warnings) == 1
+    assert "missing*" in warnings[0]
+
+
+def test_numeric_sample_id_glob_eval(tmp_path: Path) -> None:
+    task = Task(dataset=[Sample(id=id, input="hi") for id in (1, 2, 10, 11, 20)])
+    assert samples_selected(task.dataset, None, "1*", "task") == 3
+    log = eval(task, model="mockllm/model", sample_id="1*", log_dir=str(tmp_path))[0]
+    assert log.status == "success"
+    assert [sample.id for sample in log.samples or []] == [1, 10, 11]
 
 
 def test_sample_id():
