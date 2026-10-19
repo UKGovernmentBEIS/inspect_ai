@@ -3,7 +3,8 @@
 inspect_ai is the host: it builds each step, makes the model calls, asks a person, emits `SentinelEvent`s and applies the verdict. The implementation, `inspect_sentinel`, chooses the root from what the user gave, says which stages it watches and runs it for one step. It calls `register_sentinel` when imported.
 """
 
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence
+from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import Any, ClassVar, Literal, NamedTuple, Protocol, TypeAlias
 
@@ -280,7 +281,7 @@ class SentinelHost(Protocol):
         ...
 
     def record(self, record: SentinelRecord) -> None:
-        """Record a report for the step."""
+        """Record a report about the step this host was given for, at that step's stage and conversation."""
         ...
 
 
@@ -339,3 +340,17 @@ def sentinel_implementation() -> SentinelImplementation:
             "[bold]pip install inspect-sentinel[/bold]"
         )
     return _implementation
+
+
+@contextmanager
+def sentinel_registered(
+    implementation: SentinelImplementation | None,
+) -> Iterator[None]:
+    """For tests: put `implementation`, or nothing, in place of the registered one until exit."""
+    global _implementation
+    registered = _implementation
+    _implementation = implementation
+    try:
+        yield
+    finally:
+        _implementation = registered

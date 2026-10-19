@@ -135,6 +135,23 @@ def test_a_bare_name_finds_a_package_factory() -> None:
     assert registry_params(built)["reject_at"] == 0.8
 
 
+def test_a_bare_name_loads_entry_points_to_find_an_unloaded_package(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    loaded: list[str | None] = []
+
+    def ensure_entry_points(package: str | None = None) -> None:
+        loaded.append(package)
+
+        @_sentinel("protocol", "unloaded_pkg/late_rule")
+        def late_rule() -> Instance:
+            return Instance()
+
+    monkeypatch.setattr(registry, "ensure_entry_points", ensure_entry_points)
+    assert _name(sentinel_from_config("late_rule")) == "unloaded_pkg/late_rule"
+    assert loaded == [None]
+
+
 def test_a_bare_name_in_two_packages_is_ambiguous() -> None:
     @_sentinel("protocol", "other_pkg/gate")
     def gate(monitors: object) -> Instance:

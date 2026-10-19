@@ -1,8 +1,7 @@
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence
 
 import pytest
 
-from inspect_ai._sentinel import _interface
 from inspect_ai._sentinel._interface import (
     ModelInputStep,
     ModelOutputStep,
@@ -19,6 +18,7 @@ from inspect_ai._sentinel._interface import (
     Truncation,
     register_sentinel,
     sentinel_implementation,
+    sentinel_registered,
 )
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.event._sentinel import SentinelStage
@@ -35,8 +35,9 @@ from inspect_ai.util import Store
 
 
 @pytest.fixture(autouse=True)
-def no_sentinel(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(_interface, "_implementation", None)
+def no_sentinel() -> Iterator[None]:
+    with sentinel_registered(None):
+        yield
 
 
 class FakeHost:
@@ -171,6 +172,14 @@ def test_registering_the_same_implementation_again_does_nothing() -> None:
     register_sentinel(implementation)
     register_sentinel(implementation)
     assert sentinel_implementation() is implementation
+
+
+def test_the_test_helper_restores_the_registered_implementation() -> None:
+    registered = FakeImplementation()
+    register_sentinel(registered)
+    with sentinel_registered(FakeImplementation()):
+        assert sentinel_implementation() is not registered
+    assert sentinel_implementation() is registered
 
 
 def test_registering_a_different_implementation_raises() -> None:
