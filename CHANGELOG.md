@@ -3,7 +3,7 @@
 ## [0.3.282](https://github.com/UKGovernmentBEIS/inspect_ai/compare/0.3.281...0.3.282) (2026-10-19)
 
 
-### ⚠ BREAKING CHANGES
+### Breaking Changes
 
 * tool state scopes so agents running concurrently in one sample keep separate tool state ([#5861](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5861))
 
