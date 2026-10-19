@@ -101,7 +101,13 @@ from ._sandbox import (
     sandboxenv,
 )
 from ._span import SpanIdProvider, current_span_id, span, span_id_provider
-from ._store import Store, store, store_from_events, store_from_events_as
+from ._store import (
+    Store,
+    store,
+    store_from_events,
+    store_from_events_as,
+    suspend_store_events,
+)
 from ._store_model import StoreModel, store_as
 from ._subprocess import (
     ExecResult,
@@ -177,6 +183,7 @@ __all__ = [
     "store",
     "store_from_events",
     "store_from_events_as",
+    "suspend_store_events",
     "StoreModel",
     "store_as",
     "tool_state_scope",
