@@ -11,7 +11,12 @@ PosArgsT = TypeVarTuple("PosArgsT")
 
 
 class BackgroundTarget(Protocol):
-    """Where ``background()`` starts work instead of the sample's task group."""
+    """Where ``background()`` starts work instead of the sample's task group.
+
+    A target must propagate the ``LimitExceededError``,
+    ``TerminateSampleError`` and ``ModelRefusalError`` that the work
+    re-raises, so the sample enforces them.
+    """
 
     def start_soon(
         self,
@@ -65,7 +70,8 @@ def background(
             # termination, fail_on_refusal) that propagate through background
             # workers to be handled by the sample runner — they are not worker
             # failures, so don't log them as errors. They still re-raise so
-            # the sample enforces them.
+            # the sample enforces them; a background target must propagate
+            # them for that.
             from inspect_ai._util.exception import TerminateSampleError
             from inspect_ai.model._model import ModelRefusalError
             from inspect_ai.util._limit import LimitExceededError
