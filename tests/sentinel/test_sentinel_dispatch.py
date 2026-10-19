@@ -1854,20 +1854,20 @@ def test_bypassed_and_superseded_layers_are_recorded() -> None:
     )
     context = replace(_host_context(call.id).context, path="p")
     recorder = _Recorder(call.id)
-    recorder.bypassed(context, "group", step, "p")
+    recorder.bypassed(context, "group", step, "n")
     recorder.superseded(
         context,
         "group",
         step,
-        Reported(name="p", path="p", function="f", report=Decision.reject("lost")),
+        Reported(name="n", path="p", function="f", report=Decision.reject("lost")),
     )
     events = [e for e in transcript().events if isinstance(e, SentinelEvent)]
     assert [
-        (e.factory, e.path, e.step_id, e.kind, e.status, e.action, e.explanation)
+        (e.path, e.function, e.step_id, e.kind, e.status, e.action, e.explanation)
         for e in events
     ] == [
-        ("group", "p", call.id, "decision", "bypassed", None, None),
-        ("group", "p", call.id, "decision", "superseded", "reject", "lost"),
+        ("p", None, call.id, "decision", "bypassed", None, None),
+        ("p", "f", call.id, "decision", "superseded", "reject", "lost"),
     ]
 
 
