@@ -149,7 +149,27 @@ def _argument_text(value: Any) -> str:
     """
     if isinstance(value, str):
         return value
-    return json.dumps(to_jsonable_python(value), ensure_ascii=False)
+    return json.dumps(_jsonable(value), ensure_ascii=False)
+
+
+def _jsonable(value: Any) -> Any:
+    """Convert only the non-JSON parts of `value` with Pydantic.
+
+    JSON values are left to `json.dumps`, since Pydantic rejects some it
+    accepts (e.g. a lone surrogate in an object key).
+    """
+    if value is None or isinstance(value, str | int | float):
+        return value
+    if isinstance(value, list | tuple):
+        return [_jsonable(item) for item in value]
+    if isinstance(value, dict):
+        return {
+            key
+            if key is None or isinstance(key, str | int | float)
+            else to_jsonable_python(key): _jsonable(item)
+            for key, item in value.items()
+        }
+    return to_jsonable_python(value)
 
 
 def policy_approver(policies: str | list[ApprovalPolicy]) -> Approver:

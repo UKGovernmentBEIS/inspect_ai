@@ -67,7 +67,7 @@ approvers:
     tools: "*"
 ```
 
-An argument glob must match the whole value: `key` matches only `key`, while `*_click` matches `left_click`, `right_click` and the other click actions. A string is matched as is; any other value is matched as its JSON (e.g. `true` or `10`). Every listed argument must be present and match, and the call may have other arguments. Globs must be strings, so quote boolean or numeric values in config files, for example `arguments: {timeout: "10", sudo: "true"}`.
+An argument glob must match the whole value: `key` matches only `key`, while `*_click` matches `left_click`, `right_click` and the other click actions. A string is matched as is; any other value is matched as its JSON (e.g. `true` or `10`). That JSON has a space after each comma and colon, keeps object keys in the order the model sent them, and does not escape Unicode characters. `10` and `10.0` differ. For example, `'{"force": true}'` matches the object `{"force": true}`. In a glob `[` starts a character set, so write `[[]` to match a literal `[`. Every listed argument must be present and match, and the call may have other arguments. Globs must be strings, so quote boolean or numeric values in config files, for example `arguments: {timeout: "10", sudo: "true"}`.
 
 In Python, pass `arguments` to `ApprovalPolicy`:
 

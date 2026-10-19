@@ -379,6 +379,9 @@ async def test_review_policy_tools_and_arguments_match_as_for_approval() -> None
     # quoted values matched strings only
     assert not await reviewed(call("computer", action=10), "computer(action='*'")
 
+    # JSON values Pydantic rejects (a lone surrogate in an object key)
+    assert await reviewed(call("f", value={"\ud800": "x"}), "f", value="*")
+
     with pytest.raises(ValueError, match="'arguments'"):
         ReviewPolicy(fixed_reviewer(), "bash(cmd='ls', timeout=10)")
 

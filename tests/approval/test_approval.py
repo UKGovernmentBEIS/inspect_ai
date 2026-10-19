@@ -868,6 +868,23 @@ async def test_policy_arguments_match_parsed_non_json_values() -> None:
         await routed(make_tool_call("f", value=object()), "f", value="*")
 
 
+async def test_policy_arguments_match_json_values_pydantic_rejects() -> None:
+    # JSON accepts a lone surrogate in an object key; Pydantic does not
+    tools = [
+        ToolInfo(
+            name="f",
+            description="f",
+            parameters=ToolParams(properties={"value": ToolParam(type="object")}),
+        )
+    ]
+    call = parse_tool_call("1", "f", '{"value": {"\\ud800": ["x"]}}', tools)
+    assert call.parse_error is None
+    assert await routed(call, "f", value="*")
+    assert await routed(
+        make_tool_call("f", value=[call.arguments["value"]]), "f", value="*"
+    )
+
+
 async def test_policy_legacy_argument_form() -> None:
     patterns = ["computer(action='key'", "computer(action='left_click'"]
     assert await routed(make_tool_call("computer", action="key", text="a"), patterns)
