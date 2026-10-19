@@ -16,13 +16,20 @@ from inspect_sentinel import (
     EvalContext,
     Failed,
     HumanAnswer,
+    HumanDecision,
     Observation,
     Report,
     Reported,
     Step,
     Truncation,
 )
-from inspect_sentinel._integration import HostContext, run_sentinel, watched_stages
+from inspect_sentinel._integration import (
+    HostContext,
+    kept_human_decision,
+    run_sentinel,
+    supersedes,
+    watched_stages,
+)
 from shortuuid import uuid as shortuuid
 
 from inspect_ai._util.exception import TerminateSampleError
@@ -89,6 +96,7 @@ from ._context import (
     active_task_metadata,
 )
 from ._scope import AgentScope, sentinel_scope
+from ._sent import record_sent, sent_messages
 
 logger = getLogger(__name__)
 
@@ -104,13 +112,16 @@ async def sentinel_before_tool_call(
     if not _watches(BeforeToolCall):
         return None
     producer = _producing_event(call, history)
+    conversation = _conversation()
     step = BeforeToolCall(
-        conversation=_conversation(),
+        conversation=conversation,
         message=message,
         call=call,
         view=resolve_tool_call_view(call, viewer),
         input=list(producer.input) if producer is not None else None,
-        history=history,
+        agent_messages=history,
+        history=sent_messages(conversation),
+        human_decisions=_human_decisions(conversation),
         tools=list(producer.tools) if producer is not None else None,
     )
     return await _run(step)
@@ -146,15 +157,18 @@ async def sentinel_after_tool_call(
     if not _watches(AfterToolCall):
         return
     producer = _producing_event(call, history)
+    conversation = _conversation()
     step = AfterToolCall(
-        conversation=_conversation(),
+        conversation=conversation,
         message=message,
         call=call,
         result=result,
         output=output,
         view=resolve_tool_call_view(call, viewer),
         input=list(producer.input) if producer is not None else None,
-        history=history,
+        agent_messages=history,
+        history=sent_messages(conversation),
+        human_decisions=_human_decisions(conversation),
         tools=list(producer.tools) if producer is not None else None,
         truncated=Truncation(*truncated) if truncated is not None else False,
     )
@@ -186,11 +200,14 @@ async def sentinel_before_generate(
     root = active_sentinel()
     if root is None or not (watched_stages(root) & {BeforeGenerate, AfterGenerate}):
         return None
+    conversation = _conversation()
     step = BeforeGenerate(
         model=model,
-        conversation=_conversation(),
+        conversation=conversation,
         input=input,
-        history=history,
+        agent_messages=history,
+        history=sent_messages(conversation),
+        human_decisions=_human_decisions(conversation),
         tools=tools,
         tool_choice=tool_choice,
         config=config,
@@ -210,7 +227,9 @@ async def sentinel_after_generate(before: BeforeGenerate, output: ModelOutput) -
         model=before.model,
         conversation=before.conversation,
         input=before.input,
-        history=before.history,
+        agent_messages=before.agent_messages,
+        history=sent_messages(before.conversation),
+        human_decisions=_human_decisions(before.conversation),
         tools=before.tools,
         tool_choice=before.tool_choice,
         config=before.config,
@@ -236,6 +255,7 @@ async def _run(step: Step) -> Decision | None:
     root = active_sentinel()
     if root is None or type(step) not in watched_stages(root):
         return None
+    recorder = _Recorder(_step_id(step))
     try:
         try:
             async with span(name="sentinel", type="sentinel"):
@@ -245,9 +265,7 @@ async def _run(step: Step) -> Decision | None:
                     suspend_working_limit(),
                     sentinel_scope(AgentScope.OFF, final=True),
                 ):
-                    decision = await run_sentinel(
-                        root, _host_context(_step_id(step)), step
-                    )
+                    decision = await run_sentinel(root, _host_context(recorder), step)
         except TimeoutError as ex:
             # the sample runner treats a bare TimeoutError as benign
             raise RuntimeError(
@@ -255,6 +273,7 @@ async def _run(step: Step) -> Decision | None:
             ) from ex
     except Exception as ex:
         raise SentinelFailure(ex) from ex
+    _publish(step.conversation, recorder.kept)
     if decision is not None and decision.action == "escalate":
         raise SentinelFailure(
             RuntimeError(
@@ -293,10 +312,10 @@ def _step_id(step: Step) -> str:
 _model_inputs: "WeakKeyDictionary[Transcript, Counter[str]]" = WeakKeyDictionary()
 
 
-def _host_context(step_id: str) -> HostContext:
+def _host_context(recorder: "_Recorder") -> HostContext:
     return HostContext(
         host=_HostNative(_eval_context()),
-        recorder=_Recorder(step_id),
+        recorder=recorder,
         store=store(),
     )
 
@@ -323,6 +342,34 @@ def _conversation() -> str:
         return agent_span_id
     active = sample_active()
     return active.sample_uuid if active is not None else ""
+
+
+def record_agent_turn(input: list[ChatMessage]) -> None:
+    record_sent(_conversation(), input)
+
+
+def _human_decisions(conversation: str) -> tuple[HumanDecision, ...]:
+    """The `human()` decisions published so far in the conversation, for a step about to run.
+
+    Taken when the step is built. A step's decisions are published only once it has settled (see `_publish`), so a decision made at the step itself, or at a parallel call's step still running, is not among them.
+    """
+    return tuple(_published.get(transcript(), {}).get(conversation, []))
+
+
+def _publish(conversation: str, kept: list[HumanDecision]) -> None:
+    """Add a settled step's `human()` decisions to its conversation's human decisions.
+
+    Called after the step's sentinel span ends, so a supersession has already withdrawn any decision that did not take effect, and a parallel step built before then never saw one that might yet be.
+    """
+    if kept:
+        conversations = _published.setdefault(transcript(), {})
+        conversations.setdefault(conversation, []).extend(kept)
+
+
+# the `human()` decisions of each conversation's settled steps, oldest first
+_published: "WeakKeyDictionary[Transcript, dict[str, list[HumanDecision]]]" = (
+    WeakKeyDictionary()
+)
 
 
 def _assistant_index(call: ToolCall, history: list[ChatMessage]) -> int | None:
@@ -437,8 +484,8 @@ class _HostNative:
         # the approval surfaces show the conversation; a step whose host could
         # not provide the scaffold's history shows what the model saw instead,
         # and nothing when that is unknown too
-        if step.history is not None:
-            conversation = step.history
+        if step.agent_messages is not None:
+            conversation = step.agent_messages
         elif step.input is not None:
             conversation = step.input
         else:
@@ -452,11 +499,13 @@ class _HostNative:
             )
         if approval.decision in offered:
             return HumanAnswer(decision=approval.decision, reason=approval.explanation)
+        # the reason says the person did not choose, since later steps read
+        # this decision in human_decisions
         return HumanAnswer(
             decision="reject" if "reject" in offered else "terminate",
             reason=(
-                "Human review ended without one of the offered choices "
-                f"({approval.decision}: {approval.explanation})."
+                "The person closed the prompt without choosing; failing closed "
+                f"(the surface answered {approval.decision}: {approval.explanation})."
             ),
         )
 
@@ -673,6 +722,8 @@ def _one_line(text: str, safe: _Escaped) -> str:
 class _Recorder:
     def __init__(self, step_id: str) -> None:
         self._step_id = step_id
+        # this step's human() decisions, published once it settles
+        self.kept: list[HumanDecision] = []
 
     def record(
         self, context: Context, factory: str, step: Step, reported: Reported[Report]
@@ -702,6 +753,9 @@ class _Recorder:
                 reported.function,
                 report,
             )
+        kept = kept_human_decision(factory, step, self._step_id, reported)
+        if kept is not None:
+            self.kept.append(kept)
 
     def failed(
         self, context: Context, factory: str, step: Step, failed: Failed
@@ -741,6 +795,7 @@ class _Recorder:
             reported.function,
             reported.report,
         )
+        self.kept = [k for k in self.kept if not supersedes(context.path, reported, k)]
 
 
 def _factory_kind(factory: str) -> _Kind:
