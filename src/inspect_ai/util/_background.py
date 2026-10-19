@@ -50,9 +50,6 @@ def background(
             ...
     ```
 
-    Internal callers can set a background target, which then starts and
-    owns the work in place of the sample (no running sample is needed).
-
     Args:
        func: Async function to run
        *args: Optional function arguments.
@@ -79,6 +76,7 @@ def background(
                 logger.error(f"Background worker error: {ex}")
             raise
 
+    # a set target owns the work, so no running sample is needed
     target = background_target.get()
     if target is not None:
         target.start_soon(run)
