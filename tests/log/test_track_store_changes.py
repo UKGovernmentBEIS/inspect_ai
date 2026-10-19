@@ -36,7 +36,13 @@ from inspect_ai.log import EvalSample
 from inspect_ai.log._transcript import Transcript, init_transcript, track_store_changes
 from inspect_ai.model import ChatMessageAssistant, ChatMessageUser
 from inspect_ai.scorer import Score
-from inspect_ai.util import StoreModel, current_span_id, span, suspend_store_events
+from inspect_ai.util import (
+    StoreModel,
+    current_span_id,
+    span,
+    subtask,
+    suspend_store_events,
+)
 from inspect_ai.util._store import (
     Store,
     dict_jsonable,
@@ -441,6 +447,26 @@ async def test_suspend_store_events_enclosing_span_records_net_change_once() -> 
     assert len(store_events) == 1
     assert store_events[0].span_id == team_id
     assert store_from_events(list(transcript.events))._data == {"a": True, "b": True}
+
+
+async def test_suspend_store_events_subtask_store_has_no_store_events() -> None:
+    """A subtask's own store logs nothing; the enclosing span logs only its store."""
+    transcript = _fresh_transcript()
+
+    @subtask("child")
+    async def child() -> None:
+        store().set("child", 1)
+
+    async with span("parent"):
+        parent_id = current_span_id()
+        with suspend_store_events():
+            store().set("parent", 1)
+            await child()
+
+    store_events = _store_events(transcript)
+    assert [[c.path for c in e.changes] for e in store_events] == [["/parent"]]
+    assert store_events[0].span_id == parent_id
+    assert store_from_events(list(transcript.events))._data == {"parent": 1}
 
 
 async def test_suspend_store_events_skips_store_snapshots(
