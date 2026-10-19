@@ -874,6 +874,10 @@ the `ToolEvent` docstring and in `docs/agent-bridge.qmd`.
   `src/inspect_ai/util/_checkpoint/checkpointer_impl.py:293`).
 - `ModelEventSink` is not widened. The bridge's private wrapper reads the
   span the sink assigned; the sink neither sees tool events nor needs to.
+  The span is read when `on_complete` returns, so a sink must assign it by
+  then. The host `ToolEvent` is emitted at once; a span assigned later, or a
+  `ModelEvent` the sink holds back and emits later, is not coordinated with
+  it. Both known sinks assign the span synchronously.
 - `use_model_event_sink` is not active in the `call_tool` task, so a host
   tool that itself calls a model records its `ModelEvent` directly under the
   tool span, which is where a native tool's nested generation goes.

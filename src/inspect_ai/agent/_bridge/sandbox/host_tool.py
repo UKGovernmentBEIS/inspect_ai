@@ -325,7 +325,9 @@ async def _execute_granted(
             finalise(error=cancelled)
         raise
 
-    if scope.cancelled_caught:
+    # `cancel_called`, not `cancelled_caught`: a tool that absorbs the
+    # cancellation and returns was still cancelled (as for a native call)
+    if scope.cancel_called:
         finalise(error=ToolCallError("timeout", OPERATOR_CANCEL_MESSAGE))
         raise ToolError(OPERATOR_CANCEL_MESSAGE)
 

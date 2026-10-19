@@ -4162,8 +4162,28 @@ def blocking_tool() -> tuple[AsyncMock, anyio.Event, anyio.Event]:
     return AsyncMock(side_effect=block), started, release
 
 
-async def test_operator_cancel_records_a_timeout() -> None:
-    mock, started, _ = blocking_tool()
+def cancel_suppressing_tool() -> tuple[AsyncMock, anyio.Event]:
+    """A tool mock that signals `started`, then absorbs its cancellation and returns."""
+    started = anyio.Event()
+
+    async def block(**kwargs: Any) -> str:
+        started.set()
+        try:
+            await anyio.sleep_forever()
+        except anyio.get_cancelled_exc_class():
+            pass
+        return "finished after cancel"
+
+    return AsyncMock(side_effect=block), started
+
+
+@pytest.mark.parametrize("suppress", [False, True], ids=["propagates", "suppresses"])
+async def test_operator_cancel_records_a_timeout(suppress: bool) -> None:
+    """A cancelled call times out even when the tool swallows the cancellation."""
+    if suppress:
+        mock, started = cancel_suppressing_tool()
+    else:
+        mock, started, _ = blocking_tool()
     bridge = sandbox_bridge_with_tool(mock, None, require_proposal=False)
     raised: list[BaseException] = []
 
