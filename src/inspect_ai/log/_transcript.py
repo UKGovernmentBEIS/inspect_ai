@@ -1102,13 +1102,29 @@ def record_interrupt_event(
 
 @contextlib.contextmanager
 def track_store_changes() -> Iterator[None]:
-    before = store_jsonable(store())
-    yield
-    after = store_jsonable(store())
+    """Log a `StoreEvent` with the store changes made in the block.
 
-    changes = store_changes(before, after)
-    if changes:
-        transcript()._event(StoreEvent(changes=changes))
+    The changes are logged on every exit, including when the block raises or
+    is cancelled. On that path a failure to log them is logged as a warning
+    rather than raised, so it cannot replace the block's exception.
+    """
+    before = store_jsonable(store())
+
+    def log_changes() -> None:
+        after = store_jsonable(store())
+        changes = store_changes(before, after)
+        if changes:
+            transcript()._event(StoreEvent(changes=changes))
+
+    try:
+        yield
+    except BaseException:
+        try:
+            log_changes()
+        except Exception:
+            logger.warning("Unable to log store changes for span", exc_info=True)
+        raise
+    log_changes()
 
 
 def init_transcript(transcript: Transcript) -> None:

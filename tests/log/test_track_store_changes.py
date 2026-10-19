@@ -25,17 +25,18 @@ from contextlib import contextmanager
 from copy import deepcopy
 from typing import Any, Callable, ContextManager
 
+import anyio
 import pytest
 from pydantic import BaseModel, Field
 
 from inspect_ai._util.json import JsonChange
 from inspect_ai.agent._human.state import HumanAgentState, IntermediateScoring
-from inspect_ai.event import Event, StoreEvent
+from inspect_ai.event import Event, SpanEndEvent, StoreEvent
 from inspect_ai.log import EvalSample
 from inspect_ai.log._transcript import Transcript, init_transcript, track_store_changes
 from inspect_ai.model import ChatMessageAssistant, ChatMessageUser
 from inspect_ai.scorer import Score
-from inspect_ai.util import StoreModel
+from inspect_ai.util import StoreModel, current_span_id, span, store
 from inspect_ai.util._store import (
     Store,
     dict_jsonable,
@@ -402,3 +403,99 @@ def test_track_store_changes_nested_spans() -> None:
     opt_nested = _run_nested_spans(track_store_changes)
 
     assert baseline_nested == opt_nested
+
+
+# ---------------------------------------------------------------------------
+# Spans whose body raises
+# ---------------------------------------------------------------------------
+
+
+def _init_span_test() -> Transcript:
+    init_subtask_store(Store())
+    transcript = Transcript()
+    init_transcript(transcript)
+    return transcript
+
+
+def _assert_store_event_inside_span(
+    events: list[Event], span_id: str | None, changes: list[tuple[str, str, Any]]
+) -> None:
+    store_events = [e for e in events if isinstance(e, StoreEvent)]
+    assert len(store_events) == 1
+    assert store_events[0].span_id == span_id
+    assert [(c.op, c.path, c.value) for c in store_events[0].changes] == changes
+    end_index = next(
+        i
+        for i, e in enumerate(events)
+        if isinstance(e, SpanEndEvent) and e.id == span_id
+    )
+    assert events.index(store_events[0]) < end_index
+
+
+async def test_span_that_raises_logs_store_changes() -> None:
+    transcript = _init_span_test()
+    error = RuntimeError("boom")
+    span_id: str | None = None
+
+    with pytest.raises(RuntimeError) as raised:
+        async with span("failing"):
+            span_id = current_span_id()
+            store().set("key", "value")
+            raise error
+
+    assert raised.value is error
+    _assert_store_event_inside_span(
+        list(transcript.events), span_id, [("add", "/key", "value")]
+    )
+
+
+async def test_cancelled_span_logs_store_changes() -> None:
+    transcript = _init_span_test()
+    span_id: str | None = None
+
+    with anyio.CancelScope() as scope:
+        async with span("cancelled"):
+            span_id = current_span_id()
+            store().set("key", "value")
+            scope.cancel()
+            await anyio.sleep(10)
+
+    assert scope.cancelled_caught
+    _assert_store_event_inside_span(
+        list(transcript.events), span_id, [("add", "/key", "value")]
+    )
+
+
+async def test_span_that_raises_without_changes_logs_no_store_event() -> None:
+    transcript = _init_span_test()
+
+    with pytest.raises(RuntimeError):
+        async with span("failing"):
+            raise RuntimeError("boom")
+
+    assert not any(isinstance(e, StoreEvent) for e in transcript.events)
+    assert any(isinstance(e, SpanEndEvent) for e in transcript.events)
+
+
+async def test_span_store_diff_failure_does_not_mask_exception(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    transcript = _init_span_test()
+    error = RuntimeError("boom")
+
+    def failing_store_changes(*args: Any) -> None:
+        raise ValueError("diff failed")
+
+    monkeypatch.setattr(
+        "inspect_ai.log._transcript.store_changes", failing_store_changes
+    )
+
+    with pytest.raises(RuntimeError) as raised:
+        async with span("failing"):
+            store().set("key", "value")
+            raise error
+
+    assert raised.value is error
+    assert "diff failed" in caplog.text
+    assert not any(isinstance(e, StoreEvent) for e in transcript.events)
+    assert any(isinstance(e, SpanEndEvent) for e in transcript.events)
