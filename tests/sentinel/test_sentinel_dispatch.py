@@ -3962,7 +3962,11 @@ def test_a_raising_viewer_falls_back_after_the_tool_runs() -> None:
 
 @protocol
 def d3_public_memory_only() -> Protocol:
-    async def decide(context: Context, step: BeforeToolCall) -> Decision | None:
+    async def decide(
+        context: Context,
+        step: BeforeToolCall,
+        escalations: Escalations,
+    ) -> Decision | None:
         if not step.call.arguments["path"].startswith("/memories/public/"):
             return Decision.reject("outside /memories/public")
         return None
