@@ -8,6 +8,7 @@ design/ctl/log-dir-mode.md). The CLI surface is tested in test_ctl.py.
 
 import errno
 import functools
+import hashlib
 import importlib
 import io
 import os
@@ -18,6 +19,7 @@ import time
 import zipfile
 from collections import Counter
 from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Literal, NamedTuple
@@ -2099,12 +2101,23 @@ class _Poll(NamedTuple):
     views: list[TaskView]
 
 
+@contextmanager
+def _reads(cache: LogDirCache | None) -> Iterator[None]:
+    """Reads that use ``cache``, closed after them as a CLI invocation's is."""
+    try:
+        with use_cache(cache):
+            yield
+    finally:
+        if cache is not None:
+            cache.close()
+
+
 async def _poll(
     root: Path | str, cache: LogDirCache | None | Literal["new"] = "new"
 ) -> _Poll:
     """One invocation's list read, by default with a new cache object (a new poller)."""
     async with AsyncFilesystem() as fs:
-        with use_cache(open_cache() if cache == "new" else cache):
+        with _reads(open_cache() if cache == "new" else cache):
             index = await index_log_dir(fs, str(root))
             views = await read_task_views(fs, index.tasks)
     return _Poll(dir_index=index, views=views)
@@ -2185,7 +2198,7 @@ async def test_a_warm_poll_answers_as_a_cold_one_without_re_reading_finished_log
         if view.member
     } == {True: True, False: False}
     finished = next(t for t in warm.dir_index.tasks if t.current.finished)
-    with use_cache(open_cache()):
+    with _reads(open_cache()):
         assert await _per_sample_reads(finished) == uncached_reads
 
 
@@ -2412,38 +2425,72 @@ async def test_a_cache_directory_deleted_after_it_is_opened_is_not_recreated(
     assert _answers(cold) == _answers(uncached)
 
 
-async def test_a_poll_writes_each_entry_at_most_once(
+def test_a_cli_invocation_writes_each_entry_at_most_once(
     log_dir: Path,
     finished_log: EvalLog,
     monkeypatch: pytest.MonkeyPatch,
+    no_discovery: None,
     _isolate_log_dir_cache: Path,
 ) -> None:
     from inspect_ai._control.log_dir import cache as cache_module
     from inspect_ai._util.atomic_write import atomic_write_bytes as real_write
 
-    running = await _start_running_log(
-        log_dir, finished_log, logged=[1], sample_ids=[1, 2, 3]
+    running = anyio.run(
+        functools.partial(
+            _start_running_log,
+            log_dir,
+            finished_log,
+            logged=[1],
+            sample_ids=list(range(1, 20)),
+        )
     )
+    [finished] = [p for p in log_dir.glob("*.eval") if p != running.location]
+    entry_name = {
+        f"{hashlib.sha256(str(path).encode()).hexdigest()}.json": path.name
+        for path in [finished, running.location]
+    }
     writes = Counter[str]()
 
     def counting(target_path: str, data: bytes, *args: Any, **kwargs: Any) -> None:
-        writes[target_path] += 1
+        writes[entry_name[Path(target_path).name]] += 1
         real_write(target_path, data, *args, **kwargs)
 
     monkeypatch.setattr(cache_module, "atomic_write_bytes", counting)
 
-    # cold: each log's entry, once
-    await _poll(log_dir)
-    assert sorted(writes.values()) == [1, 1]
-    # warm: the unchanged finished log is not written; the running log once
-    writes.clear()
-    await _poll(log_dir)
-    assert list(writes.values()) == [1]
-    # after a flush: the running log once
-    writes.clear()
-    await _flush(running, [running.sample(2)])
-    await _poll(log_dir)
-    assert list(writes.values()) == [1]
+    def written(*args: str) -> Counter[str]:
+        writes.clear()
+        result = _ctl(log_dir, *args, "--json")
+        assert result.exit_code == 0, result.output
+        return Counter(writes)
+
+    both = Counter({finished.name: 1, running.location.name: 1})
+    running_only = Counter({running.location.name: 1})
+    # each command indexes the directory, then reads views or a sample
+    finished_id = finished_log.eval.task_id
+    running_id = running.spec.task_id
+    commands = [
+        ["task", "list"],
+        ["sample", "list", "--content"],
+        ["sample", "errors"],
+        ["sample", "show", running_id, "1"],
+        ["sample", "events", running_id, "1"],
+        ["sample", "messages", running_id, "1"],
+        ["sample", "store", running_id, "1"],
+        ["sample", "show", finished_id, "1"],
+    ]
+    for n, command in enumerate(commands, start=2):
+        for entry in _cache_files(_isolate_log_dir_cache):
+            entry.unlink()
+        assert written(*command) == both, command
+        # an unchanged finished log is not written; a running log once
+        assert written(*command) == running_only, command
+        anyio.run(_flush, running, [running.sample(n)])
+        _edit_member(finished, "header.json", functools.partial(_set_note, note=n))
+        assert written(*command) == both, command
+
+
+def _set_note(header: Any, note: int) -> None:
+    header["eval"]["metadata"] = {"note": note}
 
 
 def _padded(data: bytes, size: int) -> bytes:
@@ -2511,7 +2558,7 @@ async def test_a_same_size_azure_rewrite_is_read_again(
         uncached = await _poll(f"memory://{root}", cache=None)
         assert _statuses(sample_listing(warm.views[0]))[2] == "completed"
         assert _answers(warm) == _answers(uncached)
-        with use_cache(open_cache()):
+        with _reads(open_cache()):
             assert await _per_sample_reads(warm.dir_index.tasks[0]) == (
                 await _per_sample_reads(uncached.dir_index.tasks[0])
             )
@@ -2672,7 +2719,7 @@ async def test_failed_and_cancelled_reads_store_no_snapshot(
     poller = open_cache()
     assert poller is not None
     async with AsyncFilesystem() as fs:
-        with use_cache(poller):
+        with _reads(poller):
             index = await index_log_dir(fs, str(log_dir))
     # the plan read succeeded and is stored, with no summaries yet
     [entry] = _cache_files(_isolate_log_dir_cache)
@@ -2704,7 +2751,7 @@ async def test_failed_and_cancelled_reads_store_no_snapshot(
         async with anyio.create_task_group() as tg:
 
             async def poll() -> None:
-                with use_cache(open_cache()):
+                with _reads(open_cache()):
                     await read_task_views(fs, index.tasks)
 
             tg.start_soon(poll)
@@ -2832,7 +2879,7 @@ async def test_a_key_admitted_to_the_manifest_of_an_unchanged_log_is_found(
         running.location, [(_buffer_summary(2), []), (_buffer_summary(7), [])]
     )
     async with AsyncFilesystem() as fs:
-        with use_cache(open_cache()):
+        with _reads(open_cache()):
             detail = await sample_detail(fs, poll.dir_index.tasks[0], "7", 1)
     assert detail["status"] == "running"
 
@@ -2897,7 +2944,7 @@ async def test_s3_request_counts_with_the_cache_for_finished_logs(
 
     task = warm.dir_index.tasks[0]
     async with AsyncFilesystem() as fs:
-        with use_cache(open_cache()):
+        with _reads(open_cache()):
             await sample_detail(fs, task, "1", 1)
             # the key refresh is free; the sample read is the central
             # directory, the member's local header and its body
@@ -3078,7 +3125,7 @@ async def test_s3_a_log_replaced_during_a_large_central_directory_read(
     poll = await _poll(root)
     armed.append(True)
     async with AsyncFilesystem() as fs:
-        with use_cache(open_cache()):
+        with _reads(open_cache()):
             located = await samples._locate(fs, poll.dir_index.tasks[0], "1", 1)
             assert located.summary.target == "OLD"
             read = await samples._read_sample(fs, located, None)

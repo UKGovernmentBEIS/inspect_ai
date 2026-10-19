@@ -21,8 +21,8 @@ Nothing keyed on a running log's version is reused. Manifests, sample
 members and segments are not cached.
 
 Entries are stored only from reads that passed their consistency checks and
-written when the reads finish (:func:`use_cache`), at most once per log,
-atomically (temp file, then rename) and owner-only (0600) into the existing
+written when the invocation ends (:meth:`LogDirCache.close`), at most once per
+log, atomically (temp file, then rename) and owner-only (0600) into the existing
 directory, which a write never creates. Concurrent pollers may overwrite each
 other's entries, but every entry describes a real version of its log. An
 entry of another schema or Inspect version is a cache miss. The first failure
@@ -247,6 +247,11 @@ class LogDirCache:
         except Exception as ex:
             self._fail(ex)
 
+    def close(self) -> None:
+        """Write the stored entries and prune, once, when the invocation ends."""
+        self.flush()
+        self.prune()
+
     def prune(self) -> None:
         """Remove the least recently used entries while the cache is too large.
 
@@ -393,15 +398,16 @@ def active_cache() -> LogDirCache | None:
 
 @contextmanager
 def use_cache(cache: LogDirCache | None) -> Iterator[None]:
-    """Make the reads inside the block use ``cache``, then write and prune it."""
+    """Make the reads inside the block use ``cache``.
+
+    Nothing is written here: an invocation may read in several blocks, and
+    writes each entry once, from :meth:`LogDirCache.close`.
+    """
     token = _active_cache.set(cache)
     try:
         yield
     finally:
         _active_cache.reset(token)
-        if cache is not None:
-            cache.flush()
-            cache.prune()
 
 
 def _log_plan(file: LogFile, entry: _Entry) -> LogPlan:

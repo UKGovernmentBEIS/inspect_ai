@@ -121,12 +121,19 @@ def _run_reader(
 
 
 def _cache() -> LogDirCache | None:
-    """The invocation's log-dir cache, opened once and shared by its reads."""
+    """The invocation's log-dir cache, opened once and shared by its reads.
+
+    It is written when the context that opened it closes, so an entry read
+    by several of the invocation's reads is written once.
+    """
     from inspect_ai._control.log_dir.cache import open_cache
 
     ctx = click.get_current_context()
     if _CACHE_META_KEY not in ctx.meta:
-        ctx.meta[_CACHE_META_KEY] = open_cache()
+        opened = open_cache()
+        ctx.meta[_CACHE_META_KEY] = opened
+        if opened is not None:
+            ctx.call_on_close(opened.close)
     cache: LogDirCache | None = ctx.meta[_CACHE_META_KEY]
     return cache
 

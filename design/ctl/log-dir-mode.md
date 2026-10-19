@@ -1056,14 +1056,15 @@ of what changed. `src/inspect_ai/_control/log_dir/cache.py`:
 - **Not cached**: manifest contents (they change every sync), sample
   members and segments (large; each invocation reads what it pages).
 - **Writes**: only from validated member views. An invocation keeps what
-  it stores in memory and writes it when its reads finish, at most once per
-  log, atomically (temp file created 0600, then rename; "Reading a member
-  consistently"). A write never creates the directory: if it has been
-  deleted since the invocation opened it, the write fails as below. Every
-  cached value is
-  keyed by the finished log's version, or by the CRC-32 and size of the
-  member it was read from, so the cache is a pure performance cache:
-  correctness never depends on its history. Two concurrent pollers may
+  it stores in memory and writes it when the CLI command ends, at most
+  once per log (a command indexes the directory and then reads views or a
+  sample, which may store a log twice), atomically (temp file created
+  0600, then rename; "Reading a member consistently"). A write never
+  creates the directory: if it has been deleted since the invocation
+  opened it, the write fails as below. Every cached value is keyed by the
+  finished log's version, or by the CRC-32 and size of the member it was
+  read from, so the cache is a pure performance cache: correctness never
+  depends on its history. Two concurrent pollers may
   overwrite each other's entries in either order; whichever entry survives
   describes some real version of the log, and a reader that finds it stale
   simply re-reads.
@@ -1078,7 +1079,10 @@ of what changed. `src/inspect_ai/_control/log_dir/cache.py`:
   or written by another Inspect version (whose log models may parse the
   same bytes differently), is a miss. A bad entry or an unusual key costs
   a re-read, never a failure, and the cache never changes what a read
-  returns.
+  returns. A limit of this rule: a log holding a value the serializer
+  refuses (a lone surrogate in its metadata or a sample summary) fails
+  the cache write of every invocation that reads it, so some or all of
+  its directory's logs stay uncached. Output is unaffected.
 - **Bounds.** Pruned oldest-access-first above 256 MB.
 - **Scope.** Keyed by URI, so two directories never share entries; nothing
   in the log directory is written. Only the CLI's reads use it (the reader
@@ -1509,7 +1513,8 @@ real moto server on an ephemeral port). New tests go in a new
   directory deleted after the invocation opened it (umask 022) is not
   recreated and the output is unchanged. After a failed entry load, a log
   replaced during its read and a failed write, the output equals an
-  uncached read's. A poll writes each entry at most once.
+  uncached read's. Each CLI command (cold, warm and changed logs, running
+  and finished) writes each entry at most once.
 - **Contract guards.** The commands carrying `--log-dir` are exactly the
   supported set; every other leaf command, invoked with `--log-dir <tmp>`,
   is a usage error (exit 2, no envelope) and makes no storage or discovery
