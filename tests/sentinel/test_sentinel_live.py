@@ -36,6 +36,7 @@ try:
         BeforeToolCall,
         Context,
         Decision,
+        Escalations,
         Monitor,
         MonitorGroup,
         Observation,
@@ -96,7 +97,11 @@ def lookup() -> Tool:
 
 @protocol
 def e2e_protect_etc() -> Protocol:
-    async def check(context: Context, step: BeforeToolCall) -> Decision | None:
+    async def check(
+        context: Context,
+        step: BeforeToolCall,
+        escalations: Escalations,
+    ) -> Decision | None:
         if str(step.call.arguments.get("path", "")).startswith("/etc"):
             return Decision.reject(
                 "deletes under /etc", message="Refused: /etc is protected."
@@ -108,7 +113,11 @@ def e2e_protect_etc() -> Protocol:
 
 @protocol
 def e2e_escalate_deletes() -> Protocol:
-    async def check(context: Context, step: BeforeToolCall) -> Decision | None:
+    async def check(
+        context: Context,
+        step: BeforeToolCall,
+        escalations: Escalations,
+    ) -> Decision | None:
         if step.call.function == "delete_file":
             return Decision.escalate("deletes a file")
         return None
