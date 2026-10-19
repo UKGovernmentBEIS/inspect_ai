@@ -23,6 +23,7 @@ from inspect_ai.agent import deepagent, subagent
 from inspect_ai.agent._deepagent.agent_tool import (
     AgentFuture,
     BackgroundRegistry,
+    _dispatch_background,
     active_background_agents,
     background_registry,
     current_background_registry,
@@ -37,9 +38,13 @@ from inspect_ai.log import EvalLog
 from inspect_ai.model import ChatMessageUser, ModelOutput, get_model
 from inspect_ai.scorer import Score, Scorer, Target, accuracy, scorer
 from inspect_ai.solver import Generate, Solver, TaskState, generate, solver
-from inspect_ai.tool import Tool, tool
+from inspect_ai.tool import Tool, ToolError, tool
 from inspect_ai.util import message_limit
-from inspect_ai.util._background import PosArgsT, background_target
+from inspect_ai.util._background import (
+    BackgroundTarget,
+    PosArgsT,
+    background_target,
+)
 
 # ---------------------------------------------------------------------------
 # Test-only helper: wait for a specific AgentFuture to complete and report
@@ -2329,13 +2334,38 @@ class _TaskGroupTarget:
         self._tg.start_soon(func, *args)
 
 
+class _ClosedTarget:
+    """A background target that refuses new work, as a closed owner does."""
+
+    def start_soon(
+        self,
+        func: Callable[[Unpack[PosArgsT]], Coroutine[Any, Any, Any]],
+        *args: Unpack[PosArgsT],
+    ) -> None:
+        raise RuntimeError("target closed")
+
+
 @contextmanager
-def _target(target: _TaskGroupTarget) -> Iterator[None]:
+def _target(target: BackgroundTarget | None) -> Iterator[None]:
     token = background_target.set(target)
     try:
         yield
     finally:
         background_target.reset(token)
+
+
+def _dispatch_dummy() -> str:
+    async def dummy_agent(state):
+        return state
+
+    return _dispatch_background(
+        child_agent=dummy_agent,
+        sa=subagent(name="general", description="d", prompt="p"),
+        dispatch_input="ignored",
+        span_id="x",
+        forked=False,
+        from_message=None,
+    )
 
 
 class TestBackgroundTarget:
@@ -2401,6 +2431,33 @@ class TestBackgroundTarget:
             with _target(_TaskGroupTarget(tg)):
                 async with registry.owned_task_group():
                     assert registry._task_group is None
+
+    @pytest.mark.parametrize("change", ["set", "reset", "replaced"])
+    async def test_dispatch_refused_when_target_changes(self, change: str) -> None:
+        async with anyio.create_task_group() as tg:
+            first, second = _TaskGroupTarget(tg), _TaskGroupTarget(tg)
+            entry = None if change == "set" else first
+            later = None if change == "reset" else second
+            registry = BackgroundRegistry(max_background=1)
+            with _target(entry):
+                async with registry.owned_task_group():
+                    with background_registry(registry), _target(later):
+                        with pytest.raises(ToolError, match="target changed"):
+                            _dispatch_dummy()
+
+        assert registry.futures == {}
+        assert first.started == second.started == 0
+
+    async def test_dispatch_unregisters_future_when_target_raises(self) -> None:
+        registry = BackgroundRegistry(max_background=1)
+        with _target(_ClosedTarget()):
+            async with registry.owned_task_group():
+                with background_registry(registry):
+                    with pytest.raises(RuntimeError, match="target closed"):
+                        _dispatch_dummy()
+
+        assert registry.futures == {}
+        assert registry.running_count() == 0
 
     def test_scorer_child_runs_in_target(self) -> None:
         from inspect_ai.agent._agent import AgentState
