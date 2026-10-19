@@ -199,6 +199,7 @@ def _fake_hydration(sample_checkpoints_dir: str, context_dir: str) -> HydrationR
         sample_staging_dir=None,
         sample_root=sample_checkpoints_dir,
         context_dir=context_dir,
+        transcript_store_dir=f"{context_dir}-transcript-store",
         host_restic=Path("/fake/restic"),
         host_repo=f"{sample_checkpoints_dir}/restic/host",
         restic_password="test-pwd",
@@ -211,7 +212,6 @@ def _counting(config: ResolvedCheckpointConfig, dirs: _Dirs) -> _CountingCheckpo
         config=config,
         hydration=_fake_hydration(dirs.checkpoints, dirs.context),
         resume_checkpoint=None,
-        reset_transcript_store=True,
     )
     return cp
 
@@ -248,7 +248,6 @@ def _flaky(config: ResolvedCheckpointConfig, dirs: _Dirs) -> _FlakyCheckpointer:
         config=config,
         hydration=_fake_hydration(dirs.checkpoints, dirs.context),
         resume_checkpoint=None,
-        reset_transcript_store=True,
     )
 
 
@@ -378,7 +377,6 @@ async def test_token_interval_first_tick_after_restore_not_full_interval(
             config=ResolvedCheckpointConfig(trigger=TokenInterval(every=1000)),
             hydration=hydration,
             resume_checkpoint=None,
-            reset_transcript_store=True,
         )
         fake_tokens[0] = 5500
         await cp.tick()
@@ -1527,7 +1525,6 @@ async def test_write_host_context_condenses_and_round_trips(tmp_path: Path) -> N
         config=ResolvedCheckpointConfig(trigger=TurnInterval(every=1)),
         hydration=_fake_hydration(str(tmp_path / "ckpts"), str(work)),
         resume_checkpoint=None,
-        reset_transcript_store=True,
     )
     for event in events:
         cp._track_transcript_event(event)
@@ -1553,13 +1550,12 @@ async def test_write_host_context_condenses_and_round_trips(tmp_path: Path) -> N
 
 def _make_cp(**kwargs: object) -> _EnteredCheckpointer:
     # Unique per call so parallel xdist workers (and successive calls) don't
-    # collide on the same SQLite transcript store under context_dir.
+    # collide on the same checkpoint dirs.
     base = Path(tempfile.mkdtemp(prefix="cp-test-"))
     defaults: dict[str, object] = {
         "config": ResolvedCheckpointConfig(trigger=TurnInterval(every=1)),
         "hydration": _fake_hydration(str(base / "ckpts"), str(base / "work")),
         "resume_checkpoint": None,
-        "reset_transcript_store": True,
     }
     defaults.update(kwargs)
     cp = _EnteredCheckpointer(**defaults)  # type: ignore[arg-type]
@@ -1965,6 +1961,10 @@ async def test_setup_aenter_defers_io_setup(tmp_path: Path) -> None:
             new=AsyncMock(return_value=f"{sample_ckpt_path}/context"),
         ) as ensure_ctx,
         patch(
+            "inspect_ai.util._checkpoint.hydrate.sample_transcript_store_dir",
+            return_value=str(tmp_path / "transcript-store"),
+        ),
+        patch(
             "inspect_ai.util._checkpoint.hydrate.ensure_restic_config",
             new=AsyncMock(return_value=fake_sample_state),
         ) as ensure_config_mock,
@@ -2033,7 +2033,6 @@ async def test_write_host_context_exports_transcript_store_attachments(
         config=ResolvedCheckpointConfig(trigger=TurnInterval(every=1)),
         hydration=_fake_hydration(str(tmp_path / "ckpts"), str(work)),
         resume_checkpoint=None,
-        reset_transcript_store=True,
     )
     cp._transcript_store.merge_attachments(attachments)
     await cp._write_host_context(str(work), Store())
@@ -2063,7 +2062,6 @@ async def test_write_host_context_accumulates_across_fires(tmp_path: Path) -> No
         config=ResolvedCheckpointConfig(trigger=TurnInterval(every=1)),
         hydration=_fake_hydration(str(tmp_path / "ckpts"), str(tmp_path / "context")),
         resume_checkpoint=None,
-        reset_transcript_store=True,
     )
     try:
         cp.track("messages", lambda: [msg_sys], [msg_sys], value_type=list[ChatMessage])
@@ -2471,18 +2469,19 @@ async def test_finalize_idempotent_across_reentry(tmp_path: Path) -> None:
         fire.assert_awaited_once_with("agent_complete", final=True)
 
 
-async def test_resume_resets_restored_transcript_store_before_seeding(
+async def test_resume_resets_leftover_transcript_store_before_seeding(
     tmp_path: Path,
 ) -> None:
     work = tmp_path / "work"
     work.mkdir()
-    restored_store = TranscriptEventStore(
-        work / "checkpoint_transcript.sqlite", reset=True
-    )
-    restored_store.merge_event(InfoEvent(data="orphan"), lambda _: None)
-    restored_store.close()
-
     hydration = _fake_hydration(str(tmp_path / "ckpts"), str(work))
+    leftover_store = TranscriptEventStore(
+        Path(hydration.transcript_store_dir) / "checkpoint_transcript.sqlite",
+        reset=True,
+    )
+    leftover_store.merge_event(InfoEvent(data="orphan"), lambda _: None)
+    leftover_store.close()
+
     hydration.host.condensed_events = [InfoEvent(data="committed")]
     fake_transcript = Transcript(bounded=False)
     setup = _CheckpointerSetup(
@@ -2537,7 +2536,6 @@ def test_resume_seed_skips_restored_resident_events(
         config=ResolvedCheckpointConfig(trigger=TurnInterval(every=1)),
         hydration=hydration,
         resume_checkpoint=ResumeCheckpoint(attempt="resume"),
-        reset_transcript_store=True,
     )
     snapshot = tmp_path / "snapshot"
     snapshot.mkdir()
@@ -2595,7 +2593,6 @@ def test_checkpointer_tracks_event_emitted_during_history_export(
         config=ResolvedCheckpointConfig(trigger=TurnInterval(every=1)),
         hydration=hydration,
         resume_checkpoint=None,
-        reset_transcript_store=True,
     )
     snapshot = tmp_path / "snapshot"
     snapshot.mkdir()
@@ -2618,7 +2615,6 @@ async def test_resume_seed_preserves_message_pool_positions(tmp_path: Path) -> N
         config=ResolvedCheckpointConfig(trigger=TurnInterval(every=1)),
         hydration=_fake_hydration(str(tmp_path / "ckpts"), str(tmp_path / "state1")),
         resume_checkpoint=None,
-        reset_transcript_store=True,
     )
     first_cp._track_transcript_event(make_model_event([msg_sys, msg_u1, msg_a1]))
     await first_cp._write_host_context(str(first_work), Store())
@@ -2636,7 +2632,6 @@ async def test_resume_seed_preserves_message_pool_positions(tmp_path: Path) -> N
         config=ResolvedCheckpointConfig(trigger=TurnInterval(every=1)),
         hydration=hydration,
         resume_checkpoint=None,
-        reset_transcript_store=True,
     )
 
     resumed_work = tmp_path / "resumed"
@@ -2677,7 +2672,6 @@ async def test_materialize_pooled_model_event_expands_seed_payload(
         config=ResolvedCheckpointConfig(trigger=TurnInterval(every=1)),
         hydration=_fake_hydration(str(tmp_path / "ckpts"), str(tmp_path / "state")),
         resume_checkpoint=None,
-        reset_transcript_store=True,
     )
     cp._track_transcript_event(restored)
     await cp._write_host_context(str(work), Store())
@@ -2825,7 +2819,6 @@ async def test_resume_delivers_restored_events_with_attachments_resolved(
         config=ResolvedCheckpointConfig(trigger=TurnInterval(every=1)),
         hydration=hydration,
         resume_checkpoint=ResumeCheckpoint(attempt="resume"),
-        reset_transcript_store=True,
     )
     snapshot = tmp_path / "snapshot"
     snapshot.mkdir()
@@ -3188,7 +3181,6 @@ async def test_fire_routes_sandbox_snapshot_through_strategy(
         config=config,
         hydration=hydration,
         resume_checkpoint=None,
-        reset_transcript_store=True,
     )
     with patch(
         "inspect_ai.util._checkpoint.checkpointer_impl.sandbox",

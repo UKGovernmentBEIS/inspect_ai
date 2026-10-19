@@ -68,6 +68,21 @@ async def ensure_sample_staging_dir(
     return sample_dir
 
 
+def sample_transcript_store_dir(
+    log_location: str, sample_id: int | str, epoch: int
+) -> str:
+    """Return the per-sample dir for the checkpointer's transcript store.
+
+    Host-local and outside the sample root, so neither the host restic
+    backup nor host egress captures it. Same naming scheme as
+    ``sample_staging_dir``.
+    """
+    eval_dir = inspect_cache_dir("checkpoint-transcript-store") / log_basename(
+        log_location
+    )
+    return f"{eval_dir}/{sample_dir_segment(sample_id)}__{epoch}"
+
+
 async def clear_sample_staging_dir(
     log_location: str, sample_id: int | str, epoch: int
 ) -> None:
