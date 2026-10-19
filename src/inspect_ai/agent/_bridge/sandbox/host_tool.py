@@ -290,20 +290,25 @@ async def _execute_granted(
         async with span(name=tool, type="tool"):
             transcript()._event(event)
             recorded = True
-            with observer.track_tool_call(event.id, event), scope:
-                event._set_cancel_fn(scope.cancel)
+            with observer.track_tool_call(event.id, event):
                 try:
-                    # as in call_tool: the tool's own model calls are not
-                    # agent turns
-                    with sentinel_scope(AgentScope.OFF):
-                        result = await tool_fn(**call_arguments)
-                    output, truncated = _recorded_result(
-                        tool, result, tool_def.max_output
-                    )
-                    outcome = _Outcome(output, truncated, reply=_reply(output, result))
+                    with scope:
+                        event._set_cancel_fn(scope.cancel)
+                        # as in call_tool: the tool's own model calls are not
+                        # agent turns
+                        with sentinel_scope(AgentScope.OFF):
+                            result = await tool_fn(**call_arguments)
+                        output, truncated = _recorded_result(
+                            tool, result, tool_def.max_output
+                        )
+                        outcome = _Outcome(
+                            output, truncated, reply=_reply(output, result)
+                        )
                 except Exception as ex:
-                    # an error raised while unwinding the operator's cancel
-                    # is superseded by the timeout (below)
+                    # an error raised while unwinding the operator's cancel is
+                    # superseded by the timeout (below); caught outside `scope`,
+                    # which strips its cancellation from a Trio task group's
+                    # mixed exception group
                     if not scope.cancel_called:
                         outcome = _raised(ex, tool, tool_def.max_output)
                         raise

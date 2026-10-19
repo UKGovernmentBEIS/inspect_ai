@@ -1074,11 +1074,10 @@ async def _bridge_generate_impl(
                 declarations.extend(declared_in_input(input_messages))
             # executions are placed in the proposing ModelEvent's span; only one
             # a sink chose is stored, so a rotating checkpoint span is followed
-            proposal_span = sink.span_id if sink is not None else None
             bridge.register_tool_execution_grants(
                 reviewed.output.message.tool_calls or [],
                 declarations,
-                span_id=(proposal_span if proposal_span != current_span_id() else None),
+                span_id=sink.span_id if sink is not None else None,
             )
             return reviewed.output, c_message
 
@@ -1097,19 +1096,24 @@ class _SpanCapturingSink:
     A sink can attribute a generation to a span other than the current one (a
     sub-agent's). Host tool events pair with their proposing `ModelEvent` by
     being recorded in that same span, so `bridge_generate` reads it here
-    without widening the sink protocol.
+    without widening the sink protocol. `span_id` is that span, or `None` when
+    the event is in the span current during generation: decided here, since a
+    checkpoint span can rotate while the calls await approval.
     """
 
     def __init__(self, inner: ModelEventSink) -> None:
         self.inner = inner
         self.span_id: str | None = None
+        self._current: str | None = None
 
     def on_pending(self, event: "ModelEvent") -> None:
+        self._current = current_span_id()
         self.inner.on_pending(event)
 
     def on_complete(self, event: "ModelEvent") -> None:
         self.inner.on_complete(event)
-        self.span_id = event.span_id
+        current = (self._current, current_span_id())
+        self.span_id = event.span_id if event.span_id not in current else None
 
 
 def resolve_generate_config(

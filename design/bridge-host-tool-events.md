@@ -549,8 +549,10 @@ Capturing the proposing event's span, in `bridge_generate`
 - After approval, `register_tool_execution_grants(calls, declarations,
   span_id=captured)`, `declarations` being the `[*tools, *declared_in_input(...)]`
   list #5428 builds today, where `captured` is the remembered span if it
-  differs
-  from `current_span_id()` at that moment, else `None`. Storing only a
+  differs from `current_span_id()` at the sink's `on_pending` and at its
+  `on_complete`, else `None`. The comparison is made in the callbacks, not at
+  registration: a checkpoint can rotate while the calls await approval, and
+  the earlier checkpoint span is not a sink's choice. Storing only a
   differing span keeps executions under the checkpointer's rotating
   `checkpoint N` span when no re-attribution happened: a stored checkpoint
   id would otherwise pin a later execution under a span that has since

@@ -13,7 +13,7 @@ import re
 from collections import deque
 from contextlib import contextmanager
 from pathlib import PurePosixPath
-from typing import Any, Awaitable, Callable, Iterator, Literal
+from typing import Any, Awaitable, Callable, Iterator, Literal, NamedTuple
 from unittest.mock import AsyncMock, MagicMock
 
 import anyio
@@ -93,7 +93,12 @@ from inspect_ai.tool._tool_info import ToolInfo
 from inspect_ai.tool._tool_params import ToolParam, ToolParams
 from inspect_ai.util._limit import LimitExceededError
 from inspect_ai.util._sandbox.events import SandboxTimeoutError
-from inspect_ai.util._span import current_span_id, span, span_id_provider
+from inspect_ai.util._span import (
+    SpanRotationScope,
+    current_span_id,
+    span,
+    span_id_provider,
+)
 from inspect_ai.util._store import Store, _subtask_store
 
 TASK = "Tidy up the working directory."
@@ -3466,6 +3471,60 @@ async def test_sink_attributing_to_the_current_span_stores_none() -> None:
     assert event.span_id == executed_in
 
 
+@approver(name="test_bridge_pausing")
+def pausing_approver(approving: anyio.Event, resume: anyio.Event) -> Approver:
+    async def approve(
+        message: str,
+        call: ToolCall,
+        view: ToolCallView,
+        history: list[ChatMessage],
+    ) -> Approval:
+        approving.set()
+        await resume.wait()
+        return Approval(decision="approve")
+
+    return approve
+
+
+@pytest.mark.parametrize("with_sink", [True, False], ids=["sink", "no-sink"])
+async def test_a_checkpoint_rotating_during_approval_is_followed(
+    with_sink: bool,
+) -> None:
+    """A rotation while the call awaits approval is not taken for a sink's own span."""
+    approving, rotated = anyio.Event(), anyio.Event()
+    bridge = sandbox_bridge_with_tool(
+        AsyncMock(return_value="contents"),
+        [ApprovalPolicy(pausing_approver(approving, rotated), "*")],
+    )
+    if with_sink:
+        bridge.model_event_sink = StampingSink({"current"})
+    call = ToolCall(id="proposed", function="read_file", arguments={"path": "a"})
+    checkpoints = SpanRotationScope(type="checkpoint")
+
+    async def rotate() -> None:
+        await approving.wait()
+        await checkpoints.end_span()
+        await checkpoints.begin_span("checkpoint 2")
+        rotated.set()
+
+    with recorded_transcript() as recorded:
+        await checkpoints.open("checkpoint 1")
+        first = current_span_id()
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(rotate)
+            await propose(bridge, call)
+        second = current_span_id()
+        assert second is not None and second != first
+        assert bridge._tool_execution_grants[0].proposal.span_id is None
+        await call_host_tool(bridge)("host", "read_file", {"path": "a"})
+        await checkpoints.close()
+
+    [model_event] = [e for e in recorded.events if isinstance(e, ModelEvent)]
+    assert model_event.span_id == first
+    [event] = recorded.tool_events
+    assert event.span_id == second
+
+
 async def test_execution_after_its_proposal_span_closed_still_nests_under_it() -> None:
     """codex_cli closes a sub-agent span in a later generation's `on_pending`."""
     bridge = sandbox_bridge_with_sink(
@@ -4152,6 +4211,31 @@ def blocking_tool() -> tuple[AsyncMock, anyio.Event, anyio.Event]:
 
 PNG = "data:image/png;base64,iVBORw0KGgo="
 
+
+class ChildRaises(NamedTuple):
+    """A tool whose task group child raises `error` when it is cancelled."""
+
+    error: Exception
+
+
+async def run_child_raising(error: Exception, started: anyio.Event) -> None:
+    """Wait in a task group whose child raises `error` when cancelled."""
+    child_started = anyio.Event()
+
+    async def child() -> None:
+        child_started.set()
+        try:
+            await anyio.sleep_forever()
+        except anyio.get_cancelled_exc_class():
+            raise error from None
+
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(child)
+        await child_started.wait()
+        started.set()
+        await anyio.sleep_forever()
+
+
 # how each ending is produced: what the tool does (or None for the span-ID
 # provider endings) and what interrupts the call once it has started
 ENDINGS: dict[str, tuple[Any, Literal["operator", "outer"] | None]] = {
@@ -4169,6 +4253,16 @@ ENDINGS: dict[str, tuple[Any, Literal["operator", "outer"] | None]] = {
     "operator-cancel-raises": (RuntimeError("cleanup failed"), "operator"),
     "operator-cancel-raises-group": (
         ExceptionGroup("cleanup", [RuntimeError("cleanup failed")]),
+        "operator",
+    ),
+    # a task group child that raises while being cancelled (Trio then raises
+    # a group mixing that error with the cancellation)
+    "operator-cancel-child-raises": (
+        ChildRaises(RuntimeError("cleanup failed")),
+        "operator",
+    ),
+    "operator-cancel-child-raises-tool-error": (
+        ChildRaises(ToolError("cleanup failed")),
         "operator",
     ),
     "operator-cancel-raises-tool-error": (ToolError("cleanup failed"), "operator"),
@@ -4192,6 +4286,8 @@ EXPECTED: dict[str, tuple[str, str | None, bool]] = {
     "operator-cancel-returns": ("error", "timeout", False),
     "operator-cancel-raises": ("error", "timeout", False),
     "operator-cancel-raises-group": ("error", "timeout", False),
+    "operator-cancel-child-raises": ("error", "timeout", False),
+    "operator-cancel-child-raises-tool-error": ("error", "timeout", False),
     "operator-cancel-raises-tool-error": ("error", "timeout", False),
     "outer-cancel": ("cancelled", "cancelled", False),
     "span-allocation-fails": ("error", None, True),
@@ -4210,6 +4306,8 @@ async def test_every_ending_records_one_event_matching_the_reply(
     started = anyio.Event()
 
     async def run_tool(**kwargs: Any) -> Any:
+        if isinstance(behaviour, ChildRaises):
+            await run_child_raising(behaviour.error, started)
         started.set()
         if interrupt is not None:
             try:
