@@ -24,7 +24,7 @@ This section won’t cover using `inspect view` though. Rather, it will cover th
 
 This article will focus primarily on configuring Inspect’s logging behavior (location, format, content, etc). Beyond that, there are a variety of tools available for analyzing data in log files:
 
-1.  [Log File API](#log-file-api) — API for accessing all data recorded in the log.
+1.  [Log File API](#sec-log-file-api) — API for accessing all data recorded in the log.
 
 2.  [Log Dataframes](./dataframe.html.md) — API for extracting data frames from log files.
 
@@ -61,7 +61,7 @@ If you define a relative path to `INSPECT_LOG_DIR` in a `.env` file, then its lo
 
 > **NOTE:**
 >
-> If you are running in VS Code, then you should restart terminals and notebooks using Inspect when you change the `INSPECT_LOG_DIR` in a `.env` file. This is because the VS Code Python extension also [reads variables](https://code.visualstudio.com/docs/python/environments#_environment-variables) from `.env` files, and your updated `INSPECT_LOG_DIR` won’t be re-read by VS Code until after a restart.
+> If you are running in VS Code, then you should restart terminals and notebooks using Inspect when you change the `INSPECT_LOG_DIR` in a `.env` file. This is because the VS Code Python extension also [reads variables](https://code.visualstudio.com/docs/python/environments#_env-file-support) from `.env` files, and your updated `INSPECT_LOG_DIR` won’t be re-read by VS Code until after a restart.
 
 See the [Amazon S3](#sec-amazon-s3) section below for details on logging evaluations to Amazon S3 buckets. See the [Hugging Face Storage Buckets](#sec-hugging-face-storage-buckets) section below for details on logging evaluations to Hugging Face buckets. See the [Azure](#sec-azure) section below for details on logging evaluations to Azure.
 

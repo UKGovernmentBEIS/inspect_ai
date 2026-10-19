@@ -430,6 +430,8 @@ from shortuuid import uuid
 react(..., tools=[web_surfer(instance=uuid())])
 ```
 
+To keep separate state for agents that run in their own [tool state scope](./agent-custom.html.md#tool-state-scopes), pass `tool_state_instance(instance)` to [store_as()](./reference/inspect_ai.util.html.md#store_as) instead of `instance`.
+
 > **IMPORTANT:**
 >
 > Note that stateful tools should generally not be marked as safe for [parallel execution](#sec-parallel-execution), as their state cannot be safely read and written from multiple concurrent callers.

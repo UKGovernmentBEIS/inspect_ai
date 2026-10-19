@@ -1468,7 +1468,7 @@ If the Inspect extension is not loading into the workspace, you should investiga
 
 [![Inspect output channel, showing the versions of Python and Inspect discovered by the extension.](images/inspect-vscode-output-channel.png)](images/inspect-vscode-output-channel.png)
 
-Note that the Inspect extension will automatically bind to the Python interpreter associated with the current workspace, so you should be sure that the `inspect-ai` package is installed within that environment. Use the [**Python: Select Interpreter**](https://code.visualstudio.com/docs/python/environments#_working-with-python-interpreters) command to associate a version of Python with your workspace.
+Note that the Inspect extension will automatically bind to the Python interpreter associated with the current workspace, so you should be sure that the `inspect-ai` package is installed within that environment. Use the [**Python: Select Interpreter**](https://code.visualstudio.com/docs/python/environments#_select-an-environment) command to associate a version of Python with your workspace.
 
 
 # Tasks – Inspect
@@ -2291,7 +2291,7 @@ dataset = csv_dataset("security_guide.csv")
 
 Note that samples from datasets without an `id` field will automatically be assigned ids based on an auto-incrementing integer starting with 1.
 
-If your samples include `choices`, then the `target` should be a capital letter representing the correct answer in `choices`, see [`multiple_choice`](./solvers.html.md#multiple-choice)
+If your samples include `choices`, then the `target` should be a capital letter representing the correct answer in `choices`, see [`multiple_choice`](./solvers.html.md#sec-multiple-choice)
 
 ## Sample Files
 
@@ -3200,12 +3200,12 @@ Inspect has support for a wide variety of language model APIs and can be extende
 
 |  |  |
 |----|----|
-| Lab APIs | [OpenAI](./providers.html.md#openai), [Anthropic](./providers.html.md#anthropic), [Google](./providers.html.md#google), [Grok](./providers.html.md#grok), [Mistral](./providers.html.md#mistral), [DeepSeek](./providers.html.md#deepseek), [Moonshot AI](./providers.html.md#moonshot-ai), [Meta](./providers.html.md#meta), [Perplexity](./providers.html.md#perplexity) |
+| Lab APIs | [OpenAI](./providers.html.md#openai), [Anthropic](./providers.html.md#anthropic), [Google](./providers.html.md#google-gemini), [Grok](./providers.html.md#grok), [Mistral](./providers.html.md#mistral), [DeepSeek](./providers.html.md#deepseek), [Moonshot AI](./providers.html.md#moonshot-ai), [Meta](./providers.html.md#meta), [Perplexity](./providers.html.md#perplexity) |
 | Cloud APIs | [AWS Bedrock](./providers.html.md#aws-bedrock), [AWS SageMaker](./providers.html.md#aws-sagemaker), and [Azure AI](./providers.html.md#azure-ai) |
 | Open (Hosted) | [Groq](./providers.html.md#groq), [Together AI](./providers.html.md#together-ai), [Fireworks AI](./providers.html.md#fireworks-ai), [Cloudflare](./providers.html.md#cloudflare), [HF Inference Providers](./providers.html.md#hugging-face-inference-providers), [SambaNova](./providers.html.md#sambanova) |
 | Open (Local) | [Hugging Face](./providers.html.md#hugging-face), [vLLM](./providers.html.md#vllm), [Ollama](./providers.html.md#ollama), [Lllama-cpp-python](./providers.html.md#llama-cpp-python), [SGLang](./providers.html.md#sglang), [TransformerLens](./providers.html.md#transformer-lens), [nnterp](./providers.html.md#nnterp) |
 
-  
+\
 
 If the provider you are using is not listed above, you may still be able to use it if:
 
@@ -3634,12 +3634,12 @@ Inspect has support for a wide variety of language model APIs and can be extende
 
 |  |  |
 |----|----|
-| Lab APIs | [OpenAI](./providers.html.md#openai), [Anthropic](./providers.html.md#anthropic), [Google](./providers.html.md#google), [Grok](./providers.html.md#grok), [Mistral](./providers.html.md#mistral), [DeepSeek](./providers.html.md#deepseek), [Moonshot AI](./providers.html.md#moonshot-ai), [Meta](./providers.html.md#meta), [Perplexity](./providers.html.md#perplexity) |
+| Lab APIs | [OpenAI](./providers.html.md#openai), [Anthropic](./providers.html.md#anthropic), [Google](./providers.html.md#google-gemini), [Grok](./providers.html.md#grok), [Mistral](./providers.html.md#mistral), [DeepSeek](./providers.html.md#deepseek), [Moonshot AI](./providers.html.md#moonshot-ai), [Meta](./providers.html.md#meta), [Perplexity](./providers.html.md#perplexity) |
 | Cloud APIs | [AWS Bedrock](./providers.html.md#aws-bedrock), [AWS SageMaker](./providers.html.md#aws-sagemaker), and [Azure AI](./providers.html.md#azure-ai) |
 | Open (Hosted) | [Groq](./providers.html.md#groq), [Together AI](./providers.html.md#together-ai), [Fireworks AI](./providers.html.md#fireworks-ai), [Cloudflare](./providers.html.md#cloudflare), [HF Inference Providers](./providers.html.md#hugging-face-inference-providers), [SambaNova](./providers.html.md#sambanova) |
 | Open (Local) | [Hugging Face](./providers.html.md#hugging-face), [vLLM](./providers.html.md#vllm), [Ollama](./providers.html.md#ollama), [Lllama-cpp-python](./providers.html.md#llama-cpp-python), [SGLang](./providers.html.md#sglang), [TransformerLens](./providers.html.md#transformer-lens), [nnterp](./providers.html.md#nnterp) |
 
-  
+\
 
 If the provider you are using is not listed above, you may still be able to use it if:
 
@@ -3866,7 +3866,7 @@ The following environment variables are supported by the Anthropic provider
 
 Some Anthropic features require that you include a beta identifier in the `betas` field of model requests. Inspect automatically includes the requisite identifier for beta features it utilizes (e.g. “mcp-client-2025-04-04”, “computer-use-2025-01-24”, etc.).
 
-If there are other beta features you want to enable, use the `betas` model arg (`-M`). For example, to enable [1M token context windows](https://docs.anthropic.com/en/docs/build-with-claude/context-windows#1m-token-context-window) for Sonnet 4.5 and Opus 4.6 models:
+If there are other beta features you want to enable, use the `betas` model arg (`-M`). For example, to enable [1M token context windows](https://platform.claude.com/docs/en/build-with-claude/context-windows) for Sonnet 4.5 and Opus 4.6 models:
 
 ``` bash
 inspect eval arc.py --model anthropic/claude-sonnet-4-0 -M betas=context-1m-2025-08-07
@@ -4745,7 +4745,7 @@ pip install vllm
 inspect eval arc.py --model vllm/openai-community/gpt2
 ```
 
-For the `vllm` provider, custom model args (-M) are forwarded to the vllm [CLI](https://docs.vllm.ai/en/stable/serving/openai_compatible_server.html#cli-reference). Top-level model arg names are converted to CLI flag form (for example, `tensor_parallel_size` becomes `--tensor-parallel-size`). Dotted vLLM arguments preserve nested field names after the dot, so `-M speculative-config.num_speculative_tokens=1` is forwarded as `--speculative-config.num_speculative_tokens 1`.
+For the `vllm` provider, custom model args (-M) are forwarded to the vllm [CLI](https://docs.vllm.ai/en/stable/cli/serve/). Top-level model arg names are converted to CLI flag form (for example, `tensor_parallel_size` becomes `--tensor-parallel-size`). Dotted vLLM arguments preserve nested field names after the dot, so `-M speculative-config.num_speculative_tokens=1` is forwarded as `--speculative-config.num_speculative_tokens 1`.
 
 The following environment variables are supported by the vLLM provider:
 
@@ -5261,7 +5261,7 @@ For the `openrouter` provider, the following custom model args (`-M`) are suppor
 
 | Argument | Example |
 |----|----|
-| [`models`](https://openrouter.ai/docs/features/model-routing#the-models-parameter) | `-M "models=anthropic/claude-3.5-sonnet, gryphe/mythomax-l2-13b"` |
+| [`models`](https://openrouter.ai/docs/guides/routing/model-fallbacks) | `-M "models=anthropic/claude-3.5-sonnet, gryphe/mythomax-l2-13b"` |
 | [`provider`](https://openrouter.ai/docs/features/provider-routing) | `-M "provider={ 'quantizations': ['int8'] }"` |
 | [`transforms`](https://openrouter.ai/docs/features/message-transforms) | `-M "transforms=['middle-out']"` |
 | [`reasoning_enabled`](https://openrouter.ai/docs/use-cases/reasoning-tokens) | `-M "reasoning_enabled=false"` |
@@ -5339,7 +5339,7 @@ A model that does not accept a conversation ending with an assistant message (as
 
 ### Gemini Models
 
-When the upstream model is a Gemini model (recognized by its name), requests with tools follow the native `google` provider’s retry of malformed function calls, but not its function-calling hint:
+When the upstream model is a Gemini model (recognized by its name), requests with tools follow the native `google` provider’s retry of malformed function calls:
 
 - No function-calling hint is added to the system prompt. In live trials through the proxy, the hint made Gemini 2.5 Pro loop on repeated tool calls and did not reduce malformed calls.
 - A turn that comes back as a malformed function call is retried up to 3 times with a corrective exchange, with tool calling required when the tool choice was `auto`. LiteLLM reports Gemini’s `MALFORMED_FUNCTION_CALL` as an ordinary stop, so Inspect recognizes such a turn by its shape: no text and no tool call, or text that is a function call written as code. When the retries run out, the assistant message says that it had trouble calling a function. Usage covers every attempt, and `ModelOutput.metadata` records `malformed_function_call_attempts`.
@@ -6147,7 +6147,7 @@ On the model output, `ModelOutput.model` reports the model that actually produce
 |----|----|
 | `model` | Model that was originally requested. |
 | `fallback_model` | Model that served the request. |
-| `count` | Number of generate calls (always 1 on a single output; aggregated in the sample rollup). |
+| `count` | Number of requests served by the fallback. Usually 1 on a single output. An Anthropic turn continued after `pause_turn` sends several requests, so its output counts each one that fell back. The sample rollup sums the counts. |
 | `metadata` | Provider diagnostics. For Anthropic, the `handoffs` chain and the per-attempt `usage.iterations` billing record. |
 
 A turn that [sticky routing](https://platform.claude.com/docs/en/build-with-claude/refusals-and-fallback#sticky-routing) sends straight to the fallback model (no model declined it) is recorded the same way, with an empty `handoffs` chain.
@@ -6268,7 +6268,7 @@ The public [agent_bridge()](./reference/inspect_ai.agent.html.md#agent_bridge) c
 
 Task-resolution helpers default to `input_media_policy="inline_only"`. An embedder that calls `resolve_tasks()` or `eval_resolve_tasks()` at a genuine pre-run boundary can preserve fixed-dataset path and URL handling by passing `input_media_policy="trusted_pre_run"`. Do not use that policy for tasks created during an eval.
 
-See [Media Reference Authority](../design/media-authority.md) for the full threat model, source table, and residual risks.
+See [Media Reference Authority](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/design/media-authority.md) for the full threat model, source table, and residual risks.
 
 ## Images
 
@@ -6309,7 +6309,7 @@ input = [
 
 ### Detail
 
-Some providers support a `detail` option that control over how the model processes the image and generates its textual understanding. Valid options are `auto` (the default), `low`, and `high`. See the [Open AI documentation](https://platform.openai.com/docs/guides/vision#low-or-high-fidelity-image-understanding) for more information on using this option. The Mistral, AzureAI, and Groq APIs also support the `detail` parameter. For example, here we explicitly specify image detail:
+Some providers support a `detail` option that control over how the model processes the image and generates its textual understanding. Valid options are `auto` (the default), `low`, and `high`. See the [Open AI documentation](https://developers.openai.com/api/docs/guides/images-vision#choose-an-image-detail-level) for more information on using this option. The Mistral, AzureAI, and Groq APIs also support the `detail` parameter. For example, here we explicitly specify image detail:
 
 ``` python
 ContentImage(image="picture.png", detail="low")
@@ -10872,6 +10872,22 @@ red_team_activity = store_as(Activity, instance="red_team")
 blue_team_activity = store_as(Activity, instance="blue_team")
 ```
 
+### Tool State Scopes
+
+Agents that run concurrently in one sample share the state of tools left at their default `instance`. For example, two agents given [memory()](./reference/inspect_ai.tool.html.md#memory) read and write the same files. To give each agent its own state, run it inside a [tool_state_scope()](./reference/inspect_ai.util.html.md#tool_state_scope):
+
+``` python
+from inspect_ai.util import tool_state_scope
+
+async def run_worker(name: str, worker: Agent, state: AgentState) -> AgentState:
+    with tool_state_scope(name):
+        return await worker(state)
+```
+
+Inside the scope, [memory()](./reference/inspect_ai.tool.html.md#memory), [bash_session()](./reference/inspect_ai.tool.html.md#bash_session), [web_browser()](./reference/inspect_ai.tool.html.md#web_browser) and [skill()](./reference/inspect_ai.tool.html.md#skill) use the scope as their default instance (`"@<name>"`), so each agent gets its own memory, shell, browser and skills. A tool given an explicit instance, such as `memory(instance="team")`, is still shared between agents. Nested scopes join their names with “/” (`"@outer/inner"`). Instances that start with “@” are reserved for scopes, so an explicit instance never shares state with a scope by accident. Tasks started inside the scope inherit it. Outside any scope, tools behave as before. Skill files are the exception: they live in the sandbox, so [skill()](./reference/inspect_ai.tool.html.md#skill) tools that install into the same directory share them. A skill file that already exists with the same contents is not written again, and one that exists with different contents raises an error.
+
+Custom tools and agents can follow the scope by passing `tool_state_instance(instance)` to [store_as()](./reference/inspect_ai.util.html.md#store_as). Library code that picks an instance name itself and wants it kept private to the scope can use `private_tool_instance(name)`, which returns `"<scope>#<name>"` inside a scope (for example `"@w-1#general"`) and `name` outside one.
+
 ## Agent Limits
 
 The Inspect [limits system](./setting-limits.html.md#scoped-limits) enables you to set a variety of limits on execution including tokens consumed, messages used in conversations, clock time, and working time (clock time minus time taken retrying in response to rate limits or waiting on other shared resources; see [Working Limit](./setting-limits.html.md#working-limit) for its limitations).
@@ -11313,7 +11329,7 @@ async with sandbox_agent_bridge(
     ...
 ```
 
-Header names are case-insensitive. A comma-separated value is checked one item at a time, so list each item separately (a listed value cannot contain a comma). Items you did not list are dropped with a warning, and the header is dropped if none remain. A header you did not list is logged once by name. `Accept-Encoding` cannot be listed. Credentials (such as `Authorization`, `x-api-key`, `api-key`, `x-goog-api-key`, and AWS `x-amz-` headers) and transport headers (such as `Host` and `Content-Type`) cannot be forwarded. On both bridges, a forwarded `Accept-Encoding` keeps only the encodings Inspect can decode (`zstd` needs Python 3.14 or the `backports.zstd` package).
+Header names are case-insensitive. A comma-separated value is checked one item at a time, so list each item separately (a listed value cannot contain a comma). Items you did not list are dropped with a warning, and the header is dropped if none remain. A header you did not list is logged once by name. `Accept-Encoding` cannot be listed. Credentials (such as `Authorization`, `x-api-key`, `api-key`, `x-goog-api-key`, and AWS `x-amz-` headers) and transport headers (such as `Host` and `Content-Type`) cannot be forwarded. On both bridges, a forwarded `Accept-Encoding` keeps only the encodings Inspect can decode (`br` needs the `brotli` package, and `zstd` needs Python 3.14 or the `backports.zstd` package).
 
 Headers configured on the Inspect model itself (e.g. the Anthropic `betas` model arg or `extra_headers`) are always sent. When the model or eval sets `extra_headers`, they are merged with the forwarded headers: their value wins for a header both set, except that `anthropic-beta` values are combined.
 
@@ -12691,6 +12707,8 @@ scratch = memory(instance="scratch")
 
 This mirrors `skill(instance=...)`. Use it when two memory tools must not collide — for example, to give a subagent a private scratchpad, or to compare shared vs. separate memory as conditions in a study.
 
+Agents that run concurrently in one sample can instead each run inside their own [tool state scope](./agent-custom.html.md#tool-state-scopes), which gives each of them a separate default [memory()](./reference/inspect_ai.tool.html.md#memory).
+
 Note that `instance` namespaces the data within the sample’s in-memory store; it is **not** a security boundary, since everything still lives in the same process. For a hard boundary between agents, isolate them with a [Sandbox Environment](./sandboxing.html.md) instead.
 
 ### Tool Binding
@@ -13596,6 +13614,8 @@ from shortuuid import uuid
 
 react(..., tools=[web_surfer(instance=uuid())])
 ```
+
+To keep separate state for agents that run in their own [tool state scope](./agent-custom.html.md#tool-state-scopes), pass `tool_state_instance(instance)` to [store_as()](./reference/inspect_ai.util.html.md#store_as) instead of `instance`.
 
 > **IMPORTANT:**
 >
@@ -14865,7 +14885,9 @@ If you are just getting started running evaluations, see the [`inspect eval`](./
 
 > **NOTE:**
 >
-> If you use a coding agent to run evals, the [inspect-skills](https://github.com/meridianlabs-ai/inspect-skills#install) plugin provides skills that teach it to launch evals in the background, monitor progress, and catch stalls and errors early.
+> For a comprehensive approach to using coding agents to oversee running evaluations, see the [Inspect Steward](https://meridianlabs-ai.github.io/inspect_steward) package.
+>
+> Also, check out the [inspect-skills](https://github.com/meridianlabs-ai/inspect-skills#install) plugin provides that provides skills that teach agents launch evals in the background, monitor progress, and catch stalls and errors early.
 
 
 # Eval Sets – Inspect
@@ -16447,7 +16469,7 @@ Commands are grouped by resource noun (`task`, `sample`, `model`, `process`), pl
 | `inspect ctl process pause` | Pause a whole running eval or eval-set (`--now` also holds in-flight samples). |
 | `inspect ctl process resume` | Resume a paused eval or eval-set. |
 
-e its work-so-far is scored).
+A bare noun implies `list`: `inspect ctl task` ≡ `inspect ctl task list`, and likewise for `sample` and `process`. All commands accept `--json` for structured output, which makes them straightforward to use from scripts and from coding agents like Claude Code. The `list` / `show` / `errors` / `events` / `messages` / `store` / `anomalies` commands are read-only. The others direct the run deliberately: `config` retunes launch parameters (concurrency changes never interrupt in-flight work; the per-sample limit overrides deliberately reach in-flight samples), `task log-flush` forces a log write that would happen anyway, `process keep`/`release` only affect what happens after the eval finishes, `task pause`/`resume`, `model pause`/`resume`, and `process pause`/`resume` stop and restart dispatch reversibly — leaving in-flight work untouched unless `pause --now` asks for a hard pause (which also holds in-flight samples at their next model call), `task cancel` / `sample cancel` interrupt work explicitly, `task drain` stops new samples while in-flight ones finish naturally, `sample requeue` re-runs an errored or cancelled sample (all idempotently, with `--dry-run` support), and `task score` / `sample score` score a running task’s samples (or one sample) without ending them (each in-flight sample is briefly held while its work-so-far is scored).
 
 The endpoint is a Unix domain socket under the current user’s Inspect data directory. It is not reachable over the network or by other users on the same machine, and it requires no configuration.
 
@@ -17585,7 +17607,7 @@ This section won’t cover using `inspect view` though. Rather, it will cover th
 
 This article will focus primarily on configuring Inspect’s logging behavior (location, format, content, etc). Beyond that, there are a variety of tools available for analyzing data in log files:
 
-1.  [Log File API](#log-file-api) — API for accessing all data recorded in the log.
+1.  [Log File API](#sec-log-file-api) — API for accessing all data recorded in the log.
 
 2.  [Log Dataframes](./dataframe.html.md) — API for extracting data frames from log files.
 
@@ -17622,7 +17644,7 @@ If you define a relative path to `INSPECT_LOG_DIR` in a `.env` file, then its lo
 
 > **NOTE:**
 >
-> If you are running in VS Code, then you should restart terminals and notebooks using Inspect when you change the `INSPECT_LOG_DIR` in a `.env` file. This is because the VS Code Python extension also [reads variables](https://code.visualstudio.com/docs/python/environments#_environment-variables) from `.env` files, and your updated `INSPECT_LOG_DIR` won’t be re-read by VS Code until after a restart.
+> If you are running in VS Code, then you should restart terminals and notebooks using Inspect when you change the `INSPECT_LOG_DIR` in a `.env` file. This is because the VS Code Python extension also [reads variables](https://code.visualstudio.com/docs/python/environments#_env-file-support) from `.env` files, and your updated `INSPECT_LOG_DIR` won’t be re-read by VS Code until after a restart.
 
 See the [Amazon S3](#sec-amazon-s3) section below for details on logging evaluations to Amazon S3 buckets. See the [Hugging Face Storage Buckets](#sec-hugging-face-storage-buckets) section below for details on logging evaluations to Hugging Face buckets. See the [Azure](#sec-azure) section below for details on logging evaluations to Azure.
 
@@ -18607,6 +18629,8 @@ df = prepare(df, [
 
 The examples above all use built-in column specifications (e.g. [EvalModel](./reference/inspect_ai.analysis.html.md#evalmodel), [EvalResults](./reference/inspect_ai.log.html.md#evalresults), [SampleSummary](./reference/inspect_ai.analysis.html.md#samplesummary), etc.). These specifications exist as a convenient starting point but can be replaced fully or partially by your own custom definitions.
 
+Custom [EventColumn](./reference/inspect_ai.analysis.html.md#eventcolumn) and [MessageColumn](./reference/inspect_ai.analysis.html.md#messagecolumn) extraction functions must not mutate messages in place, as message renders are cached within each sample and later rows may otherwise use stale content.
+
 Column definitions specify how JSON data is mapped into dataframe columns, and are specified using subclasses of the [Column](./reference/inspect_ai.analysis.html.md#column) class (e.g. [EvalColumn](./reference/inspect_ai.analysis.html.md#evalcolumn), [SampleColumn](./reference/inspect_ai.analysis.html.md#samplecolumn)). For example, here is the definition of the built-in [EvalTask](./reference/inspect_ai.analysis.html.md#evaltask) column group:
 
 ``` python
@@ -18785,7 +18809,7 @@ The `turn_count` column is the number of turns (top-level model generations) use
 
 The `working_time` column is clock time minus the time when any wait was open in the sample, so work done during a wait is not counted. See [Working Limit](./setting-limits.html.md#working-limit) for its limitations.
 
-The `fallbacks` column is the total number of generate calls served by a [fallback model](./providers.html.md#anthropic-refusal-fallback) (0 if none). For the full per-pair rollup, add a custom column reading the underlying summary field: `SampleColumn("model_fallbacks", path="model_fallbacks")`.
+The `fallbacks` column is the total number of requests served by a [fallback model](./providers.html.md#anthropic-refusal-fallback) (0 if none). One generate call can add more than 1 when Anthropic continues a turn after `pause_turn`. For the full per-pair rollup, add a custom column reading the underlying summary field: `SampleColumn("model_fallbacks", path="model_fallbacks")`.
 
 The `eval_id` and `sample_id` fields are automatically included in all sample data frames. Additionally, a `log` field which includes the URI of the log file read from is included.
 

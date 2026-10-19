@@ -79,4 +79,4 @@ If the Inspect extension is not loading into the workspace, you should investiga
 
 [![Inspect output channel, showing the versions of Python and Inspect discovered by the extension.](images/inspect-vscode-output-channel.png)](images/inspect-vscode-output-channel.png)
 
-Note that the Inspect extension will automatically bind to the Python interpreter associated with the current workspace, so you should be sure that the `inspect-ai` package is installed within that environment. Use the [**Python: Select Interpreter**](https://code.visualstudio.com/docs/python/environments#_working-with-python-interpreters) command to associate a version of Python with your workspace.
+Note that the Inspect extension will automatically bind to the Python interpreter associated with the current workspace, so you should be sure that the `inspect-ai` package is installed within that environment. Use the [**Python: Select Interpreter**](https://code.visualstudio.com/docs/python/environments#_select-an-environment) command to associate a version of Python with your workspace.

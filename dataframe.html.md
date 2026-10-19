@@ -311,6 +311,8 @@ df = prepare(df, [
 
 The examples above all use built-in column specifications (e.g. [EvalModel](./reference/inspect_ai.analysis.html.md#evalmodel), [EvalResults](./reference/inspect_ai.log.html.md#evalresults), [SampleSummary](./reference/inspect_ai.analysis.html.md#samplesummary), etc.). These specifications exist as a convenient starting point but can be replaced fully or partially by your own custom definitions.
 
+Custom [EventColumn](./reference/inspect_ai.analysis.html.md#eventcolumn) and [MessageColumn](./reference/inspect_ai.analysis.html.md#messagecolumn) extraction functions must not mutate messages in place, as message renders are cached within each sample and later rows may otherwise use stale content.
+
 Column definitions specify how JSON data is mapped into dataframe columns, and are specified using subclasses of the [Column](./reference/inspect_ai.analysis.html.md#column) class (e.g. [EvalColumn](./reference/inspect_ai.analysis.html.md#evalcolumn), [SampleColumn](./reference/inspect_ai.analysis.html.md#samplecolumn)). For example, here is the definition of the built-in [EvalTask](./reference/inspect_ai.analysis.html.md#evaltask) column group:
 
 ``` python
@@ -489,7 +491,7 @@ The `turn_count` column is the number of turns (top-level model generations) use
 
 The `working_time` column is clock time minus the time when any wait was open in the sample, so work done during a wait is not counted. See [Working Limit](./setting-limits.html.md#working-limit) for its limitations.
 
-The `fallbacks` column is the total number of generate calls served by a [fallback model](./providers.html.md#anthropic-refusal-fallback) (0 if none). For the full per-pair rollup, add a custom column reading the underlying summary field: `SampleColumn("model_fallbacks", path="model_fallbacks")`.
+The `fallbacks` column is the total number of requests served by a [fallback model](./providers.html.md#anthropic-refusal-fallback) (0 if none). One generate call can add more than 1 when Anthropic continues a turn after `pause_turn`. For the full per-pair rollup, add a custom column reading the underlying summary field: `SampleColumn("model_fallbacks", path="model_fallbacks")`.
 
 The `eval_id` and `sample_id` fields are automatically included in all sample data frames. Additionally, a `log` field which includes the URI of the log file read from is included.
 

@@ -47,7 +47,7 @@ dataset = csv_dataset("security_guide.csv")
 
 Note that samples from datasets without an `id` field will automatically be assigned ids based on an auto-incrementing integer starting with 1.
 
-If your samples include `choices`, then the `target` should be a capital letter representing the correct answer in `choices`, see [`multiple_choice`](./solvers.html.md#multiple-choice)
+If your samples include `choices`, then the `target` should be a capital letter representing the correct answer in `choices`, see [`multiple_choice`](./solvers.html.md#sec-multiple-choice)
 
 ## Sample Files
 

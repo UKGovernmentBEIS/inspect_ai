@@ -16,4 +16,6 @@ If you are just getting started running evaluations, see the [`inspect eval`](./
 
 > **NOTE:**
 >
-> If you use a coding agent to run evals, the [inspect-skills](https://github.com/meridianlabs-ai/inspect-skills#install) plugin provides skills that teach it to launch evals in the background, monitor progress, and catch stalls and errors early.
+> For a comprehensive approach to using coding agents to oversee running evaluations, see the [Inspect Steward](https://meridianlabs-ai.github.io/inspect_steward) package.
+>
+> Also, check out the [inspect-skills](https://github.com/meridianlabs-ai/inspect-skills#install) plugin provides that provides skills that teach agents launch evals in the background, monitor progress, and catch stalls and errors early.

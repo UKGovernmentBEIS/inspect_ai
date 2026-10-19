@@ -2,7 +2,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
 
 <meta charset="utf-8">
-<meta name="generator" content="quarto-1.9.37">
+<meta name="generator" content="quarto-1.10.18">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
@@ -12,10 +12,13 @@
 /* Default styles provided by pandoc.
 ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
 */
-code{white-space: pre-wrap;}
 span.smallcaps{font-variant: small-caps;}
-div.columns{display: flex; gap: min(4vw, 1.5em);}
-div.column{flex: auto; overflow-x: auto;}
+div.columns{display: flex; gap: 1.5em;}
+div.column{flex: auto;}
+@media screen {
+div.columns{gap: min(4vw, 1.5em);}
+div.column{overflow-x: auto;}
+}
 div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
 ul.task-list{list-style: none;}
 ul.task-list li input[type="checkbox"] {
@@ -77,10 +80,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <script src="site_libs/quarto-html/tippy.umd.min.js"></script>
 <script src="site_libs/quarto-html/anchor.min.js"></script>
 <link href="site_libs/quarto-html/tippy.css" rel="stylesheet">
-<link href="site_libs/quarto-html/quarto-syntax-highlighting-7f8f88aac4f3542376d5c11b86a4c14d.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<link href="site_libs/quarto-html/quarto-syntax-highlighting-64a204ab8560d761af7679ceaba22944.css" rel="stylesheet" id="quarto-text-highlighting-styles">
 <script src="site_libs/bootstrap/bootstrap.min.js"></script>
 <link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
-<link href="site_libs/bootstrap/bootstrap-60b6846f58d02926bc6ca5ecd6f15c48.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<link href="site_libs/bootstrap/bootstrap-6be907ae78873760d36834dbe5a66008.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
 <script src="site_libs/quarto-contrib/glightbox/glightbox.min.js"></script>
 <link href="site_libs/quarto-contrib/glightbox/glightbox.min.css" rel="stylesheet">
 <link href="site_libs/quarto-contrib/glightbox/lightbox.css" rel="stylesheet">
@@ -814,7 +817,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h2 class="anchored" data-anchor-id="log-analysis">Log Analysis</h2>
 <p>This article will focus primarily on configuring Inspect’s logging behavior (location, format, content, etc). Beyond that, there are a variety of tools available for analyzing data in log files:</p>
 <ol type="1">
-<li><p><a href="#log-file-api">Log File API</a> — API for accessing all data recorded in the log.</p></li>
+<li><p><a href="#sec-log-file-api">Log File API</a> — API for accessing all data recorded in the log.</p></li>
 <li><p><a href="./dataframe.html">Log Dataframes</a> — API for extracting data frames from log files.</p></li>
 <li><p><a href="./scanners.html">Inspect Scout</a> — Transcript analysis tool that can work directly with Inspect logs.</p></li>
 <li><p><a href="https://meridianlabs-ai.github.io/inspect_viz/">Inspect Viz</a> — Data visualization framework built to work with Inspect logs.</p></li>
@@ -838,7 +841,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <i class="callout-icon"></i>
 </div>
 <div class="callout-body-container">
-<p>If you are running in VS Code, then you should restart terminals and notebooks using Inspect when you change the <code>INSPECT_LOG_DIR</code> in a <code>.env</code> file. This is because the VS Code Python extension also <a href="https://code.visualstudio.com/docs/python/environments#_environment-variables">reads variables</a> from <code>.env</code> files, and your updated <code>INSPECT_LOG_DIR</code> won’t be re-read by VS Code until after a restart.</p>
+<p>If you are running in VS Code, then you should restart terminals and notebooks using Inspect when you change the <code>INSPECT_LOG_DIR</code> in a <code>.env</code> file. This is because the VS Code Python extension also <a href="https://code.visualstudio.com/docs/python/environments#_env-file-support">reads variables</a> from <code>.env</code> files, and your updated <code>INSPECT_LOG_DIR</code> won’t be re-read by VS Code until after a restart.</p>
 </div>
 </div>
 </div>

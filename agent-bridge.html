@@ -2,7 +2,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
 
 <meta charset="utf-8">
-<meta name="generator" content="quarto-1.9.37">
+<meta name="generator" content="quarto-1.10.18">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
@@ -12,10 +12,13 @@
 /* Default styles provided by pandoc.
 ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
 */
-code{white-space: pre-wrap;}
 span.smallcaps{font-variant: small-caps;}
-div.columns{display: flex; gap: min(4vw, 1.5em);}
-div.column{flex: auto; overflow-x: auto;}
+div.columns{display: flex; gap: 1.5em;}
+div.column{flex: auto;}
+@media screen {
+div.columns{gap: min(4vw, 1.5em);}
+div.column{overflow-x: auto;}
+}
 div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
 ul.task-list{list-style: none;}
 ul.task-list li input[type="checkbox"] {
@@ -77,10 +80,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <script src="site_libs/quarto-html/tippy.umd.min.js"></script>
 <script src="site_libs/quarto-html/anchor.min.js"></script>
 <link href="site_libs/quarto-html/tippy.css" rel="stylesheet">
-<link href="site_libs/quarto-html/quarto-syntax-highlighting-7f8f88aac4f3542376d5c11b86a4c14d.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<link href="site_libs/quarto-html/quarto-syntax-highlighting-64a204ab8560d761af7679ceaba22944.css" rel="stylesheet" id="quarto-text-highlighting-styles">
 <script src="site_libs/bootstrap/bootstrap.min.js"></script>
 <link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
-<link href="site_libs/bootstrap/bootstrap-60b6846f58d02926bc6ca5ecd6f15c48.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<link href="site_libs/bootstrap/bootstrap-6be907ae78873760d36834dbe5a66008.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
 <script id="quarto-search-options" type="application/json">{
   "location": "navbar",
   "copy-button": false,
@@ -928,7 +931,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>    forward_client_headers<span class="op">=</span>{<span class="st">"anthropic-beta"</span>: [<span class="st">"context-management-2025-06-27"</span>]},</span>
 <span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>) <span class="im">as</span> bridge:</span>
 <span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>    ...</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>Header names are case-insensitive. A comma-separated value is checked one item at a time, so list each item separately (a listed value cannot contain a comma). Items you did not list are dropped with a warning, and the header is dropped if none remain. A header you did not list is logged once by name. <code>Accept-Encoding</code> cannot be listed. Credentials (such as <code>Authorization</code>, <code>x-api-key</code>, <code>api-key</code>, <code>x-goog-api-key</code>, and AWS <code>x-amz-</code> headers) and transport headers (such as <code>Host</code> and <code>Content-Type</code>) cannot be forwarded. On both bridges, a forwarded <code>Accept-Encoding</code> keeps only the encodings Inspect can decode (<code>zstd</code> needs Python 3.14 or the <code>backports.zstd</code> package).</p>
+<p>Header names are case-insensitive. A comma-separated value is checked one item at a time, so list each item separately (a listed value cannot contain a comma). Items you did not list are dropped with a warning, and the header is dropped if none remain. A header you did not list is logged once by name. <code>Accept-Encoding</code> cannot be listed. Credentials (such as <code>Authorization</code>, <code>x-api-key</code>, <code>api-key</code>, <code>x-goog-api-key</code>, and AWS <code>x-amz-</code> headers) and transport headers (such as <code>Host</code> and <code>Content-Type</code>) cannot be forwarded. On both bridges, a forwarded <code>Accept-Encoding</code> keeps only the encodings Inspect can decode (<code>br</code> needs the <code>brotli</code> package, and <code>zstd</code> needs Python 3.14 or the <code>backports.zstd</code> package).</p>
 <p>Headers configured on the Inspect model itself (e.g.&nbsp;the Anthropic <code>betas</code> model arg or <code>extra_headers</code>) are always sent. When the model or eval sets <code>extra_headers</code>, they are merged with the forwarded headers: their value wins for a header both set, except that <code>anthropic-beta</code> values are combined.</p>
 <p>None of this restricts the in-process <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#agent_bridge">agent_bridge()</a></span>, where the scaffold already runs with the host’s network and filesystem and there is no boundary to defend. Inspect explicitly materializes its non-inline media before model submission, preserving that access without relying on provider-side fetching.</p>
 <p><span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#agentbridge">AgentBridge</a></span> itself defaults to rejecting non-inline media so a new bridge subclass cannot accidentally grant host access. Code that constructs the class directly can opt in with <code>allow_remote_media=True</code>; the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#agent_bridge">agent_bridge()</a></span> factory makes this grant explicitly.</p>

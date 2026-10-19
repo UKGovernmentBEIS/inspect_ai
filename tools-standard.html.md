@@ -833,6 +833,8 @@ scratch = memory(instance="scratch")
 
 This mirrors `skill(instance=...)`. Use it when two memory tools must not collide — for example, to give a subagent a private scratchpad, or to compare shared vs. separate memory as conditions in a study.
 
+Agents that run concurrently in one sample can instead each run inside their own [tool state scope](./agent-custom.html.md#tool-state-scopes), which gives each of them a separate default [memory()](./reference/inspect_ai.tool.html.md#memory).
+
 Note that `instance` namespaces the data within the sample’s in-memory store; it is **not** a security boundary, since everything still lives in the same process. For a hard boundary between agents, isolate them with a [Sandbox Environment](./sandboxing.html.md) instead.
 
 ### Tool Binding

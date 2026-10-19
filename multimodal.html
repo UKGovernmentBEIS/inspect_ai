@@ -2,7 +2,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
 
 <meta charset="utf-8">
-<meta name="generator" content="quarto-1.9.37">
+<meta name="generator" content="quarto-1.10.18">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
@@ -12,10 +12,13 @@
 /* Default styles provided by pandoc.
 ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
 */
-code{white-space: pre-wrap;}
 span.smallcaps{font-variant: small-caps;}
-div.columns{display: flex; gap: min(4vw, 1.5em);}
-div.column{flex: auto; overflow-x: auto;}
+div.columns{display: flex; gap: 1.5em;}
+div.column{flex: auto;}
+@media screen {
+div.columns{gap: min(4vw, 1.5em);}
+div.column{overflow-x: auto;}
+}
 div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
 ul.task-list{list-style: none;}
 ul.task-list li input[type="checkbox"] {
@@ -77,10 +80,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <script src="site_libs/quarto-html/tippy.umd.min.js"></script>
 <script src="site_libs/quarto-html/anchor.min.js"></script>
 <link href="site_libs/quarto-html/tippy.css" rel="stylesheet">
-<link href="site_libs/quarto-html/quarto-syntax-highlighting-7f8f88aac4f3542376d5c11b86a4c14d.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<link href="site_libs/quarto-html/quarto-syntax-highlighting-64a204ab8560d761af7679ceaba22944.css" rel="stylesheet" id="quarto-text-highlighting-styles">
 <script src="site_libs/bootstrap/bootstrap.min.js"></script>
 <link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
-<link href="site_libs/bootstrap/bootstrap-60b6846f58d02926bc6ca5ecd6f15c48.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<link href="site_libs/bootstrap/bootstrap-6be907ae78873760d36834dbe5a66008.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
 <script id="quarto-search-options" type="application/json">{
   "location": "navbar",
   "copy-button": false,
@@ -889,7 +892,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="extension-migration">Extension Migration</h3>
 <p>The public <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#agent_bridge">agent_bridge()</a></span> context manager continues to materialize non-inline media because an in-process scaffold already shares host access. Code that constructs <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#agentbridge">AgentBridge</a></span> directly must now pass <code>allow_remote_media=True</code> to make the same grant explicit.</p>
 <p>Task-resolution helpers default to <code>input_media_policy="inline_only"</code>. An embedder that calls <code>resolve_tasks()</code> or <code>eval_resolve_tasks()</code> at a genuine pre-run boundary can preserve fixed-dataset path and URL handling by passing <code>input_media_policy="trusted_pre_run"</code>. Do not use that policy for tasks created during an eval.</p>
-<p>See <a href="../design/media-authority.md">Media Reference Authority</a> for the full threat model, source table, and residual risks.</p>
+<p>See <a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/design/media-authority.md">Media Reference Authority</a> for the full threat model, source table, and residual risks.</p>
 </section>
 </section>
 <section id="provider-notes" class="level2">
@@ -922,7 +925,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>]</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <section id="detail" class="level3">
 <h3 class="anchored" data-anchor-id="detail">Detail</h3>
-<p>Some providers support a <code>detail</code> option that control over how the model processes the image and generates its textual understanding. Valid options are <code>auto</code> (the default), <code>low</code>, and <code>high</code>. See the <a href="https://platform.openai.com/docs/guides/vision#low-or-high-fidelity-image-understanding">Open AI documentation</a> for more information on using this option. The Mistral, AzureAI, and Groq APIs also support the <code>detail</code> parameter. For example, here we explicitly specify image detail:</p>
+<p>Some providers support a <code>detail</code> option that control over how the model processes the image and generates its textual understanding. Valid options are <code>auto</code> (the default), <code>low</code>, and <code>high</code>. See the <a href="https://developers.openai.com/api/docs/guides/images-vision#choose-an-image-detail-level">Open AI documentation</a> for more information on using this option. The Mistral, AzureAI, and Groq APIs also support the <code>detail</code> parameter. For example, here we explicitly specify image detail:</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>ContentImage(image<span class="op">=</span><span class="st">"picture.png"</span>, detail<span class="op">=</span><span class="st">"low"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </section>
 </section>

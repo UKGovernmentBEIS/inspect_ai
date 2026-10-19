@@ -2,7 +2,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
 
 <meta charset="utf-8">
-<meta name="generator" content="quarto-1.9.37">
+<meta name="generator" content="quarto-1.10.18">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
@@ -12,10 +12,13 @@
 /* Default styles provided by pandoc.
 ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
 */
-code{white-space: pre-wrap;}
 span.smallcaps{font-variant: small-caps;}
-div.columns{display: flex; gap: min(4vw, 1.5em);}
-div.column{flex: auto; overflow-x: auto;}
+div.columns{display: flex; gap: 1.5em;}
+div.column{flex: auto;}
+@media screen {
+div.columns{gap: min(4vw, 1.5em);}
+div.column{overflow-x: auto;}
+}
 div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
 ul.task-list{list-style: none;}
 ul.task-list li input[type="checkbox"] {
@@ -77,10 +80,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <script src="site_libs/quarto-html/tippy.umd.min.js"></script>
 <script src="site_libs/quarto-html/anchor.min.js"></script>
 <link href="site_libs/quarto-html/tippy.css" rel="stylesheet">
-<link href="site_libs/quarto-html/quarto-syntax-highlighting-7f8f88aac4f3542376d5c11b86a4c14d.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<link href="site_libs/quarto-html/quarto-syntax-highlighting-64a204ab8560d761af7679ceaba22944.css" rel="stylesheet" id="quarto-text-highlighting-styles">
 <script src="site_libs/bootstrap/bootstrap.min.js"></script>
 <link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
-<link href="site_libs/bootstrap/bootstrap-60b6846f58d02926bc6ca5ecd6f15c48.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<link href="site_libs/bootstrap/bootstrap-6be907ae78873760d36834dbe5a66008.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
 <script id="quarto-search-options" type="application/json">{
   "location": "navbar",
   "copy-button": false,
@@ -896,7 +899,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <tbody>
 <tr class="odd">
 <td>Lab APIs</td>
-<td><a href="./providers.html#openai">OpenAI</a>, <a href="./providers.html#anthropic">Anthropic</a>, <a href="./providers.html#google">Google</a>, <a href="./providers.html#grok">Grok</a>, <a href="./providers.html#mistral">Mistral</a>, <a href="./providers.html#deepseek">DeepSeek</a>, <a href="./providers.html#moonshot-ai">Moonshot AI</a>, <a href="./providers.html#meta">Meta</a>, <a href="./providers.html#perplexity">Perplexity</a></td>
+<td><a href="./providers.html#openai">OpenAI</a>, <a href="./providers.html#anthropic">Anthropic</a>, <a href="./providers.html#google-gemini">Google</a>, <a href="./providers.html#grok">Grok</a>, <a href="./providers.html#mistral">Mistral</a>, <a href="./providers.html#deepseek">DeepSeek</a>, <a href="./providers.html#moonshot-ai">Moonshot AI</a>, <a href="./providers.html#meta">Meta</a>, <a href="./providers.html#perplexity">Perplexity</a></td>
 </tr>
 <tr class="even">
 <td>Cloud APIs</td>
@@ -1023,7 +1026,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb2"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> openai/gpt-4o-mini <span class="dt">\ </span></span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>   <span class="ex">-M</span> responses_api=true</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>Or from Python:</p>
-<div id="ca7e3d7e" class="cell">
+<div id="086ad94d" class="cell">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai <span class="im">import</span> <span class="bu">eval</span></span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="bu">eval</span>(</span>
@@ -1204,7 +1207,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="betas" class="level3">
 <h3 class="anchored" data-anchor-id="betas">Betas</h3>
 <p>Some Anthropic features require that you include a beta identifier in the <code>betas</code> field of model requests. Inspect automatically includes the requisite identifier for beta features it utilizes (e.g.&nbsp;“mcp-client-2025-04-04”, “computer-use-2025-01-24”, etc.).</p>
-<p>If there are other beta features you want to enable, use the <code>betas</code> model arg (<code>-M</code>). For example, to enable <a href="https://docs.anthropic.com/en/docs/build-with-claude/context-windows#1m-token-context-window">1M token context windows</a> for Sonnet 4.5 and Opus 4.6 models:</p>
+<p>If there are other beta features you want to enable, use the <code>betas</code> model arg (<code>-M</code>). For example, to enable <a href="https://platform.claude.com/docs/en/build-with-claude/context-windows">1M token context windows</a> for Sonnet 4.5 and Opus 4.6 models:</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb16"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> anthropic/claude-sonnet-4-0 <span class="at">-M</span> betas=context-1m-2025-08-07</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </section>
 <section id="anthropic-refusal-fallback" class="level3">
@@ -2153,7 +2156,7 @@ Note
 <p>The <a href="https://docs.vllm.ai/">vLLM</a> provider also implements support for Hugging Face models using the <a href="https://github.com/vllm-project/vllm/">vllm</a> package. To use the vLLM provider, install the <code>vllm</code> package and specify a model using the <code>--model</code> option:</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb83"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb83-1"><a href="#cb83-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install vllm</span>
 <span id="cb83-2"><a href="#cb83-2" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> vllm/openai-community/gpt2</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>For the <code>vllm</code> provider, custom model args (-M) are forwarded to the vllm <a href="https://docs.vllm.ai/en/stable/serving/openai_compatible_server.html#cli-reference">CLI</a>. Top-level model arg names are converted to CLI flag form (for example, <code>tensor_parallel_size</code> becomes <code>--tensor-parallel-size</code>). Dotted vLLM arguments preserve nested field names after the dot, so <code>-M speculative-config.num_speculative_tokens=1</code> is forwarded as <code>--speculative-config.num_speculative_tokens 1</code>.</p>
+<p>For the <code>vllm</code> provider, custom model args (-M) are forwarded to the vllm <a href="https://docs.vllm.ai/en/stable/cli/serve/">CLI</a>. Top-level model arg names are converted to CLI flag form (for example, <code>tensor_parallel_size</code> becomes <code>--tensor-parallel-size</code>). Dotted vLLM arguments preserve nested field names after the dot, so <code>-M speculative-config.num_speculative_tokens=1</code> is forwarded as <code>--speculative-config.num_speculative_tokens 1</code>.</p>
 <p>The following environment variables are supported by the vLLM provider:</p>
 <table class="caption-top table">
 <colgroup>
@@ -2624,7 +2627,7 @@ Note
 </thead>
 <tbody>
 <tr class="odd">
-<td><a href="https://openrouter.ai/docs/features/model-routing#the-models-parameter"><code>models</code></a></td>
+<td><a href="https://openrouter.ai/docs/guides/routing/model-fallbacks"><code>models</code></a></td>
 <td><code>-M "models=anthropic/claude-3.5-sonnet, gryphe/mythomax-l2-13b"</code></td>
 </tr>
 <tr class="even">
@@ -2712,7 +2715,7 @@ Note
 </section>
 <section id="litellm-proxy-gemini" class="level3">
 <h3 class="anchored" data-anchor-id="litellm-proxy-gemini">Gemini Models</h3>
-<p>When the upstream model is a Gemini model (recognized by its name), requests with tools follow the native <code>google</code> provider’s retry of malformed function calls, but not its function-calling hint:</p>
+<p>When the upstream model is a Gemini model (recognized by its name), requests with tools follow the native <code>google</code> provider’s retry of malformed function calls:</p>
 <ul>
 <li>No function-calling hint is added to the system prompt. In live trials through the proxy, the hint made Gemini 2.5 Pro loop on repeated tool calls and did not reduce malformed calls.</li>
 <li>A turn that comes back as a malformed function call is retried up to 3 times with a corrective exchange, with tool calling required when the tool choice was <code>auto</code>. LiteLLM reports Gemini’s <code>MALFORMED_FUNCTION_CALL</code> as an ordinary stop, so Inspect recognizes such a turn by its shape: no text and no tool call, or text that is a function call written as code. When the retries run out, the assistant message says that it had trouble calling a function. Usage covers every attempt, and <code>ModelOutput.metadata</code> records <code>malformed_function_call_attempts</code>.</li>

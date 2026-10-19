@@ -2,7 +2,7 @@
 <head>
   <title>Redirect</title>
   <script type="text/javascript">
-    var redirects = {"":"handling-errors.html"};
+    var redirects = {"time-limit":"setting-limits.html","working-limit":"setting-limits.html","scoped-limits":"setting-limits.html","agent-limits":"setting-limits.html","query-usage":"setting-limits.html","custom-limit":"setting-limits.html","":"handling-errors.html"};
     var hash = window.location.hash.startsWith('#') ? window.location.hash.slice(1) : window.location.hash;
     var redirect = redirects[hash] || redirects[""] || "/";
     window.document.title = 'Redirect to  ' +  redirect;
