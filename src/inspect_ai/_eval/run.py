@@ -1,13 +1,13 @@
 import functools
 import logging
 import os
-import sys
-from contextlib import ExitStack
+from contextlib import ExitStack, asynccontextmanager
 from copy import copy
 from dataclasses import dataclass, replace
 from typing import (
     TYPE_CHECKING,
     Any,
+    AsyncIterator,
     Awaitable,
     Callable,
     Iterable,
@@ -15,6 +15,10 @@ from typing import (
     Set,
     cast,
 )
+
+import anyio
+from anyio.abc import TaskGroup
+from typing_extensions import Unpack
 
 from inspect_ai._eval.task.constants import TASK_ALL_PARAMS_ATTR
 from inspect_ai._util._async import Wake
@@ -24,13 +28,6 @@ from inspect_ai._util.task import task_display_name
 from inspect_ai._util.trace import trace_action
 from inspect_ai.util._anyio import inner_exception
 from inspect_ai.util._checkpoint import CheckpointConfig
-
-if sys.version_info < (3, 11):
-    from exceptiongroup import ExceptionGroup
-
-import anyio
-from anyio.abc import TaskGroup
-from typing_extensions import Unpack
 
 if TYPE_CHECKING:
     from inspect_sentinel._integration import Sentinels
@@ -59,7 +56,12 @@ from inspect_ai._display.core.active import (
     clear_task_screen,
     init_task_screen,
 )
-from inspect_ai._display.core.display import CancelType, TaskCancel, TaskSpec
+from inspect_ai._display.core.display import (
+    CancelType,
+    TaskCancel,
+    TaskScreen,
+    TaskSpec,
+)
 from inspect_ai._eval.task.scan import Scanners
 from inspect_ai._sentinel._config import resolve_sentinel_root, sentinel_config
 from inspect_ai._util.error import PrerequisiteError, exception_message
@@ -814,7 +816,7 @@ async def run_task_retry_attempts(
             launch=parallel, in_flight=in_flight, pending=len(pending)
         )
 
-    async with display().task_screen(task_specs(tasks), parallel=True) as screen:
+    async with _run_task_screen(task_specs(tasks)) as screen:
         init_task_screen(screen)
         try:
             # registered inside the try so the removes in the finally below
@@ -1111,8 +1113,6 @@ async def run_task_retry_attempts(
                 raise ex.exceptions[0]
             else:
                 raise
-        except anyio.get_cancelled_exc_class():
-            pass
         finally:
             remove_dispatch_waker(wake.set)
             remove_task_dispatcher(dispatcher_stats)
@@ -1320,6 +1320,29 @@ class SandboxManager:
                 if self._lifecycle is not None:
                     self._lifecycle.close()
                     self._lifecycle = None
+
+
+@asynccontextmanager
+async def _run_task_screen(tasks: list[TaskSpec]) -> AsyncIterator[TaskScreen]:
+    """Open the display's task screen for a run that absorbs cancellation.
+
+    A cancellation of the run body is absorbed, so the run returns the logs
+    it has. Trio raises that cancellation again at every checkpoint inside
+    the cancelled scope, so a display whose teardown awaits (the rich
+    display's update-loop task group) raises it again; that one is absorbed
+    too. A cancellation from the teardown of a body that was not cancelled,
+    or from the display's setup, propagates.
+    """
+    body_cancelled = False
+    try:
+        async with display().task_screen(tasks, parallel=True) as screen:
+            try:
+                yield screen
+            except anyio.get_cancelled_exc_class():
+                body_cancelled = True
+    except anyio.get_cancelled_exc_class():
+        if not body_cancelled:
+            raise
 
 
 def task_specs(tasks: list[TaskRunOptions]) -> list[TaskSpec]:
