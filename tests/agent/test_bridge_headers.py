@@ -1,6 +1,8 @@
 """Tests for bridge header extraction and filtering."""
 
+import gzip
 import importlib
+import importlib.metadata
 import importlib.util
 import json
 import sys
@@ -9,6 +11,9 @@ from typing import Any, cast
 import httpx
 import httpx2
 import pytest
+from httpx._decoders import SUPPORTED_DECODERS as HTTPX_DECODERS
+from httpx2._decoders import SUPPORTED_DECODERS as HTTPX2_DECODERS
+from packaging.requirements import Requirement
 
 from inspect_ai._util import logger as inspect_logger
 from inspect_ai.agent._agent import AgentState
@@ -32,8 +37,8 @@ from inspect_ai.tool._tools._code_execution import CodeExecutionProviders
 from inspect_ai.tool._tools._web_search._web_search import WebSearchProviders
 
 # brotli ships no type stubs; binding it via importlib keeps mypy clean without a
-# suppression, and still fails loudly if httpx[brotli] stops pulling it in. PyPy
-# gets brotlicffi instead, as httpx does.
+# suppression. requirements-dev.txt installs it for these tests; Inspect does not
+# depend on it. PyPy gets brotlicffi instead, as httpx does.
 try:
     brotli = importlib.import_module("brotli")
 except ImportError:
@@ -519,6 +524,20 @@ class TestDecodableAcceptEncoding:
         assert {"gzip", "deflate", "br"} <= codings
         assert ("zstd" in codings) is _zstd_decodable()
 
+    def test_inspect_does_not_require_brotli(self) -> None:
+        """Installed brotli makes httpx and httpx2 advertise `br` on every request.
+
+        Some proxies (e.g. LiteLLM proxy) cannot handle that, so brotli stays
+        out of Inspect's runtime requirements.
+        """
+        runtime = [
+            req
+            for req in map(Requirement, importlib.metadata.requires("inspect_ai") or [])
+            if req.marker is None or "extra" not in str(req.marker)
+        ]
+        assert [str(req) for req in runtime if req.name == "httpx"] == ["httpx"]
+        assert not [req for req in runtime if req.name in ("brotli", "brotlicffi")]
+
     @pytest.mark.parametrize("sandbox", [False, True], ids=["in-process", "sandbox"])
     def test_missing_httpx_decoder_table_drops_accept_encoding(
         self, monkeypatch: pytest.MonkeyPatch, sandbox: bool
@@ -698,6 +717,75 @@ class TestSandboxAnthropicRequest:
         assert request.headers["x-api-key"] == "test-key"
         assert "authorization" not in request.headers
         assert any("unlisted-beta-2026-01-01" in m for m in _logged_drops())
+
+    @pytest.mark.anyio
+    async def test_without_brotli_br_is_not_forwarded(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Without brotli, httpx and httpx2 have no `br` decoder and drop it.
+
+        A provider that got `br` would answer Brotli-encoded, and httpx2 would
+        pass that body on undecoded.
+        """
+        for decoders in (HTTPX_DECODERS, HTTPX2_DECODERS):
+            monkeypatch.delitem(decoders, "br")
+        bridge_module._decodable_content_codings.cache_clear()
+        provider_requests: list[httpx2.Request] = []
+        message = {
+            "id": "msg_1",
+            "type": "message",
+            "role": "assistant",
+            "model": "claude-sonnet-4-5",
+            "content": [{"type": "text", "text": "decoded"}],
+            "stop_reason": "end_turn",
+            "stop_sequence": None,
+            "usage": {"input_tokens": 3, "output_tokens": 1},
+        }
+
+        def handler(request: httpx2.Request) -> httpx2.Response:
+            provider_requests.append(request)
+            body = json.dumps(message).encode()
+            if "br" in request.headers["accept-encoding"]:
+                content, encoding = brotli.compress(body), "br"
+            else:
+                content, encoding = gzip.compress(body), "gzip"
+            return httpx2.Response(
+                200,
+                content=content,
+                headers={
+                    "content-encoding": encoding,
+                    "content-type": "application/json",
+                },
+            )
+
+        model = get_model(
+            "anthropic/claude-sonnet-4-5",
+            api_key="test-key",
+            memoize=False,
+            streaming=False,
+            config=GenerateConfig(max_tokens=64),
+            http_client=httpx2.AsyncClient(transport=httpx2.MockTransport(handler)),
+        )
+        try:
+            response: Any = await generate_anthropic(
+                cast(WebSearchProviders, None),
+                cast(CodeExecutionProviders, None),
+                _route_bridge(model),
+            )(
+                {
+                    "model": "agent-model",
+                    "max_tokens": 64,
+                    "messages": [{"role": "user", "content": "hi"}],
+                },
+                {"accept-encoding": "gzip, br"},
+            )
+        finally:
+            await model.api.aclose()
+            bridge_module._decodable_content_codings.cache_clear()
+
+        assert response["content"][0]["text"] == "decoded"
+        [request] = provider_requests
+        assert request.headers["accept-encoding"] == "gzip"
 
 
 class TestMergeExtraHeaders:
