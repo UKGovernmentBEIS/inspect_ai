@@ -134,8 +134,10 @@ def suspend_store_events() -> Iterator[None]:
 
     - Spans opened inside the block do not copy the store and record no
       `StoreEvent`.
-    - Spans opened before the block keep tracking, so the enclosing span
-      records the net change once when it ends.
+    - Spans opened before the block keep tracking changes to their own store,
+      so the enclosing span records the net change once when it ends.
+      Separate stores created by subtasks or forks started inside the block
+      have no `StoreEvent` for their changes.
     - Tasks started inside the block inherit the suspension. Tasks started
       outside it do not.
     - The store itself is unaffected: reads and writes work as usual, and the
