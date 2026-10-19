@@ -2459,6 +2459,17 @@ class TestBackgroundTarget:
         assert registry.futures == {}
         assert registry.running_count() == 0
 
+        # The failed start gave its id back, so the next dispatch reuses it.
+        async with anyio.create_task_group() as tg:
+            target = _TaskGroupTarget(tg)
+            with _target(target):
+                async with registry.owned_task_group():
+                    with background_registry(registry):
+                        assert _dispatch_dummy() == "Dispatched AGENT-1."
+            tg.cancel_scope.cancel()
+        assert list(registry.futures) == ["AGENT-1"]
+        assert target.started == 1
+
     def test_scorer_child_runs_in_target(self) -> None:
         from inspect_ai.agent._agent import AgentState
 

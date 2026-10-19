@@ -127,7 +127,11 @@ class BackgroundRegistry:
     _target: BackgroundTarget | None = field(default=None, init=False, repr=False)
 
     def next_id(self) -> str:
-        """Allocate the next AGENT-N handle. Counter never reuses."""
+        """Allocate the next AGENT-N handle.
+
+        The counter never reuses an id, except one whose child failed to
+        start (``_dispatch_background()`` gives it back).
+        """
         self.counter += 1
         return f"AGENT-{self.counter}"
 
@@ -654,8 +658,8 @@ def _dispatch_background(
     ``background_target``'s when one is set), or in the registry's own task
     group when it has one (see ``owned_task_group()``). A dispatch under a
     different ``background_target`` from the one the deepagent started with
-    is refused. If starting the child raises, the future is unregistered and
-    the error propagates.
+    is refused. If starting the child raises, the future and its id are
+    given back and the error propagates.
 
     All registration is synchronous (no awaits) so the cap check and
     insert form an atomic critical section under cooperative scheduling —
@@ -704,9 +708,11 @@ def _dispatch_background(
         else:
             background(_run_background, *args)
     except BaseException:
-        # The child never started, so it must not hold a slot or a "running"
-        # future that nothing will finish.
+        # The child never started, so it must not hold a slot, a "running"
+        # future that nothing will finish, or an id. Nothing above awaits, so
+        # no sibling dispatch has taken a later id.
         del registry.futures[agent_id]
+        registry.counter -= 1
         raise
 
     return f"Dispatched {agent_id}."
