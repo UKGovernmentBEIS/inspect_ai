@@ -502,26 +502,48 @@ async def test_span_store_diff_failure_does_not_mask_exception(
     assert any(isinstance(e, SpanEndEvent) for e in transcript.events)
 
 
+class _CleanupInterrupt(BaseException):
+    pass
+
+
 class _FailingHandler(logging.Handler):
+    def __init__(self, error: BaseException) -> None:
+        super().__init__()
+        self.error = error
+
     def emit(self, record: logging.LogRecord) -> None:
-        raise ValueError("handler failed")
+        raise self.error
 
 
+@pytest.mark.parametrize(
+    "diff_error,handler_error",
+    [
+        (ValueError("diff failed"), ValueError("handler failed")),
+        (_CleanupInterrupt("diff failed"), None),
+        (ValueError("diff failed"), _CleanupInterrupt("handler failed")),
+    ],
+    ids=["handler", "diff-base-exception", "handler-base-exception"],
+)
 @pytest.mark.parametrize("exit", ["raise", "cancel"])
-async def test_span_store_diff_and_warning_failure_does_not_mask_exception(
-    exit: str, monkeypatch: pytest.MonkeyPatch
+async def test_span_cleanup_failure_does_not_mask_exception(
+    exit: str,
+    diff_error: BaseException,
+    handler_error: BaseException | None,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     transcript = _init_span_test()
     error = RuntimeError("boom")
 
     def failing_store_changes(*args: Any) -> None:
-        raise ValueError("diff failed")
+        raise diff_error
 
     monkeypatch.setattr(
         "inspect_ai.log._transcript.store_changes", failing_store_changes
     )
-    handler = _FailingHandler()
-    logging.getLogger("inspect_ai.log._transcript").addHandler(handler)
+    logger = logging.getLogger("inspect_ai.log._transcript")
+    handler = _FailingHandler(handler_error) if handler_error else None
+    if handler is not None:
+        logger.addHandler(handler)
     try:
         if exit == "raise":
             with pytest.raises(RuntimeError) as raised:
@@ -537,6 +559,7 @@ async def test_span_store_diff_and_warning_failure_does_not_mask_exception(
                     await anyio.sleep(10)
             assert scope.cancelled_caught
     finally:
-        logging.getLogger("inspect_ai.log._transcript").removeHandler(handler)
+        if handler is not None:
+            logger.removeHandler(handler)
 
     assert any(isinstance(e, SpanEndEvent) for e in transcript.events)

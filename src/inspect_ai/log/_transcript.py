@@ -1105,9 +1105,9 @@ def track_store_changes() -> Iterator[None]:
     """Log a `StoreEvent` with the store changes made in the block.
 
     The changes are logged on every exit, including when the block raises or
-    is cancelled. On that path a failure to log them is logged as a warning
-    rather than raised (and a failure of the warning is ignored), so it cannot
-    replace the block's exception.
+    is cancelled. On that path any failure to log them, including a
+    `BaseException`, is logged as a warning rather than raised (and a failure
+    of the warning is ignored), so it cannot replace the block's exception.
     """
     before = store_jsonable(store())
 
@@ -1122,8 +1122,8 @@ def track_store_changes() -> Iterator[None]:
     except BaseException:
         try:
             log_changes()
-        except Exception:
-            with contextlib.suppress(Exception):
+        except BaseException:
+            with contextlib.suppress(BaseException):
                 logger.warning("Unable to log store changes for span", exc_info=True)
         raise
     log_changes()
