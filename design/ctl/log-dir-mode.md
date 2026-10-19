@@ -340,11 +340,19 @@ inspect ctl sample events TASK SAMPLE_ID [EPOCH] --log-dir <dir> [...]
   helper `_log_dir_root() -> str | None` in a new module
   `src/inspect_ai/_cli/ctl/_log_dir.py`; the value is not passed to the
   command function.
-- `task list` gains `--shards`: expand each sharded row into one row per
-  shard after the logical row. Without it, sharded runs show one row. The
-  flag is mirrored onto the bare `task` noun by the existing
+- `task list` gains `--shards`, a boolean that turns off shard
+  aggregation: the walk treats every `<name>.shards/` as an ordinary
+  directory, so each shard is an ordinary row under its own `task_id` (its
+  retries folded by the usual newest-wins rule), the merged log is an
+  ordinary row, stray logs are ordinary logs, and there is no logical row.
+  It lists what `--log-dir` pointed at each companion would, for every
+  shard set under the root in one command. Without it, sharded runs show
+  one row. Human output leaves out the errored-samples footer under
+  `--shards`: the merged log's row holds its shards' samples, so a sum over
+  the rows would count them twice. The flag is mirrored onto the bare `task` noun by the existing
   `_mirror_list_options` (`_group.py:192`). In live mode `--shards` is
-  accepted and a no-op (there are no shard rows).
+  accepted and a no-op (decision: Ransom, 2026-10-13; it replaced shard
+  rows listed after the logical row).
 - Human output starts with one stderr line naming the mode and the usual
   lag, for example: `Reading logs in s3://bucket/run (read-only, not live;
   completed samples normally reach the log within about 60 s, running
@@ -469,10 +477,16 @@ The walk produces a listing of logical tasks without paging through
     `unlisted_dirs` (every directory in a `<k>/` other than `.buffer/`,
     such as `scans/`, and the directories inside a dot-directory of the
     companion) by these same rules, so `*.checkpoints/` is skipped and no
-    `.buffer/` is listed there either.
+    `.buffer/` is listed there either. A directory in `unlisted_dirs` is
+    skipped when any directory between it and the companion is one these
+    rules skip: the shared walk lists a `*.checkpoints/` directly in the
+    companion as a would-be shard, and its sample directories are not
+    descended.
   - `<name>.shards/` below a companion (in a shard's ancillary directory):
     an ordinary subdirectory, descended like any other; its logs are
     ordinary logs.
+  - With `task list --shards`, every `<name>.shards/` is an ordinary
+    subdirectory (decision: Ransom, 2026-10-13; "CLI surface").
   - Any other subdirectory: descend, as `list_eval_logs` recurses today, so
     an eval-set directory or a directory of runs works.
 
@@ -548,18 +562,20 @@ one attempt.
 - Its shards are, for each `<k>/` with at least one `.eval` attempt, the
   newest `.eval` in it. A `<k>/` with no attempt (only `scans/`,
   `.buffer/`, a `<shard>.checkpoints/` or other ancillary entries) is not
-  a shard: it gets no `--shards` row, adds nothing to the `shards` block
-  or the counts, and is never the "first shard" below, as the merge
+  a shard: it adds nothing to the `shards` block or the counts, and is
+  never the "first shard" below, as the merge
   ignores it and never takes its template from it (sharding
   implementation, "The merge" step 5). Older files in the same `<k>/` (a
   retry, or an original beside its `-recovered` copy)
-  are superseded: counted in the shard's `attempts`, otherwise ignored,
-  matching the parent's newest-wins rule.
+  are superseded and not read, matching the parent's newest-wins rule.
 - Its merged log is the `.eval` in the companion's parent directory whose
-  `log_basename` is `X`: `X.eval` or `X-recovered.eval`, the newest when
-  both exist. It does not get a row of its own.
+  `log_basename` is `X`: `X.eval` or `X-recovered.eval`, the newest by
+  attempt order when both exist. The other is not read and is listed in
+  the task row's `unreadable` as an older merged log, so the row is
+  `incomplete`. It does not get a row of its own.
 - The shard set is one attempt of the logical task identified by the
-  merged log's `eval.task_id` when the merged log exists, and otherwise by
+  merged log's `eval.task_id` when the merged log exists and records one,
+  and otherwise by
   `merged_log_task_id(X, task=, model=)` with the `task` and `model` of
   the first shard in shard order, the first `<k>/` with an attempt and so
   the merge's template shard (`src/inspect_ai/_util/log_layout.py`,
@@ -567,6 +583,26 @@ one attempt.
   which stamps the same id at its first merge; sharding implementation,
   "The merged log's `task_id`"): `{id}` parsed from `X` when `X` rebuilds
   from it under the file name pattern, else an id derived from `X`.
+  Until `merged_log_task_id` lands (sharding implementation PR 5, which
+  adds it), a shard set with no readable merged log takes `{id}` parsed
+  from `X`, or `X` itself when the name does not parse. That is the id
+  the merge stamps under a file name pattern with `{id}` (the default);
+  under a pattern without `{id}` it differs, so a shard set with no merged
+  log may not fold with a later retry until PR 5.
+- The merged log's `task_id` is needed to key the shard set, so the
+  merged log of every shard set is read first (its plan: CD and header),
+  including one an unsharded retry supersedes, which is otherwise not
+  read. Its shards are read only when the set is current. A merged log
+  that cannot be read is listed in the task row's `unreadable`, and the
+  set takes the id parsed from `X`, as with no merged log, even when an
+  older merged log is readable. Under a file name pattern without `{id}`
+  such a set does not fold with its retry (decision: Ransom, 2026-10-16).
+- A task id has at most one shard set: the first companion by path. A
+  second companion with the same task id is not read beyond its merged
+  log; the companion, and its merged log when it cannot be read, are
+  listed in the task row's `unreadable`, so the row
+  is `incomplete` (decision: Ransom, 2026-10-13). Shard sets with
+  different task ids are separate tasks.
 
 **Unsharded logs.** Every other `.eval` file is an attempt of the logical
 task identified by its `task_id` (from the header, or parsed from the file
@@ -582,8 +618,14 @@ the merged log (only that path gives an unsharded log the merged log's
 unsharded log is current whatever the mtimes, following the parent's rule
 that the unsharded log wins over the merged log it was seeded from: it
 holds the merged samples plus the re-runs. The shard set is a prior
-attempt: counted in `attempts`, described by the row's `shards` block and
-by `--shards` rows, and not used for sample rows. With `retry_cleanup` on,
+attempt: counted in `attempts`, and its shards are not read (only its
+merged log, for its task id), so the row's `shards` is null as for any
+unsharded current attempt (decision: Ransom, 2026-10-13). An
+unsharded log with that `task_id` that cannot be read (a crashed retry)
+would be current, so the shard set stays current but the row lists the log
+in `unreadable`, and per-sample reads fail with its error, as for any newer
+unreadable attempt. With
+`retry_cleanup` on,
 `eval_set()` removes the merged log and companion after a successful retry,
 and the task is an ordinary unsharded row.
 
@@ -593,19 +635,21 @@ one with no attempt at all, above) is an ordinary unsharded attempt.
 
 Identity fields for a row whose current attempt is a shard set: `task_id`
 as above; `task`, `model`, `solver` and `epochs` from the header of the
-first shard, the first `<k>/` with an attempt (the merge refuses shards
+first shard, the first `<k>/` with an attempt (of the next shard when it
+cannot be read, and of the merged log when none can; the merge refuses shards
 that differ on `task_identifier`, epochs
 or reducer; this mode only reports, so a shard whose `task`, `model` or
 `epochs` differs from the first is counted in `shards.mismatched` rather
-than hidden); `eval_id` from the merged log when present, else null;
+than hidden); `eval_id` and `run_id` from the merged log when present,
+else null (each shard has its own);
 `log_location` the merged log's path when present, else the companion
 path.
 
 Selector resolution runs the existing `_resolve_target_eval` over these
 rows unchanged. Because every attempt of a `task_id` is folded into one
 row, a full task id always resolves to exactly one row. Shards are not
-separately selectable; `--shards` rows carry `shard: "<k>"` and the shard's
-own `task_id`, and are informational.
+separately selectable: the sample commands always aggregate, and `task
+list --shards` rows are informational.
 
 **Carrying the target past selection.** The sample commands pass only the
 resolved row's `socket_path` and `eval_id` to the fetch functions
@@ -805,7 +849,7 @@ working. Values, over the current attempt:
 | `run_id`, `eval_id`, `task`, `task_id`, `model`, `solver`, `epochs` | From the plan (shard sets: see "Logical tasks"). |
 | `log_location` | The current log (unsharded), or the merged log / companion path (shard set). |
 | `status` | `running` if any current member's log status is `started`, else `completed` (live's two values). |
-| `started_at` | Earliest sample `started_at` seen, else the earliest member's `created`. |
+| `started_at` | Earliest sample `started_at` seen (each holder's record of a conflicted key included), else the earliest member's `created`. |
 | `completed_at` | Latest member `stats.completed_at` when no member is `started`, else null. |
 | `samples.total` | The authoritative total when one exists, else the known-key count as a lower bound ("Totals" under "Sample identity"). |
 | `samples.completed` / `errored` / `cancelled` | Keys whose selected source maps to that status. |
@@ -813,7 +857,7 @@ working. Values, over the current attempt:
 | `samples.queued` | Null: dispatch state is not in the logs. |
 | `total_tokens`, `total_messages` | Sums over the selected summaries (running samples contribute nothing until they complete, because their buffer summary is the start snapshot). |
 | `tokens_per_second` | `total_tokens` over elapsed, as live computes it. |
-| `attempts` | Number of attempts of the logical task (a shard set counts as one); per shard in `--shards` rows. |
+| `attempts` | Number of attempts of the logical task (a shard set counts as one). |
 | `paused`, `paused_now`, `quiesced`, `held`, `resolving`, `refusals`, `http_retries`, `keep_alive`, `process_paused`, `process_paused_now`, `paused_models`, `api_version`, `pid`, `socket_path` | Null (`paused_models` an empty list): live-only state. `refusals` and `http_retries` are event-derived counters not recorded in summaries. |
 
 Additive keys, present on every log-dir row and absent in live mode:
@@ -845,10 +889,9 @@ Additive keys, present on every log-dir row and absent in live mode:
   none does, `"partial"` otherwise, so a caller knows whether `in_flight`
   and running sample rows are complete.
 - `current_attempt`: `"log"` or `"shards"`.
-- `shards` (null when the task has no shard set): `{total, running,
-  success, error, cancelled, overlapping, mismatched}` over the shard set's
-  current files, by log status; for a task whose current attempt is an
-  ordinary retry, it describes the prior shard set.
+- `shards` (null unless the current attempt is a shard set): `{total,
+  running, success, error, cancelled, overlapping, mismatched}` over the
+  shard set's current files, by log status.
 - `merged` (null when there is no merged log): see "Merged log".
 - `incomplete` and `unreadable` (see "Reading a member consistently").
 
@@ -880,7 +923,8 @@ the existing filters, sort and cap: `--status` through
   member's status and `conflict: true`; the envelope's `counts` count
   distinct keys and leave conflicted keys out, and the envelope gains
   `conflicted` (their number), so row count and `counts` can differ only
-  by the conflicted rows.
+  by the conflicted rows. The human footer of a capped listing counts
+  those rows too, so its "of N" is the number of rows `--all` returns.
 - Additive per-row keys: `shard` (`"<k>"` or null), `log_location` (the
   member `.eval` holding the chosen record, so a caller can hand it to
   `inspect log` commands) and `conflict`.
@@ -986,13 +1030,14 @@ the source for sample state:
   (`src/inspect_ai/log/_score.py:13`) but not its key, status, tokens or
   messages, which are all the aggregate row takes from summaries. So the
   row is the same; per-sample content is not, which is why the shortcut
-  stops at the aggregate row. The `shards` block and per-shard fields come
-  from the ledger entries (status, `started_at`, `completed_at`) and from
-  the fresh listing the shortcut already requires: `attempts` counts every
-  `.eval` file in each `<k>/` (`len(shard.attempts)`), and `updated_at` is
+  stops at the aggregate row. The `shards` block comes from the ledger
+  entries (status, `started_at`, `completed_at`), and the rest from the
+  fresh listing the shortcut already requires: `attempts` is the logical
+  task's attempt count as on the full path (the shard set counts as one;
+  older files in a `<k>/` are not attempts), and `updated_at` is
   the latest mtime of each shard's *current* attempt only, as the full path
-  takes it from each current member's `plan.file.mtime`
-  (`src/inspect_ai/_control/log_dir/snapshot.py:486`); a superseded
+  takes it from each current member's listed mtime (`_updated_at`,
+  `src/inspect_ai/_control/log_dir/snapshot.py`); a superseded
   attempt's mtime is never used, even when it is newer (after a copy or an
   edit). No manifest is read here, since a complete snapshot has no
   running member; outside the shortcut the existing manifest rule applies
@@ -1351,7 +1396,12 @@ real moto server on an ephemeral port). New tests go in a new
 - **Rows.** Unsharded, retried and sharded rows have every live key; counts,
   `in_flight`, `unfinished`, `conflicted`, `total_final`, `live_samples`,
   `shards` and `merged` match the fixture; mismatched shards are counted; a
-  merged log whose companion is gone is an ordinary row. After a shard
+  merged log whose companion is gone is an ordinary row; a second shard set
+  for a task id is in `unreadable`; a shard set keyed by its merged log's
+  `task_id`, under a pattern without `{id}`, folds with a retry that
+  carries it, and an unreadable merged log of a superseded shard set is in
+  `unreadable`; `task list --shards` lists each shard, the merged log and
+  stray logs as ordinary rows. After a shard
   deletion that kept checkpoints, local and on `mock_s3` (a sharded run
   with checkpointing on, merged and then deleted with `delete_shards`, and
   separately removed by a successful unsharded retry's retry cleanup, both
@@ -1365,9 +1415,10 @@ real moto server on an ephemeral port). New tests go in a new
   attempt. A companion with no merged log whose first `<k>/` in shard
   order holds only `scans/` (and another only `.buffer/` objects) before
   shards with attempts: the row's `task_id` is `merged_log_task_id` with
-  the first shard's `task` and `model`, under a custom pattern without
+  the first shard's `task` and `model` (until PR 5, `{id}` parsed from the
+  name), under a custom pattern without
   `{id}` equals the `task_id` the merge then stamps, and the attempt-less
-  directories add no `--shards` row and nothing to the counts. With step
+  directories add nothing to the `shards` block or the counts. With step
   6, a
   cold `task list` row equals the row built from every shard in each of
   these cases: a complete `success` snapshot with an id, a count and no
@@ -1517,16 +1568,18 @@ Each step is one PR; steps 1–5 are the MVP.
 4. **Shard aggregation.** The `<name>.shards/` walk rules through the
    shared `list_shard_set`, `attempt_sort_key` and `is_shard_path`
    (sharding implementation PR 3, landed as UKGovernmentBEIS/inspect_ai#5622),
-   replacing `_attempt_order`, and the shared `merged_log_task_id` (added
-   here if the sharding merge has not landed it yet); the
+   replacing `_attempt_order` (`merged_log_task_id` is left to sharding
+   PR 5; until then a shard set with no readable merged log takes the id
+   parsed from its name, "Sharded runs"); the
    `unlisted_dirs` field added to the shared walk and the descent into
    those directories with nested companions ordinary; stray files in
    `unreadable`; companions with no attempt (the checkpoint-only remnant a
    shard deletion leaves) dropped before pairing; logical sharded
    rows, newest-attempt selection per `<k>/`, the recovered-merged-log
-   mapping, folding an ordinary retry with its shard set, the `shards`
-   block, conflicts (counts, rows, `ambiguous` per-sample reads) and
-   mismatch counts, `--shards`. Depends only on the layout convention, so it
+   mapping, folding an ordinary retry with its shard set, one shard set per
+   task id, the `shards` block, conflicts (counts, rows, `ambiguous`
+   per-sample reads) and mismatch counts, `--shards` (the walk without
+   shard aggregation). Depends only on the layout convention, so it
    can land before the sharding merge exists. Files: `walk.py`,
    `snapshot.py`, `select.py`, `_cli/ctl/_task.py`, `_group.py`,
    `log/_shards/_walk.py`, tests (including `tests/log/test_shards.py`).
@@ -1551,7 +1604,8 @@ Each step is one PR; steps 1–5 are the MVP.
 None open. Ransom resolved all three on 2026-09-23, each as recommended:
 
 1. **Default row shape for sharded runs.** One logical row per task by
-   default, with per-shard rows behind `task list --shards`. A 300-row
+   default, with per-shard rows behind `task list --shards` (since
+   2026-10-13, the walk without shard aggregation; see "CLI surface"). A 300-row
    default would flood an agent's context, which the listing cap exists
    to prevent.
 2. **Cache in the MVP.** Included (step 5). Without it every invocation

@@ -1733,7 +1733,7 @@ A model that does not accept a conversation ending with an assistant message (as
 
 ### Gemini Models {#litellm-proxy-gemini}
 
-When the upstream model is a Gemini model (recognized by its name), requests with tools follow the native `google` provider's retry of malformed function calls, but not its function-calling hint:
+When the upstream model is a Gemini model (recognized by its name), requests with tools follow the native `google` provider's retry of malformed function calls:
 
 -   No function-calling hint is added to the system prompt. In live trials through the proxy, the hint made Gemini 2.5 Pro loop on repeated tool calls and did not reduce malformed calls.
 -   A turn that comes back as a malformed function call is retried up to 3 times with a corrective exchange, with tool calling required when the tool choice was `auto`. LiteLLM reports Gemini's `MALFORMED_FUNCTION_CALL` as an ordinary stop, so Inspect recognizes such a turn by its shape: no text and no tool call, or text that is a function call written as code. When the retries run out, the assistant message says that it had trouble calling a function. Usage covers every attempt, and `ModelOutput.metadata` records `malformed_function_call_attempts`.

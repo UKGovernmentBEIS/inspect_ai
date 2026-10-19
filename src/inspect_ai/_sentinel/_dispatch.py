@@ -96,6 +96,7 @@ from ._context import (
     active_task_metadata,
 )
 from ._scope import AgentScope, sentinel_scope
+from ._sent import record_sent, sent_messages
 
 logger = getLogger(__name__)
 
@@ -118,7 +119,8 @@ async def sentinel_before_tool_call(
         call=call,
         view=resolve_tool_call_view(call, viewer),
         input=list(producer.input) if producer is not None else None,
-        history=history,
+        agent_messages=history,
+        history=sent_messages(conversation),
         human_decisions=_human_decisions(conversation),
         tools=list(producer.tools) if producer is not None else None,
     )
@@ -164,7 +166,8 @@ async def sentinel_after_tool_call(
         output=output,
         view=resolve_tool_call_view(call, viewer),
         input=list(producer.input) if producer is not None else None,
-        history=history,
+        agent_messages=history,
+        history=sent_messages(conversation),
         human_decisions=_human_decisions(conversation),
         tools=list(producer.tools) if producer is not None else None,
         truncated=Truncation(*truncated) if truncated is not None else False,
@@ -202,7 +205,8 @@ async def sentinel_before_generate(
         model=model,
         conversation=conversation,
         input=input,
-        history=history,
+        agent_messages=history,
+        history=sent_messages(conversation),
         human_decisions=_human_decisions(conversation),
         tools=tools,
         tool_choice=tool_choice,
@@ -223,7 +227,8 @@ async def sentinel_after_generate(before: BeforeGenerate, output: ModelOutput) -
         model=before.model,
         conversation=before.conversation,
         input=before.input,
-        history=before.history,
+        agent_messages=before.agent_messages,
+        history=sent_messages(before.conversation),
         human_decisions=_human_decisions(before.conversation),
         tools=before.tools,
         tool_choice=before.tool_choice,
@@ -337,6 +342,10 @@ def _conversation() -> str:
         return agent_span_id
     active = sample_active()
     return active.sample_uuid if active is not None else ""
+
+
+def record_agent_turn(input: list[ChatMessage]) -> None:
+    record_sent(_conversation(), input)
 
 
 def _human_decisions(conversation: str) -> tuple[HumanDecision, ...]:
@@ -475,8 +484,8 @@ class _HostNative:
         # the approval surfaces show the conversation; a step whose host could
         # not provide the scaffold's history shows what the model saw instead,
         # and nothing when that is unknown too
-        if step.history is not None:
-            conversation = step.history
+        if step.agent_messages is not None:
+            conversation = step.agent_messages
         elif step.input is not None:
             conversation = step.input
         else:
