@@ -36,7 +36,10 @@ from inspect_ai.util._sandbox.docker.compose import (
 from inspect_ai.util._sandbox.docker.config import (
     AUTO_COMPOSE_PROJECT_DIRECTORY_KEY,
     auto_compose_dir,
+    auto_compose_file,
+    ensure_auto_compose_file,
     is_auto_compose_file,
+    safe_cleanup_auto_compose,
 )
 from inspect_ai.util._sandbox.docker.docker import DockerSandboxEnvironment
 from inspect_ai.util._sandbox.docker.mounts import validate_compose_mounts
@@ -44,11 +47,41 @@ from inspect_ai.util._sandbox.docker.util import ComposeProject, task_project_na
 
 
 @pytest.fixture
-def generated_compose_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+def generated_compose_dir(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, request: pytest.FixtureRequest
+) -> Path:
     directory = tmp_path.resolve() / "generated"
     directory.mkdir()
+    if getattr(request, "param", False):
+        linked = tmp_path / "linked"
+        linked.symlink_to(tmp_path.resolve(), target_is_directory=True)
+        directory = linked / "generated"
     monkeypatch.setattr(config_module, "auto_compose_dir", lambda: directory)
     return directory
+
+
+@pytest.mark.parametrize("generated_compose_dir", [True], indirect=True)
+def test_generated_compose_symlink_cleanup_and_recreation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    generated_compose_dir: Path,
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    project_name = "inspect-symlink"
+    file = auto_compose_file("services: {}\n", project_name)
+    assert Path(file).parent == generated_compose_dir.resolve()
+    assert is_auto_compose_file(file)
+    assert is_auto_compose_file(str(generated_compose_dir / Path(file).name))
+    safe_cleanup_auto_compose(file)
+    assert not Path(file).exists()
+
+    ensure_auto_compose_file(file, project_name)
+    assert Path(file).is_file()
+    assert sorted(path.name for path in generated_compose_dir.iterdir()) == [
+        f"{project_name}.yaml"
+    ]
+    safe_cleanup_auto_compose(file)
+    assert list(generated_compose_dir.iterdir()) == []
 
 
 @pytest.mark.skipif(not is_docker_installed(), reason="Docker is required")
@@ -200,6 +233,7 @@ async def test_dockerfile_ignores_task_dotenv(
 
 @skip_if_no_docker
 @pytest.mark.parametrize("reopen", [False, True])
+@pytest.mark.parametrize("generated_compose_dir", [False, True], indirect=True)
 async def test_programmatic_compose_relative_paths(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -208,8 +242,8 @@ async def test_programmatic_compose_relative_paths(
     reopen: bool,
 ) -> None:
     task_dir = tmp_path.resolve() / "task"
-    task_dir.mkdir()
-    (task_dir / "data").mkdir()
+    task_dir.mkdir(exist_ok=True)
+    (task_dir / "data").mkdir(exist_ok=True)
     (task_dir / "vars.env").write_text("INSPECT_PATH_TEST=task\n")
     (generated_compose_dir / "vars.env").write_text("INSPECT_PATH_TEST=wrong\n")
     (task_dir / ".env").write_text("INSPECT_PATH_TEST_DOTENV=./data\n")
@@ -246,11 +280,11 @@ async def test_programmatic_compose_relative_paths(
     original = config.model_dump()
     project = await ComposeProject.create("inspect-relative-paths", config)
     assert project.config is not None
-    assert Path(project.config).parent == generated_compose_dir
+    assert Path(project.config).parent == generated_compose_dir.resolve()
     assert config.model_dump() == original
 
     elsewhere = tmp_path / "elsewhere"
-    elsewhere.mkdir()
+    elsewhere.mkdir(exist_ok=True)
     monkeypatch.chdir(elsewhere)
     if reopen:
         project = await ComposeProject.create(project.name, project.config)

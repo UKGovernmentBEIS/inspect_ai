@@ -118,7 +118,7 @@ from .task.sandbox import (
 )
 from .task.task import Task
 from .task.task_source import TaskSource
-from .task.util import resolve_task_sample_ids, slice_dataset, task_run_dir
+from .task.util import resolve_task_sample_ids, slice_dataset
 
 log = logging.getLogger(__name__)
 
@@ -249,7 +249,7 @@ async def eval_run(
         # create run tasks
         task_run_options: list[TaskRunOptions] = []
         for resolved_task in resolved_tasks:
-            with chdir(task_run_dir(resolved_task.task)):
+            with chdir(resolved_task.run_dir):
                 # tasks can provide their epochs, message_limit,
                 # token_limit, time_limit, and fail_on_error so broadcast these
                 # into the eval config (so long as they aren't overriding a

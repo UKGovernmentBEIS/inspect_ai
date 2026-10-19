@@ -84,7 +84,7 @@ def is_auto_compose_file(file: str) -> bool:
     """
     path = Path(file)
     # New pattern: file is in the auto-compose directory
-    if path.parent == auto_compose_dir():
+    if path.resolve().parent == auto_compose_dir().resolve():
         return True
     # Legacy pattern: filename is .compose.yaml
     return path.name == AUTO_COMPOSE_YAML
@@ -100,7 +100,7 @@ def ensure_auto_compose_file(file: str | None, project_name: str | None = None) 
     if file is not None and is_auto_compose_file(file) and not os.path.exists(file):
         path = Path(file)
         # For central directory files, we need project_name to recreate
-        if project_name and path.parent == auto_compose_dir():
+        if project_name and path.resolve().parent == auto_compose_dir().resolve():
             resolve_compose_file(project_name=project_name)
         else:
             # Legacy local file - recreate in place
