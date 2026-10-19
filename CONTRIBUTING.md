@@ -190,6 +190,12 @@ report what you ran, its outcome, and any checks you could not run. Run
 inactive for 60 days is closed by the stale bot with an invitation to reopen —
 that isn't a judgment of you or your work.
 
+**Reviewing other PRs:** feedback on other people's PRs is welcome. Unless a
+maintainer asked for your review, leave it as a comment rather than choosing
+Approve or Request changes. Those are maintainer decisions here: a
+non-maintainer's verdict doesn't count toward merging and can mislead the
+author about where their PR stands.
+
 ## Becoming a qualified contributor
 
 Qualified status is earned through a sustained record. As a rule of thumb, being added to the qualified list requires several
