@@ -1,34 +1,34 @@
 """A local, per-user cache of what log-dir reads parse from ``.eval`` logs.
 
-With it, a poll of an unchanged directory costs the listing, and a changed
-log costs only what changed. One JSON file per log URI (named by its
-SHA-256) under ``inspect_data_dir("ctl")/log-dir-cache/``, created 0700,
-holding the Inspect version that parsed it and:
+With it, a poll of an unchanged finished log costs nothing beyond the
+listing, and a poll of a running log costs its central directory plus the
+journal members added since the last poll. One JSON file per log (named by
+the SHA-256 of its key, see :func:`_cache_key`) under
+``inspect_data_dir("ctl")/log-dir-cache/``, created 0700, holding the
+Inspect version that parsed it and:
 
-- the plan: the header read from ``header.json`` or ``_journal/start.json``,
-  used while the log's version is unchanged. Once the version changes the plan
-  is read again through the new central directory, reusing a running log's
-  start record while its CRC-32 is unchanged;
-- the sample summaries of that version;
+- the plan: the header read from ``header.json`` or ``_journal/start.json``.
+  A finished log's plan is used while the log's version (S3 ETag, local
+  stat) is unchanged. A running log's central directory is read on every
+  poll, and its cached header is used only while ``_journal/start.json``
+  keeps the CRC-32 it was read from;
+- for a finished log, the sample summaries of that version;
 - for a running log, the journal summary members already parsed, keyed by
-  member name, CRC-32 and compressed size, so a changed running log costs its
-  central directory plus its new journal members.
+  member name, CRC-32 and compressed size, checked against the fresh
+  central directory.
 
-An unchanged log's key set is its plan's recorded ids plus its cached
-summaries' keys. Manifests, sample members and segments are not cached.
+Nothing keyed on a running log's version is reused. Manifests, sample
+members and segments are not cached.
 
-Every value is keyed by the version of the object it was read from, and is
-written only from a read that passed its consistency checks, atomically
-(temp file, then rename). So the cache changes how much a read fetches,
-never what it returns: concurrent pollers may overwrite each other's
-entries, and any entry that survives describes a real version of its log,
-which a reader uses only while the log still has that version. An entry
-that does not parse, has another schema version, or was written by another
-Inspect version, is discarded. An entry that cannot be serialized is not
-written. Above :data:`MAX_CACHE_BYTES`, the least recently used entries are
-removed.
+Entries are written only from reads that passed their consistency checks,
+atomically (temp file, then rename), so concurrent pollers may overwrite each
+other's entries but every entry describes a real version of its log. Any
+failure to key, load, validate, serialize or write an entry, and an entry of
+another schema or Inspect version, is a cache miss: the log is read as
+without the cache. Above :data:`MAX_CACHE_BYTES`, the least recently used
+entries are removed.
 
-Only local and S3 logs are cached (see :func:`_cacheable`).
+Only local and S3 logs are cached (see :func:`_cache_key`).
 
 The cache is active only inside :func:`use_cache`, as the CLI's reads are;
 the reader functions consult :func:`active_cache`. See "Cache" in
@@ -47,7 +47,6 @@ from logging import getLogger
 from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field
-from pydantic_core import PydanticSerializationError
 
 from inspect_ai._util.appdirs import inspect_data_dir
 from inspect_ai._util.async_zip import AsyncZipReader, CentralDirectory
@@ -156,27 +155,41 @@ class LogDirCache:
         self._entries: dict[str, _Entry | None] = {}
         self._wrote = False
 
-    def plan(self, file: LogFile) -> LogPlan | None:
-        """The cached plan of ``file``, with the version it was read from.
+    def finished_plan(self, file: LogFile) -> LogPlan | None:
+        """The cached plan of a finished ``file``, with the version it was read from.
 
         It describes the log only while the log still has that version; a
         caller that finds another version reads the plan again.
         """
         entry = self._entry(file)
-        return _log_plan(file, entry) if entry is not None else None
+        if entry is None or not entry.plan.finished or entry.plan.version is None:
+            return None
+        return _log_plan(file, entry)
 
-    def snapshot(self, file: LogFile, version: str | None) -> MemberSnapshot | None:
-        """The cached plan and summaries of ``file`` at ``version``, if held."""
+    def running_plan(self, file: LogFile) -> LogPlan | None:
+        """The cached plan of a running ``file``.
+
+        Its header may be reused only while ``_journal/start.json`` has the
+        plan's ``header_crc``.
+        """
         entry = self._entry(file)
+        if entry is None or entry.plan.finished:
+            return None
+        return _log_plan(file, entry)
+
+    def snapshot(self, plan: LogPlan) -> MemberSnapshot | None:
+        """The cached summaries of a finished log at ``plan``'s version, if held."""
+        entry = self._entry(plan.file)
         if (
             entry is None
             or entry.summaries is None
-            or version is None
-            or version != entry.plan.version
+            or not entry.plan.finished
+            or plan.version is None
+            or plan.version != entry.plan.version
         ):
             return None
         return MemberSnapshot(
-            plan=_log_plan(file, entry),
+            plan=plan,
             summaries={SampleKey(str(s.id), s.epoch): s for s in entry.summaries},
         )
 
@@ -187,18 +200,12 @@ class LogDirCache:
     def store_plan(self, plan: LogPlan) -> None:
         """Store a plan read and checked in this invocation.
 
-        Keeps the cached summaries when they are of the plan's version, and
-        the journal members its central directory still lists.
+        Keeps the cached journal members its central directory still lists.
         """
         entry = self._entry(plan.file)
-        same_version = (
-            entry is not None
-            and plan.version is not None
-            and entry.plan.version == plan.version
-        )
         self._store(
             plan,
-            summaries=entry.summaries if entry is not None and same_version else None,
+            summaries=None,
             journal=(
                 _still_listed(entry.journal, plan.central_directory)
                 if entry is not None
@@ -209,12 +216,13 @@ class LogDirCache:
     def store_snapshot(self, snapshot: MemberSnapshot, journal: JournalCache) -> None:
         """Store a member view read and checked in this invocation.
 
-        Keeps the journal members its central directory still lists.
+        Keeps a finished log's summaries, and the journal members its central
+        directory still lists.
         """
         plan = snapshot.plan
         self._store(
             plan,
-            summaries=list(snapshot.summaries.values()),
+            summaries=list(snapshot.summaries.values()) if plan.finished else None,
             journal=journal.members(plan.central_directory),
         )
 
@@ -249,13 +257,22 @@ class LogDirCache:
                 continue
             total -= size
 
+    # The entry is disposable, so any failure to key, load, validate,
+    # serialize or write it is a cache miss and the log is read instead. The
+    # log model's validators alone can raise many exception types on bad
+    # input, and a native path need not encode as UTF-8.
+
     def _entry(self, file: LogFile) -> _Entry | None:
-        if not _cacheable(file.location):
+        try:
+            key = _cache_key(file.location)
+            if key is None:
+                return None
+            if key not in self._entries:
+                self._entries[key] = self._load(key)
+            return self._entries[key]
+        except Exception as ex:
+            logger.debug(f"not using a log-dir cache entry for {file.location}: {ex!r}")
             return None
-        key = _cache_key(file.location)
-        if key not in self._entries:
-            self._entries[key] = self._load(key)
-        return self._entries[key]
 
     def _load(self, key: str) -> _Entry | None:
         path = self._path(key)
@@ -263,26 +280,12 @@ class LogDirCache:
             data = path.read_bytes()
         except FileNotFoundError:
             return None
-        except OSError as ex:
-            logger.debug(f"could not read log-dir cache entry {path}: {ex}")
-            return None
-        try:
-            entry = _Entry.model_validate_json(
-                data, context=get_deserializing_context()
-            )
-            if entry.schema_version != SCHEMA_VERSION:
-                raise ValueError(f"schema version {entry.schema_version}")
-            if entry.inspect_version != INSPECT_VERSION:
-                raise ValueError(f"written by Inspect {entry.inspect_version}")
-            if entry.location != key:
-                raise ValueError(f"entry for {entry.location}")
-        # The log model's validators can raise any exception type on bad input
-        # (IndexError, TypeError, KeyError, ...). The entry is disposable, so
-        # any failure here discards it and the log is read instead.
-        except Exception as ex:
-            logger.debug(f"discarding log-dir cache entry {path}: {ex!r}")
-            with suppress(OSError):
-                path.unlink(missing_ok=True)
+        entry = _Entry.model_validate_json(data, context=get_deserializing_context())
+        if (
+            entry.schema_version != SCHEMA_VERSION
+            or entry.inspect_version != INSPECT_VERSION
+            or entry.location != key
+        ):
             return None
         # the modification time records the last use, for pruning
         with suppress(OSError):
@@ -296,34 +299,28 @@ class LogDirCache:
         summaries: list[EvalSampleSummary] | None,
         journal: dict[str, _JournalMember],
     ) -> None:
-        if not _cacheable(plan.file.location):
-            return
-        key = _cache_key(plan.file.location)
-        entry = _Entry(
-            schema_version=SCHEMA_VERSION,
-            inspect_version=INSPECT_VERSION,
-            location=key,
-            plan=_Plan(
-                header=plan.header,
-                finished=plan.finished,
-                version=plan.version,
-                header_crc=plan.header_crc,
-            ),
-            summaries=summaries,
-            journal=journal,
-        )
-        path = self._path(key)
         try:
-            data = entry.model_dump_json().encode()
-        # the log reader accepts strings the serializer refuses (an escaped lone
-        # surrogate); such a log is read without a cache entry
-        except PydanticSerializationError as ex:
-            logger.debug(f"not caching {plan.file.location}: {ex}")
-            return
-        try:
-            atomic_write_bytes(str(path), data, fsync=False)
-        except OSError as ex:
-            logger.debug(f"could not write log-dir cache entry {path}: {ex}")
+            key = _cache_key(plan.file.location)
+            if key is None:
+                return
+            entry = _Entry(
+                schema_version=SCHEMA_VERSION,
+                inspect_version=INSPECT_VERSION,
+                location=key,
+                plan=_Plan(
+                    header=plan.header,
+                    finished=plan.finished,
+                    version=plan.version,
+                    header_crc=plan.header_crc,
+                ),
+                summaries=summaries,
+                journal=journal,
+            )
+            atomic_write_bytes(
+                str(self._path(key)), entry.model_dump_json().encode(), fsync=False
+            )
+        except Exception as ex:
+            logger.debug(f"not caching {plan.file.location}: {ex!r}")
             return
         self._entries[key] = entry
         self._wrote = True
@@ -400,19 +397,17 @@ def _still_listed(
     return listed
 
 
-def _cacheable(location: str) -> bool:
-    """Whether the log's version names its content, so the log is cached.
+def _cache_key(location: str) -> str | None:
+    """The key a log's entry is stored by; ``None`` when the log is not cached.
 
-    True for S3 (the ETag) and local files (inode, mtime and size). Other
-    backends' metadata can stay the same across a rewrite (an Azure log's
-    version comes from its creation time and size), so nothing read from
-    their logs is cached.
+    An S3 log's URL, or a local log's absolute path. Only these backends have
+    a version that names the log's content (the ETag; inode, mtime and
+    size). Other backends' metadata can stay the same across a rewrite (an
+    Azure log's version comes from its creation time and size), so nothing
+    read from their logs is cached.
     """
-    return is_s3_filename(location) or filesystem(location).is_local()
-
-
-def _cache_key(location: str) -> str:
-    """The URI an entry is keyed by: a local log's absolute path, else its URL."""
-    if is_s3_filename(location) or not filesystem(location).is_local():
+    if is_s3_filename(location):
         return location
-    return os.path.abspath(local_path(location))
+    if filesystem(location).is_local():
+        return os.path.abspath(local_path(location))
+    return None

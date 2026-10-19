@@ -712,8 +712,8 @@ current for this invocation:
 - a *finished* member (its log has `header.json`) whose listing ETag equals
   the cached one: its summaries hold every key it will ever hold, so the
   cached set is complete;
-- a *running* member whose listing ETag equals the cached one: its logged
-  keys are unchanged, and its buffer keys are current only once its
+- a *running* member: its logged keys come from this invocation's
+  central-directory read, and its buffer keys are current only once its
   manifest has been read in this invocation (a running member with no
   shared buffer has no other place a key can appear, so its logged keys
   suffice);
@@ -1023,29 +1023,30 @@ A local, per-user cache makes steady-state polls cost a listing plus reads
 of what changed. `src/inspect_ai/_control/log_dir/cache.py`:
 
 - **Location.** `inspect_data_dir("ctl")/log-dir-cache/`, created 0700 like
-  the control discovery directory. One JSON file per log URI, named by
-  `sha256(uri)` (a local log by its absolute path), holding a schema
-  version, the Inspect version that parsed it, and:
-  - the plan, used as is while the listing reports the version it was
-    read from. A log whose version changed has its plan read again through
-    its new central directory (so task identity, status and buffer
-    eligibility are never taken from an older version), reusing the cached
-    header of a running log while `_journal/start.json` keeps the CRC-32 it
-    was read from;
-  - the header-derived status fields and the parsed summaries, keyed by the
-    file's ETag (locally its inode, `mtime_ns` and size, the freshness
-    check's form), valid only while the listing reports the same key. The
-    version is looked up before and after a local central-directory read; a
-    log replaced in between gets no version, so nothing cached for it is
-    reused;
+  the control discovery directory. One JSON file per log, named by the
+  `sha256` of its key (an S3 log's URL, a local log's absolute path),
+  holding a schema version, the Inspect version that parsed it, and:
+  - the plan. A finished log's plan (the log has `header.json`) is used as
+    is while the listing reports the version it was read from: the S3 ETag,
+    or locally a fresh stat (inode, `mtime_ns` and size, the freshness
+    check's form). Once the version changes the plan is read again through
+    the new central directory, so task identity, status and buffer
+    eligibility are never taken from an older version. A running log's
+    central directory is read on every poll; its cached header is reused
+    while `_journal/start.json` keeps the CRC-32 it was read from;
+  - for a finished log, the parsed summaries of that version. The observed
+    key set (plan ids and summary keys) is derived from the plan and these
+    summaries rather than stored separately;
   - for a running log, the journal summary members already parsed, keyed by
-    member name, CRC-32 and compressed size from the central directory.
-    Journal members are append-only, so a changed running log costs its
-    central directory plus the new journal members rather than every
-    journal member again;
-  - the observed key set (plan ids and summary keys, both tied to the
-    log's version) used to skip re-reading unchanged logs. It is derived
-    from the cached plan and summaries rather than stored separately.
+    member name, CRC-32 and compressed size, and reused only when this
+    poll's central directory lists them unchanged. Journal members are
+    append-only, so a poll of a running log costs its central directory
+    plus the journal members added since the last poll.
+- **Running logs.** Nothing keyed on a running log's version is reused,
+  only values checked against this poll's central directory. Running logs
+  written by an older Inspect version are not a target: the cache is built
+  for the journal layout this version writes, and any cache operation that
+  fails on another layout falls back to an uncached read.
 - **Backends.** Only local and S3 logs are cached: only their version
   names their content. Other backends (GCS, Azure, other fsspec
   filesystems) report metadata that can stay the same across a rewrite (an
@@ -1055,19 +1056,21 @@ of what changed. `src/inspect_ai/_control/log_dir/cache.py`:
   members and segments (large; each invocation reads what it pages).
 - **Writes**: only from validated member views, atomically (temp file,
   then rename; "Reading a member consistently"). Every cached value is
-  keyed by the version of the object it was read from, so the cache is a
-  pure performance cache: correctness never depends on its history. Two
-  concurrent pollers may overwrite each other's entries in either order;
-  whichever entry survives describes some real version of the log, and a
-  reader that finds it stale (its version differs from the object's)
+  keyed by the finished log's version, or by the CRC-32 and size of the
+  member it was read from, so the cache is a pure performance cache:
+  correctness never depends on its history. Two concurrent pollers may
+  overwrite each other's entries in either order; whichever entry survives
+  describes some real version of the log, and a reader that finds it stale
   simply re-reads.
-- **Bounds.** Pruned oldest-access-first above 256 MB. Entries with an
-  unknown schema version, written by another Inspect version (whose log
-  models may parse the same bytes differently), or that fail to parse or
-  validate, are discarded and rebuilt, logged at debug. An entry that
-  cannot be serialized (a string with a lone surrogate, which the log
-  reader accepts) is not written. The cache never changes what a read
-  returns, only whether it is fetched.
+- **Failures.** Any failure to key, load, validate, serialize or write an
+  entry (an unreadable file, a log-model validator error, a local path
+  that does not encode as UTF-8, a string the serializer refuses) is
+  logged at debug and is a cache miss: the log is read as without the
+  cache. An entry of another schema version, or written by another Inspect
+  version (whose log models may parse the same bytes differently), is a
+  miss too. A bad entry or an unusual key costs a re-read, never a
+  failure, and the cache never changes what a read returns.
+- **Bounds.** Pruned oldest-access-first above 256 MB.
 - **Scope.** Keyed by URI, so two directories never share entries; nothing
   in the log directory is written. Only the CLI's reads use it (the reader
   functions consult the cache made active for the invocation).
@@ -1085,9 +1088,9 @@ CLI's existing fan-out cap. Request kinds:
   one LIST per 1,000 entries for a flat directory.
 - *plan*: CD (one GET of up to 64 KiB, or the whole object when smaller;
   one more GET when a large log's central directory does not fit) plus
-  `header.json` or `start.json` (one GET). Cached for the current log
-  version. A changed version rereads the directory; an unchanged
-  `start.json` is reused by CRC-32.
+  `header.json` or `start.json` (one GET). A finished log's plan is cached
+  for its current version. A running log's directory is read on every
+  poll; an unchanged `start.json` is reused by CRC-32.
 - *manifest*: one GET, only for a running member whose plan has
   `log_shared` set and whose directory has a `.buffer/` prefix. It returns
   the content with its ETag and Last-Modified (new
@@ -1099,8 +1102,8 @@ CLI's existing fan-out cap. Request kinds:
   (the log has finished, possibly since the last poll), `header.json` for
   the status, `stats.completed_at`, `results` and `error` that the cached
   plan does not hold, plus `summaries.json`: three GETs; for a log still
-  running, the CD plus the journal members not yet cached. Zero when
-  unchanged.
+  running, the CD plus the journal members not yet cached. Zero for an
+  unchanged finished log; a running log's CD is read on every poll.
 - *sample read*: after the CD, two GETs for a field-excluding read (local
   header, then body) and one for a full read (`sample events`).
 - *segments*: one GET per segment listed for the sample.
@@ -1125,7 +1128,7 @@ three times as many listing rounds.
 |---|---|---|---|---|
 | `task list`, `sample list`, `sample errors` | cold, all running | 302 | 300 plans × 2 + 300 manifests + 300 freshness checks = 1,200 | ≤ 300 × (64 KiB + header + manifest), about 20–45 MB. A running one-sample shard has no summaries yet; the freshness checks carry no body. |
 | same | cold, all finished | 302 | 300 × (CD + `header.json` + `summaries.json`) = 900 | ≈ 300 × (object up to 64 KiB + header + ~1 KB). |
-| same | warm | 302 | `R` manifests + `R` freshness checks + log snapshots of changed members (3 GETs for each member that finished since the last poll; CD + new journal members for one still running) | A finished run with nothing changed: 302 LISTs, no GETs. A fully running run between flushes: 302 LISTs, 300 small GETs and 300 HEADs. All 300 shards finishing between two polls: 900 GETs on the next. |
+| same | warm | 302 | `R` CDs + `R` manifests + `R` freshness checks + log snapshots of changed members (3 GETs for each member that finished since the last poll; new journal members for one still running) | A finished run with nothing changed: 302 LISTs, no GETs. A fully running run between flushes: 302 LISTs, 600 small GETs (CD and manifest) and 300 HEADs. All 300 shards finishing between two polls: 900 GETs on the next. |
 | `sample show` / `messages` / `store`, sample in the log | warm | 302 | key refresh (`R` manifests + `R` freshness checks + changed-member snapshots) + CD + 2 | Bytes: the manifests, the compressed sample and a 64 KiB CD. With every shard finished and unchanged, the key refresh is free and the read is CD + 2. |
 | `sample events`, sample in the log | warm | 302 | key refresh + CD + 1 | Full member read and parse; each page invocation re-reads the member. |
 | `sample events`, buffer row | warm | 302 | key refresh (which includes this member's manifest) + `S` segments | `S` is at most one per sync while the sample ran, each a small delta zip. |
@@ -1146,6 +1149,7 @@ sequential LIST pages), which is how `list_eval_logs_async` lists S3 today.
 |---|---|---|---|
 | `task list` / `sample list` | finished, cold | CD tail + CD + `header.json` + `summaries.json` = 4 (plus the plan's `header.json`, the same object) | ~64 KiB + ~1 MB CD (about 80 bytes per member) + header + summaries (~1–2 KB raw per sample, compressed). Then cached until the ETag changes. |
 | same | finished, warm | 0 | |
+| same | running, between flushes | CD tail + CD (+ 1 manifest and 1 freshness check with `--log-shared`) | No member reads: the start record and journal members are reused by CRC-32. |
 | same | running, after a flush | CD tail + CD + new journal members (+ 1 manifest and 1 freshness check with `--log-shared`) | A flush every ≤60 s replaces the object, so each poll after one re-reads the central directory, which grows with samples and journal members. Without the journal-member cache a running log re-reads every journal member, up to one per sample on the streaming path. |
 | same | finished since the last poll | CD tail + CD + `header.json` + `summaries.json` = 4 | The final header supplies status, completion time and results. |
 | per-sample reads | any | the same key refresh plus the sample read, as in the table above, with no shard walk | |
@@ -1496,7 +1500,8 @@ real moto server on an ephemeral port). New tests go in a new
   itself, never its stem); and with one
   `scans/scan_id=<id>/` in every `<k>/` issues 152; a cold `task list` over 50 finished shards issues 150
   GETs and a warm one none; 50 running shards between flushes cost 50
-  manifest GETs and 50 freshness checks warm, and no log reads; a warm poll after all 50 finish costs 150 GETs (CD,
+  CD reads, 50 manifest GETs and 50 freshness checks warm, and no member
+  reads; a warm poll after all 50 finish costs 150 GETs (CD,
   final `header.json`, `summaries.json`) and reports their new status and
   `completed_at`; changing one shard costs its reads only; per-sample
   commands read no manifests or summaries during target resolution and

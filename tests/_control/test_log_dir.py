@@ -2151,7 +2151,7 @@ async def _per_sample_reads(task: LogicalTask) -> list[Any]:
         ]
 
 
-async def test_a_warm_poll_answers_as_a_cold_one_without_re_reading_unchanged_logs(
+async def test_a_warm_poll_answers_as_a_cold_one_without_re_reading_finished_logs(
     log_dir: Path,
     finished_log: EvalLog,
     central_directory_reads: Counter[str],
@@ -2173,18 +2173,73 @@ async def test_a_warm_poll_answers_as_a_cold_one_without_re_reading_unchanged_lo
     central_directory_reads.clear()
 
     warm = await _poll(log_dir)
-    # nothing changed: the plans, statuses and summaries come from the cache
-    assert central_directory_reads == Counter()
+    # nothing changed: the finished log's plan, status and summaries come from
+    # the cache; the running log's central directory is read again
+    assert central_directory_reads == Counter({running.name: 1})
     assert _answers(uncached) == _answers(cold) == _answers(warm)
-    assert [
-        view.member.plan.central_directory for view in warm.views if view.member
-    ] == [
-        None,
-        None,
-    ]
+    assert {
+        view.member.plan.finished: view.member.plan.central_directory is None
+        for view in warm.views
+        if view.member
+    } == {True: True, False: False}
     finished = next(t for t in warm.dir_index.tasks if t.current.finished)
     with use_cache(open_cache()):
         assert await _per_sample_reads(finished) == uncached_reads
+
+
+async def test_a_warm_poll_of_a_running_log_reads_only_its_central_directory_and_new_journal_members(
+    tmp_path: Path,
+    finished_log: EvalLog,
+    central_directory_reads: Counter[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from inspect_ai._control.log_dir import cache as cache_module
+    from inspect_ai._control.log_dir import snapshot as snapshot_module
+    from inspect_ai.log._recorders.eval import (
+        _read_journal_summaries as read_journal,
+    )
+    from inspect_ai.log._recorders.eval import _read_member_json as read_member_json
+
+    running = await _start_running_log(
+        tmp_path, finished_log, logged=[1], sample_ids=[1, 2, 3]
+    )
+    await _poll(tmp_path)
+
+    member_reads: list[str] = []
+
+    async def journal_read(reader: AsyncZipReader, path: str) -> Any:
+        member_reads.append(path)
+        return await read_journal(reader, path)
+
+    async def member_json_read(reader: AsyncZipReader, path: str) -> Any:
+        member_reads.append(path)
+        return await read_member_json(reader, path)
+
+    monkeypatch.setattr(cache_module, "_read_journal_summaries", journal_read)
+    monkeypatch.setattr(snapshot_module, "_read_member_json", member_json_read)
+
+    def journal() -> set[str]:
+        with zipfile.ZipFile(running.location) as archive:
+            return {
+                n for n in archive.namelist() if n.startswith("_journal/summaries/")
+            }
+
+    # unchanged: its central directory, and no member
+    central_directory_reads.clear()
+    await _poll(tmp_path)
+    assert central_directory_reads == Counter({running.location.name: 1})
+    assert member_reads == []
+
+    # after a flush: its central directory and the new journal members only
+    before = journal()
+    await _flush(running, [running.sample(2)])
+    added = journal() - before
+    assert added
+    central_directory_reads.clear()
+    warm = await _poll(tmp_path)
+    assert central_directory_reads == Counter({running.location.name: 1})
+    assert sorted(member_reads) == sorted(added)
+    assert _answers(warm) == _answers(await _poll(tmp_path, cache=None))
 
 
 async def test_non_finite_scores_and_metrics_are_served_from_the_cache(
@@ -2352,6 +2407,25 @@ async def test_a_same_size_azure_rewrite_is_read_again(
         assert _cache_files(_isolate_log_dir_cache) == []
     finally:
         memory.rm(root, recursive=True)
+
+
+async def test_logs_under_a_local_path_that_is_not_utf8_are_read_as_uncached(
+    tmp_path: Path, finished_log: EvalLog, _isolate_log_dir_cache: Path
+) -> None:
+    # a valid native name that does not decode as UTF-8 (surrogate-escaped
+    # in Python), so the cache cannot hash it as a key
+    root = tmp_path / os.fsdecode(b"logs-\xff")
+    try:
+        root.mkdir()
+    except OSError:
+        pytest.skip("this filesystem refuses names that are not UTF-8")
+    shutil.copy(finished_log.location, root / Path(finished_log.location).name)
+    await _write_running_log(root, finished_log, logged=[1, 2], sample_ids=[1, 2, 3])
+    uncached = await _poll(root, cache=None)
+    assert len(uncached.views) == 2
+    assert _answers(await _poll(root)) == _answers(uncached)
+    assert _answers(await _poll(root)) == _answers(uncached)
+    assert _cache_files(_isolate_log_dir_cache) == []
 
 
 def test_cli_cache_entries_change_what_is_fetched_never_what_is_returned(
@@ -2533,7 +2607,7 @@ async def test_failed_and_cancelled_reads_store_no_snapshot(
     assert entry.read_bytes() == stored
     fresh = open_cache()
     assert fresh is not None
-    assert fresh.snapshot(plan.file, plan.version) is None
+    assert fresh.snapshot(plan) is None
 
 
 async def _replace_with_other_model(location: Path, finished_log: EvalLog) -> None:
@@ -2768,9 +2842,10 @@ async def test_s3_request_counts_with_the_cache_for_running_logs(
     await _poll(root)
     s3_requests.clear()
 
-    # between flushes: the manifest and the freshness check, no log reads
+    # between flushes: the central directory, the manifest and the freshness
+    # check; no member reads
     warm = await _poll(root)
-    assert s3_requests == Counter({"ListObjectsV2": 1, "GetObject": 1, "HeadObject": 1})
+    assert s3_requests == Counter({"ListObjectsV2": 1, "GetObject": 2, "HeadObject": 1})
     assert task_row(warm.views[0])["samples"]["in_flight"] == 1
     s3_requests.clear()
 
@@ -2885,7 +2960,7 @@ async def test_s3_a_log_replaced_during_a_large_central_directory_read(
     assert view.member.summaries[SampleKey("1", 1)].target == "NEW"
     cache = open_cache()
     assert cache is not None
-    cached = cache.snapshot(view.member.plan.file, etag())
+    cached = cache.snapshot(view.member.plan)
     assert cached is not None
     assert cached.summaries[SampleKey("1", 1)].target == "NEW"
 

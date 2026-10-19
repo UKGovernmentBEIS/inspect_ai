@@ -263,21 +263,19 @@ async def _index_listing(
 async def read_plan(fs: AsyncFilesystem, file: LogFile) -> LogPlan:
     """Read one log's central directory and header (or journal start record).
 
-    With the cache active, the cached plan is used while the log has the
-    version it was read from. For a log that changed since, the cached plan
-    is the prior that spares re-reading an unchanged start record.
+    With the cache active, a finished log's cached plan is used while the log
+    has the version it was read from. A running log's central directory is
+    always read; its cached plan spares re-reading an unchanged start record.
     """
     cache = active_cache()
-    cached = cache.plan(file) if cache is not None else None
-    if (
-        cached is not None
-        and cached.version is not None
-        and cached.version == await listed_version(fs, file)
-    ):
-        return cached
+    if cache is not None:
+        cached = cache.finished_plan(file)
+        if cached is not None and cached.version == await listed_version(fs, file):
+            return cached
+    prior = cache.running_plan(file) if cache is not None else None
 
     async def read(reader: AsyncZipReader, fresh: bool) -> LogPlan:
-        return await _plan_from(fs, reader, file, cached)
+        return await _plan_from(fs, reader, file, prior)
 
     plan = await read_consistently(fs, file.location, read)
     if cache is not None:
@@ -341,11 +339,7 @@ async def _plan_from(
 
 
 async def read_snapshot(
-    fs: AsyncFilesystem,
-    plan: LogPlan,
-    *,
-    fresh: bool = False,
-    version: str | None = None,
+    fs: AsyncFilesystem, plan: LogPlan, *, fresh: bool = False
 ) -> MemberSnapshot:
     """Read a member's sample summaries through the central directory its plan used.
 
@@ -354,13 +348,12 @@ async def read_snapshot(
     and so is ``header.json`` when the log now has one: it may have finished
     in between.
 
-    With the cache active, a snapshot cached for the plan's version (with
-    ``fresh``, for ``version``, the log's current version) is used instead,
-    and a snapshot read here is stored.
+    With the cache active, a finished log's summaries cached for the plan's
+    version are used instead, and a snapshot read here is stored.
     """
     cache = active_cache()
-    if cache is not None:
-        cached = cache.snapshot(plan.file, version if fresh else plan.version)
+    if cache is not None and not fresh:
+        cached = cache.snapshot(plan)
         if cached is not None:
             return cached
     journal = cache.journal(plan.file) if cache is not None else None
@@ -402,8 +395,7 @@ async def read_member(fs: AsyncFilesystem, plan: LogPlan) -> MemberSnapshot:
     buffer = await read_manifest(fs, plan.file)
     version = await log_version(fs, plan.file.location)
     fresh = version is None or version != plan.version
-    snapshot = await read_snapshot(fs, plan, fresh=fresh, version=version)
-    return replace(snapshot, buffer=buffer)
+    return replace(await read_snapshot(fs, plan, fresh=fresh), buffer=buffer)
 
 
 async def read_summaries(

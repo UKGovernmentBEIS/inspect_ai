@@ -48,8 +48,7 @@ class LogPlan:
 
     version: str | None = None
     """The version of the log object ``header`` was read from (see
-    :func:`~.consistency.read_version`); ``None`` when unknown, or when the
-    plan came from the cache and the log has changed since."""
+    :func:`~.consistency.read_version`); ``None`` when unknown."""
 
     header_crc: int | None = None
     """CRC-32 of the member ``header`` was read from (``header.json`` or
