@@ -796,8 +796,8 @@ read into missing or pending data.
   A buffer-sourced events page is `done: true` only when the buffer row is
   completed and every segment it lists was read.
 - **Cache writes** happen only from a member view that passed these checks,
-  and are atomic (temp file then rename); a cancelled or failed read writes
-  nothing.
+  and are atomic (temp file then rename) and owner-only; a cancelled or
+  failed read writes nothing.
 
 ### Task rows
 
@@ -1023,7 +1023,8 @@ A local, per-user cache makes steady-state polls cost a listing plus reads
 of what changed. `src/inspect_ai/_control/log_dir/cache.py`:
 
 - **Location.** `inspect_data_dir("ctl")/log-dir-cache/`, created 0700 like
-  the control discovery directory. One JSON file per log, named by the
+  the control discovery directory, when an invocation opens the cache, and
+  only then. One JSON file per log, created 0600, named by the
   `sha256` of its key (an S3 log's URL, a local log's absolute path),
   holding a schema version, the Inspect version that parsed it, and:
   - the plan. A finished log's plan (the log has `header.json`) is used as
@@ -1054,26 +1055,42 @@ of what changed. `src/inspect_ai/_control/log_dir/cache.py`:
   logs are read in full on every poll, as without the cache.
 - **Not cached**: manifest contents (they change every sync), sample
   members and segments (large; each invocation reads what it pages).
-- **Writes**: only from validated member views, atomically (temp file,
-  then rename; "Reading a member consistently"). Every cached value is
+- **Writes**: only from validated member views. An invocation keeps what
+  it stores in memory and writes it when its reads finish, at most once per
+  log, atomically (temp file created 0600, then rename; "Reading a member
+  consistently"). A write never creates the directory: if it has been
+  deleted since the invocation opened it, the write fails as below. Every
+  cached value is
   keyed by the finished log's version, or by the CRC-32 and size of the
   member it was read from, so the cache is a pure performance cache:
   correctness never depends on its history. Two concurrent pollers may
   overwrite each other's entries in either order; whichever entry survives
   describes some real version of the log, and a reader that finds it stale
   simply re-reads.
-- **Failures.** Any failure to key, load, validate, serialize or write an
-  entry (an unreadable file, a log-model validator error, a local path
-  that does not encode as UTF-8, a string the serializer refuses) is
-  logged at debug and is a cache miss: the log is read as without the
-  cache. An entry of another schema version, or written by another Inspect
-  version (whose log models may parse the same bytes differently), is a
-  miss too. A bad entry or an unusual key costs a re-read, never a
-  failure, and the cache never changes what a read returns.
+- **Failures.** The first failure to key, load, validate, serialize or
+  write an entry (an unreadable file, a log-model validator error, a local
+  path that does not encode as UTF-8, a string the serializer refuses, a
+  deleted directory) is logged at debug and turns the cache off for the
+  rest of the invocation: every later read is uncached, and nothing more
+  is loaded or written. No state is left in which part of an entry was
+  refreshed and part was not. An entry that fails to validate is removed,
+  so the next invocation rebuilds it. An entry of another schema version,
+  or written by another Inspect version (whose log models may parse the
+  same bytes differently), is a miss. A bad entry or an unusual key costs
+  a re-read, never a failure, and the cache never changes what a read
+  returns.
 - **Bounds.** Pruned oldest-access-first above 256 MB.
 - **Scope.** Keyed by URI, so two directories never share entries; nothing
   in the log directory is written. Only the CLI's reads use it (the reader
   functions consult the cache made active for the invocation).
+- **Review scope.** In scope: any supported case where a cached read
+  differs from an uncached one, and any weakening of the cache's privacy
+  (directory 0700, files 0600). The supported cases are local and S3 logs,
+  several concurrent pollers, logs changing between polls, and one log
+  replaced during a read. Out of scope: several injected faults within one
+  invocation beyond "the first failure turns the cache off"; other local
+  users or processes tampering with the cache directory; backends other
+  than local and S3; running logs written by an older Inspect version.
 
 ### Cost and scale
 
@@ -1103,7 +1120,11 @@ CLI's existing fan-out cap. Request kinds:
   the status, `stats.completed_at`, `results` and `error` that the cached
   plan does not hold, plus `summaries.json`: three GETs; for a log still
   running, the CD plus the journal members not yet cached. Zero for an
-  unchanged finished log; a running log's CD is read on every poll.
+  unchanged finished log whose summaries are cached; a running log's CD is
+  read on every poll. A finished log that was only indexed (its plan
+  cached by a per-sample or scoped read of other logs, with no summaries)
+  costs the CD, `header.json` and `summaries.json` on its first summary
+  read.
 - *sample read*: after the CD, two GETs for a field-excluding read (local
   header, then body) and one for a full read (`sample events`).
 - *segments*: one GET per segment listed for the sample.
@@ -1353,7 +1374,8 @@ with a different transport:
   mode adds convenience, not access. Limiting `--log-dir` to the read
   commands is not a security boundary (the mode has no write path to
   guard); it keeps a mutation from ever running against a directory.
-- **Cache.** Owner-only, keyed by URI and ETag, re-parsed through the same
+- **Cache.** Owner-only (directory 0700, entries and temp files created
+  0600; a write never recreates a deleted directory), keyed by URI and ETag, re-parsed through the same
   pydantic models on read; a same-user attacker who can edit it is out of
   scope, as for the discovery directory.
 
@@ -1483,7 +1505,11 @@ real moto server on an ephemeral port). New tests go in a new
   failed or cancelled read leaves a cache entry. A streamed member read that
   is corrupted fails its CRC check; one cancelled mid-stream is not
   validated and writes nothing. Deleting or corrupting every cache entry
-  between two polls changes no output, only the request count.
+  between two polls changes no output, only the request count. A cache
+  directory deleted after the invocation opened it (umask 022) is not
+  recreated and the output is unchanged. After a failed entry load, a log
+  replaced during its read and a failed write, the output equals an
+  uncached read's. A poll writes each entry at most once.
 - **Contract guards.** The commands carrying `--log-dir` are exactly the
   supported set; every other leaf command, invoked with `--log-dir <tmp>`,
   is a usage error (exit 2, no envelope) and makes no storage or discovery

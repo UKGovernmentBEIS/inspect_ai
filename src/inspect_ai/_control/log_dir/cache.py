@@ -20,12 +20,15 @@ Inspect version that parsed it and:
 Nothing keyed on a running log's version is reused. Manifests, sample
 members and segments are not cached.
 
-Entries are written only from reads that passed their consistency checks,
-atomically (temp file, then rename), so concurrent pollers may overwrite each
-other's entries but every entry describes a real version of its log. Any
-failure to key, load, validate, serialize or write an entry, and an entry of
-another schema or Inspect version, is a cache miss: the log is read as
-without the cache. Above :data:`MAX_CACHE_BYTES`, the least recently used
+Entries are stored only from reads that passed their consistency checks and
+written when the reads finish (:func:`use_cache`), at most once per log,
+atomically (temp file, then rename) and owner-only (0600) into the existing
+directory, which a write never creates. Concurrent pollers may overwrite each
+other's entries, but every entry describes a real version of its log. An
+entry of another schema or Inspect version is a cache miss. The first failure
+to key, load, validate, serialize or write an entry turns the cache off for
+the rest of the invocation: every later read is uncached, and nothing more is
+loaded or written. Above :data:`MAX_CACHE_BYTES`, the least recently used
 entries are removed.
 
 Only local and S3 logs are cached (see :func:`_cache_key`).
@@ -53,7 +56,7 @@ from inspect_ai._util.async_zip import AsyncZipReader, CentralDirectory
 from inspect_ai._util.asyncfiles import is_s3_filename
 from inspect_ai._util.atomic_write import atomic_write_bytes
 from inspect_ai._util.constants import PKG_NAME, get_deserializing_context
-from inspect_ai._util.discovery import DISCOVERY_DIR_MODE
+from inspect_ai._util.discovery import DISCOVERY_DIR_MODE, DISCOVERY_FILE_MODE
 from inspect_ai._util.file import filesystem, local_path
 from inspect_ai.log._log import EvalLog, EvalSampleSummary
 from inspect_ai.log._recorders.eval import _read_journal_summaries
@@ -153,7 +156,9 @@ class LogDirCache:
     def __init__(self, directory: Path) -> None:
         self.directory = directory
         self._entries: dict[str, _Entry | None] = {}
+        self._unwritten: dict[str, _Entry] = {}
         self._wrote = False
+        self._failed = False
 
     def finished_plan(self, file: LogFile) -> LogPlan | None:
         """The cached plan of a finished ``file``, with the version it was read from.
@@ -198,7 +203,7 @@ class LogDirCache:
         return JournalCache(entry.journal if entry is not None else {})
 
     def store_plan(self, plan: LogPlan) -> None:
-        """Store a plan read and checked in this invocation.
+        """Store a plan read and checked in this invocation, for :meth:`flush`.
 
         Keeps the cached journal members its central directory still lists.
         """
@@ -214,7 +219,7 @@ class LogDirCache:
         )
 
     def store_snapshot(self, snapshot: MemberSnapshot, journal: JournalCache) -> None:
-        """Store a member view read and checked in this invocation.
+        """Store a member view read and checked in this invocation, for :meth:`flush`.
 
         Keeps a finished log's summaries, and the journal members its central
         directory still lists.
@@ -226,12 +231,28 @@ class LogDirCache:
             journal=journal.members(plan.central_directory),
         )
 
+    def flush(self) -> None:
+        """Write the entries stored since the last flush, each once."""
+        try:
+            while self._unwritten:
+                key, entry = self._unwritten.popitem()
+                atomic_write_bytes(
+                    str(self._path(key)),
+                    entry.model_dump_json().encode(),
+                    fsync=False,
+                    mode=DISCOVERY_FILE_MODE,
+                    make_parents=False,
+                )
+                self._wrote = True
+        except Exception as ex:
+            self._fail(ex)
+
     def prune(self) -> None:
         """Remove the least recently used entries while the cache is too large.
 
-        A no-op until this cache has written something.
+        A no-op until this cache has written something, or once it has failed.
         """
-        if not self._wrote:
+        if not self._wrote or self._failed:
             return
         self._wrote = False
         files: list[tuple[float, int, str]] = []
@@ -257,12 +278,21 @@ class LogDirCache:
                 continue
             total -= size
 
-    # The entry is disposable, so any failure to key, load, validate,
-    # serialize or write it is a cache miss and the log is read instead. The
-    # log model's validators alone can raise many exception types on bad
-    # input, and a native path need not encode as UTF-8.
+    # Entries are disposable, so any failure to key, load, validate,
+    # serialize or write one turns the cache off and logs are read instead.
+    # The log model's validators alone can raise many exception types on bad
+    # input, and a native path need not encode as UTF-8. Turning it off,
+    # rather than missing on one key, leaves no state in which part of an
+    # entry was refreshed and part was not.
+
+    def _fail(self, ex: Exception) -> None:
+        logger.debug(f"log-dir cache off for this invocation: {ex!r}")
+        self._failed = True
+        self._unwritten.clear()
 
     def _entry(self, file: LogFile) -> _Entry | None:
+        if self._failed:
+            return None
         try:
             key = _cache_key(file.location)
             if key is None:
@@ -271,7 +301,7 @@ class LogDirCache:
                 self._entries[key] = self._load(key)
             return self._entries[key]
         except Exception as ex:
-            logger.debug(f"not using a log-dir cache entry for {file.location}: {ex!r}")
+            self._fail(ex)
             return None
 
     def _load(self, key: str) -> _Entry | None:
@@ -280,7 +310,15 @@ class LogDirCache:
             data = path.read_bytes()
         except FileNotFoundError:
             return None
-        entry = _Entry.model_validate_json(data, context=get_deserializing_context())
+        try:
+            entry = _Entry.model_validate_json(
+                data, context=get_deserializing_context()
+            )
+        except Exception:
+            # it never will validate; removed, the next invocation rebuilds it
+            with suppress(OSError):
+                path.unlink()
+            raise
         if (
             entry.schema_version != SCHEMA_VERSION
             or entry.inspect_version != INSPECT_VERSION
@@ -299,6 +337,8 @@ class LogDirCache:
         summaries: list[EvalSampleSummary] | None,
         journal: dict[str, _JournalMember],
     ) -> None:
+        if self._failed:
+            return
         try:
             key = _cache_key(plan.file.location)
             if key is None:
@@ -316,14 +356,11 @@ class LogDirCache:
                 summaries=summaries,
                 journal=journal,
             )
-            atomic_write_bytes(
-                str(self._path(key)), entry.model_dump_json().encode(), fsync=False
-            )
         except Exception as ex:
-            logger.debug(f"not caching {plan.file.location}: {ex!r}")
+            self._fail(ex)
             return
         self._entries[key] = entry
-        self._wrote = True
+        self._unwritten[key] = entry
 
     def _path(self, key: str) -> Path:
         return self.directory / f"{hashlib.sha256(key.encode()).hexdigest()}.json"
@@ -356,13 +393,14 @@ def active_cache() -> LogDirCache | None:
 
 @contextmanager
 def use_cache(cache: LogDirCache | None) -> Iterator[None]:
-    """Make the reads inside the block use ``cache``, then prune it."""
+    """Make the reads inside the block use ``cache``, then write and prune it."""
     token = _active_cache.set(cache)
     try:
         yield
     finally:
         _active_cache.reset(token)
         if cache is not None:
+            cache.flush()
             cache.prune()
 
 

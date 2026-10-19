@@ -12,6 +12,8 @@ import importlib
 import io
 import os
 import shutil
+import stat
+import sys
 import time
 import zipfile
 from collections import Counter
@@ -2289,6 +2291,7 @@ async def test_a_changed_log_is_re_read_and_an_older_entry_written_over_a_newer_
     assert member is not None
     assert poller_a is not None
     poller_a.store_snapshot(member, JournalCache({}))
+    poller_a.flush()
     third = await _poll(log_dir)
     assert _answers(third) == _answers(second)
 
@@ -2325,13 +2328,122 @@ async def test_a_log_replaced_between_its_version_lookup_and_its_read_gets_no_ol
     assert not pending
     assert _statuses(sample_listing(warm.views[0]))[2] == "completed"
     uncached = await _poll(log_dir, cache=None)
-
-    # updated_at is the listing's mtime, taken before the replacement
-    def unlisted_time(poll: _Poll) -> list[Any]:
-        return [({**row, "updated_at": None}, rows) for row, rows in _answers(poll)]
-
-    assert unlisted_time(warm) == unlisted_time(uncached)
+    assert _unlisted_time(warm) == _unlisted_time(uncached)
     assert _answers(await _poll(log_dir)) == _answers(uncached)
+
+
+def _unlisted_time(poll: _Poll) -> list[Any]:
+    """:func:`_answers` less ``updated_at``, the mtime the listing saw."""
+    return [({**row, "updated_at": None}, rows) for row, rows in _answers(poll)]
+
+
+async def test_after_a_cache_failure_a_replaced_log_is_read_as_uncached(
+    log_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from inspect_ai._control.log_dir import cache as cache_module
+
+    [path] = list(log_dir.glob("*.eval"))
+    await _poll(log_dir)
+    replaced = await read_eval_log_async(str(path))
+    assert replaced.samples is not None
+    replaced.samples[1] = replaced.samples[1].model_copy(update={"error": None})
+
+    # the first entry load fails, the log is replaced after its version is
+    # looked up and before its central directory is read, and writes fail
+    real_load = cache_module.LogDirCache._load
+    loads: list[str] = []
+
+    def load_failing_once(self: LogDirCache, key: str) -> Any:
+        loads.append(key)
+        if len(loads) == 1:
+            raise OSError("transient")
+        return real_load(self, key)
+
+    real_log_version = consistency.log_version
+    pending = [replaced]
+
+    async def replaced_after_lookup(fs: AsyncFilesystem, location: str) -> str | None:
+        version = await real_log_version(fs, location)
+        if pending:
+            await write_eval_log_async(pending.pop(), str(path))
+        return version
+
+    def failing_write(*args: Any, **kwargs: Any) -> None:
+        raise OSError("no space left")
+
+    with monkeypatch.context() as patch:
+        patch.setattr(cache_module.LogDirCache, "_load", load_failing_once)
+        patch.setattr(consistency, "log_version", replaced_after_lookup)
+        patch.setattr(cache_module, "atomic_write_bytes", failing_write)
+        warm = await _poll(log_dir)
+    assert not pending
+    assert _statuses(sample_listing(warm.views[0]))[2] == "completed"
+    assert _unlisted_time(warm) == _unlisted_time(await _poll(log_dir, cache=None))
+    # the failure turned the cache off: nothing else was loaded
+    assert len(loads) == 1
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX permission bits")
+async def test_a_cache_directory_deleted_after_it_is_opened_is_not_recreated(
+    log_dir: Path, finished_log: EvalLog, _isolate_log_dir_cache: Path
+) -> None:
+    await _write_running_log(log_dir, finished_log, logged=[1, 2], sample_ids=[1, 2, 3])
+    uncached = await _poll(log_dir, cache=None)
+    umask = os.umask(0o022)
+    try:
+        cache = open_cache()
+        directory = _isolate_log_dir_cache / "ctl" / "log-dir-cache"
+        shutil.rmtree(directory)
+        before = set(_isolate_log_dir_cache.rglob("*"))
+        deleted = await _poll(log_dir, cache)
+        again = await _poll(log_dir, cache)
+        # nothing is created: no directory, no entry, no temp file
+        assert set(_isolate_log_dir_cache.rglob("*")) == before
+
+        # opened again, the directory is created owner-only, and so are entries
+        cold = await _poll(log_dir)
+        entries = _cache_files(_isolate_log_dir_cache)
+        assert len(entries) == 2
+        assert stat.S_IMODE(directory.stat().st_mode) == 0o700
+        assert {stat.S_IMODE(e.stat().st_mode) for e in entries} == {0o600}
+    finally:
+        os.umask(umask)
+    assert _answers(deleted) == _answers(again) == _answers(uncached)
+    assert _answers(cold) == _answers(uncached)
+
+
+async def test_a_poll_writes_each_entry_at_most_once(
+    log_dir: Path,
+    finished_log: EvalLog,
+    monkeypatch: pytest.MonkeyPatch,
+    _isolate_log_dir_cache: Path,
+) -> None:
+    from inspect_ai._control.log_dir import cache as cache_module
+    from inspect_ai._util.atomic_write import atomic_write_bytes as real_write
+
+    running = await _start_running_log(
+        log_dir, finished_log, logged=[1], sample_ids=[1, 2, 3]
+    )
+    writes = Counter[str]()
+
+    def counting(target_path: str, data: bytes, *args: Any, **kwargs: Any) -> None:
+        writes[target_path] += 1
+        real_write(target_path, data, *args, **kwargs)
+
+    monkeypatch.setattr(cache_module, "atomic_write_bytes", counting)
+
+    # cold: each log's entry, once
+    await _poll(log_dir)
+    assert sorted(writes.values()) == [1, 1]
+    # warm: the unchanged finished log is not written; the running log once
+    writes.clear()
+    await _poll(log_dir)
+    assert list(writes.values()) == [1]
+    # after a flush: the running log once
+    writes.clear()
+    await _flush(running, [running.sample(2)])
+    await _poll(log_dir)
+    assert list(writes.values()) == [1]
 
 
 def _padded(data: bytes, size: int) -> bytes:
@@ -2535,8 +2647,6 @@ async def test_a_log_the_cache_cannot_serialize_is_read_without_an_entry(
     running: bool,
     _isolate_log_dir_cache: Path,
 ) -> None:
-    import json
-
     # an escaped lone surrogate parses, but does not serialize
     if running:
         [finished] = list(log_dir.glob("*.eval"))
@@ -2550,12 +2660,8 @@ async def test_a_log_the_cache_cannot_serialize_is_read_without_an_entry(
     uncached = await _poll(log_dir, cache=None)
     assert _answers(await _poll(log_dir)) == _answers(uncached)
     assert _answers(await _poll(log_dir)) == _answers(uncached)
-    # only the parts that serialize are cached: the plan without its summaries
-    entries = [json.loads(f.read_text()) for f in _cache_files(_isolate_log_dir_cache)]
-    if member == "header.json":
-        assert entries == []
-    else:
-        assert [(e["summaries"], e["journal"]) for e in entries] == [(None, {})]
+    # the failure turns the cache off, so nothing is written
+    assert _cache_files(_isolate_log_dir_cache) == []
 
 
 async def test_failed_and_cancelled_reads_store_no_snapshot(
