@@ -1,5 +1,6 @@
+from contextvars import ContextVar
 from logging import getLogger
-from typing import Any, Awaitable, Callable, TypeVarTuple
+from typing import Any, Awaitable, Callable, Coroutine, Protocol, TypeVarTuple
 
 from typing_extensions import Unpack
 
@@ -7,6 +8,23 @@ logger = getLogger(__name__)
 
 
 PosArgsT = TypeVarTuple("PosArgsT")
+
+
+class BackgroundTarget(Protocol):
+    """Where ``background()`` starts work instead of the sample's task group."""
+
+    def start_soon(
+        self,
+        func: Callable[[Unpack[PosArgsT]], Coroutine[Any, Any, Any]],
+        *args: Unpack[PosArgsT],
+    ) -> None: ...
+
+
+# Where background() starts work, when set. Unset, it starts in the sample's
+# task group. Private: whoever sets it owns the work started there.
+background_target: ContextVar[BackgroundTarget | None] = ContextVar(
+    "background_target", default=None
+)
 
 
 def background(
@@ -32,22 +50,13 @@ def background(
             ...
     ```
 
+    Internal callers can set a background target, which then starts and
+    owns the work in place of the sample (no running sample is needed).
+
     Args:
        func: Async function to run
        *args: Optional function arguments.
     """
-    from inspect_ai.log._samples import sample_active
-
-    # get the active sample
-    sample = sample_active()
-    if sample is None:
-        raise RuntimeError(
-            "background() function must be called from a running sample."
-        )
-    if sample.tg is None:
-        raise RuntimeError(
-            "background() function must be called after sample has been started."
-        )
 
     # handle and log background exceptions
     async def run() -> None:
@@ -69,6 +78,24 @@ def background(
             ):
                 logger.error(f"Background worker error: {ex}")
             raise
+
+    target = background_target.get()
+    if target is not None:
+        target.start_soon(run)
+        return
+
+    from inspect_ai.log._samples import sample_active
+
+    # get the active sample
+    sample = sample_active()
+    if sample is None:
+        raise RuntimeError(
+            "background() function must be called from a running sample."
+        )
+    if sample.tg is None:
+        raise RuntimeError(
+            "background() function must be called after sample has been started."
+        )
 
     # kick it off
     sample.tg.start_soon(run)

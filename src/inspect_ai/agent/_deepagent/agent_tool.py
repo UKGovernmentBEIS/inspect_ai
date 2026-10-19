@@ -148,8 +148,13 @@ class BackgroundRegistry:
         so a deepagent that starts in a scorer owns a task group instead. Its
         children are cancelled when the deepagent exits, and the exit waits
         for them to finish.
+
+        While ``background_target`` is set, this also does nothing: children
+        start in that target via ``background()``, and it owns them.
         """
-        if _live_sample_task_group() is not None:
+        from inspect_ai.util._background import background_target
+
+        if background_target.get() is not None or _live_sample_task_group() is not None:
             yield
             return
 
@@ -639,8 +644,9 @@ def _dispatch_background(
     """Spawn the child agent in the background and return the AGENT-N handle.
 
     Validates the cap, registers an ``AgentFuture``, and kicks the child
-    off via ``background()`` (sample-scoped lifetime), or in the registry's
-    own task group when it has one (see ``owned_task_group()``).
+    off via ``background()`` (sample-scoped lifetime, or the
+    ``background_target``'s when one is set), or in the registry's own task
+    group when it has one (see ``owned_task_group()``).
 
     All registration is synchronous (no awaits) so the cap check and
     insert form an atomic critical section under cooperative scheduling —
