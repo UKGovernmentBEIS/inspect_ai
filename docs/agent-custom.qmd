@@ -282,6 +282,22 @@ red_team_activity = store_as(Activity, instance="red_team")
 blue_team_activity = store_as(Activity, instance="blue_team")
 ```
 
+### Tool State Scopes
+
+Agents that run concurrently in one sample share the state of tools left at their default `instance`. For example, two agents given `memory()` read and write the same files. To give each agent its own state, run it inside a `tool_state_scope()`:
+
+``` python
+from inspect_ai.util import tool_state_scope
+
+async def run_worker(name: str, worker: Agent, state: AgentState) -> AgentState:
+    with tool_state_scope(name):
+        return await worker(state)
+```
+
+Inside the scope, `memory()`, `bash_session()`, `web_browser()` and `skill()` use the scope as their default instance (`"@<name>"`), so each agent gets its own memory, shell, browser and skills. A tool given an explicit instance, such as `memory(instance="team")`, is still shared between agents. Nested scopes join their names with "/" (`"@outer/inner"`). Instances that start with "@" are reserved for scopes, so an explicit instance never shares state with a scope by accident. Tasks started inside the scope inherit it. Outside any scope, tools behave as before. Skill files are the exception: they live in the sandbox, so `skill()` tools that install into the same directory share them. A skill file that already exists with the same contents is not written again, and one that exists with different contents raises an error.
+
+Custom tools and agents can follow the scope by passing `tool_state_instance(instance)` to `store_as()`. Library code that picks an instance name itself and wants it kept private to the scope can use `private_tool_instance(name)`, which returns `"<scope>#<name>"` inside a scope (for example `"@w-1#general"`) and `name` outside one.
+
 ## Agent Limits
 
 The Inspect [limits system](setting-limits.qmd#scoped-limits) enables you to set a variety of limits on execution including tokens consumed, messages used in conversations, clock time, and working time (clock time minus time taken retrying in response to rate limits or waiting on other shared resources; see [Working Limit](setting-limits.qmd#working-limit) for its limitations).

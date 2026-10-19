@@ -35,9 +35,6 @@ from inspect_ai.tool._mcp.tools import MCPToolSourceLocal
 from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.util import sandbox
 
-if sys.version_info < (3, 11):
-    from exceptiongroup import BaseExceptionGroup
-
 MCP_TEST_SERVER = str(Path(__file__).parent / "mcp_test_server.py")
 
 

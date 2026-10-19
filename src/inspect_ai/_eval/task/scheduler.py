@@ -26,7 +26,6 @@ directive's accept path requires.
 
 from __future__ import annotations
 
-import sys
 from dataclasses import dataclass
 from typing import (
     TYPE_CHECKING,
@@ -41,9 +40,6 @@ from typing import (
 import anyio
 
 from inspect_ai._util._async import Wake
-
-if sys.version_info < (3, 11):
-    from exceptiongroup import ExceptionGroup
 
 if TYPE_CHECKING:
     from inspect_ai._eval.task.error import SampleErrorHandler

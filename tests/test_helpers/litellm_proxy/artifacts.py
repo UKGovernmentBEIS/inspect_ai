@@ -295,6 +295,20 @@ def check_reasoning_content_replay(
     return 1
 
 
+# xAI ------------------------------------------------------------------------
+
+
+def check_xai_replay(response: dict[str, Any], next_request: dict[str, Any]) -> int:
+    """xAI: encrypted reasoning on Responses, a reasoning summary on chat.
+
+    LiteLLM passes both APIs to xAI unconverted, so each has the wire format
+    of its OpenAI counterpart (`reasoning_content` on chat).
+    """
+    if "output" in response:
+        return check_openai_responses_replay(response, next_request)
+    return check_reasoning_content_replay(response, next_request)
+
+
 # Helpers --------------------------------------------------------------------
 
 
