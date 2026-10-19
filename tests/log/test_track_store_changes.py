@@ -20,6 +20,7 @@ Store is used in practice) and assert that the emitted
 from __future__ import annotations
 
 import json
+import logging
 import math
 from contextlib import contextmanager
 from copy import deepcopy
@@ -498,4 +499,44 @@ async def test_span_store_diff_failure_does_not_mask_exception(
     assert raised.value is error
     assert "diff failed" in caplog.text
     assert not any(isinstance(e, StoreEvent) for e in transcript.events)
+    assert any(isinstance(e, SpanEndEvent) for e in transcript.events)
+
+
+class _FailingHandler(logging.Handler):
+    def emit(self, record: logging.LogRecord) -> None:
+        raise ValueError("handler failed")
+
+
+@pytest.mark.parametrize("exit", ["raise", "cancel"])
+async def test_span_store_diff_and_warning_failure_does_not_mask_exception(
+    exit: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    transcript = _init_span_test()
+    error = RuntimeError("boom")
+
+    def failing_store_changes(*args: Any) -> None:
+        raise ValueError("diff failed")
+
+    monkeypatch.setattr(
+        "inspect_ai.log._transcript.store_changes", failing_store_changes
+    )
+    handler = _FailingHandler()
+    logging.getLogger("inspect_ai.log._transcript").addHandler(handler)
+    try:
+        if exit == "raise":
+            with pytest.raises(RuntimeError) as raised:
+                async with span("failing"):
+                    store().set("key", "value")
+                    raise error
+            assert raised.value is error
+        else:
+            with anyio.CancelScope() as scope:
+                async with span("cancelled"):
+                    store().set("key", "value")
+                    scope.cancel()
+                    await anyio.sleep(10)
+            assert scope.cancelled_caught
+    finally:
+        logging.getLogger("inspect_ai.log._transcript").removeHandler(handler)
+
     assert any(isinstance(e, SpanEndEvent) for e in transcript.events)
