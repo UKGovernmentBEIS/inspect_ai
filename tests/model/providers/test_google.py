@@ -20,8 +20,10 @@ from google.genai.types import (
     FinishReason,
     FunctionCall,
     FunctionCallingConfigMode,
+    FunctionResponse,
     GenerateContentConfig,
     GenerateContentResponse,
+    GenerateContentResponseUsageMetadata,
     HttpOptions,
     JobState,
     Part,
@@ -42,12 +44,14 @@ from inspect_ai._util.content import (
 )
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.kvstore import KVStore
+from inspect_ai.agent._bridge.google_api_impl import messages_from_google_contents
 from inspect_ai.dataset import Sample
 from inspect_ai.model import (
     ChatMessage,
     ChatMessageAssistant,
     ChatMessageTool,
     ModelOutput,
+    messages_from_google,
 )
 from inspect_ai.model._chat_message import ChatMessageUser
 from inspect_ai.model._generate_config import BatchConfig, GenerateConfig
@@ -61,6 +65,7 @@ from inspect_ai.model._providers.google import (
     _malformed_function_message,
     _malformed_function_retry,
     _report_stream_part_delta,
+    as_chat_messages,
     chat_content_to_part,
     completion_choice_from_candidate,
     content,
@@ -79,6 +84,7 @@ from inspect_ai.scorer import includes
 from inspect_ai.solver import use_tools
 from inspect_ai.tool import (
     ToolCall,
+    ToolCallError,
     ToolInfo,
     ToolParam,
     ToolParams,
@@ -191,6 +197,342 @@ def test_completion_choice_multiple_function_calls():
         assert call.id.startswith("calculator_"), (
             f"ID should start with function name: {call.id}"
         )
+
+
+def test_completion_choice_drops_safety_decision():
+    """A safety_decision is not replayed, so its result needs no acknowledgement."""
+    candidate = Candidate(
+        content=Content(
+            role="model",
+            parts=[
+                Part(
+                    function_call=FunctionCall(
+                        name="purchase",
+                        args={
+                            "item": "espresso machine",
+                            "safety_decision": {
+                                "decision": "require_confirmation",
+                                "explanation": "A purchase.",
+                            },
+                        },
+                    )
+                ),
+            ],
+        ),
+        finish_reason=FinishReason.STOP,
+    )
+
+    choice = completion_choice_from_candidate("test-model", candidate)
+
+    assert choice.message.tool_calls is not None
+    assert choice.message.tool_calls[0].arguments == {"item": "espresso machine"}
+
+
+async def test_tool_result_sent_as_output() -> None:
+    message = ChatMessageTool(
+        content="2", tool_call_id="addition_1", function="addition"
+    )
+
+    google_content = await content(MagicMock(), message)
+
+    assert google_content.parts is not None
+    response = google_content.parts[0].function_response
+    assert response is not None
+    assert response.name == "addition"
+    assert response.response == {"output": "2"}
+
+
+async def test_tool_error_sent_as_error() -> None:
+    message = ChatMessageTool(
+        content="",
+        tool_call_id="addition_1",
+        function="addition",
+        error=ToolCallError("parsing", "x must be an integer"),
+    )
+
+    google_content = await content(MagicMock(), message)
+
+    assert google_content.parts is not None
+    response = google_content.parts[0].function_response
+    assert response is not None
+    assert response.response == {"error": "x must be an integer"}
+
+
+async def test_computer_tool_result_keeps_computer_use_shape() -> None:
+    message = ChatMessageTool(
+        content="clicked", tool_call_id="click_at_abc", function="computer"
+    )
+
+    google_content = await content(MagicMock(), message)
+
+    assert google_content.parts is not None
+    response = google_content.parts[0].function_response
+    assert response is not None
+    assert response.name == "click_at"
+    assert response.response == {
+        "content": "clicked",
+        "safety_acknowledgement": "true",
+        "url": "",
+    }
+
+
+SAFETY_DECISION = {"decision": "require_confirmation", "explanation": "A purchase."}
+
+
+def _function_responses(contents: list[Content]) -> list[dict[str, Any] | None]:
+    return [
+        part.function_response.response
+        for c in contents
+        for part in c.parts or []
+        if part.function_response is not None
+    ]
+
+
+@pytest.mark.parametrize(
+    "response,expected",
+    [
+        ({"output": "Order placed.", "safety_acknowledgement": "true"}, "output"),
+        ({"error": "Card declined.", "safety_acknowledgement": "true"}, "error"),
+    ],
+)
+async def test_imported_safety_decision_result_is_acknowledged(
+    response: dict[str, Any], expected: str
+) -> None:
+    messages = await messages_from_google(
+        [
+            Content(role="user", parts=[Part(text="Buy the espresso machine.")]),
+            Content(
+                role="model",
+                parts=[
+                    Part(
+                        function_call=FunctionCall(
+                            name="purchase",
+                            args={
+                                "item": "machine",
+                                "safety_decision": SAFETY_DECISION,
+                            },
+                        )
+                    )
+                ],
+            ),
+            Content(
+                role="user",
+                parts=[
+                    Part(
+                        function_response=FunctionResponse(
+                            name="purchase", response=response
+                        )
+                    )
+                ],
+            ),
+        ]
+    )
+
+    contents = await as_chat_messages(MagicMock(), messages)
+
+    assert _function_responses(contents) == [
+        {expected: response[expected], "safety_acknowledgement": "true"}
+    ]
+
+
+async def test_bridged_safety_decision_result_is_acknowledged() -> None:
+    messages = messages_from_google_contents(
+        [
+            {"role": "user", "parts": [{"text": "Buy the espresso machine."}]},
+            {
+                "role": "model",
+                "parts": [
+                    {
+                        "functionCall": {
+                            "name": "purchase",
+                            "args": {
+                                "item": "machine",
+                                "safety_decision": SAFETY_DECISION,
+                            },
+                        }
+                    }
+                ],
+            },
+            {
+                "role": "user",
+                "parts": [
+                    {
+                        "functionResponse": {
+                            "name": "purchase",
+                            "response": {"output": "Order placed."},
+                        }
+                    }
+                ],
+            },
+        ],
+        None,
+    )
+
+    contents = await as_chat_messages(MagicMock(), messages)
+
+    responses = _function_responses(contents)
+    assert len(responses) == 1
+    assert responses[0] is not None
+    assert responses[0]["safety_acknowledgement"] == "true"
+
+
+async def test_result_without_safety_decision_is_not_acknowledged() -> None:
+    messages: list[ChatMessage] = [
+        ChatMessageUser(content="What is 1 + 1?"),
+        ChatMessageAssistant(
+            content="",
+            tool_calls=[
+                ToolCall(id="addition_1", function="addition", arguments={"x": 1})
+            ],
+        ),
+        ChatMessageTool(content="2", tool_call_id="addition_1", function="addition"),
+    ]
+
+    contents = await as_chat_messages(MagicMock(), messages)
+
+    assert _function_responses(contents) == [{"output": "2"}]
+
+
+async def test_imported_result_matches_call_of_its_own_turn() -> None:
+    """An earlier unanswered call to the same function does not take the result."""
+    messages = await messages_from_google(
+        [
+            Content(role="user", parts=[Part(text="Buy the espresso machine.")]),
+            # a call whose result was cut from the history
+            Content(
+                role="model",
+                parts=[
+                    Part(
+                        function_call=FunctionCall(
+                            name="purchase", args={"item": "grinder"}
+                        )
+                    )
+                ],
+            ),
+            Content(role="user", parts=[Part(text="Buy the machine instead.")]),
+            Content(
+                role="model",
+                parts=[
+                    Part(
+                        function_call=FunctionCall(
+                            name="purchase",
+                            args={
+                                "item": "machine",
+                                "safety_decision": SAFETY_DECISION,
+                            },
+                        )
+                    )
+                ],
+            ),
+            Content(
+                role="user",
+                parts=[
+                    Part(
+                        function_response=FunctionResponse(
+                            name="purchase", response={"output": "Order placed."}
+                        )
+                    )
+                ],
+            ),
+        ]
+    )
+
+    contents = await as_chat_messages(MagicMock(), messages)
+
+    assert _function_responses(contents) == [
+        {"output": "Order placed.", "safety_acknowledgement": "true"}
+    ]
+
+
+async def test_count_tokens_acknowledges_safety_decision() -> None:
+    mock_client = _create_mock_google_count_tokens_client()
+    messages: list[ChatMessage] = [
+        ChatMessageUser(content="Buy the espresso machine."),
+        ChatMessageAssistant(
+            content="",
+            tool_calls=[
+                ToolCall(
+                    id="purchase_1",
+                    function="purchase",
+                    arguments={"item": "machine", "safety_decision": SAFETY_DECISION},
+                )
+            ],
+        ),
+        ChatMessageTool(
+            content="Order placed.", tool_call_id="purchase_1", function="purchase"
+        ),
+    ]
+
+    with patch("inspect_ai.model._providers.google.Client", return_value=mock_client):
+        api = GoogleGenAIAPI(
+            model_name="gemini-3-flash-preview", base_url=None, api_key="test-key"
+        )
+        assert await api.count_tokens(messages) == 7
+
+    contents = mock_client.aio.models.count_tokens.call_args.kwargs["contents"]
+    assert _function_responses(contents) == [
+        {"output": "Order placed.", "safety_acknowledgement": "true"}
+    ]
+
+
+@skip_if_no_google
+async def test_replayed_safety_decision_is_acknowledged_live() -> None:
+    """Gemini 3 rejects a replayed safety_decision whose result is not acknowledged."""
+    from inspect_ai.model import get_model
+    from inspect_ai.tool._tools._computer._computer import _COMPUTER_TOOL_PARAMETERS
+
+    model = "gemini-3-flash-preview"
+    choice = completion_choice_from_candidate(
+        model,
+        Candidate(
+            content=Content(
+                role="model",
+                parts=[
+                    Part(
+                        function_call=FunctionCall(
+                            name="purchase", args={"item": "espresso machine"}
+                        ),
+                        thought_signature=b"skip_thought_signature_validator",
+                    )
+                ],
+            ),
+            finish_reason=FinishReason.STOP,
+        ),
+    )
+    assert choice.message.tool_calls is not None
+    tool_call = choice.message.tool_calls[0]
+    # as kept by a history imported from elsewhere
+    tool_call.arguments["safety_decision"] = SAFETY_DECISION
+    messages: list[ChatMessage] = [
+        ChatMessageUser(content="Buy the espresso machine with the purchase tool."),
+        choice.message,
+        ChatMessageTool(
+            content="Order placed.", tool_call_id=tool_call.id, function="purchase"
+        ),
+    ]
+    tools = [
+        ToolInfo(
+            name="purchase",
+            description="Buy an item and charge the user's card.",
+            parameters=ToolParams(
+                properties={"item": ToolParam(type="string")}, required=["item"]
+            ),
+        ),
+        ToolInfo(
+            name="computer",
+            description="Use a computer.",
+            parameters=ToolParams(
+                properties={
+                    k: ToolParam(type="string") for k in _COMPUTER_TOOL_PARAMETERS
+                }
+            ),
+        ),
+    ]
+
+    output = await get_model(f"google/{model}").generate(messages, tools=tools)
+
+    assert output.error is None
+    assert output.completion
 
 
 def test_completion_choice_inline_data_image():
@@ -1012,6 +1354,154 @@ async def test_malformed_function_call_retry_adds_feedback_messages():
         roles = [c.role for c in contents]
         assert "model" in roles
         assert "user" in roles
+
+
+async def test_function_tools_add_no_system_instruction():
+    mock_generate = AsyncMock(return_value=_create_success_response_with_tool_call())
+    mock_client = _create_mock_google_client(mock_generate)
+
+    with patch("inspect_ai.model._providers.google.Client", return_value=mock_client):
+        api = GoogleGenAIAPI(
+            model_name="gemini-2.5-pro", base_url=None, api_key="test-key"
+        )
+        await api.generate(
+            input=[ChatMessageUser(content="Call my_tool")],
+            tools=[_create_test_tool()],
+            tool_choice="auto",
+            config=GenerateConfig(),
+        )
+
+    config = mock_generate.call_args.kwargs["config"]
+    assert config.tools
+    assert config.system_instruction is None
+
+
+def _with_usage(
+    response: GenerateContentResponse, prompt: int, candidates: int, thoughts: int
+) -> GenerateContentResponse:
+    response.usage_metadata = GenerateContentResponseUsageMetadata(
+        prompt_token_count=prompt,
+        cached_content_token_count=1,
+        candidates_token_count=candidates,
+        thoughts_token_count=thoughts,
+        total_token_count=prompt + candidates + thoughts,
+    )
+    return response
+
+
+@pytest.mark.anyio
+async def test_malformed_function_call_retry_sums_usage():
+    """Usage covers every billed attempt of the retry loop, not just the last."""
+    mock_generate = AsyncMock(
+        side_effect=[
+            _with_usage(_create_malformed_response(), 10, 2, 3),
+            _with_usage(_create_malformed_response(), 20, 4, 5),
+            _with_usage(_create_success_response_with_tool_call(), 30, 6, 7),
+        ]
+    )
+    mock_client = _create_mock_google_client(mock_generate)
+
+    with patch("inspect_ai.model._providers.google.Client", return_value=mock_client):
+        api = GoogleGenAIAPI(
+            model_name="gemini-2.0-flash",
+            base_url=None,
+            api_key="test-key",
+        )
+
+        output, _ = await api.generate(
+            input=[ChatMessageUser(content="Call my_tool")],
+            tools=[_create_test_tool()],
+            tool_choice="auto",
+            config=GenerateConfig(),
+        )
+
+    assert mock_generate.call_count == 3
+    assert output.choices[0].message.tool_calls is not None
+    assert output.usage is not None
+    # input excludes the 1 cached token per request
+    assert output.usage.input_tokens == 9 + 19 + 29
+    assert output.usage.input_tokens_cache_read == 3
+    assert output.usage.output_tokens == 5 + 9 + 13
+    assert output.usage.reasoning_tokens == 3 + 5 + 7
+    assert output.usage.total_tokens == 15 + 29 + 43
+    # the context size is the first attempt's prompt, not the sum
+    assert output.input_context_tokens == 10
+
+
+@pytest.mark.anyio
+async def test_malformed_function_call_retry_exhausted_sums_usage():
+    """When every attempt is malformed, usage still covers all of them once."""
+    mock_generate = AsyncMock(
+        side_effect=[
+            _with_usage(_create_malformed_response(), 10, 2, 0),
+            _with_usage(_create_malformed_response(), 20, 4, 0),
+            _with_usage(_create_malformed_response(), 30, 6, 0),
+        ]
+    )
+    mock_client = _create_mock_google_client(mock_generate)
+
+    with patch("inspect_ai.model._providers.google.Client", return_value=mock_client):
+        api = GoogleGenAIAPI(
+            model_name="gemini-2.0-flash",
+            base_url=None,
+            api_key="test-key",
+        )
+
+        output, _ = await api.generate(
+            input=[ChatMessageUser(content="Call my_tool")],
+            tools=[_create_test_tool()],
+            tool_choice="auto",
+            config=GenerateConfig(),
+        )
+
+    assert mock_generate.call_count == 3
+    assert output.usage is not None
+    assert output.usage.input_tokens == 9 + 19 + 29
+    assert output.usage.output_tokens == 2 + 4 + 6
+    assert output.usage.total_tokens == 12 + 24 + 36
+    assert output.input_context_tokens == 10
+
+
+@pytest.mark.anyio
+async def test_malformed_function_call_retry_error_keeps_earlier_usage():
+    """A retry rejected as too long keeps the usage of the attempts before it."""
+    mock_generate = AsyncMock(
+        side_effect=[
+            _with_usage(_create_malformed_response(), 10, 2, 0),
+            ClientError(
+                400,
+                {
+                    "error": {
+                        "code": 400,
+                        "message": "input exceeds the maximum number of tokens",
+                        "status": "INVALID_ARGUMENT",
+                    }
+                },
+            ),
+        ]
+    )
+    mock_client = _create_mock_google_client(mock_generate)
+
+    with patch("inspect_ai.model._providers.google.Client", return_value=mock_client):
+        api = GoogleGenAIAPI(
+            model_name="gemini-2.0-flash",
+            base_url=None,
+            api_key="test-key",
+        )
+
+        output, _ = await api.generate(
+            input=[ChatMessageUser(content="Call my_tool")],
+            tools=[_create_test_tool()],
+            tool_choice="auto",
+            config=GenerateConfig(),
+        )
+
+    assert isinstance(output, ModelOutput)
+    assert output.stop_reason == "model_length"
+    assert output.usage is not None
+    assert output.usage.input_tokens == 9
+    assert output.usage.output_tokens == 2
+    assert output.input_context_tokens == 10
 
 
 # Tests for count_tokens with unpaired tool messages

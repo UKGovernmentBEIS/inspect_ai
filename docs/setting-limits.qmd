@@ -1,6 +1,13 @@
 ---
 title: "Setting Limits"
 llms-description: Setting time, message, token, and cost limits on evaluation tasks, samples, and agent execution.
+aliases:
+  - errors-and-limits.html#time-limit
+  - errors-and-limits.html#working-limit
+  - errors-and-limits.html#scoped-limits
+  - errors-and-limits.html#agent-limits
+  - errors-and-limits.html#query-usage
+  - errors-and-limits.html#custom-limit
 ---
 
 ## Overview
