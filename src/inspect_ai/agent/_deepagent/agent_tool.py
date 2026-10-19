@@ -38,6 +38,7 @@ from inspect_ai.tool._tool_call import (
     ToolCallViewer,
 )
 from inspect_ai.tool._tool_def import ToolDef
+from inspect_ai.util._tool_state import private_tool_instance
 
 from .prompt import SUBAGENT_SUBMIT_PROMPT
 from .subagent import Subagent
@@ -951,7 +952,7 @@ def _resolve_tools(
     if merged_skills:
         from inspect_ai.tool._tools._skill import skill as skill_fn
 
-        tools.append(skill_fn(merged_skills, instance=sa.name))
+        tools.append(skill_fn(merged_skills, instance=private_tool_instance(sa.name)))
 
     if depth + 1 < max_depth:
         # Pass the effective model (sa.model or parent_model) so nested

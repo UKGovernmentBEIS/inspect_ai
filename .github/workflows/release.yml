@@ -93,6 +93,20 @@ jobs:
           if [ "$COUNT" -gt 0 ]; then OPEN=true; else OPEN=false; fi
           echo "open=$OPEN" >> "$GITHUB_OUTPUT"
 
+      # Release Please rewrites the release PR on every update, so this renames
+      # its "### ⚠ BREAKING CHANGES" heading each run, before the checks are
+      # dispatched on the resulting head. The commit is made with GITHUB_TOKEN
+      # and starts no workflows. A failure here must not block a publish, so
+      # the step continues on error; the next run (or a re-run) renames it.
+      - name: Rename the breaking changes heading
+        if: steps.pr.outputs.open == 'true'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 .github/scripts/release_workflow.py --repo "$GITHUB_REPOSITORY" \
+            breaking-changes-heading --branch "$RELEASE_BRANCH"
+
       # Dispatches only the workflows with no run on the release PR's current
       # head, so re-running this job retries a failed dispatch. build.yml and
       # changelog-lint.yml provide the required status checks; if they are

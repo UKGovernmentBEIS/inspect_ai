@@ -123,7 +123,13 @@ from ._generate_config import (
 )
 from ._model_call import ModelCall, as_error_response
 from ._model_data.model_data import ModelCost, ModelInfo
-from ._model_output import ModelFallback, ModelOutput, ModelUsage, ServedModelUsage
+from ._model_output import (
+    ModelFallback,
+    ModelOutput,
+    ModelUsage,
+    ServedModelUsage,
+    usage_input_tokens,
+)
 from ._response_headers import ResponseHeaders, track_response_headers
 from ._stream import (
     ModelStreamObserver,
@@ -1677,6 +1683,11 @@ class Model:
                     provider_message=str(output),
                 ) from output
 
+            # a provider whose generate makes one request leaves the context
+            # size to be read from its usage
+            if output.input_context_tokens is None:
+                output.input_context_tokens = usage_input_tokens(output.usage)
+
             # update output with time (call.time captures time spent
             # on the actual request that succeeds w/ status 200)
             if call and call.time is not None:
@@ -2003,6 +2014,11 @@ class Model:
             call=call,
             pending=output is None,
         )
+        # at creation, so a request still in flight counts as sent
+        if is_agent_generate():
+            from inspect_ai._sentinel._dispatch import record_agent_turn
+
+            record_agent_turn(input)
         sink = _model_event_sink.get()
         if sink is None:
             transcript()._event(event)
