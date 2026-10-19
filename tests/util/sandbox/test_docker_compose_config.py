@@ -61,12 +61,18 @@ def generated_compose_dir(
 
 
 @pytest.mark.parametrize("generated_compose_dir", [True], indirect=True)
+@pytest.mark.parametrize("local_compose", [False, True])
 def test_generated_compose_symlink_cleanup_and_recreation(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     generated_compose_dir: Path,
+    local_compose: bool,
 ) -> None:
     monkeypatch.chdir(tmp_path)
+    if local_compose:
+        (tmp_path / "compose.yaml").write_text(
+            "services: {unrelated: {image: alpine}}\n"
+        )
     project_name = "inspect-symlink"
     file = auto_compose_file("services: {}\n", project_name)
     assert Path(file).parent == generated_compose_dir.resolve()

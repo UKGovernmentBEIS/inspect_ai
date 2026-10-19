@@ -99,9 +99,9 @@ def ensure_auto_compose_file(file: str | None, project_name: str | None = None) 
     """
     if file is not None and is_auto_compose_file(file) and not os.path.exists(file):
         path = Path(file)
-        # For central directory files, we need project_name to recreate
+        # Recreate the cleanup fallback without discovering configs in cwd.
         if project_name and path.resolve().parent == auto_compose_dir().resolve():
-            resolve_compose_file(project_name=project_name)
+            auto_compose_file(COMPOSE_GENERIC_YAML, project_name)
         else:
             # Legacy local file - recreate in place
             resolve_compose_file(os.path.dirname(file))
