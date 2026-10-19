@@ -163,11 +163,28 @@ def project_discard_auto_compose(project: ComposeProject) -> None:
         safe_cleanup_auto_compose(project.config)
 
 
-async def project_cleanup(project: ComposeProject, quiet: bool = True) -> None:
-    # bring down services
-    await compose_down(project=project, quiet=quiet)
+async def project_cleanup(project: ComposeProject, quiet: bool = True) -> bool:
+    """Bring a project down and release it from the running projects.
 
-    # remove the project from the list of running projects
+    A project whose ``down`` fails stays registered, so shutdown tries again
+    and reports it if that also fails.
+
+    Returns:
+        Whether the project was brought down.
+    """
+    if not await compose_down(project=project, quiet=quiet):
+        return False
+
+    project_release(project)
+    return True
+
+
+def project_release(project: ComposeProject) -> None:
+    """Forget a project that is down or never reached ``up``.
+
+    ``down`` fails on an invalid config whether or not containers exist, so a
+    project that never reached ``up`` is released without one.
+    """
     running_projects = cleanup_state().running_projects
     if project in running_projects:
         running_projects.remove(project)
@@ -180,10 +197,10 @@ async def project_cleanup_shutdown(cleanup: bool) -> None:
     started, at the end of the batch. Every entry processed is released, so
     the repeat calls do nothing and no entry carries into a later batch.
 
-    Without ``cleanup``, a reported project's generated compose file is
-    released but kept on disk: ``inspect sandbox cleanup docker <project>``
-    needs that exact config, which may declare networks the generic fallback
-    cannot remove.
+    A project is reported when ``cleanup`` is off, or when its ``down`` fails.
+    A reported project's generated compose file is released but kept on disk:
+    ``inspect sandbox cleanup docker <project>`` needs that exact config,
+    which may declare networks and volumes the generic fallback cannot remove.
     """
     state = cleanup_state()
 
@@ -193,42 +210,17 @@ async def project_cleanup_shutdown(cleanup: bool) -> None:
     # full cleanup if requested
     if len(shutdown_projects) > 0:
         if cleanup:
-            await cleanup_projects(shutdown_projects)
-
+            down = await cleanup_projects(shutdown_projects)
+            reported = [p for p in shutdown_projects if p not in down]
         else:
-            print("")
-            table = Table(
-                title="Docker Sandbox Environments (not yet cleaned up):",
-                box=box.SQUARE_DOUBLE_HEAD,
-                show_lines=True,
-                title_style="bold",
-                title_justify="left",
-            )
-            table.add_column("Sample ID")
-            table.add_column("Epoch")
-            table.add_column("Container(s)", no_wrap=True)
-            for project in shutdown_projects:
-                containers = await compose_ps(project, all=True)
-                table.add_row(
-                    str(project.sample_id) if project.sample_id is not None else "",
-                    str(project.epoch if project.epoch is not None else ""),
-                    "\n".join(container["Name"] for container in containers),
-                )
-            print(table)
-            print(
-                "\n"
-                "Cleanup all environments: [blue]inspect sandbox cleanup docker[/blue]\n"
-                "Cleanup each environment:\n"
-                + "\n".join(
-                    f"  [blue]inspect sandbox cleanup docker {project.name}[/blue]"
-                    for project in shutdown_projects
-                ),
-                "\n",
-            )
+            reported = shutdown_projects
+
+        if reported:
+            await _report_projects(reported)
 
             # handed to the user with the projects (see docstring)
             state.auto_compose_files.difference_update(
-                project.config for project in shutdown_projects
+                project.config for project in reported
             )
 
     # release the processed projects (brought down, or handed to the user)
@@ -244,10 +236,61 @@ async def project_cleanup_shutdown(cleanup: bool) -> None:
     state.closed = True
 
 
+async def _report_projects(projects: list[ComposeProject]) -> None:
+    """Print the projects left running, with a cleanup command for each.
+
+    Listing containers can fail for the same reason as ``down`` (e.g. an
+    invalid ``.env``); the project is still reported, without them.
+    """
+    print("")
+    table = Table(
+        title="Docker Sandbox Environments (not yet cleaned up):",
+        box=box.SQUARE_DOUBLE_HEAD,
+        show_lines=True,
+        title_style="bold",
+        title_justify="left",
+    )
+    table.add_column("Sample ID")
+    table.add_column("Epoch")
+    table.add_column("Container(s)", no_wrap=True)
+    for project in projects:
+        try:
+            containers = await compose_ps(project, all=True)
+        except Exception as ex:
+            trace_message(
+                logger,
+                TRACE_DOCKER,
+                f"Unable to list containers for {project.name}: {ex}",
+            )
+            containers = []
+        table.add_row(
+            str(project.sample_id) if project.sample_id is not None else "",
+            str(project.epoch if project.epoch is not None else ""),
+            "\n".join(container["Name"] for container in containers),
+        )
+    print(table)
+    print(
+        "\n"
+        "Cleanup all environments: [blue]inspect sandbox cleanup docker[/blue]\n"
+        "Cleanup each environment:\n"
+        + "\n".join(
+            f"  [blue]inspect sandbox cleanup docker {project.name}[/blue]"
+            for project in projects
+        ),
+        "\n",
+    )
+
+
 async def cleanup_projects(
     projects: list[ComposeProject],
-    cleanup_fn: Callable[[ComposeProject, bool], Awaitable[None]] = project_cleanup,
-) -> None:
+    cleanup_fn: Callable[[ComposeProject, bool], Awaitable[bool]] = project_cleanup,
+) -> list[ComposeProject]:
+    """Bring projects down in parallel.
+
+    Returns:
+        The projects brought down. A cleanup that fails or raises leaves its
+        project out.
+    """
     # urge the user to let this operation complete
     print(
         Panel(
@@ -256,16 +299,22 @@ async def cleanup_projects(
         )
     )
 
+    down: list[ComposeProject] = []
+
+    async def cleanup(project: ComposeProject) -> None:
+        if await cleanup_fn(project, False):
+            down.append(project)
+
     # cleanup all of the projects in parallel
     async with anyio.create_task_group() as tg:
         for project in projects:
             tg.start_soon(
                 coro_print_exceptions,
                 "cleaning up Docker environment",
-                cleanup_fn,
+                cleanup,
                 project,
-                False,
             )
+    return down
 
 
 async def cli_cleanup(project_name: str | None) -> None:
@@ -301,10 +350,10 @@ async def cli_cleanup(project_name: str | None) -> None:
                 )
 
         # do the cleanup
-        await cleanup_projects(compose_projects, cleanup_fn=compose_down)
+        down = await cleanup_projects(compose_projects, cleanup_fn=compose_down)
 
-        # remove auto compose files
-        for compose_project in compose_projects:
+        # remove auto compose files, keeping a failed project's for another attempt
+        for compose_project in down:
             safe_cleanup_auto_compose(compose_project.config)
 
     # clean up orphaned auto-compose files from crashed processes
