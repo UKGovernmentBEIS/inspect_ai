@@ -13,16 +13,17 @@ import re
 from collections import deque
 from contextlib import contextmanager
 from pathlib import PurePosixPath
-from typing import Any, Awaitable, Callable, Iterator
+from typing import Any, Awaitable, Callable, Iterator, Literal
 from unittest.mock import AsyncMock, MagicMock
 
 import anyio
 import pytest
 from acp.schema import SessionNotification, ToolCallProgress, ToolCallStart
+from pydantic import JsonValue
 
 import inspect_ai._util.logger as inspect_logger
 from inspect_ai import Task, eval
-from inspect_ai._util.content import ContentText
+from inspect_ai._util.content import ContentImage, ContentText
 from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai.agent._acp.event_mapping import _AcpEventRouter, replay_transcript
 from inspect_ai.agent._acp.transport import AcpUpdate
@@ -4060,19 +4061,6 @@ async def test_sandbox_timeout_records_its_truncated_output() -> None:
     assert event.result == "partial"
 
 
-async def test_unmapped_tool_exception_fails_the_sample_and_is_recorded_failed() -> (
-    None
-):
-    error = KeyError("missing")
-
-    bridge, event, raised = await run_failing(error)
-
-    assert raised is error
-    assert event.failed is True
-    assert event.error is None
-    assert bridge._failure is error
-
-
 @pytest.mark.parametrize("require_proposal", [True, False], ids=["required", "exempt"])
 async def test_a_schema_that_cannot_be_checked_fails_the_sample_and_is_recorded(
     require_proposal: bool,
@@ -4162,89 +4150,137 @@ def blocking_tool() -> tuple[AsyncMock, anyio.Event, anyio.Event]:
     return AsyncMock(side_effect=block), started, release
 
 
-def cancel_suppressing_tool(
-    after_cancel: BaseException | None,
-) -> tuple[AsyncMock, anyio.Event]:
-    """A tool mock that signals `started`, then absorbs its cancellation.
+PNG = "data:image/png;base64,iVBORw0KGgo="
 
-    It then raises `after_cancel`, or returns when that is `None`.
-    """
+# how each ending is produced: what the tool does (or None for the span-ID
+# provider endings) and what interrupts the call once it has started
+ENDINGS: dict[str, tuple[Any, Literal["operator", "outer"] | None]] = {
+    "text": ("contents", None),
+    "content": ([ContentText(text="contents")], None),
+    "image": (ContentImage(image=PNG), None),
+    "structured": ({"a": 1}, None),
+    # 255 levels pass ContentText validation but not serialization
+    "content-unserializable": (ContentText(text="x", internal=nested(255)), None),
+    "structured-unserializable": (nested(301), None),
+    "mapped-error": (ToolError("tool says no"), None),
+    "unexpected-error": (KeyError("missing"), None),
+    "operator-cancel-propagates": ("propagates", "operator"),
+    "operator-cancel-returns": (None, "operator"),
+    "operator-cancel-raises": (RuntimeError("cleanup failed"), "operator"),
+    "operator-cancel-raises-group": (
+        ExceptionGroup("cleanup", [RuntimeError("cleanup failed")]),
+        "operator",
+    ),
+    "operator-cancel-raises-tool-error": (ToolError("cleanup failed"), "operator"),
+    "outer-cancel": ("propagates", "outer"),
+    "span-allocation-fails": (None, None),
+    "span-allocation-cancelled": (None, "outer"),
+}
+
+# what the scaffold gets ("result", "error" or "cancelled"), the recorded
+# error type, and whether the sample fails
+EXPECTED: dict[str, tuple[str, str | None, bool]] = {
+    "text": ("result", None, False),
+    "content": ("result", None, False),
+    "image": ("result", None, False),
+    "structured": ("result", None, False),
+    "content-unserializable": ("error", None, True),
+    "structured-unserializable": ("error", None, True),
+    "mapped-error": ("error", "unknown", False),
+    "unexpected-error": ("error", None, True),
+    "operator-cancel-propagates": ("error", "timeout", False),
+    "operator-cancel-returns": ("error", "timeout", False),
+    "operator-cancel-raises": ("error", "timeout", False),
+    "operator-cancel-raises-group": ("error", "timeout", False),
+    "operator-cancel-raises-tool-error": ("error", "timeout", False),
+    "outer-cancel": ("cancelled", "cancelled", False),
+    "span-allocation-fails": ("error", None, True),
+    "span-allocation-cancelled": ("cancelled", "cancelled", False),
+}
+
+
+@pytest.mark.parametrize("require_proposal", [True, False], ids=["required", "exempt"])
+@pytest.mark.parametrize("ending", list(ENDINGS))
+async def test_every_ending_records_one_event_matching_the_reply(
+    ending: str, require_proposal: bool
+) -> None:
+    """However a host call ends, one terminal event records what the scaffold got."""
+    behaviour, interrupt = ENDINGS[ending]
+    rpc, error_type, fatal = EXPECTED[ending]
     started = anyio.Event()
 
-    async def block(**kwargs: Any) -> str:
+    async def run_tool(**kwargs: Any) -> Any:
         started.set()
-        try:
-            await anyio.sleep_forever()
-        except anyio.get_cancelled_exc_class():
-            pass
-        if after_cancel is not None:
-            raise after_cancel
-        return "finished after cancel"
+        if interrupt is not None:
+            try:
+                await anyio.sleep_forever()
+            except anyio.get_cancelled_exc_class():
+                if behaviour == "propagates":
+                    raise
+        if isinstance(behaviour, BaseException):
+            raise behaviour
+        return behaviour
 
-    return AsyncMock(side_effect=block), started
+    async def provider(
+        name: str, parent_id: str | None, requested_id: str | None
+    ) -> str:
+        started.set()
+        if interrupt is None:
+            raise RuntimeError("no span id")
+        await anyio.sleep_forever()
+        raise AssertionError("unreachable")
 
-
-@pytest.mark.parametrize(
-    "unwind",
-    [
-        "propagates",
-        "returns",
-        RuntimeError("cleanup failed"),
-        ExceptionGroup("cleanup", [RuntimeError("cleanup failed")]),
-        ToolError("cleanup failed"),
-    ],
-    ids=["propagates", "returns", "raises", "raises-group", "raises-tool-error"],
-)
-async def test_operator_cancel_records_a_timeout(unwind: str | BaseException) -> None:
-    """A cancelled call times out however the tool unwinds from the cancellation."""
-    if unwind == "propagates":
-        mock, started, _ = blocking_tool()
-    else:
-        mock, started = cancel_suppressing_tool(
-            None if isinstance(unwind, str) else unwind
-        )
-    bridge = sandbox_bridge_with_tool(mock, None, require_proposal=False)
-    raised: list[BaseException] = []
+    tool = AsyncMock(side_effect=run_tool)
+    bridge = sandbox_bridge_with_tool(tool, None, require_proposal=require_proposal)
+    returned: list[JsonValue] = []
+    raised: list[Exception] = []
 
     async def call() -> None:
         try:
-            await call_host_tool(bridge)("host", "read_file", {"path": "a"})
-        except BaseException as ex:
+            returned.append(
+                await call_host_tool(bridge)("host", "read_file", {"path": "a"})
+            )
+        except Exception as ex:
             raised.append(ex)
 
     with recorded_transcript() as recorded:
-        async with anyio.create_task_group() as tg:
-            tg.start_soon(call)
-            await started.wait()
-            [event] = recorded.tool_events
-            assert event.pending
-            event._cancel()
-
-    assert len(raised) == 1 and isinstance(raised[0], ToolError)
-    assert raised[0].message == "Command timed out before completing."
-    assert event.error == ToolCallError(
-        "timeout", "Command timed out before completing."
-    )
-    assert event.pending is None
-    assert recorded.completions(event) == 1
-    assert not bridge._failure_requested.is_set()
-
-
-async def test_outer_cancel_records_a_cancellation() -> None:
-    mock, started, _ = blocking_tool()
-    bridge = sandbox_bridge_with_tool(mock, None, require_proposal=False)
-
-    with recorded_transcript() as recorded:
-        async with anyio.create_task_group() as tg:
-            tg.start_soon(read_a, bridge)
-            await started.wait()
-            tg.cancel_scope.cancel()
+        if require_proposal:
+            await propose(
+                bridge,
+                ToolCall(id="proposed", function="read_file", arguments={"path": "a"}),
+            )
+        allocating = ending.startswith("span-allocation")
+        with span_id_provider(provider if allocating else None):
+            async with anyio.create_task_group() as tg:
+                tg.start_soon(call)
+                if interrupt is not None:
+                    await started.wait()
+                    if interrupt == "operator":
+                        [running] = recorded.tool_events
+                        running._cancel()
+                    else:
+                        tg.cancel_scope.cancel()
 
     [event] = recorded.tool_events
-    assert event.error is not None
-    assert event.error.type == "cancelled"
-    assert event.pending is None
     assert recorded.completions(event) == 1
+    assert event.pending is None
+    assert len(returned) == (rpc == "result")
+    assert len(raised) == (rpc == "error")
+    assert (event.error.type if event.error else None) == error_type
+    assert (event.failed is True) == fatal
+    assert bridge._failure_requested.is_set() == fatal
+    if fatal:
+        assert bridge._failure is raised[0]
+    if rpc == "error" and not fatal:
+        assert event.error is not None
+    if error_type == "timeout":
+        assert isinstance(raised[0], ToolError)
+        assert raised[0].message == "Command timed out before completing."
+    if require_proposal:
+        assert event.id == "proposed"
+        assert bridge_metadata(event)["grant"] == "consumed"
+    else:
+        assert bridge_metadata(event)["grant"] == "exempt"
 
 
 async def test_execution_observer_tracks_the_running_call() -> None:
@@ -4278,97 +4314,53 @@ async def test_execution_observer_tracks_the_running_call() -> None:
     assert tracked == [("proposed", event)]
 
 
-@pytest.mark.parametrize("request_kind", ["exempt", "proposed", "rejected"])
-async def test_cancel_while_the_tool_span_is_allocated_still_records_the_call(
-    request_kind: str,
+@pytest.mark.parametrize("allocation", ["fails", "cancelled"])
+@pytest.mark.parametrize("request_kind", ["denied", "rejected"])
+async def test_a_rejection_is_recorded_when_its_span_cannot_be_allocated(
+    request_kind: str, allocation: str
 ) -> None:
-    """A span-ID provider can suspend before the event is recorded; a cancel there still records it."""
+    """A rejected request is still recorded as decided; a provider error fails the sample."""
     tool = AsyncMock(return_value="contents")
-    bridge = sandbox_bridge_with_tool(
-        tool, None, require_proposal=request_kind != "exempt"
-    )
+    bridge = sandbox_bridge_with_tool(tool, None)
     allocating = anyio.Event()
+    failure = RuntimeError("no span id")
 
-    async def blocking_provider(
+    async def provider(
         name: str, parent_id: str | None, requested_id: str | None
     ) -> str:
         allocating.set()
+        if allocation == "fails":
+            raise failure
         await anyio.sleep_forever()
         raise AssertionError("unreachable")
 
     server = "nowhere" if request_kind == "rejected" else "host"
+    raised: list[BaseException] = []
 
     async def request() -> None:
-        with span_id_provider(blocking_provider):
-            await call_host_tool(bridge)(server, "read_file", {"path": "a"})
+        with span_id_provider(provider):
+            try:
+                await call_host_tool(bridge)(server, "read_file", {"path": "a"})
+            except Exception as ex:
+                raised.append(ex)
 
     with recorded_transcript() as recorded:
-        if request_kind == "proposed":
-            await propose(
-                bridge,
-                ToolCall(id="proposed", function="read_file", arguments={"path": "a"}),
-            )
         async with anyio.create_task_group() as tg:
             tg.start_soon(request)
             await allocating.wait()
-            tg.cancel_scope.cancel()
+            if allocation == "cancelled":
+                tg.cancel_scope.cancel()
 
     tool.assert_not_awaited()
     [event] = recorded.tool_events
-    assert event.pending is None
+    assert recorded.completions(event) == 1
     assert event.error is not None
-    assert recorded.completions(event) == 1
-    if request_kind == "rejected":
-        assert event.error.type == "parsing"
-    else:
-        assert event.error.type == "cancelled"
-    if request_kind == "proposed":
-        assert event.id == "proposed"
-        assert bridge_metadata(event)["grant"] == "consumed"
-
-
-@pytest.mark.parametrize("request_kind", ["exempt", "proposed", "denied", "rejected"])
-async def test_a_failing_span_id_provider_fails_the_sample_and_records_the_call(
-    request_kind: str,
-) -> None:
-    """A span-ID provider's error is unexpected: the request is still recorded."""
-    tool = AsyncMock(return_value="contents")
-    bridge = sandbox_bridge_with_tool(
-        tool, None, require_proposal=request_kind != "exempt"
+    assert event.error.type == (
+        "parsing" if request_kind == "rejected" else "permission"
     )
-    failure = RuntimeError("no span id")
-
-    async def failing_provider(
-        name: str, parent_id: str | None, requested_id: str | None
-    ) -> str:
-        raise failure
-
-    server = "nowhere" if request_kind == "rejected" else "host"
-
-    with recorded_transcript() as recorded:
-        if request_kind == "proposed":
-            await propose(
-                bridge,
-                ToolCall(id="proposed", function="read_file", arguments={"path": "a"}),
-            )
-        with span_id_provider(failing_provider):
-            with pytest.raises(RuntimeError) as raised:
-                await call_host_tool(bridge)(server, "read_file", {"path": "a"})
-
-    assert raised.value is failure
-    assert bridge._failure is failure
-    tool.assert_not_awaited()
-    [event] = recorded.tool_events
-    assert event.pending is None
-    assert recorded.completions(event) == 1
-    if request_kind == "rejected":
-        assert event.error is not None and event.error.type == "parsing"
-    elif request_kind == "denied":
-        assert event.error is not None and event.error.type == "permission"
-        assert bridge_metadata(event)["grant"] == "denied"
+    if allocation == "fails":
+        assert raised == [failure]
+        assert bridge._failure is failure
     else:
-        assert event.failed is True
-        assert event.error is None
-    if request_kind == "proposed":
-        assert event.id == "proposed"
-        assert bridge_metadata(event)["grant"] == "consumed"
+        assert raised == []
+        assert not bridge._failure_requested.is_set()

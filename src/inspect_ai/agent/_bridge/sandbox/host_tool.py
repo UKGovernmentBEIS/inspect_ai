@@ -1,5 +1,5 @@
 from logging import getLogger
-from typing import Any, Literal, Sequence, cast
+from typing import Any, Literal, NamedTuple, Sequence, cast
 
 import anyio
 from pydantic import JsonValue, TypeAdapter
@@ -36,6 +36,9 @@ logger = getLogger(__name__)
 JSON_VALUE_ADAPTER: TypeAdapter[JsonValue] = TypeAdapter(JsonValue)
 
 OPERATOR_CANCEL_MESSAGE = "Command timed out before completing."
+_CANCELLED = ToolCallError(
+    "cancelled", "Host tool call was cancelled before completing."
+)
 
 
 async def execute_host_tool(
@@ -59,7 +62,9 @@ async def execute_host_tool(
     sample: the unwrapped exception is signalled through `bridge.request_fail`
     so the bridge's monitor task ends the sample at once, and the original
     still propagates so the RPC unwinds with an error reply (the teardown may
-    pre-empt its delivery; the scaffold's turn is over either way).
+    pre-empt its delivery; the scaffold's turn is over either way). An error
+    building the reply from the tool's result (one that cannot be serialized)
+    is classified the same way, so it too fails the sample.
 
     A result a native call would pass to the model as text (anything but
     content) is truncated to the same output limit, in the same format
@@ -200,19 +205,16 @@ async def _record_rejection(
         async with span(name=tool, type="tool"):
             transcript()._event(event)
             recorded = True
-    except anyio.get_cancelled_exc_class():
-        # cancelled while a span-ID provider allocated the span: the request
-        # was still received and decided, so it is still recorded
-        if not recorded:
-            transcript()._event(event)
-        raise
     except Exception as ex:
-        # a span-ID provider failed: record the request, and fail the sample
-        # as for any unexpected error
+        # a span-ID provider failed, an unexpected error
         if not recorded:
-            transcript()._event(event)
             bridge.request_fail(inner_exception(ex))
         raise
+    finally:
+        # cancelled or failed while a span-ID provider allocated the span: the
+        # request was still received and decided, so it is still recorded
+        if not recorded:
+            transcript()._event(event)
 
 
 async def _execute_granted(
@@ -282,100 +284,85 @@ async def _execute_granted(
     )
     call_start = sample_clock()
     recorded = False
-
-    def finalise(
-        result: ToolResult = "",
-        truncated: tuple[int, int] | None = None,
-        error: ToolCallError | None = None,
-        failed: bool | None = None,
-    ) -> None:
-        event._set_result(
-            result=result,
-            truncated=truncated,
-            error=error,
-            working_time=sample_working_time_since(call_start),
-            agent=None,
-            failed=failed,
-            message_id=None,
-            agent_span_id=getattr(tool_fn, "agent_span_id", None),
-        )
-        if recorded:
-            transcript()._event_updated(event)
-        else:
-            transcript()._event(event)
-
-    cancelled = ToolCallError(
-        "cancelled", "Host tool call was cancelled before completing."
-    )
-    # the operator's per-call cancel
     scope = anyio.CancelScope()
-    result: ToolResult = ""
+    outcome: _Outcome | None = None
     try:
         async with span(name=tool, type="tool"):
             transcript()._event(event)
             recorded = True
-            with observer.track_tool_call(event.id, event):
+            with observer.track_tool_call(event.id, event), scope:
+                event._set_cancel_fn(scope.cancel)
                 try:
-                    with scope:
-                        event._set_cancel_fn(scope.cancel)
-                        # as in call_tool: the tool's own model calls are not
-                        # agent turns
-                        with sentinel_scope(AgentScope.OFF):
-                            result = await tool_fn(**call_arguments)
-                except anyio.get_cancelled_exc_class():
-                    # an outer cancellation (bridge teardown, sample limit): the
-                    # operator's per-call cancel is absorbed by `scope` instead
-                    finalise(error=cancelled)
-                    raise
+                    # as in call_tool: the tool's own model calls are not
+                    # agent turns
+                    with sentinel_scope(AgentScope.OFF):
+                        result = await tool_fn(**call_arguments)
+                    output, truncated = _recorded_result(
+                        tool, result, tool_def.max_output
+                    )
+                    outcome = _Outcome(output, truncated, reply=_reply(output, result))
                 except Exception as ex:
-                    # an error the tool raises while unwinding the operator's
-                    # cancel is superseded by the timeout (below), as natively
+                    # an error raised while unwinding the operator's cancel
+                    # is superseded by the timeout (below)
                     if not scope.cancel_called:
-                        # classify the unwrapped exception, but let the
-                        # original propagate: the service dispatcher
-                        # special-cases a bare LimitExceededError (ending the
-                        # sample), and unwrapping a grouped one would newly
-                        # route it there
-                        inner_ex = inner_exception(ex)
-                        mapped = tool_call_error(inner_ex, tool)
-                        if mapped is None:
-                            finalise(failed=True)
-                            bridge.request_fail(inner_ex)
-                        else:
-                            output, truncated = (
-                                _recorded_result(
-                                    tool, mapped.result, tool_def.max_output
-                                )
-                                if mapped.result is not None
-                                else ("", None)
-                            )
-                            finalise(
-                                result=output, truncated=truncated, error=mapped.error
-                            )
+                        outcome = _raised(ex, tool, tool_def.max_output)
                         raise
-    except anyio.get_cancelled_exc_class():
-        # cancelled while a span-ID provider allocated the span, before the
-        # pending event was recorded (a consumed grant is not restored)
-        if not recorded:
-            finalise(error=cancelled)
+            # `cancel_called`, not `cancelled_caught`: a tool that absorbs the
+            # cancellation and returns was still cancelled
+            if scope.cancel_called:
+                outcome = _Outcome(
+                    error=ToolCallError("timeout", OPERATOR_CANCEL_MESSAGE),
+                    raised=ToolError(OPERATOR_CANCEL_MESSAGE),
+                )
+    except BaseException as ex:
+        # not decided above: an outer cancellation (bridge teardown, sample
+        # limit), or a span-ID provider cancelled or failing (grant not restored)
+        if outcome is None or outcome.raised is not ex:
+            outcome = (
+                _Outcome(failed=True, raised=ex, fatal=inner_exception(ex))
+                if isinstance(ex, Exception)
+                else _Outcome(error=_CANCELLED, raised=ex)
+            )
         raise
-    except Exception as ex:
-        # a span-ID provider failed before the pending event was recorded:
-        # record the request, and fail the sample as for any unexpected error
-        if not recorded:
-            finalise(failed=True)
-            bridge.request_fail(inner_exception(ex))
-        raise
+    finally:
+        if outcome is not None:
+            event._set_result(
+                result=outcome.result,
+                truncated=outcome.truncated,
+                error=outcome.error,
+                working_time=sample_working_time_since(call_start),
+                agent=None,
+                failed=outcome.failed,
+                message_id=None,
+                agent_span_id=getattr(tool_fn, "agent_span_id", None),
+            )
+            if recorded:
+                transcript()._event_updated(event)
+            else:
+                transcript()._event(event)
+            if outcome.fatal is not None:
+                bridge.request_fail(outcome.fatal)
 
-    # `cancel_called`, not `cancelled_caught`: a tool that absorbs the
-    # cancellation and returns was still cancelled (as for a native call)
-    if scope.cancel_called:
-        finalise(error=ToolCallError("timeout", OPERATOR_CANCEL_MESSAGE))
-        raise ToolError(OPERATOR_CANCEL_MESSAGE)
+    assert outcome is not None
+    if outcome.raised is not None:
+        raise outcome.raised
+    return outcome.reply
 
-    output, truncated = _recorded_result(tool, result, tool_def.max_output)
-    finalise(result=output, truncated=truncated)
 
+class _Outcome(NamedTuple):
+    """How a host tool call ended: what is recorded, and what the scaffold gets."""
+
+    result: ToolResult = ""
+    truncated: tuple[int, int] | None = None
+    error: ToolCallError | None = None
+    failed: bool | None = None
+    reply: JsonValue = None  # the RPC result, on success
+    raised: BaseException | None = None  # what the RPC raises instead
+    fatal: Exception | None = None  # fails the sample (`bridge.request_fail`)
+
+
+def _reply(output: ToolResult, result: ToolResult) -> JsonValue:
+    """The RPC result for `result` (recorded as `output`), built before recording."""
     # Plain strings are returned verbatim (the MCP `tools/call` text part
     # carries them as-is). For anything else, use pydantic_core.to_json so
     # Pydantic models (e.g. list[ContentText] from real MCP tools) are
@@ -389,6 +376,21 @@ async def _execute_granted(
     ):
         return _mcp_tool_result_content(result)
     return to_json_str_safe(result)
+
+
+def _raised(ex: Exception, tool: str, max_output: int | None) -> _Outcome:
+    """A call whose tool (or reply) raised `ex`, which the RPC raises unchanged.
+
+    The unwrapped exception is classified, but the original propagates: the
+    service dispatcher special-cases a bare LimitExceededError (ending the
+    sample), and unwrapping a grouped one would newly route it there.
+    """
+    inner_ex = inner_exception(ex)
+    mapped = tool_call_error(inner_ex, tool)
+    if mapped is None:
+        return _Outcome(failed=True, raised=ex, fatal=inner_ex)
+    output, truncated = _recorded_result(tool, mapped.result or "", max_output)
+    return _Outcome(output, truncated, error=mapped.error, raised=ex)
 
 
 def _recorded_result(
