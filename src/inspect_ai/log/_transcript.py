@@ -1108,6 +1108,7 @@ def track_store_changes() -> Iterator[None]:
     is cancelled. On that path any failure to log them, including a
     `BaseException`, is logged as a warning rather than raised (and a failure
     of the warning is ignored), so it cannot replace the block's exception.
+    Nothing is logged on `GeneratorExit` (an abandoned span being finalized).
     """
     before = store_jsonable(store())
 
@@ -1119,6 +1120,10 @@ def track_store_changes() -> Iterator[None]:
 
     try:
         yield
+    except GeneratorExit:
+        # an abandoned span may be finalized in another context, where
+        # store() and transcript() are not the span's
+        raise
     except BaseException:
         try:
             log_changes()

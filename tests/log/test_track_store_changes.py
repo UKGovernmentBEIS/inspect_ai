@@ -510,8 +510,10 @@ class _FailingHandler(logging.Handler):
     def __init__(self, error: BaseException) -> None:
         super().__init__()
         self.error = error
+        self.emits = 0
 
     def emit(self, record: logging.LogRecord) -> None:
+        self.emits += 1
         raise self.error
 
 
@@ -530,11 +532,15 @@ async def test_span_cleanup_failure_does_not_mask_exception(
     diff_error: BaseException,
     handler_error: BaseException | None,
     monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
     transcript = _init_span_test()
     error = RuntimeError("boom")
+    diff_calls = 0
 
     def failing_store_changes(*args: Any) -> None:
+        nonlocal diff_calls
+        diff_calls += 1
         raise diff_error
 
     monkeypatch.setattr(
@@ -562,4 +568,24 @@ async def test_span_cleanup_failure_does_not_mask_exception(
         if handler is not None:
             logger.removeHandler(handler)
 
+    assert diff_calls == 1
+    if handler is not None:
+        assert handler.emits == 1
+    else:
+        assert "Unable to log store changes for span" in caplog.text
     assert any(isinstance(e, SpanEndEvent) for e in transcript.events)
+
+
+async def test_span_finalized_in_another_context_logs_no_store_event() -> None:
+    _init_span_test()
+    span_cm = span("abandoned")
+    await span_cm.__aenter__()
+    store().set("key", "value")
+
+    # an abandoned span generator finalized where another store and
+    # transcript are current
+    other = _init_span_test()
+    store().set("other", "value")
+    await span_cm.gen.aclose()
+
+    assert not any(isinstance(e, StoreEvent) for e in other.events)
