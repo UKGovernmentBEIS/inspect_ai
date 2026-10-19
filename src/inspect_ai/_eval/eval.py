@@ -50,6 +50,7 @@ from inspect_ai._sentinel._config import (
     resolve_sentinel_spec,
     sentinel_config,
 )
+from inspect_ai._util._async import current_async_backend
 from inspect_ai._util.asyncfiles import with_async_fs
 from inspect_ai._util.config import parse_cli_args, resolve_args
 from inspect_ai._util.constants import (
@@ -816,6 +817,7 @@ async def _eval_async_inner(
     run_id = uuid()
 
     enqueuer_token: Token[TaskEnqueuer | None] | None = None
+    trio_cancelled = False
     try:
         # intialise eval
         model = eval_init(
@@ -1245,16 +1247,13 @@ async def _eval_async_inner(
                 )
                 await wait_for_shutdown_async(_ctl_server)
 
-    except BaseException as e:
-        with anyio.CancelScope(shield=True):
-            await emit_run_end(eval_set_id, run_id, EvalLogs([]), e)
-        raise e
-
-    else:
-        # shielded: under trio a Ctrl-C leaves the run's scope cancelled. In
-        # `else` so a second Ctrl-C here does not start the hooks above.
-        cancelled = anyio.current_effective_deadline() == -math.inf
-        with anyio.CancelScope(shield=True):
+        # under trio, a Ctrl-C leaves the run's scope cancelled: finish the
+        # run shielded (on asyncio, the cancellation ends it as before)
+        trio_cancelled = (
+            current_async_backend() == "trio"
+            and anyio.current_effective_deadline() == -math.inf
+        )
+        with anyio.CancelScope(shield=True) if trio_cancelled else nullcontext():
             # cleanup sample buffers if required
             await cleanup_sample_buffers(log_dir)
 
@@ -1263,10 +1262,13 @@ async def _eval_async_inner(
             except UnboundLocalError:
                 await emit_run_end(eval_set_id, run_id, EvalLogs([]))
 
-        # a cancellation (e.g. asyncio's Ctrl-C) that arrived during the
-        # shielded cleanup of a run that was not cancelled still ends it
-        if not cancelled:
-            await anyio.lowlevel.checkpoint_if_cancelled()
+    except BaseException as e:
+        # a second Ctrl-C while finishing a cancelled trio run does not start
+        # the hooks again
+        if not trio_cancelled:
+            with anyio.CancelScope(shield=True):
+                await emit_run_end(eval_set_id, run_id, EvalLogs([]), e)
+        raise e
 
     finally:
         _eval_async_running = False

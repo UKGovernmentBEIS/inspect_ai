@@ -562,7 +562,7 @@ async def test_run_end_hook_runs_when_cancelled_during_run_start(
     assert len(awaiting_run_hooks.run_end_events) == 2
 
 
-async def test_run_end_hook_runs_once_when_samples_are_cancelled(
+async def test_run_end_hook_finishes_once_when_samples_are_cancelled(
     awaiting_run_hooks: AwaitingRunHooks, tmp_path: Path
 ) -> None:
     sample_started = anyio.Event()
@@ -585,10 +585,14 @@ async def test_run_end_hook_runs_once_when_samples_are_cancelled(
     log = await read_eval_log_async(log_info.name, header_only=True)
     assert log.status == "cancelled"
     (run_end,) = awaiting_run_hooks.run_end_events
-    assert run_end.exception is None
-    # asyncio leaves a cancelled task group's logs out of the result
-    expected = [] if current_async_backend() == "asyncio" else ["cancelled"]
-    assert [log.status for log in run_end.logs] == expected
+    if current_async_backend() == "trio":
+        # the run is finished shielded and gets its log
+        assert run_end.exception is None
+        assert [log.status for log in run_end.logs] == ["cancelled"]
+    else:
+        # the cancellation cuts the hook short; it runs again with it
+        assert isinstance(run_end.exception, anyio.get_cancelled_exc_class())
+        assert run_end.logs == []
 
     (log,) = await _eval_async_one_sample()
     assert log.status == "success"

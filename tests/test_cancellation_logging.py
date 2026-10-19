@@ -507,7 +507,6 @@ def test_keyboard_interrupt_under_trio(sandbox: str):
 
 
 _INTERRUPT_DURING_FINALIZATION_SCRIPT = """
-import os
 import signal
 import tempfile
 
@@ -517,22 +516,25 @@ import anyio.lowlevel
 import inspect_ai._display.core.active as active_display
 import inspect_ai._eval.eval as eval_module
 import inspect_ai.util._display as display_state
-from inspect_ai import Task, eval
+from inspect_ai import Task, eval, eval_retry, eval_set, task
 from inspect_ai.dataset import Sample
 from inspect_ai.hooks import Hooks, RunEnd, hooks
 from inspect_ai.log import list_eval_logs, read_eval_log
 from inspect_ai.scorer import includes
-from inspect_ai.solver import generate, solver
+from inspect_ai.solver import solver
 
 events = []
 run_ends = []
 sigint_in = None
+# what the probe task's sample does: None (succeed), "fail" or "sigint"
+sample_does = None
 
 
 async def interrupt_in(where):
+    global sigint_in
     if sigint_in == where:
+        sigint_in = None
         signal.raise_signal(signal.SIGINT)
-        # the shielded cleanup goes on waiting after the Ctrl-C
         await anyio.sleep(0.1)
         events.append(f"{where} finished")
 
@@ -560,20 +562,34 @@ eval_module.cleanup_sample_buffers = recording_cleanup
 
 
 @solver
-def sigint_in_sample():
+def probe_solver():
     async def solve(state, generate):
-        signal.raise_signal(signal.SIGINT)
-        await anyio.sleep(60)
+        if sample_does == "fail":
+            raise RuntimeError("fail so there is something to retry")
+        elif sample_does == "sigint":
+            signal.raise_signal(signal.SIGINT)
+            await anyio.sleep(60)
         return state
 
     return solve
 
 
-def run_eval(display, solver=generate(), log_dir=None):
+@task
+def interrupt_probe():
+    return Task(
+        dataset=[Sample(input="x", target="x")], solver=probe_solver(), scorer=includes()
+    )
+
+
+def use_display(display):
     active_display._active_display = None
     display_state._display_type = None
+
+
+def run_eval(display, log_dir=None):
+    use_display(display)
     return eval(
-        Task(dataset=[Sample(input="x", target="x")], solver=solver, scorer=includes()),
+        interrupt_probe(),
         model="mockllm/model",
         log_dir=log_dir or tempfile.mkdtemp(),
         display=display,
@@ -581,63 +597,87 @@ def run_eval(display, solver=generate(), log_dir=None):
     )
 
 
+def assert_interrupted(display, run):
+    try:
+        run()
+    except KeyboardInterrupt as ex:
+        assert type(ex) is KeyboardInterrupt, repr(ex)
+    else:
+        raise AssertionError(f"{display}: no KeyboardInterrupt")
+    assert signal.getsignal(signal.SIGINT) is signal.default_int_handler
+
+
+def disk_statuses(log_dir):
+    return sorted(read_eval_log(info.name).status for info in list_eval_logs(log_dir))
+
+
+# a Ctrl-C during buffer cleanup or the run-end hook of a finished run ends it:
+# the hook then runs (again) with the cancellation, and finishes
 expected = {
-    "cleanup": ["cleanup", "cleanup finished", "hook", "hook returned"],
-    "hook": ["cleanup", "hook", "hook finished", "hook returned"],
+    "cleanup": ["cleanup", "hook", "hook returned"],
+    "hook": ["cleanup", "hook", "hook", "hook returned"],
 }
 for where in ["cleanup", "hook"]:
     for display in ["rich", "plain", "log"]:
         sigint_in = where
         events.clear()
         run_ends.clear()
-        try:
-            run_eval(display)
-        except KeyboardInterrupt as ex:
-            assert type(ex) is KeyboardInterrupt, repr(ex)
-        else:
-            raise AssertionError(f"{where} {display}: no KeyboardInterrupt")
+        assert_interrupted(display, lambda: run_eval(display))
         assert events == expected[where], (where, display, events)
-        (run_end,) = run_ends
-        assert run_end.exception is None, (where, display, repr(run_end.exception))
-        assert [log.status for log in run_end.logs] == ["success"], (where, display)
-        assert signal.getsignal(signal.SIGINT) is signal.default_int_handler
+        assert run_ends[-1].exception is not None, (where, display)
 
-sigint_in = None
+# a Ctrl-C while samples run with an awaiting run-end hook raises
+# KeyboardInterrupt from eval(), eval_retry() and eval_set()
+for display in ["rich", "plain", "log"]:
+    log_dir = tempfile.mkdtemp()
+    sample_does = "fail"
+    (failed,) = run_eval(display, log_dir)
+    assert failed.status == "error", display
 
-# asyncio: a Ctrl-C while samples run returns, with the cancelled log on disk
-# but not in the result or RunEnd.logs, after the awaiting hook finishes
-if os.environ["INSPECT_ASYNC_BACKEND"] == "asyncio":
-    for display in ["rich", "plain", "log"]:
-        events.clear()
-        run_ends.clear()
-        log_dir = tempfile.mkdtemp()
-        assert run_eval(display, sigint_in_sample(), log_dir) == [], display
-        assert events == ["cleanup", "hook", "hook returned"], (display, events)
-        (run_end,) = run_ends
-        assert run_end.exception is None, (display, repr(run_end.exception))
-        assert run_end.logs == [], display
-        (log_info,) = list_eval_logs(log_dir)
-        assert read_eval_log(log_info.name).status == "cancelled", display
+    sample_does = "sigint"
+    assert_interrupted(display, lambda: run_eval(display, log_dir))
+    use_display(display)
+    assert_interrupted(
+        display,
+        lambda: eval_retry(failed, log_dir=log_dir, display=display, ctl_server=False),
+    )
+    assert disk_statuses(log_dir) == ["cancelled", "cancelled", "error"], display
+
+    set_dir = tempfile.mkdtemp()
+    use_display(display)
+    assert_interrupted(
+        display,
+        lambda: eval_set(
+            interrupt_probe(),
+            log_dir=set_dir,
+            model="mockllm/model",
+            display=display,
+            ctl_server=False,
+        ),
+    )
+    assert disk_statuses(set_dir) == ["cancelled"], display
+
 
 # a later eval() in the same process still runs
+sample_does = None
 assert run_eval("rich")[0].status == "success"
 """
 
 
 @pytest.mark.parametrize("backend", ["asyncio", "trio"], ids=["on_asyncio", "on_trio"])
 def test_keyboard_interrupt_during_run_finalization(backend: str):
-    """A first Ctrl-C during buffer cleanup or run-end hooks of a finished run raises KeyboardInterrupt.
+    """Ctrl-C with an awaiting run-end hook raises KeyboardInterrupt.
 
-    The cleanup and hooks still finish, once, and a later eval() still runs.
-    On asyncio, a Ctrl-C while samples run returns once an awaiting hook
-    finishes.
+    A Ctrl-C during buffer cleanup or the hook of a finished run, and one
+    while samples run, raises from eval(), eval_retry() and eval_set(), and a
+    later eval() still runs.
     """
     result = subprocess.run(
         [sys.executable, "-I", "-c", _INTERRUPT_DURING_FINALIZATION_SCRIPT],
         env={**os.environ, "INSPECT_ASYNC_BACKEND": backend},
         capture_output=True,
         text=True,
-        timeout=180,
+        timeout=300,
     )
     assert result.returncode == 0, result.stdout + result.stderr
 
