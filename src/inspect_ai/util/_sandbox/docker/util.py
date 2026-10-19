@@ -6,14 +6,11 @@ from pathlib import Path
 import yaml
 from shortuuid import uuid
 
-from ..compose import (
-    AUTO_COMPOSE_PROJECT_DIRECTORY_KEY,
-    ComposeConfig,
-    is_dockerfile,
-    resolve_compose_sandbox,
-)
-from ..environment import SandboxEnvironmentConfigType, SandboxEnvironmentSpec
+from ..compose import ComposeConfig, is_dockerfile
+from ..context import sandbox_run_dir
+from ..environment import SandboxEnvironmentConfigType
 from .config import (
+    AUTO_COMPOSE_PROJECT_DIRECTORY_KEY,
     COMPOSE_DOCKERFILE_YAML,
     auto_compose_file,
     auto_compose_project_directory,
@@ -45,25 +42,17 @@ class ComposeProject:
         epoch: int | None = None,
         env: dict[str, str] | None = None,
     ) -> "ComposeProject":
-        import os
-
         # resolve config to full path if we have one
         config_path = None
         if isinstance(config, str):
             config_path = Path(config).resolve()
         elif isinstance(config, ComposeConfig):
-            bound = resolve_compose_sandbox(
-                SandboxEnvironmentSpec("docker", config), os.getcwd()
-            )
-            assert bound is not None and isinstance(bound.config, ComposeConfig)
-            data = bound.config.model_dump(
-                mode="json", by_alias=True, exclude_none=True
-            )
+            data = config.model_dump(mode="json", by_alias=True, exclude_none=True)
             # Compose interpolates extension values too; escape only the literal
             # directory, leaving user-supplied Compose expressions intact.
-            data[AUTO_COMPOSE_PROJECT_DIRECTORY_KEY] = data[
-                AUTO_COMPOSE_PROJECT_DIRECTORY_KEY
-            ].replace("$", "$$")
+            data[AUTO_COMPOSE_PROJECT_DIRECTORY_KEY] = sandbox_run_dir().replace(
+                "$", "$$"
+            )
             config_yaml = yaml.dump(
                 data,
                 default_flow_style=False,

@@ -2,13 +2,14 @@
 
 import json
 import os
+import shutil
 from pathlib import Path
 from typing import Any
 
 import anyio
 import pytest
 import yaml
-from test_helpers.utils import skip_if_no_docker
+from test_helpers.utils import is_docker_installed, skip_if_no_docker
 
 from inspect_ai import eval_async, eval_retry_async
 from inspect_ai._util.error import PrerequisiteError
@@ -18,10 +19,7 @@ from inspect_ai.util import (
     ExecResult,
     SandboxEnvironmentSpec,
 )
-from inspect_ai.util._sandbox.compose import (
-    AUTO_COMPOSE_PROJECT_DIRECTORY_KEY,
-    resolve_compose_sandbox,
-)
+from inspect_ai.util._sandbox.context import sandbox_run_dir_context
 from inspect_ai.util._sandbox.docker import compose as compose_module
 from inspect_ai.util._sandbox.docker import config as config_module
 from inspect_ai.util._sandbox.docker import docker as docker_module
@@ -36,6 +34,7 @@ from inspect_ai.util._sandbox.docker.compose import (
     compose_up,
 )
 from inspect_ai.util._sandbox.docker.config import (
+    AUTO_COMPOSE_PROJECT_DIRECTORY_KEY,
     auto_compose_dir,
     is_auto_compose_file,
 )
@@ -52,22 +51,27 @@ def generated_compose_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Pa
     return directory
 
 
-@skip_if_no_docker
+@pytest.mark.skipif(not is_docker_installed(), reason="Docker is required")
 @pytest.mark.slow
 @pytest.mark.parametrize("sample_config", [False, True])
+@pytest.mark.parametrize(
+    "original_state", ["retained", "removed", "removed_without_env_file"]
+)
 async def test_compose_paths_in_file_task_eval(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     generated_compose_dir: Path,
     sample_config: bool,
+    original_state: str,
 ) -> None:
-    launch = tmp_path / "launch"
-    launch.mkdir(exist_ok=True)
+    original = tmp_path / "original"
+    launch = original / "launch"
+    launch.mkdir(parents=True, exist_ok=True)
     (launch / "marker.txt").write_text("wrong")
     monkeypatch.chdir(launch)
     task_files = []
     for name in ("one", "two"):
-        directory = tmp_path / name
+        directory = original / name
         directory.mkdir(exist_ok=True)
         (directory / "marker.txt").write_text(name)
         (directory / "vars.env").write_text(f"INSPECT_PATH_TEST={name}\n")
@@ -103,6 +107,12 @@ def paths():
                 sandbox=None if SAMPLE_CONFIG else spec, solver=check_paths())
 """.replace("NAME", repr(name)).replace("SAMPLE_CONFIG", repr(sample_config))
         )
+        if original_state == "removed_without_env_file":
+            task_file.write_text(
+                task_file.read_text()
+                .replace('env_file="./vars.env", ', "")
+                .replace("[state.input] * 3", '[state.input, "", state.input]')
+            )
         task_files.append(os.path.relpath(task_file, launch))
 
     monkeypatch.setenv("INSPECT_PATH_FAIL_ONCE", "1")
@@ -122,8 +132,18 @@ def paths():
     ), [log.error for log in logs]
     assert list(generated_compose_dir.iterdir()) == []
     monkeypatch.delenv("INSPECT_PATH_FAIL_ONCE")
+    moved = tmp_path / "moved"
+    shutil.copytree(original, moved, dirs_exist_ok=True)
+    if original_state == "retained":
+        for name in ("one", "two"):
+            (original / name / "marker.txt").write_text("wrong original")
+    else:
+        shutil.rmtree(original)
+    monkeypatch.chdir(moved / "launch")
     with anyio.fail_after(120):
-        retried = await eval_retry_async(logs, log_dir=str(tmp_path / "retried"))
+        retried = await eval_retry_async(
+            [log.location for log in logs], log_dir=str(tmp_path / "retried")
+        )
     assert all(log.status == "success" for log in retried), [
         log.error for log in retried
     ]
@@ -131,7 +151,7 @@ def paths():
 
 
 @pytest.mark.parametrize("name", ["task", "$VALUE", "$$", "${VALUE}"])
-async def test_bound_compose_config_roundtrip(
+async def test_runtime_compose_directory_stays_out_of_config(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     generated_compose_dir: Path,
@@ -140,19 +160,23 @@ async def test_bound_compose_config_roundtrip(
     config = ComposeConfig(services={"default": ComposeService(image="alpine")})
     original = SandboxEnvironmentSpec("docker", config)
     directory = str(tmp_path / name)
-    bound = resolve_compose_sandbox(original, directory)
-    assert bound is not None
-    assert original.config == config
-    assert AUTO_COMPOSE_PROJECT_DIRECTORY_KEY not in config.extensions
-    restored = SandboxEnvironmentSpec.model_validate_json(bound.model_dump_json())
-    assert restored == bound
-    assert resolve_compose_sandbox(restored, str(tmp_path / "other")) == bound
-    assert resolve_compose_sandbox(original, str(tmp_path / "other")) != bound
+    serialized = original.model_dump_json(by_alias=True)
+    restored = SandboxEnvironmentSpec.model_validate_json(serialized)
     monkeypatch.chdir(tmp_path)
-    project = await ComposeProject.create("inspect-roundtrip", restored.config)
+    with sandbox_run_dir_context(directory):
+        project = await ComposeProject.create("inspect-roundtrip", restored.config)
     assert project.project_directory == directory
+    assert (
+        original.model_dump_json(by_alias=True)
+        == restored.model_dump_json(by_alias=True)
+        == serialized
+    )
+    assert AUTO_COMPOSE_PROJECT_DIRECTORY_KEY not in config.extensions
     reopened = await ComposeProject.create(project.name, project.config)
     assert reopened.project_directory == directory
+    with sandbox_run_dir_context(str(tmp_path / "moved")):
+        retry = await ComposeProject.create("inspect-retry", restored.config)
+    assert retry.project_directory == str(tmp_path / "moved")
 
 
 @skip_if_no_docker

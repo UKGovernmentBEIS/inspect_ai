@@ -32,11 +32,11 @@ from inspect_ai.util._concurrency import (
 from inspect_ai.util._sandbox.compose import (
     is_docker_compatible_config,
     is_docker_compatible_sandbox_type,
-    resolve_compose_sandbox,
 )
 from inspect_ai.util._sandbox.context import (
     cleanup_sandbox_environments_sample,
     init_sandbox_environments_sample,
+    sandbox_run_dir_context,
 )
 from inspect_ai.util._sandbox.environment import (
     SandboxEnvironment,
@@ -93,7 +93,7 @@ async def sandboxenv_context(
     run_dir: str | None = None,
 ) -> AsyncGenerator[None, None]:
     # resolve sandbox
-    sandbox = await resolve_sandbox(sandbox, sample, task_name, run_dir)
+    sandbox = await resolve_sandbox(sandbox, sample, task_name)
     if not sandbox:
         raise ValueError("sandboxenv_context called with no sandbox specified")
 
@@ -151,14 +151,15 @@ async def sandboxenv_context(
             metadata = dict(sample.metadata) if sample.metadata else {}
             metadata["__sample_id__"] = sample.id
 
-            environments = await init_sandbox_environments_sample(
-                sandboxenv_type=sandboxenv_type,
-                task_name=registry_unqualified_name(task_name),
-                config=sandbox.config,
-                files=files,
-                setup=setup,
-                metadata=metadata,
-            )
+            with sandbox_run_dir_context(run_dir):
+                environments = await init_sandbox_environments_sample(
+                    sandboxenv_type=sandboxenv_type,
+                    task_name=registry_unqualified_name(task_name),
+                    config=sandbox.config,
+                    files=files,
+                    setup=setup,
+                    metadata=metadata,
+                )
 
             # run sample
             yield
@@ -170,7 +171,10 @@ async def sandboxenv_context(
         finally:
             # cleanup sandbox environment
             if environments and cleanup:
-                with anyio.CancelScope(shield=interrupted):
+                with (
+                    anyio.CancelScope(shield=interrupted),
+                    sandbox_run_dir_context(run_dir),
+                ):
                     await cleanup_sandbox_environments_sample(
                         type=sandbox.type,
                         task_name=task_name,
@@ -262,10 +266,10 @@ async def resolve_sandbox_for_task_and_sample(
     # initialize here matches what each sample actually uses at runtime -- including
     # docker-compatible per-sample configs (e.g. a per-sample ComposeConfig).
     run_dir = run_dir or task_run_dir(task)
-    sandbox = await resolve_sandbox(sandbox, sample, task.name, run_dir)
+    sandbox = await resolve_sandbox(sandbox, sample, task.name)
     if sandbox is not None:
         # see if there are environment variables required for init of this sample
-        with chdir(run_dir):
+        with chdir(run_dir), sandbox_run_dir_context(run_dir):
             sandboxenv_type = registry_find_sandboxenv(sandbox.type)
             task_init_environment = cast(
                 TaskInitEnvironment, getattr(sandboxenv_type, "task_init_environment")
@@ -283,7 +287,6 @@ async def resolve_sandbox(
     sandbox: SandboxEnvironmentSpec | None,
     sample: Sample,
     task_name: str | None = None,
-    run_dir: str | None = None,
 ) -> SandboxEnvironmentSpec | None:
     # resolved sandbox
     resolved_sandbox: SandboxEnvironmentSpec | None = None
@@ -330,11 +333,7 @@ async def resolve_sandbox(
     elif sample.sandbox is not None:
         resolved_sandbox = sample.sandbox
 
-    return (
-        resolve_compose_sandbox(resolved_sandbox, run_dir)
-        if run_dir is not None
-        else resolved_sandbox
-    )
+    return resolved_sandbox
 
 
 async def _retrying_httpx_get(

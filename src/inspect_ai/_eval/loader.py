@@ -43,7 +43,6 @@ from inspect_ai.util._checkpoint.config import CheckpointConfig
 from inspect_ai.util._sandbox.compose import (
     is_docker_compatible_config,
     is_docker_compatible_sandbox_type,
-    resolve_compose_sandbox,
 )
 from inspect_ai.util._sandbox.environment import (
     resolve_sandbox_environment,
@@ -475,7 +474,7 @@ def resolve_task_sandbox(
                 )
 
     # return resolved sandbox
-    return resolve_compose_sandbox(resolved_sandbox, run_dir)
+    return resolved_sandbox
 
 
 def resolve_task_file_sandbox(

@@ -7,7 +7,6 @@ import yaml
 from inspect_ai._util.appdirs import inspect_data_dir
 
 from ..compose import (
-    AUTO_COMPOSE_PROJECT_DIRECTORY_KEY,
     AUTO_COMPOSE_SUBDIR,
     AUTO_COMPOSE_YAML,
     COMPOSE_FILES,
@@ -15,6 +14,10 @@ from ..compose import (
 )
 
 logger = getLogger(__name__)
+
+# Private extension in generated Docker YAML only, so CLI cleanup can recover
+# relative paths in another process without adding host paths to eval logs.
+AUTO_COMPOSE_PROJECT_DIRECTORY_KEY = "x-inspect-project-directory"
 
 
 def auto_compose_dir() -> Path:

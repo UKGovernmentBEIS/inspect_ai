@@ -420,6 +420,28 @@ def validate_sandbox_environments(
 
 
 @contextmanager
+def sandbox_run_dir_context(run_dir: str | None) -> Iterator[None]:
+    """Provide a task's directory to sandbox hooks without changing their config.
+
+    Runtime context stays out of provider configs and eval logs, so retries use
+    the reloaded task's directory. Reset on every exit, including cancellation.
+    """
+    token = _sandbox_run_dir.set(run_dir or sandbox_run_dir())
+    try:
+        yield
+    finally:
+        _sandbox_run_dir.reset(token)
+
+
+def sandbox_run_dir() -> str:
+    """Task directory for the current sandbox hook; cwd for direct provider calls."""
+    return _sandbox_run_dir.get() or os.getcwd()
+
+
+_sandbox_run_dir: ContextVar[str | None] = ContextVar("sandbox_run_dir", default=None)
+
+
+@contextmanager
 def sandbox_default(name: str) -> Iterator[None]:
     """Set the default sandbox environment for the current context.
 

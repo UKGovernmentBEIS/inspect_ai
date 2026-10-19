@@ -6,6 +6,7 @@ import pytest
 from test_helpers.utils import skip_if_no_docker
 
 from inspect_ai import Task, eval
+from inspect_ai._eval.task.sandbox import sandboxenv_context
 from inspect_ai.dataset import Sample
 from inspect_ai.model import ModelOutput
 from inspect_ai.scorer import CORRECT, includes
@@ -14,10 +15,12 @@ from inspect_ai.util import (
     ExecResult,
     SandboxEnvironment,
     SandboxEnvironmentConfigType,
+    SandboxEnvironmentSpec,
     is_dockerfile,
     sandbox,
 )
-from inspect_ai.util._sandbox.context import init_sandbox_environments_sample
+from inspect_ai.util._sandbox.context import sandbox_run_dir, sandbox_run_dir_context
+from inspect_ai.util._sandbox.registry import sandboxenv_register
 
 SANDBOX_SETUP_FILE = (Path(__file__).parent / "sandbox_setup.sh").as_posix()
 SANDBOX_SETUP_ERROR_FILE = (Path(__file__).parent / "sandbox_setup_error.sh").as_posix()
@@ -178,12 +181,16 @@ class HangingSetupSandbox(SandboxEnvironment):
     started: ClassVar[anyio.Event]
     created: ClassVar[list[SandboxEnvironment]]
     cleanups: ClassVar[list[tuple[dict[str, SandboxEnvironment], bool]]]
+    init_run_dir: ClassVar[str]
+    cleanup_run_dir: ClassVar[str]
 
     @classmethod
     def reset(cls) -> None:
         cls.started = anyio.Event()
         cls.created = []
         cls.cleanups = []
+        cls.init_run_dir = ""
+        cls.cleanup_run_dir = ""
 
     @classmethod
     async def sample_init(
@@ -194,6 +201,7 @@ class HangingSetupSandbox(SandboxEnvironment):
     ) -> dict[str, SandboxEnvironment]:
         environment = cls()
         cls.created.append(environment)
+        cls.init_run_dir = sandbox_run_dir()
         return {"default": environment}
 
     @classmethod
@@ -206,6 +214,7 @@ class HangingSetupSandbox(SandboxEnvironment):
     ) -> None:
         await anyio.lowlevel.checkpoint()
         cls.cleanups.append((environments, interrupted))
+        cls.cleanup_run_dir = sandbox_run_dir()
 
     async def exec(
         self,
@@ -251,7 +260,7 @@ class HangingCopySandbox(HangingSetupSandbox):
     ],
 )
 async def test_sandbox_setup_cancelled_cleans_up_sample(
-    sandbox_type: type[HangingSetupSandbox], files: dict[str, bytes]
+    sandbox_type: type[HangingSetupSandbox], files: dict[str, bytes], tmp_path: Path
 ) -> None:
     """Cancelling a sample during file copy or its setup script still tears its sandbox down.
 
@@ -262,25 +271,36 @@ async def test_sandbox_setup_cancelled_cleans_up_sample(
     interrupt it at its first checkpoint.
     """
     sandbox_type.reset()
+    sandboxenv_register(sandbox_type, sandbox_type.__name__)
+    run_dir = str(tmp_path / "task")
+    outer_dir = str(tmp_path / "outer")
 
     async def cancel_once_setup_started(scope: anyio.CancelScope) -> None:
         await sandbox_type.started.wait()
         scope.cancel()
 
-    async with anyio.create_task_group() as tg:
-        tg.start_soon(cancel_once_setup_started, tg.cancel_scope)
-        with pytest.raises(anyio.get_cancelled_exc_class()):
-            await init_sandbox_environments_sample(
-                sandboxenv_type=sandbox_type,
-                task_name="task",
-                config=None,
-                files=files,
-                setup=b"#!/usr/bin/env bash\n\ntrue\n",
-                metadata={},
-            )
+    with sandbox_run_dir_context(outer_dir):
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(cancel_once_setup_started, tg.cancel_scope)
+            with pytest.raises(anyio.get_cancelled_exc_class()):
+                async with sandboxenv_context(
+                    task_name="task",
+                    sandbox=SandboxEnvironmentSpec(sandbox_type.__name__),
+                    max_sandboxes=None,
+                    cleanup=True,
+                    sample=Sample(
+                        input="test",
+                        files={name: value.decode() for name, value in files.items()},
+                        setup="#!/usr/bin/env bash\n\ntrue\n",
+                    ),
+                    run_dir=run_dir,
+                ):
+                    raise AssertionError("cancelled sandbox setup returned")
+        assert sandbox_run_dir() == outer_dir
 
     assert len(sandbox_type.created) == 1
     assert sandbox_type.cleanups == [({"default": sandbox_type.created[0]}, True)]
+    assert sandbox_type.init_run_dir == sandbox_type.cleanup_run_dir == run_dir
 
 
 def test_is_dockerfile():
