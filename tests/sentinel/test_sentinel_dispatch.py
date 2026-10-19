@@ -2040,6 +2040,7 @@ def test_a_modified_call_on_a_non_modify_decision_is_not_dropped(
     step = BeforeToolCall(
         conversation="c",
         message="",
+        message_id="m1",
         call=call,
         view=ToolCallView(),
         input=[],
@@ -2151,6 +2152,26 @@ def test_each_turn_sees_its_own_model_input_and_tools() -> None:
         assert [m.id for m in after_step.input] == [m.id for m in event.input]
         assert step.tools == after_step.tools == producer_tools(log, step.call.id)
     assert len({len(step.input or []) for _, step in before}) == 3
+
+
+def test_both_tool_stages_carry_the_id_of_the_message_that_made_the_call() -> None:
+    before: Seen = []
+    after: list[AfterToolCall] = []
+    log = run(observe_only([d3_recording(before), d3_recording_after(after)]), turns=3)
+    assert log.status == "success", log.error
+    assert log.samples
+    made = {
+        call.id: message.id
+        for message in log.samples[0].messages
+        if isinstance(message, ChatMessageAssistant)
+        for call in message.tool_calls or []
+    }
+    assert len(before) == len(after) == 3
+    assert (
+        [step.message_id for _, step in before]
+        == [step.message_id for step in after]
+        == [made[step.call.id] for _, step in before]
+    )
 
 
 @tool

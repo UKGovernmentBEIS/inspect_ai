@@ -333,6 +333,7 @@ async def _execute_tools_impl(
                         called = await call_tool(
                             tdefs,
                             message.text,
+                            message.id,
                             call,
                             event,
                             conversation,
@@ -426,6 +427,7 @@ async def _execute_tools_impl(
                         await _apply_tool_review(
                             tdefs,
                             message.text,
+                            message.id,
                             executed_call,
                             tool_message,
                             result,
@@ -856,6 +858,7 @@ class CalledTool(NamedTuple):
 async def call_tool(
     tools: list[ToolDef],
     message: str,
+    message_id: str | None,
     call: ToolCall,
     event: BaseModel,
     conversation: list[ChatMessage],
@@ -930,7 +933,7 @@ async def call_tool(
 
         try:
             decision = await sentinel_before_tool_call(
-                message, call, tool_def.viewer, conversation
+                message, message_id, call, tool_def.viewer, conversation
             )
             modified = apply_sentinel_decision(decision, call)
         except (SentinelFailure, ToolApprovalError, TerminateSampleError):
@@ -977,6 +980,7 @@ async def call_tool(
 async def _apply_tool_review(
     tools: list[ToolDef],
     message: str,
+    message_id: str | None,
     call: ToolCall,
     result: ChatMessageTool,
     output: ToolResult,
@@ -1011,6 +1015,7 @@ async def _apply_tool_review(
 
         await sentinel_after_tool_call(
             message,
+            message_id,
             call,
             result,
             output,

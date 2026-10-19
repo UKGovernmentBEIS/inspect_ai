@@ -98,6 +98,7 @@ _Kind = Literal["observation", "decision"]
 
 async def sentinel_before_tool_call(
     message: str,
+    message_id: str | None,
     call: ToolCall,
     viewer: ToolCallViewer | None,
     history: list[ChatMessage],
@@ -109,6 +110,7 @@ async def sentinel_before_tool_call(
     step = BeforeToolCall(
         conversation=conversation,
         message=message,
+        message_id=_message_id(message_id),
         call=call,
         view=resolve_tool_call_view(call, viewer),
         input=list(producer.input) if producer is not None else None,
@@ -139,6 +141,7 @@ def apply_sentinel_decision(decision: Decision | None, call: ToolCall) -> ToolCa
 
 async def sentinel_after_tool_call(
     message: str,
+    message_id: str | None,
     call: ToolCall,
     result: ChatMessageTool,
     output: ToolResult,
@@ -153,6 +156,7 @@ async def sentinel_after_tool_call(
     step = AfterToolCall(
         conversation=conversation,
         message=message,
+        message_id=_message_id(message_id),
         call=call,
         result=result,
         output=output,
@@ -335,6 +339,15 @@ def _conversation() -> str:
 
 def record_agent_turn(input: list[ChatMessage]) -> None:
     record_sent(_conversation(), input)
+
+
+def _message_id(message_id: str | None) -> str:
+    # every message is given an id when built; only one read back from a
+    # log that recorded none lacks it
+    assert message_id is not None, (
+        "The assistant message that made a tool call has no id."
+    )
+    return message_id
 
 
 def _assistant_index(call: ToolCall, history: list[ChatMessage]) -> int | None:

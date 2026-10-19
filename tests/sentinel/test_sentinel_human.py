@@ -258,9 +258,9 @@ def step(
     if after:
         result = ChatMessageTool(content="2", tool_call_id="c1", function="addition")
         return AfterToolCall(
-            "", "Adding.", call, result, "2", view, [], [], escalations
+            "", "Adding.", "m1", call, result, "2", view, [], [], escalations
         )
-    return BeforeToolCall("", "Adding.", call, view, [], [], escalations)
+    return BeforeToolCall("", "Adding.", "m1", call, view, [], [], escalations)
 
 
 def escalation(explanation: str) -> tuple[Reported[Decision], ...]:
