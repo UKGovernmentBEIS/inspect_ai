@@ -2,7 +2,6 @@ import contextlib
 import functools
 import logging
 import os
-import sys
 from contextlib import nullcontext
 from contextvars import Token, copy_context
 from dataclasses import replace
@@ -36,9 +35,8 @@ from inspect_ai.model._model_info import set_model_cost
 from inspect_ai.model._util import resolve_model_costs, resolve_model_roles
 from inspect_ai.util._anyio import inner_exception
 
-if sys.version_info < (3, 11):
-    from exceptiongroup import ExceptionGroup
-
+# The imports above must load before _display (circular import).
+# isort: split
 from shortuuid import uuid
 from typing_extensions import Unpack
 
@@ -288,7 +286,9 @@ def eval(
         time_limit: Limit on clock time (in seconds) for samples.
         working_limit: Limit on working time (in seconds) for sample. Working
             time includes model generation, tool calls, etc. but does not include
-            time spent waiting on retries or shared resources.
+            time spent waiting on retries or shared resources. Work done while
+            any wait is open is not charged, so working time can undercount;
+            set `time_limit` as well to bound wall clock time.
         cost_limit: Limit on total cost (in dollars) for each sample.
             Requires model cost data via set_model_cost() or --model-cost-config.
         model_cost_config: YAML or JSON file with model prices for cost tracking
@@ -572,7 +572,9 @@ async def eval_async(
         time_limit: Limit on clock time (in seconds) for samples.
         working_limit: Limit on working time (in seconds) for sample. Working
             time includes model generation, tool calls, etc. but does not include
-            time spent waiting on retries or shared resources.
+            time spent waiting on retries or shared resources. Work done while
+            any wait is open is not charged, so working time can undercount;
+            set `time_limit` as well to bound wall clock time.
         cost_limit: Limit on total cost (in dollars) for each sample.
             Requires model cost data via set_model_cost() or --model-cost-config.
         model_cost_config: YAML or JSON file with model prices for cost tracking

@@ -6144,6 +6144,7 @@
                         "compaction",
                         "branch",
                         "approval",
+                        "sentinel",
                         "sandbox",
                         "info",
                         "store",
@@ -7017,6 +7018,7 @@
                         "compaction",
                         "branch",
                         "approval",
+                        "sentinel",
                         "sandbox",
                         "info",
                         "store",
@@ -8065,6 +8067,17 @@
                 "type": "null"
               }
             ]
+          },
+          "input_context_tokens": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Input Context Tokens"
           },
           "metadata": {
             "anyOf": [
@@ -10167,7 +10180,7 @@
             "anyOf": [
               {
                 "enum": [
-                  "continue",
+                  "proceed",
                   "modify",
                   "reject",
                   "terminate",

@@ -44,7 +44,6 @@ inspect_ai = [
     "**/*.yml",
     "_view/dist/**/*",
     "**/*.jsonl",
-    "_view/log-schema.json",
     "py.typed",
 ]
 
@@ -162,7 +161,7 @@ name = "inspect_ai"
 description = "Framework for large language model evaluations"
 authors = [{ name = "UK AI Security Institute" }]
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 license = { text = "MIT License" }
 dynamic = ["version", "dependencies", "optional-dependencies"]
 classifiers = [

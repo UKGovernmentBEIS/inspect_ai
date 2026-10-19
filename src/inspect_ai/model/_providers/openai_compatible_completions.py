@@ -234,6 +234,10 @@ class OpenAICompatibleCompletionsAPI(OpenAICompatibleAPI):
     """
 
     @override
+    def uses_responses_api(self, tools: list[ToolInfo], config: GenerateConfig) -> bool:
+        return False
+
+    @override
     async def generate(
         self,
         input: list[ChatMessage],
