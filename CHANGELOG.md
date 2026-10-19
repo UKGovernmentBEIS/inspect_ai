@@ -1,5 +1,32 @@
 # Changelog
 
+## [0.3.282](https://github.com/UKGovernmentBEIS/inspect_ai/compare/0.3.281...0.3.282) (2026-10-19)
+
+
+### Breaking Changes
+
+* tool state scopes so agents running concurrently in one sample keep separate tool state ([#5861](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5861))
+
+### Features
+
+* **sharding:** conditional S3 writes and a local lock helper ([#5775](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5775)) ([5384f73](https://github.com/UKGovernmentBEIS/inspect_ai/commit/5384f7393564f76b040be5d5e06cb2767e96037d))
+* show a sharded run as one task in inspect ctl --log-dir ([#5774](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5774)) ([c0e60d0](https://github.com/UKGovernmentBEIS/inspect_ai/commit/c0e60d046796cb741ecaafc3184c1d027521e119))
+* tool state scopes so agents running concurrently in one sample keep separate tool state ([#5861](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5861)) ([c03cd92](https://github.com/UKGovernmentBEIS/inspect_ai/commit/c03cd9274352a3b9d5d3466774aae778a23f20f2))
+
+
+### Bug Fixes
+
+* cancelled trio eval with the rich display fails instead of returning its log ([#5872](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5872)) ([f99c61d](https://github.com/UKGovernmentBEIS/inspect_ai/commit/f99c61d02d4205c4caf740c456633d901dfb4d19))
+* gemini-2.5-pro repeating tool calls after a tool result ([#5753](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5753)) ([8181840](https://github.com/UKGovernmentBEIS/inspect_ai/commit/8181840c18f1c004c1be851f83919d73f67d0f82))
+* stop installing brotli with Inspect ([#5900](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5900)) ([a699376](https://github.com/UKGovernmentBEIS/inspect_ai/commit/a699376315c95b6410f5aec01af37c8dec452aea))
+* usage undercounted when a provider call sends several billed requests ([#5643](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5643)) ([9ac4412](https://github.com/UKGovernmentBEIS/inspect_ai/commit/9ac4412952ae391a179f744907a7edad0a5e6bac))
+* **view:** enforce the log viewer's Content-Security-Policy in inspect view and view bundle ([#5552](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5552)) ([7afcb24](https://github.com/UKGovernmentBEIS/inspect_ai/commit/7afcb2411d3459250bbab3246b454cef69a34d62))
+
+
+### Performance Improvements
+
+* faster events_df() on long agent transcripts ([#5819](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5819)) ([21ea635](https://github.com/UKGovernmentBEIS/inspect_ai/commit/21ea6355860798307785592f05aa41bb6c3d47fe))
+
 ## [0.3.281](https://github.com/UKGovernmentBEIS/inspect_ai/compare/0.3.280...0.3.281) (2026-10-15)
 
 
