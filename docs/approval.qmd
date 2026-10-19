@@ -43,7 +43,7 @@ approvers:
 ```
 
 
-Navigational web browser tool calls (e.g. `web_browser_go`) are approved automatically via the catch-all `auto` approver at the end of the chain. Note that when listing an approver in a policy you indicate which tools it should handle using a glob or list of globs. These globs are prefix matched so the `web_browser_type` glob matches both `web_browser_type` and `web_browser_type_submit`.
+Navigational web browser tool calls (e.g. `web_browser_go`) are approved automatically via the catch-all `auto` approver at the end of the chain. Note that when listing an approver in a policy you indicate which tools it should handle using a glob or list of globs. A name with no glob characters (`*`, `?`, `[`) is prefix matched, so `web_browser_type` matches both `web_browser_type` and `web_browser_type_submit`. A glob must match the whole name, so `*bash` matches `bash` but not `bash_helper`.
 
 To use this policy, pass the path to the policy YAML file as the approver. For example:
 

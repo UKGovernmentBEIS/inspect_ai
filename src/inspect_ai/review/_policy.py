@@ -25,7 +25,7 @@ class ReviewPolicy:
     """Reviewer for policy."""
 
     tools: str | list[str]
-    """Tools to use this reviewer for: function names or globs (a name without `*` also matches longer names it begins)."""
+    """Tools to use this reviewer for: function names or globs (a name with no glob characters also matches longer names it begins)."""
 
     arguments: dict[str, str] | None = None
     """Arguments the call must have: each argument name maps to a glob matched against the argument's value (a string as is, any other value as JSON)."""

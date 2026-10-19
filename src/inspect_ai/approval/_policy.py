@@ -27,7 +27,7 @@ class ApprovalPolicy:
     """Approver for policy."""
 
     tools: str | list[str]
-    """Tools to use this approver for: function names or globs (a name without `*` also matches longer names it begins)."""
+    """Tools to use this approver for: function names or globs (a name with no glob characters also matches longer names it begins)."""
 
     arguments: dict[str, str] | None = None
     """Arguments the call must have: each argument name maps to a glob matched against the argument's value (a string as is, any other value as JSON)."""
@@ -38,6 +38,9 @@ class ApprovalPolicy:
 
 # the legacy form `name(arg='value'`, optionally closed with `)`
 _LEGACY_TOOL_PATTERN = re.compile(r"([^\s(),']+)\((\w+)='([^']*)'(\))?")
+
+# characters that make a function name a glob rather than a prefix
+_GLOB_CHARS = re.compile(r"[*?\[]")
 
 
 class _ToolPattern(NamedTuple):
@@ -60,7 +63,8 @@ def tool_call_matcher(
     """Compile the `tools` and `arguments` of a policy into a tool call predicate.
 
     `tools` takes function names or globs, as one string, a comma-separated
-    string, or a list. A name not ending in `*` is prefix matched. A call
+    string, or a list. A name with no glob characters (`*`, `?`, `[`) is
+    prefix matched; a glob must match the whole name. A call
     matches when its function matches one of them and every entry of
     `arguments` names an argument of the call whose value matches its glob.
 
@@ -108,7 +112,7 @@ def tool_call_matcher(
             for function in spec.split(","):
                 function = function.strip()
                 if function:
-                    glob = function if function.endswith("*") else f"{function}*"
+                    glob = function if _GLOB_CHARS.search(function) else f"{function}*"
                     patterns.append(
                         _ToolPattern(
                             function=glob,

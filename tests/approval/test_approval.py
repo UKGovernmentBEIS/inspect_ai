@@ -795,6 +795,25 @@ async def test_policy_name_glob_does_not_match_argument_text() -> None:
     assert not await routed(make_tool_call("type", text="left_click"), "*_click")
 
 
+@pytest.mark.parametrize(
+    "tools,matched,unmatched",
+    [
+        ("computer", ["computer", "computer_use"], ["my_computer"]),
+        ("*bash", ["bash", "my_bash"], ["bash_helper"]),
+        ("foo*bar", ["foo_bar", "foobar"], ["foo_bar_baz"]),
+        ("bash?", ["bash2"], ["bash", "bash22"]),
+        ("bash[12]", ["bash1", "bash2"], ["bash3", "bash12"]),
+    ],
+)
+async def test_policy_glob_names_are_not_prefix_matched(
+    tools: str, matched: list[str], unmatched: list[str]
+) -> None:
+    for function in matched:
+        assert await routed(make_tool_call(function), tools), function
+    for function in unmatched:
+        assert not await routed(make_tool_call(function), tools), function
+
+
 async def test_policy_argument_value_cannot_supply_another_argument() -> None:
     call = make_tool_call("computer", action="type', mode='safe")
     assert not await routed(call, "computer(action='type'")
