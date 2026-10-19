@@ -9,6 +9,7 @@ from test_helpers.chunked_corpus import CORPUS_SMALL_CHUNK_SIZE, ChunkedCorpus
 
 from inspect_ai import Task, eval
 from inspect_ai._util.constants import get_deserializing_context
+from inspect_ai.dataset import Sample
 from inspect_ai.event import ModelEvent, SampleInitEvent
 from inspect_ai.log._convert import convert_eval_logs
 from inspect_ai.log._edit import (
@@ -37,7 +38,6 @@ from inspect_ai.log._recorders.chunked.format import (
 )
 from inspect_ai.log._recorders.chunked.stats import event_stats
 from inspect_ai.log._resolve import resolve_sample_events_data
-from inspect_ai.dataset import Sample
 from inspect_ai.solver import TaskState, solver
 
 _TESTS_DIR = pathlib.Path(__file__).resolve().parent
@@ -107,7 +107,7 @@ def test_convert_eval_logs(
 @pytest.mark.parametrize("stream", [True, 3], ids=["stream", "stream-3"])
 @pytest.mark.parametrize("to", ["eval", "json"])
 def test_stream_convert_preserves_eval_error(
-    tmp_path: pathlib.Path, to: Literal["eval", "json"]
+    tmp_path: pathlib.Path, stream: bool | int, to: Literal["eval", "json"]
 ) -> None:
     @solver
     def fail():
@@ -128,7 +128,7 @@ def test_stream_convert_preserves_eval_error(
     assert log.error is not None
 
     output_dir = tmp_path / "output"
-    convert_eval_logs(log.location, to, str(output_dir), stream=True)
+    convert_eval_logs(log.location, to, str(output_dir), stream=stream)
 
     output_file = output_dir / pathlib.Path(log.location).with_suffix(f".{to}").name
     converted = read_eval_log(str(output_file), header_only=True)
