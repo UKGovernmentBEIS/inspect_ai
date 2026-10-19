@@ -115,7 +115,7 @@ def _list_log_files(fs: FileSystem, log_dir: str, recursive: bool) -> list[FileI
 
 
 def list_eval_logs(
-    log_dir: str = os.environ.get("INSPECT_LOG_DIR", "./logs"),
+    log_dir: str | None = None,
     formats: list[Literal["eval", "json"]] | None = None,
     filter: Callable[[EvalLog], bool] | None = None,
     recursive: bool = True,
@@ -149,6 +149,8 @@ def list_eval_logs(
         raise RuntimeError(
             "list_eval_logs with a filter cannot be called from a trio async context (please use list_eval_logs_async instead)"
         )
+    if log_dir is None:
+        log_dir = os.environ.get("INSPECT_LOG_DIR", "./logs")
 
     # get the eval logs
     logger.debug(f"Listing eval logs for {log_dir}")
@@ -170,7 +172,7 @@ def list_eval_logs(
 
 
 async def list_eval_logs_async(
-    log_dir: str = os.environ.get("INSPECT_LOG_DIR", "./logs"),
+    log_dir: str | None = None,
     formats: list[Literal["eval", "json"]] | None = None,
     filter: Callable[[EvalLog], bool] | None = None,
     recursive: bool = True,
@@ -204,6 +206,9 @@ async def list_eval_logs_async(
        List of EvalLog Info.
 
     """
+    if log_dir is None:
+        log_dir = os.environ.get("INSPECT_LOG_DIR", "./logs")
+
     logger.debug(f"Listing eval logs for {log_dir}")
     eval_logs = await _list_eval_logs_async(
         log_dir, formats, recursive, descending, fs_options
