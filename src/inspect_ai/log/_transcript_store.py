@@ -305,12 +305,12 @@ class TranscriptEventStore:
             self._ensure_open()
             with self._conn:
                 self._write_events_data(Path(events_data_path))
-                # Insertion order leaves existing attachments in place as new
-                # ones are added, so checkpoint backups (restic) deduplicate
-                # the file; hash order would scatter new ones through it.
                 self._write_json_object_from_rows(
                     Path(attachments_path),
                     self._conn.execute(
+                        # Insertion order leaves existing attachments in place
+                        # as new ones are added, so checkpoint backups (restic)
+                        # deduplicate the file.
                         "SELECT hash, content FROM attachments ORDER BY rowid"
                     ),
                 )
