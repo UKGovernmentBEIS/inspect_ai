@@ -19,7 +19,7 @@ import anyio
 import pytest
 from pydantic import JsonValue
 from test_helpers.local_shell_sandbox import LocalShellSandbox
-from test_helpers.sandbox import CannedSandbox
+from test_helpers.sandbox import CannedSandbox, ExecPolicy
 from test_helpers.utils import skip_if_no_docker
 
 from inspect_ai import Task, eval
@@ -30,13 +30,17 @@ from inspect_ai.agent._human.agent import human_cli
 from inspect_ai.agent._human.commands import submit
 from inspect_ai.agent._human.commands.command import HumanAgentCommand
 from inspect_ai.agent._human.commands.submit import QuitCommand, SubmitCommand
+from inspect_ai.agent._human.commands.tool import ToolCommand
 from inspect_ai.agent._human.install import (
     _BASHRC_APPEND_SCRIPT,
+    _CLEAR_ENTRY,
+    _RENAME_ENTRY,
     BASHRC,
     BASHRC_MARKER,
     HUMAN_AGENT_DIR,
     TASK_PY,
     TASK_PY_MODE,
+    TASK_PY_NEXT,
     append_bashrc,
     human_agent_bashrc,
     human_agent_commands,
@@ -46,7 +50,7 @@ from inspect_ai.agent._human.service import run_human_agent_service
 from inspect_ai.agent._human.state import HumanAgentState
 from inspect_ai.dataset import Sample
 from inspect_ai.solver import Generate, Solver, TaskState, solver
-from inspect_ai.tool import ToolError, tool
+from inspect_ai.tool import Tool, ToolDef, ToolError, tool
 from inspect_ai.util import sandbox
 from inspect_ai.util._sandbox._framework_directory import (
     _SCRIPT,
@@ -260,16 +264,75 @@ async def test_install_writes_task_py_into_verified_root_dir_after_bashrc(
     assert sandbox.written == []
 
 
-async def test_install_is_skipped_when_task_py_is_already_a_regular_file() -> None:
-    sandbox = CannedSandbox(
-        lambda cmd, user: REGULAR_TASK_PY if is_helper_call(cmd) else OK
-    )
-    await install_human_agent("nonroot", [], None, True, sandbox_env=sandbox)
+def is_task_py_read(cmd: list[str]) -> bool:
+    """A helper call reading ``task.py`` back from the verified directory."""
+    return is_helper_call(cmd) and wrapped_command(cmd) == ["cat", "--", TASK_PY]
 
-    assert [user for _, user in sandbox.exec_calls] == ["root", "root"]
+
+def installed_task_py(content: str) -> ExecPolicy:
+    """Root works and a regular task.py with ``content`` is already installed."""
+
+    def policy(cmd: list[str], user: str | None) -> ExecResult[str]:
+        if is_task_py_read(cmd):
+            return ExecResult(
+                success=True,
+                returncode=0,
+                stdout=content,
+                stderr=f"{_VERIFIED_MARKER}\n",
+            )
+        if is_helper_call(cmd):
+            return REGULAR_TASK_PY if is_task_py_probe(cmd) else VERIFIED
+        return OK
+
+    return policy
+
+
+async def test_install_is_skipped_when_task_py_is_already_installed() -> None:
+    sandbox = CannedSandbox(installed_task_py(human_agent_commands(REAL_COMMANDS)))
+    await install_human_agent("nonroot", REAL_COMMANDS, None, True, sandbox_env=sandbox)
+
+    assert [user for _, user in sandbox.exec_calls] == ["root", "root", "root"]
     assert is_task_py_probe(sandbox.exec_calls[1][0])
+    assert is_task_py_read(sandbox.exec_calls[2][0])
     assert not any(is_bashrc_call(cmd) for cmd, _ in sandbox.exec_calls)
-    assert sandbox.inputs == [None, None]
+    assert sandbox.inputs == [None, None, None]
+
+
+async def test_install_replaces_task_py_generated_for_other_commands() -> None:
+    """A later interaction with other commands (e.g. tools) gets its own task.py.
+
+    task.py embeds the command list, so keeping the first one would leave the
+    new commands unreachable. The replacement is published under a staging
+    name with the atomic write, then renamed over task.py inside the verified
+    directory; the .bashrc block is already there and is not appended again.
+    """
+    sandbox = CannedSandbox(installed_task_py("# generated for other commands\n"))
+    await install_human_agent("nonroot", REAL_COMMANDS, None, True, sandbox_env=sandbox)
+
+    calls = [cmd for cmd, _ in sandbox.exec_calls]
+    assert [user for _, user in sandbox.exec_calls] == ["root"] * 6
+    assert not any(is_bashrc_call(cmd) for cmd in calls)
+    assert is_task_py_probe(calls[1])
+    assert is_task_py_read(calls[2])
+    assert wrapped_command(calls[3]) == ["sh", "-c", _CLEAR_ENTRY, "sh", TASK_PY_NEXT]
+    assert wrapped_command(calls[4]) == [
+        "sh",
+        "-c",
+        _WRITE_ENTRY,
+        "sh",
+        TASK_PY_NEXT,
+        "755",
+    ]
+    assert sandbox.inputs[4] == human_agent_commands(REAL_COMMANDS)
+    assert wrapped_command(calls[5]) == [
+        "sh",
+        "-c",
+        _RENAME_ENTRY,
+        "sh",
+        TASK_PY_NEXT,
+        TASK_PY,
+    ]
+    assert all(helper_flags(cmd) == ROOT_CHECK for cmd in calls[1:])
 
 
 @pytest.mark.parametrize(
@@ -479,7 +542,8 @@ def test_installer_source_runs_nothing_outside_the_helper_and_bashrc_scripts() -
 
     Every ``exec`` in the module must launch the absolute shell with either the
     framework-directory helper script or the ``.bashrc`` append script; the only
-    ``chmod`` is inside a command the helper runs in the verified directory.
+    ``chmod``, ``rm`` and ``mv`` are inside commands the helper runs in the
+    verified directory.
     """
     source = Path(human_install.__file__).read_text()
     tree = ast.parse(source)
@@ -929,6 +993,67 @@ async def test_docker_install_for_nonroot_user_and_reinstall_is_skipped(
         "nonroot", REAL_COMMANDS, None, True, sandbox_env=docker_sandbox
     )
     assert await _root_sh(docker_sandbox, "cat /home/nonroot/.bashrc") == after
+
+
+def _echo_tool(name: str) -> Tool:
+    async def execute(text: str) -> str:
+        """Echo text.
+
+        Args:
+            text: Text to echo.
+
+        Returns:
+            The text.
+        """
+        return text
+
+    return ToolDef(
+        execute, name=name, description="Echo text.", parameters={"text": "Text."}
+    ).as_tool()
+
+
+@pytest.mark.slow
+@skip_if_no_docker
+async def test_docker_reinstall_with_other_tools_replaces_task_py(
+    docker_sandbox: SandboxEnvironment,
+) -> None:
+    """A second human interaction in the same sandbox can reach its own tools."""
+    await install_human_agent(
+        "nonroot",
+        [*REAL_COMMANDS, ToolCommand([_echo_tool("first")])],
+        None,
+        True,
+        sandbox_env=docker_sandbox,
+    )
+    bashrc = await _root_sh(docker_sandbox, "cat /home/nonroot/.bashrc")
+    await install_human_agent(
+        "nonroot",
+        [*REAL_COMMANDS, ToolCommand([_echo_tool("second")])],
+        None,
+        True,
+        sandbox_env=docker_sandbox,
+    )
+
+    # Still root-owned 0755 with nothing left behind, and .bashrc unchanged.
+    assert await _stat(docker_sandbox, f"{HUMAN_AGENT_DIR}/{TASK_PY}") == "81ed 0"
+    listing = await _root_sh(docker_sandbox, f"ls -A {HUMAN_AGENT_DIR}")
+    assert listing.split() == [TASK_PY]
+    assert await _root_sh(docker_sandbox, "cat /home/nonroot/.bashrc") == bashrc
+
+    # The installed CLI routes the second tool (the RPC module is stubbed so
+    # the parser can run without the service).
+    await _root_sh(
+        docker_sandbox,
+        "mkdir -p /tmp/stub && echo 'def call_human_agent(*a, **k): pass' "
+        "> /tmp/stub/human_agent.py && chmod -R a+rX /tmp/stub",
+    )
+    result = await docker_sandbox.exec(
+        ["python3", f"{HUMAN_AGENT_DIR}/{TASK_PY}", "tool", "second", "--help"],
+        user="nonroot",
+        env={"PYTHONPATH": "/tmp/stub"},
+    )
+    assert result.success, result.stderr
+    assert "--text" in result.stdout
 
 
 @pytest.mark.slow

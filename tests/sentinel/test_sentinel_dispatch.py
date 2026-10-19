@@ -2570,6 +2570,46 @@ def test_an_agent_run_by_a_sandbox_bridge_host_tool_is_checked() -> None:
     assert [type(step) for step in seen] == [BeforeGenerate, AfterGenerate]
 
 
+@agent
+def d3_calls_a_human_tool(tool: Tool, arguments: dict[str, Any]) -> Agent:
+    async def execute(state: AgentState) -> AgentState:
+        from inspect_ai.agent._human.commands.tool import ToolCommand
+        from inspect_ai.agent._human.state import HumanAgentState
+        from inspect_ai.tool import ToolDef
+
+        handler = ToolCommand([tool]).service(HumanAgentState(instructions=""))
+        await handler(tool=ToolDef(tool).name, arguments=arguments)
+        return state
+
+    return execute
+
+
+def test_a_human_invoked_tool_s_own_model_call_is_not_checked() -> None:
+    seen: GenerateSeen = []
+    task = Task(
+        dataset=[Sample(input="Grade hi.")],
+        solver=d3_calls_a_human_tool(graded(), {"text": "hi"}),
+        sentinel=observe_only([d3_generates(seen)]),
+    )
+    log = eval(task, model="mockllm/model")[0]
+    assert log.status == "success", log.error
+    assert any(e.input[-1].text == "Grade: hi" for e in agent_events(log))
+    assert seen == []
+
+
+def test_an_agent_run_by_a_human_invoked_tool_is_checked() -> None:
+    seen: GenerateSeen = []
+    helper = react(name="helper", description="A helper agent.", submit=False)
+    task = Task(
+        dataset=[Sample(input="Ask the helper.")],
+        solver=d3_calls_a_human_tool(as_tool(helper), {"input": "hi"}),
+        sentinel=observe_only([d3_generates(seen)]),
+    )
+    log = eval(task, model="mockllm/model")[0]
+    assert log.status == "success", log.error
+    assert [type(step) for step in seen] == [BeforeGenerate, AfterGenerate]
+
+
 def test_a_tool_s_own_model_call_in_a_react_agent_is_not_checked() -> None:
     seen: GenerateSeen = []
     model = get_model(

@@ -11,6 +11,7 @@ import anyio
 from pydantic import JsonValue
 from shortuuid import uuid
 
+from inspect_ai._sentinel._scope import AgentScope, sentinel_scope
 from inspect_ai._util.content import (
     ContentBase,
     ContentText,
@@ -573,7 +574,11 @@ def tool(args):
                     # validators (user code), so it shares the tool body's
                     # exception disposition, as on the model path
                     params = tool_params(kwargs, tool_fn)
-                    result = await tool_fn(**params)
+                    # as on the model path, the tool's own model calls are
+                    # not agent turns (an agent the tool runs sets its own
+                    # scope, which wins)
+                    with sentinel_scope(AgentScope.OFF):
+                        result = await tool_fn(**params)
                 except Exception as ex:
                     return self._tool_exception(tool, ex, max_output, finalize)
         except BaseException:
@@ -702,8 +707,11 @@ def _classify_schema(schema: dict[str, Any]) -> ParamInfo:
                 if info.default is not None
                 else schema.get("default"),
             )
-        # Complex union - not simple
-        return _complex_info(schema.get("description"), schema.get("default"))
+        # Complex union - a structured (JSON) parameter, nullable if null is
+        # one of its branches
+        return _complex_info(schema.get("description"), schema.get("default"))._replace(
+            is_optional=len(non_null) < len(schema["anyOf"])
+        )
 
     schema_type = schema.get("type")
     enum = schema.get("enum")

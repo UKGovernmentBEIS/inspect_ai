@@ -2905,3 +2905,64 @@ def test_bounded_rendering_matches_full_rendering(parts, limit) -> None:
     full = "\n".join(parts)
     expected = truncate_tool_output("t", full, limit)
     assert _terminal_text("t", parts, limit) == (expected.output if expected else full)
+
+
+# --- review pass 4 (2026-10-19): --null for nullable unions, preflight in ----
+# --- the human_cli() factory ---------------------------------------------------
+
+
+def test_nullable_union_gets_a_null_flag() -> None:
+    """A multi-type nullable union (int | str | None) gets --null-<name> too."""
+
+    async def execute(value: int | str | None = None) -> str:
+        """Report the value.
+
+        Args:
+            value: A number, a string, or nothing.
+
+        Returns:
+            The value received.
+        """
+        return repr(value)
+
+    union = ToolDef(
+        execute,
+        name="union",
+        description="Report the value.",
+        parameters={"value": "A number, a string, or nothing."},
+    ).as_tool()
+    parser, _ = _build_parsers([union])
+    assert _handler_kwargs(parser, ["tool", "union", "--null-value"]) == {"value": None}
+    assert _handler_kwargs(parser, ["tool", "union", "--value", "5"]) == {"value": 5}
+    with pytest.raises(SystemExit):
+        parser.parse_args(["tool", "union", "--value", "5", "--null-value"])
+
+
+def test_human_cli_rejects_unsupported_tools_at_definition() -> None:
+    """human_cli(tools=...) validates its tools when the agent is created.
+
+    A tool whose CLI can't be generated is rejected at task definition, not
+    at sample start.
+    """
+    from inspect_ai.agent._human.agent import human_cli
+
+    async def execute(help: str) -> str:
+        """Echo help.
+
+        Args:
+            help: A parameter named help.
+
+        Returns:
+            The value.
+        """
+        return help
+
+    bad = ToolDef(
+        execute,
+        name="helper",
+        description="Echo help.",
+        parameters={"help": "A parameter named help."},
+    ).as_tool()
+
+    with pytest.raises(ValueError, match="help"):
+        human_cli(tools=[bad])

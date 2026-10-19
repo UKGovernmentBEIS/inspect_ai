@@ -8,6 +8,7 @@ from inspect_ai.util._sandbox.events import SandboxEnvironmentProxy
 
 from .._agent import Agent, AgentState, agent
 from .commands import human_agent_commands
+from .commands.tool import ToolCommand
 from .install import install_human_agent
 from .panel import HumanAgentPanel
 from .service import run_human_agent_service
@@ -50,6 +51,11 @@ def human_cli(
     Returns:
        Agent: Human CLI agent.
     """
+    # reject tools whose `task tool` CLI can't be generated now, at task
+    # definition, rather than when a sample starts
+    if tools:
+        ToolCommand(tools)
+
     # we can only run one human agent interaction at a time (use lock to enforce)
     agent_lock = anyio.Lock()
 

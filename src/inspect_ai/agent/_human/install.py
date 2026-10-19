@@ -11,9 +11,13 @@ nothing here trusts a pathname the sandbox user could have planted:
   entry that fails the contract aborts the installation rather than being adopted
   or repaired.
 - "Already installed" means the verified directory holds ``task.py`` as a regular
-  file; any other entry there is an error, never a reason to skip.
+  file; any other entry there is an error, never a reason to skip. ``task.py``
+  embeds the command list (including any tools), so an installed one whose
+  content differs from what this interaction generates is replaced.
 - ``task.py`` is published through the helper's atomic write, so it only ever
-  exists complete, in its final mode, and never over an existing entry.
+  exists complete, in its final mode, and never over an existing entry. A
+  replacement is published the same way under ``TASK_PY_NEXT`` and then renamed
+  over ``task.py`` inside the verified directory, so the swap is atomic too.
 - The ``.bashrc`` append runs as the login user with the content on stdin, refuses
   to run as any other uid (a provider that ignores ``user``), refuses a
   ``.bashrc`` that is not a regular file, and is idempotent, so a failed
@@ -40,6 +44,7 @@ from textwrap import dedent
 from inspect_ai.util import SandboxEnvironment, sandbox
 from inspect_ai.util._sandbox._framework_directory import (
     ensure_framework_directory,
+    exec_in_framework_directory,
     expected_uid_for,
     stat_in_framework_directory,
     try_ensure_framework_directory_as_root,
@@ -58,6 +63,8 @@ HUMAN_AGENT_DIR_MODE = 0o755
 TASK_PY = "task.py"
 TASK_PY_MODE = 0o755
 """Readable and runnable by every user; only the directory owner can replace it."""
+TASK_PY_NEXT = f"{TASK_PY}.next"
+"""Staging name for a replacement ``task.py``, renamed over it once published."""
 BASHRC = ".bashrc"
 BASHRC_MARKER = (
     "### Inspect Human Agent Setup #########################################="
@@ -80,7 +87,8 @@ async def install_human_agent(
 
     The ``.bashrc`` append runs before ``task.py`` is published, so a completed
     installation is exactly one whose ``task.py`` exists: a later call on the same
-    sandbox sees it and does nothing, and a call after a failure resumes without
+    sandbox sees it and appends nothing (replacing ``task.py`` only if it was
+    generated for other commands), and a call after a failure resumes without
     duplicating the ``.bashrc`` block.
 
     Args:
@@ -99,21 +107,75 @@ async def install_human_agent(
     """
     sb = sandbox_env or sandbox()
     owner = await _ensure_human_agent_dir(sb)
+    task_py = human_agent_commands(commands)
     if await _task_py_installed(sb, owner):
+        if await _read_task_py(sb, owner) != task_py:
+            await _replace_task_py(sb, owner, task_py)
         return
 
     bash_rc = human_agent_bashrc(commands, bashrc_content, record_session)
     await append_bashrc(sb, user, bash_rc)
 
+    await _write_entry(sb, owner, TASK_PY, task_py)
+
+
+async def _write_entry(
+    sb: SandboxEnvironment, owner: str | None, name: str, content: str
+) -> None:
     await write_file_in_framework_directory(
         sb,
         HUMAN_AGENT_DIR,
-        TASK_PY,
-        human_agent_commands(commands),
+        name,
+        content,
         user=owner,
         expected_uid=expected_uid_for(owner),
         mode=HUMAN_AGENT_DIR_MODE,
         file_mode=TASK_PY_MODE,
+    )
+
+
+async def _run_in_dir(sb: SandboxEnvironment, owner: str | None, cmd: list[str]) -> str:
+    """Run ``cmd`` in the verified ``HUMAN_AGENT_DIR``; return its stdout."""
+    result = await exec_in_framework_directory(
+        sb,
+        HUMAN_AGENT_DIR,
+        cmd,
+        user=owner,
+        expected_uid=expected_uid_for(owner),
+        mode=HUMAN_AGENT_DIR_MODE,
+    )
+    if not result.success:
+        raise RuntimeError(
+            f"Cannot install human agent: `{' '.join(cmd)}` in {HUMAN_AGENT_DIR} "
+            f"failed: {result.stderr.strip()}"
+        )
+    return result.stdout
+
+
+# Run by the framework-directory helper in the verified HUMAN_AGENT_DIR (relative
+# names, fixed PATH). `mv -T` replaces $2 rather than moving into it if it were a
+# directory; rename(2) makes the swap atomic.
+_CLEAR_ENTRY = 'rm -f -- "$1"'
+_RENAME_ENTRY = 'mv -f -T -- "$1" "$2"'
+
+
+async def _read_task_py(sb: SandboxEnvironment, owner: str | None) -> str:
+    return await _run_in_dir(sb, owner, ["cat", "--", TASK_PY])
+
+
+async def _replace_task_py(
+    sb: SandboxEnvironment, owner: str | None, task_py: str
+) -> None:
+    """Atomically replace ``task.py`` (see module docs).
+
+    A staging file left by an interrupted earlier replacement is cleared first.
+    The rename replaces only the regular file just checked: only the directory
+    owner can create entries there.
+    """
+    await _run_in_dir(sb, owner, ["sh", "-c", _CLEAR_ENTRY, "sh", TASK_PY_NEXT])
+    await _write_entry(sb, owner, TASK_PY_NEXT, task_py)
+    await _run_in_dir(
+        sb, owner, ["sh", "-c", _RENAME_ENTRY, "sh", TASK_PY_NEXT, TASK_PY]
     )
 
 
