@@ -1108,6 +1108,7 @@ def track_store_changes() -> Iterator[None]:
     is cancelled. On that path any failure to log them, including a
     `BaseException`, is logged as a warning rather than raised (and a failure
     of the warning is ignored), so it cannot replace the block's exception.
+    `KeyboardInterrupt` and `SystemExit` are the exception: they propagate.
     Nothing is logged on `GeneratorExit` (an abandoned span being finalized).
     """
     before = store_jsonable(store())
@@ -1127,9 +1128,15 @@ def track_store_changes() -> Iterator[None]:
     except BaseException:
         try:
             log_changes()
+        except (KeyboardInterrupt, SystemExit):
+            raise
         except BaseException:
-            with contextlib.suppress(BaseException):
+            try:
                 logger.warning("Unable to log store changes for span", exc_info=True)
+            except (KeyboardInterrupt, SystemExit):
+                raise
+            except BaseException:
+                pass
         raise
     log_changes()
 

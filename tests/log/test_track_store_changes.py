@@ -576,6 +576,43 @@ async def test_span_cleanup_failure_does_not_mask_exception(
     assert any(isinstance(e, SpanEndEvent) for e in transcript.events)
 
 
+@pytest.mark.parametrize("interrupt", [KeyboardInterrupt, SystemExit])
+@pytest.mark.parametrize("stage", ["diff", "handler"])
+def test_store_changes_interrupt_during_cleanup_propagates(
+    stage: str,
+    interrupt: type[BaseException],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # synchronous: a KeyboardInterrupt escaping an event loop task would
+    # stop the test run rather than reach pytest.raises
+    _init_span_test()
+    error = RuntimeError("boom")
+    raised_interrupt = interrupt()
+
+    def failing_store_changes(*args: Any) -> None:
+        raise raised_interrupt if stage == "diff" else ValueError("diff failed")
+
+    monkeypatch.setattr(
+        "inspect_ai.log._transcript.store_changes", failing_store_changes
+    )
+    logger = logging.getLogger("inspect_ai.log._transcript")
+    handler = _FailingHandler(raised_interrupt) if stage == "handler" else None
+    if handler is not None:
+        logger.addHandler(handler)
+    try:
+        with pytest.raises(interrupt) as raised:
+            with track_store_changes():
+                store().set("key", "value")
+                raise error
+    finally:
+        if handler is not None:
+            logger.removeHandler(handler)
+
+    assert raised.value is raised_interrupt
+    if handler is not None:
+        assert handler.emits == 1
+
+
 async def test_span_finalized_in_another_context_logs_no_store_event() -> None:
     _init_span_test()
     span_cm = span("abandoned")
