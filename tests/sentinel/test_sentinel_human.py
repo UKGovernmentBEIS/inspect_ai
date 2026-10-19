@@ -359,7 +359,7 @@ async def test_the_person_sees_history_or_else_what_the_model_saw(
     panel.install(monkeypatch)
 
     await _HostNative(None).ask_human(
-        replace(step(after), history=history, input=model_input), (), ["approve"]
+        replace(step(after), agent_messages=history, input=model_input), (), ["approve"]
     )
 
     assert panel.histories == [shown]
@@ -379,7 +379,7 @@ async def test_after_a_generate_the_person_sees_history_or_else_what_the_model_s
     panel.install(monkeypatch)
 
     await _HostNative(None).ask_human(
-        replace(turn_step(ADD), history=history, input=INPUT),
+        replace(turn_step(ADD), agent_messages=history, input=INPUT),
         (),
         ["approve", "terminate"],
     )
@@ -545,7 +545,7 @@ def turn_step(*calls: ToolCall, content: str = "Adding and shouting.") -> AfterG
         model="mockllm/model",
         conversation="",
         input=[],
-        history=[],
+        agent_messages=[],
         tools=[],
         tool_choice="auto",
         config=GenerateConfig(),
@@ -632,7 +632,7 @@ async def test_a_person_cannot_be_asked_before_a_generate() -> None:
         model="mockllm/model",
         conversation="",
         input=[],
-        history=[],
+        agent_messages=[],
         tools=[],
         tool_choice="auto",
         config=GenerateConfig(),

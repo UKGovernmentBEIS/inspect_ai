@@ -90,6 +90,7 @@ from ._context import (
     active_task_metadata,
 )
 from ._scope import AgentScope, sentinel_scope
+from ._sent import record_sent, sent_messages
 
 logger = getLogger(__name__)
 
@@ -105,13 +106,15 @@ async def sentinel_before_tool_call(
     if not _watches(BeforeToolCall):
         return None
     producer = _producing_event(call, history)
+    conversation = _conversation()
     step = BeforeToolCall(
-        conversation=_conversation(),
+        conversation=conversation,
         message=message,
         call=call,
         view=resolve_tool_call_view(call, viewer),
         input=list(producer.input) if producer is not None else None,
-        history=history,
+        agent_messages=history,
+        history=sent_messages(conversation),
         tools=list(producer.tools) if producer is not None else None,
     )
     return await _run(step)
@@ -147,15 +150,17 @@ async def sentinel_after_tool_call(
     if not _watches(AfterToolCall):
         return
     producer = _producing_event(call, history)
+    conversation = _conversation()
     step = AfterToolCall(
-        conversation=_conversation(),
+        conversation=conversation,
         message=message,
         call=call,
         result=result,
         output=output,
         view=resolve_tool_call_view(call, viewer),
         input=list(producer.input) if producer is not None else None,
-        history=history,
+        agent_messages=history,
+        history=sent_messages(conversation),
         tools=list(producer.tools) if producer is not None else None,
         truncated=Truncation(*truncated) if truncated is not None else False,
     )
@@ -187,11 +192,13 @@ async def sentinel_before_generate(
     root = active_sentinel()
     if root is None or not (watched_stages(root) & {BeforeGenerate, AfterGenerate}):
         return None
+    conversation = _conversation()
     step = BeforeGenerate(
         model=model,
-        conversation=_conversation(),
+        conversation=conversation,
         input=input,
-        history=history,
+        agent_messages=history,
+        history=sent_messages(conversation),
         tools=tools,
         tool_choice=tool_choice,
         config=config,
@@ -211,7 +218,8 @@ async def sentinel_after_generate(before: BeforeGenerate, output: ModelOutput) -
         model=before.model,
         conversation=before.conversation,
         input=before.input,
-        history=before.history,
+        agent_messages=before.agent_messages,
+        history=sent_messages(before.conversation),
         tools=before.tools,
         tool_choice=before.tool_choice,
         config=before.config,
@@ -324,6 +332,10 @@ def _conversation() -> str:
         return agent_span_id
     active = sample_active()
     return active.sample_uuid if active is not None else ""
+
+
+def record_agent_turn(input: list[ChatMessage]) -> None:
+    record_sent(_conversation(), input)
 
 
 def _assistant_index(call: ToolCall, history: list[ChatMessage]) -> int | None:
@@ -443,8 +455,8 @@ class _HostNative:
         # the approval surfaces show the conversation; a step whose host could
         # not provide the scaffold's history shows what the model saw instead,
         # and nothing when that is unknown too
-        if step.history is not None:
-            conversation = step.history
+        if step.agent_messages is not None:
+            conversation = step.agent_messages
         elif step.input is not None:
             conversation = step.input
         else:
