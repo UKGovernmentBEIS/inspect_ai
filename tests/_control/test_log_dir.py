@@ -3275,6 +3275,47 @@ async def test_a_log_replaced_between_its_version_lookup_and_its_read_gets_no_ol
     assert _answers(await _poll(log_dir)) == _answers(uncached)
 
 
+@pytest.mark.parametrize("plan_only", [True, False])
+async def test_a_log_replaced_during_a_read_and_then_restored_is_read_again(
+    log_dir: Path, finished_log: EvalLog, plan_only: bool
+) -> None:
+    [path] = list(log_dir.glob("*.eval"))
+    replaced = await read_eval_log_async(str(path))
+    assert replaced.samples is not None
+    replaced.eval = replaced.eval.model_copy(update={"model": "mockllm/other"})
+    replaced.samples[1] = replaced.samples[1].model_copy(update={"error": None})
+    aside = log_dir / "aside"
+
+    # the log is moved aside and replaced after its version is looked up and
+    # before its central directory is read; afterwards the original is moved
+    # back, so its stat is the version looked up
+    real_log_version = consistency.log_version
+    pending = [replaced]
+
+    async def replaced_after_lookup(fs: AsyncFilesystem, location: str) -> str | None:
+        version = await real_log_version(fs, location)
+        if pending:
+            os.rename(path, aside)
+            await write_eval_log_async(pending.pop(), str(path))
+        return version
+
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setattr(consistency, "log_version", replaced_after_lookup)
+        if plan_only:
+            async with AsyncFilesystem() as fs:
+                with _reads(open_cache()):
+                    await index_log_dir(fs, str(log_dir))
+        else:
+            await _poll(log_dir)
+    assert not pending
+    os.replace(aside, path)
+
+    warm = await _poll(log_dir)
+    assert identity_row(warm.dir_index.tasks[0])["model"] == finished_log.eval.model
+    assert _statuses(sample_listing(warm.views[0]))[2] == "error"
+    assert _answers(warm) == _answers(await _poll(log_dir, cache=None))
+
+
 def _unlisted_time(poll: _Poll) -> list[Any]:
     """:func:`_answers` less ``updated_at``, the mtime the listing saw."""
     return [({**row, "updated_at": None}, rows) for row, rows in _answers(poll)]

@@ -160,10 +160,16 @@ async def read_version(
     directory, so it names exactly those bytes. Elsewhere there is no such
     response, so the version is looked up *before* the read: a replacement in
     between leaves an older version than the bytes, which the freshness check
-    then reports as changed (an extra re-read, never a stale answer).
+    then reports as changed (an extra re-read, never a stale answer). A local
+    file is also stat'ed after the read, and the version is ``None`` when the
+    two differ: a cached entry is keyed by the version, and the original
+    file, renamed back, would have it again.
     """
     if is_s3_filename(location):
         cd = await read()
         return cd, cd.etag
     version = await log_version(fs, location)
-    return await read(), version
+    cd = await read()
+    if filesystem(location).is_local() and await log_version(fs, location) != version:
+        return cd, None
+    return cd, version

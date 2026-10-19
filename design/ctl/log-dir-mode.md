@@ -1075,7 +1075,11 @@ of what changed. `src/inspect_ai/_control/log_dir/cache.py`:
   - the plan. A finished log's plan (the log has `header.json`) is used as
     is while the listing reports the version it was read from: the S3 ETag,
     or locally a fresh stat (inode, `mtime_ns` and size, the freshness
-    check's form). Once the version changes the plan is read again through
+    check's form). A local plan's version is the stat taken before its
+    central-directory read, kept only when a stat after the read matches
+    it; a log replaced during the read gets no version, so no entry is
+    reused for it, even once the original file is renamed back.
+    Once the version changes the plan is read again through
     the new central directory, so task identity, status and buffer
     eligibility are never taken from an older version. A running log's
     central directory is read on every poll; its cached header is reused
