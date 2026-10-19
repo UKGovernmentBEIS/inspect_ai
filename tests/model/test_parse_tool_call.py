@@ -1,6 +1,8 @@
 import logging
 import time
 
+import pytest
+
 from inspect_ai._util.constants import PKG_NAME
 from inspect_ai.model._call_tools import parse_tool_call
 from inspect_ai.tool import ToolInfo, ToolParam, ToolParams
@@ -59,6 +61,15 @@ def test_parse_bool_tool_call_without_a_dict():
 
     assert "param1" in tool_call.arguments
     assert tool_call.arguments["param1"]
+
+
+@pytest.mark.parametrize("arguments", ["2024-01-01", "1: a"])
+def test_parse_non_json_yaml_tool_call_keeps_the_text(arguments: str):
+    # yaml reads these as a date and an int-keyed dict, which messages can't hold
+    tool_call = parse_tool_call("id", "testing_tool", arguments, [testing_tool])
+
+    assert tool_call.arguments == {"param1": arguments}
+    assert tool_call.parse_error is None
 
 
 def test_parse_single_quotes_in_string_tool_call_without_a_dict():

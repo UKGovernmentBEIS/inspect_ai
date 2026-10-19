@@ -61,7 +61,8 @@ def _strict_eq(a: object, b: object) -> bool:
     would reuse a pool entry whose stored bytes round-trip to the *other*
     value — silent data corruption. This comparison requires matching types
     for scalars (recursing into models, dataclasses, dicts, and lists), so a
-    merge implies identical serialization.
+    merge implies identical serialization. Conversely ``nan != nan``, but
+    NaNs of the same sign serialize identically, so they match here.
     """
     if a is b:
         return True
@@ -87,7 +88,8 @@ def _strict_eq(a: object, b: object) -> bool:
         return len(a) == len(b) and all(_strict_eq(x, y) for x, y in zip(a, b))
     if ta is float:
         assert isinstance(a, float) and isinstance(b, float)
-        return a == b and math.copysign(1.0, a) == math.copysign(1.0, b)
+        same_sign = math.copysign(1.0, a) == math.copysign(1.0, b)
+        return same_sign and (a == b or (math.isnan(a) and math.isnan(b)))
     return a == b
 
 

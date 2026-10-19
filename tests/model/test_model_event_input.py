@@ -1,6 +1,7 @@
 """`ModelEvent.input` records the messages as they were when the model was called."""
 
 import json
+import math
 from collections import OrderedDict
 from dataclasses import dataclass
 from typing import Any
@@ -8,6 +9,7 @@ from typing import Any
 import pytest
 from pydantic import BaseModel, ConfigDict
 
+from inspect_ai._util.constants import get_deserializing_context
 from inspect_ai.event._model import ModelEvent
 from inspect_ai.log._transcript import Transcript, init_transcript, transcript
 from inspect_ai.model import (
@@ -128,6 +130,35 @@ async def test_model_event_input_keeps_equal_but_distinct_edits(
     assert logged == [json.dumps(before), json.dumps(after)]
 
 
+async def test_model_event_input_reuses_nan_and_id_less_snapshots() -> None:
+    init_transcript(Transcript())
+    model = get_model("mockllm/model")
+    user = ChatMessageUser.model_validate(
+        {"role": "user", "content": "hi"}, context=get_deserializing_context()
+    )
+    assert user.id is None
+    assistant = ChatMessageAssistant(
+        content="",
+        tool_calls=[ToolCall(id="c1", function="f", arguments={"x": float("nan")})],
+    )
+    messages: list[ChatMessage] = [user, assistant]
+
+    await model.generate(messages)
+    await model.generate(messages)
+    user.content = "edited"
+    await model.generate(messages)
+
+    first, second, third = _model_events()
+    assert first.input[0] is second.input[0]
+    assert first.input[1] is second.input[1]
+    assert second.input[0].content == "hi"
+    assert third.input[0].content == "edited"
+    assert third.input[1] is first.input[1]
+    first_call = first.input[1]
+    assert isinstance(first_call, ChatMessageAssistant) and first_call.tool_calls
+    assert math.isnan(first_call.tool_calls[0].arguments["x"])
+
+
 @dataclass(slots=True)
 class _SlottedState:
     step: int
@@ -137,17 +168,38 @@ class _ExtraState(BaseModel):
     model_config = ConfigDict(extra="allow")
 
 
+def _cyclic_list() -> list[Any]:
+    value: list[Any] = []
+    value.append(value)
+    return value
+
+
 @pytest.mark.parametrize(
     "value",
     [
         _SlottedState(step=1),
         _ExtraState.model_validate({"step": 1}),
         OrderedDict(step=1),
+        _cyclic_list(),
     ],
 )
 async def test_model_event_input_refuses_object_metadata(value: Any) -> None:
     init_transcript(Transcript())
     message = ChatMessageUser(content="hi", metadata={"state": value})
 
-    with pytest.raises(TypeError, match=r"metadata\['state'\] has type"):
+    with pytest.raises(TypeError, match=r"metadata\['state'\]"):
+        await get_model("mockllm/model").generate([message])
+
+
+@pytest.mark.parametrize("value", [_SlottedState(step=1), [OrderedDict(step=1)]])
+async def test_model_event_input_refuses_object_tool_arguments(value: Any) -> None:
+    init_transcript(Transcript())
+    message = ChatMessageAssistant(
+        content="",
+        tool_calls=[ToolCall(id="c1", function="f", arguments={"state": value})],
+    )
+
+    with pytest.raises(
+        TypeError, match=r"tool_calls\[0\]\.arguments\['state'\].* has type"
+    ):
         await get_model("mockllm/model").generate([message])

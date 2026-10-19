@@ -5,6 +5,7 @@ from typing import (
     Iterable,
     Literal,
     Mapping,
+    NoReturn,
     TypeAlias,
 )
 
@@ -66,6 +67,63 @@ def exceeds_max_depth(value: object, max_depth: int) -> bool:
         expanded_at[id(current)] = depth
         stack.extend((child, depth + 1) for child in children)
     return False
+
+
+def check_json_data(value: object, name: str) -> None:
+    """Raise `TypeError` unless `value` is plain JSON data.
+
+    Plain JSON data is built only from `dict` (with `str` keys), `list`,
+    `str`, `int`, `float`, `bool` and `None`. Types must match exactly, so
+    subclasses such as `OrderedDict` are refused. A container reached by
+    several paths (e.g. yaml aliases) is checked once, so the check is linear
+    in the number of distinct containers.
+
+    Args:
+        value: Value to check.
+        name: Name of the value, used in the error message.
+    """
+    checked: set[int] = set()
+    on_path: set[int] = set()
+    # (value, path, leaving): leaving entries take a container off the path
+    stack: list[tuple[object, str, bool]] = [(value, "", False)]
+    while stack:
+        current, path, leaving = stack.pop()
+        if leaving:
+            on_path.discard(id(current))
+            checked.add(id(current))
+            continue
+        kind = type(current)
+        if kind in (str, int, float, bool, type(None)):
+            continue
+        if kind is not dict and kind is not list:
+            _raise_json_type_error(name, path, kind)
+        if id(current) in checked:
+            continue
+        if id(current) in on_path:
+            raise TypeError(
+                f"{name} must be JSON data, but {name}{path} contains itself."
+            )
+        on_path.add(id(current))
+        stack.append((current, path, True))
+        if isinstance(current, dict):
+            for key, item in current.items():
+                if type(key) is not str:
+                    _raise_json_type_error(name, f"{path}[{key!r}]", type(key))
+                stack.append((item, f"{path}[{key!r}]", False))
+        else:
+            assert isinstance(current, list)
+            stack.extend(
+                (item, f"{path}[{i}]", False) for i, item in enumerate(current)
+            )
+
+
+def _raise_json_type_error(name: str, path: str, value_type: type) -> NoReturn:
+    raise TypeError(
+        f"{name} must be JSON data (dicts with string keys, lists, strings, "
+        f"numbers, booleans and None), but {name}{path} has type "
+        f"{value_type.__name__}. Convert it to plain data first, for example "
+        f"with model_dump() or dataclasses.asdict()."
+    )
 
 
 def is_ijson_nan_inf_error(

@@ -31,7 +31,11 @@ class ChatMessageBase(BaseModel):
     """Source of message."""
 
     metadata: dict[str, Any] | None = Field(default=None)
-    """Additional message metadata."""
+    """Additional message metadata.
+
+    Must be JSON data (dicts with string keys, lists, strings, numbers,
+    booleans and None). Model generate() raises TypeError for other values.
+    """
 
     def metadata_as(self, metadata_cls: Type[MT]) -> MT:
         """Metadata as a Pydantic model.
