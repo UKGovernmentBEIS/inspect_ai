@@ -781,12 +781,19 @@ async def test_docker_sample_added_to_a_task_without_docker_samples(
     assert config.extensions == {}
 
 
-async def test_enqueued_docker_task_uses_eval_directory(
-    fake_docker: FakeDocker, tmp_path: Path
+@pytest.mark.parametrize("config_kind", ["programmatic", "file", "discovered"])
+async def test_enqueued_docker_task_directories(
+    fake_docker: FakeDocker, tmp_path: Path, config_kind: str
 ) -> None:
     launch_dir = os.getcwd()
     enqueue_dir = tmp_path / "enqueue"
     enqueue_dir.mkdir()
+    config: SandboxEnvironmentConfigType | None = compose_config()
+    expected_config = enqueue_dir / "compose.yaml"
+    if config_kind != "programmatic":
+        write_compose_file(Path(launch_dir) / "compose.yaml")
+        write_compose_file(expected_config)
+        config = "compose.yaml" if config_kind == "file" else None
 
     @solver
     def add_task() -> Solver:
@@ -796,7 +803,7 @@ async def test_enqueued_docker_task_uses_eval_directory(
                     Task(
                         dataset=[Sample(input="added")],
                         solver=[],
-                        sandbox=SandboxEnvironmentSpec("docker", compose_config()),
+                        sandbox=SandboxEnvironmentSpec("docker", config),
                         name="added",
                     )
                 )
@@ -810,7 +817,14 @@ async def test_enqueued_docker_task_uses_eval_directory(
     )
     assert sorted(log.eval.task for log in logs) == ["added", "seed"]
     assert all(log.status == "success" for log in logs), [log.error for log in logs]
-    assert set(fake_docker.project_directories) == {launch_dir}
+    if config_kind == "programmatic":
+        assert set(fake_docker.project_directories) == {launch_dir}
+    else:
+        added = next(log for log in logs if log.eval.task == "added")
+        assert added.eval.sandbox is not None
+        assert isinstance(added.eval.sandbox.config, str)
+        assert Path(added.eval.sandbox.config).resolve() == expected_config.resolve()
+        assert set(fake_docker.project_directories) == {None}
     assert fake_docker.generated_files() == []
 
 

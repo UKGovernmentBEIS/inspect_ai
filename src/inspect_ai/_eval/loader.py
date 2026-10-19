@@ -118,7 +118,7 @@ def resolve_tasks(
                 task_file=task_file(task, relative=True),
                 model=task.model or model,
                 model_roles=_merge_model_roles(task.model_roles, model_roles),
-                sandbox=resolve_task_sandbox(task, sandbox, default_run_dir),
+                sandbox=resolve_task_sandbox(task, sandbox),
                 run_dir=task_run_dir(task, default_run_dir),
                 checkpoint=task.checkpoint,
                 sequence=sequence,
@@ -413,11 +413,9 @@ def resolve_task_args(task: Task) -> dict[str, Any]:
 
 
 def resolve_task_sandbox(
-    task: Task,
-    sandbox: SandboxEnvironmentType | None,
-    default_run_dir: str | None = None,
+    task: Task, sandbox: SandboxEnvironmentType | None
 ) -> SandboxEnvironmentSpec | None:
-    run_dir = task_run_dir(task, default_run_dir)
+    run_dir = task_run_dir(task)
     # do the resolution
     resolved_sandbox = resolve_sandbox_environment(sandbox) or task.sandbox
 
