@@ -13,16 +13,24 @@ from inspect_sentinel import (
     BeforeToolCall,
     Context,
     Decision,
+    Escalations,
     EvalContext,
     Failed,
     HumanAnswer,
+    HumanDecision,
     Observation,
     Report,
     Reported,
     Step,
     Truncation,
 )
-from inspect_sentinel._integration import HostContext, run_sentinel, watched_stages
+from inspect_sentinel._integration import (
+    HostContext,
+    kept_human_decision,
+    run_sentinel,
+    supersedes,
+    watched_stages,
+)
 from shortuuid import uuid as shortuuid
 
 from inspect_ai._util.exception import TerminateSampleError
@@ -114,6 +122,7 @@ async def sentinel_before_tool_call(
         input=list(producer.input) if producer is not None else None,
         agent_messages=history,
         history=sent_messages(conversation),
+        human_decisions=_human_decisions(conversation),
         tools=list(producer.tools) if producer is not None else None,
     )
     return await _run(step)
@@ -160,6 +169,7 @@ async def sentinel_after_tool_call(
         input=list(producer.input) if producer is not None else None,
         agent_messages=history,
         history=sent_messages(conversation),
+        human_decisions=_human_decisions(conversation),
         tools=list(producer.tools) if producer is not None else None,
         truncated=Truncation(*truncated) if truncated is not None else False,
     )
@@ -198,6 +208,7 @@ async def sentinel_before_generate(
         input=input,
         agent_messages=history,
         history=sent_messages(conversation),
+        human_decisions=_human_decisions(conversation),
         tools=tools,
         tool_choice=tool_choice,
         config=config,
@@ -219,6 +230,7 @@ async def sentinel_after_generate(before: BeforeGenerate, output: ModelOutput) -
         input=before.input,
         agent_messages=before.agent_messages,
         history=sent_messages(before.conversation),
+        human_decisions=_human_decisions(before.conversation),
         tools=before.tools,
         tool_choice=before.tool_choice,
         config=before.config,
@@ -244,6 +256,7 @@ async def _run(step: Step) -> Decision | None:
     root = active_sentinel()
     if root is None or type(step) not in watched_stages(root):
         return None
+    recorder = _Recorder(_step_id(step))
     try:
         try:
             async with span(name="sentinel", type="sentinel"):
@@ -253,9 +266,7 @@ async def _run(step: Step) -> Decision | None:
                     suspend_working_limit(),
                     sentinel_scope(AgentScope.OFF, final=True),
                 ):
-                    decision = await run_sentinel(
-                        root, _host_context(_step_id(step)), step
-                    )
+                    decision = await run_sentinel(root, _host_context(recorder), step)
         except TimeoutError as ex:
             # the sample runner treats a bare TimeoutError as benign
             raise RuntimeError(
@@ -263,6 +274,7 @@ async def _run(step: Step) -> Decision | None:
             ) from ex
     except Exception as ex:
         raise SentinelFailure(ex) from ex
+    _publish(step.conversation, recorder.kept)
     if decision is not None and decision.action == "escalate":
         raise SentinelFailure(
             RuntimeError(
@@ -301,10 +313,10 @@ def _step_id(step: Step) -> str:
 _model_inputs: "WeakKeyDictionary[Transcript, Counter[str]]" = WeakKeyDictionary()
 
 
-def _host_context(step_id: str) -> HostContext:
+def _host_context(recorder: "_Recorder") -> HostContext:
     return HostContext(
         host=_HostNative(_eval_context()),
-        recorder=_Recorder(step_id),
+        recorder=recorder,
         store=store(),
     )
 
@@ -335,6 +347,30 @@ def _conversation() -> str:
 
 def record_agent_turn(input: list[ChatMessage]) -> None:
     record_sent(_conversation(), input)
+
+
+def _human_decisions(conversation: str) -> tuple[HumanDecision, ...]:
+    """The `human()` decisions published so far in the conversation, for a step about to run.
+
+    Taken when the step is built. A step's decisions are published only once it has settled (see `_publish`), so a decision made at the step itself, or at a parallel call's step still running, is not among them.
+    """
+    return tuple(_published.get(transcript(), {}).get(conversation, []))
+
+
+def _publish(conversation: str, kept: list[HumanDecision]) -> None:
+    """Add a settled step's `human()` decisions to its conversation's human decisions.
+
+    Called after the step's sentinel span ends, so a supersession has already withdrawn any decision that did not take effect, and a parallel step built before then never saw one that might yet be.
+    """
+    if kept:
+        conversations = _published.setdefault(transcript(), {})
+        conversations.setdefault(conversation, []).extend(kept)
+
+
+# the `human()` decisions of each conversation's settled steps, oldest first
+_published: "WeakKeyDictionary[Transcript, dict[str, list[HumanDecision]]]" = (
+    WeakKeyDictionary()
+)
 
 
 def _assistant_index(call: ToolCall, history: list[ChatMessage]) -> int | None:
@@ -422,7 +458,12 @@ class _HostNative:
             config=config or GenerateConfig(),
         )
 
-    async def ask_human(self, step: Step, choices: Sequence[str]) -> HumanAnswer:
+    async def ask_human(
+        self,
+        step: Step,
+        escalations: Escalations,
+        choices: Sequence[str],
+    ) -> HumanAnswer:
         if isinstance(step, BeforeGenerate):
             raise NotImplementedError(
                 f"inspect_ai cannot ask a person at the {_stage(step)} stage; "
@@ -457,18 +498,22 @@ class _HostNative:
             conversation = []
         approve = human_approver(choices=offered)
         if isinstance(step, AfterGenerate):
-            approval = await _ask_about_turn(approve, step, offered, conversation)
+            approval = await _ask_about_turn(
+                approve, step, escalations, offered, conversation
+            )
         else:
             approval = await approve(
-                step.message, step.call, _human_view(step), conversation
+                step.message, step.call, _human_view(step, escalations), conversation
             )
         if approval.decision in offered:
             return HumanAnswer(decision=approval.decision, reason=approval.explanation)
+        # the reason says the person did not choose, since later steps read
+        # this decision in human_decisions
         return HumanAnswer(
             decision="reject" if "reject" in offered else "terminate",
             reason=(
-                "Human review ended without one of the offered choices "
-                f"({approval.decision}: {approval.explanation})."
+                "The person closed the prompt without choosing; failing closed "
+                f"(the surface answered {approval.decision}: {approval.explanation})."
             ),
         )
 
@@ -476,10 +521,12 @@ class _HostNative:
 _HUMAN_CHOICES = ("approve", "reject", "terminate")
 
 
-def _human_view(step: BeforeToolCall | AfterToolCall) -> ToolCallView:
+def _human_view(
+    step: BeforeToolCall | AfterToolCall, escalations: Escalations
+) -> ToolCallView:
     view = step.view
-    if step.escalations:
-        lines = _escalation_lines(step)
+    if escalations:
+        lines = _escalation_lines(escalations)
         escalated = f"**Escalated by**\n\n{fenced(lines)}"
         if view.call is None:
             call = ToolCallContent(format="markdown", content=escalated)
@@ -501,13 +548,13 @@ def _human_view(step: BeforeToolCall | AfterToolCall) -> ToolCallView:
     return view
 
 
-def _escalation_lines(step: Step) -> str:
+def _escalation_lines(escalations: Escalations) -> str:
     return escape_placeholders(
         "\n".join(
             f"- {e.name}: {e.report.explanation}"
             if e.report.explanation
             else f"- {e.name}"
-            for e in step.escalations
+            for e in escalations
         )
     )
 
@@ -515,6 +562,7 @@ def _escalation_lines(step: Step) -> str:
 async def _ask_about_turn(
     approve: Approver,
     step: AfterGenerate,
+    escalations: Escalations,
     offered: list[ApprovalDecision],
     conversation: list[ChatMessage],
 ) -> Approval:
@@ -522,7 +570,7 @@ async def _ask_about_turn(
     # person is asked
     from inspect_ai.approval._human.acp import finish_approval_card
 
-    prompt = _turn_prompt(step)
+    prompt = _turn_prompt(step, escalations)
     status: Literal["completed", "failed"] = "failed"
     try:
         approval = await approve(prompt.message, prompt.call, prompt.view, conversation)
@@ -541,7 +589,7 @@ class _Prompt(NamedTuple):
     view: ToolCallView
 
 
-def _turn_prompt(step: AfterGenerate) -> _Prompt:
+def _turn_prompt(step: AfterGenerate, escalations: Escalations) -> _Prompt:
     """The assistant turn as one prompt for the human approval surfaces.
 
     The surfaces show one tool call, so the turn becomes a single view: the
@@ -585,8 +633,8 @@ def _turn_prompt(step: AfterGenerate) -> _Prompt:
     )
     text = safe(message.text) if message else ""
     blocks: list[str] = []
-    if step.escalations:
-        escalated = safe(_escalation_lines(step))
+    if escalations:
+        escalated = safe(_escalation_lines(escalations))
         blocks.append(f"**Escalated by**\n\n{fenced(escalated)}")
     count = f"**The turn makes {_calls(len(calls))}.**"
     if safe.escaped:
@@ -685,6 +733,8 @@ def _one_line(text: str, safe: _Escaped) -> str:
 class _Recorder:
     def __init__(self, step_id: str) -> None:
         self._step_id = step_id
+        # this step's human() decisions, published once it settles
+        self.kept: list[HumanDecision] = []
 
     def record(
         self, context: Context, factory: str, step: Step, reported: Reported[Report]
@@ -714,6 +764,9 @@ class _Recorder:
                 reported.function,
                 report,
             )
+        kept = kept_human_decision(factory, step, self._step_id, reported)
+        if kept is not None:
+            self.kept.append(kept)
 
     def failed(
         self, context: Context, factory: str, step: Step, failed: Failed
@@ -753,6 +806,7 @@ class _Recorder:
             reported.function,
             reported.report,
         )
+        self.kept = [k for k in self.kept if not supersedes(context.path, reported, k)]
 
 
 def _factory_kind(factory: str) -> _Kind:
