@@ -4162,8 +4162,13 @@ def blocking_tool() -> tuple[AsyncMock, anyio.Event, anyio.Event]:
     return AsyncMock(side_effect=block), started, release
 
 
-def cancel_suppressing_tool() -> tuple[AsyncMock, anyio.Event]:
-    """A tool mock that signals `started`, then absorbs its cancellation and returns."""
+def cancel_suppressing_tool(
+    after_cancel: BaseException | None,
+) -> tuple[AsyncMock, anyio.Event]:
+    """A tool mock that signals `started`, then absorbs its cancellation.
+
+    It then raises `after_cancel`, or returns when that is `None`.
+    """
     started = anyio.Event()
 
     async def block(**kwargs: Any) -> str:
@@ -4172,18 +4177,32 @@ def cancel_suppressing_tool() -> tuple[AsyncMock, anyio.Event]:
             await anyio.sleep_forever()
         except anyio.get_cancelled_exc_class():
             pass
+        if after_cancel is not None:
+            raise after_cancel
         return "finished after cancel"
 
     return AsyncMock(side_effect=block), started
 
 
-@pytest.mark.parametrize("suppress", [False, True], ids=["propagates", "suppresses"])
-async def test_operator_cancel_records_a_timeout(suppress: bool) -> None:
-    """A cancelled call times out even when the tool swallows the cancellation."""
-    if suppress:
-        mock, started = cancel_suppressing_tool()
-    else:
+@pytest.mark.parametrize(
+    "unwind",
+    [
+        "propagates",
+        "returns",
+        RuntimeError("cleanup failed"),
+        ExceptionGroup("cleanup", [RuntimeError("cleanup failed")]),
+        ToolError("cleanup failed"),
+    ],
+    ids=["propagates", "returns", "raises", "raises-group", "raises-tool-error"],
+)
+async def test_operator_cancel_records_a_timeout(unwind: str | BaseException) -> None:
+    """A cancelled call times out however the tool unwinds from the cancellation."""
+    if unwind == "propagates":
         mock, started, _ = blocking_tool()
+    else:
+        mock, started = cancel_suppressing_tool(
+            None if isinstance(unwind, str) else unwind
+        )
     bridge = sandbox_bridge_with_tool(mock, None, require_proposal=False)
     raised: list[BaseException] = []
 
@@ -4303,6 +4322,53 @@ async def test_cancel_while_the_tool_span_is_allocated_still_records_the_call(
         assert event.error.type == "parsing"
     else:
         assert event.error.type == "cancelled"
+    if request_kind == "proposed":
+        assert event.id == "proposed"
+        assert bridge_metadata(event)["grant"] == "consumed"
+
+
+@pytest.mark.parametrize("request_kind", ["exempt", "proposed", "denied", "rejected"])
+async def test_a_failing_span_id_provider_fails_the_sample_and_records_the_call(
+    request_kind: str,
+) -> None:
+    """A span-ID provider's error is unexpected: the request is still recorded."""
+    tool = AsyncMock(return_value="contents")
+    bridge = sandbox_bridge_with_tool(
+        tool, None, require_proposal=request_kind != "exempt"
+    )
+    failure = RuntimeError("no span id")
+
+    async def failing_provider(
+        name: str, parent_id: str | None, requested_id: str | None
+    ) -> str:
+        raise failure
+
+    server = "nowhere" if request_kind == "rejected" else "host"
+
+    with recorded_transcript() as recorded:
+        if request_kind == "proposed":
+            await propose(
+                bridge,
+                ToolCall(id="proposed", function="read_file", arguments={"path": "a"}),
+            )
+        with span_id_provider(failing_provider):
+            with pytest.raises(RuntimeError) as raised:
+                await call_host_tool(bridge)(server, "read_file", {"path": "a"})
+
+    assert raised.value is failure
+    assert bridge._failure is failure
+    tool.assert_not_awaited()
+    [event] = recorded.tool_events
+    assert event.pending is None
+    assert recorded.completions(event) == 1
+    if request_kind == "rejected":
+        assert event.error is not None and event.error.type == "parsing"
+    elif request_kind == "denied":
+        assert event.error is not None and event.error.type == "permission"
+        assert bridge_metadata(event)["grant"] == "denied"
+    else:
+        assert event.failed is True
+        assert event.error is None
     if request_kind == "proposed":
         assert event.id == "proposed"
         assert bridge_metadata(event)["grant"] == "consumed"

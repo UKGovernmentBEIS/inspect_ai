@@ -82,7 +82,11 @@ async def execute_host_tool(
     if server not in bridge.bridged_tools:
         message = f"Unknown bridged tools server: {server}"
         await _record_rejection(
-            tool, recorded_arguments, ToolCallError("parsing", message), metadata
+            bridge,
+            tool,
+            recorded_arguments,
+            ToolCallError("parsing", message),
+            metadata,
         )
         raise ValueError(message)
 
@@ -90,13 +94,19 @@ async def execute_host_tool(
     if tool not in server_tools:
         message = f"Unknown tool '{tool}' in server '{server}'"
         await _record_rejection(
-            tool, recorded_arguments, ToolCallError("parsing", message), metadata
+            bridge,
+            tool,
+            recorded_arguments,
+            ToolCallError("parsing", message),
+            metadata,
         )
         raise ValueError(message)
 
     if _exceeds_max_depth(arguments):
         message = f"Error parsing tool call arguments: {_max_depth_parse_error()}"
-        await _record_rejection(tool, {}, ToolCallError("parsing", message), metadata)
+        await _record_rejection(
+            bridge, tool, {}, ToolCallError("parsing", message), metadata
+        )
         raise ToolParsingError(message)
 
     grant = (
@@ -121,7 +131,11 @@ async def execute_host_tool(
         )
         metadata.grant = "denied"
         await _record_rejection(
-            tool, recorded_arguments, ToolCallError("permission", message), metadata
+            bridge,
+            tool,
+            recorded_arguments,
+            ToolCallError("permission", message),
+            metadata,
         )
         raise PermissionError(message)
 
@@ -154,6 +168,7 @@ class _BridgeMetadata:
 
 
 async def _record_rejection(
+    bridge: SandboxAgentBridge,
     tool: str,
     arguments: dict[str, JsonValue],
     error: ToolCallError | None,
@@ -191,6 +206,13 @@ async def _record_rejection(
         if not recorded:
             transcript()._event(event)
         raise
+    except Exception as ex:
+        # a span-ID provider failed: record the request, and fail the sample
+        # as for any unexpected error
+        if not recorded:
+            transcript()._event(event)
+            bridge.request_fail(inner_exception(ex))
+        raise
 
 
 async def _execute_granted(
@@ -223,6 +245,7 @@ async def _execute_granted(
         if mapped is None:
             bridge.request_fail(inner_ex)
         await _record_rejection(
+            bridge,
             tool,
             arguments if isinstance(arguments, dict) else {},
             mapped.error if mapped is not None else None,
@@ -234,6 +257,7 @@ async def _execute_granted(
         raise
     if validation_errors:
         await _record_rejection(
+            bridge,
             tool,
             arguments if isinstance(arguments, dict) else {},
             ToolCallError("parsing", validation_errors),
@@ -283,46 +307,64 @@ async def _execute_granted(
     cancelled = ToolCallError(
         "cancelled", "Host tool call was cancelled before completing."
     )
+    # the operator's per-call cancel
+    scope = anyio.CancelScope()
+    result: ToolResult = ""
     try:
         async with span(name=tool, type="tool"):
             transcript()._event(event)
             recorded = True
             with observer.track_tool_call(event.id, event):
                 try:
-                    with anyio.CancelScope() as scope:
+                    with scope:
                         event._set_cancel_fn(scope.cancel)
                         # as in call_tool: the tool's own model calls are not
                         # agent turns
                         with sentinel_scope(AgentScope.OFF):
-                            result: ToolResult = await tool_fn(**call_arguments)
+                            result = await tool_fn(**call_arguments)
                 except anyio.get_cancelled_exc_class():
                     # an outer cancellation (bridge teardown, sample limit): the
                     # operator's per-call cancel is absorbed by `scope` instead
                     finalise(error=cancelled)
                     raise
                 except Exception as ex:
-                    # classify the unwrapped exception, but let the original
-                    # propagate: the service dispatcher special-cases a bare
-                    # LimitExceededError (ending the sample), and unwrapping a
-                    # grouped one would newly route it there
-                    inner_ex = inner_exception(ex)
-                    mapped = tool_call_error(inner_ex, tool)
-                    if mapped is None:
-                        finalise(failed=True)
-                        bridge.request_fail(inner_ex)
-                    else:
-                        output, truncated = (
-                            _recorded_result(tool, mapped.result, tool_def.max_output)
-                            if mapped.result is not None
-                            else ("", None)
-                        )
-                        finalise(result=output, truncated=truncated, error=mapped.error)
-                    raise
+                    # an error the tool raises while unwinding the operator's
+                    # cancel is superseded by the timeout (below), as natively
+                    if not scope.cancel_called:
+                        # classify the unwrapped exception, but let the
+                        # original propagate: the service dispatcher
+                        # special-cases a bare LimitExceededError (ending the
+                        # sample), and unwrapping a grouped one would newly
+                        # route it there
+                        inner_ex = inner_exception(ex)
+                        mapped = tool_call_error(inner_ex, tool)
+                        if mapped is None:
+                            finalise(failed=True)
+                            bridge.request_fail(inner_ex)
+                        else:
+                            output, truncated = (
+                                _recorded_result(
+                                    tool, mapped.result, tool_def.max_output
+                                )
+                                if mapped.result is not None
+                                else ("", None)
+                            )
+                            finalise(
+                                result=output, truncated=truncated, error=mapped.error
+                            )
+                        raise
     except anyio.get_cancelled_exc_class():
         # cancelled while a span-ID provider allocated the span, before the
         # pending event was recorded (a consumed grant is not restored)
         if not recorded:
             finalise(error=cancelled)
+        raise
+    except Exception as ex:
+        # a span-ID provider failed before the pending event was recorded:
+        # record the request, and fail the sample as for any unexpected error
+        if not recorded:
+            finalise(failed=True)
+            bridge.request_fail(inner_exception(ex))
         raise
 
     # `cancel_called`, not `cancelled_caught`: a tool that absorbs the
