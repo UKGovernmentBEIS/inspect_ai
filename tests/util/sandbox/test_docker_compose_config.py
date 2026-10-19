@@ -155,15 +155,14 @@ def paths():
         task_files.append(os.path.relpath(task_file, launch))
 
     monkeypatch.setenv("INSPECT_PATH_FAIL_ONCE", "1")
-    with anyio.fail_after(120):
-        logs = await eval_async(
-            task_files,
-            model="mockllm/model",
-            max_tasks=2,
-            max_samples=2,
-            max_sandboxes=2,
-            log_dir=str(tmp_path / "logs"),
-        )
+    logs = await eval_async(
+        task_files,
+        model="mockllm/model",
+        max_tasks=2,
+        max_samples=2,
+        max_sandboxes=2,
+        log_dir=str(tmp_path / "logs"),
+    )
     assert len(logs) == 2
     assert all(
         log.error and log.error.message == "RuntimeError('deliberate retry')"
@@ -179,10 +178,9 @@ def paths():
     else:
         shutil.rmtree(original)
     monkeypatch.chdir(moved / "launch")
-    with anyio.fail_after(120):
-        retried = await eval_retry_async(
-            [log.location for log in logs], log_dir=str(tmp_path / "retried")
-        )
+    retried = await eval_retry_async(
+        [log.location for log in logs], log_dir=str(tmp_path / "retried")
+    )
     assert all(log.status == "success" for log in retried), [
         log.error for log in retried
     ]

@@ -27,10 +27,12 @@ from inspect_ai import (
     Task,
     TaskSource,
     enqueue_sample,
+    enqueue_task,
     eval,
     eval_async,
 )
 from inspect_ai._util.error import PrerequisiteError
+from inspect_ai._util.path import chdir
 from inspect_ai.dataset import Sample
 from inspect_ai.log import EvalLog, EvalSample
 from inspect_ai.solver import Generate, Solver, TaskState, generate, solver
@@ -777,6 +779,39 @@ async def test_docker_sample_added_to_a_task_without_docker_samples(
     assert len(fake_docker.project_directories) >= 2
     assert set(fake_docker.project_directories) == {str(task_dir)}
     assert config.extensions == {}
+
+
+async def test_enqueued_docker_task_uses_eval_directory(
+    fake_docker: FakeDocker, tmp_path: Path
+) -> None:
+    launch_dir = os.getcwd()
+    enqueue_dir = tmp_path / "enqueue"
+    enqueue_dir.mkdir()
+
+    @solver
+    def add_task() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            with chdir(str(enqueue_dir)):
+                enqueue_task(
+                    Task(
+                        dataset=[Sample(input="added")],
+                        solver=[],
+                        sandbox=SandboxEnvironmentSpec("docker", compose_config()),
+                        name="added",
+                    )
+                )
+            return state
+
+        return solve
+
+    logs = await eval_async(
+        Task(dataset=[Sample(input="seed")], solver=add_task(), name="seed"),
+        model="mockllm/model",
+    )
+    assert sorted(log.eval.task for log in logs) == ["added", "seed"]
+    assert all(log.status == "success" for log in logs), [log.error for log in logs]
+    assert set(fake_docker.project_directories) == {launch_dir}
+    assert fake_docker.generated_files() == []
 
 
 async def test_late_docker_config_keeps_earlier_startup_resources(
