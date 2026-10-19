@@ -3347,3 +3347,58 @@ def test_an_approvers_modified_memory_path_reaches_the_sentinel_canonical() -> N
     assert log.samples
     [tool_event] = [e for e in log.samples[0].events if isinstance(e, ToolEvent)]
     assert tool_event.arguments["path"] == "/memories/secret.txt"
+
+
+@reviewer
+def d3_recording_reviewer(seen: list[ToolCall]) -> Reviewer:
+    async def review_(
+        message: str,
+        call: ToolCall,
+        result: ChatMessageTool,
+        output: ToolResult,
+        view: ToolCallView,
+        history: list[ChatMessage],
+    ) -> Review:
+        seen.append(call)
+        return Review(decision="continue")
+
+    return review_
+
+
+def test_a_memory_path_is_canonical_without_approval() -> None:
+    from inspect_ai.tool import memory
+
+    before: Seen = []
+    after: list[AfterToolCall] = []
+    reviewed: list[ToolCall] = []
+    task = Task(
+        dataset=[Sample(input="Write a note.", target="ok")],
+        solver=[use_tools(memory()), generate()],
+        sentinel=observe_only([d3_recording(before), d3_recording_after(after)]),
+        review=[ReviewPolicy(d3_recording_reviewer(reviewed), "*")],
+    )
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.for_tool_call(
+                "mockllm/model",
+                tool_name="memory",
+                tool_arguments={
+                    "command": "create",
+                    "path": "/memories/x/../public/note.txt",
+                    "file_text": "x",
+                },
+            ),
+            ModelOutput.from_content("mockllm/model", content="done"),
+        ],
+        memoize=False,
+    )
+    log = eval(task, model=model)[0]
+    assert log.status == "success", log.error
+
+    [message] = tool_messages(log)
+    assert message.error is None
+    canonical = "/memories/public/note.txt"
+    assert [step.call.arguments["path"] for _, step in before] == [canonical]
+    assert [step.call.arguments["path"] for step in after] == [canonical]
+    assert [call.arguments["path"] for call in reviewed] == [canonical]
