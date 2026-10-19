@@ -596,6 +596,23 @@ def test_older_package_error(
     assert active_root(log) is None
 
 
+def test_package_without_metadata_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    from importlib.metadata import PackageNotFoundError, version
+
+    def fake_version(package: str) -> str:
+        if package == "inspect-sentinel":
+            raise PackageNotFoundError(package)
+        return version(package)
+
+    monkeypatch.setattr("inspect_ai._util.version.version", fake_version)
+    monkeypatch.setattr("inspect_ai._sentinel._config.version", fake_version)
+    with pytest.raises(PrerequisiteError) as raised:
+        sentinel_task(RULE_CONFIG)
+    message = str(raised.value.message)
+    assert "has no package metadata" in message
+    assert f'pip install "inspect-sentinel>={SENTINEL_MIN_VERSION}"' in message
+
+
 # a git install of sentinel main reports a dev build of the next release
 @pytest.mark.parametrize("reported", [SENTINEL_MIN_VERSION, "0.1.4.dev3", "0.2.0"])
 def test_supported_package_versions(

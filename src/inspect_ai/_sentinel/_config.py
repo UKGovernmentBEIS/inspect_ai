@@ -1,6 +1,6 @@
 import importlib
 from collections.abc import Mapping, Sequence
-from importlib.metadata import version
+from importlib.metadata import PackageNotFoundError, version
 from typing import TYPE_CHECKING, Annotated, Any, TypeAlias, Union, cast
 
 from pydantic import (
@@ -121,7 +121,16 @@ def _require_sentinel() -> None:
             "Install it with:\n\n"
             "[bold]pip install inspect-sentinel[/bold]"
         ) from ex
-    if not has_required_version("inspect-sentinel", SENTINEL_MIN_VERSION):
+    try:
+        supported = has_required_version("inspect-sentinel", SENTINEL_MIN_VERSION)
+    except PackageNotFoundError as ex:
+        raise PrerequisiteError(
+            "[bold]ERROR[/bold]: The installed inspect_sentinel has no package metadata, "
+            "so its version can't be checked. Sentinel support requires "
+            f"inspect-sentinel>={SENTINEL_MIN_VERSION}. Install it with:\n\n"
+            f'[bold]pip install "inspect-sentinel>={SENTINEL_MIN_VERSION}"[/bold]'
+        ) from ex
+    if not supported:
         raise PrerequisiteError(
             f"[bold]ERROR[/bold]: Sentinel support requires inspect-sentinel>={SENTINEL_MIN_VERSION} "
             f"(you have version {version('inspect-sentinel')} installed). "
