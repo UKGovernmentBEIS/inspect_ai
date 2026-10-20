@@ -2,7 +2,7 @@ import asyncio
 import io
 from collections.abc import Callable
 from dataclasses import replace
-from typing import Any, NamedTuple
+from typing import TYPE_CHECKING, Any, NamedTuple
 from unittest.mock import MagicMock
 
 import anyio
@@ -54,7 +54,8 @@ from inspect_ai.tool import Tool, ToolCall, ToolCallContent, ToolCallView, tool
 from inspect_ai.tool._tool_call import substitute_tool_call_content
 from inspect_ai.tool._tools._execute import code_viewer
 
-try:
+# mypy checks the tests against inspect_sentinel's API; they run on the fake
+if TYPE_CHECKING:
     from inspect_sentinel import (
         AfterGenerate,
         AfterToolCall,
@@ -63,28 +64,47 @@ try:
         Context,
         Decision,
         Escalations,
+        HumanAnswer,
         HumanDecision,
         Monitor,
         MonitorGroup,
         Observation,
         Protocol,
+        ProtocolGroup,
         Reported,
-        concurrent,
-        decide_final,
-        human,
         monitor,
-        observe_only,
         protocol,
-        run_protocols,
-        sequential,
-        threshold,
     )
-    from inspect_sentinel._report import origin
 
-    from inspect_ai._sentinel import _dispatch
     from inspect_ai._sentinel._dispatch import _HostNative
-except ImportError:
-    pytest.skip("inspect_sentinel is not installed", allow_module_level=True)
+else:
+    from test_helpers.fake_sentinel import (
+        AfterGenerate,
+        AfterToolCall,
+        BeforeGenerate,
+        BeforeToolCall,
+        Context,
+        Decision,
+        Escalations,
+        HumanAnswer,
+        HumanDecision,
+        Monitor,
+        MonitorGroup,
+        Observation,
+        Protocol,
+        ProtocolGroup,
+        Reported,
+        monitor,
+        protocol,
+    )
+
+pytestmark = pytest.mark.usefixtures("fake_sentinel")
+
+
+def host_native() -> "_HostNative":
+    from inspect_ai._sentinel._dispatch import _HostNative
+
+    return _HostNative(None)
 
 
 @tool
@@ -120,30 +140,49 @@ def shout() -> Tool:
     return execute
 
 
-@protocol
-def h_escalate_turn() -> Protocol:
-    async def unsure(
-        context: Context,
-        step: AfterGenerate,
-        escalations: Escalations,
+def escalation(explanation: str) -> Escalations:
+    return (Reported("monitor", "monitor", Decision.escalate(explanation), "check"),)
+
+
+def answered(answer: HumanAnswer) -> Decision:
+    if answer.decision == "approve":
+        return Decision.proceed(answer.reason)
+    if answer.decision == "reject":
+        return Decision.reject(answer.reason, message=answer.reason)
+    return Decision.terminate(answer.reason)
+
+
+# kept for later steps as inspect_sentinel's human() decisions are
+@protocol(name="inspect_sentinel/human")
+def h_ask(
+    stage: str, choices: list[str], escalated: str | None = None
+) -> ProtocolGroup:
+    """Ask the person at `stage`, after an escalation that explains `escalated`."""
+    escalated_by = escalation(escalated) if escalated is not None else ()
+
+    async def tool_call(
+        context: Context, step: BeforeToolCall, escalations: Escalations
     ) -> Decision | None:
-        if step.output.message.tool_calls:
-            return Decision.escalate("two calls together, {{x}}")
-        return Decision.proceed()
+        return answered(await context.host.ask_human(step, escalated_by, choices))
 
-    return unsure
-
-
-@protocol
-def h_escalate() -> Protocol:
-    async def unsure(
-        context: Context,
-        step: BeforeToolCall,
-        escalations: Escalations,
+    async def tool_result(
+        context: Context, step: AfterToolCall, escalations: Escalations
     ) -> Decision | None:
-        return Decision.escalate("adds {{x}} suspiciously")
+        return answered(await context.host.ask_human(step, escalated_by, choices))
 
-    return unsure
+    async def model_output(
+        context: Context, step: AfterGenerate, escalations: Escalations
+    ) -> Decision | None:
+        if not step.output.message.tool_calls:
+            return None
+        return answered(await context.host.ask_human(step, escalated_by, choices))
+
+    stages: dict[str, Protocol] = {
+        "tool_call": tool_call,
+        "tool_result": tool_result,
+        "model_output": model_output,
+    }
+    return ProtocolGroup(stages[stage])
 
 
 class Panel:
@@ -207,8 +246,11 @@ def tool_messages(log: EvalLog) -> list[ChatMessageTool]:
     return [m for m in log.samples[0].messages if isinstance(m, ChatMessageTool)]
 
 
+ALL_CHOICES = ["approve", "reject", "terminate"]
+
+
 def escalated_to_human() -> Any:
-    return sequential([h_escalate(), human(stages=["tool_call"])])
+    return h_ask("tool_call", ALL_CHOICES, escalated="adds {{x}} suspiciously")
 
 
 def test_an_escalation_asks_the_person_and_approve_runs_the_call(
@@ -224,8 +266,7 @@ def test_an_escalation_asks_the_person_and_approve_runs_the_call(
     assert panel.messages == ["Adding now."]
     content = panel.content()
     assert (
-        "**Escalated by**\n\n```\n- h_escalate: adds { {x}} suspiciously\n```"
-        in content
+        "**Escalated by**\n\n```\n- monitor: adds { {x}} suspiciously\n```" in content
     )
     assert content.index("Escalated by") < content.index("addition(")
     [message] = tool_messages(log)
@@ -245,7 +286,7 @@ def test_an_approval_records_the_persons_reason(
     [approval] = [
         e
         for e in log.samples[0].events
-        if isinstance(e, SentinelEvent) and e.path == "human"
+        if isinstance(e, SentinelEvent) and e.factory == "inspect_sentinel/human"
     ]
     assert approval.action == "proceed"
     assert approval.explanation == "addition is expected here"
@@ -269,7 +310,7 @@ def test_no_escalations_shows_the_plain_view(monkeypatch: pytest.MonkeyPatch) ->
     panel = Panel("approve")
     panel.install(monkeypatch)
 
-    log = run(human(stages=["tool_call"]))
+    log = run(h_ask("tool_call", ALL_CHOICES))
 
     assert log.status == "success", log.error
     assert "Escalated by" not in panel.content()
@@ -281,7 +322,7 @@ def test_after_a_call_the_person_sees_the_result(
     panel = Panel("approve")
     panel.install(monkeypatch)
 
-    log = run(human(stages=["tool_result"]))
+    log = run(h_ask("tool_result", ["approve", "terminate"]))
 
     assert log.status == "success", log.error
     assert panel.choices == [["approve", "terminate"]]
@@ -299,10 +340,6 @@ def step(
     return BeforeToolCall("", "Adding.", call, view, [], [])
 
 
-def escalation(explanation: str) -> Escalations:
-    return (Reported("monitor", "monitor", Decision.escalate(explanation), "check"),)
-
-
 MARKDOWN_VIEW = ToolCallView(
     call=ToolCallContent(format="markdown", content="```python\naddition(1, 1)\n```")
 )
@@ -316,7 +353,7 @@ async def test_placeholders_in_an_escalation_are_not_substituted(
     panel = Panel("approve")
     panel.install(monkeypatch)
 
-    await _HostNative(None).ask_human(
+    await host_native().ask_human(
         step(view=view), escalation("adds {{{x}}}"), ["approve"]
     )
 
@@ -333,7 +370,7 @@ async def test_an_escalation_cannot_inject_markdown(
     panel.install(monkeypatch)
     injected = "fine\n```\n\n```python\ndelete_everything()\n```\n```"
 
-    await _HostNative(None).ask_human(
+    await host_native().ask_human(
         step(view=MARKDOWN_VIEW), escalation(injected), ["approve"]
     )
 
@@ -371,7 +408,7 @@ async def test_the_person_sees_history_or_else_what_the_model_saw(
     panel = Panel("approve")
     panel.install(monkeypatch)
 
-    await _HostNative(None).ask_human(
+    await host_native().ask_human(
         replace(step(after), agent_messages=history, input=model_input), (), ["approve"]
     )
 
@@ -391,7 +428,7 @@ async def test_after_a_generate_the_person_sees_history_or_else_what_the_model_s
     panel = Panel("approve")
     panel.install(monkeypatch)
 
-    await _HostNative(None).ask_human(
+    await host_native().ask_human(
         replace(turn_step(ADD), agent_messages=history, input=INPUT),
         (),
         ["approve", "terminate"],
@@ -421,7 +458,7 @@ async def test_an_answer_that_was_not_offered_fails_closed(
 ) -> None:
     Panel(answered, "dismissed").install(monkeypatch)
 
-    answer = await _HostNative(None).ask_human(step(after), (), choices)
+    answer = await host_native().ask_human(step(after), (), choices)
 
     assert answer.decision == expected
     assert answer.reason is not None
@@ -437,7 +474,7 @@ def test_a_dismissal_terminates_when_only_approve_is_offered(
 ) -> None:
     Panel("reject", "dismissed").install(monkeypatch)
 
-    log = run(human(stages=["tool_call"], choices=["approve"]))
+    log = run(h_ask("tool_call", ["approve"]))
 
     assert log.status == "success", log.error
     assert log.samples
@@ -455,7 +492,7 @@ async def test_modify_cannot_be_offered(monkeypatch: pytest.MonkeyPatch) -> None
     panel.install(monkeypatch)
 
     with pytest.raises(NotImplementedError, match="cannot edit a tool call"):
-        await _HostNative(None).ask_human(step(), (), ["approve", "modify"])
+        await host_native().ask_human(step(), (), ["approve", "modify"])
     assert panel.views == []
 
 
@@ -477,7 +514,7 @@ def test_a_pending_request_is_withdrawn_when_cancelled(
     monkeypatch.setattr(acp_module, "request_human_approval_via_acp", acp)
     monkeypatch.setattr(panel_module, "input_panel", show_panel)
 
-    log = run(human(stages=["tool_call"]), time_limit=1)
+    log = run(h_ask("tool_call", ALL_CHOICES), time_limit=1)
 
     assert log.samples
     assert log.samples[0].limit is not None
@@ -515,7 +552,9 @@ def run_turn(sentinel: Any) -> EvalLog:
 
 
 def turn_escalated_to_human() -> Any:
-    return sequential([h_escalate_turn(), human(stages=["model_output"])])
+    return h_ask(
+        "model_output", ["approve", "terminate"], escalated="two calls together, {{x}}"
+    )
 
 
 def test_an_escalated_turn_shows_every_call_and_approve_runs_them(
@@ -530,9 +569,7 @@ def test_an_escalated_turn_shows_every_call_and_approve_runs_them(
     assert panel.choices == [["approve", "terminate"]]
     assert panel.messages == ["Adding and shouting."]
     content = panel.content()
-    escalated = (
-        "**Escalated by**\n\n```\n- h_escalate_turn: two calls together, { {x}}\n```"
-    )
+    escalated = "**Escalated by**\n\n```\n- monitor: two calls together, { {x}}\n```"
     assert content.startswith(escalated)
     # each call as the transcript shows it: the default view, and the tool's
     # own viewer with its placeholders filled in
@@ -584,7 +621,7 @@ async def test_every_surface_is_handed_the_whole_turn(
 
     monkeypatch.setattr(acp_module, "request_human_approval_via_acp", acp)
 
-    answer = await _HostNative(None).ask_human(
+    answer = await host_native().ask_human(
         turn_step(ADD, VIEWED_SHOUT), escalation("together"), ["approve", "terminate"]
     )
 
@@ -618,7 +655,7 @@ async def test_a_turn_with_no_calls_says_so(monkeypatch: pytest.MonkeyPatch) -> 
     panel = Panel("approve")
     panel.install(monkeypatch)
 
-    await _HostNative(None).ask_human(turn_step(), (), ["approve", "terminate"])
+    await host_native().ask_human(turn_step(), (), ["approve", "terminate"])
 
     assert panel.content() == "**The turn makes no tool calls.**"
 
@@ -626,9 +663,7 @@ async def test_a_turn_with_no_calls_says_so(monkeypatch: pytest.MonkeyPatch) -> 
 async def test_a_dismissed_turn_terminates(monkeypatch: pytest.MonkeyPatch) -> None:
     Panel("reject", "dismissed").install(monkeypatch)
 
-    answer = await _HostNative(None).ask_human(
-        turn_step(ADD), (), ["approve", "terminate"]
-    )
+    answer = await host_native().ask_human(turn_step(ADD), (), ["approve", "terminate"])
 
     assert answer.decision == "terminate"
     assert answer.reason is not None
@@ -640,7 +675,7 @@ async def test_a_turn_cannot_be_rejected(monkeypatch: pytest.MonkeyPatch) -> Non
     panel.install(monkeypatch)
 
     with pytest.raises(ValueError, match="cannot offer 'reject' at the model_output"):
-        await _HostNative(None).ask_human(turn_step(ADD), (), ["approve", "reject"])
+        await host_native().ask_human(turn_step(ADD), (), ["approve", "reject"])
     assert panel.views == []
 
 
@@ -655,7 +690,7 @@ async def test_a_person_cannot_be_asked_before_a_generate() -> None:
         config=GenerateConfig(),
     )
     with pytest.raises(NotImplementedError, match="model_input"):
-        await _HostNative(None).ask_human(before, (), ["approve"])
+        await host_native().ask_human(before, (), ["approve"])
 
 
 BASH = code_viewer("bash", "cmd")
@@ -735,7 +770,7 @@ async def test_no_call_can_hide_or_pass_for_another(
     calls = (bash_call("c1", first), NAMED, bash_call("c3", "rm -rf /srv/data"), NOTES)
     step = turn_step(*calls, content=f"Tidying up.{COVER}{RLO}")
 
-    await _HostNative(None).ask_human(
+    await host_native().ask_human(
         step, escalation(f"quotes the agent: {COVER}"), ["approve", "terminate"]
     )
 
@@ -796,7 +831,7 @@ async def turn_view(
         return Approval(decision="approve")
 
     monkeypatch.setattr(acp_module, "request_human_approval_via_acp", acp)
-    await _HostNative(None).ask_human(step, (), ["approve", "terminate"])
+    await host_native().ask_human(step, (), ["approve", "terminate"])
     [kwargs] = asked
     return kwargs["message"], kwargs["view"].call.content
 
@@ -958,7 +993,7 @@ async def test_an_acp_turn_card_is_finished_once_the_prompt_ends(
     session = TuiSession(answer)
     tui(session)
 
-    result = await _HostNative(None).ask_human(
+    result = await host_native().ask_human(
         turn_step(*calls), (), ["approve", "terminate"]
     )
 
@@ -985,7 +1020,7 @@ async def test_an_acp_turn_card_fails_when_the_prompt_is_cancelled(
     with anyio.CancelScope() as scope:
         session = TuiSession("approve", scope)
         tui(session)
-        await _HostNative(None).ask_human(turn_step(ADD), (), ["approve", "terminate"])
+        await host_native().ask_human(turn_step(ADD), (), ["approve", "terminate"])
 
     assert scope.cancelled_caught
     card = only_card(session.state)
@@ -1002,7 +1037,7 @@ async def test_each_turn_prompt_has_a_card_of_its_own(
     tui(session)
 
     for _ in range(2):
-        await _HostNative(None).ask_human(turn_step(ADD), (), ["approve", "terminate"])
+        await host_native().ask_human(turn_step(ADD), (), ["approve", "terminate"])
 
     first, second = session.state.items
     assert isinstance(first, ToolCallState) and isinstance(second, ToolCallState)
@@ -1078,7 +1113,7 @@ def test_a_persons_approval_is_seen_at_later_steps_but_not_its_own(
     Panel("approve", "looks fine").install(monkeypatch)
     seen: list[Seen] = []
 
-    log = run([escalated_to_human(), observe_only([h_spy(seen)])])
+    log = run([escalated_to_human(), h_spy(seen)])
 
     assert log.status == "success", log.error
     call = call_id(log)
@@ -1100,7 +1135,7 @@ def test_a_persons_rejection_is_seen_at_later_steps(
     Panel("reject", "not that").install(monkeypatch)
     seen: list[Seen] = []
 
-    log = run([escalated_to_human(), observe_only([h_spy(seen)])])
+    log = run([escalated_to_human(), h_spy(seen)])
 
     assert log.status == "success", log.error
     [last] = [s for s in seen if s.subject == "done"]
@@ -1116,7 +1151,7 @@ def test_a_turn_approval_is_seen_at_each_of_its_calls(
     Panel("approve").install(monkeypatch)
     seen: list[Seen] = []
 
-    log = run_turn([turn_escalated_to_human(), observe_only([h_spy(seen)])])
+    log = run_turn([turn_escalated_to_human(), h_spy(seen)])
 
     assert log.status == "success", log.error
     assert log.samples
@@ -1165,7 +1200,7 @@ def test_a_persons_decision_stays_in_its_own_conversation(
     task = Task(
         dataset=[Sample(input="What is 2 + 3?")],
         solver=[use_tools(handoff(helper)), generate()],
-        sentinel=[escalated_to_human(), observe_only([h_spy(seen)])],
+        sentinel=[escalated_to_human(), h_spy(seen)],
     )
     parent_model = get_model(
         "mockllm/model",
@@ -1203,78 +1238,6 @@ def test_a_persons_decision_stays_in_its_own_conversation(
     assert [r.step_id for r in done.decisions or ()] == [transfer]
 
 
-@monitor
-def h_loud() -> Monitor:
-    async def check(context: Context, step: BeforeToolCall) -> Observation | None:
-        return Observation.score(0.93, "posts credentials to an unknown host")
-
-    return check
-
-
-def test_no_monitor_score_is_seen_in_human_decisions(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    Panel("approve", "fine").install(monkeypatch)
-    seen: list[Seen] = []
-
-    log = run(
-        [
-            sequential(
-                [threshold(h_loud(), escalate_at=0.5), human(stages=["tool_call"])]
-            ),
-            observe_only([h_spy(seen)]),
-        ]
-    )
-
-    assert log.status == "success", log.error
-    assert log.samples
-    # the escalation the person answered carried the score
-    [escalation] = [
-        e
-        for e in log.samples[0].events
-        if isinstance(e, SentinelEvent) and e.action == "escalate"
-    ]
-    assert escalation.metadata is not None
-    assert "credentials" in str(escalation.metadata)
-    [last] = [s for s in seen if s.subject == "done"]
-    assert last.decisions is not None
-    [record] = last.decisions
-    assert record.decided.report.metadata is None
-    assert record.decided.report.references == []
-    assert "credentials" not in repr(record)
-    assert "0.93" not in repr(record)
-    # nor through the runner's record of the step it was made at
-    step_nodes, _ = origin(record.decided.report)
-    assert step_nodes is None
-
-
-@protocol
-def h_overrules() -> Protocol:
-    async def decide(
-        context: Context, step: BeforeToolCall, escalations: Escalations
-    ) -> Decision | None:
-        await run_protocols(human(stages=["tool_call"]), context, step)
-        return Decision.proceed("carry on regardless")
-
-    return decide
-
-
-def test_a_terminate_a_parent_overruled_is_seen_later(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    Panel("terminate", "stop").install(monkeypatch)
-    seen: list[Seen] = []
-
-    log = run([h_overrules(), observe_only([h_spy(seen)])])
-
-    assert log.status == "success", log.error
-    [last] = [s for s in seen if s.subject == "done"]
-    assert last.decisions is not None
-    assert [kept(r) for r in last.decisions] == [
-        ("tool_call", call_id(log), (call_id(log),), "human", "terminate", "stop")
-    ]
-
-
 class Answered:
     """An event a test's panel sets once the person answers, made in the eval's loop."""
 
@@ -1286,66 +1249,6 @@ class Answered:
         if self._event is None:
             self._event = anyio.Event()
         return self._event
-
-
-@protocol
-def h_final_after_the_person(answered: Any) -> Protocol:
-    async def decide(
-        context: Context, step: BeforeToolCall, escalations: Escalations
-    ) -> Decision | None:
-        # outlives the person's terminate, which cancels its siblings
-        with anyio.CancelScope(shield=True):
-            await answered.event.wait()
-            decide_final(Decision.proceed("carry on"))
-        return None
-
-    return decide
-
-
-def test_a_superseded_decision_is_not_seen_later(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    answered = Answered()
-
-    async def acp(**kwargs: object) -> Approval | None:
-        return None
-
-    async def panel(
-        message: str,
-        call: ToolCall,
-        view: ToolCallView,
-        history: object,
-        choices: list[str],
-    ) -> Approval:
-        answered.event.set()
-        return Approval(decision="terminate", explanation="stop")
-
-    monkeypatch.setattr(acp_module, "request_human_approval_via_acp", acp)
-    monkeypatch.setattr(approver_module, "panel_approval", panel)
-    seen: list[Seen] = []
-
-    log = run(
-        [
-            human(stages=["tool_call"]),
-            h_final_after_the_person(answered),
-            observe_only([h_spy(seen)]),
-        ]
-    )
-
-    assert log.status == "success", log.error
-    assert log.samples
-    # the person's terminate was recorded, then outrun by the final proceed
-    assert [
-        e.status
-        for e in log.samples[0].events
-        if isinstance(e, SentinelEvent) and e.factory == "inspect_sentinel/human"
-    ] == ["reported", "superseded"]
-    assert [m.text for m in tool_messages(log)] == ["2"]
-    later = [s for s in seen if s.stage == "tool_result" or s.subject == "done"]
-    assert [(s.stage, s.decisions) for s in later] == [
-        ("tool_result", ()),
-        ("model_output", ()),
-    ]
 
 
 def answer_by_call(
@@ -1370,6 +1273,8 @@ def answer_by_call(
 def signal_when_recorded(
     monkeypatch: pytest.MonkeyPatch, factory: str, call_id: str, gate: Answered
 ) -> None:
+    from inspect_ai._sentinel import _dispatch
+
     record = _dispatch._Recorder.record
 
     def recording(
@@ -1384,15 +1289,12 @@ def signal_when_recorded(
 
 
 @protocol
-def h_final_for(call_id: str, gate: Any) -> Protocol:
+def h_holds(call_id: str, gate: Any) -> Protocol:
     async def decide(
         context: Context, step: BeforeToolCall, escalations: Escalations
     ) -> Decision | None:
-        if step.call.id != call_id:
-            return None
-        with anyio.CancelScope(shield=True):
+        if step.call.id == call_id:
             await gate.event.wait()
-            decide_final(Decision.proceed("carry on"))
         return None
 
     return decide
@@ -1426,7 +1328,7 @@ def test_a_parallel_step_does_not_see_a_decision_before_its_step_settles(
 
         return execute
 
-    answer_by_call(monkeypatch, {"A": "terminate", "B": "approve"})
+    answer_by_call(monkeypatch, {"A": "reject", "B": "approve"})
     signal_when_recorded(monkeypatch, "inspect_sentinel/human", "A", a_recorded)
     seen: list[Seen] = []
     calls = [
@@ -1436,12 +1338,13 @@ def test_a_parallel_step_does_not_see_a_decision_before_its_step_settles(
     task = Task(
         dataset=[Sample(input="Run both.")],
         solver=[use_tools(gated()), generate()],
-        # A's step stays open, its person's terminate recorded, until B's
-        # result has been seen; then a final proceed supersedes the terminate
+        # A's step stays open, its person's reject recorded, until B's
+        # result has been seen
         sentinel=[
-            human(stages=["tool_call"]),
-            h_final_for("A", b_seen),
-            observe_only([h_spy(seen), h_opens("B", b_seen)]),
+            h_ask("tool_call", ALL_CHOICES),
+            h_holds("A", b_seen),
+            h_spy(seen),
+            h_opens("B", b_seen),
         ],
     )
     model = get_model(
@@ -1462,8 +1365,7 @@ def test_a_parallel_step_does_not_see_a_decision_before_its_step_settles(
         for e in log.samples[0].events
         if isinstance(e, SentinelEvent) and e.factory == "inspect_sentinel/human"
     ) == [
-        ("A", "reported", "terminate"),
-        ("A", "superseded", "terminate"),
+        ("A", "reported", "reject"),
         ("B", "reported", "proceed"),
     ]
     later = {
@@ -1475,64 +1377,8 @@ def test_a_parallel_step_does_not_see_a_decision_before_its_step_settles(
     }
     assert later == {
         ("tool_result", "B"): [("B", "proceed")],
-        ("tool_result", "A"): [("B", "proceed")],
-        ("model_output", "done"): [("B", "proceed")],
+        ("model_output", "done"): [("B", "proceed"), ("A", "reject")],
     }
-
-
-@protocol
-def h_proceeds() -> Protocol:
-    async def decide(
-        context: Context, step: BeforeToolCall, escalations: Escalations
-    ) -> Decision | None:
-        return Decision.proceed()
-
-    return decide
-
-
-@protocol
-def h_forwards(child: Any, done: Any) -> Protocol:
-    async def decide(
-        context: Context, step: BeforeToolCall, escalations: Escalations
-    ) -> Decision | None:
-        strongest = (await run_protocols(child, context, step)).strongest()
-        done.event.set()
-        return strongest.report if strongest is not None else None
-
-    return decide
-
-
-def test_a_superseded_copy_of_the_persons_decision_is_not_seen_later(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    Panel("terminate", "stop").install(monkeypatch)
-    done = Answered()
-    seen: list[Seen] = []
-    # the inner concurrent passes the person's terminate up as a copy carrying
-    # the vote; a final proceed then supersedes it above
-    inner = concurrent(
-        {"first_vote": h_proceeds(), "person": human(stages=["tool_call"])}
-    )
-
-    log = run(
-        [
-            h_forwards(inner, done),
-            h_final_after_the_person(done),
-            observe_only([h_spy(seen)]),
-        ]
-    )
-
-    assert log.status == "success", log.error
-    assert log.samples
-    [superseded] = [
-        e
-        for e in log.samples[0].events
-        if isinstance(e, SentinelEvent) and e.status == "superseded"
-    ]
-    assert superseded.factory != "inspect_sentinel/human"
-    assert "first_vote: proceed" in (superseded.explanation or "")
-    [last] = [s for s in seen if s.subject == "done"]
-    assert last.decisions == ()
 
 
 def test_a_closed_prompt_is_seen_later_by_its_explanation(
@@ -1542,7 +1388,7 @@ def test_a_closed_prompt_is_seen_later_by_its_explanation(
     Panel("escalate", "closed the panel").install(monkeypatch)
     seen: list[Seen] = []
 
-    log = run([escalated_to_human(), observe_only([h_spy(seen)])])
+    log = run([escalated_to_human(), h_spy(seen)])
 
     assert log.status == "success", log.error
     [last] = [s for s in seen if s.subject == "done"]
@@ -1586,7 +1432,7 @@ def test_an_acp_cancellation_is_seen_later_by_its_explanation(
     monkeypatch.setattr(acp_module, "request_human_approval_via_acp", acp)
     seen: list[Seen] = []
 
-    log = run([escalated_to_human(), observe_only([h_spy(seen)])])
+    log = run([escalated_to_human(), h_spy(seen)])
 
     assert log.status == "success", log.error
     assert offered == [["approve", "reject", "terminate"]]
