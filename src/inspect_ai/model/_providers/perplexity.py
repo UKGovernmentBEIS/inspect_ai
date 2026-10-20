@@ -179,9 +179,10 @@ class PerplexityAPI(OpenAICompatibleAPI):
                 extra_body["tool_choice"] = forced
 
         tool_results: dict[str, list[dict[str, Any]]] = {}
+        usage_metadata: dict[str, Any] = {}
 
         def take_tool_results(response: Response) -> Response:
-            return _take_tool_results(response, tool_results)
+            return _take_tool_results(response, tool_results, usage_metadata)
 
         result = await generate_responses(
             client=self.client,
@@ -214,12 +215,17 @@ class PerplexityAPI(OpenAICompatibleAPI):
             _attach_citations(output, [r for rs in tool_results.values() for r in rs])
             output.metadata = output.metadata or {}
             output.metadata.update(tool_results)
+        if isinstance(output, ModelOutput) and usage_metadata:
+            output.metadata = output.metadata or {}
+            output.metadata.update(usage_metadata)
 
         return output, call
 
 
 def _take_tool_results(
-    response: Response, tool_results: dict[str, list[dict[str, Any]]]
+    response: Response,
+    tool_results: dict[str, list[dict[str, Any]]],
+    usage_metadata: dict[str, Any],
 ) -> Response:
     """Move the Agent API's tool results out of a response.
 
@@ -232,7 +238,8 @@ def _take_tool_results(
 
     Perplexity also reports prompt cache writes as `cache_creation_input_tokens`
     rather than `cache_write_tokens`; these are moved so that usage separates
-    them from uncached input tokens.
+    them from uncached input tokens. The number of searches, which Perplexity
+    bills per search, is added to `usage_metadata` as `num_search_queries`.
     """
     output: list[ResponseOutputItem] = []
     for item in response.output:
@@ -259,6 +266,13 @@ def _take_tool_results(
         cache_creation = (details.model_extra or {}).get("cache_creation_input_tokens")
         if isinstance(cache_creation, int):
             details.cache_write_tokens = cache_creation
+
+    usage_extra = (response.usage.model_extra or {}) if response.usage else {}
+    tool_calls = usage_extra.get("tool_calls_details")
+    search_web = tool_calls.get("search_web") if isinstance(tool_calls, dict) else None
+    searches = search_web.get("invocation") if isinstance(search_web, dict) else None
+    if isinstance(searches, int):
+        usage_metadata["num_search_queries"] = searches
 
     return response
 

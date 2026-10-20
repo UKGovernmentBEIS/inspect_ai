@@ -67,6 +67,7 @@ async def test_perplexity_api() -> None:
     # the search results are kept and attached as citations
     assert response.metadata is not None
     assert len(response.metadata["search_results"]) > 0
+    assert response.metadata["num_search_queries"] >= 1
     content = response.choices[0].message.content
     assert isinstance(content, list)
     citations = [
@@ -134,6 +135,7 @@ async def test_perplexity_api_without_web_search() -> None:
     assert response.usage.output_tokens > 0
     # no web_search() tool, so no search
     assert "search_results" not in (response.metadata or {})
+    assert "num_search_queries" not in (response.metadata or {})
 
 
 @pytest.mark.anyio
@@ -287,6 +289,7 @@ def _agent_response_value(
             "output_tokens_details": {"reasoning_tokens": 1},
             "total_tokens": 2 * tokens + cache_creation + cache_read,
             "cost": {"currency": "USD", "total_cost": 0.001},
+            "tool_calls_details": {"search_web": {"cost_usd": 0.0025, "invocation": 1}},
         },
     }
 
@@ -507,6 +510,7 @@ async def test_perplexity_agent_api_response(monkeypatch: pytest.MonkeyPatch) ->
     assert _citation_urls(output) == ["https://example.com/a"]
     assert output.metadata is not None
     assert output.metadata["search_results"][0]["title"] == "a"
+    assert output.metadata["num_search_queries"] == 1
 
     # cache writes are counted apart from uncached input tokens
     assert output.usage is not None
@@ -523,6 +527,28 @@ async def test_perplexity_agent_api_response(monkeypatch: pytest.MonkeyPatch) ->
     assert isinstance(search_item, dict)
     assert search_item["type"] == "search_results"
     assert search_item["queries"] == ["query a"]
+
+
+@pytest.mark.anyio
+async def test_perplexity_without_search_count(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # a request without the web_search tool has no tool_calls_details
+    value = _agent_response_value("a", 2)
+    del value["usage"]["tool_calls_details"]
+    response = construct_type(type_=Response, value=value)
+    assert isinstance(response, Response)
+    provider = _provider(monkeypatch, {"a": response})
+
+    try:
+        output, _ = await provider.generate(
+            [ChatMessageUser(content="a")], [], "none", GenerateConfig()
+        )
+    finally:
+        await provider.aclose()
+
+    assert isinstance(output, ModelOutput)
+    assert "num_search_queries" not in (output.metadata or {})
 
 
 @pytest.mark.anyio
@@ -1042,6 +1068,8 @@ async def test_perplexity_streamed_response(monkeypatch: pytest.MonkeyPatch) -> 
     assert _citation_urls(output) == ["https://example.com/a"]
     assert output.metadata is not None
     assert output.metadata["search_results"][0]["title"] == "a"
+    # the search count comes from the terminal event
+    assert output.metadata["num_search_queries"] == 1
     assert output.usage is not None
     assert output.usage.input_tokens == 2
     assert output.usage.input_tokens_cache_write == 5
