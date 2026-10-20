@@ -50,6 +50,7 @@ if TYPE_CHECKING:
         BeforeToolCall,
         Context,
         Decision,
+        Escalations,
         Monitor,
         Observation,
         Protocol,
@@ -61,6 +62,7 @@ else:
         BeforeToolCall,
         Context,
         Decision,
+        Escalations,
         Monitor,
         Observation,
         Protocol,
@@ -81,7 +83,11 @@ def d2_suspicion(score: float = 0.5) -> Monitor:
 
 @protocol
 def d2_rule(reason: str = "no") -> Protocol:
-    async def decide(context: Context, step: BeforeToolCall) -> Decision | None:
+    async def decide(
+        context: Context,
+        step: BeforeToolCall,
+        escalations: Escalations,
+    ) -> Decision | None:
         return Decision.reject(reason)
 
     return decide
@@ -198,7 +204,11 @@ def test_eval_sentinel_overrides_the_task() -> None:
 
 @protocol
 def d2_gate(monitors: list[Monitor], reject_at: float = 0.5) -> Protocol:
-    async def decide(context: Context, step: BeforeToolCall) -> Decision | None:
+    async def decide(
+        context: Context,
+        step: BeforeToolCall,
+        escalations: Escalations,
+    ) -> Decision | None:
         return None
 
     return decide
@@ -524,7 +534,7 @@ from inspect_sentinel import BeforeToolCall, Decision, Protocol, protocol
 
 @protocol
 def cli_rule(reason: str = "no") -> Protocol:
-    async def decide(context, step: BeforeToolCall) -> Decision | None:
+    async def decide(context, step: BeforeToolCall, escalations) -> Decision | None:
         return Decision.reject(reason)
 
     return decide

@@ -8,9 +8,10 @@ steps and reports) to write monitors and protocols in tests.
 A lone instance runs at the empty path. A list or mapping of instances runs
 each member at its name and returns the most severe decision. Every report,
 monitor failure and cancellation goes to the host's `Recorder`, as
-`inspect_sentinel` records them. There are no compositions (`observe_only`,
-`threshold`, `sequential`, `concurrent`, `human`): their behavior is
-`inspect_sentinel`'s, and its own tests cover it.
+`inspect_sentinel` records them. A protocol is handed no escalations. There
+are no compositions (`observe_only`, `threshold`, `sequential`, `concurrent`)
+and no final decisions: their behavior is `inspect_sentinel`'s, and its own
+tests cover it.
 """
 
 import inspect
@@ -120,6 +121,9 @@ class Reported(Generic[R]):
     function: str
 
 
+Escalations: TypeAlias = tuple[Reported[Decision], ...]
+
+
 @dataclass(frozen=True)
 class Failed:
     name: str
@@ -129,15 +133,26 @@ class Failed:
 
 
 @dataclass(frozen=True)
+class HumanDecision:
+    stage: Literal["model_input", "model_output", "tool_call", "tool_result"]
+    step_id: str
+    call_ids: tuple[str, ...]
+    decided: Reported[Decision]
+
+
+@dataclass(frozen=True)
 class BeforeGenerate:
     model: str
     conversation: str
     input: list[ChatMessage]
-    history: list[ChatMessage] | None
+    agent_messages: list[ChatMessage] | None
+    history: list[ChatMessage] | None = field(default=None, kw_only=True)
+    human_decisions: tuple[HumanDecision, ...] | None = field(
+        default=None, kw_only=True
+    )
     tools: list[ToolInfo]
     tool_choice: ToolChoice
     config: GenerateConfig
-    escalations: tuple[Reported[Decision], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -145,12 +160,15 @@ class AfterGenerate:
     model: str
     conversation: str
     input: list[ChatMessage]
-    history: list[ChatMessage] | None
+    agent_messages: list[ChatMessage] | None
+    history: list[ChatMessage] | None = field(default=None, kw_only=True)
+    human_decisions: tuple[HumanDecision, ...] | None = field(
+        default=None, kw_only=True
+    )
     tools: list[ToolInfo]
     tool_choice: ToolChoice
     config: GenerateConfig
     output: ModelOutput
-    escalations: tuple[Reported[Decision], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -166,8 +184,11 @@ class BeforeToolCall:
     call: ToolCall
     view: ToolCallView
     input: list[ChatMessage] | None
-    history: list[ChatMessage] | None
-    escalations: tuple[Reported[Decision], ...] = ()
+    agent_messages: list[ChatMessage] | None
+    history: list[ChatMessage] | None = field(default=None, kw_only=True)
+    human_decisions: tuple[HumanDecision, ...] | None = field(
+        default=None, kw_only=True
+    )
     tools: list[ToolInfo] | None = None
 
 
@@ -180,8 +201,11 @@ class AfterToolCall:
     output: ToolResult
     view: ToolCallView
     input: list[ChatMessage] | None
-    history: list[ChatMessage] | None
-    escalations: tuple[Reported[Decision], ...] = ()
+    agent_messages: list[ChatMessage] | None
+    history: list[ChatMessage] | None = field(default=None, kw_only=True)
+    human_decisions: tuple[HumanDecision, ...] | None = field(
+        default=None, kw_only=True
+    )
     tools: list[ToolInfo] | None = None
     truncated: Truncation | Literal[False] | None = None
 
@@ -244,7 +268,7 @@ class HostContext:
 
 
 Monitor: TypeAlias = Callable[[Context, Any], Awaitable[Observation | None]]
-Protocol: TypeAlias = Callable[[Context, Any], Awaitable[Decision | None]]
+Protocol: TypeAlias = Callable[[Context, Any, Escalations], Awaitable[Decision | None]]
 
 
 class MonitorGroup:
@@ -441,7 +465,11 @@ async def _run_instance(
         if _stage(function) is not type(step):
             continue
         try:
-            report = await function(context, step)
+            report = await (
+                function(context, step)
+                if info.type == "monitor"
+                else function(context, step, ())
+            )
         except get_cancelled_exc_class():
             host.recorder.cancelled(context, info.name, step, name)
             raise
@@ -462,3 +490,33 @@ async def _run_instance(
             if isinstance(report, Decision):
                 decisions.append(report)
     return decisions
+
+
+# the registry name of inspect_sentinel's `human()`; a test registers the
+# protocol that asks its person under it
+_HUMAN = "inspect_sentinel/human"
+
+
+def kept_human_decision(
+    factory: str, step: Step, step_id: str, reported: Reported[Report]
+) -> HumanDecision | None:
+    if factory != _HUMAN or not isinstance(reported.report, Decision):
+        return None
+    decided = Reported(reported.name, reported.path, reported.report, reported.function)
+    if isinstance(step, AfterGenerate):
+        calls = step.output.message.tool_calls or []
+        return HumanDecision(
+            "model_output", step_id, tuple(c.id for c in calls), decided
+        )
+    if isinstance(step, BeforeGenerate):
+        return HumanDecision("model_input", step_id, (), decided)
+    stage: Literal["tool_call", "tool_result"] = (
+        "tool_result" if isinstance(step, AfterToolCall) else "tool_call"
+    )
+    return HumanDecision(stage, step_id, (step.call.id,), decided)
+
+
+def supersedes(path: str, reported: Reported[Decision], kept: HumanDecision) -> bool:
+    own = kept.decided.path
+    above = path == "" or own == path or own.startswith(path + "/")
+    return above and kept.decided.report.action == reported.report.action
