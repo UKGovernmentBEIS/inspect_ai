@@ -2,6 +2,9 @@ import math
 import os
 import tempfile
 
+import pytest
+
+import inspect_ai.log._recorders.eval as eval_recorder
 from inspect_ai._util.constants import LOG_SCHEMA_VERSION
 from inspect_ai.log import (
     EvalConfig,
@@ -17,6 +20,16 @@ from inspect_ai.log import (
 from inspect_ai.log._log import EvalSample
 from inspect_ai.model._chat_message import ChatMessageUser
 from inspect_ai.scorer import Score
+
+
+@pytest.fixture(autouse=True, params=["parsed_whole", "streamed"])
+def _member_read_path(
+    request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Run each test on both ways of reading a member with excluded fields."""
+    if request.param == "streamed":
+        monkeypatch.setattr(eval_recorder, "EXCLUDING_FULL_PARSE_MAX_BYTES", -1)
+
 
 EVAL_LOG_FILE = os.path.join("tests", "log", "test_eval_log", "log_read_sample.eval")
 

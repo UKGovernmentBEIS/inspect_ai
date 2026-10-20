@@ -668,12 +668,25 @@ def _read_local_sample_excluding(
         return {key: value for key, value in data.items() if key not in exclude_fields}
 
 
+# Members up to this size are parsed whole and the excluded fields dropped after:
+# streaming hands every token of the member, excluded or not, to Python, and is
+# several times slower than json.loads. Above it, streaming bounds memory.
+EXCLUDING_FULL_PARSE_MAX_BYTES = 256 * 1024 * 1024
+
+
 async def _read_member_json_excluding(
     reader: AsyncZipReader,
     member: str,
     exclude_fields: set[str],
 ) -> dict[str, Any]:
-    """Parse a zip member's JSON, skipping excluded top-level fields via ijson streaming."""
+    """Parse a zip member's JSON without its excluded top-level fields."""
+    entry = await reader.get_member_entry(member)
+    if entry.uncompressed_size <= EXCLUDING_FULL_PARSE_MAX_BYTES:
+        data = json.loads(await reader.read_member_fully(entry))
+        for field in exclude_fields:
+            data.pop(field, None)
+        return data
+
     # get_ijson_backend() falls back to the pure-Python backend under trio
     # (yajl2_c's parse_async is asyncio-only).
     from inspect_ai._util.json import get_ijson_backend
@@ -682,7 +695,7 @@ async def _read_member_json_excluding(
 
     try:
         data: dict[str, Any] = {}
-        async with await reader.open_member(member) as f:
+        async with await reader.open_member(entry) as f:
             builder = ExcludingObjectBuilder(exclude_fields)
             async for prefix, event, value in ijson.parse_async(
                 adapt_to_reader(f), use_float=True

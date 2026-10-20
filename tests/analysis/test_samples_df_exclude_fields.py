@@ -1,7 +1,20 @@
 from pathlib import Path
 
+import pytest
+
+import inspect_ai.log._recorders.eval as eval_recorder
 from inspect_ai.analysis import SampleColumn, samples_df
 from inspect_ai.analysis._dataframe.samples.columns import SampleScores
+
+
+@pytest.fixture(autouse=True, params=["parsed_whole", "streamed"])
+def _member_read_path(
+    request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Run each test on both ways of reading a member with excluded fields."""
+    if request.param == "streamed":
+        monkeypatch.setattr(eval_recorder, "EXCLUDING_FULL_PARSE_MAX_BYTES", -1)
+
 
 LOGS_DIR = Path(__file__).parent / "test_logs"
 JSON_LOG = LOGS_DIR / "2025-05-12T20-28-13-04-00_popularity.json"
