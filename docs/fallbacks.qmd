@@ -86,7 +86,7 @@ On the model output, `ModelOutput.model` reports the model that actually produce
 |------------------------------------|------------------------------------|
 | `model` | Model that was originally requested. |
 | `fallback_model` | Model that served the request. |
-| `count` | Number of generate calls (always 1 on a single output; aggregated in the sample rollup). |
+| `count` | Number of requests served by the fallback. Usually 1 on a single output. An Anthropic turn continued after `pause_turn` sends several requests, so its output counts each one that fell back. The sample rollup sums the counts. |
 | `metadata` | Provider diagnostics. For Anthropic, the `handoffs` chain and the per-attempt `usage.iterations` billing record. |
 
 A turn that [sticky routing](https://platform.claude.com/docs/en/build-with-claude/refusals-and-fallback#sticky-routing) sends straight to the fallback model (no model declined it) is recorded the same way, with an empty `handoffs` chain.

@@ -514,7 +514,7 @@ The `turn_count` column is the number of turns (top-level model generations) use
 
 The `working_time` column is clock time minus the time when any wait was open in the sample, so work done during a wait is not counted. See [Working Limit](setting-limits.qmd#working-limit) for its limitations.
 
-The `fallbacks` column is the total number of generate calls served by a [fallback model](providers.qmd#anthropic-refusal-fallback) (0 if none). For the full per-pair rollup, add a custom column reading the underlying summary field: `SampleColumn("model_fallbacks", path="model_fallbacks")`.
+The `fallbacks` column is the total number of requests served by a [fallback model](providers.qmd#anthropic-refusal-fallback) (0 if none). One generate call can add more than 1 when Anthropic continues a turn after `pause_turn`. For the full per-pair rollup, add a custom column reading the underlying summary field: `SampleColumn("model_fallbacks", path="model_fallbacks")`.
 
 The `eval_id` and `sample_id` fields are automatically included in all sample data frames. Additionally, a `log` field which includes the URI of the log file read from is included.
 
