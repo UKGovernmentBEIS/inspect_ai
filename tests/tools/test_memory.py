@@ -436,6 +436,8 @@ async def test_no_tool_state_scope_keeps_default_keys() -> None:
     """Outside a scope the default instance keeps today's store keys."""
     await memory()(command="create", path="/memories/a.txt", file_text="x")
     assert "/memories/a.txt" in store().get("MemoryStore:files")
+
+
 async def test_rename_refuses_existing_file_destination() -> None:
     """Rename onto an existing file must refuse, not replace its content."""
     tool = memory()
