@@ -2158,7 +2158,7 @@ requires-dist = [
     { name = "huggingface-hub", marker = "extra == 'dev'", specifier = ">=1.6.0" },
     { name = "ijson", specifier = ">=3.2.0" },
     { name = "inspect-scout", marker = "extra == 'dev'", specifier = ">=0.4.37" },
-    { name = "inspect-sentinel", marker = "extra == 'dev'", specifier = ">=0.1.2" },
+    { name = "inspect-sentinel", marker = "extra == 'dev'", specifier = ">=0.1.4" },
     { name = "ipython", marker = "extra == 'dev'" },
     { name = "jsonlines", specifier = ">=3.0.0" },
     { name = "jsonpatch", specifier = ">=1.32" },
@@ -2292,16 +2292,16 @@ wheels = [
 
 [[package]]
 name = "inspect-sentinel"
-version = "0.1.2"
+version = "0.1.4"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "anyio" },
     { name = "inspect-ai" },
     { name = "pydantic" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/7d/96/e466f16e76e0f1eb5a09df984396306d26a574ef6f7ce853ef3695fc60b5/inspect_sentinel-0.1.2.tar.gz", hash = "sha256:b1855f3a98ef72d7b08a4975af24253dabf612b3be354ecf4c93fb5dbb8593f2", size = 58549, upload-time = "2026-10-14T01:01:39.725Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/a0/4f/bf6cdfc9f2f1f421047c0623dc69a510a958a7a210f51e33651cc49e914d/inspect_sentinel-0.1.4.tar.gz", hash = "sha256:c4d3cf4d0174c1921a013e24840649252b43a909d6038d8799d699c8d61b909b", size = 128618, upload-time = "2026-10-19T21:45:03.875Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/e2/1f/133fb4d150053a05cbdc08160fd15c26d5155ab6291bed790d35aac654f1/inspect_sentinel-0.1.2-py3-none-any.whl", hash = "sha256:8c6db4e8b620a6b8e12566f1051ed1bc86432132df07c177f403f812680d54ce", size = 62826, upload-time = "2026-10-14T01:01:38.445Z" },
+    { url = "https://files.pythonhosted.org/packages/2d/f4/174cd1f32ecbf1761a2029b5dc3dfea16d3962cc1ca79765265be29e119e/inspect_sentinel-0.1.4-py3-none-any.whl", hash = "sha256:df633c060859fcd973d594a99bcde9b016391bcb030c1e9a0bcde7c6edbb86dd", size = 132991, upload-time = "2026-10-19T21:45:02.237Z" },
 ]
 
 [[package]]
