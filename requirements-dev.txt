@@ -5,6 +5,7 @@ apprise
 aws-bedrock-token-generator
 azure-ai-inference
 azure-identity
+brotli # tests decode the agent bridge's forwarded Accept-Encoding: br; not a runtime dependency, since it makes httpx advertise br on every request
 google-genai>=2.14.0
 griffe>=2
 groq>=0.28.0
