@@ -147,7 +147,8 @@ Passes through to the underlying model; OpenRouter itself maps `effort` to `budg
 | `low`         | `low`     | 0.2          |
 | `medium`      | `medium`  | 0.5          |
 | `high`        | `high`    | 0.8          |
-| `max` / `xhigh`       | `xhigh`   | 0.95         |
+| `xhigh`       | `xhigh`   | 0.95         |
+| `max`         | `max`     | 0.95         |
 
 
 

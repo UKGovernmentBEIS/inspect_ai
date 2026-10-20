@@ -180,7 +180,7 @@ class MetaAPI(OpenAICompatibleAPI):
         """Drop or remap generation options the API rejects with a 400.
 
         Dropped options warn; `max` remapped to `xhigh` does not, matching the
-        OpenAI and OpenRouter providers.
+        OpenAI provider.
         """
         model = self.service_model_name()
         updates: dict[str, Any] = {}
