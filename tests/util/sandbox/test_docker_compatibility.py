@@ -203,7 +203,6 @@ class TestIsDockerCompatibleConfig:
     def test_none_config_is_not_compatible(self):
         """None config should NOT be docker compatible."""
         assert is_docker_compatible_config(None) is False
-        assert is_docker_compatible_config(None, declared_type="docker") is False
 
     def test_non_compose_basemodel_is_not_compatible(self) -> None:
         """Non-ComposeConfig BaseModel should NOT be docker compatible."""
@@ -214,20 +213,6 @@ class TestIsDockerCompatibleConfig:
 
         config = CustomConfig(value="test")
         assert is_docker_compatible_config(config) is False
-
-    @pytest.mark.parametrize("config", ["env.yaml", "/path/to/tmpab12.yaml"])
-    def test_any_file_declared_for_docker_is_compatible(self, config: str):
-        """A file declared for the docker sandbox is compatible whatever its name."""
-        assert is_docker_compatible_config(config, declared_type="docker") is True
-
-    def test_file_declared_for_other_docker_compatible_type_is_checked_by_name(self):
-        """A file declared for another docker-compatible type is checked by name."""
-        assert (
-            is_docker_compatible_config(
-                "custom.yaml", declared_type="mock_docker_compatible"
-            )
-            is False
-        )
 
 
 # --- Tests for is_docker_compatible_sandbox_type() ---
@@ -325,11 +310,8 @@ def _warn_once_messages() -> Iterator[list[str]]:
 class TestResolveSandboxDockerCompatibility:
     """Test resolve_sandbox() behavior with docker-compatible configs."""
 
-    @pytest.mark.parametrize("compose_file", ["compose.yaml", "env.yaml"])
-    async def test_sample_compose_yaml_forwarded_to_docker_compatible_task(
-        self, compose_file: str
-    ):
-        """Sample's compose file (of any name) should be used when task sandbox is docker-compatible."""
+    async def test_sample_compose_yaml_forwarded_to_docker_compatible_task(self):
+        """Sample's compose.yaml config should be used when task sandbox is docker-compatible."""
         from inspect_ai._eval.task.sandbox import resolve_sandbox
         from inspect_ai.dataset import Sample
 
@@ -338,18 +320,18 @@ class TestResolveSandboxDockerCompatibility:
             "mock_docker_compatible", "task-config.yaml"
         )
 
-        # Sample has a compose file declared for docker (docker-compatible)
+        # Sample has compose.yaml config (docker-compatible)
         sample = Sample(
             input="test",
-            sandbox=("docker", compose_file),
+            sandbox=("docker", "compose.yaml"),  # sample's compose.yaml
         )
 
         result = await resolve_sandbox(task_sandbox, sample)
 
-        # Sample's compose file should be forwarded because task sandbox is docker-compatible
+        # Sample's compose.yaml should be forwarded because task sandbox is docker-compatible
         assert result is not None
         assert result.type == "mock_docker_compatible"
-        assert result.config == compose_file
+        assert result.config == "compose.yaml"
 
     async def test_sample_dockerfile_forwarded_to_docker_compatible_task(self):
         """Sample's Dockerfile config should be used when task sandbox is docker-compatible."""
@@ -475,7 +457,7 @@ class TestResolveSandboxDockerCompatibility:
     async def test_dropped_sample_config_warns(
         self, compose_file: str, _warn_once_messages: list[str]
     ):
-        """Dropping a docker-compatible sample config should log a warning."""
+        """Dropping a sample config for a non-docker-compatible task should log a warning."""
         from inspect_ai._eval.task.sandbox import resolve_sandbox
         from inspect_ai.dataset import Sample
 
@@ -497,6 +479,72 @@ class TestResolveSandboxDockerCompatibility:
             and "does not support" in message
             for message in _warn_once_messages
         )
+
+    @pytest.mark.parametrize(
+        "sample_sandbox", [("docker", "env.yaml"), ("k8s", "values.yaml")]
+    )
+    async def test_sample_config_dropped_by_docker_compatible_task_warns(
+        self, sample_sandbox: tuple[str, str], _warn_once_messages: list[str]
+    ):
+        """A sample config that a docker-compatible task sandbox does not use should log a warning."""
+        from inspect_ai._eval.task.sandbox import resolve_sandbox
+        from inspect_ai.dataset import Sample
+
+        task_sandbox = SandboxEnvironmentSpec(
+            "mock_docker_compatible", "task-config.yaml"
+        )
+        sample = Sample(input="test", sandbox=sample_sandbox)
+
+        result = await resolve_sandbox(task_sandbox, sample, task_name="my_task")
+
+        assert result is not None
+        assert result.type == "mock_docker_compatible"
+        assert result.config == "task-config.yaml"
+        assert len(_warn_once_messages) == 1
+        message = _warn_once_messages[0]
+        assert "task 'my_task'" in message
+        assert "the 'mock_docker_compatible' sandbox will not use" in message
+        assert "Rename a compose file" in message
+        # warn_once dedupes on the message text, so per-sample file names stay out
+        assert sample_sandbox[1] not in message
+
+    async def test_dropped_sample_configs_share_one_warning(
+        self, _warn_once_messages: list[str]
+    ):
+        """Samples whose different config files are not used share one warning."""
+        from inspect_ai._eval.task.sandbox import resolve_sandbox
+        from inspect_ai.dataset import Sample
+
+        task_sandbox = SandboxEnvironmentSpec(
+            "mock_docker_compatible", "task-config.yaml"
+        )
+        for config_file in ["sample-1.yaml", "sample-2.yaml"]:
+            sample = Sample(input="test", sandbox=("docker", config_file))
+            await resolve_sandbox(task_sandbox, sample, task_name="my_task")
+
+        assert len(_warn_once_messages) == 1
+
+    async def test_sample_native_config_dropped_by_non_docker_compatible_task_warns(
+        self, _warn_once_messages: list[str]
+    ):
+        """A dropped sample config that is not a docker config isn't described as one."""
+        from inspect_ai._eval.task.sandbox import resolve_sandbox
+        from inspect_ai.dataset import Sample
+
+        task_sandbox = SandboxEnvironmentSpec(
+            "mock_not_docker_compatible", "task-config.yaml"
+        )
+        sample = Sample(input="test", sandbox=("k8s", "values.yaml"))
+
+        result = await resolve_sandbox(task_sandbox, sample, task_name="my_task")
+
+        assert result is not None
+        assert result.config == "task-config.yaml"
+        assert len(_warn_once_messages) == 1
+        message = _warn_once_messages[0]
+        assert "the 'mock_not_docker_compatible' sandbox does not support" in message
+        assert "Dockerfile/compose.yaml" not in message
+        assert "values.yaml" not in message
 
     async def test_same_type_config_forwarded_no_warning(
         self, _warn_once_messages: list[str]
@@ -542,31 +590,27 @@ class TestResolveSandboxDockerCompatibility:
 class TestResolveTaskSandboxDockerCompatibility:
     """Test resolve_task_sandbox() behavior with docker-compatible configs."""
 
-    @pytest.mark.parametrize("override", ["mock_docker_compatible", "docker"])
-    @pytest.mark.parametrize("compose_file", ["compose.yaml", "env.yaml"])
-    def test_task_compose_forwarded_to_docker_compatible_override(
-        self, tmp_path, compose_file: str, override: str
-    ):
-        """Task's compose file (of any name) should be forwarded when override sandbox is docker-compatible with no config."""
+    def test_task_compose_forwarded_to_docker_compatible_override(self, tmp_path):
+        """Task's compose.yaml should be forwarded when override sandbox is docker-compatible with no config."""
         from inspect_ai._eval.loader import resolve_task_sandbox
         from inspect_ai._eval.task.constants import TASK_RUN_DIR_ATTR
         from inspect_ai._eval.task.task import Task
 
-        # Create a task with a compose file config (use None for dataset to get a dummy sample)
+        # Create a task with compose.yaml config (use None for dataset to get a dummy sample)
         task = Task(
             dataset=None,
-            sandbox=("docker", compose_file),
+            sandbox=("docker", "compose.yaml"),
         )
         setattr(task, TASK_RUN_DIR_ATTR, str(tmp_path))
 
         # Override with docker-compatible sandbox (no config)
-        result = resolve_task_sandbox(task, override)
+        result = resolve_task_sandbox(task, "mock_docker_compatible")
 
         assert result is not None
-        assert result.type == override
+        assert result.type == "mock_docker_compatible"
         # config path gets resolved to absolute path
-        assert isinstance(result.config, str)
-        assert result.config.endswith(f"/{compose_file}")
+        assert result.config is not None
+        assert "compose.yaml" in result.config
 
     def test_task_dockerfile_forwarded_to_docker_compatible_override(self, tmp_path):
         """Task's Dockerfile should be forwarded when override sandbox is docker-compatible with no config."""
@@ -633,28 +677,136 @@ class TestResolveTaskSandboxDockerCompatibility:
             for message in _warn_once_messages
         )
 
-    def test_same_type_override_drop_warns(
-        self, tmp_path, _warn_once_messages: list[str]
+    @pytest.mark.parametrize(
+        "task_sandbox", [("docker", "env.yaml"), ("other", "custom.yaml")]
+    )
+    def test_task_config_dropped_by_docker_compatible_override_warns(
+        self, tmp_path, task_sandbox: tuple[str, str], _warn_once_messages: list[str]
     ):
-        """A bare same-type override that strips the task's compose.yaml should warn."""
+        """A task config that a docker-compatible override does not use should log a warning."""
         from inspect_ai._eval.loader import resolve_task_sandbox
         from inspect_ai._eval.task.constants import TASK_RUN_DIR_ATTR
         from inspect_ai._eval.task.task import Task
 
+        task = Task(dataset=None, sandbox=task_sandbox)
+        setattr(task, TASK_RUN_DIR_ATTR, str(tmp_path))
+
+        result = resolve_task_sandbox(task, "mock_docker_compatible")
+
+        assert result is not None
+        assert result.type == "mock_docker_compatible"
+        assert result.config is None
+        assert len(_warn_once_messages) == 1
+        message = _warn_once_messages[0]
+        assert f"configuration '{task_sandbox[1]}'" in message
+        assert "'mock_docker_compatible' sandbox specified for the eval" in message
+        assert "Rename a compose file" in message
+
+    def test_task_model_config_dropped_by_docker_compatible_override_warns(
+        self, tmp_path, _warn_once_messages: list[str]
+    ):
+        """A task config object that a docker-compatible override does not use should log a warning."""
+        from pydantic import BaseModel
+
+        from inspect_ai._eval.loader import resolve_task_sandbox
+        from inspect_ai._eval.task.constants import TASK_RUN_DIR_ATTR
+        from inspect_ai._eval.task.task import Task
+
+        class CustomConfig(BaseModel):
+            value: str
+
         task = Task(
             dataset=None,
-            sandbox=("mock_not_docker_compatible", "compose.yaml"),
+            sandbox=SandboxEnvironmentSpec("other", CustomConfig(value="test")),
         )
+        setattr(task, TASK_RUN_DIR_ATTR, str(tmp_path))
+
+        result = resolve_task_sandbox(task, "mock_docker_compatible")
+
+        assert result is not None
+        assert result.config is None
+        assert len(_warn_once_messages) == 1
+        assert (
+            "declares sandbox 'other' with a configuration, which"
+            in _warn_once_messages[0]
+        )
+
+    def test_task_native_config_dropped_by_non_docker_compatible_override_warns(
+        self, tmp_path, _warn_once_messages: list[str]
+    ):
+        """A dropped task config that is not a docker config isn't described as one."""
+        from inspect_ai._eval.loader import resolve_task_sandbox
+        from inspect_ai._eval.task.constants import TASK_RUN_DIR_ATTR
+        from inspect_ai._eval.task.task import Task
+
+        task = Task(dataset=None, sandbox=("k8s", "values.yaml"))
         setattr(task, TASK_RUN_DIR_ATTR, str(tmp_path))
 
         result = resolve_task_sandbox(task, "mock_not_docker_compatible")
 
         assert result is not None
         assert result.config is None
-        assert any(
-            "mock_not_docker_compatible" in message and "does not support" in message
-            for message in _warn_once_messages
+        assert len(_warn_once_messages) == 1
+        message = _warn_once_messages[0]
+        assert "configuration 'values.yaml'" in message
+        assert "sandbox specified for the eval does not support" in message
+        assert "Dockerfile/compose.yaml" not in message
+
+    @pytest.mark.parametrize(
+        "task_sandbox",
+        [
+            ("docker", "env.yaml"),
+            ("docker", "sub/compose.yaml"),
+            ("mock_not_docker_compatible", "task-config.yaml"),
+        ],
+    )
+    def test_same_type_override_keeps_task_config(
+        self, tmp_path, task_sandbox: tuple[str, str], _warn_once_messages: list[str]
+    ):
+        """A bare override naming the task's own sandbox type keeps the task's config."""
+        from inspect_ai._eval.loader import resolve_task_sandbox
+        from inspect_ai._eval.task.constants import TASK_RUN_DIR_ATTR
+        from inspect_ai._eval.task.task import Task
+
+        # default config files that the override would otherwise pick up
+        (tmp_path / "compose.yaml").write_text("services: {}\n")
+        (tmp_path / "custom.yaml").write_text("{}\n")
+
+        task = Task(dataset=None, sandbox=task_sandbox)
+        setattr(task, TASK_RUN_DIR_ATTR, str(tmp_path))
+
+        result = resolve_task_sandbox(task, task_sandbox[0])
+
+        assert result is not None
+        assert result.type == task_sandbox[0]
+        assert isinstance(result.config, str)
+        assert result.config.endswith(f"/{task_sandbox[1]}")
+        assert not _warn_once_messages
+
+    def test_same_type_override_keeps_task_compose_config(
+        self, tmp_path, _warn_once_messages: list[str]
+    ):
+        """A bare same-type override keeps a task's ComposeConfig over a default config file."""
+        from inspect_ai._eval.loader import resolve_task_sandbox
+        from inspect_ai._eval.task.constants import TASK_RUN_DIR_ATTR
+        from inspect_ai._eval.task.task import Task
+
+        (tmp_path / "compose.yaml").write_text("services: {}\n")
+        compose_config = ComposeConfig(
+            services={"default": ComposeService(image="python:3.11")},
         )
+        task = Task(
+            dataset=None,
+            sandbox=SandboxEnvironmentSpec("docker", compose_config),
+        )
+        setattr(task, TASK_RUN_DIR_ATTR, str(tmp_path))
+
+        result = resolve_task_sandbox(task, "docker")
+
+        assert result is not None
+        assert result.type == "docker"
+        assert result.config == compose_config
+        assert not _warn_once_messages
 
     def test_no_override_keeps_config_no_warning(
         self, tmp_path, _warn_once_messages: list[str]
