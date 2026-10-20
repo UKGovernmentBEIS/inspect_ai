@@ -117,6 +117,7 @@ async def sentinel_before_tool_call(
         agent_messages=history,
         history=sent_messages(conversation),
         tools=list(producer.tools) if producer is not None else None,
+        tool_choice=producer.tool_choice if producer is not None else None,
     )
     return await _run(step)
 
@@ -165,6 +166,7 @@ async def sentinel_after_tool_call(
         agent_messages=history,
         history=sent_messages(conversation),
         tools=list(producer.tools) if producer is not None else None,
+        tool_choice=producer.tool_choice if producer is not None else None,
         truncated=Truncation(*truncated) if truncated is not None else False,
     )
     decision = await _run(step)

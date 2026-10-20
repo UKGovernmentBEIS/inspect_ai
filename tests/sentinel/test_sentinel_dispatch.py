@@ -558,14 +558,18 @@ def test_a_handoff_result_is_checked() -> None:
     assert handoff_call_id(log) in {e.step_id for e in after}
 
 
-def producer_tools(log: EvalLog, call_id: str) -> list[ToolInfo]:
+def producer(log: EvalLog, call_id: str) -> ModelEvent:
     assert log.samples
     for event in resolve_sample_attachments(log.samples[0], "full").events:
         if isinstance(event, ModelEvent) and event.output.choices:
             calls = event.output.choices[0].message.tool_calls or []
             if any(call.id == call_id for call in calls):
-                return event.tools
+                return event
     raise AssertionError(f"no model call produced {call_id}")
+
+
+def producer_tools(log: EvalLog, call_id: str) -> list[ToolInfo]:
+    return producer(log, call_id).tools
 
 
 @tool(parallel=False)
@@ -643,7 +647,7 @@ def run_consult_then_add(sentinel: Any) -> EvalLog:
     ],
     ids=["handoff", "inner-generate"],
 )
-def test_each_step_gets_the_tools_of_the_call_that_produced_it(
+def test_each_step_gets_the_tools_and_tool_choice_of_the_call_that_produced_it(
     run_steps: Callable[[Any], EvalLog], expected: list[tuple[str, list[str]]]
 ) -> None:
     before: Seen = []
@@ -659,7 +663,8 @@ def test_each_step_gets_the_tools_of_the_call_that_produced_it(
         == expected
     )
     for step in steps:
-        assert step.tools == producer_tools(log, step.call.id)
+        event = producer(log, step.call.id)
+        assert (step.tools, step.tool_choice) == (event.tools, event.tool_choice)
 
 
 @protocol
@@ -1788,7 +1793,9 @@ async def test_a_message_no_model_call_produced_has_no_input() -> None:
             [parallel_addition()],
         )
 
-    assert [(step.input, step.tools) for _, step in seen] == [(None, None)] * 2
+    assert [(step.input, step.tools, step.tool_choice) for _, step in seen] == [
+        (None, None, None)
+    ] * 2
 
 
 def test_a_call_with_no_assistant_message_has_no_input() -> None:
