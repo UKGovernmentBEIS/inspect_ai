@@ -102,6 +102,9 @@ from ._sent import record_sent, sent_messages
 
 logger = getLogger(__name__)
 
+# the oldest inspect_sentinel this inspect_ai works with
+_UPGRADE = "inspect_ai requires inspect_sentinel 0.2.0 or later: pip install --upgrade inspect-sentinel"
+
 _Kind = Literal["observation", "decision"]
 
 
@@ -292,8 +295,7 @@ async def _run(step: Step) -> Decision | None:
         raise SentinelFailure(
             RuntimeError(
                 f"inspect_sentinel returned an escalate at the {_stage(step)} stage, "
-                "which it should have turned into a terminate. inspect_ai requires "
-                "inspect_sentinel 0.1.2 or later: pip install --upgrade inspect-sentinel"
+                f"which it should have turned into a terminate. {_UPGRADE}"
             )
         )
     return decision
@@ -366,9 +368,7 @@ def _require_message_id() -> None:
     if "message_id" not in {f.name for f in fields(BeforeToolCall)}:
         raise SentinelFailure(
             RuntimeError(
-                "The installed inspect_sentinel predates the tool steps' message_id. "
-                "inspect_ai requires inspect_sentinel 0.2.0 or later: "
-                "pip install --upgrade inspect-sentinel"
+                f"The installed inspect_sentinel predates the tool steps' message_id. {_UPGRADE}"
             )
         )
 
