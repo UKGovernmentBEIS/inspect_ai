@@ -10,7 +10,11 @@ from inspect_ai._util.content import Content, ContentImage, ContentText
 from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.url import data_uri_mime_type, data_uri_to_base64, is_data_uri
-from inspect_ai._util.working import sample_clock, sample_working_time_since
+from inspect_ai._util.working import (
+    known_work,
+    sample_clock,
+    sample_working_time_since,
+)
 from inspect_ai.agent._channel.observer import null_execution_observer
 from inspect_ai.event._tool import ToolEvent
 from inspect_ai.log._samples import sample_active
@@ -296,7 +300,7 @@ async def _execute_granted(
                         event._set_cancel_fn(scope.cancel)
                         # as in call_tool: the tool's own model calls are not
                         # agent turns
-                        with sentinel_scope(AgentScope.OFF):
+                        with sentinel_scope(AgentScope.OFF), known_work():
                             result = await tool_fn(**call_arguments)
                         output, truncated = _recorded_result(
                             tool, result, tool_def.max_output

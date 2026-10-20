@@ -5,7 +5,7 @@ import subprocess
 import sys
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any, get_type_hints
+from typing import TYPE_CHECKING, Any, get_type_hints
 
 import pytest
 from pydantic import ValidationError
@@ -25,7 +25,7 @@ from inspect_ai._eval.eval_set_manifest import INSPECT_EVAL_SET_CAPTURE, EvalSet
 from inspect_ai._eval.eval_set_overrides import INSPECT_EVAL_SET_OVERRIDES
 from inspect_ai._sentinel._context import active_sentinel
 from inspect_ai._util.error import PrerequisiteError
-from inspect_ai._util.registry import registry_info
+from inspect_ai._util.registry import is_registry_object, registry_info
 from inspect_ai.dataset import Sample
 from inspect_ai.event import SentinelEvent, SpanBeginEvent, ToolEvent
 from inspect_ai.log import (
@@ -36,17 +36,16 @@ from inspect_ai.log import (
     read_eval_log,
 )
 from inspect_ai.model import (
-    ChatMessageAssistant,
     GenerateConfig,
     ModelOutput,
     get_model,
 )
-from inspect_ai.model._call_tools import execute_tools
 from inspect_ai.model._model import ModelName
 from inspect_ai.solver import Generate, Solver, TaskState, generate, solver, use_tools
-from inspect_ai.tool import Tool, ToolCall, tool
+from inspect_ai.tool import Tool, tool
 
-try:
+# mypy checks the tests against inspect_sentinel's API; they run on the fake
+if TYPE_CHECKING:
     from inspect_sentinel import (
         BeforeToolCall,
         Context,
@@ -56,12 +55,22 @@ try:
         Observation,
         Protocol,
         monitor,
-        observe_only,
         protocol,
-        threshold,
     )
-except ImportError:
-    pytest.skip("inspect_sentinel is not installed", allow_module_level=True)
+else:
+    from test_helpers.fake_sentinel import (
+        BeforeToolCall,
+        Context,
+        Decision,
+        Escalations,
+        Monitor,
+        Observation,
+        Protocol,
+        monitor,
+        protocol,
+    )
+
+pytestmark = pytest.mark.usefixtures("fake_sentinel")
 
 
 @monitor
@@ -102,9 +111,12 @@ def addition() -> Tool:
 def record_sentinel() -> Solver:
     async def solve(state: TaskState, generate: Generate) -> TaskState:
         root = active_sentinel()
-        state.metadata["sentinel"] = (
-            registry_info(root).name if root is not None else None
-        )
+        if root is None:
+            state.metadata["sentinel"] = None
+        elif is_registry_object(root):
+            state.metadata["sentinel"] = registry_info(root).name
+        else:
+            state.metadata["sentinel"] = type(root).__name__
         return state
 
     return solve
@@ -165,35 +177,6 @@ def test_no_sentinel_leaves_the_config_empty() -> None:
     )
 
 
-def test_observe_only_records_monitors_with_nothing_acting() -> None:
-    log = eval(
-        sentinel_task(observe_only({"watch": d2_suspicion(score=0.2)})),
-        model="mockllm/model",
-    )[0]
-    assert config_data(log) == {
-        "name": "observe_only",
-        "params": {},
-        "monitors": {"watch": {"name": "d2_suspicion", "params": {"score": 0.2}}},
-    }
-    assert active_root(log) == "inspect_sentinel/observe_only"
-
-
-@pytest.mark.parametrize(
-    "sentinel",
-    [
-        lambda: d2_suspicion(),
-        lambda: {"watch": d2_suspicion()},
-        lambda: [{"name": "d2_suspicion"}],
-        lambda: "d2_suspicion",
-    ],
-)
-def test_monitors_alone_fail_at_task_construction(
-    sentinel: Callable[[], Any],
-) -> None:
-    with pytest.raises(ValueError, match=r"only monitors: .*observe_only\(\)"):
-        sentinel_task(sentinel())
-
-
 def test_task_with_sets_and_clears_the_sentinel() -> None:
     log = eval(task_with(sentinel_task(), sentinel=RULE_CONFIG), model="mockllm/model")[
         0
@@ -216,28 +199,25 @@ def test_eval_sentinel_overrides_the_task() -> None:
         {"name": "d2_suspicion", "params": {"score": 0.7}},
         {"name": "d2_rule", "params": {"reason": "eval"}},
     ]
-    assert active_root(log) == "inspect_sentinel/concurrent"
+    assert active_root(log) == "Group"
 
 
-def test_config_file_and_registered_name(tmp_path: Path) -> None:
-    config = tmp_path / "sentinel.yaml"
-    config.write_text(
-        "sentinel:\n  block:\n    name: d2_rule\n    params:\n      reason: file\n"
-    )
-    log = eval(sentinel_task(), model="mockllm/model", sentinel=str(config))[0]
-    assert config_data(log) == {
-        "block": {"name": "d2_rule", "params": {"reason": "file"}}
-    }
+@protocol
+def d2_gate(monitors: list[Monitor], reject_at: float = 0.5) -> Protocol:
+    async def decide(
+        context: Context,
+        step: BeforeToolCall,
+        escalations: Escalations,
+    ) -> Decision | None:
+        return None
 
-    log = eval(sentinel_task(), model="mockllm/model", sentinel="d2_rule")[0]
-    assert config_data(log) == {"name": "d2_rule", "params": {}}
-    assert active_root(log) == "d2_rule"
+    return decide
 
 
 def test_nested_config_round_trips_through_the_log(tmp_path: Path) -> None:
     config = [
         {
-            "name": "threshold",
+            "name": "d2_gate",
             "params": {"reject_at": 0.8},
             "monitors": [{"name": "d2_suspicion", "params": {"score": 0.9}}],
         }
@@ -386,63 +366,7 @@ def test_eval_retry_rebuilds_the_sentinel(tmp_path: Path) -> None:
     assert config_data(retried) == {
         "block": {"name": "d2_rule", "params": {"reason": "retry"}}
     }
-    assert active_root(retried) == "inspect_sentinel/concurrent"
-
-
-@solver
-def call_addition() -> Solver:
-    async def solve(state: TaskState, generate: Generate) -> TaskState:
-        state.messages.append(
-            ChatMessageAssistant(
-                content="",
-                tool_calls=[
-                    ToolCall(id="c1", function="addition", arguments={"x": 1, "y": 1})
-                ],
-            )
-        )
-        result = await execute_tools(state.messages, [addition()])
-        state.messages.extend(result.messages)
-        return state
-
-    return solve
-
-
-@task
-def d2_lone_root_task(marker: str) -> Task:
-    return Task(
-        dataset=[Sample(input="x", target="y")],
-        solver=[call_addition(), fail_once(marker)],
-        sentinel=threshold(d2_suspicion(score=0.9), reject_at=0.5),
-    )
-
-
-def sentinel_paths(log: EvalLog) -> list[tuple[str, str]]:
-    assert log.samples
-    return [
-        (e.factory, e.path)
-        for e in log.samples[0].events
-        if isinstance(e, SentinelEvent)
-    ]
-
-
-def test_eval_retry_records_a_lone_roots_paths_as_the_first_run_did(
-    tmp_path: Path,
-) -> None:
-    log = eval(
-        d2_lone_root_task(str(tmp_path / "marker")),
-        model="mockllm/model",
-        log_dir=str(tmp_path),
-    )[0]
-    assert log.status == "error"
-    recorded = log.eval.config.sentinel
-    assert isinstance(recorded, SentinelConfig)
-    assert isinstance(recorded.root, SentinelEntry)
-    assert recorded.root.name == "threshold"
-    retried = eval_retry(log, log_dir=str(tmp_path))[0]
-    assert retried.status == "success", retried.error
-    expected = [("d2_suspicion", "d2_suspicion"), ("inspect_sentinel/threshold", "")]
-    assert sentinel_paths(log) == expected
-    assert sentinel_paths(retried) == expected
+    assert active_root(retried) == "Group"
 
 
 def test_eval_set_sentinel(tmp_path: Path) -> None:
@@ -455,7 +379,7 @@ def test_eval_set_sentinel(tmp_path: Path) -> None:
     assert success
     log = read_eval_log(logs[0].location)
     assert config_data(log) == RULE_CONFIG
-    assert active_root(log) == "inspect_sentinel/concurrent"
+    assert active_root(log) == "Group"
 
 
 def test_eval_set_bad_config_fails_before_running(tmp_path: Path) -> None:
@@ -514,12 +438,8 @@ def mark_ran() -> Solver:
     "sentinel,error,match",
     [
         ([{"name": "d2_missing"}], ValueError, "not a registered monitor or protocol"),
-        ([{"name": "d2_rule", "params": {"bogus": 1}}], TypeError, "sentinel\\[0\\]"),
-        ("no_such_file.yaml", ValueError, "neither a config file"),
-        ([], ValueError, "at least one monitor or protocol"),
+        ([{"name": "d2_rule", "params": {"bogus": 1}}], TypeError, "bogus"),
         (42, TypeError, "sentinel must be"),
-        ("d2_suspicion", ValueError, "observe_only"),
-        ([{"name": "d2_suspicion"}], ValueError, "observe_only"),
     ],
 )
 def test_bad_config_fails_at_eval_start(
@@ -635,20 +555,32 @@ def cli_task():
     return Task(dataset=[Sample(input="x", target="y")], solver=record_sentinel())
 """
 
+# the inspect CLI, with the fake installed as inspect_sentinel
+CLI_MAIN = f"""
+import sys
+
+sys.path.insert(0, {str(Path(__file__).parents[1])!r})
+from test_helpers import fake_sentinel
+
+sys.modules["inspect_sentinel"] = fake_sentinel
+sys.modules["inspect_sentinel._integration"] = fake_sentinel
+
+from inspect_ai._cli.main import main
+
+main()
+"""
+
 
 @pytest.mark.parametrize("via", ["option", "env"])
 def test_cli_sentinel(tmp_path: Path, via: str) -> None:
     (tmp_path / "cli_task.py").write_text(CLI_TASK)
-    (tmp_path / "sentinel.yaml").write_text(
-        "sentinel:\n  - name: cli_rule\n    params:\n      reason: cli\n"
-    )
-    args = ["--sentinel", "sentinel.yaml"] if via == "option" else []
-    env = {"INSPECT_EVAL_SENTINEL": "sentinel.yaml"} if via == "env" else {}
+    args = ["--sentinel", "cli_rule"] if via == "option" else []
+    env = {"INSPECT_EVAL_SENTINEL": "cli_rule"} if via == "env" else {}
     result = subprocess.run(
         [
             sys.executable,
-            "-m",
-            "inspect_ai._cli.main",
+            "-c",
+            CLI_MAIN,
             "eval",
             "cli_task.py",
             "--model",
@@ -668,8 +600,8 @@ def test_cli_sentinel(tmp_path: Path, via: str) -> None:
     assert result.returncode == 0, result.stderr
     [log_file] = list((tmp_path / "logs").glob("*.eval"))
     log = read_eval_log(str(log_file))
-    assert config_data(log) == [{"name": "cli_rule", "params": {"reason": "cli"}}]
-    assert active_root(log) == "inspect_sentinel/concurrent"
+    assert config_data(log) == {"name": "cli_rule", "params": {}}
+    assert active_root(log) == "cli_rule"
 
 
 @pytest.mark.parametrize("fn", [Task.__init__, eval, eval_async, eval_set])
