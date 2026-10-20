@@ -195,6 +195,11 @@
       "undescribed": 1
     }
   },
+  "src/inspect_ai/_sentinel/_dispatch.py": {
+    "type: ignore[call-arg]": {
+      "count": 2
+    }
+  },
   "src/inspect_ai/_util/_async.py": {
     "type: ignore": {
       "count": 1,
@@ -1739,6 +1744,22 @@
     "type: ignore (file-wide)": {
       "count": 1,
       "undescribed": 1
+    }
+  },
+  "tests/sentinel/test_sentinel_dispatch.py": {
+    "type: ignore[attr-defined]": {
+      "count": 3
+    },
+    "type: ignore[call-arg]": {
+      "count": 3
+    },
+    "type: ignore[union-attr]": {
+      "count": 1
+    }
+  },
+  "tests/sentinel/test_sentinel_human.py": {
+    "type: ignore[call-arg]": {
+      "count": 2
     }
   },
   "tests/test_eval_set_capture.py": {
