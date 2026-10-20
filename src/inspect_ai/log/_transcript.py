@@ -40,7 +40,12 @@ from inspect_ai.log._condense import (
 )
 from inspect_ai.model._chat_message import ChatMessageBase
 from inspect_ai.model._model_call import ModelCall
-from inspect_ai.util._store import store, store_changes, store_jsonable
+from inspect_ai.util._store import (
+    store,
+    store_changes,
+    store_events_suspended,
+    store_jsonable,
+)
 
 if TYPE_CHECKING:
     from inspect_ai.log._recorders.buffer.types import TranscriptEventSink
@@ -1102,6 +1107,10 @@ def record_interrupt_event(
 
 @contextlib.contextmanager
 def track_store_changes() -> Iterator[None]:
+    if store_events_suspended():
+        yield
+        return
+
     before = store_jsonable(store())
     yield
     after = store_jsonable(store())
