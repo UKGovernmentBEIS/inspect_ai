@@ -1682,6 +1682,16 @@ async def converse_chat_message(
                     raise ValueError(
                         "Unsupported tool content type in Bedrock provider."
                     )
+        # The status marker tells the model the call failed; the error text
+        # tells it why, so it can recover (fix a path, retry a timeout, re-plan
+        # after a rejection). The native Anthropic provider sends the message
+        # with is_error=True, and OpenAI and Google send it as the result text
+        # (#5951). A tool may return partial output before failing, so the
+        # message is appended rather than swapped in.
+        if message.error is not None:
+            tool_result_content.append(
+                ConverseToolResultContent(text=message.error.message)
+            )
 
         # return the tool result
         tool_result = ConverseToolResult(
