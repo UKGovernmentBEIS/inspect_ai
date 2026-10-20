@@ -3016,7 +3016,10 @@ def _snapshot_messages(messages: list[ChatMessage]) -> list[ChatMessage]:
     matches it, in which case that copy is reused. Successive events then
     share the objects of unchanged messages, which keeps memory proportional
     to message versions and lets the log's message pool dedup them by
-    identity.
+    identity. This holds while a message keeps its id (or, without one, is
+    the same live object); preparation that creates new messages with fresh
+    ids each generation (reasoning-history filtering, tool `model_input`
+    rewriting, media extraction) still copies them every time.
 
     Raises:
         TypeError: A message's metadata or tool call arguments hold something

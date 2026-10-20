@@ -27,7 +27,7 @@ import dataclasses
 import json
 import math
 from collections.abc import Iterable, Mapping, Sequence
-from typing import Final, Literal, NamedTuple, TypeAlias, TypeVar, cast
+from typing import Any, Final, Literal, NamedTuple, TypeAlias, TypeVar, cast
 
 from pydantic import BaseModel, JsonValue
 from pydantic_core import to_jsonable_python
@@ -63,34 +63,57 @@ def _strict_eq(a: object, b: object) -> bool:
     for scalars (recursing into models, dataclasses, dicts, and lists), so a
     merge implies identical serialization. Conversely ``nan != nan``, but
     NaNs of the same sign serialize identically, so they match here.
+
+    Each pair of dicts or lists is compared once per call, so values that
+    share them (such as parsed yaml aliases) cost time in the number of
+    distinct containers rather than paths.
     """
+    return _strict_eq_pairs(a, b, set())
+
+
+def _strict_eq_pairs(a: object, b: object, compared: set[tuple[int, int]]) -> bool:
     if a is b:
         return True
     ta, tb = type(a), type(b)
     if ta is not tb:
         return False
     if isinstance(a, BaseModel):
-        return _strict_eq(a.__dict__, b.__dict__)  # type: ignore[attr-defined]
+        return _strict_eq_dicts(a.__dict__, b.__dict__, compared)  # type: ignore[attr-defined]
     if dataclasses.is_dataclass(a) and not isinstance(a, type):
-        return _strict_eq(vars(a), vars(b))
-    if ta is dict:
-        assert isinstance(a, dict) and isinstance(b, dict)
-        # keys pair up in order: messages serialize (and _msg_hash hashes)
-        # dicts in insertion order, so {"x": 1, "y": 2} and {"y": 2, "x": 1}
-        # are distinct; comparing keys with _strict_eq also keeps 0/0.0 and
-        # True/1 keys apart
-        return len(a) == len(b) and all(
-            _strict_eq(ka, kb) and _strict_eq(va, vb)
-            for (ka, va), (kb, vb) in zip(a.items(), b.items())
-        )
-    if ta is list or ta is tuple:
+        return _strict_eq_dicts(vars(a), vars(b), compared)
+    if ta is dict or ta is list or ta is tuple:
+        # a mismatch ends the whole comparison, so a pair already compared
+        # (or being compared) needs no second look; both sides stay alive
+        # for the call, so their ids are not reused
+        pair = (id(a), id(b))
+        if pair in compared:
+            return True
+        compared.add(pair)
+        if ta is dict:
+            assert isinstance(a, dict) and isinstance(b, dict)
+            return _strict_eq_dicts(a, b, compared)
         assert isinstance(a, (list, tuple)) and isinstance(b, (list, tuple))
-        return len(a) == len(b) and all(_strict_eq(x, y) for x, y in zip(a, b))
+        return len(a) == len(b) and all(
+            _strict_eq_pairs(x, y, compared) for x, y in zip(a, b)
+        )
     if ta is float:
         assert isinstance(a, float) and isinstance(b, float)
         same_sign = math.copysign(1.0, a) == math.copysign(1.0, b)
         return same_sign and (a == b or (math.isnan(a) and math.isnan(b)))
     return a == b
+
+
+def _strict_eq_dicts(
+    a: dict[Any, Any], b: dict[Any, Any], compared: set[tuple[int, int]]
+) -> bool:
+    # keys pair up in order: messages serialize (and _msg_hash hashes)
+    # dicts in insertion order, so {"x": 1, "y": 2} and {"y": 2, "x": 1}
+    # are distinct; comparing keys with _strict_eq also keeps 0/0.0 and
+    # True/1 keys apart
+    return len(a) == len(b) and all(
+        _strict_eq_pairs(ka, kb, compared) and _strict_eq_pairs(va, vb, compared)
+        for (ka, va), (kb, vb) in zip(a.items(), b.items())
+    )
 
 
 def _strict_eq_prefix_len(a: Iterable[object], b: Iterable[object]) -> int:
