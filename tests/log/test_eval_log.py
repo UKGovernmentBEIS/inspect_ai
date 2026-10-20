@@ -25,6 +25,7 @@ from inspect_ai._util._async import current_async_backend
 from inspect_ai._util.asyncfiles import (
     S3_COMPOSE_MIN_PREFIX,
     AsyncFilesystem,
+    _s3_copy_ranges,
 )
 from inspect_ai._util.constants import get_deserializing_context
 from inspect_ai._util.content import ContentDocument
@@ -2751,9 +2752,12 @@ async def test_seeded_start_flush_composes_from_s3_prior(
     if current_async_backend() == "asyncio":
         assert prefix is not None
         bucket, key = prior.removeprefix("s3://").split("/", 1)
+        copies.sort(key=lambda c: c["PartNumber"])
         assert [(c["CopySource"], c["CopySourceRange"]) for c in copies] == [
-            ({"Bucket": bucket, "Key": key}, f"bytes=0-{prefix.length - 1}")
+            ({"Bucket": bucket, "Key": key}, f"bytes={start}-{end - 1}")
+            for start, end in _s3_copy_ranges(prefix.length)
         ]
+        assert len(copies) > 1
         # only the new tail is uploaded, however large the prior
         assert _uploaded_bytes(calls) < 1024 * 1024 < prior_size
         assert zip_log._etag == (await AsyncFilesystem().info(location)).etag

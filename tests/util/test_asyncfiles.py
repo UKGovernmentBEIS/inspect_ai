@@ -1406,19 +1406,39 @@ async def test_s3_upload_async_multipart_aborts_on_cancel() -> None:
 _MIB = 1024 * 1024
 
 
-def test_s3_copy_ranges_split_into_equal_parts_under_the_part_limit() -> None:
-    gib = 1024 * _MIB
-    assert _s3_copy_ranges(S3_COMPOSE_MIN_PREFIX) == [(0, S3_COMPOSE_MIN_PREFIX)]
-    assert _s3_copy_ranges(5 * gib) == [(0, 5 * gib)]
-    for length in [5 * gib + 1, 12 * gib, 25 * gib + 7]:
+def _assert_contiguous_equal_ranges(ranges: list[tuple[int, int]], length: int) -> None:
+    assert ranges[0][0] == 0 and ranges[-1][1] == length
+    assert all(a[1] == b[0] for a, b in zip(ranges, ranges[1:]))
+    sizes = [end - start for start, end in ranges]
+    # equal slices: no small remainder that would break the 5 MiB part minimum
+    assert max(sizes) - min(sizes) <= 1
+    assert min(sizes) >= 5 * _MIB
+
+
+def test_s3_copy_ranges_split_into_parallel_parts() -> None:
+    part = asyncfiles._S3_COPY_PART_SIZE
+    assert _s3_copy_ranges(S3_COMPOSE_MIN_PREFIX + 1) == [
+        (0, S3_COMPOSE_MIN_PREFIX + 1)
+    ]
+    assert _s3_copy_ranges(part) == [(0, part)]
+    assert _s3_copy_ranges(3 * part) == [
+        (0, part),
+        (part, 2 * part),
+        (2 * part, 3 * part),
+    ]
+    for length in [part + 1, 3 * part - 1, 7 * part + 12345]:
         ranges = _s3_copy_ranges(length)
-        assert ranges[0][0] == 0 and ranges[-1][1] == length
-        assert all(a[1] == b[0] for a, b in zip(ranges, ranges[1:]))
-        sizes = [end - start for start, end in ranges]
-        assert len(ranges) == -(-length // (5 * gib))
-        assert max(sizes) <= 5 * gib
-        # equal slices: no small remainder that would break the part minimum
-        assert min(sizes) >= max(sizes) - 1
+        assert len(ranges) == -(-length // part)
+        assert max(end - start for start, end in ranges) <= part
+        _assert_contiguous_equal_ranges(ranges, length)
+
+
+def test_s3_copy_ranges_stay_within_the_part_count_limit() -> None:
+    max_parts = asyncfiles._S3_MAX_COPY_PARTS
+    length = max_parts * asyncfiles._S3_COPY_PART_SIZE + 1
+    ranges = _s3_copy_ranges(length)
+    assert len(ranges) == max_parts
+    _assert_contiguous_equal_ranges(ranges, length)
 
 
 async def test_can_compose_only_s3_under_asyncio() -> None:
@@ -1460,6 +1480,33 @@ async def test_compose_file_s3_copies_prefix_and_uploads_tail(
         uploads = await client.list_multipart_uploads(Bucket="test-bucket")
         assert not uploads.get("Uploads")
     assert not tail.closed
+
+
+@skip_if_trio
+async def test_compose_file_s3_copies_prefix_in_several_parts(
+    mock_s3: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(asyncfiles, "_S3_COPY_PART_SIZE", 6 * _MIB)
+    source_bytes = os.urandom(24 * _MIB)
+    prefix_length = 20 * _MIB + 3
+    tail_bytes = os.urandom(_MIB)
+    source_path = f"{S3_BUCKET}/compose/several-source.eval"
+    dest_path = f"{S3_BUCKET}/compose/several-dest.eval"
+
+    async with AsyncFilesystem() as fs:
+        source_etag = await fs.write_file(source_path, source_bytes)
+        assert source_etag is not None
+        etag = await fs.compose_file(
+            dest_path,
+            ComposeSource(source_path, source_etag, prefix_length),
+            io.BytesIO(tail_bytes),
+        )
+        assert (
+            await fs.read_file(dest_path) == source_bytes[:prefix_length] + tail_bytes
+        )
+        # four copied parts and one uploaded tail part
+        assert etag.endswith("-5")
+        assert etag == (await fs.info(dest_path)).etag
 
 
 class _ComposeClient(_MultipartClient):
@@ -1551,6 +1598,38 @@ async def test_s3_compose_async_copies_prefix_then_numbers_tail_parts() -> None:
         {"ETag": '"etag-3"', "PartNumber": 3},
     ]
     assert client.aborted == []
+
+
+async def test_s3_compose_async_copies_every_part_conditionally(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(asyncfiles, "_S3_COPY_PART_SIZE", S3_COMPOSE_MIN_PREFIX // 2)
+    client = _ComposeClient()
+    half = S3_COMPOSE_MIN_PREFIX // 2
+
+    await _s3_compose_async(
+        client,
+        "bucket",
+        "dest.eval",
+        _COMPOSE_PREFIX,
+        io.BytesIO(b"aaaabb"),
+        _SMALL_PARTS(),
+    )
+
+    assert sorted(
+        (c["PartNumber"], c["CopySourceRange"], c["CopySourceIfMatch"])
+        for c in client.copies
+    ) == [
+        (1, f"bytes=0-{half - 1}", '"source-etag"'),
+        (2, f"bytes={half}-{S3_COMPOSE_MIN_PREFIX - 1}", '"source-etag"'),
+    ]
+    assert client.completed_parts == [[(3, b"aaaa"), (4, b"bb")]]
+    assert client.completed == [
+        {"ETag": '"copy-1"', "PartNumber": 1},
+        {"ETag": '"copy-2"', "PartNumber": 2},
+        {"ETag": '"etag-3"', "PartNumber": 3},
+        {"ETag": '"etag-4"', "PartNumber": 4},
+    ]
 
 
 @pytest.mark.parametrize(

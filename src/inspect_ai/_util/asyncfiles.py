@@ -441,18 +441,31 @@ class ComposeSourceChangedError(Exception):
 # clears S3's 5 MiB minimum for every part but the last.
 S3_COMPOSE_MIN_PREFIX = 8 * 1024 * 1024
 
-_S3_MAX_PART_SIZE = 5 * 1024 * 1024 * 1024
+# One UploadPartCopy runs at about 50 MB/s on S3, so the prefix is copied as
+# parallel parts of at most this size (measured best of 16, 32 and 64 MiB).
+_S3_COPY_PART_SIZE = 16 * 1024 * 1024
+
+# S3 allows 10,000 parts per upload; the copy takes at most half of them.
+_S3_MAX_COPY_PARTS = 5_000
 
 
 def _s3_copy_ranges(length: int) -> list[tuple[int, int]]:
-    """Split ``[0, length)`` into ``[start, end)`` ranges of at most 5 GiB.
+    """Split ``[0, length)`` into equal ``[start, end)`` ranges.
 
-    The ranges are equal rather than 5 GiB plus a remainder, so none falls
-    under S3's 5 MiB part minimum when ``length >= S3_COMPOSE_MIN_PREFIX``.
+    Each range is at most ``_S3_COPY_PART_SIZE``, or larger when that would
+    take more than ``_S3_MAX_COPY_PARTS`` parts. Sizes differ by at most one
+    byte, so none falls under S3's 5 MiB part minimum when
+    ``length >= S3_COMPOSE_MIN_PREFIX``.
     """
-    count = -(-length // _S3_MAX_PART_SIZE)
-    size = -(-length // count)
-    return [(start, min(start + size, length)) for start in range(0, length, size)]
+    count = min(-(-length // _S3_COPY_PART_SIZE), _S3_MAX_COPY_PARTS)
+    size, extra = divmod(length, count)
+    ranges = []
+    start = 0
+    for index in range(count):
+        end = start + size + (1 if index < extra else 0)
+        ranges.append((start, end))
+        start = end
+    return ranges
 
 
 def _s3_error_code(ex: ClientError) -> str | None:
@@ -474,8 +487,9 @@ async def _s3_compose_async(
 ) -> str:
     """Replace ``bucket/key`` with ``prefix``'s leading bytes then ``tail``.
 
-    One multipart upload: ``UploadPartCopy`` of the prefix (conditional on
-    its ETag), then ``tail`` from its position to EOF as uploaded parts.
+    One multipart upload: ``UploadPartCopy`` of the prefix in parallel parts
+    (each conditional on its ETag), then ``tail`` from its position to EOF
+    as uploaded parts.
     The ``HeadObject`` check comes first because some S3-compatible stores
     (moto among them) ignore ``CopySourceIfMatch``; real S3 enforces it as
     well. Any failure after the upload is created aborts it. Returns the
