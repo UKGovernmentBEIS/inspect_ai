@@ -828,8 +828,30 @@ def test_dataset_checkpoint_serialized_trigger_rejected(
     dataset_file = tmp_path / "dataset.jsonl"
     dataset_file.write_text(sample.model_dump_json() + "\n")
 
-    with pytest.raises(ValueError, match="cannot set the checkpoint 'trigger'"):
+    with pytest.raises(ValueError, match="cannot set the checkpoint 'trigger'") as exc:
         json_dataset(str(dataset_file))
+
+    # The record parsed fine, so the refusal must not read as a parse error or
+    # suggest remapping the column.
+    message = str(exc.value)
+    assert "Could not parse" not in message
+    assert "FieldSpec(checkpoint=...)" not in message
+
+
+def test_dataset_checkpoint_token_trigger_not_read_as_turn(tmp_path: Path) -> None:
+    sample = Sample(
+        input="x",
+        checkpoint=CheckpointSampleConfig(trigger=TokenInterval(every=500_000)),
+    )
+    dataset_file = tmp_path / "dataset.jsonl"
+    dataset_file.write_text(sample.model_dump_json() + "\n")
+
+    try:
+        loaded = json_dataset(str(dataset_file))[0]
+    except ValueError:
+        return
+    assert loaded.checkpoint is not None
+    assert loaded.checkpoint.trigger == TokenInterval(every=500_000)
 
 
 @pytest.mark.parametrize("serialized", [False, True], ids=["dict", "json-string"])
@@ -837,6 +859,7 @@ def test_dataset_checkpoint_serialized_trigger_rejected(
     "trigger",
     [
         pytest.param({"every": 500_000}, id="int-every"),
+        pytest.param({"kind": "token", "every": 500_000}, id="tagged-token"),
         pytest.param({"every": 1.5}, id="float-every"),
         pytest.param({}, id="empty"),
         pytest.param({"percent": 25}, id="unknown-fields"),
@@ -857,8 +880,10 @@ def test_dataset_checkpoint_trigger_values_rejected(
 
     message = str(exc.value)
     assert "Task(checkpoint=CheckpointConfig(trigger=...))" in message
-    assert "FieldSpec(checkpoint=...)" in message
+    assert "eval(checkpoint=...)" in message
     assert "custom sample_fields converter" in message
+    assert "Could not parse" not in message
+    assert "FieldSpec(checkpoint=...)" not in message
 
 
 @pytest.mark.parametrize(
@@ -934,6 +959,19 @@ def test_csv_checkpoint_json_object_string(tmp_path: Path) -> None:
     assert sample.checkpoint is not None
     assert sample.checkpoint.max_consecutive_failures == 0
     assert sample.checkpoint.sandbox_paths == {"default": []}
+
+
+def test_csv_checkpoint_json_trigger_rejected(tmp_path: Path) -> None:
+    csv_file = tmp_path / "data.csv"
+    with csv_file.open("w", newline="") as f:
+        writer = csv_module.writer(f)
+        writer.writerow(["input", "target", "checkpoint"])
+        writer.writerow(
+            ["2+2", "4", json_module.dumps({"trigger": {"every": 500_000}})]
+        )
+
+    with pytest.raises(ValueError, match="cannot set the checkpoint 'trigger'"):
+        csv_dataset(str(csv_file))
 
 
 def test_csv_empty_checkpoint_cell_is_missing(tmp_path: Path) -> None:

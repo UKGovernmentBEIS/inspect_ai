@@ -283,39 +283,47 @@ def read_checkpoint(checkpoint: Any | None) -> CheckpointSampleConfig | None:
     or Hugging Face cell holding a JSON object works like an object in
     JSON/JSONL.
 
-    A non-null ``trigger`` is refused unless it is already a trigger object.
-    Turn, token and cost interval triggers all serialize as ``{"every": N}``,
-    so a serialized trigger cannot say which kind it is, and a sample trigger
-    overrides the task's. A missing or null ``trigger`` inherits the task or
-    eval trigger (or the default).
+    A dataset record cannot set ``trigger`` (unless it is already a trigger
+    object): turn, token and cost interval triggers all serialize as
+    ``{"every": N}``, so a serialized trigger cannot be trusted, and a sample
+    trigger overrides the task's. A missing or null ``trigger`` inherits the
+    task or eval trigger (or the default).
     """
     if is_none_or_nan(checkpoint):
         return None
 
-    try:
-        if isinstance(checkpoint, str):
-            if not checkpoint.strip():
-                return None
+    if isinstance(checkpoint, str):
+        if not checkpoint.strip():
+            return None
+        try:
             checkpoint = json.loads(checkpoint)
+        except ValueError as ex:
+            raise _checkpoint_parse_error(ex) from ex
 
-        trigger = checkpoint.get("trigger") if isinstance(checkpoint, dict) else None
-        if trigger is not None and not isinstance(trigger, CheckpointTrigger):
-            raise ValueError(
-                "A dataset record cannot set the checkpoint 'trigger', because turn, "
-                'token and cost interval triggers all serialize as {"every": N}. '
-                "Remove 'trigger' to inherit the task or eval trigger, set it with "
-                "Task(checkpoint=CheckpointConfig(trigger=...)) or "
-                "eval(checkpoint=...), or construct it in a custom sample_fields "
-                f"converter. Got: {trigger!r}"
-            )
+    trigger = checkpoint.get("trigger") if isinstance(checkpoint, dict) else None
+    if trigger is not None and not isinstance(trigger, CheckpointTrigger):
+        raise ValueError(
+            "A dataset record cannot set the checkpoint 'trigger'. Turn, token and "
+            'cost interval triggers all serialize as {"every": N}, so a trigger '
+            "read from a dataset cannot be trusted to keep its kind. Remove "
+            "'trigger' to inherit the task or eval trigger (or the default), and "
+            "set it with Task(checkpoint=CheckpointConfig(trigger=...)) or "
+            "eval(checkpoint=...), or construct it in a custom sample_fields "
+            f"converter. Got: {trigger!r}"
+        )
 
+    try:
         return _CHECKPOINT_ADAPTER.validate_python(checkpoint)
     except ValueError as ex:
-        raise ValueError(
-            "Could not parse 'checkpoint' field as a sample checkpoint configuration. "
-            "If this column contains other data, remap it with FieldSpec(checkpoint=...) "
-            f"or use a custom sample_fields converter. Details: {ex}"
-        ) from ex
+        raise _checkpoint_parse_error(ex) from ex
+
+
+def _checkpoint_parse_error(ex: ValueError) -> ValueError:
+    return ValueError(
+        "Could not parse 'checkpoint' field as a sample checkpoint configuration. "
+        "If this column contains other data, remap it with FieldSpec(checkpoint=...) "
+        f"or use a custom sample_fields converter. Details: {ex}"
+    )
 
 
 def shuffle_choices_if_requested(
