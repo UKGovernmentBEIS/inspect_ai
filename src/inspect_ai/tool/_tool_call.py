@@ -100,9 +100,23 @@ ToolCallViewer = Callable[[ToolCall], ToolCallView]
 logger = getLogger(__name__)
 
 
+class ToolCallViewError(Exception):
+    """A tool's viewer raised, so the call is rejected rather than shown."""
+
+
 def resolve_tool_call_view(
-    call: ToolCall, viewer: ToolCallViewer | None
+    call: ToolCall, viewer: ToolCallViewer | None, reject_on_error: bool = False
 ) -> ToolCallView:
+    """Render `call` with `viewer`, or with the default view if it has none.
+
+    If the viewer raises, the default rendering is used, unless `reject_on_error`
+    is set: decisions made before the call runs (approval, the before-tool
+    sentinel) must not see a view the tool's own viewer would not have shown.
+
+    Raises:
+        ToolCallViewError: The viewer raised and `reject_on_error` is set. Its
+            message explains the rejection.
+    """
     if viewer:
         try:
             view = viewer(call)
@@ -110,6 +124,17 @@ def resolve_tool_call_view(
                 view.call = default_tool_call_viewer(call).call
             return view
         except Exception as ex:
+            if reject_on_error:
+                warn_once(
+                    logger,
+                    f"Error in viewer for tool '{call.function}': {ex}. "
+                    "Rejecting the tool call.",
+                )
+                raise ToolCallViewError(
+                    f"The tool call was rejected because the viewer for tool "
+                    f"'{call.function}' failed, so it could not be shown for "
+                    f"approval: {ex}"
+                ) from ex
             warn_once(
                 logger,
                 f"Error in viewer for tool '{call.function}': {ex}. "
