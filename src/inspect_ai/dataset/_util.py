@@ -106,7 +106,9 @@ def record_to_sample_fn(
                 sandbox=read_sandbox(record.get(sample_fields.sandbox)),
                 files=read_files(record.get(sample_fields.files)),
                 setup=read_setup(record.get(sample_fields.setup)),
-                checkpoint=read_checkpoint(record.get(sample_fields.checkpoint)),
+                checkpoint=read_checkpoint(record.get(sample_fields.checkpoint))
+                if sample_fields.checkpoint is not None
+                else None,
             )
 
         return record_to_sample
@@ -321,8 +323,9 @@ def read_checkpoint(checkpoint: Any | None) -> CheckpointSampleConfig | None:
 def _checkpoint_parse_error(ex: ValueError) -> ValueError:
     return ValueError(
         "Could not parse 'checkpoint' field as a sample checkpoint configuration. "
-        "If this column contains other data, remap it with FieldSpec(checkpoint=...) "
-        f"or use a custom sample_fields converter. Details: {ex}"
+        "If this column contains other data, use FieldSpec(checkpoint=None) to "
+        'ignore it, FieldSpec(checkpoint="<column>") to read another column, or a '
+        f"custom sample_fields converter. Details: {ex}"
     )
 
 

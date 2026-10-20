@@ -703,7 +703,8 @@ def test_dataset_checkpoint_malformed_rejected(value: object) -> None:
 
     message = str(exc_info.value)
     assert "sample checkpoint configuration" in message
-    assert "FieldSpec(checkpoint=...)" in message
+    assert "FieldSpec(checkpoint=None)" in message
+    assert 'FieldSpec(checkpoint="<column>")' in message
     assert "custom sample_fields converter" in message
 
 
@@ -767,6 +768,28 @@ def test_dataset_checkpoint_field_spec_mapping(tmp_path: Path) -> None:
     assert dataset[0].input == "2+2"
     assert dataset[0].target == "4"
     assert dataset[0].checkpoint == CheckpointSampleConfig(max_consecutive_failures=0)
+
+
+@pytest.mark.parametrize("suffix", ["jsonl", "csv"])
+def test_dataset_checkpoint_field_opt_out(tmp_path: Path, suffix: str) -> None:
+    # An unrelated "checkpoint" column (here a model checkpoint id) is rejected
+    # by default but skipped with FieldSpec(checkpoint=None).
+    dataset_file = tmp_path / f"data.{suffix}"
+    if suffix == "csv":
+        dataset_file.write_text("input,target,checkpoint\n2+2,4,ckpt-0042\n")
+        load: Callable[..., Dataset] = csv_dataset
+    else:
+        _write_checkpoint_records(
+            dataset_file, [{"input": "2+2", "target": "4", "checkpoint": "ckpt-0042"}]
+        )
+        load = json_dataset
+
+    with pytest.raises(ValueError, match="FieldSpec\\(checkpoint=None\\)"):
+        load(str(dataset_file))
+
+    sample = load(str(dataset_file), sample_fields=FieldSpec(checkpoint=None))[0]
+    assert sample.input == "2+2"
+    assert sample.checkpoint is None
 
 
 def test_dataset_checkpoint_custom_converter_owns_conversion(tmp_path: Path) -> None:
@@ -835,7 +858,7 @@ def test_dataset_checkpoint_serialized_trigger_rejected(
     # suggest remapping the column.
     message = str(exc.value)
     assert "Could not parse" not in message
-    assert "FieldSpec(checkpoint=...)" not in message
+    assert "FieldSpec(checkpoint=" not in message
 
 
 def test_dataset_checkpoint_token_trigger_not_read_as_turn(tmp_path: Path) -> None:
@@ -883,7 +906,7 @@ def test_dataset_checkpoint_trigger_values_rejected(
     assert "eval(checkpoint=...)" in message
     assert "custom sample_fields converter" in message
     assert "Could not parse" not in message
-    assert "FieldSpec(checkpoint=...)" not in message
+    assert "FieldSpec(checkpoint=" not in message
 
 
 @pytest.mark.parametrize(

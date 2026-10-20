@@ -256,8 +256,8 @@ class FieldSpec:
     setup: str = field(default="setup")
     """Setup script to run for sample (run within default SandboxEnvironment)."""
 
-    checkpoint: str = field(default="checkpoint")
-    """Name of the field containing the sample checkpoint configuration."""
+    checkpoint: str | None = field(default="checkpoint", kw_only=True)
+    """Name of the field containing the sample checkpoint configuration (`None` to not read one)."""
 
     description: str | None = field(default=None, kw_only=True)
     """Name of the field containing a short statement of what the sample asks of the agent (not read unless specified)."""
