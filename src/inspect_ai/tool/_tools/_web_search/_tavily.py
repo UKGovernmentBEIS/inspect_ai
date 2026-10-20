@@ -85,8 +85,16 @@ class TavilySearchProvider(BaseHttpProvider):
         if not tavily_search_response.results and not tavily_search_response.answer:
             return None
 
+        text = [tavily_search_response.answer] if tavily_search_response.answer else []
+        if tavily_search_response.results:
+            sources = "\n\n".join(
+                f"[{index}] {result.title}\nURL: {result.url}\n{result.content}"
+                for index, result in enumerate(tavily_search_response.results, start=1)
+            )
+            text.append(f"Sources:\n\n{sources}")
+
         return ContentText(
-            text=tavily_search_response.answer or "No answer found.",
+            text="\n\n".join(text),
             citations=[
                 UrlCitation(
                     cited_text=result.content, title=result.title, url=result.url

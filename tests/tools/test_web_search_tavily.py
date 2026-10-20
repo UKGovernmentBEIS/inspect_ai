@@ -1,4 +1,6 @@
+import json
 from http import HTTPStatus
+from typing import Any
 from unittest.mock import patch
 
 import httpx
@@ -6,11 +8,17 @@ import pytest
 
 from inspect_ai._util.citation import UrlCitation
 from inspect_ai._util.content import ContentText
+from inspect_ai.model import ChatMessageTool
+from inspect_ai.model._openai_responses import _openai_responses_function_call_output
+from inspect_ai.model._providers.anthropic import message_block_params
 from inspect_ai.tool._tool import ToolError
-from inspect_ai.tool._tools._web_search._tavily import tavily_search_provider
+from inspect_ai.tool._tools._web_search._tavily import (
+    TavilySearchProvider,
+    tavily_search_provider,
+)
 
 # See https://docs.tavily.com/documentation/api-reference/endpoint/search
-EXAMPLE_RESPONSE = {
+EXAMPLE_RESPONSE: dict[str, Any] = {
     "query": "test query",
     "answer": "test answer",
     "follow_up_questions": None,
@@ -33,6 +41,62 @@ EXAMPLE_RESPONSE = {
     ],
     "response_time": 2.42,
 }
+
+EXPECTED_SOURCES = (
+    "Sources:\n\n"
+    "[1] First Result\n"
+    "URL: https://example.com/1\n"
+    "This is the first search result content.\n\n"
+    "[2] Second Result\n"
+    "URL: https://example.com/2\n"
+    "This is the second search result content."
+)
+
+
+@pytest.fixture
+def provider(monkeypatch: pytest.MonkeyPatch) -> TavilySearchProvider:
+    monkeypatch.setenv("TAVILY_API_KEY", "dummy-key")
+    return TavilySearchProvider()
+
+
+@pytest.mark.parametrize("api", ["openai", "anthropic"])
+async def test_sources_reach_model(provider: TavilySearchProvider, api: str) -> None:
+    result = provider.parse_response(EXAMPLE_RESPONSE)
+    assert result is not None
+    if api == "openai":
+        output = json.dumps(
+            await _openai_responses_function_call_output(
+                ChatMessageTool(
+                    content=[result], tool_call_id="search", function="web_search"
+                )
+            )
+        )
+    else:
+        output = json.dumps(await message_block_params(result))
+    for source in EXAMPLE_RESPONSE["results"]:
+        assert source["title"] in output
+        assert source["url"] in output
+        assert source["content"] in output
+
+
+def test_sources_without_answer(provider: TavilySearchProvider) -> None:
+    result = provider.parse_response({**EXAMPLE_RESPONSE, "answer": None})
+    assert result is not None
+    assert result.text == EXPECTED_SOURCES
+
+
+def test_answer_without_sources(provider: TavilySearchProvider) -> None:
+    result = provider.parse_response({**EXAMPLE_RESPONSE, "results": []})
+    assert result is not None
+    assert result.text == "test answer"
+    assert result.citations == []
+
+
+def test_empty_response(provider: TavilySearchProvider) -> None:
+    assert (
+        provider.parse_response({**EXAMPLE_RESPONSE, "answer": None, "results": []})
+        is None
+    )
 
 
 def create_mock_transport():
@@ -67,7 +131,7 @@ class TestTavilySearchRendering:
 
                 # Verify the result contains all expected content
                 assert result == ContentText(
-                    text="test answer",
+                    text=f"test answer\n\n{EXPECTED_SOURCES}",
                     citations=[
                         UrlCitation(
                             title="First Result",
