@@ -49,6 +49,39 @@ def eval_log_name(*, task: str, task_id: str, created: str, model: str) -> str:
     return log_file_name
 
 
+def merged_log_task_id(name: str, *, task: str, model: str) -> str:
+    """Return the ``task_id`` of the merged log ``<name>.eval`` of a shard set.
+
+    The id in ``<name>``'s ``{id}`` slot when it can be read back: the file
+    name pattern in effect contains ``{id}``, the id parsed from ``<name>``
+    is not empty, and :func:`eval_log_name` with that id, ``task``,
+    ``model`` and ``<name>``'s own timestamp rebuilds ``<name>`` exactly.
+    Otherwise a name-based UUID of ``<name>``, so the id is the same each
+    time it is computed for the same name. Either way the id is stable only
+    while ``INSPECT_EVAL_LOG_FILE_PATTERN`` is unchanged.
+
+    Args:
+        name: The merged log's name, without directory or ``.eval`` suffix.
+        task: Task registry name of the shards (``EvalSpec.task``).
+        model: Model name of the shards (``EvalSpec.model``).
+    """
+    from shortuuid import uuid
+
+    from inspect_ai.log._file import _try_parse_filename
+
+    pattern = os.getenv("INSPECT_EVAL_LOG_FILE_PATTERN", "{task}_{id}")
+    parts = name.split("_")
+    _, parsed_id, _ = _try_parse_filename(parts)
+    if (
+        "{id}" in pattern
+        and parsed_id
+        and eval_log_name(task=task, task_id=parsed_id, created=parts[0], model=model)
+        == name
+    ):
+        return parsed_id
+    return uuid(name=name)
+
+
 def log_basename(log_location: str) -> str:
     """Return the log's basename with recovery and log suffixes stripped.
 

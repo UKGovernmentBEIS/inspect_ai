@@ -1562,6 +1562,23 @@ def _requalify_sample_ids(
         return sample_id
 
 
+def _check_merged_log_retry(eval_log: EvalLog) -> None:
+    """Refuse a retry of a merged shard log whose selection a retry cannot express.
+
+    A merged log leaves `config.sample_id` unset, so a retry runs the whole
+    dataset. That is right only for a merge with no selection; an id or count
+    selection would run samples outside it.
+    """
+    shards = eval_log.eval.shards
+    if shards is not None and shards.selection != "none":
+        form = "ids" if shards.selection == "ids" else "count"
+        raise ValueError(
+            f"Cannot retry {eval_log.location or 'the log'}: it was merged from "
+            f"shards with a selection by sample {form}, which a retry cannot "
+            "reproduce. Re-run the incomplete shards and merge them again."
+        )
+
+
 async def eval_retry_async(
     tasks: str | EvalLogInfo | EvalLog | list[str] | list[EvalLogInfo] | list[EvalLog],
     log_level: str | None = None,
@@ -1706,6 +1723,8 @@ async def eval_retry_async(
         )
         for task in tasks
     ]
+    for eval_log in retry_eval_logs:
+        _check_merged_log_retry(eval_log)
     # opportunistically recover crashed logs before retrying
     from inspect_ai.log._recover import (
         RecoveryNotAvailable,
