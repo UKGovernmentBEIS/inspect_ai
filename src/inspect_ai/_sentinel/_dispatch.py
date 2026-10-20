@@ -367,7 +367,7 @@ def _require_message_id() -> None:
         raise SentinelFailure(
             RuntimeError(
                 "The installed inspect_sentinel predates the tool steps' message_id. "
-                "inspect_ai requires inspect_sentinel 0.1.5 or later: "
+                "inspect_ai requires inspect_sentinel 0.2.0 or later: "
                 "pip install --upgrade inspect-sentinel"
             )
         )

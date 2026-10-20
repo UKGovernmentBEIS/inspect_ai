@@ -2103,7 +2103,7 @@ def test_a_sentinel_whose_tool_steps_lack_message_id_asks_for_an_upgrade(
     monkeypatch.setattr(dispatch, "BeforeToolCall", _ToolStepWithoutMessageId)
     with pytest.raises(
         SentinelFailure,
-        match=r"requires inspect_sentinel 0\.1\.5 or later: pip install --upgrade inspect-sentinel",
+        match=r"requires inspect_sentinel 0\.2\.0 or later: pip install --upgrade inspect-sentinel",
     ):
         dispatch._require_message_id()
 
