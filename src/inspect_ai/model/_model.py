@@ -3030,8 +3030,10 @@ def _snapshot_messages(messages: list[ChatMessage]) -> list[ChatMessage]:
     concurrent epochs) copies on each switch. A message that cannot be
     serialized is copied every time.
 
-    Message values must be ones Python can deep copy: a lock, for example,
-    or nesting past the recursion limit raises here.
+    Message values must be data: values Python can deep copy (a lock, for
+    example, or nesting past the recursion limit raises here) and that
+    serializing leaves unchanged (an iterator is consumed by the comparison,
+    as writing the log consumes it).
     """
     snapshots: list[ChatMessage] = []
     for message in messages:
