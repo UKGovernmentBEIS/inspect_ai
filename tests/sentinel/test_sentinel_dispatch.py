@@ -2,7 +2,7 @@ import logging
 import random
 from collections.abc import Callable, Iterator, Sequence
 from contextlib import contextmanager
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal, NamedTuple, cast
 
@@ -559,14 +559,18 @@ def test_a_handoff_result_is_checked() -> None:
     assert handoff_call_id(log) in {e.step_id for e in after}
 
 
-def producer_tools(log: EvalLog, call_id: str) -> list[ToolInfo]:
+def producer(log: EvalLog, call_id: str) -> ModelEvent:
     assert log.samples
     for event in resolve_sample_attachments(log.samples[0], "full").events:
         if isinstance(event, ModelEvent) and event.output.choices:
             calls = event.output.choices[0].message.tool_calls or []
             if any(call.id == call_id for call in calls):
-                return event.tools
+                return event
     raise AssertionError(f"no model call produced {call_id}")
+
+
+def producer_tools(log: EvalLog, call_id: str) -> list[ToolInfo]:
+    return producer(log, call_id).tools
 
 
 @tool(parallel=False)
@@ -644,7 +648,7 @@ def run_consult_then_add(sentinel: Any) -> EvalLog:
     ],
     ids=["handoff", "inner-generate"],
 )
-def test_each_step_gets_the_tools_of_the_call_that_produced_it(
+def test_each_step_gets_the_tools_and_tool_choice_of_the_call_that_produced_it(
     run_steps: Callable[[Any], EvalLog], expected: list[tuple[str, list[str]]]
 ) -> None:
     before: Seen = []
@@ -660,7 +664,8 @@ def test_each_step_gets_the_tools_of_the_call_that_produced_it(
         == expected
     )
     for step in steps:
-        assert step.tools == producer_tools(log, step.call.id)
+        event = producer(log, step.call.id)
+        assert (step.tools, step.tool_choice) == (event.tools, event.tool_choice)  # type: ignore[union-attr]  # inspect_sentinel 0.1.4 lacks message_id and tool_choice; remove when the lock bumps
 
 
 @protocol
@@ -842,7 +847,7 @@ def test_an_escalate_returned_to_the_host_fails_the_sample(stage: str) -> None:
     assert sample.limit is None
     assert sample.error is not None
     assert f"returned an escalate at the {stage} stage" in sample.error.message
-    assert "inspect_sentinel 0.1.2 or later" in sample.error.message
+    assert "inspect_sentinel 0.2.0 or later" in sample.error.message
     assert tool_messages(log) == []
     [event] = [e for e in sample.events if isinstance(e, ToolEvent)]
     assert event.failed is True
@@ -1637,7 +1642,9 @@ async def test_a_message_no_model_call_produced_has_no_input() -> None:
             [parallel_addition()],
         )
 
-    assert [(step.input, step.tools) for _, step in seen] == [(None, None)] * 2
+    assert [(step.input, step.tools, step.tool_choice) for _, step in seen] == [  # type: ignore[attr-defined]  # inspect_sentinel 0.1.4 lacks message_id and tool_choice; remove when the lock bumps
+        (None, None, None)
+    ] * 2
 
 
 def test_a_call_with_no_assistant_message_has_no_input() -> None:
@@ -1886,9 +1893,10 @@ def test_a_modified_call_on_a_non_modify_decision_is_not_dropped(
 
     init_transcript(Transcript())
     call = addition_call()
-    step = BeforeToolCall(
+    step = BeforeToolCall(  # type: ignore[call-arg]  # inspect_sentinel 0.1.4 lacks message_id and tool_choice; remove when the lock bumps
         conversation="c",
         message="",
+        message_id="m1",
         call=call,
         view=ToolCallView(),
         input=[],
@@ -1909,9 +1917,10 @@ def test_bypassed_and_superseded_layers_are_recorded() -> None:
 
     init_transcript(Transcript())
     call = addition_call()
-    step = BeforeToolCall(
+    step = BeforeToolCall(  # type: ignore[call-arg]  # inspect_sentinel 0.1.4 lacks message_id and tool_choice; remove when the lock bumps
         conversation="c",
         message="",
+        message_id="m1",
         call=call,
         view=ToolCallView(),
         input=[],
@@ -1944,9 +1953,10 @@ def test_a_superseded_human_decision_is_not_kept(
 
     init_transcript(Transcript())
     call = addition_call()
-    step = BeforeToolCall(
+    step = BeforeToolCall(  # type: ignore[call-arg]  # inspect_sentinel 0.1.4 lacks message_id and tool_choice; remove when the lock bumps
         conversation="c",
         message="",
+        message_id="m1",
         call=call,
         view=ToolCallView(),
         input=[],
@@ -2074,6 +2084,48 @@ def test_each_turn_sees_its_own_model_input_and_tools() -> None:
         assert [m.id for m in after_step.input] == [m.id for m in event.input]
         assert step.tools == after_step.tools == producer_tools(log, step.call.id)
     assert len({len(step.input or []) for _, step in before}) == 3
+
+
+@dataclass(frozen=True)
+class _ToolStepWithoutMessageId:
+    conversation: str
+    message: str
+    call: ToolCall
+
+
+def test_a_sentinel_whose_tool_steps_lack_message_id_asks_for_an_upgrade(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import inspect_ai._sentinel._dispatch as dispatch
+    from inspect_ai._sentinel._context import SentinelFailure
+
+    dispatch._require_message_id()
+    monkeypatch.setattr(dispatch, "BeforeToolCall", _ToolStepWithoutMessageId)
+    with pytest.raises(
+        SentinelFailure,
+        match=r"requires inspect_sentinel 0\.2\.0 or later: pip install --upgrade inspect-sentinel",
+    ):
+        dispatch._require_message_id()
+
+
+def test_both_tool_stages_carry_the_id_of_the_message_that_made_the_call() -> None:
+    before: Seen = []
+    after: list[AfterToolCall] = []
+    log = run([d3_recording(before), d3_recording_after(after)], turns=3)
+    assert log.status == "success", log.error
+    assert log.samples
+    made = {
+        call.id: message.id
+        for message in log.samples[0].messages
+        if isinstance(message, ChatMessageAssistant)
+        for call in message.tool_calls or []
+    }
+    assert len(before) == len(after) == 3
+    assert (
+        [step.message_id for _, step in before]  # type: ignore[attr-defined]  # inspect_sentinel 0.1.4 lacks message_id and tool_choice; remove when the lock bumps
+        == [step.message_id for step in after]  # type: ignore[attr-defined]  # inspect_sentinel 0.1.4 lacks message_id and tool_choice; remove when the lock bumps
+        == [made[step.call.id] for _, step in before]
+    )
 
 
 @tool

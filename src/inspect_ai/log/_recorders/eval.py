@@ -6,7 +6,7 @@ import os
 import shutil
 import tempfile
 import warnings
-from collections.abc import Generator, Iterable, Sequence
+from collections.abc import Awaitable, Callable, Generator, Iterable, Sequence
 from contextlib import contextmanager
 from functools import partial
 from io import BytesIO
@@ -1937,9 +1937,28 @@ def _dedupe_summaries(
     return list(by_key.values())
 
 
+JournalSummaryReader = Callable[
+    [AsyncZipReader, str], Awaitable[list[EvalSampleSummary]]
+]
+"""Reads one journal summary member (by its path in the archive)."""
+
+
+async def _read_journal_summaries(
+    reader: AsyncZipReader, path: str
+) -> list[EvalSampleSummary]:
+    return _parse_summaries(await _read_member_json(reader, path), path.split("/")[-1])
+
+
 async def _read_all_summaries_async(
     reader: AsyncZipReader,
+    read_journal_summaries: JournalSummaryReader = _read_journal_summaries,
 ) -> tuple[list[EvalSampleSummary], int]:
+    """Every sample summary, with the journal summary counter.
+
+    ``read_journal_summaries`` reads each journal member of a running log
+    (no ``summaries.json``); a caller can pass one that serves unchanged
+    members from a cache.
+    """
     cd = await reader.entries()
     entry_names = {e.filename for e in cd.entries}
     count = await _read_summary_counter(reader)
@@ -1958,12 +1977,10 @@ async def _read_all_summaries_async(
         semaphore = anyio.Semaphore(25)
 
         async def read_summary_file(i: int) -> list[EvalSampleSummary]:
-            summary_file = _journal_summary_file(i)
             async with semaphore:
-                data = await _read_member_json(
-                    reader, _journal_summary_path(summary_file)
+                return await read_journal_summaries(
+                    reader, _journal_summary_path(_journal_summary_file(i))
                 )
-            return _parse_summaries(data, summary_file)
 
         per_file = await tg_collect(
             [partial(read_summary_file, i) for i in range(1, count + 1)]
