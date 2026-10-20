@@ -2,6 +2,7 @@ import re
 from collections import Counter
 from collections.abc import Callable, Sequence
 from copy import copy
+from dataclasses import fields
 from logging import getLogger
 from typing import Any, Literal, NamedTuple, TypeGuard, cast
 from weakref import WeakKeyDictionary
@@ -76,6 +77,7 @@ from inspect_ai.tool._tool_call import (
     ToolCallContent,
     ToolCallView,
     ToolCallViewer,
+    ToolCallViewError,
     default_tool_call_viewer,
     resolve_tool_call_view,
     substitute_tool_call_content,
@@ -101,29 +103,42 @@ from ._sent import record_sent, sent_messages
 
 logger = getLogger(__name__)
 
+# the oldest inspect_sentinel this inspect_ai works with
+_UPGRADE = "inspect_ai requires inspect_sentinel 0.2.0 or later: pip install --upgrade inspect-sentinel"
+
 _Kind = Literal["observation", "decision"]
 
 
 async def sentinel_before_tool_call(
     message: str,
+    message_id: str | None,
     call: ToolCall,
     viewer: ToolCallViewer | None,
     history: list[ChatMessage],
 ) -> Decision | None:
     if not _watches(BeforeToolCall):
         return None
+    _require_message_id()
+    try:
+        view = resolve_tool_call_view(call, viewer, reject_on_error=True)
+    except ToolCallViewError as ex:
+        raise ToolApprovalError(str(ex)) from ex
     producer = _producing_event(call, history)
     conversation = _conversation()
-    step = BeforeToolCall(
+    # inspect_sentinel 0.1.4, which mypy checks against, has neither
+    # message_id nor tool_choice; _require_message_id() ensures they exist
+    step = BeforeToolCall(  # type: ignore[call-arg]  # inspect_sentinel 0.1.4 lacks message_id and tool_choice; remove when the lock bumps
         conversation=conversation,
         message=message,
+        message_id=_message_id(message_id),
         call=call,
-        view=resolve_tool_call_view(call, viewer),
+        view=view,
         input=list(producer.input) if producer is not None else None,
         agent_messages=history,
         history=sent_messages(conversation),
         human_decisions=_human_decisions(conversation),
         tools=list(producer.tools) if producer is not None else None,
+        tool_choice=producer.tool_choice if producer is not None else None,
     )
     return await _run(step)
 
@@ -148,6 +163,7 @@ def apply_sentinel_decision(decision: Decision | None, call: ToolCall) -> ToolCa
 
 async def sentinel_after_tool_call(
     message: str,
+    message_id: str | None,
     call: ToolCall,
     result: ChatMessageTool,
     output: ToolResult,
@@ -157,11 +173,15 @@ async def sentinel_after_tool_call(
 ) -> None:
     if not _watches(AfterToolCall):
         return
+    _require_message_id()
     producer = _producing_event(call, history)
     conversation = _conversation()
-    step = AfterToolCall(
+    # inspect_sentinel 0.1.4, which mypy checks against, has neither
+    # message_id nor tool_choice; _require_message_id() ensures they exist
+    step = AfterToolCall(  # type: ignore[call-arg]  # inspect_sentinel 0.1.4 lacks message_id and tool_choice; remove when the lock bumps
         conversation=conversation,
         message=message,
+        message_id=_message_id(message_id),
         call=call,
         result=result,
         output=output,
@@ -171,6 +191,7 @@ async def sentinel_after_tool_call(
         history=sent_messages(conversation),
         human_decisions=_human_decisions(conversation),
         tools=list(producer.tools) if producer is not None else None,
+        tool_choice=producer.tool_choice if producer is not None else None,
         truncated=Truncation(*truncated) if truncated is not None else False,
     )
     decision = await _run(step)
@@ -279,8 +300,7 @@ async def _run(step: Step) -> Decision | None:
         raise SentinelFailure(
             RuntimeError(
                 f"inspect_sentinel returned an escalate at the {_stage(step)} stage, "
-                "which it should have turned into a terminate. inspect_ai requires "
-                "inspect_sentinel 0.1.2 or later: pip install --upgrade inspect-sentinel"
+                f"which it should have turned into a terminate. {_UPGRADE}"
             )
         )
     return decision
@@ -347,6 +367,24 @@ def _conversation() -> str:
 
 def record_agent_turn(input: list[ChatMessage]) -> None:
     record_sent(_conversation(), input)
+
+
+def _require_message_id() -> None:
+    if "message_id" not in {f.name for f in fields(BeforeToolCall)}:
+        raise SentinelFailure(
+            RuntimeError(
+                f"The installed inspect_sentinel predates the tool steps' message_id. {_UPGRADE}"
+            )
+        )
+
+
+def _message_id(message_id: str | None) -> str:
+    # every message is given an id when built; only one read back from a
+    # log that recorded none lacks it
+    assert message_id is not None, (
+        "The assistant message that made a tool call has no id."
+    )
+    return message_id
 
 
 def _human_decisions(conversation: str) -> tuple[HumanDecision, ...]:

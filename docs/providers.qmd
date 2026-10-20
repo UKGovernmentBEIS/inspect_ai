@@ -980,9 +980,13 @@ The following environment variables are supported by the Perplexity provider
 | Variable | Description |
 |----------------------------|--------------------------------------------|
 | `PERPLEXITY_API_KEY` | API key credentials (required). |
-| `PERPLEXITY_BASE_URL` | Base URL for requests (optional, defaults to `https://api.perplexity.ai`) |
+| `PERPLEXITY_BASE_URL` | Base URL for requests (optional, defaults to `https://api.perplexity.ai/v1`) |
 
-Perplexity responses include citations when available. These are surfaced as `UrlCitation`s attached to the assistant message. Additional usage metrics such as `reasoning_tokens` and `citation_tokens` are recorded in `ModelOutput.metadata`.
+The provider uses Perplexity's [Agent API](https://docs.perplexity.ai/docs/agent-api/quickstart). Name models as `perplexity/<provider>/<model>`, using the ids in Perplexity's [model list](https://docs.perplexity.ai/docs/agent-api/models) (for example `perplexity/openai/gpt-5.6-luna`). Perplexity's own models can omit the provider, so `perplexity/sonar` is the same as `perplexity/perplexity/sonar`. Perplexity retired `sonar-pro`, `sonar-reasoning-pro`, and `sonar-deep-research` with its Sonar API; use another Agent API model instead.
+
+Perplexity models search the web only when you pass the [`web_search()`](tools-standard.qmd#perplexity-options) tool, which also takes the search options. This is true for `perplexity/sonar` as well: Sonar searched on every request, but the Agent API does not. Add `web_search()` to keep search-grounded answers and citations. Other Agent API request fields can be passed with `extra_body`. Fields that Inspect sets from the generation config, such as `include` and `text`, are not replaced. From a `reasoning` object, only fields that the config has no option for, such as `context`, are sent. Set the effort, mode and summary with `reasoning_effort`, `reasoning_mode` and `reasoning_summary`. The `tools` in `extra_body` can include Perplexity's [`fetch_url`](https://docs.perplexity.ai/docs/agent-api/tools/fetch-url) tool; `web_search()` adds its tool to that list. Inspect's `tool_choice` does not apply to the tools in `extra_body`. To turn them off, set `tool_choice` in `extra_body`. The request has a single tool choice, so that value applies to the `web_search()` tool as well. A `tool_choice` that forces a search raises an error if `extra_body` sets a different `tool_choice`. Inspect cannot read the results of Perplexity's other tools, so a response with them raises an error.
+
+When the model searches or fetches a page, the results are recorded in `ModelOutput.metadata["search_results"]` or `ModelOutput.metadata["fetch_url_results"]` and attached as `UrlCitation`s to the assistant message. The number of searches, which Perplexity bills per search, is recorded in `ModelOutput.metadata["num_search_queries"]`.
 
 ## Hugging Face {#hugging-face}
 
