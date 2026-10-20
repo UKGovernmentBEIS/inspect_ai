@@ -2,6 +2,7 @@ import re
 from collections import Counter
 from collections.abc import Callable, Sequence
 from copy import copy
+from dataclasses import fields
 from logging import getLogger
 from typing import Any, Literal, NamedTuple, TypeGuard, cast
 from weakref import WeakKeyDictionary
@@ -113,9 +114,12 @@ async def sentinel_before_tool_call(
 ) -> Decision | None:
     if not _watches(BeforeToolCall):
         return None
+    _require_message_id()
     producer = _producing_event(call, history)
     conversation = _conversation()
-    step = BeforeToolCall(
+    # inspect_sentinel 0.1.4, which mypy checks against, has neither
+    # message_id nor tool_choice; _require_message_id() ensures they exist
+    step = BeforeToolCall(  # type: ignore[call-arg]
         conversation=conversation,
         message=message,
         message_id=_message_id(message_id),
@@ -161,9 +165,12 @@ async def sentinel_after_tool_call(
 ) -> None:
     if not _watches(AfterToolCall):
         return
+    _require_message_id()
     producer = _producing_event(call, history)
     conversation = _conversation()
-    step = AfterToolCall(
+    # inspect_sentinel 0.1.4, which mypy checks against, has neither
+    # message_id nor tool_choice; _require_message_id() ensures they exist
+    step = AfterToolCall(  # type: ignore[call-arg]
         conversation=conversation,
         message=message,
         message_id=_message_id(message_id),
@@ -353,6 +360,17 @@ def _conversation() -> str:
 
 def record_agent_turn(input: list[ChatMessage]) -> None:
     record_sent(_conversation(), input)
+
+
+def _require_message_id() -> None:
+    if "message_id" not in {f.name for f in fields(BeforeToolCall)}:
+        raise SentinelFailure(
+            RuntimeError(
+                "The installed inspect_sentinel predates the tool steps' message_id. "
+                "inspect_ai requires inspect_sentinel 0.1.5 or later: "
+                "pip install --upgrade inspect-sentinel"
+            )
+        )
 
 
 def _message_id(message_id: str | None) -> str:

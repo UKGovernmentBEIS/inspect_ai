@@ -336,8 +336,26 @@ def step(
     view = view or ToolCallView()
     if after:
         result = ChatMessageTool(content="2", tool_call_id="c1", function="addition")
-        return AfterToolCall("", "Adding.", "m1", call, result, "2", view, [], [])
-    return BeforeToolCall("", "Adding.", "m1", call, view, [], [])
+        return AfterToolCall(  # type: ignore[call-arg]
+            conversation="",
+            message="Adding.",
+            message_id="m1",
+            call=call,
+            result=result,
+            output="2",
+            view=view,
+            input=[],
+            agent_messages=[],
+        )
+    return BeforeToolCall(  # type: ignore[call-arg]
+        conversation="",
+        message="Adding.",
+        message_id="m1",
+        call=call,
+        view=view,
+        input=[],
+        agent_messages=[],
+    )
 
 
 MARKDOWN_VIEW = ToolCallView(

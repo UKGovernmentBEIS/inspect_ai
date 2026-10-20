@@ -2,7 +2,7 @@ import logging
 import random
 from collections.abc import Callable, Iterator, Sequence
 from contextlib import contextmanager
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal, NamedTuple, cast
 
@@ -665,7 +665,7 @@ def test_each_step_gets_the_tools_and_tool_choice_of_the_call_that_produced_it(
     )
     for step in steps:
         event = producer(log, step.call.id)
-        assert (step.tools, step.tool_choice) == (event.tools, event.tool_choice)
+        assert (step.tools, step.tool_choice) == (event.tools, event.tool_choice)  # type: ignore[union-attr]
 
 
 @protocol
@@ -1642,7 +1642,7 @@ async def test_a_message_no_model_call_produced_has_no_input() -> None:
             [parallel_addition()],
         )
 
-    assert [(step.input, step.tools, step.tool_choice) for _, step in seen] == [
+    assert [(step.input, step.tools, step.tool_choice) for _, step in seen] == [  # type: ignore[attr-defined]
         (None, None, None)
     ] * 2
 
@@ -1893,7 +1893,7 @@ def test_a_modified_call_on_a_non_modify_decision_is_not_dropped(
 
     init_transcript(Transcript())
     call = addition_call()
-    step = BeforeToolCall(
+    step = BeforeToolCall(  # type: ignore[call-arg]
         conversation="c",
         message="",
         message_id="m1",
@@ -1917,9 +1917,10 @@ def test_bypassed_and_superseded_layers_are_recorded() -> None:
 
     init_transcript(Transcript())
     call = addition_call()
-    step = BeforeToolCall(
+    step = BeforeToolCall(  # type: ignore[call-arg]
         conversation="c",
         message="",
+        message_id="m1",
         call=call,
         view=ToolCallView(),
         input=[],
@@ -1952,9 +1953,10 @@ def test_a_superseded_human_decision_is_not_kept(
 
     init_transcript(Transcript())
     call = addition_call()
-    step = BeforeToolCall(
+    step = BeforeToolCall(  # type: ignore[call-arg]
         conversation="c",
         message="",
+        message_id="m1",
         call=call,
         view=ToolCallView(),
         input=[],
@@ -2084,10 +2086,32 @@ def test_each_turn_sees_its_own_model_input_and_tools() -> None:
     assert len({len(step.input or []) for _, step in before}) == 3
 
 
+@dataclass(frozen=True)
+class _ToolStepWithoutMessageId:
+    conversation: str
+    message: str
+    call: ToolCall
+
+
+def test_a_sentinel_whose_tool_steps_lack_message_id_asks_for_an_upgrade(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import inspect_ai._sentinel._dispatch as dispatch
+    from inspect_ai._sentinel._context import SentinelFailure
+
+    dispatch._require_message_id()
+    monkeypatch.setattr(dispatch, "BeforeToolCall", _ToolStepWithoutMessageId)
+    with pytest.raises(
+        SentinelFailure,
+        match=r"requires inspect_sentinel 0\.1\.5 or later: pip install --upgrade inspect-sentinel",
+    ):
+        dispatch._require_message_id()
+
+
 def test_both_tool_stages_carry_the_id_of_the_message_that_made_the_call() -> None:
     before: Seen = []
     after: list[AfterToolCall] = []
-    log = run(observe_only([d3_recording(before), d3_recording_after(after)]), turns=3)
+    log = run([d3_recording(before), d3_recording_after(after)], turns=3)
     assert log.status == "success", log.error
     assert log.samples
     made = {
@@ -2098,8 +2122,8 @@ def test_both_tool_stages_carry_the_id_of_the_message_that_made_the_call() -> No
     }
     assert len(before) == len(after) == 3
     assert (
-        [step.message_id for _, step in before]
-        == [step.message_id for step in after]
+        [step.message_id for _, step in before]  # type: ignore[attr-defined]
+        == [step.message_id for step in after]  # type: ignore[attr-defined]
         == [made[step.call.id] for _, step in before]
     )
 
