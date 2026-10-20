@@ -10,16 +10,20 @@ background, abandon-on-exit, timeout partials).
 
 from __future__ import annotations
 
-from typing import Any, Awaitable, Callable
+from contextlib import contextmanager
+from typing import Any, Awaitable, Callable, Coroutine, Iterator
 
 import anyio
 import pytest
+from anyio.abc import TaskGroup
+from typing_extensions import Unpack
 
 from inspect_ai import Task, eval
 from inspect_ai.agent import deepagent, subagent
 from inspect_ai.agent._deepagent.agent_tool import (
     AgentFuture,
     BackgroundRegistry,
+    _dispatch_background,
     active_background_agents,
     background_registry,
     current_background_registry,
@@ -31,11 +35,16 @@ from inspect_ai.agent._deepagent.deepagent import (
 from inspect_ai.dataset import Sample
 from inspect_ai.event._tool import ToolEvent
 from inspect_ai.log import EvalLog
-from inspect_ai.model import ModelOutput, get_model
+from inspect_ai.model import ChatMessageUser, ModelOutput, get_model
 from inspect_ai.scorer import Score, Scorer, Target, accuracy, scorer
 from inspect_ai.solver import Generate, Solver, TaskState, generate, solver
-from inspect_ai.tool import Tool, tool
+from inspect_ai.tool import Tool, ToolError, tool
 from inspect_ai.util import message_limit
+from inspect_ai.util._background import (
+    BackgroundTarget,
+    PosArgsT,
+    background_target,
+)
 
 # ---------------------------------------------------------------------------
 # Test-only helper: wait for a specific AgentFuture to complete and report
@@ -2307,6 +2316,270 @@ class TestNoLiveSampleTaskGroup:
         error = log.samples[0].error
         assert error is not None
         assert "Model refusal (mockllm/model)" in error.message
+
+
+class _TaskGroupTarget:
+    """A background target over an anyio task group."""
+
+    def __init__(self, tg: TaskGroup) -> None:
+        self._tg = tg
+        self.started = 0
+
+    def start_soon(
+        self,
+        func: Callable[[Unpack[PosArgsT]], Coroutine[Any, Any, Any]],
+        *args: Unpack[PosArgsT],
+    ) -> None:
+        self.started += 1
+        self._tg.start_soon(func, *args)
+
+
+class _ClosedTarget:
+    """A background target that refuses new work, as a closed owner does."""
+
+    def start_soon(
+        self,
+        func: Callable[[Unpack[PosArgsT]], Coroutine[Any, Any, Any]],
+        *args: Unpack[PosArgsT],
+    ) -> None:
+        raise RuntimeError("target closed")
+
+
+@contextmanager
+def _target(target: BackgroundTarget | None) -> Iterator[None]:
+    token = background_target.set(target)
+    try:
+        yield
+    finally:
+        background_target.reset(token)
+
+
+def _dispatch_dummy() -> str:
+    async def dummy_agent(state):
+        return state
+
+    return _dispatch_background(
+        child_agent=dummy_agent,
+        sa=subagent(name="general", description="d", prompt="p"),
+        dispatch_input="ignored",
+        span_id="x",
+        forked=False,
+        from_message=None,
+    )
+
+
+class TestBackgroundTarget:
+    """Children start in ``background_target`` when it is set."""
+
+    def test_solver_child_runs_in_target(self) -> None:
+        from inspect_ai.agent._agent import AgentState
+
+        captured: list[BackgroundRegistry] = []
+        observed: dict[str, object] = {}
+        agent = deepagent(
+            subagents=[_build_blocking_subagent("runner")],
+            tools=[_capture_background_registry(captured)],
+            model=get_model(
+                "mockllm/model",
+                custom_outputs=[
+                    _agent_call(prompt="go"),
+                    _tool_call("capture_background_registry"),
+                    _submit("done"),
+                ],
+            ),
+            background=True,
+            submit=True,
+        )
+
+        @solver
+        def run_agent() -> Solver:
+            async def solve(state: TaskState, generate: Generate) -> TaskState:
+                async with anyio.create_task_group() as tg:
+                    target = _TaskGroupTarget(tg)
+                    with _target(target):
+                        await agent(AgentState(messages=list(state.messages)))
+                    observed["started"] = target.started
+                    observed["after_return"] = captured[0].futures["AGENT-1"].status
+                    tg.cancel_scope.cancel()
+                # The sample's task group is still live here, so the child
+                # was cancelled by the target's group, not by sample teardown.
+                observed["after_cancel"] = captured[0].futures["AGENT-1"].status
+                return state
+
+            return solve
+
+        log = eval(
+            Task(dataset=[Sample(input="Do work.")], solver=[run_agent()]),
+            model="mockllm/model",
+        )[0]
+
+        assert log.status == "success"
+        assert observed == {
+            "started": 1,
+            "after_return": "running",
+            "after_cancel": "cancelled",
+        }
+
+    async def test_owned_task_group_steps_aside_for_target(self) -> None:
+        # Outside a sample there is no live sample task group, so without a
+        # target the registry owns one.
+        registry = BackgroundRegistry(max_background=1)
+        async with registry.owned_task_group():
+            assert registry._task_group is not None
+
+        async with anyio.create_task_group() as tg:
+            with _target(_TaskGroupTarget(tg)):
+                async with registry.owned_task_group():
+                    assert registry._task_group is None
+
+    @pytest.mark.parametrize("change", ["set", "reset", "replaced"])
+    async def test_dispatch_refused_when_target_changes(self, change: str) -> None:
+        async with anyio.create_task_group() as tg:
+            first, second = _TaskGroupTarget(tg), _TaskGroupTarget(tg)
+            entry = None if change == "set" else first
+            later = None if change == "reset" else second
+            registry = BackgroundRegistry(max_background=1)
+            with _target(entry):
+                async with registry.owned_task_group():
+                    with background_registry(registry), _target(later):
+                        with pytest.raises(ToolError, match="target changed"):
+                            _dispatch_dummy()
+
+        assert registry.futures == {}
+        assert first.started == second.started == 0
+
+    async def test_dispatch_unregisters_future_when_target_raises(self) -> None:
+        registry = BackgroundRegistry(max_background=1)
+        with _target(_ClosedTarget()):
+            async with registry.owned_task_group():
+                with background_registry(registry):
+                    with pytest.raises(RuntimeError, match="target closed"):
+                        _dispatch_dummy()
+
+        assert registry.futures == {}
+        assert registry.running_count() == 0
+
+        # The failed start gave its id back, so the next dispatch reuses it.
+        async with anyio.create_task_group() as tg:
+            target = _TaskGroupTarget(tg)
+            with _target(target):
+                async with registry.owned_task_group():
+                    with background_registry(registry):
+                        assert _dispatch_dummy() == "Dispatched AGENT-1."
+            tg.cancel_scope.cancel()
+        assert list(registry.futures) == ["AGENT-1"]
+        assert target.started == 1
+
+    def test_scorer_child_runs_in_target(self) -> None:
+        from inspect_ai.agent._agent import AgentState
+
+        captured: list[BackgroundRegistry] = []
+        started: list[int] = []
+        reviewer_model = get_model(
+            "mockllm/model",
+            custom_outputs=[
+                _agent_call(prompt="Review the completed solver output."),
+                _tool_call("capture_background_registry"),
+                _tool_call("agent_wait", agent_ids=["AGENT-1"], mode="all"),
+                _submit("scorecard complete"),
+            ],
+        )
+        review_agent = deepagent(
+            subagents=[_build_submit_subagent("reviewer", "reviewed")],
+            tools=[_capture_background_registry(captured)],
+            model=reviewer_model,
+            background=True,
+            submit=True,
+        )
+
+        async def review(state: TaskState) -> None:
+            async with anyio.create_task_group() as tg:
+                target = _TaskGroupTarget(tg)
+                with _target(target):
+                    await review_agent(AgentState(messages=list(state.messages)))
+                started.append(target.started)
+
+        log = _eval_in_scorer(review)
+
+        assert log.status == "success"
+        assert started == [1]
+        # The sample's task group is cancelled during scoring, so the child
+        # completing shows it ran in the target.
+        future = captured[0].futures["AGENT-1"]
+        assert future.status == "completed"
+        assert future.result is not None and "reviewed" in future.result
+
+    def test_nested_deepagent_children_run_in_same_target(self) -> None:
+        from inspect_ai.agent._agent import AgentState
+
+        captured: list[BackgroundRegistry] = []
+        observed: dict[str, object] = {}
+        inner = deepagent(
+            subagents=[_build_blocking_subagent("inner_runner")],
+            tools=[_capture_background_registry(captured)],
+            model=get_model(
+                "mockllm/model",
+                custom_outputs=[
+                    _agent_call(prompt="go"),
+                    _tool_call("capture_background_registry"),
+                    _submit("inner done"),
+                ],
+            ),
+            background=True,
+            submit=True,
+        )
+
+        @tool
+        def run_inner() -> Tool:
+            """Run a nested deepagent."""
+
+            async def execute() -> str:
+                """Run the nested deepagent to completion."""
+                await inner(AgentState(messages=[ChatMessageUser(content="go")]))
+                return "inner returned"
+
+            return execute
+
+        outer = deepagent(
+            subagents=[_build_blocking_subagent("outer_runner")],
+            tools=[_capture_background_registry(captured), run_inner()],
+            model=get_model(
+                "mockllm/model",
+                custom_outputs=[
+                    _agent_call(prompt="go"),
+                    _tool_call("capture_background_registry"),
+                    _tool_call("run_inner"),
+                    _submit("done"),
+                ],
+            ),
+            background=True,
+            submit=True,
+        )
+
+        @solver
+        def run_agent() -> Solver:
+            async def solve(state: TaskState, generate: Generate) -> TaskState:
+                async with anyio.create_task_group() as tg:
+                    target = _TaskGroupTarget(tg)
+                    with _target(target):
+                        await outer(AgentState(messages=list(state.messages)))
+                    observed["started"] = target.started
+                    tg.cancel_scope.cancel()
+                observed["statuses"] = [
+                    registry.futures["AGENT-1"].status for registry in captured
+                ]
+                return state
+
+            return solve
+
+        log = eval(
+            Task(dataset=[Sample(input="Do work.")], solver=[run_agent()]),
+            model="mockllm/model",
+        )[0]
+
+        assert log.status == "success"
+        assert len(captured) == 2 and captured[0] is not captured[1]
+        assert observed == {"started": 2, "statuses": ["cancelled", "cancelled"]}
 
 
 # ---------------------------------------------------------------------------
