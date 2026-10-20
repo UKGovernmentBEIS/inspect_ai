@@ -163,7 +163,11 @@ async def sandbox_agent_bridge(
         model_event_sink: Optional sink that takes ownership of `ModelEvent`
             emission for calls routed through the bridge. When set, the bridge
             installs it around `model.generate()` so the sink decides when and
-            under which span each event is emitted to the transcript.
+            under which span each event is emitted to the transcript. A host
+            tool call the model proposed is recorded in the span the sink set
+            on the proposing `ModelEvent` by the time `on_complete` returns,
+            and is recorded right away: a span set later, or a `ModelEvent`
+            the sink emits later, is not matched up with it.
         forward_generation_config: Forward client generation parameters (e.g.
             `max_tokens`, `temperature`, reasoning effort) to the model. Defaults
             to `False`, in which case those parameters are dropped and the resolved
