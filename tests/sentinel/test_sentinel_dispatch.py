@@ -3718,3 +3718,209 @@ def test_sent_matches_the_reference_rules() -> None:
 @pytest.mark.slow
 def test_sent_matches_the_reference_rules_at_length() -> None:
     _check_random_cases(seed=1, cases=20_000)
+
+
+def raising_viewer(call: ToolCall) -> ToolCallView:
+    raise KeyError("missing")
+
+
+@tool(viewer=raising_viewer)
+def addition_raising_viewer() -> Tool:
+    async def execute(x: int, y: int) -> str:
+        """Add two numbers.
+
+        Args:
+            x: First number to add.
+            y: Second number to add.
+        """
+        return str(x + y)
+
+    return execute
+
+
+def test_a_raising_viewer_rejects_the_call_before_the_sentinel() -> None:
+    seen: Seen = []
+    task = Task(
+        dataset=[Sample(input="What is 1 + 1?", target="2")],
+        solver=[use_tools(addition_raising_viewer()), generate()],
+        sentinel=[d3_recording(seen)],
+    )
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.for_tool_call(
+                "mockllm/model",
+                tool_name="addition_raising_viewer",
+                tool_arguments={"x": 1, "y": 1},
+            ),
+            ModelOutput.from_content("mockllm/model", content="done"),
+        ],
+        memoize=False,
+    )
+    log = eval(task, model=model)[0]
+    assert log.status == "success", log.error
+
+    # no approver is configured, and the sentinel monitor was not asked to
+    # decide on a fallback rendering
+    assert seen == []
+    [message] = tool_messages(log)
+    assert message.error is not None
+    assert message.error.type == "approval"
+    assert "viewer for tool 'addition_raising_viewer' failed" in message.error.message
+
+
+def test_a_raising_viewer_falls_back_after_the_tool_runs() -> None:
+    after: list[AfterToolCall] = []
+    task = Task(
+        dataset=[Sample(input="What is 1 + 1?", target="2")],
+        solver=[use_tools(addition_raising_viewer()), generate()],
+        sentinel=[d3_recording_after(after)],
+    )
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.for_tool_call(
+                "mockllm/model",
+                tool_name="addition_raising_viewer",
+                tool_arguments={"x": 1, "y": 1},
+            ),
+            ModelOutput.from_content("mockllm/model", content="done"),
+        ],
+        memoize=False,
+    )
+    log = eval(task, model=model)[0]
+    assert log.status == "success", log.error
+
+    # with no approver and no before-tool monitor the tool runs, and the
+    # after-tool monitor gets the default rendering
+    [message] = tool_messages(log)
+    assert message.error is None
+    assert message.text == "2"
+    [step] = after
+    assert step.view.call is not None
+    assert "addition_raising_viewer" in step.view.call.content
+
+
+@protocol
+def d3_public_memory_only() -> Protocol:
+    async def decide(
+        context: Context,
+        step: BeforeToolCall,
+        escalations: Escalations,
+    ) -> Decision | None:
+        if not step.call.arguments["path"].startswith("/memories/public/"):
+            return Decision.reject("outside /memories/public")
+        return None
+
+    return decide
+
+
+@approver
+def d3_memory_path_approver(path: str) -> Approver:
+    async def approve(
+        message: str, call: ToolCall, view: ToolCallView, history: list[ChatMessage]
+    ) -> Approval:
+        return Approval(
+            decision="modify",
+            modified=replace(call, arguments={**call.arguments, "path": path}),
+        )
+
+    return approve
+
+
+def test_an_approvers_modified_memory_path_reaches_the_sentinel_canonical() -> None:
+    from inspect_ai.tool import memory
+
+    seen: Seen = []
+    task = Task(
+        dataset=[Sample(input="Write a note.", target="ok")],
+        solver=[use_tools(memory()), generate()],
+        sentinel=[d3_recording(seen), d3_public_memory_only()],
+        approval=[
+            ApprovalPolicy(
+                d3_memory_path_approver("/memories/public/../secret.txt"), "*"
+            )
+        ],
+    )
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.for_tool_call(
+                "mockllm/model",
+                tool_name="memory",
+                tool_arguments={
+                    "command": "create",
+                    "path": "/memories/public/note.txt",
+                    "file_text": "x",
+                },
+            ),
+            ModelOutput.from_content("mockllm/model", content="done"),
+        ],
+        memoize=False,
+    )
+    log = eval(task, model=model)[0]
+    assert log.status == "success", log.error
+
+    # the sentinel decides on the path the write would use, and rejects it
+    assert [step.call.arguments["path"] for _, step in seen] == ["/memories/secret.txt"]
+    [message] = tool_messages(log)
+    assert message.error is not None
+    assert message.error.type == "approval"
+    assert log.samples
+    [tool_event] = [e for e in log.samples[0].events if isinstance(e, ToolEvent)]
+    assert tool_event.arguments["path"] == "/memories/secret.txt"
+
+
+@reviewer
+def d3_recording_reviewer(seen: list[ToolCall]) -> Reviewer:
+    async def review_(
+        message: str,
+        call: ToolCall,
+        result: ChatMessageTool,
+        output: ToolResult,
+        view: ToolCallView,
+        history: list[ChatMessage],
+    ) -> Review:
+        seen.append(call)
+        return Review(decision="continue")
+
+    return review_
+
+
+def test_a_memory_path_is_canonical_without_approval() -> None:
+    from inspect_ai.tool import memory
+
+    before: Seen = []
+    after: list[AfterToolCall] = []
+    reviewed: list[ToolCall] = []
+    task = Task(
+        dataset=[Sample(input="Write a note.", target="ok")],
+        solver=[use_tools(memory()), generate()],
+        sentinel=[d3_recording(before), d3_recording_after(after)],
+        review=[ReviewPolicy(d3_recording_reviewer(reviewed), "*")],
+    )
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.for_tool_call(
+                "mockllm/model",
+                tool_name="memory",
+                tool_arguments={
+                    "command": "create",
+                    "path": "/memories/x/../public/note.txt",
+                    "file_text": "x",
+                },
+            ),
+            ModelOutput.from_content("mockllm/model", content="done"),
+        ],
+        memoize=False,
+    )
+    log = eval(task, model=model)[0]
+    assert log.status == "success", log.error
+
+    [message] = tool_messages(log)
+    assert message.error is None
+    canonical = "/memories/public/note.txt"
+    assert [step.call.arguments["path"] for _, step in before] == [canonical]
+    assert [step.call.arguments["path"] for step in after] == [canonical]
+    assert [call.arguments["path"] for call in reviewed] == [canonical]
