@@ -160,9 +160,28 @@ def _normalize_number(text: str) -> str:
 
 
 def _tokenize(text: str) -> List[str]:
-    # split on hyphens, except a minus sign that opens a number ("-5", "(-5)");
-    # a bracket straight after a word ("f(-1)") still splits, as before
-    return re.split(r" |-(?!\.?\d)|(?<=[^ (\[{])-|(?<=[^ (\[{][(\[{])-", text)
+    # split on spaces and hyphens, except a minus sign that opens a number
+    # ("-5", "(-5)", "((-5))"); a minus after a word and any run of opening
+    # brackets ("f(-1)", "f([-1])") still splits, as before
+    tokens = []
+    start = 0
+    for match in re.finditer(r"[ -]", text):
+        index = match.start()
+        if text[index] == "-" and _is_minus_sign(text, index):
+            continue
+        tokens.append(text[start:index])
+        start = index + 1
+    tokens.append(text[start:])
+    return tokens
+
+
+def _is_minus_sign(text: str, index: int) -> bool:
+    if not re.match(r"-\.?\d", text[index:]):
+        return False
+    before = index
+    while before > 0 and text[before - 1] in "([{":
+        before -= 1
+    return before == 0 or text[before - 1] == " "
 
 
 def _normalize(text: str, stop_words: list[str] | None = None) -> str:

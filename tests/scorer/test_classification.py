@@ -233,3 +233,27 @@ def test_hyphens_as_punctuation_and_in_ranges_score_as_before():
     assert max_f1_score("3-5 apples", ["3 5 apples"]) == 1.0
     assert max_f1_score("f(-1)", ["f 1"]) == 1.0
     assert max_f1_score("\\frac{-1}{2}", ["frac 12"]) == 1.0
+
+
+@pytest.mark.anyio
+async def test_exact_and_f1_split_a_minus_after_a_word_and_nested_brackets():
+    exact_result = await exact()(
+        simple_task_state(model_output="f([-1])"), Target(["f1"])
+    )
+    assert exact_result.text == INCORRECT
+    f1_result = await f1()(simple_task_state(model_output="f([-1])"), Target(["f1"]))
+    assert f1_result.text == "0.0"
+
+
+def test_minus_after_a_word_and_nested_brackets_splits_as_before():
+    assert max_exact_score("f([-1])", ["f1"]) == 0.0
+    assert max_exact_score("f((-1))", ["f1"]) == 0.0
+    assert max_exact_score("\\frac{{-1}}{2}", ["frac12"]) == 0.0
+    assert max_f1_score("f([-1])", ["f1"]) == 0.0
+    assert max_f1_score("f([-1])", ["f 1"]) == 1.0
+    assert max_f1_score("f((-1))", ["f 1"]) == 1.0
+    assert max_f1_score("\\frac{{-1}}{2}", ["frac 12"]) == 1.0
+    # a minus behind a run of brackets that opens the token is still a sign
+    assert max_exact_score("((-40))", ["-40"]) == 1.0
+    assert max_exact_score("((-40))", ["40"]) == 0.0
+    assert max_exact_score("x is ([-40])", ["x is -40"]) == 1.0
