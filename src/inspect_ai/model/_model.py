@@ -3019,7 +3019,9 @@ def _snapshot_messages(messages: list[ChatMessage]) -> list[ChatMessage]:
     identity. This holds while a message keeps its id (or, without one, is
     the same live object); preparation that creates new messages with fresh
     ids each generation (reasoning-history filtering, tool `model_input`
-    rewriting, media extraction) still copies them every time.
+    rewriting, media extraction) still copies them every time. Only the
+    latest copy for an id is reused, so alternating different versions with
+    the same id (handoff filters, concurrent epochs) copies on each switch.
 
     Raises:
         TypeError: A message's metadata or tool call arguments hold something
