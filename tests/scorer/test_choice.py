@@ -286,6 +286,20 @@ async def test_score_empty_completion_is_noanswer(completion: str):
 
 
 @pytest.mark.anyio
+@pytest.mark.parametrize("completion", ["", "   "])
+async def test_score_empty_completion_with_empty_target_is_noanswer(completion: str):
+    scorer = choice()
+    state = simple_task_state(model_output=completion, choices=["choice 1", "choice 2"])
+
+    result = await scorer(state, Target([]))
+
+    assert result is not None
+    assert result.text == NOANSWER
+    assert result.reason == "no_response"
+    assert result.answer == ""
+
+
+@pytest.mark.anyio
 async def test_score_unparsable_completion_marks_format_reason():
     scorer = choice()
     state = simple_task_state(

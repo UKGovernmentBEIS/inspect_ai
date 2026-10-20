@@ -96,20 +96,9 @@ def choice() -> Scorer:
             i for i, choice in enumerate(choices) if choice.correct is True
         ]
 
-        target_matches_choices = generated_selected_choices == sorted(target_positions)
-
-        if target_matches_choices:
-            return Score(
-                value=CORRECT,
-                answer=", ".join(answers),
-                explanation=explanation,
-            )
-
         # The model left no usable answer. An empty completion means there
-        # is nothing to grade; any other completion without a selected
-        # choice means the model did not follow the requested ANSWER
-        # format. The sample stays in the denominator either way, but the
-        # reason lets analysis separate the two causes (see ScoreReason).
+        # is nothing to grade; check this before target_matches_choices so that
+        # an empty target cannot match an empty completion to score CORRECT.
         # These branches only run when no choice was selected: a marked
         # choice keeps its answer even if the completion text is empty.
         if not generated_selected_choices:
@@ -121,6 +110,21 @@ def choice() -> Scorer:
                     explanation=explanation,
                     reason="no_response",
                 )
+
+        target_matches_choices = generated_selected_choices == sorted(target_positions)
+
+        if target_matches_choices:
+            return Score(
+                value=CORRECT,
+                answer=", ".join(answers),
+                explanation=explanation,
+            )
+
+        # Any other completion without a selected choice means the model did
+        # not follow the requested ANSWER format. The sample stays in the
+        # denominator either way, but the reason lets analysis separate the
+        # two causes (see ScoreReason).
+        if not generated_selected_choices:
             return Score(
                 value=INCORRECT,
                 answer="",
