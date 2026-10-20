@@ -5,7 +5,6 @@ import io
 import json
 import posixpath
 import shlex
-import stat
 import tarfile
 import time
 from logging import getLogger
@@ -28,6 +27,7 @@ from ..environment import (
     SandboxEnvironment,
     SandboxEnvironmentConfigType,
     SandboxUnavailableError,
+    SandboxUserUnsupportedError,
     sandbox_prebuilt,
 )
 from ..limits import OutputLimitExceededError, SandboxEnvironmentLimits
@@ -46,17 +46,21 @@ from .compose import (
     compose_build,
     compose_check_running,
     compose_cleanup_images,
-    compose_cp_archive,
     compose_exec,
     compose_ps,
     compose_pull,
+    compose_read_archive,
     compose_services,
     compose_up,
     compose_verify_prebuilt_images,
     docker_image_exists_locally,
 )
 from .diagnostics import sandbox_unavailable_diagnostics, service_dead
-from .failure import InjectedWrapper, classify_exec_failure
+from .failure import (
+    InjectedWrapper,
+    classify_exec_failure,
+    raise_for_unsupported_user,
+)
 from .internal import build_internal_image, is_internal_image, is_internal_image_built
 from .prereqs import validate_prereqs
 from .util import ComposeProject, task_project_name
@@ -460,19 +464,26 @@ class DockerSandboxEnvironment(SandboxEnvironment):
         )
 
     @override
-    async def write_file(self, file: str, contents: str | bytes) -> None:
+    async def write_file(
+        self, file: str, contents: str | bytes, *, user: str | None = None
+    ) -> None:
+        if user == "":
+            raise SandboxUserUnsupportedError("Docker file user must not be empty.")
         # defualt timeout for write_file operations
         TIMEOUT = 600
 
         # resolve relative file paths
         file = self.container_file(file)
 
-        # These run as the container's default user (root in most images), so the
-        # utilities must not come from the image's PATH.
+        # The requested user may be root, so utilities must not come from the
+        # image's PATH.
         parent = Path(file).parent.as_posix()
         if parent != ".":
-            result = await self.exec(pinned_command(["mkdir", "-p", parent]))
+            result = await self.exec(pinned_command(["mkdir", "-p", parent]), user=user)
             if not result.success:
+                raise_for_unsupported_user(result.stderr, user)
+                if "permission denied" in result.stderr.casefold():
+                    raise PermissionError(errno.EACCES, "Permission denied.", file)
                 msg = f"Failed to create container directory {parent}: {result.stderr}"
                 raise RuntimeError(msg)
 
@@ -482,6 +493,7 @@ class DockerSandboxEnvironment(SandboxEnvironment):
                 pinned_shell_command('set -e\ntee -- "$1" > /dev/null', file),
                 input=contents,
                 timeout=TIMEOUT,
+                user=user,
             )
         else:
             base64_contents = base64.b64encode(contents).decode("US-ASCII")
@@ -491,10 +503,14 @@ class DockerSandboxEnvironment(SandboxEnvironment):
                 ),
                 input=base64_contents,
                 timeout=TIMEOUT,
+                user=user,
             )
         if result.returncode != 0:
+            raise_for_unsupported_user(result.stderr, user)
             if "permission denied" in result.stderr.casefold():
-                ls_result = await self.exec(pinned_command(["ls", "-la", "."]))
+                ls_result = await self.exec(
+                    pinned_command(["ls", "-la", "."]), user=user
+                )
                 error_string = f"Permission was denied. Error details: {result.stderr}; ls -la: {ls_result.stdout}"
                 raise PermissionError(error_string)
             elif (
@@ -508,13 +524,21 @@ class DockerSandboxEnvironment(SandboxEnvironment):
                 raise RuntimeError(f"failed to copy during write_file: {result}")
 
     @overload
-    async def read_file(self, file: str, text: Literal[True] = True) -> str: ...
+    async def read_file(
+        self, file: str, text: Literal[True] = True, *, user: str | None = None
+    ) -> str: ...
 
     @overload
-    async def read_file(self, file: str, text: Literal[False]) -> bytes: ...
+    async def read_file(
+        self, file: str, text: Literal[False], *, user: str | None = None
+    ) -> bytes: ...
 
     @override
-    async def read_file(self, file: str, text: bool = True) -> Union[str, bytes]:
+    async def read_file(
+        self, file: str, text: bool = True, *, user: str | None = None
+    ) -> Union[str, bytes]:
+        if user == "":
+            raise SandboxUserUnsupportedError("Docker file user must not be empty.")
         original_file = file
         if _is_directory_alias(file):
             raise _is_directory_error(original_file)
@@ -523,8 +547,10 @@ class DockerSandboxEnvironment(SandboxEnvironment):
         file = self.container_file(file)
 
         try:
-            archive = await compose_cp_archive(
-                src=f"{self._service}:{file}",
+            archive = await compose_read_archive(
+                service=self._service,
+                file=file,
+                user=user,
                 project=self._project,
                 read_archive=functools.partial(
                     _read_archive,
@@ -533,6 +559,8 @@ class DockerSandboxEnvironment(SandboxEnvironment):
                     original_file=original_file,
                 ),
             )
+        except (SandboxUserUnsupportedError, SandboxUnavailableError):
+            raise
         except RuntimeError as ex:
             # extract the message and normalise case
             message = str(ex).lower()
@@ -627,7 +655,7 @@ def _is_directory_error(file: str) -> IsADirectoryError:
 async def _read_archive(
     stream: ByteReceiveStream, limit: int, original_file: str
 ) -> bytes:
-    """Read a `docker cp` archive, stopping the copy once it exceeds `limit`."""
+    """Read a file archive, stopping the copy once it exceeds `limit`."""
     archive = bytearray()
     async for chunk in stream:
         archive += chunk
@@ -640,7 +668,7 @@ async def _read_archive(
 
 
 def _read_archived_file(archive: bytes, original_file: str) -> bytes:
-    """Return the contents of the single regular file in a `docker cp` archive.
+    """Return the contents of the single regular file in a container archive.
 
     The archive is built from container state the agent may control, so it is
     parsed in memory and never extracted. Anything other than exactly one
@@ -657,9 +685,6 @@ def _read_archived_file(archive: bytes, original_file: str) -> bytes:
                 raise _not_regular_file_error(original_file)
             if member.size > SandboxEnvironmentLimits.MAX_READ_FILE_SIZE:
                 raise _read_file_size_error()
-            # Report a file its owner cannot read as unreadable.
-            if not member.mode & stat.S_IRUSR:
-                raise PermissionError(errno.EACCES, "Permission denied.", original_file)
             contents = tar.extractfile(member)
             if contents is None:
                 raise _not_regular_file_error(original_file)
@@ -671,7 +696,7 @@ def _read_archived_file(archive: bytes, original_file: str) -> bytes:
 
 
 def _archive_starts_with_directory(head: bytes) -> bool:
-    """Whether the first entry of a truncated `docker cp` archive is a directory."""
+    """Whether the first entry of a truncated file archive is a directory."""
     if _archive_is_empty(head):
         return False
     try:
@@ -685,7 +710,7 @@ def _archive_starts_with_directory(head: bytes) -> bool:
 def _archive_is_empty(archive: bytes) -> bool:
     """Whether a tar archive has no entries (its first block is all zeros).
 
-    Docker sends an empty archive for a socket. Checked before parsing because
+    Tar emits an empty archive for a socket. Checked before parsing because
     `tarfile` on Python 3.10 raises `ValueError` when asked for the next entry
     of an empty archive.
     """

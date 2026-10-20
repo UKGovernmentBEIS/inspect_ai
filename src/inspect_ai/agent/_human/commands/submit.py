@@ -18,9 +18,10 @@ logger = getLogger(__name__)
 
 
 class SessionEndCommand(HumanAgentCommand):
-    def __init__(self, record_session: bool):
+    def __init__(self, record_session: bool, user: str | None = None):
         super().__init__()
         self._record_session = record_session
+        self._user = user
 
     @property
     def group(self) -> Literal[1, 2, 3]:
@@ -30,7 +31,7 @@ class SessionEndCommand(HumanAgentCommand):
         # retreive session logs (don't fail)
         sessions_dir = PurePosixPath(RECORD_SESSION_DIR)
         result = await privileged_exec(
-            sandbox(), ["ls", "-1", sessions_dir.as_posix()], user=None
+            sandbox(), ["ls", "-1", sessions_dir.as_posix()], user=self._user
         )
         if not result.success:
             logger.warning(f"Error listing human agent session logs: {result.stderr}")
@@ -41,7 +42,7 @@ class SessionEndCommand(HumanAgentCommand):
         for session_log in result.stdout.strip().splitlines():
             try:
                 session_logs[session_log] = await sandbox().read_file(
-                    (sessions_dir / session_log).as_posix()
+                    (sessions_dir / session_log).as_posix(), user=self._user
                 )
             except Exception as ex:
                 logger.warning(f"Error reading human agent session log: {ex}")
