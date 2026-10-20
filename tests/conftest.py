@@ -930,6 +930,13 @@ def _report_oom_kills(exitstatus: int) -> None:
 
 
 def pytest_configure(config):
+    # inspect_ai must never load inspect_sentinel for a user who configures no
+    # sentinel, so any import of it in a test raises ImportError. Tests of the
+    # sentinel code install a fake with the `fake_sentinel` fixture.
+    block_sentinel = pytest.MonkeyPatch()
+    block_sentinel.setitem(sys.modules, "inspect_sentinel", None)
+    config.add_cleanup(block_sentinel.undo)
+
     config.addinivalue_line("markers", "slow: mark test as slow to run")
     config.addinivalue_line("markers", "api: mark test as requiring API access")
     config.addinivalue_line("markers", "flaky: mark test as flaky/unreliable")
