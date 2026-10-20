@@ -14,25 +14,38 @@ Usage:
     # Sandbox tools download command
     python pypi-release.py sandbox-tools-download
     python pypi-release.py sandbox-tools-download --dry-run
+
+    # Non-interactive steps for the publish workflow (.github/workflows/publish.yml)
+    python pypi-release.py prepare
+    python pypi-release.py verify-dist <version>
+    python pypi-release.py verify-parity <version>
+    python pypi-release.py skip-published <version>
+
+    # Release PR check (.github/workflows/release-pr-checks.yml)
+    python pypi-release.py verify-sandbox-tools-published
 """
 
 import argparse
 import hashlib
+import json
 import logging
 import os
 import re
 import shutil
 import subprocess
 import sys
+import tarfile
+import tempfile
 import urllib.error
 import urllib.request
 import zipfile
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, Optional, Tuple
+from typing import Callable, Dict, List, NamedTuple, Optional, Tuple
 
 SANDBOX_TOOLS_UTILS_DIR = Path("src/inspect_ai/tool/_sandbox_tools_utils")
 SHA256SUMS_FILE = SANDBOX_TOOLS_UTILS_DIR / "SHA256SUMS"
+SANDBOX_TOOLS_BASE_URL = "https://inspect-sandbox-tools.s3.us-east-2.amazonaws.com"
 
 
 def setup_logging(name: str) -> None:
@@ -253,7 +266,6 @@ def download_sandbox_tools(
     version: str, digests: Dict[str, str], dry_run: bool = False
 ) -> bool:
     """Download sandbox tools for both platforms from S3, digest-verified."""
-    base_url = "https://inspect-sandbox-tools.s3.us-east-2.amazonaws.com"
     binaries_dir = Path("src/inspect_ai/binaries")
 
     platforms = ["amd64", "arm64"]
@@ -269,7 +281,7 @@ def download_sandbox_tools(
         if expected is None:
             logging.error(f"No digest entry for {filename} in {SHA256SUMS_FILE}")
             return False
-        url = f"{base_url}/{filename}"
+        url = f"{SANDBOX_TOOLS_BASE_URL}/{filename}"
         dest_path = binaries_dir / filename
 
         if not download_file(url, dest_path, expected, dry_run):
@@ -277,6 +289,41 @@ def download_sandbox_tools(
             break
 
     return success
+
+
+def verify_sandbox_tools_published(
+    version: str, digests: Dict[str, str], download_dir: Path
+) -> None:
+    """Release PR gate: every SHA256SUMS artifact is on S3 with its digest.
+
+    Covers the musl builds as well as the bundled glibc ones, since the
+    package downloads those at runtime.
+
+    Raises:
+        RuntimeError: If SHA256SUMS does not pin the glibc builds of
+            `version`, or an artifact is missing or does not match.
+    """
+    required = {
+        f"inspect-sandbox-tools-{platform}-v{version}"
+        for platform in ("amd64", "arm64")
+    }
+    unpinned = sorted(required - digests.keys())
+    if unpinned:
+        raise RuntimeError(f"{SHA256SUMS_FILE} has no digest for {unpinned}")
+
+    failed = [
+        filename
+        for filename, digest in sorted(digests.items())
+        if not download_file(
+            f"{SANDBOX_TOOLS_BASE_URL}/{filename}", download_dir / filename, digest
+        )
+    ]
+    if failed:
+        raise RuntimeError(
+            f"Not published at {SANDBOX_TOOLS_BASE_URL} with the digest pinned "
+            f"in {SHA256SUMS_FILE}: {failed}"
+        )
+    logging.info(f"✓ All {len(digests)} pinned sandbox tools artifacts are published")
 
 
 def verify_sandbox_tools_bundle(
@@ -324,32 +371,363 @@ def verify_sandbox_tools_bundle(
     logging.info(f"✓ Pre-build gate passed: sandbox tools v{version} verified")
 
 
-def verify_wheel_contents(wheel_path: Path, version: str) -> None:
-    """Post-build gate: the wheel ships the digest/version files and binaries.
+def read_package_data_globs(
+    pyproject: Path = Path(__file__).resolve().parents[1] / "pyproject.toml",
+) -> List[str]:
+    """Read the `inspect_ai` package-data globs from pyproject.toml.
 
-    Every other gate runs from a repo checkout, which always has the committed
-    sums file, so a dropped or broken pyproject.toml package-data entry would
-    otherwise surface only as hard runtime failures for PyPI users.
+    Defaults to this script's own revision, which is also the built tree
+    except when CI rebuilds an older tag for the parity check; that build is
+    then held to the current package-data contract.
 
     Raises:
-        RuntimeError: If a required member is missing from the wheel.
+        RuntimeError: On Python < 3.11 without `tomli` (installed with
+            `build`). Imported here so the other commands stay stdlib-only.
     """
+    try:
+        if sys.version_info >= (3, 11):
+            import tomllib
+        else:
+            import tomli as tomllib
+    except ImportError as e:
+        raise RuntimeError(
+            "Reading pyproject.toml on Python < 3.11 requires tomli "
+            "(pip install tomli, or install build)"
+        ) from e
+
+    with open(pyproject, "rb") as f:
+        globs: List[str] = tomllib.load(f)["tool"]["setuptools"]["package-data"][
+            "inspect_ai"
+        ]
+    return globs
+
+
+def _package_data_regex(pattern: str) -> "re.Pattern[str]":
+    """Translate a setuptools package-data glob to a wheel member regex."""
+    regex = ""
+    i = 0
+    while i < len(pattern):
+        if pattern.startswith("**/", i):
+            regex, i = regex + "(?:.*/)?", i + 3
+        elif pattern.startswith("**", i):
+            regex, i = regex + ".*", i + 2
+        elif pattern[i] == "*":
+            regex, i = regex + "[^/]*", i + 1
+        elif pattern[i] == "?":
+            regex, i = regex + "[^/]", i + 1
+        else:
+            regex, i = regex + re.escape(pattern[i]), i + 1
+    return re.compile(f"inspect_ai/{regex}")
+
+
+# package-data globs whose files are empty by design (the PEP 561 marker).
+EMPTY_PACKAGE_DATA = {"py.typed"}
+
+
+def verify_wheel_contents(
+    wheel_path: Path, version: str, package_data_globs: Optional[List[str]] = None
+) -> None:
+    """Post-build gate: the wheel ships its bundled, non-package files.
+
+    Every other gate runs from a repo checkout, which always has the committed
+    sums file and viewer bundle, so a dropped or broken pyproject.toml
+    package-data entry, or a build tree that lacks the downloaded binaries,
+    would otherwise surface only as hard runtime failures for PyPI users.
+    Requires the sandbox-tools digest/version files and binaries, the viewer
+    entry point and its JS/CSS assets, and at least one member for every
+    package-data glob, all non-empty.
+
+    Raises:
+        RuntimeError: If a required member or package-data glob is missing
+            from the wheel, or is empty.
+    """
+    if package_data_globs is None:
+        package_data_globs = read_package_data_globs()
+
     required = [
         "inspect_ai/tool/_sandbox_tools_utils/SHA256SUMS",
         "inspect_ai/tool/_sandbox_tools_utils/sandbox_tools_version.txt",
         f"inspect_ai/binaries/inspect-sandbox-tools-amd64-v{version}",
         f"inspect_ai/binaries/inspect-sandbox-tools-arm64-v{version}",
+        "inspect_ai/_view/dist/index.html",
     ]
     with zipfile.ZipFile(wheel_path) as wheel:
-        members = set(wheel.namelist())
-    missing = [member for member in required if member not in members]
-    if missing:
+        sizes = {info.filename: info.file_size for info in wheel.infolist()}
+
+    problems = [
+        f"{member} {'is empty' if member in sizes else 'is missing'}"
+        for member in required
+        if not sizes.get(member)
+    ]
+    for suffix in [".js", ".css"]:
+        if not any(
+            name.startswith("inspect_ai/_view/dist/assets/")
+            and name.endswith(suffix)
+            and size
+            for name, size in sizes.items()
+        ):
+            problems.append(f"no non-empty viewer {suffix} assets")
+    for pattern in package_data_globs:
+        regex = _package_data_regex(pattern)
+        matched = {name: size for name, size in sizes.items() if regex.fullmatch(name)}
+        if not matched:
+            problems.append(f"package-data '{pattern}' matches no files")
+        elif pattern not in EMPTY_PACKAGE_DATA:
+            empty = sorted(name for name, size in matched.items() if not size)
+            if empty:
+                problems.append(f"package-data '{pattern}' has empty files {empty}")
+
+    if problems:
         raise RuntimeError(
-            f"Built wheel {wheel_path.name} is missing required members: "
-            f"{missing}. Check the package-data entries in pyproject.toml."
+            f"Built wheel {wheel_path.name} failed the contents check: "
+            f"{'; '.join(problems)}. Check the package-data entries in "
+            f"pyproject.toml and that `prepare` ran before the build."
         )
 
     logging.info(f"✓ Wheel contents verified: {wheel_path.name}")
+
+
+def verify_dist(dist_dir: Path, version: str, sandbox_version: str) -> None:
+    """Post-build gate for CI: dist/ holds one sdist and one wheel of `version`.
+
+    `version` is the release tag. setuptools_scm derives the built version
+    from git, so a tag that is not on the built commit, or a dirty tree,
+    produces a different version and fails here rather than on PyPI.
+
+    Raises:
+        RuntimeError: If dist/ holds anything other than exactly one sdist
+            and one wheel of `version`, or the wheel fails
+            `verify_wheel_contents`.
+    """
+    files = sorted(f.name for f in dist_dir.iterdir()) if dist_dir.is_dir() else []
+    wheels = [f for f in files if f.endswith(".whl")]
+    sdists = [f for f in files if f.endswith(".tar.gz")]
+    if len(wheels) != 1 or len(sdists) != 1 or len(files) != 2:
+        raise RuntimeError(
+            f"{dist_dir}/ must contain exactly one wheel and one sdist; found {files}"
+        )
+
+    wheel, sdist = wheels[0], sdists[0]
+    built = {wheel: wheel.split("-")[1], sdist: sdist[: -len(".tar.gz")].split("-")[-1]}
+    for filename, built_version in built.items():
+        if built_version != version:
+            raise RuntimeError(
+                f"{filename} has version {built_version}, expected {version}"
+            )
+
+    verify_wheel_contents(dist_dir / wheel, sandbox_version)
+    logging.info(f"✓ Distributions verified for version {version}: {files}")
+
+
+PYPI_JSON_URL = "https://pypi.org/pypi/inspect-ai/{version}/json"
+
+
+def _normalize_scm_version(content: bytes) -> bytes:
+    """Drop `branch`, which names the checkout, not the source.
+
+    It is "main" for a local release from main and "HEAD" for the detached
+    tag checkout in CI.
+    """
+    data = json.loads(content)
+    data.pop("branch", None)
+    return json.dumps(data, sort_keys=True).encode()
+
+
+# Archive members (path below the sdist's top-level directory) whose content
+# legitimately differs between release builders, with the normalization
+# applied to both sides before comparing. Every other member must match byte
+# for byte.
+PARITY_NORMALIZERS: Dict[str, Callable[[bytes], bytes]] = {
+    "src/inspect_ai.egg-info/scm_version.json": _normalize_scm_version,
+}
+
+
+class ParityResult(NamedTuple):
+    missing: List[str]
+    extra: List[str]
+    differing: List[str]
+    compared: int
+
+
+def archive_member_digests(path: Path) -> Dict[str, str]:
+    """Map each member of a wheel or sdist to the SHA256 of its content.
+
+    sdist member paths drop the top-level `<name>-<version>/` directory and
+    have PARITY_NORMALIZERS applied. Directories and links are recorded by
+    type so the member lists still compare.
+
+    Raises:
+        RuntimeError: If two members share a path, since one digest per path
+            would hide the other entry from the comparison.
+    """
+    digests: Dict[str, str] = {}
+
+    def add(name: str, digest: str) -> None:
+        if name in digests:
+            raise RuntimeError(f"{path.name} has duplicate member {name!r}")
+        digests[name] = digest
+
+    if path.name.endswith(".whl"):
+        with zipfile.ZipFile(path) as wheel:
+            for info in wheel.infolist():
+                add(info.filename, hashlib.sha256(wheel.read(info)).hexdigest())
+        return digests
+
+    with tarfile.open(path) as sdist:
+        for member in sdist.getmembers():
+            name = member.name.split("/", 1)[1] if "/" in member.name else ""
+            if member.isfile():
+                extracted = sdist.extractfile(member)
+                assert extracted is not None
+                content = extracted.read()
+                normalize = PARITY_NORMALIZERS.get(name)
+                if normalize:
+                    content = normalize(content)
+                add(name, hashlib.sha256(content).hexdigest())
+            elif member.isdir():
+                add(name, "<dir>")
+            else:
+                add(name, f"<link {member.linkname}>")
+    return digests
+
+
+def compare_archives(published: Path, built: Path) -> ParityResult:
+    """Compare member lists and per-member content of two archives."""
+    expected = archive_member_digests(published)
+    actual = archive_member_digests(built)
+    return ParityResult(
+        missing=sorted(set(expected) - set(actual)),
+        extra=sorted(set(actual) - set(expected)),
+        differing=sorted(
+            name
+            for name in set(expected) & set(actual)
+            if expected[name] != actual[name]
+        ),
+        compared=len(set(expected) | set(actual)),
+    )
+
+
+def download_published_dists(version: str, dest_dir: Path) -> List[str]:
+    """Download the PyPI wheel and sdist for `version`, verifying PyPI's SHA256.
+
+    Returns:
+        The downloaded filenames.
+
+    Raises:
+        RuntimeError: If PyPI does not have exactly one wheel and one sdist
+            for `version`, or a download fails verification.
+    """
+    url = PYPI_JSON_URL.format(version=version)
+    logging.info(f"Fetching {url}")
+    with urllib.request.urlopen(url, timeout=60) as response:
+        release = json.load(response)
+
+    files = [f for f in release["urls"] if f["packagetype"] in ("bdist_wheel", "sdist")]
+    if sorted(f["packagetype"] for f in files) != ["bdist_wheel", "sdist"]:
+        raise RuntimeError(
+            f"PyPI has {[f['filename'] for f in files]} for {version}; expected "
+            f"one wheel and one sdist"
+        )
+    for f in files:
+        if not download_file(
+            f["url"], dest_dir / f["filename"], f["digests"]["sha256"]
+        ):
+            raise RuntimeError(f"Could not download {f['filename']} from PyPI")
+    return sorted(f["filename"] for f in files)
+
+
+def skip_published_dists(
+    dist_dir: Path, version: str, published_dir: Path
+) -> List[str]:
+    """Move files PyPI already has out of `dist_dir`, so a retry uploads the rest.
+
+    A built file counts as published when PyPI has a file of the same name
+    with the same SHA256, or, since a rebuild of the same tag differs in
+    archive metadata, with the same members and member contents under the
+    parity rules (`compare_archives`).
+
+    Returns:
+        The moved filenames.
+
+    Raises:
+        RuntimeError: If PyPI has a file of the same name with different
+            contents (PyPI never replaces a file), or it cannot be fetched.
+    """
+    url = PYPI_JSON_URL.format(version=version)
+    try:
+        with urllib.request.urlopen(url, timeout=60) as response:
+            release = json.load(response)
+    except urllib.error.HTTPError as e:
+        if e.code == 404:
+            logging.info(f"{version} is not on PyPI yet; nothing to skip")
+            return []
+        raise
+
+    published = {f["filename"]: f for f in release["urls"]}
+    skipped: List[str] = []
+    for path in sorted(p for p in dist_dir.iterdir() if p.is_file()):
+        entry = published.get(path.name)
+        if entry is None:
+            continue
+        digest = entry["digests"]["sha256"]
+        if sha256_of_file(path) == digest:
+            logging.info(f"✓ {path.name} is already on PyPI (same SHA256); skipping")
+        else:
+            with tempfile.TemporaryDirectory() as tmp:
+                remote = Path(tmp) / path.name
+                if not download_file(entry["url"], remote, digest):
+                    raise RuntimeError(f"Could not download PyPI's {path.name}")
+                try:
+                    result = compare_archives(remote, path)
+                except (tarfile.TarError, zipfile.BadZipFile) as e:
+                    raise RuntimeError(f"Could not compare {path.name}: {e}") from e
+            if result.missing or result.extra or result.differing:
+                raise RuntimeError(
+                    f"PyPI already has {path.name} with different contents "
+                    f"(missing {result.missing}, extra {result.extra}, "
+                    f"differing {result.differing}); PyPI never replaces a file"
+                )
+            logging.info(
+                f"✓ {path.name} matches PyPI's file in all {result.compared} "
+                f"members; skipping"
+            )
+        published_dir.mkdir(parents=True, exist_ok=True)
+        shutil.move(str(path), str(published_dir / path.name))
+        skipped.append(path.name)
+    return skipped
+
+
+def verify_parity(dist_dir: Path, version: str) -> None:
+    """Compare locally built distributions with the ones published on PyPI.
+
+    Raises:
+        RuntimeError: If a published file was not built, or any archive has
+            missing, extra or differing members.
+    """
+    failed = False
+    with tempfile.TemporaryDirectory() as tmp:
+        for filename in download_published_dists(version, Path(tmp)):
+            built = dist_dir / filename
+            if not built.exists():
+                raise RuntimeError(f"{built} was not built; PyPI has {filename}")
+            result = compare_archives(Path(tmp) / filename, built)
+            for label, names in [
+                ("missing from build", result.missing),
+                ("extra in build", result.extra),
+                ("content differs", result.differing),
+            ]:
+                for name in names:
+                    logging.error(f"  {filename}: {label}: {name}")
+            logging.info(
+                f"{filename}: {result.compared} members compared, "
+                f"{len(result.missing)} missing, {len(result.extra)} extra, "
+                f"{len(result.differing)} differing"
+            )
+            failed = failed or bool(result.missing or result.extra or result.differing)
+
+    if failed:
+        raise RuntimeError(f"Built distributions differ from PyPI's {version}")
+    logging.info(f"✓ Built distributions match PyPI's {version}")
 
 
 def ensure_sandbox_tools(
@@ -820,6 +1198,69 @@ def sandbox_tools_download_command(args):
     logging.info("-" * 40)
 
 
+def prepare_command(args: argparse.Namespace) -> None:
+    """Execute the prepare command: download sandbox tools and gate them."""
+    setup_logging("prepare")
+
+    version = get_sandbox_tools_version()
+    digests = read_pinned_digests()
+    ensure_sandbox_tools(version, digests)
+    try:
+        verify_sandbox_tools_bundle(version, digests)
+    except RuntimeError as e:
+        logging.error(f"Pre-build sandbox tools gate failed: {e}")
+        sys.exit(1)
+
+
+def verify_sandbox_tools_published_command(args: argparse.Namespace) -> None:
+    """Execute the verify-sandbox-tools-published command."""
+    setup_logging("verify_sandbox_tools_published")
+
+    version = get_sandbox_tools_version()
+    digests = read_pinned_digests()
+    with tempfile.TemporaryDirectory() as download_dir:
+        try:
+            verify_sandbox_tools_published(version, digests, Path(download_dir))
+        except RuntimeError as e:
+            logging.error(f"Sandbox tools publication check failed: {e}")
+            sys.exit(1)
+
+
+def verify_dist_command(args: argparse.Namespace) -> None:
+    """Execute the verify-dist command: version and wheel-contents gate."""
+    setup_logging("verify_dist")
+
+    try:
+        verify_dist(Path(args.dist_dir), args.version, get_sandbox_tools_version())
+    except RuntimeError as e:
+        logging.error(f"Post-build distribution gate failed: {e}")
+        sys.exit(1)
+
+
+def skip_published_command(args: argparse.Namespace) -> None:
+    """Execute the skip-published command."""
+    setup_logging("skip_published")
+
+    try:
+        skip_published_dists(
+            Path(args.dist_dir), args.version, Path(args.published_dir)
+        )
+    except (RuntimeError, urllib.error.URLError) as e:
+        logging.error(f"PyPI already-published check failed: {e}")
+        sys.exit(1)
+
+
+def verify_parity_command(args: argparse.Namespace) -> None:
+    """Execute the verify-parity command: compare the build with PyPI."""
+    setup_logging("verify_parity")
+
+    try:
+        verify_parity(Path(args.dist_dir), args.version)
+    except RuntimeError as e:
+        logging.error(f"Parity check failed: {e}")
+        sys.exit(1)
+
+
 def main():
     # Create main parser
     parser = argparse.ArgumentParser(
@@ -862,6 +1303,47 @@ def main():
         "--dry-run", action="store_true", help="Run in dry-run mode (no actual changes)"
     )
 
+    # Non-interactive steps for the publish workflow
+    subparsers.add_parser(
+        "prepare",
+        help="Download sandbox tools and run the pre-build digest gate",
+    )
+    subparsers.add_parser(
+        "verify-sandbox-tools-published",
+        help="Check every sandbox tools artifact in SHA256SUMS is on S3 with its digest",
+    )
+    verify_dist_parser = subparsers.add_parser(
+        "verify-dist",
+        help="Check built distributions match a version and run the wheel gate",
+    )
+    verify_dist_parser.add_argument("version", help="Expected package version")
+    verify_dist_parser.add_argument(
+        "--dist-dir", default="dist", help="Distribution directory (default: dist)"
+    )
+
+    skip_published_parser = subparsers.add_parser(
+        "skip-published",
+        help="Move distributions PyPI already has (same contents) out of the dist dir",
+    )
+    skip_published_parser.add_argument("version", help="Version being published")
+    skip_published_parser.add_argument(
+        "--dist-dir", default="dist", help="Distribution directory (default: dist)"
+    )
+    skip_published_parser.add_argument(
+        "--published-dir",
+        default="dist-published",
+        help="Where to move already-published files (default: dist-published)",
+    )
+
+    verify_parity_parser = subparsers.add_parser(
+        "verify-parity",
+        help="Compare built distributions with the same version on PyPI",
+    )
+    verify_parity_parser.add_argument("version", help="Published version")
+    verify_parity_parser.add_argument(
+        "--dist-dir", default="dist", help="Distribution directory (default: dist)"
+    )
+
     # Parse arguments
     args = parser.parse_args()
 
@@ -877,6 +1359,16 @@ def main():
         release_command(args)
     elif args.command == "sandbox-tools-download":
         sandbox_tools_download_command(args)
+    elif args.command == "prepare":
+        prepare_command(args)
+    elif args.command == "verify-sandbox-tools-published":
+        verify_sandbox_tools_published_command(args)
+    elif args.command == "verify-dist":
+        verify_dist_command(args)
+    elif args.command == "skip-published":
+        skip_published_command(args)
+    elif args.command == "verify-parity":
+        verify_parity_command(args)
     else:
         parser.print_help()
         sys.exit(1)

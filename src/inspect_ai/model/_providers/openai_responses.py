@@ -83,7 +83,7 @@ from .._stream import (
     report_model_stream_progress,
     report_model_stream_start,
 )
-from .util.hooks import HttpxHooks
+from .util.hooks import HttpxHooks, polling
 
 logger = getLogger(__name__)
 
@@ -443,7 +443,10 @@ async def wait_for_background_response(
         ),
     )
     async def check_model_response(model_response: Response) -> Response:
-        return await client.responses.retrieve(model_response.id)
+        # a poll carries no request id (each one would count as a retry), so
+        # the HTTP hooks are told to record the headers of its responses
+        with polling():
+            return await client.responses.retrieve(model_response.id)
 
     try:
         # keep checking status until we get "complete", "incomplete", of "failed"
@@ -463,6 +466,14 @@ async def wait_for_background_response(
                 )
                 pass
         raise
+
+
+# Responses `reasoning` fields that come from GenerateConfig (`generate_summary`
+# is the deprecated name for `summary`), never from a `reasoning` object in
+# `extra_body`.
+_GENERATE_CONFIG_REASONING_FIELDS = frozenset(
+    ["effort", "mode", "summary", "generate_summary"]
+)
 
 
 def completion_params_responses(
@@ -576,7 +587,7 @@ def completion_params_responses(
     ):
         params["parallel_tool_calls"] = config.parallel_tool_calls
 
-    reasoning: dict[str, str] = {}
+    reasoning: dict[str, Any] = {}
     if config.reasoning_effort is not None:
         # models that predate `max` effort top out at `xhigh`; map `max` to it
         # so the request isn't rejected. Mirrors the mapping in
@@ -596,6 +607,14 @@ def completion_params_responses(
         reasoning["mode"] = config.reasoning_mode
     if config.reasoning_summary != "none":
         reasoning["summary"] = config.reasoning_summary or "auto"
+    # A `reasoning` object in config.extra_body (e.g. from a client talking to us
+    # through the agent bridge) contributes the fields GenerateConfig does not
+    # model (e.g. `context`); the fields it does model come from config above.
+    extra_reasoning = (config.extra_body or {}).get("reasoning")
+    if isinstance(extra_reasoning, dict):
+        for key, value in extra_reasoning.items():
+            if key not in _GENERATE_CONFIG_REASONING_FIELDS:
+                reasoning[key] = value
     if len(reasoning) > 0:
         if model_info.has_reasoning_options():
             params["reasoning"] = reasoning

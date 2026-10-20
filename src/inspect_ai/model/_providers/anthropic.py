@@ -198,6 +198,8 @@ from .._model_output import (
     StopDetails,
     StopReason,
     collect_stop_details,
+    sum_usage,
+    usage_input_tokens,
 )
 from .._providers._anthropic_citations import (
     to_anthropic_citation,
@@ -316,6 +318,79 @@ _cache_write_ttl: ContextVar[Literal["5m", "1h"] | None] = ContextVar(
 _last_request_start: ContextVar[float | None] = ContextVar(
     "anthropic_last_request_start", default=None
 )
+
+
+@dataclass
+class _ContinuationChain:
+    """The requests sent so far for one generate call (a head and its continuations)."""
+
+    requests: int = 0
+    """Number of requests that returned a response."""
+
+    usage: ModelUsage | None = None
+    """Usage summed over those requests (each one is billed)."""
+
+    input_context_tokens: int | None = None
+    """Input size of the head request, the one built from the generate input.
+
+    Later requests also carry the partial turn, which the returned message holds.
+    """
+
+    served: list[ServedModelUsage] = field(default_factory=list)
+    """Usage of each request, attributed to the model that served it."""
+
+    fallbacks: list[ModelFallback] = field(default_factory=list)
+    """Refusal fallbacks of the requests that had one, in request order."""
+
+    def add(self, output: ModelOutput, served: list[ServedModelUsage]) -> None:
+        """Add a request's output, and its usage attributed by serving model."""
+        self.requests += 1
+        self.usage = sum_usage(self.usage, output.usage)
+        if self.requests == 1:
+            self.input_context_tokens = (
+                output.input_context_tokens
+                if output.input_context_tokens is not None
+                else usage_input_tokens(output.usage)
+            )
+        self.served.extend(served)
+        if output.fallback is not None:
+            self.fallbacks.append(output.fallback)
+
+    def report(self, output: ModelOutput) -> None:
+        """Give the output returned for the generate call the chain's totals.
+
+        When a request fell back and the output does not describe that one
+        request alone, `output.fallback` describes the chain: `count` is the
+        number of requests that fell back, its metadata joins every
+        fallback's `handoffs` and `iterations`, and its `served_usage`
+        attributes each request's usage to the model that served it (see
+        `AnthropicAPI.served_model_usage`). `model` and `fallback_model`
+        come from the first and last fallbacks, so a chain that fell back to
+        different models names only the last one.
+        """
+        output.usage = self.usage
+        output.input_context_tokens = self.input_context_tokens
+        if not self.fallbacks or (self.requests == 1 and output.fallback is not None):
+            return
+        output.fallback = ModelFallback(
+            model=self.fallbacks[0].model,
+            fallback_model=self.fallbacks[-1].fallback_model,
+            count=len(self.fallbacks),
+            metadata={
+                key: [
+                    item
+                    for fallback in self.fallbacks
+                    for item in (fallback.metadata or {}).get(key) or []
+                ]
+                for key in ("handoffs", "iterations")
+            }
+            | {
+                "served_usage": [
+                    {"model": part.model, "usage": part.usage.model_dump()}
+                    for part in self.served
+                ]
+            },
+        )
 
 
 @dataclass
@@ -736,6 +811,16 @@ class AnthropicAPI(ModelAPI):
             ):
                 return [ServedModelUsage(f"anthropic/{output.model}", output.usage)]
             return None
+        # a pause_turn chain in which some request fell back (see
+        # `_ContinuationChain.report`)
+        served_usage = (fallback.metadata or {}).get("served_usage")
+        if isinstance(served_usage, list):
+            return [
+                ServedModelUsage(
+                    part["model"], ModelUsage.model_validate(part["usage"])
+                )
+                for part in served_usage
+            ]
         iterations = (fallback.metadata or {}).get("iterations")
         if isinstance(iterations, list) and any(
             isinstance(it, dict) and it.get("type") == "fallback_message"
@@ -743,6 +828,14 @@ class AnthropicAPI(ModelAPI):
         ):
             return _fallback_attempts_usage(iterations, self.service_model_name())
         return [ServedModelUsage(f"anthropic/{fallback.fallback_model}", output.usage)]
+
+    def _request_served_usage(self, output: ModelOutput) -> list[ServedModelUsage]:
+        """Usage of one request's output, attributed to the model that served it."""
+        if output.usage is None:
+            return []
+        return self.served_model_usage(output) or [
+            ServedModelUsage(f"anthropic/{self.service_model_name()}", output.usage)
+        ]
 
     @override
     def cache_write_ttl(self) -> str | None:
@@ -765,6 +858,10 @@ class AnthropicAPI(ModelAPI):
         # allocate request_id (so we can see it from ModelCall)
         with self._http_hooks.request() as request_id:
             model_call: ModelCall | None = None
+
+            # an error converted to an output below still reports the usage of
+            # the requests that succeeded before it
+            chain = _ContinuationChain()
 
             # generate
             try:
@@ -795,9 +892,9 @@ class AnthropicAPI(ModelAPI):
                 if system_param is not None:
                     request["system"] = system_param
                 request["tools"] = tools_param
-                # with thinking active, tool_choice is omitted entirely (the API
-                # rejects forced tool choice with thinking; long-standing behavior
-                # for all Claude models)
+                # extended thinking rejects forced tool choice (400), so
+                # tool_choice is omitted entirely with it; adaptive thinking
+                # accepts it (the model skips thinking on a forced turn)
                 tool_choice_degraded = False
                 if len(tools_param) > 0:
                     resolved_choice = self.resolved_tool_choice(tool_choice)
@@ -817,10 +914,15 @@ class AnthropicAPI(ModelAPI):
                         )
                         resolved_choice = "auto"
                     tool_choice_degraded = resolved_choice != tool_choice
-                    if not self.is_using_thinking(config):
+                    if not self.is_using_extended_thinking(config):
                         request["tool_choice"] = message_tool_choice(
                             resolved_choice, config
                         )
+                        if (
+                            isinstance(resolved_choice, ToolFunction)
+                            and resolved_choice.name == "web_search"
+                        ):
+                            _allow_direct_web_search(tools_param)
 
                 # additional options
                 req, extra_body, headers, betas = self.completion_config(config)
@@ -935,9 +1037,10 @@ class AnthropicAPI(ModelAPI):
 
                 try:
                     response, output = await self._perform_request_and_continuations(
-                        request, streaming, tools, config
+                        request, streaming, tools, config, chain=chain
                     )
                 except (BadRequestError, APIStatusError) as ex:
+                    ex = _normalize_stream_error(ex)
                     model_call.set_error(
                         as_error_response(ex.body),
                         self._http_hooks.end_request(request_id),
@@ -960,22 +1063,28 @@ class AnthropicAPI(ModelAPI):
                 return output, model_call
 
             except BadRequestError as ex:
-                return self.handle_bad_request(ex), model_call or ModelCall(request={})
+                handled = self.handle_bad_request(ex)
+                if isinstance(handled, ModelOutput):
+                    chain.report(handled)
+                return handled, model_call or ModelCall(request={})
 
             except APIStatusError as ex:
                 if ex.status_code == 413:
-                    return ModelOutput.from_content(
+                    too_large = ModelOutput.from_content(
                         model=self.service_model_name(),
                         content=ex.message,
                         stop_reason="model_length",
                         error=ex.message,
-                    ), model_call or ModelCall(request={})
+                    )
+                    chain.report(too_large)
+                    return too_large, model_call or ModelCall(request={})
                 # Content-filter errors that arrive mid-stream surface as a plain
                 # APIStatusError (the SDK can't infer the 400 subclass once the
                 # HTTP response was 200), so route through handle_bad_request to
                 # convert them into a content_filter refusal.
                 handled = self.handle_bad_request(ex)
                 if isinstance(handled, ModelOutput):
+                    chain.report(handled)
                     return handled, model_call or ModelCall(request={})
                 raise ex
 
@@ -1141,12 +1250,16 @@ class AnthropicAPI(ModelAPI):
         | None = None,
         pending_mcp_tool_uses: dict[str, BetaMCPToolUseBlock] | None = None,
         span_recorder: "_ServerToolSpanRecorder | None" = None,
+        chain: _ContinuationChain | None = None,
     ) -> tuple[dict[str, Any], ModelOutput]:
         """
         This helper function is split out so that it can be easily call itself recursively in cases where the model requires a continuation
 
         It considers the result from the initial request the "head" and the result
-        from the continuation the "tail".
+        from the continuation the "tail". The returned output's usage is the sum
+        over the head and every continuation, since each one is billed; `chain`
+        holds that sum as requests complete, so a caller can still report it
+        when a later continuation raises.
         """
         # each continuation re-sends the same cache_control, so it refreshes the
         # cache entry at its own prefill -- record it as the gap baseline
@@ -1160,6 +1273,8 @@ class AnthropicAPI(ModelAPI):
             # block in the head message, result in the tail) so the recorder
             # is threaded through continuations like pending_tool_uses
             span_recorder = _ServerToolSpanRecorder()
+        if chain is None:
+            chain = _ContinuationChain()
 
         # TODO: Bogus that we have to do this on each call. Ideally, it would be
         # done only once and ideally by non-provider specific code.
@@ -1195,6 +1310,7 @@ class AnthropicAPI(ModelAPI):
             cache_diagnostics=self.cache_diagnostics_enabled(config),
             span_recorder=span_recorder,
         )
+        chain.add(head_model_output, self._request_served_usage(head_model_output))
 
         if continuation_required:
             tail_request = dict(request)
@@ -1213,6 +1329,7 @@ class AnthropicAPI(ModelAPI):
                 pending_tool_uses=pending_tool_uses,
                 pending_mcp_tool_uses=pending_mcp_tool_uses,
                 span_recorder=span_recorder,
+                chain=chain,
             )
 
             head_content = _content_list(head_model_output.message.content)
@@ -1232,6 +1349,9 @@ class AnthropicAPI(ModelAPI):
             # even when it has needed to recurse. This is because model_call()
             # above doesn't currently support multiple requests
             return head_message.model_dump(warnings="none"), tail_model_output
+
+        # the last request of the chain reports the usage of all of them
+        chain.report(head_model_output)
 
         # NOTE: we do warnings="none" here because we are including beta API message
         # params (for MCP tool use/result) in the payload which causes Message to emit
@@ -1525,6 +1645,19 @@ class AnthropicAPI(ModelAPI):
         return self.is_thinking_model() and (
             (self.bridged_reasoning_tokens(config) is not None)
             or (self.effort_from_reasoning_effort(config) is not None)
+        )
+
+    def is_using_extended_thinking(self, config: GenerateConfig) -> bool:
+        """Whether the request uses extended thinking (`budget_tokens`).
+
+        Pre-4.6 Claude, and 4.6 with `reasoning_tokens` but no
+        `reasoning_effort`, use extended thinking; otherwise thinking is
+        adaptive (`effort`). Matches the `thinking` type chosen in
+        `completion_config`.
+        """
+        return (
+            self.is_using_thinking(config)
+            and self.effort_from_reasoning_effort(config) is None
         )
 
     def _supports_disabling_thinking(self) -> bool:
@@ -1891,21 +2024,16 @@ class AnthropicAPI(ModelAPI):
     @override
     def should_retry(self, ex: BaseException) -> bool | RetryDecision:
         if isinstance(ex, APIStatusError):
+            # A mid-stream SSE error event reaches here with the stream's 200
+            # status; give it its effective status first (a no-op once
+            # generate() has done so) so the rules below classify it.
+            ex = _normalize_stream_error(ex)
             retry_after = parse_retry_after_from_exception(ex)
-            # An error event delivered mid-stream surfaces as an
-            # APIStatusError with status_code == 200 (the SDK builds it from
-            # the SSE error body, not an HTTP status), so the status-based
-            # checks below can't classify it — classify from the body's
-            # error type: these are the in-band analogues of 429/529/500/408.
-            # Scoped to status 200 so that a real HTTP error status (e.g. a
-            # proxy's 4xx wrapping an anthropic-format body) keeps failing
-            # fast via the status rules.
-            if ex.status_code == 200 and isinstance(ex.body, dict):
-                error_type = _error_type_from_body(ex.body)
-                if error_type == "rate_limit_error":
-                    return RetryDecision.rate_limit(retry_after=retry_after)
-                if error_type in ("overloaded_error", "api_error", "timeout_error"):
-                    return RetryDecision.transient(retry_after=retry_after)
+            if ex.status_code == 429:
+                # The provider's own classification outranks any message text:
+                # a rate_limit_error whose message mentions overload is still a
+                # rate limit, and only that kind feeds adaptive concurrency.
+                return RetryDecision.rate_limit(retry_after=retry_after)
             if isinstance(ex.body, dict | str):
                 # message-based fallback for error bodies without a
                 # recognized type (a mid-stream error event whose data fails
@@ -1922,11 +2050,12 @@ class AnthropicAPI(ModelAPI):
                 ):
                     return RetryDecision.transient(retry_after=retry_after)
 
-            # standard http status code checking
+            if isinstance(ex, _UnclassifiedStreamError):
+                return RetryDecision.no()
+
+            # standard http status code checking (429 was decided above)
             if not is_retryable_http_status(ex.status_code):
                 return RetryDecision.no()
-            if ex.status_code == 429:
-                return RetryDecision.rate_limit(retry_after=retry_after)
             return RetryDecision.transient(retry_after=retry_after)
 
         decision = httpx_classify_retry(ex)
@@ -2664,6 +2793,9 @@ def _supports_memory(model_name: str) -> bool:
     ) or _is_claude_5(model_name)
 
 
+_WEB_SEARCH_TOOL_TYPES = ("web_search_20250305", "web_search_20260209")
+
+
 def _web_search_tool_params(
     maybe_anthropic_options: object,
     web_search_filtering: bool = False,
@@ -2679,6 +2811,17 @@ def _web_search_tool_params(
         raise TypeError(
             f"Expected a dictionary for anthropic_options, got {type(maybe_anthropic_options)}"
         )
+
+    # an explicit search tool version (e.g. the one a bridged client declared)
+    # selects the matching search/fetch pair
+    if maybe_anthropic_options and "type" in maybe_anthropic_options:
+        tool_type = maybe_anthropic_options["type"]
+        if tool_type not in _WEB_SEARCH_TOOL_TYPES:
+            raise ValueError(
+                f"Unsupported Anthropic web_search tool type {tool_type!r} "
+                f"(supported: {', '.join(_WEB_SEARCH_TOOL_TYPES)})."
+            )
+        web_search_filtering = tool_type == "web_search_20260209"
 
     # use the dynamic filtering tool versions when supported (these run web
     # search/fetch inside the code execution sandbox so the model can filter
@@ -2720,6 +2863,11 @@ def _web_search_tool_params(
             web_fetch_tool["max_uses"] = web_search_tool["max_uses"]
         if "user_location" in maybe_anthropic_options:
             web_search_tool["user_location"] = maybe_anthropic_options["user_location"]
+        if "allowed_callers" in maybe_anthropic_options:
+            web_search_tool["allowed_callers"] = maybe_anthropic_options[
+                "allowed_callers"
+            ]
+            web_fetch_tool["allowed_callers"] = web_search_tool["allowed_callers"]
 
         if "citations" in maybe_anthropic_options:
             web_fetch_tool["citations"] = maybe_anthropic_options["citations"]
@@ -2792,6 +2940,23 @@ def is_web_fetch_tool(
     param: ToolParamDef,
 ) -> TypeGuard[BetaWebFetchTool20250910Param | BetaWebFetchTool20260209Param]:
     return param.get("name") == "web_fetch" and not is_tool_param(param)
+
+
+def _allow_direct_web_search(tools_param: list[ToolParamDef]) -> None:
+    """Let a forced tool choice call the dynamic filtering web search.
+
+    `web_search_20260209` defaults `allowed_callers` to the code execution
+    caller only, and the API rejects a `tool_choice` naming a tool the model
+    cannot call directly. A forced choice is a request for a direct call, so
+    add the direct caller unless `allowed_callers` was set explicitly.
+    """
+    for param in tools_param:
+        if (
+            is_web_search_tool(param)
+            and param["type"] == "web_search_20260209"
+            and "allowed_callers" not in param
+        ):
+            param["allowed_callers"] = ["direct", "code_execution_20260120"]
 
 
 def is_memory_tool(param: ToolParamDef) -> TypeGuard[BetaMemoryTool20250818Param]:
@@ -4391,6 +4556,7 @@ async def model_output_from_message(
         isinstance(it, dict) and it.get("type") == "fallback_message"
         for it in iterations
     )
+    input_context_tokens: int | None = None
     if (
         isinstance(iterations, list)
         and len(iterations) > 0
@@ -4403,6 +4569,15 @@ async def model_output_from_message(
         output_tokens = sum(
             it.get("output_tokens", 0) for it in iterations if isinstance(it, dict)
         )
+        # the first iteration read the request's input (later ones read a
+        # compacted or extended version of it)
+        first = next((it for it in iterations if isinstance(it, dict)), None)
+        if first is not None:
+            input_context_tokens = (
+                (first.get("input_tokens") or 0)
+                + (first.get("cache_read_input_tokens") or 0)
+                + (first.get("cache_creation_input_tokens") or 0)
+            )
     else:
         input_tokens = message.usage.input_tokens
         output_tokens = message.usage.output_tokens
@@ -4490,6 +4665,7 @@ async def model_output_from_message(
                 input_tokens_cache_read=input_tokens_cache_read,
                 reasoning_tokens=reasoning_tokens if reasoning_tokens > 0 else None,
             ),
+            input_context_tokens=input_context_tokens,
             fallback=fallback,
             metadata=metadata,
             response_id=message.id,
@@ -5161,18 +5337,74 @@ def _warn_refusal_without_fallback(
     )
 
 
-def _error_type_from_body(body: dict[str, Any]) -> str | None:
-    """Extract the API error type from an error response body.
+# The HTTP status Anthropic sends with each error type on the Messages API. Batch
+# results classify some of these types differently (`_anthropic_batch.py`): a batch
+# result carries no HTTP response, so it borrows each SDK subclass's own status
+# (a billing error becomes a 403 PermissionDeniedError there). These are the wire
+# statuses, and the sandbox proxy's inverse table must invert exactly this one.
+_ANTHROPIC_ERROR_TYPE_STATUS = {
+    "invalid_request_error": 400,
+    "authentication_error": 401,
+    "billing_error": 402,
+    "permission_error": 403,
+    "not_found_error": 404,
+    "conflict_error": 409,
+    "request_too_large": 413,
+    "rate_limit_error": 429,
+    "api_error": 500,
+    "timeout_error": 504,
+    "overloaded_error": 529,
+}
 
-    The SDK attaches the full error envelope as `ex.body` — for both
-    mid-stream SSE error events and non-streaming HTTP errors —
-    ({"type": "error", "error": {"type": "rate_limit_error", ...}}).
+
+class _UnclassifiedStreamError(APIStatusError):
+    """A mid-stream SSE error event this provider could not classify.
+
+    Its type is absent from `_ANTHROPIC_ERROR_TYPE_STATUS`, its `error` is not a
+    mapping, or its body did not decode. It carries a 500 so the failure is
+    reported as one rather than escaping as the stream's 200, but nothing says
+    the failure is transient, so `should_retry` exempts this type from the
+    status rules; only the message-text fallback can retry it. An ordinary HTTP
+    500 is never this type.
     """
-    error = body.get("error")
+
+
+def _normalize_stream_error(ex: APIStatusError) -> APIStatusError:
+    """Give a mid-stream SSE error event its effective HTTP status and message.
+
+    The SDK raises `APIStatusError` for an SSE `error` event with the stream's
+    own status (200) and the event's data as `body`: the error envelope when it
+    parsed, the raw string when it did not. The real status is only implied by
+    the envelope's `type`. Returns the exception every downstream reader --
+    retry classification, bad-request handling, the agent bridge -- should see:
+    `ex` itself, rewritten in place with the status the provider meant, or a
+    `_UnclassifiedStreamError` built from it when the event cannot be
+    classified. Callers raise or classify the returned exception, not `ex`;
+    `ex` is nonetheless left consistent (a 500 on both `status_code` and its
+    `response`), since it survives as the raised error's `__context__`. The
+    body is left as the SDK captured it so the diagnostic survives.
+
+    A 200 here is never a success: the SDK raised, so the provider reported a
+    failure. Returns an ordinary HTTP error or an already-normalized exception
+    unchanged.
+    """
+    if ex.status_code != 200:
+        return ex
+    status: int | None = None
+    error = ex.body.get("error") if isinstance(ex.body, dict) else None
     if isinstance(error, dict):
         error_type = error.get("type")
-        return error_type if isinstance(error_type, str) else None
-    return None
+        if isinstance(error_type, str):
+            status = _ANTHROPIC_ERROR_TYPE_STATUS.get(error_type)
+        message = error.get("message")
+        if isinstance(message, str):
+            ex.message = message
+            ex.args = (message,)
+    if status is None:
+        ex.status_code = ex.response.status_code = 500
+        return _UnclassifiedStreamError(ex.message, response=ex.response, body=ex.body)
+    ex.status_code = ex.response.status_code = status
+    return ex
 
 
 def _strip_reasoning(message: ChatMessageAssistant) -> ChatMessageAssistant:

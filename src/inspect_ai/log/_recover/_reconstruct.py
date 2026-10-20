@@ -232,6 +232,7 @@ def reconstruct_eval_sample(
         input=summary.input,
         choices=summary.choices,
         target=summary.target,
+        description=summary.description,
         metadata=sample_metadata if sample_metadata is not None else summary.metadata,
         messages=messages,
         output=output,

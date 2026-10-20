@@ -6,6 +6,7 @@ instead, and resolves a rejection by telling the model and regenerating rather
 than by editing the response the scaffold sees.
 """
 
+import inspect
 import json
 import logging
 from pathlib import PurePosixPath
@@ -14,6 +15,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
+import inspect_ai._util.logger as inspect_logger
 from inspect_ai import Task, eval
 from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai.agent._agent import Agent, AgentState, agent
@@ -232,7 +234,13 @@ async def run_bridge(
         bridge.approval = approval
 
     output, _ = await bridge_generate(
-        bridge, model, list(messages), list(tools or []), None, GenerateConfig()
+        bridge,
+        model,
+        list(messages),
+        list(tools or []),
+        None,
+        GenerateConfig(),
+        requested_model=None,
     )
     return BridgeRun(output, inputs)
 
@@ -433,6 +441,54 @@ async def test_dispatched_call_modify_changing_the_target_fails_the_sample() -> 
     for path in ("a.txt", "b.txt"):
         with pytest.raises(PermissionError, match="was not proposed by the model"):
             await execute("host", "read_file", {"path": path})
+    tool.assert_not_awaited()
+
+
+async def test_modify_without_a_modified_call_is_rejected() -> None:
+    """A `modify` that carries no modified call never hands the original over."""
+    original = ToolCall(id="1", function="bash", arguments={"cmd": "rm -rf /"})
+    replacement = ToolCall(id="2", function="bash", arguments={"cmd": "ls"})
+    run = await run_bridge(
+        [tool_calls_output(original), tool_calls_output(replacement)],
+        approval=[
+            ApprovalPolicy(auto_approver("modify"), "bash(cmd='rm"),
+            ApprovalPolicy(auto_approver("approve"), "*"),
+        ],
+    )
+
+    # the model is told and generates again; the scaffold sees only the replacement
+    assert run.generations == 2
+    assert run.output.message.tool_calls == [replacement]
+    (result,) = run.tool_results(1)
+    assert result.tool_call_id == "1"
+    assert result.error is not None
+    assert result.error.type == "approval"
+    assert "no modified call" in result.error.message
+
+
+async def test_sandbox_modify_without_a_modified_call_grants_nothing() -> None:
+    tool = AsyncMock(return_value="contents")
+    bridge = sandbox_bridge_with_tool(
+        tool,
+        [
+            ApprovalPolicy(auto_approver("modify"), "read_file(path='secret"),
+            ApprovalPolicy(auto_approver("approve"), "*"),
+        ],
+    )
+    original = ToolCall(id="1", function="read_file", arguments={"path": "secret"})
+    replacement = ToolCall(id="2", function="read_file", arguments={"path": "a.txt"})
+
+    run = await run_bridge(
+        [tool_calls_output(original), tool_calls_output(replacement)],
+        bridge=bridge,
+        tools=declare("read_file"),
+    )
+
+    assert run.generations == 2
+    assert run.output.message.tool_calls == [replacement]
+    execute = call_host_tool(bridge)
+    with pytest.raises(PermissionError, match="was not proposed by the model"):
+        await execute("host", "read_file", {"path": "secret"})
     tool.assert_not_awaited()
 
 
@@ -959,20 +1015,40 @@ async def test_same_description_and_schema_grants_each_once() -> None:
     assert not bridge.consume_tool_execution_grant("b", "read_file", {"path": "x"})
 
 
-@pytest.fixture
-def capture_bridge_warnings(caplog: pytest.LogCaptureFixture) -> Iterator[None]:
-    """Route the sandbox bridge module's warnings to caplog.
+def capture_module_warnings(
+    caplog: pytest.LogCaptureFixture, module: str
+) -> Iterator[None]:
+    """Route a module's warnings to caplog.
 
     Attached directly because `init_logger` stops the inspect_ai logger
     propagating once an earlier test has triggered it.
     """
-    module_logger = logging.getLogger(SandboxAgentBridge.__module__)
+    module_logger = logging.getLogger(module)
     module_logger.addHandler(caplog.handler)
     try:
         with caplog.at_level(logging.WARNING, logger=module_logger.name):
             yield
     finally:
         module_logger.removeHandler(caplog.handler)
+
+
+@pytest.fixture
+def capture_bridge_warnings(caplog: pytest.LogCaptureFixture) -> Iterator[None]:
+    """Route the sandbox bridge module's warnings to caplog."""
+    yield from capture_module_warnings(caplog, SandboxAgentBridge.__module__)
+
+
+@pytest.fixture
+def capture_host_tool_warnings(
+    caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
+) -> Iterator[None]:
+    """Route the host tool service's warnings to caplog, with `warn_once` reset.
+
+    `warn_once` dedupes on a module-level list, so an earlier denial of the
+    same tool would otherwise suppress the warning.
+    """
+    monkeypatch.setattr(inspect_logger, "_warned", [])
+    yield from capture_module_warnings(caplog, call_host_tool.__module__)
 
 
 @pytest.mark.usefixtures("capture_bridge_warnings")
@@ -1165,6 +1241,462 @@ async def test_exact_match_wins_over_a_prefix_match() -> None:
 
     assert not bridge.consume_tool_execution_grant("b", "read_file", {"path": "x"})
     assert bridge.consume_tool_execution_grant("a", "read_file", {"path": "x"})
+
+
+ANTIGRAVITY_PREAMBLE = "This is a tool from the host MCP server.\n\n"
+
+
+async def test_description_with_a_scaffold_preamble_resolves() -> None:
+    """Antigravity declares every MCP tool as a fixed sentence plus the served description."""
+    tool = AsyncMock(return_value="contents")
+    bridge = sandbox_bridge_with_servers(
+        {"host": {"read_file": served_tool(tool, LONG)}}
+    )
+
+    bridge.register_tool_execution_grants(
+        [ToolCall(id="proposed", function="read_file", arguments={"path": "x"})],
+        declare("read_file", description=ANTIGRAVITY_PREAMBLE + LONG),
+    )
+
+    assert bridge.consume_tool_execution_grant("host", "read_file", {"path": "x"})
+
+
+async def test_preamble_longer_than_a_scaffold_sentence_does_not_resolve() -> None:
+    """A long leading text is a rewrite, not a preamble, and denotes nothing."""
+    bridge = sandbox_bridge_with_servers(
+        {"host": {"read_file": served_tool(AsyncMock(), LONG)}}
+    )
+
+    bridge.register_tool_execution_grants(
+        [ToolCall(id="proposed", function="read_file", arguments={"path": "x"})],
+        declare("read_file", description=("x" * 97) + LONG),
+    )
+
+    assert len(bridge._tool_execution_grants) == 0
+
+
+async def test_preamble_before_a_short_description_does_not_resolve() -> None:
+    """A short served text could be the accidental tail of any declaration."""
+    bridge = sandbox_bridge_with_servers(
+        {"host": {"read_file": served_tool(AsyncMock(), "Read a file.")}}
+    )
+
+    bridge.register_tool_execution_grants(
+        [ToolCall(id="proposed", function="read_file", arguments={"path": "x"})],
+        declare("read_file", description=ANTIGRAVITY_PREAMBLE + "Read a file."),
+    )
+
+    assert len(bridge._tool_execution_grants) == 0
+
+
+async def test_exact_match_wins_over_a_preamble_match() -> None:
+    """A declaration equal to one served description is that tool, not another it also ends with."""
+    bridge = sandbox_bridge_with_servers(
+        {
+            "a": {"read_file": served_tool(AsyncMock(), ANTIGRAVITY_PREAMBLE + LONG)},
+            "b": {"read_file": served_tool(AsyncMock(), LONG)},
+        }
+    )
+
+    bridge.register_tool_execution_grants(
+        [ToolCall(id="proposed", function="read_file", arguments={"path": "x"})],
+        declare("read_file", description=ANTIGRAVITY_PREAMBLE + LONG),
+    )
+
+    assert not bridge.consume_tool_execution_grant("b", "read_file", {"path": "x"})
+    assert bridge.consume_tool_execution_grant("a", "read_file", {"path": "x"})
+
+
+async def test_prefixed_copy_of_a_longer_description_does_not_grant_its_tail() -> None:
+    """The whole longer description is present, so the shorter tool it ends with is not denoted."""
+    tail = LONG
+    bridge = sandbox_bridge_with_servers(
+        {
+            "a": {"read_file": served_tool(AsyncMock(), "Only when asked. " + tail)},
+            "b": {"read_file": served_tool(AsyncMock(), tail)},
+        }
+    )
+
+    bridge.register_tool_execution_grants(
+        [ToolCall(id="proposed", function="read_file", arguments={"path": "x"})],
+        declare(
+            "read_file", description=ANTIGRAVITY_PREAMBLE + "Only when asked. " + tail
+        ),
+    )
+
+    assert not bridge.consume_tool_execution_grant("b", "read_file", {"path": "x"})
+    assert bridge.consume_tool_execution_grant("a", "read_file", {"path": "x"})
+    assert len(bridge._tool_execution_grants) == 0
+
+
+async def test_prefixed_copy_of_a_shared_description_grants_both() -> None:
+    """Two tools served the same text cannot be told apart through a preamble either."""
+    bridge = sandbox_bridge_with_servers(
+        {
+            "a": {"read_file": served_tool(AsyncMock(), LONG)},
+            "b": {"read_file": served_tool(AsyncMock(), LONG)},
+        }
+    )
+
+    bridge.register_tool_execution_grants(
+        [ToolCall(id="proposed", function="read_file", arguments={"path": "x"})],
+        declare("read_file", description=ANTIGRAVITY_PREAMBLE + LONG),
+    )
+
+    assert bridge.consume_tool_execution_grant("a", "read_file", {"path": "x"})
+    assert bridge.consume_tool_execution_grant("b", "read_file", {"path": "x"})
+
+
+INDENTED = """Control a browser and report what the page shows.
+
+        Use it to open pages and read their contents.
+
+        Args:
+            action: What to do.
+            url: Where to go.
+        """
+"""A served description that is a raw method docstring, as Python 3.10-3.12 keep it."""
+
+
+async def test_dedented_copy_of_an_indented_description_resolves() -> None:
+    """Antigravity declares `inspect.cleandoc` of an indented served description."""
+    bridge = sandbox_bridge_with_servers(
+        {"host": {"read_file": served_tool(AsyncMock(), INDENTED)}}
+    )
+
+    bridge.register_tool_execution_grants(
+        [ToolCall(id="proposed", function="read_file", arguments={"path": "x"})],
+        declare(
+            "read_file",
+            description=ANTIGRAVITY_PREAMBLE + inspect.cleandoc(INDENTED) + "\n",
+        ),
+    )
+
+    assert bridge.consume_tool_execution_grant("host", "read_file", {"path": "x"})
+
+
+async def test_copy_flattening_relative_indentation_does_not_resolve() -> None:
+    """Only the common indentation may be removed; nested indentation is content."""
+    bridge = sandbox_bridge_with_servers(
+        {"host": {"read_file": served_tool(AsyncMock(), INDENTED)}}
+    )
+    flattened = "\n".join(line.strip() for line in INDENTED.strip().split("\n"))
+
+    bridge.register_tool_execution_grants(
+        [ToolCall(id="proposed", function="read_file", arguments={"path": "x"})],
+        declare("read_file", description=ANTIGRAVITY_PREAMBLE + flattened),
+    )
+
+    assert len(bridge._tool_execution_grants) == 0
+
+
+# ---------------------------------------------------------------------------
+# a granted key the served schema does not declare (consume_tool_execution_grant)
+# ---------------------------------------------------------------------------
+
+
+async def test_undeclared_granted_key_absent_from_executed_args_still_grants() -> None:
+    """A scaffold-proposed bookkeeping key the schema never declared is dropped.
+
+    Measured from a real Antigravity session: the scaffold proposes
+    `{"action": "navigate", "url": ..., "toolSummary": ...}` to the model for the
+    `browser` tool, whose own schema declares only `action` and `url`, then
+    dispatches the real call without `toolSummary`. The grant must still resolve.
+    """
+    bridge = sandbox_bridge_with_servers(
+        {
+            "host": {
+                "browser": served_tool(
+                    AsyncMock(), parameters=("action", "url"), name="browser"
+                )
+            }
+        }
+    )
+
+    bridge.register_tool_execution_grants(
+        [
+            ToolCall(
+                id="proposed",
+                function="browser",
+                arguments={
+                    "action": "navigate",
+                    "url": "https://example.com/product/814207",
+                    "toolSummary": "Product page lookup",
+                },
+            )
+        ],
+        declare("browser", parameters=("action", "url")),
+    )
+
+    assert bridge.consume_tool_execution_grant(
+        "host",
+        "browser",
+        {"action": "navigate", "url": "https://example.com/product/814207"},
+    )
+
+
+async def test_executed_args_with_an_undeclared_key_still_denies() -> None:
+    """Dropping an undeclared GRANTED key never licenses an undeclared EXECUTED one."""
+    bridge = sandbox_bridge_with_servers(
+        {
+            "host": {
+                "browser": served_tool(
+                    AsyncMock(), parameters=("action", "url"), name="browser"
+                )
+            }
+        }
+    )
+
+    bridge.register_tool_execution_grants(
+        [
+            ToolCall(
+                id="proposed",
+                function="browser",
+                arguments={
+                    "action": "navigate",
+                    "url": "https://example.com/product/814207",
+                },
+            )
+        ],
+        declare("browser", parameters=("action", "url")),
+    )
+
+    assert not bridge.consume_tool_execution_grant(
+        "host",
+        "browser",
+        {
+            "action": "navigate",
+            "url": "https://example.com/product/814207",
+            "unexpected": "value",
+        },
+    )
+
+
+async def test_executed_args_repeating_a_proposed_undeclared_key_still_grants() -> None:
+    """A call executed exactly as proposed is granted, undeclared keys included."""
+    bridge = sandbox_bridge_with_servers(
+        {
+            "host": {
+                "browser": served_tool(
+                    AsyncMock(), parameters=("action", "url"), name="browser"
+                )
+            }
+        }
+    )
+    proposed = {
+        "action": "navigate",
+        "url": "https://example.com/product/814207",
+        "unexpected": "value",
+    }
+
+    bridge.register_tool_execution_grants(
+        [ToolCall(id="proposed", function="browser", arguments=proposed)],
+        declare("browser", parameters=("action", "url")),
+    )
+
+    assert bridge.consume_tool_execution_grant("host", "browser", dict(proposed))
+    assert len(bridge._tool_execution_grants) == 0
+
+
+async def test_an_exact_grant_wins_over_an_earlier_filtered_one() -> None:
+    """A call consumes the grant it repeats exactly before one it matches only after filtering."""
+    bridge = sandbox_bridge_with_servers(
+        {
+            "host": {
+                "browser": served_tool(
+                    AsyncMock(), parameters=("action", "url"), name="browser"
+                )
+            }
+        }
+    )
+    without_extra = {"action": "navigate", "url": "https://example.com/product/814207"}
+    with_extra = {**without_extra, "unexpected": "value"}
+
+    bridge.register_tool_execution_grants(
+        [
+            ToolCall(id="first", function="browser", arguments=with_extra),
+            ToolCall(id="second", function="browser", arguments=without_extra),
+        ],
+        declare("browser", parameters=("action", "url")),
+    )
+
+    assert bridge.consume_tool_execution_grant("host", "browser", dict(without_extra))
+    assert bridge.consume_tool_execution_grant("host", "browser", dict(with_extra))
+    assert len(bridge._tool_execution_grants) == 0
+
+
+async def test_executed_args_changing_a_declared_value_still_denies() -> None:
+    """A declared key must still match exactly, value included."""
+    bridge = sandbox_bridge_with_servers(
+        {
+            "host": {
+                "browser": served_tool(
+                    AsyncMock(), parameters=("action", "url"), name="browser"
+                )
+            }
+        }
+    )
+
+    bridge.register_tool_execution_grants(
+        [
+            ToolCall(
+                id="proposed",
+                function="browser",
+                arguments={
+                    "action": "navigate",
+                    "url": "https://example.com/product/814207",
+                    "toolSummary": "Product page lookup",
+                },
+            )
+        ],
+        declare("browser", parameters=("action", "url")),
+    )
+
+    assert not bridge.consume_tool_execution_grant(
+        "host",
+        "browser",
+        {"action": "navigate", "url": "https://example.com/product/999999"},
+    )
+
+
+async def test_executed_args_dropping_a_declared_key_still_denies() -> None:
+    """A declared key must still be PRESENT on the executed side."""
+    bridge = sandbox_bridge_with_servers(
+        {
+            "host": {
+                "browser": served_tool(
+                    AsyncMock(), parameters=("action", "url"), name="browser"
+                )
+            }
+        }
+    )
+
+    bridge.register_tool_execution_grants(
+        [
+            ToolCall(
+                id="proposed",
+                function="browser",
+                arguments={
+                    "action": "navigate",
+                    "url": "https://example.com/product/814207",
+                    "toolSummary": "Product page lookup",
+                },
+            )
+        ],
+        declare("browser", parameters=("action", "url")),
+    )
+
+    assert not bridge.consume_tool_execution_grant(
+        "host", "browser", {"action": "navigate"}
+    )
+
+
+async def test_closed_schema_without_properties_drops_every_undeclared_key() -> None:
+    """A schema that declares no arguments and forbids others binds an empty call."""
+    bridge = sandbox_bridge_with_servers(
+        {"host": {"browser": served_tool(AsyncMock(), parameters=(), name="browser")}}
+    )
+
+    bridge.register_tool_execution_grants(
+        [
+            ToolCall(
+                id="proposed",
+                function="browser",
+                arguments={"toolSummary": "Product page lookup"},
+            )
+        ],
+        declare("browser", parameters=()),
+    )
+
+    assert bridge.consume_tool_execution_grant("host", "browser", {})
+
+
+async def test_host_tool_executes_without_a_proposed_key_its_schema_forbids() -> None:
+    """The measured Antigravity shape, through the host tool service."""
+    tool = AsyncMock(return_value="contents")
+    bridge = sandbox_bridge_with_tool(tool, None)
+    call = ToolCall(
+        id="proposed",
+        function="read_file",
+        arguments={"path": "notes.txt", "toolSummary": "Read the notes"},
+    )
+
+    await run_bridge(
+        [tool_calls_output(call)], bridge=bridge, tools=declare(call.function)
+    )
+
+    execute = call_host_tool(bridge)
+    assert await execute("host", "read_file", {"path": "notes.txt"}) == "contents"
+    tool.assert_awaited_once_with(path="notes.txt")
+
+
+DELETE_PATH = "Delete a path on the host, or report what would be deleted."
+
+
+def open_host_tool(
+    mock: AsyncMock, additional_properties: ToolParam | bool | None
+) -> Tool:
+    """A variadic host tool declaring `path` that accepts other arguments too."""
+
+    async def execute(**kwargs: Any) -> str:
+        return await mock(**kwargs)
+
+    return ToolDef(
+        execute,
+        name="delete_path",
+        description=DELETE_PATH,
+        parameters=ToolParams(
+            properties={"path": ToolParam(type="string", description="path")},
+            required=["path"],
+            additionalProperties=additional_properties,
+        ),
+    ).as_tool()
+
+
+@pytest.mark.parametrize(
+    "additional_properties",
+    [True, ToolParam(type="boolean"), None],
+    ids=["true", "schema", "omitted"],
+)
+async def test_open_schema_host_tool_cannot_drop_an_approved_argument(
+    additional_properties: ToolParam | bool | None,
+) -> None:
+    """On a schema admitting other arguments, an undeclared one is a real argument.
+
+    The approver adds `dry_run`; executing without it would run a different
+    action than the one approved.
+    """
+    tool = AsyncMock(return_value="done")
+    bridge = SandboxAgentBridge(
+        state=AgentState(messages=[]),
+        filter=None,
+        retry_refusals=None,
+        compaction=None,
+        port=13131,
+        model=None,
+        approval=[
+            ApprovalPolicy(modifying_approver({"path": "target", "dry_run": True}), "*")
+        ],
+        bridged_tools={
+            "host": {"delete_path": open_host_tool(tool, additional_properties)}
+        },
+    )
+    call = ToolCall(id="proposed", function="delete_path", arguments={"path": "target"})
+
+    await run_bridge(
+        [tool_calls_output(call)],
+        bridge=bridge,
+        tools=declare(call.function, description=DELETE_PATH),
+    )
+
+    execute = call_host_tool(bridge)
+    with pytest.raises(PermissionError, match="was not proposed by the model"):
+        await execute("host", "delete_path", {"path": "target"})
+    tool.assert_not_awaited()
+    assert await execute(
+        "host", "delete_path", {"path": "target", "dry_run": True}
+    ) == ("done")
+    tool.assert_awaited_once_with(path="target", dry_run=True)
 
 
 # ---------------------------------------------------------------------------
@@ -1526,6 +2058,91 @@ async def test_opted_out_server_stores_no_grants() -> None:
     )
 
     assert len(bridge._tool_execution_grants) == 0
+
+
+@pytest.mark.usefixtures("capture_host_tool_warnings")
+async def test_denial_warning_names_the_opt_out(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """The log names `require_proposal=False`; the error the model sees is unchanged."""
+    bridge = sandbox_bridge_with_tool(AsyncMock(return_value="contents"), None)
+
+    with pytest.raises(PermissionError) as denied:
+        await call_host_tool(bridge)("host", "read_file", {"path": "notes.txt"})
+
+    assert str(denied.value) == (
+        "Host tool call 'host/read_file' was not proposed by the model in a "
+        "bridged generation (a bridged host tool runs once per proposed call)"
+    )
+    warnings = [r.getMessage() for r in caplog.records]
+    assert len(warnings) == 1
+    assert warnings[0].startswith("Denied host tool call 'host/read_file'")
+    assert (
+        "set require_proposal=False on the existing BridgedToolsSpec for server "
+        "'host'" in warnings[0]
+    )
+
+
+CODE_MODE_EXEC = (
+    "Run JavaScript code to orchestrate/compose tool calls.\n\n"
+    "### `mcp__host__read_file`\n"
+    f"{READ_FILE}\n\n"
+    "```ts\n"
+    "declare function mcp__host__read_file(args: { path?: string }): "
+    "Promise<unknown>;\n"
+    "```\n"
+)
+"""Codex code mode's `exec` description with the inline nested-tool catalog."""
+
+
+async def run_code_mode_exec(bridge: SandboxAgentBridge) -> None:
+    """A code-mode turn: the model proposes only `exec`, whose script calls `read_file`."""
+    call = ToolCall(
+        id="exec",
+        function="exec",
+        arguments={"input": 'await tools.mcp__host__read_file({"path": "notes.txt"});'},
+    )
+    await run_bridge(
+        [tool_calls_output(call)],
+        bridge=bridge,
+        tools=declare("exec", description=CODE_MODE_EXEC, parameters=("input",))
+        + declare("wait", description="Wait for a running exec.", parameters=()),
+    )
+
+
+async def test_code_mode_exec_call_grants_no_nested_tool() -> None:
+    """An `exec` proposal grants nothing for the host tool calls its script makes.
+
+    The script's calls and their arguments are decided when it runs in the
+    sandbox, so a grant from the `exec` proposal would authorize whatever the
+    sandbox makes of the script; parsing literal calls out of the script would
+    bring back name matching and cover only some scripts. The bridge does not
+    detect code mode either: current Codex defers MCP tools in code mode, so the
+    `exec` declaration names none of them, and an unproposed call from a script
+    looks the same as a model probing the endpoint.
+    """
+    tool = AsyncMock(return_value="contents")
+    bridge = sandbox_bridge_with_tool(tool, None)
+
+    await run_code_mode_exec(bridge)
+
+    assert len(bridge._tool_execution_grants) == 0
+    with pytest.raises(PermissionError, match="was not proposed by the model"):
+        await call_host_tool(bridge)("host", "read_file", {"path": "notes.txt"})
+    tool.assert_not_awaited()
+
+
+async def test_code_mode_exec_call_runs_nested_tool_when_opted_out() -> None:
+    """`require_proposal=False` is the remedy the docs give for code mode."""
+    tool = AsyncMock(return_value="contents")
+    bridge = sandbox_bridge_with_tool(tool, None, require_proposal=False)
+
+    await run_code_mode_exec(bridge)
+
+    result = await call_host_tool(bridge)("host", "read_file", {"path": "notes.txt"})
+
+    assert result == "contents"
+    tool.assert_awaited_once_with(path="notes.txt")
 
 
 def multi_choice_output_with_tool_call_alternate() -> ModelOutput:

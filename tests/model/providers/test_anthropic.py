@@ -630,7 +630,17 @@ def test_anthropic_handle_bad_request_content_filter_apistatuserror() -> None:
 
 
 @pytest.mark.anyio
-async def test_anthropic_generate_handles_midstream_content_filter() -> None:
+@pytest.mark.parametrize(
+    "error_type",
+    [
+        "invalid_request_error",
+        # a type the provider cannot classify still routes through handle_bad_request
+        "some_future_error",
+    ],
+)
+async def test_anthropic_generate_handles_midstream_content_filter(
+    error_type: str,
+) -> None:
     """generate() must convert a mid-stream APIStatusError into a content_filter refusal.
 
     Regression: the outer `except APIStatusError` block previously only handled
@@ -652,6 +662,7 @@ async def test_anthropic_generate_handles_midstream_content_filter() -> None:
         pending_tool_uses: Any = None,
         pending_mcp_tool_uses: Any = None,
         span_recorder: Any = None,
+        chain: Any = None,
     ) -> tuple[dict[str, Any], ModelOutput]:
         raise APIStatusError(
             "Output blocked by content filtering policy",
@@ -662,7 +673,7 @@ async def test_anthropic_generate_handles_midstream_content_filter() -> None:
             body={
                 "type": "error",
                 "error": {
-                    "type": "invalid_request_error",
+                    "type": error_type,
                     "message": "Output blocked by content filtering policy",
                 },
             },
@@ -1018,6 +1029,180 @@ async def test_anthropic_continuation_preserves_server_tool_pairing() -> None:
     assert tool_uses[0].id == "toolu_1"
 
 
+def _pause_turn_chain_api(messages: list[Any]) -> tuple[AnthropicAPI, AsyncMock]:
+    """An API whose client returns `messages` in turn, for continuation tests."""
+    from anthropic import AsyncAnthropic
+
+    api = create_autospec(AnthropicAPI, instance=True)
+    api._batcher = None
+    api.model_name = "claude-sonnet-4-6"
+    api.service_model_name.return_value = "claude-sonnet-4-6"
+    api.cache_diagnostics_enabled.return_value = False
+
+    client = create_autospec(AsyncAnthropic, instance=True)
+    create = AsyncMock(side_effect=messages)
+    client.messages.create = create
+    api.client = client
+
+    # Bind the real method so recursive continuation calls work
+    api._perform_request_and_continuations = types.MethodType(
+        AnthropicAPI._perform_request_and_continuations, api
+    )
+    return api, create
+
+
+def _chain_message(index: int, stop_reason: str) -> Any:
+    from anthropic.types import Message, TextBlock, Usage
+    from anthropic.types.output_tokens_details import OutputTokensDetails
+
+    return Message(
+        id=f"msg_{index}",
+        type="message",
+        role="assistant",
+        model="claude-sonnet-4-6",
+        stop_reason=cast(Any, stop_reason),
+        content=[TextBlock(type="text", text=f"part {index}")],
+        usage=Usage(
+            input_tokens=10 * index,
+            output_tokens=index,
+            cache_creation_input_tokens=100 * index,
+            cache_read_input_tokens=1000 * index,
+            output_tokens_details=OutputTokensDetails(thinking_tokens=index),
+        ),
+    )
+
+
+async def test_anthropic_pause_turn_chain_sums_usage() -> None:
+    """Usage covers the head request and every pause_turn continuation."""
+    api, create = _pause_turn_chain_api(
+        [
+            _chain_message(1, "pause_turn"),
+            _chain_message(2, "pause_turn"),
+            _chain_message(3, "end_turn"),
+        ]
+    )
+
+    _, output = await api._perform_request_and_continuations(
+        request={"messages": []},
+        streaming=False,
+        tools=[],
+        config=GenerateConfig(),
+    )
+
+    assert create.await_count == 3
+    assert output.stop_reason == "stop"
+    assert output.message.text == "part 1\npart 2\npart 3"
+    assert output.usage is not None
+    assert output.usage.input_tokens == 10 + 20 + 30
+    assert output.usage.output_tokens == 1 + 2 + 3
+    assert output.usage.input_tokens_cache_write == 100 + 200 + 300
+    assert output.usage.input_tokens_cache_read == 1000 + 2000 + 3000
+    assert output.usage.reasoning_tokens == 1 + 2 + 3
+    assert output.usage.total_tokens == 1111 * (1 + 2 + 3)
+    # the context size is the head request's input, not the sum
+    assert output.input_context_tokens == 10 + 100 + 1000
+
+
+def _handled_continuation_error(kind: str) -> Exception:
+    """An API error that generate() converts into a ModelOutput."""
+    import httpx2
+    from anthropic import APIStatusError, BadRequestError
+
+    request = httpx2.Request("POST", "https://api.anthropic.com/v1/messages")
+    if kind == "too_large":
+        return APIStatusError(
+            "Request too large",
+            response=httpx2.Response(status_code=413, request=request),
+            body=None,
+        )
+    message = {
+        "prompt_too_long": "prompt is too long: 250000 tokens > 200000 maximum",
+        "content_filter": "Output blocked by content filtering policy",
+    }[kind]
+    return BadRequestError(
+        message,
+        response=httpx2.Response(status_code=400, request=request),
+        body={
+            "type": "error",
+            "error": {"type": "invalid_request_error", "message": message},
+        },
+    )
+
+
+_HANDLED_ERROR_STOP_REASONS = {
+    "prompt_too_long": "model_length",
+    "content_filter": "content_filter",
+    "too_large": "model_length",
+}
+
+
+@pytest.mark.parametrize("kind", list(_HANDLED_ERROR_STOP_REASONS))
+async def test_anthropic_continuation_error_keeps_earlier_usage(kind: str) -> None:
+    """A continuation error converted to an output keeps the billed heads' usage."""
+    from anthropic import AsyncAnthropic
+
+    from inspect_ai.model._model_output import ModelOutput
+
+    api = AnthropicAPI(
+        model_name="claude-sonnet-4-6", api_key="test-key", streaming=False
+    )
+    client = create_autospec(AsyncAnthropic, instance=True)
+    create = AsyncMock(
+        side_effect=[
+            _chain_message(1, "pause_turn"),
+            _chain_message(2, "pause_turn"),
+            _handled_continuation_error(kind),
+        ]
+    )
+    client.messages.create = create
+    api.client = client
+
+    output, _ = await api.generate(
+        input=[ChatMessageUser(content="hello")],
+        tools=[],
+        tool_choice="auto",
+        config=GenerateConfig(max_tokens=64),
+    )
+
+    assert create.await_count == 3
+    assert isinstance(output, ModelOutput)
+    assert output.stop_reason == _HANDLED_ERROR_STOP_REASONS[kind]
+    assert output.usage is not None
+    assert output.usage.input_tokens == 10 + 20
+    assert output.usage.output_tokens == 1 + 2
+    assert output.usage.input_tokens_cache_write == 100 + 200
+    assert output.usage.input_tokens_cache_read == 1000 + 2000
+    assert output.usage.reasoning_tokens == 1 + 2
+    assert output.input_context_tokens == 10 + 100 + 1000
+
+
+@pytest.mark.parametrize("kind", list(_HANDLED_ERROR_STOP_REASONS))
+async def test_anthropic_initial_request_error_reports_no_usage(kind: str) -> None:
+    """A rejected first request was not billed, so its output has no usage."""
+    from anthropic import AsyncAnthropic
+
+    from inspect_ai.model._model_output import ModelOutput
+
+    api = AnthropicAPI(
+        model_name="claude-sonnet-4-6", api_key="test-key", streaming=False
+    )
+    client = create_autospec(AsyncAnthropic, instance=True)
+    client.messages.create = AsyncMock(side_effect=[_handled_continuation_error(kind)])
+    api.client = client
+
+    output, _ = await api.generate(
+        input=[ChatMessageUser(content="hello")],
+        tools=[],
+        tool_choice="auto",
+        config=GenerateConfig(max_tokens=64),
+    )
+
+    assert isinstance(output, ModelOutput)
+    assert output.stop_reason == _HANDLED_ERROR_STOP_REASONS[kind]
+    assert output.usage is None
+    assert output.input_context_tokens is None
+
+
 @pytest.mark.anyio
 @skip_if_no_anthropic
 async def test_anthropic_prompt_caching() -> None:
@@ -1189,6 +1374,7 @@ async def test_anthropic_top_level_cache_control_skipped_on_bedrock_vertex(
         pending_tool_uses: Any = None,
         pending_mcp_tool_uses: Any = None,
         span_recorder: Any = None,
+        chain: Any = None,
     ) -> tuple[dict[str, Any], ModelOutput]:
         captured.update(request)
         return {}, ModelOutput.from_content(
@@ -2186,6 +2372,7 @@ async def test_anthropic_forced_tool_choice_request_wiring(
         pending_tool_uses: Any = None,
         pending_mcp_tool_uses: Any = None,
         span_recorder: Any = None,
+        chain: Any = None,
     ) -> tuple[dict[str, Any], ModelOutput]:
         captured.update(request)
         return {}, ModelOutput.from_content(
@@ -2224,24 +2411,45 @@ async def test_anthropic_forced_tool_choice_request_wiring(
 
 @pytest.mark.anyio
 @pytest.mark.parametrize(
-    "model_name,expect_degraded",
+    "model_name,config_kwargs,expected_tool_choice,expect_degraded",
     [
-        # forcing is never honored on 5.1 / Opus 5.5, so record the degradation
-        ("claude-fable-5-1", True),
-        ("claude-opus-5-5", True),
-        ("claude-sonnet-5-5", True),
-        # other models keep their existing log shape on this long-standing path
-        ("claude-opus-4-8", False),
-        ("claude-haiku-5-5", False),
+        # forced tool choice is rejected on these models, so it is degraded to
+        # auto (sent) and the degradation is recorded
+        ("claude-fable-5-1", {"reasoning_effort": "high"}, "auto", True),
+        ("claude-opus-5-5", {"reasoning_effort": "high"}, "auto", True),
+        ("claude-sonnet-5-5", {"reasoning_effort": "high"}, "auto", True),
+        # adaptive thinking accepts forced tool choice
+        ("claude-opus-4-6", {"reasoning_effort": "high"}, "any", False),
+        ("claude-sonnet-4-6", {"reasoning_effort": "high"}, "any", False),
+        ("claude-opus-4-7", {"reasoning_effort": "high"}, "any", False),
+        ("claude-opus-4-8", {"reasoning_effort": "high"}, "any", False),
+        ("claude-sonnet-5", {"reasoning_effort": "high"}, "any", False),
+        ("claude-opus-5", {"reasoning_effort": "high"}, "any", False),
+        ("claude-haiku-5-5", {"reasoning_effort": "high"}, "any", False),
+        # reasoning_effort selects adaptive thinking over reasoning_tokens
+        (
+            "claude-opus-4-6",
+            {"reasoning_effort": "high", "reasoning_tokens": 2048},
+            "any",
+            False,
+        ),
+        # extended thinking (budget_tokens) rejects forced tool choice, so
+        # tool_choice is omitted (long-standing behavior, no metadata)
+        ("claude-sonnet-4-5", {"reasoning_effort": "high"}, None, False),
+        ("claude-opus-4-6", {"reasoning_tokens": 2048}, None, False),
     ],
 )
 async def test_anthropic_forced_tool_choice_with_thinking_records_metadata(
-    model_name: str, expect_degraded: bool
+    model_name: str,
+    config_kwargs: dict[str, Any],
+    expected_tool_choice: str | None,
+    expect_degraded: bool,
 ) -> None:
-    """A forced choice dropped by the thinking gate is recorded on 5.1 models.
+    """Forced tool choice with thinking: kept, degraded, or omitted by model.
 
-    With thinking active, tool_choice is omitted for all Claude models; on
-    Fable/Mythos 5.1 the degradation must still land in the output metadata.
+    Adaptive thinking keeps a forced choice (including on Claude 4.6), models
+    that reject forcing degrade it to auto with metadata, and extended thinking
+    omits tool_choice.
     """
     from inspect_ai.model._model_output import ModelOutput
     from inspect_ai.tool._tool_params import ToolParam, ToolParams
@@ -2257,6 +2465,7 @@ async def test_anthropic_forced_tool_choice_with_thinking_records_metadata(
         pending_tool_uses: Any = None,
         pending_mcp_tool_uses: Any = None,
         span_recorder: Any = None,
+        chain: Any = None,
     ) -> tuple[dict[str, Any], ModelOutput]:
         captured.update(request)
         return {}, ModelOutput.from_content(
@@ -2276,10 +2485,21 @@ async def test_anthropic_forced_tool_choice_with_thinking_records_metadata(
                 )
             ],
             tool_choice="any",
-            config=GenerateConfig(max_tokens=64, reasoning_effort="high"),
+            config=GenerateConfig(
+                max_tokens=64, parallel_tool_calls=False, **config_kwargs
+            ),
         )
 
-    assert "tool_choice" not in captured
+    assert captured["thinking"]["type"] == (
+        "enabled" if expected_tool_choice is None else "adaptive"
+    )
+    if expected_tool_choice is None:
+        assert "tool_choice" not in captured
+    else:
+        assert captured["tool_choice"] == {
+            "type": expected_tool_choice,
+            "disable_parallel_tool_use": True,
+        }
     assert isinstance(output, ModelOutput)
     if expect_degraded:
         assert output.metadata is not None
@@ -2289,6 +2509,64 @@ async def test_anthropic_forced_tool_choice_with_thinking_records_metadata(
         }
     else:
         assert not (output.metadata or {}).get("tool_choice_degraded")
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    "config_kwargs,expected_thinking",
+    [
+        ({"reasoning_effort": "high"}, "adaptive"),
+        ({"reasoning_tokens": 2048}, "enabled"),
+        ({}, None),
+    ],
+)
+async def test_anthropic_tool_choice_none_with_thinking(
+    config_kwargs: dict[str, Any], expected_thinking: str | None
+) -> None:
+    """tool_choice="none" keeps the tools; only extended thinking omits it.
+
+    Anthropic requires tool definitions to validate tool history, so
+    `Model.generate` passes "none" through to the provider with the tools.
+    """
+    from inspect_ai.model._model_output import ModelOutput
+    from inspect_ai.tool._tool_params import ToolParam, ToolParams
+
+    model = get_model(
+        "anthropic/claude-sonnet-4-6",
+        api_key="test-key",
+        config=GenerateConfig(
+            max_tokens=4096, parallel_tool_calls=False, **config_kwargs
+        ),
+    )
+    captured: dict[str, Any] = {}
+
+    async def fake_perform(
+        request: dict[str, Any], *args: Any, **kwargs: Any
+    ) -> tuple[dict[str, Any], ModelOutput]:
+        captured.update(request)
+        return {}, ModelOutput.from_content(model=model.name, content="ok")
+
+    with patch.object(model.api, "_perform_request_and_continuations", fake_perform):
+        await model.generate(
+            input="What is 1 + 1?",
+            tools=[
+                ToolInfo(
+                    name="addition",
+                    description="Add two numbers.",
+                    parameters=ToolParams(
+                        properties={"x": ToolParam(type="integer")}, required=["x"]
+                    ),
+                )
+            ],
+            tool_choice="none",
+        )
+
+    assert captured.get("thinking", {}).get("type") == expected_thinking
+    assert [tool["name"] for tool in captured["tools"]] == ["addition"]
+    if expected_thinking == "enabled":
+        assert "tool_choice" not in captured
+    else:
+        assert captured["tool_choice"] == {"type": "none"}
 
 
 def _message_with_transformations(transformations: list[dict[str, Any]]) -> Any:
@@ -2624,6 +2902,55 @@ async def _check_forced_tool_choice_degrades(model_str: str) -> None:
     assert len(response.completion) >= 1 or response.message.tool_calls
     assert response.metadata is not None
     assert response.metadata["tool_choice_degraded"]["used"] == {"type": "auto"}
+
+
+@pytest.mark.anyio
+@skip_if_no_anthropic
+@pytest.mark.parametrize(
+    "model_name",
+    [
+        "claude-sonnet-4-6",
+        "claude-opus-4-8",
+        "claude-sonnet-5",
+        "claude-opus-5",
+        "claude-haiku-5-5",
+    ],
+)
+async def test_anthropic_forced_tool_choice_adaptive_thinking_live(
+    model_name: str,
+) -> None:
+    """Forced tool choice is honored with adaptive thinking (reasoning_effort)."""
+    await _check_forced_tool_choice_with_reasoning(f"anthropic/{model_name}")
+
+
+@pytest.mark.anyio
+@skip_if_no_bedrock
+@pytest.mark.parametrize(
+    "model_name", ["claude-sonnet-4-6", "claude-sonnet-5", "claude-haiku-5-5"]
+)
+async def test_anthropic_forced_tool_choice_adaptive_thinking_bedrock_live(
+    model_name: str,
+) -> None:
+    """Forced tool choice is honored with adaptive thinking on Bedrock."""
+    await _check_forced_tool_choice_with_reasoning(
+        f"anthropic/bedrock/global.anthropic.{model_name}"
+    )
+
+
+async def _check_forced_tool_choice_with_reasoning(model_str: str) -> None:
+    from test_helpers.tools import addition
+
+    model = get_model(
+        model_str, config=GenerateConfig(reasoning_effort="high", max_tokens=4096)
+    )
+    response = await model.generate(
+        input="What is 1 + 1?",
+        tools=[addition()],
+        tool_choice=ToolFunction(name="addition"),
+    )
+    assert response.message.tool_calls
+    assert response.message.tool_calls[0].function == "addition"
+    assert not (response.metadata or {}).get("tool_choice_degraded")
 
 
 # ---------------------------------------------------------------------------
