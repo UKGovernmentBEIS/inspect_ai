@@ -1013,7 +1013,6 @@ class Model:
         # normalize input to chat
         if isinstance(input, str):
             input = [ChatMessageUser(content=input)]
-        history = input
 
         # insert any system message provided in config
         if config.system_message:
@@ -1023,13 +1022,17 @@ class Model:
 
         # outside the connection slot, since a monitor may call this model too
         generate_step = None
-        if is_agent_generate():
-            from inspect_ai._sentinel._dispatch import sentinel_before_generate
+        agent_turn = is_agent_generate()
+        if agent_turn:
+            from inspect_ai._sentinel._dispatch import (
+                record_agent_input,
+                sentinel_before_generate,
+            )
 
+            record_agent_input(prepared.input)
             generate_step = await sentinel_before_generate(
                 model=str(self),
                 input=prepared.input,
-                history=history,
                 tools=prepared.tools,
                 tool_choice=prepared.tool_choice,
                 config=config,
@@ -1081,10 +1084,17 @@ class Model:
             ):
                 raise ModelRefusalError(output, str(self), self.role)
 
-        if generate_step is not None:
-            from inspect_ai._sentinel._dispatch import sentinel_after_generate
+        if agent_turn:
+            from inspect_ai._sentinel._dispatch import (
+                record_agent_output,
+                sentinel_after_generate,
+            )
 
-            await sentinel_after_generate(generate_step, output)
+            if generate_step is not None:
+                await sentinel_after_generate(generate_step, output)
+            # recorded even when no generate stage is watched, since the
+            # tool stages read the same record
+            record_agent_output(output)
 
         return output
 

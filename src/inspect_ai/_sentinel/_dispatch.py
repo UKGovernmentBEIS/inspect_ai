@@ -97,6 +97,7 @@ from ._context import (
     active_task_description,
     active_task_metadata,
 )
+from ._ran import ran_messages, record_opening, record_ran
 from ._scope import AgentScope, sentinel_scope
 from ._sent import record_sent, sent_messages
 
@@ -129,7 +130,7 @@ async def sentinel_before_tool_call(
         call=call,
         view=resolve_tool_call_view(call, viewer),
         input=list(producer.input) if producer is not None else None,
-        agent_messages=history,
+        agent_messages=ran_messages(conversation),
         history=sent_messages(conversation),
         human_decisions=_human_decisions(conversation),
         tools=list(producer.tools) if producer is not None else None,
@@ -182,7 +183,7 @@ async def sentinel_after_tool_call(
         output=output,
         view=resolve_tool_call_view(call, viewer),
         input=list(producer.input) if producer is not None else None,
-        agent_messages=history,
+        agent_messages=ran_messages(conversation),
         history=sent_messages(conversation),
         human_decisions=_human_decisions(conversation),
         tools=list(producer.tools) if producer is not None else None,
@@ -200,7 +201,6 @@ async def sentinel_before_generate(
     *,
     model: str,
     input: list[ChatMessage],
-    history: list[ChatMessage],
     tools: list[ToolInfo],
     tool_choice: ToolChoice,
     config: GenerateConfig,
@@ -222,7 +222,7 @@ async def sentinel_before_generate(
         model=model,
         conversation=conversation,
         input=input,
-        agent_messages=history,
+        agent_messages=ran_messages(conversation),
         history=sent_messages(conversation),
         human_decisions=_human_decisions(conversation),
         tools=tools,
@@ -244,7 +244,7 @@ async def sentinel_after_generate(before: BeforeGenerate, output: ModelOutput) -
         model=before.model,
         conversation=before.conversation,
         input=before.input,
-        agent_messages=before.agent_messages,
+        agent_messages=ran_messages(before.conversation),
         history=sent_messages(before.conversation),
         human_decisions=_human_decisions(before.conversation),
         tools=before.tools,
@@ -362,6 +362,19 @@ def _conversation() -> str:
 
 def record_agent_turn(input: list[ChatMessage]) -> None:
     record_sent(_conversation(), input)
+
+
+def record_agent_input(input: list[ChatMessage]) -> None:
+    record_opening(_conversation(), input)
+
+
+def record_agent_output(output: ModelOutput) -> None:
+    if output.choices:
+        record_ran(_conversation(), [output.message])
+
+
+def record_agent_results(messages: list[ChatMessage]) -> None:
+    record_ran(_conversation(), messages)
 
 
 def _require_message_id() -> None:
@@ -520,9 +533,9 @@ class _HostNative:
                     f"{', '.join(repr(c) for c in _HUMAN_CHOICES)}."
                 )
             offered.append(cast(ApprovalDecision, choice))
-        # the approval surfaces show the conversation; a step whose host could
-        # not provide the scaffold's history shows what the model saw instead,
-        # and nothing when that is unknown too
+        # the approval surfaces show the conversation; a step with no record
+        # of it shows what the model saw instead, and nothing when that is
+        # unknown too
         if step.agent_messages is not None:
             conversation = step.agent_messages
         elif step.input is not None:

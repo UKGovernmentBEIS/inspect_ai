@@ -3718,3 +3718,342 @@ def test_sent_matches_the_reference_rules() -> None:
 @pytest.mark.slow
 def test_sent_matches_the_reference_rules_at_length() -> None:
     _check_random_cases(seed=1, cases=20_000)
+
+
+Steps = list[BeforeGenerate | AfterGenerate | BeforeToolCall | AfterToolCall]
+
+
+@monitor
+def d3_every_stage(seen: Any) -> MonitorGroup:
+    async def before_generate(
+        context: Context, step: BeforeGenerate
+    ) -> Observation | None:
+        seen.append(step)
+        return None
+
+    async def after_generate(
+        context: Context, step: AfterGenerate
+    ) -> Observation | None:
+        seen.append(step)
+        return None
+
+    async def before_call(context: Context, step: BeforeToolCall) -> Observation | None:
+        seen.append(step)
+        return None
+
+    async def after_call(context: Context, step: AfterToolCall) -> Observation | None:
+        seen.append(step)
+        return None
+
+    return MonitorGroup(before_generate, after_generate, before_call, after_call)
+
+
+def shape(messages: Sequence[ChatMessage] | None) -> list[tuple[str, str]]:
+    assert messages is not None
+    return [(m.role, m.text) for m in messages]
+
+
+def of_stage(seen: Steps, stage: type[Any]) -> list[Any]:
+    return [step for step in seen if isinstance(step, stage)]
+
+
+@solver
+def folding(turns: int) -> Solver:
+    """Rebuild the input each turn: the task, then one user message folding in every earlier turn."""
+
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        model = get_model()
+        tools = [addition()]
+        folded: list[str] = []
+        for _ in range(turns + 1):
+            input: list[ChatMessage] = [
+                ChatMessageSystem(content="Add numbers."),
+                ChatMessageUser(content="\n".join([state.input_text, *folded])),
+            ]
+            output = await model.generate(input, tools)
+            folded.append(f"assistant called {len(output.message.tool_calls or [])}")
+            if not output.message.tool_calls:
+                break
+            result = await execute_tools([*input, output.message], tools)
+            folded.extend(f"result {m.text}" for m in result.messages)
+        return state
+
+    return solve
+
+
+def run_folding(seen: Steps, turns: int = 2) -> EvalLog:
+    task = Task(
+        dataset=[Sample(input="What is 1 + 1?")],
+        solver=folding(turns),
+        sentinel=[d3_every_stage(seen)],
+    )
+    log = eval(task, model=agent_model(turns))[0]
+    assert log.status == "success", log.error
+    return log
+
+
+def test_agent_messages_are_the_outputs_and_results_not_the_folds() -> None:
+    seen: Steps = []
+    run_folding(seen, turns=2)
+
+    *_, last = of_stage(seen, AfterGenerate)
+    assert shape(last.agent_messages) == [
+        ("system", "Add numbers."),
+        ("user", "What is 1 + 1?"),
+        ("assistant", "tool call for tool addition"),
+        ("tool", "2"),
+        ("assistant", "tool call for tool addition"),
+        ("tool", "3"),
+    ]
+    # the model was sent the fold; the new output is the step's own
+    assert shape(last.input)[-1] == (
+        "user",
+        "What is 1 + 1?\nassistant called 1\nresult 2\nassistant called 1\nresult 3",
+    )
+    assert last.output.message not in last.agent_messages
+
+
+def test_every_stage_reads_the_same_record() -> None:
+    seen: Steps = []
+    run_folding(seen, turns=2)
+
+    generates = of_stage(seen, BeforeGenerate)
+    afters = of_stage(seen, AfterGenerate)
+    tool_stages = [
+        step for step in seen if isinstance(step, (BeforeToolCall, AfterToolCall))
+    ]
+    assert len(generates) == len(afters) == 3
+    assert len(tool_stages) == 4
+    for turn in range(2):
+        before, after = generates[turn + 1], afters[turn + 1]
+        [before_call, after_call] = tool_stages[2 * turn : 2 * turn + 2]
+        assert before.agent_messages is not None
+        assert after.agent_messages is not None
+        assert after_call.agent_messages is not None
+        # a tool stage sees the record through the call's assistant message
+        assert before_call.agent_messages == after_call.agent_messages
+        assert after_call.agent_messages[-1] is afters[turn].output.message
+        # the next turn adds exactly the results execute_tools() returned
+        count = len(after_call.agent_messages)
+        assert [id(m) for m in before.agent_messages[:count]] == [
+            id(m) for m in after_call.agent_messages
+        ]
+        [result] = before.agent_messages[count:]
+        assert isinstance(result, ChatMessageTool)
+        assert result.tool_call_id == after_call.call.id
+        assert [id(m) for m in after.agent_messages] == [
+            id(m) for m in before.agent_messages
+        ]
+
+
+def test_a_rejected_call_has_its_rejection_as_its_result() -> None:
+    seen: Steps = []
+    log = run([d3_reject(), d3_every_stage(seen)])
+    assert log.status == "success", log.error
+
+    *_, last = of_stage(seen, BeforeGenerate)
+    result = last.agent_messages[-1]
+    assert isinstance(result, ChatMessageTool)
+    assert result.error is not None
+    assert result.error.type == "approval"
+    assert result.error.message == "no adding"
+
+
+@tool(parallel=True)
+def ordered_addition() -> Tool:
+    finished: dict[int, anyio.Event] = {}
+
+    async def execute(x: int, y: int) -> str:
+        """Add two numbers, finishing after the call that adds one more to x.
+
+        Args:
+            x: First number to add.
+            y: Second number to add.
+        """
+        done = finished.setdefault(x, anyio.Event())
+        if x < 3:
+            await finished.setdefault(x + 1, anyio.Event()).wait()
+        done.set()
+        return str(x + y)
+
+    return execute
+
+
+def test_parallel_results_are_in_call_order() -> None:
+    seen: Steps = []
+    calls = [
+        ToolCall(id=f"c{x}", function="ordered_addition", arguments={"x": x, "y": 10})
+        for x in (1, 2, 3)
+    ]
+    three_calls = ModelOutput(
+        model="mockllm/model",
+        choices=[
+            ChatCompletionChoice(
+                message=ChatMessageAssistant(
+                    content="", tool_calls=calls, model="mockllm/model"
+                ),
+                stop_reason="tool_calls",
+            )
+        ],
+    )
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[three_calls, ModelOutput.from_content("mockllm/model", "done")],
+        memoize=False,
+    )
+    task = Task(
+        dataset=[Sample(input="go")],
+        solver=[use_tools(ordered_addition()), generate()],
+        sentinel=[d3_every_stage(seen)],
+    )
+    log = eval(task, model=model)[0]
+    assert log.status == "success", log.error
+
+    # the calls finished last to first
+    completed = [s.call.id for s in of_stage(seen, AfterToolCall)]
+    assert completed == ["c3", "c2", "c1"]
+    *_, last = of_stage(seen, BeforeGenerate)
+    results = [m for m in last.agent_messages if isinstance(m, ChatMessageTool)]
+    assert [(m.tool_call_id, m.text) for m in results] == [
+        ("c1", "11"),
+        ("c2", "12"),
+        ("c3", "13"),
+    ]
+
+
+def test_a_react_continue_nudge_is_in_history_not_agent_messages() -> None:
+    from inspect_ai.agent._types import DEFAULT_CONTINUE_PROMPT
+
+    seen: Steps = []
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.from_content("mockllm/model", "thinking"),
+            ModelOutput.for_tool_call(
+                "mockllm/model", tool_name="submit", tool_arguments={"answer": "2"}
+            ),
+        ],
+        memoize=False,
+    )
+    task = Task(
+        dataset=[Sample(input="What is 1 + 1?")],
+        solver=as_solver(react(tools=[addition()])),
+        sentinel=[d3_every_stage(seen)],
+    )
+    log = eval(task, model=model)[0]
+    assert log.status == "success", log.error
+
+    nudge = ("user", DEFAULT_CONTINUE_PROMPT.replace("{submit}", "submit"))
+    _, second = of_stage(seen, AfterGenerate)
+    assert nudge in shape(second.history)
+    assert nudge in shape(second.input)
+    assert nudge not in shape(second.agent_messages)
+    assert shape(second.agent_messages)[-1] == ("assistant", "thinking")
+
+
+@pytest.mark.parametrize("via_tool", [False, True])
+def test_each_sub_agent_conversation_has_its_own_record(via_tool: bool) -> None:
+    seen: Steps = []
+    log = run_handoff([d3_every_stage(seen)], via_tool=via_tool)
+    assert log.status == "success", log.error
+
+    outputs: dict[str, list[ChatMessage]] = {}
+    for step in of_stage(seen, AfterGenerate):
+        outputs.setdefault(step.conversation, []).append(step.output.message)
+    parent, helper = outputs
+    assert [m.text for m in outputs[helper]] == [
+        "tool call for tool addition",
+        "helper done",
+    ]
+
+    def records(conversation: str) -> list[list[ChatMessage]]:
+        return [
+            step.agent_messages
+            for step in seen
+            if step.conversation == conversation and step.agent_messages is not None
+        ]
+
+    def holds(record: list[ChatMessage], message: ChatMessage) -> bool:
+        return any(m is message for m in record)
+
+    # neither conversation records the other's outputs
+    for record in records(helper):
+        assert not any(holds(record, m) for m in outputs[parent])
+    for record in records(parent):
+        assert not any(holds(record, m) for m in outputs[helper])
+    *_, parent_final = of_stage(seen, AfterGenerate)
+    assert parent_final.conversation == parent
+    if via_tool:
+        assert shape(records(helper)[0])[-1] == ("user", "add 2 and 3")
+        assert shape(parent_final.agent_messages)[-1] == ("tool", "helper done")
+    else:
+        # the parent's record has the handoff's messages as execute_tools()
+        # returned them to the parent
+        assert ("assistant", "[helper] helper done") in shape(
+            parent_final.agent_messages
+        )
+
+
+@tool
+def big_output() -> Tool:
+    async def execute(turn: int) -> str:
+        """Return a large result.
+
+        Args:
+            turn: The turn number.
+        """
+        return f"{turn} " + "x" * 100_000
+
+    return execute
+
+
+async def test_a_long_folding_run_retains_only_references() -> None:
+    import gc
+    import tracemalloc
+
+    from inspect_ai._sentinel._ran import _ran
+    from inspect_ai._sentinel._scope import sentinel_solving
+
+    turns = 500
+    tracemalloc.start()
+    try:
+        init_transcript(Transcript())
+        model = get_model(
+            "mockllm/model",
+            custom_outputs=[
+                ModelOutput.for_tool_call(
+                    "mockllm/model",
+                    tool_name="big_output",
+                    tool_arguments={"turn": turn},
+                )
+                for turn in range(turns)
+            ],
+            memoize=False,
+        )
+        tools = [big_output()]
+        seen: Steps = []
+        with active([d3_every_stage(seen)]), sentinel_solving():
+            for turn in range(turns):
+                input: list[ChatMessage] = [ChatMessageUser(content=f"turn {turn}")]
+                output = await model.generate(input, tools)
+                await execute_tools([*input, output.message], tools)
+                seen.clear()
+
+        [record] = _ran[transcript()].values()
+        assert len(record) == 1 + 2 * turns
+        results = [m for m in record if isinstance(m, ChatMessageTool)]
+        assert all(len(m.text) < 20_000 for m in results)
+        del record, results
+
+        # what only the record keeps alive: the memory freed when it is dropped
+        gc.collect()
+        before = tracemalloc.get_traced_memory()[0]
+        _ran[transcript()].clear()
+        gc.collect()
+        freed = before - tracemalloc.get_traced_memory()[0]
+    finally:
+        tracemalloc.stop()
+    # the transcript's events hold the same content, so dropping the record
+    # frees its list and the tool messages (about 0.5 MB here), not the 8 MB
+    # of results it refers to
+    assert freed < 2_000_000, freed

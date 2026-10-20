@@ -40,7 +40,11 @@ from anyio.streams.memory import MemoryObjectSendStream
 from pydantic import BaseModel
 from typing_extensions import is_typeddict
 
-from inspect_ai._sentinel._context import SentinelFailure, checks_tool_calls
+from inspect_ai._sentinel._context import (
+    SentinelFailure,
+    checks_tool_calls,
+    is_agent_generate,
+)
 from inspect_ai._sentinel._scope import AgentScope, sentinel_scope
 from inspect_ai._util.content import (
     Content,
@@ -270,7 +274,12 @@ async def execute_tools(
     approval_cm = approval_context(approval) if approval else nullcontext()
     review_cm = review_context(review) if review else nullcontext()
     with approval_cm, review_cm:
-        return await _execute_tools_impl(messages, tools, max_output)
+        result = await _execute_tools_impl(messages, tools, max_output)
+    if is_agent_generate():
+        from inspect_ai._sentinel._dispatch import record_agent_results
+
+        record_agent_results(result.messages)
+    return result
 
 
 async def _execute_tools_impl(
