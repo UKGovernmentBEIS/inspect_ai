@@ -4039,7 +4039,7 @@ async def test_a_long_folding_run_retains_only_references() -> None:
                 await execute_tools([*input, output.message], tools)
                 seen.clear()
 
-        [record] = _ran[transcript()].values()
+        [record] = [ran.messages for ran in _ran[transcript()].values()]
         assert len(record) == 1 + 2 * turns
         results = [m for m in record if isinstance(m, ChatMessageTool)]
         assert all(len(m.text) < 20_000 for m in results)
@@ -4057,3 +4057,34 @@ async def test_a_long_folding_run_retains_only_references() -> None:
     # frees its list and the tool messages (about 0.5 MB here), not the 8 MB
     # of results it refers to
     assert freed < 2_000_000, freed
+
+
+def test_the_opening_is_the_first_input_as_sent_after_hooks() -> None:
+    from inspect_ai._util.registry import _registry
+    from inspect_ai.hooks import BeforeModelGenerate, Hooks, hooks
+
+    @hooks(name="d3_rewrites_the_input", description="rewrites the first input")
+    class RewritesTheInput(Hooks):
+        async def on_before_model_generate(self, data: BeforeModelGenerate) -> None:
+            if data.input and data.input[0].text == "What is 1 + 1?":
+                data.input[:] = [
+                    ChatMessageSystem(content="hook-inserted system"),
+                    ChatMessageUser(content="actually sent"),
+                ]
+
+    seen: Steps = []
+    try:
+        log = run([d3_every_stage(seen)])
+    finally:
+        _registry.pop("hooks:d3_rewrites_the_input", None)
+    assert log.status == "success", log.error
+
+    opening = [("system", "hook-inserted system"), ("user", "actually sent")]
+    first, *later = seen
+    # before the first turn is sent, the opening is the input the hooks get
+    assert isinstance(first, BeforeGenerate)
+    assert shape(first.agent_messages) == [("user", "What is 1 + 1?")]
+    assert later
+    for step in later:
+        assert shape(step.agent_messages)[:2] == opening, type(step).__name__
+    assert shape(of_stage(seen, AfterGenerate)[0].history) == opening

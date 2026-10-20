@@ -361,11 +361,13 @@ def _conversation() -> str:
 
 
 def record_agent_turn(input: list[ChatMessage]) -> None:
-    record_sent(_conversation(), input)
+    conversation = _conversation()
+    record_sent(conversation, input)
+    record_opening(conversation, input, sent=True)
 
 
 def record_agent_input(input: list[ChatMessage]) -> None:
-    record_opening(_conversation(), input)
+    record_opening(_conversation(), input, sent=False)
 
 
 def record_agent_output(output: ModelOutput) -> None:
