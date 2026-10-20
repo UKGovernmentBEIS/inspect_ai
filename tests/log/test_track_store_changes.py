@@ -25,6 +25,7 @@ from contextlib import contextmanager
 from copy import deepcopy
 from typing import Any, Callable, ContextManager
 
+import anyio
 import pytest
 from pydantic import BaseModel, Field
 
@@ -35,14 +36,16 @@ from inspect_ai.log import EvalSample
 from inspect_ai.log._transcript import Transcript, init_transcript, track_store_changes
 from inspect_ai.model import ChatMessageAssistant, ChatMessageUser
 from inspect_ai.scorer import Score
-from inspect_ai.util import StoreModel
+from inspect_ai.util import StoreModel, current_span_id, span, subtask
 from inspect_ai.util._store import (
     Store,
     dict_jsonable,
     init_subtask_store,
+    store,
     store_changes,
     store_from_events,
     store_jsonable,
+    suspend_store_events,
 )
 
 NAN = float("nan")
@@ -402,3 +405,135 @@ def test_track_store_changes_nested_spans() -> None:
     opt_nested = _run_nested_spans(track_store_changes)
 
     assert baseline_nested == opt_nested
+
+
+# ---------------------------------------------------------------------------
+# suspend_store_events()
+# ---------------------------------------------------------------------------
+
+
+def _fresh_transcript() -> Transcript:
+    init_subtask_store(Store())
+    transcript = Transcript()
+    init_transcript(transcript)
+    return transcript
+
+
+def _store_events(transcript: Transcript) -> list[StoreEvent]:
+    return [e for e in transcript.events if isinstance(e, StoreEvent)]
+
+
+async def test_suspend_store_events_enclosing_span_records_net_change_once() -> None:
+    """Spans inside the switch log nothing; the enclosing span logs the net change."""
+    transcript = _fresh_transcript()
+
+    async def member(name: str) -> None:
+        async with span(name):
+            store().set(name, True)
+
+    async with span("team"):
+        team_id = current_span_id()
+        with suspend_store_events():
+            async with anyio.create_task_group() as tg:
+                tg.start_soon(member, "a")
+                tg.start_soon(member, "b")
+
+    store_events = _store_events(transcript)
+    assert len(store_events) == 1
+    assert store_events[0].span_id == team_id
+    assert store_from_events(list(transcript.events))._data == {"a": True, "b": True}
+
+
+async def test_suspend_store_events_subtask_store_has_no_store_events() -> None:
+    """A subtask's own store logs nothing; the enclosing span logs only its store."""
+    transcript = _fresh_transcript()
+
+    @subtask("child")
+    async def child() -> None:
+        store().set("child", 1)
+
+    async with span("parent"):
+        parent_id = current_span_id()
+        with suspend_store_events():
+            store().set("parent", 1)
+            await child()
+
+    store_events = _store_events(transcript)
+    assert [[c.path for c in e.changes] for e in store_events] == [["/parent"]]
+    assert store_events[0].span_id == parent_id
+    assert store_from_events(list(transcript.events))._data == {"parent": 1}
+
+
+async def test_suspend_store_events_skips_store_snapshots(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Spans entered inside the switch never serialize the store."""
+    _fresh_transcript()
+    calls: list[None] = []
+
+    def counting_store_jsonable(s: Store) -> dict[str, Any]:
+        calls.append(None)
+        return store_jsonable(s)
+
+    monkeypatch.setattr(
+        "inspect_ai.log._transcript.store_jsonable", counting_store_jsonable
+    )
+
+    with suspend_store_events():
+        async with span("inner"):
+            store().set("key", 1)
+    assert calls == []
+
+    async with span("outer"):
+        pass
+    assert len(calls) == 2
+
+
+async def test_suspend_store_events_inherited_by_tasks_started_inside() -> None:
+    """Tasks started inside the switch inherit it; tasks started before do not."""
+    transcript = _fresh_transcript()
+    suspended = anyio.Event()
+
+    async def started_outside() -> None:
+        await suspended.wait()
+        async with span("outside"):
+            store().set("outside", 1)
+
+    async def started_inside() -> None:
+        async with span("inside"):
+            store().set("inside", 1)
+
+    async with anyio.create_task_group() as outer_tg:
+        outer_tg.start_soon(started_outside)
+        with suspend_store_events():
+            async with anyio.create_task_group() as tg:
+                tg.start_soon(started_inside)
+            suspended.set()
+
+    store_events = _store_events(transcript)
+    assert [[c.path for c in e.changes] for e in store_events] == [["/outside"]]
+
+
+async def test_suspend_store_events_nesting_and_exit_restore_tracking() -> None:
+    """Exiting a nested switch keeps tracking off; exiting the outer one restores it."""
+    transcript = _fresh_transcript()
+
+    with suspend_store_events():
+        with suspend_store_events():
+            pass
+        async with span("still suspended"):
+            store().set("suspended", 1)
+    async with span("tracked"):
+        store().set("tracked", 1)
+
+    with pytest.raises(RuntimeError):
+        with suspend_store_events():
+            raise RuntimeError()
+    async with span("tracked after error"):
+        store().set("after_error", 1)
+
+    store_events = _store_events(transcript)
+    assert [[c.path for c in e.changes] for e in store_events] == [
+        ["/tracked"],
+        ["/after_error"],
+    ]

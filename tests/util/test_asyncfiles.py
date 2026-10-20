@@ -31,6 +31,7 @@ from inspect_ai._util import asyncfiles
 from inspect_ai._util._async import current_async_backend, run_coroutine, tg_collect
 from inspect_ai._util.asyncfiles import (
     AsyncFilesystem,
+    ObjectChangedError,
     _current_async_fs,
     _RetiredClient,
     _s3_download_file_async,
@@ -728,6 +729,41 @@ async def test_read_file_info_s3_returns_the_response_etag_and_last_modified(
     assert content.data == b"{}"
     assert content.etag == head["ETag"].strip('"')
     assert content.mtime == head["LastModified"].timestamp() * 1000
+
+
+async def test_read_file_bytes_s3_pinned_to_an_etag_fails_once_the_object_changes(
+    mock_s3: None,
+) -> None:
+    import boto3
+
+    s3 = boto3.client("s3")
+    s3.put_object(Bucket="test-bucket", Key="if_match/a.bin", Body=b"0123456789")
+    etag = s3.head_object(Bucket="test-bucket", Key="if_match/a.bin")["ETag"]
+    url = f"{S3_BUCKET}/if_match/a.bin"
+    sent: list[str | None] = []
+
+    def record(request: Any, **kwargs: Any) -> None:
+        sent.append(request.headers.get("If-Match"))
+
+    async with AsyncFilesystem() as fs:
+        client = (
+            await fs.s3_client_async()
+            if current_async_backend() == "asyncio"
+            else fs.s3_client()
+        )
+        client.meta.events.register("before-send.s3.GetObject", record)
+        pinned = await fs.read_file_bytes_fully(url, 2, 5, if_match=etag.strip('"'))
+        s3.put_object(Bucket="test-bucket", Key="if_match/a.bin", Body=b"abcdefghij")
+        with pytest.raises(ObjectChangedError):
+            await fs.read_file_bytes_fully(url, 2, 5, if_match=etag.strip('"'))
+        unpinned = await fs.read_file_bytes_fully(url, 2, 5)
+    assert (pinned, unpinned) == (b"234", b"cde")
+    # an HTTP entity tag, quoted
+    assert [h.decode() if isinstance(h, bytes) else h for h in sent] == [
+        etag,
+        etag,
+        None,
+    ]
 
 
 async def test_write_file_local():
