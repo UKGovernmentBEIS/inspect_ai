@@ -305,23 +305,41 @@ async def resolve_sandbox(
             sandbox_config: SandboxEnvironmentConfigType | None = sample.sandbox.config
         else:
             sandbox_config = task_sandbox.config
-            # a docker-compatible sample config only reaches this branch when
-            # the task's sandbox type differs and isn't docker-compatible
-            if (
-                sample.sandbox is not None
-                and sample.sandbox.config is not None
-                and is_docker_compatible_config(sample.sandbox.config)
-            ):
+            # a sample config only reaches this branch when it is declared for
+            # another sandbox type and is not carried over. The message leaves
+            # out the file name, as warn_once dedupes on the message text.
+            if sample.sandbox is not None and sample.sandbox.config is not None:
                 subject = f"A sample in task '{task_name}'" if task_name else "A sample"
-                warn_once(
-                    logger,
-                    f"{subject} declares sandbox '{sample.sandbox.type}' with a "
-                    "Dockerfile/compose.yaml configuration, but the effective "
-                    f"sandbox type is '{task_sandbox.type}', which does not "
-                    "support that configuration. The sample's compose services, "
-                    "packages, and tools will not be available in the "
-                    f"'{task_sandbox.type}' sandbox.",
-                )
+                if is_docker_compatible_sandbox_type(task_sandbox.type):
+                    warn_once(
+                        logger,
+                        f"{subject} declares sandbox '{sample.sandbox.type}' with a "
+                        f"configuration that the '{task_sandbox.type}' sandbox will "
+                        "not use. A configuration declared for a different sandbox "
+                        "type is carried over only when it is a Dockerfile, a "
+                        "compose file with a recognized name (such as "
+                        "'compose.yaml' or '*-compose.yaml'), or a ComposeConfig. "
+                        "Rename a compose file to a recognized name, or declare a "
+                        f"native '{task_sandbox.type}' configuration with sandbox "
+                        f"type '{task_sandbox.type}'.",
+                    )
+                elif is_docker_compatible_config(sample.sandbox.config):
+                    warn_once(
+                        logger,
+                        f"{subject} declares sandbox '{sample.sandbox.type}' with a "
+                        "Dockerfile/compose.yaml configuration, but the effective "
+                        f"sandbox type is '{task_sandbox.type}', which does not "
+                        "support that configuration. The sample's compose services, "
+                        "packages, and tools will not be available in the "
+                        f"'{task_sandbox.type}' sandbox.",
+                    )
+                else:
+                    warn_once(
+                        logger,
+                        f"{subject} declares sandbox '{sample.sandbox.type}' with a "
+                        f"configuration that the '{task_sandbox.type}' sandbox does "
+                        "not support, so it will not be used.",
+                    )
         resolved_sandbox = SandboxEnvironmentSpec(task_sandbox.type, sandbox_config)
     elif sample.sandbox is not None:
         resolved_sandbox = sample.sandbox

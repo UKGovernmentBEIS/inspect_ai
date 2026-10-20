@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import sys
 from contextlib import asynccontextmanager, contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass, field
@@ -12,8 +11,6 @@ if TYPE_CHECKING:
     from inspect_ai.approval._policy import ApprovalPolicy
     from inspect_ai.tool._tools._skill import Skill
 
-if sys.version_info < (3, 11):
-    from exceptiongroup import ExceptionGroup
 
 import anyio
 from anyio.abc import TaskGroup
@@ -41,6 +38,7 @@ from inspect_ai.tool._tool_call import (
     ToolCallViewer,
 )
 from inspect_ai.tool._tool_def import ToolDef
+from inspect_ai.util._tool_state import private_tool_instance
 
 from .prompt import SUBAGENT_SUBMIT_PROMPT
 from .subagent import Subagent
@@ -954,7 +952,7 @@ def _resolve_tools(
     if merged_skills:
         from inspect_ai.tool._tools._skill import skill as skill_fn
 
-        tools.append(skill_fn(merged_skills, instance=sa.name))
+        tools.append(skill_fn(merged_skills, instance=private_tool_instance(sa.name)))
 
     if depth + 1 < max_depth:
         # Pass the effective model (sa.model or parent_model) so nested

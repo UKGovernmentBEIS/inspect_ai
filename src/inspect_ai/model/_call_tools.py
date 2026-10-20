@@ -40,7 +40,7 @@ from anyio.streams.memory import MemoryObjectSendStream
 from pydantic import BaseModel
 from typing_extensions import is_typeddict
 
-from inspect_ai._sentinel._context import SentinelFailure, active_sentinel
+from inspect_ai._sentinel._context import SentinelFailure, checks_tool_calls
 from inspect_ai._sentinel._scope import AgentScope, sentinel_scope
 from inspect_ai._util.content import (
     Content,
@@ -333,6 +333,7 @@ async def _execute_tools_impl(
                         called = await call_tool(
                             tdefs,
                             message.text,
+                            message.id,
                             call,
                             event,
                             conversation,
@@ -426,6 +427,7 @@ async def _execute_tools_impl(
                         await _apply_tool_review(
                             tdefs,
                             message.text,
+                            message.id,
                             executed_call,
                             tool_message,
                             result,
@@ -856,6 +858,7 @@ class CalledTool(NamedTuple):
 async def call_tool(
     tools: list[ToolDef],
     message: str,
+    message_id: str | None,
     call: ToolCall,
     event: BaseModel,
     conversation: list[ChatMessage],
@@ -922,7 +925,7 @@ async def call_tool(
         event.arguments = call.arguments
         event.view = tool_call_view(call, tools)
 
-    if active_sentinel() is not None:
+    if checks_tool_calls():
         from inspect_ai._sentinel._dispatch import (
             apply_sentinel_decision,
             sentinel_before_tool_call,
@@ -930,7 +933,7 @@ async def call_tool(
 
         try:
             decision = await sentinel_before_tool_call(
-                message, call, tool_def.viewer, conversation
+                message, message_id, call, tool_def.viewer, conversation
             )
             modified = apply_sentinel_decision(decision, call)
         except (SentinelFailure, ToolApprovalError, TerminateSampleError):
@@ -977,6 +980,7 @@ async def call_tool(
 async def _apply_tool_review(
     tools: list[ToolDef],
     message: str,
+    message_id: str | None,
     call: ToolCall,
     result: ChatMessageTool,
     output: ToolResult,
@@ -1006,11 +1010,12 @@ async def _apply_tool_review(
     if review is not None and review.decision == "terminate":
         raise TerminateSampleError("Tool result reviewer requested termination.")
 
-    if active_sentinel() is not None:
+    if checks_tool_calls():
         from inspect_ai._sentinel._dispatch import sentinel_after_tool_call
 
         await sentinel_after_tool_call(
             message,
+            message_id,
             call,
             result,
             output,
