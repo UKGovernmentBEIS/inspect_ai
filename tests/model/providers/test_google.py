@@ -1064,6 +1064,34 @@ async def test_google_generate_http_timeout(
 
 
 @pytest.mark.anyio
+async def test_google_generate_passes_seed() -> None:
+    # GenerateConfig.seed documents Google as a supported provider and the
+    # Gemini GenerateContentConfig accepts it, so the request must carry it —
+    # otherwise a seeded run is silently unseeded (#5950).
+    mock_generate = AsyncMock(return_value=GenerateContentResponse(candidates=[]))
+    mock_client = _create_mock_google_client(mock_generate)
+
+    with patch(
+        "inspect_ai.model._providers.google.Client", return_value=mock_client
+    ):
+        api = GoogleGenAIAPI(
+            model_name="gemini-2.0-flash",
+            base_url=None,
+            api_key="test-key",
+        )
+
+        await api.generate(
+            input=[ChatMessageUser(content="Hello")],
+            tools=[],
+            tool_choice="none",
+            config=GenerateConfig(seed=1234),
+        )
+
+    config = mock_generate.call_args.kwargs["config"]
+    assert config.seed == 1234
+
+
+@pytest.mark.anyio
 async def test_google_batcher_client_uses_default_http_timeout() -> None:
     mock_generate = AsyncMock(return_value=GenerateContentResponse(candidates=[]))
     mock_client = _create_mock_google_client(mock_generate)

@@ -500,6 +500,10 @@ class GoogleGenAIAPI(ModelAPI):
                     candidate_count=config.num_choices,
                     presence_penalty=config.presence_penalty,
                     frequency_penalty=config.frequency_penalty,
+                    # GenerateConfig.seed documents Google as supported and the
+                    # Gemini GenerateContentConfig accepts it; without this a
+                    # seeded run is silently unseeded (#5950).
+                    seed=config.seed,
                     response_logprobs=config.logprobs,
                     logprobs=config.top_logprobs,
                     safety_settings=safety_settings_to_list(self.safety_settings),
