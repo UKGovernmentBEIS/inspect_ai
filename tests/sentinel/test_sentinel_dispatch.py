@@ -1953,20 +1953,23 @@ def test_a_superseded_human_decision_is_not_kept(
         agent_messages=[],
     )
     recorder = _Recorder(call.id)
-    root = _host_context(recorder).context
+    context = _host_context(recorder).context
     person = Reported(
-        name="human", path="human", function="f", report=Decision.reject()
+        name="human", path="outer/human", function="f", report=Decision.reject()
     )
-    recorder.record(replace(root, path="human"), "inspect_sentinel/human", step, person)
+    recorder.record(
+        replace(context, path="outer/human"), "inspect_sentinel/human", step, person
+    )
     assert len(recorder.kept) == 1
-    # a supersession above the person's layer withdraws it only with its action
+    # a supersession at a layer above the person's withdraws it only with its
+    # action; the layer is the context's path, not the decision's
     recorder.superseded(
-        root,
+        replace(context, path="outer"),
         "group",
         step,
         Reported(
-            name="group",
-            path="",
+            name="other",
+            path="elsewhere",
             function="f",
             report=Decision(action=action),
         ),

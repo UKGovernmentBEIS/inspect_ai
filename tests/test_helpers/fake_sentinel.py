@@ -504,7 +504,8 @@ def kept_human_decision(
         return None
     decided = Reported(reported.name, reported.path, reported.report, reported.function)
     if isinstance(step, AfterGenerate):
-        calls = step.output.message.tool_calls or []
+        message = step.output.message if step.output.choices else None
+        calls = (message.tool_calls if message is not None else None) or []
         return HumanDecision(
             "model_output", step_id, tuple(c.id for c in calls), decided
         )
