@@ -32,7 +32,8 @@ if TYPE_CHECKING:
     from inspect_ai.tool import ToolInfo
 
 import anyio
-from pydantic import BaseModel
+import mmh3
+from pydantic import BaseModel, ConfigDict, TypeAdapter
 from pydantic_core import to_jsonable_python
 from shortuuid import uuid
 from tenacity import (
@@ -59,7 +60,6 @@ from inspect_ai._util.content import (
 from inspect_ai._util.error import PrerequisiteError, exception_message
 from inspect_ai._util.http import status_code_of
 from inspect_ai._util.images import UnresolvedMediaError, inline_media_data_uri
-from inspect_ai._util.json import check_json_data
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.notgiven import NOT_GIVEN, NotGiven
 from inspect_ai._util.platform import platform_init
@@ -2998,14 +2998,29 @@ _model_event_sink: ContextVar[ModelEventSink | None] = ContextVar(
 )
 
 
-_message_snapshots: weakref.WeakValueDictionary[str | int, ChatMessage] = (
-    weakref.WeakValueDictionary()
+class _Snapshot(NamedTuple):
+    message: weakref.ReferenceType[ChatMessage]
+    hash: bytes
+    """Hash of the message's JSON (see `_message_json`)."""
+
+
+_message_json: TypeAdapter[ChatMessage] = TypeAdapter(
+    ChatMessage, config=ConfigDict(ser_json_inf_nan="constants")
 )
+"""Serializes a message as logs record it.
+
+`model_dump_json()` writes NaN, infinities and None all as null, but logs
+(`EvalSample`) keep NaN and Infinity, so editing one into another is a
+change.
+"""
+
+
+_message_snapshots: dict[str | int, _Snapshot] = {}
 """Latest snapshot of each message, held while a logged event holds it.
 
 Keyed by message id, or by `id()` of the live message when it has none.
-Each hit is confirmed with `_strict_eq`, so an address reused by another
-message can only find a copy equal to it.
+Each hit is confirmed against the serialization hash, so an address reused
+by another message can only find a copy that serializes the same.
 """
 
 
@@ -3013,43 +3028,47 @@ def _snapshot_messages(messages: list[ChatMessage]) -> list[ChatMessage]:
     """Copy messages so later in-place edits do not change a logged input.
 
     Each message is deep copied unless the last copy made for it still
-    matches it, in which case that copy is reused. Successive events then
-    share the objects of unchanged messages, which keeps memory proportional
-    to message versions and lets the log's message pool dedup them by
-    identity. This holds while a message keeps its id (or, without one, is
-    the same live object); preparation that creates new messages with fresh
-    ids each generation (reasoning-history filtering, tool `model_input`
-    rewriting, media extraction) still copies them every time. Only the
-    latest copy for an id is reused, so alternating different versions with
-    the same id (handoff filters, concurrent epochs) copies on each switch.
-
-    Raises:
-        TypeError: A message's metadata or tool call arguments hold something
-            other than plain JSON data. The match check compares plain JSON
-            types only; objects (slotted dataclasses, models with extra
-            fields) and container subclasses (OrderedDict, defaultdict)
-            would compare wrongly or not at all.
+    serializes the same (as the log records it), in which case that copy is
+    reused. Successive events then share the objects of unchanged messages,
+    which keeps memory proportional to message versions and lets the log's
+    message pool dedup them by identity. This holds while a message keeps
+    its id (or, without one, is the same live object); preparation that
+    creates new messages with fresh ids each generation (reasoning-history
+    filtering, tool `model_input` rewriting, media extraction) still copies
+    them every time. Only the latest copy for an id is reused, so
+    alternating different versions with the same id (handoff filters,
+    concurrent epochs) copies on each switch. A message that cannot be
+    serialized is copied every time.
     """
-    from inspect_ai.event._pool import _strict_eq
-
     snapshots: list[ChatMessage] = []
     for message in messages:
         key = message.id if message.id is not None else id(message)
-        snapshot = _message_snapshots.get(key)
-        if snapshot is None or not _strict_eq(snapshot, message):
-            _check_json_fields(message)
+        try:
+            digest = mmh3.hash_bytes(_message_json.dump_json(message))
+        except ValueError:
+            # not serializable (e.g. numpy values in metadata): copy, no reuse
+            snapshots.append(message.model_copy(deep=True))
+            continue
+        entry = _message_snapshots.get(key)
+        snapshot = entry.message() if entry and entry.hash == digest else None
+        if snapshot is None:
             snapshot = message.model_copy(deep=True)
-            _message_snapshots[key] = snapshot
+            _message_snapshots[key] = _Snapshot(
+                weakref.ref(snapshot, _forget_snapshot(key)), digest
+            )
         snapshots.append(snapshot)
     return snapshots
 
 
-def _check_json_fields(message: ChatMessage) -> None:
-    if message.metadata is not None:
-        check_json_data(message.metadata, "metadata")
-    if isinstance(message, ChatMessageAssistant):
-        for i, call in enumerate(message.tool_calls or []):
-            check_json_data(call.arguments, f"tool_calls[{i}].arguments")
+def _forget_snapshot(
+    key: str | int,
+) -> Callable[[weakref.ReferenceType[ChatMessage]], None]:
+    def forget(ref: weakref.ReferenceType[ChatMessage]) -> None:
+        entry = _message_snapshots.get(key)
+        if entry is not None and entry.message is ref:
+            del _message_snapshots[key]
+
+    return forget
 
 
 @contextlib.contextmanager

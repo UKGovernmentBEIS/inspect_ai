@@ -48,11 +48,7 @@ class ToolCall:
     """Function called."""
 
     arguments: dict[str, Any]
-    """Arguments to function.
-
-    Must be JSON data (dicts with string keys, lists, strings, numbers,
-    booleans and None). Model generate() raises TypeError for other values.
-    """
+    """Arguments to function."""
 
     parse_error: str | None = field(default=None)
     """Error which occurred parsing tool call."""

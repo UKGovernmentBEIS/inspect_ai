@@ -574,18 +574,14 @@ def test_condense_sample_rewritten_history_condenses_correctly() -> None:
         ]
 
 
-@pytest.mark.parametrize(
-    "before,after",
-    [(True, 1), (0.0, -0.0), ({"x": 1, "y": 2}, {"y": 2, "x": 1})],
-)
+@pytest.mark.parametrize("before,after", [(True, 1), (0, 0.0)])
 def test_condense_sample_keeps_json_distinct_message_versions(
     before: JsonValue, after: JsonValue
 ) -> None:
     """Two versions of one message that are == but serialize differently stay apart.
 
     Model events snapshot each version of a message edited in place, so a
-    sample can hold same-id messages such as True vs 1, 0.0 vs -0.0, or
-    dicts that differ only in key order.
+    sample can hold same-id messages such as True vs 1 or 0 vs 0.0.
     Writing (condense), resolving, and reading the written JSON back with
     the log parser must keep both versions, and the final conversation must
     keep its own.

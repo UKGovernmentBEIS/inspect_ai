@@ -53,7 +53,7 @@ from inspect_ai._util.content import (
 from inspect_ai._util.dateutil import datetime_from_iso_format_safe
 from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai._util.format import format_function_call
-from inspect_ai._util.json import check_json_data, exceeds_max_depth
+from inspect_ai._util.json import exceeds_max_depth
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.text import truncate_string_to_bytes
 from inspect_ai._util.trace import trace_action
@@ -1727,12 +1727,6 @@ def parse_tool_call(
                 if _exceeds_max_depth(value):
                     report_parse_error(_max_depth_parse_error())
                 else:
-                    try:
-                        check_json_data(value, "arguments")
-                    except TypeError:
-                        # yaml also reads dates, sets, binary and non-string
-                        # keys, which messages can't hold; keep the text as is
-                        value = arguments
                     arguments_dict[param_names[0]] = value
 
     # return ToolCall with error payload

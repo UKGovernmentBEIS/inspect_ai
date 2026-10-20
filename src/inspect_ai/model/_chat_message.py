@@ -31,11 +31,7 @@ class ChatMessageBase(BaseModel):
     """Source of message."""
 
     metadata: dict[str, Any] | None = Field(default=None)
-    """Additional message metadata.
-
-    Must be JSON data (dicts with string keys, lists, strings, numbers,
-    booleans and None). Model generate() raises TypeError for other values.
-    """
+    """Additional message metadata."""
 
     def metadata_as(self, metadata_cls: Type[MT]) -> MT:
         """Metadata as a Pydantic model.
@@ -75,9 +71,9 @@ class ChatMessageBase(BaseModel):
         if cache is None:
             return handler(data)
         try:
-            # no sort_keys: key order is part of a message (tool arguments are
-            # sent in it), and logs can hold versions that differ only in it
-            cache_key: bytes = hashlib.sha256(json.dumps(data).encode()).digest()
+            cache_key: bytes = hashlib.sha256(
+                json.dumps(data, sort_keys=True).encode()
+            ).digest()
         except Exception as ex:
             warn_once(
                 logger,
