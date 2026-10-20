@@ -32,6 +32,7 @@ concurrent lineages exceed CallWalkCache's slot cap.
 import json
 import tempfile
 from collections.abc import Mapping
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Generator, Iterator
@@ -61,6 +62,7 @@ from inspect_ai.model._chat_message import (
     ChatMessageUser,
 )
 from inspect_ai.model._generate_config import GenerateConfig
+from inspect_ai.model._model import _snapshot_messages
 from inspect_ai.model._model_call import ModelCall
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.tool._tool_call import ToolCall
@@ -574,14 +576,15 @@ def test_condense_sample_rewritten_history_condenses_correctly() -> None:
         ]
 
 
-@pytest.mark.parametrize("before,after", [(True, 1), (0, 0.0)])
+@pytest.mark.parametrize("before,after", [(True, 1), (0, 0.0), (0.0, -0.0)])
 def test_condense_sample_keeps_json_distinct_message_versions(
     before: JsonValue, after: JsonValue
 ) -> None:
     """Two versions of one message that are == but serialize differently stay apart.
 
     Model events snapshot each version of a message edited in place, so a
-    sample can hold same-id messages such as True vs 1 or 0 vs 0.0.
+    sample can hold same-id messages such as True vs 1, 0 vs 0.0 or 0.0 vs
+    -0.0.
     Writing (condense), resolving, and reading the written JSON back with
     the log parser must keep both versions, and the final conversation must
     keep its own.
@@ -628,6 +631,45 @@ def test_condense_sample_keeps_json_distinct_message_versions(
     # the parser's message cache still shares identical messages
     parsed_inputs = [e.input[0] for e in parsed.events if isinstance(e, ModelEvent)]
     assert parsed.messages[0] is parsed_inputs[1]
+
+
+@dataclass(slots=True)
+class _SlottedState:
+    step: int
+
+
+def test_condense_sample_output_then_snapshot_input_with_object_metadata() -> None:
+    """A model's output message and its snapshot in the next input share an id.
+
+    The walker compares them by their logged JSON, so metadata that
+    serializes but can't be compared structurally (a slotted dataclass)
+    condenses and resolves without error.
+    """
+    output = ModelOutput.from_content("test", "response")
+    reply = output.message
+    reply.metadata = {"state": _SlottedState(step=1)}
+    [snapshot] = _snapshot_messages([reply])
+    assert snapshot is not reply and snapshot.id == reply.id
+
+    first = _model_event([ChatMessageUser(content="start")], [])
+    first.output = output
+    sample = EvalSample(
+        id="s1",
+        epoch=1,
+        input="start",
+        target="done",
+        messages=[reply],
+        events=[first, _model_event([snapshot], [])],
+    )
+
+    condensed = condense_sample(sample)
+    resolved = resolve_sample_attachments(condensed, "full")
+    parsed = _parse_sample_data(condensed.model_dump_json().encode())
+
+    for read, state in ((resolved, _SlottedState(step=1)), (parsed, {"step": 1})):
+        second = [e for e in read.events if isinstance(e, ModelEvent)][1]
+        assert second.input[0].metadata is not None
+        assert second.input[0].metadata["state"] == state
 
 
 def test_condense_sample_messages_stay_inline() -> None:

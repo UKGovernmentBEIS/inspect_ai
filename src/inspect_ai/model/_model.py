@@ -33,7 +33,7 @@ if TYPE_CHECKING:
 
 import anyio
 import mmh3
-from pydantic import BaseModel, ConfigDict, TypeAdapter
+from pydantic import BaseModel
 from pydantic_core import to_jsonable_python
 from shortuuid import uuid
 from tenacity import (
@@ -113,6 +113,7 @@ from ._chat_message import (
     ChatMessageSystem,
     ChatMessageTool,
     ChatMessageUser,
+    logged_json,
 )
 from ._display import (
     display_conversation_assistant,
@@ -3001,18 +3002,7 @@ _model_event_sink: ContextVar[ModelEventSink | None] = ContextVar(
 class _Snapshot(NamedTuple):
     message: weakref.ReferenceType[ChatMessage]
     hash: bytes
-    """Hash of the message's JSON (see `_message_json`)."""
-
-
-_message_json: TypeAdapter[ChatMessage] = TypeAdapter(
-    ChatMessage, config=ConfigDict(ser_json_inf_nan="constants")
-)
-"""Serializes a message as logs record it.
-
-`model_dump_json()` writes NaN, infinities and None all as null, but logs
-(`EvalSample`) keep NaN and Infinity, so editing one into another is a
-change.
-"""
+    """Hash of the message's `logged_json()`."""
 
 
 _message_snapshots: dict[str | int, _Snapshot] = {}
@@ -3039,16 +3029,18 @@ def _snapshot_messages(messages: list[ChatMessage]) -> list[ChatMessage]:
     alternating different versions with the same id (handoff filters,
     concurrent epochs) copies on each switch. A message that cannot be
     serialized is copied every time.
+
+    Message values must be ones Python can deep copy: a lock, for example,
+    or nesting past the recursion limit raises here.
     """
     snapshots: list[ChatMessage] = []
     for message in messages:
         key = message.id if message.id is not None else id(message)
-        try:
-            digest = mmh3.hash_bytes(_message_json.dump_json(message))
-        except ValueError:
-            # not serializable (e.g. numpy values in metadata): copy, no reuse
+        logged = logged_json(message)
+        if logged is None:
             snapshots.append(message.model_copy(deep=True))
             continue
+        digest = mmh3.hash_bytes(logged)
         entry = _message_snapshots.get(key)
         snapshot = entry.message() if entry and entry.hash == digest else None
         if snapshot is None:
