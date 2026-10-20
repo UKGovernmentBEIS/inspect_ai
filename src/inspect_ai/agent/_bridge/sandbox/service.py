@@ -10,6 +10,7 @@ from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.url import data_uri_mime_type, data_uri_to_base64, is_data_uri
+from inspect_ai._util.working import known_work
 from inspect_ai.model._call_tools import (
     get_tools_info,
     tool_call_error,
@@ -326,7 +327,7 @@ def call_tool(
             if validation_errors:
                 raise ToolParsingError(validation_errors)
             # as in call_tool: the tool's own model calls are not agent turns
-            with sentinel_scope(AgentScope.OFF):
+            with sentinel_scope(AgentScope.OFF), known_work():
                 result = await tool_fn(**arguments)
         except Exception as ex:
             # classify the unwrapped exception, but let the original propagate:
