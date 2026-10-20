@@ -224,3 +224,20 @@ def test_model_event_input_snapshots_object_tool_arguments() -> None:
         assert isinstance(logged, ChatMessageAssistant) and logged.tool_calls
         steps.append(logged.tool_calls[0].arguments["state"].step)
     assert steps == [1, 2]
+
+
+async def test_model_event_input_reuses_deeply_nested_metadata() -> None:
+    init_transcript(Transcript())
+    model = get_model("mockllm/model")
+    nested: dict[str, Any] = {}
+    inner = nested
+    for _ in range(250):
+        inner["k"] = {}
+        inner = inner["k"]
+    message = ChatMessageUser(content="hi", metadata={"nested": nested})
+
+    await model.generate([message])
+    await model.generate([message])
+
+    first, second = _model_events()
+    assert first.input[0] is second.input[0]
