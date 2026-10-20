@@ -143,7 +143,8 @@ def suspend_store_events() -> Iterator[None]:
     - The store itself is unaffected: reads and writes work as usual, and the
       sample's final store is logged as usual.
 
-    Useful for running many agents at once inside one span.
+    Useful for running many agents at once inside one span. Not public API:
+    inspect_swarm imports it from this module.
 
     Example:
         async with span("team"):

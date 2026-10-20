@@ -16,14 +16,18 @@ from inspect_ai.event._info import InfoEvent
 from inspect_ai.event._span import SpanBeginEvent, SpanEndEvent
 from inspect_ai.event._store import StoreEvent
 from inspect_ai.log._transcript import Transcript, init_transcript, transcript
-from inspect_ai.util import suspend_store_events
 from inspect_ai.util._span import (
     SpanRotationScope,
     current_span_id,
     span,
     span_id_provider,
 )
-from inspect_ai.util._store import Store, init_subtask_store, store
+from inspect_ai.util._store import (
+    Store,
+    init_subtask_store,
+    store,
+    suspend_store_events,
+)
 
 
 @pytest.fixture(autouse=True)

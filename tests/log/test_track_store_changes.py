@@ -36,13 +36,7 @@ from inspect_ai.log import EvalSample
 from inspect_ai.log._transcript import Transcript, init_transcript, track_store_changes
 from inspect_ai.model import ChatMessageAssistant, ChatMessageUser
 from inspect_ai.scorer import Score
-from inspect_ai.util import (
-    StoreModel,
-    current_span_id,
-    span,
-    subtask,
-    suspend_store_events,
-)
+from inspect_ai.util import StoreModel, current_span_id, span, subtask
 from inspect_ai.util._store import (
     Store,
     dict_jsonable,
@@ -51,6 +45,7 @@ from inspect_ai.util._store import (
     store_changes,
     store_from_events,
     store_jsonable,
+    suspend_store_events,
 )
 
 NAN = float("nan")
