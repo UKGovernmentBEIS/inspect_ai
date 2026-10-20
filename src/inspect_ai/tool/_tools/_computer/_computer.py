@@ -59,6 +59,7 @@ _COMPUTER_TOOL_PARAMETERS: frozenset[str] = frozenset(
         "text",
         "repeat",
         "press_enter",
+        "clear_before_typing",
         "actions",
     ]
 )
@@ -106,6 +107,7 @@ def computer(max_screenshots: int | None = 1, timeout: int | None = 180) -> Tool
         text: str | None = None,
         repeat: int | None = None,
         press_enter: bool | None = None,
+        clear_before_typing: bool | None = None,
         actions: list[dict[str, object]] | None = None,
     ) -> ToolResult:
         """
@@ -159,6 +161,7 @@ def computer(max_screenshots: int | None = 1, timeout: int | None = 180) -> Tool
           text (str | None): The text to type or the key to press. Required when action is "key" or "type".
           repeat (int | None): The number of times to press the key (1-100). Used only by `action=key`. Defaults to 1.
           press_enter (bool): If True and action is "type", press Return after typing. Defaults to False.
+          clear_before_typing (bool): If True and action is "type", triple-click at `coordinate` to select the existing text so the typed text replaces it. Without `coordinate`, the triple-click is at the current mouse position. In multi-line text only the clicked line, sentence or paragraph is selected, depending on the application. Defaults to False.
           actions (list[dict] | None): A list of action dicts to execute sequentially (OpenAI multi-action format).
 
         Returns:
@@ -179,6 +182,7 @@ def computer(max_screenshots: int | None = 1, timeout: int | None = 180) -> Tool
                     text,
                     repeat,
                     press_enter,
+                    clear_before_typing,
                 )
             ]
             if action is not None
@@ -221,7 +225,12 @@ def computer(max_screenshots: int | None = 1, timeout: int | None = 180) -> Tool
                     timeout=timeout,
                 )
             case "type":
-                if coordinate is not None:
+                # Triple-click selects the field's text so typing replaces it.
+                # ctrl+a + BackSpace is avoided: when the click selects an
+                # object rather than a text field, it deletes beyond the field.
+                if bool(args.get("clear_before_typing")):
+                    await common.triple_click(coordinate, timeout=timeout)
+                elif coordinate is not None:
                     await common.left_click(coordinate, timeout=timeout)
                 result = await common.type(not_none(text, "text"), timeout=timeout)
                 if bool(args.get("press_enter")):
@@ -290,6 +299,7 @@ def computer(max_screenshots: int | None = 1, timeout: int | None = 180) -> Tool
         text: str | None,
         repeat: int | None,
         press_enter: bool | None,
+        clear_before_typing: bool | None,
     ) -> dict[str, object]:
         return {
             k: v
@@ -304,6 +314,7 @@ def computer(max_screenshots: int | None = 1, timeout: int | None = 180) -> Tool
                 text=text,
                 repeat=repeat,
                 press_enter=press_enter,
+                clear_before_typing=clear_before_typing,
             ).items()
             if v is not None
         }

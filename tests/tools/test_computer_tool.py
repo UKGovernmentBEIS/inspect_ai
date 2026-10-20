@@ -17,12 +17,12 @@ from typing import Any, Awaitable, Callable, Iterator, NamedTuple, get_args
 
 import pytest
 
-from inspect_ai.tool import ToolError, ToolResult, computer
+from inspect_ai.tool import ToolError, ToolInfo, ToolResult, computer
 from inspect_ai.tool._tool import ToolParsingError
 from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.tool._tool_info import parse_tool_info
 from inspect_ai.tool._tools._computer import _common
-from inspect_ai.tool._tools._computer._computer import Action
+from inspect_ai.tool._tools._computer._computer import Action, is_computer_tool_info
 from inspect_ai.util import ExecResult
 
 ACTIONS: list[str] = list(get_args(Action))
@@ -290,6 +290,48 @@ async def test_computer_key_rejects_out_of_range_repeat(
     with pytest.raises(ToolParsingError, match="repeat must be between 1 and 100"):
         await computer()(action="key", text="Return", repeat=repeat)
     assert presses == []
+
+
+@pytest.mark.parametrize(
+    "clear_before_typing,expected",
+    [
+        (None, ["left_click", "type", "key"]),
+        (False, ["left_click", "type", "key"]),
+        (True, ["triple_click", "type", "key"]),
+    ],
+)
+async def test_computer_type_clear_before_typing(
+    sent_cmds: list[list[str]], clear_before_typing: bool | None, expected: list[str]
+) -> None:
+    kwargs = (
+        {"clear_before_typing": clear_before_typing}
+        if clear_before_typing is not None
+        else {}
+    )
+    await computer()(
+        action="type", text="hello", coordinate=[3, 4], press_enter=True, **kwargs
+    )
+    assert [cmd[0] for cmd in sent_cmds] == expected
+    assert sent_cmds[0][1:] == ["--coordinate", "3", "4"]
+
+
+async def test_computer_actions_list_clear_before_typing(
+    sent_cmds: list[list[str]],
+) -> None:
+    await computer()(
+        actions=[{"action": "type", "text": "hello", "clear_before_typing": True}]
+    )
+    assert [cmd[0] for cmd in sent_cmds] == ["triple_click", "type"]
+    assert sent_cmds[0] == ["triple_click"]
+
+
+def test_computer_tool_info_is_recognized_as_computer_tool() -> None:
+    """A new execute() parameter must also be added to _COMPUTER_TOOL_PARAMETERS."""
+    tdef = ToolDef(computer())
+    info = ToolInfo(
+        name=tdef.name, description=tdef.description, parameters=tdef.parameters
+    )
+    assert is_computer_tool_info(info)
 
 
 def _computer_call(call_id: str, **arguments: object):
