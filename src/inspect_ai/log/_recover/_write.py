@@ -135,6 +135,7 @@ async def write_recovered_eval_log(
         metrics_from_log_header,
         reducers_from_log_header,
         resolve_scorers_info,
+        score_names_from_log_header,
     )
     from inspect_ai._eval.task.results import eval_results
     from inspect_ai._util.file import dirname
@@ -282,6 +283,7 @@ async def write_recovered_eval_log(
             # the remainder is exactly the samples that completed cleanly
             completed_samples=sample_count - failed_count,
             headline_metric=header.eval.headline_metric,
+            scorer_names=score_names_from_log_header(header),
         )
     except Exception as ex:
         logger.warning(f"Unable to recompute metrics for recovered log: {ex}")

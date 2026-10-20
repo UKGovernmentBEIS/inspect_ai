@@ -23,6 +23,7 @@ from inspect_ai._eval.context import init_eval_context
 from inspect_ai._eval.loader import metric_from_spec
 from inspect_ai._eval.score import (
     ScoreAction,
+    named_scorers_from_log_header,
     resolve_scorers,
     score_async,
 )
@@ -212,6 +213,14 @@ async def score(
     metrics = resolve_metrics(metric)
 
     action = resolve_action(eval_log, action)
+    # Recorded score names are kept only when overwriting: appending scorers under
+    # names already in the log would collide, so append generates names as before.
+    # An explicit --scorer is not rebuilt from the header and has no recorded name.
+    named_scorers = (
+        named_scorers_from_log_header(eval_log, scorers)
+        if action == "overwrite" and not scorer
+        else scorers
+    )
     output_file = _resolve_output_file(
         log_file, output_file=output_file, overwrite=overwrite
     )
@@ -244,7 +253,7 @@ async def score(
 
     eval_log = await score_async(
         log=eval_log,
-        scorers=scorers,
+        scorers=named_scorers,
         metrics=metrics,
         model=override_model,
         model_roles=model_roles,

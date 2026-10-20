@@ -8,7 +8,7 @@ from inspect_ai._cli import score as score_cli
 from inspect_ai._cli.score import print_results, score
 from inspect_ai._display import display
 from inspect_ai._display.core.results import sample_coverage_messages
-from inspect_ai._eval.score import ScoreAction
+from inspect_ai._eval.score import ScoreAction, score_async
 from inspect_ai.log import EvalLog, read_eval_log_async, write_eval_log_async
 from inspect_ai.log._edit import (
     MetadataEdit,
@@ -26,6 +26,7 @@ from inspect_ai.log._log import (
     EvalStats,
 )
 from inspect_ai.log._recorders import create_recorder_for_location
+from inspect_ai.scorer import match
 from inspect_ai.util._early_stopping import EarlyStop, EarlyStoppingSummary
 
 LOGS_DIR = pathlib.Path(__file__).parents[1] / "scorer/logs"
@@ -465,3 +466,55 @@ async def test_score_reads_coverage_before_the_scoring_pass_replaces_it(
     (coverage,) = captured
     assert coverage is not None
     assert (coverage.total_samples, coverage.completed_samples) == (10, 4)
+
+
+@pytest.mark.parametrize(("action", "named"), [("overwrite", True), ("append", False)])
+async def test_score_keeps_recorded_score_names_only_when_overwriting(
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+    action: ScoreAction,
+    named: bool,
+) -> None:
+    """Rebuilt scorers keep recorded names on overwrite; append generates names."""
+    input_file = tmp_path / LOG_SCORED.name
+    log = await score_async(
+        await read_eval_log_async(str(LOG_SCORED)),
+        {
+            "accuracy_strict": match(location="end"),
+            "accuracy_loose": match(location="begin"),
+        },
+        model="mockllm/model",
+    )
+    await write_eval_log_async(log, str(input_file))
+
+    captured: list[object] = []
+
+    monkeypatch.setattr(score_cli, "init_eval_context", lambda *args, **kwargs: None)
+    monkeypatch.setattr(score_cli, "print_results", lambda *args, **kwargs: None)
+
+    async def fake_score_async(*, log, scorers, **kwargs):
+        captured.append(scorers)
+        return log
+
+    monkeypatch.setattr(score_cli, "score_async", fake_score_async)
+
+    await score(
+        log_dir="",
+        log_file=str(input_file),
+        action=action,
+        log_level=None,
+        output_file=str(tmp_path / "rescored.eval"),
+        overwrite=True,
+        scorer=None,
+        s=(),
+        metric=None,
+        stream=False,
+    )
+
+    (scorers,) = captured
+    if named:
+        assert isinstance(scorers, dict)
+        assert list(scorers) == ["match", "accuracy_strict", "accuracy_loose"]
+    else:
+        assert isinstance(scorers, list)
+        assert len(scorers) == 3

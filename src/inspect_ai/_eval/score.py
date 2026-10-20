@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import contextlib
 import functools
+from collections.abc import Mapping
 from copy import deepcopy
 from pathlib import Path
 from typing import (
@@ -17,7 +18,7 @@ from typing import (
 )
 
 if TYPE_CHECKING:
-    from inspect_ai.scorer._scorers import Scorers
+    from inspect_ai.scorer._scorers import NamedScorers
 
 import anyio
 
@@ -46,7 +47,7 @@ from inspect_ai.log import (
 )
 from inspect_ai.log._condense import resolve_sample_attachments
 from inspect_ai.log._headline import headline_metric_ref, resolve_headline_metric
-from inspect_ai.log._log import EvalMetricDefinition, EvalSample
+from inspect_ai.log._log import EvalMetricDefinition, EvalSample, EvalScorer
 from inspect_ai.log._resolve import rebind_sample_timelines
 from inspect_ai.log._score import _find_scorers_span
 from inspect_ai.log._transcript import Transcript, init_transcript, transcript
@@ -80,7 +81,7 @@ ScoreAction = Literal["append", "overwrite"]
 
 def score(
     log: EvalLog,
-    scorers: "Scorers",
+    scorers: "NamedScorers",
     metrics: list[Metric | dict[str, list[Metric]]]
     | dict[str, list[Metric]]
     | None = None,
@@ -95,7 +96,8 @@ def score(
 
     Args:
        log (EvalLog): Evaluation log.
-       scorers (Scorer): List of Scorers to apply to log
+       scorers: List of Scorers to apply to log, or a dict of scorers
+           keyed by score name.
        metrics (list[Metric | dict[str, list[Metric]]] | dict[str, list[Metric]] | None):
            Alternative metrics (overrides the metrics provided by the
            specified scorer and log).
@@ -212,7 +214,7 @@ def _get_updated_events(
 
 async def score_async(
     log: EvalLog,
-    scorers: "Scorers",
+    scorers: "NamedScorers",
     metrics: list[Metric | dict[str, list[Metric]]]
     | dict[str, list[Metric]]
     | None = None,
@@ -230,7 +232,8 @@ async def score_async(
        log (EvalLog):
          Evaluation log. Only the headers are needed if `samples`
          is passed as well.
-       scorers (list[Scorer]): Scorers to apply to log
+       scorers: Scorers to apply to log, or a dict of scorers
+         keyed by score name.
        metrics (list[Metric | dict[str, list[Metric]]] | dict[str, list[Metric]] | None):
          Alternative metrics (overrides the metrics provided by the
          specified scorer and log).
@@ -255,8 +258,28 @@ async def score_async(
     if samples is None and log.samples is None:
         raise ValueError("There are no samples to score in the log.")
 
-    # resolve scorers
-    resolved_scorers = resolve_scorer(scorers)
+    # Resolve scorers and their score names once, before any sample is scored.
+    # When appending, the header is validated and the names it records count as
+    # taken, and a header that records names keeps recording them, so a list
+    # appended to it gets generated names chosen once for the whole run.
+    appending = (action or "append") == "append"
+    header = log.eval.scorers or []
+    existing: set[str] = set()
+    if appending:
+        _header_score_names(header)
+        existing = _existing_score_names(log, header)
+    if isinstance(scorers, Mapping):
+        score_names: list[str] | None = list(scorers.keys())
+        resolved_scorers = resolve_scorer(list(scorers.values()))
+        _validate_score_names(list(scorers.keys()), existing)
+    else:
+        resolved_scorers = resolve_scorer(scorers)
+        records_names = appending and any(_score_name(s) is not None for s in header)
+        score_names = (
+            _generated_score_names(resolved_scorers, existing)
+            if records_names
+            else None
+        )
 
     # resolve the active model and model_roles for the scoring task context.
     # caller-supplied overrides win; otherwise reconstruct from the log header
@@ -307,12 +330,14 @@ async def score_async(
         # tally the per-sample error state as we go so an overwrite can restate
         # completed_samples exactly rather than falling back to len(scores)
         sample_completed: list[bool] = [False] * total_samples
+        sample_held_scores: list[bool] = [False] * total_samples
 
         async def _score_sample(idx_sample: int) -> None:
             nonlocal scorer_names
             sample_score: dict[str, SampleScore] = {}
 
             async with samples(idx_sample) as sample:
+                sample_held_scores[idx_sample] = bool(sample.scores)
                 # run the task, capturing the resulting sample scores
                 # and sample names for later use. The sample scores
                 # returned here are only the _newly created_ scores
@@ -323,7 +348,13 @@ async def score_async(
                 # since the sample score carries the scorer name that generated
                 # it (so using sample.scores directly isn't enough)
                 sample_score, names = await _run_score_task(
-                    log, sample, resolved_scorers, active_model, active_roles, action
+                    log,
+                    sample,
+                    resolved_scorers,
+                    active_model,
+                    active_roles,
+                    action,
+                    score_names=score_names,
                 )
 
             assert sample.scores is not None
@@ -365,7 +396,7 @@ async def score_async(
             epochs_reducer,
             resolved_scorers,
             log_metrics,
-            scorer_names,
+            scorer_names if scorer_names is not None else score_names,
             early_stopping=log.results.early_stopping if log.results else None,
             metadata=log.results.metadata if log.results else None,
             # eval-set completeness contract (see EvalResults.logged_samples):
@@ -384,11 +415,19 @@ async def score_async(
         applied_eval_scorers = (
             resolve_eval_scorers([as_scorer_spec(s) for s in resolved_scorers]) or []
         )
+        if score_names is not None:
+            applied_eval_scorers = [
+                _with_score_name(eval_scorer, score_name)
+                for eval_scorer, score_name in zip(
+                    applied_eval_scorers, score_names, strict=True
+                )
+            ]
 
         # Since the metrics calculation above is only be done using the scorers
         # and scores that were generated during this scoring run, we need to process
         # the results carefully, depending upon whether the action was "append" or "overwrite"
-        if action == "overwrite" or log.results is None:
+        replace_header = bool(score_names) and _held_no_scores(log, sample_held_scores)
+        if action == "overwrite" or log.results is None or replace_header:
             # Completely replace the results (and reductions) with the new ones
             log.reductions = reductions
             log.results = results
@@ -498,6 +537,7 @@ async def _run_score_task(
     model: Model,
     model_roles: dict[str, Model | list[Model]],
     action: ScoreAction,
+    score_names: list[str] | None = None,
 ) -> Tuple[dict[str, SampleScore], list[str]]:
     state, target, resolved_sample = task_state_from_sample(
         sample,
@@ -510,13 +550,22 @@ async def _run_score_task(
     if state.scores is None:
         state.scores = {}
     existing_score_names = [*state.scores]
+    if score_names is not None:
+        taken = [name for name in score_names if name in existing_score_names]
+        if taken:
+            raise ValueError(
+                f"Score names already on sample {state.sample_id}: "
+                f"{', '.join(taken)}. Choose other names or use action='overwrite'."
+            )
 
     results: dict[str, SampleScore] = {}
     scorer_names: list[str] = []
     async with span(name=SCORERS_SPAN_NAME):
-        for scorer in scorers:
-            scorer_name = unique_scorer_name(
-                scorer, list({*existing_score_names, *results})
+        for i, scorer in enumerate(scorers):
+            scorer_name = (
+                score_names[i]
+                if score_names is not None
+                else unique_scorer_name(scorer, list({*existing_score_names, *results}))
             )
             scorer_names.append(scorer_name)
             async with span(name=scorer_name, type=SCORER_SPAN_TYPE):
@@ -645,6 +694,22 @@ def resolve_scorers(
     )
 
 
+def named_scorers_from_log_header(
+    log: EvalLog, scorers: list[Scorer]
+) -> list[Scorer] | dict[str, Scorer]:
+    """Scorers rebuilt from the log header, keyed by score name if it records any.
+
+    `scorers` are those `resolve_scorers()` rebuilt from this log's header, in
+    header order. They are returned as a dict keyed by their score names when the
+    header records names, so rescoring keeps them, and unchanged
+    otherwise.
+    """
+    score_names = score_names_from_log_header(log)
+    if score_names is None:
+        return scorers
+    return dict(zip(score_names, scorers, strict=True))
+
+
 def resolve_scorers_info(log: EvalLog) -> list[ScorerInfo]:
     """Build ScorerInfo objects from an evaluation log for metrics recomputation."""
     if log.eval.scorers is None:
@@ -701,3 +766,125 @@ def resolve_scorers_info(log: EvalLog) -> list[ScorerInfo]:
             )
         )
     return infos
+
+
+def _with_score_name(eval_scorer: EvalScorer, score_name: str) -> EvalScorer:
+    """Record a score name on a log header scorer."""
+    return eval_scorer.model_copy(update={"score_name": score_name})
+
+
+def _score_name(eval_scorer: EvalScorer) -> str | None:
+    """Score name recorded on a log header scorer, if any.
+
+    Raises `ValueError` if the recorded name is empty, which no scoring run writes.
+    """
+    if eval_scorer.score_name == "":
+        raise ValueError(
+            f"Invalid score name recorded for scorer '{eval_scorer.name}': ''"
+        )
+    return eval_scorer.score_name
+
+
+def score_names_from_log_header(log: EvalLog) -> list[str] | None:
+    """Score name of each log header scorer, or `None` if the header records none.
+
+    Returning `None` for logs without recorded names leaves their metrics
+    recomputation unchanged.
+    """
+    if log.eval.scorers is None or all(
+        _score_name(eval_scorer) is None for eval_scorer in log.eval.scorers
+    ):
+        return None
+    return _header_score_names(log.eval.scorers)
+
+
+def _header_score_names(eval_scorers: list[EvalScorer]) -> list[str]:
+    """Score name of each log header scorer: recorded, or generated in header order.
+
+    Generated names avoid every recorded name as well as the names before them: a
+    recorded name is the one its scores carry, while a scorer without one may have
+    recorded no scores at all (a `--no-score` eval rescored under its own name).
+
+    Raises `ValueError` if a recorded name is invalid or the names aren't unique.
+    """
+    recorded = [_score_name(eval_scorer) for eval_scorer in eval_scorers]
+    reserved = [score_name for score_name in recorded if score_name is not None]
+    score_names: list[str] = []
+    for eval_scorer, score_name in zip(eval_scorers, recorded, strict=True):
+        score_names.append(
+            score_name
+            if score_name is not None
+            else unique_scorer_name(eval_scorer.name, [*reserved, *score_names])
+        )
+    duplicates = sorted({name for name in score_names if score_names.count(name) > 1})
+    if duplicates:
+        raise ValueError(
+            f"Log header records duplicate score names: {', '.join(duplicates)}."
+        )
+    return score_names
+
+
+def _held_no_scores(log: EvalLog, sample_held_scores: list[bool]) -> bool:
+    """Whether `log` held no scores before this run, as after an eval run without scoring.
+
+    Appending recorded names to such a log replaces its header, as appending to a
+    log without results does: its scorers never ran, and replaying them next to
+    the recorded names would add an empty result before the new scores. Whether
+    each sample held scores is recorded as it is read, so loaded and streamed
+    samples are treated alike. An append that applies no scorers keeps the header,
+    as an empty list does.
+    """
+    return not (log.results and log.results.scores) and not any(sample_held_scores)
+
+
+def _existing_score_names(log: EvalLog, header: list[EvalScorer]) -> set[str]:
+    """Names a new score can't take when appending to `log`.
+
+    The names the header records, the name and scorer of each result (which cover
+    scores without a scorer and dict-valued scores), and the score names on
+    loaded samples. A header scorer without a recorded name reserves nothing by
+    itself: its scores, if any, are on the results or samples, so a scorer that
+    never scored (a `--no-score` eval) leaves its name free. Streamed samples are
+    checked as each is scored.
+    """
+    existing: set[str] = set()
+    for eval_scorer in header:
+        score_name = _score_name(eval_scorer)
+        if score_name is not None:
+            existing.add(score_name)
+    if log.results is not None:
+        for eval_score in log.results.scores:
+            existing.update((eval_score.name, eval_score.scorer))
+    for sample in log.samples or []:
+        existing.update(sample.scores or {})
+    return existing
+
+
+def _generated_score_names(scorers: list[Scorer], existing: set[str]) -> list[str]:
+    """Generated score names for `scorers`, chosen once and unique among `existing`."""
+    score_names: list[str] = []
+    for scorer in scorers:
+        score_names.append(unique_scorer_name(scorer, [*existing, *score_names]))
+    return score_names
+
+
+def _validate_score_names(score_names: list[str], existing: set[str]) -> None:
+    """Reject caller-chosen score names that can't be recorded unambiguously.
+
+    Runs before any sample is scored, so a bad name fails before scoring work.
+    """
+    invalid = [
+        repr(score_name)
+        for score_name in score_names
+        if not isinstance(score_name, str) or not score_name
+    ]
+    if invalid:
+        raise ValueError(
+            f"Score names must be non-empty strings: {', '.join(invalid)}."
+        )
+    clashes = [score_name for score_name in score_names if score_name in existing]
+    if clashes:
+        raise ValueError(
+            f"Score names already in the log: {', '.join(clashes)}. "
+            "Choose other names or use action='overwrite'."
+        )
