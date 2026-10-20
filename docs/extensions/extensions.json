@@ -352,6 +352,17 @@
     ]
   },
   {
+    "id": "transect",
+    "name": "Transect",
+    "url": "https://www.aisi.gov.uk/blog/transect-making-large-scale-agentic-evaluations-easier-to-understand",
+    "desc": "Transcript analysis for long-horizon agent evaluations, built on Inspect Scout.",
+    "author": "UK AISI",
+    "author_url": "https://github.com/AI-Safety-Institute/transect",
+    "categories": [
+      "Tooling"
+    ]
+  },
+  {
     "id": "inspect-flow",
     "name": "Inspect Flow",
     "url": "https://meridianlabs-ai.github.io/inspect_flow/",
@@ -369,6 +380,17 @@
     "desc": "Platform for running Inspect AI evaluations on cloud infrastructure.",
     "author": "METR",
     "author_url": "https://github.com/METR/hawk",
+    "categories": [
+      "Tooling"
+    ]
+  },
+  {
+    "id": "inspect-steward",
+    "name": "Inspect Steward",
+    "url": "https://meridianlabs-ai.github.io/inspect_steward/",
+    "desc": "Automated execution and supervision of long-running evaluations.",
+    "author": "Meridian",
+    "author_url": "https://github.com/meridianlabs-ai/inspect_steward",
     "categories": [
       "Tooling"
     ]
