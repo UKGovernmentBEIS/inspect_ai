@@ -308,9 +308,10 @@ def read_checkpoint(checkpoint: Any | None) -> CheckpointSampleConfig | None:
             "A dataset record cannot set the checkpoint 'trigger'. Turn, token and "
             'cost interval triggers all serialize as {"every": N}, so a trigger '
             "read from a dataset cannot be trusted to keep its kind. Remove "
-            "'trigger' to inherit the task or eval trigger (or the default), and "
-            "set it with Task(checkpoint=CheckpointConfig(trigger=...)) or "
-            "eval(checkpoint=...), or construct it in a custom sample_fields "
+            "'trigger' to inherit the task or eval trigger (or the default). To "
+            "choose a trigger, set it with Task(checkpoint=CheckpointConfig("
+            "trigger=...)) or eval(checkpoint=...), or construct it in a custom "
+            "sample_fields "
             f"converter. Got: {trigger!r}"
         )
 
