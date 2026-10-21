@@ -824,7 +824,7 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
     @click.option(
         "--top-k",
         type=int,
-        help="Randomly sample the next word from the top_k most likely next words. Anthropic, Google, HuggingFace, and vLLM only.",
+        help="Randomly sample the next word from the top_k most likely next words. Google, HuggingFace, and vLLM only.",
         envvar="INSPECT_EVAL_TOP_K",
     )
     @click.option(
