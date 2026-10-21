@@ -11,8 +11,11 @@ from typing import TYPE_CHECKING, Iterator
 
 import anyio
 import pytest
+from pydantic import JsonValue
 from sniffio import current_async_library
 from test_helpers.service_dispatch import (
+    REQUEST_FILE,
+    REQUEST_ID,
     dispatching_service,
     serve_beside_failure_monitor,
 )
@@ -1402,6 +1405,96 @@ async def test_bridged_tool_failure_through_the_service_dispatcher(
     pre_empted = failure_requested and current_async_library() == "trio"
     assert replies == [reply] or (pre_empted and replies == [])
     assert bridge._failure_requested.is_set() == failure_requested
+
+
+class _IdleProxy:
+    """A model proxy process that runs until killed and emits nothing."""
+
+    def __aiter__(self) -> "_IdleProxy":
+        return self
+
+    async def __anext__(self) -> None:
+        await anyio.sleep_forever()
+
+    async def kill(self) -> None:
+        pass
+
+
+async def test_bridged_termination_survives_the_scaffold_exiting_on_its_reply(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A host tool's termination ends the sample even if the scaffold exits on its reply.
+
+    The dispatcher publishes the RPC reply, then removes the request file with
+    one more sandbox exec. A scaffold that reads `Terminating: ...` and exits
+    lets the agent body leave `sandbox_agent_bridge` during that exec, and the
+    bridge's cleanup then unwinds the service task. The termination must still
+    reach the sample runner.
+    """
+    import inspect_ai.agent._bridge.sandbox.bridge as bridge_module
+
+    replied = anyio.Event()
+
+    async def run_model_service(
+        sandbox: object,
+        web_search: object,
+        code_execution: object,
+        bridge: "SandboxAgentBridge",
+        instance: str,
+        started: anyio.Event,
+    ) -> None:
+        service = dispatching_service(
+            monkeypatch,
+            "call_tool",
+            call_tool(bridge),
+            {"server": "srv", "tool": "raising_tool", "arguments": {"text": "hi"}},
+            [],
+        )
+
+        async def write_response(
+            request_file: str,
+            request_id: str,
+            result: JsonValue | None,
+            error: str | None = None,
+        ) -> None:
+            # writing the response file, then removing the request file, are
+            # each a sandbox exec; the scaffold sees the reply between them
+            await anyio.sleep(0.01)
+            replied.set()
+            await anyio.sleep(0.05)
+
+        monkeypatch.setattr(service, "_write_response", write_response)
+        started.set()
+        await service._handle_request_tracked(REQUEST_FILE, REQUEST_ID)
+        await anyio.sleep_forever()
+
+    class FakeSandbox:
+        _tools_user = None
+
+        async def exec_remote(self, cmd: list[str], options: object) -> _IdleProxy:
+            return _IdleProxy()
+
+    async def sandbox_with_injected_tools(*, sandbox_name: str | None = None) -> object:
+        return FakeSandbox()
+
+    monkeypatch.setattr(bridge_module, "run_model_service", run_model_service)
+    monkeypatch.setattr(
+        bridge_module, "sandbox_with_injected_tools", sandbox_with_injected_tools
+    )
+
+    with pytest.raises(TerminateSampleError, match="stop"):
+        with anyio.fail_after(10):
+            async with sandbox_agent_bridge(
+                bridged_tools=[
+                    BridgedToolsSpec(
+                        name="srv",
+                        tools=[raising_tool(TerminateSampleError("stop"))],
+                        require_proposal=False,
+                    )
+                ]
+            ):
+                # the scaffold reads the reply and exits
+                await replied.wait()
 
 
 @skip_if_no_docker
