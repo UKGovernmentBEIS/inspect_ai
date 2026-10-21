@@ -96,7 +96,12 @@ from inspect_ai.util._limit import (
     token_limit_usage,
     turn_count,
 )
-from inspect_ai.util._span import current_span_id, in_span
+from inspect_ai.util._span import (
+    current_agent_span_id,
+    current_span_id,
+    in_agent_span,
+    in_span,
+)
 
 from ._agent_message import validate_agent_message
 from ._cache import CacheEntry, CachePolicy, cache_fetch, cache_store, epoch
@@ -3096,12 +3101,21 @@ def _model_event_sink_span(input: list[ChatMessage]) -> Iterator[None]:
         yield
         return
     span_id = sink.on_start(input)
-    if span_id is None or span_id == current_span_id():
+    if span_id is None:
         yield
         return
     from inspect_ai.log._transcript import transcript
 
-    with in_span(span_id, transcript()._agent_span(span_id)):
+    agent_span_id = transcript()._agent_span(span_id)
+    if span_id != current_span_id():
+        with in_span(span_id, agent_span_id):
+            yield
+    elif agent_span_id != current_agent_span_id():
+        # the current span can be set apart from its agent span (`parent_span()`);
+        # keeping it keeps a rotating checkpoint span followed
+        with in_agent_span(agent_span_id):
+            yield
+    else:
         yield
 
 

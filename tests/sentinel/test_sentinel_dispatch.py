@@ -5987,6 +5987,43 @@ def test_an_on_start_sink_naming_no_other_span_changes_nothing(
     assert_history_is_the_fold_of_the_log(run.log, run.seen)
 
 
+@solver
+def d3_generates_under_a_parent_span(sink: Any) -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        from inspect_ai.model._model import use_model_event_sink
+        from inspect_ai.util._span import parent_span, span
+
+        async with span("outer", type="agent", id="outer"):
+            await get_model().generate("Main turn.")
+            transcript()._event(
+                SpanBeginEvent(
+                    id="sub-agent", parent_id="outer", type="agent", name="sub"
+                )
+            )
+            # the current span is the sub-agent's, the current agent span the outer's
+            with parent_span("sub-agent"), use_model_event_sink(sink):
+                state.output = await get_model().generate("Sub-agent turn.")
+            transcript()._event(SpanEndEvent(id="sub-agent"))
+        return state
+
+    return solve
+
+
+def test_an_on_start_sink_naming_the_current_span_gives_that_span_s_agent() -> None:
+    from inspect_ai.util._span import current_span_id
+
+    run = run_sink(
+        d3_generates_under_a_parent_span(_StartingSink(lambda input: current_span_id()))
+    )
+    assert run.log.status == "success", run.log.error
+    main, sub = agent_events_by_origin(run.log)
+    assert main.uuid is not None and sub.uuid is not None
+    assert sub.span_id == "sub-agent"
+    assert run.live == run.from_spans
+    assert run.live[sub.uuid] == "sub-agent" != run.live[main.uuid]
+    assert_history_is_the_fold_of_the_log(run.log, run.seen)
+
+
 def test_an_on_start_span_that_is_not_an_agent_s_gives_the_enclosing_agent() -> None:
     run = run_sink(d3_attributes_a_call_to_a_sub_agent(_StartingSink("sub-tool")))
     assert run.log.status == "success", run.log.error

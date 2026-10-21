@@ -3,7 +3,7 @@ import inspect
 from collections.abc import Awaitable, Callable, Iterator
 from contextvars import ContextVar, Token
 from logging import getLogger
-from typing import TYPE_CHECKING, Any, AsyncIterator
+from typing import TYPE_CHECKING, Any, AsyncIterator, NamedTuple
 
 from shortuuid import uuid as shortuuid
 
@@ -178,6 +178,16 @@ def in_span(span_id: str, agent_span_id: str | None) -> Iterator[None]:
 
 
 @contextlib.contextmanager
+def in_agent_span(agent_span_id: str | None) -> Iterator[None]:
+    """Make `agent_span_id` the current agent span for the block, leaving the current span as it is."""
+    token = _current_agent_span_id.set(agent_span_id)
+    try:
+        yield
+    finally:
+        _current_agent_span_id.reset(token)
+
+
+@contextlib.contextmanager
 def span_id_provider(provider: SpanIdProvider | None) -> Iterator[None]:
     """Set the span-ID provider for the duration of the context.
 
@@ -342,18 +352,25 @@ _span_id_provider: ContextVar[SpanIdProvider | None] = ContextVar(
 )
 
 
+class _Ancestry(NamedTuple):
+    parent_id: str | None
+    is_agent: bool
+
+
 class AgentSpans:
     """The innermost agent span of each span, from the `SpanBeginEvent`s added.
 
-    A span's agent span is the innermost span of type `agent` reached from it through `parent_id`, or None when there is none. Spans are added in log order, and each span's answer is kept, so a pass over a sample's events walks each span once. A walk that reaches a span not yet added is not kept, so a span whose begin is added later still counts.
+    A span's agent span is the innermost span of type `agent` reached from it through `parent_id`, or None when there is none. Spans are added in log order, and each span's answer is kept, so a pass over a sample's events walks each span once. A walk that reaches a span not yet added is not kept, so a span whose begin is added later still counts. Only each span's id, parent and whether it is an agent span are kept, not the event, so a transcript that evicts its span begins can release them.
     """
 
     def __init__(self) -> None:
-        self._spans: dict[str, "SpanBeginEvent"] = {}
+        self._spans: dict[str, _Ancestry] = {}
         self._agent_spans: dict[str, str | None] = {}
 
     def add(self, begin: "SpanBeginEvent") -> None:
-        self._spans[begin.id] = begin
+        self._spans[begin.id] = _Ancestry(
+            begin.parent_id, begin.type == AGENT_SPAN_TYPE
+        )
 
     def agent_span(self, span_id: str | None) -> str | None:
         """The agent span of an event in the span `span_id`.
@@ -369,14 +386,14 @@ class AgentSpans:
                 break
             if span_id in walked:
                 raise ValueError(f"The span tree has a parent_id cycle at {span_id}.")
-            begin = self._spans.get(span_id)
-            if begin is None:
+            ancestry = self._spans.get(span_id)
+            if ancestry is None:
                 return agent_span
             walked.add(span_id)
-            if begin.type == AGENT_SPAN_TYPE:
+            if ancestry.is_agent:
                 agent_span = span_id
                 break
-            span_id = begin.parent_id
+            span_id = ancestry.parent_id
         for walked_id in walked:
             self._agent_spans[walked_id] = agent_span
         return agent_span
