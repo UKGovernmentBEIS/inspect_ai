@@ -1546,7 +1546,8 @@ def validated_tool_call(call: ToolCall, tool_def: ToolDef) -> ValidatedToolCall:
     Raises:
         ToolParsingError: The arguments fail the schema or cannot be
             converted, or (while approval or a sentinel is active) cannot be
-            serialized or do not rebuild to the same JSON and value.
+            serialized, serialize to a non-finite number, or do not rebuild to
+            the same JSON and value.
     """
     validation_errors = validate_tool_input(call.arguments, tool_def.parameters)
     if validation_errors:
@@ -1559,6 +1560,13 @@ def validated_tool_call(call: ToolCall, tool_def: ToolDef) -> ValidatedToolCall:
     shown = replace(
         call, arguments=_serialized_converted(call.arguments, converted, tool_def)
     )
+    non_finite = _non_finite(shown.arguments)
+    if non_finite is not None:
+        raise ToolParsingError(
+            f"Argument '{non_finite}' cannot be shown to approvers or monitors: as "
+            "converted for the tool and serialized, it contains a non-finite "
+            "number (inf or NaN), which the approval record cannot store."
+        )
     try:
         changed = _changed_on_rebuild(shown.arguments, tool_def)
         rebuilt = _rebuilt_arguments(shown.arguments, tool_def)
@@ -1660,6 +1668,16 @@ def _serialized_converted(
         for name in arguments
         if name in converted and name not in curried
     }
+
+
+def _non_finite(arguments: dict[str, Any]) -> str | None:
+    """The first argument whose JSON holds inf or NaN at any depth."""
+    for name, value in arguments.items():
+        try:
+            json.dumps(value, allow_nan=False)
+        except ValueError:
+            return name
+    return None
 
 
 def _changed_on_rebuild(arguments: dict[str, Any], tool_def: ToolDef) -> str | None:

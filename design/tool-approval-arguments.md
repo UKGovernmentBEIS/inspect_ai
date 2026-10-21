@@ -40,7 +40,9 @@ in B, so they are not compared. A comparison that raises is a parsing error.
    error.
 4. Serialize each converted argument the call gives to JSON, using one
    serializer for every type: Pydantic's, in JSON mode, by alias and without
-   computed fields. This is B. A serializer error is a parsing error.
+   computed fields. This is B. A serializer error is a parsing error, and so
+   is a non-finite number (`inf`, `-inf` or `NaN`) at any depth in B, which
+   the ApprovalEvent would record as null.
 5. Apply the rebuild check and the value check to B. If either fails, the
    call is a parsing error and is not shown.
 6. Approvers and sentinel monitors see B, rendered by the tool's viewer. An
@@ -111,6 +113,9 @@ reach the agent as given.
 | Validator that returns a different value each run | `{"n": 2}` | varies | unsupported: the build the check used and the build the tool runs can differ |
 | `SecretStr` field | `{"key": "k"}` | nothing | parsing error: shown as `**********`, which rebuilds to another secret |
 | Field with `exclude=True` | `{"sudo": true}` | nothing | parsing error: left out of B, so it rebuilds as its default |
+| Set or frozenset, also as a model or dataclass field | `{"tags": ["a", "b"]}` | `{"tags": [...]}` in iteration order, or nothing | parsing error when that order does not rebuild identically, which can depend on hash order between runs |
+| Serializer that rounds a float | `{"price": {"amount": 1.234}}` | nothing | parsing error: shown as `1.23`, which rebuilds to a different value |
+| Validator that turns a finite number into infinity | `{"capped": {"x": 101}}` | nothing | parsing error: B holds `inf`, which the ApprovalEvent would record as null |
 | Validation alias differs from serialization alias | `{"in": 1}` | nothing | parsing error: `{"out": 1}` does not convert back |
 | Field serializer that changes the type (`int` as text) | `{"item": {"count": 5}}` | `{"item": {"count": "5"}}` | runs with 5; a modify that copies the shown JSON fails the schema |
 
@@ -120,6 +125,8 @@ Under oversight, a call is refused when:
 
 - its arguments fail the schema or cannot be converted (parsing error);
 - a converted argument cannot be serialized (parsing error);
+- the serialized arguments hold a non-finite number (parsing error), since
+  the approval record cannot store it;
 - the serialized arguments do not rebuild to the same JSON, or to the same
   value in Python (parsing error), since the approver would otherwise approve
   a value the tool never gets;
@@ -129,6 +136,15 @@ Under oversight, a call is refused when:
 These shapes are refused rather than supported because they are not used by
 real tools. The shapes in use (plain values, models, lists of models, and
 model-or-dict unions) round-trip.
+
+Two consequences of these checks are kept as unsupported (decision: Ransom,
+2026-10-21). A set or frozenset, including as a model or dataclass field, is
+shown as a list in iteration order; when that order does not rebuild
+identically the call is a parsing error, which can depend on hash order
+between runs. No order-insensitive comparison is added. A serializer that
+reduces a value to a stable but different form (rounding, `NaN` in an
+`Any`-typed value shown as null) fails the value check, as a `SecretStr` mask
+or an excluded field does.
 
 The shown JSON is not checked against the tool's schema. Where a parameter's
 serialized form does not match the schema (a model field whose validation and
@@ -188,3 +204,8 @@ nothing here: on `main` a later edit to the call did not reach the log either.
   check used, so checking a lazy iterable does not consume the tool's value.
   Validators and constructors that return a different value each time are
   unsupported (decision: Ransom, 2026-10-21).
+- 2026-10-21: sets and frozensets whose shown order does not rebuild
+  identically, and serializers that reduce a value to a stable but different
+  form, stay refused under oversight. A shown call holding `inf`, `-inf` or
+  `NaN` at any depth is a parsing error, since the approval record cannot
+  store it (decision: Ransom, 2026-10-21).

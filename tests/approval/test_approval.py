@@ -1,5 +1,6 @@
 import json
 import logging
+import math
 from collections.abc import Iterable
 from copy import deepcopy
 from dataclasses import dataclass
@@ -21,6 +22,7 @@ from pydantic import (
 
 from inspect_ai import Task, eval
 from inspect_ai._util.content import ContentText
+from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._util.registry import registry_log_name
 from inspect_ai.agent import Agent, AgentState, agent
 from inspect_ai.approval import (
@@ -730,6 +732,17 @@ class Tokened(BaseModel):
     token: int = Field(default_factory=lambda: next(_tokens))
 
 
+class Capped(BaseModel):
+    """A number the validator turns into infinity beyond 100 either way."""
+
+    x: float
+
+    @field_validator("x")
+    @classmethod
+    def cap(cls, x: float) -> float:
+        return math.copysign(math.inf, x) if abs(x) > 100 else x
+
+
 class Incomparable:
     """A value whose equality raises."""
 
@@ -779,6 +792,7 @@ def step_tool(received: list[dict[str, Any]]) -> Tool:
         privileged: Privileged | None = None,
         tokened: Tokened | None = None,
         guarded: Guarded | None = None,
+        capped: Capped | None = None,
     ) -> str:
         """Record its arguments.
 
@@ -797,6 +811,7 @@ def step_tool(received: list[dict[str, Any]]) -> Tool:
             privileged: A model with a field left out of serialization.
             tokened: A model with a generated default.
             guarded: A model with a private attribute whose equality raises.
+            capped: A model whose validator turns large numbers into infinity.
         """
         arguments = {
             "step": step,
@@ -813,6 +828,7 @@ def step_tool(received: list[dict[str, Any]]) -> Tool:
             "privileged": privileged,
             "tokened": tokened,
             "guarded": guarded,
+            "capped": capped,
         }
         received.append({k: v for k, v in arguments.items() if v is not None})
         return "done"
@@ -945,6 +961,44 @@ async def test_a_value_that_cannot_be_compared_is_refused() -> None:
     assert "Argument 'guarded' cannot be shown" in message.error.message
     assert calls == []
     assert received == []
+
+
+@pytest.mark.parametrize("x", [101, -101])
+async def test_a_non_finite_shown_value_is_refused(x: int) -> None:
+    """A finite input a validator turns into infinity cannot be recorded, so it is refused."""
+    calls: list[ToolCall] = []
+    received: list[dict[str, Any]] = []
+    message = await execute_with_approval(
+        ToolCall(id="1", function="step_tool", arguments={"capped": {"x": x}}),
+        [step_tool(received)],
+        [ApprovalPolicy(recording_approver(calls), "*")],
+    )
+
+    assert message.error is not None
+    assert message.error.type == "parsing"
+    assert "Argument 'capped' cannot be shown" in message.error.message
+    assert "non-finite" in message.error.message
+    assert calls == []
+    assert received == []
+
+
+async def test_the_persisted_approval_event_keeps_the_shown_arguments() -> None:
+    """The ApprovalEvent as the log buffer writes it reloads with the shown call."""
+    init_transcript(Transcript())
+    calls: list[ToolCall] = []
+    received: list[dict[str, Any]] = []
+    message = await execute_with_approval(
+        ToolCall(id="1", function="step_tool", arguments={"capped": {"x": 1}}),
+        [step_tool(received)],
+        [ApprovalPolicy(recording_approver(calls), "*")],
+    )
+
+    assert message.error is None
+    shown = {"capped": {"x": 1.0}}
+    assert [call.arguments for call in calls] == [shown]
+    [event] = [e for e in transcript().events if isinstance(e, ApprovalEvent)]
+    persisted = ApprovalEvent.model_validate_json(to_json_str_safe(event))
+    assert persisted.call.arguments == shown
 
 
 async def test_a_generated_default_runs_as_shown() -> None:
