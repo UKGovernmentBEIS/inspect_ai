@@ -272,3 +272,127 @@ async def test_in_process_bridge_exposes_extra_headers() -> None:
         headers: Mapping[str, str] = request.headers
         assert headers.get("x-agent-id") == "sub-1"
         assert "authorization" not in headers
+
+
+def test_sanitize_catches_credential_variants() -> None:
+    headers = sanitize_client_headers(
+        {
+            "x_api_key": "s",
+            "x-access-key-id": "a",
+            "x-hmac-signature": "sig",
+            "x-custom": "Bearer abc",
+            "x-other": "sk-ant-123",
+            "x-session-id": "ok",
+        }
+    )
+    assert dict(headers) == {"x-session-id": "ok"}
+
+
+@pytest.mark.anyio
+async def test_headers_survive_refusal_retry_and_spawned_tasks() -> None:
+    import anyio
+
+    from inspect_ai.model import ModelOutput
+
+    seen: list[BridgeRequest | None] = []
+    calls = 0
+
+    async def filter(*args: Any) -> ModelOutput | None:
+        nonlocal calls
+        calls += 1
+        seen.append(current_bridge_request())
+
+        async def child() -> None:
+            seen.append(current_bridge_request())
+
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(child)
+        if calls == 1:
+            return ModelOutput.from_content("m", "no", stop_reason="content_filter")
+        return None
+
+    bridge = _bridge(filter=filter)
+    bridge.retry_refusals = 2
+    factory, body = _PROTOCOLS["anthropic"]
+    await factory(bridge)(body, {"x-claude-code-agent-id": "A"})
+    assert len(seen) == 4
+    for request in seen:
+        assert request is not None
+        assert request.headers.get("x-claude-code-agent-id") == "A"
+
+
+@pytest.mark.anyio
+async def test_concurrent_requests_see_their_own_headers() -> None:
+    import anyio
+
+    seen: dict[str, str] = {}
+
+    async def filter(*args: Any) -> None:
+        before = current_bridge_request()
+        await anyio.sleep(0.02)
+        after = current_bridge_request()
+        assert before is not None and after is not None
+        seen[before.headers["x-id"]] = after.headers["x-id"]
+        return None
+
+    factory, body = _PROTOCOLS["anthropic"]
+    generate = factory(_bridge(filter=filter))
+
+    async def run(i: int) -> None:
+        await generate(body, {"x-id": str(i)})
+
+    async with anyio.create_task_group() as tg:
+        for i in range(5):
+            tg.start_soon(run, i)
+    assert seen == {str(i): str(i) for i in range(5)}
+
+
+@pytest.mark.anyio
+async def test_in_process_anthropic_exposes_extra_headers() -> None:
+    from anthropic import AsyncAnthropic
+
+    from inspect_ai.agent import agent_bridge
+
+    sink = _CapturingSink()
+    async with agent_bridge(AgentState(messages=[]), model_event_sink=sink):
+        async with AsyncAnthropic(api_key="unused", base_url="http://localhost:1") as c:
+            await c.messages.create(
+                model="inspect/mockllm/model",
+                max_tokens=16,
+                messages=[{"role": "user", "content": "hi"}],
+                extra_headers={"X-Agent-Id": "s2", "X-Api-Key": "k"},
+            )
+    assert sink.seen
+    for _, request in sink.seen:
+        assert request is not None
+        assert request.headers.get("x-agent-id") == "s2"
+        assert "x-api-key" not in request.headers
+
+
+@pytest.mark.anyio
+async def test_nested_bridged_request_does_not_inherit_outer_headers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A filter running an in-process Gemini agent (no headers of its own)."""
+    monkeypatch.setenv("INSPECT_EVAL_MODEL", "mockllm/model")
+    from google import genai
+
+    from inspect_ai.agent import agent_bridge
+
+    inner = _CapturingSink()
+
+    async def outer_filter(*args: Any) -> None:
+        async with agent_bridge(AgentState(messages=[]), model_event_sink=inner):
+            await genai.Client(api_key="inspect").aio.models.generate_content(
+                model="inspect", contents="hi"
+            )
+        return None
+
+    factory, body = _PROTOCOLS["anthropic"]
+    await factory(_bridge(filter=outer_filter))(
+        body, {"x-claude-code-agent-id": "OUTER"}
+    )
+    assert inner.seen
+    for _, request in inner.seen:
+        assert request is not None
+        assert dict(request.headers) == {}
