@@ -2,6 +2,7 @@
 
 import json
 import math
+import threading
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -17,6 +18,8 @@ from inspect_ai.model import (
     ChatMessageAssistant,
     ChatMessageTool,
     ChatMessageUser,
+    ModelOutput,
+    ModelUsage,
     get_model,
 )
 from inspect_ai.model._model import _snapshot_messages, use_model_event_sink
@@ -82,12 +85,13 @@ async def test_model_event_input_unchanged_by_later_edits() -> None:
 class _Sink:
     def __init__(self) -> None:
         self.events: list[ModelEvent] = []
+        self.completed: list[ModelEvent] = []
 
     def on_pending(self, event: ModelEvent) -> None:
         self.events.append(event)
 
     def on_complete(self, event: ModelEvent) -> None:
-        pass
+        self.completed.append(event)
 
 
 async def test_model_event_input_snapshot_with_event_sink() -> None:
@@ -125,6 +129,32 @@ async def test_model_event_output_unchanged_by_later_edits(with_sink: bool) -> N
     assert first.output.message.metadata is None
     # the next input reuses the output's copy
     assert second.input[1] is first.output.message
+
+
+@pytest.mark.parametrize("with_sink", [False, True])
+async def test_model_event_output_copy_failure_completes_event(
+    with_sink: bool,
+) -> None:
+    # a lock can't be deep copied: generate raises, and the event still ends
+    output = ModelOutput.from_content("mockllm/model", "done")
+    output.message.metadata = {"lock": threading.Lock()}
+    output.usage = ModelUsage(input_tokens=1, output_tokens=1, total_tokens=2)
+    init_transcript(Transcript())
+    model = get_model("mockllm/model", custom_outputs=[output])
+    sink = _Sink()
+
+    with use_model_event_sink(sink if with_sink else None):
+        with pytest.raises(TypeError):
+            await model.generate([ChatMessageUser(content="hi")])
+
+    [event] = sink.events if with_sink else _model_events()
+    assert event.pending is None
+    assert event.error is not None and "TypeError" in event.error
+    assert event.output.completion == ""
+    if with_sink:
+        assert sink.completed == [event]
+    else:
+        assert transcript().pending_events == []
 
 
 async def test_model_event_output_snapshot_on_cache_hit(

@@ -2074,12 +2074,23 @@ class Model:
             # renderers (TUI + inspect view) discriminate on it to
             # suppress display.
 
-            # trace
+            # an output that can't be copied fails the event, which is still
+            # finalized before the error is raised
+            snapshot_error: Exception | None = None
             if isinstance(result, ModelOutput):
-                if result.choices:
-                    display_conversation_assistant(input, result.choices[0].message)
-                event.output = _snapshot_output(result)
-            else:
+                try:
+                    snapshot = _snapshot_output(result)
+                except Exception as ex:
+                    snapshot_error = ex
+                    result = ex
+                    event.output = ModelOutput.from_content(event.model, "")
+                else:
+                    if result.choices:
+                        display_conversation_assistant(input, result.choices[0].message)
+                    event.output = snapshot
+
+            # trace
+            if isinstance(result, Exception):
                 display_conversation_assistant_error(result)
                 event.error = exception_message(result)
                 traceback_text, traceback_ansi = format_traceback(
@@ -2111,6 +2122,9 @@ class Model:
                 transcript()._event_updated(event)
             else:
                 sink.on_complete(event)
+
+            if snapshot_error is not None:
+                raise snapshot_error
 
         # if we have output then complete it now
         if output:
@@ -3062,7 +3076,10 @@ def _snapshot_messages(messages: list[ChatMessage]) -> list[ChatMessage]:
     extraction) still copies them every time. Only the latest copy for an id
     is reused, so alternating different versions with the same id (handoff
     filters, concurrent epochs) copies on each switch. A message that cannot
-    be serialized is copied every time.
+    be serialized is copied every time. The comparison serializes every
+    message on each call, so its cost grows with the inline media (base64
+    data URIs) in the history and can exceed deep copying, which shares
+    those strings.
 
     Message values must be data: values Python can deep copy (a lock, for
     example, or nesting past the recursion limit raises here) and that
