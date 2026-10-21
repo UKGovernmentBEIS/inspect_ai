@@ -183,7 +183,7 @@ def replayed(log: EvalLog, **kwargs: Any) -> list["ReplayStep"]:
 # stored for each content: a message sent again under a new id reads back with
 # the first, and equal messages in one history are one row, so one id and one
 # object (a known difference)
-POOLED = {"input", "history", "agent_messages"}
+POOLED = {"input", "history"}
 
 
 def comparable(value: Any, ids: bool = True) -> Any:
@@ -256,6 +256,10 @@ def assert_replay_equals_live(
             if f"{key[0]}.{f.name}" in differences:
                 continue
             ours, theirs = getattr(again, f.name), getattr(step, f.name)
+            if f.name == "agent_messages":
+                # the log does not record the agent's own messages
+                assert ours is None, key
+                continue
             if f.name == "view":
                 ours, theirs = ours.call, theirs.call
             ids = f.name not in POOLED
@@ -599,8 +603,8 @@ def test_a_hook_that_rewrites_the_input_is_a_known_difference() -> None:
             tool_loop(addition()),
             agent_model(),
             # known difference (P4-F1): live BeforeGenerate sees the input before
-            # the hook and the provisional opening; the log has them as sent
-            differences=["model_input.input", "model_input.agent_messages"],
+            # the hook; the log has it as sent
+            differences=["model_input.input"],
         )
     finally:
         _registry.pop("hooks:r7_rewrites_the_input", None)
@@ -613,8 +617,7 @@ def test_a_message_edited_in_place_after_it_was_sent_is_a_known_difference() -> 
         d3_edits_a_sent_message_in_place(),
         "mockllm/model",
         differences=["model_input.input", "model_input.history", "model_output.input"]
-        + ["model_output.history", "model_input.agent_messages"]
-        + ["model_output.agent_messages"],
+        + ["model_output.history"],
     )
 
 
@@ -923,7 +926,7 @@ def assert_views_share_storage(
 ) -> None:
     """Every step's conversation fields are views of lists the conversation keeps, never copies.
 
-    Per conversation, `history` and `human_decisions` are each backed by one list, and `agent_messages` by at most two (the opening is replaced once, by the input as sent). The tool stages' `input` and `tools` are the producing model call's own lists, one per assistant message, whatever its calls and stages: live, its `ModelEvent`'s; in replay, rows of the one pool.
+    Per conversation, `history` and `human_decisions` are each backed by one list, and live `agent_messages` by at most two (replay's is None; the opening is replaced once, by the input as sent). The tool stages' `input` and `tools` are the producing model call's own lists, one per assistant message, whatever its calls and stages: live, its `ModelEvent`'s; in replay, rows of the one pool.
     """
     backing: dict[tuple[str, str], set[int]] = {}
     generates = {
@@ -1325,15 +1328,14 @@ def r7_generates_while_an_after_stage_runs(after_started: Any) -> Solver:
     return solve
 
 
-def test_an_output_joins_agent_messages_once_its_after_stage_has_finished() -> None:
+def test_a_generate_while_another_after_stage_runs_replays_as_it_ran() -> None:
     after_started, second_before = anyio.Event(), anyio.Event()
     replay = assert_replay_equals_live(
         r7_generates_while_an_after_stage_runs(after_started),
         outputs(done("first answer"), done("second answer")),
         sentinel=[r7_holds_the_first_after_stage(after_started, second_before)],
     )
-    [_, second] = [step for step in replay if step.stage == "model_input"]
-    assert [m.text for m in second.step.agent_messages or []] == ["first"]
+    assert len([step for step in replay if step.stage == "model_input"]) == 2
 
 
 @tool
@@ -1567,10 +1569,6 @@ def test_a_batch_that_raised_appends_nothing_when_the_scaffold_carries_on(
     replay = assert_replay_equals_live(
         [use_tools(failing()), r7_carries_on_after_a_failed_batch()],
         outputs(call(name), done()),
-    )
-    *_, last = [s for s in replay if s.stage == "model_input"]
-    assert not any(m.role == "tool" for m in last.step.agent_messages or []), (
-        "the raised batch's results never joined"
     )
     assert not [s for s in replay if s.stage == "tool_result"]
 
@@ -1942,7 +1940,7 @@ def r7_runs_batches_concurrently(
 
 
 @pytest.mark.parametrize("backend", ["asyncio", "trio"])
-def test_a_batch_joins_when_its_execute_tools_returns_though_another_batch_overlaps(
+def test_batches_that_overlap_replay_as_they_ran(
     backend: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
@@ -1965,8 +1963,7 @@ def test_a_batch_joins_when_its_execute_tools_returns_though_another_batch_overl
             done("C"),
         ),
     )
-    *_, last = [s for s in replay if s.stage == "model_input"]
-    assert "A1" not in [m.text for m in last.step.agent_messages or []]
+    assert len([s for s in replay if s.stage == "tool_result"]) == 3
 
 
 def inserted_block_inputs(turns: int) -> tuple[list[ModelEvent], list[ChatMessage]]:
@@ -2027,7 +2024,7 @@ def test_reading_a_view_s_end_reads_only_the_end(length: int) -> None:
     assert _CountingList.reads == 3
 
 
-# review pass 4: reordered history and repeated handoffs
+# review pass 4: reordered history
 
 
 def reordered_inputs(turns: int) -> tuple[list[ModelEvent], list[ChatMessage]]:
@@ -2051,51 +2048,6 @@ def test_history_reordered_to_put_a_middle_message_first_keeps_the_fold_linear(
         for turns in (200, 400)
     )
     assert_linear(small, large)
-
-
-class _CountedPositions(list[int]):
-    reads = 0
-
-    def __getitem__(self, index: Any) -> Any:
-        _CountedPositions.reads += 1
-        return super().__getitem__(index)
-
-    def __iter__(self) -> Any:
-        for item in super().__iter__():
-            _CountedPositions.reads += 1
-            yield item
-
-
-def handoff_reads(handoffs: int, monkeypatch: pytest.MonkeyPatch) -> int:
-    """Reads of the conversation's turn positions while replaying `handoffs` handoffs."""
-    from inspect_ai._sentinel import _replay
-
-    sub_agent = helper(outputs(*[done(f"helper done {n}") for n in range(handoffs)]))
-    log = run_logged(
-        tool_loop(handoff(sub_agent)),
-        outputs(*[call("transfer_to_helper") for _ in range(handoffs)], done()),
-    )
-    handoff_results = _replay._Driver._handoff_results
-
-    def counting(self: Any, batch: Any, last: int) -> Any:
-        positions = self.turn_positions.get(batch.conversation)
-        if positions is not None and not isinstance(positions, _CountedPositions):
-            self.turn_positions[batch.conversation] = _CountedPositions(positions)
-        return handoff_results(self, batch, last)
-
-    _CountedPositions.reads = 0
-    with monkeypatch.context() as patch:
-        patch.setattr(_replay._Driver, "_handoff_results", counting)
-        replay = replayed(log)
-    assert len([s for s in replay if s.stage == "tool_call"]) == handoffs
-    return _CountedPositions.reads
-
-
-def test_repeated_handoffs_find_their_next_turn_without_rebuilding_the_turns(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    small, large = (handoff_reads(n, monkeypatch) for n in (20, 40))
-    assert 0 < small and large <= 2.5 * small, (small, large)
 
 
 # review pass 5: contents stored under many rows, and overlapping ranges

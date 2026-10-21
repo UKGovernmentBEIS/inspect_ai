@@ -181,49 +181,14 @@ class _Sent:
 
 
 class ConversationRecord:
-    """What a step reads of its conversation: what it has sent (`history`), the conversation as its agent ran it (`agent_messages`), and the `human()` decisions published so far.
+    """What a step reads of its conversation: what it has sent (`history`) and the `human()` decisions published so far.
 
     Each is a list only ever appended to, and a step holds a view of it cut at its length when the step is built.
     """
 
     def __init__(self) -> None:
         self.sent = _Sent()
-        # the conversation as its agent ran it; None until an agent turn opens it
-        self._ran: list[ChatMessage] | None = None
-        # how many of `_ran` are the opening, which stays provisional until the
-        # first agent turn is sent, since a before-generate hook may change it
-        self._opening = 0
-        self._opening_sent = False
-        # set when replay cannot tell what joined the record
-        self._ran_lost = False
         self._decisions: list["HumanDecision"] = []
-
-    def open(self, input: Sequence[ChatMessage], *, sent: bool) -> None:
-        """Open the record with the conversation's first agent turn's input.
-
-        An input recorded before it is sent is provisional: the first input sent replaces it, in a new list so that a view taken of the provisional opening keeps it. Later inputs are not recorded.
-        """
-        if self._ran is None:
-            self._ran = list(input)
-            self._opening = len(input)
-            self._opening_sent = sent
-        elif sent and not self._opening_sent:
-            self._ran = [*input, *self._ran[self._opening :]]
-            self._opening = len(input)
-            self._opening_sent = True
-
-    @property
-    def opened(self) -> bool:
-        return self._ran is not None
-
-    def ran(self, messages: Sequence[ChatMessage]) -> None:
-        """Add an agent turn's output, or the results `execute_tools()` returned, to an opened record."""
-        if self._ran is not None:
-            self._ran.extend(messages)
-
-    def lose_ran(self) -> None:
-        """Replay could not tell what joined the record: later steps get no `agent_messages`."""
-        self._ran_lost = True
 
     def publish(self, kept: Sequence["HumanDecision"]) -> None:
         """Add a settled step's `human()` decisions, once its sentinel span has ended."""
@@ -231,22 +196,6 @@ class ConversationRecord:
 
     def history(self) -> ListView[ChatMessage]:
         return view(self.sent.messages)
-
-    def agent_messages(
-        self, through: ChatMessage | None = None
-    ) -> ListView[ChatMessage] | None:
-        """The record as it stands, or cut after `through` (by identity) when it holds that message.
-
-        None when no agent turn has opened the conversation.
-        """
-        ran = self._ran
-        if ran is None or self._ran_lost:
-            return None
-        if through is not None:
-            for index in range(len(ran) - 1, -1, -1):
-                if ran[index] is through:
-                    return ListView(ran, index + 1)
-        return view(ran)
 
     def human_decisions(self) -> ListView["HumanDecision"]:
         """The `human()` decisions published so far: a step's own, or a parallel step's still running, are not among them."""
@@ -312,6 +261,7 @@ def before_generate(
     tools: list[ToolInfo],
     tool_choice: ToolChoice,
     config: GenerateConfig,
+    agent_messages: Sequence[ChatMessage] | None,
     record: ConversationRecord,
 ) -> "BeforeGenerate":
     from inspect_sentinel import BeforeGenerate
@@ -320,7 +270,7 @@ def before_generate(
         model=model,
         conversation=conversation,
         input=input,
-        agent_messages=record.agent_messages(),
+        agent_messages=agent_messages,
         history=record.history(),
         human_decisions=record.human_decisions(),
         tools=tools,
@@ -338,6 +288,7 @@ def after_generate(
     tool_choice: ToolChoice,
     config: GenerateConfig,
     output: ModelOutput,
+    agent_messages: Sequence[ChatMessage] | None,
     record: ConversationRecord,
 ) -> "AfterGenerate":
     from inspect_sentinel import AfterGenerate
@@ -346,7 +297,7 @@ def after_generate(
         model=model,
         conversation=conversation,
         input=input,
-        agent_messages=record.agent_messages(),
+        agent_messages=agent_messages,
         history=record.history(),
         human_decisions=record.human_decisions(),
         tools=tools,
@@ -364,7 +315,7 @@ def before_tool_call(
     call: ToolCall,
     view: ToolCallView,
     producer: Producer | None,
-    through: ChatMessage | None,
+    agent_messages: Sequence[ChatMessage] | None,
     record: ConversationRecord,
 ) -> "BeforeToolCall":
     """The step before a tool call runs.
@@ -376,7 +327,7 @@ def before_tool_call(
         call: The call as it will execute.
         view: The call's view.
         producer: The model call that produced the call, if one did.
-        through: The assistant message that made the call, as the record holds it, so the step does not see what the record gained after it.
+        agent_messages: The running agent's messages, or None when they are not known.
         record: The conversation's record.
     """
     from inspect_sentinel import BeforeToolCall
@@ -388,7 +339,7 @@ def before_tool_call(
         call=call,
         view=view,
         input=producer.input if producer is not None else None,
-        agent_messages=record.agent_messages(through),
+        agent_messages=agent_messages,
         history=record.history(),
         human_decisions=record.human_decisions(),
         tools=producer.tools if producer is not None else None,
@@ -407,7 +358,7 @@ def after_tool_call(
     output: ToolResult | None,
     truncated: "Truncation | Literal[False] | None",
     producer: Producer | None,
-    through: ChatMessage | None,
+    agent_messages: Sequence[ChatMessage] | None,
     record: ConversationRecord,
 ) -> "AfterToolCall":
     """The step after a tool call ran; the arguments are those of `before_tool_call`, and the call's result.
@@ -422,7 +373,7 @@ def after_tool_call(
         output: The tool's untruncated output, or None when it is not known (replay).
         truncated: The cut made to the output, False for none, None when not known.
         producer: The model call that produced the call, if one did.
-        through: The assistant message that made the call, as the record holds it.
+        agent_messages: The running agent's messages, or None when they are not known.
         record: The conversation's record.
     """
     from inspect_sentinel import AfterToolCall
@@ -436,7 +387,7 @@ def after_tool_call(
         output=output,
         view=view,
         input=producer.input if producer is not None else None,
-        agent_messages=record.agent_messages(through),
+        agent_messages=agent_messages,
         history=record.history(),
         human_decisions=record.human_decisions(),
         tools=producer.tools if producer is not None else None,

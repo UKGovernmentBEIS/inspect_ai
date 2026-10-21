@@ -100,6 +100,7 @@ from ._conversation import live_conversation
 from ._scope import sentinel_scope
 from ._steps import (
     ConversationRecord,
+    ListView,
     after_generate,
     after_tool_call,
     before_generate,
@@ -107,6 +108,7 @@ from ._steps import (
     produced_by,
     producer_of,
     step_stage,
+    view,
 )
 
 logger = getLogger(__name__)
@@ -139,7 +141,9 @@ async def sentinel_before_tool_call(
         call=call,
         view=view,
         producer=producer_of(_producing_event(call, history)),
-        through=_producing_message(call, history),
+        agent_messages=_record(conversation).agent_messages(
+            _producing_message(call, history)
+        ),
         record=_record(conversation),
     )
     return await _run(step, call.id)
@@ -187,7 +191,9 @@ async def sentinel_after_tool_call(
         output=output,
         truncated=Truncation(*truncated) if truncated is not None else False,
         producer=producer_of(_producing_event(call, history)),
-        through=_producing_message(call, history),
+        agent_messages=_record(conversation).agent_messages(
+            _producing_message(call, history)
+        ),
         record=_record(conversation),
     )
     decision = await _run(step, call.id)
@@ -234,6 +240,7 @@ async def sentinel_before_generate(
         tools=tools,
         tool_choice=tool_choice,
         config=config,
+        agent_messages=_record(conversation).agent_messages(),
         record=_record(conversation),
     )
     await _run_generate(step, generate_id)
@@ -257,6 +264,7 @@ async def sentinel_after_generate(
         tool_choice=before.tool_choice,
         config=before.config,
         output=output,
+        agent_messages=_record(before.conversation).agent_messages(),
         record=_record(before.conversation),
     )
     await _run_generate(step, generate_id)
@@ -352,18 +360,64 @@ def record_agent_results(messages: list[ChatMessage]) -> None:
     _record(live_conversation()).ran(messages)
 
 
-def _record(conversation: str) -> ConversationRecord:
+class _LiveRecord(ConversationRecord):
+    """A conversation's record live, which also keeps the conversation as its agent ran it (`agent_messages`)."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        # None until an agent turn opens it
+        self._ran: list[ChatMessage] | None = None
+        # how many of `_ran` are the opening, which stays provisional until the
+        # first agent turn is sent, since a before-generate hook may change it
+        self._opening = 0
+        self._opening_sent = False
+
+    def open(self, input: Sequence[ChatMessage], *, sent: bool) -> None:
+        """Open the record with the conversation's first agent turn's input.
+
+        An input recorded before it is sent is provisional: the first input sent replaces it, in a new list so that a view taken of the provisional opening keeps it. Later inputs are not recorded.
+        """
+        if self._ran is None:
+            self._ran = list(input)
+            self._opening = len(input)
+            self._opening_sent = sent
+        elif sent and not self._opening_sent:
+            self._ran = [*input, *self._ran[self._opening :]]
+            self._opening = len(input)
+            self._opening_sent = True
+
+    def ran(self, messages: Sequence[ChatMessage]) -> None:
+        """Add an agent turn's output, or the results `execute_tools()` returned, to an opened record."""
+        if self._ran is not None:
+            self._ran.extend(messages)
+
+    def agent_messages(
+        self, through: ChatMessage | None = None
+    ) -> ListView[ChatMessage] | None:
+        """The record as it stands, or cut after `through` (by identity) when it holds that message.
+
+        None when no agent turn has opened the conversation.
+        """
+        ran = self._ran
+        if ran is None:
+            return None
+        if through is not None:
+            for index in range(len(ran) - 1, -1, -1):
+                if ran[index] is through:
+                    return ListView(ran, index + 1)
+        return view(ran)
+
+
+def _record(conversation: str) -> _LiveRecord:
     records = _records.setdefault(transcript(), {})
     record = records.get(conversation)
     if record is None:
-        record = records[conversation] = ConversationRecord()
+        record = records[conversation] = _LiveRecord()
     return record
 
 
 # each conversation's record, per sample
-_records: "WeakKeyDictionary[Transcript, dict[str, ConversationRecord]]" = (
-    WeakKeyDictionary()
-)
+_records: "WeakKeyDictionary[Transcript, dict[str, _LiveRecord]]" = WeakKeyDictionary()
 
 
 def _require_message_id() -> None:

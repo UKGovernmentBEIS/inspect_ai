@@ -2,7 +2,7 @@
 
 from bisect import bisect_left, bisect_right
 from collections.abc import Callable, Iterator, Sequence
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, replace
 from functools import partial
 from typing import TYPE_CHECKING, Any, NamedTuple, cast
 
@@ -78,7 +78,9 @@ def steps_from_events(
 ) -> list["ReplayStep"]:
     """The steps a sentinel was handed live, or would have been had it watched every stage, rebuilt from a sample's events.
 
-    One pass reads the events in log order, and a second applies what changed each conversation's record (the inputs its agent turns sent, its outputs and tool results as the agent ran them, the `human()` decisions published) in that order, building each step at the point live built it. The work is linear in the log as stored: model inputs are read as ranges of the message pool, each pool row's content key is computed once, and steps hold views of each conversation's lists rather than copies.
+    One pass reads the events in log order, and a second applies what changed each conversation's record (the inputs its agent turns sent, the `human()` decisions published) in that order, building each step at the point live built it. The work is linear in the log as stored: model inputs are read as ranges of the message pool, each pool row's content key is computed once, and steps hold views of each conversation's lists rather than copies.
+
+    Every step's `agent_messages` is None: the log does not record the agent's own messages, and model input can hold messages the agent kept out of them.
 
     Args:
         messages: The sample's messages (`EvalSample.messages`).
@@ -236,6 +238,9 @@ class _PooledInput:
     def _index(
         self,
     ) -> tuple[list[int], list[list[int]], tuple[list[int], list[int]]]:
+        # linear for non-overlapping inputs; nested overlapping pool ranges (an
+        # input repeating runs of its own messages) are a known superlinear
+        # case, accepted (Charles 2026-10-21) and pinned by test
         if self._points is None:
             ranges = [
                 (begin, end, start - begin)
@@ -300,20 +305,10 @@ class _Call:
     tool_span: str | None
 
 
-@dataclass
-class _Batch:
-    """The calls one `execute_tools()` ran: one assistant message's, in its conversation."""
-
-    conversation: str
-    assistant: ChatMessageAssistant
-    calls: list[_Call] = field(default_factory=list)
-
-
 class _Action(NamedTuple):
     position: int
     # at one position: steps built before the event there (1), the event's own
-    # effect (2), steps built once the event has happened (3), then what joins
-    # the record after those steps (4)
+    # effect (2), then steps built once the event has happened (3)
     phase: int
     seq: int
     run: Callable[[], None]
@@ -358,10 +353,6 @@ class _Driver:
         self.built: list["ReplayStep"] = []
         self.ids: set[tuple[str, str]] = set()
         self.span_steps: dict[str, tuple["Step", str]] = {}
-        # each conversation's agent-turn model events, in log order, and
-        # where each is in the log
-        self.turns: dict[str, list[ModelEvent]] = {}
-        self.turn_positions: dict[str, list[int]] = {}
         # each model event's input view and producer, shared by its steps
         self._views: dict[int, PoolView] = {}
         self._producers: dict[int, Producer] = {}
@@ -382,7 +373,6 @@ class _Driver:
         candidates: dict[str, list[str]] = {}
         produced: dict[str, tuple[ChatMessageAssistant, ModelEvent, ToolCall]] = {}
         approvals: dict[str, ApprovalEvent] = {}
-        batches: dict[tuple[str, int], _Batch] = {}
         calls: list[_Call] = []
 
         for index, event in enumerate(self.events):
@@ -431,8 +421,6 @@ class _Driver:
                 if event.error is not None:
                     open_generates[attempt_key] = group
                 last_turn[conversation] = index
-                self.turns.setdefault(conversation, []).append(event)
-                self.turn_positions.setdefault(conversation, []).append(index)
             elif isinstance(event, ApprovalEvent):
                 approvals[event.call.id] = event
             elif isinstance(event, CompactionEvent):
@@ -466,25 +454,11 @@ class _Driver:
                     self._tool_span(index, event),
                 )
                 calls.append(entry)
-                if assistant is None or (
-                    producer is not None and not is_agent_turn(producer.origin)
-                ):
-                    # execute_tools() records results only in an agent turn's region
-                    continue
-                # batches of different messages can be open at once, when
-                # agents sharing a conversation run tools concurrently
-                key = (conversation, id(assistant))
-                batch = batches.get(key)
-                if batch is None:
-                    batch = batches[key] = _Batch(conversation, assistant)
-                batch.calls.append(entry)
 
         for group in generates:
             self._generate(group)
         for entry in calls:
             self._tool_call(entry)
-        for batch in batches.values():
-            self._batch(batch)
 
         # the second pass: in log order, each step at its cut
         for action in sorted(self.actions, key=lambda a: (a.position, a.phase, a.seq)):
@@ -591,9 +565,6 @@ class _Driver:
         input = self._input(first)
 
         def build_before() -> None:
-            record = self._record(conversation)
-            if not record.opened:
-                record.open(list(input), sent=True)
             step = before_generate(
                 model=first.model,
                 conversation=conversation,
@@ -601,7 +572,8 @@ class _Driver:
                 tools=first.tools,
                 tool_choice=first.tool_choice,
                 config=first.config,
-                record=record,
+                agent_messages=None,
+                record=self._record(conversation),
             )
             self._built(before_id, "model_input", step, before_span)
 
@@ -628,7 +600,6 @@ class _Driver:
                 after_id = message_id
 
         def build_after() -> None:
-            record = self._record(conversation)
             step = after_generate(
                 model=first.model,
                 conversation=conversation,
@@ -637,23 +608,14 @@ class _Driver:
                 tool_choice=first.tool_choice,
                 config=first.config,
                 output=last.output,
-                record=record,
+                agent_messages=None,
+                record=self._record(conversation),
             )
             self._built(after_id, "model_output", step, after_span)
-            if after_end is None:
-                join()
 
-        def join() -> None:
-            # live records the output once sentinel_after_generate() returns
-            if last.output.choices:
-                self._record(conversation).ran([last.output.message])
-
-        after_end = self.ends.get(after_span) if after_span is not None else None
         self._at_point(
             self._cut(after_span, (last_index, 3)), group.seq + 1, build_after
         )
-        if after_end is not None:
-            self._at(after_end, 2, join)
         self._settle_at_end(after_span)
 
     def _tool_call(self, call: _Call) -> None:
@@ -734,7 +696,7 @@ class _Driver:
                 call=before_call,
                 view=before_view,
                 producer=producer,
-                through=assistant,
+                agent_messages=None,
                 record=self._record(conversation),
             )
             self._built(event.id, "tool_call", step, before_span)
@@ -763,7 +725,7 @@ class _Driver:
                 output=None,
                 truncated=truncated,
                 producer=producer,
-                through=assistant,
+                agent_messages=None,
                 record=self._record(conversation),
             )
             self._built(event.id, "tool_result", step, after_span)
@@ -795,43 +757,6 @@ class _Driver:
                 return True
             span_id = begin.parent_id
         return False
-
-    def _batch(self, batch: _Batch) -> None:
-        # execute_tools() returns, and appends its results, once every call
-        # and stage of its batch has finished
-        last = 0
-        for call in batch.calls:
-            last = max(last, call.index)
-            spans = [
-                call.tool_span,
-                self.step_spans.get(("tool_result", call.event.id)),
-            ]
-            for span in spans:
-                if span is not None and span in self.ends:
-                    last = max(last, self.ends[span])
-        conversation = batch.conversation
-        if any(call.event.failed or call.event.pending for call in batch.calls):
-            # live never reaches the append when a batch raises
-            return
-        handoff = any(call.event.agent is not None for call in batch.calls)
-        if handoff:
-            joined = self._handoff_results(batch, last)
-        else:
-            by_id = {call.event.id: call for call in batch.calls}
-            joined = [
-                self._result(by_id[tool_call.id].event)
-                for tool_call in batch.assistant.tool_calls or []
-                if tool_call.id in by_id
-            ]
-
-        def join() -> None:
-            record = self._record(conversation)
-            if joined is None:
-                record.lose_ran()
-            else:
-                record.ran(joined)
-
-        self._at(last, 4, join)
 
     # ---- effects of the second pass
 
@@ -962,18 +887,6 @@ class _Driver:
                         found[tool_call.id] = (message, tool_call)
             self._assistants = found
         return self._assistants.get(call_id, (None, None))
-
-    def _handoff_results(self, batch: _Batch, last: int) -> list[ChatMessage] | None:
-        """The messages a handoff's batch returned: what follows its assistant message in the conversation's next agent turn after the batch finished, else in the sample's messages."""
-        turns = self.turns.get(batch.conversation, [])
-        at = bisect_right(self.turn_positions.get(batch.conversation, []), last)
-        source: Sequence[ChatMessage] = (
-            self._input(turns[at]) if at < len(turns) else self.messages
-        )
-        for position in range(len(source) - 1, -1, -1):
-            if source[position].id == batch.assistant.id:
-                return list(source[position + 1 :])
-        return None
 
     def _sentinel_modify(self, span: str | None, event: ToolEvent) -> ToolCall | None:
         if span is None:
