@@ -1,10 +1,10 @@
 import re
 from collections import Counter
-from collections.abc import Callable, Sequence
+from collections.abc import Sequence
 from copy import copy
 from dataclasses import fields
 from logging import getLogger
-from typing import Any, Literal, NamedTuple, TypeGuard, cast
+from typing import Any, Literal, NamedTuple, cast
 from weakref import WeakKeyDictionary
 
 from inspect_sentinel import (
@@ -41,12 +41,10 @@ from inspect_ai._util.registry import registry_lookup
 from inspect_ai.approval._approval import Approval, ApprovalDecision
 from inspect_ai.approval._approver import Approver
 from inspect_ai.approval._human.approver import human_approver
-from inspect_ai.event._event import Event
 from inspect_ai.event._model import ModelEvent
 from inspect_ai.event._sentinel import (
     SentinelAction,
     SentinelEvent,
-    SentinelStage,
     SentinelStatus,
     SentinelSuspicion,
 )
@@ -107,7 +105,16 @@ from ._context import (
 )
 from ._conversation import current_conversation
 from ._scope import sentinel_scope
-from ._sent import record_sent, sent_messages
+from ._steps import (
+    ConversationRecord,
+    after_generate,
+    after_tool_call,
+    before_generate,
+    before_tool_call,
+    produced_by,
+    producer_of,
+    step_stage,
+)
 
 logger = getLogger(__name__)
 
@@ -131,22 +138,16 @@ async def sentinel_before_tool_call(
         view = resolve_tool_call_view(call, viewer, reject_on_error=True)
     except ToolCallViewError as ex:
         raise ToolApprovalError(str(ex)) from ex
-    producer = _producing_event(call, history)
     conversation = current_conversation()
-    # inspect_sentinel 0.1.4, which mypy checks against, has neither
-    # message_id nor tool_choice; _require_message_id() ensures they exist
-    step = BeforeToolCall(  # type: ignore[call-arg]  # inspect_sentinel 0.1.4 lacks message_id and tool_choice; remove when the lock bumps
+    step = before_tool_call(
         conversation=conversation,
         message=message,
         message_id=_message_id(message_id),
         call=call,
         view=view,
-        input=list(producer.input) if producer is not None else None,
+        producer=producer_of(_producing_event(call, history)),
         agent_messages=agent_messages(conversation),
-        history=sent_messages(conversation),
-        human_decisions=_human_decisions(conversation),
-        tools=list(producer.tools) if producer is not None else None,
-        tool_choice=producer.tool_choice if producer is not None else None,
+        record=_record(conversation),
     )
     return await _run(step, call.id)
 
@@ -182,25 +183,19 @@ async def sentinel_after_tool_call(
     if not _watches(AfterToolCall):
         return
     _require_message_id()
-    producer = _producing_event(call, history)
     conversation = current_conversation()
-    # inspect_sentinel 0.1.4, which mypy checks against, has neither
-    # message_id nor tool_choice; _require_message_id() ensures they exist
-    step = AfterToolCall(  # type: ignore[call-arg]  # inspect_sentinel 0.1.4 lacks message_id and tool_choice; remove when the lock bumps
+    step = after_tool_call(
         conversation=conversation,
         message=message,
         message_id=_message_id(message_id),
         call=call,
+        view=resolve_tool_call_view(call, viewer),
         result=result,
         output=output,
-        view=resolve_tool_call_view(call, viewer),
-        input=list(producer.input) if producer is not None else None,
-        agent_messages=agent_messages(conversation),
-        history=sent_messages(conversation),
-        human_decisions=_human_decisions(conversation),
-        tools=list(producer.tools) if producer is not None else None,
-        tool_choice=producer.tool_choice if producer is not None else None,
         truncated=Truncation(*truncated) if truncated is not None else False,
+        producer=producer_of(_producing_event(call, history)),
+        agent_messages=agent_messages(conversation),
+        record=_record(conversation),
     )
     decision = await _run(step, call.id)
     if decision is not None and decision.action == "terminate":
@@ -239,16 +234,15 @@ async def sentinel_before_generate(
     if root is None or not (watched_stages(root) & {BeforeGenerate, AfterGenerate}):
         return None
     conversation = current_conversation()
-    step = BeforeGenerate(
+    step = before_generate(
         model=model,
         conversation=conversation,
         input=input,
-        agent_messages=agent_messages(conversation),
-        history=sent_messages(conversation),
-        human_decisions=_human_decisions(conversation),
         tools=tools,
         tool_choice=tool_choice,
         config=config,
+        agent_messages=agent_messages(conversation),
+        record=_record(conversation),
     )
     await _run_generate(step, generate_id)
     return step
@@ -263,17 +257,16 @@ async def sentinel_after_generate(
         TerminateSampleError: The sentinel requested termination.
         SentinelFailure: A monitor or protocol failed.
     """
-    step = AfterGenerate(
+    step = after_generate(
         model=before.model,
         conversation=before.conversation,
         input=before.input,
-        agent_messages=agent_messages(before.conversation),
-        history=sent_messages(before.conversation),
-        human_decisions=_human_decisions(before.conversation),
         tools=before.tools,
         tool_choice=before.tool_choice,
         config=before.config,
         output=output,
+        agent_messages=agent_messages(before.conversation),
+        record=_record(before.conversation),
     )
     await _run_generate(step, generate_id)
 
@@ -310,29 +303,20 @@ async def _run(step: Step, step_id: str) -> Decision | None:
         except TimeoutError as ex:
             # the sample runner treats a bare TimeoutError as benign
             raise RuntimeError(
-                f"A sentinel timed out at the {_stage(step)} stage: {ex}"
+                f"A sentinel timed out at the {step_stage(step)} stage: {ex}"
             ) from ex
     except Exception as ex:
         raise SentinelFailure(ex) from ex
-    _publish(step.conversation, recorder.kept)
+    if recorder.kept:
+        _record(step.conversation).publish(recorder.kept)
     if decision is not None and decision.action == "escalate":
         raise SentinelFailure(
             RuntimeError(
-                f"inspect_sentinel returned an escalate at the {_stage(step)} stage, "
+                f"inspect_sentinel returned an escalate at the {step_stage(step)} stage, "
                 f"which it should have turned into a terminate. {_UPGRADE}"
             )
         )
     return decision
-
-
-def _stage(step: Step) -> SentinelStage:
-    if isinstance(step, BeforeGenerate):
-        return "model_input"
-    elif isinstance(step, AfterGenerate):
-        return "model_output"
-    elif isinstance(step, BeforeToolCall):
-        return "tool_call"
-    return "tool_result"
 
 
 def _host_context(recorder: "_Recorder") -> HostContext:
@@ -360,7 +344,21 @@ def _eval_context() -> EvalContext | None:
 
 
 def record_agent_turn(input: list[ChatMessage]) -> None:
-    record_sent(current_conversation(), input)
+    _record(current_conversation()).sent.record(input)
+
+
+def _record(conversation: str) -> ConversationRecord:
+    records = _records.setdefault(transcript(), {})
+    record = records.get(conversation)
+    if record is None:
+        record = records[conversation] = ConversationRecord()
+    return record
+
+
+# each conversation's record, per sample
+_records: "WeakKeyDictionary[Transcript, dict[str, ConversationRecord]]" = (
+    WeakKeyDictionary()
+)
 
 
 def _require_message_id() -> None:
@@ -381,30 +379,6 @@ def _message_id(message_id: str | None) -> str:
     return message_id
 
 
-def _human_decisions(conversation: str) -> tuple[HumanDecision, ...]:
-    """The `human()` decisions published so far in the conversation, for a step about to run.
-
-    Taken when the step is built. A step's decisions are published only once it has settled (see `_publish`), so a decision made at the step itself, or at a parallel call's step still running, is not among them.
-    """
-    return tuple(_published.get(transcript(), {}).get(conversation, []))
-
-
-def _publish(conversation: str, kept: list[HumanDecision]) -> None:
-    """Add a settled step's `human()` decisions to its conversation's human decisions.
-
-    Called after the step's sentinel span ends, so a supersession has already withdrawn any decision that did not take effect, and a parallel step built before then never saw one that might yet be.
-    """
-    if kept:
-        conversations = _published.setdefault(transcript(), {})
-        conversations.setdefault(conversation, []).extend(kept)
-
-
-# the `human()` decisions of each conversation's settled steps, oldest first
-_published: "WeakKeyDictionary[Transcript, dict[str, list[HumanDecision]]]" = (
-    WeakKeyDictionary()
-)
-
-
 def _assistant_index(call: ToolCall, history: list[ChatMessage]) -> int | None:
     for index in range(len(history) - 1, -1, -1):
         message = history[index]
@@ -421,24 +395,11 @@ def _producing_event(call: ToolCall, history: list[ChatMessage]) -> ModelEvent |
     if message_id is None:
         return None
     try:
-        return transcript().history.find_last(_produced_by(message_id))
+        return transcript().history.find_last(produced_by(message_id))
     except TranscriptHistoryUnavailableError:
         return None
     except Exception as ex:
         raise SentinelFailure(ex) from ex
-
-
-def _produced_by(message_id: str) -> Callable[[Event], TypeGuard[ModelEvent]]:
-    def produced(event: Event) -> TypeGuard[ModelEvent]:
-        return (
-            isinstance(event, ModelEvent)
-            and event.role != "monitor"
-            and not event.pending
-            and bool(event.output.choices)
-            and event.output.choices[0].message.id == message_id
-        )
-
-    return produced
 
 
 class _HostNative:
@@ -498,7 +459,7 @@ class _HostNative:
     ) -> HumanAnswer:
         if isinstance(step, BeforeGenerate):
             raise NotImplementedError(
-                f"inspect_ai cannot ask a person at the {_stage(step)} stage; "
+                f"inspect_ai cannot ask a person at the {step_stage(step)} stage; "
                 "its human approval surfaces show tool calls and assistant turns."
             )
         if "modify" in choices:
@@ -508,7 +469,7 @@ class _HostNative:
             )
         if isinstance(step, AfterGenerate) and "reject" in choices:
             raise ValueError(
-                f"human() cannot offer 'reject' at the {_stage(step)} stage, "
+                f"human() cannot offer 'reject' at the {step_stage(step)} stage, "
                 "where a turn can only proceed or be terminated."
             )
         offered: list[ApprovalDecision] = []
@@ -531,11 +492,14 @@ class _HostNative:
         approve = human_approver(choices=offered)
         if isinstance(step, AfterGenerate):
             approval = await _ask_about_turn(
-                approve, step, escalations, offered, conversation
+                approve, step, escalations, offered, list(conversation)
             )
         else:
             approval = await approve(
-                step.message, step.call, _human_view(step, escalations), conversation
+                step.message,
+                step.call,
+                _human_view(step, escalations),
+                list(conversation),
             )
         if approval.decision in offered:
             return HumanAnswer(decision=approval.decision, reason=approval.explanation)
@@ -900,7 +864,7 @@ def _emit(
             function=function,
             step_id=step_id,
             conversation=step.conversation,
-            stage=_stage(step),
+            stage=step_stage(step),
             kind=kind,
             status=status,
             suspicion=suspicion,

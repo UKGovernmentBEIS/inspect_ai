@@ -669,7 +669,7 @@ def test_each_step_gets_the_tools_and_tool_choice_of_the_call_that_produced_it(
     )
     for step in steps:
         event = producer(log, step.call.id)
-        assert (step.tools, step.tool_choice) == (event.tools, event.tool_choice)  # type: ignore[union-attr]  # inspect_sentinel 0.1.4 lacks message_id and tool_choice; remove when the lock bumps
+        assert (step.tools, step.tool_choice) == (event.tools, event.tool_choice)
 
 
 @protocol
@@ -1645,7 +1645,7 @@ async def test_a_message_no_model_call_produced_has_no_input() -> None:
             [parallel_addition()],
         )
 
-    assert [(step.input, step.tools, step.tool_choice) for _, step in seen] == [  # type: ignore[attr-defined]  # inspect_sentinel 0.1.4 lacks message_id and tool_choice; remove when the lock bumps
+    assert [(step.input, step.tools, step.tool_choice) for _, step in seen] == [
         (None, None, None)
     ] * 2
 
@@ -1763,7 +1763,7 @@ def test_a_history_read_error_fails_the_sentinel() -> None:
 
 
 def test_produced_by_narrows_find_last_to_a_model_event() -> None:
-    from inspect_ai._sentinel._dispatch import _produced_by
+    from inspect_ai._sentinel._steps import produced_by
 
     current = Transcript()
     init_transcript(current)
@@ -1771,7 +1771,7 @@ def test_produced_by_narrows_find_last_to_a_model_event() -> None:
     current._event(agent)
     message_id = agent.output.choices[0].message.id
     assert message_id is not None
-    found = current.history.find_last(_produced_by(message_id))
+    found = current.history.find_last(produced_by(message_id))
     assert_type(found, ModelEvent | None)
     assert found is agent
 
@@ -1896,7 +1896,7 @@ def test_a_modified_call_on_a_non_modify_decision_is_not_dropped(
 
     init_transcript(Transcript())
     call = addition_call()
-    step = BeforeToolCall(  # type: ignore[call-arg]  # inspect_sentinel 0.1.4 lacks message_id and tool_choice; remove when the lock bumps
+    step = BeforeToolCall(
         conversation="c",
         message="",
         message_id="m1",
@@ -1920,7 +1920,7 @@ def test_bypassed_and_superseded_layers_are_recorded() -> None:
 
     init_transcript(Transcript())
     call = addition_call()
-    step = BeforeToolCall(  # type: ignore[call-arg]  # inspect_sentinel 0.1.4 lacks message_id and tool_choice; remove when the lock bumps
+    step = BeforeToolCall(
         conversation="c",
         message="",
         message_id="m1",
@@ -1956,7 +1956,7 @@ def test_a_superseded_human_decision_is_not_kept(
 
     init_transcript(Transcript())
     call = addition_call()
-    step = BeforeToolCall(  # type: ignore[call-arg]  # inspect_sentinel 0.1.4 lacks message_id and tool_choice; remove when the lock bumps
+    step = BeforeToolCall(
         conversation="c",
         message="",
         message_id="m1",
@@ -2125,8 +2125,8 @@ def test_both_tool_stages_carry_the_id_of_the_message_that_made_the_call() -> No
     }
     assert len(before) == len(after) == 3
     assert (
-        [step.message_id for _, step in before]  # type: ignore[attr-defined]  # inspect_sentinel 0.1.4 lacks message_id and tool_choice; remove when the lock bumps
-        == [step.message_id for step in after]  # type: ignore[attr-defined]  # inspect_sentinel 0.1.4 lacks message_id and tool_choice; remove when the lock bumps
+        [step.message_id for _, step in before]
+        == [step.message_id for step in after]
         == [made[step.call.id] for _, step in before]
     )
 
@@ -3337,7 +3337,7 @@ _REBUILT_TURNS = 20
 @solver
 def d3_rebuilds_every_message(remembered: dict[str, int]) -> Solver:
     async def solve(state: TaskState, generate: Generate) -> TaskState:
-        from inspect_ai._sentinel._sent import _sent
+        from inspect_ai._sentinel._dispatch import _records
 
         model = get_model()
         turns: list[tuple[str, str]] = [("user", "Begin.")]
@@ -3352,9 +3352,10 @@ def d3_rebuilds_every_message(remembered: dict[str, int]) -> Solver:
             ]
             output = await model.generate(input)
             turns += [("assistant", output.completion), ("user", f"Turn {turn}.")]
-        [record] = _sent[transcript()].values()
-        remembered["messages"] = len(record.messages)
-        remembered["previous"] = len(record.previous)
+        [record] = _records[transcript()].values()
+        remembered["messages"] = len(record.sent.messages)
+        previous = record.sent._previous
+        remembered["previous"] = len(previous) if previous is not None else 0
         remembered["last_input"] = len(input)
         return state
 
@@ -3491,10 +3492,10 @@ def test_tool_stages_carry_what_was_sent_for_the_call() -> None:
 @solver
 def d3_generates_and_checks_nothing_was_recorded() -> Solver:
     async def solve(state: TaskState, generate: Generate) -> TaskState:
-        from inspect_ai._sentinel._sent import _sent
+        from inspect_ai._sentinel._dispatch import _records
 
         state.output = await get_model().generate(state.messages)
-        assert transcript() not in _sent
+        assert transcript() not in _records
         return state
 
     return solve
@@ -3509,7 +3510,7 @@ def test_nothing_is_recorded_without_a_sentinel() -> None:
     assert log.status == "success", log.error
 
 
-# A reference model of step.history's rules, checked against _sent.py on random
+# A reference model of step.history's rules, checked against _steps.py on random
 # request sequences. The reference refolds the whole sequence for every
 # request, with no incremental state, no index and no prefix shortcut.
 
@@ -3642,9 +3643,9 @@ def _random_case(rng: random.Random, requests: int) -> _Case:
 
 
 def _first_divergence(case: _Case) -> str | None:
-    from inspect_ai._sentinel._sent import record_sent, sent_messages
+    from inspect_ai._sentinel._steps import ConversationRecord
 
-    init_transcript(Transcript())
+    record = ConversationRecord()
     objects = [_message(spec) for spec in case.specs]
     snapshots: list[list[ChatMessage]] = []
     passed: list[ChatMessage] = []
@@ -3655,8 +3656,8 @@ def _first_divergence(case: _Case) -> str | None:
         else:
             passed = messages
         snapshots.append(list(messages))
-        record_sent("conversation", passed)
-        actual = sent_messages("conversation")
+        record.sent.record(passed)
+        actual = list(record.history())
         expected = reference_sent(snapshots)
         if len(actual) != len(expected) or any(
             a is not e for a, e in zip(actual, expected)
@@ -5548,7 +5549,7 @@ def assert_history_is_the_fold_of_the_log(
     # each call's conversation is from the span tree unless given by event uuid
     from inspect_ai._sentinel._conversation import SpanConversations
     from inspect_ai._sentinel._scope import is_agent_turn
-    from inspect_ai._sentinel._sent import _Sent
+    from inspect_ai._sentinel._steps import _Sent
 
     assert log.status == "success", log.error
     assert log.location
@@ -5681,7 +5682,7 @@ def test_parallel_sub_agents_histories_are_the_folds_of_their_calls() -> None:
 
 
 def fold(*inputs: list[ChatMessage]) -> list[ChatMessage]:
-    from inspect_ai._sentinel._sent import _Sent
+    from inspect_ai._sentinel._steps import _Sent
 
     sent = _Sent()
     for input in inputs:
@@ -5719,7 +5720,7 @@ def test_the_fold_ignores_source_and_metadata() -> None:
 
 
 def test_a_message_changed_in_place_and_sent_again_is_new() -> None:
-    from inspect_ai._sentinel._sent import _Sent
+    from inspect_ai._sentinel._steps import _Sent
 
     sent = _Sent()
     message = _u("A")
