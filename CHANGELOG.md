@@ -1,5 +1,42 @@
 # Changelog
 
+## [0.3.283](https://github.com/UKGovernmentBEIS/inspect_ai/compare/0.3.282...0.3.283) (2026-10-21)
+
+
+### Breaking Changes
+
+* dataset loaders now read a top-level `checkpoint` field as the sample's checkpoint configuration and raise when it isn't a valid one. Datasets that use `checkpoint` for unrelated data should pass `FieldSpec(checkpoint=None)` to skip the field, or `FieldSpec(checkpoint="<column>")` to read checkpoint settings from another column. Dataset records also can't set the checkpoint `trigger`; set it with `Task(checkpoint=CheckpointConfig(trigger=...))` or `eval(checkpoint=...)` instead.
+* Perplexity requests failing after Sonar moved to the Agent API ([#5703](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5703))
+
+### Features
+
+* **meta:** send prompt cache key and request 24 hour cache retention ([#6005](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6005)) ([17d4403](https://github.com/UKGovernmentBEIS/inspect_ai/commit/17d440355b9b4a718ba7ec0e6b203f39489c409d))
+* pass arguments to a registered sentinel with --sentinel-arg ([#5877](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5877)) ([b9f2574](https://github.com/UKGovernmentBEIS/inspect_ai/commit/b9f257419ad32c88cb49eff1edf2800170093ddd))
+* record a task's trust_content with in-eval scan results so Scout shows them as plain text ([#5788](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5788)) ([bc9012c](https://github.com/UKGovernmentBEIS/inspect_ai/commit/bc9012c28511295db92e382620c723fa8c17fbbc))
+* record bridged host tool calls as tool events in the transcript ([#5741](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5741)) ([d90a8a0](https://github.com/UKGovernmentBEIS/inspect_ai/commit/d90a8a0d335a7821abeff5f1b61e9f43f5120c06))
+* **sentinel:** tool steps carry the id of the message that made the call and its request's tool choice ([#5964](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5964)) ([c90c3a1](https://github.com/UKGovernmentBEIS/inspect_ai/commit/c90c3a1bf0be223393dcd0732e5ebc9e4c4222df))
+
+
+### Bug Fixes
+
+* a span that raises or is cancelled logs its own store changes ([#5961](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5961)) ([5603856](https://github.com/UKGovernmentBEIS/inspect_ai/commit/560385640e12a59b417275e660f1ce40f4f2a783))
+* **anthropic:** Anthropic provider fails on anthropic 2.0 with 'Cannot instantiate typing.Union' ([#6003](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6003)) ([f35c925](https://github.com/UKGovernmentBEIS/inspect_ai/commit/f35c925bbc89a1aa7dd0268385064c1505334228))
+* charge working time for model calls, sandbox commands and tool calls that run while another task waits ([#5880](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5880)) ([1579809](https://github.com/UKGovernmentBEIS/inspect_ai/commit/157980923b2993d2496a8d150c81f32465f15991))
+* Ctrl-C during eval() on the trio backend raises KeyboardInterrupt and logs the cancelled eval ([#5870](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5870)) ([9868e10](https://github.com/UKGovernmentBEIS/inspect_ai/commit/9868e105fa6eb371395a909b9709423c92a88512))
+* eval-set resume runs in the task's sandbox instead of the one the previous log names ([#6006](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6006)) ([27f034c](https://github.com/UKGovernmentBEIS/inspect_ai/commit/27f034ca4e06d6fadb93825ad9fea237cc46b6b9))
+* Groq and Mistral send a tool error to the model ([#5882](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5882)) ([eda5bcb](https://github.com/UKGovernmentBEIS/inspect_ai/commit/eda5bcbaeadbf14deb9bfc977fec2df4367ac223))
+* Perplexity requests failing after Sonar moved to the Agent API ([#5703](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5703)) ([4a4f7ea](https://github.com/UKGovernmentBEIS/inspect_ai/commit/4a4f7ea76fd695dbdd0824cd22ffd002b8cbe45a))
+* preserve sample checkpoint settings when loading datasets ([#5411](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5411)) ([7a83ea9](https://github.com/UKGovernmentBEIS/inspect_ai/commit/7a83ea99eedbf2effaca3f68a21d753b2fd41bdc))
+* share tool-execution classification between model and human agent paths ([#4993](https://github.com/UKGovernmentBEIS/inspect_ai/issues/4993)) ([63e45cc](https://github.com/UKGovernmentBEIS/inspect_ai/commit/63e45cc52d39b873b944124613da21fdad6f6dcc))
+* viewer update keeps a bridged agent's own tool calls visible in focus mode ([#5998](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5998)) ([5e06ec2](https://github.com/UKGovernmentBEIS/inspect_ai/commit/5e06ec2d8ba569c4ec867bfd48a7d66cda53c370))
+* warn when a sample or task sandbox config is not used ([#5736](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5736)) ([6bfa187](https://github.com/UKGovernmentBEIS/inspect_ai/commit/6bfa187cd4e9909222bdb1d9e67549b30f9b89dc))
+* write checkpoint attachments.json in insertion order so restic can deduplicate it ([#5967](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5967)) ([22141c9](https://github.com/UKGovernmentBEIS/inspect_ai/commit/22141c91d80528e729123f6aac287566334367a9))
+
+
+### Performance Improvements
+
+* make repeated inspect ctl --log-dir polls read only the logs that changed ([#5776](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5776)) ([973cf79](https://github.com/UKGovernmentBEIS/inspect_ai/commit/973cf7925abefd248c86f4638fad0ddd5d9b97d7))
+
 ## [0.3.282](https://github.com/UKGovernmentBEIS/inspect_ai/compare/0.3.281...0.3.282) (2026-10-19)
 
 

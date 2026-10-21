@@ -663,7 +663,7 @@ def init_anthropic_request_patch() -> None:
     from anthropic._base_client import AsyncAPIClient, _AsyncStreamT
     from anthropic._constants import RAW_RESPONSE_HEADER
     from anthropic._models import FinalRequestOptions
-    from anthropic._types import NotGiven, Omit, ResponseT
+    from anthropic._types import Omit, ResponseT
 
     # extract headers
     def request_headers(options: FinalRequestOptions) -> dict[str, str] | None:
@@ -716,32 +716,6 @@ def init_anthropic_request_patch() -> None:
             stream_cls=stream_cls,
         )
 
-    async def prepare_request_options(
-        client: AsyncAPIClient, options: FinalRequestOptions
-    ) -> FinalRequestOptions:
-        """Prepare the request body the way the SDK would before sending it.
-
-        anthropic >= 1.8.0 prepares the body inside `request()`, below the
-        bridge's interception point, so run its `_copy_and_prepare()`. Older
-        SDKs prepare at the resource layer but defer `extra_body` to
-        `_build_request()`, so merge and clean it here and clear `extra_json`
-        so it isn't merged again.
-        """
-        copy_and_prepare = getattr(client, "_copy_and_prepare", None)
-        if copy_and_prepare is not None:
-            prepared: FinalRequestOptions = await copy_and_prepare(options)
-            return prepared
-
-        json_data = cast(dict[str, Any], options.json_data)
-        if options.extra_json:
-            json_data = json_data | dict(options.extra_json)
-        return options.model_copy(
-            update={
-                "json_data": strip_omitted_params(json_data, (Omit, NotGiven)),
-                "extra_json": None,
-            }
-        )
-
     # get reference to original method
     original_request = getattr(AsyncAPIClient, "request")
     if original_request is None:
@@ -773,7 +747,8 @@ def init_anthropic_request_patch() -> None:
                 if stream:
                     raise_stream_error()
 
-                options = await prepare_request_options(self, options)
+                # the SDK prepares the body inside request(), below this patch
+                options = await self._copy_and_prepare(options)
                 json_data = cast(dict[str, Any], options.json_data)
                 is_beta = "beta" in options.url
                 result = await inspect_anthropic_api_request(
