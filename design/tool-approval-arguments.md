@@ -6,7 +6,8 @@ For native tool calls, an approver or sentinel monitor decides on the call the
 tool will run. While approval or a sentinel is active, the approver sees the
 call's arguments as converted for the tool, serialized as JSON. The tool runs
 what is rebuilt from the JSON the approver approved, and that JSON must
-serialize back to itself. An invalid call is a parsing error and never reaches
+serialize back to itself. The shown JSON must also rebuild to the same value
+as the model's arguments. An invalid call is a parsing error and never reaches
 an approver. Approvers of a bridged agent's calls get the arguments the
 scaffold supplies, without this preparation.
 
@@ -23,6 +24,12 @@ The rebuild check on JSON X: convert X to the tool's parameter types and
 serialize the result as in step 4; it must equal X by JSON equality
 (`5 == 5.0`, but `True != 1`).
 
+The value check on B: B converted to the tool's parameter types must equal A
+converted (Python `==`), argument by argument. Serialization can hide or mask
+a value, and then B passes the rebuild check while the tool would get
+something else: a `SecretStr` serializes as `**********`, and a field with
+`exclude=True` or a private attribute is left out.
+
 1. Parse the tool call, as without oversight.
 2. Validate A against the tool's schema. A failure is a parsing error to the
    model.
@@ -32,20 +39,21 @@ serialize the result as in step 4; it must equal X by JSON equality
 4. Serialize each converted argument the call gives to JSON, using one
    serializer for every type: Pydantic's, in JSON mode, by alias and without
    computed fields. This is B. A serializer error is a parsing error.
-5. Apply the rebuild check to B. If it fails, the call is a parsing error and
-   is not shown.
+5. Apply the rebuild check and the value check to B. If either fails, the
+   call is a parsing error and is not shown.
 6. Approvers and sentinel monitors see B, rendered by the tool's viewer. An
    approval makes C = B, if the call is unchanged (see below). A modify makes
-   C the selected JSON, validated against the schema.
+   C the selected JSON, validated against the schema. Each ApprovalEvent
+   records copies of the call and view as presented to its approver and of
+   the modified call, so later edits do not reach it.
 7. For a modify, apply the rebuild check to C. A failure is an approval
    error, reported to the model and recorded with the tool event, saying a
    modify must give the full call as shown. An approval needs no second
    check: C = B, which passed step 5.
-8. Convert C once more and run the tool with the result. This fresh build
-   means a lazy iterable consumed by the check still reaches the tool with
-   its values. The ToolEvent records a copy of C, so a later callback cannot
-   change what the log says ran, and its view is rendered from a copy of C
-   without converting again.
+8. Run the tool with C converted: for an approval, B as converted for the
+   value check; for a modify, a fresh conversion. The ToolEvent records a
+   copy of C, so a later callback cannot change what the log says ran, and
+   its view is rendered from a copy of C without converting again.
 
 Conversion always works on a copy of the call's arguments, so a constructor
 that changes its input in place cannot change the call.
@@ -66,8 +74,9 @@ After each:
   even if its `Approval` carries a `modified` call (on `main` that call ran).
   With no approval policy and no sentinel nothing is compared.
 - modify: the selected call is validated as in step 7, and it becomes S and
-  C. A selection must keep the function in S, or the sample fails. An edit
-  to the call the callback was given does not matter.
+  C. A selection must keep the function and id in S, or the sample fails: the
+  tool message and ToolEvent carry the model's id. An edit to the call the
+  callback was given does not matter.
 - reject, terminate: as before.
 
 Not supported and not checked (decision: Ransom, 2026-10-16):
@@ -96,7 +105,9 @@ reach the agent as given.
 | Normalizing validator (lowercase) | `{"name": "A"}` | `{"name": "a"}` | runs with `"a"` |
 | Validator that doubles | `{"n": 2}` | nothing | parsing error: 4 rebuilds as 8 |
 | Modify that leaves out a default | approver selects `{"name": "a"}` | | approval error: rebuilds with `status` added |
-| Lazy iterable field | `{"values": [1, 2]}` | `{"values": [1, 2]}` | runs with 1, 2 |
+| Lazy iterable field | `{"values": [1, 2]}` | nothing | parsing error: lazy iterables compare by identity, so the value check fails |
+| `SecretStr` field | `{"key": "k"}` | nothing | parsing error: shown as `**********`, which rebuilds to another secret |
+| Field with `exclude=True` | `{"sudo": true}` | nothing | parsing error: left out of B, so it rebuilds as its default |
 | Validation alias differs from serialization alias | `{"in": 1}` | nothing | parsing error: `{"out": 1}` does not convert back |
 | Field serializer that changes the type (`int` as text) | `{"item": {"count": 5}}` | `{"item": {"count": "5"}}` | runs with 5; a modify that copies the shown JSON fails the schema |
 
@@ -106,8 +117,9 @@ Under oversight, a call is refused when:
 
 - its arguments fail the schema or cannot be converted (parsing error);
 - a converted argument cannot be serialized (parsing error);
-- the serialized arguments do not rebuild to the same JSON (parsing error),
-  since the approver would otherwise approve a value the tool never gets;
+- the serialized arguments do not rebuild to the same JSON, or to the same
+  value in Python (parsing error), since the approver would otherwise approve
+  a value the tool never gets;
 - a modify does not rebuild to exactly the selected JSON (approval error).
   A modify must give every argument and field in full, as shown.
 
@@ -160,3 +172,7 @@ nothing here: on `main` a later edit to the call did not reach the log either.
   their Python defaults on rebuild. Showing them would refuse tools whose
   default does not round-trip, such as `x: int = None` (decision: Ransom,
   2026-10-16).
+- 2026-10-21: the shown call must also rebuild to the same Python value as
+  the model's arguments, so a value that serialization hides or masks is a
+  parsing error under oversight. A `modify` may not change the call's id
+  (decision: Ransom, 2026-10-21).

@@ -11,6 +11,7 @@ import pytest
 from pydantic import (
     BaseModel,
     Field,
+    SecretStr,
     computed_field,
     field_serializer,
     field_validator,
@@ -651,6 +652,14 @@ def logged_tool_event() -> ToolEvent:
     return ToolEvent.model_validate_json(event.model_dump_json())
 
 
+def logged_approval_events() -> list[ApprovalEvent]:
+    return [
+        ApprovalEvent.model_validate_json(e.model_dump_json())
+        for e in transcript().events
+        if isinstance(e, ApprovalEvent)
+    ]
+
+
 def json_viewer(viewed: list[dict[str, Any]]) -> Any:
     def viewer(call: ToolCall) -> ToolCallView:
         viewed.append(call.arguments)
@@ -703,6 +712,15 @@ class Unserializable(BaseModel):
         raise ValueError("cannot serialize")
 
 
+class Secret(BaseModel):
+    key: SecretStr
+
+
+class Privileged(BaseModel):
+    command: str
+    sudo: bool = Field(False, exclude=True)
+
+
 class Named(BaseModel):
     file_name: str = Field(alias="fileName")
 
@@ -734,6 +752,8 @@ def step_tool(received: list[dict[str, Any]]) -> Tool:
         unserializable: Unserializable | None = None,
         named: Named | None = None,
         consuming: Consuming | None = None,
+        secret: Secret | None = None,
+        privileged: Privileged | None = None,
     ) -> str:
         """Record its arguments.
 
@@ -748,6 +768,8 @@ def step_tool(received: list[dict[str, Any]]) -> Tool:
             unserializable: A model whose serializer fails.
             named: A model with an alias and a computed field.
             consuming: A model whose validator changes its input in place.
+            secret: A model with a secret, which serializes masked.
+            privileged: A model with a field left out of serialization.
         """
         arguments = {
             "step": step,
@@ -760,6 +782,8 @@ def step_tool(received: list[dict[str, Any]]) -> Tool:
             "unserializable": unserializable,
             "named": named,
             "consuming": consuming,
+            "secret": secret,
+            "privileged": privileged,
         }
         received.append({k: v for k, v in arguments.items() if v is not None})
         return "done"
@@ -846,8 +870,18 @@ async def test_approver_sees_the_arguments_as_converted() -> None:
         {"doubled": {"n": 2}},
         {"split": {"in": 1}},
         {"unserializable": {"value": "x"}},
+        {"secret": {"key": "k"}},
+        {"privileged": {"command": "ls", "sudo": True}},
+        {"lazy": {"values": [1, 2, 3]}},
     ],
-    ids=["validator-not-idempotent", "mismatched-alias", "serializer-fails"],
+    ids=[
+        "validator-not-idempotent",
+        "mismatched-alias",
+        "serializer-fails",
+        "masked-secret",
+        "excluded-field",
+        "lazy-iterable",
+    ],
 )
 async def test_arguments_that_do_not_rebuild_are_refused(
     arguments: dict[str, Any],
@@ -1059,6 +1093,13 @@ async def test_an_approver_cannot_change_the_call_in_place(
     assert len(seen) == (1 if decision == "escalate" else 0)
     event = logged_tool_event()
     assert event.error is not None and event.error.type == "approval"
+    # each approval event keeps the call as presented to its approver
+    presented = ToolCall(id="1", function="addition", arguments={"x": 10, "y": 1})
+    approvals = logged_approval_events()
+    assert approvals[0].call == presented
+    assert approvals[0].decision == decision
+    if decision == "escalate":
+        assert approvals[1].call.arguments == {"x": 5, "y": 1}
 
 
 @approver
@@ -1161,6 +1202,7 @@ def renaming_modify_approver(selected: str) -> Approver:
 
 async def test_a_modify_keeps_the_function_as_shown() -> None:
     """A modify may select only the function shown, whatever the approver renamed."""
+    init_transcript(Transcript())
     message = await execute_with_approval(
         ToolCall(id="1", function="addition", arguments={"x": 10, "y": 1}),
         [addition()],
@@ -1168,6 +1210,8 @@ async def test_a_modify_keeps_the_function_as_shown() -> None:
     )
     assert message.error is None
     assert message.text == "8"
+    [approval_event] = logged_approval_events()
+    assert approval_event.call.function == "addition"
 
     with pytest.raises(RuntimeError, match="may change only the arguments"):
         await execute_with_approval(
@@ -1175,6 +1219,40 @@ async def test_a_modify_keeps_the_function_as_shown() -> None:
             [addition()],
             [ApprovalPolicy(renaming_modify_approver("other"), "*")],
         )
+
+
+@approver
+def reidentifying_approver() -> Approver:
+    """Approver which returns a modify with another call id."""
+
+    async def approve(
+        message: str,
+        call: ToolCall,
+        view: ToolCallView,
+        history: list[ChatMessage],
+    ) -> Approval:
+        return Approval(
+            decision="modify",
+            modified=ToolCall(
+                id="other", function=call.function, arguments={"x": 7, "y": 1}
+            ),
+        )
+
+    return approve
+
+
+async def test_a_modify_keeps_the_id_as_shown() -> None:
+    """A modify that changes the call's id fails the sample, and nothing runs."""
+    init_transcript(Transcript())
+    with pytest.raises(RuntimeError, match="not its id"):
+        await execute_with_approval(
+            ToolCall(id="1", function="addition", arguments={"x": 10, "y": 1}),
+            [addition()],
+            [ApprovalPolicy(reidentifying_approver(), "*")],
+        )
+    event = logged_tool_event()
+    assert event.id == "1"
+    assert event.result == ""
 
 
 @dataclass
@@ -1228,20 +1306,25 @@ async def test_a_failing_constructor_is_a_parsing_error(policy: str | None) -> N
     assert event.error is not None and event.error.type == "parsing"
 
 
-async def test_lazy_iterable_runs_with_its_values() -> None:
-    calls: list[ToolCall] = []
+async def test_without_oversight_hidden_values_run() -> None:
+    """Values serialization hides are refused only under oversight."""
     received: list[dict[str, Any]] = []
+    arguments = {
+        "secret": {"key": "k"},
+        "privileged": {"command": "ls", "sudo": True},
+        "lazy": {"values": [1, 2, 3]},
+    }
     message = await execute_with_approval(
-        ToolCall(
-            id="1", function="step_tool", arguments={"lazy": {"values": [1, 2, 3]}}
-        ),
+        ToolCall(id="1", function="step_tool", arguments=arguments),
         [step_tool(received)],
-        [ApprovalPolicy(recording_approver(calls), "*")],
+        None,
     )
 
     assert message.error is None
-    assert [call.arguments for call in calls] == [{"lazy": {"values": [1, 2, 3]}}]
-    assert received == [{"lazy": [1, 2, 3]}]
+    [args] = received
+    assert args["secret"].key.get_secret_value() == "k"
+    assert args["privileged"].sudo is True
+    assert args["lazy"] == [1, 2, 3]
 
 
 @tool

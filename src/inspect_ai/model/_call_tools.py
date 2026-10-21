@@ -959,7 +959,9 @@ async def call_tool(
         and approval.decision == "modify"
         and approval.modified is not None
     ):
-        error = modified_function_error(shown, approval.modified)
+        error = modified_function_error(shown, approval.modified) or (
+            _modified_id_error("An approver", shown, approval.modified)
+        )
         if error is not None:
             await record_pending_tool_event()
             raise RuntimeError(error)
@@ -994,6 +996,10 @@ async def call_tool(
                         modified.function, shown.function
                     )
                 )
+            id_error = _modified_id_error("A sentinel monitor", shown, modified)
+            if id_error is not None:
+                await record_pending_tool_event()
+                raise RuntimeError(id_error)
             call, arguments = await revalidated_tool_call(modified, tool_def)
             shown_to_callbacks(call)
 
@@ -1039,6 +1045,21 @@ _SENTINEL_MODIFIED_FUNCTION = (
     "'modify' decision may change only the arguments of a tool call, not the "
     "function called."
 )
+
+
+def _modified_id_error(who: str, shown: ToolCall, modified: ToolCall) -> str | None:
+    """Error for a native `modify` decision that changes the call's id, else `None`.
+
+    The tool message and event keep the model's id, so a modified call that ran
+    under another id would not match them.
+    """
+    if modified.id == shown.id:
+        return None
+    return (
+        f"{who} returned a modified call with id '{modified.id}' for the call "
+        f"with id '{shown.id}'. A 'modify' decision may change only the "
+        "arguments of a tool call, not its id."
+    )
 
 
 def _changed_in_place(call: ToolCall, shown: ToolCall) -> bool:
@@ -1518,13 +1539,14 @@ def validated_tool_call(call: ToolCall, tool_def: ToolDef) -> ValidatedToolCall:
     tool's parameter types. While approval or a sentinel is active, the
     returned call holds the converted arguments serialized as JSON, and the
     returned arguments are rebuilt from that JSON, which must serialize back
-    to itself. Otherwise the call is returned unchanged. See
+    to itself and equal the converted arguments. Otherwise the call is
+    returned unchanged. See
     `design/tool-approval-arguments.md`.
 
     Raises:
         ToolParsingError: The arguments fail the schema or cannot be
             converted, or (while approval or a sentinel is active) cannot be
-            serialized or do not rebuild to the same JSON.
+            serialized or do not rebuild to the same JSON and value.
     """
     validation_errors = validate_tool_input(call.arguments, tool_def.parameters)
     if validation_errors:
@@ -1536,19 +1558,25 @@ def validated_tool_call(call: ToolCall, tool_def: ToolDef) -> ValidatedToolCall:
     shown = replace(call, arguments=_serialized_arguments(call.arguments, tool_def))
     try:
         changed = _changed_on_rebuild(shown.arguments, tool_def)
+        rebuilt = _rebuilt_arguments(shown.arguments, tool_def)
     except ToolParsingError as ex:
         raise ToolParsingError(
             "The arguments cannot be shown to approvers or monitors: as "
             "converted for the tool and serialized, they do not convert back. "
             f"{ex.message}"
         ) from ex
+    if changed is None:
+        # serialization can hide or mask a value (a secret, an excluded field,
+        # private attributes), so the tool must get the value the model's
+        # arguments convert to, not only the same JSON
+        changed = _changed_from(_rebuilt_arguments(call.arguments, tool_def), rebuilt)
     if changed is not None:
         raise ToolParsingError(
             f"Argument '{changed}' cannot be shown to approvers or monitors: as "
             "converted for the tool and serialized, it does not convert back to "
             "the same value."
         )
-    return ValidatedToolCall(shown, _rebuilt_arguments(shown.arguments, tool_def))
+    return ValidatedToolCall(shown, rebuilt)
 
 
 def modified_tool_call(selected: ToolCall, tool_def: ToolDef) -> ValidatedToolCall:
@@ -1628,6 +1656,14 @@ def _changed_on_rebuild(arguments: dict[str, Any], tool_def: ToolDef) -> str | N
     rebuilt = _serialized_arguments(arguments, tool_def)
     for name in [*arguments, *(name for name in rebuilt if name not in arguments)]:
         if name not in rebuilt or not json_equal(rebuilt[name], arguments.get(name)):
+            return name
+    return None
+
+
+def _changed_from(converted: dict[str, Any], rebuilt: dict[str, Any]) -> str | None:
+    """The first converted argument the rebuilt arguments do not equal in Python."""
+    for name, value in converted.items():
+        if name not in rebuilt or not bool(rebuilt[name] == value):
             return name
     return None
 

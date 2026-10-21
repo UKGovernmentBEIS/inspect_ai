@@ -32,6 +32,7 @@ from inspect_ai.agent import run as run_agent
 from inspect_ai.approval import Approval, ApprovalPolicy, Approver, approver
 from inspect_ai.dataset import Sample
 from inspect_ai.event import (
+    ApprovalEvent,
     Event,
     ModelEvent,
     SampleLimitEvent,
@@ -968,6 +969,75 @@ async def test_a_sentinel_modify_keeps_the_function_as_shown() -> None:
     # neither tool ran
     [event] = transcript_tool_events()
     assert event.result == ""
+
+
+@protocol
+def d3_reidentifying_modify() -> Protocol:
+    async def rewrite(context: Context, step: BeforeToolCall) -> Decision | None:
+        # inspect_sentinel refuses a modify whose id differs from the step's
+        # call, so the id is changed on the step's call as well
+        step.call.id = "other"
+        modified = replace(step.call, arguments={"x": 10, "y": 20})
+        return Decision(action="modify", modified=modified, explanation="new id")
+
+    return rewrite
+
+
+async def test_a_sentinel_modify_keeps_the_id_as_shown() -> None:
+    """A sentinel's modify may not change the call's id: the sample fails."""
+    init_transcript(Transcript())
+    call = ToolCall(id="1", function="addition", arguments={"x": 1, "y": 1})
+    with active(d3_reidentifying_modify()):
+        with pytest.raises(RuntimeError, match="not its id"):
+            await execute_tools(
+                [ChatMessageAssistant(content=[], tool_calls=[call])], [addition()]
+            )
+    [event] = transcript_tool_events()
+    assert event.id == "1"
+    assert event.result == ""
+
+
+@approver
+def d3_items_approver() -> Approver:
+    async def approve(
+        message: str, call: ToolCall, view: ToolCallView, history: list[ChatMessage]
+    ) -> Approval:
+        modified = replace(call, arguments={"items": {"b": {"name": "b"}}})
+        return Approval(decision="modify", modified=modified)
+
+    return approve
+
+
+@protocol
+def d3_edit_then_modify() -> Protocol:
+    async def rewrite(context: Context, step: BeforeToolCall) -> Decision | None:
+        step.call.arguments["items"]["b"]["name"] = "z"
+        modified = replace(step.call, arguments={"items": {"c": {"name": "c"}}})
+        return Decision(action="modify", modified=modified, explanation="rename")
+
+    return rewrite
+
+
+async def test_the_approval_event_keeps_the_calls_it_recorded() -> None:
+    """An edit to the call after an approver's modify does not reach its event."""
+    init_transcript(Transcript())
+    call = ToolCall(
+        id="1", function="list_items", arguments={"items": {"a": {"name": "A"}}}
+    )
+    with active(d3_edit_then_modify()):
+        result = await execute_tools(
+            [ChatMessageAssistant(content=[], tool_calls=[call])],
+            [list_items()],
+            approval=[ApprovalPolicy(d3_items_approver(), "*")],
+        )
+
+    [message] = result.messages
+    assert isinstance(message, ChatMessageTool)
+    assert message.error is None and message.text == "c"
+    [event] = [e for e in transcript().events if isinstance(e, ApprovalEvent)]
+    assert event.call.arguments == {"items": {"a": {"name": "a"}}}
+    assert event.modified is not None
+    assert event.modified.arguments == {"items": {"b": {"name": "b"}}}
 
 
 InPlaceEdit = Literal["arguments", "function", "id"]
