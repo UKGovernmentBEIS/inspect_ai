@@ -190,7 +190,8 @@ def web_search(
         - google: Supports options like `num_results`, `max_provider_calls`,
           `max_connections`, and `model`
 
-        - grok: Supports X-AI's live search parameters.
+        - grok: Supports the options of xAI's web search tool, such as
+          `allowed_domains` and `excluded_domains` (Grok 4 and later).
           See https://docs.x.ai/developers/tools/web-search
 
       **deprecated: Deprecated arguments.
