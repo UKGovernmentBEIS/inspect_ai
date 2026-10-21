@@ -53,6 +53,7 @@ META_CHAT_CACHE_RETENTION_WARNING = (
 # Responses-only hint (https://dev.meta.ai/docs/prompt-caching); the API
 # default is "in_memory", which is evicted under memory pressure.
 META_DEFAULT_CACHE_RETENTION = "24h"
+META_CACHE_RETENTION_VALUES = ("in_memory", "24h")
 
 # Chat Completions params the API rejects with a 400 (the Responses path
 # already omits these with a warning of its own).
@@ -129,10 +130,18 @@ class MetaAPI(OpenAICompatibleAPI):
         from inspect_ai.hooks._hooks import has_api_key_override
 
         self.prompt_cache_key = prompt_cache_key
-        if prompt_cache_retention is not None and not responses_api:
-            warn_once(logger, META_CHAT_CACHE_RETENTION_WARNING)
+        if prompt_cache_retention is not None:
+            if prompt_cache_retention not in META_CACHE_RETENTION_VALUES:
+                raise ValueError(
+                    f"Invalid prompt_cache_retention {prompt_cache_retention!r} "
+                    f"(expected one of {', '.join(META_CACHE_RETENTION_VALUES)})."
+                )
+            if not responses_api:
+                warn_once(logger, META_CHAT_CACHE_RETENTION_WARNING)
         self.prompt_cache_retention = (
-            prompt_cache_retention or META_DEFAULT_CACHE_RETENTION
+            prompt_cache_retention
+            if prompt_cache_retention is not None
+            else META_DEFAULT_CACHE_RETENTION
         )
 
         # name the env var the key came from; with neither set, defer to the

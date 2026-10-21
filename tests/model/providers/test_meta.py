@@ -536,6 +536,24 @@ async def test_meta_prompt_cache_retention_model_arg(mock_meta_env, monkeypatch)
     assert request["prompt_cache_retention"] == "in_memory"
 
 
+def test_meta_prompt_cache_retention_invalid(mock_meta_env):
+    with pytest.raises(ValueError, match="prompt_cache_retention"):
+        MetaAPI(model_name="muse-spark-1.3", prompt_cache_retention="24hr")
+
+
+async def test_meta_prompt_cache_key_in_extra_body_keeps_default_retention(
+    mock_meta_env, monkeypatch
+):
+    request = await _prompt_cache_request(
+        monkeypatch,
+        True,
+        "sample-uuid-1",
+        config=GenerateConfig(extra_body={"prompt_cache_key": "client-key"}),
+    )
+    assert request["prompt_cache_key"] == "client-key"
+    assert request["prompt_cache_retention"] == "24h"
+
+
 async def test_meta_prompt_cache_retention_not_sent_on_chat(
     mock_meta_env, monkeypatch, _warn_once_messages
 ):
