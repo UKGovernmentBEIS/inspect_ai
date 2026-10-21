@@ -788,12 +788,21 @@ like any other name and is never imported; Inspect never writes such names
 (Current behaviour), so no log Inspect produced is affected.
 
 **The fallback import is recorded.** When `scorer_from_log_name()` imports
-the task file, it logs, at `INFO`,
+the task file, it reports the import itself, just before `load_module()`:
+it prints
 `Imported task file /abs/path/evals/task.py (recorded in the log) to load scorer 'my_scorer'.`
-and `inspect score` prints the line as part of the step 7 record. This
-covers both a recorded scorer and a bare `--scorer NAME`. Like today's
-fallback, it runs once per scorer the registry cannot build, and each
-import prints its line.
+with `display().print()` (`inspect_ai._display`, imported inside the
+function as `loader.py` already does for `inspect_scout`) and logs the
+same line at `INFO`. The path is `task_path.absolute()`, computed when the
+line is built, because `resolve_scorers()` passes the recorded relative
+path (`Path(log.eval.task_file)`, `score.py:613`). Nothing is returned to
+or threaded through `resolve_scorers()` (decision: Ransom, 2026-10-21,
+keeping the 2026-10-16 decision of no tracker): `resolve_scorers()` is the
+only caller that passes a `task_path` (`results.py:76` and `hf.py:196`
+pass `None`), so the line is printed only by `inspect score`, as part of
+its step 7 record. This covers both a recorded scorer and a bare
+`--scorer NAME`. Like today's fallback, it runs once per scorer the
+registry cannot build, and each import prints its line.
 
 **The log's metrics resolve before scoring, trusted only with the log's
 scorers.** `score_async()` calls `metrics_from_log_header()` (used when
@@ -860,9 +869,10 @@ The CLI also prints a record of what it loaded, with `display().print()`. It
 is a record for the user to check afterwards, not a mitigation; nothing
 waits on it:
 
-- `inspect score` (`src/inspect_ai/_cli/score.py`), when the scorer
-  fallback imports the task file (step 6), one line per import, naming the
-  scorer: `Imported task file /abs/path/evals/task.py (recorded in the log) to load scorer 'my_scorer'.`
+- `inspect score`, when the scorer fallback imports the task file (step 6),
+  one line per import, naming the scorer and printed by
+  `scorer_from_log_name()` in `loader.py` at the import:
+  `Imported task file /abs/path/evals/task.py (recorded in the log) to load scorer 'my_scorer'.`
   When the log's model is used (no `--model`) and the log records a
   `model_base_url`: `Scoring model openai/gpt-4o from the log, base URL https://...`.
 - `inspect eval-retry` (`eval_retry_async()`, one block per log, before
@@ -1139,7 +1149,11 @@ All of these run in the default test job: no network, Docker or model
 provider. The malicious-log tests use a marker module that records each
 import of it in a file under `tmp_path`, and a spy on `get_model` that fails
 the test if it is called with the fixtures' distinctive model name or base
-URL. The spy must also patch the module-level bindings `score.py` and
+URL. The four fixtures below record `eval.model` as `mockllm/model` and no
+`eval.model_base_url` or `eval.model_roles`, so the distinctive values
+appear only in their metric options; the `evals_df()` with `model_info()`
+test reads a separate log whose `eval.model` is a distinctive name missing
+from the model database. The spy must also patch the module-level bindings `score.py` and
 `_model_config.py` import (`score.py:54`), or it misses `score_async()`.
 
 New file `tests/log/test_untrusted_logs.py` (no existing file covers
@@ -1190,9 +1204,15 @@ What the tests must prove:
   custom metric taking a model recomputes with `trust_log=True`, and
   `grouped(accuracy(), ...)` passes step 3 untrusted.
 - **Rescoring trust follows the scorers' source.** With `--scorer` (and
-  `score(log, [match()])`) and `--action overwrite`, fixtures 2 and 3 raise
+  `score(log, [match()])`), `--action overwrite` and an explicit
+  `--model mockllm/model` (`model="mockllm/model"`), fixtures 2 and 3 raise
   with the `SCORE_OPT_IN` advice before any sample is scored (a counting
-  scorer is never called), with no marker and no spy hit; `--metric`
+  scorer is never called), with no marker and no spy hit. The explicit
+  model, and fixtures that keep the distinctive model and base URL out of
+  `eval.model` and `eval.model_roles`, let the spy see only the metric
+  options: `score_async()` builds the log's model when no model is passed
+  and always builds the log's model roles (`score.py:263-275`), before
+  metric resolution, which is a "Not this design" item; `--metric`
   instead succeeds; an old `eval.scorers` naming an unavailable metric does
   not block the overwrite. Without `--scorer`, a model-option metric still
   computes and an unregistered task-level metric still raises
