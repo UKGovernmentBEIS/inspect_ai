@@ -1171,9 +1171,10 @@ def _wrap_utility_events(agent: TimelineSpan) -> None:
     foreign-prompt wrapping is skipped entirely (warmup calls are still
     wrapped; they are identified independently of prompts).
 
-    A call that records its ``origin`` is classified by it alone: it is
-    utility unless its origin is ``"agent"``, and the rules above apply
-    only to calls without one (logs written before ``origin`` existed).
+    A call whose recorded ``origin`` is not ``"agent"`` is utility and never
+    sets the primary prompt. A call recorded as ``"agent"`` goes through the
+    rules above, as a call with no ``origin`` does, since a bridged agent's
+    warm-ups and helper calls are recorded as ``"agent"``.
 
     Operates recursively on the entire span tree.
 
@@ -1206,11 +1207,8 @@ def _wrap_utility_events(agent: TimelineSpan) -> None:
     new_content: list[TimelineEvent | TimelineSpan] = []
     for index, item in enumerate(agent.content):
         if isinstance(item, TimelineEvent) and isinstance(item.event, ModelEvent):
-            if item.event.origin is not None:
-                if is_agent_turn(item.event.origin):
-                    new_content.append(item)
-                else:
-                    new_content.append(utility_wrapper(item, index))
+            if not _may_be_turn(item.event):
+                new_content.append(utility_wrapper(item, index))
                 continue
 
             # Warmup/cache-priming call (max_tokens=1)
@@ -1316,16 +1314,6 @@ def _is_single_turn(agent: TimelineSpan) -> bool:
     return False
 
 
-def _records_origin(span: TimelineSpan) -> bool:
-    """Whether span's direct model calls record their origin."""
-    return any(
-        isinstance(item, TimelineEvent)
-        and isinstance(item.event, ModelEvent)
-        and item.event.origin is not None
-        for item in span.content
-    )
-
-
 def _has_agentic_loop(span: TimelineSpan) -> bool:
     """Check whether span's direct content contains a tool-calling ModelEvent."""
     return any(
@@ -1349,10 +1337,6 @@ def _classify_utility_agents(
     is no main trajectory for a helper to be subordinate to — plain workflows
     of ``generate()`` calls routinely mix system prompts.
 
-    A span whose calls record their ``origin`` is never utility by this
-    rule: its calls were classified by origin, and a span with no agent
-    turn (such as an auditor's) stays a conversation.
-
     Args:
         node: The span node to classify (and recurse into).
         parent_system_prompt: The system prompt of the parent agent.
@@ -1370,7 +1354,6 @@ def _classify_utility_agents(
         and parent_has_loop
         and agent_system_prompt is not None
         and not node.tool_invoked
-        and not _records_origin(node)
     ):
         if agent_system_prompt != parent_system_prompt and _is_single_turn(node):
             node.utility = True
