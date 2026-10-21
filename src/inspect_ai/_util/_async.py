@@ -4,7 +4,6 @@ import inspect
 import os
 import signal
 import threading
-from logging import Logger
 from types import FrameType
 from typing import (
     Any,
@@ -137,18 +136,6 @@ async def coro_print_exceptions(
         await func(*args)
     except Exception as ex:
         print(f"Error {context}: {ex}")
-
-
-async def coro_log_exceptions(
-    logger: Logger,
-    context: str,
-    func: Callable[[Unpack[PosArgsT]], Awaitable[Any]],
-    *args: Unpack[PosArgsT],
-) -> None:
-    try:
-        await func(*args)
-    except Exception as ex:
-        logger.warning(f"Error {context}: {ex}")
 
 
 _initialised_nest_asyncio: bool = False

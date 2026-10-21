@@ -44,6 +44,7 @@ from inspect_ai.model._registry import modelapi
 from inspect_ai.tool._tools._code_execution import CodeExecutionProviders
 from inspect_ai.tool._tools._web_search._web_search import WebSearchProviders
 from inspect_ai.util._limit import LimitExceededError
+from inspect_ai.util._sandbox.service import find_control_flow
 
 
 class _ProviderError(Exception):
@@ -693,7 +694,6 @@ def _refusal() -> ModelRefusalError:
     "make_error",
     [
         pytest.param(_refusal, id="refusal"),
-        pytest.param(lambda: TerminateSampleError("Judge said stop."), id="terminate"),
         pytest.param(
             lambda: ResponseFilterError("ValueError: filter is broken"),
             id="response_filter",
@@ -705,12 +705,12 @@ async def test_forward_provider_errors_signals_sample_failure_to_bridge(
 ) -> None:
     """An error that must end the sample does so via the bridge, not via a raise.
 
-    Covers a fail_on_refusal refusal, any `TerminateSampleError`, and a
-    `ResponseFilterError`. The sandbox service dispatcher would swallow a
-    re-raise into an RPC error, so the wrapper hands the error to
-    `bridge.request_fail` (raised on the agent's side by the bridge's monitor
-    task) and still answers the scaffold with a provider error payload. It is not
-    logged as a non-provider error, since the sample error is the report.
+    Covers a fail_on_refusal refusal and a `ResponseFilterError`. The sandbox
+    service dispatcher would turn a re-raise into an RPC error, so the wrapper
+    hands the error to `bridge.request_fail` (raised on the agent's side by the
+    bridge's monitor task) and still answers the scaffold with a provider error
+    payload. It is not logged as a non-provider error, since the sample error is
+    the report.
     """
     warnings: list[tuple[Any, Any]] = []
     monkeypatch.setattr(
@@ -729,6 +729,32 @@ async def test_forward_provider_errors_signals_sample_failure_to_bridge(
     assert bridge._failure_requested.is_set()
     assert bridge._failure is error
     assert warnings == []
+
+
+@pytest.mark.parametrize("grouped", [False, True], ids=["bare", "grouped"])
+async def test_forward_provider_errors_leaves_termination_to_the_dispatcher(
+    grouped: bool,
+) -> None:
+    """A `TerminateSampleError` (e.g. from a request or response filter) is re-raised.
+
+    The sandbox service dispatcher answers the RPC and propagates a termination
+    out of the service task, which ends the sample, so the wrapper neither
+    forwards it as a provider error nor signals the bridge's monitor task.
+    """
+    error = TerminateSampleError("Judge said stop.")
+
+    async def boom(
+        json_data: dict[str, Any], headers: dict[str, str] | None = None
+    ) -> dict[str, Any]:
+        if grouped:
+            raise ExceptionGroup("judge", [error])
+        raise error
+
+    bridge = _bridge()
+    with pytest.raises((TerminateSampleError, ExceptionGroup)) as excinfo:
+        await _forward_provider_errors(boom, bridge)({})
+    assert find_control_flow(excinfo.value) is error
+    assert not bridge._failure_requested.is_set()
 
 
 @pytest.mark.anyio
