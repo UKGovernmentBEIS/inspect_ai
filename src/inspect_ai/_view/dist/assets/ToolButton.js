@@ -82,7 +82,7 @@ function clsx() {
 	return n;
 }
 //#endregion
-//#region ../../node_modules/.pnpm/bootstrap-icons@1.13.1/node_modules/bootstrap-icons/font/bootstrap-icons.css
+//#region ../../node_modules/.pnpm/bootstrap-icons@1.13.2/node_modules/bootstrap-icons/font/bootstrap-icons.css
 var import_react = /* @__PURE__ */ __toESM(require_react(), 1);
 //#endregion
 //#region ../../packages/react/src/icons/icons.ts

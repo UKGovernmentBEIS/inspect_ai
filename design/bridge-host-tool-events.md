@@ -1519,8 +1519,9 @@ together with the Python change, as cross-repo PRs normally do.
   (`_call_tools.py:406-417`), the bridge path never does, and `ReviewEvent`s
   are therefore absent for host calls. Covering them means running the
   reviewer at the execution edge in `host_tool.py`, before the result is
-  returned to the scaffold, and deciding what `terminate` (the sample ends
-  through `bridge.request_fail`, as approval termination does) and
+  returned to the scaffold, and deciding what `terminate` (raise
+  `TerminateSampleError`, which the sandbox service dispatcher answers and
+  propagates to end the sample, as approval termination does) and
   `escalate` mean over the RPC. This design gives it the `ToolEvent` a
   `ReviewEvent` pairs with; it is a natural companion to the
   unconditional-grants follow-up.
