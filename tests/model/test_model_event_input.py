@@ -1,8 +1,9 @@
-"""`ModelEvent.input` records the messages as they were when the model was called."""
+"""`ModelEvent` records its input and output as they were when the model was called."""
 
 import json
 import math
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -102,6 +103,46 @@ async def test_model_event_input_snapshot_with_event_sink() -> None:
     assert len(sink.events) == 1
     _assert_original(sink.events[0].input[2])
     assert _model_events() == []
+
+
+@pytest.mark.parametrize("with_sink", [False, True])
+async def test_model_event_output_unchanged_by_later_edits(with_sink: bool) -> None:
+    init_transcript(Transcript())
+    model = get_model("mockllm/model")
+    messages: list[ChatMessage] = [ChatMessageUser(content="hi")]
+    sink = _Sink()
+
+    with use_model_event_sink(sink if with_sink else None):
+        output = await model.generate(messages)
+        messages.extend([output.message, ChatMessageUser(content="go on")])
+        await model.generate(messages)
+    original = output.message.text
+    output.message.content = "edited"
+    output.message.metadata = {"edited": True}
+
+    first, second = sink.events if with_sink else _model_events()
+    assert first.output.message.text == original
+    assert first.output.message.metadata is None
+    # the next input reuses the output's copy
+    assert second.input[1] is first.output.message
+
+
+async def test_model_event_output_snapshot_on_cache_hit(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("INSPECT_CACHE_DIR", str(tmp_path))
+    init_transcript(Transcript())
+    model = get_model("mockllm/model")
+    messages: list[ChatMessage] = [ChatMessageUser(content="hi")]
+
+    await model.generate(messages, cache=True)
+    output = await model.generate(messages, cache=True)
+    original = output.message.text
+    output.message.content = "edited"
+
+    events = _model_events()
+    assert [event.cache for event in events] == ["write", "read"]
+    assert events[1].output.message.text == original
 
 
 @pytest.mark.parametrize(

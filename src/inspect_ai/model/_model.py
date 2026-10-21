@@ -24,6 +24,7 @@ from typing import (
     Sequence,
     Type,
     TypeAlias,
+    TypeVar,
     cast,
 )
 
@@ -2077,7 +2078,7 @@ class Model:
             if isinstance(result, ModelOutput):
                 if result.choices:
                     display_conversation_assistant(input, result.choices[0].message)
-                event.output = result
+                event.output = _snapshot_output(result)
             else:
                 display_conversation_assistant_error(result)
                 event.error = exception_message(result)
@@ -3051,37 +3052,57 @@ def _snapshot_messages(messages: list[ChatMessage]) -> list[ChatMessage]:
     serializes the same (as the log records it), in which case that copy is
     reused. Successive events then share the objects of unchanged messages,
     which keeps memory proportional to message versions and lets the log's
-    message pool dedup them by identity. This holds while a message keeps
-    its id (or, without one, is the same live object); preparation that
-    creates new messages with fresh ids each generation (reasoning-history
-    filtering, tool `model_input` rewriting, media extraction) still copies
-    them every time. Only the latest copy for an id is reused, so
-    alternating different versions with the same id (handoff filters,
-    concurrent epochs) copies on each switch. A message that cannot be
-    serialized is copied every time.
+    message pool dedup them by identity. A completed event's output messages
+    are copied the same way (`_snapshot_output`), so an agent that edits the
+    assistant message it appended does not change the earlier event's
+    output, and the next input reuses that copy. This holds while a message
+    keeps its id (or, without one, is the same live object); preparation
+    that creates new messages with fresh ids each generation
+    (reasoning-history filtering, tool `model_input` rewriting, media
+    extraction) still copies them every time. Only the latest copy for an id
+    is reused, so alternating different versions with the same id (handoff
+    filters, concurrent epochs) copies on each switch. A message that cannot
+    be serialized is copied every time.
 
     Message values must be data: values Python can deep copy (a lock, for
     example, or nesting past the recursion limit raises here) and that
     serializing leaves unchanged (an iterator is consumed by the comparison,
     as writing the log consumes it).
     """
-    snapshots: list[ChatMessage] = []
-    for message in messages:
-        key = message.id if message.id is not None else id(message)
-        logged = logged_json(message)
-        if logged is None:
-            snapshots.append(message.model_copy(deep=True))
-            continue
-        digest = mmh3.hash_bytes(logged)
-        entry = _message_snapshots.get(key)
-        snapshot = entry.message() if entry and entry.hash == digest else None
-        if snapshot is None:
-            snapshot = message.model_copy(deep=True)
-            _message_snapshots[key] = _Snapshot(
-                weakref.ref(snapshot, _forget_snapshot(key)), digest
-            )
-        snapshots.append(snapshot)
-    return snapshots
+    return [_snapshot_message(message) for message in messages]
+
+
+def _snapshot_output(output: ModelOutput) -> ModelOutput:
+    """Copy of `output` whose choice messages are snapshots (`_snapshot_messages`)."""
+    return output.model_copy(
+        update={
+            "choices": [
+                choice.model_copy(update={"message": _snapshot_message(choice.message)})
+                for choice in output.choices
+            ]
+        }
+    )
+
+
+_MessageT = TypeVar("_MessageT", bound=ChatMessage)
+
+
+def _snapshot_message(message: _MessageT) -> _MessageT:
+    key = message.id if message.id is not None else id(message)
+    logged = logged_json(message)
+    if logged is None:
+        return deepcopy(message)
+    digest = mmh3.hash_bytes(logged)
+    entry = _message_snapshots.get(key)
+    snapshot = entry.message() if entry and entry.hash == digest else None
+    # the logged JSON includes the role, so a hit has the message's type
+    if isinstance(snapshot, type(message)):
+        return snapshot
+    copied = deepcopy(message)
+    _message_snapshots[key] = _Snapshot(
+        weakref.ref(copied, _forget_snapshot(key)), digest
+    )
+    return copied
 
 
 def _forget_snapshot(
