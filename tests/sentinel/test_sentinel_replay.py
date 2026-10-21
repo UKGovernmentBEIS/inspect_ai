@@ -2010,3 +2010,74 @@ def test_reading_a_view_s_end_reads_only_the_end(length: int) -> None:
     _CountingList.reads = 0
     assert list(view[-3:]) == [length - 3, length - 2, length - 1]
     assert _CountingList.reads == 3
+
+
+# review pass 4: reordered history and repeated handoffs
+
+
+def reordered_inputs(turns: int) -> tuple[list[ModelEvent], list[ChatMessage]]:
+    """A history stored as single-row ranges, then the same history with a middle message moved to the front."""
+    pool: list[ChatMessage] = []
+    for n in range(turns):
+        pool.append(ChatMessageUser(content=f"kept {n}"))
+        pool.append(ChatMessageAssistant(content=f"between {n}"))
+    kept = [(2 * n, 2 * n + 1) for n in range(turns)]
+    middle = turns // 2
+    moved = [kept[middle], *kept[:middle], *kept[middle + 1 :]]
+    return [turn_event([], kept), turn_event([], moved)], pool
+
+
+def test_history_reordered_to_put_a_middle_message_first_keeps_the_fold_linear(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    info = EvalInfo(inspect_ai_version=None, sentinel=False)
+    small, large = (
+        replay_work(monkeypatch, [], *reordered_inputs(turns), "sample", info)
+        for turns in (200, 400)
+    )
+    assert_linear(small, large)
+
+
+class _CountedPositions(list[int]):
+    reads = 0
+
+    def __getitem__(self, index: Any) -> Any:
+        _CountedPositions.reads += 1
+        return super().__getitem__(index)
+
+    def __iter__(self) -> Any:
+        for item in super().__iter__():
+            _CountedPositions.reads += 1
+            yield item
+
+
+def handoff_reads(handoffs: int, monkeypatch: pytest.MonkeyPatch) -> int:
+    """Reads of the conversation's turn positions while replaying `handoffs` handoffs."""
+    from inspect_ai._sentinel import _replay
+
+    sub_agent = helper(outputs(*[done(f"helper done {n}") for n in range(handoffs)]))
+    log = run_logged(
+        tool_loop(handoff(sub_agent)),
+        outputs(*[call("transfer_to_helper") for _ in range(handoffs)], done()),
+    )
+    handoff_results = _replay._Driver._handoff_results
+
+    def counting(self: Any, batch: Any, last: int) -> Any:
+        positions = self.turn_positions.get(batch.conversation)
+        if positions is not None and not isinstance(positions, _CountedPositions):
+            self.turn_positions[batch.conversation] = _CountedPositions(positions)
+        return handoff_results(self, batch, last)
+
+    _CountedPositions.reads = 0
+    with monkeypatch.context() as patch:
+        patch.setattr(_replay._Driver, "_handoff_results", counting)
+        replay = replayed(log)
+    assert len([s for s in replay if s.stage == "tool_call"]) == handoffs
+    return _CountedPositions.reads
+
+
+def test_repeated_handoffs_find_their_next_turn_without_rebuilding_the_turns(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    small, large = (handoff_reads(n, monkeypatch) for n in (20, 40))
+    assert 0 < small and large <= 2.5 * small, (small, large)

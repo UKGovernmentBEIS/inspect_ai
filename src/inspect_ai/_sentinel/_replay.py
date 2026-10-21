@@ -156,17 +156,18 @@ class _PoolKeys:
 class _PooledInput:
     """A logged model input for the fold: positions are rows of the message pool, read as the ranges the log stores (`input_refs`).
 
-    The alignment walks runs, not messages: where the input and the previous input continue through the same rows, the run is matched whole. A message the pointer does not match is looked up among the previous input's ranges. So the work per input is in its ranges and its new messages, not its length.
+    The alignment walks runs, not messages: where the input and the previous input continue through the same rows, the run is matched whole. A message the pointer does not match is looked up in an index of the previous input's ranges over pool rows, built once while it is the previous input. So the work per input is in its ranges and the messages it does not continue, not its length.
     """
 
     def __init__(self, view: PoolView, keys: _PoolKeys) -> None:
         self.view = view
         self._keys = keys
-        # the rows this input holds, as sorted disjoint ranges: built the first
-        # time a lookup misses, while it is the previous input
-        self._held: tuple[list[int], list[int]] | None = None
-        # contents known not to be at or after a position, for this alignment
-        self._absent: dict[int, int] = {}
+        # where its rows are, built the first time a lookup needs it: the
+        # pool rows its ranges cover, cut into segments at every range's ends,
+        # and for each segment the offsets (position - row) of the ranges
+        # covering it, sorted
+        self._points: list[int] | None = None
+        self._covers: list[list[int]] = []
         self._ends = [
             start + max(end - begin, 0)
             for start, (begin, end) in zip(view.starts, view.refs)
@@ -212,51 +213,42 @@ class _PooledInput:
     def _find(self, canonical: int, at_least: int) -> int | None:
         """The first position at or after `at_least` holding the canonical row's content.
 
-        A content this input does not hold at all is answered from the rows it holds, as ranges, and one not found at or after a position is remembered for the rest of the alignment, whose pointer only moves forward. Otherwise ranges are searched in input order from the one holding `at_least`, each by bisecting the rows that share the content.
+        Each row with that content is looked up in the index of this input's ranges: the segment holding the row, then the first covering range whose position for the row is at or after `at_least`.
         """
         if at_least >= len(self):
             return None
-        absent = self._absent.get(canonical)
-        if absent is not None and at_least >= absent:
-            return None
-        rows = self._keys.rows(canonical)
-        if not self._holds(rows):
-            self._absent[canonical] = 0
-            return None
-        starts, refs = self.view.starts, self.view.refs
-        for at in range(max(bisect_right(starts, at_least) - 1, 0), len(refs)):
-            begin, end = refs[at]
-            low = begin + max(at_least - starts[at], 0)
-            found = bisect_left(rows, low)
-            if found < len(rows) and rows[found] < end:
-                return starts[at] + rows[found] - begin
-        self._absent[canonical] = at_least
-        return None
+        points, covers = self._index()
+        best: int | None = None
+        for row in self._keys.rows(canonical):
+            segment = bisect_right(points, row) - 1
+            if segment < 0 or segment >= len(covers):
+                continue
+            offsets = covers[segment]
+            found = bisect_left(offsets, at_least - row)
+            if found < len(offsets):
+                position = offsets[found] + row
+                if best is None or position < best:
+                    best = position
+        return best
 
-    def _holds(self, rows: list[int]) -> bool:
-        """Whether any of these rows (sorted) is in this input."""
-        if self._held is None:
-            begins: list[int] = []
-            ends: list[int] = []
-            for begin, end in sorted(r for r in self.view.refs if r[0] < r[1]):
-                if ends and begin <= ends[-1]:
-                    ends[-1] = max(ends[-1], end)
-                else:
-                    begins.append(begin)
-                    ends.append(end)
-            self._held = (begins, ends)
-        begins, ends = self._held
-        if len(rows) <= len(begins):
-            for row in rows:
-                at = bisect_right(begins, row) - 1
-                if at >= 0 and row < ends[at]:
-                    return True
-            return False
-        for begin, end in zip(begins, ends):
-            found = bisect_left(rows, begin)
-            if found < len(rows) and rows[found] < end:
-                return True
-        return False
+    def _index(self) -> tuple[list[int], list[list[int]]]:
+        if self._points is None:
+            ranges = [
+                (begin, end, start - begin)
+                for start, (begin, end) in zip(self.view.starts, self.view.refs)
+                if begin < end
+            ]
+            points = sorted({p for begin, end, _ in ranges for p in (begin, end)})
+            covers: list[list[int]] = [[] for _ in range(max(len(points) - 1, 0))]
+            for begin, end, offset in ranges:
+                for segment in range(
+                    bisect_left(points, begin), bisect_left(points, end)
+                ):
+                    covers[segment].append(offset)
+            for offsets in covers:
+                offsets.sort()
+            self._points, self._covers = points, covers
+        return self._points, self._covers
 
 
 @dataclass
@@ -342,8 +334,10 @@ class _Driver:
         self.built: list["ReplayStep"] = []
         self.ids: set[tuple[str, str]] = set()
         self.span_steps: dict[str, tuple["Step", str]] = {}
-        # each conversation's agent-turn model events, in log order
-        self.turns: dict[str, list[tuple[int, ModelEvent]]] = {}
+        # each conversation's agent-turn model events, in log order, and
+        # where each is in the log
+        self.turns: dict[str, list[ModelEvent]] = {}
+        self.turn_positions: dict[str, list[int]] = {}
         # each model event's input view and producer, shared by its steps
         self._views: dict[int, PoolView] = {}
         self._producers: dict[int, Producer] = {}
@@ -413,7 +407,8 @@ class _Driver:
                 if event.error is not None:
                     open_generates[attempt_key] = group
                 last_turn[conversation] = index
-                self.turns.setdefault(conversation, []).append((index, event))
+                self.turns.setdefault(conversation, []).append(event)
+                self.turn_positions.setdefault(conversation, []).append(index)
             elif isinstance(event, ApprovalEvent):
                 approvals[event.call.id] = event
             elif isinstance(event, CompactionEvent):
@@ -947,9 +942,9 @@ class _Driver:
     def _handoff_results(self, batch: _Batch, last: int) -> list[ChatMessage] | None:
         """The messages a handoff's batch returned: what follows its assistant message in the conversation's next agent turn after the batch finished, else in the sample's messages."""
         turns = self.turns.get(batch.conversation, [])
-        at = bisect_right([index for index, _ in turns], last)
+        at = bisect_right(self.turn_positions.get(batch.conversation, []), last)
         source: Sequence[ChatMessage] = (
-            self._input(turns[at][1]) if at < len(turns) else self.messages
+            self._input(turns[at]) if at < len(turns) else self.messages
         )
         for position in range(len(source) - 1, -1, -1):
             if source[position].id == batch.assistant.id:
