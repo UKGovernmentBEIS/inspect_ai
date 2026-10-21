@@ -391,7 +391,7 @@ with working_limit(10 * 60):
     await generate()  # counts again
 ```
 
-Unlike `suspend_token_limit()` and `suspend_turn_limit()`, which only affect code inside the block, `suspend_working_limit()` makes the whole sample count as waiting while the block is open, including work done by other tasks in the sample. Only code in the eval process can call it (not agent code running in a sandbox). Inspect already does this for tool approval and review.
+Unlike `suspend_token_limit()` and `suspend_turn_limit()`, which only affect code inside the block, `suspend_working_limit()` makes the whole sample count as waiting while the block is open, unless another task in the sample is running a model call, sandbox command or tool call (not counting commands run with `exec_remote()` or inside `sandbox_agent_bridge()`). Model calls, sandbox commands and tool calls made inside the block are not charged. Only code in the eval process can call it (not agent code running in a sandbox). Inspect already does this for tool approval and review.
 
 
 ### Message Limit
