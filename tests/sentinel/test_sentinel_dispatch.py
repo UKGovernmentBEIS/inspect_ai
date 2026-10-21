@@ -1040,6 +1040,81 @@ async def test_the_approval_event_keeps_the_calls_it_recorded() -> None:
     assert event.modified.arguments == {"items": {"b": {"name": "b"}}}
 
 
+_drift_seen: dict[int, int] = {}
+
+
+class Drifting(BaseModel):
+    """A model whose validator returns a larger value each time it sees 2 or more."""
+
+    n: int
+
+    @field_validator("n")
+    @classmethod
+    def drift(cls, n: int) -> int:
+        if n < 2:
+            return n
+        seen = _drift_seen.get(n, 0)
+        _drift_seen[n] = seen + 1
+        return n + seen
+
+
+@tool
+def drifting_tool() -> Tool:
+    async def execute(item: Drifting) -> str:
+        """Return the item's number.
+
+        Args:
+            item: The item.
+        """
+        return str(item.n)
+
+    return execute
+
+
+@approver
+def d3_drifting_approver() -> Approver:
+    async def approve(
+        message: str, call: ToolCall, view: ToolCallView, history: list[ChatMessage]
+    ) -> Approval:
+        modified = replace(call, arguments={"item": {"n": 2}})
+        return Approval(decision="modify", modified=modified)
+
+    return approve
+
+
+@protocol
+def d3_drifting_modify() -> Protocol:
+    async def rewrite(context: Context, step: BeforeToolCall) -> Decision | None:
+        modified = replace(step.call, arguments={"item": {"n": 2}})
+        return Decision(action="modify", modified=modified, explanation="two")
+
+    return rewrite
+
+
+@pytest.mark.parametrize("modifier", ["approver", "sentinel"])
+async def test_a_modify_runs_the_arguments_it_checked(modifier: str) -> None:
+    """The tool gets the build of the selected call that was checked, not another."""
+    init_transcript(Transcript())
+    _drift_seen.clear()
+    call = ToolCall(id="1", function="drifting_tool", arguments={"item": {"n": 1}})
+    messages: list[ChatMessage] = [ChatMessageAssistant(content=[], tool_calls=[call])]
+    if modifier == "approver":
+        result = await execute_tools(
+            messages,
+            [drifting_tool()],
+            approval=[ApprovalPolicy(d3_drifting_approver(), "*")],
+        )
+    else:
+        with active(d3_drifting_modify()):
+            result = await execute_tools(messages, [drifting_tool()])
+
+    [message] = result.messages
+    assert isinstance(message, ChatMessageTool)
+    assert message.error is None and message.text == "2"
+    [event] = transcript_tool_events()
+    assert event.arguments == {"item": {"n": 2}}
+
+
 InPlaceEdit = Literal["arguments", "function", "id"]
 
 

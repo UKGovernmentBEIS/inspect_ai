@@ -52,8 +52,10 @@ in B, so they are not compared. A comparison that raises is a parsing error.
    error, reported to the model and recorded with the tool event, saying a
    modify must give the full call as shown. An approval needs no second
    check: C = B, which passed step 5.
-8. Run the tool with C converted: for an approval, B as converted for the
-   value check; for a modify, a fresh conversion. The ToolEvent records a
+8. Run the tool with the conversion of C that the rebuild check checked: for
+   an approval, B's from step 5; for a modify, C's from step 7. No other
+   conversion runs, so a validator that returns a different value each time
+   cannot change what runs after the check. The ToolEvent records a
    copy of C, so a later callback cannot change what the log says ran, and
    its view is rendered from a copy of C without converting again.
 

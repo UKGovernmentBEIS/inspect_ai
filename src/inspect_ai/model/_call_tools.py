@@ -1560,8 +1560,8 @@ def validated_tool_call(call: ToolCall, tool_def: ToolDef) -> ValidatedToolCall:
         call, arguments=_serialized_converted(call.arguments, converted, tool_def)
     )
     try:
-        changed = _changed_on_rebuild(shown.arguments, tool_def)
         rebuilt = _rebuilt_arguments(shown.arguments, tool_def)
+        changed = _changed_on_rebuild(shown.arguments, rebuilt, tool_def)
     except ToolParsingError as ex:
         raise ToolParsingError(
             "The arguments cannot be shown to approvers or monitors: as "
@@ -1597,14 +1597,15 @@ def modified_tool_call(selected: ToolCall, tool_def: ToolDef) -> ValidatedToolCa
     if validation_errors:
         raise ToolParsingError(validation_errors)
 
-    changed = _changed_on_rebuild(selected.arguments, tool_def)
+    rebuilt = _rebuilt_arguments(selected.arguments, tool_def)
+    changed = _changed_on_rebuild(selected.arguments, rebuilt, tool_def)
     if changed is not None:
         raise ToolApprovalError(
             f"The modified value for '{changed}' changes when it is converted "
             "for the tool, so the call was not run. A modify decision must give "
             "the full call as shown, including any defaults it fills in."
         )
-    return ValidatedToolCall(selected, _rebuilt_arguments(selected.arguments, tool_def))
+    return ValidatedToolCall(selected, rebuilt)
 
 
 def _tool_calls_overseen() -> bool:
@@ -1634,15 +1635,6 @@ def _rebuilt_arguments(arguments: dict[str, Any], tool_def: ToolDef) -> dict[str
     return tool_params(arguments, tool_def.tool)
 
 
-def _serialized_arguments(
-    arguments: dict[str, Any], tool_def: ToolDef
-) -> dict[str, Any]:
-    """A call's arguments as converted for the tool, serialized as JSON."""
-    return _serialized_converted(
-        arguments, _rebuilt_arguments(arguments, tool_def), tool_def
-    )
-
-
 def _serialized_converted(
     arguments: dict[str, Any], converted: dict[str, Any], tool_def: ToolDef
 ) -> dict[str, Any]:
@@ -1662,11 +1654,18 @@ def _serialized_converted(
     }
 
 
-def _changed_on_rebuild(arguments: dict[str, Any], tool_def: ToolDef) -> str | None:
-    """The first argument that does not serialize back to itself when rebuilt."""
-    rebuilt = _serialized_arguments(arguments, tool_def)
-    for name in [*arguments, *(name for name in rebuilt if name not in arguments)]:
-        if name not in rebuilt or not json_equal(rebuilt[name], arguments.get(name)):
+def _changed_on_rebuild(
+    arguments: dict[str, Any], rebuilt: dict[str, Any], tool_def: ToolDef
+) -> str | None:
+    """The first argument that `rebuilt`, built from it, does not serialize back to.
+
+    The check is on the rebuilt values the tool receives, not on another build.
+    """
+    serialized = _serialized_converted(arguments, rebuilt, tool_def)
+    for name in [*arguments, *(n for n in serialized if n not in arguments)]:
+        if name not in serialized or not json_equal(
+            serialized[name], arguments.get(name)
+        ):
             return name
     return None
 
