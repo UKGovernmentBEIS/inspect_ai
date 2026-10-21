@@ -266,7 +266,7 @@ class Producer(NamedTuple):
 
 def producer_of(event: ModelEvent | None) -> Producer | None:
     return (
-        Producer(event.input, event.tools, event.tool_choice)
+        Producer(view(event.input), view(event.tools), event.tool_choice)
         if event is not None
         else None
     )

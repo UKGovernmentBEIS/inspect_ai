@@ -9,23 +9,37 @@ import pytest
 from pydantic import BaseModel
 
 from inspect_ai import Task, eval
-from inspect_ai._sentinel._replay import EvalInfo, steps_from_events
+from inspect_ai._sentinel._replay import EvalInfo, MalformedLogError, steps_from_events
 from inspect_ai.agent import Agent, as_solver, as_tool, handoff, react
 from inspect_ai.approval import ApprovalPolicy
 from inspect_ai.dataset import Sample
-from inspect_ai.event import SentinelEvent
+from inspect_ai.event import (
+    Event,
+    ModelEvent,
+    SentinelEvent,
+    SpanBeginEvent,
+    Timeline,
+    TimelineEvent,
+    TimelineSpan,
+    ToolEvent,
+)
 from inspect_ai.log import EvalLog, EvalSample, read_eval_log
 from inspect_ai.model import (
     ChatCompletionChoice,
+    ChatMessage,
     ChatMessageAssistant,
     ChatMessageUser,
     GenerateConfig,
+    ModelAPI,
     ModelOutput,
     get_model,
+    modelapi,
 )
 from inspect_ai.model._call_tools import execute_tools
+from inspect_ai.model._providers.mockllm import MockLLM
 from inspect_ai.solver import Generate, Solver, TaskState, generate, solver, use_tools
-from inspect_ai.tool import Tool, ToolCall, tool
+from inspect_ai.tool import Tool, ToolCall, ToolInfo, tool
+from inspect_ai.util._span import span
 
 from .test_sentinel_dispatch import (
     _RetryingMockLLM,
@@ -227,8 +241,8 @@ def test_a_tool_loop_replays_as_it_ran() -> None:
     )
 
 
-def calls(*calls: tuple[str, dict[str, Any]]) -> ModelOutput:
-    """One assistant turn making several tool calls."""
+def calls(*calls: tuple[str, dict[str, Any]], turn: int = 0) -> ModelOutput:
+    """One assistant turn making several tool calls, with ids `t{turn}c{index}`."""
     return ModelOutput(
         model="mockllm/model",
         choices=[
@@ -237,7 +251,11 @@ def calls(*calls: tuple[str, dict[str, Any]]) -> ModelOutput:
                     content="",
                     model="mockllm/model",
                     tool_calls=[
-                        ToolCall(id=f"c{index}", function=function, arguments=arguments)
+                        ToolCall(
+                            id=f"t{turn}c{index}",
+                            function=function,
+                            arguments=arguments,
+                        )
                         for index, (function, arguments) in enumerate(calls)
                     ],
                 ),
@@ -482,7 +500,7 @@ def test_a_parallel_batch_in_which_one_call_finishes_before_another_raises() -> 
         outputs(calls(("finishes_first", {}), ("explodes_after", {})), done()),
         status="error",
     )
-    assert ("tool_result", "c0") in {(step.stage, step.id) for step in replay}
+    assert ("tool_result", "t0c0") in {(step.stage, step.id) for step in replay}
 
 
 def test_a_person_s_answer_replays_with_its_decision_and_recorded_answer(
@@ -618,3 +636,297 @@ def test_a_custom_memory_tool_replays_its_path_as_given() -> None:
         for step in replay
         if step.stage.startswith("tool")
     ] == [path, path]
+
+
+def run_logged(
+    solver: Solver | list[Solver], model: Any, **task_kwargs: Any
+) -> EvalLog:
+    task = Task(
+        dataset=[Sample(input="What is 1 + 1?", target="2")],
+        solver=solver,
+        **task_kwargs,
+    )
+    log = eval(task, model=model)[0]
+    assert log.status == "success", log.error
+    return log
+
+
+def logged_sample(log: EvalLog) -> EvalSample:
+    assert log.location
+    [sample] = read_eval_log(log.location, resolve_attachments="full").samples or []
+    return sample
+
+
+def replay_events(
+    log: EvalLog, events: Sequence[Event], **kwargs: Any
+) -> list["ReplayStep"]:
+    sample = logged_sample(log)
+    return steps_from_events(
+        sample.messages,
+        events,
+        [],
+        sample_uuid=sample.uuid or "",
+        eval_info=EvalInfo.from_eval(log.eval),
+        **kwargs,
+    )
+
+
+# a log replay cannot read without guessing fails, naming the rule
+
+
+def test_two_steps_of_a_stage_with_one_id_fail_the_replay() -> None:
+    log = run_logged(tool_loop(addition()), agent_model())
+    events = logged_sample(log).events
+    tool = next(i for i, e in enumerate(events) if isinstance(e, ToolEvent))
+    with pytest.raises(MalformedLogError, match="Two tool_call steps"):
+        replay_events(log, [*events[: tool + 1], *events[tool - 1 :]])
+
+
+def test_a_span_tree_cycle_fails_the_replay() -> None:
+    log = run_logged(tool_loop(addition()), agent_model())
+    events = logged_sample(log).events
+    first, second = [e for e in events if isinstance(e, SpanBeginEvent)][:2]
+    first.parent_id, second.parent_id = second.id, first.id
+    with pytest.raises(MalformedLogError, match="cycle"):
+        replay_events(log, events)
+
+
+def test_a_log_without_origins_is_not_replayed_yet() -> None:
+    log = run_logged(tool_loop(addition()), agent_model())
+    events = logged_sample(log).events
+    for event in events:
+        if isinstance(event, ModelEvent):
+            event.origin = None
+    with pytest.raises(NotImplementedError, match="origin"):
+        replay_events(log, events)
+
+
+def test_a_log_with_message_based_generate_ids_keeps_its_recorded_ids() -> None:
+    seen: dict[str, Step] = {}
+    log = run_logged(tool_loop(addition()), agent_model(), sentinel=[r7_probe(seen)])
+    events = logged_sample(log).events
+    # rewrite the generate stages' ids as sentinel 0.1.x recorded them: the
+    # last input message's id before, and the output message's id after
+    turns = [e for e in events if isinstance(e, ModelEvent)]
+    old: dict[str, tuple[str, str]] = {
+        turn.uuid or "": (f"{turn.input[-1].id}:old", turn.output.message.id or "")
+        for turn in turns
+    }
+    for event in events:
+        if isinstance(event, SentinelEvent) and event.step_id in old:
+            before, after = old[event.step_id]
+            event.step_id = before if event.stage == "model_input" else after
+    replay = replay_events(log, events)
+    assert {(s.stage, s.id) for s in replay if s.stage.startswith("model")} == {
+        (stage, id)
+        for before, after in old.values()
+        for stage, id in (("model_input", before), ("model_output", after))
+    }
+
+
+@solver
+def r7_runs_two_branches() -> Solver:
+    """Two attempts at the task in one conversation, each in a span of its own, as Petri's rollbacks are."""
+
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        for branch in ("first", "second"):
+            async with span(branch, type="trajectory"):
+                state.output = await get_model().generate(
+                    [ChatMessageUser(content=f"The {branch} attempt.")]
+                )
+        return state
+
+    return solve
+
+
+def test_a_stored_timeline_gives_one_conversation_per_branch() -> None:
+    log = run_logged(r7_runs_two_branches(), "mockllm/model")
+    events = logged_sample(log).events
+    spans = {e.name: e.id for e in events if isinstance(e, SpanBeginEvent)}
+    first, second = [
+        [
+            TimelineEvent(event=e)
+            for e in events
+            if isinstance(e, ModelEvent) and e.span_id == spans[branch]
+        ]
+        for branch in ("first", "second")
+    ]
+    timeline = Timeline(
+        name="target",
+        description="",
+        root=TimelineSpan(
+            id="target",
+            name="target",
+            content=list(first),
+            branches=[
+                TimelineSpan(id="rollback", name="rollback", content=list(second))
+            ],
+        ),
+    )
+    sample = logged_sample(log)
+    assert {s.step.conversation for s in replay_events(log, events)} == {sample.uuid}
+    assert [
+        s.step.conversation
+        for s in replay_events(log, events, timeline=timeline)
+        if s.stage == "model_input"
+    ] == ["target", "rollback"]
+
+
+def test_a_person_s_approval_is_a_human_decision_without_a_sentinel(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from inspect_ai.approval import human_approver
+
+    Panel("approve", "fine").install(monkeypatch)
+    log = run_logged(
+        tool_loop(addition()),
+        agent_model(2),
+        approval=[ApprovalPolicy(human_approver(), "*")],
+    )
+    sample = logged_sample(log)
+    replay = steps_from_events(
+        sample.messages,
+        sample.events,
+        [],
+        sample_uuid=sample.uuid or "",
+        eval_info=EvalInfo(inspect_ai_version=None, sentinel=False),
+        human_approvers=("human",),
+    )
+    first, second = [s for s in replay if s.stage == "tool_call"]
+    assert first.step.human_decisions == ()
+    [decision] = second.step.human_decisions or []
+    assert decision.step_id == first.id
+    assert decision.decided.report.action == "proceed"
+    assert decision.decided.report.explanation == "fine"
+
+
+# nothing quadratic: counted on n and 2n turns, with a compaction and
+# parallel tool calls, the work doubles rather than quadruples
+
+
+class _Turns(MockLLM):
+    """Two parallel tool calls a turn for `turns` turns, then done; a call offered no tools is a compaction's summary."""
+
+    turns = 0
+
+    async def generate(
+        self,
+        input: list[ChatMessage],
+        tools: list[ToolInfo],
+        tool_choice: Any,
+        config: GenerateConfig,
+    ) -> Any:
+        if not tools:
+            return done("summary")
+        if _Turns.turns == 0:
+            return done()
+        _Turns.turns -= 1
+        turn = _Turns.turns
+        return calls(
+            ("addition", {"x": turn, "y": 1}),
+            ("addition", {"x": turn, "y": 2}),
+            turn=turn,
+        )
+
+
+@modelapi(name="r7_turns")
+def r7_turns() -> type[ModelAPI]:
+    return _Turns
+
+
+def long_run(turns: int, seen: dict[str, Step] | None = None) -> EvalLog:
+    from inspect_ai.model._compaction.summary import CompactionSummary
+
+    _Turns.turns = turns
+    return run_logged(
+        as_solver(
+            react(
+                tools=[addition()],
+                compaction=CompactionSummary(threshold=400),
+                submit=False,
+            )
+        ),
+        "r7_turns/model",
+        sentinel=[r7_probe(seen)] if seen is not None else None,
+    )
+
+
+SEQUENCES = {
+    "BeforeGenerate": ("history", "agent_messages", "human_decisions"),
+    "AfterGenerate": ("history", "agent_messages", "human_decisions"),
+    "BeforeToolCall": (
+        "history",
+        "agent_messages",
+        "human_decisions",
+        "input",
+        "tools",
+    ),
+    "AfterToolCall": ("history", "agent_messages", "human_decisions", "input", "tools"),
+}
+
+
+def copied_into_steps(steps: Sequence[Step]) -> int:
+    """Elements a builder copied into the steps' conversation fields: any list or tuple there is a copy."""
+    copied = 0
+    for step in steps:
+        for name in SEQUENCES[type(step).__name__]:
+            value = getattr(step, name)
+            if isinstance(value, list | tuple):
+                copied += len(value)
+    return copied
+
+
+@pytest.mark.parametrize("turns", [10, 20])
+def test_live_steps_copy_nothing_of_the_conversation(turns: int) -> None:
+    seen: dict[str, Step] = {}
+    log = long_run(turns, seen)
+    assert log.samples
+    assert len(seen) > 4 * turns
+    assert copied_into_steps(list(seen.values())) == 0
+
+
+def replay_work(
+    turns: int, monkeypatch: pytest.MonkeyPatch
+) -> tuple[int, int, int, int]:
+    """Pool rows keyed, positions the fold visited, pool size and steps for a run of `turns`."""
+    from inspect_ai._sentinel import _replay
+
+    log = long_run(turns)
+    sample = logged_sample(log)
+    keyed = visited = 0
+    content_key = _replay.content_key
+    key = _replay._PooledInput.key
+
+    def counting_content_key(message: Any) -> str:
+        nonlocal keyed
+        keyed += 1
+        return content_key(message)
+
+    def counting_key(self: Any, position: int) -> str:
+        nonlocal visited
+        visited += 1
+        return key(self, position)
+
+    events, pool = _replay._condensed(sample.events, [])
+    monkeypatch.setattr(_replay, "content_key", counting_content_key)
+    monkeypatch.setattr(_replay._PooledInput, "key", counting_key)
+    replay = steps_from_events(
+        sample.messages,
+        events,
+        pool,
+        sample_uuid=sample.uuid or "",
+        eval_info=EvalInfo.from_eval(log.eval),
+    )
+    assert any(step.segment[1] for step in replay), "the run has a compaction"
+    assert copied_into_steps([step.step for step in replay]) == 0
+    return keyed, visited, len(pool), len(replay)
+
+
+def test_replay_reads_each_pool_row_once_and_folds_linearly(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    keyed, visited, pool, steps = replay_work(20, monkeypatch)
+    keyed2, visited2, pool2, steps2 = replay_work(40, monkeypatch)
+    assert keyed <= pool and keyed2 <= pool2
+    assert steps2 <= 2.2 * steps
+    assert visited2 <= 2.2 * visited, (visited, visited2)

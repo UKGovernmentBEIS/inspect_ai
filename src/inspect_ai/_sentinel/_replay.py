@@ -38,6 +38,7 @@ from ._steps import (
     before_tool_call,
     content_key,
     producing_message_id,
+    view,
 )
 
 if TYPE_CHECKING:
@@ -781,7 +782,7 @@ class _Driver:
     def _producer(self, event: ModelEvent | None) -> Producer | None:
         if event is None:
             return None
-        return Producer(self._input(event), event.tools, event.tool_choice)
+        return Producer(self._input(event), view(event.tools), event.tool_choice)
 
     def _truncated(self, event: ToolEvent) -> Any:
         from inspect_sentinel import Truncation
