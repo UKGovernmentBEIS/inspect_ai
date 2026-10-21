@@ -4,13 +4,13 @@ from typing import Awaitable, Callable, Protocol, cast
 import anyio
 from pydantic import JsonValue
 
-from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai.model._call_tools import get_tools_info
 from inspect_ai.model._model import ModelRefusalError
 from inspect_ai.tool._tools._code_execution import CodeExecutionProviders
 from inspect_ai.tool._tools._web_search._web_search import WebSearchProviders
 from inspect_ai.util._limit import LimitExceededError
 from inspect_ai.util._sandbox import SandboxEnvironment, sandbox_service
+from inspect_ai.util._sandbox.service import find_control_flow
 
 from .._errors import PROVIDER_ERROR_KEY, ResponseFilterError, provider_error_payload
 from ..anthropic_api import inspect_anthropic_api_request
@@ -47,13 +47,17 @@ def _forward_provider_errors(
     `LimitExceededError` is deliberately excluded so message/token/cost limit
     hit during generation properly end the sample.
 
-    A `ModelRefusalError` (`fail_on_refusal`), a `ResponseFilterError` (a
-    `response_filter` is eval logic, not a passive observer) and a
-    `TerminateSampleError` (for example one raised by a request or response
-    filter) must also end the sample, but the sandbox service dispatcher would
-    swallow a re-raise into an RPC error, so they are signalled through
-    `bridge.request_fail` (raised on the agent's side by the bridge's monitor
-    task) while the scaffold still gets an error reply.
+    A termination is also re-raised: a `TerminateSampleError` (from an approver's
+    `terminate` decision, too many consecutive rejections, or a request or
+    response filter), bare or anywhere in the exception as `find_control_flow`
+    finds it. The sandbox service dispatcher answers the RPC and propagates the
+    termination out of the service task, which ends the sample.
+
+    A `ModelRefusalError` (`fail_on_refusal`) and a `ResponseFilterError` (a
+    `response_filter` is eval logic, not a passive observer) must also end the
+    sample, but the dispatcher would turn a re-raise into an RPC error, so they
+    are signalled through `bridge.request_fail` (raised on the agent's side by
+    the bridge's monitor task) while the scaffold still gets an error reply.
     """
 
     async def generate_forwarding_errors(
@@ -64,12 +68,15 @@ def _forward_provider_errors(
             return await generate(json_data, headers)
         except LimitExceededError:
             raise
-        except (ModelRefusalError, ResponseFilterError, TerminateSampleError) as ex:
-            bridge.request_fail(ex)
-            # no non-provider-error warning: the failure is reported once, by
-            # the sample error the monitor task raises
-            return {PROVIDER_ERROR_KEY: cast(JsonValue, provider_error_payload(ex))}
         except Exception as ex:
+            if find_control_flow(ex) is not None:
+                # the service dispatcher ends the sample with it
+                raise
+            if isinstance(ex, (ModelRefusalError, ResponseFilterError)):
+                bridge.request_fail(ex)
+                # no non-provider-error warning: the failure is reported once,
+                # by the sample error the monitor task raises
+                return {PROVIDER_ERROR_KEY: cast(JsonValue, provider_error_payload(ex))}
             payload = provider_error_payload(ex)
             # A payload with no recoverable HTTP status almost always means the
             # failure came from our own request translation rather than the
