@@ -1,8 +1,9 @@
 """Steps rebuilt from a log (`steps_from_events`) equal the steps live, field by field."""
 
 import dataclasses
+import random
 from collections.abc import Sequence
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, NamedTuple
 
 import anyio
 import pytest
@@ -11,6 +12,7 @@ from pydantic import BaseModel
 
 from inspect_ai import Task, eval
 from inspect_ai._sentinel._replay import EvalInfo, MalformedLogError, steps_from_events
+from inspect_ai._sentinel._steps import PoolView
 from inspect_ai._util._async import tg_collect
 from inspect_ai.agent import Agent, as_solver, as_tool, handoff, react
 from inspect_ai.approval import ApprovalPolicy
@@ -697,6 +699,15 @@ def test_a_span_tree_cycle_fails_the_replay() -> None:
         replay_events(log, events)
 
 
+def test_a_span_tree_cycle_no_step_walks_through_fails_the_replay() -> None:
+    log = run_logged(tool_loop(addition()), agent_model())
+    events = logged_sample(log).events
+    a = SpanBeginEvent(id="a", parent_id="b", name="a")
+    b = SpanBeginEvent(id="b", parent_id="a", name="b")
+    with pytest.raises(MalformedLogError, match="cycle"):
+        replay_events(log, [a, b, *events])
+
+
 def test_a_log_without_origins_is_not_replayed_yet() -> None:
     log = run_logged(tool_loop(addition()), agent_model())
     events = logged_sample(log).events
@@ -891,51 +902,192 @@ def test_live_steps_copy_nothing_of_the_conversation(turns: int) -> None:
     assert copied_into_steps(list(seen.values())) == 0
 
 
+class Work(NamedTuple):
+    keyed: int
+    """Pool rows keyed (content keys computed)."""
+    visited: int
+    """Positions the fold compared, by content."""
+    indexed: int
+    """Ranges the fold's lookups scanned in the previous input."""
+    pool: int
+    """Rows in the message pool."""
+    ranges: int
+    """Input ranges the log stores, over all model events."""
+    steps: int
+
+
 def replay_work(
-    turns: int, monkeypatch: pytest.MonkeyPatch
-) -> tuple[int, int, int, int]:
-    """Pool rows keyed, positions the fold visited, pool size and steps for a run of `turns`."""
+    monkeypatch: pytest.MonkeyPatch,
+    messages: Sequence[ChatMessage],
+    events: Sequence[Event],
+    pool: Sequence[ChatMessage],
+    sample_uuid: str,
+    eval_info: EvalInfo,
+) -> Work:
     from inspect_ai._sentinel import _replay, _steps
 
-    log = long_run(turns)
-    sample = logged_sample(log)
-    keyed = visited = 0
+    keyed = visited = indexed = 0
     content_key = _steps.content_key
-    key = _replay._PooledInput.key
+    canonical = _replay._PoolKeys.canonical
+    find = _replay._PooledInput._find
 
     def counting_content_key(message: Any) -> str:
         nonlocal keyed
         keyed += 1
         return content_key(message)
 
-    def counting_key(self: Any, position: int) -> str:
+    def counting_canonical(self: Any, row: int) -> int:
         nonlocal visited
         visited += 1
-        return key(self, position)
+        return canonical(self, row)
 
+    def counting_find(self: Any, row: int, at_least: int) -> int | None:
+        nonlocal indexed
+        indexed += len(self.view.refs) * len(self._keys.rows(row))
+        return find(self, row, at_least)
+
+    with monkeypatch.context() as patch:
+        patch.setattr(_replay, "content_key", counting_content_key)
+        patch.setattr(_replay._PoolKeys, "canonical", counting_canonical)
+        patch.setattr(_replay._PooledInput, "_find", counting_find)
+        replay = steps_from_events(
+            messages, events, pool, sample_uuid=sample_uuid, eval_info=eval_info
+        )
+    assert copied_into_steps([step.step for step in replay]) == 0
+    ranges = sum(len(e.input_refs or []) for e in events if isinstance(e, ModelEvent))
+    return Work(keyed, visited, indexed, len(pool), ranges, len(replay))
+
+
+def assert_linear(small: Work, large: Work, doubles: bool = True) -> None:
+    """Each pool row is keyed once, and the fold's work is within a constant of what the log stores; with `doubles`, twice the turns cost at most a little over twice the work."""
+    for work in (small, large):
+        assert work.keyed <= work.pool
+        assert work.visited + work.indexed <= 4 * (work.ranges + work.pool), work
+    if doubles:
+        assert large.steps <= 2.2 * small.steps
+        assert large.visited <= 2.2 * small.visited, (small, large)
+        assert large.indexed <= 2.2 * small.indexed + 10, (small, large)
+
+
+def log_work(turns: int, monkeypatch: pytest.MonkeyPatch) -> Work:
+    from inspect_ai._sentinel import _replay
+
+    log = long_run(turns)
+    sample = logged_sample(log)
     events, pool = _replay._condensed(sample.events, [])
-    monkeypatch.setattr(_replay, "content_key", counting_content_key)
-    monkeypatch.setattr(_replay._PooledInput, "key", counting_key)
-    replay = steps_from_events(
+    return replay_work(
+        monkeypatch,
         sample.messages,
         events,
         pool,
-        sample_uuid=sample.uuid or "",
-        eval_info=EvalInfo.from_eval(log.eval),
+        sample.uuid or "",
+        EvalInfo.from_eval(log.eval),
     )
-    assert any(step.segment[1] for step in replay), "the run has a compaction"
-    assert copied_into_steps([step.step for step in replay]) == 0
-    return keyed, visited, len(pool), len(replay)
 
 
 def test_replay_reads_each_pool_row_once_and_folds_linearly(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    keyed, visited, pool, steps = replay_work(20, monkeypatch)
-    keyed2, visited2, pool2, steps2 = replay_work(40, monkeypatch)
-    assert keyed <= pool and keyed2 <= pool2
-    assert steps2 <= 2.2 * steps
-    assert visited2 <= 2.2 * visited, (visited, visited2)
+    assert_linear(log_work(20, monkeypatch), log_work(40, monkeypatch))
+
+
+def turn_event(
+    input: list[ChatMessage], refs: list[tuple[int, int]] | None = None
+) -> ModelEvent:
+    return ModelEvent(
+        model="mockllm/model",
+        origin="agent",
+        input=input if refs is None else [],
+        input_refs=refs,
+        tools=[],
+        tool_choice="auto",
+        config=GenerateConfig(),
+        output=ModelOutput.from_content("mockllm/model", "ok"),
+    )
+
+
+def rebuilt_inputs(
+    turns: int, shape: str
+) -> tuple[list[ModelEvent], list[ChatMessage]]:
+    """Inputs that grow by one message a turn, with one message rebuilt each turn (the opening, or one in the middle), stored as few ranges: the growing messages first in the pool, then the rebuilt ones."""
+    body: list[ChatMessage] = [
+        ChatMessageUser(content=f"message {n}") for n in range(turns)
+    ]
+    rebuilt: list[ChatMessage] = [
+        ChatMessageUser(content=f"rebuilt for turn {n}") for n in range(turns)
+    ]
+    events = []
+    for turn in range(1, turns):
+        changed = (turns + turn, turns + turn + 1)
+        refs = (
+            [changed, (0, turn)] if shape == "opening" else [(0, 1), changed, (1, turn)]
+        )
+        events.append(turn_event([], refs))
+    return events, [*body, *rebuilt]
+
+
+@pytest.mark.parametrize("shape", ["opening", "middle"])
+def test_a_rebuilt_message_keeps_the_fold_linear(
+    shape: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    info = EvalInfo(inspect_ai_version=None, sentinel=False)
+    small, large = (
+        replay_work(monkeypatch, [], *rebuilt_inputs(turns, shape), "sample", info)
+        for turns in (200, 400)
+    )
+    assert_linear(small, large)
+
+
+@pytest.mark.parametrize("shape", ["opening", "middle"])
+def test_a_rebuilt_message_s_fold_is_linear_in_what_the_log_stores(
+    shape: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from inspect_ai._sentinel import _replay
+
+    # condensed as inspect_ai writes it, each turn's rebuilt row interleaves
+    # with the growing ones, so each input is stored as about as many ranges
+    # as it has messages
+    info = EvalInfo(inspect_ai_version=None, sentinel=False)
+    works = []
+    for turns in (100, 200):
+        stored, rows = rebuilt_inputs(turns, shape)
+        expanded: list[Event] = [
+            turn_event(list(PoolView(rows, event.input_refs or []))) for event in stored
+        ]
+        condensed, pool = _replay._condensed(expanded, [])
+        works.append(replay_work(monkeypatch, [], condensed, pool, "sample", info))
+    assert_linear(*works, doubles=False)
+
+
+def test_the_fold_over_pool_ranges_is_the_fold_live() -> None:
+    from inspect_ai._sentinel import _replay
+    from inspect_ai._sentinel._steps import _Sent
+
+    rng = random.Random(7)
+    messages = [
+        ChatMessageUser(content=text, metadata=metadata)
+        for text in "ABCD"
+        for metadata in (None, {"variant": 1})
+    ]
+    for _ in range(300):
+        inputs = [
+            [rng.choice(messages) for _ in range(rng.randint(0, 6))]
+            for _ in range(rng.randint(1, 6))
+        ]
+        live = _Sent()
+        for input in inputs:
+            live.record(input)
+        condensed, pool = _replay._condensed([turn_event(i) for i in inputs], [])
+        keys = _replay._PoolKeys(pool)
+        replay = _Sent()
+        for event in condensed:
+            assert isinstance(event, ModelEvent)
+            replay.record_input(
+                _replay._PooledInput(PoolView(pool, event.input_refs or []), keys)
+            )
+        assert [comparable(m) for m in replay.messages] == [
+            comparable(m) for m in live.messages
+        ], inputs
 
 
 class _Interleaved(MockLLM):
@@ -1037,3 +1189,56 @@ def test_views_read_as_the_lists_they_cut() -> None:
         assert view[-1] == expected[-1]
         with pytest.raises(IndexError):
             view[len(expected)]
+
+
+@monitor
+def r7_holds_the_first_after_stage(
+    after_started: Any, second_before: Any
+) -> MonitorGroup:
+    """Keep the first generate's after-stage open until the second generate's before-stage has run."""
+
+    async def before_generate(
+        context: Context, step: BeforeGenerate
+    ) -> Observation | None:
+        if step.input[-1].text == "second":
+            second_before.set()
+        return None
+
+    async def after_generate(
+        context: Context, step: AfterGenerate
+    ) -> Observation | None:
+        if step.input[-1].text == "first":
+            after_started.set()
+            await second_before.wait()
+        return None
+
+    return MonitorGroup(before_generate, after_generate)
+
+
+@solver
+def r7_generates_while_an_after_stage_runs(after_started: Any) -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        model = get_model()
+
+        async def first() -> ModelOutput:
+            return await model.generate([ChatMessageUser(content="first")])
+
+        async def second() -> ModelOutput:
+            await after_started.wait()
+            return await model.generate([ChatMessageUser(content="second")])
+
+        await tg_collect([first, second])
+        return state
+
+    return solve
+
+
+def test_an_output_joins_agent_messages_once_its_after_stage_has_finished() -> None:
+    after_started, second_before = anyio.Event(), anyio.Event()
+    replay = assert_replay_equals_live(
+        r7_generates_while_an_after_stage_runs(after_started),
+        outputs(done("first answer"), done("second answer")),
+        sentinel=[r7_holds_the_first_after_stage(after_started, second_before)],
+    )
+    [_, second] = [step for step in replay if step.stage == "model_input"]
+    assert [m.text for m in second.step.agent_messages or []] == ["first"]

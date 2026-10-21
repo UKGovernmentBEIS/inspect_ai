@@ -109,12 +109,10 @@ class FoldInput(Protocol):
 
     def __len__(self) -> int: ...
 
-    def key(self, position: int) -> str: ...
-
     def message(self, position: int) -> ChatMessage: ...
 
-    def prefix(self, previous: "FoldInput") -> int:
-        """How many leading positions have the same content as `previous`'s."""
+    def new_positions(self, previous: "FoldInput | None") -> Iterator[int]:
+        """The positions of this input the fold counts as new, aligned against `previous` (see `_Sent`)."""
         ...
 
 
@@ -128,24 +126,39 @@ class KeyedInput:
     def __len__(self) -> int:
         return len(self._keys)
 
-    def key(self, position: int) -> str:
-        return self._keys[position]
-
     def message(self, position: int) -> ChatMessage:
         return self._messages[position]
 
-    def prefix(self, previous: FoldInput) -> int:
-        count = min(len(self), len(previous))
-        prefix = 0
-        while prefix < count and self._keys[prefix] == previous.key(prefix):
-            prefix += 1
-        return prefix
+    def new_positions(self, previous: FoldInput | None) -> Iterator[int]:
+        if previous is None:
+            yield from range(len(self))
+            return
+        assert isinstance(previous, KeyedInput)
+        keys, before = self._keys, previous._keys
+        pointer = 0
+        # where each key sits in the previous input at or after the pointer,
+        # built the first time the walk leaves the previous input's order
+        later: dict[str, list[int]] | None = None
+        for position, key in enumerate(keys):
+            if pointer < len(before) and before[pointer] == key:
+                pointer += 1
+                continue
+            if later is None:
+                later = {}
+                for at in range(pointer, len(before)):
+                    later.setdefault(before[at], []).append(at)
+            found = later.get(key, [])
+            at = bisect_left(found, pointer)
+            if at < len(found):
+                pointer = found[at] + 1
+            else:
+                yield position
 
 
 class _Sent:
     """What one conversation's agent turns have sent: every message once, where it was first sent.
 
-    A message is new unless the previous input had the same content (`content_key()`) at the position the alignment has reached or later. Each input is aligned against the previous input only: the part that begins as the previous input did is matched whole; past it, a pointer walks the previous input, a message the same as one at or after the pointer is matched and moves the pointer past it, and anything else is new. So a message rebuilt with a fresh id where it was is matched; a message edited, reordered behind a later one, or dropped by one call and restored by a later one is new again; and two equal messages sent at different turns are two messages. Ids play no part, so the fold over a log's inputs is the fold live.
+    A message is new unless the previous input had the same content (`content_key()`) at the position the alignment has reached or later. Each input is aligned against the previous input only: a pointer walks the previous input from its start, a message the same as the one at the pointer or at a later position is matched and moves the pointer past it, and anything else is new. So a message rebuilt with a fresh id where it was is matched; a message edited, reordered behind a later one, or dropped by one call and restored by a later one is new again; and two equal messages sent at different turns are two messages. Ids play no part, so the fold over a log's inputs is the fold live.
     """
 
     def __init__(self) -> None:
@@ -157,33 +170,8 @@ class _Sent:
         self.record_input(KeyedInput(input))
 
     def record_input(self, input: FoldInput) -> None:
-        previous = self._previous
-        prefix = input.prefix(previous) if previous is not None else 0
-        previous_length = len(previous) if previous is not None else 0
-        pointer = prefix
-        # where each key sits in the previous input at or after the pointer,
-        # built the first time the walk leaves the previous input's order
-        later: dict[str, list[int]] | None = None
-        for position in range(prefix, len(input)):
-            key = input.key(position)
-            if (
-                previous is not None
-                and pointer < previous_length
-                and previous.key(pointer) == key
-            ):
-                pointer += 1
-                continue
-            if later is None:
-                later = {}
-                for at in range(pointer, previous_length):
-                    assert previous is not None
-                    later.setdefault(previous.key(at), []).append(at)
-            found = later.get(key, [])
-            at = bisect_left(found, pointer)
-            if at < len(found):
-                pointer = found[at] + 1
-            else:
-                self.messages.append(input.message(position))
+        for position in input.new_positions(self._previous):
+            self.messages.append(input.message(position))
         self._previous = input
 
 
@@ -473,6 +461,11 @@ class PoolView(Sequence[ChatMessage]):
     @property
     def refs(self) -> Sequence[tuple[int, int]]:
         return self._refs
+
+    @property
+    def starts(self) -> Sequence[int]:
+        """The input position each range begins at."""
+        return self._starts
 
     def row(self, position: int) -> int:
         """The pool row at an input position."""

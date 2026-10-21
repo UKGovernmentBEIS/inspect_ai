@@ -1,6 +1,7 @@
 """The log driver: a sample's steps rebuilt from its events, with the builders the live dispatcher uses (`_steps.py`)."""
 
-from collections.abc import Callable, Sequence
+from bisect import bisect_right
+from collections.abc import Callable, Iterator, Sequence
 from dataclasses import dataclass, field, replace
 from functools import partial
 from typing import TYPE_CHECKING, Any, NamedTuple, cast
@@ -133,67 +134,94 @@ def _condensed(
 
 
 class _PoolKeys:
-    """Each pool row's content key, computed the first time it is needed."""
+    """Each pool row's content, as a canonical row: the first row with the same content key. Every row is keyed once, the first time the fold needs any."""
 
     def __init__(self, pool: Sequence[ChatMessage]) -> None:
         self.pool = pool
-        self._keys: dict[int, str] = {}
+        self._canonical: list[int] | None = None
+        self._rows: dict[int, list[int]] = {}
 
-    def key(self, row: int) -> str:
-        key = self._keys.get(row)
-        if key is None:
-            key = self._keys[row] = content_key(self.pool[row])
-        return key
+    def canonical(self, row: int) -> int:
+        if self._canonical is None:
+            self._key_every_row()
+        assert self._canonical is not None
+        return self._canonical[row]
+
+    def rows(self, canonical: int) -> list[int]:
+        """The rows whose content is the canonical row's."""
+        return self._rows[canonical]
+
+    def _key_every_row(self) -> None:
+        first: dict[str, int] = {}
+        canonical: list[int] = []
+        for row, message in enumerate(self.pool):
+            found = first.setdefault(content_key(message), row)
+            canonical.append(found)
+            self._rows.setdefault(found, []).append(row)
+        self._canonical = canonical
 
 
 class _PooledInput:
-    """A logged model input for the fold: positions are pool rows, and a range equal to the previous input's is matched without reading its rows."""
+    """A logged model input for the fold: positions are rows of the message pool, read as the ranges the log stores (`input_refs`).
+
+    The alignment walks runs, not messages: where the input and the previous input continue through the same rows, the run is matched whole. A message the pointer does not match is looked up among the previous input's ranges. So the work per input is in its ranges and its new messages, not its length.
+    """
 
     def __init__(self, view: PoolView, keys: _PoolKeys) -> None:
         self.view = view
         self._keys = keys
+        self._ends = [
+            start + max(end - begin, 0)
+            for start, (begin, end) in zip(view.starts, view.refs)
+        ]
 
     def __len__(self) -> int:
         return len(self.view)
 
-    def key(self, position: int) -> str:
-        return self._keys.key(self.view.row(position))
-
     def message(self, position: int) -> ChatMessage:
         return self.view[position]
 
-    def prefix(self, previous: FoldInput) -> int:
+    def new_positions(self, previous: FoldInput | None) -> Iterator[int]:
+        if previous is None:
+            yield from range(len(self))
+            return
         assert isinstance(previous, _PooledInput)
-        mine = list(self.view.refs)
-        theirs = list(previous.view.refs)
-        i = j = 0
-        # rows left in the current range of each
-        a_start, a_left = (mine[0][0], mine[0][1] - mine[0][0]) if mine else (0, 0)
-        b_start, b_left = (
-            (theirs[0][0], theirs[0][1] - theirs[0][0]) if theirs else (0, 0)
-        )
-        matched = 0
-        while i < len(mine) and j < len(theirs):
-            if a_left <= 0:
-                i += 1
-                if i < len(mine):
-                    a_start, a_left = mine[i][0], mine[i][1] - mine[i][0]
-                continue
-            if b_left <= 0:
-                j += 1
-                if j < len(theirs):
-                    b_start, b_left = theirs[j][0], theirs[j][1] - theirs[j][0]
-                continue
-            if a_start == b_start:
-                step = min(a_left, b_left)
-            elif self._keys.key(a_start) == self._keys.key(b_start):
-                step = 1
+        position, pointer = 0, 0
+        while position < len(self):
+            row = self.view.row(position)
+            if pointer < len(previous):
+                before = previous.view.row(pointer)
+                if row == before:
+                    # the same rows from here to the end of either range
+                    run = min(self._left(position), previous._left(pointer))
+                    position += run
+                    pointer += run
+                    continue
+                if self._keys.canonical(row) == self._keys.canonical(before):
+                    position += 1
+                    pointer += 1
+                    continue
+            found = previous._find(self._keys.canonical(row), pointer)
+            if found is None:
+                yield position
+                position += 1
             else:
-                break
-            matched += step
-            a_start, a_left = a_start + step, a_left - step
-            b_start, b_left = b_start + step, b_left - step
-        return matched
+                pointer = found
+
+    def _left(self, position: int) -> int:
+        """Positions left in the range holding `position`."""
+        return self._ends[bisect_right(self.view.starts, position) - 1] - position
+
+    def _find(self, canonical: int, at_least: int) -> int | None:
+        """The first position at or after `at_least` holding the canonical row's content."""
+        best: int | None = None
+        for row in self._keys.rows(canonical):
+            for start, (begin, end) in zip(self.view.starts, self.view.refs):
+                if begin <= row < end:
+                    position = start + row - begin
+                    if position >= at_least and (best is None or position < best):
+                        best = position
+        return best
 
 
 @dataclass
@@ -281,6 +309,7 @@ class _Driver:
     # ---- the first pass: read the events in log order
 
     def steps(self) -> list["ReplayStep"]:
+        _check_span_tree(self.events)
         generates: list[_Generate] = []
         open_generates: dict[str | None, _Generate] = {}
         last_turn: dict[str, int] = {}
@@ -553,12 +582,20 @@ class _Driver:
                 record=record,
             )
             self._built(after_id, "model_output", step, after_span)
-            if last.output.choices:
-                record.ran([last.output.message])
+            if after_end is None:
+                join()
 
+        def join() -> None:
+            # live records the output once sentinel_after_generate() returns
+            if last.output.choices:
+                self._record(conversation).ran([last.output.message])
+
+        after_end = self.ends.get(after_span) if after_span is not None else None
         self._at_seq(
             self._cut(after_span, last_index + 1), 1, group.seq + 1, build_after
         )
+        if after_end is not None:
+            self._at(after_end, 2, join)
         self._settle_at_end(after_span)
 
     def _tool_call(self, call: _Call) -> None:
@@ -981,3 +1018,26 @@ def _timeline_conversations(timeline: Timeline) -> dict[object, str]:
 
     walk(timeline.root, timeline.root.id)
     return conversations
+
+
+def _check_span_tree(events: Sequence[Event]) -> None:
+    """Fail on a `parent_id` cycle anywhere in the span tree, visiting each span once."""
+    parents = {
+        event.id: event.parent_id
+        for event in events
+        if isinstance(event, SpanBeginEvent)
+    }
+    done: set[str] = set()
+    for span_id in parents:
+        path: list[str] = []
+        on_path: set[str] = set()
+        current: str | None = span_id
+        while current is not None and current in parents and current not in done:
+            if current in on_path:
+                raise MalformedLogError(
+                    f"The span tree has a parent_id cycle at {current}."
+                )
+            path.append(current)
+            on_path.add(current)
+            current = parents[current]
+        done.update(path)
