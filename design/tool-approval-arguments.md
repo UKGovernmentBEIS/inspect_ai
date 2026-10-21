@@ -24,11 +24,13 @@ The rebuild check on JSON X: convert X to the tool's parameter types and
 serialize the result as in step 4; it must equal X by JSON equality
 (`5 == 5.0`, but `True != 1`).
 
-The value check on B: B converted to the tool's parameter types must equal A
-converted (Python `==`), argument by argument. Serialization can hide or mask
-a value, and then B passes the rebuild check while the tool would get
-something else: a `SecretStr` serializes as `**********`, and a field with
-`exclude=True` or a private attribute is left out.
+The value check on B: B converted to the tool's parameter types must equal
+the converted values B was serialized from (step 3), by Python `==`, for each
+argument in B. Serialization can hide or mask a value, and then B passes the
+rebuild check while the tool would get something else: a `SecretStr`
+serializes as `**********`, and a field with `exclude=True` or a private
+attribute is left out. Omitted parameters and curried handoff values are not
+in B, so they are not compared. A comparison that raises is a parsing error.
 
 1. Parse the tool call, as without oversight.
 2. Validate A against the tool's schema. A failure is a parsing error to the

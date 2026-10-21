@@ -1555,7 +1555,10 @@ def validated_tool_call(call: ToolCall, tool_def: ToolDef) -> ValidatedToolCall:
     if not _tool_calls_overseen():
         return ValidatedToolCall(call, _rebuilt_arguments(call.arguments, tool_def))
 
-    shown = replace(call, arguments=_serialized_arguments(call.arguments, tool_def))
+    converted = _rebuilt_arguments(call.arguments, tool_def)
+    shown = replace(
+        call, arguments=_serialized_converted(call.arguments, converted, tool_def)
+    )
     try:
         changed = _changed_on_rebuild(shown.arguments, tool_def)
         rebuilt = _rebuilt_arguments(shown.arguments, tool_def)
@@ -1569,7 +1572,7 @@ def validated_tool_call(call: ToolCall, tool_def: ToolDef) -> ValidatedToolCall:
         # serialization can hide or mask a value (a secret, an excluded field,
         # private attributes), so the tool must get the value the model's
         # arguments convert to, not only the same JSON
-        changed = _changed_from(_rebuilt_arguments(call.arguments, tool_def), rebuilt)
+        changed = _changed_from(shown.arguments, converted, rebuilt)
     if changed is not None:
         raise ToolParsingError(
             f"Argument '{changed}' cannot be shown to approvers or monitors: as "
@@ -1634,7 +1637,16 @@ def _rebuilt_arguments(arguments: dict[str, Any], tool_def: ToolDef) -> dict[str
 def _serialized_arguments(
     arguments: dict[str, Any], tool_def: ToolDef
 ) -> dict[str, Any]:
-    """A call's arguments as converted for the tool, serialized as JSON.
+    """A call's arguments as converted for the tool, serialized as JSON."""
+    return _serialized_converted(
+        arguments, _rebuilt_arguments(arguments, tool_def), tool_def
+    )
+
+
+def _serialized_converted(
+    arguments: dict[str, Any], converted: dict[str, Any], tool_def: ToolDef
+) -> dict[str, Any]:
+    """A call's arguments, already converted for the tool, serialized as JSON.
 
     Only the arguments the call gives are serialized: parameters it leaves
     out get their Python defaults when the arguments are rebuilt, and curried
@@ -1642,7 +1654,6 @@ def _serialized_arguments(
     """
     from inspect_ai.agent._handoff import AgentTool
 
-    converted = _rebuilt_arguments(arguments, tool_def)
     curried = tool_def.tool.kwargs if isinstance(tool_def.tool, AgentTool) else {}
     return {
         name: _serialized(name, converted[name])
@@ -1660,10 +1671,26 @@ def _changed_on_rebuild(arguments: dict[str, Any], tool_def: ToolDef) -> str | N
     return None
 
 
-def _changed_from(converted: dict[str, Any], rebuilt: dict[str, Any]) -> str | None:
-    """The first converted argument the rebuilt arguments do not equal in Python."""
-    for name, value in converted.items():
-        if name not in rebuilt or not bool(rebuilt[name] == value):
+def _changed_from(
+    shown: dict[str, Any], converted: dict[str, Any], rebuilt: dict[str, Any]
+) -> str | None:
+    """The first shown argument whose rebuilt value does not equal its converted one.
+
+    Only shown arguments are compared: omitted parameters and curried handoff
+    values are not part of the shown call and reach the tool as they are.
+
+    Raises:
+        ToolParsingError: Comparing an argument's values raised.
+    """
+    for name in shown:
+        try:
+            equal = name in rebuilt and bool(rebuilt[name] == converted[name])
+        except Exception as ex:
+            raise ToolParsingError(
+                f"Argument '{name}' cannot be shown to approvers or monitors: "
+                f"comparing it with its value as rebuilt failed ({ex!r})."
+            ) from ex
+        if not equal:
             return name
     return None
 

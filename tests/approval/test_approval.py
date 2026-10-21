@@ -11,6 +11,7 @@ import pytest
 from pydantic import (
     BaseModel,
     Field,
+    PrivateAttr,
     SecretStr,
     computed_field,
     field_serializer,
@@ -721,6 +722,28 @@ class Privileged(BaseModel):
     sudo: bool = Field(False, exclude=True)
 
 
+_tokens = iter(range(1_000_000))
+
+
+class Tokened(BaseModel):
+    name: str
+    token: int = Field(default_factory=lambda: next(_tokens))
+
+
+class Incomparable:
+    """A value whose equality raises."""
+
+    def __eq__(self, other: object) -> bool:
+        raise RuntimeError("compared")
+
+    __hash__ = object.__hash__
+
+
+class Guarded(BaseModel):
+    name: str
+    _guard: Incomparable = PrivateAttr(default_factory=Incomparable)
+
+
 class Named(BaseModel):
     file_name: str = Field(alias="fileName")
 
@@ -754,6 +777,8 @@ def step_tool(received: list[dict[str, Any]]) -> Tool:
         consuming: Consuming | None = None,
         secret: Secret | None = None,
         privileged: Privileged | None = None,
+        tokened: Tokened | None = None,
+        guarded: Guarded | None = None,
     ) -> str:
         """Record its arguments.
 
@@ -770,6 +795,8 @@ def step_tool(received: list[dict[str, Any]]) -> Tool:
             consuming: A model whose validator changes its input in place.
             secret: A model with a secret, which serializes masked.
             privileged: A model with a field left out of serialization.
+            tokened: A model with a generated default.
+            guarded: A model with a private attribute whose equality raises.
         """
         arguments = {
             "step": step,
@@ -784,6 +811,8 @@ def step_tool(received: list[dict[str, Any]]) -> Tool:
             "consuming": consuming,
             "secret": secret,
             "privileged": privileged,
+            "tokened": tokened,
+            "guarded": guarded,
         }
         received.append({k: v for k, v in arguments.items() if v is not None})
         return "done"
@@ -899,6 +928,39 @@ async def test_arguments_that_do_not_rebuild_are_refused(
     assert "cannot be shown to approvers or monitors" in message.error.message
     assert calls == []
     assert received == []
+
+
+async def test_a_value_that_cannot_be_compared_is_refused() -> None:
+    """An argument whose equality raises is a parsing error, not a failed sample."""
+    calls: list[ToolCall] = []
+    received: list[dict[str, Any]] = []
+    message = await execute_with_approval(
+        ToolCall(id="1", function="step_tool", arguments={"guarded": {"name": "a"}}),
+        [step_tool(received)],
+        [ApprovalPolicy(recording_approver(calls), "*")],
+    )
+
+    assert message.error is not None
+    assert message.error.type == "parsing"
+    assert "Argument 'guarded' cannot be shown" in message.error.message
+    assert calls == []
+    assert received == []
+
+
+async def test_a_generated_default_runs_as_shown() -> None:
+    """A default generated when the model is built is shown and runs unchanged."""
+    calls: list[ToolCall] = []
+    received: list[dict[str, Any]] = []
+    message = await execute_with_approval(
+        ToolCall(id="1", function="step_tool", arguments={"tokened": {"name": "a"}}),
+        [step_tool(received)],
+        [ApprovalPolicy(recording_approver(calls), "*")],
+    )
+
+    assert message.error is None
+    [shown] = [call.arguments for call in calls]
+    token = shown["tokened"]["token"]
+    assert received == [{"tokened": Tokened(name="a", token=token)}]
 
 
 @pytest.mark.parametrize(
@@ -1340,6 +1402,31 @@ def nan_scale() -> Tool:
     return execute
 
 
+@tool
+def nan_default() -> Tool:
+    async def execute(x: int, marker: float = float("nan")) -> str:
+        """Return a number and a marker.
+
+        Args:
+            x: The number.
+            marker: A marker.
+        """
+        return f"{x} {marker}"
+
+    return execute
+
+
+async def test_an_omitted_default_is_not_compared() -> None:
+    """An omitted parameter is not shown, so its default runs whatever its equality."""
+    message = await execute_with_approval(
+        ToolCall(id="1", function="nan_default", arguments={"x": 1}),
+        [nan_default()],
+        [ApprovalPolicy(auto_approver(), "*")],
+    )
+    assert message.error is None
+    assert message.text == "1 nan"
+
+
 async def test_without_oversight_a_nan_argument_runs() -> None:
     """Without approval or a sentinel, nothing is compared, so NaN runs as on main."""
     message = await execute_with_approval(
@@ -1415,17 +1502,22 @@ async def test_curried_handoff_arguments_are_passed_as_given() -> None:
 
 
 class Unprintable:
-    """A developer object that fails if it is formatted."""
+    """A developer object that fails if it is formatted or compared."""
 
     def __str__(self) -> str:
         raise AssertionError("a curried value was formatted")
 
     __repr__ = __str__
 
+    def __eq__(self, other: object) -> bool:
+        raise AssertionError("a curried value was compared")
+
+    __hash__ = object.__hash__
+
 
 @pytest.mark.parametrize("oversight", [True, False], ids=["approval", "no-approval"])
 async def test_curried_handoff_arguments_are_not_traced(oversight: bool) -> None:
-    """Only the model's handoff arguments are formatted for the trace."""
+    """Only the model's handoff arguments are formatted or compared."""
     from inspect_ai.agent import handoff
 
     received: list[dict[str, Any]] = []
