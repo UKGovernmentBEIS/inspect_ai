@@ -219,6 +219,20 @@ def test_transcript_event_store_retains_cumulative_attachments(
     }
 
 
+def test_transcript_event_store_exports_attachments_in_insertion_order(
+    tmp_path: Path,
+) -> None:
+    transcript_store = TranscriptEventStore(tmp_path / TRANSCRIPT_EVENT_STORE)
+
+    transcript_store.merge_attachments({"zzz": "first"})
+    _write_transcript_files(transcript_store, tmp_path)
+    transcript_store.merge_attachments({"aaa": "second", "mmm": "third"})
+    _write_transcript_files(transcript_store, tmp_path)
+
+    attachments = json.loads((tmp_path / "attachments.json").read_text())
+    assert list(attachments) == ["zzz", "aaa", "mmm"]
+
+
 def test_transcript_event_store_retains_attachment_on_event_update(
     tmp_path: Path,
 ) -> None:

@@ -17,6 +17,7 @@ from pydantic import JsonValue
 
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.exception import TerminateSampleError
+from inspect_ai._util.working import untracked_sandbox_execs
 from inspect_ai.util._subprocess import ExecResult
 
 from ._framework_directory import (
@@ -241,7 +242,8 @@ async def sandbox_service(
     """
     # validate python in sandbox
     if requires_python:
-        await validate_sandbox_python(name, sandbox, user)
+        with untracked_sandbox_execs():
+            await validate_sandbox_python(name, sandbox, user)
 
     # sort out polling interval
     default_polling_interval = sandbox.default_polling_interval()
@@ -745,14 +747,15 @@ class SandboxService:
         refused, not repaired.
         """
         try:
-            as_root = await try_ensure_framework_directory_as_root(
-                self._sandbox,
-                SERVICES_DIR,
-                mode=SHARED_MODE,
-                trace_tag="Sandbox Service",
-                timeout=_EXEC_TIMEOUT,
-                concurrency=False,
-            )
+            with untracked_sandbox_execs():
+                as_root = await try_ensure_framework_directory_as_root(
+                    self._sandbox,
+                    SERVICES_DIR,
+                    mode=SHARED_MODE,
+                    trace_tag="Sandbox Service",
+                    timeout=_EXEC_TIMEOUT,
+                    concurrency=False,
+                )
         except TimeoutError:
             raise RuntimeError(
                 f"Timed out preparing directory {SERVICES_DIR} in sandbox"
@@ -796,6 +799,7 @@ class SandboxService:
 
     # Every command below bypasses the sandbox concurrency limit: services must
     # keep running while sandboxed clients hold exec slots waiting for responses.
+    # None of them is the sample's known work (`untracked_sandbox_execs()`).
 
     async def _ensure_dir(
         self,
@@ -806,15 +810,16 @@ class SandboxService:
         mode: int = DEFAULT_MODE,
     ) -> None:
         try:
-            await ensure_framework_directory(
-                self._sandbox,
-                path,
-                user=user,
-                expected_uid=expected_uid,
-                mode=mode,
-                timeout=_EXEC_TIMEOUT,
-                concurrency=False,
-            )
+            with untracked_sandbox_execs():
+                await ensure_framework_directory(
+                    self._sandbox,
+                    path,
+                    user=user,
+                    expected_uid=expected_uid,
+                    mode=mode,
+                    timeout=_EXEC_TIMEOUT,
+                    concurrency=False,
+                )
         except TimeoutError:
             raise RuntimeError(f"Timed out preparing directory {path} in sandbox")
 
@@ -822,15 +827,16 @@ class SandboxService:
         self, dir: str, cmd: list[str], input: str | None = None
     ) -> ExecResult[str]:
         try:
-            return await exec_in_framework_directory(
-                self._sandbox,
-                dir,
-                cmd,
-                user=self._user,
-                input=input,
-                timeout=_EXEC_TIMEOUT,
-                concurrency=False,
-            )
+            with untracked_sandbox_execs():
+                return await exec_in_framework_directory(
+                    self._sandbox,
+                    dir,
+                    cmd,
+                    user=self._user,
+                    input=input,
+                    timeout=_EXEC_TIMEOUT,
+                    concurrency=False,
+                )
         except TimeoutError:
             raise RuntimeError(
                 f"Timed out executing command {' '.join(cmd)} in {dir} in sandbox"
@@ -850,14 +856,15 @@ class SandboxService:
         user planted on the image's ``PATH``.
         """
         try:
-            return await privileged_exec(
-                self._sandbox,
-                cmd,
-                user=self._user,
-                input=input,
-                timeout=_EXEC_TIMEOUT,
-                concurrency=False,
-            )
+            with untracked_sandbox_execs():
+                return await privileged_exec(
+                    self._sandbox,
+                    cmd,
+                    user=self._user,
+                    input=input,
+                    timeout=_EXEC_TIMEOUT,
+                    concurrency=False,
+                )
         except TimeoutError:
             raise RuntimeError(
                 f"Timed out executing command {' '.join(cmd)} in sandbox"
