@@ -19,10 +19,12 @@ from inspect_ai import (
     task,
     task_with,
 )
+from inspect_ai._cli.util import parse_cli_config
 from inspect_ai._display.core.config import task_config_str
 from inspect_ai._display.core.display import TaskProfile
 from inspect_ai._eval.eval_set_manifest import INSPECT_EVAL_SET_CAPTURE, EvalSetCapture
 from inspect_ai._eval.eval_set_overrides import INSPECT_EVAL_SET_OVERRIDES
+from inspect_ai._sentinel._config import sentinel_with_args
 from inspect_ai._sentinel._context import active_sentinel
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.registry import is_registry_object, registry_info
@@ -369,6 +371,93 @@ def test_eval_retry_rebuilds_the_sentinel(tmp_path: Path) -> None:
     assert active_root(retried) == "Group"
 
 
+def test_cli_sentinel_args_become_the_entry_params() -> None:
+    args = (
+        "score=0.9",
+        "strict=true",
+        "items=[1, 2]",
+        "options={a: 1}",
+        "labels=x,y",
+        "label=first",
+        "label=second",
+        "max-turns=3",
+    )
+    config = sentinel_with_args("d2_suspicion", args)
+    assert isinstance(config, SentinelConfig)
+    params = {
+        "score": 0.9,
+        "strict": True,
+        "items": [1, 2],
+        "options": {"a": 1},
+        "labels": ["x", "y"],
+        "label": "second",
+        "max_turns": 3,
+    }
+    assert config.model_dump() == {"name": "d2_suspicion", "params": params}
+    # parsed the same way as -T and -S values
+    assert params == parse_cli_config(args, None)
+
+
+def test_cli_sentinel_without_args_passes_through(tmp_path: Path) -> None:
+    assert sentinel_with_args("d2_rule", ()) == "d2_rule"
+    assert sentinel_with_args(None, None) is None
+    config = tmp_path / "sentinel.yaml"
+    config.write_text("sentinel:\n  name: d2_rule\n")
+    assert sentinel_with_args(str(config), ()) == str(config)
+
+
+@pytest.mark.parametrize("relative", [False, True])
+def test_cli_sentinel_args_reject_a_config_file(
+    tmp_path: Path, relative: bool, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config = tmp_path / "sentinel.yaml"
+    config.write_text("sentinel:\n  name: d2_rule\n")
+    path = str(config)
+    if relative:
+        monkeypatch.chdir(tmp_path)
+        path = "sentinel.yaml"
+    with pytest.raises(
+        PrerequisiteError, match="cannot be used with the sentinel config file"
+    ):
+        sentinel_with_args(path, ("reason=cli",))
+
+
+def test_cli_sentinel_args_require_sentinel() -> None:
+    with pytest.raises(PrerequisiteError, match="--sentinel-arg requires --sentinel"):
+        sentinel_with_args(None, ("reason=cli",))
+
+
+def test_cli_sentinel_args_require_key_value() -> None:
+    with pytest.raises(PrerequisiteError, match="takes key=value, not 'reason'"):
+        sentinel_with_args("d2_rule", ("reason",))
+
+
+def test_cli_sentinel_args_unknown_name_fails_at_eval_start(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="not a registered monitor or protocol"):
+        eval(
+            sentinel_task(),
+            model="mockllm/model",
+            sentinel=sentinel_with_args("d2_missing", ("reason=cli",)),
+            log_dir=str(tmp_path),
+        )
+    assert not list(tmp_path.glob("*.eval"))
+
+
+def test_cli_sentinel_args_are_recorded_and_rebuilt_by_retry(tmp_path: Path) -> None:
+    log = eval(
+        d2_retry_task(str(tmp_path / "marker")),
+        model="mockllm/model",
+        sentinel=sentinel_with_args("d2_rule", ("reason=cli",)),
+        log_dir=str(tmp_path),
+    )[0]
+    assert log.status == "error"
+    expected = {"name": "d2_rule", "params": {"reason": "cli"}}
+    assert config_data(read_eval_log(log.location)) == expected
+    retried = eval_retry(log, log_dir=str(tmp_path))[0]
+    assert config_data(retried) == expected
+    assert active_root(retried) == "d2_rule"
+
+
 def test_eval_set_sentinel(tmp_path: Path) -> None:
     success, logs = eval_set(
         sentinel_task(),
@@ -525,6 +614,7 @@ CLI_TASK = """
 from inspect_ai import Task, task
 from inspect_ai._eval.eval_set_manifest import INSPECT_EVAL_SET_CAPTURE, EvalSetCapture
 from inspect_ai._eval.eval_set_overrides import INSPECT_EVAL_SET_OVERRIDES
+from inspect_ai._sentinel._config import sentinel_with_args
 from inspect_ai._sentinel._context import active_sentinel
 from inspect_ai._util.registry import registry_info
 from inspect_ai.dataset import Sample
@@ -571,12 +661,11 @@ main()
 """
 
 
-@pytest.mark.parametrize("via", ["option", "env"])
-def test_cli_sentinel(tmp_path: Path, via: str) -> None:
+def run_cli_eval(
+    tmp_path: Path, args: list[str], env: dict[str, str]
+) -> subprocess.CompletedProcess[str]:
     (tmp_path / "cli_task.py").write_text(CLI_TASK)
-    args = ["--sentinel", "cli_rule"] if via == "option" else []
-    env = {"INSPECT_EVAL_SENTINEL": "cli_rule"} if via == "env" else {}
-    result = subprocess.run(
+    return subprocess.run(
         [
             sys.executable,
             "-c",
@@ -597,11 +686,46 @@ def test_cli_sentinel(tmp_path: Path, via: str) -> None:
         text=True,
         timeout=300,
     )
+
+
+def cli_log(tmp_path: Path, result: subprocess.CompletedProcess[str]) -> EvalLog:
     assert result.returncode == 0, result.stderr
     [log_file] = list((tmp_path / "logs").glob("*.eval"))
-    log = read_eval_log(str(log_file))
+    return read_eval_log(str(log_file))
+
+
+@pytest.mark.parametrize("via", ["option", "env"])
+def test_cli_sentinel(tmp_path: Path, via: str) -> None:
+    args = ["--sentinel", "cli_rule"] if via == "option" else []
+    env = {"INSPECT_EVAL_SENTINEL": "cli_rule"} if via == "env" else {}
+    log = cli_log(tmp_path, run_cli_eval(tmp_path, args, env))
     assert config_data(log) == {"name": "cli_rule", "params": {}}
     assert active_root(log) == "cli_rule"
+
+
+@pytest.mark.parametrize("via", ["option", "env"])
+def test_cli_sentinel_args(tmp_path: Path, via: str) -> None:
+    pairs = ["reason=first", "reason=second"]
+    if via == "option":
+        args = ["--sentinel", "cli_rule"]
+        args += [arg for pair in pairs for arg in ("--sentinel-arg", pair)]
+        env = {}
+    else:
+        args = []
+        env = {
+            "INSPECT_EVAL_SENTINEL": "cli_rule",
+            "INSPECT_EVAL_SENTINEL_ARGS": " ".join(pairs),
+        }
+    log = cli_log(tmp_path, run_cli_eval(tmp_path, args, env))
+    assert config_data(log) == {"name": "cli_rule", "params": {"reason": "second"}}
+    assert active_root(log) == "cli_rule"
+
+
+def test_cli_sentinel_args_without_sentinel_fail(tmp_path: Path) -> None:
+    result = run_cli_eval(tmp_path, ["--sentinel-arg", "reason=cli"], {})
+    assert result.returncode != 0
+    assert "--sentinel-arg requires --sentinel" in result.stdout + result.stderr
+    assert not (tmp_path / "logs").exists()
 
 
 @pytest.mark.parametrize("fn", [Task.__init__, eval, eval_async, eval_set])

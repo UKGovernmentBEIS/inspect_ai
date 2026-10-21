@@ -23,6 +23,7 @@ from inspect_ai._eval.handoff import (
     set_ctl_pointer_armed,
     set_launch_handoff_listener,
 )
+from inspect_ai._sentinel._config import sentinel_with_args
 from inspect_ai._util.config import parse_cli_args, resolve_args
 from inspect_ai._util.constants import (
     ALL_LOG_LEVELS,
@@ -394,6 +395,15 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         envvar="INSPECT_EVAL_SENTINEL",
         hidden=True,
         help="Config file or registered protocol name of the monitors and protocols that watch the agent's steps (requires inspect_sentinel).",
+    )
+    @click.option(
+        "--sentinel-arg",
+        "sentinel_arg",
+        multiple=True,
+        type=str,
+        envvar="INSPECT_EVAL_SENTINEL_ARGS",
+        hidden=True,
+        help="One or more arguments for the registered monitor or protocol named by --sentinel (e.g. --sentinel-arg key=value).",
     )
     @click.option(
         "--notification",
@@ -1047,6 +1057,7 @@ def eval_command(ctx: click.Context, /, **params: Any) -> None:
                 "no_sandbox_cleanup": "sandbox_cleanup",
                 "s": "solver",
                 "solver_config": "solver",
+                "sentinel_arg": "sentinel",
             }
 
             for param in ctx.command.params:
@@ -1149,6 +1160,7 @@ def _eval_command_impl(
     approval: str | None,
     review: str | None,
     sentinel: str | None,
+    sentinel_arg: tuple[str, ...] | None,
     notification: bool | str | None,
     sandbox: str | None,
     no_sandbox_cleanup: bool | None,
@@ -1287,6 +1299,7 @@ def _eval_command_impl(
         approval=approval,
         review=review,
         sentinel=sentinel,
+        sentinel_arg=sentinel_arg,
         notification=notification,
         sandbox=sandbox,
         no_sandbox_cleanup=no_sandbox_cleanup,
@@ -1448,6 +1461,7 @@ def eval_set_command(
     approval: str | None,
     review: str | None,
     sentinel: str | None,
+    sentinel_arg: tuple[str, ...] | None,
     notification: bool | str | None,
     model: str | None,
     model_base_url: str | None,
@@ -1632,6 +1646,7 @@ def eval_set_command(
             approval=approval,
             review=review,
             sentinel=sentinel,
+            sentinel_arg=sentinel_arg,
             notification=notification,
             sandbox=sandbox,
             no_sandbox_cleanup=no_sandbox_cleanup,
@@ -1970,6 +1985,7 @@ def eval_exec(
     approval: str | None,
     review: str | None,
     sentinel: str | None,
+    sentinel_arg: tuple[str, ...] | None,
     notification: bool | str | None,
     sandbox: str | None,
     no_sandbox_cleanup: bool | None,
@@ -2039,6 +2055,7 @@ def eval_exec(
     task_args = parse_cli_config(t, task_config)
     solver_args = parse_cli_config(s, solver_config)
     model_args = parse_cli_config(m, model_config)
+    eval_sentinel = sentinel_with_args(sentinel, sentinel_arg)
 
     eval_models = resolve_model_spec(model_spec, run_params)
 
@@ -2153,7 +2170,7 @@ def eval_exec(
             trace=trace,
             approval=approval,
             review=review,
-            sentinel=sentinel,
+            sentinel=eval_sentinel,
             notification=notification,
             sandbox=parse_sandbox(sandbox),
             sandbox_cleanup=sandbox_cleanup,
