@@ -1,7 +1,7 @@
 import logging
 import random
 from collections import Counter
-from collections.abc import Callable, Iterator, Sequence
+from collections.abc import Awaitable, Callable, Iterator, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass, replace
 from functools import partial
@@ -6035,15 +6035,39 @@ def test_an_on_start_span_that_is_not_an_agent_s_gives_the_enclosing_agent() -> 
     assert_history_is_the_fold_of_the_log(run.log, run.seen)
 
 
-def test_an_on_start_span_whose_begin_is_not_recorded_gives_the_sample() -> None:
-    # as the span tree does for a span it has not read
-    run = run_sink(d3_attributes_a_call_to_a_sub_agent(_StartingSink("unknown")))
-    assert run.log.status == "success", run.log.error
-    main, sub = agent_events_by_origin(run.log)
-    assert main.uuid is not None and sub.uuid is not None
-    assert run.live == run.from_spans
-    assert run.log.samples
-    assert run.live[sub.uuid] == run.log.samples[0].uuid
+class _LateBeginSink(_StartingSink):
+    # names a span whose begin it records only once the call is pending
+    def on_pending(self, event: ModelEvent) -> None:
+        transcript()._event(
+            SpanBeginEvent(id="late", parent_id="outer", type="agent", name="late")
+        )
+        super().on_pending(event)
+
+
+@pytest.mark.parametrize(
+    "sink,error",
+    [
+        (_StartingSink("unknown"), "'unknown' was not begun in this transcript"),
+        (_LateBeginSink("late"), "'late' was not begun in this transcript"),
+        (_StartingSink(lambda input: ""), "must return None or a span id, not ''"),
+        (_StartingSink(lambda input: cast(str, 3)), "must return None or a span id"),
+    ],
+    ids=["unknown", "late-begin", "empty", "not-a-str"],
+)
+def test_an_on_start_span_not_yet_begun_or_not_a_span_id_fails_the_generate(
+    sink: _StartingSink, error: str
+) -> None:
+    run = run_sink(d3_attributes_a_call_to_a_sub_agent(sink))
+    assert run.log.status == "error"
+    assert run.log.error is not None
+    assert error in run.log.error.message
+    # the generate failed before any of its events
+    [main] = agent_events_by_origin(run.log)
+    assert main.uuid is not None
+    assert set(generate_step_ids(run.log)) == {main.uuid}
+    assert not [
+        e for e in run.events if isinstance(e, SpanBeginEvent) and e.id == "late"
+    ]
 
 
 def test_on_start_runs_once_per_generate_across_retries() -> None:
@@ -6224,5 +6248,123 @@ def test_a_transcript_knows_the_agent_spans_of_seeded_restored_and_new_spans() -
         SpanBeginEvent(id="new", parent_id="restored", type="solver", name="s")
     )
     assert seeded._agent_span("new") == "seeded"
-    assert seeded._agent_span("unknown") is None
-    assert seeded._agent_span(None) is None
+    with pytest.raises(ValueError, match="'unknown' was not begun"):
+        seeded._agent_span("unknown")
+
+
+class _RotatingMockLLM(_RetryingMockLLM):
+    # the first attempt rotates the checkpoint span, then fails and is retried
+    rotate: Callable[[], Awaitable[None]] | None = None
+
+    async def generate(
+        self,
+        input: list[ChatMessage],
+        tools: list[ToolInfo],
+        tool_choice: Any,
+        config: GenerateConfig,
+    ) -> Any:
+        rotate, _RotatingMockLLM.rotate = _RotatingMockLLM.rotate, None
+        if rotate is not None:
+            await rotate()
+            raise _RetriedError("try again")
+        return await super().generate(input, tools, tool_choice, config)
+
+
+@modelapi(name="d3_rotating")
+def d3_rotating() -> type[ModelAPI]:
+    return _RotatingMockLLM
+
+
+async def test_a_checkpoint_rotating_mid_generate_is_followed_under_the_current_span() -> (
+    None
+):
+    from inspect_ai._sentinel._scope import sentinel_solving
+    from inspect_ai.model._model import use_model_event_sink
+    from inspect_ai.util._span import SpanRotationScope, current_span_id, span
+
+    init_transcript(Transcript())
+    sink = _StartingSink(lambda input: current_span_id())
+    seen: list[StageSeen] = []
+    async with span("agent", type="agent"):
+        checkpoints = SpanRotationScope(type="checkpoint")
+        await checkpoints.open("checkpoint 1")
+        first = current_span_id()
+
+        async def rotate() -> None:
+            await checkpoints.end_span()
+            await checkpoints.begin_span("checkpoint 2")
+
+        _RotatingMockLLM.rotate = rotate
+        with active([d3_every_stage(seen)]), sentinel_solving():
+            with use_model_event_sink(sink):
+                await get_model("d3_rotating/model").generate("Hello.")
+        second = current_span_id()
+        await checkpoints.close()
+
+    assert first is not None and second is not None and first != second
+    failed, retried = sink.pending
+    assert (failed.span_id, retried.span_id) == (first, second)
+    # the BeforeGenerate stage ran before the rotation, AfterGenerate after it
+    assert [type(s.step) for s in seen] == [BeforeGenerate, AfterGenerate]
+    sentinel_spans = [
+        e.parent_id
+        for e in transcript().events
+        if isinstance(e, SpanBeginEvent) and e.type == "sentinel"
+    ]
+    assert sentinel_spans == [first, second]
+
+
+class _BlockingMockLLM(MockLLM):
+    started: anyio.Event | None = None
+
+    async def generate(
+        self,
+        input: list[ChatMessage],
+        tools: list[ToolInfo],
+        tool_choice: Any,
+        config: GenerateConfig,
+    ) -> Any:
+        assert _BlockingMockLLM.started is not None
+        _BlockingMockLLM.started.set()
+        await anyio.sleep_forever()
+
+
+@modelapi(name="d3_blocking")
+def d3_blocking() -> type[ModelAPI]:
+    return _BlockingMockLLM
+
+
+async def test_a_generate_cancelled_under_an_on_start_span_restores_the_caller_s_spans() -> (
+    None
+):
+    from inspect_ai.event import InfoEvent
+    from inspect_ai.model._model import use_model_event_sink
+    from inspect_ai.util._span import current_agent_span_id, current_span_id, span
+
+    init_transcript(Transcript())
+    _BlockingMockLLM.started = anyio.Event()
+    started = _BlockingMockLLM.started
+    sink = _StartingSink("sub-agent")
+    async with span("outer", type="agent", id="outer"):
+        transcript()._event(
+            SpanBeginEvent(id="sub-agent", parent_id="outer", type="agent", name="sub")
+        )
+        async with anyio.create_task_group() as tg:
+
+            async def cancel_once_started() -> None:
+                await started.wait()
+                tg.cancel_scope.cancel()
+
+            tg.start_soon(cancel_once_started)
+            with use_model_event_sink(sink):
+                await get_model("d3_blocking/model").generate("Hello.")
+        assert (current_span_id(), current_agent_span_id()) == ("outer", "outer")
+        transcript()._event(InfoEvent(data="after"))
+        await get_model("mockllm/model").generate("Hello again.")
+
+    [cancelled] = sink.pending
+    assert cancelled.span_id == "sub-agent"
+    events = list(transcript().events)
+    after = events[events.index(cancelled) + 1 :]
+    assert [e.event for e in after if e.span_id == "sub-agent"] == []
+    assert {e.event for e in after if e.span_id == "outer"} >= {"info", "model"}

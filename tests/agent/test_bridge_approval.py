@@ -3447,6 +3447,7 @@ class StampingSink:
     def __init__(self, *script: set[str]) -> None:
         self.script = list(script)
         self.actions: set[str] = set()
+        self.opened = False
 
     def on_pending(self, event: ModelEvent) -> None:
         self.actions = self.script.pop(0)
@@ -3458,6 +3459,7 @@ class StampingSink:
     def on_complete(self, event: ModelEvent) -> None:
         transcript()._event(event)
         if "open" in self.actions:
+            self.opened = True
             transcript()._event(
                 SpanBeginEvent(
                     id="agent-sub",
@@ -3472,21 +3474,52 @@ class StartingStampingSink(StampingSink):
     """As `StampingSink`, but the script runs once per generation, in `on_start`.
 
     `stamp` names `agent-sub` as the span the generation runs under, as
-    inspect_swe's sinks do with `on_start`, and `close` emits the span's end
-    there (the per-generation bookkeeping codex_cli does).
+    inspect_swe's sinks do with `on_start` (beginning it first if no `open`
+    has), and `close` emits the span's end there (the per-generation
+    bookkeeping codex_cli does). `current` leaves the generation in the
+    current span by returning `None`.
     """
 
     def on_start(self, input: list[ChatMessage]) -> str | None:
         self.actions = self.script.pop(0)
         if "close" in self.actions:
             transcript()._event(SpanEndEvent(id="agent-sub"))
-        return "agent-sub" if "stamp" in self.actions else None
+        if "stamp" in self.actions:
+            if not self.opened:
+                self.opened = True
+                transcript()._event(
+                    SpanBeginEvent(
+                        id="agent-sub",
+                        parent_id=current_span_id(),
+                        type="agent",
+                        name="sub",
+                    )
+                )
+            return "agent-sub"
+        return self.current()
+
+    def current(self) -> str | None:
+        return None
 
     def on_pending(self, event: ModelEvent) -> None:
         pass
 
 
-SINKS = {"on-pending": StampingSink, "on-start": StartingStampingSink}
+class CurrentStartingSink(StartingStampingSink):
+    """As `StartingStampingSink`, but `current` names the current span explicitly.
+
+    inspect_swe's sinks attribute a main-thread call to `current_span_id()`.
+    """
+
+    def current(self) -> str | None:
+        return current_span_id()
+
+
+SINKS = {
+    "on-pending": StampingSink,
+    "on-start": StartingStampingSink,
+    "on-start-current": CurrentStartingSink,
+}
 
 
 def sandbox_bridge_with_sink(tool: AsyncMock, sink: StampingSink) -> SandboxAgentBridge:
@@ -3516,6 +3549,17 @@ async def test_execution_is_placed_in_the_span_a_sink_gave_its_proposal(
         e for e in recorded.events if isinstance(e, SpanBeginEvent) and e.type == "tool"
     ]
     assert tool_span.parent_id == "agent-sub"
+
+
+class MovesBackSink(StartingStampingSink):
+    """Runs the generation under `agent-sub`, then moves its event back to the span current at `on_start`."""
+
+    def on_start(self, input: list[ChatMessage]) -> str | None:
+        self.started_in = current_span_id()
+        return super().on_start(input)
+
+    def on_pending(self, event: ModelEvent) -> None:
+        event.span_id = self.started_in
 
 
 class MovingStartingSink(StartingStampingSink):
@@ -3581,7 +3625,7 @@ def pausing_approver(approving: anyio.Event, resume: anyio.Event) -> Approver:
     return approve
 
 
-@pytest.mark.parametrize("sink", [*SINKS, None])
+@pytest.mark.parametrize("sink", [*SINKS, "on-start-moves-back", None])
 async def test_a_checkpoint_rotating_during_approval_is_followed(
     sink: str | None,
 ) -> None:
@@ -3591,7 +3635,9 @@ async def test_a_checkpoint_rotating_during_approval_is_followed(
         AsyncMock(return_value="contents"),
         [ApprovalPolicy(pausing_approver(approving, rotated), "*")],
     )
-    if sink is not None:
+    if sink == "on-start-moves-back":
+        bridge.model_event_sink = MovesBackSink({"stamp"})
+    elif sink is not None:
         bridge.model_event_sink = SINKS[sink]({"current"})
     call = ToolCall(id="proposed", function="read_file", arguments={"path": "a"})
     checkpoints = SpanRotationScope(type="checkpoint")

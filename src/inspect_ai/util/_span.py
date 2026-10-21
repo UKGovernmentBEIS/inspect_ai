@@ -372,6 +372,9 @@ class AgentSpans:
             begin.parent_id, begin.type == AGENT_SPAN_TYPE
         )
 
+    def __contains__(self, span_id: object) -> bool:
+        return span_id in self._spans
+
     def agent_span(self, span_id: str | None) -> str | None:
         """The agent span of an event in the span `span_id`.
 

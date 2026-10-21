@@ -3041,7 +3041,7 @@ class ModelEventSink(Protocol):
 
     A sink decides under which span each `generate()` runs, and when each of its `ModelEvent`s reaches the transcript:
 
-    - `on_start(input) -> str | None` (optional): called once per `generate()`, after its input is prepared and before a sentinel's `BeforeGenerate` stage. It returns the span the whole generate runs under (`None` for the current span). Each attempt's `ModelEvent` is created in that span, and a live sentinel takes the generate's conversation from it: the innermost `agent` span at or above it, as replay does from the log. Bookkeeping a sink does once per generate (rather than once per attempt) belongs here.
+    - `on_start(input) -> str | None` (optional): called once per `generate()`, after its input is prepared and before a sentinel's `BeforeGenerate` stage. It returns the span the whole generate runs under (`None` for the current span). The span's `SpanBeginEvent` must already be in the transcript when `on_start` returns; an unknown span, or a value that is neither `None` nor a span id, fails the generate with a `ValueError` before any event is recorded. Each attempt's `ModelEvent` is created in that span, and a live sentinel takes the generate's conversation from it: the innermost `agent` span at or above it, as replay does from the log. Bookkeeping a sink does once per generate (rather than once per attempt) belongs here.
     - `on_pending(event)` and `on_complete(event)`: called once per attempt (retries included), when its event is created and when it completes. The sink emits the event to the transcript (`_event` and `_event_updated`) when it chooses.
 
     A sink may still place an event in another span by setting `event.span_id` in `on_pending`. The log keeps that placement, but a live sentinel follows the `on_start` span (or the span current when `generate()` was called, without `on_start`), so its history can differ from what replay rebuilds from the log. To keep the two consistent, implement `on_start` and do not move the event afterwards.
@@ -3104,6 +3104,10 @@ def _model_event_sink_span(input: list[ChatMessage]) -> Iterator[None]:
     if span_id is None:
         yield
         return
+    if not isinstance(span_id, str) or not span_id:
+        raise ValueError(
+            f"ModelEventSink.on_start must return None or a span id, not {span_id!r}."
+        )
     from inspect_ai.log._transcript import transcript
 
     agent_span_id = transcript()._agent_span(span_id)

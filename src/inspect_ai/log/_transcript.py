@@ -770,8 +770,16 @@ class Transcript:
         if isinstance(event, SpanBeginEvent):
             self._agent_spans.add(event)
 
-    def _agent_span(self, span_id: str | None) -> str | None:
-        """The innermost agent span at or above the span `span_id`, from the spans begun in this transcript (see `AgentSpans`)."""
+    def _agent_span(self, span_id: str) -> str | None:
+        """The innermost agent span at or above the span `span_id`, from the spans begun in this transcript (see `AgentSpans`).
+
+        Raises:
+            ValueError: No span `span_id` was begun in this transcript, or the span tree has a `parent_id` cycle.
+        """
+        if span_id not in self._agent_spans:
+            raise ValueError(
+                f"The span {span_id!r} was not begun in this transcript: its SpanBeginEvent must be recorded before the span is named."
+            )
         return self._agent_spans.agent_span(span_id)
 
     def _event_updated(self, event: Event) -> None:
