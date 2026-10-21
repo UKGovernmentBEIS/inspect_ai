@@ -8,7 +8,7 @@ Covers:
   produce a `budget_tokens` / `thinking_budget` via the fixed-table translation.
 - Clamp tests: Groq/Ollama/SageMaker/SambaNova/Together should map extended
   effort values (`minimal`/`xhigh`/`max`) down to the `low`/`medium`/`high` tier;
-  Perplexity keeps `minimal` and clamps only `xhigh`/`max` down to `high`.
+  Perplexity's Agent API takes every effort value as given.
 - Fireworks is model-conditional (superset schema): `minimal`->`low` on all
   models; `none` is dropped and `xhigh`/`max` clamped to `high` only for gpt-oss and
   MiniMax M2 (which reject them), while other models (deepseek/glm/kimi and MiniMax
@@ -536,34 +536,35 @@ def test_fireworks_non_restrictive_models_preserve_extended(
     assert params.get("reasoning_effort") == expected
 
 
-# -- Perplexity clamping (keeps minimal, clamps only xhigh/max) --
+# -- Perplexity (the Agent API accepts every effort value) --
 
 
 @pytest.mark.parametrize(
-    "effort,expected",
-    [
-        ("minimal", "minimal"),
-        ("low", "low"),
-        ("medium", "medium"),
-        ("high", "high"),
-        ("xhigh", "high"),
-        ("max", "high"),
-    ],
+    "effort", ["none", "minimal", "low", "medium", "high", "xhigh", "max"]
 )
-def test_perplexity_clamps_only_extended_top_end(effort, expected):
+def test_perplexity_passes_effort_through(effort):
+    from openai._types import NOT_GIVEN
+
+    from inspect_ai.model._providers.openai_responses import (
+        completion_params_responses,
+    )
     from inspect_ai.model._providers.perplexity import PerplexityAPI
 
-    api = PerplexityAPI(model_name="sonar-reasoning-pro", api_key="test-key")
-    params = api.completion_params(GenerateConfig(reasoning_effort=effort), tools=False)
-    assert params.get("reasoning_effort") == expected
-
-
-def test_perplexity_effort_none_omitted():
-    from inspect_ai.model._providers.perplexity import PerplexityAPI
-
-    api = PerplexityAPI(model_name="sonar-reasoning-pro", api_key="test-key")
-    params = api.completion_params(GenerateConfig(reasoning_effort="none"), tools=False)
-    assert "reasoning_effort" not in params
+    api = PerplexityAPI(model_name="sonar", api_key="test-key")
+    params = completion_params_responses(
+        api.service_model_name(),
+        model_info=api.responses_model_info(),
+        config=GenerateConfig(reasoning_effort=effort),
+        service_tier=None,
+        prompt_cache_key=NOT_GIVEN,
+        prompt_cache_retention=NOT_GIVEN,
+        safety_identifier=NOT_GIVEN,
+        responses_store=None,
+        tools=False,
+        tool_params=[],
+        has_computer_tool=False,
+    )
+    assert params["reasoning"]["effort"] == effort
 
 
 # -- OpenAI Responses path max -> xhigh clamp --
@@ -700,6 +701,49 @@ def test_openai_responses_reasoning_mode_composes_with_effort():
     )
     assert params["reasoning"]["mode"] == "pro"
     assert params["reasoning"]["effort"] == "high"
+
+
+# -- OpenAI Responses `reasoning` object in extra_body --
+
+
+def test_openai_responses_extra_body_reasoning_adds_unmodelled_fields():
+    # e.g. attached by the agent bridge for a forwarded client request; `context`
+    # has no GenerateConfig representation and is sent as given, while the
+    # fields GenerateConfig models come from the config
+    params = _responses_params_for(
+        "gpt-5.6-sol",
+        GenerateConfig(
+            reasoning_effort="high",
+            reasoning_summary="none",
+            extra_body={
+                "reasoning": {
+                    "context": "all_turns",
+                    "effort": "low",
+                    "summary": "detailed",
+                    "generate_summary": "detailed",
+                    "mode": "pro",
+                }
+            },
+        ),
+    )
+    assert params["reasoning"] == {"effort": "high", "context": "all_turns"}
+
+
+def test_openai_responses_extra_body_reasoning_does_not_enable_reasoning():
+    params = _responses_params_for(
+        "gpt-5.4",
+        GenerateConfig(
+            reasoning_effort="none",
+            temperature=0.7,
+            extra_body={"reasoning": {"effort": "high", "context": "all_turns"}},
+        ),
+    )
+    assert params["reasoning"] == {
+        "effort": "none",
+        "summary": "auto",
+        "context": "all_turns",
+    }
+    assert params["temperature"] == 0.7
 
 
 def test_openai_responses_pro_mode_suppresses_sampling_params():

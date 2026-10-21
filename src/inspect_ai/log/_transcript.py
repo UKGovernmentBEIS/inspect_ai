@@ -40,7 +40,12 @@ from inspect_ai.log._condense import (
 )
 from inspect_ai.model._chat_message import ChatMessageBase
 from inspect_ai.model._model_call import ModelCall
-from inspect_ai.util._store import store, store_changes, store_jsonable
+from inspect_ai.util._store import (
+    store,
+    store_changes,
+    store_events_suspended,
+    store_jsonable,
+)
 
 if TYPE_CHECKING:
     from inspect_ai.log._recorders.buffer.types import TranscriptEventSink
@@ -1102,13 +1107,47 @@ def record_interrupt_event(
 
 @contextlib.contextmanager
 def track_store_changes() -> Iterator[None]:
-    before = store_jsonable(store())
-    yield
-    after = store_jsonable(store())
+    """Log a `StoreEvent` with the store changes made in the block.
 
-    changes = store_changes(before, after)
-    if changes:
-        transcript()._event(StoreEvent(changes=changes))
+    The changes are logged on every exit, including when the block raises or
+    is cancelled. On that path any failure to log them, including a
+    `BaseException`, is logged as a warning rather than raised (and a failure
+    of the warning is ignored), so it cannot replace the block's exception.
+    `KeyboardInterrupt` and `SystemExit` are the exception: they propagate.
+    Nothing is logged on `GeneratorExit` (an abandoned span being finalized).
+    """
+    if store_events_suspended():
+        yield
+        return
+
+    before = store_jsonable(store())
+
+    def log_changes() -> None:
+        after = store_jsonable(store())
+        changes = store_changes(before, after)
+        if changes:
+            transcript()._event(StoreEvent(changes=changes))
+
+    try:
+        yield
+    except GeneratorExit:
+        # an abandoned span may be finalized in another context, where
+        # store() and transcript() are not the span's
+        raise
+    except BaseException:
+        try:
+            log_changes()
+        except (KeyboardInterrupt, SystemExit):
+            raise
+        except BaseException:
+            try:
+                logger.warning("Unable to log store changes for span", exc_info=True)
+            except (KeyboardInterrupt, SystemExit):
+                raise
+            except BaseException:
+                pass
+        raise
+    log_changes()
 
 
 def init_transcript(transcript: Transcript) -> None:
