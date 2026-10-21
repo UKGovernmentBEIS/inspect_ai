@@ -106,11 +106,17 @@ class unwrap_exception_group:
         exc_value: BaseException | None,
         traceback: TracebackType | None,
     ) -> None:
-        if not isinstance(exc_value, ExceptionGroup) or self._unwrap is None:
+        # match the exception's own type, not a __class__ attribute it defines
+        if (
+            self._unwrap is None
+            or exc_type is None
+            or not issubclass(exc_type, ExceptionGroup)
+        ):
             return
-        if self._unwrap == "single" and len(exc_value.exceptions) != 1:
+        group = cast(ExceptionGroup[Exception], exc_value)
+        if self._unwrap == "single" and len(group.exceptions) != 1:
             return
-        unwrapped = exc_value.exceptions[0]
+        unwrapped = group.exceptions[0]
         # the stored cause, past any __cause__ attribute of the subclass's own
         cause = vars(BaseException)["__cause__"].__get__(unwrapped)
         raise unwrapped from cause

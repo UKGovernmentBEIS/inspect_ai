@@ -326,7 +326,7 @@ class _SlottedCauseError(Exception):
 
 
 def _raise_lookup_error(self: BaseException) -> BaseException | None:
-    raise LookupError("cause getter failed")
+    raise LookupError("getter failed")
 
 
 _ThrowingCauseError: Any = type(
@@ -355,3 +355,32 @@ async def test_unwrapped_task_error_keeps_a_cause_its_class_shadows(
         await tg_collect([fail])
     assert excinfo.value is error
     assert _stored_cause(error) is cause
+
+
+_SpoofedGroupError: Any = type(
+    "_SpoofedGroupError", (Exception,), {"__class__": ExceptionGroup}
+)
+_ThrowingClassError: Any = type(
+    "_ThrowingClassError", (Exception,), {"__class__": property(_raise_lookup_error)}
+)
+
+
+@pytest.mark.parametrize(
+    "error_type", [_SpoofedGroupError, _ThrowingClassError], ids=["spoofed", "getter"]
+)
+@pytest.mark.parametrize("unwrap", ["single", "first", None])
+async def test_error_that_is_not_a_group_passes_through(
+    error_type: Callable[[], BaseException],
+    unwrap: Literal["single", "first"] | None,
+) -> None:
+    error = error_type()
+
+    with pytest.raises(Exception) as excinfo:
+        with unwrap_exception_group(unwrap):
+            raise error
+    assert excinfo.value is error
+
+    with pytest.raises(Exception) as excinfo:
+        async with unwrap_exception_group(unwrap):
+            raise error
+    assert excinfo.value is error
