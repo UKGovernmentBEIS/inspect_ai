@@ -1509,71 +1509,33 @@ def _cfg(**kwargs: Any) -> GenerateConfig:
     return GenerateConfig(max_tokens=64, **kwargs)
 
 
-@pytest.mark.parametrize("param,value", list(_SAMPLING_PARAMS.items()))
-def test_anthropic_claude_4_7_strips_sampling_params(
-    param: str, value: float | int
-) -> None:
-    """Claude 4.7+ rejects temperature/top_p/top_k outright; the provider must omit them."""
-    api = AnthropicAPI(model_name="claude-opus-4-7", api_key="test-key")
-    params, extra_body, _headers, _betas = api.completion_config(_cfg(**{param: value}))
-    assert param not in params
-    assert param not in extra_body
-
-
-@pytest.mark.parametrize("param,value", list(_SAMPLING_PARAMS.items()))
-def test_anthropic_claude_4_7_strips_sampling_params_with_reasoning_effort_none(
-    param: str, value: float | int
-) -> None:
-    """reasoning_effort='none' must not re-enable sending sampling params on 4.7."""
-    api = AnthropicAPI(model_name="claude-opus-4-7", api_key="test-key")
-    params, extra_body, _headers, _betas = api.completion_config(
-        _cfg(reasoning_effort="none", **{param: value})
-    )
-    assert param not in params
-    assert param not in extra_body
-
-
-@pytest.mark.parametrize(
-    "model_name", ["claude-opus-4-6", "claude-sonnet-4-6", "claude-haiku-4-5-20251001"]
-)
-@pytest.mark.parametrize("param,value", list(_SAMPLING_PARAMS.items()))
-def test_anthropic_pre_4_7_strips_sampling_params(
-    model_name: str, param: str, value: float | int
-) -> None:
-    """API version 2026-10-21 rejects sampling params on pre-4.7 models too."""
-    api = AnthropicAPI(model_name=model_name, api_key="test-key")
-    params, extra_body, _headers, _betas = api.completion_config(_cfg(**{param: value}))
-    assert param not in params
-    assert param not in extra_body
-
-
 @pytest.mark.parametrize(
     "model_name",
     [
-        "claude-opus-4-8",
-        "claude-fable-5",
-        "claude-opus-5-0",
-        "claude-opus-5-5",
+        "claude-haiku-4-5-20251001",
+        "claude-sonnet-4-6",
+        "claude-opus-4-6",
+        "claude-opus-4-7",
         "claude-sonnet-5-5",
-        "claude-haiku-5-5",
-        "claude-sonnet-4-7",
-        "claude-sonnet-5-0",
     ],
 )
+@pytest.mark.parametrize("reasoning_effort", [None, "none", "low"])
 @pytest.mark.parametrize("param,value", list(_SAMPLING_PARAMS.items()))
-def test_anthropic_future_4_7_plus_strips_sampling_params(
-    model_name: str, param: str, value: float | int
+def test_anthropic_strips_sampling_params(
+    model_name: str, reasoning_effort: Any, param: str, value: float | int
 ) -> None:
-    """All 4.7+ models inherit the adaptive-thinking restriction."""
+    """API version 2026-10-21 rejects temperature/top_p/top_k on every model."""
     api = AnthropicAPI(model_name=model_name, api_key="test-key")
-    params, extra_body, _headers, _betas = api.completion_config(_cfg(**{param: value}))
+    params, extra_body, _headers, _betas = api.completion_config(
+        _cfg(reasoning_effort=reasoning_effort, **{param: value})
+    )
     assert param not in params
     assert param not in extra_body
 
 
 @pytest.mark.anyio
 async def test_anthropic_batch_merges_extra_body_into_params() -> None:
-    """The Batches API has no extra_body — its fields (e.g. sampling params) must land directly in each request's params."""
+    """The Batches API has no extra_body — its fields must land directly in each request's params."""
     from unittest.mock import AsyncMock, MagicMock
 
     import anyio
@@ -1599,7 +1561,7 @@ async def test_anthropic_batch_merges_extra_body_into_params() -> None:
             "max_tokens": 64,
             "messages": [{"role": "user", "content": "hi"}],
             "extra_headers": {"x-header": "y"},
-            "extra_body": {"temperature": 0.5, "top_k": 10},
+            "extra_body": {"fallbacks": [{"model": "claude-opus-4-6"}]},
         },
         result_stream=send_stream,
     )
@@ -1607,8 +1569,7 @@ async def test_anthropic_batch_merges_extra_body_into_params() -> None:
     assert batch_id == "batch_1"
     (call,) = client.messages.batches.create.call_args_list
     params = call.kwargs["requests"][0]["params"]
-    assert params["temperature"] == 0.5
-    assert params["top_k"] == 10
+    assert params["fallbacks"] == [{"model": "claude-opus-4-6"}]
     assert "extra_body" not in params
     assert call.kwargs["extra_headers"] == {"x-header": "y"}
 
