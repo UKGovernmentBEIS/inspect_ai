@@ -17,6 +17,7 @@ import anyio
 from anyio.abc import TaskGroup
 from shortuuid import uuid as shortuuid
 
+from inspect_ai._util._async import unwrapped_task_group
 from inspect_ai.agent._agent import Agent, AgentState
 from inspect_ai.agent._react import react
 from inspect_ai.agent._run import run
@@ -168,10 +169,9 @@ class BackgroundRegistry:
             yield
             return
 
-        unwrapped: Exception | None = None
         cancelled: BaseException | None = None
         try:
-            async with anyio.create_task_group() as task_group:
+            async with unwrapped_task_group() as task_group:
                 self._task_group = task_group
                 try:
                     yield
@@ -182,16 +182,8 @@ class BackgroundRegistry:
                     raise
                 finally:
                     task_group.cancel_scope.cancel()
-        except ExceptionGroup as ex:
-            # The task group wraps whatever ends it. Undo that wrapper when
-            # it holds one exception, so the caller sees what was raised.
-            if len(ex.exceptions) != 1:
-                raise
-            unwrapped = ex.exceptions[0]
         finally:
             self._task_group = None
-        if unwrapped is not None:
-            raise unwrapped
         if cancelled is not None:
             raise cancelled
 

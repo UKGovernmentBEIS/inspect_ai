@@ -7,10 +7,12 @@ import threading
 from types import FrameType
 from typing import (
     Any,
+    AsyncIterator,
     Awaitable,
     Callable,
     Coroutine,
     Iterable,
+    Iterator,
     Literal,
     TypeVar,
     TypeVarTuple,
@@ -21,6 +23,7 @@ from typing import (
 import anyio
 import nest_asyncio2 as nest_asyncio  # type: ignore
 import sniffio
+from anyio.abc import TaskGroup
 
 PosArgsT = TypeVarTuple("PosArgsT")
 
@@ -61,7 +64,7 @@ async def tg_collect(
        ExceptionGroup: Exceptions that occurred in failed tasks
          (for `exception_group == True`)
     """
-    try:
+    with unwrap_exception_group(None if exception_group else "first"):
         results: list[tuple[int, T]] = []
 
         async with anyio.create_task_group() as tg:
@@ -75,11 +78,48 @@ async def tg_collect(
 
         # sort results by original index and return just the values
         return [r for _, r in sorted(results)]
+
+
+@contextlib.contextmanager
+def unwrap_exception_group(
+    unwrap: Literal["single", "first"] | None = "single",
+) -> Iterator[None]:
+    """Unwrap an `ExceptionGroup` that leaves the block, raising its exception bare.
+
+    The exception keeps its own `__cause__` and `__context__`. Unwrapping
+    inside an `except` clause would set its context to the group, and
+    `raise ... from None` would also drop its cause.
+
+    Args:
+       unwrap: "single" raises the exception when the group holds exactly
+          one and the group otherwise; "first" raises the first exception
+          and drops the rest; `None` leaves the group as it is.
+    """
+    unwrapped: Exception | None = None
+    try:
+        yield
     except ExceptionGroup as ex:
-        if exception_group:
+        if unwrap is None or (unwrap == "single" and len(ex.exceptions) != 1):
             raise
-        else:
-            raise ex.exceptions[0] from None
+        unwrapped = ex.exceptions[0]
+    if unwrapped is not None:
+        # raising here, while the with statement handles the group, sets the
+        # exception's context to the group; restore it as it propagates
+        context = unwrapped.__context__
+        try:
+            raise unwrapped
+        finally:
+            unwrapped.__context__ = context
+
+
+@contextlib.asynccontextmanager
+async def unwrapped_task_group(
+    unwrap: Literal["single", "first"] | None = "single",
+) -> AsyncIterator[TaskGroup]:
+    """A task group whose `ExceptionGroup` is unwrapped as `unwrap_exception_group()` does."""
+    with unwrap_exception_group(unwrap):
+        async with anyio.create_task_group() as tg:
+            yield tg
 
 
 class Wake:

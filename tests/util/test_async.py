@@ -1,3 +1,4 @@
+import functools
 import gc
 import os
 import subprocess
@@ -5,11 +6,13 @@ import sys
 import textwrap
 import threading
 import weakref
+from typing import Awaitable, Callable
 
 import anyio.to_thread
 import pytest
 
-from inspect_ai._util._async import run_coroutine
+from inspect_ai._util._async import run_coroutine, tg_collect
+from inspect_ai.util import collect
 
 
 @pytest.mark.parametrize("backend", ["asyncio", "trio"])
@@ -201,3 +204,58 @@ def test_run_coroutine_releases_result() -> None:
     ref = released_result_ref()
     gc.collect()
     assert ref() is None, "result still referenced after release"
+
+
+async def _fail_with_cause() -> None:
+    try:
+        raise KeyError("context")
+    except KeyError:
+        raise RuntimeError("task failed") from ValueError("cause")
+
+
+def _failing_tasks(count: int) -> list[Callable[[], Awaitable[None]]]:
+    """Tasks that all fail, each only after every one has started."""
+    started = 0
+    all_started = anyio.Event()
+
+    async def fail(index: int) -> None:
+        nonlocal started
+        # shielded, so a sibling's failure cannot cancel this one first
+        with anyio.CancelScope(shield=True):
+            started += 1
+            if started == count:
+                all_started.set()
+            await all_started.wait()
+            raise RuntimeError(f"task {index} failed")
+
+    return [functools.partial(fail, index) for index in range(count)]
+
+
+async def test_collect_keeps_task_error_cause_and_context() -> None:
+    with pytest.raises(RuntimeError, match="task failed") as excinfo:
+        await collect(_fail_with_cause())
+    assert repr(excinfo.value.__cause__) == "ValueError('cause')"
+    assert repr(excinfo.value.__context__) == "KeyError('context')"
+
+
+async def test_tg_collect_keeps_task_error_cause_and_context() -> None:
+    with pytest.raises(RuntimeError, match="task failed") as excinfo:
+        await tg_collect([_fail_with_cause])
+    assert repr(excinfo.value.__cause__) == "ValueError('cause')"
+    assert repr(excinfo.value.__context__) == "KeyError('context')"
+
+
+async def test_collect_and_tg_collect_unwrap_rules() -> None:
+    # collect() raises the group when several tasks fail
+    with pytest.raises(ExceptionGroup) as group:
+        await collect(*[task() for task in _failing_tasks(2)])
+    assert len(group.value.exceptions) == 2
+
+    # tg_collect() raises one of them bare
+    with pytest.raises(RuntimeError, match="failed"):
+        await tg_collect(_failing_tasks(2))
+
+    # unless it is asked for the group
+    with pytest.raises(ExceptionGroup) as group:
+        await tg_collect([_fail_with_cause], exception_group=True)
+    assert len(group.value.exceptions) == 1

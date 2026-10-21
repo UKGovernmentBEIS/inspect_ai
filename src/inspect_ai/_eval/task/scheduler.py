@@ -37,9 +37,7 @@ from typing import (
     TypeVar,
 )
 
-import anyio
-
-from inspect_ai._util._async import Wake
+from inspect_ai._util._async import Wake, unwrapped_task_group
 
 if TYPE_CHECKING:
     from inspect_ai._eval.task.error import SampleErrorHandler
@@ -277,7 +275,7 @@ class SampleScheduler:
         if feeder is not None:
             self._holds += 1
         try:
-            async with anyio.create_task_group() as tg:
+            async with unwrapped_task_group("first") as tg:
 
                 async def run_feeder(feeder: Callable[[], Awaitable[None]]) -> None:
                     try:
@@ -325,8 +323,6 @@ class SampleScheduler:
                         tg.start_soon(run_one, entry.sample_index, entry.epoch, entry)
                         continue
                     await self._wake.wait()
-        except ExceptionGroup as ex:
-            raise ex.exceptions[0] from None
         finally:
             self._running = False
             # A teardown (fail_on_error threshold, task cancel) can leave
