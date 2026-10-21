@@ -4748,8 +4748,11 @@ def as_sent(message: ChatMessage) -> tuple[type, dict[str, Any]]:
 
 
 def assert_history_is_the_fold_of_the_log(
-    log: EvalLog, seen: dict[str, tuple[str, list[ChatMessage]]]
+    log: EvalLog,
+    seen: dict[str, tuple[str, list[ChatMessage]]],
+    conversations_by_uuid: dict[str, str] | None = None,
 ) -> None:
+    # each call's conversation is from the span tree unless given by event uuid
     from inspect_ai._sentinel._conversation import SpanConversations
     from inspect_ai._sentinel._scope import is_agent_turn
     from inspect_ai._sentinel._steps import _Sent
@@ -4782,12 +4785,15 @@ def assert_history_is_the_fold_of_the_log(
         for earlier in events[:cut]:
             if isinstance(earlier, SpanBeginEvent):
                 conversations.add(earlier)
-            elif (
-                isinstance(earlier, ModelEvent)
-                and is_agent_turn(earlier.origin)
-                and conversations.conversation(earlier.span_id) == conversation
-            ):
-                fold.record(earlier.input)
+            elif isinstance(earlier, ModelEvent) and is_agent_turn(earlier.origin):
+                assert earlier.uuid is not None
+                found = (
+                    conversations_by_uuid[earlier.uuid]
+                    if conversations_by_uuid is not None
+                    else conversations.conversation(earlier.span_id)
+                )
+                if found == conversation:
+                    fold.record(earlier.input)
         assert [as_sent(m) for m in fold.messages] == [as_sent(m) for m in history], (
             f"step {event.explanation} at {event.stage}"
         )
@@ -5270,3 +5276,66 @@ def test_a_tool_bodys_own_generates_and_tool_calls_are_not_recorded() -> None:
         ("assistant", "tool call for tool runs_its_own_agent"),
         ("tool", "10"),
     ]
+
+
+# attributes each call to a sub-agent span, as a bridged CLI's event consumer does
+class _SubAgentSink:
+    def on_pending(self, event: Any) -> None:
+        event.span_id = "sub-agent"
+        transcript()._event(event)
+
+    def on_complete(self, event: Any) -> None:
+        transcript()._event_updated(event)
+
+
+@solver
+def d3_attributes_a_call_to_a_sub_agent() -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        from inspect_ai.model._model import use_model_event_sink
+        from inspect_ai.util._span import current_span_id, span
+
+        async with span("outer", type="agent"):
+            await get_model().generate("Main turn.")
+            transcript()._event(
+                SpanBeginEvent(
+                    id="sub-agent",
+                    parent_id=current_span_id(),
+                    type="agent",
+                    name="sub",
+                )
+            )
+            with use_model_event_sink(_SubAgentSink()):
+                state.output = await get_model().generate("Sub-agent turn.")
+            transcript()._event(SpanEndEvent(id="sub-agent"))
+        return state
+
+    return solve
+
+
+def test_a_sink_attributed_call_s_span_tree_conversation_differs_from_live() -> None:
+    # a known difference, pending a decision: live puts a call in the
+    # generating task's agent span, the span tree in the span the event sink
+    # gave it
+    seen: dict[str, tuple[str, list[ChatMessage]]] = {}
+    with live_conversations() as live:
+        log = eval(
+            Task(
+                dataset=[Sample(input="Hi.")],
+                solver=d3_attributes_a_call_to_a_sub_agent(),
+                sentinel=[d3_probe(seen)],
+            ),
+            model="mockllm/model",
+        )[0]
+    assert log.status == "success", log.error
+    assert log.location
+    [sample] = read_eval_log(log.location).samples or []
+    from_spans = span_tree_conversations(sample.events, sample.uuid or "")
+    main, sub = agent_events_by_origin(log)
+    assert main.uuid is not None and sub.uuid is not None
+    assert live[sub.uuid] == live[main.uuid] == from_spans[main.uuid]
+    assert from_spans[sub.uuid] == "sub-agent"
+
+    # live history is the fold by live conversation, not by the span tree
+    assert_history_is_the_fold_of_the_log(log, seen, live)
+    with pytest.raises(AssertionError):
+        assert_history_is_the_fold_of_the_log(log, seen)
