@@ -37,6 +37,7 @@ from inspect_ai.event import (
     TimelineSpan,
     ToolEvent,
 )
+from inspect_ai.event._sentinel import SentinelStage
 from inspect_ai.log import EvalLog, EvalSample, read_eval_log
 from inspect_ai.log._transcript import transcript
 from inspect_ai.model import (
@@ -72,19 +73,19 @@ from inspect_ai.util._span import span
 from .test_sentinel_dispatch import (
     _RetriedError,
     _RetryingMockLLM,
+    _StartingSink,
     addition,
     addition_call,
     addition_raising_viewer,
     agent_model,
     d3_approver,
+    d3_attributes_a_call_to_a_sub_agent,
     d3_edits_a_sent_message_in_place,
     d3_generates_once,
     d3_memory_path_approver,
     d3_modify,
     d3_public_memory_only,
     d3_reject,
-    folding,
-    ordered_addition,
     returns,
 )
 from .test_sentinel_human import Panel, h_ask
@@ -265,6 +266,50 @@ def assert_replay_equals_live(
             ids = f.name not in POOLED
             assert comparable(ours, ids) == comparable(theirs, ids), f"{key} {f.name}"
     return replay
+
+
+@solver
+def folding(turns: int) -> Solver:
+    """Rebuild the input each turn: the task, then one user message folding in every earlier turn."""
+
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        model = get_model()
+        tools = [addition()]
+        folded: list[str] = []
+        for _ in range(turns + 1):
+            input: list[ChatMessage] = [
+                ChatMessageSystem(content="Add numbers."),
+                ChatMessageUser(content="\n".join([state.input_text, *folded])),
+            ]
+            output = await model.generate(input, tools)
+            folded.append(f"assistant called {len(output.message.tool_calls or [])}")
+            if not output.message.tool_calls:
+                break
+            result = await execute_tools([*input, output.message], tools)
+            folded.extend(f"result {m.text}" for m in result.messages)
+        return state
+
+    return solve
+
+
+@tool(parallel=True)
+def ordered_addition() -> Tool:
+    finished: dict[int, anyio.Event] = {}
+
+    async def execute(x: int, y: int) -> str:
+        """Add two numbers, finishing after the call that adds one more to x.
+
+        Args:
+            x: First number to add.
+            y: Second number to add.
+        """
+        done = finished.setdefault(x, anyio.Event())
+        if x < 3:
+            await finished.setdefault(x + 1, anyio.Event()).wait()
+        done.set()
+        return str(x + y)
+
+    return execute
 
 
 def outputs(*outputs: ModelOutput) -> Any:
@@ -926,7 +971,7 @@ def assert_views_share_storage(
 ) -> None:
     """Every step's conversation fields are views of lists the conversation keeps, never copies.
 
-    Per conversation, `history` and `human_decisions` are each backed by one list, and live `agent_messages` by at most two (replay's is None; the opening is replaced once, by the input as sent). The tool stages' `input` and `tools` are the producing model call's own lists, one per assistant message, whatever its calls and stages: live, its `ModelEvent`'s; in replay, rows of the one pool.
+    Per conversation, `history` and `human_decisions` are each backed by one list, and live `agent_messages` is the running agent's own list, one object (replay's is None). The tool stages' `input` and `tools` are the producing model call's own lists, one per assistant message, whatever its calls and stages: live, its `ModelEvent`'s; in replay, rows of the one pool.
     """
     backing: dict[tuple[str, str], set[int]] = {}
     generates = {
@@ -935,13 +980,14 @@ def assert_views_share_storage(
         if isinstance(step, AfterGenerate) and step.output.choices
     }
     for step in steps:
-        for name in ("history", "agent_messages", "human_decisions"):
+        for name in ("history", "human_decisions"):
             value = getattr(step, name)
-            if value is not None:
-                assert isinstance(value, ListView), (name, type(value))
-                backing.setdefault((step.conversation, name), set()).add(
-                    id(value._items)
-                )
+            assert isinstance(value, ListView), (name, type(value))
+            backing.setdefault((step.conversation, name), set()).add(id(value._items))
+        if step.agent_messages is not None:
+            backing.setdefault((step.conversation, "agent_messages"), set()).add(
+                id(step.agent_messages)
+            )
         inputs: list[Any] = [step.input]
         if isinstance(step, BeforeToolCall | AfterToolCall) and step.input is not None:
             assert isinstance(step.tools, ListView)
@@ -968,8 +1014,7 @@ def assert_views_share_storage(
             for input in inputs:
                 assert isinstance(input, PoolView) and input._pool is pool
     for (conversation, name), lists in backing.items():
-        allowed = 2 if name == "agent_messages" else 1
-        assert len(lists) <= allowed, (conversation, name, len(lists))
+        assert len(lists) == 1, (conversation, name, len(lists))
 
 
 @pytest.mark.parametrize("turns", [10, 20])
@@ -2105,3 +2150,94 @@ def test_an_input_that_repeats_its_own_suffixes_costs_its_overlaps(
     events, pool = nested_suffix_inputs(n)
     work = replay_work(monkeypatch, [], events, pool, "sample", info)
     assert work.entries == (n - 1) * (n * (n + 1) // 2 + 1)
+
+
+# R7 PR 1c (#6004): a sink's on_start names the span a generate runs under
+
+
+def replay_under_on_start(
+    monkeypatch: pytest.MonkeyPatch, solver: Solver, model: Any = None
+) -> tuple[list["ReplayStep"], dict[tuple[str, str], str | None]]:
+    """Compare live and replay for a run whose sink attributes calls to sub-agent spans.
+
+    Returns:
+        The replayed steps, and for each, the parent of the sentinel span replay checked it in.
+    """
+    from inspect_ai._sentinel import _replay
+
+    parents: dict[tuple[str, str], str | None] = {}
+    built = _replay._Driver._built
+
+    def recording(
+        self: Any, step_id: str, stage: SentinelStage, step: Any, span: str | None
+    ) -> None:
+        parents[(stage, step_id)] = (
+            self.begins[span][1].parent_id if span is not None else None
+        )
+        built(self, step_id, stage, step, span)
+
+    monkeypatch.setattr(_replay._Driver, "_built", recording)
+    replay = assert_replay_equals_live(
+        solver, model or "mockllm/model", sample=Sample(input="Hi.")
+    )
+    return replay, parents
+
+
+def generate_steps(replay: Sequence["ReplayStep"]) -> dict[str, list["ReplayStep"]]:
+    """Each conversation's generate steps, in order."""
+    found: dict[str, list[ReplayStep]] = {}
+    for step in replay:
+        if step.stage in ("model_input", "model_output"):
+            found.setdefault(step.step.conversation, []).append(step)
+    return found
+
+
+def test_an_on_start_sub_agent_call_replays_in_its_conversation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    replay, parents = replay_under_on_start(
+        monkeypatch, d3_attributes_a_call_to_a_sub_agent(_StartingSink("sub-agent"))
+    )
+    by_conversation = generate_steps(replay)
+    assert set(by_conversation) == {"outer", "sub-agent"}
+    sub_input, sub_output = by_conversation["sub-agent"]
+    assert sub_input.id == sub_output.id
+    assert not sub_input.step.history
+    assert [m.text for m in sub_output.step.history or []] == ["Sub-agent turn."]
+    # its steps are found in the sentinel spans live opened in the sub-agent
+    assert parents[("model_input", sub_input.id)] == "sub-agent"
+    assert parents[("model_output", sub_output.id)] == "sub-agent"
+    assert sub_input.segment == ("sub-agent", 0)
+
+
+def test_an_on_start_sub_agent_call_s_retries_replay_as_one_generate(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    replay, parents = replay_under_on_start(
+        monkeypatch,
+        d3_attributes_a_call_to_a_sub_agent(_StartingSink("sub-agent"), retry=True),
+        "d3_retrying/model",
+    )
+    sub_input, sub_output = generate_steps(replay)["sub-agent"]
+    assert parents[("model_input", sub_input.id)] == "sub-agent"
+    assert parents[("model_output", sub_output.id)] == "sub-agent"
+
+
+def test_parallel_on_start_sub_agent_calls_replay_with_their_histories(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def by_input(input: list[ChatMessage]) -> str:
+        return "sub-agent" if input[-1].text == "Sub A." else "sub-agent-2"
+
+    replay, parents = replay_under_on_start(
+        monkeypatch,
+        d3_attributes_a_call_to_a_sub_agent(
+            _StartingSink(by_input), ["Sub A.", "Sub B."], parallel=True
+        ),
+    )
+    by_conversation = generate_steps(replay)
+    assert set(by_conversation) == {"outer", "sub-agent", "sub-agent-2"}
+    for conversation, text in (("sub-agent", "Sub A."), ("sub-agent-2", "Sub B.")):
+        sub_input, sub_output = by_conversation[conversation]
+        assert [m.text for m in sub_output.step.history or []] == [text]
+        assert parents[("model_input", sub_input.id)] == conversation

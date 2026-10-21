@@ -60,7 +60,13 @@ from inspect_ai.model._chat_message import (
     ChatMessageTool,
 )
 from inspect_ai.model._generate_config import GenerateConfig
-from inspect_ai.model._model import Model, active_model, get_model, model_roles
+from inspect_ai.model._model import (
+    Model,
+    active_model,
+    get_model,
+    model_roles,
+    suspend_model_event_sink,
+)
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.review._human import (
     escape_placeholders,
@@ -90,17 +96,17 @@ from inspect_ai.util._limit import (
 from inspect_ai.util._span import span
 from inspect_ai.util._store import store
 
+from ._agent_state import agent_messages
 from ._context import (
     SentinelFailure,
     active_sentinel,
     active_task_description,
     active_task_metadata,
 )
-from ._conversation import live_conversation
+from ._conversation import current_conversation
 from ._scope import sentinel_scope
 from ._steps import (
     ConversationRecord,
-    ListView,
     after_generate,
     after_tool_call,
     before_generate,
@@ -108,7 +114,6 @@ from ._steps import (
     produced_by,
     producer_of,
     step_stage,
-    view,
 )
 
 logger = getLogger(__name__)
@@ -133,7 +138,7 @@ async def sentinel_before_tool_call(
         view = resolve_tool_call_view(call, viewer, reject_on_error=True)
     except ToolCallViewError as ex:
         raise ToolApprovalError(str(ex)) from ex
-    conversation = live_conversation()
+    conversation = current_conversation()
     step = before_tool_call(
         conversation=conversation,
         message=message,
@@ -141,9 +146,7 @@ async def sentinel_before_tool_call(
         call=call,
         view=view,
         producer=producer_of(_producing_event(call, history)),
-        agent_messages=_record(conversation).agent_messages(
-            _producing_message(call, history)
-        ),
+        agent_messages=agent_messages(conversation),
         record=_record(conversation),
     )
     return await _run(step, call.id)
@@ -180,7 +183,7 @@ async def sentinel_after_tool_call(
     if not _watches(AfterToolCall):
         return
     _require_message_id()
-    conversation = live_conversation()
+    conversation = current_conversation()
     step = after_tool_call(
         conversation=conversation,
         message=message,
@@ -191,9 +194,7 @@ async def sentinel_after_tool_call(
         output=output,
         truncated=Truncation(*truncated) if truncated is not None else False,
         producer=producer_of(_producing_event(call, history)),
-        agent_messages=_record(conversation).agent_messages(
-            _producing_message(call, history)
-        ),
+        agent_messages=agent_messages(conversation),
         record=_record(conversation),
     )
     decision = await _run(step, call.id)
@@ -232,7 +233,7 @@ async def sentinel_before_generate(
     root = active_sentinel()
     if root is None or not (watched_stages(root) & {BeforeGenerate, AfterGenerate}):
         return None
-    conversation = live_conversation()
+    conversation = current_conversation()
     step = before_generate(
         model=model,
         conversation=conversation,
@@ -240,7 +241,7 @@ async def sentinel_before_generate(
         tools=tools,
         tool_choice=tool_choice,
         config=config,
-        agent_messages=_record(conversation).agent_messages(),
+        agent_messages=agent_messages(conversation),
         record=_record(conversation),
     )
     await _run_generate(step, generate_id)
@@ -264,7 +265,7 @@ async def sentinel_after_generate(
         tool_choice=before.tool_choice,
         config=before.config,
         output=output,
-        agent_messages=_record(before.conversation).agent_messages(),
+        agent_messages=agent_messages(before.conversation),
         record=_record(before.conversation),
     )
     await _run_generate(step, generate_id)
@@ -296,6 +297,7 @@ async def _run(step: Step, step_id: str) -> Decision | None:
                     suspend_turn_limit(),
                     suspend_working_limit(),
                     sentinel_scope("sentinel", final=True),
+                    suspend_model_event_sink(),
                 ):
                     decision = await run_sentinel(root, _host_context(recorder), step)
         except TimeoutError as ex:
@@ -342,82 +344,21 @@ def _eval_context() -> EvalContext | None:
 
 
 def record_agent_turn(input: list[ChatMessage]) -> None:
-    record = _record(live_conversation())
-    record.sent.record(input)
-    record.open(input, sent=True)
+    _record(current_conversation()).sent.record(input)
 
 
-def record_agent_input(input: list[ChatMessage]) -> None:
-    _record(live_conversation()).open(input, sent=False)
-
-
-def record_agent_output(output: ModelOutput) -> None:
-    if output.choices:
-        _record(live_conversation()).ran([output.message])
-
-
-def record_agent_results(messages: list[ChatMessage]) -> None:
-    _record(live_conversation()).ran(messages)
-
-
-class _LiveRecord(ConversationRecord):
-    """A conversation's record live, which also keeps the conversation as its agent ran it (`agent_messages`)."""
-
-    def __init__(self) -> None:
-        super().__init__()
-        # None until an agent turn opens it
-        self._ran: list[ChatMessage] | None = None
-        # how many of `_ran` are the opening, which stays provisional until the
-        # first agent turn is sent, since a before-generate hook may change it
-        self._opening = 0
-        self._opening_sent = False
-
-    def open(self, input: Sequence[ChatMessage], *, sent: bool) -> None:
-        """Open the record with the conversation's first agent turn's input.
-
-        An input recorded before it is sent is provisional: the first input sent replaces it, in a new list so that a view taken of the provisional opening keeps it. Later inputs are not recorded.
-        """
-        if self._ran is None:
-            self._ran = list(input)
-            self._opening = len(input)
-            self._opening_sent = sent
-        elif sent and not self._opening_sent:
-            self._ran = [*input, *self._ran[self._opening :]]
-            self._opening = len(input)
-            self._opening_sent = True
-
-    def ran(self, messages: Sequence[ChatMessage]) -> None:
-        """Add an agent turn's output, or the results `execute_tools()` returned, to an opened record."""
-        if self._ran is not None:
-            self._ran.extend(messages)
-
-    def agent_messages(
-        self, through: ChatMessage | None = None
-    ) -> ListView[ChatMessage] | None:
-        """The record as it stands, or cut after `through` (by identity) when it holds that message.
-
-        None when no agent turn has opened the conversation.
-        """
-        ran = self._ran
-        if ran is None:
-            return None
-        if through is not None:
-            for index in range(len(ran) - 1, -1, -1):
-                if ran[index] is through:
-                    return ListView(ran, index + 1)
-        return view(ran)
-
-
-def _record(conversation: str) -> _LiveRecord:
+def _record(conversation: str) -> ConversationRecord:
     records = _records.setdefault(transcript(), {})
     record = records.get(conversation)
     if record is None:
-        record = records[conversation] = _LiveRecord()
+        record = records[conversation] = ConversationRecord()
     return record
 
 
 # each conversation's record, per sample
-_records: "WeakKeyDictionary[Transcript, dict[str, _LiveRecord]]" = WeakKeyDictionary()
+_records: "WeakKeyDictionary[Transcript, dict[str, ConversationRecord]]" = (
+    WeakKeyDictionary()
+)
 
 
 def _require_message_id() -> None:
@@ -446,13 +387,6 @@ def _assistant_index(call: ToolCall, history: list[ChatMessage]) -> int | None:
         ):
             return index
     return None
-
-
-def _producing_message(
-    call: ToolCall, history: list[ChatMessage]
-) -> ChatMessage | None:
-    index = _assistant_index(call, history)
-    return history[index] if index is not None else None
 
 
 def _producing_event(call: ToolCall, history: list[ChatMessage]) -> ModelEvent | None:
@@ -546,8 +480,8 @@ class _HostNative:
                     f"{', '.join(repr(c) for c in _HUMAN_CHOICES)}."
                 )
             offered.append(cast(ApprovalDecision, choice))
-        # the approval surfaces show the conversation; a step with no record
-        # of it shows what the model saw instead, and nothing when that is
+        # the approval surfaces show the conversation; a step with no agent's
+        # list shows what the model saw instead, and nothing when that is
         # unknown too
         if step.agent_messages is not None:
             conversation = step.agent_messages

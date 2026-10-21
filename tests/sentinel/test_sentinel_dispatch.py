@@ -1,9 +1,10 @@
 import logging
 import random
 from collections import Counter
-from collections.abc import Callable, Iterator, Sequence
+from collections.abc import Awaitable, Callable, Iterator, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass, replace
+from functools import partial
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal, NamedTuple, cast
 
@@ -82,7 +83,7 @@ from inspect_ai.tool import (
     ToolResult,
     tool,
 )
-from inspect_ai.util import StoreModel
+from inspect_ai.util import StoreModel, span
 from inspect_ai.util._limit import LimitExceededError
 
 # mypy checks the tests against inspect_sentinel's API; they run on the fake
@@ -1003,9 +1004,8 @@ def test_context_and_step_come_from_the_sample(
     assert step.conversation == sample.uuid
     assert step.call.function == "addition"
     assert step.view.call is not None
-    # in-process Inspect always provides the agent's messages
-    assert step.agent_messages is not None
-    assert step.agent_messages[-1].role == "assistant"
+    # a solver calling generate() is not an agent
+    assert step.agent_messages is None
     model_events = [e for e in sample.events if isinstance(e, ModelEvent)]
     assert step.input is not None
     assert [m.text for m in step.input] == [m.text for m in model_events[0].input]
@@ -3933,29 +3933,39 @@ def test_a_memory_path_is_canonical_without_approval() -> None:
     assert [call.arguments["path"] for call in reviewed] == [canonical]
 
 
-Steps = list[BeforeGenerate | AfterGenerate | BeforeToolCall | AfterToolCall]
+AnyStep = BeforeGenerate | AfterGenerate | BeforeToolCall | AfterToolCall
+
+
+class StageSeen(NamedTuple):
+    step: AnyStep
+    # agent_messages as it was when the stage ran (the step holds the live list)
+    messages: list[ChatMessage] | None
 
 
 @monitor
 def d3_every_stage(seen: Any) -> MonitorGroup:
+    def see(step: AnyStep) -> None:
+        messages = step.agent_messages
+        seen.append(StageSeen(step, list(messages) if messages is not None else None))
+
     async def before_generate(
         context: Context, step: BeforeGenerate
     ) -> Observation | None:
-        seen.append(step)
+        see(step)
         return None
 
     async def after_generate(
         context: Context, step: AfterGenerate
     ) -> Observation | None:
-        seen.append(step)
+        see(step)
         return None
 
     async def before_call(context: Context, step: BeforeToolCall) -> Observation | None:
-        seen.append(step)
+        see(step)
         return None
 
     async def after_call(context: Context, step: AfterToolCall) -> Observation | None:
-        seen.append(step)
+        see(step)
         return None
 
     return MonitorGroup(before_generate, after_generate, before_call, after_call)
@@ -3966,343 +3976,1026 @@ def shape(messages: Sequence[ChatMessage] | None) -> list[tuple[str, str]]:
     return [(m.role, m.text) for m in messages]
 
 
-def of_stage(seen: Steps, stage: type[Any]) -> list[Any]:
-    return [step for step in seen if isinstance(step, stage)]
+def of_stage(seen: list[StageSeen], stage: type[Any]) -> list[Any]:
+    return [s.step for s in seen if isinstance(s.step, stage)]
 
 
-@solver
-def folding(turns: int) -> Solver:
-    """Rebuild the input each turn: the task, then one user message folding in every earlier turn."""
-
-    async def solve(state: TaskState, generate: Generate) -> TaskState:
-        model = get_model()
-        tools = [addition()]
-        folded: list[str] = []
-        for _ in range(turns + 1):
-            input: list[ChatMessage] = [
-                ChatMessageSystem(content="Add numbers."),
-                ChatMessageUser(content="\n".join([state.input_text, *folded])),
-            ]
-            output = await model.generate(input, tools)
-            folded.append(f"assistant called {len(output.message.tool_calls or [])}")
-            if not output.message.tool_calls:
-                break
-            result = await execute_tools([*input, output.message], tools)
-            folded.extend(f"result {m.text}" for m in result.messages)
-        return state
-
-    return solve
+def stages(seen: list[StageSeen]) -> set[type[Any]]:
+    return {type(s.step) for s in seen}
 
 
-def run_folding(seen: Steps, turns: int = 2) -> EvalLog:
-    task = Task(
-        dataset=[Sample(input="What is 1 + 1?")],
-        solver=folding(turns),
-        sentinel=[d3_every_stage(seen)],
-    )
-    log = eval(task, model=agent_model(turns))[0]
-    assert log.status == "success", log.error
-    return log
+ALL_STAGES = {BeforeGenerate, AfterGenerate, BeforeToolCall, AfterToolCall}
+
+HIDDEN = "secret side task"
+REMINDER = "remember the side task"
 
 
-def test_agent_messages_are_the_outputs_and_results_not_the_folds() -> None:
-    seen: Steps = []
-    run_folding(seen, turns=2)
-
-    *_, last = of_stage(seen, AfterGenerate)
-    assert shape(last.agent_messages) == [
-        ("system", "Add numbers."),
-        ("user", "What is 1 + 1?"),
-        ("assistant", "tool call for tool addition"),
-        ("tool", "2"),
-        ("assistant", "tool call for tool addition"),
-        ("tool", "3"),
-    ]
-    # the model was sent the fold; the new output is the step's own
-    assert shape(last.input)[-1] == (
-        "user",
-        "What is 1 + 1?\nassistant called 1\nresult 2\nassistant called 1\nresult 3",
-    )
-    assert last.output.message not in last.agent_messages
-
-
-def test_every_stage_reads_the_same_record() -> None:
-    seen: Steps = []
-    run_folding(seen, turns=2)
-
-    generates = of_stage(seen, BeforeGenerate)
-    afters = of_stage(seen, AfterGenerate)
-    tool_stages = [
-        step for step in seen if isinstance(step, (BeforeToolCall, AfterToolCall))
-    ]
-    assert len(generates) == len(afters) == 3
-    assert len(tool_stages) == 4
-    for turn in range(2):
-        before, after = generates[turn + 1], afters[turn + 1]
-        [before_call, after_call] = tool_stages[2 * turn : 2 * turn + 2]
-        assert before.agent_messages is not None
-        assert after.agent_messages is not None
-        assert after_call.agent_messages is not None
-        # a tool stage sees the record through the call's assistant message
-        assert before_call.agent_messages == after_call.agent_messages
-        assert after_call.agent_messages[-1] is afters[turn].output.message
-        # the next turn adds exactly the results execute_tools() returned
-        count = len(after_call.agent_messages)
-        assert [id(m) for m in before.agent_messages[:count]] == [
-            id(m) for m in after_call.agent_messages
-        ]
-        [result] = before.agent_messages[count:]
-        assert isinstance(result, ChatMessageTool)
-        assert result.tool_call_id == after_call.call.id
-        assert [id(m) for m in after.agent_messages] == [
-            id(m) for m in before.agent_messages
-        ]
-
-
-def test_a_rejected_call_has_its_rejection_as_its_result() -> None:
-    seen: Steps = []
-    log = run([d3_reject(), d3_every_stage(seen)])
-    assert log.status == "success", log.error
-
-    *_, last = of_stage(seen, BeforeGenerate)
-    result = last.agent_messages[-1]
-    assert isinstance(result, ChatMessageTool)
-    assert result.error is not None
-    assert result.error.type == "approval"
-    assert result.error.message == "no adding"
-
-
-@tool(parallel=True)
-def ordered_addition() -> Tool:
-    finished: dict[int, anyio.Event] = {}
-
-    async def execute(x: int, y: int) -> str:
-        """Add two numbers, finishing after the call that adds one more to x.
-
-        Args:
-            x: First number to add.
-            y: Second number to add.
-        """
-        done = finished.setdefault(x, anyio.Event())
-        if x < 3:
-            await finished.setdefault(x + 1, anyio.Event()).wait()
-        done.set()
-        return str(x + y)
-
-    return execute
-
-
-def test_parallel_results_are_in_call_order() -> None:
-    seen: Steps = []
-    calls = [
-        ToolCall(id=f"c{x}", function="ordered_addition", arguments={"x": x, "y": 10})
-        for x in (1, 2, 3)
-    ]
-    three_calls = ModelOutput(
-        model="mockllm/model",
-        choices=[
-            ChatCompletionChoice(
-                message=ChatMessageAssistant(
-                    content="", tool_calls=calls, model="mockllm/model"
-                ),
-                stop_reason="tool_calls",
-            )
-        ],
-    )
-    model = get_model(
-        "mockllm/model",
-        custom_outputs=[three_calls, ModelOutput.from_content("mockllm/model", "done")],
-        memoize=False,
-    )
-    task = Task(
-        dataset=[Sample(input="go")],
-        solver=[use_tools(ordered_addition()), generate()],
-        sentinel=[d3_every_stage(seen)],
-    )
-    log = eval(task, model=model)[0]
-    assert log.status == "success", log.error
-
-    # the calls finished last to first
-    completed = [s.call.id for s in of_stage(seen, AfterToolCall)]
-    assert completed == ["c3", "c2", "c1"]
-    *_, last = of_stage(seen, BeforeGenerate)
-    results = [m for m in last.agent_messages if isinstance(m, ChatMessageTool)]
-    assert [(m.tool_call_id, m.text) for m in results] == [
-        ("c1", "11"),
-        ("c2", "12"),
-        ("c3", "13"),
-    ]
-
-
-def test_a_react_continue_nudge_is_in_history_not_agent_messages() -> None:
-    from inspect_ai.agent._types import DEFAULT_CONTINUE_PROMPT
-
-    seen: Steps = []
-    model = get_model(
+def addition_then_submit() -> Model:
+    return get_model(
         "mockllm/model",
         custom_outputs=[
-            ModelOutput.from_content("mockllm/model", "thinking"),
+            ModelOutput.for_tool_call(
+                "mockllm/model", tool_name="addition", tool_arguments={"x": 1, "y": 1}
+            ),
             ModelOutput.for_tool_call(
                 "mockllm/model", tool_name="submit", tool_arguments={"answer": "2"}
             ),
         ],
         memoize=False,
     )
+
+
+def run_solver(solve: Solver | Agent, seen: list[StageSeen], model: Any) -> EvalLog:
     task = Task(
         dataset=[Sample(input="What is 1 + 1?")],
-        solver=as_solver(react(tools=[addition()])),
+        solver=solve,
         sentinel=[d3_every_stage(seen)],
     )
     log = eval(task, model=model)[0]
     assert log.status == "success", log.error
-
-    nudge = ("user", DEFAULT_CONTINUE_PROMPT.replace("{submit}", "submit"))
-    _, second = of_stage(seen, AfterGenerate)
-    assert nudge in shape(second.history)
-    assert nudge in shape(second.input)
-    assert nudge not in shape(second.agent_messages)
-    assert shape(second.agent_messages)[-1] == ("assistant", "thinking")
+    return log
 
 
-@pytest.mark.parametrize("via_tool", [False, True])
-def test_each_sub_agent_conversation_has_its_own_record(via_tool: bool) -> None:
-    seen: Steps = []
-    log = run_handoff([d3_every_stage(seen)], via_tool=via_tool)
-    assert log.status == "success", log.error
-
-    outputs: dict[str, list[ChatMessage]] = {}
-    for step in of_stage(seen, AfterGenerate):
-        outputs.setdefault(step.conversation, []).append(step.output.message)
-    parent, helper = outputs
-    assert [m.text for m in outputs[helper]] == [
-        "tool call for tool addition",
-        "helper done",
-    ]
-
-    def records(conversation: str) -> list[Sequence[ChatMessage]]:
-        return [
-            step.agent_messages
-            for step in seen
-            if step.conversation == conversation and step.agent_messages is not None
+@agent
+def hiding_policy(received: Any) -> Agent:
+    async def execute(state: AgentState, tools: list[Tool]) -> AgentState:
+        received.append(state.messages)
+        input = [
+            ChatMessageSystem(content=HIDDEN),
+            *state.messages,
+            ChatMessageUser(content=REMINDER),
         ]
-
-    def holds(record: Sequence[ChatMessage], message: ChatMessage) -> bool:
-        return any(m is message for m in record)
-
-    # neither conversation records the other's outputs
-    for record in records(helper):
-        assert not any(holds(record, m) for m in outputs[parent])
-    for record in records(parent):
-        assert not any(holds(record, m) for m in outputs[helper])
-    *_, parent_final = of_stage(seen, AfterGenerate)
-    assert parent_final.conversation == parent
-    if via_tool:
-        assert shape(records(helper)[0])[-1] == ("user", "add 2 and 3")
-        assert shape(parent_final.agent_messages)[-1] == ("tool", "helper done")
-    else:
-        # the parent's record has the handoff's messages as execute_tools()
-        # returned them to the parent
-        assert ("assistant", "[helper] helper done") in shape(
-            parent_final.agent_messages
-        )
-
-
-@tool
-def big_output() -> Tool:
-    async def execute(turn: int) -> str:
-        """Return a large result.
-
-        Args:
-            turn: The turn number.
-        """
-        return f"{turn} " + "x" * 100_000
+        state.output = await get_model().generate(input, tools)
+        state.messages.append(state.output.message)
+        return state
 
     return execute
 
 
-async def test_a_long_folding_run_retains_only_references() -> None:
-    import gc
-    import tracemalloc
-
-    from inspect_ai._sentinel._dispatch import _records
-    from inspect_ai._sentinel._scope import sentinel_solving
-
-    turns = 500
-    tracemalloc.start()
-    try:
-        init_transcript(Transcript())
-        model = get_model(
-            "mockllm/model",
-            custom_outputs=[
-                ModelOutput.for_tool_call(
-                    "mockllm/model",
-                    tool_name="big_output",
-                    tool_arguments={"turn": turn},
-                )
-                for turn in range(turns)
-            ],
-            memoize=False,
+@solver
+def control_style(policy: Agent) -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        # awaited directly, as control_solver does: no run(), no agent span
+        agent_state = await react(model=policy, tools=[addition()])(
+            AgentState(messages=state.messages)
         )
-        tools = [big_output()]
-        seen: Steps = []
-        with active([d3_every_stage(seen)]), sentinel_solving():
-            for turn in range(turns):
-                input: list[ChatMessage] = [ChatMessageUser(content=f"turn {turn}")]
-                output = await model.generate(input, tools)
-                await execute_tools([*input, output.message], tools)
-                seen.clear()
+        state.messages = agent_state.messages
+        return state
 
-        [record] = [
-            list(r.agent_messages() or []) for r in _records[transcript()].values()
-        ]
-        assert len(record) == 1 + 2 * turns
-        results = [m for m in record if isinstance(m, ChatMessageTool)]
-        assert all(len(m.text) < 20_000 for m in results)
-        del record, results
-
-        # what only the record keeps alive: the memory freed when it is dropped
-        gc.collect()
-        before = tracemalloc.get_traced_memory()[0]
-        _records[transcript()].clear()
-        gc.collect()
-        freed = before - tracemalloc.get_traced_memory()[0]
-    finally:
-        tracemalloc.stop()
-    # the transcript's events hold the same content, so dropping the record
-    # frees its list and the tool messages (about 0.5 MB here), not the 8 MB
-    # of results it refers to
-    assert freed < 2_000_000, freed
+    return solve
 
 
-def test_the_opening_is_the_first_input_as_sent_after_hooks() -> None:
-    from inspect_ai._util.registry import _registry
-    from inspect_ai.hooks import BeforeModelGenerate, Hooks, hooks
+def test_a_policy_hides_its_instructions_from_agent_messages() -> None:
+    seen: list[StageSeen] = []
+    received: list[list[ChatMessage]] = []
+    run_solver(control_style(hiding_policy(received)), seen, addition_then_submit())
 
-    @hooks(name="d3_rewrites_the_input", description="rewrites the first input")
-    class RewritesTheInput(Hooks):
-        async def on_before_model_generate(self, data: BeforeModelGenerate) -> None:
-            if data.input and data.input[0].text == "What is 1 + 1?":
-                data.input[:] = [
-                    ChatMessageSystem(content="hook-inserted system"),
-                    ChatMessageUser(content="actually sent"),
-                ]
+    assert stages(seen) == ALL_STAGES
+    [react_list] = {id(messages): messages for messages in received}.values()
+    for s in seen:
+        assert s.step.agent_messages is react_list, type(s.step).__name__
+        assert s.messages is not None
+        assert HIDDEN not in [m.text for m in s.messages]
+        assert REMINDER not in [m.text for m in s.messages]
+    for step in of_stage(seen, BeforeGenerate) + of_stage(seen, AfterGenerate):
+        assert [m.text for m in step.input][0] == HIDDEN
+        assert [m.text for m in step.input][-1] == REMINDER
+    for step in of_stage(seen, AfterGenerate):
+        assert HIDDEN in [m.text for m in step.history]
 
-    seen: Steps = []
-    try:
-        log = run([d3_every_stage(seen)])
-    finally:
-        _registry.pop("hooks:d3_rewrites_the_input", None)
+
+def test_agent_messages_is_read_when_the_stage_runs() -> None:
+    seen: list[StageSeen] = []
+    received: list[list[ChatMessage]] = []
+    run_solver(control_style(hiding_policy(received)), seen, addition_then_submit())
+
+    first, after, before_call, after_call, *_ = seen
+    assert isinstance(after.step, AfterGenerate)
+    # the policy appends its reply after the generate returns
+    assert shape(after.messages) == shape(first.messages)
+    assert isinstance(before_call.step, BeforeToolCall)
+    assert after_call.messages == before_call.messages
+    assert before_call.messages is not None
+    assert before_call.messages[-1] is after.step.output.message
+    [_, second] = of_stage(seen, BeforeGenerate)
+    [*_, second_messages] = [s.messages for s in seen if s.step is second]
+    assert second_messages is not None
+    result = second_messages[-1]
+    assert isinstance(result, ChatMessageTool)
+    assert result.tool_call_id == before_call.step.call.id
+
+
+@agent
+def generates() -> Agent:
+    async def execute(state: AgentState) -> AgentState:
+        state.output = await get_model().generate(state.messages)
+        state.messages.append(state.output.message)
+        return state
+
+    return execute
+
+
+@agent
+def model_from_agent() -> Agent:
+    async def execute(state: AgentState) -> AgentState:
+        # the inner agent gets a fresh state built from the model input, as
+        # ControlArena's AgentToModel does
+        input = [ChatMessageSystem(content=HIDDEN), *state.messages]
+        inner = await generates()(AgentState(messages=list(input)))
+        state.output = inner.output
+        state.messages.append(inner.output.message)
+        return state
+
+    return execute
+
+
+@solver
+def awaits(agent: Agent, states: Any = None) -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        agent_state = AgentState(messages=state.messages)
+        returned = await agent(agent_state)
+        if states is not None:
+            states.append((agent_state, returned))
+        return state
+
+    return solve
+
+
+def test_a_nested_agents_own_state_is_not_read() -> None:
+    outer: list[AgentState] = []
+
+    @agent
+    def recording() -> Agent:
+        inner = model_from_agent()
+
+        async def execute(state: AgentState) -> AgentState:
+            outer.append(state)
+            return await inner(state)
+
+        return execute
+
+    seen: list[StageSeen] = []
+    run_solver(awaits(recording()), seen, "mockllm/model")
+
+    [state] = outer
+    assert stages(seen) == {BeforeGenerate, AfterGenerate}
+    for s in seen:
+        assert s.step.agent_messages is state.messages
+        assert shape(s.messages) == [("user", "What is 1 + 1?")]
+    [before] = of_stage(seen, BeforeGenerate)
+    assert before.input[0].text == HIDDEN
+
+
+@agent
+def returns_new_state(name: str, calls: Any) -> Agent:
+    async def execute(state: AgentState, tools: list[Tool]) -> AgentState:
+        output = await get_model().generate(state.messages, tools)
+        replaced = AgentState(messages=[*state.messages, output.message])
+        replaced.output = output
+        calls.append((name, state.messages, replaced.messages))
+        return replaced
+
+    return execute
+
+
+@agent
+def defer_to_trusted(untrusted: Agent, trusted: Agent) -> Agent:
+    async def execute(state: AgentState, tools: list[Tool]) -> AgentState:
+        await untrusted(state, tools)
+        return await trusted(state, tools)
+
+    return execute
+
+
+@agent
+def passes_through(inner: Agent) -> Agent:
+    async def execute(state: AgentState, tools: list[Tool]) -> AgentState:
+        return await inner(state, tools)
+
+    return execute
+
+
+def adds(x: int) -> ModelOutput:
+    return ModelOutput.for_tool_call(
+        "mockllm/model", tool_name="addition", tool_arguments={"x": x, "y": x}
+    )
+
+
+def last_call(messages: Sequence[ChatMessage] | None) -> ToolCall:
+    assert messages is not None
+    assistant = [m for m in messages if isinstance(m, ChatMessageAssistant)][-1]
+    assert assistant.tool_calls
+    return assistant.tool_calls[-1]
+
+
+@pytest.mark.parametrize("wrapped", [False, True])
+def test_a_protocols_discarded_policy_state_is_never_read(wrapped: bool) -> None:
+    # untrusted proposes 1 + 1 and then 9 + 9; both are discarded for trusted's
+    calls: list[tuple[str, list[ChatMessage], list[ChatMessage]]] = []
+    protocol = defer_to_trusted(
+        returns_new_state("untrusted", calls), returns_new_state("trusted", calls)
+    )
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            adds(1),
+            adds(2),
+            adds(9),
+            ModelOutput.for_tool_call(
+                "mockllm/model", tool_name="submit", tool_arguments={"answer": "4"}
+            ),
+        ],
+        memoize=False,
+    )
+    seen: list[StageSeen] = []
+    run_solver(
+        as_solver(
+            react(
+                model=passes_through(protocol) if wrapped else protocol,
+                tools=[addition()],
+            )
+        ),
+        seen,
+        model,
+    )
+
+    assert [name for name, _, _ in calls] == [
+        "untrusted",
+        "trusted",
+        "untrusted",
+        "trusted",
+    ]
+    rejected = [returned for name, _, returned in calls if name == "untrusted"]
+    kept = [returned for name, _, returned in calls if name == "trusted"]
+    # each policy's generate stages read the state react passed the protocol,
+    # never a state untrusted returned
+    befores = of_stage(seen, BeforeGenerate)
+    afters = of_stage(seen, AfterGenerate)
+    assert len(befores) == len(afters) == len(calls)
+    for (name, passed, _), before, after in zip(calls, befores, afters):
+        for step in (before, after):
+            assert step.agent_messages is passed, name
+            assert all(step.agent_messages is not r for r in rejected)
+    # react keeps the turns of the state the protocol returned
+    [add, submit] = of_stage(seen, BeforeToolCall)
+    assert add.agent_messages is kept[0]
+    assert last_call(add.agent_messages).id == add.call.id
+    assert last_call(add.agent_messages).arguments == {"x": 2, "y": 2}
+    assert calls[2][1] is kept[0]
+    assert submit.agent_messages is kept[1]
+    assert last_call(submit.agent_messages).function == "submit"
+
+
+def test_react_keeps_its_own_state_when_its_model_agent_returns_a_new_one() -> None:
+    calls: list[tuple[str, list[ChatMessage], list[ChatMessage]]] = []
+    states: list[tuple[AgentState, AgentState]] = []
+    seen: list[StageSeen] = []
+    run_solver(
+        awaits(
+            react(model=returns_new_state("policy", calls), tools=[addition()]), states
+        ),
+        seen,
+        addition_then_submit(),
+    )
+
+    [(entry, returned)] = states
+    assert returned is entry
+    (_, _, first), (_, second_entry, second) = calls
+    assert second_entry is first
+    add, submit = of_stage(seen, BeforeToolCall)
+    assert add.agent_messages is first
+    assert last_call(add.agent_messages).id == add.call.id
+    assert submit.agent_messages is second
+    assert last_call(submit.agent_messages).function == "submit"
+
+
+def test_a_factory_returning_react_shows_its_model_agents_new_turns() -> None:
+    calls: list[tuple[str, list[ChatMessage], list[ChatMessage]]] = []
+    states: list[tuple[AgentState, AgentState]] = []
+
+    @agent
+    def my_agent() -> Agent:
+        return react(model=returns_new_state("policy", calls), tools=[addition()])
+
+    # the factory returns react's wrapped agent rather than wrapping it again
+    assert not hasattr(vars(my_agent())["__wrapped__"], "__wrapped__")
+
+    seen: list[StageSeen] = []
+    run_solver(awaits(my_agent(), states), seen, addition_then_submit())
+
+    [(entry, returned)] = states
+    assert returned is entry
+    (_, _, first), _ = calls
+    add, _ = of_stage(seen, BeforeToolCall)
+    assert add.agent_messages is first
+    assert last_call(add.agent_messages).id == add.call.id
+
+
+def test_react_awaited_in_an_agents_body_shows_its_model_agents_new_turns() -> None:
+    calls: list[tuple[str, list[ChatMessage], list[ChatMessage]]] = []
+    states: list[tuple[AgentState, AgentState]] = []
+    inner = react(model=returns_new_state("policy", calls), tools=[addition()])
+
+    @agent
+    def awaits_react() -> Agent:
+        async def execute(state: AgentState) -> AgentState:
+            return await inner(state)
+
+        return execute
+
+    seen: list[StageSeen] = []
+    run_solver(awaits(awaits_react(), states), seen, addition_then_submit())
+
+    [(entry, returned)] = states
+    assert returned is entry
+    (_, _, first), _ = calls
+    add, _ = of_stage(seen, BeforeToolCall)
+    assert add.agent_messages is first
+    assert last_call(add.agent_messages).id == add.call.id
+
+
+def test_an_undecorated_model_agents_new_turns_are_shown() -> None:
+    calls: list[tuple[str, list[ChatMessage], list[ChatMessage]]] = []
+
+    async def undecorated(state: AgentState, tools: list[Tool]) -> AgentState:
+        output = await get_model().generate(state.messages, tools)
+        replaced = AgentState(messages=[*state.messages, output.message])
+        replaced.output = output
+        calls.append(("undecorated", state.messages, replaced.messages))
+        return replaced
+
+    seen: list[StageSeen] = []
+    run_solver(
+        as_solver(react(model=undecorated, tools=[addition()])),
+        seen,
+        addition_then_submit(),
+    )
+
+    (_, _, first), (_, second_entry, _) = calls
+    assert second_entry is first
+    add, _ = of_stage(seen, BeforeToolCall)
+    assert add.agent_messages is first
+    assert last_call(add.agent_messages).id == add.call.id
+
+
+def test_an_undecorated_scaffolds_curated_state_is_registered_by_its_policy() -> None:
+    # documented: the hidden instructions stay out only when the scaffold that
+    # owns the conversation is the outermost @agent agent
+    @solver
+    def undecorated_scaffold() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            curated = AgentState(
+                messages=[ChatMessageSystem(content=HIDDEN), *state.messages]
+            )
+            await generates()(curated)
+            return state
+
+        return solve
+
+    seen: list[StageSeen] = []
+    run_solver(undecorated_scaffold(), seen, "mockllm/model")
+
+    assert stages(seen) == {BeforeGenerate, AfterGenerate}
+    for s in seen:
+        assert s.messages is not None
+        assert s.messages[0].text == HIDDEN
+
+
+def test_a_solver_calling_generate_has_no_agent_messages() -> None:
+    seen: list[StageSeen] = []
+    log = run([d3_every_stage(seen)])
     assert log.status == "success", log.error
 
-    opening = [("system", "hook-inserted system"), ("user", "actually sent")]
-    first, *later = seen
-    # before the first turn is sent, the opening is the input the hooks get
-    assert isinstance(first, BeforeGenerate)
-    assert shape(first.agent_messages) == [("user", "What is 1 + 1?")]
-    assert later
-    for step in later:
-        assert shape(step.agent_messages)[:2] == opening, type(step).__name__
-    assert shape(of_stage(seen, AfterGenerate)[0].history) == opening
+    assert stages(seen) == ALL_STAGES
+    assert all(s.messages is None for s in seen)
+
+
+def test_an_undecorated_agent_loop_has_no_agent_messages() -> None:
+    async def loop(state: AgentState) -> AgentState:
+        tools = [addition()]
+        while True:
+            output = await get_model().generate(state.messages, tools)
+            state.messages.append(output.message)
+            if not output.message.tool_calls:
+                return state
+            result = await execute_tools(state.messages, tools)
+            state.messages.extend(result.messages)
+
+    @agent
+    def opens_a_span() -> Agent:
+        async def execute(state: AgentState) -> AgentState:
+            # its own conversation, so not the decorated agent's
+            async with span(name="loop", type="agent"):
+                await loop(AgentState(messages=list(state.messages)))
+            return state
+
+        return execute
+
+    @solver
+    def runs_it(in_span: bool) -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            agent_state = AgentState(messages=state.messages)
+            if in_span:
+                await opens_a_span()(agent_state)
+            else:
+                await loop(agent_state)
+            return state
+
+        return solve
+
+    for in_span in (False, True):
+        seen: list[StageSeen] = []
+        run_solver(runs_it(in_span), seen, agent_model())
+        assert stages(seen) == ALL_STAGES
+        assert all(s.messages is None for s in seen), in_span
+
+
+async def run_bridge_request(
+    seen: list[StageSeen],
+    *,
+    filter: Any = None,
+    response_filter: Any = None,
+    during: Any = None,
+    sink: Any = None,
+) -> tuple[AgentState, list[list[ChatMessage] | None]]:
+    """Run one bridge request inside a decorated agent, outside an eval."""
+    from inspect_ai._sentinel._agent_state import agent_messages
+    from inspect_ai._sentinel._conversation import current_conversation
+    from inspect_ai._sentinel._scope import sentinel_solving
+    from inspect_ai.agent._bridge.types import AgentBridge
+    from inspect_ai.agent._bridge.util import bridge_generate
+
+    read: list[list[ChatMessage] | None] = []
+
+    @agent
+    def bridged_turn() -> Agent:
+        async def execute(state: AgentState) -> AgentState:
+            bridge = AgentBridge(
+                state,
+                filter=filter,
+                response_filter=response_filter,
+                model_event_sink=sink,
+            )
+            request: list[ChatMessage] = [ChatMessageUser(content="rebuilt request")]
+            if during is None:
+                await bridge_generate(
+                    bridge,
+                    model,
+                    request,
+                    [],
+                    None,
+                    GenerateConfig(),
+                    requested_model=None,
+                )
+            else:
+                await during(
+                    bridge_generate(
+                        bridge,
+                        model,
+                        request,
+                        [],
+                        None,
+                        GenerateConfig(),
+                        requested_model=None,
+                    )
+                )
+            read.append(agent_messages(current_conversation()))
+            return state
+
+        return execute
+
+    init_transcript(Transcript())
+    state = AgentState(messages=[ChatMessageUser(content="the agent's own")])
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[ModelOutput.from_content("mockllm/model", "reply")] * 2,
+        memoize=False,
+    )
+    with active([d3_every_stage(seen)]), sentinel_solving():
+        await bridged_turn()(state)
+    return state, read
+
+
+async def model_filter(
+    model: Model,
+    input: list[ChatMessage],
+    tools: list[ToolInfo],
+    tool_choice: Any,
+    config: GenerateConfig,
+) -> ModelOutput:
+    return await model.generate(input, tools, tool_choice, config)
+
+
+async def generating_response_filter(
+    model: Model, output: ModelOutput, generate_input: Any
+) -> ModelOutput:
+    return await model.generate(generate_input.input)
+
+
+@pytest.mark.parametrize("generated_by", ["bridge", "filter", "response_filter"])
+async def test_a_bridge_requests_generates_have_no_agent_messages(
+    generated_by: str,
+) -> None:
+    seen: list[StageSeen] = []
+    state, read = await run_bridge_request(
+        seen,
+        filter=model_filter if generated_by == "filter" else None,
+        response_filter=(
+            generating_response_filter if generated_by == "response_filter" else None
+        ),
+    )
+
+    generates = 2 if generated_by == "response_filter" else 1
+    assert len(of_stage(seen, BeforeGenerate)) == generates
+    assert stages(seen) == {BeforeGenerate, AfterGenerate}
+    assert all(s.messages is None for s in seen)
+    for step in of_stage(seen, BeforeGenerate):
+        assert shape(step.input) == [("user", "rebuilt request")]
+    # the agent's own stages read its state again once the request is done
+    assert read == [state.messages]
+    assert read[0] is state.messages
+
+
+async def test_a_bridge_request_restores_the_agent_state_when_it_raises() -> None:
+    from inspect_ai._sentinel._agent_state import agent_messages
+    from inspect_ai._sentinel._conversation import current_conversation
+
+    during_filter: list[list[ChatMessage] | None] = []
+
+    async def raising_filter(*args: Any) -> ModelOutput:
+        during_filter.append(agent_messages(current_conversation()))
+        raise RuntimeError("filter failed")
+
+    async def expect_failure(request: Any) -> None:
+        with pytest.raises(RuntimeError, match="filter failed"):
+            await request
+
+    seen: list[StageSeen] = []
+    state, read = await run_bridge_request(
+        seen, filter=raising_filter, during=expect_failure
+    )
+    assert during_filter == [None]
+    assert read[0] is state.messages
+
+
+async def test_a_bridge_request_restores_the_agent_state_when_cancelled() -> None:
+    from inspect_ai._sentinel._agent_state import agent_messages
+    from inspect_ai._sentinel._conversation import current_conversation
+
+    during_filter: list[list[ChatMessage] | None] = []
+    scope = anyio.CancelScope()
+
+    async def cancelled_filter(*args: Any) -> ModelOutput:
+        during_filter.append(agent_messages(current_conversation()))
+        scope.cancel()
+        await anyio.sleep_forever()
+        raise AssertionError("not cancelled")
+
+    async def cancelling(request: Any) -> None:
+        with scope:
+            await request
+        assert scope.cancelled_caught
+
+    seen: list[StageSeen] = []
+    state, read = await run_bridge_request(
+        seen, filter=cancelled_filter, during=cancelling
+    )
+    assert during_filter == [None]
+    assert read[0] is state.messages
+
+
+@pytest.mark.parametrize("via_tool", [False, True])
+def test_each_sub_agent_reads_its_own_state(via_tool: bool) -> None:
+    helper_lists: list[list[ChatMessage]] = []
+    parent_lists: list[list[ChatMessage]] = []
+    helper_model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.for_tool_call(
+                "mockllm/model", tool_name="addition", tool_arguments={"x": 2, "y": 3}
+            ),
+            ModelOutput.from_content("mockllm/model", content="helper done"),
+        ],
+        memoize=False,
+    )
+    helper = react(
+        name="helper",
+        description="A helper agent.",
+        model=hiding_policy(helper_lists),
+        tools=[addition()],
+        submit=False,
+    )
+    parent_model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.for_tool_call(
+                "mockllm/model",
+                tool_name="helper" if via_tool else "transfer_to_helper",
+                tool_arguments={"input": "add 2 and 3"} if via_tool else {},
+            ),
+            ModelOutput.for_tool_call(
+                "mockllm/model", tool_name="submit", tool_arguments={"answer": "5"}
+            ),
+        ],
+        memoize=False,
+    )
+
+    @agent
+    def parent_policy() -> Agent:
+        async def execute(state: AgentState, tools: list[Tool]) -> AgentState:
+            parent_lists.append(state.messages)
+            state.output = await parent_model.generate(state.messages, tools)
+            state.messages.append(state.output.message)
+            return state
+
+        return execute
+
+    with_helper = [as_tool(helper)] if via_tool else [handoff(helper)]
+    seen: list[StageSeen] = []
+    run_solver(
+        as_solver(react(model=parent_policy(), tools=with_helper)),
+        seen,
+        helper_model,
+    )
+
+    [parent_list] = {id(m): m for m in parent_lists}.values()
+    [helper_list] = {id(m): m for m in helper_lists}.values()
+    conversations = {s.step.conversation for s in seen}
+    assert len(conversations) == 2
+    for s in seen:
+        assert s.step.agent_messages is parent_list or (
+            s.step.agent_messages is helper_list
+        )
+    helper_steps = [s for s in seen if s.step.agent_messages is helper_list]
+    assert {type(s.step) for s in helper_steps} == ALL_STAGES
+
+    # the parent's list does not change while the helper runs
+    def parent_call(stage: type[Any]) -> list[ChatMessage] | None:
+        [messages] = [
+            s.messages
+            for s in seen
+            if isinstance(s.step, stage)
+            and s.step.agent_messages is parent_list
+            and s.step.call.function != "submit"
+        ]
+        return messages
+
+    transfer = parent_call(BeforeToolCall)
+    returned = parent_call(AfterToolCall)
+    assert returned == transfer
+    assert ("assistant", "helper done") not in shape(returned)
+    assert ("assistant", "helper done") in shape(helper_list)
+
+
+async def test_the_registration_is_restored_when_an_agent_returns_or_raises() -> None:
+    from inspect_ai._sentinel._agent_state import agent_messages
+    from inspect_ai._sentinel._conversation import current_conversation
+
+    inside: list[list[ChatMessage] | None] = []
+
+    @agent
+    def looks(fail: bool) -> Agent:
+        async def execute(state: AgentState) -> AgentState:
+            inside.append(agent_messages(current_conversation()))
+            if fail:
+                raise RuntimeError("failed")
+            return state
+
+        return execute
+
+    init_transcript(Transcript())
+    with active([d3_every_stage([])]):
+        for fail in (False, True):
+            state = AgentState(messages=[ChatMessageUser(content="hi")])
+            try:
+                await looks(fail)(state)
+            except RuntimeError:
+                assert fail
+            assert inside[-1] is state.messages
+            assert agent_messages(current_conversation()) is None
+
+
+def test_with_compaction_agent_messages_is_the_whole_list() -> None:
+    from inspect_ai.model._compaction import CompactionTrim
+
+    @tool
+    def verbose() -> Tool:
+        async def execute() -> str:
+            """Return a long result."""
+            return "x" * 500
+
+        return execute
+
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            *[
+                ModelOutput.for_tool_call("mockllm/model", "verbose", {})
+                for _ in range(4)
+            ],
+            ModelOutput.for_tool_call("mockllm/model", "submit", {"answer": "done"}),
+        ],
+        memoize=False,
+    )
+    seen: list[StageSeen] = []
+    run_solver(
+        react(
+            tools=[verbose()],
+            compaction=CompactionTrim(threshold=500, preserve=0.5, memory=False),
+        ),
+        seen,
+        model,
+    )
+
+    *_, last = [s for s in seen if isinstance(s.step, BeforeGenerate)]
+    assert last.messages is not None
+    assert isinstance(last.step, BeforeGenerate)
+    assert len(last.step.input) < len(last.messages)
+    assert shape(last.messages)[1] == ("user", "What is 1 + 1?")
+    results = [m for m in last.messages if isinstance(m, ChatMessageTool)]
+    assert len(results) == 4
+
+
+def fresh(text: str) -> AgentState:
+    return AgentState(messages=[ChatMessageUser(content=text)])
+
+
+@contextmanager
+def watching(seen: list[StageSeen]) -> Iterator[None]:
+    from inspect_ai._sentinel._scope import sentinel_solving
+
+    init_transcript(Transcript())
+    with active([d3_every_stage(seen)]), sentinel_solving():
+        yield
+
+
+def mock_generate(messages: list[ChatMessage]) -> Any:
+    return get_model("mockllm/model").generate(messages)
+
+
+@agent
+def returns_new(text: str) -> Agent:
+    async def execute(state: AgentState) -> AgentState:
+        return AgentState(
+            messages=[*state.messages, ChatMessageAssistant(content=text)]
+        )
+
+    return execute
+
+
+def assert_shows_entry(seen: list[StageSeen], entry: AgentState) -> None:
+    assert stages(seen) == {BeforeGenerate, AfterGenerate}
+    for s in seen:
+        assert s.step.agent_messages is entry.messages
+        assert s.messages is not None
+        assert HIDDEN not in [m.text for m in s.messages]
+
+
+async def test_a_scaffold_that_discards_a_callees_state_shows_its_own() -> None:
+    seen: list[StageSeen] = []
+    entry = fresh("task")
+
+    @agent
+    def scaffold() -> Agent:
+        async def execute(state: AgentState) -> AgentState:
+            for turn in range(2):
+                await returns_new(f"untrusted {turn} (rejected)")(state)
+                state = await returns_new(f"trusted {turn}")(state)
+                await mock_generate(state.messages)
+            return state
+
+        return execute
+
+    with watching(seen):
+        await scaffold()(entry)
+
+    assert len(of_stage(seen, BeforeGenerate)) == 2
+    assert_shows_entry(seen, entry)
+    assert all(shape(s.messages) == [("user", "task")] for s in seen)
+
+
+async def test_a_scaffold_keeping_a_later_siblings_state_shows_its_own() -> None:
+    seen: list[StageSeen] = []
+    entry = fresh("task")
+    first_done = anyio.Event()
+
+    @agent
+    def first() -> Agent:
+        async def execute(state: AgentState) -> AgentState:
+            return await returns_new("first (discarded)")(state)
+
+        return execute
+
+    @agent
+    def second() -> Agent:
+        async def execute(state: AgentState) -> AgentState:
+            await first_done.wait()
+            return await returns_new("second (kept)")(state)
+
+        return execute
+
+    @agent
+    def scaffold() -> Agent:
+        async def execute(state: AgentState) -> AgentState:
+            results: dict[str, AgentState] = {}
+
+            async def run_first() -> None:
+                results["first"] = await first()(state)
+                first_done.set()
+
+            async def run_second() -> None:
+                results["second"] = await second()(state)
+
+            async with anyio.create_task_group() as tg:
+                tg.start_soon(run_second)
+                tg.start_soon(run_first)
+            state = results["second"]
+            await mock_generate(state.messages)
+            return state
+
+        return execute
+
+    with watching(seen):
+        await scaffold()(entry)
+
+    assert len(of_stage(seen, BeforeGenerate)) == 1
+    assert_shows_entry(seen, entry)
+    assert all(shape(s.messages) == [("user", "task")] for s in seen)
+
+
+async def test_a_policys_curated_return_is_not_shown() -> None:
+    seen: list[StageSeen] = []
+    entry = fresh("task")
+
+    @agent
+    def policy() -> Agent:
+        async def execute(state: AgentState) -> AgentState:
+            curated = AgentState(
+                messages=[ChatMessageSystem(content=HIDDEN), *state.messages]
+            )
+            output = await mock_generate(curated.messages)
+            curated.messages.append(output.message)
+            return curated
+
+        return execute
+
+    @agent
+    def scaffold() -> Agent:
+        async def execute(state: AgentState) -> AgentState:
+            result = await policy()(state)
+            state.messages.append(result.messages[-1])
+            await mock_generate(state.messages)
+            return state
+
+        return execute
+
+    with watching(seen):
+        await scaffold()(entry)
+
+    policy_generate, scaffold_generate = of_stage(seen, BeforeGenerate)
+    assert policy_generate.input[0].text == HIDDEN
+    assert HIDDEN not in [m.text for m in scaffold_generate.input]
+    assert_shows_entry(seen, entry)
+    assert [m.role for m in seen[-1].messages or []] == ["user", "assistant"]
+
+
+@pytest.mark.parametrize("ending", ["returns", "raises", "cancelled"])
+async def test_a_task_that_outlives_its_agent_reads_no_state(ending: str) -> None:
+    import gc
+    import weakref
+
+    from inspect_ai._sentinel._agent_state import agent_messages
+    from inspect_ai._sentinel._conversation import current_conversation
+
+    seen: list[StageSeen] = []
+    started, release, done = anyio.Event(), anyio.Event(), anyio.Event()
+    refs: list[weakref.ref[AgentState]] = []
+    own: list[bool] = []
+    scope = anyio.CancelScope()
+
+    @agent
+    def later() -> Agent:
+        async def execute(state: AgentState) -> AgentState:
+            own.append(agent_messages(current_conversation()) is state.messages)
+            return state
+
+        return execute
+
+    async def outlives() -> None:
+        started.set()
+        await release.wait()
+        await mock_generate([ChatMessageUser(content="plain traffic")])
+        await later()(fresh("its own state"))
+        done.set()
+
+    with watching(seen):
+        async with anyio.create_task_group() as tg:
+
+            @agent
+            def parent() -> Agent:
+                async def execute(state: AgentState) -> AgentState:
+                    refs.append(weakref.ref(state))
+                    tg.start_soon(outlives)
+                    await started.wait()
+                    if ending == "raises":
+                        raise RuntimeError("agent failed")
+                    if ending == "cancelled":
+                        scope.cancel()
+                        await anyio.sleep_forever()
+                    return state
+
+                return execute
+
+            with scope:
+                try:
+                    await parent()(fresh("the exited agent's state"))
+                except RuntimeError:
+                    assert ending == "raises"
+            assert scope.cancelled_caught == (ending == "cancelled")
+            assert agent_messages(current_conversation()) is None
+            # the event loop holds a cancellation until the task next suspends
+            await anyio.lowlevel.checkpoint()
+            gc.collect()
+            # the task still runs, and no longer holds the agent's state
+            assert refs[0]() is None
+            release.set()
+            await done.wait()
+
+    assert stages(seen) == {BeforeGenerate, AfterGenerate}
+    assert all(s.messages is None for s in seen)
+    assert own == [True]
+
+
+async def test_a_task_that_outlives_a_bridge_request_can_register() -> None:
+    from inspect_ai._sentinel._agent_state import agent_messages, bridge_request
+    from inspect_ai._sentinel._conversation import current_conversation
+
+    release, done = anyio.Event(), anyio.Event()
+    own: list[bool] = []
+
+    @agent
+    def later() -> Agent:
+        async def execute(state: AgentState) -> AgentState:
+            own.append(agent_messages(current_conversation()) is state.messages)
+            return state
+
+        return execute
+
+    async def outlives() -> None:
+        await release.wait()
+        await later()(fresh("its own state"))
+        done.set()
+
+    with watching([]):
+        async with anyio.create_task_group() as tg:
+            with bridge_request():
+                tg.start_soon(outlives)
+            release.set()
+            await done.wait()
+
+    assert own == [True]
+
+
+async def test_a_new_function_wrapping_a_decorated_agent_is_wrapped_too() -> None:
+    from functools import wraps
+
+    seen: list[StageSeen] = []
+
+    @agent
+    def policy() -> Agent:
+        async def execute(state: AgentState) -> AgentState:
+            await mock_generate(state.messages)
+            return state
+
+        return execute
+
+    @agent
+    def scaffold() -> Agent:
+        inner = policy()
+
+        # functools.wraps copies the decorated agent's attributes to a new function
+        @wraps(inner)
+        async def execute(state: AgentState) -> AgentState:
+            await inner(
+                AgentState(
+                    messages=[ChatMessageSystem(content=HIDDEN), *state.messages]
+                )
+            )
+            return state
+
+        return execute
+
+    curated = fresh("What is 1 + 1?")
+    with watching(seen):
+        await scaffold()(curated)
+
+    assert stages(seen) == {BeforeGenerate, AfterGenerate}
+    for s in seen:
+        assert s.step.agent_messages is curated.messages
+        assert s.messages is not None
+        assert HIDDEN not in [m.text for m in s.messages]
+    [before] = of_stage(seen, BeforeGenerate)
+    assert before.input[0].text == HIDDEN
 
 
 # ModelEvent.origin, the conversation from the span tree, and the generate
@@ -4459,7 +5152,7 @@ _ORIGIN_CASES: dict[str, dict[str | None, int]] = {
 @pytest.mark.parametrize("watched", [False, True])
 @pytest.mark.parametrize("name", list(_ORIGIN_CASES))
 def test_each_model_call_records_its_origin(name: str, watched: bool) -> None:
-    seen: Steps = []
+    seen: list[StageSeen] = []
     log = run_origin_case(name, [d3_every_stage(seen)] if watched else None)
     assert log.status == "success", log.error
     assert origin_counts(log) == _ORIGIN_CASES[name]
@@ -4535,8 +5228,8 @@ def test_a_log_written_before_origin_loads_with_none() -> None:
 
 @contextmanager
 def live_conversations() -> Iterator[dict[str, str]]:
-    """The conversation `live_conversation()` gave each model call as it was recorded, by event uuid."""
-    from inspect_ai._sentinel._conversation import live_conversation
+    """The conversation `current_conversation()` gave each model call as it was recorded, by event uuid."""
+    from inspect_ai._sentinel._conversation import current_conversation
 
     live: dict[str, str] = {}
     original = Model._record_model_interaction
@@ -4544,7 +5237,7 @@ def live_conversations() -> Iterator[dict[str, str]]:
     def record(self: Model, *args: Any, **kwargs: Any) -> Any:
         complete, event = original(self, *args, **kwargs)
         assert isinstance(event, ModelEvent) and event.uuid is not None
-        live[event.uuid] = live_conversation()
+        live[event.uuid] = current_conversation()
         return complete, event
 
     with pytest.MonkeyPatch.context() as patch:
@@ -4650,7 +5343,7 @@ def test_the_span_tree_gives_each_call_its_live_conversation(name: str) -> None:
 async def test_the_span_tree_follows_a_checkpoint_rotation_seen_by_an_earlier_task() -> (
     None
 ):
-    from inspect_ai._sentinel._conversation import live_conversation
+    from inspect_ai._sentinel._conversation import current_conversation
     from inspect_ai.util._span import SpanRotationScope, span
 
     # as the sandbox bridge's service tasks, spawned before a checkpoint fires,
@@ -4667,7 +5360,7 @@ async def test_the_span_tree_follows_a_checkpoint_rotation_seen_by_an_earlier_ta
             if isinstance(e, ModelEvent) and e.output.completion == output.completion
         ][-1:]
         assert event.uuid is not None
-        live[event.uuid] = live_conversation()
+        live[event.uuid] = current_conversation()
 
     async with span("agent", type="agent"):
         checkpoints = SpanRotationScope(type="checkpoint")
@@ -4711,6 +5404,107 @@ def test_a_span_tree_cycle_is_an_error() -> None:
     conversations.add(SpanBeginEvent(id="b", parent_id="a", name="b"))
     with pytest.raises(ValueError, match="cycle"):
         conversations.conversation("a")
+
+
+class _CountingSpans(dict[str, Any]):
+    def __init__(self) -> None:
+        super().__init__()
+        self.gets = 0
+
+    def get(self, key: str, default: Any = None) -> Any:
+        self.gets += 1
+        return super().get(key, default)
+
+
+def chain_lookup_work(n: int, late_root: bool) -> int:
+    """Index reads to add a chain of `n` spans below an agent root, looking up each as it is added."""
+    from inspect_ai.util._span import AgentSpans
+
+    spans = AgentSpans()
+    counted = _CountingSpans()
+    spans._spans = counted
+    root = SpanBeginEvent(id="root", type="agent", name="root")
+    if not late_root:
+        spans.add(root)
+    for i in range(n):
+        parent = str(i - 1) if i else "root"
+        spans.add(SpanBeginEvent(id=str(i), parent_id=parent, name="child"))
+        assert spans.agent_span(str(i)) == (None if late_root else "root")
+    if late_root:
+        spans.add(root)
+        assert spans.agent_span(str(n - 1)) == "root"
+        assert spans.agent_span("0") == "root"
+    return counted.gets
+
+
+@pytest.mark.parametrize("late_root", [False, True], ids=["known-root", "late-root"])
+def test_agent_span_lookups_are_linear_in_the_spans_added(late_root: bool) -> None:
+    n = 2_000
+    work = chain_lookup_work(n, late_root)
+    assert work <= n + 3
+    assert chain_lookup_work(2 * n, late_root) <= 2 * work
+
+
+def test_a_cycle_closed_after_a_lookup_is_an_error() -> None:
+    from inspect_ai._sentinel._conversation import SpanConversations
+
+    conversations = SpanConversations("sample")
+    conversations.add(SpanBeginEvent(id="a", parent_id="b", name="a"))
+    assert conversations.conversation("a") == "sample"
+    conversations.add(SpanBeginEvent(id="b", parent_id="a", name="b"))
+    for _ in range(2):
+        with pytest.raises(ValueError, match="cycle"):
+            conversations.conversation("a")
+
+
+def naive_agent_span(
+    spans: dict[str, tuple[str | None, bool]], span_id: str
+) -> str | None:
+    seen: set[str] = set()
+    current: str | None = span_id
+    while current is not None:
+        if current in seen:
+            raise ValueError("cycle")
+        seen.add(current)
+        if current not in spans:
+            return None
+        parent, is_agent = spans[current]
+        if is_agent:
+            return current
+        current = parent
+    return None
+
+
+def test_agent_spans_match_a_full_walk_whatever_the_order_spans_are_added() -> None:
+    from inspect_ai.util._span import AgentSpans
+
+    rng = random.Random(5990)
+    for _ in range(300):
+        size = rng.randint(1, 12)
+        ids = [f"s{i}" for i in range(size)]
+        tree = {id: (rng.choice([None, *ids]), rng.random() < 0.3) for id in ids}
+        index = AgentSpans()
+        added: dict[str, tuple[str | None, bool]] = {}
+        for id in rng.sample(ids, size):
+            parent, is_agent = tree[id]
+            index.add(
+                SpanBeginEvent(
+                    id=id, parent_id=parent, type="agent" if is_agent else None, name=id
+                )
+            )
+            added[id] = tree[id]
+            for looked_up in rng.sample(list(added), min(3, len(added))):
+                try:
+                    expected: str | None | type[ValueError] = naive_agent_span(
+                        added, looked_up
+                    )
+                except ValueError:
+                    expected = ValueError
+                try:
+                    found: str | None | type[ValueError] = index.agent_span(looked_up)
+                except ValueError:
+                    found = ValueError
+                assert found == expected, (tree, list(added), looked_up)
 
 
 # every live step.history is the fold of the inputs of its conversation's
@@ -5093,192 +5887,9 @@ def test_a_message_edited_in_place_in_the_prefix_is_sent_again() -> None:
     assert first.input[1].text == "Final question."
 
 
-def final_messages(log: EvalLog) -> list[tuple[str, str]]:
-    assert log.samples
-    return shape(log.samples[0].messages)
-
-
-def test_a_react_refusal_it_retries_stays_in_agent_messages() -> None:
-    seen: Steps = []
-    model = get_model(
-        "mockllm/model",
-        custom_outputs=[
-            ModelOutput.from_content(
-                "mockllm/model", "I refuse", stop_reason="content_filter"
-            ),
-            ModelOutput.for_tool_call(
-                "mockllm/model", tool_name="submit", tool_arguments={"answer": "2"}
-            ),
-        ],
-        memoize=False,
-    )
-    task = Task(
-        dataset=[Sample(input="What is 1 + 1?")],
-        solver=as_solver(react(tools=[addition()], retry_refusals=2)),
-        sentinel=[d3_every_stage(seen)],
-    )
-    log = eval(task, model=model)[0]
-    assert log.status == "success", log.error
-
-    # documented: an output returned to the agent is recorded, even when react
-    # discards it and generates again
-    *_, last = of_stage(seen, AfterGenerate)
-    assert shape(last.agent_messages)[-1] == ("assistant", "I refuse")
-    assert ("assistant", "I refuse") not in final_messages(log)
-
-
-def test_a_react_overflow_turn_stays_in_agent_messages() -> None:
-    seen: Steps = []
-
-    async def drop_the_last_turn(messages: list[ChatMessage]) -> list[ChatMessage]:
-        return messages[:2]
-
-    model = get_model(
-        "mockllm/model",
-        custom_outputs=[
-            ModelOutput.for_tool_call(
-                "mockllm/model", tool_name="addition", tool_arguments={"x": 1, "y": 1}
-            ),
-            ModelOutput.from_content(
-                "mockllm/model", "too long", stop_reason="model_length"
-            ),
-            ModelOutput.for_tool_call(
-                "mockllm/model", tool_name="submit", tool_arguments={"answer": "2"}
-            ),
-        ],
-        memoize=False,
-    )
-    task = Task(
-        dataset=[Sample(input="What is 1 + 1?")],
-        solver=as_solver(react(tools=[addition()], truncation=drop_the_last_turn)),
-        sentinel=[d3_every_stage(seen)],
-    )
-    log = eval(task, model=model)[0]
-    assert log.status == "success", log.error
-
-    # documented: the turn react's overflow recovery removes stays recorded,
-    # as do the turns its filter dropped
-    *_, last = of_stage(seen, BeforeGenerate)
-    assert shape(last.agent_messages)[-3:] == [
-        ("assistant", "tool call for tool addition"),
-        ("tool", "2"),
-        ("assistant", "too long"),
-    ]
-    assert ("assistant", "too long") not in final_messages(log)
-
-
-def run_solver(solve: Solver, seen: Steps, model: Any) -> EvalLog:
-    task = Task(
-        dataset=[Sample(input="add")], solver=solve, sentinel=[d3_every_stage(seen)]
-    )
-    log = eval(task, model=model)[0]
-    assert log.status == "success", log.error
-    return log
-
-
-def test_a_tool_stage_shows_the_record_through_its_assistant_message() -> None:
-    @solver
-    def generate_twice_run_the_first() -> Solver:
-        async def solve(state: TaskState, generate: Generate) -> TaskState:
-            model = get_model()
-            tools = [addition()]
-            input: list[ChatMessage] = [ChatMessageUser(content="add")]
-            first = await model.generate(input, tools)
-            await model.generate(input, tools)
-            await execute_tools([*input, first.message], tools)
-            return state
-
-        return solve
-
-    seen: Steps = []
-    run_solver(generate_twice_run_the_first(), seen, agent_model(turns=2))
-
-    first, second = [step.output.message for step in of_stage(seen, AfterGenerate)]
-    for step in of_stage(seen, BeforeToolCall) + of_stage(seen, AfterToolCall):
-        assert step.agent_messages is not None
-        assert step.agent_messages[-1] is first
-        assert not any(m is second for m in step.agent_messages)
-
-
-def test_a_tool_stage_for_a_hand_built_message_shows_the_whole_record() -> None:
-    @solver
-    def runs_a_hand_built_call() -> Solver:
-        async def solve(state: TaskState, generate: Generate) -> TaskState:
-            model = get_model()
-            tools = [addition()]
-            input: list[ChatMessage] = [ChatMessageUser(content="add")]
-            await model.generate(input, tools)
-            built = ChatMessageAssistant(content="", tool_calls=[addition_call()])
-            await execute_tools([*input, built], tools)
-            return state
-
-        return solve
-
-    seen: Steps = []
-    run_solver(runs_a_hand_built_call(), seen, agent_model(turns=1))
-
-    [output] = [step.output.message for step in of_stage(seen, AfterGenerate)]
-    [before_call] = of_stage(seen, BeforeToolCall)
-    assert before_call.call.id == "call"
-    assert shape(before_call.agent_messages) == [
-        ("user", "add"),
-        ("assistant", "tool call for tool addition"),
-    ]
-    assert before_call.agent_messages[-1] is output
-
-
-@tool
-def runs_its_own_agent() -> Tool:
-    async def execute() -> str:
-        """Run a model and its tool call inside the tool."""
-        inner = get_model(
-            "mockllm/model",
-            custom_outputs=[
-                ModelOutput.for_tool_call(
-                    "mockllm/model",
-                    tool_name="addition",
-                    tool_arguments={"x": 5, "y": 5},
-                )
-            ],
-            memoize=False,
-        )
-        input: list[ChatMessage] = [ChatMessageUser(content="inner")]
-        output = await inner.generate(input, [addition()])
-        result = await execute_tools([*input, output.message], [addition()])
-        return result.messages[0].text
-
-    return execute
-
-
-def test_a_tool_bodys_own_generates_and_tool_calls_are_not_recorded() -> None:
-    seen: Steps = []
-    model = get_model(
-        "mockllm/model",
-        custom_outputs=[
-            ModelOutput.for_tool_call(
-                "mockllm/model", tool_name="runs_its_own_agent", tool_arguments={}
-            ),
-            ModelOutput.from_content("mockllm/model", "done"),
-        ],
-        memoize=False,
-    )
-    task = Task(
-        dataset=[Sample(input="go")],
-        solver=[use_tools(runs_its_own_agent(), addition()), generate()],
-        sentinel=[d3_every_stage(seen)],
-    )
-    log = eval(task, model=model)[0]
-    assert log.status == "success", log.error
-
-    *_, last = of_stage(seen, BeforeGenerate)
-    assert shape(last.agent_messages) == [
-        ("user", "go"),
-        ("assistant", "tool call for tool runs_its_own_agent"),
-        ("tool", "10"),
-    ]
-
-
-# attributes each call to a sub-agent span, as a bridged CLI's event consumer does
+# a model event sink, as a bridged CLI's event consumer is: one without
+# on_start moves each call into a sub-agent span in on_pending; one with
+# on_start names the span the generate runs under
 class _SubAgentSink:
     def on_pending(self, event: Any) -> None:
         event.span_id = "sub-agent"
@@ -5288,23 +5899,211 @@ class _SubAgentSink:
         transcript()._event_updated(event)
 
 
+class _StartingSink:
+    def __init__(
+        self,
+        span_id: str | Callable[[list[ChatMessage]], str | None] | None,
+        *,
+        move_to: str | None = None,
+        raises: bool = False,
+    ) -> None:
+        self.span_id = span_id
+        self.move_to = move_to
+        self.raises = raises
+        self.started: list[str] = []
+        self.pending: list[ModelEvent] = []
+
+    def on_start(self, input: list[ChatMessage]) -> str | None:
+        if self.raises:
+            raise RuntimeError("The sink could not start the generate.")
+        self.started.append(input[-1].text)
+        return self.span_id(input) if callable(self.span_id) else self.span_id
+
+    def on_pending(self, event: ModelEvent) -> None:
+        self.pending.append(event)
+        if self.move_to is not None:
+            event.span_id = self.move_to
+        transcript()._event(event)
+
+    def on_complete(self, event: ModelEvent) -> None:
+        transcript()._event_updated(event)
+
+
 @solver
-def d3_attributes_a_call_to_a_sub_agent() -> Solver:
+def d3_attributes_a_call_to_a_sub_agent(
+    sink: Any = None,
+    calls: Sequence[str] = ("Sub-agent turn.",),
+    *,
+    parallel: bool = False,
+    retry: bool = False,
+    cache: bool = False,
+) -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        from inspect_ai._util._async import tg_collect
+        from inspect_ai.model._model import use_model_event_sink
+        from inspect_ai.util._span import span
+
+        async def call(text: str) -> ModelOutput:
+            return await get_model().generate(text, cache=cache)
+
+        async with span("outer", type="agent", id="outer"):
+            await get_model().generate("Main turn.")
+            begins = [
+                SpanBeginEvent(
+                    id="sub-agent", parent_id="outer", type="agent", name="sub"
+                ),
+                SpanBeginEvent(
+                    id="sub-tool", parent_id="sub-agent", type="tool", name="t"
+                ),
+                SpanBeginEvent(
+                    id="sub-agent-2", parent_id="outer", type="agent", name="sub 2"
+                ),
+            ]
+            for begin in begins:
+                transcript()._event(begin)
+            with use_model_event_sink(sink or _SubAgentSink()):
+                if retry:
+                    _RetryingMockLLM.failures = 1
+                if parallel:
+                    outputs = await tg_collect([partial(call, text) for text in calls])
+                else:
+                    outputs = [await call(text) for text in calls]
+            for begin in reversed(begins):
+                transcript()._event(SpanEndEvent(id=begin.id))
+        state.output = outputs[-1]
+        return state
+
+    return solve
+
+
+class _SinkRun(NamedTuple):
+    log: EvalLog
+    seen: dict[str, tuple[str, list[ChatMessage]]]
+    live: dict[str, str]
+    from_spans: dict[str, str]
+    events: list[Event]
+
+
+def run_sink(
+    solver: Solver, sentinel: Any = None, model: str = "mockllm/model"
+) -> _SinkRun:
+    seen: dict[str, tuple[str, list[ChatMessage]]] = {}
+    with live_conversations() as live:
+        log = eval(
+            Task(
+                dataset=[Sample(input="Hi.")],
+                solver=solver,
+                sentinel=sentinel if sentinel is not None else [d3_probe(seen)],
+            ),
+            model=model,
+        )[0]
+    assert log.location
+    [sample] = read_eval_log(log.location).samples or []
+    events = list(sample.events)
+    return _SinkRun(
+        log, seen, live, span_tree_conversations(events, sample.uuid or ""), events
+    )
+
+
+def sentinel_span_parents(events: list[Event], step_id: str) -> set[str | None]:
+    """The parent of each sentinel span holding a SentinelEvent with `step_id`."""
+    spans = {e.id: e for e in events if isinstance(e, SpanBeginEvent)}
+    parents: set[str | None] = set()
+    for event in events:
+        if isinstance(event, SentinelEvent) and event.step_id == step_id:
+            span_id = event.span_id
+            while span_id is not None and spans[span_id].type != "sentinel":
+                span_id = spans[span_id].parent_id
+            assert span_id is not None
+            parents.add(spans[span_id].parent_id)
+    return parents
+
+
+def test_a_sink_without_on_start_keeps_live_in_the_generating_task_s_span() -> None:
+    # the documented difference: the log keeps the span on_pending gave the
+    # call, while live follows the span current when generate() was called
+    run = run_sink(d3_attributes_a_call_to_a_sub_agent())
+    assert run.log.status == "success", run.log.error
+    main, sub = agent_events_by_origin(run.log)
+    assert main.uuid is not None and sub.uuid is not None
+    assert run.live[sub.uuid] == run.live[main.uuid] == run.from_spans[main.uuid]
+    assert run.from_spans[sub.uuid] == "sub-agent"
+
+    # live history is the fold by live conversation, not by the span tree
+    assert_history_is_the_fold_of_the_log(run.log, run.seen, run.live)
+    with pytest.raises(AssertionError):
+        assert_history_is_the_fold_of_the_log(run.log, run.seen)
+
+
+def test_an_on_start_sink_s_call_runs_in_its_span_live_and_in_the_log() -> None:
+    sink = _StartingSink("sub-agent")
+    run = run_sink(d3_attributes_a_call_to_a_sub_agent(sink))
+    assert run.log.status == "success", run.log.error
+    main, sub = agent_events_by_origin(run.log)
+    assert main.uuid is not None and sub.uuid is not None
+    assert sub.span_id == "sub-agent"
+    assert run.live == run.from_spans
+    assert run.live[sub.uuid] == "sub-agent" != run.live[main.uuid]
+    assert_history_is_the_fold_of_the_log(run.log, run.seen)
+
+    # the generate's sentinel steps are the sub-agent's, in its span
+    [*_, inputs, outputs] = sentinel_events(run.log)
+    assert inputs.step_id == outputs.step_id == sub.uuid
+    assert inputs.conversation == outputs.conversation == "sub-agent"
+    assert sentinel_span_parents(run.events, sub.uuid) == {"sub-agent"}
+    assert sink.started == ["Sub-agent turn."]
+
+
+def test_an_on_start_sink_that_moves_the_event_keeps_live_in_the_on_start_span() -> (
+    None
+):
+    # the documented difference: the log keeps on_pending's placement, live
+    # follows on_start
+    run = run_sink(
+        d3_attributes_a_call_to_a_sub_agent(_StartingSink("sub-agent", move_to="outer"))
+    )
+    assert run.log.status == "success", run.log.error
+    main, sub = agent_events_by_origin(run.log)
+    assert main.uuid is not None and sub.uuid is not None
+    assert sub.span_id == "outer"
+    assert run.live[sub.uuid] == "sub-agent"
+    assert run.from_spans[sub.uuid] == run.from_spans[main.uuid] == "outer"
+    [*_, inputs, _] = sentinel_events(run.log)
+    assert inputs.conversation == "sub-agent"
+    assert_history_is_the_fold_of_the_log(run.log, run.seen, run.live)
+    with pytest.raises(AssertionError):
+        assert_history_is_the_fold_of_the_log(run.log, run.seen)
+
+
+@pytest.mark.parametrize("span_id", [None, "outer"])
+def test_an_on_start_sink_naming_no_other_span_changes_nothing(
+    span_id: str | None,
+) -> None:
+    run = run_sink(d3_attributes_a_call_to_a_sub_agent(_StartingSink(span_id)))
+    assert run.log.status == "success", run.log.error
+    main, sub = agent_events_by_origin(run.log)
+    assert main.uuid is not None and sub.uuid is not None
+    assert sub.span_id == "outer"
+    assert run.live == run.from_spans
+    assert run.live[sub.uuid] == run.live[main.uuid] == "outer"
+    assert_history_is_the_fold_of_the_log(run.log, run.seen)
+
+
+@solver
+def d3_generates_under_a_parent_span(sink: Any) -> Solver:
     async def solve(state: TaskState, generate: Generate) -> TaskState:
         from inspect_ai.model._model import use_model_event_sink
-        from inspect_ai.util._span import current_span_id, span
+        from inspect_ai.util._span import parent_span, span
 
-        async with span("outer", type="agent"):
+        async with span("outer", type="agent", id="outer"):
             await get_model().generate("Main turn.")
             transcript()._event(
                 SpanBeginEvent(
-                    id="sub-agent",
-                    parent_id=current_span_id(),
-                    type="agent",
-                    name="sub",
+                    id="sub-agent", parent_id="outer", type="agent", name="sub"
                 )
             )
-            with use_model_event_sink(_SubAgentSink()):
+            # the current span is the sub-agent's, the current agent span the outer's
+            with parent_span("sub-agent"), use_model_event_sink(sink):
                 state.output = await get_model().generate("Sub-agent turn.")
             transcript()._event(SpanEndEvent(id="sub-agent"))
         return state
@@ -5312,30 +6111,420 @@ def d3_attributes_a_call_to_a_sub_agent() -> Solver:
     return solve
 
 
-def test_a_sink_attributed_call_s_span_tree_conversation_differs_from_live() -> None:
-    # a known difference, pending a decision: live puts a call in the
-    # generating task's agent span, the span tree in the span the event sink
-    # gave it
-    seen: dict[str, tuple[str, list[ChatMessage]]] = {}
-    with live_conversations() as live:
-        log = eval(
-            Task(
-                dataset=[Sample(input="Hi.")],
-                solver=d3_attributes_a_call_to_a_sub_agent(),
-                sentinel=[d3_probe(seen)],
-            ),
-            model="mockllm/model",
-        )[0]
-    assert log.status == "success", log.error
-    assert log.location
-    [sample] = read_eval_log(log.location).samples or []
-    from_spans = span_tree_conversations(sample.events, sample.uuid or "")
-    main, sub = agent_events_by_origin(log)
-    assert main.uuid is not None and sub.uuid is not None
-    assert live[sub.uuid] == live[main.uuid] == from_spans[main.uuid]
-    assert from_spans[sub.uuid] == "sub-agent"
+def _names_the_current_span(input: list[ChatMessage]) -> str | None:
+    from inspect_ai.util._span import current_span_id
 
-    # live history is the fold by live conversation, not by the span tree
-    assert_history_is_the_fold_of_the_log(log, seen, live)
-    with pytest.raises(AssertionError):
-        assert_history_is_the_fold_of_the_log(log, seen)
+    return current_span_id()
+
+
+# on_start's None is the current span, as is naming it
+CURRENT_SPAN_RESULTS = {"none": None, "current": _names_the_current_span}
+
+
+@pytest.mark.parametrize("result", CURRENT_SPAN_RESULTS)
+def test_an_on_start_sink_naming_the_current_span_gives_that_span_s_agent(
+    result: str,
+) -> None:
+    run = run_sink(
+        d3_generates_under_a_parent_span(_StartingSink(CURRENT_SPAN_RESULTS[result]))
+    )
+    assert run.log.status == "success", run.log.error
+    main, sub = agent_events_by_origin(run.log)
+    assert main.uuid is not None and sub.uuid is not None
+    assert sub.span_id == "sub-agent"
+    assert run.live == run.from_spans
+    assert run.live[sub.uuid] == "sub-agent" != run.live[main.uuid]
+    assert_history_is_the_fold_of_the_log(run.log, run.seen)
+
+
+def test_an_on_start_span_that_is_not_an_agent_s_gives_the_enclosing_agent() -> None:
+    run = run_sink(d3_attributes_a_call_to_a_sub_agent(_StartingSink("sub-tool")))
+    assert run.log.status == "success", run.log.error
+    _, sub = agent_events_by_origin(run.log)
+    assert sub.uuid is not None
+    assert sub.span_id == "sub-tool"
+    assert run.live == run.from_spans
+    assert run.live[sub.uuid] == "sub-agent"
+    assert_history_is_the_fold_of_the_log(run.log, run.seen)
+
+
+class _LateBeginSink(_StartingSink):
+    # names a span whose begin it records only once the call is pending
+    def on_pending(self, event: ModelEvent) -> None:
+        transcript()._event(
+            SpanBeginEvent(id="late", parent_id="outer", type="agent", name="late")
+        )
+        super().on_pending(event)
+
+
+@pytest.mark.parametrize(
+    "sink,error",
+    [
+        (_StartingSink("unknown"), "'unknown' was not begun in this transcript"),
+        (_LateBeginSink("late"), "'late' was not begun in this transcript"),
+        (_StartingSink(lambda input: ""), "must return None or a span id, not ''"),
+        (_StartingSink(lambda input: cast(str, 3)), "must return None or a span id"),
+    ],
+    ids=["unknown", "late-begin", "empty", "not-a-str"],
+)
+def test_an_on_start_span_not_yet_begun_or_not_a_span_id_fails_the_generate(
+    sink: _StartingSink, error: str
+) -> None:
+    run = run_sink(d3_attributes_a_call_to_a_sub_agent(sink))
+    assert run.log.status == "error"
+    assert run.log.error is not None
+    assert error in run.log.error.message
+    # the generate failed before any of its events
+    [main] = agent_events_by_origin(run.log)
+    assert main.uuid is not None
+    assert set(generate_step_ids(run.log)) == {main.uuid}
+    assert not [
+        e for e in run.events if isinstance(e, SpanBeginEvent) and e.id == "late"
+    ]
+
+
+def test_on_start_runs_once_per_generate_across_retries() -> None:
+    sink = _StartingSink("sub-agent")
+    run = run_sink(
+        d3_attributes_a_call_to_a_sub_agent(sink, retry=True),
+        model="d3_retrying/model",
+    )
+    assert run.log.status == "success", run.log.error
+    _, failed, retried = agent_events_by_origin(run.log)
+    assert failed.error is not None and retried.error is None
+    assert sink.started == ["Sub-agent turn."]
+    assert sink.pending == [failed, retried]
+    assert failed.span_id == retried.span_id == "sub-agent"
+    assert failed.uuid is not None
+    assert generate_step_ids(run.log)[failed.uuid] == ["model_input", "model_output"]
+    assert sentinel_span_parents(run.events, failed.uuid) == {"sub-agent"}
+    assert_history_is_the_fold_of_the_log(run.log, run.seen)
+
+
+def test_on_start_runs_for_a_cache_hit(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("INSPECT_CACHE_DIR", str(tmp_path))
+    sink = _StartingSink("sub-agent")
+    run = run_sink(
+        d3_attributes_a_call_to_a_sub_agent(
+            sink, ["Sub-agent turn.", "Sub-agent turn."], cache=True
+        )
+    )
+    assert run.log.status == "success", run.log.error
+    _, written, read = agent_events_by_origin(run.log)
+    assert (written.cache, read.cache) == ("write", "read")
+    assert sink.started == ["Sub-agent turn.", "Sub-agent turn."]
+    assert written.span_id == read.span_id == "sub-agent"
+    assert run.live == run.from_spans
+    assert_history_is_the_fold_of_the_log(run.log, run.seen)
+
+
+def test_parallel_generates_in_different_on_start_spans_keep_their_histories() -> None:
+    def by_input(input: list[ChatMessage]) -> str:
+        return "sub-agent" if input[-1].text == "Sub A." else "sub-agent-2"
+
+    run = run_sink(
+        d3_attributes_a_call_to_a_sub_agent(
+            _StartingSink(by_input), ["Sub A.", "Sub B."], parallel=True
+        )
+    )
+    assert run.log.status == "success", run.log.error
+    assert run.live == run.from_spans
+    assert {
+        e.input[-1].text: run.live[e.uuid or ""]
+        for e in agent_events_by_origin(run.log)
+    } == {"Main turn.": "outer", "Sub A.": "sub-agent", "Sub B.": "sub-agent-2"}
+    assert_history_is_the_fold_of_the_log(run.log, run.seen)
+
+
+def test_an_on_start_failure_fails_the_generate_before_any_event() -> None:
+    run = run_sink(
+        d3_attributes_a_call_to_a_sub_agent(_StartingSink(None, raises=True))
+    )
+    assert run.log.status == "error"
+    assert run.log.error is not None
+    assert "could not start the generate" in run.log.error.message
+    [main] = agent_events_by_origin(run.log)
+    assert main.uuid is not None
+    assert set(generate_step_ids(run.log)) == {main.uuid}
+
+
+def test_a_monitor_s_own_calls_do_not_reach_the_sink() -> None:
+    sink = _StartingSink("sub-agent")
+    seen: list[Any] = []
+    run = run_sink(
+        d3_attributes_a_call_to_a_sub_agent(sink),
+        sentinel=[d3_generates(seen, ask=True)],
+    )
+    assert run.log.status == "success", run.log.error
+    assert origin_counts(run.log) == {"agent": 2, "sentinel": 2}
+    _, sub = agent_events_by_origin(run.log)
+    assert sink.pending == [sub]
+
+
+async def test_a_bridged_generate_under_an_on_start_span_has_no_agent_messages() -> (
+    None
+):
+    from inspect_ai.util._span import current_span_id
+
+    def open_sub_agent(input: list[ChatMessage]) -> str:
+        transcript()._event(
+            SpanBeginEvent(
+                id="sub-agent", parent_id=current_span_id(), type="agent", name="sub"
+            )
+        )
+        return "sub-agent"
+
+    seen: list[StageSeen] = []
+    await run_bridge_request(seen, sink=_StartingSink(open_sub_agent))
+    assert stages(seen) == {BeforeGenerate, AfterGenerate}
+    assert {s.step.conversation for s in seen} == {"sub-agent"}
+    assert all(s.messages is None for s in seen)
+
+
+def test_acp_filters_an_on_start_sub_agent_s_sentinel_steps_with_its_events() -> None:
+    from inspect_ai.agent._acp.event_mapping import SubagentDepthTracker
+
+    run = run_sink(d3_attributes_a_call_to_a_sub_agent(_StartingSink("sub-agent")))
+    assert run.log.status == "success", run.log.error
+    tracker = SubagentDepthTracker()
+    actions = [(event, tracker.process(event)) for event in run.events]
+    main, sub = (
+        e for e in run.events if isinstance(e, ModelEvent) and e.origin == "agent"
+    )
+    kept = {
+        (event.stage, event.step_id == sub.uuid): action
+        for event, action in actions
+        if isinstance(event, SentinelEvent)
+    }
+    assert kept == {
+        ("model_input", False): "emit",
+        ("model_output", False): "emit",
+        ("model_input", True): "skip",
+        ("model_output", True): "skip",
+    }
+    assert dict((id(e), a) for e, a in actions)[id(sub)] == "skip"
+    assert dict((id(e), a) for e, a in actions)[id(main)] == "emit"
+
+
+async def test_an_on_start_sink_naming_the_current_span_follows_a_checkpoint_rotation() -> (
+    None
+):
+    from inspect_ai._sentinel._conversation import current_conversation
+    from inspect_ai.model._model import use_model_event_sink
+    from inspect_ai.util._span import SpanRotationScope, current_span_id, span
+
+    init_transcript(Transcript())
+    live: dict[str, str] = {}
+    model = get_model("mockllm/model")
+    sink = _StartingSink(lambda input: current_span_id())
+
+    async def call() -> None:
+        with use_model_event_sink(sink):
+            await model.generate("Hello.")
+        event = sink.pending[-1]
+        assert event.uuid is not None
+        live[event.uuid] = current_conversation()
+
+    async with span("agent", type="agent"):
+        checkpoints = SpanRotationScope(type="checkpoint")
+        await checkpoints.open("checkpoint 1")
+        first = current_span_id()
+        rotated = anyio.Event()
+
+        async def spawned_before_the_rotation() -> None:
+            await rotated.wait()
+            await call()
+
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(spawned_before_the_rotation)
+            await call()
+            await checkpoints.end_span()
+            await checkpoints.begin_span("checkpoint 2")
+            second = current_span_id()
+            rotated.set()
+        await checkpoints.close()
+
+    assert [e.span_id for e in sink.pending] == [first, second]
+    assert span_tree_conversations(transcript().events, "") == live
+
+
+def test_a_transcript_knows_the_agent_spans_of_seeded_restored_and_new_spans() -> None:
+    seeded = Transcript(
+        [SpanBeginEvent(id="seeded", type="agent", name="seeded")], bounded=True
+    )
+    seeded._extend_restored_events(
+        [SpanBeginEvent(id="restored", parent_id="seeded", type="tool", name="t")], {}
+    )
+    seeded._event(
+        SpanBeginEvent(id="new", parent_id="restored", type="solver", name="s")
+    )
+    assert seeded._agent_span("new") == "seeded"
+    with pytest.raises(ValueError, match="'unknown' was not begun"):
+        seeded._agent_span("unknown")
+
+
+class _RotatingMockLLM(_RetryingMockLLM):
+    # the first attempt rotates the checkpoint span, then fails and is retried
+    rotate: Callable[[], Awaitable[None]] | None = None
+
+    async def generate(
+        self,
+        input: list[ChatMessage],
+        tools: list[ToolInfo],
+        tool_choice: Any,
+        config: GenerateConfig,
+    ) -> Any:
+        rotate, _RotatingMockLLM.rotate = _RotatingMockLLM.rotate, None
+        if rotate is not None:
+            await rotate()
+            raise _RetriedError("try again")
+        return await super().generate(input, tools, tool_choice, config)
+
+
+@modelapi(name="d3_rotating")
+def d3_rotating() -> type[ModelAPI]:
+    return _RotatingMockLLM
+
+
+async def test_a_checkpoint_rotating_mid_generate_is_followed_under_the_current_span() -> (
+    None
+):
+    from inspect_ai._sentinel._scope import sentinel_solving
+    from inspect_ai.model._model import use_model_event_sink
+    from inspect_ai.util._span import SpanRotationScope, current_span_id, span
+
+    init_transcript(Transcript())
+    sink = _StartingSink(lambda input: current_span_id())
+    seen: list[StageSeen] = []
+    async with span("agent", type="agent"):
+        checkpoints = SpanRotationScope(type="checkpoint")
+        await checkpoints.open("checkpoint 1")
+        first = current_span_id()
+
+        async def rotate() -> None:
+            await checkpoints.end_span()
+            await checkpoints.begin_span("checkpoint 2")
+
+        _RotatingMockLLM.rotate = rotate
+        with active([d3_every_stage(seen)]), sentinel_solving():
+            with use_model_event_sink(sink):
+                await get_model("d3_rotating/model").generate("Hello.")
+        second = current_span_id()
+        await checkpoints.close()
+
+    assert first is not None and second is not None and first != second
+    failed, retried = sink.pending
+    assert (failed.span_id, retried.span_id) == (first, second)
+    # the BeforeGenerate stage ran before the rotation, AfterGenerate after it
+    assert [type(s.step) for s in seen] == [BeforeGenerate, AfterGenerate]
+    sentinel_spans = [
+        e.parent_id
+        for e in transcript().events
+        if isinstance(e, SpanBeginEvent) and e.type == "sentinel"
+    ]
+    assert sentinel_spans == [first, second]
+
+
+class _BlockingMockLLM(MockLLM):
+    started: anyio.Event | None = None
+
+    async def generate(
+        self,
+        input: list[ChatMessage],
+        tools: list[ToolInfo],
+        tool_choice: Any,
+        config: GenerateConfig,
+    ) -> Any:
+        assert _BlockingMockLLM.started is not None
+        _BlockingMockLLM.started.set()
+        await anyio.sleep_forever()
+
+
+@modelapi(name="d3_blocking")
+def d3_blocking() -> type[ModelAPI]:
+    return _BlockingMockLLM
+
+
+async def test_a_generate_cancelled_under_an_on_start_span_restores_the_caller_s_spans() -> (
+    None
+):
+    from inspect_ai.event import InfoEvent
+    from inspect_ai.model._model import use_model_event_sink
+    from inspect_ai.util._span import current_agent_span_id, current_span_id, span
+
+    init_transcript(Transcript())
+    _BlockingMockLLM.started = anyio.Event()
+    started = _BlockingMockLLM.started
+    sink = _StartingSink("sub-agent")
+    async with span("outer", type="agent", id="outer"):
+        transcript()._event(
+            SpanBeginEvent(id="sub-agent", parent_id="outer", type="agent", name="sub")
+        )
+        async with anyio.create_task_group() as tg:
+
+            async def cancel_once_started() -> None:
+                await started.wait()
+                tg.cancel_scope.cancel()
+
+            tg.start_soon(cancel_once_started)
+            with use_model_event_sink(sink):
+                await get_model("d3_blocking/model").generate("Hello.")
+        assert (current_span_id(), current_agent_span_id()) == ("outer", "outer")
+        transcript()._event(InfoEvent(data="after"))
+        await get_model("mockllm/model").generate("Hello again.")
+
+    [cancelled] = sink.pending
+    assert cancelled.span_id == "sub-agent"
+    events = list(transcript().events)
+    after = events[events.index(cancelled) + 1 :]
+    assert [e.event for e in after if e.span_id == "sub-agent"] == []
+    assert {e.event for e in after if e.span_id == "outer"} >= {"info", "model"}
+
+
+@pytest.mark.parametrize("result", CURRENT_SPAN_RESULTS)
+async def test_an_on_start_sink_under_a_parent_span_gives_that_span_s_agent(
+    result: str,
+) -> None:
+    # as the eval test above, in-process, so it runs under asyncio and trio
+    from inspect_ai._sentinel._scope import sentinel_solving
+    from inspect_ai.model._model import use_model_event_sink
+    from inspect_ai.util._span import parent_span, span
+
+    init_transcript(Transcript())
+    seen: list[StageSeen] = []
+    sink = _StartingSink(CURRENT_SPAN_RESULTS[result])
+    with live_conversations() as live:
+        async with span("outer", type="agent", id="outer"):
+            transcript()._event(
+                SpanBeginEvent(
+                    id="sub-agent", parent_id="outer", type="agent", name="sub"
+                )
+            )
+            with active([d3_every_stage(seen)]), sentinel_solving():
+                with parent_span("sub-agent"), use_model_event_sink(sink):
+                    await get_model("mockllm/model").generate("Sub-agent turn.")
+    [event] = sink.pending
+    assert event.span_id == "sub-agent"
+    assert live == span_tree_conversations(transcript().events, "")
+    assert set(live.values()) == {"sub-agent"}
+    assert {s.step.conversation for s in seen} == {"sub-agent"}
+
+
+async def test_an_on_start_sink_with_no_current_span_gives_the_sample_s_conversation() -> (
+    None
+):
+    from inspect_ai.model._model import use_model_event_sink
+    from inspect_ai.util._span import current_span_id
+
+    init_transcript(Transcript())
+    sink = _StartingSink(None)
+    assert current_span_id() is None
+    with live_conversations() as live:
+        with use_model_event_sink(sink):
+            await get_model("mockllm/model").generate("Turn.")
+    [event] = sink.pending
+    assert event.span_id is None
+    # outside an eval the sample's conversation is ""
+    assert list(live.values()) == [""]

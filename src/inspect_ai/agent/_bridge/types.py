@@ -196,10 +196,12 @@ class AgentBridge:
     model_event_sink: ModelEventSink | None
     """Optional sink that takes ownership of `ModelEvent` emission for calls
     routed through the bridge. When set, the bridge installs it around
-    `model.generate()`; `_record_model_interaction` then dispatches pending /
-    complete events to the sink instead of emitting them to the transcript.
-    Use this to attribute bridge model events to externally-managed agent
-    spans (e.g. spans driven by a side-channel event stream).
+    `model.generate()`. The sink's optional `on_start` decides under which span
+    each generation runs, which a live sentinel's conversation follows;
+    `_record_model_interaction` dispatches pending / complete events to the
+    sink, which decides when each is emitted to the transcript. Use this to
+    attribute bridge model events to externally-managed agent spans (e.g.
+    spans driven by a side-channel event stream). See `ModelEventSink`.
     """
 
     forward_generation_config: bool
@@ -231,9 +233,10 @@ class AgentBridge:
         """Terminate the sample from a bridged generation.
 
         Raises `TerminateSampleError`, which propagates out through the agent to the
-        sample runner. `SandboxAgentBridge` overrides this: its generations run in
-        the sandbox service task, where exceptions become RPC error responses instead
-        of propagating.
+        sample runner. A `SandboxAgentBridge`'s generations run in the sandbox
+        service task: there the raise reaches the service dispatcher, which answers
+        the RPC and propagates the termination out of the service task, unwinding
+        the bridge's task group.
         """
         raise TerminateSampleError(reason)
 
@@ -242,8 +245,9 @@ class AgentBridge:
 
         The caller then raises `error`, which propagates out through the agent to
         the sample runner, so an in-process bridge has nothing to do here.
-        `SandboxAgentBridge` overrides this to signal its monitor task, since a
-        raise in the sandbox service task never reaches the sample runner.
+        `SandboxAgentBridge` overrides this to signal its monitor task, since the
+        sandbox service dispatcher turns a raise (other than a limit or a
+        termination) into an RPC error that never reaches the sample runner.
         """
 
     grants_tool_execution: bool = False

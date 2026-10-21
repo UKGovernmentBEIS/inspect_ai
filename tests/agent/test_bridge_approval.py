@@ -13,13 +13,17 @@ import re
 from collections import deque
 from contextlib import contextmanager
 from pathlib import PurePosixPath
-from typing import Any, Awaitable, Callable, Iterator, Literal, NamedTuple
+from typing import Any, Awaitable, Callable, Iterator, Literal, NamedTuple, cast
 from unittest.mock import AsyncMock, MagicMock
 
 import anyio
 import pytest
 from acp.schema import SessionNotification, ToolCallProgress, ToolCallStart
 from pydantic import JsonValue
+from test_helpers.service_dispatch import (
+    dispatching_service,
+    serve_beside_failure_monitor,
+)
 
 import inspect_ai._util.logger as inspect_logger
 from inspect_ai import Task, eval
@@ -35,8 +39,11 @@ from inspect_ai.agent._bridge.bridge import agent_bridge
 from inspect_ai.agent._bridge.completions import inspect_completions_api_request
 from inspect_ai.agent._bridge.google_api import inspect_google_api_request
 from inspect_ai.agent._bridge.responses import inspect_responses_api_request
-from inspect_ai.agent._bridge.sandbox.bridge import _monitor_failure
 from inspect_ai.agent._bridge.sandbox.host_tool import execute_host_tool
+from inspect_ai.agent._bridge.sandbox.service import (
+    _forward_provider_errors,
+    generate_completions,
+)
 from inspect_ai.agent._bridge.sandbox.service import call_tool as call_host_tool
 from inspect_ai.agent._bridge.sandbox.types import (
     _MAX_TOOL_EXECUTION_GRANTS,
@@ -96,6 +103,7 @@ from inspect_ai.util._sandbox.events import SandboxTimeoutError
 from inspect_ai.util._span import (
     SpanRotationScope,
     current_span_id,
+    parent_span,
     span,
     span_id_provider,
 )
@@ -695,32 +703,12 @@ async def test_terminate_decision_terminates_immediately() -> None:
         )
 
 
-def test_sandbox_bridge_terminate_signals_the_monitor() -> None:
-    """Sandbox generations run where exceptions can't propagate, so also signal."""
-    bridge = SandboxAgentBridge(
-        state=AgentState(messages=[]),
-        filter=None,
-        retry_refusals=None,
-        compaction=None,
-        port=13131,
-        model=None,
-    )
+def test_sandbox_bridge_terminate_raises_for_the_service_dispatcher() -> None:
+    """A sandbox bridge terminates by raising, as an in-process bridge does.
 
-    assert not bridge._failure_requested.is_set()
-    with pytest.raises(TerminateSampleError):
-        bridge.request_terminate("approver said stop")
-
-    assert bridge._failure_requested.is_set()
-    assert isinstance(bridge._failure, TerminateSampleError)
-    assert bridge._failure.reason == "approver said stop"
-
-
-async def test_sandbox_terminate_monitor_raises_for_the_task_group() -> None:
-    """The monitor is what actually reaches the sample runner.
-
-    `request_terminate`'s own raise is swallowed by the sandbox service (which turns
-    exceptions into RPC error responses), so the monitor running in the bridge's task
-    group is the path that unwinds the agent.
+    The sandbox service dispatcher answers the RPC and propagates the
+    `TerminateSampleError` out of the service task, so the monitor task is not
+    signalled as well.
     """
     bridge = SandboxAgentBridge(
         state=AgentState(messages=[]),
@@ -730,10 +718,65 @@ async def test_sandbox_terminate_monitor_raises_for_the_task_group() -> None:
         port=13131,
         model=None,
     )
-    bridge.request_fail(TerminateSampleError("approver said stop"))
 
     with pytest.raises(TerminateSampleError, match="approver said stop"):
-        await _monitor_failure(bridge)
+        bridge.request_terminate("approver said stop")
+
+    assert not bridge._failure_requested.is_set()
+
+
+@pytest.mark.parametrize("repeated", [False, True], ids=["terminate", "rejections"])
+async def test_sandbox_approver_termination_ends_the_sample_once(
+    monkeypatch: pytest.MonkeyPatch, repeated: bool
+) -> None:
+    """An approver's termination in a sandbox generation ends the sample once.
+
+    The generation runs in the sandbox service task. `_forward_provider_errors`
+    lets the `TerminateSampleError` through to the service dispatcher, which
+    answers the RPC once and propagates it out of the service task: that unwinds
+    the bridge's task group. The monitor task is not signalled, so the group
+    unwinds with the one termination. Covers a `terminate` decision and too many
+    consecutive rejections.
+    """
+    unsafe = ToolCall(id="1", function="bash", arguments={"cmd": "rm -rf /"})
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[tool_calls_output(unsafe)] * (MAX_CONSECUTIVE_REJECTIONS + 1),
+    )
+    policy = ApprovalPolicy(
+        reject_approver() if repeated else auto_approver("terminate"), "*"
+    )
+    bridge = SandboxAgentBridge(
+        state=AgentState(messages=[]),
+        filter=None,
+        retry_refusals=None,
+        compaction=None,
+        port=13131,
+        model=None,
+        model_aliases={BRIDGE_MODEL: model},
+        approval=[policy],
+    )
+    replies: list[str | None] = []
+    service = dispatching_service(
+        monkeypatch,
+        "generate_completions",
+        _forward_provider_errors(generate_completions(bridge), bridge),
+        {
+            "json_data": {
+                "model": BRIDGE_MODEL,
+                "messages": [{"role": "user", "content": TASK}],
+            },
+        },
+        replies,
+    )
+
+    unwound = await serve_beside_failure_monitor(service, bridge)
+
+    assert [type(ex) for ex in unwound] == [TerminateSampleError]
+    reason = cast(TerminateSampleError, unwound[0]).reason
+    assert reason.startswith("Tool call approver ")
+    assert replies == [f"Terminating: {reason}"]
+    assert not bridge._failure_requested.is_set()
 
 
 # ---------------------------------------------------------------------------
@@ -3405,6 +3448,7 @@ class StampingSink:
     def __init__(self, *script: set[str]) -> None:
         self.script = list(script)
         self.actions: set[str] = set()
+        self.opened = False
 
     def on_pending(self, event: ModelEvent) -> None:
         self.actions = self.script.pop(0)
@@ -3416,6 +3460,7 @@ class StampingSink:
     def on_complete(self, event: ModelEvent) -> None:
         transcript()._event(event)
         if "open" in self.actions:
+            self.opened = True
             transcript()._event(
                 SpanBeginEvent(
                     id="agent-sub",
@@ -3426,15 +3471,70 @@ class StampingSink:
             )
 
 
+class StartingStampingSink(StampingSink):
+    """As `StampingSink`, but the script runs once per generation, in `on_start`.
+
+    `stamp` names `agent-sub` as the span the generation runs under, as
+    inspect_swe's sinks do with `on_start` (beginning it first if no `open`
+    has), and `close` emits the span's end there (the per-generation
+    bookkeeping codex_cli does). `current` leaves the generation in the
+    current span by returning `None`.
+    """
+
+    def on_start(self, input: list[ChatMessage]) -> str | None:
+        self.actions = self.script.pop(0)
+        if "close" in self.actions:
+            transcript()._event(SpanEndEvent(id="agent-sub"))
+        if "stamp" in self.actions:
+            if not self.opened:
+                self.opened = True
+                transcript()._event(
+                    SpanBeginEvent(
+                        id="agent-sub",
+                        parent_id=current_span_id(),
+                        type="agent",
+                        name="sub",
+                    )
+                )
+            return "agent-sub"
+        return self.current()
+
+    def current(self) -> str | None:
+        return None
+
+    def on_pending(self, event: ModelEvent) -> None:
+        pass
+
+
+class CurrentStartingSink(StartingStampingSink):
+    """As `StartingStampingSink`, but `current` names the current span explicitly.
+
+    inspect_swe's sinks attribute a main-thread call to `current_span_id()`.
+    """
+
+    def current(self) -> str | None:
+        return current_span_id()
+
+
+SINKS = {
+    "on-pending": StampingSink,
+    "on-start": StartingStampingSink,
+    "on-start-current": CurrentStartingSink,
+}
+
+
 def sandbox_bridge_with_sink(tool: AsyncMock, sink: StampingSink) -> SandboxAgentBridge:
     bridge = sandbox_bridge_with_tool(tool, None)
     bridge.model_event_sink = sink
     return bridge
 
 
-async def test_execution_is_placed_in_the_span_a_sink_gave_its_proposal() -> None:
+@pytest.mark.parametrize("sink", SINKS)
+async def test_execution_is_placed_in_the_span_a_sink_gave_its_proposal(
+    sink: str,
+) -> None:
     bridge = sandbox_bridge_with_sink(
-        AsyncMock(return_value="contents"), StampingSink({"stamp"})
+        AsyncMock(return_value="contents"), SINKS[sink]({"stamp"})
     )
     call = ToolCall(id="proposed", function="read_file", arguments={"path": "a"})
 
@@ -3452,10 +3552,71 @@ async def test_execution_is_placed_in_the_span_a_sink_gave_its_proposal() -> Non
     assert tool_span.parent_id == "agent-sub"
 
 
-async def test_sink_attributing_to_the_current_span_stores_none() -> None:
-    """The span current at execution is followed (a checkpoint span may rotate)."""
+class MovesBackSink(StartingStampingSink):
+    """Runs the generation under `agent-sub`, then moves its event back to the span current at `on_start`."""
+
+    def on_start(self, input: list[ChatMessage]) -> str | None:
+        self.started_in = current_span_id()
+        return super().on_start(input)
+
+    def on_pending(self, event: ModelEvent) -> None:
+        event.span_id = self.started_in
+
+
+class MovingStartingSink(StartingStampingSink):
+    """Runs the generation under `agent-sub`, then moves its event to `agent-other`."""
+
+    def on_pending(self, event: ModelEvent) -> None:
+        event.span_id = "agent-other"
+
+
+async def test_execution_follows_an_on_start_sink_s_later_move_of_its_proposal() -> (
+    None
+):
+    """The grant carries the span the proposing event is logged in."""
+    bridge = sandbox_bridge_with_sink(
+        AsyncMock(return_value="contents"), MovingStartingSink({"stamp"})
+    )
+    call = ToolCall(id="proposed", function="read_file", arguments={"path": "a"})
+
+    with recorded_transcript() as recorded:
+        async with span("outer"):
+            await propose(bridge, call)
+            assert bridge._tool_execution_grants[0].proposal.span_id == "agent-other"
+            await call_host_tool(bridge)("host", "read_file", {"path": "a"})
+
+    [model_event] = [e for e in recorded.events if isinstance(e, ModelEvent)]
+    assert model_event.span_id == "agent-other"
+    [event] = recorded.tool_events
+    assert event.span_id == "agent-other"
+
+
+async def test_a_sink_without_on_start_is_wrapped_without_one() -> None:
+    """The bridge runs such a sink's generation as before: no span lookup at all."""
+    from inspect_ai.agent._bridge.util import _span_capturing_sink
+    from inspect_ai.model._model import _StartingModelEventSink
+
+    assert not isinstance(_span_capturing_sink(StampingSink()), _StartingModelEventSink)
+    assert isinstance(
+        _span_capturing_sink(StartingStampingSink()), _StartingModelEventSink
+    )
     bridge = sandbox_bridge_with_sink(
         AsyncMock(return_value="contents"), StampingSink({"current"})
+    )
+    call = ToolCall(id="proposed", function="read_file", arguments={"path": "a"})
+    with recorded_transcript() as recorded:
+        # a current span this transcript has no begin for
+        with parent_span("elsewhere"):
+            await propose(bridge, call)
+    [model_event] = [e for e in recorded.events if isinstance(e, ModelEvent)]
+    assert model_event.span_id == "elsewhere"
+
+
+@pytest.mark.parametrize("sink", SINKS)
+async def test_sink_attributing_to_the_current_span_stores_none(sink: str) -> None:
+    """The span current at execution is followed (a checkpoint span may rotate)."""
+    bridge = sandbox_bridge_with_sink(
+        AsyncMock(return_value="contents"), SINKS[sink]({"current"})
     )
     call = ToolCall(id="proposed", function="read_file", arguments={"path": "a"})
 
@@ -3486,9 +3647,9 @@ def pausing_approver(approving: anyio.Event, resume: anyio.Event) -> Approver:
     return approve
 
 
-@pytest.mark.parametrize("with_sink", [True, False], ids=["sink", "no-sink"])
+@pytest.mark.parametrize("sink", [*SINKS, "on-start-moves-back", None])
 async def test_a_checkpoint_rotating_during_approval_is_followed(
-    with_sink: bool,
+    sink: str | None,
 ) -> None:
     """A rotation while the call awaits approval is not taken for a sink's own span."""
     approving, rotated = anyio.Event(), anyio.Event()
@@ -3496,8 +3657,10 @@ async def test_a_checkpoint_rotating_during_approval_is_followed(
         AsyncMock(return_value="contents"),
         [ApprovalPolicy(pausing_approver(approving, rotated), "*")],
     )
-    if with_sink:
-        bridge.model_event_sink = StampingSink({"current"})
+    if sink == "on-start-moves-back":
+        bridge.model_event_sink = MovesBackSink({"stamp"})
+    elif sink is not None:
+        bridge.model_event_sink = SINKS[sink]({"current"})
     call = ToolCall(id="proposed", function="read_file", arguments={"path": "a"})
     checkpoints = SpanRotationScope(type="checkpoint")
 
@@ -3525,11 +3688,14 @@ async def test_a_checkpoint_rotating_during_approval_is_followed(
     assert event.span_id == second
 
 
-async def test_execution_after_its_proposal_span_closed_still_nests_under_it() -> None:
-    """codex_cli closes a sub-agent span in a later generation's `on_pending`."""
+@pytest.mark.parametrize("sink", SINKS)
+async def test_execution_after_its_proposal_span_closed_still_nests_under_it(
+    sink: str,
+) -> None:
+    """codex_cli closes a sub-agent span in a later generation's `on_pending` (or `on_start`)."""
     bridge = sandbox_bridge_with_sink(
         AsyncMock(return_value="contents"),
-        StampingSink({"open"}, {"stamp"}, {"close"}),
+        SINKS[sink]({"open"}, {"stamp"}, {"close"}),
     )
     call = ToolCall(id="proposed", function="read_file", arguments={"path": "a"})
 
@@ -3569,14 +3735,15 @@ class RecordingAcpTransport(LiveAcpTransport):
             self.published.append(update)
 
 
+@pytest.mark.parametrize("sink", SINKS)
 @pytest.mark.parametrize("filtered", [True, False], ids=["filtered", "unfiltered"])
 async def test_acp_keeps_a_closed_sub_agent_spans_host_call_out_of_the_conversation(
-    filtered: bool,
+    filtered: bool, sink: str
 ) -> None:
     """ACP filters the late execution by its attributed span, live and on replay."""
     bridge = sandbox_bridge_with_sink(
         AsyncMock(return_value="contents"),
-        StampingSink({"open"}, {"stamp"}, {"close"}),
+        SINKS[sink]({"open"}, {"stamp"}, {"close"}),
     )
     call = ToolCall(id="proposed", function="read_file", arguments={"path": "a"})
 

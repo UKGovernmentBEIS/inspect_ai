@@ -2,13 +2,12 @@ import inspect
 from collections import deque
 from logging import getLogger
 from os.path import commonprefix
-from typing import TYPE_CHECKING, Any, Mapping, NamedTuple, NoReturn, Sequence
+from typing import TYPE_CHECKING, Any, Mapping, NamedTuple, Sequence
 
 import anyio
 from pydantic_core import to_jsonable_python
 from shortuuid import uuid
 
-from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai._util.logger import warn_once
 from inspect_ai.agent._agent import AgentState
 from inspect_ai.agent._bridge.bridge import resolve_forward_client_headers
@@ -324,14 +323,16 @@ class SandboxAgentBridge(AgentBridge):
 
         A sandbox bridge's generations and host tool calls run in the sandbox
         service task, where `_handle_request` turns exceptions into RPC error
-        responses rather than letting them propagate (only `LimitExceededError`
-        is special-cased). So raising from one would never reach the sample
-        runner.
+        responses rather than letting them propagate. Only a `LimitExceededError`
+        (routed to the active sample) and a termination (answered, then
+        propagated out of the service task) are special-cased, so a termination
+        is raised rather than requested here (see `request_terminate`). Raising
+        any other error would never reach the sample runner.
 
         Instead, store the error and signal the monitor task in
         `sandbox_agent_bridge`'s task group, which raises it on the agent's side
         and tears the sample down. This does not raise itself: the caller decides
-        how the current RPC unwinds (`request_terminate` raises, and the model
+        how the current RPC unwinds (a host tool call re-raises, and the model
         service returns a provider error payload so the sandboxed agent gets a
         reply rather than blocking on one that will never come). The first error
         requested wins; later requests are ignored.
@@ -339,17 +340,6 @@ class SandboxAgentBridge(AgentBridge):
         if self._failure is None:
             self._failure = error
         self._failure_requested.set()
-
-    def request_terminate(self, reason: str) -> NoReturn:
-        """Terminate the sample from a bridged generation.
-
-        Signals the sample failure via `request_fail` (see there for why a plain
-        raise would not reach the sample runner) and raises so the current RPC
-        unwinds with an error response.
-        """
-        error = TerminateSampleError(reason)
-        self.request_fail(error)
-        raise error
 
 
 class _Proposal:
