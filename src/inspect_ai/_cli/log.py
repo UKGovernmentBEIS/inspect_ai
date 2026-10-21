@@ -1,7 +1,7 @@
 import functools
 import os
 from json import dumps
-from typing import Any, Callable, Literal, cast
+from typing import Any, Callable, Literal, NoReturn, cast
 from urllib.parse import urlparse
 
 import click
@@ -542,6 +542,15 @@ def recover_command(
     help="Delete the shards directory after a complete merge. Every worker must "
     "have exited.",
 )
+@click.option(
+    "--json",
+    "json_output",
+    type=bool,
+    is_flag=True,
+    default=False,
+    help="Print one JSON object: the merged log on success, or "
+    '{"error": {"type", "message", ...}} on failure (exit 1).',
+)
 @common_options
 def merge_shards_command(
     log: str,
@@ -549,6 +558,7 @@ def merge_shards_command(
     sample_count: int | None,
     allow_incomplete: bool,
     delete_shards: bool,
+    json_output: bool,
     **common: Unpack[CommonOptions],
 ) -> None:
     """Merge the shard logs of a sharded run into one eval log.
@@ -566,7 +576,10 @@ def merge_shards_command(
     platform_init()
 
     if sample_id is not None and sample_count is not None:
-        raise click.UsageError("Pass at most one of --sample-id and --sample-count.")
+        _merge_failure(
+            json_output,
+            click.UsageError("Pass at most one of --sample-id and --sample-count."),
+        )
     try:
         outcome = run_coroutine(
             merge_shards(
@@ -585,7 +598,7 @@ def merge_shards_command(
         FileNotFoundError,
         ValueError,
     ) as ex:
-        raise click.ClickException(str(ex)) from ex
+        _merge_failure(json_output, ex)
 
     if outcome.task_file_imported is not None:
         click.echo(
@@ -596,13 +609,29 @@ def merge_shards_command(
     header = outcome.result.log
     ledger = header.eval.shards.ledger if header.eval.shards else []
     samples = sum(entry.samples for entry in ledger)
+    status = outcome.status
+    if json_output:
+        result = {
+            "log": header.location,
+            "status": header.status,
+            "written": outcome.result.written,
+            "shards": len(ledger),
+            "samples": samples,
+            "new_samples": outcome.new_samples,
+            "missing": status.missing,
+            "running": status.running,
+            "failed": status.failed,
+            "shards_deleted": outcome.result.shards_deleted,
+            "task_file_imported": outcome.task_file_imported,
+        }
+        click.echo(dumps(result, indent=2))
+        return
     line = (
         f"{header.location}: {header.status}, {samples} samples "
         f"({outcome.new_samples} new) from {len(ledger)} shards"
     )
     if not outcome.result.written:
         line += ", unchanged"
-    status = outcome.status
     if header.status != "success":
         if status.missing:
             line += f", {len(status.missing)} missing"
@@ -613,6 +642,30 @@ def merge_shards_command(
     if outcome.result.shards_deleted:
         line += ", shards deleted"
     click.echo(line)
+
+
+def _merge_failure(json_output: bool, ex: Exception) -> NoReturn:
+    """End `merge-shards` with `ex`: an error object on stdout with `--json`.
+
+    Without `--json`, a usage error exits 2 and any other error exits 1 with
+    its message on stderr. With it, every failure prints
+    `{"error": {"type", "message"}}` on stdout and exits 1; an incomplete
+    set adds its `status`, `missing`, `running` and `failed`.
+    """
+    from inspect_ai.log import ShardSetIncomplete
+
+    if not json_output:
+        if isinstance(ex, click.ClickException):
+            raise ex
+        raise click.ClickException(str(ex)) from ex
+    message = ex.format_message() if isinstance(ex, click.ClickException) else str(ex)
+    error: dict[str, Any] = {"type": type(ex).__name__, "message": message}
+    if isinstance(ex, ShardSetIncomplete):
+        error.update(
+            status=ex.status, missing=ex.missing, running=ex.running, failed=ex.failed
+        )
+    click.echo(dumps({"error": error}, indent=2))
+    raise SystemExit(1)
 
 
 _TS_MONO_APP = PKG_PATH / "_view" / "ts-mono" / "apps" / "inspect"

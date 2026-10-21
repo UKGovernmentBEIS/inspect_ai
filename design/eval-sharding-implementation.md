@@ -475,8 +475,10 @@ merge holds the lock or published first; re-run later),
 storage errors as they occur.
 
 Trust: the merge follows `resolve_scorers_info`'s `task_file` fallback as
-`recompute_metrics` does, and also imports the `task_file` when an epoch
-reducer in `config.epochs_reducer` cannot be created (a custom
+`recompute_metrics` does, and also imports the `task_file` when a
+task-level metric (`eval.metrics`, as solver-set scores without a scorer
+use) is not registered or an epoch reducer in `config.epochs_reducer`
+cannot be created (a custom
 `@score_reducer` defined there, with built-in metrics). It decides
 whether to import before recomputing, and logs a warning naming the
 imported file; the CLI also prints a notice (below). Parent "Trust": the merge runs
@@ -491,7 +493,7 @@ only as a trusted step; no reader path calls it.
 ```
 inspect log merge-shards LOG
     [--sample-id IDS | --sample-count N]
-    [--allow-incomplete] [--delete-shards]
+    [--allow-incomplete] [--delete-shards] [--json]
 ```
 
 - `LOG` is one merged log path or its companion directory, as the API's
@@ -505,10 +507,20 @@ inspect log merge-shards LOG
   running and failed shard names. When the `task_file` fallback imported
   code, a notice on stderr names the file (parent decision, 2026-09-21: a
   visible notice, no opt-in).
+- `--json` (decision: Ransom, 2026-10-21: a model or launcher calling the
+  command needs machine-readable output): one JSON object on stdout. On
+  success: `log`, `status`, `written`, `shards`, `samples`,
+  `new_samples`, `missing` (ids or null), `running`, `failed`,
+  `shards_deleted` and `task_file_imported` (the file or null). The
+  task-file notice stays on stderr, so stdout stays parseable.
 - Exit 0 when the merge wrote or had nothing new. The API's documented
   errors (`ShardSetError`, `ShardSetIncomplete`, `WriteConflictError`,
   `FileNotFoundError`, `ValueError`) print their message and exit 1; an
-  incomplete set without `--allow-incomplete` raises. Other errors
+  incomplete set without `--allow-incomplete` raises. With `--json`, each
+  of them and the usage error for both selection options goes through
+  one helper that prints `{"error": {"type", "message"}}` on stdout
+  (`type` the exception's class name; a `ShardSetIncomplete` adds
+  `status`, `missing`, `running` and `failed`) and exits 1. Other errors
   propagate as in other `inspect log` commands.
 
 The command imports the merge lazily inside the function body, as
@@ -1221,7 +1233,9 @@ cleanup (removes the merged log too). Both use one routine,
   results and any other file. Locally that is one recursive delete of the
   directory by its exact path (`shutil.rmtree`, which does not follow
   symbolic links); on S3 and other fsspec backends it lists every object
-  under the prefix and deletes each, 16 at a time. It neither classifies
+  under the prefix and deletes each, 16 at a time, by the name a detailed
+  listing gives (fsspec's plain listing drops the scheme, which would
+  resolve the name to the local filesystem). It neither classifies
   objects nor orders the deletes, and a missing companion is not an error.
   With `include_log`, the merged log is deleted first.
 - **No resumption protocol.** An interrupted deletion raises its storage
@@ -1257,8 +1271,10 @@ every record. Deletes run in no order, so an interruption can leave each
 `<k>/` with its recorded current attempt (unchanged), with no attempt
 (vanished), or with only an older attempt whose recorded successor was
 deleted (regressed, for example `X-recovered.eval` left after `X.eval`).
-An ordinary merge refuses vanished and regressed shards ("Validation"), so
-a remnant is never merged over the complete log. A re-run with
+An ordinary merge refuses a remnant with a vanished or regressed shard
+("Validation"), so such a remnant is never merged over the complete log;
+when every recorded current attempt is still unchanged, or no attempt is
+left, it returns the merged log as it is. A re-run with
 `delete_shards=True` on the `success` merged log takes them as left over
 when no shard is new or otherwise changed, verifies the merged log against
 its recorded ledger and deletes the rest. Once no `<k>/` has an attempt
@@ -1269,7 +1285,7 @@ What the user sees after an interruption:
 
 | Interrupted | What is left | What the user sees | What to do |
 |---|---|---|---|
-| `delete_shards` (API or `inspect log merge-shards --delete-shards`) | the complete merged log and part of `<name>.shards/` | the storage error; until the rest is gone, every merge of the log without `delete_shards`, including the `eval_set()` startup merge, refuses with "shards vanished" or an attempt regression (and `eval_set()` stops with `PrerequisiteError`, "Eval-set integration") | re-run the same call with `delete_shards=True`, or delete `<name>.shards/` by hand |
+| `delete_shards` (API or `inspect log merge-shards --delete-shards`) | the complete merged log and part of `<name>.shards/` | the storage error; until the rest is gone, a merge of the log without `delete_shards`, including the `eval_set()` startup merge, refuses with "shards vanished" or an attempt regression when a shard vanished or regressed (and `eval_set()` stops with `PrerequisiteError`, "Eval-set integration"), and returns the merged log as it is when every recorded current attempt remains or none does | re-run the same call with `delete_shards=True`, or delete `<name>.shards/` by hand |
 | retry cleanup in `eval_set()` | the unsharded `success` log, part of `<name>.shards/`, no merged log, and every other log of that task group (cleanup of the group stops for the rest of the call) | a warning naming the companion and the error and asking for it to be deleted | delete `<name>.shards/` by hand. If it is left, the next `eval_set()` with `retry_cleanup` normally rebuilds a merged log from the remnant and removes it again; that is a fallback, not a guarantee (a remnant the merge refuses stops `eval_set()` with `PrerequisiteError`) |
 
 **The viewer is not a deleter.** `/log-delete` is unchanged (decision:
@@ -1795,7 +1811,7 @@ PR 2. Neither depends on the merge.
   with a `--json` array of per-item results** (revisions up to
   2026-10-13). Removed (Ransom, 2026-10-21): discovery and per-item error
   handling grew their own edge cases; one target per call keeps the
-  command a thin wrapper over the API.
+  command a thin wrapper over the API, and `--json` prints one object.
 - **Mint the merged log's `task_id` whenever `<name>` gives no usable id**
   (this document's previous revision, minting only when `<name>` did not
   parse). A random id breaks the rebuild of a merged log deleted by retry
@@ -2183,7 +2199,8 @@ Per PR (numbers from "Implementation plan"):
      verification failure leaves the shards; combined with
      `allow_incomplete` it is a `ValueError`; local names with reserved
      characters are deleted by their exact path, and neighbours with the
-     decoded names are kept;
+     decoded names are kept; on fsspec's `memory://` backend every delete
+     names the object with its scheme, never a local path;
    - interrupted `delete_shards`: locally, a companion left with an older
      attempt in one `<k>/` (its recorded attempt deleted) and only a
      checkpoint directory in another: an ordinary merge refuses (attempt
@@ -2199,7 +2216,8 @@ Per PR (numbers from "Implementation plan"):
      on `mock_s3` with a pause between the read and the publish;
    - trust: a metric registered only in a `task_file` is resolved through
      the fallback, with a warning naming the file (and the CLI notice), and
-     so is a custom epoch reducer defined there with built-in metrics; a missing
+     so are a task-level metric of solver-set scores with no scorer and a
+     custom epoch reducer defined there with built-in metrics; a missing
      metric fails without writing; a spy asserts no reader path
      (`read_eval_log`, `list_eval_logs`, `evals_df`) calls the merge;
    - cancellation mid-pass (after reads, during the build, during the S3
@@ -2208,7 +2226,10 @@ Per PR (numbers from "Implementation plan"):
    `tests/cli/test_log.py`: `merge-shards` on a merged log and on a
    companion; `--sample-id` and `--sample-count`, and the usage error for
    both; `--delete-shards`; a `-recovered` `LOG` and a directory `LOG`
-   refused with exit 1; the `task_file` notice; exit codes.
+   refused with exit 1; the `task_file` notice; exit codes; `--json` on
+   success, and its error object for each failure the command handles
+   (usage error, missing log, `-recovered` name, incomplete set, held
+   lock, stray log).
 6. **Eval-set integration.** `tests/test_eval_set.py`: `log_samples_complete`
    on a `success` merged log is true when its `dataset.sample_ids` equals the
    eval set's selection (for each recorded form: ids, count, neither) and

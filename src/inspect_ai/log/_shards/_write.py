@@ -41,9 +41,9 @@ class _SampleInputs(NamedTuple):
 def task_file_import(header: EvalLog) -> str | None:
     """The task file metric recomputation would import, if any.
 
-    The header's `task_file` is imported when one of its scorers' metrics is
-    not registered (as `resolve_scorers_info` does) or when its epoch
-    reducers cannot be created.
+    The header's `task_file` is imported when a metric of its scorers or of
+    the task (`eval.metrics`) is not registered, or when its epoch reducers
+    cannot be created.
     """
     from inspect_ai._eval.score import reducers_from_log_header
     from inspect_ai._util.registry import registry_lookup
@@ -51,8 +51,9 @@ def task_file_import(header: EvalLog) -> str | None:
     task_file = header.eval.task_file
     if not task_file:
         return None
-    for scorer in header.eval.scorers or []:
-        for metric in _metric_definitions(scorer.metrics):
+    groups = [scorer.metrics for scorer in header.eval.scorers or []]
+    for metrics in [*groups, header.eval.metrics]:
+        for metric in _metric_definitions(metrics):
             if registry_lookup("metric", metric.name) is None:
                 return task_file
     try:

@@ -1840,6 +1840,86 @@ def {TASK}() -> Task:
 """
 
 
+def test_a_task_metric_from_the_task_file_is_resolved_with_a_warning(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    from inspect_ai._util import registry
+
+    monkeypatch.chdir(tmp_path)
+    Path("solver_task.py").write_text(_SOLVER_SCORE_TASK)
+    shards = f"{NAME}.shards"
+    for k, ids in (("0", [1, 2]), ("1", [3, 4])):
+        eval(
+            "solver_task.py",
+            model="mockllm/model",
+            log_dir=f"{shards}/{k}",
+            display="none",
+            sample_id=ids,
+        )
+    # no scorer: the metric is only in the task's own metrics
+    monkeypatch.delitem(registry._registry, "metric:shard_trust_total")
+    header = merge_eval_log_shards(f"{NAME}.eval").log
+    assert "Importing solver_task.py" in caplog.text
+    assert header.results is not None
+    assert header.results.scores[0].metrics["shard_trust_total"].value == 4
+
+
+_SOLVER_SCORE_TASK = f"""
+from inspect_ai import Task, task
+from inspect_ai.dataset import Sample
+from inspect_ai.scorer import Metric, SampleScore, Score, metric
+from inspect_ai.solver import Generate, Solver, TaskState, solver
+
+
+@metric
+def shard_trust_total() -> Metric:
+    def compute(scores: list[SampleScore]) -> float:
+        return float(sum(s.score.as_float() for s in scores))
+
+    return compute
+
+
+@solver
+def scoring_solver() -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        state.scores = {{"simple": Score(value=1)}}
+        return state
+
+    return solve
+
+
+@task
+def {TASK}() -> Task:
+    return Task(
+        dataset=[Sample(id=i, input="q") for i in range(1, 5)],
+        solver=scoring_solver(),
+        metrics=[shard_trust_total()],
+    )
+"""
+
+
+def test_remove_shards_dir_keeps_a_remote_backend(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import shortuuid
+
+    from inspect_ai._util.file import filesystem
+    from inspect_ai.log._shards._delete import remove_shards_dir
+
+    root = f"memory://{shortuuid.uuid()}/logs"
+    memory = filesystem(root).fs
+    merged, shards = _paths(root)
+    names = ["0/a.eval", "0/.buffer/x/segment.0.zip", "1/b.checkpoints/1/data"]
+    for name in names:
+        memory.pipe(f"{shards}/{name}", b"x")
+    memory.pipe(merged, b"x")
+    deleted = _failing_deletes(monkeypatch, lambda f: False)
+    anyio.run(lambda: remove_shards_dir(merged, include_log=True))
+    assert len(deleted) == len(names) + 1
+    assert all(name.startswith("memory://") for name in deleted)
+    assert memory.find(root) == []
+
+
 def _s3_keys(prefix: str) -> list[str]:
     client = boto3.client("s3")
     pages = client.get_paginator("list_objects_v2").paginate(

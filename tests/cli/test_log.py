@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 from typing import Any
 
@@ -91,3 +92,73 @@ def test_merge_shards_deletes_shards(tmp_path: Path) -> None:
     assert result.exit_code == 0, result.output
     assert "shards deleted" in result.output
     assert not shards.exists()
+
+
+def _json(result: Any) -> Any:
+    return json.loads(result.stdout)
+
+
+def test_merge_shards_json(tmp_path: Path) -> None:
+    shards = tmp_path / f"{NAME}.shards"
+    _shard(shards, "0", [1, 2])
+    merged = tmp_path / f"{NAME}.eval"
+    result = _merge(str(merged), "--sample-id", "1,2,3", "--allow-incomplete", "--json")
+    assert result.exit_code == 0, result.output
+    assert _json(result) == {
+        "log": str(merged),
+        "status": "started",
+        "written": True,
+        "shards": 1,
+        "samples": 2,
+        "new_samples": 2,
+        "missing": ["3"],
+        "running": [],
+        "failed": [],
+        "shards_deleted": False,
+        "task_file_imported": None,
+    }
+    _shard(shards, "1", [3, 4])
+    result = _merge(str(merged), "--sample-count", "4", "--delete-shards", "--json")
+    assert result.exit_code == 0, result.output
+    item = _json(result)
+    assert item["status"] == "success" and item["samples"] == 4
+    assert item["shards_deleted"] is True and not shards.exists()
+
+
+def test_merge_shards_json_errors(tmp_path: Path) -> None:
+    def error(*args: str) -> dict[str, Any]:
+        result = _merge(*args, "--json")
+        assert result.exit_code == 1, result.output
+        [(key, value)] = _json(result).items()
+        assert key == "error"
+        return value
+
+    merged = str(tmp_path / f"{NAME}.eval")
+    shards = tmp_path / f"{NAME}.shards"
+
+    usage = error(merged, "--sample-id", "1", "--sample-count", "1")
+    assert usage["type"] == "UsageError" and "--sample-count" in usage["message"]
+
+    missing = error(merged)
+    assert missing["type"] == "FileNotFoundError" and merged in missing["message"]
+
+    recovered = error(str(tmp_path / f"{NAME}-recovered.eval"))
+    assert recovered["type"] == "ValueError" and "recovered" in recovered["message"]
+
+    _shard(shards, "0", [1, 2])
+    incomplete = error(merged)
+    assert incomplete["type"] == "ShardSetIncomplete"
+    assert incomplete["status"] == "started" and incomplete["missing"] is None
+    assert incomplete["running"] == [] and incomplete["failed"] == []
+
+    lock = tmp_path / f"{NAME}.merge.lock"
+    lock.write_text('{"pid": 1, "host": "elsewhere"}')
+    conflict = error(merged)
+    assert (
+        conflict["type"] == "WriteConflictError" and "elsewhere" in conflict["message"]
+    )
+    lock.unlink()
+
+    (shards / f"{NAME}.eval").write_bytes(b"x")
+    stray = error(merged)
+    assert stray["type"] == "ShardSetError" and "not shard attempts" in stray["message"]

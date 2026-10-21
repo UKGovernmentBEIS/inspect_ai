@@ -51,9 +51,14 @@ async def remove_shards_dir(
         await anyio.to_thread.run_sync(_remove_local_dir, shards_dir)
         return
 
-    # collect first: deleting while iterating a paginated listing is undefined
+    # collect first: deleting while iterating a paginated listing is undefined.
+    # Detailed listings name objects with their scheme; plain fsspec listings
+    # drop it, and the name would then resolve to the local filesystem.
     try:
-        files = [f async for f in fs.iter_files(shards_dir, recursive=True)]
+        files = [
+            info.name
+            async for info in fs.iter_files(shards_dir, recursive=True, detail=True)
+        ]
     except FileNotFoundError:
         return
     limiter = anyio.CapacityLimiter(_MAX_CONCURRENT_DELETES)

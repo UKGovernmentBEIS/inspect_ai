@@ -122,12 +122,14 @@ The merge checks that the shards belong to one run, recomputes metrics over all 
 
 `--delete-shards` deletes the whole `.shards` directory after a complete merge, including any checkpoints and scan results in it.
 
+`--json` prints one JSON object on stdout for scripts and agents. On success it has the merged log's `log`, `status`, `written`, `shards`, `samples`, `new_samples`, `missing`, `running`, `failed`, `shards_deleted` and `task_file_imported`. On failure it is `{"error": {"type": ..., "message": ...}}` and the exit code is 1; for an incomplete set the error also has `status`, `missing`, `running` and `failed`. The task-file notice stays on stderr.
+
 When a metric or epoch reducer is not registered, the merge imports the task file recorded in the shard logs to find it, and prints a notice.
 
 ### Limitations
 
 -   A merge that runs while a worker is writing its shard can fail with a read error. Nothing is written; run the merge again, or merge after the workers have exited.
--   Delete shards only when every worker has exited and no other merge or deletion of the same log is running. If a deletion is interrupted, run it again or delete the `.shards` directory by hand; until then, merges of that log without `--delete-shards` are refused.
+-   Delete shards only when every worker has exited and no other merge or deletion of the same log is running. If a deletion is interrupted, run it again or delete the `.shards` directory by hand. Until then, a merge without `--delete-shards` refuses when a shard is missing or left with an older log; if every shard still has the log that was merged, or none has a log, it returns the merged log as it is.
 -   `eval_retry()` refuses a merged log that was merged with `--sample-id` or `--sample-count`. Re-run the incomplete shards and merge again instead.
 -   Do not change `INSPECT_EVAL_LOG_FILE_PATTERN` while a `.shards` directory exists.
 -   Deleting a merged log in `inspect view` leaves its `.shards` directory, and the viewer lists the shards again. To remove a sharded run, delete the `.shards` directory as well.
