@@ -141,6 +141,7 @@ def resolve_tasks(
             sample_shuffle=sample_shuffle,
             model=model,
             model_roles=model_roles,
+            sandbox=sandbox,
             eval_checkpoint=eval_checkpoint,
         )
 
@@ -288,6 +289,7 @@ def resolve_previous_tasks(
     sample_shuffle: bool | int | None,
     model: Model,
     model_roles: dict[str, Model | list[Model]] | None,
+    sandbox: SandboxEnvironmentType | None,
     eval_checkpoint: CheckpointConfig | None = None,
 ) -> list[ResolvedTask]:
     result = []
@@ -303,9 +305,17 @@ def resolve_previous_tasks(
             if isinstance(previous_task.task, Task):
                 loaded_task_args = previous_task.task_args
                 loaded_task = previous_task.task
+                # eval-set passes the task the user is running, so the sandbox
+                # comes from that task and the eval, not from the log
+                resolved_sandbox = resolve_task_sandbox(loaded_task, sandbox)
             else:
                 loaded_task_args = previous_task.task_args
                 loaded_task = load_tasks([previous_task.task], loaded_task_args)[0]
+                # eval-retry replays the original run's sandbox, including a
+                # --sandbox override that only the log records
+                resolved_sandbox = resolve_task_file_sandbox(
+                    previous_task.log.eval.task_file, previous_task.log.eval.sandbox
+                )
             if sample_shuffle is not None:
                 if not loaded_task.dataset.shuffled:
                     loaded_task.dataset.shuffle(
@@ -317,6 +327,7 @@ def resolve_previous_tasks(
                     loaded_task_args,
                     model,
                     model_roles,
+                    resolved_sandbox,
                     previous_task,
                     sequence,
                     eval_checkpoint,
@@ -330,6 +341,7 @@ def resolve_previous_task(
     loaded_task_args: dict[str, Any],
     model: Model,
     model_roles: dict[str, Model | list[Model]] | None,
+    sandbox: SandboxEnvironmentSpec | None,
     previous_task: PreviousTask,
     sequence: int,
     eval_checkpoint: CheckpointConfig | None = None,
@@ -355,9 +367,7 @@ def resolve_previous_task(
         model_roles=_merge_model_roles(
             loaded_task.model_roles, model_roles, previous_task.model_roles
         ),
-        sandbox=resolve_task_file_sandbox(
-            previous_task.log.eval.task_file, previous_task.log.eval.sandbox
-        ),
+        sandbox=sandbox,
         checkpoint=loaded_task.checkpoint,
         sequence=sequence,
         id=previous_task.id,

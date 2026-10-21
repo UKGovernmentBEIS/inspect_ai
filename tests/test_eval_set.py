@@ -27,6 +27,7 @@ from test_helpers.utils import (
     skip_if_trio,
     sleep_for_solver,
 )
+from typing_extensions import override
 
 from inspect_ai import Epochs, Task, eval, task
 from inspect_ai._eval.evalset import (
@@ -46,7 +47,7 @@ from inspect_ai._eval.evalset import (
 )
 from inspect_ai._eval.loader import resolve_tasks
 from inspect_ai._eval.task.resolved import ResolvedTask
-from inspect_ai._eval.task.task import task_with
+from inspect_ai._eval.task.task import PreviousTask, task_with
 from inspect_ai._util.asyncfiles import AsyncFilesystem
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.file import basename, filesystem, local_path, size_in_mb
@@ -87,7 +88,15 @@ from inspect_ai.scorer import (
 )
 from inspect_ai.scorer._match import includes
 from inspect_ai.solver import Generate, Solver, TaskState, generate, solver
+from inspect_ai.util import (
+    ComposeConfig,
+    SandboxEnvironment,
+    SandboxEnvironmentConfigType,
+    SandboxEnvironmentSpec,
+    sandboxenv,
+)
 from inspect_ai.util._limit import TokenLimit
+from inspect_ai.util._sandbox.local import LocalSandboxEnvironment
 
 
 @pytest.mark.parametrize("retry_immediate", [False, True])
@@ -911,6 +920,111 @@ def test_eval_set_retry_started():
         # re-run the eval set and confirm status 'succes'
         run_eval_set()
         assert eval_log_status() == "success"
+
+
+_log_chosen_sandbox_samples: list[str] = []
+
+
+@sandboxenv(name="log_chosen")
+class _LogChosenSandbox(LocalSandboxEnvironment):
+    """Local sandbox that records each sample it starts."""
+
+    @override
+    @classmethod
+    async def sample_init(
+        cls,
+        task_name: str,
+        config: SandboxEnvironmentConfigType | None,
+        metadata: dict[str, str],
+    ) -> dict[str, SandboxEnvironment]:
+        _log_chosen_sandbox_samples.append(task_name)
+        return await super().sample_init(task_name, config, metadata)
+
+
+def _log_sandbox_task(sandbox: str | None) -> Task:
+    return Task(dataset=[Sample(input="hello", target="hello")], sandbox=sandbox)
+
+
+@pytest.mark.parametrize(
+    ("task_sandbox", "eval_sandbox"),
+    [("local", None), (None, "local")],
+    ids=["task-sandbox", "eval-sandbox"],
+)
+def test_eval_set_previous_task_sandbox_ignores_log(
+    task_sandbox: str | None, eval_sandbox: str | None
+) -> None:
+    previous_log = eval(_log_sandbox_task(None), model="mockllm/model")[0]
+    previous_log.eval.sandbox = SandboxEnvironmentSpec(
+        "docker",
+        ComposeConfig.model_validate(
+            {"services": {"default": {"image": "untrusted", "volumes": ["/:/host"]}}}
+        ),
+    )
+    previous_task = PreviousTask(
+        id=previous_log.eval.task_id,
+        task=_log_sandbox_task(task_sandbox),
+        task_args={},
+        model=None,
+        model_roles=None,
+        log=previous_log,
+        log_info=None,
+    )
+
+    resolved = resolve_tasks(
+        [previous_task],
+        task_args={},
+        model=get_model("mockllm/model"),
+        model_roles=None,
+        sandbox=eval_sandbox,
+        sample_shuffle=None,
+    )
+
+    assert resolved[0].sandbox == SandboxEnvironmentSpec("local")
+
+
+def test_eval_set_resume_uses_task_sandbox_not_log_sandbox(tmp_path: Path) -> None:
+    should_fail = True
+
+    @solver
+    def fail_while_flagged() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            if should_fail:
+                raise ValueError("Eval failed!")
+            return state
+
+        return solve
+
+    @task
+    def sandboxed_task() -> Task:
+        return Task(
+            dataset=[Sample(input="hello", target="hello")],
+            solver=fail_while_flagged(),
+            sandbox="local",
+        )
+
+    success, logs = eval_set(
+        sandboxed_task(),
+        log_dir=str(tmp_path),
+        retry_attempts=0,
+        model="mockllm/model",
+    )
+    assert not success
+    previous_log = read_eval_log(logs[0].location)
+    previous_log.eval.sandbox = SandboxEnvironmentSpec("log_chosen")
+    write_eval_log(previous_log)
+
+    should_fail = False
+    _log_chosen_sandbox_samples.clear()
+    success, logs = eval_set(
+        sandboxed_task(),
+        log_dir=str(tmp_path),
+        retry_attempts=0,
+        model="mockllm/model",
+    )
+
+    assert success
+    assert logs[0].eval.sandbox == SandboxEnvironmentSpec("local")
+    assert _log_chosen_sandbox_samples == []
 
 
 def test_eval_set_preserves_token_usage():
