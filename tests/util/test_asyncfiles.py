@@ -1632,6 +1632,133 @@ async def test_s3_compose_async_copies_every_part_conditionally(
     ]
 
 
+class _ConcurrencyComposeClient(_ComposeClient):
+    """Fake client recording peak concurrent copies and part uploads.
+
+    Part uploads wait until ten are in flight. With ``hold_copies``, copies never finish: ``copy_full`` is set once
+    ``_S3_MAX_COPY_CONCURRENCY`` are in flight, and with ``fail_copy`` that
+    last one raises instead.
+    """
+
+    def __init__(self, *, hold_copies: bool = False, fail_copy: bool = False):
+        super().__init__()
+        self.hold_copies = hold_copies
+        self.fail_copy = fail_copy
+        self.copy_full = anyio.Event()
+        self.uploads_full = anyio.Event()
+        self.copying = 0
+        self.uploading = 0
+        self.peak_copies = 0
+        self.peak_uploads = 0
+
+    async def upload_part_copy(self, **kwargs: Any) -> dict[str, Any]:
+        self.copying += 1
+        self.peak_copies = max(self.peak_copies, self.copying)
+        try:
+            if self.copying == asyncfiles._S3_MAX_COPY_CONCURRENCY:
+                self.copy_full.set()
+                if self.fail_copy:
+                    raise ClientError(
+                        cast(Any, {"Error": {"Code": "InternalError"}}),
+                        "UploadPartCopy",
+                    )
+            if self.hold_copies:
+                await anyio.sleep_forever()
+            for _ in range(5):
+                await anyio.sleep(0)
+            return await super().upload_part_copy(**kwargs)
+        finally:
+            self.copying -= 1
+
+    async def upload_part(
+        self, PartNumber: int, Body: bytes, UploadId: str, **kwargs: Any
+    ) -> dict[str, Any]:
+        self.uploading += 1
+        self.peak_uploads = max(self.peak_uploads, self.uploading)
+        try:
+            # parts are read off the loop one at a time; hold them until ten
+            # are in flight (a lower bound times out)
+            if self.uploading == 10:
+                self.uploads_full.set()
+            with anyio.fail_after(10):
+                await self.uploads_full.wait()
+            return await super().upload_part(PartNumber, Body, UploadId, **kwargs)
+        finally:
+            self.uploading -= 1
+
+
+# more copy parts than the copy limit runs at once
+_MANY_COPY_PARTS = S3_COMPOSE_MIN_PREFIX // 40
+
+
+async def test_s3_compose_async_bounds_copies_apart_from_uploads(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(asyncfiles, "_S3_COPY_PART_SIZE", _MANY_COPY_PARTS)
+    client = _ConcurrencyComposeClient()
+
+    await _s3_compose_async(
+        client,
+        "bucket",
+        "dest.eval",
+        _COMPOSE_PREFIX,
+        io.BytesIO(b"x" * 4 * 30),
+        TransferConfig(multipart_chunksize=4, max_concurrency=10),
+    )
+
+    assert len(client.copies) > asyncfiles._S3_MAX_COPY_CONCURRENCY
+    assert client.peak_copies == asyncfiles._S3_MAX_COPY_CONCURRENCY == 32
+    assert client.peak_uploads == 10
+    assert client.aborted == []
+
+
+@pytest.mark.parametrize("stop", ["fail", "cancel"])
+async def test_s3_compose_async_aborts_with_every_copy_in_flight(
+    monkeypatch: pytest.MonkeyPatch, stop: str
+) -> None:
+    monkeypatch.setattr(asyncfiles, "_S3_COPY_PART_SIZE", _MANY_COPY_PARTS)
+    client = _ConcurrencyComposeClient(hold_copies=True, fail_copy=stop == "fail")
+
+    async def compose() -> None:
+        await _s3_compose_async(
+            client,
+            "bucket",
+            "dest.eval",
+            _COMPOSE_PREFIX,
+            io.BytesIO(b"t"),
+            _SMALL_PARTS(),
+        )
+
+    # a lower copy limit never fills: time out rather than hang
+    if stop == "fail":
+        with anyio.fail_after(10), pytest.raises(ClientError) as exc_info:
+            await compose()
+        assert exc_info.value.response["Error"]["Code"] == "InternalError"
+    else:
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(compose)
+            with anyio.fail_after(10):
+                await client.copy_full.wait()
+            tg.cancel_scope.cancel()
+
+    assert client.copy_full.is_set()
+    assert client.copying == 0
+    assert client.aborted == ["upload-1"]
+    assert client.completed is None
+
+
+@skip_if_trio
+async def test_s3_client_pool_fits_the_copy_limit() -> None:
+    client = await AsyncFilesystem._create_s3_client_async(region_name="us-east-1")
+    try:
+        assert (
+            client.meta.config.max_pool_connections
+            >= asyncfiles._S3_MAX_COPY_CONCURRENCY
+        )
+    finally:
+        await client.__aexit__(None, None, None)
+
+
 @pytest.mark.parametrize(
     "head",
     [

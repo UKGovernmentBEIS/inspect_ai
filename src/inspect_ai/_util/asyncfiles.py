@@ -488,8 +488,8 @@ async def _s3_compose_async(
     """Replace ``bucket/key`` with ``prefix``'s leading bytes then ``tail``.
 
     One multipart upload: ``UploadPartCopy`` of the prefix in parallel parts
-    (each conditional on its ETag), then ``tail`` from its position to EOF
-    as uploaded parts.
+    (each conditional on its ETag, at most ``_S3_MAX_COPY_CONCURRENCY`` at a
+    time), then ``tail`` from its position to EOF as uploaded parts.
     The ``HeadObject`` check comes first because some S3-compatible stores
     (moto among them) ignore ``CopySourceIfMatch``; real S3 enforces it as
     well. Any failure after the upload is created aborts it. Returns the
@@ -515,7 +515,7 @@ async def _s3_compose_async(
     created = await client.create_multipart_upload(Bucket=bucket, Key=key)
     upload_id = created["UploadId"]
     parts: list[dict[str, Any]] = []
-    copy_limiter = anyio.CapacityLimiter(config.max_request_concurrency)
+    copy_limiter = anyio.CapacityLimiter(_S3_MAX_COPY_CONCURRENCY)
 
     async def copy_part(part_number: int, start: int, end: int) -> None:
         async with copy_limiter:
@@ -2341,6 +2341,14 @@ def _s3_transfer_config() -> TransferConfig:
         multipart_chunksize=8 * 1024 * 1024,  # 8 MB
         max_concurrency=10,
     )
+
+
+# Concurrent UploadPartCopy requests per compose. Higher than the upload bound
+# above: each copy runs at only ~40-55 MB/s on S3's side, and 10 at a time was
+# measured slower than main's whole upload on an in-region EC2 host. The S3
+# client's connection pool (max_pool_connections=50) caps the requests of
+# composes that share it.
+_S3_MAX_COPY_CONCURRENCY = 32
 
 
 # fsspec write buffer size for cloud storage backends (GCS, Azure, etc.).
