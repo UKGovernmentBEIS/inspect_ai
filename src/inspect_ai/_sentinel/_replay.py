@@ -270,6 +270,10 @@ class _Action(NamedTuple):
 
 _HUMAN_FACTORY = "inspect_sentinel/human"
 
+# the origins of regions that are not final, so the tool calls of a model call
+# made there are checked live
+_NON_FINAL = {"agent", "tool", "setup"}
+
 
 class _Driver:
     def __init__(
@@ -384,8 +388,6 @@ class _Driver:
                     producer: ModelEvent | None = found[1]
                 else:
                     assistant, producer = self._assistant(event.id), None
-                if producer is not None and not is_agent_turn(producer.origin):
-                    continue
                 conversation = (
                     self._conversation(producer)
                     if producer is not None
@@ -409,6 +411,9 @@ class _Driver:
                     self._tool_span(index, event),
                 )
                 calls.append(entry)
+                if producer is not None and not is_agent_turn(producer.origin):
+                    # execute_tools() records results only in an agent turn's region
+                    continue
                 batch = batches.get(conversation)
                 if batch is None or batch.assistant is not assistant:
                     if batch is not None:
@@ -604,9 +609,14 @@ class _Driver:
         after_span = self.step_spans.get(("tool_result", event.id))
         tool_span = call.tool_span
         proposal = call.proposal
+        approval = call.approval
+        if not self.eval_info.sentinel and approval is not None:
+            self._approval_decision(call, approval)
         if proposal is None or call.assistant is None:
             return
-        approval = call.approval
+        recorded = before_span is not None or after_span is not None
+        if not recorded and not self._checks_tool_calls(call.producer):
+            return
         approver_modified = (
             approval.modified
             if approval is not None
@@ -616,6 +626,10 @@ class _Driver:
         )
         checked = before_span is not None or (
             tool_span is not None
+            # the call was rejected before its step was built: by a viewer
+            # that raised, or with every instance abstaining, by a tool that
+            # raised ToolApprovalError itself, which reads the same
+            and (event.error is None or event.error.type != "approval")
             and proposal.parse_error is None
             and (
                 call.producer is None
@@ -677,8 +691,6 @@ class _Driver:
         )
         self._at_seq(before_cut, 1, call.seq, build_before)
         self._settle_at_end(before_span)
-        if not self.eval_info.sentinel and approval is not None:
-            self._approval_decision(call, approval)
         if not ran:
             return
 
@@ -709,6 +721,29 @@ class _Driver:
         after_cut = self._cut(after_span, (end if end is not None else call.index) + 1)
         self._at_seq(after_cut, 1, call.seq + 1, build_after)
         self._settle_at_end(after_span)
+
+    def _checks_tool_calls(self, producer: ModelEvent | None) -> bool:
+        """Whether live checked the calls a model call produced: wherever the region it was made in is not final (`checks_tool_calls()`).
+
+        A call no model call produced (a pre-filled message) is taken as checked: the log does not say which region ran it.
+        """
+        if producer is None:
+            return True
+        if producer.origin in _NON_FINAL:
+            return True
+        # a task's scorers run in a region that is not final; score() called
+        # from a solver runs in a final one
+        return producer.origin == "scorer" and self._in_span_type(
+            producer.span_id, "scorers"
+        )
+
+    def _in_span_type(self, span_id: str | None, type: str) -> bool:
+        while span_id is not None and span_id in self.begins:
+            begin = self.begins[span_id][1]
+            if begin.type == type:
+                return True
+            span_id = begin.parent_id
+        return False
 
     def _batch(self, batch: _Batch) -> None:
         if batch.assistant is None:

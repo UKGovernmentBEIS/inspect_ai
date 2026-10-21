@@ -3,7 +3,8 @@
 import dataclasses
 import random
 from collections.abc import Sequence
-from typing import TYPE_CHECKING, Any, NamedTuple
+from dataclasses import replace
+from typing import TYPE_CHECKING, Any, NamedTuple, cast
 
 import anyio
 import pytest
@@ -14,10 +15,13 @@ from inspect_ai import Task, eval
 from inspect_ai._sentinel._replay import EvalInfo, MalformedLogError, steps_from_events
 from inspect_ai._sentinel._steps import PoolView
 from inspect_ai._util._async import tg_collect
+from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai.agent import Agent, as_solver, as_tool, handoff, react
-from inspect_ai.approval import ApprovalPolicy
+from inspect_ai.approval import Approval, ApprovalPolicy, Approver, approver
+from inspect_ai.approval._approval import ApprovalDecision
 from inspect_ai.dataset import Sample
 from inspect_ai.event import (
+    ApprovalEvent,
     Event,
     ModelEvent,
     SentinelEvent,
@@ -42,7 +46,8 @@ from inspect_ai.model import (
 from inspect_ai.model._call_tools import execute_tools
 from inspect_ai.model._providers.mockllm import MockLLM
 from inspect_ai.solver import Generate, Solver, TaskState, generate, solver, use_tools
-from inspect_ai.tool import Tool, ToolCall, ToolInfo, tool
+from inspect_ai.tool import Tool, ToolCall, ToolCallView, ToolInfo, tool
+from inspect_ai.tool._tool import ToolApprovalError
 from inspect_ai.util._span import span
 
 from .test_sentinel_dispatch import (
@@ -50,6 +55,7 @@ from .test_sentinel_dispatch import (
     _RetryingMockLLM,
     addition,
     addition_call,
+    addition_raising_viewer,
     agent_model,
     d3_approver,
     d3_edits_a_sent_message_in_place,
@@ -1056,7 +1062,8 @@ def test_a_rebuilt_message_s_fold_is_linear_in_what_the_log_stores(
         ]
         condensed, pool = _replay._condensed(expanded, [])
         works.append(replay_work(monkeypatch, [], condensed, pool, "sample", info))
-    assert_linear(*works, doubles=False)
+    small, large = works
+    assert_linear(small, large, doubles=False)
 
 
 def test_the_fold_over_pool_ranges_is_the_fold_live() -> None:
@@ -1064,7 +1071,7 @@ def test_the_fold_over_pool_ranges_is_the_fold_live() -> None:
     from inspect_ai._sentinel._steps import _Sent
 
     rng = random.Random(7)
-    messages = [
+    messages: list[ChatMessage] = [
         ChatMessageUser(content=text, metadata=metadata)
         for text in "ABCD"
         for metadata in (None, {"variant": 1})
@@ -1242,3 +1249,162 @@ def test_an_output_joins_agent_messages_once_its_after_stage_has_finished() -> N
     )
     [_, second] = [step for step in replay if step.stage == "model_input"]
     assert [m.text for m in second.step.agent_messages or []] == ["first"]
+
+
+@tool
+def asks_a_helper() -> Tool:
+    async def execute() -> str:
+        """Have a helper model propose a call, and run it."""
+        helper_model = outputs(call("addition", x=4, y=5))
+        output = await helper_model.generate("Add 4 and 5.", [addition()])
+        result = await execute_tools(
+            [ChatMessageUser(content="Add 4 and 5."), output.message], [addition()]
+        )
+        return result.messages[0].text
+
+    return execute
+
+
+def test_a_call_a_tool_s_helper_model_proposes_replays_as_it_ran() -> None:
+    replay = assert_replay_equals_live(
+        tool_loop(asks_a_helper()), outputs(call("asks_a_helper"), done())
+    )
+    # the helper's call is checked live (a tool's region is not final), and
+    # replayed though its producer is not an agent turn
+    assert ("tool_result", "addition") in {
+        (step.stage, step.step.call.function)
+        for step in replay
+        if isinstance(step.step, AfterToolCall)
+    }
+
+
+def test_a_viewer_that_rejects_the_call_leaves_no_step() -> None:
+    replay = assert_replay_equals_live(
+        tool_loop(addition_raising_viewer()),
+        outputs(call("addition_raising_viewer", x=1, y=1), done()),
+    )
+    assert not [step for step in replay if step.stage.startswith("tool")]
+
+
+@tool
+def refuses() -> Tool:
+    async def execute() -> str:
+        """Refuse, as an approval would."""
+        raise ToolApprovalError("not today")
+
+    return execute
+
+
+@monitor
+def r7_counts_tool_calls(seen: list[Any]) -> MonitorGroup:
+    async def before_call(context: Context, step: BeforeToolCall) -> Observation | None:
+        seen.append(step)
+        return None
+
+    return MonitorGroup(before_call)
+
+
+def test_a_tool_that_raises_tool_approval_error_itself_is_a_known_difference() -> None:
+    # known difference: with every instance abstaining, the log of a tool that
+    # raises ToolApprovalError itself reads as a call rejected before its step
+    # was built, so replay gives it no tool steps
+    seen: list[Any] = []
+    log = run_logged(
+        tool_loop(refuses()),
+        outputs(call("refuses"), done()),
+        sentinel=[r7_counts_tool_calls(seen)],
+    )
+    assert len(seen) == 1
+    assert not [s for s in replayed(log) if s.stage.startswith("tool")]
+
+
+@approver
+def r7_decides(decision: str) -> Approver:
+    async def approve(
+        message: str, call: ToolCall, view: ToolCallView, history: list[ChatMessage]
+    ) -> Approval:
+        if decision == "modify":
+            return Approval(
+                decision="modify",
+                modified=replace(call, arguments={**call.arguments, "x": 7}),
+                explanation="seven",
+            )
+        return Approval(
+            decision=cast(ApprovalDecision, decision), explanation=f"{decision} it"
+        )
+
+    return approve
+
+
+@solver
+def r7_continues_after_a_termination() -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        model = get_model()
+        tools = [addition()]
+        for _ in range(2):
+            output = await model.generate(state.messages, tools)
+            state.messages.append(output.message)
+            if not output.message.tool_calls:
+                break
+            try:
+                result = await execute_tools(state.messages, tools)
+                state.messages.extend(result.messages)
+            except TerminateSampleError:
+                state.messages.append(ChatMessageUser(content="carry on"))
+        return state
+
+    return solve
+
+
+@pytest.mark.parametrize(
+    "decision,action",
+    [("reject", "reject"), ("modify", "modify"), ("terminate", "terminate")],
+)
+def test_a_person_s_approval_decision_reaches_later_steps(
+    decision: str, action: str
+) -> None:
+    solver_ = (
+        r7_continues_after_a_termination()
+        if decision == "terminate"
+        else tool_loop(addition())
+    )
+    log = run_logged(
+        solver_,
+        agent_model(2),
+        approval=[ApprovalPolicy(r7_decides(decision), "*")],
+    )
+    sample = logged_sample(log)
+    [approver_name] = {
+        e.approver for e in sample.events if isinstance(e, ApprovalEvent)
+    }
+    replay = steps_from_events(
+        sample.messages,
+        sample.events,
+        [],
+        sample_uuid=sample.uuid or "",
+        eval_info=EvalInfo(inspect_ai_version=None, sentinel=False),
+        human_approvers=(approver_name,),
+    )
+    last = [s for s in replay if s.stage == "model_input"][-1]
+    decisions = last.step.human_decisions or []
+    assert decisions, [s.stage for s in replay]
+    assert decisions[0].decided.report.action == action
+
+
+@tool
+def times_out() -> Tool:
+    async def execute() -> str:
+        """Run out of time."""
+        raise TimeoutError()
+
+    return execute
+
+
+def test_a_tool_s_own_timeout_keeps_its_result_step() -> None:
+    replay = assert_replay_equals_live(
+        tool_loop(times_out()), outputs(call("times_out"), done())
+    )
+    assert [s.stage for s in replay if s.stage.startswith("tool")] == [
+        "tool_call",
+        "tool_result",
+    ]
