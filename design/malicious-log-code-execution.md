@@ -761,21 +761,23 @@ record their grader model as a model dict that rescoring must rebuild.
 
 ### 4. eval-set resume uses the sandbox the user's task resolves to (fixes D)
 
-`resolve_previous_tasks()` gains the eval's `sandbox` (passed from
-`resolve_tasks()`, `loader.py:139`), and `resolve_previous_task()` chooses the
-sandbox by where the task came from:
+The internal `PreviousTask` carries the sandbox to resume in, set by the code
+that builds it, and `resolve_previous_task()` uses it as given:
 
-- `PreviousTask.task` is a `Task` (eval-set: `as_previous_tasks()`,
-  `evalset.py:1508`, and `_resumed_task()`, `:1735`): use
-  `resolve_task_sandbox(loaded_task, sandbox)` (`loader.py:412`), the same
-  resolution a fresh run of that task gets in `as_resolved_tasks()`
-  (`loader.py:120`).
-- `PreviousTask.task` is a `str` (eval-retry, `eval.py:1927`): keep
+- eval-set (`as_previous_tasks()`, `evalset.py:1508`, which scanner resume
+  also uses, and `_resumed_task()`, `:1735`): copy `ResolvedTask.sandbox`.
+  That is the resolution a fresh run of the task gets (`resolve_task_sandbox()`,
+  `loader.py:412`, called from `as_resolved_tasks()`, `loader.py:120`), and it
+  keeps an override a caller already resolved onto a `ResolvedTask` passed to
+  `eval_set()` without repeating it. Resolving again from the underlying
+  `Task` would lose that override.
+- eval-retry (`eval.py:1927`): keep
   `resolve_task_file_sandbox(log.eval.task_file, log.eval.sandbox)`. A retry
   replays the original run's sandbox, including a `--sandbox` override that
-  only the log remembers.
+  only the log remembers, with relative config paths resolved against the
+  recorded task file.
 
-No other field changes. `PreviousTask` keeps its shape.
+No other field changes.
 
 The sandbox stays out of `task_identifier` (decision: Ransom, 2026-10-06; no
 `TASK_IDENTIFIER_VERSION` bump). This step already stops the log choosing the
@@ -1362,8 +1364,10 @@ PRs open, as the repo requires.
    including `tests/log/test_untrusted_logs.py`. The rescoring trust split
    belongs in this step: otherwise `inspect score` without `--scorer` would
    rebuild metrics untrusted.
-2. **eval-set resume sandbox** (step 4). `src/inspect_ai/_eval/loader.py`,
-   `tests/test_eval_set.py`.
+2. **eval-set resume sandbox** (step 4). `src/inspect_ai/_eval/task/task.py`
+   (`PreviousTask.sandbox`), `src/inspect_ai/_eval/loader.py`,
+   `src/inspect_ai/_eval/evalset.py`, `src/inspect_ai/_eval/eval.py`,
+   `tests/test_eval_set.py`, `tests/test_retry.py`.
 3. **Recorded scorer names, run-operation help text and records** (steps 6,
    7). `src/inspect_ai/_eval/loader.py` (`scorer_from_log_name()`, the
    record line), `src/inspect_ai/_eval/score.py` (`resolve_scorers()`),
