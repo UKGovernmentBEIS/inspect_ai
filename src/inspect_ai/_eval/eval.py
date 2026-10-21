@@ -1744,6 +1744,8 @@ async def eval_retry_async(
                         cleanup="finalized",
                         incomplete_action=incomplete_action,
                         incomplete_max=incomplete_max,
+                        # the retry imports the task file and runs it next
+                        trust_log=True,
                     )
                 except RecoveryThresholdExceeded as ex:
                     log.warning(
@@ -1751,7 +1753,7 @@ async def eval_retry_async(
                         f"incomplete_max; falling back to recover-and-retry: {ex}"
                     )
                     recovered = await recover_eval_log_async(
-                        eval_log.location, cleanup=False
+                        eval_log.location, cleanup=False, trust_log=True
                     )
                 retry_eval_logs[i] = recovered
                 if recovered.status == "success":

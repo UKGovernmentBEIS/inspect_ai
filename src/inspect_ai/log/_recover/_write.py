@@ -21,6 +21,7 @@ from inspect_ai.log._log import (
     EvalStats,
     EvalStatus,
 )
+from inspect_ai.log._metric import LogMetrics
 from inspect_ai.log._recorders.buffer.filestore import SampleBufferFilestore
 from inspect_ai.log._recorders.eval import EvalRecorder, _sample_filename
 from inspect_ai.model._model_output import ModelUsage
@@ -97,6 +98,7 @@ async def write_recovered_eval_log(
     no_events: bool = False,
     incomplete_action: IncompleteAction = "retry",
     stats: RecoveryStats | None = None,
+    metrics: LogMetrics | None,
 ) -> EvalLog:
     """Write a recovered .eval file with true streaming.
 
@@ -127,15 +129,13 @@ async def write_recovered_eval_log(
         stats: If provided, populated with sample and failed counts so
             callers can report progress without re-reading the just-written
             file (which would trigger lazy loading of all samples).
+        metrics: Reducers and metrics resolved from the crashed log's header
+            (`resolve_log_metrics()`), or `None` to write the log without
+            results.
 
     Returns:
         The written EvalLog (header only, samples on disk).
     """
-    from inspect_ai._eval.score import (
-        metrics_from_log_header,
-        reducers_from_log_header,
-        resolve_scorers_info,
-    )
     from inspect_ai._eval.task.results import eval_results
     from inspect_ai._util.file import dirname
     from inspect_ai.scorer._metric import SampleScore
@@ -268,23 +268,21 @@ async def write_recovered_eval_log(
         status="error",
     )
 
-    try:
-        reducers = reducers_from_log_header(header)
-        metrics = metrics_from_log_header(header)
-        scorers_info = resolve_scorers_info(header)
-        results, reductions = eval_results(
-            samples=sample_count,
-            scores=scores_acc,
-            reducers=reducers,
-            scorers=scorers_info,
-            metrics=metrics,
-            # failed_count covers errored and still-in-progress samples, so
-            # the remainder is exactly the samples that completed cleanly
-            completed_samples=sample_count - failed_count,
-            headline_metric=header.eval.headline_metric,
-        )
-    except Exception as ex:
-        logger.warning(f"Unable to recompute metrics for recovered log: {ex}")
+    if metrics is not None:
+        try:
+            results, reductions = eval_results(
+                samples=sample_count,
+                scores=scores_acc,
+                reducers=metrics.reducers,
+                scorers=metrics.scorers,
+                metrics=metrics.metrics,
+                # failed_count covers errored and still-in-progress samples, so
+                # the remainder is exactly the samples that completed cleanly
+                completed_samples=sample_count - failed_count,
+                headline_metric=header.eval.headline_metric,
+            )
+        except Exception as ex:
+            logger.warning(f"Unable to recompute metrics for recovered log: {ex}")
 
     # A resolving disposition finalizes the log with status "success" when
     # every expected sample is final (present in the recovered log: flushed,
