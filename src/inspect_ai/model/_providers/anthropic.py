@@ -1258,7 +1258,6 @@ class AnthropicAPI(ModelAPI):
         pending_mcp_tool_uses: dict[str, BetaMCPToolUseBlock] | None = None,
         span_recorder: "_ServerToolSpanRecorder | None" = None,
         chain: _ContinuationChain | None = None,
-        raw_thinking: bool | None = None,
     ) -> tuple[dict[str, Any], ModelOutput]:
         """
         This helper function is split out so that it can be easily call itself recursively in cases where the model requires a continuation
@@ -1270,9 +1269,8 @@ class AnthropicAPI(ModelAPI):
         when a later continuation raises.
         """
         # decide before sending: batch submission pops the request's headers
-        # and extra_body, and continuations inherit the head's value
-        if raw_thinking is None:
-            raw_thinking = self._returns_raw_thinking(request)
+        # and extra_body
+        raw_thinking = self._returns_raw_thinking(request)
         # each continuation re-sends the same cache_control, so it refreshes the
         # cache entry at its own prefill -- record it as the gap baseline
         _last_request_start.set(time.monotonic())
@@ -1343,7 +1341,6 @@ class AnthropicAPI(ModelAPI):
                 pending_mcp_tool_uses=pending_mcp_tool_uses,
                 span_recorder=span_recorder,
                 chain=chain,
-                raw_thinking=raw_thinking,
             )
 
             head_content = _content_list(head_model_output.message.content)

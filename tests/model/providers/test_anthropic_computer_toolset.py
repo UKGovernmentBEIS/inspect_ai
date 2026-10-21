@@ -468,7 +468,6 @@ async def _capture_generate(api: AnthropicAPI) -> dict[str, Any]:
         pending_mcp_tool_uses: Any = None,
         span_recorder: Any = None,
         chain: Any = None,
-        raw_thinking: Any = None,
     ) -> tuple[dict[str, Any], ModelOutput]:
         captured.update(request)
         return {}, ModelOutput.from_content(
@@ -561,7 +560,6 @@ async def test_toolset_replay_with_explicit_cache_breakpoint() -> None:
         pending_mcp_tool_uses: Any = None,
         span_recorder: Any = None,
         chain: Any = None,
-        raw_thinking: Any = None,
     ) -> tuple[dict[str, Any], ModelOutput]:
         captured.update(request)
         return {}, ModelOutput.from_content(
@@ -679,7 +677,6 @@ async def test_forced_computer_tool_choice_degrades_to_auto_with_toolset() -> No
         pending_mcp_tool_uses: Any = None,
         span_recorder: Any = None,
         chain: Any = None,
-        raw_thinking: Any = None,
     ) -> tuple[dict[str, Any], ModelOutput]:
         captured.update(request)
         return {}, ModelOutput.from_content(
@@ -717,7 +714,6 @@ async def test_forced_computer_tool_choice_kept_with_legacy_tool() -> None:
         pending_mcp_tool_uses: Any = None,
         span_recorder: Any = None,
         chain: Any = None,
-        raw_thinking: Any = None,
     ) -> tuple[dict[str, Any], ModelOutput]:
         captured.update(request)
         return {}, ModelOutput.from_content(

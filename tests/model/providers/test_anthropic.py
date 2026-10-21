@@ -391,6 +391,56 @@ async def test_anthropic_generate_stores_raw_thinking_as_reasoning(
 
 
 @pytest.mark.anyio
+async def test_anthropic_pause_turn_continuation_stores_raw_thinking(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Each request of a pause_turn chain decides raw thinking from what it sends."""
+    from anthropic.types import Message, TextBlock, ThinkingBlock, Usage
+
+    def message(signature: str, stop_reason: Any) -> Message:
+        return Message(
+            id=f"msg_{signature}",
+            type="message",
+            role="assistant",
+            model="claude-opus-4-7",
+            stop_reason=stop_reason,
+            content=[
+                ThinkingBlock(type="thinking", thinking="raw", signature=signature),
+                TextBlock(type="text", text=signature),
+            ],
+            usage=Usage(input_tokens=1, output_tokens=1),
+        )
+
+    api = AnthropicAPI(
+        model_name="claude-opus-4-7",
+        api_key="test-key",
+        betas=[_FULL_THINKING_BETA],
+        streaming=False,
+    )
+    create = AsyncMock(
+        side_effect=[message("sig-1", "pause_turn"), message("sig-2", "end_turn")]
+    )
+    monkeypatch.setattr(api.client.messages, "create", create)
+
+    output, _ = await api.generate(
+        [ChatMessageUser(content="go")],
+        [],
+        "auto",
+        GenerateConfig(max_tokens=64, reasoning_effort="high"),
+    )
+
+    assert create.await_count == 2
+    tail_headers = create.call_args_list[1].kwargs["extra_headers"]
+    assert _FULL_THINKING_BETA in tail_headers["anthropic-beta"]
+    assert not isinstance(output, Exception)
+    reasoning = [c for c in output.message.content if isinstance(c, ContentReasoning)]
+    assert [(r.signature, r.redacted) for r in reasoning] == [
+        ("sig-1", False),
+        ("sig-2", False),
+    ]
+
+
+@pytest.mark.anyio
 async def test_anthropic_raw_thinking_round_trips_through_think_tag() -> None:
     """Raw thinking replays as its thinking block after an OpenAI completions bridge."""
     from anthropic.types import ThinkingBlock
@@ -896,7 +946,6 @@ async def test_anthropic_generate_handles_midstream_content_filter(
         pending_mcp_tool_uses: Any = None,
         span_recorder: Any = None,
         chain: Any = None,
-        raw_thinking: Any = None,
     ) -> tuple[dict[str, Any], ModelOutput]:
         raise APIStatusError(
             "Output blocked by content filtering policy",
@@ -1609,7 +1658,6 @@ async def test_anthropic_top_level_cache_control_skipped_on_bedrock_vertex(
         pending_mcp_tool_uses: Any = None,
         span_recorder: Any = None,
         chain: Any = None,
-        raw_thinking: Any = None,
     ) -> tuple[dict[str, Any], ModelOutput]:
         captured.update(request)
         return {}, ModelOutput.from_content(
@@ -2608,7 +2656,6 @@ async def test_anthropic_forced_tool_choice_request_wiring(
         pending_mcp_tool_uses: Any = None,
         span_recorder: Any = None,
         chain: Any = None,
-        raw_thinking: Any = None,
     ) -> tuple[dict[str, Any], ModelOutput]:
         captured.update(request)
         return {}, ModelOutput.from_content(
@@ -2702,7 +2749,6 @@ async def test_anthropic_forced_tool_choice_with_thinking_records_metadata(
         pending_mcp_tool_uses: Any = None,
         span_recorder: Any = None,
         chain: Any = None,
-        raw_thinking: Any = None,
     ) -> tuple[dict[str, Any], ModelOutput]:
         captured.update(request)
         return {}, ModelOutput.from_content(

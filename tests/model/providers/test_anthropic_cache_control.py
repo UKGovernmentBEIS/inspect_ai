@@ -411,7 +411,6 @@ def _capture_requests(
         pending_mcp_tool_uses: Any = None,
         span_recorder: Any = None,
         chain: Any = None,
-        raw_thinking: Any = None,
     ) -> tuple[dict[str, Any], ModelOutput]:
         requests.append(dict(request))
         output = ModelOutput.from_content(model=api.service_model_name(), content="ok")
