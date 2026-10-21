@@ -6,12 +6,16 @@ import sys
 import textwrap
 import threading
 import weakref
-from typing import AsyncIterator, Awaitable, Callable
+from typing import AsyncIterator, Awaitable, Callable, Literal
 
 import anyio.to_thread
 import pytest
 
-from inspect_ai._util._async import run_coroutine, tg_collect, unwrapped_task_group
+from inspect_ai._util._async import (
+    run_coroutine,
+    tg_collect,
+    unwrap_exception_group,
+)
 from inspect_ai.util import collect
 
 
@@ -274,5 +278,37 @@ async def test_unwrapped_task_errors_keep_their_type() -> None:
 
     # the scheduler and the debug_errors task runner use "first"
     with pytest.raises(StopAsyncIteration):
-        async with unwrapped_task_group("first") as tg:
+        async with unwrap_exception_group("first"), anyio.create_task_group() as tg:
             tg.start_soon(exhausted)
+
+
+@pytest.mark.parametrize("unwrap", ["single", "first"])
+async def test_unwrapped_task_error_keeps_context_when_host_is_cancelled(
+    unwrap: Literal["single", "first"],
+) -> None:
+    original = KeyError("context")
+    started = anyio.Event()
+    cleaned_up = False
+
+    async def fail() -> None:
+        await started.wait()
+        try:
+            raise original
+        except KeyError:
+            raise RuntimeError("task failed")
+
+    async def block() -> None:
+        nonlocal cleaned_up
+        try:
+            started.set()
+            await anyio.sleep_forever()
+        finally:
+            cleaned_up = True
+
+    with pytest.raises(RuntimeError, match="task failed") as excinfo:
+        async with unwrap_exception_group(unwrap), anyio.create_task_group() as tg:
+            tg.start_soon(fail)
+            tg.start_soon(block)
+            await anyio.sleep_forever()
+    assert excinfo.value.__context__ is original
+    assert cleaned_up

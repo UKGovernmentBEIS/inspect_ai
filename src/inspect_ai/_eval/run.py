@@ -21,7 +21,7 @@ from anyio.abc import TaskGroup
 from typing_extensions import Unpack
 
 from inspect_ai._eval.task.constants import TASK_ALL_PARAMS_ATTR
-from inspect_ai._util._async import Wake, unwrapped_task_group
+from inspect_ai._util._async import Wake, unwrap_exception_group
 from inspect_ai._util.environ import environ_vars
 from inspect_ai._util.file import cleanup_s3_sessions
 from inspect_ai._util.task import task_display_name
@@ -824,7 +824,10 @@ async def run_task_retry_attempts(
             add_dispatch_waker(wake.set)
             register_task_dispatcher(dispatcher_stats)
             # exceptions can escape when debug_errors is True and that's okay
-            async with unwrapped_task_group("first" if debug_errors else None) as tg:
+            async with (
+                unwrap_exception_group("first" if debug_errors else None),
+                anyio.create_task_group() as tg,
+            ):
                 # Run-scoped periodic [Throughput] trace reporter (see
                 # design/model-throughput.md §4). Its own cancel scope: the
                 # dispatch loop below exits by `break` while the task group

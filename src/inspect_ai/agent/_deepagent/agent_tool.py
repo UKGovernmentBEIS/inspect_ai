@@ -17,7 +17,7 @@ import anyio
 from anyio.abc import TaskGroup
 from shortuuid import uuid as shortuuid
 
-from inspect_ai._util._async import unwrapped_task_group
+from inspect_ai._util._async import unwrap_exception_group
 from inspect_ai.agent._agent import Agent, AgentState
 from inspect_ai.agent._react import react
 from inspect_ai.agent._run import run
@@ -171,7 +171,10 @@ class BackgroundRegistry:
 
         cancelled: BaseException | None = None
         try:
-            async with unwrapped_task_group() as task_group:
+            async with (
+                unwrap_exception_group(),
+                anyio.create_task_group() as task_group,
+            ):
                 self._task_group = task_group
                 try:
                     yield

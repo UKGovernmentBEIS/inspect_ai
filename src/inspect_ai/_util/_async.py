@@ -21,7 +21,6 @@ from typing import (
 import anyio
 import nest_asyncio2 as nest_asyncio  # type: ignore
 import sniffio
-from anyio.abc import TaskGroup
 
 PosArgsT = TypeVarTuple("PosArgsT")
 
@@ -78,14 +77,19 @@ async def tg_collect(
         return [r for _, r in sorted(results)]
 
 
-class unwrap_exception_group(contextlib.AbstractContextManager[None]):
+class unwrap_exception_group:
     """Unwrap an `ExceptionGroup` that leaves the block, raising its exception bare.
 
     The exception keeps its own `__cause__` and `__context__`. Unwrapping
     inside an `except` clause would set its context to the group, and
-    `raise ... from None` would also drop its cause. This is a class rather
-    than a generator so that no exception passes through a generator frame,
-    which would turn a `StopIteration` into a `RuntimeError`.
+    `raise ... from None` would also drop its cause.
+
+    Use `with`, or `async with` in the same statement as the task group:
+    `async with unwrap_exception_group(), anyio.create_task_group() as tg:`.
+    Its async exit never awaits: on asyncio, an exception raised out of an
+    exit that awaits gets the cancellation its caller is handling as its
+    context. It is a class rather than a generator, which would turn a
+    `StopIteration` or `StopAsyncIteration` into a `RuntimeError`.
 
     Args:
        unwrap: "single" raises the exception when the group holds exactly
@@ -95,6 +99,9 @@ class unwrap_exception_group(contextlib.AbstractContextManager[None]):
 
     def __init__(self, unwrap: Literal["single", "first"] | None = "single") -> None:
         self._unwrap = unwrap
+
+    def __enter__(self) -> None:
+        return None
 
     def __exit__(
         self,
@@ -115,29 +122,16 @@ class unwrap_exception_group(contextlib.AbstractContextManager[None]):
         finally:
             unwrapped.__context__ = context
 
-
-class unwrapped_task_group(contextlib.AbstractAsyncContextManager[TaskGroup]):
-    """A task group whose `ExceptionGroup` is unwrapped as `unwrap_exception_group()` does.
-
-    A class rather than an async generator, which would turn a
-    `StopAsyncIteration` from a task into a `RuntimeError`.
-    """
-
-    def __init__(self, unwrap: Literal["single", "first"] | None = "single") -> None:
-        self._unwrap = unwrap
-        self._task_group = anyio.create_task_group()
-
-    async def __aenter__(self) -> TaskGroup:
-        return await self._task_group.__aenter__()
+    async def __aenter__(self) -> None:
+        return None
 
     async def __aexit__(
         self,
         exc_type: type[BaseException] | None,
         exc_value: BaseException | None,
         traceback: TracebackType | None,
-    ) -> bool | None:
-        with unwrap_exception_group(self._unwrap):
-            return await self._task_group.__aexit__(exc_type, exc_value, traceback)
+    ) -> None:
+        self.__exit__(exc_type, exc_value, traceback)
 
 
 class Wake:

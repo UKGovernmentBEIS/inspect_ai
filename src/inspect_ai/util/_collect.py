@@ -1,6 +1,8 @@
 from typing import Awaitable, TypeVar, cast
 
-from inspect_ai._util._async import unwrapped_task_group
+import anyio
+
+from inspect_ai._util._async import unwrap_exception_group
 
 T = TypeVar("T")
 
@@ -27,7 +29,7 @@ async def collect(*tasks: Awaitable[T]) -> list[T]:
 
     results: list[None | T] = [None] * len(tasks)
 
-    async with unwrapped_task_group() as tg:
+    async with unwrap_exception_group(), anyio.create_task_group() as tg:
 
         async def run_task(index: int, task: Awaitable[T]) -> None:
             async with span(f"task-{index + 1}", type="task"):
