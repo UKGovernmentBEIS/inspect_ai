@@ -202,14 +202,21 @@ def ledger_entry(read: AttemptRead) -> EvalShardEntry:
     )
 
 
-def check_attempt_order(shard: ShardDir, entry: EvalShardEntry) -> None:
-    """Refuse a shard whose current attempt sorts before the recorded one."""
+def attempt_regressed(shard: ShardDir, entry: EvalShardEntry) -> bool:
+    """Whether a shard's current attempt sorts before the recorded one."""
     current = shard.current
     assert current is not None
     if _name(current.name) == entry.log:
-        return
+        return False
     recorded = FileInfo(name=entry.log, type="file", size=entry.size, mtime=entry.mtime)
-    if attempt_sort_key(current) < attempt_sort_key(recorded):
+    return attempt_sort_key(current) < attempt_sort_key(recorded)
+
+
+def check_attempt_order(shard: ShardDir, entry: EvalShardEntry) -> None:
+    """Refuse a shard whose current attempt sorts before the recorded one."""
+    if attempt_regressed(shard, entry):
+        current = shard.current
+        assert current is not None
         raise ShardSetError(
             f"Shard {shard.dir}: its current attempt {_name(current.name)} is older "
             f"than the attempt last merged ({entry.log}), which was deleted. "

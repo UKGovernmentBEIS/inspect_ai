@@ -5,14 +5,14 @@ import json
 import logging
 import tempfile
 import zipfile
-from collections.abc import Awaitable, Sequence
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Literal, NamedTuple, TypeVar
+from typing import Literal, NamedTuple
 
 import anyio
 
 from inspect_ai._util._async import run_coroutine, tg_collect
-from inspect_ai._util.async_zip import AsyncZipReader, is_torn_read
+from inspect_ai._util.async_zip import AsyncZipReader
 from inspect_ai._util.asyncfiles import AsyncFilesystem, is_s3_filename
 from inspect_ai._util.file import FileInfo, basename, local_path, to_uri
 from inspect_ai._util.log_layout import (
@@ -37,6 +37,7 @@ from ._plan import (
     AttemptRead,
     Selection,
     Status,
+    attempt_regressed,
     build_header,
     check_attempt_order,
     check_headers,
@@ -58,10 +59,7 @@ from ._write import task_file_import, write_merged_zip
 
 logger = logging.getLogger(__name__)
 
-_MAX_RESTARTS = 3
 _MAX_CONCURRENT_READS = 16
-
-T = TypeVar("T")
 
 
 @dataclass(frozen=True)
@@ -75,11 +73,9 @@ class ShardMergeResult:
     """False when nothing had changed since the last merge and nothing was written."""
 
     shards_deleted: bool
-    """True when this call deleted the shard files, or found none left.
+    """True when this call deleted the shards directory, or found it gone.
 
-    Checkpoint directories are not shard files and are left in place, so the
-    shards directory may remain holding only them. Whenever the call returns,
-    this equals `delete_shards`.
+    Whenever the call returns, this equals `delete_shards`.
     """
 
 
@@ -117,7 +113,11 @@ def merge_eval_log_shards(
     conditional upload, so a merge that overlaps another is refused. Other
     storage backends have no guard: callers must not run two merges of one
     log at once. Metric recomputation may import the log's task file when a
-    metric is not registered; a warning names the file.
+    metric or epoch reducer is not registered; a warning names the file.
+
+    A merge that runs while a worker is writing its shard can fail with a
+    read error (for example a CRC or JSON error). Nothing is written; run
+    the merge again, or merge after the workers have exited.
 
     Args:
         log: The merged log `<dir>/<name>.eval`, or its shards directory
@@ -132,11 +132,11 @@ def merge_eval_log_shards(
         allow_incomplete: Write a `started` or `error` merged log when the
             set is incomplete, rather than raise `ShardSetIncomplete`.
         delete_shards: When the merged log is `success`, verify it and delete
-            the shard files (every attempt and sample buffer), leaving
-            checkpoint directories. Every worker must have exited, and
-            nothing else may operate on this log or its shards while the call
-            runs. If deletion is interrupted, run the call again or delete
-            the shards directory by hand. Not allowed with `allow_incomplete`.
+            the whole shards directory, including checkpoint directories and
+            anything else in it. Every worker must have exited, and nothing
+            else may operate on this log or its shards while the call runs.
+            If deletion is interrupted, run the call again or delete the
+            shards directory by hand. Not allowed with `allow_incomplete`.
 
     Returns:
         The merged log's header, whether it was written, and whether the
@@ -217,10 +217,6 @@ class _Pass(NamedTuple):
     status: Status
 
 
-class _ShardChanged(Exception):
-    """A shard read was torn: the shard changed after it was planned."""
-
-
 async def merge_shards(
     log: str,
     *,
@@ -243,26 +239,16 @@ async def merge_shards(
     async with AsyncFilesystem() as fs:
         with merge_guard(merged_path):
             existing = await _read_merged(fs, merged_path)
-            last: BaseException | None = None
-            for _ in range(_MAX_RESTARTS + 1):
-                try:
-                    merge_pass = await _merge_pass(
-                        fs,
-                        merged_path,
-                        shards_dir,
-                        existing,
-                        given,
-                        allow_incomplete=allow_incomplete,
-                        delete_shards=delete_shards,
-                        warn_task_file=warn_task_file,
-                    )
-                    break
-                except _ShardChanged as ex:
-                    last = ex.__cause__
-            else:
-                assert last is not None
-                raise last
-
+            merge_pass = await _merge_pass(
+                fs,
+                merged_path,
+                shards_dir,
+                existing,
+                given,
+                allow_incomplete=allow_incomplete,
+                delete_shards=delete_shards,
+                warn_task_file=warn_task_file,
+            )
             if delete_shards:
                 await _verify(fs, merged_path, merge_pass)
                 await remove_shards_dir(merged_path, fs=fs)
@@ -379,17 +365,25 @@ async def _merge_pass(
         {e.shard: e for e in _ledger(existing.header)} if existing is not None else {}
     )
     changed = [s for s in shards if not is_unchanged(ledger.get(s.name), _current(s))]
-    for shard in changed:
-        if shard.name in ledger:
-            check_attempt_order(shard, ledger[shard.name])
+    regressed = [
+        s for s in changed if s.name in ledger and attempt_regressed(s, ledger[s.name])
+    ]
     present = {s.name for s in shards}
     vanished = [name for name in ledger if name not in present]
-    if vanished:
-        assert existing is not None
-        if delete_shards and existing.header.status == "success" and not changed:
-            check_ledger_count(existing.records, ledger.values(), merged_path)
-            return _recorded_pass(existing, given, allow_incomplete, shards_gone=False)
-        check_vanished(vanished, merged_path, shards_dir)
+    if (
+        delete_shards
+        and existing is not None
+        and existing.header.status == "success"
+        and (vanished or regressed)
+        and len(regressed) == len(changed)
+    ):
+        # what an interrupted deletion leaves: shards that lost their merged
+        # attempt, and none new or changed since the merge
+        check_ledger_count(existing.records, ledger.values(), merged_path)
+        return _recorded_pass(existing, given, allow_incomplete, shards_gone=False)
+    for shard in regressed:
+        check_attempt_order(shard, ledger[shard.name])
+    check_vanished(vanished, merged_path, shards_dir)
 
     reads, readers = await _read_attempts(fs, changed)
     by_shard = {read.shard: read for read in reads}
@@ -402,7 +396,7 @@ async def _merge_pass(
         if _ledger(existing.header)[0].shard == template.name:
             base = existing.header
         else:
-            base = await _shard_read(_read_attempt_header(fs, template))
+            base = await _read_attempt_header(fs, template)
             headers.append((_current(template).name, base))
     if existing is not None and len(changed) < len(shards):
         headers.append((merged_path, existing.header))
@@ -467,9 +461,7 @@ async def _merge_pass(
                 read = taken.get(key)
                 if read is not None:
                     reader = readers[read.shard]
-                    return await _shard_read(
-                        reader.read_member_fully(read.members[key])
-                    )
+                    return await reader.read_member_fully(read.members[key])
                 assert carried_zip is not None
                 return await anyio.to_thread.run_sync(
                     carried_zip.read, _sample_filename(key.sample_id, key.epoch)
@@ -482,7 +474,8 @@ async def _merge_pass(
             imported = task_file_import(base)
             if imported is not None and warn_task_file:
                 logger.warning(
-                    f"Importing {imported} to resolve the metrics of the merged log."
+                    f"Importing {imported} to resolve the metrics and epoch "
+                    "reducers of the merged log."
                 )
             with tempfile.TemporaryFile(dir=temp_dir) as out:
                 header = await write_merged_zip(
@@ -591,16 +584,6 @@ def _current(shard: ShardDir) -> FileInfo:
     return current
 
 
-async def _shard_read(read: Awaitable[T]) -> T:
-    """Await a shard read, turning a torn read into :class:`_ShardChanged`."""
-    try:
-        return await read
-    except Exception as ex:
-        if is_torn_read(ex):
-            raise _ShardChanged() from ex
-        raise
-
-
 async def _read_attempts(
     fs: AsyncFilesystem, shards: list[ShardDir]
 ) -> tuple[list[AttemptRead], dict[str, AsyncZipReader]]:
@@ -608,7 +591,7 @@ async def _read_attempts(
 
     async def read(shard: ShardDir) -> tuple[AttemptRead, AsyncZipReader]:
         async with limiter:
-            return await _shard_read(_read_attempt(fs, shard))
+            return await _read_attempt(fs, shard)
 
     results = await tg_collect([functools.partial(read, s) for s in shards])
     return [r for r, _ in results], {r.shard: reader for r, reader in results}

@@ -4,7 +4,6 @@ Supports reading individual members from large ZIP archives (including ZIP64)
 stored locally or remotely (e.g., S3) using async range requests.
 """
 
-import importlib
 import struct
 import zlib
 from collections.abc import AsyncIterator
@@ -12,9 +11,6 @@ from dataclasses import dataclass, field
 from typing import Any
 
 import anyio
-import zstandard
-from botocore.exceptions import ClientError
-from pydantic import ValidationError
 from typing_extensions import Self
 
 from inspect_ai._util.asyncfiles import AsyncFilesystem
@@ -39,41 +35,6 @@ class ZipCrcError(ValueError):
     read (each is a separate range request), so the bytes came from two
     versions of the object.
     """
-
-
-# ijson ships no type information; every parse error it raises derives from this
-_IJSON_ERROR: type[Exception] = importlib.import_module("ijson").JSONError
-
-# What a member read whose bytes came from two object versions can raise: a
-# CRC mismatch, a decompression error from a stale range, a garbage local
-# header, a short read, or a JSON error.
-_TORN_READ_ERRORS = (
-    ZipCrcError,
-    zlib.error,
-    zstandard.ZstdError,
-    struct.error,
-    EOFError,
-    _IJSON_ERROR,
-    ValueError,
-)
-
-
-def is_torn_read(ex: BaseException) -> bool:
-    """Whether a read of a zip that is being replaced can have raised ``ex``.
-
-    A member range read is not pinned to the central directory it was planned
-    from, so a read of an archive replaced in between can mix two versions:
-    see :data:`_TORN_READ_ERRORS`. On S3, a stale offset past the end of a
-    shorter new object fails with ``InvalidRange`` (HTTP 416). A pydantic
-    ``ValidationError`` is not a torn read: it is raised only after the bytes
-    passed their CRC check, so the member itself does not parse. Every other
-    storage error (access denied, a missing object) is not torn either.
-    """
-    if isinstance(ex, ValidationError):
-        return False
-    if isinstance(ex, ClientError):
-        return ex.response.get("Error", {}).get("Code") == "InvalidRange"
-    return isinstance(ex, _TORN_READ_ERRORS)
 
 
 def _check_crc(filename: str, entry: ZipEntry, crc: int) -> None:

@@ -514,7 +514,7 @@ def recover_command(
 
 
 @log_command.command("merge-shards")
-@click.argument("logs", nargs=-1, required=True)
+@click.argument("log", type=str)
 @click.option(
     "--sample-id",
     type=str,
@@ -539,215 +539,78 @@ def recover_command(
     type=bool,
     is_flag=True,
     default=False,
-    help="Delete the shard files after a complete merge (checkpoint directories "
-    "are kept). Every worker must have exited.",
-)
-@click.option(
-    "--json",
-    "json_output",
-    type=bool,
-    is_flag=True,
-    default=False,
-    help="Output one JSON object per merged log.",
+    help="Delete the shards directory after a complete merge. Every worker must "
+    "have exited.",
 )
 @common_options
 def merge_shards_command(
-    logs: tuple[str, ...],
+    log: str,
     sample_id: str | None,
     sample_count: int | None,
     allow_incomplete: bool,
     delete_shards: bool,
-    json_output: bool,
     **common: Unpack[CommonOptions],
 ) -> None:
-    """Merge the shard logs of sharded runs.
+    """Merge the shard logs of a sharded run into one eval log.
 
-    Each LOG is a merged log (<name>.eval), its shards directory
-    (<name>.shards), or a log directory, which merges every shards directory
-    in it.
+    LOG is the merged log (<name>.eval) or its shards directory (<name>.shards).
     """
+    from inspect_ai._util._async import run_coroutine
+    from inspect_ai._util.error import WriteConflictError
     from inspect_ai._util.platform import platform_init
     from inspect_ai._util.samples import parse_sample_id
+    from inspect_ai.log import ShardSetError, ShardSetIncomplete
+    from inspect_ai.log._shards._api import merge_shards
 
     process_common_options(common)
     platform_init()
 
     if sample_id is not None and sample_count is not None:
         raise click.UsageError("Pass at most one of --sample-id and --sample-count.")
-    selected = sample_id is not None or sample_count is not None
-    targets: list[tuple[str, str | None, str | None]] = []
-    for log in logs:
-        kind = _merge_target_kind(log)
-        if kind == "dir":
-            if selected:
-                raise click.UsageError(
-                    f"--sample-id and --sample-count cannot be used with a log "
-                    f"directory ({log})."
-                )
-            try:
-                targets.extend(
-                    (log, shards_dir, None) for shards_dir in _shard_sets(log)
-                )
-            except Exception as ex:
-                targets.append((log, None, str(ex) or type(ex).__name__))
-        else:
-            targets.append((log, log, None))
-
-    items = [
-        _merge_item(
-            source,
-            target,
-            error,
-            sample_ids=parse_sample_id(sample_id),
-            sample_count=sample_count,
-            allow_incomplete=allow_incomplete,
-            delete_shards=delete_shards,
-        )
-        for source, target, error in targets
-    ]
-    for item in items:
-        imported = item.pop("task_file_imported")
-        if imported is not None:
-            click.echo(f"Notice: imported {imported} to resolve metrics.", err=True)
-    if json_output:
-        print(dumps([_without_new_samples(item) for item in items], indent=2))
-    else:
-        for item in items:
-            _print_merge_item(item)
-    if any(item["error"] is not None for item in items):
-        raise SystemExit(1)
-
-
-def _merge_target_kind(log: str) -> Literal["log", "shards", "dir"]:
-    name = os.path.basename(log.rstrip("/\\"))
-    if name.endswith(".eval"):
-        return "log"
-    if name.endswith(".shards"):
-        return "shards"
-    return "dir"
-
-
-def _shard_sets(log_dir: str) -> list[str]:
-    """The shards directories in a log directory, as the eval-set startup finds them."""
-    from inspect_ai._util.file import filesystem, local_path
-    from inspect_ai.log._shards._publish import is_local
-    from inspect_ai.log._shards._walk import shards_dir_of
-
-    local = is_local(log_dir)
-    if local:
-        log_dir = local_path(log_dir)
-    if not filesystem(log_dir).exists(log_dir):
-        raise FileNotFoundError(f"No such log directory: {log_dir}")
-    found: dict[str, None] = {}
-    for info in list_eval_logs(log_dir, descending=False):
-        # a local listing names files "file://" + path with nothing encoded,
-        # so the path is the rest of the name, not its decoded form
-        name = info.name.removeprefix("file://") if local else info.name
-        shards_dir = shards_dir_of(log_dir, name)
-        if shards_dir is not None:
-            found[shards_dir] = None
-    return sorted(found)
-
-
-def _merge_item(
-    source: str,
-    target: str | None,
-    error: str | None,
-    *,
-    sample_ids: list[str] | None,
-    sample_count: int | None,
-    allow_incomplete: bool,
-    delete_shards: bool,
-) -> dict[str, Any]:
-    from inspect_ai._util._async import run_coroutine
-    from inspect_ai.log import ShardSetIncomplete
-    from inspect_ai.log._shards._api import merge_paths, merge_shards
-
-    item: dict[str, Any] = {
-        "source": source,
-        "log": None,
-        "status": None,
-        "written": None,
-        "shards": None,
-        "samples": None,
-        "new_samples": None,
-        "missing": None,
-        "running": None,
-        "failed": None,
-        "shards_deleted": None,
-        "task_file_imported": None,
-        "error": error,
-    }
-    if target is None:
-        return item
-    try:
-        item["log"] = merge_paths(target).location
-    except ValueError as ex:
-        item["error"] = str(ex)
-        return item
     try:
         outcome = run_coroutine(
             merge_shards(
-                target,
-                sample_ids=sample_ids,
+                log,
+                sample_ids=parse_sample_id(sample_id),
                 sample_count=sample_count,
                 allow_incomplete=allow_incomplete,
                 delete_shards=delete_shards,
                 warn_task_file=False,
             )
         )
-    except ShardSetIncomplete as ex:
-        item.update(
-            status=ex.status,
-            missing=ex.missing,
-            running=ex.running,
-            failed=ex.failed,
-            error=str(ex),
+    except (
+        ShardSetError,
+        ShardSetIncomplete,
+        WriteConflictError,
+        FileNotFoundError,
+        ValueError,
+    ) as ex:
+        raise click.ClickException(str(ex)) from ex
+
+    if outcome.task_file_imported is not None:
+        click.echo(
+            f"Notice: imported {outcome.task_file_imported} to resolve metrics and "
+            "epoch reducers.",
+            err=True,
         )
-        return item
-    except Exception as ex:
-        item["error"] = str(ex) or type(ex).__name__
-        return item
     header = outcome.result.log
     ledger = header.eval.shards.ledger if header.eval.shards else []
-    item.update(
-        log=header.location,
-        status=header.status,
-        written=outcome.result.written,
-        shards=len(ledger),
-        samples=sum(entry.samples for entry in ledger),
-        new_samples=outcome.new_samples,
-        missing=outcome.status.missing,
-        running=outcome.status.running,
-        failed=outcome.status.failed,
-        shards_deleted=outcome.result.shards_deleted,
-        task_file_imported=outcome.task_file_imported,
-    )
-    return item
-
-
-def _without_new_samples(item: dict[str, Any]) -> dict[str, Any]:
-    return {key: value for key, value in item.items() if key != "new_samples"}
-
-
-def _print_merge_item(item: dict[str, Any]) -> None:
-    if item["error"] is not None:
-        click.echo(f"{item['log'] or item['source']}: {item['error']}", err=True)
-        return
+    samples = sum(entry.samples for entry in ledger)
     line = (
-        f"{item['log']}: {item['status']}, {item['samples']} samples "
-        f"({item['new_samples']} new) from {item['shards']} shards"
+        f"{header.location}: {header.status}, {samples} samples "
+        f"({outcome.new_samples} new) from {len(ledger)} shards"
     )
-    if not item["written"]:
+    if not outcome.result.written:
         line += ", unchanged"
-    if item["status"] != "success":
-        if item["missing"]:
-            line += f", {len(item['missing'])} missing"
-        if item["running"]:
-            line += f", running: {', '.join(item['running'])}"
-        if item["failed"]:
-            line += f", failed: {', '.join(item['failed'])}"
-    if item["shards_deleted"]:
+    status = outcome.status
+    if header.status != "success":
+        if status.missing:
+            line += f", {len(status.missing)} missing"
+        if status.running:
+            line += f", running: {', '.join(status.running)}"
+        if status.failed:
+            line += f", failed: {', '.join(status.failed)}"
+    if outcome.result.shards_deleted:
         line += ", shards deleted"
     click.echo(line)
 

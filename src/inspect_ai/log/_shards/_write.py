@@ -3,6 +3,7 @@
 import json
 import zipfile
 from collections.abc import Awaitable, Callable, Sequence
+from pathlib import Path
 from typing import Any, BinaryIO, NamedTuple
 
 import anyio
@@ -40,9 +41,11 @@ class _SampleInputs(NamedTuple):
 def task_file_import(header: EvalLog) -> str | None:
     """The task file metric recomputation would import, if any.
 
-    `resolve_scorers_info` imports the header's `task_file` when one of its
-    scorers' metrics is not registered.
+    The header's `task_file` is imported when one of its scorers' metrics is
+    not registered (as `resolve_scorers_info` does) or when its epoch
+    reducers cannot be created.
     """
+    from inspect_ai._eval.score import reducers_from_log_header
     from inspect_ai._util.registry import registry_lookup
 
     task_file = header.eval.task_file
@@ -52,6 +55,10 @@ def task_file_import(header: EvalLog) -> str | None:
         for metric in _metric_definitions(scorer.metrics):
             if registry_lookup("metric", metric.name) is None:
                 return task_file
+    try:
+        reducers_from_log_header(header)
+    except LookupError:
+        return task_file
     return None
 
 
@@ -145,6 +152,7 @@ def _recompute_results(
     template: EvalLog, inputs: list[_SampleInputs], total_samples: int
 ) -> tuple[EvalResults | None, list[EvalSampleReductions] | None]:
     """Metrics over the merged samples, as `recompute_metrics` computes them."""
+    from inspect_ai._eval.loader import load_file_tasks
     from inspect_ai._eval.score import (
         metrics_from_log_header,
         reducers_from_log_header,
@@ -152,6 +160,9 @@ def _recompute_results(
     )
     from inspect_ai._eval.task.results import eval_results
 
+    task_file = task_file_import(template)
+    if task_file is not None:
+        load_file_tasks(Path(task_file).absolute())
     scorers = resolve_scorers_info(template)
     return eval_results(
         samples=total_samples,

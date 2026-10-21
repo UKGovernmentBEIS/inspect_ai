@@ -14,23 +14,38 @@ member consistently" in ``design/ctl/log-dir-mode.md``.
 
 from __future__ import annotations
 
+import importlib
 import os
+import struct
+import zlib
 from collections.abc import Awaitable, Callable
 from typing import TypeVar
 
+import zstandard
 from pydantic import ValidationError
 
-from inspect_ai._util.async_zip import (
-    AsyncZipReader,
-    CentralDirectory,
-    ZipCrcError,
-    is_torn_read,
-)
+from inspect_ai._util.async_zip import AsyncZipReader, CentralDirectory, ZipCrcError
 from inspect_ai._util.asyncfiles import AsyncFilesystem, is_s3_filename
 from inspect_ai._util.file import filesystem, local_path
 
 MAX_REREADS = 2
 """Re-reads after the first attempt before a read is reported as failed."""
+
+# What a read whose bytes came from two object versions can raise. A pydantic
+# ValidationError is not among them: it is raised only after the bytes passed
+# their CRC check, so it means the member itself does not parse.
+# ijson ships no type information; every parse error it raises derives from this
+_IJSON_ERROR: type[Exception] = importlib.import_module("ijson").JSONError
+
+_TORN_READ_ERRORS = (
+    ZipCrcError,
+    zlib.error,
+    zstandard.ZstdError,
+    struct.error,
+    EOFError,
+    _IJSON_ERROR,
+    ValueError,
+)
 
 _T = TypeVar("_T")
 
@@ -82,9 +97,7 @@ async def read_consistently(
             return await read(reader, reuse is None)
         except ValidationError as ex:
             raise LogUnparseableError(location, str(ex)) from ex
-        except Exception as ex:
-            if not is_torn_read(ex):
-                raise
+        except _TORN_READ_ERRORS as ex:
             last = ex
     assert last is not None
     if isinstance(last, ZipCrcError):
