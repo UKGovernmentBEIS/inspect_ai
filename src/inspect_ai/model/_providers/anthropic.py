@@ -35,6 +35,7 @@ from anthropic import (
 )
 from anthropic.lib.streaming import AsyncMessageStream
 from anthropic.types import (
+    AssistantMessageParam,
     Base64PDFSourceParam,
     BrowserStateBlockParam,
     CacheControlEphemeralParam,
@@ -48,6 +49,7 @@ from anthropic.types import (
     DocumentBlockParam,
     ImageBlockParam,
     Message,
+    MessageContentParam,
     MessageParam,
     OutputConfigParam,
     PlainTextSourceParam,
@@ -55,6 +57,7 @@ from anthropic.types import (
     RedactedThinkingBlockParam,
     ServerToolUseBlock,
     ServerToolUseBlockParam,
+    SystemMessageParam,
     TextBlock,
     TextBlockParam,
     ThinkingBlock,
@@ -70,6 +73,7 @@ from anthropic.types import (
     ToolTextEditor20250124Param,
     ToolUseBlock,
     ToolUseBlockParam,
+    UserMessageParam,
     WebSearchResultBlock,
     WebSearchTool20250305Param,
     WebSearchTool20260209Param,
@@ -1314,9 +1318,7 @@ class AnthropicAPI(ModelAPI):
 
         if continuation_required:
             tail_request = dict(request)
-            tail_request["messages"] = request["messages"] + [
-                MessageParam(role=head_message.role, content=head_message.content)
-            ]
+            tail_request["messages"] = request["messages"] + [head_message.to_param()]
             # server tool calls (e.g. web search w/ dynamic filtering) may run
             # inside a code execution container -- reuse it for the continuation
             if head_message.container:
@@ -3087,23 +3089,23 @@ def consecutive_message_reducer(
 
 def combine_messages(a: MessageParam, b: MessageParam) -> MessageParam:
     # TODO: Fix this code as it currently drops interesting properties when combining
-    role = a["role"]
     a_content = a["content"]
     b_content = b["content"]
+    content: MessageContentParam
     if isinstance(a_content, str) and isinstance(b_content, str):
-        return MessageParam(role=role, content=f"{a_content}\n{b_content}")
+        content = f"{a_content}\n{b_content}"
     elif isinstance(a_content, list) and isinstance(b_content, list):
-        return MessageParam(role=role, content=a_content + b_content)
+        content = a_content + b_content
     elif isinstance(a_content, str) and isinstance(b_content, list):
-        return MessageParam(
-            role=role, content=[TextBlockParam(type="text", text=a_content)] + b_content
-        )
+        content = [TextBlockParam(type="text", text=a_content)] + b_content
     elif isinstance(a_content, list) and isinstance(b_content, str):
-        return MessageParam(
-            role=role, content=a_content + [TextBlockParam(type="text", text=b_content)]
-        )
+        content = a_content + [TextBlockParam(type="text", text=b_content)]
     else:
         raise ValueError(f"Unexpected content types for messages: {a}, {b}")
+    if a["role"] == "assistant":
+        return AssistantMessageParam(role="assistant", content=content)
+    assert a["role"] == "user"
+    return UserMessageParam(role="user", content=content)
 
 
 def message_tool_choice(
@@ -3529,7 +3531,9 @@ async def message_param(
     if message.role == "system":
         assert isinstance(message, ChatMessageSystem)
         if isinstance(message.content, str):
-            return MessageParam(role="system", content=message.content or NO_CONTENT)
+            return SystemMessageParam(
+                role="system", content=message.content or NO_CONTENT
+            )
         text_blocks: list[TextBlockParam] = [
             TextBlockParam(type="text", text=block.text)
             for block in message.content
@@ -3537,7 +3541,7 @@ async def message_param(
         ]
         if not text_blocks:
             text_blocks = [TextBlockParam(type="text", text=NO_CONTENT)]
-        return MessageParam(role="system", content=text_blocks)  # type: ignore[typeddict-item]
+        return SystemMessageParam(role="system", content=text_blocks)
 
     # "tool" means serving a tool call result back to claude
     elif message.role == "tool":
@@ -3567,7 +3571,7 @@ async def message_param(
         )
         if message.tool_call_id in computer_toolset_call_ids:
             tool_result["toolset_name"] = COMPUTER_TOOLSET_NAME
-        return MessageParam(role="user", content=[tool_result])
+        return UserMessageParam(role="user", content=[tool_result])
 
     # tool_calls means claude is attempting to call our tools
     elif message.role == "assistant":
@@ -3575,19 +3579,19 @@ async def message_param(
             message, computer_toolset_call_ids=computer_toolset_call_ids
         )
 
-        return MessageParam(
-            role=message.role,
+        return AssistantMessageParam(
+            role="assistant",
             content=block_params,  # type: ignore[typeddict-item]
         )
 
     # normal text content
     elif isinstance(message.content, str):
-        return MessageParam(role=message.role, content=message.content or NO_CONTENT)
+        return UserMessageParam(role="user", content=message.content or NO_CONTENT)
 
     # mixed text/images
     else:
-        return MessageParam(
-            role=message.role,
+        return UserMessageParam(
+            role="user",
             content=[
                 item  # type: ignore[misc]
                 for content in message.content
@@ -5955,7 +5959,9 @@ def pad_tool_messages_for_token_counting(
                             for tid in orphaned_ids
                         ]
                         result.append(
-                            MessageParam(role="assistant", content=fake_tool_uses)
+                            AssistantMessageParam(
+                                role="assistant", content=fake_tool_uses
+                            )
                         )
 
         result.append(msg)
@@ -5998,7 +6004,7 @@ def pad_tool_messages_for_token_counting(
                             for tid in orphaned_ids
                         ]
                         result.append(
-                            MessageParam(role="user", content=fake_tool_results)
+                            UserMessageParam(role="user", content=fake_tool_results)
                         )
 
     return result
@@ -6065,7 +6071,7 @@ def neutralize_thinking_for_token_counting(
         # never emit an empty assistant message (the API rejects it)
         if not neutralized:
             neutralized = [TextBlockParam(type="text", text=NO_CONTENT)]
-        result.append(MessageParam(role="assistant", content=neutralized))
+        result.append(AssistantMessageParam(role="assistant", content=neutralized))
 
     return result
 
