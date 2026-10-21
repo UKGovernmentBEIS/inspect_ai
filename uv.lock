@@ -1276,15 +1276,6 @@ wheels = [
 ]
 
 [[package]]
-name = "dill"
-version = "0.4.1"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/81/e1/56027a71e31b02ddc53c7d65b01e68edf64dea2932122fe7746a516f75d5/dill-0.4.1.tar.gz", hash = "sha256:423092df4182177d4d8ba8290c8a5b640c66ab35ec7da59ccfa00f6fa3eea5fa", size = 187315, upload-time = "2026-01-19T02:36:56.85Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/1e/77/dc8c558f7593132cf8fefec57c4f60c83b16941c574ac5f619abb3ae7933/dill-0.4.1-py3-none-any.whl", hash = "sha256:1e1ce33e978ae97fcfcff5638477032b801c46c7c65cf717f95fbc2248f79a9d", size = 120019, upload-time = "2026-01-19T02:36:55.663Z" },
-]
-
-[[package]]
 name = "distlib"
 version = "0.4.3"
 source = { registry = "https://pypi.org/simple" }
@@ -2157,7 +2148,7 @@ requires-dist = [
     { name = "httpx" },
     { name = "huggingface-hub", marker = "extra == 'dev'", specifier = ">=1.6.0" },
     { name = "ijson", specifier = ">=3.2.0" },
-    { name = "inspect-scout", marker = "extra == 'dev'", specifier = ">=0.4.37" },
+    { name = "inspect-scout", marker = "extra == 'dev'", specifier = ">=0.5.5" },
     { name = "inspect-sentinel", marker = "extra == 'dev'", specifier = ">=0.1.4" },
     { name = "ipython", marker = "extra == 'dev'" },
     { name = "jsonlines", specifier = ">=3.0.0" },
@@ -2250,13 +2241,12 @@ dev = [{ name = "inspect-ai", extras = ["dev"] }]
 
 [[package]]
 name = "inspect-scout"
-version = "0.4.46"
+version = "0.5.5"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "anyio" },
     { name = "click" },
     { name = "cloudpickle" },
-    { name = "dill" },
     { name = "duckdb" },
     { name = "fastapi" },
     { name = "ijson" },
@@ -2285,9 +2275,9 @@ dependencies = [
     { name = "wrapt" },
     { name = "zstandard" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/61/31/441f2451635387d3651122cd5826e7ea4b5d288f1691738f137cd26c86f1/inspect_scout-0.4.46.tar.gz", hash = "sha256:7b79c035573123b5499b204773b5132521d900c00c08900805a24199c48c2d97", size = 2667285, upload-time = "2026-08-05T12:45:45.031Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/aa/24/c590b8e04d206c9041eba2db670eff80e73cdde719f4d1977e89742cd974/inspect_scout-0.5.5.tar.gz", hash = "sha256:c8def7b478be28bf9b5017b1279a9fd065c56a553e1474282c7b6f0ff733c351", size = 2562099, upload-time = "2026-10-11T13:20:26.078Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/16/54/d841bcd68b5d03b267307a8e6b07595538f9e2623ddb8ea3f83daa7bd0a6/inspect_scout-0.4.46-py3-none-any.whl", hash = "sha256:9ef4882dbc7b112b7434cdbdbdf3ef8a067139ddec9b1c9169e1e938b0239bdc", size = 2757084, upload-time = "2026-08-05T12:45:42.408Z" },
+    { url = "https://files.pythonhosted.org/packages/50/da/ea4b4643064503b4c33dac4a10f2ac5e6d3b009a68c8f3a137dab7a87491/inspect_scout-0.5.5-py3-none-any.whl", hash = "sha256:54293e319675b7d397b8bc98a8eca3855c3e35d83c09d952a83100ffc9e9fc68", size = 2650888, upload-time = "2026-10-11T13:20:24.079Z" },
 ]
 
 [[package]]
