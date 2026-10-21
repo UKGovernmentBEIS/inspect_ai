@@ -1,7 +1,8 @@
 from contextlib import contextmanager
 from contextvars import ContextVar
-from dataclasses import dataclass
-from typing import Iterator, Literal
+from dataclasses import dataclass, field
+from types import MappingProxyType
+from typing import Iterator, Literal, Mapping
 
 
 @dataclass(frozen=True)
@@ -62,6 +63,79 @@ class BridgeRequest:
     model: str
     """Model slug requested by the scaffold (before model alias resolution)."""
 
+    headers: Mapping[str, str] = field(
+        default_factory=lambda: _EMPTY_HEADERS, hash=False
+    )
+    """HTTP headers the scaffold sent with this request (read-only).
+
+    Names are lowercased; repeated headers are joined with ", ". Credential
+    headers (e.g. `authorization`, `x-api-key`, `cookie`) are removed. These
+    are what the client sent, not what the model provider receives: the
+    bridge forwards to the provider only the headers it allows (for
+    `sandbox_agent_bridge()`, those listed in `forward_client_headers`).
+    Empty when the request carried no headers. For the in-process
+    `agent_bridge()`, these are the per-request headers passed to the SDK
+    call (e.g. `extra_headers`), not the SDK's defaults.
+    """
+
+
+_EMPTY_HEADERS: Mapping[str, str] = MappingProxyType({})
+
+# Header names (lowercase) never exposed on `BridgeRequest.headers`
+_CREDENTIAL_HEADERS = frozenset(
+    [
+        "authorization",
+        "proxy-authorization",
+        "x-api-key",
+        "api-key",
+        "x-goog-api-key",
+        "cookie",
+        "set-cookie",
+    ]
+)
+_CREDENTIAL_HEADER_PREFIXES = ("x-amz-",)
+_CREDENTIAL_HEADER_FRAGMENTS = (
+    "api-key",
+    "apikey",
+    "auth",
+    "token",
+    "secret",
+    "password",
+    "credential",
+    "cookie",
+    "session-key",
+)
+
+
+def _is_credential_header(lower_name: str) -> bool:
+    return (
+        lower_name in _CREDENTIAL_HEADERS
+        or lower_name.startswith(_CREDENTIAL_HEADER_PREFIXES)
+        or any(fragment in lower_name for fragment in _CREDENTIAL_HEADER_FRAGMENTS)
+    )
+
+
+def sanitize_client_headers(headers: object) -> Mapping[str, str]:
+    """Client request headers as exposed on `BridgeRequest.headers`.
+
+    Lowercases names, joins repeated names with ", ", drops non-string names
+    or values and credential headers, and returns a read-only mapping.
+    """
+    if not isinstance(headers, Mapping) or not headers:
+        return _EMPTY_HEADERS
+    sanitized: dict[str, str] = {}
+    for name, value in headers.items():
+        if not isinstance(name, str) or not isinstance(value, str):
+            continue
+        lower_name = name.lower()
+        if _is_credential_header(lower_name):
+            continue
+        if lower_name in sanitized:
+            sanitized[lower_name] = f"{sanitized[lower_name]}, {value}"
+        else:
+            sanitized[lower_name] = value
+    return MappingProxyType(sanitized) if sanitized else _EMPTY_HEADERS
+
 
 _UNKNOWN_CONTEXT = AgentBridgeContext("unknown")
 _UTILITY_CONTEXT = AgentBridgeContext("utility")
@@ -72,6 +146,13 @@ _agent_bridge_context: ContextVar[AgentBridgeContext | None] = ContextVar(
 
 _bridge_request: ContextVar[BridgeRequest | None] = ContextVar(
     "_bridge_request", default=None
+)
+
+# Client headers of the request being handled, set by the bridge's entry
+# point (sandbox model service or in-process SDK patch) and read by the
+# `bridged_request_scope` that `bridge_generate` opens for that request.
+_client_request_headers: ContextVar[Mapping[str, str]] = ContextVar(
+    "_client_request_headers", default=_EMPTY_HEADERS
 )
 
 
@@ -149,11 +230,27 @@ def current_bridge_request() -> BridgeRequest | None:
 
 
 @contextmanager
+def client_request_headers_scope(headers: object) -> Iterator[None]:
+    """Record the client's request headers for the bridged request handled within.
+
+    For bridge entry points: wrap the call that translates and generates one
+    client request. The headers are sanitized (`sanitize_client_headers`) and
+    exposed as `BridgeRequest.headers`. They are never forwarded anywhere.
+    """
+    token = _client_request_headers.set(sanitize_client_headers(headers))
+    try:
+        yield
+    finally:
+        _client_request_headers.reset(token)
+
+
+@contextmanager
 def bridged_request_scope(requested_model: str | None) -> Iterator[None]:
     """Stamp default context around one bridged request (bridge_generate only).
 
     Sets the agent context to unknown (so bridged requests read as "unknown"
-    rather than "not bridged") and records the requested model slug, then
+    rather than "not bridged") and records the requested model slug and the
+    client's request headers (from `client_request_headers_scope`), then
     resets both on exit so no value leaks across sequential requests that
     share a task (the in-process bridge path). The reset applies to the
     current task only: tasks spawned during the request keep the snapshot
@@ -161,7 +258,9 @@ def bridged_request_scope(requested_model: str | None) -> Iterator[None]:
     """
     context_token = _agent_bridge_context.set(_UNKNOWN_CONTEXT)
     request_token = _bridge_request.set(
-        BridgeRequest(model=requested_model) if requested_model is not None else None
+        BridgeRequest(model=requested_model, headers=_client_request_headers.get())
+        if requested_model is not None
+        else None
     )
     try:
         yield
