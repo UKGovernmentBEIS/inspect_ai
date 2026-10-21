@@ -89,15 +89,23 @@ class BridgeRequest:
     headers: Mapping[str, str] = field(default_factory=_ReadOnlyHeaders, hash=False)
     """HTTP headers the scaffold sent with this request (read-only).
 
-    Names are lowercased; repeated headers are joined with ", ". Credential
-    headers (e.g. `authorization`, `x-api-key`, `cookie`) are removed. These
+    Names are lowercased; repeated headers are joined with ", ". Headers that
+    may carry credentials are removed: names like `authorization` or
+    `cookie`, names containing a fragment such as `key`, `auth` or `token`
+    (`_` read as `-`), and values starting with `Bearer `, `Basic ` or `sk-`.
+    This errs toward dropping, so is broader on purpose than what the bridge
+    blocks from the provider. These
     are what the client sent, not what the model provider receives: the
     bridge forwards to the provider only the headers it allows (for
     `sandbox_agent_bridge()`, those listed in `forward_client_headers`).
     Empty when the request carried no headers. For the in-process
     `agent_bridge()`, these are the per-request headers passed to the SDK
     call (e.g. `extra_headers`), not the SDK's defaults. Google Gemini
-    requests carry none on either bridge.
+    requests carry none on either bridge, and a request with no model has
+    no `BridgeRequest` at all.
+
+    Model calls the bridge makes while handling the request (compaction,
+    approval review) see the same headers.
 
     The values are asserted by the client and not verified: a sandboxed
     agent can set any of them, e.g. claim to be a different sub-agent.
@@ -124,8 +132,8 @@ CREDENTIAL_HEADERS = frozenset(
 )
 CREDENTIAL_HEADER_PREFIXES = ("x-amz-",)
 _CREDENTIAL_HEADER_FRAGMENTS = (
-    "-key",
-    "apikey",
+    "key",
+    "signature",
     "auth",
     "token",
     "secret",
@@ -135,12 +143,20 @@ _CREDENTIAL_HEADER_FRAGMENTS = (
 )
 
 
+_CREDENTIAL_VALUE_PREFIXES = ("bearer ", "basic ", "sk-")
+
+
 def _is_credential_header(lower_name: str) -> bool:
+    name = lower_name.replace("_", "-")
     return (
-        lower_name in CREDENTIAL_HEADERS
-        or lower_name.startswith(CREDENTIAL_HEADER_PREFIXES)
-        or any(fragment in lower_name for fragment in _CREDENTIAL_HEADER_FRAGMENTS)
+        name in CREDENTIAL_HEADERS
+        or name.startswith(CREDENTIAL_HEADER_PREFIXES)
+        or any(fragment in name for fragment in _CREDENTIAL_HEADER_FRAGMENTS)
     )
+
+
+def _is_credential_value(value: str) -> bool:
+    return value.lstrip().lower().startswith(_CREDENTIAL_VALUE_PREFIXES)
 
 
 def sanitize_client_headers(headers: object) -> Mapping[str, str]:
@@ -156,7 +172,7 @@ def sanitize_client_headers(headers: object) -> Mapping[str, str]:
         if not isinstance(name, str) or not isinstance(value, str):
             continue
         lower_name = name.lower()
-        if _is_credential_header(lower_name):
+        if _is_credential_header(lower_name) or _is_credential_value(value):
             continue
         if lower_name in sanitized:
             sanitized[lower_name] = f"{sanitized[lower_name]}, {value}"
@@ -285,8 +301,12 @@ def bridged_request_scope(requested_model: str | None) -> Iterator[None]:
     they were spawned with.
     """
     context_token = _agent_bridge_context.set(_UNKNOWN_CONTEXT)
+    # consume the client headers: they belong to this request only, not to a
+    # bridged request nested inside it that has no entry point of its own
+    headers = _client_request_headers.get()
+    headers_token = _client_request_headers.set(_EMPTY_HEADERS)
     request_token = _bridge_request.set(
-        BridgeRequest(model=requested_model, headers=_client_request_headers.get())
+        BridgeRequest(model=requested_model, headers=headers)
         if requested_model is not None
         else None
     )
@@ -294,6 +314,7 @@ def bridged_request_scope(requested_model: str | None) -> Iterator[None]:
         yield
     finally:
         _agent_bridge_context.reset(context_token)
+        _client_request_headers.reset(headers_token)
         _bridge_request.reset(request_token)
 
 
