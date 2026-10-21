@@ -191,7 +191,7 @@ def web_search(
           `max_connections`, and `model`
 
         - grok: Supports X-AI's live search parameters.
-          See https://docs.x.ai/docs/guides/live-search#live-search
+          See https://docs.x.ai/developers/tools/web-search
 
       **deprecated: Deprecated arguments.
 

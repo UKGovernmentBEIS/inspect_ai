@@ -90,7 +90,7 @@ Gemini 3 and later models can use `web_search("gemini")` alongside other tools. 
 
 The `web_search()` tool can use Grok's built-in live search capability when running on Grok 3.0 models and later. This provider does not require any API keys beyond what's needed for the model itself.
 
-For more details, see [Live Search](https://docs.x.ai/docs/guides/live-search).
+For more details, see [Web Search](https://docs.x.ai/developers/tools/web-search).
 
 Note that when using the "grok" provider, you should also specify a fallback external provider (like "tavily", "exa", or "google") if you are also running the evaluation with non-Grok models.
 
