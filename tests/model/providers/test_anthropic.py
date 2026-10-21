@@ -1494,7 +1494,7 @@ def test_anthropic_reasoning_effort_returns_none_for_old_models() -> None:
 
 
 # ---------------------------------------------------------------------------
-# sampling param stripping for Claude 4.7+ (adaptive-thinking-only)
+# sampling param stripping
 # ---------------------------------------------------------------------------
 
 
@@ -1537,18 +1537,14 @@ def test_anthropic_claude_4_7_strips_sampling_params_with_reasoning_effort_none(
     "model_name", ["claude-opus-4-6", "claude-sonnet-4-6", "claude-haiku-4-5-20251001"]
 )
 @pytest.mark.parametrize("param,value", list(_SAMPLING_PARAMS.items()))
-def test_anthropic_pre_4_7_keeps_sampling_params_without_thinking(
+def test_anthropic_pre_4_7_strips_sampling_params(
     model_name: str, param: str, value: float | int
 ) -> None:
-    """Pre-4.7 models still send sampling params when thinking is off.
-
-    anthropic >= 1.0 removed them from the method signatures, so they are
-    routed via extra_body rather than params.
-    """
+    """API version 2026-10-21 rejects sampling params on pre-4.7 models too."""
     api = AnthropicAPI(model_name=model_name, api_key="test-key")
     params, extra_body, _headers, _betas = api.completion_config(_cfg(**{param: value}))
     assert param not in params
-    assert extra_body[param] == value
+    assert param not in extra_body
 
 
 @pytest.mark.parametrize(
@@ -1716,27 +1712,16 @@ def _warn_once_messages() -> Any:
     _inspect_logger._warned.clear()
 
 
-def test_anthropic_claude_4_7_emits_adaptive_only_warning(
-    _warn_once_messages: list[str],
+@pytest.mark.parametrize("model_name", ["claude-opus-4-7", "claude-sonnet-4-6"])
+def test_anthropic_sampling_param_warning(
+    _warn_once_messages: list[str], model_name: str
 ) -> None:
-    """Claude 4.7+ should emit the adaptive-only message, not the extended-thinking one."""
-    api = AnthropicAPI(model_name="claude-opus-4-7", api_key="test-key")
+    api = AnthropicAPI(model_name=model_name, api_key="test-key")
     api.completion_config(_cfg(temperature=0.0))
     assert any(
-        "adaptive thinking only" in m and "claude-opus-4-7" in m
+        "'temperature'" in m and "API version 2026-10-21" in m
         for m in _warn_once_messages
     )
-    assert not any("when using extended thinking" in m for m in _warn_once_messages)
-
-
-def test_anthropic_thinking_model_emits_extended_thinking_warning(
-    _warn_once_messages: list[str],
-) -> None:
-    """A non-adaptive-only thinking model should emit the extended-thinking message."""
-    api = AnthropicAPI(model_name="claude-opus-4-6", api_key="test-key")
-    api.completion_config(_cfg(reasoning_effort="low", temperature=0.0))
-    assert any("when using extended thinking" in m for m in _warn_once_messages)
-    assert not any("adaptive thinking only" in m for m in _warn_once_messages)
 
 
 # ---------------------------------------------------------------------------

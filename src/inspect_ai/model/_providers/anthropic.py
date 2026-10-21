@@ -248,13 +248,9 @@ logger = getLogger(__name__)
 ANTHROPIC_API_KEY = "ANTHROPIC_API_KEY"
 AZUREAI_ANTHROPIC_API_KEY = "AZUREAI_ANTHROPIC_API_KEY"
 
-_THINKING_WARNING = (
+_SAMPLING_PARAM_WARNING = (
     "anthropic models do not support the '{parameter}' parameter "
-    "when using extended thinking."
-)
-_ADAPTIVE_ONLY_WARNING = (
-    "anthropic model '{model}' does not support the '{parameter}' parameter "
-    "(adaptive thinking only)."
+    "(removed in API version 2026-10-21)."
 )
 _REASONING_TOKENS_UNSUPPORTED_ERROR = (
     "anthropic model '{model}' does not support 'reasoning_tokens' (extended "
@@ -1432,32 +1428,15 @@ class AnthropicAPI(ModelAPI):
         extra_body: dict[str, Any] = {}
         betas: list[str] = self.betas + self._pull_betas_from_headers(headers)
 
-        # Claude 4.7+ is always in adaptive thinking and rejects these params
-        # regardless of config; other models only reject them under thinking.
-        forbid_sampling_params = (
-            self.is_claude_4_7_or_later() or self.is_using_thinking(config)
-        )
-
-        def sampling_param_warning(parameter: str) -> str:
-            if self.is_claude_4_7_or_later():
-                return _ADAPTIVE_ONLY_WARNING.format(
-                    parameter=parameter, model=self.service_model_name()
-                )
-            return _THINKING_WARNING.format(parameter=parameter)
-
-        # anthropic >= 1.0 removed temperature/top_p/top_k from the method
-        # signatures (the API still accepts them for models that support
-        # them), so route via extra_body rather than params
+        # API version 2026-10-21 (anthropic >= 2.0) rejects these params on
+        # every model
         for parameter, value in (
             ("temperature", config.temperature),
             ("top_p", config.top_p),
             ("top_k", config.top_k),
         ):
             if value is not None:
-                if forbid_sampling_params:
-                    warn_once(logger, sampling_param_warning(parameter))
-                else:
-                    extra_body[parameter] = value
+                warn_once(logger, _SAMPLING_PARAM_WARNING.format(parameter=parameter))
 
         # effort
         if config.effort is not None:
