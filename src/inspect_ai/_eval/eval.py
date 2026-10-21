@@ -111,7 +111,7 @@ from inspect_ai.util._limit import TokenLimit, token_limit_fields
 from inspect_ai.util._notify import build_apprise, init_apprise
 
 from .context import init_eval_context
-from .loader import resolve_task_source, resolve_tasks
+from .loader import resolve_task_file_sandbox, resolve_task_source, resolve_tasks
 from .run import TaskInjection, eval_run
 from .task import Epochs, PreviousTask, Task, TaskSource
 from .task.enqueue import (
@@ -1975,6 +1975,9 @@ async def eval_retry_async(
                     task_args=task_args,
                     model=None,
                     model_roles=None,
+                    sandbox=resolve_task_file_sandbox(
+                        eval_log.eval.task_file, eval_log.eval.sandbox
+                    ),
                     log=eval_log,
                     log_info=None,
                 ),

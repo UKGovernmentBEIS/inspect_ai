@@ -12,7 +12,7 @@ import time
 import zipfile
 from copy import deepcopy
 from pathlib import Path
-from typing import Any, BinaryIO, Callable, cast
+from typing import Any, BinaryIO, Callable, ClassVar, cast
 from unittest.mock import patch
 
 import anyio
@@ -36,6 +36,8 @@ from inspect_ai._eval.evalset import (
     EvalSetArgsInTaskIdentifier,
     Log,
     _embed_viewer,
+    _resumed_task,
+    as_previous_tasks,
     epochs_changed,
     eval_set,
     latest_completed_task_eval_logs,
@@ -47,7 +49,7 @@ from inspect_ai._eval.evalset import (
 )
 from inspect_ai._eval.loader import resolve_tasks
 from inspect_ai._eval.task.resolved import ResolvedTask
-from inspect_ai._eval.task.task import PreviousTask, task_with
+from inspect_ai._eval.task.task import task_with
 from inspect_ai._util.asyncfiles import AsyncFilesystem
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.file import basename, filesystem, local_path, size_in_mb
@@ -922,12 +924,13 @@ def test_eval_set_retry_started():
         assert eval_log_status() == "success"
 
 
-_log_chosen_sandbox_samples: list[str] = []
+_recorded_sandbox_samples: list[str] = []
 
 
-@sandboxenv(name="log_chosen")
-class _LogChosenSandbox(LocalSandboxEnvironment):
-    """Local sandbox that records each sample it starts."""
+class _RecordingSandbox(LocalSandboxEnvironment):
+    """Local sandbox that records the sandbox type of each sample it starts."""
+
+    sandbox_type: ClassVar[str]
 
     @override
     @classmethod
@@ -937,52 +940,84 @@ class _LogChosenSandbox(LocalSandboxEnvironment):
         config: SandboxEnvironmentConfigType | None,
         metadata: dict[str, str],
     ) -> dict[str, SandboxEnvironment]:
-        _log_chosen_sandbox_samples.append(task_name)
+        _recorded_sandbox_samples.append(cls.sandbox_type)
         return await super().sample_init(task_name, config, metadata)
 
 
-def _log_sandbox_task(sandbox: str | None) -> Task:
-    return Task(dataset=[Sample(input="hello", target="hello")], sandbox=sandbox)
+@sandboxenv(name="log_chosen")
+class _LogChosenSandbox(_RecordingSandbox):
+    sandbox_type = "log_chosen"
 
 
-@pytest.mark.parametrize(
-    ("task_sandbox", "eval_sandbox"),
-    [("local", None), (None, "local")],
-    ids=["task-sandbox", "eval-sandbox"],
+@sandboxenv(name="resolved_override")
+class _ResolvedOverrideSandbox(_RecordingSandbox):
+    sandbox_type = "resolved_override"
+
+
+_HOSTILE_LOG_SANDBOX = SandboxEnvironmentSpec(
+    "docker",
+    ComposeConfig.model_validate(
+        {"services": {"default": {"image": "untrusted", "volumes": ["/:/host"]}}}
+    ),
 )
-def test_eval_set_previous_task_sandbox_ignores_log(
-    task_sandbox: str | None, eval_sandbox: str | None
-) -> None:
-    previous_log = eval(_log_sandbox_task(None), model="mockllm/model")[0]
-    previous_log.eval.sandbox = SandboxEnvironmentSpec(
-        "docker",
-        ComposeConfig.model_validate(
-            {"services": {"default": {"image": "untrusted", "volumes": ["/:/host"]}}}
-        ),
-    )
-    previous_task = PreviousTask(
-        id=previous_log.eval.task_id,
-        task=_log_sandbox_task(task_sandbox),
-        task_args={},
-        model=None,
-        model_roles=None,
-        log=previous_log,
-        log_info=None,
-    )
 
+
+@pytest.mark.parametrize("converter", ["as_previous_tasks", "resumed_task"])
+def test_eval_set_previous_task_keeps_resolved_sandbox(
+    tmp_path: Path, converter: str
+) -> None:
+    previous_log = eval(
+        Task(dataset=[Sample(input="hello", target="hello")]),
+        model="mockllm/model",
+        log_dir=str(tmp_path),
+    )[0]
+    previous_log.eval.sandbox = _HOSTILE_LOG_SANDBOX
+    write_eval_log(previous_log)
+    log_info = list_eval_logs(str(tmp_path))[0]
+    header = read_eval_log(log_info, header_only=True)
+
+    trusted_sandbox = SandboxEnvironmentSpec(
+        "docker",
+        ComposeConfig.model_validate({"services": {"default": {"image": "trusted"}}}),
+    )
+    model = get_model("mockllm/model")
     resolved = resolve_tasks(
-        [previous_task],
+        Task(dataset=[Sample(input="hello", target="hello")], sandbox="local"),
         task_args={},
-        model=get_model("mockllm/model"),
+        model=model,
         model_roles=None,
-        sandbox=eval_sandbox,
+        sandbox=trusted_sandbox,
+        sample_shuffle=None,
+    )[0]
+    if converter == "as_previous_tasks":
+        eval_set_args = EvalSetArgsInTaskIdentifier(config=GenerateConfig())
+        previous_task = as_previous_tasks(
+            [resolved],
+            [Log(log_info, header, task_identifier(resolved, eval_set_args))],
+            eval_set_args,
+            recover_crashed=False,
+        )[0]
+    else:
+        previous_task = _resumed_task(
+            resolved, task_identifier(header, None), log_info.name
+        )
+
+    resumed = resolve_tasks(
+        previous_task,
+        task_args={},
+        model=model,
+        model_roles=None,
+        sandbox=None,
         sample_shuffle=None,
     )
 
-    assert resolved[0].sandbox == SandboxEnvironmentSpec("local")
+    assert resumed[0].sandbox == trusted_sandbox
 
 
-def test_eval_set_resume_uses_task_sandbox_not_log_sandbox(tmp_path: Path) -> None:
+@pytest.mark.parametrize("tasks_input", ["task", "eval-sandbox", "resolved-task"])
+def test_eval_set_resume_uses_task_sandbox_not_log_sandbox(
+    tmp_path: Path, tasks_input: str
+) -> None:
     should_fail = True
 
     @solver
@@ -995,36 +1030,54 @@ def test_eval_set_resume_uses_task_sandbox_not_log_sandbox(tmp_path: Path) -> No
         return solve
 
     @task
-    def sandboxed_task() -> Task:
+    def sandboxed_task(sandbox: str | None) -> Task:
         return Task(
             dataset=[Sample(input="hello", target="hello")],
             solver=fail_while_flagged(),
-            sandbox="local",
+            sandbox=sandbox,
         )
 
-    success, logs = eval_set(
-        sandboxed_task(),
-        log_dir=str(tmp_path),
-        retry_attempts=0,
-        model="mockllm/model",
-    )
+    def run_eval_set() -> tuple[bool, list[EvalLog]]:
+        tasks: Task | ResolvedTask
+        sandbox = None
+        if tasks_input == "task":
+            tasks = sandboxed_task("local")
+        elif tasks_input == "eval-sandbox":
+            tasks = sandboxed_task(None)
+            sandbox = "resolved_override"
+        else:
+            tasks = resolve_tasks(
+                sandboxed_task("local"),
+                task_args={},
+                model=get_model("mockllm/model"),
+                model_roles=None,
+                sandbox="resolved_override",
+                sample_shuffle=None,
+            )[0]
+        return eval_set(
+            tasks,
+            log_dir=str(tmp_path),
+            retry_attempts=0,
+            model="mockllm/model",
+            sandbox=sandbox,
+        )
+
+    expected = "local" if tasks_input == "task" else "resolved_override"
+    success, logs = run_eval_set()
     assert not success
     previous_log = read_eval_log(logs[0].location)
     previous_log.eval.sandbox = SandboxEnvironmentSpec("log_chosen")
     write_eval_log(previous_log)
 
     should_fail = False
-    _log_chosen_sandbox_samples.clear()
-    success, logs = eval_set(
-        sandboxed_task(),
-        log_dir=str(tmp_path),
-        retry_attempts=0,
-        model="mockllm/model",
-    )
+    _recorded_sandbox_samples.clear()
+    success, logs = run_eval_set()
 
     assert success
-    assert logs[0].eval.sandbox == SandboxEnvironmentSpec("local")
-    assert _log_chosen_sandbox_samples == []
+    assert logs[0].eval.sandbox == SandboxEnvironmentSpec(expected)
+    assert "log_chosen" not in _recorded_sandbox_samples
+    if expected == "resolved_override":
+        assert _recorded_sandbox_samples == ["resolved_override"]
 
 
 def test_eval_set_preserves_token_usage():
