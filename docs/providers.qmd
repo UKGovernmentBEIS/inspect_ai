@@ -591,6 +591,10 @@ The following environment variables are supported by the Meta provider
 | `MODEL_API_KEY` | API key credentials (Meta's official variable name; used when `META_API_KEY` is not set). |
 | `META_BASE_URL` | Base URL for requests (optional, defaults to `https://api.meta.ai/v1`). |
 
+### Prompt Caching {#meta-prompt-caching}
+
+Inspect sets Meta's [`prompt_cache_key`](https://dev.meta.ai/docs/prompt-caching#prompt-cache-key) to the running sample's unique id (no key is sent outside a sample) and, on the Responses API, sets `prompt_cache_retention` to `"24h"`. Use the `prompt_cache_key` and `prompt_cache_retention` model args to override these (e.g. `-M prompt_cache_retention=in_memory`). Values supplied in `GenerateConfig(extra_body=...)` take precedence. Cached tokens are reported as `input_tokens_cache_read`.
+
 ## Grok {#grok}
 
 To use the [Grok](https://x.ai/) provider, install the `openai` package (which the Grok service provides a compatible backend for), set your credentials, and specify a model using the `--model` option:
