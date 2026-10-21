@@ -13629,18 +13629,18 @@ var json_parse_worker_default = new URL("json-parse.worker.js", import.meta.url)
 //#region src/client/jsonParseWorker.ts
 configureJsonParseWorker(json_parse_worker_default);
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+react-query@5.104.1_react@19.3.0/node_modules/@tanstack/react-query/build/modern/QueryClientProvider.js
+//#region ../../node_modules/.pnpm/@tanstack+react-query@5.104.2_react@19.3.0/node_modules/@tanstack/react-query/build/modern/QueryClientProvider.js
 /**
 * The context that `useQueryClient` reads from. `QueryClientProvider` is the normal way to set it.
 */
 var QueryClientContext = import_react.createContext(void 0);
 /**
 * The `useQueryClient` hook returns the current `QueryClient` instance.
-*
 * @param queryClient - Use this to use a custom `QueryClient`. Otherwise, the one from the nearest context will
 * be used.
 * @returns The current `QueryClient` instance.
-* @throws If no `queryClient` argument is passed and no `QueryClientProvider` is found in the component tree.
+* @throws {Error} If no `queryClient` argument is passed and no `QueryClientProvider` is found in the
+* component tree.
 */
 var useQueryClient = (queryClient) => {
 	const client = import_react.useContext(QueryClientContext);
@@ -13653,9 +13653,8 @@ var useQueryClient = (queryClient) => {
 * calls `client.mount()`/`client.unmount()` as this component mounts/unmounts, which subscribes the client to
 * focus/online events (resuming any paused mutations and refetching as needed when the app regains focus or
 * comes back online).
-*
+* @param props - The `client` to provide, and the `children` that get access to it.
 * @returns The provided `children`, wrapped so they can read the `QueryClient` via `useQueryClient`.
-*
 * @example
 * ```tsx
 * import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -13680,7 +13679,7 @@ var QueryClientProvider = ({ client, children }) => {
 	});
 };
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.104.1/node_modules/@tanstack/query-core/build/modern/timeoutManager.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.104.2/node_modules/@tanstack/query-core/build/modern/timeoutManager.js
 var defaultTimeoutProvider = {
 	setTimeout: (callback, delay) => setTimeout(callback, delay),
 	clearTimeout: (timeoutId) => clearTimeout(timeoutId),
@@ -13690,7 +13689,7 @@ var defaultTimeoutProvider = {
 /**
 * Allows customization of how timeouts are created.
 *
-* @tanstack/query-core makes liberal use of timeouts to implement `staleTime`
+* `@tanstack/query-core` makes liberal use of timeouts to implement `staleTime`
 * and `gcTime`. The default TimeoutManager provider uses the platform's global
 * `setTimeout` implementation, which is known to have scalability issues with
 * thousands of timeouts on the event loop.
@@ -13715,7 +13714,7 @@ var TimeoutManager = class {
 	* QueryClient or queries, so that the same provider is used consistently
 	* for all timers in the application, since different TimeoutProviders
 	* cannot cancel each others' timers.
-	*
+	* @param provider - The `TimeoutProvider` to use for all timers from now on.
 	* @example
 	* ```ts
 	* import { timeoutManager, QueryClient } from '@tanstack/query-core'
@@ -13736,7 +13735,9 @@ var TimeoutManager = class {
 	*
 	* It returns a timer ID, which may be a number or an object that can be
 	* coerced to a number via `Symbol.toPrimitive`.
-	*
+	* @param callback - The function to call when the timeout elapses.
+	* @param delay - The time to wait before calling `callback`, in milliseconds.
+	* @returns The timer ID, to pass to {@link TimeoutManager#clearTimeout}.
 	* @example
 	* ```ts
 	* import { timeoutManager } from '@tanstack/query-core'
@@ -13756,7 +13757,7 @@ var TimeoutManager = class {
 	* `clearTimeout` cancels a timeout callback scheduled with `setTimeout`,
 	* like the global `clearTimeout` function. It should be called with a
 	* timer ID returned by `setTimeout`.
-	*
+	* @param timeoutId - The timer ID returned by `setTimeout`, or `undefined`.
 	* @example
 	* ```ts
 	* import { timeoutManager } from '@tanstack/query-core'
@@ -13778,7 +13779,9 @@ var TimeoutManager = class {
 	*
 	* Like `setTimeout`, it returns a timer ID, which may be a number or an
 	* object that can be coerced to a number via `Symbol.toPrimitive`.
-	*
+	* @param callback - The function to call on every interval.
+	* @param delay - The time between calls, in milliseconds.
+	* @returns The timer ID, to pass to {@link TimeoutManager#clearInterval}.
 	* @example
 	* ```ts
 	* import { timeoutManager } from '@tanstack/query-core'
@@ -13796,7 +13799,7 @@ var TimeoutManager = class {
 	* `clearInterval` can be used to cancel an interval, like the global
 	* `clearInterval` function. It should be called with an interval ID
 	* returned by `setInterval`.
-	*
+	* @param intervalId - The timer ID returned by `setInterval`, or `undefined`.
 	* @example
 	* ```ts
 	* import { timeoutManager } from '@tanstack/query-core'
@@ -13823,33 +13826,62 @@ var timeoutManager = new TimeoutManager();
 *
 * This function is provided to make auditing the `tanstack/query-core` for
 * incorrect use of system `setTimeout` easier.
+* @param callback - The function to call on the next event loop tick.
 */
 function systemSetTimeoutZero(callback) {
 	setTimeout(callback, 0);
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.104.1/node_modules/@tanstack/query-core/build/modern/utils.js
-/** @deprecated
-* use `environmentManager.isServer()` instead.
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.104.2/node_modules/@tanstack/query-core/build/modern/utils.js
+/**
+* @deprecated use `environmentManager.isServer()` instead.
 */
 var isServer$1 = typeof window === "undefined" || "Deno" in globalThis;
 function noop() {}
+/**
+* Resolves an {@link Updater}: calls it with `input` if it is a function, otherwise returns it as
+* is.
+* @param updater - The new value, or a function that receives `input` and returns the new value.
+* @param input - The current value, passed to `updater` if it is a function.
+* @returns The new value.
+*/
 function functionalUpdate$1(updater, input) {
 	return typeof updater === "function" ? updater(input) : updater;
 }
+/**
+* Checks whether a value can be used as a timeout: a non-negative, finite number.
+* @param value - The value to check.
+* @returns `true` if `value` is a number that is `>= 0` and not `Infinity`.
+*/
 function isValidTimeout(value) {
 	return typeof value === "number" && value >= 0 && value !== Infinity;
 }
+/**
+* Calculates how long until data updated at `updatedAt` becomes stale.
+* @param updatedAt - The timestamp, in milliseconds, at which the data was last updated.
+* @param staleTime - The time, in milliseconds, after which data is considered stale. Defaults to
+* `0`.
+* @returns The remaining time in milliseconds, or `0` if the data is already stale.
+*/
 function timeUntilStale(updatedAt, staleTime) {
 	return Math.max(updatedAt + (staleTime || 0) - Date.now(), 0);
 }
+/**
+* Resolves an option that can be given either as a value or as a function of the query, such as
+* `staleTime`.
+* @param value - The option value, or a function that receives `query` and returns the value.
+* @param query - The query passed to `value` if it is a function.
+* @returns The resolved value, or `undefined` if `value` is `undefined`.
+*/
 function resolveQueryValue(value, query) {
 	return typeof value === "function" ? value(query) : value;
 }
 /**
 * Checks whether a query matches the given {@link QueryFilters}.
 * Every filter that is specified must match; filters that are left unspecified are ignored.
-*
+* @param filters - The filters to check the query against.
+* @param query - The query to check.
+* @returns `true` if the query matches every specified filter.
 * @example
 * ```ts
 * const queryCache = queryClient.getQueryCache()
@@ -13880,7 +13912,9 @@ function matchQuery(filters, query) {
 * Checks whether a mutation matches the given {@link MutationFilters}.
 * Every filter that is specified must match; filters that are left unspecified are ignored.
 * If a `mutationKey` filter is provided but the mutation has no `mutationKey` of its own, it does not match.
-*
+* @param filters - The filters to check the mutation against.
+* @param mutation - The mutation to check.
+* @returns `true` if the mutation matches every specified filter.
 * @example
 * ```ts
 * const mutationCache = queryClient.getMutationCache()
@@ -13902,13 +13936,20 @@ function matchMutation(filters, mutation) {
 	if (predicate && !predicate(mutation)) return false;
 	return true;
 }
+/**
+* Hashes a query key with the query's `queryKeyHashFn` option, falling back to {@link hashKey}.
+* @param queryKey - The query key to hash.
+* @param options - The query options that may provide a custom `queryKeyHashFn`.
+* @returns The query hash, a string that identifies the query in the cache.
+*/
 function hashQueryKeyByOptions(queryKey, options) {
 	return (options?.queryKeyHashFn || hashKey)(queryKey);
 }
 /**
 * Default query & mutation keys hash function.
 * Hashes the value into a stable hash.
-*
+* @param queryKey - The query or mutation key to hash.
+* @returns The stable hash of the key, as a JSON string.
 * @example
 * ```ts
 * // Object keys are sorted, so key order doesn't affect the hash:
@@ -13968,15 +14009,29 @@ function replaceEqualDeep(a, b, depth = 0) {
 }
 /**
 * Shallow compare objects.
+* @param a - The first object.
+* @param b - The second object, or `undefined`.
+* @returns `true` if both objects have the same keys, with strictly equal values for each key.
 */
 function shallowEqualObjects(a, b) {
 	if (!b || Object.keys(a).length !== Object.keys(b).length) return false;
 	for (const key in a) if (a[key] !== b[key]) return false;
 	return true;
 }
+/**
+* Checks whether a value is an array with no holes and no extra properties.
+* @param value - The value to check.
+* @returns `true` if `value` is an array whose number of own keys equals its `length`.
+*/
 function isPlainArray(value) {
 	return Array.isArray(value) && value.length === Object.keys(value).length;
 }
+/**
+* Checks whether a value is a plain object, e.g. created with an object literal or
+* `Object.create(null)`.
+* @param o - The value to check.
+* @returns `true` if `o` is a plain object.
+*/
 function isPlainObject$1(o) {
 	if (!hasObjectPrototype(o)) return false;
 	const objectPrototype = Object.getPrototypeOf(o);
@@ -13989,14 +14044,34 @@ function isPlainObject$1(o) {
 	if (objectPrototype !== Object.prototype) return false;
 	return true;
 }
+/**
+* Checks whether a value's `Object.prototype.toString` tag is `[object Object]`.
+* @param o - The value to check.
+* @returns `true` if the tag is `[object Object]`.
+*/
 function hasObjectPrototype(o) {
 	return Object.prototype.toString.call(o) === "[object Object]";
 }
+/**
+* Waits for the given time, using the configured {@link timeoutManager}.
+* @param timeout - The time to wait, in milliseconds.
+* @returns A promise that resolves after `timeout` milliseconds.
+*/
 function sleep(timeout) {
 	return new Promise((resolve) => {
 		timeoutManager.setTimeout(resolve, timeout);
 	});
 }
+/**
+* Applies a query's `structuralSharing` option when writing new data.
+* @param prevData - The previously cached data.
+* @param data - The new data.
+* @param options - The query options, whose `structuralSharing` decides how the data is merged.
+* @returns The result of a custom `structuralSharing` function, `data` with its unchanged parts
+* replaced by those of `prevData` by default, or `data` as is if `structuralSharing` is `false`.
+* @throws {Error} The error from the default structural sharing, e.g. when the data is not JSON serializable.
+* Outside production, it is also logged to the console.
+*/
 function replaceData(prevData, data, options) {
 	if (typeof options.structuralSharing === "function") return options.structuralSharing(prevData, data);
 	else if (options.structuralSharing !== false) return replaceEqualDeep(prevData, data);
@@ -14006,7 +14081,8 @@ function replaceData(prevData, data, options) {
 * Intended to be passed as a query's `placeholderData` option, for example
 * `placeholderData: keepPreviousData`. Instead of resetting the query's data to `undefined` while a new
 * query key is fetching, it keeps displaying the previously fetched data until the new data arrives.
-*
+* @param previousData - The data of the previous query key, passed by the observer.
+* @returns The previous data, unchanged.
 * @example
 * ```ts
 * new QueryObserver(queryClient, {
@@ -14019,10 +14095,28 @@ function replaceData(prevData, data, options) {
 function keepPreviousData(previousData) {
 	return previousData;
 }
+/**
+* Returns a new array with `item` added at the end. If that makes the array longer than `max`,
+* the first item is dropped. Only one item is dropped, so the result can still exceed `max` if
+* `items` already did.
+* @param items - The current items.
+* @param item - The value to append.
+* @param max - The length above which an item is dropped. `0` (the default) means no limit.
+* @returns A new array with `item` added.
+*/
 function addToEnd(items, item, max = 0) {
 	const newItems = [...items, item];
 	return max && newItems.length > max ? newItems.slice(1) : newItems;
 }
+/**
+* Returns a new array with `item` added at the start. If that makes the array longer than `max`,
+* the last item is dropped. Only one item is dropped, so the result can still exceed `max` if
+* `items` already did.
+* @param items - The current items.
+* @param item - The value to prepend.
+* @param max - The length above which an item is dropped. `0` (the default) means no limit.
+* @returns A new array with `item` added.
+*/
 function addToStart(items, item, max = 0) {
 	const newItems = [item, ...items];
 	return max && newItems.length > max ? newItems.slice(0, -1) : newItems;
@@ -14031,7 +14125,6 @@ function addToStart(items, item, max = 0) {
 * Sentinel value that can be passed as a query's `queryFn` to conditionally disable the query (equivalent
 * to `enabled: false`) while preserving full type inference for the query's data. Unlike `enabled: false`,
 * a query disabled via `skipToken` cannot be triggered with `refetch`.
-*
 * @example
 * ```ts
 * new QueryObserver(queryClient, {
@@ -14041,6 +14134,14 @@ function addToStart(items, item, max = 0) {
 * ```
 */
 var skipToken = Symbol();
+/**
+* Returns the function to call for a fetch. If there is no `queryFn` but the fetch was started from
+* an `initialPromise`, that promise is returned instead. If there is no usable `queryFn` (missing or
+* {@link skipToken}), the returned function rejects with a `Missing queryFn` error.
+* @param options - The query options with the `queryFn`, and the `queryHash` used in error messages.
+* @param fetchOptions - The fetch options, which may carry an `initialPromise`.
+* @returns The function to call for the fetch.
+*/
 function ensureQueryFn(options, fetchOptions) {
 	if (!options.queryFn && fetchOptions?.initialPromise) return () => fetchOptions.initialPromise;
 	if (!options.queryFn || options.queryFn === skipToken) return () => Promise.reject(/* @__PURE__ */ new Error(`Missing queryFn: '${options.queryHash}'`));
@@ -14052,7 +14153,10 @@ function ensureQueryFn(options, fetchOptions) {
 * additional context such as the query or mutation) and its result is returned, allowing the throwing
 * behavior to be decided per error. Otherwise, `throwOnError` itself is coerced to a boolean (`undefined`
 * resolves to `false`).
-*
+* @param throwOnError - The `throwOnError` option: a boolean, a function that decides per error, or
+* `undefined`.
+* @param params - The arguments passed to `throwOnError` if it is a function.
+* @returns Whether the error should be thrown.
 * @example
 * ```ts
 * const throwOnError =
@@ -14065,6 +14169,15 @@ function shouldThrowError(throwOnError, params) {
 	if (typeof throwOnError === "function") return throwOnError(...params);
 	return !!throwOnError;
 }
+/**
+* Adds a lazy `signal` getter to an object, such as a query function context. The first time
+* `signal` is read, `onCancelled` is registered for the signal's `abort` event (or called right
+* away if it is already aborted), so cancellation is only tracked when the signal is actually used.
+* @param object - The object to add the `signal` property to.
+* @param getSignal - Returns the `AbortSignal`. Called once, when `signal` is first read.
+* @param onCancelled - Called when the signal is aborted, if `signal` was read.
+* @returns The same object, with the `signal` property added.
+*/
 function addConsumeAwareSignal(object, getSignal, onCancelled) {
 	let consumed = false;
 	let signal;
@@ -14082,14 +14195,15 @@ function addConsumeAwareSignal(object, getSignal, onCancelled) {
 	return object;
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.104.1/node_modules/@tanstack/query-core/build/modern/environmentManager.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.104.2/node_modules/@tanstack/query-core/build/modern/environmentManager.js
 var isServerFn = () => isServer$1;
 /**
 * Returns whether the current runtime should be treated as a server environment.
+* @returns `true` if the runtime is treated as a server.
 */
 var isServer = () => isServerFn();
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.104.1/node_modules/@tanstack/query-core/build/modern/subscribable.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.104.2/node_modules/@tanstack/query-core/build/modern/subscribable.js
 /**
 * The base class behind everything in Query that you can subscribe to: `QueryCache`, `MutationCache`,
 * the observers, and the `FocusManager`/`OnlineManager` behind `focusManager` and `onlineManager`.
@@ -14105,6 +14219,7 @@ var Subscribable = class {
 	* that removes the listener again — call it to stop listening. The base class never drops a listener
 	* on its own, though some subclasses clear all of theirs in `destroy()`.
 	* @param listener - Called on each update, with whatever the subclass passes to its subscribers.
+	* @returns A function that removes the listener.
 	* @example
 	* ```ts
 	* const unsubscribe = subscribable.subscribe(() => {
@@ -14124,15 +14239,24 @@ var Subscribable = class {
 	}
 	/**
 	* Returns `true` while at least one listener is registered, `false` once they have all unsubscribed.
+	* @returns `true` if at least one listener is registered.
 	*/
 	hasListeners() {
 		return this.listeners.size > 0;
 	}
+	/**
+	* Called after a listener is added. Does nothing here; subclasses override it, e.g. to start
+	* tracking what they observe once the first listener subscribes.
+	*/
 	onSubscribe() {}
+	/**
+	* Called after a listener is removed. Does nothing here; subclasses override it, e.g. to clean up
+	* once the last listener unsubscribes.
+	*/
 	onUnsubscribe() {}
 };
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.104.1/node_modules/@tanstack/query-core/build/modern/focusManager.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.104.2/node_modules/@tanstack/query-core/build/modern/focusManager.js
 /**
 * The `FocusManager` manages the focus state within TanStack Query.
 *
@@ -14169,7 +14293,8 @@ var FocusManager = class extends Subscribable {
 	* receives a `setFocused` callback: call it with a `boolean` to manually
 	* set the focus state, or with no arguments to re-evaluate the current
 	* focus state and notify subscribers.
-	*
+	* @param setup - Receives the `setFocused` callback, registers the event listener, and may return
+	* a cleanup function that is called when the listener is replaced or no longer needed.
 	* @example
 	* ```ts
 	* import { focusManager } from '@tanstack/query-core'
@@ -14199,7 +14324,7 @@ var FocusManager = class extends Subscribable {
 	/**
 	* `setFocused` can be used to manually set the focus state. Set `undefined`
 	* to fall back to the default focus check.
-	*
+	* @param focused - The focus state, or `undefined` to use the default focus check.
 	* @example
 	* ```ts
 	* import { focusManager } from '@tanstack/query-core'
@@ -14231,6 +14356,7 @@ var FocusManager = class extends Subscribable {
 	}
 	/**
 	* `isFocused` can be used to get the current focus state.
+	* @returns The focus state set with `setFocused`, or otherwise whether the document is visible.
 	*/
 	isFocused() {
 		if (typeof this.#focused === "boolean") return this.#focused;
@@ -14242,12 +14368,17 @@ var FocusManager = class extends Subscribable {
 */
 var focusManager = new FocusManager();
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.104.1/node_modules/@tanstack/query-core/build/modern/notifyManager.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.104.2/node_modules/@tanstack/query-core/build/modern/notifyManager.js
 /**
 * Default scheduling function used by the notify manager.
 * Schedules the callback with the system's `setTimeout(callback, 0)`.
 */
 var defaultScheduler = systemSetTimeoutZero;
+/**
+* Creates a notify manager, which schedules and batches notifications to subscribers. Query uses a
+* single instance of it, exported as {@link notifyManager}.
+* @returns A new notify manager.
+*/
 function createNotifyManager() {
 	let queue = [];
 	let transactions = 0;
@@ -14281,6 +14412,8 @@ function createNotifyManager() {
 		* This is mainly used internally to optimize query client updating.
 		* Batches can be nested; the queue is only flushed once the outermost `batch` call finishes.
 		* The return value of `callback` is passed through.
+		* @param callback - The function to run in the batch.
+		* @returns The return value of `callback`.
 		*/
 		batch: (callback) => {
 			let result;
@@ -14295,6 +14428,8 @@ function createNotifyManager() {
 		},
 		/**
 		* All calls to the wrapped function will be batched.
+		* @param callback - The function to wrap.
+		* @returns A function that schedules a call to `callback` with the given arguments.
 		*/
 		batchCalls: (callback) => {
 			return (...args) => {
@@ -14311,6 +14446,7 @@ function createNotifyManager() {
 		/**
 		* Use this method to set a custom notify function.
 		* This can be used to for example wrap notifications with `React.act` while running tests.
+		* @param fn - Receives each notification callback and must call it.
 		*/
 		setNotifyFunction: (fn) => {
 			notifyFn = fn;
@@ -14319,7 +14455,7 @@ function createNotifyManager() {
 		* Use this method to set a custom function to batch notifications together into a single tick.
 		* Framework adapters use this to plug in their own batching primitive, so that a single query
 		* update only triggers one re-render instead of one per subscriber.
-		*
+		* @param fn - Receives a function that runs a batch of notifications and must call it.
 		* @example
 		* ```ts
 		* import { notifyManager } from '@tanstack/query-core'
@@ -14334,7 +14470,7 @@ function createNotifyManager() {
 		/**
 		* Configures a custom callback that schedules when the next batch runs.
 		* The default behavior is `setTimeout(callback, 0)`.
-		*
+		* @param fn - Receives a callback that runs the next batch, and schedules it.
 		* @example
 		* ```ts
 		* import { notifyManager } from '@tanstack/query-core'
@@ -14359,7 +14495,7 @@ function createNotifyManager() {
 */
 var notifyManager = createNotifyManager();
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.104.1/node_modules/@tanstack/query-core/build/modern/onlineManager.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.104.2/node_modules/@tanstack/query-core/build/modern/onlineManager.js
 /**
 * The `OnlineManager` manages the online state within TanStack Query. It can
 * be used to change the default event listeners or to manually change the
@@ -14402,7 +14538,8 @@ var OnlineManager = class extends Subscribable {
 	* be used to determine the online state. The provided `setup` function
 	* receives a `setOnline` callback that should be called with a `boolean`
 	* whenever the online state changes.
-	*
+	* @param setup - Receives the `setOnline` callback, registers the event listener, and may return
+	* a cleanup function that is called when the listener is replaced or no longer needed.
 	* @example
 	* ```ts
 	* import NetInfo from '@react-native-community/netinfo'
@@ -14422,7 +14559,7 @@ var OnlineManager = class extends Subscribable {
 	}
 	/**
 	* `setOnline` can be used to manually set the online state.
-	*
+	* @param online - The online state.
 	* @example
 	* ```ts
 	* import { onlineManager } from '@tanstack/query-core'
@@ -14444,6 +14581,7 @@ var OnlineManager = class extends Subscribable {
 	}
 	/**
 	* `isOnline` can be used to get the current online state.
+	* @returns `true` if online.
 	*/
 	isOnline() {
 		return this.#online;
@@ -14454,10 +14592,20 @@ var OnlineManager = class extends Subscribable {
 */
 var onlineManager = new OnlineManager();
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.104.1/node_modules/@tanstack/query-core/build/modern/retryer.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.104.2/node_modules/@tanstack/query-core/build/modern/retryer.js
+/**
+* The default `retryDelay`: doubles with every failure, starting at 1 second, up to 30 seconds.
+* @param failureCount - The number of failures so far.
+* @returns The delay before the next retry, in milliseconds.
+*/
 function defaultRetryDelay(failureCount) {
 	return Math.min(1e3 * 2 ** failureCount, 3e4);
 }
+/**
+* Checks whether a fetch can run for the given network mode.
+* @param networkMode - The `networkMode` option. Defaults to `'online'`.
+* @returns `true` if the network mode is not `'online'`, or if it is and the client is online.
+*/
 function canFetch(networkMode) {
 	return (networkMode ?? "online") === "online" ? onlineManager.isOnline() : true;
 }
@@ -14486,6 +14634,15 @@ var CancelledError = class extends Error {
 		this.silent = options?.silent;
 	}
 };
+/**
+* Creates a retryer, which runs a function and retries it on failure according to the `retry` and
+* `retryDelay` options. It pauses while the network mode doesn't allow fetching or `canRun` returns
+* `false`, and can be cancelled. Queries and mutations use it to run their `queryFn` and
+* `mutationFn`.
+* @param config - The function to run, the retry options, and the callbacks for failures, pausing,
+* continuing, and cancellation.
+* @returns The retryer, whose `promise` settles with the result of the function.
+*/
 function createRetryer(config) {
 	let isRetryCancelled = false;
 	let failureCount = 0;
@@ -14528,10 +14685,10 @@ function createRetryer(config) {
 			promiseReject(value);
 		}
 	};
-	const pause = () => {
+	const pause = (canResume) => {
 		return new Promise((continueResolve) => {
 			continueFn = (value) => {
-				if (isResolved() || canContinue()) continueResolve(value);
+				if (isResolved() || canResume()) continueResolve(value);
 			};
 			config.onPause?.();
 		}).then(() => {
@@ -14561,7 +14718,7 @@ function createRetryer(config) {
 			failureCount++;
 			config.onFail?.(failureCount, error);
 			sleep(delay).then(() => {
-				return canContinue() ? void 0 : pause();
+				return canContinue() ? void 0 : pause(canContinue);
 			}).then(() => {
 				if (isRetryCancelled) reject(error);
 				else run();
@@ -14581,13 +14738,13 @@ function createRetryer(config) {
 		canStart,
 		start: () => {
 			if (canStart()) run();
-			else pause().then(run);
+			else pause(canStart).then(run);
 			return promise;
 		}
 	};
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.104.1/node_modules/@tanstack/query-core/build/modern/removable.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.104.2/node_modules/@tanstack/query-core/build/modern/removable.js
 /**
 * The base class for cache entries that are garbage collected once nothing is using them —
 * `Query` and `Mutation` both extend it. `gcTime` controls how long an unused entry is kept.
@@ -14602,15 +14759,27 @@ var Removable = class {
 	destroy() {
 		this.clearGcTimeout();
 	}
+	/**
+	* Schedules the entry to be removed from its cache after `gcTime`, replacing any timeout scheduled
+	* before. Nothing is scheduled if `gcTime` is `Infinity`.
+	*/
 	scheduleGc() {
 		this.clearGcTimeout();
 		if (isValidTimeout(this.gcTime)) this.#gcTimeout = timeoutManager.setTimeout(() => {
 			this.optionalRemove();
 		}, this.gcTime);
 	}
+	/**
+	* Updates `gcTime`, keeping the longest one seen so far. Without a value, it defaults to 5 minutes
+	* on the client and `Infinity` on the server.
+	* @param newGcTime - The `gcTime` from the latest options, if any.
+	*/
 	updateGcTime(newGcTime) {
 		this.gcTime = Math.max(this.gcTime || 0, newGcTime ?? (isServer() ? Infinity : 3e5));
 	}
+	/**
+	* Cancels the scheduled removal, if there is one.
+	*/
 	clearGcTimeout() {
 		if (this.#gcTimeout !== void 0) {
 			timeoutManager.clearTimeout(this.#gcTimeout);
@@ -14619,7 +14788,15 @@ var Removable = class {
 	}
 };
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.104.1/node_modules/@tanstack/query-core/build/modern/infiniteQueryBehavior.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.104.2/node_modules/@tanstack/query-core/build/modern/infiniteQueryBehavior.js
+/**
+* Creates the behavior that fetches the pages of an infinite query: the next or previous page for
+* `fetchNextPage`/`fetchPreviousPage`, or all pages again from the start on a refetch.
+* @param pages - The number of pages to fetch from the start when all pages are fetched again,
+* e.g. from the `pages` option of `queryClient.infiniteQuery`. Defaults to the number of cached
+* pages.
+* @returns The query behavior to set on an infinite query.
+*/
 function infiniteQueryBehavior(pages) {
 	return { onFetch: (context, query) => {
 		const options = context.options;
@@ -14690,15 +14867,32 @@ function infiniteQueryBehavior(pages) {
 		else context.fetchFn = fetchFn;
 	} };
 }
+/**
+* Computes the page param of the page after the last one, with the `getNextPageParam` option.
+* @param options - The infinite query options.
+* @param data - The current pages and page params.
+* @returns The next page param, or `undefined` if there are no pages yet.
+*/
 function getNextPageParam(options, { pages, pageParams }) {
 	const lastIndex = pages.length - 1;
 	return pages.length > 0 ? options.getNextPageParam(pages[lastIndex], pages, pageParams[lastIndex], pageParams) : void 0;
 }
+/**
+* Computes the page param of the page before the first one, with the `getPreviousPageParam`
+* option.
+* @param options - The infinite query options.
+* @param data - The current pages and page params.
+* @returns The previous page param, or `undefined` if there are no pages yet or no
+* `getPreviousPageParam` option.
+*/
 function getPreviousPageParam(options, { pages, pageParams }) {
 	return pages.length > 0 ? options.getPreviousPageParam?.(pages[0], pages, pageParams[0], pageParams) : void 0;
 }
 /**
 * Checks if there is a next page.
+* @param options - The infinite query options with `getNextPageParam`.
+* @param data - The current pages and page params.
+* @returns `true` if `getNextPageParam` returns a value other than `null` or `undefined`.
 */
 function hasNextPage(options, data) {
 	if (!data) return false;
@@ -14706,13 +14900,17 @@ function hasNextPage(options, data) {
 }
 /**
 * Checks if there is a previous page.
+* @param options - The infinite query options with `getPreviousPageParam`.
+* @param data - The current pages and page params.
+* @returns `true` if `getPreviousPageParam` is set and returns a value other than `null` or
+* `undefined`.
 */
 function hasPreviousPage(options, data) {
 	if (!data || !options.getPreviousPageParam) return false;
 	return getPreviousPageParam(options, data) != null;
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.104.1/node_modules/@tanstack/query-core/build/modern/query.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.104.2/node_modules/@tanstack/query-core/build/modern/query.js
 /**
 * Represents a single cached query. A `Query` holds the query's key, options,
 * state (data/error/status), and the observers currently subscribed to it.
@@ -14721,7 +14919,6 @@ function hasPreviousPage(options, data) {
 * code typically interacts with queries indirectly through `QueryClient` or
 * a framework hook like `useQuery`. Direct access to a `Query` instance is
 * possible via `queryCache.find()`/`findAll()` for inspecting cache state.
-*
 * @example
 * ```ts
 * const queryCache = queryClient.getQueryCache()
@@ -14757,22 +14954,33 @@ var Query = class extends Removable {
 	}
 	/**
 	* The `meta` object passed in the query's options, if any.
+	* @returns The query's `meta`, or `undefined` if none was set.
 	*/
 	get meta() {
 		return this.options.meta;
 	}
-	/** @internal */
+	/**
+	* `'infinite'` for an infinite query, otherwise `undefined`.
+	* @internal
+	* @returns The type of the query, set from the `_type` option (e.g. `'infinite'`).
+	*/
 	get queryType() {
 		return this.#queryType;
 	}
 	/**
 	* The promise for the currently in-flight fetch, if the query is fetching.
 	* `undefined` when the query is not fetching.
+	* @returns The promise of the in-flight fetch, or `undefined`.
 	*/
 	get promise() {
 		return this.#retryer?.promise;
 	}
-	/** @internal */
+	/**
+	* Replaces the query's options and applies their `gcTime`. If the query has no data yet, it gets
+	* the `initialData` from the new options, if any.
+	* @internal
+	* @param options - The new query options, merged on top of the query's default options.
+	*/
 	setOptions(options) {
 		this.options = {
 			...this.#defaultOptions,
@@ -14791,7 +14999,14 @@ var Query = class extends Removable {
 	optionalRemove() {
 		if (!this.observers.length && this.state.fetchStatus === "idle") this.#cache.remove(this);
 	}
-	/** @internal */
+	/**
+	* Writes new data to the query and marks it as successfully fetched.
+	* @internal
+	* @param newData - The data to write. Structural sharing with the current data is applied.
+	* @param options - Set `updatedAt` to override the timestamp, and `manual` to mark the write as
+	* manual (e.g. from `queryClient.setQueryData`).
+	* @returns The data that was written.
+	*/
 	setData(newData, options) {
 		const data = replaceData(this.state.data, newData, this.options);
 		this.#dispatch({
@@ -14806,6 +15021,7 @@ var Query = class extends Removable {
 	* Merges the given partial state directly into this query's state, notifying observers. Used
 	* by persistence and broadcast plugins to restore a state snapshot, and by devtools to let a
 	* user manually trigger a loading/error state or edit the cached data.
+	* @param state - The partial state to merge into the query's state.
 	*/
 	setState(state) {
 		this.#dispatch({
@@ -14817,7 +15033,9 @@ var Query = class extends Removable {
 	* Cancels the query's currently in-flight fetch, if any.
 	* - Returns a promise that resolves once the cancellation has settled.
 	* - If no fetch is in progress, resolves immediately.
-	*
+	* @param options - Set `revert` to restore the state from before the fetch started, and `silent`
+	* to suppress the cancellation error when a new fetch replaces the cancelled one.
+	* @returns A promise that resolves once the cancellation has settled.
 	* @example
 	* ```ts
 	* await query.cancel()
@@ -14832,14 +15050,17 @@ var Query = class extends Removable {
 	* Clears the query's garbage collection timeout and silently cancels any
 	* in-flight fetch. Called by `QueryCache` when the query is removed from
 	* the cache.
-	*
 	* @see {@link Query#cancel}
 	*/
 	destroy() {
 		super.destroy();
 		this.cancel({ silent: true });
 	}
-	/** @internal */
+	/**
+	* The state the query was created with.
+	* @internal
+	* @returns The state the query had when it was first created, used by {@link Query#reset}.
+	*/
 	get resetState() {
 		return this.#initialState;
 	}
@@ -14855,6 +15076,7 @@ var Query = class extends Removable {
 	/**
 	* Returns `true` if the query has at least one observer for which `enabled`
 	* does not resolve to `false`.
+	* @returns `true` if the query has an enabled observer.
 	*/
 	isActive() {
 		return this.observers.some((observer) => resolveQueryValue(observer.options.enabled, this) !== false);
@@ -14866,6 +15088,7 @@ var Query = class extends Removable {
 	*   (see `isActive`).
 	* - If the query has no observers, it is disabled when its `queryFn` is
 	*   `skipToken` or it has never been fetched.
+	* @returns `true` if the query is disabled.
 	*/
 	isDisabled() {
 		if (this.getObserversCount() > 0) return !this.isActive();
@@ -14874,6 +15097,7 @@ var Query = class extends Removable {
 	/**
 	* Returns `true` if the query has been fetched, i.e. it has resolved with
 	* either data or an error at least once.
+	* @returns `true` if the query has been fetched.
 	*/
 	isFetched() {
 		return this.state.dataUpdateCount + this.state.errorUpdateCount > 0;
@@ -14881,6 +15105,7 @@ var Query = class extends Removable {
 	/**
 	* Returns `true` if the query has at least one observer configured with
 	* `staleTime: 'static'`, meaning it is treated as never stale.
+	* @returns `true` if the query is static.
 	*/
 	isStatic() {
 		if (this.getObserversCount() > 0) return this.observers.some((observer) => resolveQueryValue(observer.options.staleTime, this) === "static");
@@ -14893,7 +15118,7 @@ var Query = class extends Removable {
 	*   `staleTime` and `enabled` state).
 	* - If the query has no observers, it is considered stale when it has no
 	*   data or has been invalidated.
-	*
+	* @returns `true` if the query is stale.
 	* @see {@link Query#isStaleByTime}
 	* @example
 	* ```ts
@@ -14913,7 +15138,9 @@ var Query = class extends Removable {
 	* - `staleTime: 'static'` is never stale.
 	* - An invalidated query is always stale.
 	* - Otherwise, staleness is based on elapsed time since `dataUpdatedAt`.
-	*
+	* @param staleTime - The time, in milliseconds, after which data is considered stale, or
+	* `'static'` to never treat existing data as stale. A query without data is stale either way.
+	* @returns `true` if the query's data is stale.
 	* @see {@link Query#isStale}
 	* @example
 	* ```ts
@@ -14926,17 +15153,30 @@ var Query = class extends Removable {
 		if (this.state.isInvalidated) return true;
 		return !timeUntilStale(this.state.dataUpdatedAt, staleTime);
 	}
-	/** @internal */
+	/**
+	* Refetches the query when the window regains focus, if an observer wants that, and continues a
+	* paused fetch.
+	* @internal
+	*/
 	onFocus() {
 		this.observers.find((x) => x.shouldFetchOnWindowFocus())?.refetch({ cancelRefetch: false });
 		this.#retryer?.continue();
 	}
-	/** @internal */
+	/**
+	* Refetches the query when the app reconnects, if an observer wants that, and continues a paused
+	* fetch.
+	* @internal
+	*/
 	onOnline() {
 		this.observers.find((x) => x.shouldFetchOnReconnect())?.refetch({ cancelRefetch: false });
 		this.#retryer?.continue();
 	}
-	/** @internal */
+	/**
+	* Subscribes an observer to the query and stops its garbage collection.
+	* @internal
+	* @param observer - The observer to add. Adding an observer that is already subscribed does
+	* nothing.
+	*/
 	addObserver(observer) {
 		if (!this.observers.includes(observer)) {
 			this.observers.push(observer);
@@ -14948,7 +15188,13 @@ var Query = class extends Removable {
 			});
 		}
 	}
-	/** @internal */
+	/**
+	* Unsubscribes an observer from the query.
+	* @internal
+	* @param observer - The observer to remove. When the last observer is removed, the in-flight
+	* fetch is cancelled if its abort signal was consumed (otherwise only its retries are stopped),
+	* and garbage collection is scheduled.
+	*/
 	removeObserver(observer) {
 		const index = this.observers.indexOf(observer);
 		if (index !== -1) {
@@ -14969,7 +15215,7 @@ var Query = class extends Removable {
 	}
 	/**
 	* Returns the number of observers currently subscribed to this query.
-	*
+	* @returns The number of observers.
 	* @example
 	* ```ts
 	* if (query.getObserversCount() === 0) {
@@ -14984,7 +15230,6 @@ var Query = class extends Removable {
 	* Marks the query as invalidated, unless it is already invalidated. This
 	* updates `state.isInvalidated` and notifies observers, but does not by
 	* itself trigger a refetch.
-	*
 	* @example
 	* ```ts
 	* query.invalidate()
@@ -15002,6 +15247,13 @@ var Query = class extends Removable {
 	*   cancelled first.
 	* - If `options` is passed, it replaces the query's current options
 	*   before fetching.
+	* @param options - Query options that replace the query's current options before fetching. They
+	* are not applied when an in-flight fetch is reused.
+	* @param fetchOptions - Set `cancelRefetch` to cancel an in-flight fetch first (only if the query
+	* already has data), and `meta` to pass extra information to the query's behavior.
+	* @returns A promise that resolves with the fetched data, or rejects with the fetch error. If the
+	* fetch is cancelled with `revert` while the query has data, it resolves with the restored data
+	* instead.
 	*/
 	async fetch(options, fetchOptions) {
 		if (this.state.fetchStatus !== "idle" && this.#retryer?.status() !== "rejected") {
@@ -15186,6 +15438,14 @@ var Query = class extends Removable {
 		});
 	}
 };
+/**
+* Returns the state changes applied when a query starts fetching.
+* @param data - The query's current data. If it is `undefined`, the query is also reset to
+* `'pending'` with no error.
+* @param options - The query options, whose `networkMode` decides whether the query is `'fetching'`
+* or `'paused'`.
+* @returns The partial query state for a starting fetch.
+*/
 function fetchState(data, options) {
 	return {
 		fetchFailureCount: 0,
@@ -15197,6 +15457,12 @@ function fetchState(data, options) {
 		}
 	};
 }
+/**
+* Returns the state changes applied when a query receives data.
+* @param data - The new data.
+* @param dataUpdatedAt - The timestamp the data is recorded with. Defaults to the current time.
+* @returns The partial query state for a successful update.
+*/
 function successState(data, dataUpdatedAt) {
 	return {
 		data,
@@ -15206,6 +15472,12 @@ function successState(data, dataUpdatedAt) {
 		status: "success"
 	};
 }
+/**
+* Returns the initial state of a query, based on its `initialData` and `initialDataUpdatedAt`
+* options.
+* @param options - The query options.
+* @returns The initial query state: `'success'` if `initialData` is set, otherwise `'pending'`.
+*/
 function getDefaultState$1(options) {
 	const data = typeof options.initialData === "function" ? options.initialData() : options.initialData;
 	const hasData = data !== void 0;
@@ -15226,7 +15498,7 @@ function getDefaultState$1(options) {
 	};
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.104.1/node_modules/@tanstack/query-core/build/modern/queryObserver.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.104.2/node_modules/@tanstack/query-core/build/modern/queryObserver.js
 /**
 * A `QueryObserver` watches a single query in the `QueryCache` and computes a
 * `QueryObserverResult` from its state, recomputing and notifying subscribers
@@ -15234,7 +15506,6 @@ function getDefaultState$1(options) {
 * the primitive that framework adapters (e.g. `useQuery`) build their hooks
 * on top of, but it can also be used directly to observe and switch between
 * queries outside of any framework.
-*
 * @example
 * ```ts
 * const observer = new QueryObserver(queryClient, {
@@ -15270,6 +15541,10 @@ var QueryObserver = class extends Subscribable {
 		this.bindMethods();
 		this.setOptions(options);
 	}
+	/**
+	* Binds the methods of the result (`refetch`) to the observer, so they keep working when destructured
+	* from it. Subclasses override it to bind their own result methods as well.
+	*/
 	bindMethods() {
 		this.refetch = this.refetch.bind(this);
 	}
@@ -15288,6 +15563,7 @@ var QueryObserver = class extends Subscribable {
 	* Returns whether the observed query is currently stale and configured
 	* (via the `refetchOnReconnect` option) to refetch when the network
 	* reconnects.
+	* @returns `true` if the observer should refetch the query on reconnect.
 	*/
 	shouldFetchOnReconnect() {
 		return shouldFetchOn(this.#currentQuery, this.options, this.options.refetchOnReconnect);
@@ -15296,6 +15572,7 @@ var QueryObserver = class extends Subscribable {
 	* Returns whether the observed query is currently stale and configured
 	* (via the `refetchOnWindowFocus` option) to refetch when the window
 	* regains focus.
+	* @returns `true` if the observer should refetch the query on window focus.
 	*/
 	shouldFetchOnWindowFocus() {
 		return shouldFetchOn(this.#currentQuery, this.options, this.options.refetchOnWindowFocus);
@@ -15317,7 +15594,9 @@ var QueryObserver = class extends Subscribable {
 	* trigger a fetch if the new options require one and the observer has
 	* subscribers, recompute the current result, and reschedule the stale and
 	* refetch-interval timers as needed.
-	*
+	* @param options - The new observer options. They are defaulted with {@link
+	* QueryClient#defaultQueryOptions} before being applied.
+	* @throws {Error} If `enabled` is neither a boolean nor a function.
 	* @example
 	* ```ts
 	* observer.setOptions({ queryKey: ['posts', 1], queryFn: () => fetchPost(1) })
@@ -15349,6 +15628,8 @@ var QueryObserver = class extends Subscribable {
 	* right now, building the underlying `Query` if it doesn't exist yet, without waiting for a
 	* subscription callback. Called by framework adapters on every render (e.g. `useQuery`) so the
 	* returned value is available synchronously, ahead of `setOptions` triggering an actual fetch.
+	* @param options - The defaulted observer options to compute the result for.
+	* @returns The result for the given options.
 	*/
 	getOptimisticResult(options) {
 		const query = this.#client.getQueryCache().build(this.#client, options);
@@ -15365,7 +15646,7 @@ var QueryObserver = class extends Subscribable {
 	* observed query. This is a point-in-time read; to be notified of updates
 	* as they happen, subscribe to the observer instead (its inherited
 	* `subscribe` method).
-	*
+	* @returns The observer's latest result.
 	* @example
 	* ```ts
 	* const result = observer.getCurrentResult()
@@ -15380,6 +15661,9 @@ var QueryObserver = class extends Subscribable {
 	* {@link QueryObserver#trackProp} (and an optional `onPropTracked` callback). Used by framework
 	* adapters when `notifyOnChangeProps` is not set, to implement its default "only re-render on
 	* properties you actually read" behavior.
+	* @param result - The result to wrap.
+	* @param onPropTracked - Called with the name of each property that is read.
+	* @returns A proxy of `result` that tracks property reads.
 	*/
 	trackResult(result, onPropTracked) {
 		return new Proxy(result, { get: (target, key) => {
@@ -15393,12 +15677,14 @@ var QueryObserver = class extends Subscribable {
 	* notifies this observer if a tracked property actually changed. Normally called indirectly via
 	* {@link QueryObserver#trackResult}'s proxy; exposed directly for adapters that track property
 	* access themselves (e.g. through their own reactivity system) instead of via the proxy.
+	* @param key - The name of the property that was read.
 	*/
 	trackProp(key) {
 		this.#trackedProps.add(key);
 	}
 	/**
 	* Returns the `Query` instance this observer is currently observing.
+	* @returns The observed query.
 	*/
 	getCurrentQuery() {
 		return this.#currentQuery;
@@ -15406,7 +15692,9 @@ var QueryObserver = class extends Subscribable {
 	/**
 	* Refetches the observed query and returns a promise that resolves with
 	* the resulting `QueryObserverResult`.
-	*
+	* @param options - Set `cancelRefetch` to `false` to keep a running fetch instead of cancelling
+	* it, and `throwOnError` to `true` to reject when the refetch fails.
+	* @returns A promise that resolves with the result after the refetch.
 	* @example
 	* ```ts
 	* const result = await observer.refetch({ cancelRefetch: false })
@@ -15422,7 +15710,8 @@ var QueryObserver = class extends Subscribable {
 	* resolves with the `QueryObserverResult` for that fetch. This is useful
 	* for prefetching data that another observer (e.g. a query about to be
 	* navigated to) will need, ahead of time.
-	*
+	* @param options - The observer options of the query to fetch.
+	* @returns A promise that resolves with the result for the fetched query.
 	* @example
 	* ```ts
 	* const result = await observer.fetchOptimistic({
@@ -15454,6 +15743,12 @@ var QueryObserver = class extends Subscribable {
 			unsubscribe();
 		}), cachePromise]);
 	}
+	/**
+	* Fetches the observed query and updates the result once the fetch settles. Used by `refetch` and,
+	* in `InfiniteQueryObserver`, to fetch more pages.
+	* @param fetchOptions - Options for this fetch. `cancelRefetch` defaults to `true`.
+	* @returns A promise that resolves with the updated result.
+	*/
 	fetch(fetchOptions) {
 		return this.#executeFetch({
 			...fetchOptions,
@@ -15508,6 +15803,13 @@ var QueryObserver = class extends Subscribable {
 			this.#refetchIntervalId = void 0;
 		}
 	}
+	/**
+	* Computes the result for a query and options from the query's state, applying `select`,
+	* `placeholderData`, and the derived flags. Subclasses override it to add their own fields.
+	* @param query - The query to compute the result for.
+	* @param options - The observer options to compute the result with.
+	* @returns The computed result.
+	*/
 	createResult(query, options) {
 		const prevQuery = this.#currentQuery;
 		const prevOptions = this.options;
@@ -15643,18 +15945,45 @@ var QueryObserver = class extends Subscribable {
 			query.addObserver(this);
 		}
 	}
-	/** @internal */
+	/**
+	* Updates the observer's result when the observed query changes, and reschedules its timers if it
+	* has listeners.
+	* @internal
+	*/
 	onQueryUpdate() {
 		this.updateResult();
 		if (this.hasListeners()) this.#updateTimers();
 	}
 };
+/**
+* Checks whether a query has no data yet and should do its initial load when an observer mounts.
+* @param query - The query to check.
+* @param options - The observer options.
+* @returns `true` if the query is enabled, has no data, and isn't in an error state with
+* `retryOnMount: false`.
+*/
 function shouldLoadOnMount(query, options) {
 	return resolveQueryValue(options.enabled, query) !== false && query.state.data === void 0 && !(query.state.status === "error" && resolveQueryValue(options.retryOnMount, query) === false);
 }
+/**
+* Checks whether a query should fetch when an observer mounts: either for its initial load, or
+* because it has data and `refetchOnMount` asks for a refetch.
+* @param query - The query to check.
+* @param options - The observer options.
+* @returns `true` if the query should fetch on mount.
+*/
 function shouldFetchOnMount(query, options) {
 	return shouldLoadOnMount(query, options) || query.state.data !== void 0 && shouldFetchOn(query, options, options.refetchOnMount);
 }
+/**
+* Checks whether a query should fetch for a `refetchOnMount`, `refetchOnWindowFocus`, or
+* `refetchOnReconnect` option.
+* @param query - The query to check.
+* @param options - The observer options.
+* @param field - The value of the option to check.
+* @returns `true` if the query is enabled, not static, and the option is `'always'`, or is not
+* `false` and the query is stale.
+*/
 function shouldFetchOn(query, options, field) {
 	if (resolveQueryValue(options.enabled, query) !== false && resolveQueryValue(options.staleTime, query) !== "static") {
 		const value = resolveQueryValue(field, query);
@@ -15662,21 +15991,35 @@ function shouldFetchOn(query, options, field) {
 	}
 	return false;
 }
+/**
+* Checks whether a query should fetch after the observer's options change.
+* @param query - The query observed with the new options.
+* @param prevQuery - The query observed with the previous options.
+* @param options - The new observer options.
+* @param prevOptions - The previous observer options.
+* @returns `true` if the query changed or was disabled before, it isn't a suspense query in an
+* error state, and it is stale.
+*/
 function shouldFetchOptionally(query, prevQuery, options, prevOptions) {
 	return (query !== prevQuery || resolveQueryValue(prevOptions.enabled, query) === false) && (!options.suspense || query.state.status !== "error") && isStale(query, options);
 }
+/**
+* Checks whether a query is stale for the given observer options.
+* @param query - The query to check.
+* @param options - The observer options, whose `enabled` and `staleTime` are used.
+* @returns `true` if the query is enabled and its data is stale for `staleTime`.
+*/
 function isStale(query, options) {
 	return resolveQueryValue(options.enabled, query) !== false && query.isStaleByTime(resolveQueryValue(options.staleTime, query));
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.104.1/node_modules/@tanstack/query-core/build/modern/infiniteQueryObserver.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.104.2/node_modules/@tanstack/query-core/build/modern/infiniteQueryObserver.js
 /**
 * An `InfiniteQueryObserver` extends `QueryObserver` to observe and switch
 * between infinite queries. It augments the base `QueryObserverResult` with
 * infinite-query-specific fields and methods, such as `hasNextPage` and
 * `fetchNextPage`, and is the primitive that framework adapters (e.g.
 * `useInfiniteQuery`) build their hooks on top of.
-*
 * @example
 * ```ts
 * const observer = new InfiniteQueryObserver(queryClient, {
@@ -15703,6 +16046,7 @@ var InfiniteQueryObserver = class extends QueryObserver {
 	* `QueryObserver.setOptions`, additionally marking the options as
 	* belonging to an infinite query before delegating to the base
 	* implementation.
+	* @param options - The new infinite query observer options.
 	*/
 	setOptions(options) {
 		options._type = "infinite";
@@ -15713,6 +16057,8 @@ var InfiniteQueryObserver = class extends QueryObserver {
 	* options as an infinite query before delegating to it. Called by framework adapters (e.g.
 	* `useInfiniteQuery`) ahead of subscribing, to compute the current `InfiniteQueryObserverResult`
 	* synchronously.
+	* @param options - The defaulted infinite query observer options to compute the result for.
+	* @returns The result for the given options.
 	*/
 	getOptimisticResult(options) {
 		options._type = "infinite";
@@ -15724,7 +16070,11 @@ var InfiniteQueryObserver = class extends QueryObserver {
 	* param used for the fetch is determined by `getNextPageParam`, which
 	* receives the current pages/page params and whose result also determines
 	* `hasNextPage`.
-	*
+	* @param options - Set `cancelRefetch` to `false` to ignore the call while a fetch is running,
+	* and `throwOnError` to `true` to reject when the fetch fails.
+	* @returns A promise that resolves with the result after the next page is fetched. With
+	* `cancelRefetch: false`, a running fetch is reused instead, so the next page may not be fetched.
+	* @see {@link InfiniteQueryObserver#fetchPreviousPage}
 	* @example
 	* ```ts
 	* const { hasNextPage } = observer.getCurrentResult()
@@ -15733,8 +16083,6 @@ var InfiniteQueryObserver = class extends QueryObserver {
 	*   await observer.fetchNextPage()
 	* }
 	* ```
-	*
-	* @see {@link InfiniteQueryObserver#fetchPreviousPage}
 	*/
 	fetchNextPage(options) {
 		return this.fetch({
@@ -15748,7 +16096,11 @@ var InfiniteQueryObserver = class extends QueryObserver {
 	* param used for the fetch is determined by `getPreviousPageParam`, which
 	* receives the current pages/page params and whose result also determines
 	* `hasPreviousPage`.
-	*
+	* @param options - Set `cancelRefetch` to `false` to ignore the call while a fetch is running,
+	* and `throwOnError` to `true` to reject when the fetch fails.
+	* @returns A promise that resolves with the result after the previous page is fetched. With
+	* `cancelRefetch: false`, a running fetch is reused instead, so the previous page may not be fetched.
+	* @see {@link InfiniteQueryObserver#fetchNextPage}
 	* @example
 	* ```ts
 	* const { hasPreviousPage } = observer.getCurrentResult()
@@ -15757,8 +16109,6 @@ var InfiniteQueryObserver = class extends QueryObserver {
 	*   await observer.fetchPreviousPage()
 	* }
 	* ```
-	*
-	* @see {@link InfiniteQueryObserver#fetchNextPage}
 	*/
 	fetchPreviousPage(options) {
 		return this.fetch({
@@ -15791,7 +16141,7 @@ var InfiniteQueryObserver = class extends QueryObserver {
 	}
 };
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.104.1/node_modules/@tanstack/query-core/build/modern/mutation.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.104.2/node_modules/@tanstack/query-core/build/modern/mutation.js
 /**
 * Represents a single mutation attempt. A `Mutation` holds the mutation's
 * options, state (data/error/status), and the `MutationObserver`s currently
@@ -15801,7 +16151,6 @@ var InfiniteQueryObserver = class extends QueryObserver {
 * code typically interacts with mutations indirectly through `QueryClient` or
 * a framework hook like `useMutation`. Direct access to a `Mutation` instance
 * is possible via `mutationCache.find()`/`getAll()` for inspecting cache state.
-*
 * @example
 * ```ts
 * const mutationCache = queryClient.getMutationCache()
@@ -15824,18 +16173,28 @@ var Mutation = class extends Removable {
 		this.setOptions(config.options);
 		this.scheduleGc();
 	}
-	/** @internal */
+	/**
+	* Replaces the mutation's options and applies their `gcTime`.
+	* @internal
+	* @param options - The new mutation options.
+	*/
 	setOptions(options) {
 		this.options = options;
 		this.updateGcTime(this.options.gcTime);
 	}
 	/**
 	* The `meta` object passed in the mutation's options, if any.
+	* @returns The mutation's `meta`, or `undefined` if none was set.
 	*/
 	get meta() {
 		return this.options.meta;
 	}
-	/** @internal */
+	/**
+	* Subscribes an observer to the mutation and stops its garbage collection.
+	* @internal
+	* @param observer - The observer to add. Adding an observer that is already subscribed does
+	* nothing.
+	*/
 	addObserver(observer) {
 		if (!this.#observers.includes(observer)) {
 			this.#observers.push(observer);
@@ -15847,7 +16206,11 @@ var Mutation = class extends Removable {
 			});
 		}
 	}
-	/** @internal */
+	/**
+	* Unsubscribes an observer from the mutation.
+	* @internal
+	* @param observer - The observer to remove. Garbage collection is scheduled afterwards.
+	*/
 	removeObserver(observer) {
 		this.#observers = this.#observers.filter((x) => x !== observer);
 		this.scheduleGc();
@@ -15874,15 +16237,15 @@ var Mutation = class extends Removable {
 	*   this instance), `execute` is called again with the last known variables.
 	* - Otherwise the mutation has already settled and this resolves immediately
 	*   without running anything again.
-	*
+	* @returns A promise that settles with the resumed mutation: it rejects if the mutation fails.
+	* It resolves immediately if the mutation has already settled.
+	* @see {@link Mutation#execute}
 	* @example
 	* ```ts
 	* // typically driven by reconnect handling, e.g. queryClient.resumePausedMutations()
 	* const mutation = mutationCache.find({ mutationKey: ['addPost'] })
 	* await mutation?.continue()
 	* ```
-	*
-	* @see {@link Mutation#execute}
 	*/
 	continue() {
 		return this.#retryer?.continue() ?? (this.state.status === "pending" ? this.execute(this.state.variables) : Promise.resolve());
@@ -15907,15 +16270,15 @@ var Mutation = class extends Removable {
 	* those four callbacks is individually caught so that a throwing callback
 	* cannot mask the original error; an `error` action is then dispatched and
 	* the original error is re-thrown.
-	*
+	* @param variables - The variables passed to the `mutationFn`.
+	* @returns A promise that resolves with the mutation's data, or rejects with its error.
+	* @see {@link Mutation#continue}
 	* @example
 	* ```ts
 	* // Called internally by `MutationObserver.mutate` and `Mutation.continue` —
 	* // applications normally trigger mutations through those, not this method.
 	* const data = await mutation.execute(variables)
 	* ```
-	*
-	* @see {@link Mutation#continue}
 	*/
 	async execute(variables) {
 		const onContinue = () => {
@@ -16068,6 +16431,10 @@ var Mutation = class extends Removable {
 		});
 	}
 };
+/**
+* Returns the initial state of a mutation: `'idle'`, with no data, error, or variables.
+* @returns The initial mutation state.
+*/
 function getDefaultState() {
 	return {
 		context: void 0,
@@ -16082,14 +16449,13 @@ function getDefaultState() {
 	};
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.104.1/node_modules/@tanstack/query-core/build/modern/mutationCache.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.104.2/node_modules/@tanstack/query-core/build/modern/mutationCache.js
 /**
 * The `MutationCache` is the storage for mutations.
 *
 * Normally, you will not interact with the `MutationCache` directly and instead use a
 * `QueryClient`. You can subscribe to it (inherited from `Subscribable`) to be informed of
 * safe/known updates to the cache, such as mutations being added, removed, or updated.
-*
 * @example
 * ```ts
 * const unsubscribe = mutationCache.subscribe((event) => {
@@ -16108,7 +16474,15 @@ var MutationCache = class extends Subscribable {
 		this.#scopes = /* @__PURE__ */ new Map();
 		this.#mutationId = 0;
 	}
-	/** @internal */
+	/**
+	* Creates a mutation and adds it to the cache.
+	* @internal
+	* @param client - The client the mutation belongs to, used to default its options.
+	* @param options - The mutation options. They are defaulted with {@link
+	* QueryClient#defaultMutationOptions}.
+	* @param state - The initial state of the mutation, e.g. when restoring a dehydrated mutation.
+	* @returns The new mutation, already added to the cache.
+	*/
 	build(client, options, state) {
 		const mutation = new Mutation({
 			client,
@@ -16120,7 +16494,11 @@ var MutationCache = class extends Subscribable {
 		this.add(mutation);
 		return mutation;
 	}
-	/** @internal */
+	/**
+	* Adds a mutation to the cache.
+	* @internal
+	* @param mutation - The mutation to add. If it has a `scope`, it is queued in that scope.
+	*/
 	add(mutation) {
 		this.#mutations.add(mutation);
 		const scope = scopeFor(mutation);
@@ -16134,7 +16512,11 @@ var MutationCache = class extends Subscribable {
 			mutation
 		});
 	}
-	/** @internal */
+	/**
+	* Removes a mutation from the cache.
+	* @internal
+	* @param mutation - The mutation to remove, also from its scope's queue.
+	*/
 	remove(mutation) {
 		if (this.#mutations.delete(mutation)) {
 			const scope = scopeFor(mutation);
@@ -16153,7 +16535,13 @@ var MutationCache = class extends Subscribable {
 			mutation
 		});
 	}
-	/** @internal */
+	/**
+	* Checks whether a mutation can run now, given the other mutations in its `scope`.
+	* @internal
+	* @param mutation - The mutation to check.
+	* @returns `true` if the mutation has no `scope`, or no other mutation in its scope is pending
+	* ahead of it.
+	*/
 	canRun(mutation) {
 		const scope = scopeFor(mutation);
 		if (typeof scope === "string") {
@@ -16161,7 +16549,13 @@ var MutationCache = class extends Subscribable {
 			return !firstPendingMutation || firstPendingMutation === mutation;
 		} else return true;
 	}
-	/** @internal */
+	/**
+	* Continues the next paused mutation in the same `scope` after a mutation finishes.
+	* @internal
+	* @param mutation - The mutation that finished.
+	* @returns A promise that resolves once the next paused mutation in the same scope has continued,
+	* or immediately if there is none.
+	*/
 	runNext(mutation) {
 		const scope = scopeFor(mutation);
 		if (typeof scope === "string") return (this.#scopes.get(scope)?.find((m) => m !== mutation && m.state.isPaused))?.continue() ?? Promise.resolve();
@@ -16169,7 +16563,6 @@ var MutationCache = class extends Subscribable {
 	}
 	/**
 	* Removes all mutations from the cache.
-	*
 	* @example
 	* ```ts
 	* const mutationCache = queryClient.getMutationCache()
@@ -16194,7 +16587,7 @@ var MutationCache = class extends Subscribable {
 	*
 	* This is not typically needed for most applications, but can come in handy when needing more
 	* information about a mutation in rare scenarios.
-	*
+	* @returns Every mutation in the cache.
 	* @example
 	* ```ts
 	* const mutationCache = queryClient.getMutationCache()
@@ -16211,7 +16604,8 @@ var MutationCache = class extends Subscribable {
 	*
 	* This is not typically needed for most applications, but can come in handy when needing more
 	* information about a mutation in rare scenarios.
-	*
+	* @param filters - The filters to match. `exact` defaults to `true`.
+	* @returns The first matching mutation, or `undefined`.
 	* @see {@link MutationCache#findAll}
 	* @example
 	* ```ts
@@ -16233,7 +16627,8 @@ var MutationCache = class extends Subscribable {
 	*
 	* This is not typically needed for most applications, but can come in handy when needing more
 	* information about mutations in rare scenarios.
-	*
+	* @param filters - The filters to match. Without filters, every mutation is returned.
+	* @returns The matching mutations.
 	* @see {@link MutationCache#find}
 	* @example
 	* ```ts
@@ -16245,7 +16640,11 @@ var MutationCache = class extends Subscribable {
 	findAll(filters = {}) {
 		return this.getAll().filter((mutation) => matchMutation(filters, mutation));
 	}
-	/** @internal */
+	/**
+	* Notifies every cache listener of an event, in one batch.
+	* @internal
+	* @param event - The event passed to every listener.
+	*/
 	notify(event) {
 		notifyManager.batch(() => {
 			this.listeners.forEach((listener) => {
@@ -16253,17 +16652,26 @@ var MutationCache = class extends Subscribable {
 			});
 		});
 	}
-	/** @internal */
+	/**
+	* Continues every paused mutation, e.g. when the app comes back online.
+	* @internal
+	* @returns A promise that resolves once every paused mutation has continued and settled.
+	*/
 	resumePausedMutations() {
 		const pausedMutations = this.getAll().filter((x) => x.state.isPaused);
 		return notifyManager.batch(() => Promise.all(pausedMutations.map((mutation) => mutation.continue().catch(noop))));
 	}
 };
+/**
+* Returns the scope id of a mutation, used to run mutations with the same scope one after another.
+* @param mutation - The mutation to read the scope of.
+* @returns The mutation's `scope.id`, or `undefined` if it has no scope.
+*/
 function scopeFor(mutation) {
 	return mutation.options.scope?.id;
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.104.1/node_modules/@tanstack/query-core/build/modern/mutationObserver.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.104.2/node_modules/@tanstack/query-core/build/modern/mutationObserver.js
 /**
 * Observes a single mutation and derives a `MutationObserverResult` from it.
 * A framework hook like `useMutation` creates one `MutationObserver` per hook
@@ -16271,7 +16679,6 @@ function scopeFor(mutation) {
 * passed to the hook change, subscribes to it to re-render on updates, and
 * reads `getCurrentResult()` for the value to return. Calling `mutate()`
 * builds a new underlying `Mutation` in the `MutationCache` and executes it.
-*
 * @example
 * ```ts
 * const observer = new MutationObserver(queryClient, {
@@ -16291,6 +16698,10 @@ var MutationObserver$1 = class extends Subscribable {
 		this.bindMethods();
 		this.#updateResult();
 	}
+	/**
+	* Binds the methods of the result (`mutate` and `reset`) to the observer, so they keep working when
+	* destructured from it.
+	*/
 	bindMethods() {
 		this.mutate = this.mutate.bind(this);
 		this.reset = this.reset.bind(this);
@@ -16302,7 +16713,8 @@ var MutationObserver$1 = class extends Subscribable {
 	* defined), the observer is reset, detaching it from the mutation it was
 	* observing. Otherwise, if the currently observed mutation is still
 	* `pending`, its options are updated in place as well.
-	*
+	* @param options - The new mutation observer options. They are defaulted with {@link
+	* QueryClient#defaultMutationOptions} before being applied.
 	* @example
 	* ```ts
 	* observer.setOptions({
@@ -16331,7 +16743,12 @@ var MutationObserver$1 = class extends Subscribable {
 	onUnsubscribe() {
 		if (!this.hasListeners()) this.#currentMutation?.removeObserver(this);
 	}
-	/** @internal */
+	/**
+	* Updates the observer's result when the observed mutation changes, and notifies its listeners.
+	* @internal
+	* @param action - The action that updated the observed mutation, passed on to the observer's
+	* callbacks.
+	*/
 	onMutationUpdate(action) {
 		this.#updateResult();
 		this.#notify(action);
@@ -16340,6 +16757,7 @@ var MutationObserver$1 = class extends Subscribable {
 	* Returns the observer's current result, derived from the observed
 	* mutation's state (or the default, `idle` state if no mutation has been
 	* built yet, e.g. before the first `mutate()` call or after `reset()`).
+	* @returns The observer's latest result.
 	*/
 	getCurrentResult() {
 		return this.#currentResult;
@@ -16352,13 +16770,11 @@ var MutationObserver$1 = class extends Subscribable {
 	* running to completion and its own callbacks still fire, but this
 	* observer stops reflecting its state and a subsequent `mutate()` call
 	* will build a brand new mutation.
-	*
+	* @see {@link MutationObserver#mutate}
 	* @example
 	* ```ts
 	* observer.reset()
 	* ```
-	*
-	* @see {@link MutationObserver#mutate}
 	*/
 	reset() {
 		this.#currentMutation?.removeObserver(this);
@@ -16375,7 +16791,9 @@ var MutationObserver$1 = class extends Subscribable {
 	* The optional per-call `options` (`onSuccess`/`onError`/`onSettled`) are
 	* invoked once the mutation settles, in addition to any callbacks defined
 	* on the observer's own options.
-	*
+	* @param variables - The variables passed to the `mutationFn`.
+	* @param options - Per-call `onSuccess`, `onError`, and `onSettled` callbacks.
+	* @returns A promise that resolves with the mutation's data, or rejects with its error.
 	* @example
 	* ```ts
 	* await observer.mutate(
@@ -16405,7 +16823,8 @@ var MutationObserver$1 = class extends Subscribable {
 	}
 	#notify(action) {
 		notifyManager.batch(() => {
-			if (this.#mutateOptions && this.hasListeners()) {
+			const mutateOptions = this.#mutateOptions;
+			if (mutateOptions && this.hasListeners()) {
 				const variables = this.#currentResult.variables;
 				const onMutateResult = this.#currentResult.context;
 				const context = {
@@ -16415,23 +16834,23 @@ var MutationObserver$1 = class extends Subscribable {
 				};
 				if (action?.type === "success") {
 					try {
-						this.#mutateOptions.onSuccess?.(action.data, variables, onMutateResult, context);
+						mutateOptions.onSuccess?.(action.data, variables, onMutateResult, context);
 					} catch (e) {
 						Promise.reject(e);
 					}
 					try {
-						this.#mutateOptions.onSettled?.(action.data, null, variables, onMutateResult, context);
+						mutateOptions.onSettled?.(action.data, null, variables, onMutateResult, context);
 					} catch (e) {
 						Promise.reject(e);
 					}
 				} else if (action?.type === "error") {
 					try {
-						this.#mutateOptions.onError?.(action.error, variables, onMutateResult, context);
+						mutateOptions.onError?.(action.error, variables, onMutateResult, context);
 					} catch (e) {
 						Promise.reject(e);
 					}
 					try {
-						this.#mutateOptions.onSettled?.(void 0, action.error, variables, onMutateResult, context);
+						mutateOptions.onSettled?.(void 0, action.error, variables, onMutateResult, context);
 					} catch (e) {
 						Promise.reject(e);
 					}
@@ -16444,7 +16863,7 @@ var MutationObserver$1 = class extends Subscribable {
 	}
 };
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.104.1/node_modules/@tanstack/query-core/build/modern/queryCache.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.104.2/node_modules/@tanstack/query-core/build/modern/queryCache.js
 /**
 * The `QueryCache` is the storage mechanism for TanStack Query. It stores all the data, meta
 * information, and state of the queries it contains.
@@ -16454,7 +16873,6 @@ var MutationObserver$1 = class extends Subscribable {
 * safe/known updates to the cache, such as queries being added, removed, or updated — updates made
 * outside of the cache's own tracked mechanisms (e.g. mutating a query's state object directly) do
 * not notify subscribers.
-*
 * @example
 * ```ts
 * const unsubscribe = queryCache.subscribe((event) => {
@@ -16474,7 +16892,12 @@ var QueryCache = class extends Subscribable {
 	* builds and adds a new one to the cache if none exists yet. Used by framework adapters and
 	* plugins (e.g. broadcast/persistence) that need to get-or-create a `Query` directly, bypassing
 	* the reactive `QueryObserver` machinery.
-	*
+	* @param client - The client the query belongs to, used to default its options.
+	* @param options - The query options, including the `queryKey`. A new query is created with the
+	* options defaulted by {@link QueryClient#defaultQueryOptions}.
+	* @param state - The initial state of a newly created query, e.g. when hydrating. Ignored if the
+	* query already exists.
+	* @returns The existing or newly created query.
 	* @example
 	* ```ts
 	* const queryCache = queryClient.getQueryCache()
@@ -16502,7 +16925,12 @@ var QueryCache = class extends Subscribable {
 		}
 		return query;
 	}
-	/** @internal */
+	/**
+	* Adds a query to the cache.
+	* @internal
+	* @param query - The query to add. If a query with the same hash is already cached, nothing
+	* happens.
+	*/
 	add(query) {
 		if (!this.#queries.has(query.queryHash)) {
 			this.#queries.set(query.queryHash, query);
@@ -16517,7 +16945,7 @@ var QueryCache = class extends Subscribable {
 	* `'removed'` event. A no-op if the query is no longer the one currently stored under its hash
 	* (e.g. it was already replaced). Used by plugins (e.g. the broadcast client) that mirror
 	* removals across `QueryCache` instances.
-	*
+	* @param query - The query to remove.
 	* @example
 	* ```ts
 	* const queryCache = queryClient.getQueryCache()
@@ -16540,7 +16968,6 @@ var QueryCache = class extends Subscribable {
 	}
 	/**
 	* Removes all queries from the cache.
-	*
 	* @example
 	* ```ts
 	* const queryCache = queryClient.getQueryCache()
@@ -16560,7 +16987,8 @@ var QueryCache = class extends Subscribable {
 	* exists. Unlike {@link QueryCache#find}, this looks up by the already-computed hash rather
 	* than by `QueryFilters`. Used by plugins (e.g. broadcast/hydration) that already have a hash
 	* to look up directly.
-	*
+	* @param queryHash - The hash of the query to look up.
+	* @returns The query stored under the hash, or `undefined`.
 	* @example
 	* ```ts
 	* const queryCache = queryClient.getQueryCache()
@@ -16574,7 +17002,7 @@ var QueryCache = class extends Subscribable {
 	}
 	/**
 	* Returns all queries within the cache.
-	*
+	* @returns Every query in the cache.
 	* @example
 	* ```ts
 	* const queryCache = queryClient.getQueryCache()
@@ -16594,7 +17022,9 @@ var QueryCache = class extends Subscribable {
 	* This is not typically needed for most applications, but can come in handy when needing more
 	* information about a query in rare scenarios (e.g. looking at `query.state.dataUpdatedAt` to
 	* decide whether a query is fresh enough to be used as an initial value).
-	*
+	* @param filters - The filters to match, including the required `queryKey`. `exact` defaults to
+	* `true`.
+	* @returns The first matching query, or `undefined`.
 	* @see {@link QueryCache#findAll}
 	* @example
 	* ```ts
@@ -16616,7 +17046,8 @@ var QueryCache = class extends Subscribable {
 	*
 	* This is not typically needed for most applications, but can come in handy when needing more
 	* information about queries in rare scenarios.
-	*
+	* @param filters - The filters to match. Without filters, every query is returned.
+	* @returns The matching queries.
 	* @see {@link QueryCache#find}
 	* @example
 	* ```ts
@@ -16629,7 +17060,11 @@ var QueryCache = class extends Subscribable {
 		const queries = this.getAll();
 		return Object.keys(filters).length > 0 ? queries.filter((query) => matchQuery(filters, query)) : queries;
 	}
-	/** @internal */
+	/**
+	* Notifies every cache listener of an event, in one batch.
+	* @internal
+	* @param event - The event passed to every listener.
+	*/
 	notify(event) {
 		notifyManager.batch(() => {
 			this.listeners.forEach((listener) => {
@@ -16637,7 +17072,10 @@ var QueryCache = class extends Subscribable {
 			});
 		});
 	}
-	/** @internal */
+	/**
+	* Calls {@link Query#onFocus} on every cached query, in one batch.
+	* @internal
+	*/
 	onFocus() {
 		notifyManager.batch(() => {
 			this.getAll().forEach((query) => {
@@ -16645,7 +17083,10 @@ var QueryCache = class extends Subscribable {
 			});
 		});
 	}
-	/** @internal */
+	/**
+	* Calls {@link Query#onOnline} on every cached query, in one batch.
+	* @internal
+	*/
 	onOnline() {
 		notifyManager.batch(() => {
 			this.getAll().forEach((query) => {
@@ -16655,12 +17096,11 @@ var QueryCache = class extends Subscribable {
 	}
 };
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.104.1/node_modules/@tanstack/query-core/build/modern/queryClient.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.104.2/node_modules/@tanstack/query-core/build/modern/queryClient.js
 /**
 * `QueryClient` is used to interact with a cache of queries and mutations. It owns a
 * `QueryCache` and a `MutationCache` (creating default ones if none are passed in) and holds
 * the default options that are applied to queries and mutations created through it.
-*
 * @example
 * ```ts
 * const queryClient = new QueryClient({
@@ -16730,7 +17170,9 @@ var QueryClient = class {
 	* Returns the number of queries in the cache that are currently fetching, optionally
 	* matching a set of filters. This includes background-fetching, loading new pages, and
 	* loading more infinite query results.
-	*
+	* @param filters - Narrows down which fetching queries are counted. Without filters, every
+	* fetching query is counted.
+	* @returns The number of matching queries whose `fetchStatus` is `'fetching'`.
 	* @example
 	* ```ts
 	* if (queryClient.isFetching()) {
@@ -16747,7 +17189,9 @@ var QueryClient = class {
 	/**
 	* Returns the number of mutations in the cache that are currently pending, optionally
 	* matching a set of filters.
-	*
+	* @param filters - Narrows down which pending mutations are counted. Without filters, every
+	* pending mutation is counted.
+	* @returns The number of matching mutations whose `status` is `'pending'`.
 	* @example
 	* ```ts
 	* if (queryClient.isMutating()) {
@@ -16767,7 +17211,7 @@ var QueryClient = class {
 	*
 	* Hint: Do not use this function inside a component, because it won't receive updates.
 	* Use `useQuery` to create a `QueryObserver` that subscribes to changes.
-	*
+	* @param queryKey - The query key of the query to read.
 	* @returns The cached data for the query, or `undefined` if no query with this key has been observed yet.
 	* @see {@link QueryClient#getQueriesData}
 	*/
@@ -16776,6 +17220,12 @@ var QueryClient = class {
 		return this.#queryCache.get(options.queryHash)?.state.data;
 	}
 	/**
+	* Returns the cached data of a query, or fetches it if there is none. With `revalidateIfStale`,
+	* stale cached data is also refetched in the background.
+	* @param options - The query options. If the query has no cached data yet, it is fetched with
+	* these options.
+	* @returns A promise that resolves to the cached data, or to the fetched data if nothing was
+	* cached yet.
 	* @deprecated Use queryClient.query({ ...options, staleTime: 'static' }) instead. This method will be removed in the next major version.
 	*/
 	ensureQueryData(options) {
@@ -16796,7 +17246,7 @@ var QueryClient = class {
 	* than being inferred. Passing a more specific type is a convenience for call sites that know
 	* every matched query holds the same shape — it is not checked against the actual cache
 	* contents.
-	*
+	* @param filters - The filters that select which queries to read.
 	* @returns An array of query key and data pairs. The data is `undefined` for a query with no cached data.
 	* @see {@link QueryClient#getQueryData}
 	* @example
@@ -16817,14 +17267,12 @@ var QueryClient = class {
 	*
 	* Updates must be performed immutably: do not mutate `oldData`, or data previously retrieved
 	* via {@link QueryClient#getQueryData}, in place.
-	*
 	* @param queryKey - The query key to set data for.
 	* @param updater - Either the new data, or a function that receives the current data (which
 	* may be `undefined`) and returns the new data.
 	* @param options - Set `updatedAt` to override the timestamp the written data is recorded with.
 	* @returns The data that was written, or `undefined` if the updater returned `undefined` — in that case
 	* the write is skipped and the cache is left unchanged.
-	*
 	* @example
 	* ```ts
 	* queryClient.setQueryData(['posts'], newPosts)
@@ -16848,7 +17296,10 @@ var QueryClient = class {
 	* filters or partial query key matching. Only queries that already exist and match the given
 	* filters are updated; no new cache entries are created. Internally this calls
 	* {@link QueryClient#setQueryData} for each matching query.
-	*
+	* @param filters - The filters that select which existing queries to update.
+	* @param updater - Either the new data, or a function that receives each matched query's current
+	* data (which may be `undefined`) and returns the new data.
+	* @param options - Set `updatedAt` to override the timestamp the written data is recorded with.
 	* @returns One `[queryKey, data]` tuple per matched query, in the same shape and with the same
 	* `undefined` case as {@link QueryClient#setQueryData}.
 	* @example
@@ -16864,7 +17315,8 @@ var QueryClient = class {
 	/**
 	* Imperative (non-reactive) way to retrieve an existing query's state. If the query does not
 	* exist, `undefined` is returned.
-	*
+	* @param queryKey - The query key of the query to read.
+	* @returns The query's state, or `undefined` if no query with this key exists.
 	* @example
 	* ```ts
 	* const state = queryClient.getQueryState(['posts'])
@@ -16880,7 +17332,8 @@ var QueryClient = class {
 	* {@link QueryClient#invalidateQueries} or {@link QueryClient#refetchQueries}, this removes
 	* matching queries from the cache instead of refetching them. Without filters, every query in
 	* the cache is removed.
-	*
+	* @param filters - The filters that select which queries to remove. Without filters, every query
+	* is removed.
 	* @example
 	* ```ts
 	* queryClient.removeQueries({ queryKey: ['posts'], exact: true })
@@ -16898,7 +17351,11 @@ var QueryClient = class {
 	* Resets queries matching the given filters back to their initial state (e.g. any
 	* `initialData`), notifying subscribers rather than removing them. Active queries among the
 	* matched set are then refetched, and the returned promise resolves once that refetch settles.
-	*
+	* @param filters - The filters that select which queries to reset. Without filters, every query
+	* is reset.
+	* @param options - Passed to the refetch of the active matched queries, e.g. `cancelRefetch` and
+	* `throwOnError`.
+	* @returns A promise that resolves once the refetch of the active matched queries settles.
 	* @example
 	* ```ts
 	* await queryClient.resetQueries({ queryKey: ['posts'], exact: true })
@@ -16925,7 +17382,11 @@ var QueryClient = class {
 	* reverted to its state before the outgoing fetch started.
 	*
 	* The returned promise never rejects, even if individual cancellations fail.
-	*
+	* @param filters - The filters that select which queries to cancel. Without filters, every query
+	* is cancelled.
+	* @param cancelOptions - Passed to each matched query's cancellation. `revert` defaults to
+	* `true`.
+	* @returns A promise that resolves once every cancellation has settled.
 	* @example
 	* ```ts
 	* await queryClient.cancelQueries({ queryKey: ['posts'], exact: true })
@@ -16946,7 +17407,12 @@ var QueryClient = class {
 	* Unless `filters.refetchType` is `'none'`, matching queries are then refetched via
 	* {@link QueryClient#refetchQueries}, using `filters.refetchType` if set, otherwise
 	* `filters.type`, otherwise `'active'`.
-	*
+	* @param filters - The filters that select which queries to invalidate, plus `refetchType` to
+	* control which of them to refetch afterwards. Without filters, every query is invalidated.
+	* @param options - Passed to {@link QueryClient#refetchQueries}, e.g. `cancelRefetch` and
+	* `throwOnError`.
+	* @returns A promise that resolves once the refetch settles, or immediately if `refetchType` is
+	* `'none'`.
 	* @example
 	* ```ts
 	* await queryClient.invalidateQueries({ queryKey: ['posts'], refetchType: 'active' })
@@ -16972,7 +17438,11 @@ var QueryClient = class {
 	* By default (`cancelRefetch: true`), a currently running fetch is cancelled before the new
 	* one starts. The returned promise resolves once all matching queries have settled; it does
 	* not reject on individual query failures unless `throwOnError` is set.
-	*
+	* @param filters - The filters that select which queries to refetch. Without filters, every query
+	* in the cache is included.
+	* @param options - Set `cancelRefetch` to `false` to keep a running fetch instead of cancelling
+	* it, and `throwOnError` to `true` to reject when a refetch fails.
+	* @returns A promise that resolves once every matched query has settled.
 	* @example
 	* ```ts
 	* // refetch all active queries partially matching a query key:
@@ -17012,7 +17482,10 @@ var QueryClient = class {
 	*
 	* This method replaces the deprecated `fetchQuery`, and — combined with
 	* `{ staleTime: 'static' }` — the deprecated `ensureQueryData`.
-	*
+	* @param options - The query options, including the `queryKey` and the `queryFn` used if the
+	* query needs to fetch.
+	* @returns A promise that resolves to the data, or to the result of `select` if provided. It
+	* rejects with the error from the fetch or from `select`.
 	* @example
 	* ```ts
 	* try {
@@ -17032,6 +17505,12 @@ var QueryClient = class {
 		return queryData;
 	}
 	/**
+	* Fetches and caches a query, or returns its cached data if it isn't stale. Unlike in observers,
+	* the fetch isn't retried unless `retry` is set.
+	* @param options - The query options, including the `queryKey` and the `queryFn` used if the
+	* query needs to fetch.
+	* @returns A promise that resolves to the cached or fetched data, or rejects with the fetch
+	* error.
 	* @deprecated Use queryClient.query(options) instead. This method will be removed in the next major version.
 	*/
 	fetchQuery(options) {
@@ -17041,6 +17520,11 @@ var QueryClient = class {
 		return query.isStaleByTime(resolveQueryValue(defaultedOptions.staleTime, query)) ? query.fetch(defaultedOptions) : Promise.resolve(query.state.data);
 	}
 	/**
+	* Fetches and caches a query like {@link QueryClient#fetchQuery}, but ignores the result and any
+	* error.
+	* @param options - The query options, including the `queryKey` and the `queryFn` used if the
+	* query needs to fetch.
+	* @returns A promise that resolves once the fetch settles. It never rejects.
 	* @deprecated Use queryClient.query(options) instead. You can swallow errors with `.catch(noop)`. This method will be removed in the next major version.
 	*/
 	prefetchQuery(options) {
@@ -17056,7 +17540,10 @@ var QueryClient = class {
 	*
 	* This method replaces the deprecated `fetchInfiniteQuery`, and — combined with
 	* `{ staleTime: 'static' }` — the deprecated `ensureInfiniteQueryData`.
-	*
+	* @param options - The infinite query options, including the `queryKey`, the `queryFn`, and the
+	* `initialPageParam`.
+	* @returns A promise that resolves to the {@link InfiniteData}, or to the result of `select` if
+	* provided. It rejects with the error from the fetch or from `select`.
 	* @example
 	* ```ts
 	* try {
@@ -17072,6 +17559,11 @@ var QueryClient = class {
 		return this.query(options);
 	}
 	/**
+	* Fetches and caches an infinite query, or returns its cached data if it isn't stale.
+	* @param options - The infinite query options, including the `queryKey`, the `queryFn`, and the
+	* `initialPageParam`.
+	* @returns A promise that resolves to the cached or fetched {@link InfiniteData}, or rejects with
+	* the fetch error.
 	* @deprecated Use queryClient.infiniteQuery(options) instead. This method will be removed in the next major version.
 	*/
 	fetchInfiniteQuery(options) {
@@ -17079,12 +17571,23 @@ var QueryClient = class {
 		return this.fetchQuery(options);
 	}
 	/**
+	* Fetches and caches an infinite query like {@link QueryClient#fetchInfiniteQuery}, but ignores
+	* the result and any error.
+	* @param options - The infinite query options, including the `queryKey`, the `queryFn`, and the
+	* `initialPageParam`.
+	* @returns A promise that resolves once the fetch settles. It never rejects.
 	* @deprecated Use queryClient.infiniteQuery(options) instead. You can swallow errors with `.catch(noop)`. This method will be removed in the next major version.
 	*/
 	prefetchInfiniteQuery(options) {
 		return this.fetchInfiniteQuery(options).then(noop).catch(noop);
 	}
 	/**
+	* Returns the cached data of an infinite query, or fetches it if there is none. With
+	* `revalidateIfStale`, stale cached data is also refetched in the background.
+	* @param options - The infinite query options. If the query has no cached data yet, it is fetched
+	* with these options.
+	* @returns A promise that resolves to the cached {@link InfiniteData}, or to the fetched data if
+	* nothing was cached yet.
 	* @deprecated Use queryClient.infiniteQuery({ ...options, staleTime: 'static' }) instead. This method will be removed in the next major version.
 	*/
 	ensureInfiniteQueryData(options) {
@@ -17094,7 +17597,7 @@ var QueryClient = class {
 	/**
 	* Resumes mutations that were paused because there was no network connection. Does nothing
 	* (resolving immediately) if the client is currently offline.
-	*
+	* @returns A promise that resolves once the resumed mutations have settled.
 	* @example
 	* ```ts
 	* import { QueryClient } from '@tanstack/query-core'
@@ -17109,7 +17612,7 @@ var QueryClient = class {
 	}
 	/**
 	* Returns the query cache this client is connected to.
-	*
+	* @returns The {@link QueryCache} instance.
 	* @example
 	* ```ts
 	* import { QueryClient } from '@tanstack/query-core'
@@ -17124,7 +17627,7 @@ var QueryClient = class {
 	}
 	/**
 	* Returns the mutation cache this client is connected to.
-	*
+	* @returns The {@link MutationCache} instance.
 	* @example
 	* ```ts
 	* import { QueryClient } from '@tanstack/query-core'
@@ -17140,7 +17643,7 @@ var QueryClient = class {
 	/**
 	* Returns the default options that were set when creating the client, or via
 	* {@link QueryClient#setDefaultOptions}.
-	*
+	* @returns The client's current default options.
 	* @example
 	* ```ts
 	* import { QueryClient } from '@tanstack/query-core'
@@ -17155,7 +17658,7 @@ var QueryClient = class {
 	/**
 	* Dynamically sets the default options for this client, overwriting any previously defined
 	* default options.
-	*
+	* @param options - The new default options for queries and mutations.
 	* @see {@link QueryClient#getDefaultOptions}
 	* @example
 	* ```ts
@@ -17179,7 +17682,8 @@ var QueryClient = class {
 	* registration order by {@link QueryClient#getQueryDefaults}, so register defaults from the
 	* most generic key to the least generic one — more specific defaults should be registered
 	* after more generic ones so they take precedence.
-	*
+	* @param queryKey - The query key that query keys are partially matched against.
+	* @param options - The default options applied to matching queries.
 	* @example
 	* ```ts
 	* queryClient.setQueryDefaults(['posts'], { queryFn: fetchPosts })
@@ -17197,7 +17701,9 @@ var QueryClient = class {
 	* Returns the default options registered for queries whose query key partially matches the
 	* given `queryKey`, via {@link QueryClient#setQueryDefaults}. If multiple registered defaults
 	* match, they are merged together in registration order.
-	*
+	* @param queryKey - The query key to look up registered defaults for.
+	* @returns The merged default options of every registration that matches, or an empty object if
+	* none match.
 	* @example
 	* ```ts
 	* const defaultOptions = queryClient.getQueryDefaults(['posts'])
@@ -17215,7 +17721,8 @@ var QueryClient = class {
 	* Sets default options for mutations whose mutation key partially matches the given
 	* `mutationKey`. As with {@link QueryClient#setQueryDefaults}, the order of registration
 	* matters when several registered defaults match the same mutation key.
-	*
+	* @param mutationKey - The mutation key that mutation keys are partially matched against.
+	* @param options - The default options applied to matching mutations.
 	* @see {@link QueryClient#getMutationDefaults}
 	* @example
 	* ```ts
@@ -17232,7 +17739,9 @@ var QueryClient = class {
 	* Returns the default options registered for mutations whose mutation key partially matches
 	* the given `mutationKey`, via {@link QueryClient#setMutationDefaults}. If multiple registered
 	* defaults match, they are merged together in registration order.
-	*
+	* @param mutationKey - The mutation key to look up registered defaults for.
+	* @returns The merged default options of every registration that matches, or an empty object if
+	* none match.
 	* @example
 	* ```ts
 	* const defaultOptions = queryClient.getMutationDefaults(['addPost'])
@@ -17248,9 +17757,12 @@ var QueryClient = class {
 	}
 	/**
 	* Called by framework adapters (e.g. inside `useQuery`) to resolve the options passed by the
-	* caller into their final, defaulted form: merging `queryClient.setQueryDefaults` for the
-	* given `queryKey`, then the client's own `defaultOptions.queries`, then the caller's options
-	* on top. A no-op if the options are already defaulted (`_defaulted: true`).
+	* caller into their final, defaulted form: merging the client's own `defaultOptions.queries`,
+	* then `queryClient.setQueryDefaults` for the given `queryKey`, then the caller's options on
+	* top. A no-op if the options are already defaulted (`_defaulted: true`).
+	* @param options - The query options passed by the caller.
+	* @returns The defaulted options, with `queryHash` and dependent defaults (e.g.
+	* `refetchOnReconnect`) filled in.
 	*/
 	defaultQueryOptions(options) {
 		if (options._defaulted) return options;
@@ -17269,9 +17781,11 @@ var QueryClient = class {
 	}
 	/**
 	* The mutation counterpart of {@link QueryClient#defaultQueryOptions}. Called by framework
-	* adapters (e.g. inside `useMutation`) to merge `queryClient.setMutationDefaults` for the
-	* given `mutationKey`, then the client's `defaultOptions.mutations`, then the caller's options
-	* on top. A no-op if the options are already defaulted (`_defaulted: true`).
+	* adapters (e.g. inside `useMutation`) to merge the client's `defaultOptions.mutations`, then
+	* `queryClient.setMutationDefaults` for the given `mutationKey`, then the caller's options on
+	* top. A no-op if the options are already defaulted (`_defaulted: true`).
+	* @param options - The mutation options passed by the caller.
+	* @returns The defaulted options.
 	*/
 	defaultMutationOptions(options) {
 		if (options?._defaulted) return options;
@@ -17284,7 +17798,6 @@ var QueryClient = class {
 	}
 	/**
 	* Clears both the query cache and the mutation cache this client is connected to.
-	*
 	* @example
 	* ```ts
 	* import { QueryClient } from '@tanstack/query-core'
@@ -17299,21 +17812,22 @@ var QueryClient = class {
 	}
 };
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+react-query@5.104.1_react@19.3.0/node_modules/@tanstack/react-query/build/modern/IsRestoringProvider.js
+//#region ../../node_modules/.pnpm/@tanstack+react-query@5.104.2_react@19.3.0/node_modules/@tanstack/react-query/build/modern/IsRestoringProvider.js
 var IsRestoringContext = import_react.createContext(false);
 /**
 * If you are using `PersistQueryClientProvider`, you can also use the `useIsRestoring` hook alongside it to
 * check if a restore is currently in progress. `useQuery` and friends also check this internally to avoid
 * race conditions between the restore and mounting queries.
-*
 * @returns `true` while a persisted client is being restored, `false` otherwise.
 */
 var useIsRestoring = () => import_react.useContext(IsRestoringContext);
 IsRestoringContext.Provider;
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+react-query@5.104.1_react@19.3.0/node_modules/@tanstack/react-query/build/modern/QueryErrorResetBoundary.js
+//#region ../../node_modules/.pnpm/@tanstack+react-query@5.104.2_react@19.3.0/node_modules/@tanstack/react-query/build/modern/QueryErrorResetBoundary.js
 /**
-* Resets any query errors within the boundary, so queries know they can try again.
+* Creates the value shared through the boundary's context, which tracks whether a reset was
+* requested.
+* @returns The `clearReset`, `isReset`, and `reset` functions of the boundary.
 */
 function createValue() {
 	let isReset = false;
@@ -17332,6 +17846,7 @@ function createValue() {
 		},
 		/**
 		* Returns whether the boundary has been reset and not yet cleared.
+		* @returns `true` if the boundary has been reset and not yet cleared.
 		*/
 		isReset: () => {
 			return isReset;
@@ -17342,9 +17857,7 @@ var QueryErrorResetBoundaryContext = import_react.createContext(createValue());
 /**
 * This hook will reset any query errors within the closest `QueryErrorResetBoundary`. If there is no boundary
 * defined it will reset them globally.
-*
 * @returns The boundary's {@link QueryErrorResetBoundaryValue}.
-*
 * @example
 * ```tsx
 * import { ErrorBoundary } from 'react-error-boundary'
@@ -17371,23 +17884,50 @@ var QueryErrorResetBoundaryContext = import_react.createContext(createValue());
 */
 var useQueryErrorResetBoundary = () => import_react.useContext(QueryErrorResetBoundaryContext);
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+react-query@5.104.1_react@19.3.0/node_modules/@tanstack/react-query/build/modern/errorBoundaryUtils.js
+//#region ../../node_modules/.pnpm/@tanstack+react-query@5.104.2_react@19.3.0/node_modules/@tanstack/react-query/build/modern/errorBoundaryUtils.js
+/**
+* Turns off `retryOnMount` for a query that throws its errors (with `suspense` or `throwOnError`),
+* unless the error boundary has been reset, so a remount doesn't retry the failed query before the
+* user resets the boundary. Mutates the options.
+* @param options - The defaulted query options to adjust.
+* @param errorResetBoundary - The value of the nearest `QueryErrorResetBoundary`.
+* @param query - The query, used to evaluate a `throwOnError` function against its error.
+*/
 var ensurePreventErrorBoundaryRetry = (options, errorResetBoundary, query) => {
 	const throwOnError = query?.state.error && typeof options.throwOnError === "function" ? shouldThrowError(options.throwOnError, [query.state.error, query]) : options.throwOnError;
 	if (options.suspense || throwOnError) {
 		if (!errorResetBoundary.isReset()) options.retryOnMount = false;
 	}
 };
+/**
+* Clears the reset state of the error boundary after the component mounts, so later errors are
+* thrown to the boundary again.
+* @param errorResetBoundary - The value of the nearest `QueryErrorResetBoundary`.
+*/
 var useClearResetErrorBoundary = (errorResetBoundary) => {
 	import_react.useEffect(() => {
 		errorResetBoundary.clearReset();
 	}, [errorResetBoundary]);
 };
+/**
+* Checks whether the query error should be thrown to the nearest error boundary: the query errored
+* and isn't fetching, the boundary hasn't been reset, and either `suspense` is enabled with no data
+* or `throwOnError` says so.
+* @param params - The observer `result`, the `errorResetBoundary`, the `throwOnError` option, the
+* `query`, and the `suspense` option.
+* @returns `true` if the error should be thrown.
+*/
 var getHasError = ({ result, errorResetBoundary, throwOnError, query, suspense }) => {
 	return result.isError && !errorResetBoundary.isReset() && !result.isFetching && query && (suspense && result.data === void 0 || shouldThrowError(throwOnError, [result.error, query]));
 };
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+react-query@5.104.1_react@19.3.0/node_modules/@tanstack/react-query/build/modern/suspense.js
+//#region ../../node_modules/.pnpm/@tanstack+react-query@5.104.2_react@19.3.0/node_modules/@tanstack/react-query/build/modern/suspense.js
+/**
+* Raises `staleTime` and a numeric `gcTime` to at least 1000ms when `suspense` is enabled, so a
+* component that remounts after suspending doesn't refetch right away or find the query garbage
+* collected. A `'static'` `staleTime` is kept as is. Mutates the options.
+* @param defaultedOptions - The defaulted query options to adjust.
+*/
 var ensureSuspenseTimers = (defaultedOptions) => {
 	if (defaultedOptions.suspense) {
 		const MIN_SUSPENSE_TIME_MS = 1e3;
@@ -17397,12 +17937,39 @@ var ensureSuspenseTimers = (defaultedOptions) => {
 		if (typeof defaultedOptions.gcTime === "number") defaultedOptions.gcTime = Math.max(defaultedOptions.gcTime, MIN_SUSPENSE_TIME_MS);
 	}
 };
+/**
+* Checks whether a query should suspend: `suspense` is enabled and the result is still `pending`.
+* @param defaultedOptions - The defaulted query options, if any.
+* @param result - The current result of the observer.
+* @returns `true` if the component should suspend.
+*/
 var shouldSuspend = (defaultedOptions, result) => defaultedOptions?.suspense && result.isPending;
+/**
+* Fetches the query for a suspending component, without affecting the observer's own result. If
+* the fetch fails, the reset state of the error boundary is cleared, so the error is thrown to it.
+* @param defaultedOptions - The defaulted query options to fetch with.
+* @param observer - The observer of the query.
+* @param errorResetBoundary - The value of the nearest `QueryErrorResetBoundary`.
+* @returns A promise that resolves once the fetch settles. It never rejects.
+*/
 var fetchOptimistic = (defaultedOptions, observer, errorResetBoundary) => observer.fetchOptimistic(defaultedOptions).catch(() => {
 	errorResetBoundary.clearReset();
 });
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+react-query@5.104.1_react@19.3.0/node_modules/@tanstack/react-query/build/modern/useBaseQuery.js
+//#region ../../node_modules/.pnpm/@tanstack+react-query@5.104.2_react@19.3.0/node_modules/@tanstack/react-query/build/modern/useBaseQuery.js
+/**
+* Base implementation shared by `useQuery`, `useInfiniteQuery`, `useSuspenseQuery`, and
+* `useSuspenseInfiniteQuery`.
+* @param options - The options passed to the calling hook.
+* @param Observer - The observer class from query-core (`QueryObserver` or
+* `InfiniteQueryObserver`).
+* @param queryClient - Use this to use a custom `QueryClient`. Otherwise, the one from the nearest
+* context will be used.
+* @returns The query result, tracking which properties are read unless `notifyOnChangeProps` is
+* set.
+* @throws {Error} If `options` is not an object (outside production), or the query error when it should be
+* thrown to the nearest error boundary (see `throwOnError`). While suspending, it throws a promise instead.
+*/
 function useBaseQuery(options, Observer, queryClient) {
 	const isRestoring = useIsRestoring();
 	const errorResetBoundary = useQueryErrorResetBoundary();
@@ -17436,18 +18003,15 @@ function useBaseQuery(options, Observer, queryClient) {
 	return !defaultedOptions.notifyOnChangeProps ? observer.trackResult(result) : result;
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+react-query@5.104.1_react@19.3.0/node_modules/@tanstack/react-query/build/modern/useQuery.js
+//#region ../../node_modules/.pnpm/@tanstack+react-query@5.104.2_react@19.3.0/node_modules/@tanstack/react-query/build/modern/useQuery.js
 function useQuery(options, queryClient) {
 	return useBaseQuery(options, QueryObserver, queryClient);
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+react-query@5.104.1_react@19.3.0/node_modules/@tanstack/react-query/build/modern/useMutation.js
+//#region ../../node_modules/.pnpm/@tanstack+react-query@5.104.2_react@19.3.0/node_modules/@tanstack/react-query/build/modern/useMutation.js
 /**
 * Unlike queries, mutations are typically used to create/update/delete data or perform server side-effects.
 * `useMutation` is the hook for that.
-*
-* @see {@link mutationOptions} to share these options across multiple `useMutation` call sites, or to look
-* the mutation up elsewhere via its `mutationKey` (e.g. with `useMutationState`).
 * @param options - The {@link UseMutationOptions} to use — everything you can pass to `useMutation`.
 * @param queryClient - Use this to use a custom `QueryClient`. Otherwise, the one from the nearest context will
 * be used.
@@ -17456,7 +18020,10 @@ function useQuery(options, queryClient) {
 * mutation definition. Hook-level callbacks (passed to `options`) fire for every mutation; per-call callbacks
 * fire only for the latest call you've made, and only while the component is still mounted — unmounting before
 * the mutation settles removes the subscription and prevents them from firing.
-*
+* @throws {Error} The mutation error, when `throwOnError` is `true` or returns `true` for it, so that it is
+* thrown to the nearest error boundary.
+* @see {@link mutationOptions} to share these options across multiple `useMutation` call sites, or to look
+* the mutation up elsewhere via its `mutationKey` (e.g. with `useMutationState`).
 * @example
 * ```tsx
 * import { useMutation, useQueryClient } from '@tanstack/react-query'
@@ -17482,7 +18049,6 @@ function useQuery(options, queryClient) {
 *   )
 * }
 * ```
-*
 * @example
 * Rendering the mutation's own state, rather than just firing it off:
 * ```tsx
@@ -17512,7 +18078,6 @@ function useQuery(options, queryClient) {
 *   )
 * }
 * ```
-*
 * @example
 * Optimistic update via `onMutate`, rolling back on `onError`:
 * ```tsx
@@ -17548,7 +18113,6 @@ function useQuery(options, queryClient) {
 *   )
 * }
 * ```
-*
 * @example
 * Callbacks passed per call to `mutate` only fire for the last call — `mutateAsync` gives you a
 * promise per call instead, so you can wait for all of them when they succeed:
@@ -17578,7 +18142,6 @@ function useQuery(options, queryClient) {
 *   )
 * }
 * ```
-*
 * @example
 * If some of the mutations above can fail independently of the others, and you want to know which ones
 * did — rather than losing that information the moment the first one rejects — swap `Promise.all` for
@@ -17632,7 +18195,7 @@ function useMutation(options, queryClient) {
 	};
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+react-query@5.104.1_react@19.3.0/node_modules/@tanstack/react-query/build/modern/useInfiniteQuery.js
+//#region ../../node_modules/.pnpm/@tanstack+react-query@5.104.2_react@19.3.0/node_modules/@tanstack/react-query/build/modern/useInfiniteQuery.js
 function useInfiniteQuery(options, queryClient) {
 	return useBaseQuery(options, InfiniteQueryObserver, queryClient);
 }
@@ -19315,7 +19878,7 @@ var b = x$1(1);
 var w = x$1(2);
 var E = Symbol.for("lit-noChange");
 var A = Symbol.for("lit-nothing");
-var C$2 = /* @__PURE__ */ new WeakMap();
+var C$1 = /* @__PURE__ */ new WeakMap();
 var P = l$1.createTreeWalker(l$1, 129);
 function V(t, i) {
 	if (!u$2(t) || !t.hasOwnProperty("raw")) throw Error("invalid template strings array");
@@ -19461,8 +20024,8 @@ var k = class k {
 		}
 	}
 	_$AC(t) {
-		let i = C$2.get(t.strings);
-		return void 0 === i && C$2.set(t.strings, i = new S(t)), i;
+		let i = C$1.get(t.strings);
+		return void 0 === i && C$1.set(t.strings, i = new S(t)), i;
 	}
 	k(t) {
 		u$2(this._$AH) || (this._$AH = [], this._$AR());
@@ -45665,7 +46228,7 @@ var normalizeScore = (raw) => {
 var isEvalMetric = (value) => isRecord(value) && typeof value["name"] === "string" && typeof value["value"] === "number" && isRecord(value["params"]);
 var normalizeEvalMetrics = (raw) => {
 	if (!isRecord(raw)) return {};
-	const metrics = {};
+	const metrics = /* @__PURE__ */ new Map();
 	for (const [name, entry] of Object.entries(raw)) {
 		if (!isRecord(entry)) continue;
 		const filled = {
@@ -45673,9 +46236,9 @@ var normalizeEvalMetrics = (raw) => {
 			name: typeof entry["name"] === "string" ? entry["name"] : name,
 			params: isRecord(entry["params"]) ? entry["params"] : {}
 		};
-		if (isEvalMetric(filled)) metrics[name] = filled;
+		if (isEvalMetric(filled)) metrics.set(name, filled);
 	}
-	return metrics;
+	return nullProtoRecord(metrics);
 };
 /**
 * Normalize raw per-scorer results. Entries without a name drop (pydantic
@@ -45768,12 +46331,12 @@ var isCleanScoreMap = (value) => Object.values(value).every((score) => hasUsable
 */ var normalizeSampleScores = (raw) => {
 	if (!isRecord(raw)) return null;
 	if (isCleanScoreMap(raw)) return raw;
-	const scores = {};
+	const scores = /* @__PURE__ */ new Map();
 	for (const [name, score] of Object.entries(raw)) {
 		if (!hasUsableValue(score)) continue;
-		scores[name] = hasMalformedContext(score) ? clearMalformedContext(score) : score;
+		scores.set(name, hasMalformedContext(score) ? clearMalformedContext(score) : score);
 	}
-	return scores;
+	return nullProtoRecord(scores);
 };
 //#endregion
 //#region ../../packages/inspect-common/src/normalize/summary.ts
@@ -45784,7 +46347,7 @@ var isCleanScoreMap = (value) => Object.values(value).every((score) => hasUsable
 */ var normalizeModelUsageMap = (raw) => {
 	if (!isRecord(raw)) return {};
 	let changed = false;
-	const usage = {};
+	const usage = /* @__PURE__ */ new Map();
 	for (const [model, entry] of Object.entries(raw)) {
 		const normalized = normalizeModelUsage(entry);
 		if (normalized === void 0) {
@@ -45792,9 +46355,9 @@ var isCleanScoreMap = (value) => Object.values(value).every((score) => hasUsable
 			continue;
 		}
 		if (normalized !== entry) changed = true;
-		usage[model] = normalized;
+		usage.set(model, normalized);
 	}
-	return changed ? usage : raw;
+	return changed ? nullProtoRecord(usage) : raw;
 };
 var isContent = (value) => isRecord(value) && typeof value["type"] === "string";
 var kContentPayloadFields = [
@@ -46476,7 +47039,7 @@ function isModelEvent(event) {
 //#endregion
 //#region ../../packages/inspect-common/src/utils/modelFallbacks.ts
 /**
-* Total generate calls served via fallback across a sample's rollup.
+* Total requests served via fallback across a sample's rollup.
 */ var totalModelFallbacks = (fallbacks) => (fallbacks ?? []).reduce((sum, f) => sum + (f.count ?? 1), 0);
 /**
 * One "requested → served (×N)" line per fallback rollup entry.
@@ -46542,8 +47105,8 @@ var matchDeclared = (scores, headline) => {
 	const candidates = scores.filter((score) => (headline.scorer == null || score.scorer === headline.scorer) && (headline.score == null || score.name === headline.score) && (headline.reducer == null || score.reducer === headline.reducer));
 	const name = headline.metric;
 	if (name == null) return candidates.length > 0 ? firstMetric(candidates[0]) : void 0;
-	const score = candidates.find((candidate) => candidate.metrics[name] !== void 0);
-	const metric = score?.metrics[name];
+	const score = candidates.find((candidate) => getOwn(candidate.metrics, name) !== void 0);
+	const metric = getOwn(score?.metrics, name);
 	return score && metric ? {
 		score,
 		name,
@@ -46588,11 +47151,16 @@ var deriveLogFields = (header) => {
 	const completed = header.results?.completed_samples;
 	if (total && total > 0 && completed !== void 0) percent_completed = completed / total * 100;
 	const sample_limits = header.sampleLimits.length > 0 ? header.sampleLimits.join(", ") : void 0;
-	let scores;
-	if (header.results?.scores) for (const evalScore of header.results.scores) for (const [metricName, metric] of Object.entries(evalScore.metrics)) {
-		scores ??= {};
-		(scores[evalScore.name] ??= {})[metricName] = metric.value;
+	const byScorer = /* @__PURE__ */ new Map();
+	for (const evalScore of header.results?.scores ?? []) for (const [metricName, metric] of Object.entries(evalScore.metrics)) {
+		let metrics = byScorer.get(evalScore.name);
+		if (!metrics) {
+			metrics = /* @__PURE__ */ new Map();
+			byScorer.set(evalScore.name, metrics);
+		}
+		metrics.set(metricName, metric.value);
 	}
+	const scores = byScorer.size > 0 ? nullProtoRecord(new Map(Array.from(byScorer, ([name, metrics]) => [name, nullProtoRecord(metrics)]))) : void 0;
 	return {
 		total_tokens,
 		duration,
@@ -46629,11 +47197,7 @@ var deriveLogFields = (header) => {
 	return cost && !cost.partial ? cost.total : void 0;
 };
 var deriveSampleFields = (summary) => {
-	let scores;
-	if (summary.scores) {
-		scores = {};
-		for (const [scoreName, score] of Object.entries(summary.scores)) scores[scoreName] = score.value;
-	}
+	const scores = summary.scores ? nullProtoRecord(new Map(Object.entries(summary.scores).map(([name, score]) => [name, score.value]))) : void 0;
 	return {
 		tokens: totalSampleTokens(summary.model_usage),
 		cost: totalSampleCost(summary.model_usage),
@@ -48647,31 +49211,6 @@ var isEvalFile = (file) => {
 		if (api.get_log_summary) return api.get_log_summary(log_file);
 		else return (await openRemoteLogFile(api, encodePathParts(log_file), 5)).readEvalBasicInfo();
 	};
-	/**
-	* Gets log headers
-	*/ const get_log_summaries = async (log_files) => {
-		try {
-			const summaries = await api.get_log_summaries(log_files);
-			if (summaries.length === log_files.length) return summaries;
-		} catch {}
-		const eval_files = {};
-		const json_files = {};
-		let index = 0;
-		for (const file of log_files) {
-			if (isEvalFile(file)) eval_files[file] = index;
-			else json_files[file] = index;
-			index++;
-		}
-		const evalLogHeadersPromises = Object.keys(eval_files).map((file) => read_eval_file_log_summary(file).then((summary) => ({
-			index: eval_files[file],
-			summary
-		})));
-		const jsonLogHeadersPromise = api.get_log_summaries(Object.keys(json_files)).then((summaries) => summaries.map((summary, i) => ({
-			index: json_files[Object.keys(json_files)[i]],
-			summary
-		})));
-		return (await Promise.all([...evalLogHeadersPromises, jsonLogHeadersPromise])).flat().sort((a, b) => a.index - b.index).map(({ summary }) => summary);
-	};
 	const read_one_summary = async (log_file) => {
 		if (isEvalFile(log_file)) return read_eval_file_log_summary(log_file);
 		const summary = (await api.get_log_summaries([log_file]))[0];
@@ -48749,7 +49288,6 @@ var isEvalFile = (file) => {
 		get_flow: middleware("get_flow", (dir) => {
 			return api.get_flow(dir);
 		}),
-		get_log_summaries: middleware("get_log_summaries", get_log_summaries),
 		get_log_summaries_settled: middleware("get_log_summaries_settled", get_log_summaries_settled),
 		get_log_details: middleware("get_log_details", async (log_file, cached) => {
 			const result = await get_log_details(log_file, cached);
@@ -50109,7 +50647,7 @@ var kindClass = {
 var CHUNK_SIZE = 100;
 var COPIED_FEEDBACK_MS = 1e3;
 var classes = (...names) => names.filter((n) => typeof n === "string").join(" ");
-var TreeNode$2 = /*#__PURE__*/ (0, import_react.memo)((t0) => {
+var TreeNode$1 = /*#__PURE__*/ (0, import_react.memo)((t0) => {
 	const $ = (0, import_compiler_runtime.c)(40);
 	const { name, value, defaultExpanded: t1 } = t0;
 	const [expanded, setExpanded] = (0, import_react.useState)(t1 === void 0 ? false : t1);
@@ -50280,12 +50818,12 @@ var TreeNode$2 = /*#__PURE__*/ (0, import_react.memo)((t0) => {
 	} else t6 = $[17];
 	return t6;
 });
-TreeNode$2.displayName = "TreeNode";
+TreeNode$1.displayName = "TreeNode";
 function _temp$99(e) {
 	return !e;
 }
 function _temp2$58(entry) {
-	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(TreeNode$2, {
+	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(TreeNode$1, {
 		name: entry.key,
 		value: entry.value
 	}, entry.id);
@@ -54934,7 +55472,7 @@ var fromLogRecord = (record) => {
 		name: file_path
 	};
 };
-var DB_VERSION = 1602;
+var DB_VERSION = 1603;
 var DB_NAME = "InspectAI";
 /** The boundary-safe prefix for scoping `file_path` queries to a dir:
 *  `/logs/important` must not match `/logs/important-2`. */ var scopePrefix = (dir) => dir.endsWith("/") ? dir : `${dir}/`;
@@ -59758,7 +60296,7 @@ var isRenderableImageDocument = (source, declaredMimeType) => {
 	return isRasterImageMimeType(normalizedSource) && normalizedSource === normalizedDeclared;
 };
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+virtual-core@3.17.11/node_modules/@tanstack/virtual-core/dist/esm/lazy-measurements.js
+//#region ../../node_modules/.pnpm/@tanstack+virtual-core@3.19.2/node_modules/@tanstack/virtual-core/dist/esm/lazy-measurements.js
 function getMeasurementKey(item) {
 	return typeof item === "object" ? item.key : item;
 }
@@ -59791,7 +60329,7 @@ function createLazyMeasurementsView(cache, flat) {
 	} });
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+virtual-core@3.17.11/node_modules/@tanstack/virtual-core/dist/esm/utils.js
+//#region ../../node_modules/.pnpm/@tanstack+virtual-core@3.19.2/node_modules/@tanstack/virtual-core/dist/esm/utils.js
 function memo$9(getDeps, fn, opts) {
 	let deps = opts.initialDeps ?? [];
 	let result;
@@ -59825,7 +60363,7 @@ var debounce = (targetWindow, fn, ms) => {
 	} });
 };
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+virtual-core@3.17.11/node_modules/@tanstack/virtual-core/dist/esm/index.js
+//#region ../../node_modules/.pnpm/@tanstack+virtual-core@3.19.2/node_modules/@tanstack/virtual-core/dist/esm/index.js
 var _isIOSResult;
 var isIOSWebKit = () => {
 	if (_isIOSResult !== void 0) return _isIOSResult;
@@ -59843,8 +60381,9 @@ var getRect = (element) => {
 };
 var defaultKeyExtractor = (index) => index;
 var defaultRangeExtractor = (range) => {
-	const start = Math.max(range.startIndex - range.overscan, 0);
-	const len = Math.min(range.endIndex + range.overscan, range.count - 1) - start + 1;
+	const overscan = range.overscan * Math.max(range.lanes ?? 1, 1);
+	const start = Math.max(range.startIndex - overscan, 0);
+	const len = Math.min(range.endIndex + overscan, range.count - 1) - start + 1;
 	const arr = new Array(len);
 	for (let i = 0; i < len; i++) arr[i] = start + i;
 	return arr;
@@ -59940,6 +60479,9 @@ var scrollWithAdjustments = (offset, { adjustments = 0, behavior }, instance) =>
 	});
 };
 var elementScroll = scrollWithAdjustments;
+var initialScrollPhase = (behavior, atTarget) => behavior === "smooth" ? atTarget ? "smoothLanded" : "smooth" : "instant";
+var isSmoothScroll = (state) => (state == null ? void 0 : state.phase) === "smooth" || (state == null ? void 0 : state.phase) === "smoothLanded";
+var isAnimating = (state) => state.phase === "smooth" || state.phase === "smoothFinishing";
 function isAppendWithTrim(prevCount, nextCount, getPreviousKey, getNextKey) {
 	if (nextCount === 0) return false;
 	const firstKey = getNextKey(0);
@@ -59985,6 +60527,7 @@ var Virtualizer = class {
 		this._intendedScrollOffset = null;
 		this._clampedAdjustment = null;
 		this.elementsCache = /* @__PURE__ */ new Map();
+		this._resizeBatch = null;
 		this.now = () => {
 			var _a, _b, _c;
 			return ((_c = (_b = (_a = this.targetWindow) == null ? void 0 : _a.performance) == null ? void 0 : _b.now) == null ? void 0 : _c.call(_b)) ?? Date.now();
@@ -59995,24 +60538,35 @@ var Virtualizer = class {
 				if (_ro) return _ro;
 				if (!this.targetWindow || !this.targetWindow.ResizeObserver) return null;
 				return _ro = new this.targetWindow.ResizeObserver((entries) => {
-					entries.forEach((entry) => {
-						const run = () => {
-							const node = entry.target;
-							const index = this.indexFromElement(node);
-							if (!node.isConnected) {
-								this.observer.unobserve(node);
-								for (const [cacheKey, cachedNode] of this.elementsCache) if (cachedNode === node) {
-									this.elementsCache.delete(cacheKey);
-									break;
-								}
-								return;
+					const run = () => {
+						const batch = { sync: false };
+						this._resizeBatch = batch;
+						try {
+							entries.forEach(measureEntry);
+						} finally {
+							this._resizeBatch = null;
+							if (batch.notify) {
+								this.notify(batch.sync);
+								this._retryClampedAdjustment();
 							}
-							if (!this.isIndexInRange(index)) return;
-							if (this.shouldMeasureDuringScroll(index)) this.resizeItem(index, this.options.measureElement(node, entry, this));
-						};
-						this.options.useAnimationFrameWithResizeObserver ? requestAnimationFrame(run) : run();
-					});
+						}
+					};
+					this.options.useAnimationFrameWithResizeObserver ? requestAnimationFrame(run) : run();
 				});
+			};
+			const measureEntry = (entry) => {
+				const node = entry.target;
+				const index = this.indexFromElement(node);
+				if (!node.isConnected) {
+					this.observer.unobserve(node);
+					for (const [cacheKey, cachedNode] of this.elementsCache) if (cachedNode === node) {
+						this.elementsCache.delete(cacheKey);
+						break;
+					}
+					return;
+				}
+				if (!this.isIndexInRange(index)) return;
+				if (this.shouldMeasureDuringScroll(index)) this.resizeItem(index, this.options.measureElement(node, entry, this));
 			};
 			return {
 				disconnect: () => {
@@ -60170,7 +60724,7 @@ var Virtualizer = class {
 			};
 		};
 		this._willUpdate = () => {
-			var _a, _b;
+			var _a;
 			const scrollElement = this.options.enabled ? this.options.getScrollElement() : null;
 			if (this.scrollElement !== scrollElement) {
 				this.cleanup();
@@ -60189,9 +60743,12 @@ var Virtualizer = class {
 					this.maybeNotify();
 				}));
 				this.unsubs.push(this.options.observeElementOffset(this, (offset, isScrolling) => {
+					var _a2;
 					if (isScrolling && this._intendedScrollOffset === null && offset === this.scrollOffset) return;
 					if (this._intendedScrollOffset !== null && Math.abs(offset - this._intendedScrollOffset) < 1.5) offset = this._intendedScrollOffset;
+					else if (((_a2 = this.scrollState) == null ? void 0 : _a2.index) != null && !isAnimating(this.scrollState) && !approxEqual(offset, this.scrollState.lastTargetOffset) && !approxEqual(offset, this.getScrollStateTarget(this.scrollState)) && (this._clampedAdjustment === null || Math.abs(offset - this._clampedAdjustment.maxAtWrite) >= 1.5)) this.scrollState = null;
 					this._intendedScrollOffset = null;
+					if (this.scrollState) this.scrollState.writtenOffset = null;
 					if (this._clampedAdjustment !== null && Math.abs(offset - this._clampedAdjustment.maxAtWrite) >= 1.5) this._clampedAdjustment = null;
 					this.scrollAdjustments = 0;
 					const prevOffset = this.getScrollOffset();
@@ -60224,9 +60781,11 @@ var Virtualizer = class {
 					};
 					scrollEl.addEventListener("touchstart", onTouchStart, addEventListenerOptions);
 					scrollEl.addEventListener("touchend", onTouchEnd, addEventListenerOptions);
+					scrollEl.addEventListener("touchcancel", onTouchEnd, addEventListenerOptions);
 					this.unsubs.push(() => {
 						scrollEl.removeEventListener("touchstart", onTouchStart);
 						scrollEl.removeEventListener("touchend", onTouchEnd);
+						scrollEl.removeEventListener("touchcancel", onTouchEnd);
 						if (this._iosTouchEndTimerId !== null && this.targetWindow != null) {
 							this.targetWindow.clearTimeout(this._iosTouchEndTimerId);
 							this._iosTouchEndTimerId = null;
@@ -60245,7 +60804,7 @@ var Virtualizer = class {
 				if (key !== null && !followOnAppend) {
 					if (isIOSWebKit() && (this.isScrolling || this._iosTouching || this._iosJustTouchEnded)) {
 						if (anchorDelta !== 0) this._iosDeferredAdjustment += anchorDelta;
-					} else if (((_b = this.scrollState) == null ? void 0 : _b.behavior) === "smooth" && !approxEqual(this.getScrollOffset() - anchorDelta, this.scrollState.lastTargetOffset));
+					} else if (isSmoothScroll(this.scrollState) && !approxEqual(this.getScrollOffset() - anchorDelta, this.scrollState.lastTargetOffset));
 					else this._scrollToOffset(this.getScrollOffset(), {
 						adjustments: void 0,
 						behavior: void 0
@@ -60492,14 +61051,16 @@ var Virtualizer = class {
 				this.options.overscan,
 				this.options.count,
 				startIndex,
-				endIndex
+				endIndex,
+				this.options.lanes
 			];
-		}, (rangeExtractor, overscan, count, startIndex, endIndex) => {
+		}, (rangeExtractor, overscan, count, startIndex, endIndex, lanes) => {
 			return startIndex === null || endIndex === null ? [] : rangeExtractor({
 				startIndex,
 				endIndex,
 				overscan,
-				count
+				count,
+				lanes
 			});
 		}, {
 			key: false,
@@ -60516,7 +61077,7 @@ var Virtualizer = class {
 		};
 		this.shouldMeasureDuringScroll = (index) => {
 			var _a;
-			if (!this.scrollState || this.scrollState.behavior !== "smooth") return true;
+			if (!isSmoothScroll(this.scrollState)) return true;
 			const scrollIndex = this.scrollState.index ?? ((_a = this.getVirtualItemForOffset(this.scrollState.lastTargetOffset)) == null ? void 0 : _a.index);
 			if (scrollIndex !== void 0 && this.range) {
 				const bufferSize = Math.max(this.options.overscan, Math.ceil((this.range.endIndex - this.range.startIndex) / 2));
@@ -60545,15 +61106,16 @@ var Virtualizer = class {
 				this.observer.observe(node);
 				this.elementsCache.set(key, node);
 			}
-			if ((!this.isScrolling || this.scrollState) && this.shouldMeasureDuringScroll(index)) this.resizeItem(index, this.options.measureElement(node, void 0, this));
+			if (node.isConnected && (!this.isScrolling || this.scrollState) && this.shouldMeasureDuringScroll(index)) this.resizeItem(index, this.options.measureElement(node, void 0, this));
 		};
 		this.resizeItem = (index, size) => {
-			var _a, _b, _c;
+			var _a, _b, _c, _d;
 			if (!this.isIndexInRange(index)) return;
+			if ((_a = this._resizeBatch) == null ? void 0 : _a.sync) this.getMeasurements();
 			let cachedSize;
 			let itemStart;
 			let key;
-			const flat = (_a = this._singleLaneMeasurements) == null ? void 0 : _a.flat;
+			const flat = (_b = this._singleLaneMeasurements) == null ? void 0 : _b.flat;
 			if (this.options.lanes === 1 && flat != null) {
 				key = this.options.getItemKey(index);
 				itemStart = flat[index * 2];
@@ -60568,11 +61130,11 @@ var Virtualizer = class {
 			const itemSize = this.itemSizeCache.get(key) ?? cachedSize;
 			const delta = size - itemSize;
 			if (delta !== 0) {
-				const wasAtEnd = this.options.anchorTo === "end" && ((_b = this.scrollState) == null ? void 0 : _b.behavior) !== "smooth" && this.getVirtualDistanceFromEnd() <= this.options.scrollEndThreshold;
+				const wasAtEnd = this.options.anchorTo === "end" && !isSmoothScroll(this.scrollState) && this.getVirtualDistanceFromEnd() <= this.options.scrollEndThreshold;
 				const prevTotalSize = wasAtEnd ? this.getTotalSize() : 0;
 				const scrollOffsetWithAdj = this.getScrollOffset() + this.scrollAdjustments;
 				const defaultShouldAdjust = !this.itemSizeCache.has(key) ? itemStart < scrollOffsetWithAdj : itemStart + itemSize <= scrollOffsetWithAdj && this.scrollDirection !== "backward";
-				const shouldAdjustScroll = ((_c = this.scrollState) == null ? void 0 : _c.behavior) !== "smooth" && (this.shouldAdjustScrollPositionOnItemSizeChange !== void 0 ? this.shouldAdjustScrollPositionOnItemSizeChange(this.measurementsCache[index] ?? {
+				const shouldAdjustScroll = !isSmoothScroll(this.scrollState) && (this.shouldAdjustScrollPositionOnItemSizeChange !== void 0 ? this.shouldAdjustScrollPositionOnItemSizeChange(this.measurementsCache[index] ?? {
 					index,
 					key,
 					start: itemStart,
@@ -60583,9 +61145,17 @@ var Virtualizer = class {
 				if (this.pendingMin === null || index < this.pendingMin) this.pendingMin = index;
 				this.itemSizeCache.set(key, size);
 				this.itemSizeCacheVersion++;
+				const awaitingCommandReadBack = ((_c = this.scrollState) == null ? void 0 : _c.writtenOffset) != null && !approxEqual(this.scrollState.writtenOffset, this.getScrollOffset() + this.scrollAdjustments);
 				let adjustedSync = false;
-				if (wasAtEnd) adjustedSync = this.applyScrollAdjustment(this.getTotalSize() - prevTotalSize);
-				else if (shouldAdjustScroll) adjustedSync = this.applyScrollAdjustment(delta);
+				if (!awaitingCommandReadBack) {
+					if (wasAtEnd) adjustedSync = this.applyScrollAdjustment(this.getTotalSize() - prevTotalSize);
+					else if (shouldAdjustScroll) adjustedSync = this.applyScrollAdjustment(delta);
+				}
+				if (this._resizeBatch) {
+					this._resizeBatch.notify = true;
+					(_d = this._resizeBatch).sync || (_d.sync = adjustedSync);
+					return;
+				}
 				this.notify(adjustedSync);
 				this._retryClampedAdjustment();
 			}
@@ -60647,7 +61217,11 @@ var Virtualizer = class {
 				else if (item.start <= scrollOffset + this.options.scrollPaddingStart) align = "start";
 				else return [scrollOffset, align];
 			}
-			if (align === "end" && index === this.options.count - 1) return [this.getMaxScrollOffset(), align];
+			if (align === "end" && index === this.options.count - 1) {
+				const maxOffset = this.getMaxScrollOffset();
+				const toOffset2 = maxOffset - this.options.paddingEnd + this.options.scrollPaddingEnd;
+				return [Math.max(Math.min(toOffset2, maxOffset), 0), align];
+			}
 			const toOffset = align === "end" ? item.end + this.options.scrollPaddingEnd : item.start - this.options.scrollPaddingStart;
 			return [this.getOffsetForAlignment(toOffset, align, item.size), align];
 		};
@@ -60658,10 +61232,10 @@ var Virtualizer = class {
 			this.scrollState = {
 				index: null,
 				align,
-				behavior,
 				startedAt: now,
 				lastTargetOffset: offset,
-				stableFrames: 0
+				stableFrames: 0,
+				phase: initialScrollPhase(behavior, false)
 			};
 			this._scrollToOffset(offset, {
 				adjustments: void 0,
@@ -60679,10 +61253,10 @@ var Virtualizer = class {
 			this.scrollState = {
 				index,
 				align,
-				behavior,
 				startedAt: now,
 				lastTargetOffset: offset,
-				stableFrames: 0
+				stableFrames: 0,
+				phase: initialScrollPhase(behavior, approxEqual(offset, this.getScrollOffset()))
 			};
 			this._scrollToOffset(offset, {
 				adjustments: void 0,
@@ -60691,15 +61265,16 @@ var Virtualizer = class {
 			this.scheduleScrollReconcile();
 		};
 		this.scrollBy = (delta, { behavior = "auto" } = {}) => {
-			const offset = this.getScrollOffset() + delta;
+			var _a;
+			const offset = this.getOffsetForAlignment((((_a = this.scrollState) == null ? void 0 : _a.writtenOffset) ?? this.getScrollOffset()) + delta, "start");
 			const now = this.now();
 			this.scrollState = {
 				index: null,
 				align: "start",
-				behavior,
 				startedAt: now,
 				lastTargetOffset: offset,
-				stableFrames: 0
+				stableFrames: 0,
+				phase: initialScrollPhase(behavior, false)
 			};
 			this._scrollToOffset(offset, {
 				adjustments: void 0,
@@ -60709,13 +61284,32 @@ var Virtualizer = class {
 		};
 		this.scrollToEnd = ({ behavior = "auto" } = {}) => {
 			if (this.options.count > 0) {
-				this.scrollToIndex(this.options.count - 1, {
+				this._iosDeferredAdjustment = 0;
+				const offset = Math.max(this.getMaxScrollOffset(), 0);
+				this.scrollState = {
+					index: this.options.count - 1,
 					align: "end",
+					toEnd: true,
+					startedAt: this.now(),
+					lastTargetOffset: offset,
+					stableFrames: 0,
+					phase: initialScrollPhase(behavior, approxEqual(offset, this.getScrollOffset()))
+				};
+				this._scrollToOffset(offset, {
+					adjustments: void 0,
 					behavior
 				});
+				this.scheduleScrollReconcile();
 				return;
 			}
 			this.scrollToOffset(Math.max(this.getTotalSize() - this.getSize(), 0), { behavior });
+		};
+		this.cancelScroll = () => {
+			if (this.rafId != null && this.targetWindow) {
+				this.targetWindow.cancelAnimationFrame(this.rafId);
+				this.rafId = null;
+			}
+			this.scrollState = null;
 		};
 		this.getTotalSize = () => {
 			var _a, _b;
@@ -60755,6 +61349,7 @@ var Virtualizer = class {
 		};
 		this._scrollToOffset = (offset, { adjustments, behavior }) => {
 			this._intendedScrollOffset = offset + (adjustments ?? 0);
+			if (this.scrollState) this.scrollState.writtenOffset = behavior === "smooth" ? null : this._intendedScrollOffset;
 			this.options.scrollToFn(offset, {
 				behavior,
 				adjustments
@@ -60770,9 +61365,10 @@ var Virtualizer = class {
 		this.setOptions(opts);
 	}
 	applyScrollAdjustment(delta, behavior) {
+		var _a;
 		if (delta === 0) return false;
 		if (isIOSWebKit() && (this.isScrolling || this._iosTouching || this._iosJustTouchEnded)) {
-			this._iosDeferredAdjustment += delta;
+			if (((_a = this.scrollState) == null ? void 0 : _a.index) == null) this._iosDeferredAdjustment += delta;
 			return false;
 		} else {
 			const target = this.getScrollOffset() + this.scrollAdjustments + delta;
@@ -60805,6 +61401,10 @@ var Virtualizer = class {
 			this.reconcileScroll();
 		});
 	}
+	getScrollStateTarget(state) {
+		const offsetInfo = state.toEnd ? [Math.max(this.getMaxScrollOffset(), 0)] : state.index != null ? this.getOffsetForIndex(state.index, state.align) : void 0;
+		return offsetInfo ? offsetInfo[0] : state.lastTargetOffset;
+	}
 	reconcileScroll() {
 		if (!this.scrollState) return;
 		if (!this.scrollElement) return;
@@ -60812,11 +61412,13 @@ var Virtualizer = class {
 			this.scrollState = null;
 			return;
 		}
-		const offsetInfo = this.scrollState.index != null ? this.getOffsetForIndex(this.scrollState.index, this.scrollState.align) : void 0;
-		const targetOffset = offsetInfo ? offsetInfo[0] : this.scrollState.lastTargetOffset;
-		const STABLE_FRAMES = 1;
+		this.getMeasurements();
+		const targetOffset = this.getScrollStateTarget(this.scrollState);
+		const STABLE_FRAMES = this.scrollState.index == null ? 1 : this.options.useAnimationFrameWithResizeObserver ? 3 : 2;
 		const targetChanged = targetOffset !== this.scrollState.lastTargetOffset;
 		if (!targetChanged && approxEqual(targetOffset, this.getScrollOffset())) {
+			if (this.scrollState.phase === "smooth") this.scrollState.phase = "smoothLanded";
+			else if (this.scrollState.phase === "smoothFinishing") this.scrollState.phase = "instant";
 			this.scrollState.stableFrames++;
 			if (this.scrollState.stableFrames >= STABLE_FRAMES) {
 				if (this.getScrollOffset() !== targetOffset) this._scrollToOffset(targetOffset, {
@@ -60831,9 +61433,11 @@ var Virtualizer = class {
 			if (targetChanged) {
 				const viewport = this.getSize() || 600;
 				const distance = Math.abs(targetOffset - this.getScrollOffset());
-				const keepSmooth = this.scrollState.behavior === "smooth" && distance > viewport;
+				const keepSmooth = isSmoothScroll(this.scrollState) && distance > viewport;
 				this.scrollState.lastTargetOffset = targetOffset;
-				if (!keepSmooth) this.scrollState.behavior = "auto";
+				if (keepSmooth) this.scrollState.phase = "smooth";
+				else if (this.scrollState.phase === "smooth") this.scrollState.phase = "smoothFinishing";
+				else if (this.scrollState.phase === "smoothLanded") this.scrollState.phase = "instant";
 				this._scrollToOffset(targetOffset, {
 					adjustments: void 0,
 					behavior: keepSmooth ? "smooth" : "auto"
@@ -60907,7 +61511,7 @@ function calculateRangeImpl(measurements, outerSize, scrollOffset, lanes, flat) 
 	};
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+react-virtual@3.14.13_react-dom@19.3.0_react@19.3.0__react@19.3.0/node_modules/@tanstack/react-virtual/dist/esm/index.js
+//#region ../../node_modules/.pnpm/@tanstack+react-virtual@3.14.17_react-dom@19.3.0_react@19.3.0__react@19.3.0/node_modules/@tanstack/react-virtual/dist/esm/index.js
 var useIsomorphicLayoutEffect$1 = typeof document !== "undefined" ? import_react.useLayoutEffect : import_react.useEffect;
 function useVirtualizerBase({ useFlushSync = true, directDomUpdates = false, directDomUpdatesMode = "transform", ...options }) {
 	const rerender = import_react.useReducer((x) => x + 1, 0)[1];
@@ -60932,23 +61536,22 @@ function useVirtualizerBase({ useFlushSync = true, directDomUpdates = false, dir
 			state.container.style[sizeAxis] = `${totalSize}px`;
 		}
 	};
+	const applyItemPosition = (instance2, item, el) => {
+		const state = directRef.current;
+		const horizontal = !!instance2.options.horizontal;
+		const next = item.start - instance2.options.scrollMargin;
+		if (state.lastPositions.get(el) === next) return;
+		state.lastPositions.set(el, next);
+		if (state.mode === "transform") el.style.transform = horizontal ? `translate3d(${next}px, 0, 0)` : `translate3d(0, ${next}px, 0)`;
+		else el.style[horizontal ? "left" : "top"] = `${next}px`;
+	};
 	const applyDirectStyles = (instance2) => {
 		const state = directRef.current;
 		if (!state.enabled || !state.container) return;
 		applyContainerSize(instance2);
-		const horizontal = !!instance2.options.horizontal;
-		const useTransform = state.mode === "transform";
-		const posAxis = horizontal ? "left" : "top";
-		const scrollMargin = instance2.options.scrollMargin;
-		const items = instance2.getVirtualItems();
-		for (const item of items) {
-			const next = item.start - scrollMargin;
+		for (const item of instance2.getVirtualItems()) {
 			const el = instance2.elementsCache.get(item.key);
-			if (!el) continue;
-			if (state.lastPositions.get(el) === next) continue;
-			state.lastPositions.set(el, next);
-			if (useTransform) el.style.transform = horizontal ? `translate3d(${next}px, 0, 0)` : `translate3d(0, ${next}px, 0)`;
-			else el.style[posAxis] = `${next}px`;
+			if (el) applyItemPosition(instance2, item, el);
 		}
 	};
 	const resolvedOptions = {
@@ -60985,17 +61588,17 @@ function useVirtualizerBase({ useFlushSync = true, directDomUpdates = false, dir
 			} finally {
 				measuringFromRef.current = false;
 			}
+			const state = directRef.current;
+			if (node !== null && state.enabled && state.container) {
+				const item = v.measurementsCache[v.indexFromElement(node)];
+				if (item) applyItemPosition(v, item, node);
+			}
 		};
 		return Object.assign(v, { containerRef: (node) => {
 			const state = directRef.current;
 			state.container = node;
 			state.lastSize = null;
-			if (node && state.enabled) {
-				const total = v.getTotalSize();
-				state.lastSize = total;
-				const axis = v.options.horizontal ? "width" : "height";
-				node.style[axis] = `${total}px`;
-			}
+			if (node !== null) applyDirectStyles(v);
 		} });
 	});
 	instance.setOptions(resolvedOptions);
@@ -72368,7 +72971,7 @@ var SAMPLE_VARIABLES = [
 	["error", "The sample error message (or null)"],
 	["limit", "The limit kind that stopped the sample (or null)"],
 	["retries", "The number of times the sample was retried (0 if none)"],
-	["fallbacks", "The number of generate calls served by a fallback model (0 if none)"],
+	["fallbacks", "The number of requests served by a fallback model (0 if none)"],
 	["tokens", "Total tokens used across all models (or null)"],
 	["duration", "Total wall-clock time of the sample, in seconds (or null)"],
 	[kSampleMetadataVariable, "Metadata associated with the sample"]
@@ -95896,7 +96499,7 @@ var compareKeys = (a, b) => {
 	}
 	return a.length - b.length;
 };
-/** Links each check to the nearest recorded check above it by path. */ var buildTree$2 = (ordered) => {
+/** Links each check to the nearest recorded check above it by path. */ var buildTree$1 = (ordered) => {
 	const tree = [];
 	for (const node of ordered) {
 		const parent = tree.findLast((candidate) => isAncestorPath(candidate.node.event.path, node.event.path));
@@ -95995,7 +96598,7 @@ var isInactive$1 = (status) => status !== "reported";
 	});
 	const checks = nodes.filter((n) => !replaced.has(n));
 	const keys = pathOrderKeys(checks);
-	const tree = buildTree$2(checks.map((node, index) => ({
+	const tree = buildTree$1(checks.map((node, index) => ({
 		node,
 		index
 	})).sort((a, b) => compareKeys(keys.get(a.node), keys.get(b.node)) || a.index - b.index).map(({ node }) => node));
@@ -97031,50 +97634,62 @@ var INTERRUPTED_DESCRIPTIONS = {
 	between_turns: "between turns"
 };
 var InterruptEventView = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(11);
+	const $ = (0, import_compiler_runtime.c)(15);
 	const { eventNode, className } = t0;
 	const event = eventNode.event;
-	const baseTitle = SOURCE_TITLES[event.source];
 	let t1;
-	if ($[0] !== baseTitle || $[1] !== event.timestamp) {
-		t1 = event.timestamp ? `${baseTitle} — ${formatDateTime$1(new Date(event.timestamp))}` : baseTitle;
-		$[0] = baseTitle;
-		$[1] = event.timestamp;
-		$[2] = t1;
-	} else t1 = $[2];
-	const title = t1;
-	const detail = INTERRUPTED_DESCRIPTIONS[event.interrupted];
-	const t2 = eventNode.id;
+	if ($[0] !== event.source) {
+		t1 = getOwn(SOURCE_TITLES, event.source) ?? "Interrupted";
+		$[0] = event.source;
+		$[1] = t1;
+	} else t1 = $[1];
+	const baseTitle = t1;
+	let t2;
+	if ($[2] !== baseTitle || $[3] !== event.timestamp) {
+		t2 = event.timestamp ? `${baseTitle} — ${formatDateTime$1(new Date(event.timestamp))}` : baseTitle;
+		$[2] = baseTitle;
+		$[3] = event.timestamp;
+		$[4] = t2;
+	} else t2 = $[4];
+	const title = t2;
 	let t3;
-	if ($[3] === Symbol.for("react.memo_cache_sentinel")) {
-		t3 = clsx("text-size-smaller");
-		$[3] = t3;
-	} else t3 = $[3];
-	let t4;
-	if ($[4] !== detail) {
-		t4 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
-			className: t3,
+	if ($[5] !== event.interrupted) {
+		t3 = getOwn(INTERRUPTED_DESCRIPTIONS, event.interrupted);
+		$[5] = event.interrupted;
+		$[6] = t3;
+	} else t3 = $[6];
+	const detail = t3;
+	const t4 = eventNode.id;
+	let t5;
+	if ($[7] === Symbol.for("react.memo_cache_sentinel")) {
+		t5 = clsx("text-size-smaller");
+		$[7] = t5;
+	} else t5 = $[7];
+	let t6;
+	if ($[8] !== detail) {
+		t6 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+			className: t5,
 			children: detail
 		});
-		$[4] = detail;
-		$[5] = t4;
-	} else t4 = $[5];
-	let t5;
-	if ($[6] !== className || $[7] !== eventNode.id || $[8] !== t4 || $[9] !== title) {
-		t5 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(EventPanel, {
-			eventNodeId: t2,
+		$[8] = detail;
+		$[9] = t6;
+	} else t6 = $[9];
+	let t7;
+	if ($[10] !== className || $[11] !== eventNode.id || $[12] !== t6 || $[13] !== title) {
+		t7 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(EventPanel, {
+			eventNodeId: t4,
 			title,
 			icon: "interrupt",
 			className,
-			children: t4
+			children: t6
 		});
-		$[6] = className;
-		$[7] = eventNode.id;
-		$[8] = t4;
-		$[9] = title;
-		$[10] = t5;
-	} else t5 = $[10];
-	return t5;
+		$[10] = className;
+		$[11] = eventNode.id;
+		$[12] = t6;
+		$[13] = title;
+		$[14] = t7;
+	} else t7 = $[14];
+	return t7;
 };
 var LoggerEventView_module_default = { grid: "_grid_1pgwi_1" };
 //#endregion
@@ -97753,9 +98368,10 @@ var ModelEventView = (t0) => {
 	const showStopReason = !!firstChoice && (!!stopDetails || firstChoice.stop_reason !== "stop");
 	context?.hasToolEvents;
 	context?.toolEventIds;
+	context?.inputShownElsewhere;
 	const agentResultsFiltered = !!event.agentResultsFiltered;
 	const t5 = context?.hasToolEvents;
-	const t6 = context?.toolEventIds;
+	const t6 = context?.inputShownElsewhere ? void 0 : context?.toolEventIds;
 	let t7;
 	if ($[10] !== agentResultsFiltered || $[11] !== event.input || $[12] !== t5 || $[13] !== t6) {
 		t7 = recentInputMessages(event.input, {
@@ -103149,7 +103765,7 @@ var ToolEventView = ({ eventNode, childNodes, className, context, eventCallbacks
 		afterOutput: afterInset,
 		outputReplacement: notRun
 	});
-	const toolLabel = toolLabels.messageLabels?.[event.id];
+	const toolLabel = getOwn(toolLabels.messageLabels, event.id);
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(EventPanel, {
 		eventNodeId: eventNode.id,
 		title: formatTitle(panelTitle, void 0, event.working_time),
@@ -105528,7 +106144,7 @@ var RenderedEventNode = /*#__PURE__*/ (0, import_react.memo)(RenderedEventNodeIn
 						eventNodeContext: {
 							hasToolEvents: true,
 							...checks,
-							toolEventIds: void 0
+							inputShownElsewhere: true
 						}
 					})]
 				})
@@ -124987,12 +125603,12 @@ function _temp4$13(warning) {
 	}, `sample-warning-message-${warning.type}-${warning.msg}`);
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@lezer+common@1.5.2/node_modules/@lezer/common/dist/index.js
+//#region ../../node_modules/.pnpm/@lezer+common@1.5.3/node_modules/@lezer/common/dist/index.js
 /**
 The default maximum length of a `TreeBuffer` node.
 */
-var DefaultBufferLength$1 = 1024;
-var nextPropID$1 = 0;
+var DefaultBufferLength = 1024;
+var nextPropID = 0;
 var Range$1 = class {
 	constructor(from, to) {
 		this.from = from;
@@ -125004,12 +125620,12 @@ Each [node type](#common.NodeType) or [individual tree](#common.Tree)
 can have metadata associated with it in props. Instances of this
 class represent prop names.
 */
-var NodeProp$1 = class {
+var NodeProp = class {
 	/**
 	Create a new node prop type.
 	*/
 	constructor(config = {}) {
-		this.id = nextPropID$1++;
+		this.id = nextPropID++;
 		this.perNode = !!config.perNode;
 		this.deserialize = config.deserialize || (() => {
 			throw new Error("This node type doesn't define a deserialize function");
@@ -125027,7 +125643,7 @@ var NodeProp$1 = class {
 	*/
 	add(match) {
 		if (this.perNode) throw new RangeError("Can't add per-node props to node types");
-		if (typeof match != "function") match = NodeType$1.match(match);
+		if (typeof match != "function") match = NodeType.match(match);
 		return (type) => {
 			let result = match(type);
 			return result === void 0 ? null : [this, result];
@@ -125040,19 +125656,19 @@ delimiters, this holds an array of node names (written as a
 space-separated string when declaring this prop in a grammar)
 for the node types of closing delimiters that match it.
 */
-NodeProp$1.closedBy = new NodeProp$1({ deserialize: (str) => str.split(" ") });
+NodeProp.closedBy = new NodeProp({ deserialize: (str) => str.split(" ") });
 /**
 The inverse of [`closedBy`](#common.NodeProp^closedBy). This is
 attached to closing delimiters, holding an array of node names
 of types of matching opening delimiters.
 */
-NodeProp$1.openedBy = new NodeProp$1({ deserialize: (str) => str.split(" ") });
+NodeProp.openedBy = new NodeProp({ deserialize: (str) => str.split(" ") });
 /**
 Used to assign node types to groups (for example, all node
 types that represent an expression could be tagged with an
 `"Expression"` group).
 */
-NodeProp$1.group = new NodeProp$1({ deserialize: (str) => str.split(" ") });
+NodeProp.group = new NodeProp({ deserialize: (str) => str.split(" ") });
 /**
 Attached to nodes to indicate these should be
 [displayed](https://codemirror.net/docs/ref/#language.syntaxTree)
@@ -125064,7 +125680,7 @@ nodes that appear _inside_ arbitrary text, like HTML tags. When
 not given a value, in a grammar declaration, defaults to
 `"auto"`.
 */
-NodeProp$1.isolate = new NodeProp$1({ deserialize: (value) => {
+NodeProp.isolate = new NodeProp({ deserialize: (value) => {
 	if (value && value != "rtl" && value != "ltr" && value != "auto") throw new RangeError("Invalid value for isolate: " + value);
 	return value || "auto";
 } });
@@ -125073,26 +125689,26 @@ The hash of the [context](#lr.ContextTracker.constructor)
 that the node was parsed in, if any. Used to limit reuse of
 contextual nodes.
 */
-NodeProp$1.contextHash = new NodeProp$1({ perNode: true });
+NodeProp.contextHash = new NodeProp({ perNode: true });
 /**
 The distance beyond the end of the node that the tokenizer
 looked ahead for any of the tokens inside the node. (The LR
 parser only stores this when it is larger than 25, for
 efficiency reasons.)
 */
-NodeProp$1.lookAhead = new NodeProp$1({ perNode: true });
+NodeProp.lookAhead = new NodeProp({ perNode: true });
 /**
 This per-node prop is used to replace a given node, or part of a
 node, with another tree. This is useful to include trees from
 different languages in mixed-language parsers.
 */
-NodeProp$1.mounted = new NodeProp$1({ perNode: true });
+NodeProp.mounted = new NodeProp({ perNode: true });
 /**
 A mounted tree, which can be [stored](#common.NodeProp^mounted) on
 a tree node to indicate that parts of its content are
 represented by another tree.
 */
-var MountedTree$1 = class {
+var MountedTree = class {
 	constructor(tree, overlay, parser, bracketed = false) {
 		this.tree = tree;
 		this.overlay = overlay;
@@ -125103,14 +125719,14 @@ var MountedTree$1 = class {
 	@internal
 	*/
 	static get(tree) {
-		return tree && tree.props && tree.props[NodeProp$1.mounted.id];
+		return tree && tree.props && tree.props[NodeProp.mounted.id];
 	}
 };
-var noProps$1 = Object.create(null);
+var noProps = Object.create(null);
 /**
 Each node in a syntax tree has a node type associated with it.
 */
-var NodeType$1 = class NodeType$1 {
+var NodeType = class NodeType {
 	/**
 	@internal
 	*/
@@ -125124,9 +125740,9 @@ var NodeType$1 = class NodeType$1 {
 	Define a node type.
 	*/
 	static define(spec) {
-		let props = spec.props && spec.props.length ? Object.create(null) : noProps$1;
+		let props = spec.props && spec.props.length ? Object.create(null) : noProps;
 		let flags = (spec.top ? 1 : 0) | (spec.skipped ? 2 : 0) | (spec.error ? 4 : 0) | (spec.name == null ? 8 : 0);
-		let type = new NodeType$1(spec.name || "", props, spec.id, flags);
+		let type = new NodeType(spec.name || "", props, spec.id, flags);
 		if (spec.props) for (let src of spec.props) {
 			if (!Array.isArray(src)) src = src(type);
 			if (src) {
@@ -125175,7 +125791,7 @@ var NodeType$1 = class NodeType$1 {
 	is(name) {
 		if (typeof name == "string") {
 			if (this.name == name) return true;
-			let group = this.prop(NodeProp$1.group);
+			let group = this.prop(NodeProp.group);
 			return group ? group.indexOf(name) > -1 : false;
 		}
 		return this.id == name;
@@ -125192,7 +125808,7 @@ var NodeType$1 = class NodeType$1 {
 		let direct = Object.create(null);
 		for (let prop in map) for (let name of prop.split(" ")) direct[name] = map[prop];
 		return (node) => {
-			for (let groups = node.prop(NodeProp$1.group), i = -1; i < (groups ? groups.length : 0); i++) {
+			for (let groups = node.prop(NodeProp.group), i = -1; i < (groups ? groups.length : 0); i++) {
 				let found = direct[i < 0 ? node.name : groups[i]];
 				if (found) return found;
 			}
@@ -125202,7 +125818,7 @@ var NodeType$1 = class NodeType$1 {
 /**
 An empty dummy node type to use when no actual type is available.
 */
-NodeType$1.none = new NodeType$1("", Object.create(null), 0, 8);
+NodeType.none = new NodeType("", Object.create(null), 0, 8);
 /**
 A node set holds a collection of node types. It is used to
 compactly represent trees by storing their type ids, rather than a
@@ -125239,18 +125855,18 @@ var NodeSet = class NodeSet {
 					newProps[prop.id] = value;
 				}
 			}
-			newTypes.push(newProps ? new NodeType$1(type.name, newProps, type.id, type.flags) : type);
+			newTypes.push(newProps ? new NodeType(type.name, newProps, type.id, type.flags) : type);
 		}
 		return new NodeSet(newTypes);
 	}
 };
-var CachedNode$1 = /* @__PURE__ */ new WeakMap();
-var CachedInnerNode$1 = /* @__PURE__ */ new WeakMap();
+var CachedNode = /* @__PURE__ */ new WeakMap();
+var CachedInnerNode = /* @__PURE__ */ new WeakMap();
 /**
 Options that control iteration. Can be combined with the `|`
 operator to enable multiple ones.
 */
-var IterMode$1;
+var IterMode;
 (function(IterMode) {
 	/**
 	When enabled, iteration will only visit [`Tree`](#common.Tree)
@@ -125284,7 +125900,7 @@ var IterMode$1;
 	[`enter`](#common.SyntaxNode.enter), not in cursors.
 	*/
 	IterMode[IterMode["EnterBracketed"] = 16] = "EnterBracketed";
-})(IterMode$1 || (IterMode$1 = {}));
+})(IterMode || (IterMode = {}));
 /**
 A piece of syntax tree. There are two ways to approach these
 trees: the way they are actually stored in memory, and the
@@ -125301,7 +125917,7 @@ use the [`TreeCursor`](#common.TreeCursor) or
 a view on some part of this data structure, and can be used to
 move around to adjacent nodes.
 */
-var Tree$1 = class Tree$1 {
+var Tree = class Tree {
 	/**
 	Construct a new tree. See also [`Tree.build`](#common.Tree^build).
 	*/
@@ -125323,7 +125939,7 @@ var Tree$1 = class Tree$1 {
 	@internal
 	*/
 	toString() {
-		let mounted = MountedTree$1.get(this);
+		let mounted = MountedTree.get(this);
 		if (mounted && !mounted.overlay) return mounted.tree.toString();
 		let children = "";
 		for (let ch of this.children) {
@@ -125341,7 +125957,7 @@ var Tree$1 = class Tree$1 {
 	nodes the cursor visits.
 	*/
 	cursor(mode = 0) {
-		return new TreeCursor$1(this.topNode, mode);
+		return new TreeCursor(this.topNode, mode);
 	}
 	/**
 	Get a [tree cursor](#common.TreeCursor) pointing into this tree
@@ -125349,9 +125965,9 @@ var Tree$1 = class Tree$1 {
 	[`moveTo`](#common.TreeCursor.moveTo).
 	*/
 	cursorAt(pos, side = 0, mode = 0) {
-		let cursor = new TreeCursor$1(CachedNode$1.get(this) || this.topNode);
+		let cursor = new TreeCursor(CachedNode.get(this) || this.topNode);
 		cursor.moveTo(pos, side);
-		CachedNode$1.set(this, cursor._tree);
+		CachedNode.set(this, cursor._tree);
 		return cursor;
 	}
 	/**
@@ -125359,7 +125975,7 @@ var Tree$1 = class Tree$1 {
 	tree.
 	*/
 	get topNode() {
-		return new TreeNode$1(this, 0, 0, null);
+		return new TreeNode(this, 0, 0, null);
 	}
 	/**
 	Get the [syntax node](#common.SyntaxNode) at the given position.
@@ -125373,8 +125989,8 @@ var Tree$1 = class Tree$1 {
 	[`resolveInner`](#common.Tree.resolveInner) instead.
 	*/
 	resolve(pos, side = 0) {
-		let node = resolveNode$1(CachedNode$1.get(this) || this.topNode, pos, side, false);
-		CachedNode$1.set(this, node);
+		let node = resolveNode(CachedNode.get(this) || this.topNode, pos, side, false);
+		CachedNode.set(this, node);
 		return node;
 	}
 	/**
@@ -125385,8 +126001,8 @@ var Tree$1 = class Tree$1 {
 	the host trees).
 	*/
 	resolveInner(pos, side = 0) {
-		let node = resolveNode$1(CachedInnerNode$1.get(this) || this.topNode, pos, side, true);
-		CachedInnerNode$1.set(this, node);
+		let node = resolveNode(CachedInnerNode.get(this) || this.topNode, pos, side, true);
+		CachedInnerNode.set(this, node);
 		return node;
 	}
 	/**
@@ -125397,7 +126013,7 @@ var Tree$1 = class Tree$1 {
 	position.
 	*/
 	resolveStack(pos, side = 0) {
-		return stackIterator$1(this, pos, side);
+		return stackIterator(this, pos, side);
 	}
 	/**
 	Iterate over the tree and its children, calling `enter` for any
@@ -125408,8 +126024,8 @@ var Tree$1 = class Tree$1 {
 	*/
 	iterate(spec) {
 		let { enter, leave, from = 0, to = this.length } = spec;
-		let mode = spec.mode || 0, anon = (mode & IterMode$1.IncludeAnonymous) > 0;
-		for (let c = this.cursor(mode | IterMode$1.IncludeAnonymous);;) {
+		let mode = spec.mode || 0, anon = (mode & IterMode.IncludeAnonymous) > 0;
+		for (let c = this.cursor(mode | IterMode.IncludeAnonymous);;) {
 			let entered = false;
 			if (c.from <= to && c.to >= from && (!anon && c.type.isAnonymous || enter(c) !== false)) {
 				if (c.firstChild()) continue;
@@ -125446,21 +126062,21 @@ var Tree$1 = class Tree$1 {
 	[`NodeType.none`](#common.NodeType^none).
 	*/
 	balance(config = {}) {
-		return this.children.length <= 8 ? this : balanceRange$1(NodeType$1.none, this.children, this.positions, 0, this.children.length, 0, this.length, (children, positions, length) => new Tree$1(this.type, children, positions, length, this.propValues), config.makeTree || ((children, positions, length) => new Tree$1(NodeType$1.none, children, positions, length)));
+		return this.children.length <= 8 ? this : balanceRange(NodeType.none, this.children, this.positions, 0, this.children.length, 0, this.length, (children, positions, length) => new Tree(this.type, children, positions, length, this.propValues), config.makeTree || ((children, positions, length) => new Tree(NodeType.none, children, positions, length)));
 	}
 	/**
 	Build a tree from a postfix-ordered buffer of node information,
 	or a cursor over such a buffer.
 	*/
 	static build(data) {
-		return buildTree$1(data);
+		return buildTree(data);
 	}
 };
 /**
 The empty tree
 */
-Tree$1.empty = new Tree$1(NodeType$1.none, [], [], 0);
-var FlatBufferCursor$1 = class FlatBufferCursor$1 {
+Tree.empty = new Tree(NodeType.none, [], [], 0);
+var FlatBufferCursor = class FlatBufferCursor {
 	constructor(buffer, index) {
 		this.buffer = buffer;
 		this.index = index;
@@ -125484,7 +126100,7 @@ var FlatBufferCursor$1 = class FlatBufferCursor$1 {
 		this.index -= 4;
 	}
 	fork() {
-		return new FlatBufferCursor$1(this.buffer, this.index);
+		return new FlatBufferCursor(this.buffer, this.index);
 	}
 };
 /**
@@ -125493,7 +126109,7 @@ node. In such a buffer, nodes are stored in prefix order (parents
 before children, with the endIndex of the parent indicating which
 children belong to it).
 */
-var TreeBuffer$1 = class TreeBuffer$1 {
+var TreeBuffer = class TreeBuffer {
 	/**
 	Create a tree buffer.
 	*/
@@ -125506,7 +126122,7 @@ var TreeBuffer$1 = class TreeBuffer$1 {
 	@internal
 	*/
 	get type() {
-		return NodeType$1.none;
+		return NodeType.none;
 	}
 	/**
 	@internal
@@ -125540,7 +126156,7 @@ var TreeBuffer$1 = class TreeBuffer$1 {
 	*/
 	findChild(startIndex, endIndex, dir, pos, side) {
 		let { buffer } = this, pick = -1;
-		for (let i = startIndex; i != endIndex; i = buffer[i + 3]) if (checkSide$1(side, pos, buffer[i + 1], buffer[i + 2])) {
+		for (let i = startIndex; i != endIndex; i = buffer[i + 3]) if (checkSide(side, pos, buffer[i + 1], buffer[i + 2])) {
 			pick = i;
 			if (dir > 0) break;
 		}
@@ -125559,10 +126175,10 @@ var TreeBuffer$1 = class TreeBuffer$1 {
 			copy[j++] = b[i++] - startI;
 			len = Math.max(len, to);
 		}
-		return new TreeBuffer$1(copy, len, this.set);
+		return new TreeBuffer(copy, len, this.set);
 	}
 };
-function checkSide$1(side, pos, from, to) {
+function checkSide(side, pos, from, to) {
 	switch (side) {
 		case -2: return from < pos;
 		case -1: return to >= pos && from < pos;
@@ -125572,16 +126188,16 @@ function checkSide$1(side, pos, from, to) {
 		case 4: return true;
 	}
 }
-function resolveNode$1(node, pos, side, overlays) {
+function resolveNode(node, pos, side, overlays) {
 	var _a;
 	while (node.from == node.to || (side < 1 ? node.from >= pos : node.from > pos) || (side > -1 ? node.to <= pos : node.to < pos)) {
-		let parent = !overlays && node instanceof TreeNode$1 && node.index < 0 ? null : node.parent;
+		let parent = !overlays && node instanceof TreeNode && node.index < 0 ? null : node.parent;
 		if (!parent) return node;
 		node = parent;
 	}
-	let mode = overlays ? 0 : IterMode$1.IgnoreOverlays;
+	let mode = overlays ? 0 : IterMode.IgnoreOverlays;
 	if (overlays) {
-		for (let scan = node, parent = scan.parent; parent; scan = parent, parent = scan.parent) if (scan instanceof TreeNode$1 && scan.index < 0 && ((_a = parent.enter(pos, side, mode)) === null || _a === void 0 ? void 0 : _a.from) != scan.from) node = parent;
+		for (let scan = node, parent = scan.parent; parent; scan = parent, parent = scan.parent) if (scan instanceof TreeNode && scan.index < 0 && ((_a = parent.enter(pos, side, mode)) === null || _a === void 0 ? void 0 : _a.from) != scan.from) node = parent;
 	}
 	for (;;) {
 		let inner = node.enter(pos, side, mode);
@@ -125589,25 +126205,25 @@ function resolveNode$1(node, pos, side, overlays) {
 		node = inner;
 	}
 }
-var BaseNode$1 = class {
+var BaseNode = class {
 	cursor(mode = 0) {
-		return new TreeCursor$1(this, mode);
+		return new TreeCursor(this, mode);
 	}
 	getChild(type, before = null, after = null) {
-		let r = getChildren$1(this, type, before, after);
+		let r = getChildren(this, type, before, after);
 		return r.length ? r[0] : null;
 	}
 	getChildren(type, before = null, after = null) {
-		return getChildren$1(this, type, before, after);
+		return getChildren(this, type, before, after);
 	}
 	resolve(pos, side = 0) {
-		return resolveNode$1(this, pos, side, false);
+		return resolveNode(this, pos, side, false);
 	}
 	resolveInner(pos, side = 0) {
-		return resolveNode$1(this, pos, side, true);
+		return resolveNode(this, pos, side, true);
 	}
 	matchContext(context) {
-		return matchNodeContext$1(this.parent, context);
+		return matchNodeContext(this.parent, context);
 	}
 	enterUnfinishedNodesBefore(pos) {
 		let scan = this.childBefore(pos), node = this;
@@ -125628,7 +126244,7 @@ var BaseNode$1 = class {
 		return this.parent;
 	}
 };
-var TreeNode$1 = class TreeNode$1 extends BaseNode$1 {
+var TreeNode = class TreeNode extends BaseNode {
 	constructor(_tree, from, index, _parent) {
 		super();
 		this._tree = _tree;
@@ -125649,19 +126265,19 @@ var TreeNode$1 = class TreeNode$1 extends BaseNode$1 {
 		for (let parent = this;;) {
 			for (let { children, positions } = parent._tree, e = dir > 0 ? children.length : -1; i != e; i += dir) {
 				let next = children[i], start = positions[i] + parent.from, mounted;
-				if (!(mode & IterMode$1.EnterBracketed && next instanceof Tree$1 && (mounted = MountedTree$1.get(next)) && !mounted.overlay && mounted.bracketed && pos >= start && pos <= start + next.length) && !checkSide$1(side, pos, start, start + next.length)) continue;
-				if (next instanceof TreeBuffer$1) {
-					if (mode & IterMode$1.ExcludeBuffers) continue;
+				if (!(mode & IterMode.EnterBracketed && next instanceof Tree && (mounted = MountedTree.get(next)) && !mounted.overlay && mounted.bracketed && pos >= start && pos <= start + next.length) && !checkSide(side, pos, start, start + next.length)) continue;
+				if (next instanceof TreeBuffer) {
+					if (mode & IterMode.ExcludeBuffers) continue;
 					let index = next.findChild(0, next.buffer.length, dir, pos - start, side);
-					if (index > -1) return new BufferNode$1(new BufferContext$1(parent, next, i, start), null, index);
-				} else if (mode & IterMode$1.IncludeAnonymous || !next.type.isAnonymous || hasChild$1(next)) {
+					if (index > -1) return new BufferNode(new BufferContext(parent, next, i, start), null, index);
+				} else if (mode & IterMode.IncludeAnonymous || !next.type.isAnonymous || hasChild(next)) {
 					let mounted;
-					if (!(mode & IterMode$1.IgnoreMounts) && (mounted = MountedTree$1.get(next)) && !mounted.overlay) return new TreeNode$1(mounted.tree, start, i, parent);
-					let inner = new TreeNode$1(next, start, i, parent);
-					return mode & IterMode$1.IncludeAnonymous || !inner.type.isAnonymous ? inner : inner.nextChild(dir < 0 ? next.children.length - 1 : 0, dir, pos, side, mode);
+					if (!(mode & IterMode.IgnoreMounts) && (mounted = MountedTree.get(next)) && !mounted.overlay) return new TreeNode(mounted.tree, start, i, parent);
+					let inner = new TreeNode(next, start, i, parent);
+					return mode & IterMode.IncludeAnonymous || !inner.type.isAnonymous ? inner : inner.nextChild(dir < 0 ? next.children.length - 1 : 0, dir, pos, side, mode);
 				}
 			}
-			if (mode & IterMode$1.IncludeAnonymous || !parent.type.isAnonymous) return null;
+			if (mode & IterMode.IncludeAnonymous || !parent.type.isAnonymous) return null;
 			if (parent.index >= 0) i = parent.index + dir;
 			else i = dir < 0 ? -1 : parent._parent._tree.children.length;
 			parent = parent._parent;
@@ -125685,9 +126301,9 @@ var TreeNode$1 = class TreeNode$1 extends BaseNode$1 {
 	}
 	enter(pos, side, mode = 0) {
 		let mounted;
-		if (!(mode & IterMode$1.IgnoreOverlays) && (mounted = MountedTree$1.get(this._tree)) && mounted.overlay) {
-			let rPos = pos - this.from, enterBracketed = mode & IterMode$1.EnterBracketed && mounted.bracketed;
-			for (let { from, to } of mounted.overlay) if ((side > 0 || enterBracketed ? from <= rPos : from < rPos) && (side < 0 || enterBracketed ? to >= rPos : to > rPos)) return new TreeNode$1(mounted.tree, mounted.overlay[0].from + this.from, -1, this);
+		if (!(mode & IterMode.IgnoreOverlays) && (mounted = MountedTree.get(this._tree)) && mounted.overlay) {
+			let rPos = pos - this.from, enterBracketed = mode & IterMode.EnterBracketed && mounted.bracketed;
+			for (let { from, to } of mounted.overlay) if ((side > 0 || enterBracketed ? from <= rPos : from < rPos) && (side < 0 || enterBracketed ? to >= rPos : to > rPos)) return new TreeNode(mounted.tree, mounted.overlay[0].from + this.from, -1, this);
 		}
 		return this.nextChild(0, 1, pos, side, mode);
 	}
@@ -125718,7 +126334,7 @@ var TreeNode$1 = class TreeNode$1 extends BaseNode$1 {
 		return this._tree.toString();
 	}
 };
-function getChildren$1(node, type, before, after) {
+function getChildren(node, type, before, after) {
 	let cur = node.cursor(), result = [];
 	if (!cur.firstChild()) return result;
 	if (before != null) for (let found = false; !found;) {
@@ -125731,7 +126347,7 @@ function getChildren$1(node, type, before, after) {
 		if (!cur.nextSibling()) return after == null ? result : [];
 	}
 }
-function matchNodeContext$1(node, context, i = context.length - 1) {
+function matchNodeContext(node, context, i = context.length - 1) {
 	for (let p = node; i >= 0; p = p.parent) {
 		if (!p) return false;
 		if (!p.type.isAnonymous) {
@@ -125741,7 +126357,7 @@ function matchNodeContext$1(node, context, i = context.length - 1) {
 	}
 	return true;
 }
-var BufferContext$1 = class {
+var BufferContext = class {
 	constructor(parent, buffer, index, start) {
 		this.parent = parent;
 		this.buffer = buffer;
@@ -125749,7 +126365,7 @@ var BufferContext$1 = class {
 		this.start = start;
 	}
 };
-var BufferNode$1 = class BufferNode$1 extends BaseNode$1 {
+var BufferNode = class BufferNode extends BaseNode {
 	get name() {
 		return this.type.name;
 	}
@@ -125769,7 +126385,7 @@ var BufferNode$1 = class BufferNode$1 extends BaseNode$1 {
 	child(dir, pos, side) {
 		let { buffer } = this.context;
 		let index = buffer.findChild(this.index + 4, buffer.buffer[this.index + 3], dir, pos - this.context.start, side);
-		return index < 0 ? null : new BufferNode$1(this.context, this, index);
+		return index < 0 ? null : new BufferNode(this.context, this, index);
 	}
 	get firstChild() {
 		return this.child(1, 0, 4);
@@ -125787,10 +126403,10 @@ var BufferNode$1 = class BufferNode$1 extends BaseNode$1 {
 		return this.type.prop(prop);
 	}
 	enter(pos, side, mode = 0) {
-		if (mode & IterMode$1.ExcludeBuffers) return null;
+		if (mode & IterMode.ExcludeBuffers) return null;
 		let { buffer } = this.context;
 		let index = buffer.findChild(this.index + 4, buffer.buffer[this.index + 3], side > 0 ? 1 : -1, pos - this.context.start, side);
-		return index < 0 ? null : new BufferNode$1(this.context, this, index);
+		return index < 0 ? null : new BufferNode(this.context, this, index);
 	}
 	get parent() {
 		return this._parent || this.context.parent.nextSignificantParent();
@@ -125801,14 +126417,14 @@ var BufferNode$1 = class BufferNode$1 extends BaseNode$1 {
 	get nextSibling() {
 		let { buffer } = this.context;
 		let after = buffer.buffer[this.index + 3];
-		if (after < (this._parent ? buffer.buffer[this._parent.index + 3] : buffer.buffer.length)) return new BufferNode$1(this.context, this._parent, after);
+		if (after < (this._parent ? buffer.buffer[this._parent.index + 3] : buffer.buffer.length)) return new BufferNode(this.context, this._parent, after);
 		return this.externalSibling(1);
 	}
 	get prevSibling() {
 		let { buffer } = this.context;
 		let parentStart = this._parent ? this._parent.index + 4 : 0;
 		if (this.index == parentStart) return this.externalSibling(-1);
-		return new BufferNode$1(this.context, this._parent, buffer.findChild(parentStart, this.index, -1, 0, 4));
+		return new BufferNode(this.context, this._parent, buffer.findChild(parentStart, this.index, -1, 0, 4));
 	}
 	get tree() {
 		return null;
@@ -125822,7 +126438,7 @@ var BufferNode$1 = class BufferNode$1 extends BaseNode$1 {
 			children.push(buffer.slice(startI, endI, from));
 			positions.push(0);
 		}
-		return new Tree$1(this.type, children, positions, this.to - this.from);
+		return new Tree(this.type, children, positions, this.to - this.from);
 	}
 	/**
 	@internal
@@ -125831,7 +126447,7 @@ var BufferNode$1 = class BufferNode$1 extends BaseNode$1 {
 		return this.context.buffer.childString(this.index);
 	}
 };
-function iterStack$1(heads) {
+function iterStack(heads) {
 	if (!heads.length) return null;
 	let pick = 0, picked = heads[0];
 	for (let i = 1; i < heads.length; i++) {
@@ -125841,41 +126457,41 @@ function iterStack$1(heads) {
 			pick = i;
 		}
 	}
-	let next = picked instanceof TreeNode$1 && picked.index < 0 ? null : picked.parent;
+	let next = picked instanceof TreeNode && picked.index < 0 ? null : picked.parent;
 	let newHeads = heads.slice();
 	if (next) newHeads[pick] = next;
 	else newHeads.splice(pick, 1);
-	return new StackIterator$1(newHeads, picked);
+	return new StackIterator(newHeads, picked);
 }
-var StackIterator$1 = class {
+var StackIterator = class {
 	constructor(heads, node) {
 		this.heads = heads;
 		this.node = node;
 	}
 	get next() {
-		return iterStack$1(this.heads);
+		return iterStack(this.heads);
 	}
 };
-function stackIterator$1(tree, pos, side) {
+function stackIterator(tree, pos, side) {
 	let inner = tree.resolveInner(pos, side), layers = null;
-	for (let scan = inner instanceof TreeNode$1 ? inner : inner.context.parent; scan; scan = scan.parent) if (scan.index < 0) {
+	for (let scan = inner instanceof TreeNode ? inner : inner.context.parent; scan; scan = scan.parent) if (scan.index < 0) {
 		let parent = scan.parent;
 		(layers || (layers = [inner])).push(parent.resolve(pos, side));
 		scan = parent;
 	} else {
-		let mount = MountedTree$1.get(scan.tree);
+		let mount = MountedTree.get(scan.tree);
 		if (mount && mount.overlay && mount.overlay[0].from <= pos && mount.overlay[mount.overlay.length - 1].to >= pos) {
-			let root = new TreeNode$1(mount.tree, mount.overlay[0].from + scan.from, -1, scan);
-			(layers || (layers = [inner])).push(resolveNode$1(root, pos, side, false));
+			let root = new TreeNode(mount.tree, mount.overlay[0].from + scan.from, -1, scan);
+			(layers || (layers = [inner])).push(resolveNode(root, pos, side, false));
 		}
 	}
-	return layers ? iterStack$1(layers) : inner;
+	return layers ? iterStack(layers) : inner;
 }
 /**
 A tree cursor object focuses on a given node in a syntax tree, and
 allows you to move to adjacent nodes.
 */
-var TreeCursor$1 = class {
+var TreeCursor = class {
 	/**
 	Shorthand for `.type.name`.
 	*/
@@ -125896,8 +126512,8 @@ var TreeCursor$1 = class {
 		*/
 		this.index = 0;
 		this.bufferNode = null;
-		this.mode = mode & ~IterMode$1.EnterBracketed;
-		if (node instanceof TreeNode$1) this.yieldNode(node);
+		this.mode = mode & ~IterMode.EnterBracketed;
+		if (node instanceof TreeNode) this.yieldNode(node);
 		else {
 			this._tree = node.context.parent;
 			this.buffer = node.context;
@@ -125927,7 +126543,7 @@ var TreeCursor$1 = class {
 	*/
 	yield(node) {
 		if (!node) return false;
-		if (node instanceof TreeNode$1) {
+		if (node instanceof TreeNode) {
 			this.buffer = null;
 			return this.yieldNode(node);
 		}
@@ -125985,15 +126601,15 @@ var TreeCursor$1 = class {
 	*/
 	enter(pos, side, mode = this.mode) {
 		if (!this.buffer) return this.yield(this._tree.enter(pos, side, mode));
-		return mode & IterMode$1.ExcludeBuffers ? false : this.enterChild(1, pos, side);
+		return mode & IterMode.ExcludeBuffers ? false : this.enterChild(1, pos, side);
 	}
 	/**
 	Move to the node's parent node, if this isn't the top node.
 	*/
 	parent() {
-		if (!this.buffer) return this.yieldNode(this.mode & IterMode$1.IncludeAnonymous ? this._tree._parent : this._tree.parent);
+		if (!this.buffer) return this.yieldNode(this.mode & IterMode.IncludeAnonymous ? this._tree._parent : this._tree.parent);
 		if (this.stack.length) return this.yieldBuf(this.stack.pop());
-		let parent = this.mode & IterMode$1.IncludeAnonymous ? this.buffer.parent : this.buffer.parent.nextSignificantParent();
+		let parent = this.mode & IterMode.IncludeAnonymous ? this.buffer.parent : this.buffer.parent.nextSignificantParent();
 		this.buffer = null;
 		return this.yieldNode(parent);
 	}
@@ -126034,7 +126650,7 @@ var TreeCursor$1 = class {
 		} else ({index, _parent: parent} = this._tree);
 		for (; parent; {index, _parent: parent} = parent) if (index > -1) for (let i = index + dir, e = dir < 0 ? -1 : parent._tree.children.length; i != e; i += dir) {
 			let child = parent._tree.children[i];
-			if (this.mode & IterMode$1.IncludeAnonymous || child instanceof TreeBuffer$1 || !child.type.isAnonymous || hasChild$1(child)) return false;
+			if (this.mode & IterMode.IncludeAnonymous || child instanceof TreeBuffer || !child.type.isAnonymous || hasChild(child)) return false;
 		}
 		return true;
 	}
@@ -126090,8 +126706,8 @@ var TreeCursor$1 = class {
 			}
 			index = this.stack[--d];
 		}
-		for (let i = depth; i < this.stack.length; i++) result = new BufferNode$1(this.buffer, result, this.stack[i]);
-		return this.bufferNode = new BufferNode$1(this.buffer, result, this.index);
+		for (let i = depth; i < this.stack.length; i++) result = new BufferNode(this.buffer, result, this.stack[i]);
+		return this.bufferNode = new BufferNode(this.buffer, result, this.index);
 	}
 	/**
 	Get the [tree](#common.Tree) that represents the current node, if
@@ -126134,10 +126750,10 @@ var TreeCursor$1 = class {
 	are treated as wildcards.
 	*/
 	matchContext(context) {
-		if (!this.buffer) return matchNodeContext$1(this.node.parent, context);
+		if (!this.buffer) return matchNodeContext(this.node.parent, context);
 		let { buffer } = this.buffer, { types } = buffer.set;
 		for (let i = context.length - 1, d = this.stack.length - 1; i >= 0; d--) {
-			if (d < 0) return matchNodeContext$1(this._tree, context, i);
+			if (d < 0) return matchNodeContext(this._tree, context, i);
 			let type = types[buffer.buffer[this.stack[d]]];
 			if (!type.isAnonymous) {
 				if (context[i] && context[i] != type.name) return false;
@@ -126147,13 +126763,13 @@ var TreeCursor$1 = class {
 		return true;
 	}
 };
-function hasChild$1(tree) {
-	return tree.children.some((ch) => ch instanceof TreeBuffer$1 || !ch.type.isAnonymous || hasChild$1(ch));
+function hasChild(tree) {
+	return tree.children.some((ch) => ch instanceof TreeBuffer || !ch.type.isAnonymous || hasChild(ch));
 }
-function buildTree$1(data) {
+function buildTree(data) {
 	var _a;
-	let { buffer, nodeSet, maxBufferLength = DefaultBufferLength$1, reused = [], minRepeatType = nodeSet.types.length } = data;
-	let cursor = Array.isArray(buffer) ? new FlatBufferCursor$1(buffer, buffer.length) : buffer;
+	let { buffer, nodeSet, maxBufferLength = DefaultBufferLength, reused = [], minRepeatType = nodeSet.types.length } = data;
+	let cursor = Array.isArray(buffer) ? new FlatBufferCursor(buffer, buffer.length) : buffer;
 	let types = nodeSet.types;
 	let contextHash = 0, lookAhead = 0;
 	function takeNode(parentStart, minPos, children, positions, inRepeat, depth) {
@@ -126180,7 +126796,7 @@ function buildTree$1(data) {
 			let data = new Uint16Array(buffer.size - buffer.skip);
 			let endPos = cursor.pos - buffer.size, index = data.length;
 			while (cursor.pos > endPos) index = copyToBuffer(buffer.start, data, index);
-			node = new TreeBuffer$1(data, end - buffer.start, nodeSet);
+			node = new TreeBuffer(data, end - buffer.start, nodeSet);
 			startPos = buffer.start - parentStart;
 		} else {
 			let endPos = cursor.pos - size;
@@ -126202,7 +126818,7 @@ function buildTree$1(data) {
 			localPositions.reverse();
 			if (localInRepeat > -1 && lastGroup > 0) {
 				let make = makeBalanced(type, contextAtStart);
-				node = balanceRange$1(type, localChildren, localPositions, 0, localChildren.length, 0, end - start, make, make);
+				node = balanceRange(type, localChildren, localPositions, 0, localChildren.length, 0, end - start, make, make);
 			} else node = makeTree(type, localChildren, localPositions, end - start, lookAheadAtStart - end, contextAtStart);
 		}
 		children.push(node);
@@ -126231,16 +126847,16 @@ function buildTree$1(data) {
 				buffer[j++] = nodes[i + 2] - start;
 				buffer[j++] = j;
 			}
-			children.push(new TreeBuffer$1(buffer, nodes[2] - start, nodeSet));
+			children.push(new TreeBuffer(buffer, nodes[2] - start, nodeSet));
 			positions.push(start - parentStart);
 		}
 	}
 	function makeBalanced(type, contextHash) {
 		return (children, positions, length) => {
 			let lookAhead = 0, lastI = children.length - 1, last, lookAheadProp;
-			if (lastI >= 0 && (last = children[lastI]) instanceof Tree$1) {
+			if (lastI >= 0 && (last = children[lastI]) instanceof Tree) {
 				if (!lastI && last.type == type && last.length == length) return last;
-				if (lookAheadProp = last.prop(NodeProp$1.lookAhead)) lookAhead = positions[lastI] + last.length + lookAheadProp;
+				if (lookAheadProp = last.prop(NodeProp.lookAhead)) lookAhead = positions[lastI] + last.length + lookAheadProp;
 			}
 			return makeTree(type, children, positions, length, lookAhead, contextHash);
 		};
@@ -126256,14 +126872,14 @@ function buildTree$1(data) {
 	}
 	function makeTree(type, children, positions, length, lookAhead, contextHash, props) {
 		if (contextHash) {
-			let pair = [NodeProp$1.contextHash, contextHash];
+			let pair = [NodeProp.contextHash, contextHash];
 			props = props ? [pair].concat(props) : [pair];
 		}
 		if (lookAhead > 25) {
-			let pair = [NodeProp$1.lookAhead, lookAhead];
+			let pair = [NodeProp.lookAhead, lookAhead];
 			props = props ? [pair].concat(props) : [pair];
 		}
-		return new Tree$1(type, children, positions, length, props);
+		return new Tree(type, children, positions, length, props);
 	}
 	function findBufferSize(maxSize, inRepeat) {
 		let fork = cursor.fork();
@@ -126327,36 +126943,36 @@ function buildTree$1(data) {
 	let children = [], positions = [];
 	while (cursor.pos > 0) takeNode(data.start || 0, data.bufferStart || 0, children, positions, -1, 0);
 	let length = (_a = data.length) !== null && _a !== void 0 ? _a : children.length ? positions[0] + children[0].length : 0;
-	return new Tree$1(types[data.topID], children.reverse(), positions.reverse(), length);
+	return new Tree(types[data.topID], children.reverse(), positions.reverse(), length);
 }
-var nodeSizeCache$1 = /* @__PURE__ */ new WeakMap();
-function nodeSize$1(balanceType, node) {
-	if (!balanceType.isAnonymous || node instanceof TreeBuffer$1 || node.type != balanceType) return 1;
-	let size = nodeSizeCache$1.get(node);
+var nodeSizeCache = /* @__PURE__ */ new WeakMap();
+function nodeSize(balanceType, node) {
+	if (!balanceType.isAnonymous || node instanceof TreeBuffer || node.type != balanceType) return 1;
+	let size = nodeSizeCache.get(node);
 	if (size == null) {
 		size = 1;
 		for (let child of node.children) {
-			if (child.type != balanceType || !(child instanceof Tree$1)) {
+			if (child.type != balanceType || !(child instanceof Tree)) {
 				size = 1;
 				break;
 			}
-			size += nodeSize$1(balanceType, child);
+			size += nodeSize(balanceType, child);
 		}
-		nodeSizeCache$1.set(node, size);
+		nodeSizeCache.set(node, size);
 	}
 	return size;
 }
-function balanceRange$1(balanceType, children, positions, from, to, start, length, mkTop, mkTree) {
+function balanceRange(balanceType, children, positions, from, to, start, length, mkTop, mkTree) {
 	let total = 0;
-	for (let i = from; i < to; i++) total += nodeSize$1(balanceType, children[i]);
+	for (let i = from; i < to; i++) total += nodeSize(balanceType, children[i]);
 	let maxChild = Math.ceil(total * 1.5 / 8);
 	let localChildren = [], localPositions = [];
 	function divide(children, positions, from, to, offset) {
 		for (let i = from; i < to;) {
-			let groupFrom = i, groupStart = positions[i], groupSize = nodeSize$1(balanceType, children[i]);
+			let groupFrom = i, groupStart = positions[i], groupSize = nodeSize(balanceType, children[i]);
 			i++;
 			for (; i < to; i++) {
-				let nextSize = nodeSize$1(balanceType, children[i]);
+				let nextSize = nodeSize(balanceType, children[i]);
 				if (groupSize + nextSize >= maxChild) break;
 				groupSize += nextSize;
 			}
@@ -126369,7 +126985,7 @@ function balanceRange$1(balanceType, children, positions, from, to, start, lengt
 				localChildren.push(children[groupFrom]);
 			} else {
 				let length = positions[i - 1] + children[i - 1].length - groupStart;
-				localChildren.push(balanceRange$1(balanceType, children, positions, groupFrom, i, groupStart, length, null, mkTree));
+				localChildren.push(balanceRange(balanceType, children, positions, groupFrom, i, groupStart, length, null, mkTree));
 			}
 			localPositions.push(groupStart + offset - start);
 		}
@@ -126505,7 +127121,7 @@ var StringInput = class {
 		return this.string.slice(from, to);
 	}
 };
-new NodeProp$1({ perNode: true });
+new NodeProp({ perNode: true });
 //#endregion
 //#region ../../node_modules/.pnpm/@marijn+find-cluster-break@1.0.4/node_modules/@marijn/find-cluster-break/src/index.js
 var rangeFrom = [];
@@ -129993,11 +130609,11 @@ function findColumn(string, col, tabSize, strict) {
 }
 //#endregion
 //#region ../../node_modules/.pnpm/style-mod@4.1.4_patch_hash=8b8994768dcd5295790b5425f0e9f8a8dfaaaea0f61f438744f64f243c5a511b/node_modules/style-mod/src/style-mod.js
-var C$1 = "ͼ";
-var COUNT$1 = typeof Symbol == "undefined" ? "__ͼ" : Symbol.for(C$1);
-var SET$1 = typeof Symbol == "undefined" ? "__styleSet" + Math.floor(Math.random() * 1e8) : Symbol("styleSet");
-var top$1 = typeof globalThis != "undefined" ? globalThis : typeof window != "undefined" ? window : {};
-var StyleModule$1 = class {
+var C = "ͼ";
+var COUNT = typeof Symbol == "undefined" ? "__ͼ" : Symbol.for(C);
+var SET = typeof Symbol == "undefined" ? "__styleSet" + Math.floor(Math.random() * 1e8) : Symbol("styleSet");
+var top = typeof globalThis != "undefined" ? globalThis : typeof window != "undefined" ? window : {};
+var StyleModule = class {
 	constructor(spec, options) {
 		this.rules = [];
 		let { finish } = options || {};
@@ -130023,32 +130639,32 @@ var StyleModule$1 = class {
 		return this.rules.join("\n");
 	}
 	static newName() {
-		let id = top$1[COUNT$1] || 1;
-		top$1[COUNT$1] = id + 1;
-		return C$1 + id.toString(36);
+		let id = top[COUNT] || 1;
+		top[COUNT] = id + 1;
+		return C + id.toString(36);
 	}
 	static mount(root, modules, options) {
-		let set = root[SET$1], nonce = options && options.nonce;
-		if (!set) set = new StyleSet$1(root, nonce);
+		let set = root[SET], nonce = options && options.nonce;
+		if (!set) set = new StyleSet(root, nonce);
 		else if (nonce) set.setNonce(nonce);
 		set.mount(Array.isArray(modules) ? modules : [modules], root);
 	}
 };
-var adoptedSet$1 = /* @__PURE__ */ new Map();
-var StyleSet$1 = class {
+var adoptedSet = /* @__PURE__ */ new Map();
+var StyleSet = class {
 	constructor(root, nonce) {
 		let doc = root.ownerDocument || root, win = doc.defaultView;
 		if (root.adoptedStyleSheets && win.CSSStyleSheet) {
-			let adopted = adoptedSet$1.get(doc);
-			if (adopted) return root[SET$1] = adopted;
+			let adopted = adoptedSet.get(doc);
+			if (adopted) return root[SET] = adopted;
 			this.sheet = new win.CSSStyleSheet();
-			adoptedSet$1.set(doc, this);
+			adoptedSet.set(doc, this);
 		} else {
 			this.styleTag = doc.createElement("style");
 			if (nonce) this.styleTag.setAttribute("nonce", nonce);
 		}
 		this.modules = [];
-		root[SET$1] = this;
+		root[SET] = this;
 	}
 	mount(modules, root) {
 		let sheet = this.sheet;
@@ -130213,7 +130829,7 @@ function add(elt, child) {
 	else throw new RangeError("Unsupported child node: " + child);
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@codemirror+view@6.43.13/node_modules/@codemirror/view/dist/index.js
+//#region ../../node_modules/.pnpm/@codemirror+view@6.43.14/node_modules/@codemirror/view/dist/index.js
 var nav = typeof navigator != "undefined" ? navigator : {
 	userAgent: "",
 	vendor: "",
@@ -130259,7 +130875,7 @@ function attrsEq(a, b, ignore) {
 	if (!a) a = noAttrs$1;
 	if (!b) b = noAttrs$1;
 	let keysA = Object.keys(a), keysB = Object.keys(b);
-	if (keysA.length - (ignore && keysA.indexOf(ignore) > -1 ? 1 : 0) != keysB.length - (ignore && keysB.indexOf(ignore) > -1 ? 1 : 0)) return false;
+	if (keysA.length - 0 != keysB.length - 0) return false;
 	for (let key of keysA) if (key != ignore && (keysB.indexOf(key) == -1 || a[key] !== b[key])) return false;
 	return true;
 }
@@ -130596,6 +131212,8 @@ var BlockWrapper = class BlockWrapper extends RangeValue {
 	}
 };
 BlockWrapper.prototype.startSide = BlockWrapper.prototype.endSide = -1;
+var isElt = (node) => node.nodeType == 1;
+var isText = (node) => node.nodeType == 3;
 function getSelection(root) {
 	let target;
 	if (root.nodeType == 11) target = root.getSelection ? root : root.ownerDocument;
@@ -130614,8 +131232,8 @@ function hasSelection(dom, selection) {
 	}
 }
 function clientRectsFor(dom) {
-	if (dom.nodeType == 3) return textRange(dom, 0, dom.nodeValue.length).getClientRects();
-	else if (dom.nodeType == 1) return dom.getClientRects();
+	if (isText(dom)) return textRange(dom, 0, dom.nodeValue.length).getClientRects();
+	else if (isElt(dom)) return dom.getClientRects();
 	else return [];
 }
 function isEquivalentPosition(node, off, targetNode, targetOff) {
@@ -130628,7 +131246,7 @@ function domIndex(node) {
 	}
 }
 function isBlockElement(node) {
-	return node.nodeType == 1 && /^(DIV|P|LI|UL|OL|BLOCKQUOTE|DD|DT|H\d|SECTION|PRE)$/.test(node.nodeName);
+	return isElt(node) && /^(DIV|P|LI|UL|OL|BLOCKQUOTE|DD|DT|H\d|SECTION|PRE)$/.test(node.nodeName);
 }
 function scanFor(node, off, targetNode, targetOff, dir) {
 	for (;;) {
@@ -130636,18 +131254,18 @@ function scanFor(node, off, targetNode, targetOff, dir) {
 		if (off == (dir < 0 ? 0 : maxOffset(node))) {
 			if (node.nodeName == "DIV") return false;
 			let parent = node.parentNode;
-			if (!parent || parent.nodeType != 1) return false;
+			if (!parent || !isElt(parent)) return false;
 			off = domIndex(node) + (dir < 0 ? 0 : 1);
 			node = parent;
-		} else if (node.nodeType == 1) {
+		} else if (isElt(node)) {
 			node = node.childNodes[off + (dir < 0 ? -1 : 0)];
-			if (node.nodeType == 1 && node.contentEditable == "false") return false;
+			if (isElt(node) && (node.nodeName == "IMG" || node.nodeName == "BR" || node.contentEditable == "false")) return false;
 			off = dir < 0 ? maxOffset(node) : 0;
 		} else return false;
 	}
 }
 function maxOffset(node) {
-	return node.nodeType == 3 ? node.nodeValue.length : node.childNodes.length;
+	return isText(node) ? node.nodeValue.length : node.childNodes.length;
 }
 function flattenRect(rect, toLeft) {
 	let { left, right } = rect;
@@ -130687,7 +131305,7 @@ function getScale(elt, rect) {
 }
 function scrollRectIntoView(dom, rect, side, x, y, xMargin, yMargin, ltr) {
 	let doc = dom.ownerDocument, win = doc.defaultView || window;
-	for (let cur = dom, stop = false; cur && !stop;) if (cur.nodeType == 1) {
+	for (let cur = dom, stop = false; cur && !stop;) if (isElt(cur)) {
 		let bounding, top = cur == doc.body;
 		let scaleX = 1, scaleY = 1;
 		if (top) bounding = windowRect(win);
@@ -130766,7 +131384,7 @@ function scrollRectIntoView(dom, rect, side, x, y, xMargin, yMargin, ltr) {
 function scrollableParents(dom, getX = true) {
 	let doc = dom.ownerDocument, x = null, y = null;
 	for (let cur = dom.parentNode; cur;) if (cur == doc.body || (!getX || x) && y) break;
-	else if (cur.nodeType == 1) {
+	else if (isElt(cur)) {
 		if (!y && cur.scrollHeight > cur.clientHeight) y = cur;
 		if (getX && !x && cur.scrollWidth > cur.clientWidth) x = cur;
 		cur = cur.assignedSlot || cur.parentNode;
@@ -130800,7 +131418,7 @@ var DOMSelectionState = class {
 };
 function getScrollStack(target) {
 	let stack = [];
-	for (let cur = target; cur; cur = cur.nodeType == 11 ? cur.host : cur.parentNode) if (cur.nodeType == 1) stack.push({
+	for (let cur = target; cur; cur = cur.nodeType == 11 ? cur.host : cur.parentNode) if (isElt(cur)) stack.push({
 		node: cur,
 		left: cur.scrollLeft,
 		top: cur.scrollTop
@@ -130864,7 +131482,7 @@ function atElementStart(doc, selection) {
 	if (!node || selection.anchorNode != node || selection.anchorOffset != offset) return false;
 	offset = Math.min(offset, maxOffset(node));
 	for (;;) if (offset) {
-		if (node.nodeType != 1) return false;
+		if (!isElt(node)) return false;
 		let prev = node.childNodes[offset - 1];
 		if (prev.contentEditable == "false") offset--;
 		else {
@@ -130882,11 +131500,11 @@ function isScrolledToBottom(elt) {
 	return elt.scrollTop > Math.max(1, elt.scrollHeight - elt.clientHeight - 4);
 }
 function textNodeBefore(startNode, startOffset) {
-	for (let node = startNode, offset = startOffset;;) if (node.nodeType == 3 && offset > 0) return {
+	for (let node = startNode, offset = startOffset;;) if (isText(node) && offset > 0) return {
 		node,
 		offset
 	};
-	else if (node.nodeType == 1 && offset > 0) {
+	else if (isElt(node) && offset > 0) {
 		if (node.contentEditable == "false") return null;
 		node = node.childNodes[offset - 1];
 		offset = maxOffset(node);
@@ -130896,11 +131514,11 @@ function textNodeBefore(startNode, startOffset) {
 	} else return null;
 }
 function textNodeAfter(startNode, startOffset) {
-	for (let node = startNode, offset = startOffset;;) if (node.nodeType == 3 && offset < node.nodeValue.length) return {
+	for (let node = startNode, offset = startOffset;;) if (isText(node) && offset < node.nodeValue.length) return {
 		node,
 		offset
 	};
-	else if (node.nodeType == 1 && offset < node.childNodes.length) {
+	else if (isElt(node) && offset < node.childNodes.length) {
 		if (node.contentEditable == "false") return null;
 		node = node.childNodes[offset];
 		offset = 0;
@@ -131827,17 +132445,17 @@ var LineTile = class LineTile extends CompositeTile {
 	get domAttrs() {
 		return this.attrs;
 	}
-	resolveInline(pos, side, forCoords) {
+	resolveInline(pos, side, forCoords = false) {
 		let before = null, beforeOff = -1, after = null, afterOff = -1;
 		function scan(tile, pos) {
 			for (let i = 0, off = 0; i < tile.children.length && off <= pos; i++) {
 				let child = tile.children[i], end = off + child.length;
 				if (end >= pos) {
 					if (child.isComposite()) scan(child, pos - off);
-					else if ((!after || after.isHidden && (side > 0 && !(after.flags & 32) || forCoords && onSameLine(after, child))) && (end > pos || child.flags & 32 && side <= 1)) {
+					else if ((!after || forCoords && after.isHidden && (side > 0 && !(after.flags & 32) || forCoords && onSameLine(after, child))) && (end > pos || child.flags & 32 && side <= 1)) {
 						after = child;
 						afterOff = pos - off;
-					} else if (off < pos || child.flags & 16 && !child.isHidden && side >= -1) {
+					} else if (off < pos || child.flags & 16 && !(forCoords && child.isHidden) && side >= -1) {
 						before = child;
 						beforeOff = pos - off;
 					}
@@ -133072,7 +133690,7 @@ function destroyDropped(tile, reused) {
 	}
 }
 function betweenUneditable(pos) {
-	return pos.node.nodeType == 1 && pos.node.firstChild && (pos.offset == 0 || pos.node.childNodes[pos.offset - 1].contentEditable == "false") && (pos.offset == pos.node.childNodes.length || pos.node.childNodes[pos.offset].contentEditable == "false");
+	return isElt(pos.node) && pos.node.firstChild && (pos.offset == 0 || pos.node.childNodes[pos.offset - 1].contentEditable == "false") && (pos.offset == pos.node.childNodes.length || pos.node.childNodes[pos.offset].contentEditable == "false");
 }
 function findCompositionNode(view, headPos) {
 	let sel = view.observer.selectionRange;
@@ -133110,7 +133728,7 @@ function findCompositionRange(view, changes, headPos) {
 	};
 }
 function nextToUneditable(node, offset) {
-	if (node.nodeType != 1) return 0;
+	if (!isElt(node)) return 0;
 	return (offset && node.childNodes[offset - 1].contentEditable == "false" ? 1 : 0) | (offset < node.childNodes.length && node.childNodes[offset].contentEditable == "false" ? 2 : 0);
 }
 var DecorationComparator$1 = class DecorationComparator {
@@ -133150,7 +133768,7 @@ function findChangedWrappers(a, b, diff) {
 	return comp.changes;
 }
 function inUneditable(node, inside) {
-	for (let cur = node; cur && cur != inside; cur = cur.assignedSlot || cur.parentNode) if (cur.nodeType == 1 && cur.contentEditable == "false") return true;
+	for (let cur = node; cur && cur != inside; cur = cur.assignedSlot || cur.parentNode) if (isElt(cur) && cur.contentEditable == "false") return true;
 	return false;
 }
 function touchesComposition(changes, composition) {
@@ -133496,7 +134114,7 @@ var InlineCoordsScan = class {
 		let scan = this.scan(positions, (i) => {
 			let child = tile.children[i];
 			if (child.flags & 48) return null;
-			return (child.dom.nodeType == 1 ? child.dom : textRange(child.dom, 0, child.length)).getClientRects();
+			return (isElt(child.dom) ? child.dom : textRange(child.dom, 0, child.length)).getClientRects();
 		});
 		let child = tile.children[scan.i], pos = positions[scan.i];
 		if (child.isText()) return this.scanText(child, pos);
@@ -133565,16 +134183,16 @@ var DOMReader = class {
 			this.findPointInside(node, fromView.length);
 			for (let i = fromView.iter(); !i.next().done;) if (i.lineBreak) this.lineBreak();
 			else this.append(i.value);
-		} else if (node.nodeType == 3) this.readTextNode(node);
+		} else if (isText(node)) this.readTextNode(node);
 		else if (node.nodeName == "BR") {
 			if (node.nextSibling) this.lineBreak();
-		} else if (node.nodeType == 1) this.readRange(node.firstChild, null);
+		} else if (isElt(node)) this.readRange(node.firstChild, null);
 	}
 	findPointBefore(node, next) {
 		for (let point of this.points) if (point.node == node && node.childNodes[point.offset] == next) point.pos = this.text.length;
 	}
 	findPointInside(node, length) {
-		for (let point of this.points) if (node.nodeType == 3 ? point.node == node : node.contains(point.node)) point.pos = this.text.length + (isAtEnd(node, point.node, point.offset) ? length : 0);
+		for (let point of this.points) if (isText(node) ? point.node == node : node.contains(point.node)) point.pos = this.text.length + (isAtEnd(node, point.node, point.offset) ? length : 0);
 	}
 };
 function isAtEnd(parent, node, offset) {
@@ -134540,12 +135158,12 @@ observers.blur = (view) => {
 	view.observer.clearSelectionRange();
 	updateForFocusChange(view);
 };
-observers.compositionstart = observers.compositionupdate = (view) => {
+observers.compositionstart = observers.compositionupdate = (view, event) => {
 	if (view.observer.editContext) return;
 	if (view.inputState.compositionFirstChange == null) view.inputState.compositionFirstChange = true;
 	if (view.inputState.composing < 0) {
 		let { main } = view.state.selection;
-		if (!main.empty && view.lineBlockAt(main.from).from != view.lineBlockAt(main.to).from) view.dispatch({
+		if (!main.empty && view.lineBlockAt(main.from).from != view.lineBlockAt(main.to).from && !view.state.readOnly) view.dispatch({
 			changes: view.state.selection.ranges.filter((r) => !r.empty).map((r) => ({
 				from: r.from,
 				to: r.to
@@ -135249,17 +135867,16 @@ function visiblePixelRange(dom, paddingTop) {
 	let doc = dom.ownerDocument, win = doc.defaultView || window;
 	let left = Math.max(0, rect.left), right = Math.min(win.innerWidth, rect.right);
 	let top = Math.max(0, rect.top), bottom = Math.min(win.innerHeight, rect.bottom);
-	for (let parent = dom.parentNode; parent && parent != doc.body;) if (parent.nodeType == 1) {
-		let elt = parent;
-		let style = window.getComputedStyle(elt);
-		if ((elt.scrollHeight > elt.clientHeight || elt.scrollWidth > elt.clientWidth) && style.overflow != "visible") {
-			let parentRect = elt.getBoundingClientRect();
+	for (let parent = dom.parentNode; parent && parent != doc.body;) if (isElt(parent)) {
+		let style = window.getComputedStyle(parent);
+		if ((parent.scrollHeight > parent.clientHeight || parent.scrollWidth > parent.clientWidth) && style.overflow != "visible") {
+			let parentRect = parent.getBoundingClientRect();
 			left = Math.max(left, parentRect.left);
 			right = Math.min(right, parentRect.right);
 			top = Math.max(top, parentRect.top);
 			bottom = Math.min(parent == dom.parentNode ? win.innerHeight : bottom, parentRect.bottom);
 		}
-		parent = style.position == "absolute" || style.position == "fixed" ? elt.offsetParent : elt.parentNode;
+		parent = style.position == "absolute" || style.position == "fixed" ? parent.offsetParent : parent.parentNode;
 	} else if (parent.nodeType == 11) parent = parent.host;
 	else break;
 	return {
@@ -135815,15 +136432,15 @@ function scaleBlock(block, scaler) {
 }
 var theme = /*@__PURE__*/ Facet.define({ combine: (strs) => strs.join(" ") });
 var darkTheme = /*@__PURE__*/ Facet.define({ combine: (values) => values.indexOf(true) > -1 });
-var baseThemeID = /*@__PURE__*/ StyleModule$1.newName();
-var baseLightID = /*@__PURE__*/ StyleModule$1.newName();
-var baseDarkID = /*@__PURE__*/ StyleModule$1.newName();
+var baseThemeID = /*@__PURE__*/ StyleModule.newName();
+var baseLightID = /*@__PURE__*/ StyleModule.newName();
+var baseDarkID = /*@__PURE__*/ StyleModule.newName();
 var lightDarkIDs = {
 	"&light": "." + baseLightID,
 	"&dark": "." + baseDarkID
 };
 function buildTheme(main, spec, scopes) {
-	return new StyleModule$1(spec, { finish(sel) {
+	return new StyleModule(spec, { finish(sel) {
 		return /&/.test(sel) ? sel.replace(/&\w*/, (m) => {
 			if (m == "&") return main;
 			if (!scopes || !scopes[m]) throw new RangeError(`Unsupported selector: ${m}`);
@@ -136011,7 +136628,7 @@ var baseTheme$1$1 = /*@__PURE__*/ buildTheme("." + baseThemeID, {
 		verticalAlign: "bottom"
 	},
 	".cm-widgetBuffer": {
-		verticalAlign: "text-top",
+		verticalAlign: "baseline",
 		height: "1em",
 		width: 0,
 		display: "inline"
@@ -136211,7 +136828,7 @@ var DOMObserver = class {
 	listenForScroll() {
 		this.parentCheck = -1;
 		let i = 0, changed = null;
-		for (let dom = this.dom; dom;) if (dom.nodeType == 1) {
+		for (let dom = this.dom; dom;) if (isElt(dom)) {
 			if (!changed && i < this.scrollTargets.length && this.scrollTargets[i] == dom) i++;
 			else if (!changed) changed = this.scrollTargets.slice(0, i);
 			if (changed) changed.push(dom);
@@ -136327,14 +136944,14 @@ var DOMObserver = class {
 	flush(readSelection = true) {
 		if (this.delayedFlush >= 0 || this.delayedAndroidKey) return false;
 		if (readSelection) this.readSelectionRange();
-		let domChange = this.readChange();
+		let selChange = this.selectionChanged, domChange = this.readChange();
 		if (!domChange) {
 			this.view.requestMeasure();
 			return false;
 		}
 		let startState = this.view.state;
 		let handled = applyDOMChange(this.view, domChange);
-		if (this.view.state == startState && (domChange.domChanged || domChange.newSel && !sameSelPos(this.view.state.selection, domChange.newSel.main))) this.view.update([]);
+		if (this.view.state == startState && (domChange.domChanged || selChange)) this.view.update([]);
 		return handled;
 	}
 	readMutation(rec) {
@@ -137047,7 +137664,7 @@ var EditorView = class EditorView {
 	mountStyles() {
 		this.styleModules = this.state.facet(styleModule);
 		let nonce = this.state.facet(EditorView.cspNonce);
-		StyleModule$1.mount(this.root, this.styleModules.concat(baseTheme$1$1).reverse(), nonce ? { nonce } : void 0);
+		StyleModule.mount(this.root, this.styleModules.concat(baseTheme$1$1).reverse(), nonce ? { nonce } : void 0);
 	}
 	readMeasured() {
 		if (this.updateState == 2) throw new Error("Reading the editor layout isn't allowed during an update");
@@ -137056,7 +137673,7 @@ var EditorView = class EditorView {
 	/**
 	Schedule a layout measurement, optionally providing callbacks to
 	do custom DOM measuring followed by a DOM write phase. Using
-	this is preferable reading DOM layout directly from, for
+	this is preferable to reading DOM layout directly from, for
 	example, an event handler, because it'll make sure measuring and
 	drawing done by other components is synchronized, avoiding
 	unnecessary DOM layout computations.
@@ -137479,7 +138096,7 @@ var EditorView = class EditorView {
 	`&light` when a light theme is active).
 	*/
 	static theme(spec, options) {
-		let prefix = StyleModule$1.newName();
+		let prefix = StyleModule.newName();
 		let result = [theme.of(prefix), styleModule.of(buildTheme(`.${prefix}`, spec))];
 		if (options && options.dark) result.push(darkTheme.of(true));
 		return result;
@@ -138124,6 +138741,7 @@ Define a layer.
 function layer(config) {
 	return [ViewPlugin.define((v) => new LayerView(v, config)), layerOrder.of(config)];
 }
+var drawMainRange = !browser.ios;
 var selectionConfig = /*@__PURE__*/ Facet.define({ combine(configs) {
 	return combineConfig(configs, {
 		cursorBlinkRate: 1200,
@@ -138197,7 +138815,7 @@ var selectionLayer = /*@__PURE__*/ layer({
 	above: false,
 	markers(view) {
 		let markers = [], { main, ranges } = view.state.selection;
-		for (let r of ranges) if (!r.empty) for (let marker of RectangleMarker.forRange(view, "cm-selectionBackground", r)) markers.push(marker);
+		for (let r of ranges) if (!r.empty && (drawMainRange || r != main)) for (let marker of RectangleMarker.forRange(view, "cm-selectionBackground", r)) markers.push(marker);
 		if (browser.ios && !main.empty && view.state.facet(selectionConfig).iosSelectionHandles) {
 			for (let piece of RectangleMarker.forRange(view, "cm-selectionHandle cm-selectionHandle-start", EditorSelection.cursor(main.from, 1))) markers.push(piece);
 			for (let piece of RectangleMarker.forRange(view, "cm-selectionHandle cm-selectionHandle-end", EditorSelection.cursor(main.to, 1))) markers.push(piece);
@@ -138212,14 +138830,14 @@ var selectionLayer = /*@__PURE__*/ layer({
 var selectionBg = browser.gecko && browser.gecko_version == 153 ? "#ffffff01" : "transparent";
 var hideNativeSelection = /*@__PURE__*/ Prec.highest(/*@__PURE__*/ EditorView.theme({
 	".cm-line": {
-		"& ::selection, &::selection": { backgroundColor: `${selectionBg} !important` },
+		...drawMainRange ? { "& ::selection, &::selection": { backgroundColor: `${selectionBg} !important` } } : {},
 		caretColor: "transparent !important"
 	},
 	".cm-content": {
 		caretColor: "transparent !important",
 		"& :focus": {
 			caretColor: "initial !important",
-			"&::selection, & ::selection": { backgroundColor: "Highlight !important" }
+			...drawMainRange ? { "&::selection, & ::selection": { backgroundColor: "Highlight !important" } } : {}
 		}
 	}
 }));
@@ -138512,13 +139130,26 @@ var TooltipViewManager = class {
 		return true;
 	}
 };
+function fixedRange(view) {
+	let docElt = view.dom.ownerDocument.documentElement, width = docElt.clientWidth;
+	let style = getComputedStyle(docElt);
+	if (!/stable/.test(style.scrollbarGutter || "")) return {
+		left: 0,
+		right: width
+	};
+	let rect = docElt.getBoundingClientRect(), scrollX = view.win.scrollX;
+	return {
+		left: Math.max(0, rect.left + scrollX - parseFloat(style.marginLeft)),
+		right: Math.min(width, rect.right + scrollX + parseFloat(style.marginRight))
+	};
+}
 function windowSpace(view) {
-	let docElt = view.dom.ownerDocument.documentElement;
+	let { left, right } = fixedRange(view);
 	return {
 		top: 0,
-		left: 0,
-		bottom: docElt.clientHeight,
-		right: docElt.clientWidth
+		left,
+		right,
+		bottom: view.dom.ownerDocument.documentElement.clientHeight
 	};
 }
 var tooltipConfig = /*@__PURE__*/ Facet.define({ combine: (values) => {
@@ -138631,7 +139262,7 @@ var tooltipPlugin = /*@__PURE__*/ ViewPlugin.fromClass(class {
 		clearTimeout(this.measureTimeout);
 	}
 	readMeasure() {
-		let scaleX = 1, scaleY = 1, makeAbsolute = false;
+		let scaleX = 1, scaleY = 1, makeAbsolute = false, fixedLeft = 0;
 		if (this.position == "fixed" && this.manager.tooltipViews.length) {
 			let { dom } = this.manager.tooltipViews[0];
 			if (browser.safari) {
@@ -138647,7 +139278,7 @@ var tooltipPlugin = /*@__PURE__*/ ViewPlugin.fromClass(class {
 					scaleY = rect.height / this.parent.offsetHeight;
 				}
 			} else ({scaleX, scaleY} = this.view.viewState);
-		}
+		} else fixedLeft = fixedRange(this.view).left;
 		let visible = this.view.scrollDOM.getBoundingClientRect(), margins = getScrollMargins(this.view);
 		return {
 			visible: {
@@ -138665,7 +139296,8 @@ var tooltipPlugin = /*@__PURE__*/ ViewPlugin.fromClass(class {
 			space: this.view.state.facet(tooltipConfig).tooltipSpace(this.view),
 			scaleX,
 			scaleY,
-			makeAbsolute
+			makeAbsolute,
+			fixedLeft
 		};
 	}
 	writeMeasure(measured) {
@@ -138710,7 +139342,7 @@ var tooltipPlugin = /*@__PURE__*/ ViewPlugin.fromClass(class {
 				setLeftStyle(dom, (left - measured.parent.left) / scaleX);
 			} else {
 				dom.style.top = top / scaleY + "px";
-				setLeftStyle(dom, left / scaleX);
+				setLeftStyle(dom, (left - measured.fixedLeft) / scaleX);
 			}
 			if (arrow) {
 				let arrowLeft = pos.left + (ltr ? offset.x : -offset.x) - (left + 14 - 7);
@@ -139260,1351 +139892,6 @@ GutterMarker.prototype.toDOM = void 0;
 GutterMarker.prototype.mapMode = MapMode.TrackBefore;
 GutterMarker.prototype.startSide = GutterMarker.prototype.endSide = -1;
 GutterMarker.prototype.point = true;
-//#endregion
-//#region ../../node_modules/.pnpm/@lezer+common@1.5.3/node_modules/@lezer/common/dist/index.js
-/**
-The default maximum length of a `TreeBuffer` node.
-*/
-var DefaultBufferLength = 1024;
-var nextPropID = 0;
-/**
-Each [node type](#common.NodeType) or [individual tree](#common.Tree)
-can have metadata associated with it in props. Instances of this
-class represent prop names.
-*/
-var NodeProp = class {
-	/**
-	Create a new node prop type.
-	*/
-	constructor(config = {}) {
-		this.id = nextPropID++;
-		this.perNode = !!config.perNode;
-		this.deserialize = config.deserialize || (() => {
-			throw new Error("This node type doesn't define a deserialize function");
-		});
-		this.combine = config.combine || null;
-	}
-	/**
-	This is meant to be used with
-	[`NodeSet.extend`](#common.NodeSet.extend) or
-	[`LRParser.configure`](#lr.ParserConfig.props) to compute
-	prop values for each node type in the set. Takes a [match
-	object](#common.NodeType^match) or function that returns undefined
-	if the node type doesn't get this prop, and the prop's value if
-	it does.
-	*/
-	add(match) {
-		if (this.perNode) throw new RangeError("Can't add per-node props to node types");
-		if (typeof match != "function") match = NodeType.match(match);
-		return (type) => {
-			let result = match(type);
-			return result === void 0 ? null : [this, result];
-		};
-	}
-};
-/**
-Prop that is used to describe matching delimiters. For opening
-delimiters, this holds an array of node names (written as a
-space-separated string when declaring this prop in a grammar)
-for the node types of closing delimiters that match it.
-*/
-NodeProp.closedBy = new NodeProp({ deserialize: (str) => str.split(" ") });
-/**
-The inverse of [`closedBy`](#common.NodeProp^closedBy). This is
-attached to closing delimiters, holding an array of node names
-of types of matching opening delimiters.
-*/
-NodeProp.openedBy = new NodeProp({ deserialize: (str) => str.split(" ") });
-/**
-Used to assign node types to groups (for example, all node
-types that represent an expression could be tagged with an
-`"Expression"` group).
-*/
-NodeProp.group = new NodeProp({ deserialize: (str) => str.split(" ") });
-/**
-Attached to nodes to indicate these should be
-[displayed](https://codemirror.net/docs/ref/#language.syntaxTree)
-in a bidirectional text isolate, so that direction-neutral
-characters on their sides don't incorrectly get associated with
-surrounding text. You'll generally want to set this for nodes
-that contain arbitrary text, like strings and comments, and for
-nodes that appear _inside_ arbitrary text, like HTML tags. When
-not given a value, in a grammar declaration, defaults to
-`"auto"`.
-*/
-NodeProp.isolate = new NodeProp({ deserialize: (value) => {
-	if (value && value != "rtl" && value != "ltr" && value != "auto") throw new RangeError("Invalid value for isolate: " + value);
-	return value || "auto";
-} });
-/**
-The hash of the [context](#lr.ContextTracker.constructor)
-that the node was parsed in, if any. Used to limit reuse of
-contextual nodes.
-*/
-NodeProp.contextHash = new NodeProp({ perNode: true });
-/**
-The distance beyond the end of the node that the tokenizer
-looked ahead for any of the tokens inside the node. (The LR
-parser only stores this when it is larger than 25, for
-efficiency reasons.)
-*/
-NodeProp.lookAhead = new NodeProp({ perNode: true });
-/**
-This per-node prop is used to replace a given node, or part of a
-node, with another tree. This is useful to include trees from
-different languages in mixed-language parsers.
-*/
-NodeProp.mounted = new NodeProp({ perNode: true });
-/**
-A mounted tree, which can be [stored](#common.NodeProp^mounted) on
-a tree node to indicate that parts of its content are
-represented by another tree.
-*/
-var MountedTree = class {
-	constructor(tree, overlay, parser, bracketed = false) {
-		this.tree = tree;
-		this.overlay = overlay;
-		this.parser = parser;
-		this.bracketed = bracketed;
-	}
-	/**
-	@internal
-	*/
-	static get(tree) {
-		return tree && tree.props && tree.props[NodeProp.mounted.id];
-	}
-};
-var noProps = Object.create(null);
-/**
-Each node in a syntax tree has a node type associated with it.
-*/
-var NodeType = class NodeType {
-	/**
-	@internal
-	*/
-	constructor(name, props, id, flags = 0) {
-		this.name = name;
-		this.props = props;
-		this.id = id;
-		this.flags = flags;
-	}
-	/**
-	Define a node type.
-	*/
-	static define(spec) {
-		let props = spec.props && spec.props.length ? Object.create(null) : noProps;
-		let flags = (spec.top ? 1 : 0) | (spec.skipped ? 2 : 0) | (spec.error ? 4 : 0) | (spec.name == null ? 8 : 0);
-		let type = new NodeType(spec.name || "", props, spec.id, flags);
-		if (spec.props) for (let src of spec.props) {
-			if (!Array.isArray(src)) src = src(type);
-			if (src) {
-				if (src[0].perNode) throw new RangeError("Can't store a per-node prop on a node type");
-				props[src[0].id] = src[1];
-			}
-		}
-		return type;
-	}
-	/**
-	Retrieves a node prop for this type. Will return `undefined` if
-	the prop isn't present on this node.
-	*/
-	prop(prop) {
-		return this.props[prop.id];
-	}
-	/**
-	True when this is the top node of a grammar.
-	*/
-	get isTop() {
-		return (this.flags & 1) > 0;
-	}
-	/**
-	True when this node is produced by a skip rule.
-	*/
-	get isSkipped() {
-		return (this.flags & 2) > 0;
-	}
-	/**
-	Indicates whether this is an error node.
-	*/
-	get isError() {
-		return (this.flags & 4) > 0;
-	}
-	/**
-	When true, this node type doesn't correspond to a user-declared
-	named node, for example because it is used to cache repetition.
-	*/
-	get isAnonymous() {
-		return (this.flags & 8) > 0;
-	}
-	/**
-	Returns true when this node's name or one of its
-	[groups](#common.NodeProp^group) matches the given string.
-	*/
-	is(name) {
-		if (typeof name == "string") {
-			if (this.name == name) return true;
-			let group = this.prop(NodeProp.group);
-			return group ? group.indexOf(name) > -1 : false;
-		}
-		return this.id == name;
-	}
-	/**
-	Create a function from node types to arbitrary values by
-	specifying an object whose property names are node or
-	[group](#common.NodeProp^group) names. Often useful with
-	[`NodeProp.add`](#common.NodeProp.add). You can put multiple
-	names, separated by spaces, in a single property name to map
-	multiple node names to a single value.
-	*/
-	static match(map) {
-		let direct = Object.create(null);
-		for (let prop in map) for (let name of prop.split(" ")) direct[name] = map[prop];
-		return (node) => {
-			for (let groups = node.prop(NodeProp.group), i = -1; i < (groups ? groups.length : 0); i++) {
-				let found = direct[i < 0 ? node.name : groups[i]];
-				if (found) return found;
-			}
-		};
-	}
-};
-/**
-An empty dummy node type to use when no actual type is available.
-*/
-NodeType.none = new NodeType("", Object.create(null), 0, 8);
-var CachedNode = /* @__PURE__ */ new WeakMap();
-var CachedInnerNode = /* @__PURE__ */ new WeakMap();
-/**
-Options that control iteration. Can be combined with the `|`
-operator to enable multiple ones.
-*/
-var IterMode;
-(function(IterMode) {
-	/**
-	When enabled, iteration will only visit [`Tree`](#common.Tree)
-	objects, not nodes packed into
-	[`TreeBuffer`](#common.TreeBuffer)s.
-	*/
-	IterMode[IterMode["ExcludeBuffers"] = 1] = "ExcludeBuffers";
-	/**
-	Enable this to make iteration include anonymous nodes (such as
-	the nodes that wrap repeated grammar constructs into a balanced
-	tree).
-	*/
-	IterMode[IterMode["IncludeAnonymous"] = 2] = "IncludeAnonymous";
-	/**
-	By default, regular [mounted](#common.NodeProp^mounted) nodes
-	replace their base node in iteration. Enable this to ignore them
-	instead.
-	*/
-	IterMode[IterMode["IgnoreMounts"] = 4] = "IgnoreMounts";
-	/**
-	This option only applies in
-	[`enter`](#common.SyntaxNode.enter)-style methods. It tells the
-	library to not enter mounted overlays if one covers the given
-	position.
-	*/
-	IterMode[IterMode["IgnoreOverlays"] = 8] = "IgnoreOverlays";
-	/**
-	When set, positions on the boundary of a mounted overlay tree
-	that has its [`bracketed`](#common.NestedParse.bracketed) flag
-	set will enter that tree regardless of side. Only supported in
-	[`enter`](#common.SyntaxNode.enter), not in cursors.
-	*/
-	IterMode[IterMode["EnterBracketed"] = 16] = "EnterBracketed";
-})(IterMode || (IterMode = {}));
-/**
-A piece of syntax tree. There are two ways to approach these
-trees: the way they are actually stored in memory, and the
-convenient way.
-
-Syntax trees are stored as a tree of `Tree` and `TreeBuffer`
-objects. By packing detail information into `TreeBuffer` leaf
-nodes, the representation is made a lot more memory-efficient.
-
-However, when you want to actually work with tree nodes, this
-representation is very awkward, so most client code will want to
-use the [`TreeCursor`](#common.TreeCursor) or
-[`SyntaxNode`](#common.SyntaxNode) interface instead, which provides
-a view on some part of this data structure, and can be used to
-move around to adjacent nodes.
-*/
-var Tree = class Tree {
-	/**
-	Construct a new tree. See also [`Tree.build`](#common.Tree^build).
-	*/
-	constructor(type, children, positions, length, props) {
-		this.type = type;
-		this.children = children;
-		this.positions = positions;
-		this.length = length;
-		/**
-		@internal
-		*/
-		this.props = null;
-		if (props && props.length) {
-			this.props = Object.create(null);
-			for (let [prop, value] of props) this.props[typeof prop == "number" ? prop : prop.id] = value;
-		}
-	}
-	/**
-	@internal
-	*/
-	toString() {
-		let mounted = MountedTree.get(this);
-		if (mounted && !mounted.overlay) return mounted.tree.toString();
-		let children = "";
-		for (let ch of this.children) {
-			let str = ch.toString();
-			if (str) {
-				if (children) children += ",";
-				children += str;
-			}
-		}
-		return !this.type.name ? children : (/\W/.test(this.type.name) && !this.type.isError ? JSON.stringify(this.type.name) : this.type.name) + (children.length ? "(" + children + ")" : "");
-	}
-	/**
-	Get a [tree cursor](#common.TreeCursor) positioned at the top of
-	the tree. Mode can be used to [control](#common.IterMode) which
-	nodes the cursor visits.
-	*/
-	cursor(mode = 0) {
-		return new TreeCursor(this.topNode, mode);
-	}
-	/**
-	Get a [tree cursor](#common.TreeCursor) pointing into this tree
-	at the given position and side (see
-	[`moveTo`](#common.TreeCursor.moveTo).
-	*/
-	cursorAt(pos, side = 0, mode = 0) {
-		let cursor = new TreeCursor(CachedNode.get(this) || this.topNode);
-		cursor.moveTo(pos, side);
-		CachedNode.set(this, cursor._tree);
-		return cursor;
-	}
-	/**
-	Get a [syntax node](#common.SyntaxNode) object for the top of the
-	tree.
-	*/
-	get topNode() {
-		return new TreeNode(this, 0, 0, null);
-	}
-	/**
-	Get the [syntax node](#common.SyntaxNode) at the given position.
-	If `side` is -1, this will move into nodes that end at the
-	position. If 1, it'll move into nodes that start at the
-	position. With 0, it'll only enter nodes that cover the position
-	from both sides.
-	
-	Note that this will not enter
-	[overlays](#common.MountedTree.overlay), and you often want
-	[`resolveInner`](#common.Tree.resolveInner) instead.
-	*/
-	resolve(pos, side = 0) {
-		let node = resolveNode(CachedNode.get(this) || this.topNode, pos, side, false);
-		CachedNode.set(this, node);
-		return node;
-	}
-	/**
-	Like [`resolve`](#common.Tree.resolve), but will enter
-	[overlaid](#common.MountedTree.overlay) nodes, producing a syntax node
-	pointing into the innermost overlaid tree at the given position
-	(with parent links going through all parent structure, including
-	the host trees).
-	*/
-	resolveInner(pos, side = 0) {
-		let node = resolveNode(CachedInnerNode.get(this) || this.topNode, pos, side, true);
-		CachedInnerNode.set(this, node);
-		return node;
-	}
-	/**
-	In some situations, it can be useful to iterate through all
-	nodes around a position, including those in overlays that don't
-	directly cover the position. This method gives you an iterator
-	that will produce all nodes, from small to big, around the given
-	position.
-	*/
-	resolveStack(pos, side = 0) {
-		return stackIterator(this, pos, side);
-	}
-	/**
-	Iterate over the tree and its children, calling `enter` for any
-	node that touches the `from`/`to` region (if given) before
-	running over such a node's children, and `leave` (if given) when
-	leaving the node. When `enter` returns `false`, that node will
-	not have its children iterated over (or `leave` called).
-	*/
-	iterate(spec) {
-		let { enter, leave, from = 0, to = this.length } = spec;
-		let mode = spec.mode || 0, anon = (mode & IterMode.IncludeAnonymous) > 0;
-		for (let c = this.cursor(mode | IterMode.IncludeAnonymous);;) {
-			let entered = false;
-			if (c.from <= to && c.to >= from && (!anon && c.type.isAnonymous || enter(c) !== false)) {
-				if (c.firstChild()) continue;
-				entered = true;
-			}
-			for (;;) {
-				if (entered && leave && (anon || !c.type.isAnonymous)) leave(c);
-				if (c.nextSibling()) break;
-				if (!c.parent()) return;
-				entered = true;
-			}
-		}
-	}
-	/**
-	Get the value of the given [node prop](#common.NodeProp) for this
-	node. Works with both per-node and per-type props.
-	*/
-	prop(prop) {
-		return !prop.perNode ? this.type.prop(prop) : this.props ? this.props[prop.id] : void 0;
-	}
-	/**
-	Returns the node's [per-node props](#common.NodeProp.perNode) in a
-	format that can be passed to the [`Tree`](#common.Tree)
-	constructor.
-	*/
-	get propValues() {
-		let result = [];
-		if (this.props) for (let id in this.props) result.push([+id, this.props[id]]);
-		return result;
-	}
-	/**
-	Balance the direct children of this tree, producing a copy of
-	which may have children grouped into subtrees with type
-	[`NodeType.none`](#common.NodeType^none).
-	*/
-	balance(config = {}) {
-		return this.children.length <= 8 ? this : balanceRange(NodeType.none, this.children, this.positions, 0, this.children.length, 0, this.length, (children, positions, length) => new Tree(this.type, children, positions, length, this.propValues), config.makeTree || ((children, positions, length) => new Tree(NodeType.none, children, positions, length)));
-	}
-	/**
-	Build a tree from a postfix-ordered buffer of node information,
-	or a cursor over such a buffer.
-	*/
-	static build(data) {
-		return buildTree(data);
-	}
-};
-/**
-The empty tree
-*/
-Tree.empty = new Tree(NodeType.none, [], [], 0);
-var FlatBufferCursor = class FlatBufferCursor {
-	constructor(buffer, index) {
-		this.buffer = buffer;
-		this.index = index;
-	}
-	get id() {
-		return this.buffer[this.index - 4];
-	}
-	get start() {
-		return this.buffer[this.index - 3];
-	}
-	get end() {
-		return this.buffer[this.index - 2];
-	}
-	get size() {
-		return this.buffer[this.index - 1];
-	}
-	get pos() {
-		return this.index;
-	}
-	next() {
-		this.index -= 4;
-	}
-	fork() {
-		return new FlatBufferCursor(this.buffer, this.index);
-	}
-};
-/**
-Tree buffers contain (type, start, end, endIndex) quads for each
-node. In such a buffer, nodes are stored in prefix order (parents
-before children, with the endIndex of the parent indicating which
-children belong to it).
-*/
-var TreeBuffer = class TreeBuffer {
-	/**
-	Create a tree buffer.
-	*/
-	constructor(buffer, length, set) {
-		this.buffer = buffer;
-		this.length = length;
-		this.set = set;
-	}
-	/**
-	@internal
-	*/
-	get type() {
-		return NodeType.none;
-	}
-	/**
-	@internal
-	*/
-	toString() {
-		let result = [];
-		for (let index = 0; index < this.buffer.length;) {
-			result.push(this.childString(index));
-			index = this.buffer[index + 3];
-		}
-		return result.join(",");
-	}
-	/**
-	@internal
-	*/
-	childString(index) {
-		let id = this.buffer[index], endIndex = this.buffer[index + 3];
-		let type = this.set.types[id], result = type.name;
-		if (/\W/.test(result) && !type.isError) result = JSON.stringify(result);
-		index += 4;
-		if (endIndex == index) return result;
-		let children = [];
-		while (index < endIndex) {
-			children.push(this.childString(index));
-			index = this.buffer[index + 3];
-		}
-		return result + "(" + children.join(",") + ")";
-	}
-	/**
-	@internal
-	*/
-	findChild(startIndex, endIndex, dir, pos, side) {
-		let { buffer } = this, pick = -1;
-		for (let i = startIndex; i != endIndex; i = buffer[i + 3]) if (checkSide(side, pos, buffer[i + 1], buffer[i + 2])) {
-			pick = i;
-			if (dir > 0) break;
-		}
-		return pick;
-	}
-	/**
-	@internal
-	*/
-	slice(startI, endI, from) {
-		let b = this.buffer;
-		let copy = new Uint16Array(endI - startI), len = 0;
-		for (let i = startI, j = 0; i < endI;) {
-			copy[j++] = b[i++];
-			copy[j++] = b[i++] - from;
-			let to = copy[j++] = b[i++] - from;
-			copy[j++] = b[i++] - startI;
-			len = Math.max(len, to);
-		}
-		return new TreeBuffer(copy, len, this.set);
-	}
-};
-function checkSide(side, pos, from, to) {
-	switch (side) {
-		case -2: return from < pos;
-		case -1: return to >= pos && from < pos;
-		case 0: return from < pos && to > pos;
-		case 1: return from <= pos && to > pos;
-		case 2: return to > pos;
-		case 4: return true;
-	}
-}
-function resolveNode(node, pos, side, overlays) {
-	var _a;
-	while (node.from == node.to || (side < 1 ? node.from >= pos : node.from > pos) || (side > -1 ? node.to <= pos : node.to < pos)) {
-		let parent = !overlays && node instanceof TreeNode && node.index < 0 ? null : node.parent;
-		if (!parent) return node;
-		node = parent;
-	}
-	let mode = overlays ? 0 : IterMode.IgnoreOverlays;
-	if (overlays) {
-		for (let scan = node, parent = scan.parent; parent; scan = parent, parent = scan.parent) if (scan instanceof TreeNode && scan.index < 0 && ((_a = parent.enter(pos, side, mode)) === null || _a === void 0 ? void 0 : _a.from) != scan.from) node = parent;
-	}
-	for (;;) {
-		let inner = node.enter(pos, side, mode);
-		if (!inner) return node;
-		node = inner;
-	}
-}
-var BaseNode = class {
-	cursor(mode = 0) {
-		return new TreeCursor(this, mode);
-	}
-	getChild(type, before = null, after = null) {
-		let r = getChildren(this, type, before, after);
-		return r.length ? r[0] : null;
-	}
-	getChildren(type, before = null, after = null) {
-		return getChildren(this, type, before, after);
-	}
-	resolve(pos, side = 0) {
-		return resolveNode(this, pos, side, false);
-	}
-	resolveInner(pos, side = 0) {
-		return resolveNode(this, pos, side, true);
-	}
-	matchContext(context) {
-		return matchNodeContext(this.parent, context);
-	}
-	enterUnfinishedNodesBefore(pos) {
-		let scan = this.childBefore(pos), node = this;
-		while (scan) {
-			let last = scan.lastChild;
-			if (!last || last.to != scan.to) break;
-			if (last.type.isError && last.from == last.to) {
-				node = scan;
-				scan = last.prevSibling;
-			} else scan = last;
-		}
-		return node;
-	}
-	get node() {
-		return this;
-	}
-	get next() {
-		return this.parent;
-	}
-};
-var TreeNode = class TreeNode extends BaseNode {
-	constructor(_tree, from, index, _parent) {
-		super();
-		this._tree = _tree;
-		this.from = from;
-		this.index = index;
-		this._parent = _parent;
-	}
-	get type() {
-		return this._tree.type;
-	}
-	get name() {
-		return this._tree.type.name;
-	}
-	get to() {
-		return this.from + this._tree.length;
-	}
-	nextChild(i, dir, pos, side, mode = 0) {
-		for (let parent = this;;) {
-			for (let { children, positions } = parent._tree, e = dir > 0 ? children.length : -1; i != e; i += dir) {
-				let next = children[i], start = positions[i] + parent.from, mounted;
-				if (!(mode & IterMode.EnterBracketed && next instanceof Tree && (mounted = MountedTree.get(next)) && !mounted.overlay && mounted.bracketed && pos >= start && pos <= start + next.length) && !checkSide(side, pos, start, start + next.length)) continue;
-				if (next instanceof TreeBuffer) {
-					if (mode & IterMode.ExcludeBuffers) continue;
-					let index = next.findChild(0, next.buffer.length, dir, pos - start, side);
-					if (index > -1) return new BufferNode(new BufferContext(parent, next, i, start), null, index);
-				} else if (mode & IterMode.IncludeAnonymous || !next.type.isAnonymous || hasChild(next)) {
-					let mounted;
-					if (!(mode & IterMode.IgnoreMounts) && (mounted = MountedTree.get(next)) && !mounted.overlay) return new TreeNode(mounted.tree, start, i, parent);
-					let inner = new TreeNode(next, start, i, parent);
-					return mode & IterMode.IncludeAnonymous || !inner.type.isAnonymous ? inner : inner.nextChild(dir < 0 ? next.children.length - 1 : 0, dir, pos, side, mode);
-				}
-			}
-			if (mode & IterMode.IncludeAnonymous || !parent.type.isAnonymous) return null;
-			if (parent.index >= 0) i = parent.index + dir;
-			else i = dir < 0 ? -1 : parent._parent._tree.children.length;
-			parent = parent._parent;
-			if (!parent) return null;
-		}
-	}
-	get firstChild() {
-		return this.nextChild(0, 1, 0, 4);
-	}
-	get lastChild() {
-		return this.nextChild(this._tree.children.length - 1, -1, 0, 4);
-	}
-	childAfter(pos) {
-		return this.nextChild(0, 1, pos, 2);
-	}
-	childBefore(pos) {
-		return this.nextChild(this._tree.children.length - 1, -1, pos, -2);
-	}
-	prop(prop) {
-		return this._tree.prop(prop);
-	}
-	enter(pos, side, mode = 0) {
-		let mounted;
-		if (!(mode & IterMode.IgnoreOverlays) && (mounted = MountedTree.get(this._tree)) && mounted.overlay) {
-			let rPos = pos - this.from, enterBracketed = mode & IterMode.EnterBracketed && mounted.bracketed;
-			for (let { from, to } of mounted.overlay) if ((side > 0 || enterBracketed ? from <= rPos : from < rPos) && (side < 0 || enterBracketed ? to >= rPos : to > rPos)) return new TreeNode(mounted.tree, mounted.overlay[0].from + this.from, -1, this);
-		}
-		return this.nextChild(0, 1, pos, side, mode);
-	}
-	nextSignificantParent() {
-		let val = this;
-		while (val.type.isAnonymous && val._parent) val = val._parent;
-		return val;
-	}
-	get parent() {
-		return this._parent ? this._parent.nextSignificantParent() : null;
-	}
-	get nextSibling() {
-		return this._parent && this.index >= 0 ? this._parent.nextChild(this.index + 1, 1, 0, 4) : null;
-	}
-	get prevSibling() {
-		return this._parent && this.index >= 0 ? this._parent.nextChild(this.index - 1, -1, 0, 4) : null;
-	}
-	get tree() {
-		return this._tree;
-	}
-	toTree() {
-		return this._tree;
-	}
-	/**
-	@internal
-	*/
-	toString() {
-		return this._tree.toString();
-	}
-};
-function getChildren(node, type, before, after) {
-	let cur = node.cursor(), result = [];
-	if (!cur.firstChild()) return result;
-	if (before != null) for (let found = false; !found;) {
-		found = cur.type.is(before);
-		if (!cur.nextSibling()) return result;
-	}
-	for (;;) {
-		if (after != null && cur.type.is(after)) return result;
-		if (cur.type.is(type)) result.push(cur.node);
-		if (!cur.nextSibling()) return after == null ? result : [];
-	}
-}
-function matchNodeContext(node, context, i = context.length - 1) {
-	for (let p = node; i >= 0; p = p.parent) {
-		if (!p) return false;
-		if (!p.type.isAnonymous) {
-			if (context[i] && context[i] != p.name) return false;
-			i--;
-		}
-	}
-	return true;
-}
-var BufferContext = class {
-	constructor(parent, buffer, index, start) {
-		this.parent = parent;
-		this.buffer = buffer;
-		this.index = index;
-		this.start = start;
-	}
-};
-var BufferNode = class BufferNode extends BaseNode {
-	get name() {
-		return this.type.name;
-	}
-	get from() {
-		return this.context.start + this.context.buffer.buffer[this.index + 1];
-	}
-	get to() {
-		return this.context.start + this.context.buffer.buffer[this.index + 2];
-	}
-	constructor(context, _parent, index) {
-		super();
-		this.context = context;
-		this._parent = _parent;
-		this.index = index;
-		this.type = context.buffer.set.types[context.buffer.buffer[index]];
-	}
-	child(dir, pos, side) {
-		let { buffer } = this.context;
-		let index = buffer.findChild(this.index + 4, buffer.buffer[this.index + 3], dir, pos - this.context.start, side);
-		return index < 0 ? null : new BufferNode(this.context, this, index);
-	}
-	get firstChild() {
-		return this.child(1, 0, 4);
-	}
-	get lastChild() {
-		return this.child(-1, 0, 4);
-	}
-	childAfter(pos) {
-		return this.child(1, pos, 2);
-	}
-	childBefore(pos) {
-		return this.child(-1, pos, -2);
-	}
-	prop(prop) {
-		return this.type.prop(prop);
-	}
-	enter(pos, side, mode = 0) {
-		if (mode & IterMode.ExcludeBuffers) return null;
-		let { buffer } = this.context;
-		let index = buffer.findChild(this.index + 4, buffer.buffer[this.index + 3], side > 0 ? 1 : -1, pos - this.context.start, side);
-		return index < 0 ? null : new BufferNode(this.context, this, index);
-	}
-	get parent() {
-		return this._parent || this.context.parent.nextSignificantParent();
-	}
-	externalSibling(dir) {
-		return this._parent ? null : this.context.parent.nextChild(this.context.index + dir, dir, 0, 4);
-	}
-	get nextSibling() {
-		let { buffer } = this.context;
-		let after = buffer.buffer[this.index + 3];
-		if (after < (this._parent ? buffer.buffer[this._parent.index + 3] : buffer.buffer.length)) return new BufferNode(this.context, this._parent, after);
-		return this.externalSibling(1);
-	}
-	get prevSibling() {
-		let { buffer } = this.context;
-		let parentStart = this._parent ? this._parent.index + 4 : 0;
-		if (this.index == parentStart) return this.externalSibling(-1);
-		return new BufferNode(this.context, this._parent, buffer.findChild(parentStart, this.index, -1, 0, 4));
-	}
-	get tree() {
-		return null;
-	}
-	toTree() {
-		let children = [], positions = [];
-		let { buffer } = this.context;
-		let startI = this.index + 4, endI = buffer.buffer[this.index + 3];
-		if (endI > startI) {
-			let from = buffer.buffer[this.index + 1];
-			children.push(buffer.slice(startI, endI, from));
-			positions.push(0);
-		}
-		return new Tree(this.type, children, positions, this.to - this.from);
-	}
-	/**
-	@internal
-	*/
-	toString() {
-		return this.context.buffer.childString(this.index);
-	}
-};
-function iterStack(heads) {
-	if (!heads.length) return null;
-	let pick = 0, picked = heads[0];
-	for (let i = 1; i < heads.length; i++) {
-		let node = heads[i];
-		if (node.from > picked.from || node.to < picked.to) {
-			picked = node;
-			pick = i;
-		}
-	}
-	let next = picked instanceof TreeNode && picked.index < 0 ? null : picked.parent;
-	let newHeads = heads.slice();
-	if (next) newHeads[pick] = next;
-	else newHeads.splice(pick, 1);
-	return new StackIterator(newHeads, picked);
-}
-var StackIterator = class {
-	constructor(heads, node) {
-		this.heads = heads;
-		this.node = node;
-	}
-	get next() {
-		return iterStack(this.heads);
-	}
-};
-function stackIterator(tree, pos, side) {
-	let inner = tree.resolveInner(pos, side), layers = null;
-	for (let scan = inner instanceof TreeNode ? inner : inner.context.parent; scan; scan = scan.parent) if (scan.index < 0) {
-		let parent = scan.parent;
-		(layers || (layers = [inner])).push(parent.resolve(pos, side));
-		scan = parent;
-	} else {
-		let mount = MountedTree.get(scan.tree);
-		if (mount && mount.overlay && mount.overlay[0].from <= pos && mount.overlay[mount.overlay.length - 1].to >= pos) {
-			let root = new TreeNode(mount.tree, mount.overlay[0].from + scan.from, -1, scan);
-			(layers || (layers = [inner])).push(resolveNode(root, pos, side, false));
-		}
-	}
-	return layers ? iterStack(layers) : inner;
-}
-/**
-A tree cursor object focuses on a given node in a syntax tree, and
-allows you to move to adjacent nodes.
-*/
-var TreeCursor = class {
-	/**
-	Shorthand for `.type.name`.
-	*/
-	get name() {
-		return this.type.name;
-	}
-	/**
-	@internal
-	*/
-	constructor(node, mode = 0) {
-		/**
-		@internal
-		*/
-		this.buffer = null;
-		this.stack = [];
-		/**
-		@internal
-		*/
-		this.index = 0;
-		this.bufferNode = null;
-		this.mode = mode & ~IterMode.EnterBracketed;
-		if (node instanceof TreeNode) this.yieldNode(node);
-		else {
-			this._tree = node.context.parent;
-			this.buffer = node.context;
-			for (let n = node._parent; n; n = n._parent) this.stack.unshift(n.index);
-			this.bufferNode = node;
-			this.yieldBuf(node.index);
-		}
-	}
-	yieldNode(node) {
-		if (!node) return false;
-		this._tree = node;
-		this.type = node.type;
-		this.from = node.from;
-		this.to = node.to;
-		return true;
-	}
-	yieldBuf(index, type) {
-		this.index = index;
-		let { start, buffer } = this.buffer;
-		this.type = type || buffer.set.types[buffer.buffer[index]];
-		this.from = start + buffer.buffer[index + 1];
-		this.to = start + buffer.buffer[index + 2];
-		return true;
-	}
-	/**
-	@internal
-	*/
-	yield(node) {
-		if (!node) return false;
-		if (node instanceof TreeNode) {
-			this.buffer = null;
-			return this.yieldNode(node);
-		}
-		this.buffer = node.context;
-		return this.yieldBuf(node.index, node.type);
-	}
-	/**
-	@internal
-	*/
-	toString() {
-		return this.buffer ? this.buffer.buffer.childString(this.index) : this._tree.toString();
-	}
-	/**
-	@internal
-	*/
-	enterChild(dir, pos, side) {
-		if (!this.buffer) return this.yield(this._tree.nextChild(dir < 0 ? this._tree._tree.children.length - 1 : 0, dir, pos, side, this.mode));
-		let { buffer } = this.buffer;
-		let index = buffer.findChild(this.index + 4, buffer.buffer[this.index + 3], dir, pos - this.buffer.start, side);
-		if (index < 0) return false;
-		this.stack.push(this.index);
-		return this.yieldBuf(index);
-	}
-	/**
-	Move the cursor to this node's first child. When this returns
-	false, the node has no child, and the cursor has not been moved.
-	*/
-	firstChild() {
-		return this.enterChild(1, 0, 4);
-	}
-	/**
-	Move the cursor to this node's last child.
-	*/
-	lastChild() {
-		return this.enterChild(-1, 0, 4);
-	}
-	/**
-	Move the cursor to the first child that ends after `pos`.
-	*/
-	childAfter(pos) {
-		return this.enterChild(1, pos, 2);
-	}
-	/**
-	Move to the last child that starts before `pos`.
-	*/
-	childBefore(pos) {
-		return this.enterChild(-1, pos, -2);
-	}
-	/**
-	Move the cursor to the child around `pos`. If side is -1 the
-	child may end at that position, when 1 it may start there. This
-	will also enter [overlaid](#common.MountedTree.overlay)
-	[mounted](#common.NodeProp^mounted) trees unless `overlays` is
-	set to false.
-	*/
-	enter(pos, side, mode = this.mode) {
-		if (!this.buffer) return this.yield(this._tree.enter(pos, side, mode));
-		return mode & IterMode.ExcludeBuffers ? false : this.enterChild(1, pos, side);
-	}
-	/**
-	Move to the node's parent node, if this isn't the top node.
-	*/
-	parent() {
-		if (!this.buffer) return this.yieldNode(this.mode & IterMode.IncludeAnonymous ? this._tree._parent : this._tree.parent);
-		if (this.stack.length) return this.yieldBuf(this.stack.pop());
-		let parent = this.mode & IterMode.IncludeAnonymous ? this.buffer.parent : this.buffer.parent.nextSignificantParent();
-		this.buffer = null;
-		return this.yieldNode(parent);
-	}
-	/**
-	@internal
-	*/
-	sibling(dir) {
-		if (!this.buffer) return !this._tree._parent ? false : this.yield(this._tree.index < 0 ? null : this._tree._parent.nextChild(this._tree.index + dir, dir, 0, 4, this.mode));
-		let { buffer } = this.buffer, d = this.stack.length - 1;
-		if (dir < 0) {
-			let parentStart = d < 0 ? 0 : this.stack[d] + 4;
-			if (this.index != parentStart) return this.yieldBuf(buffer.findChild(parentStart, this.index, -1, 0, 4));
-		} else {
-			let after = buffer.buffer[this.index + 3];
-			if (after < (d < 0 ? buffer.buffer.length : buffer.buffer[this.stack[d] + 3])) return this.yieldBuf(after);
-		}
-		return d < 0 ? this.yield(this.buffer.parent.nextChild(this.buffer.index + dir, dir, 0, 4, this.mode)) : false;
-	}
-	/**
-	Move to this node's next sibling, if any.
-	*/
-	nextSibling() {
-		return this.sibling(1);
-	}
-	/**
-	Move to this node's previous sibling, if any.
-	*/
-	prevSibling() {
-		return this.sibling(-1);
-	}
-	atLastNode(dir) {
-		let index, parent, { buffer } = this;
-		if (buffer) {
-			if (dir > 0) {
-				if (this.index < buffer.buffer.buffer.length) return false;
-			} else for (let i = 0; i < this.index; i++) if (buffer.buffer.buffer[i + 3] < this.index) return false;
-			({index, parent} = buffer);
-		} else ({index, _parent: parent} = this._tree);
-		for (; parent; {index, _parent: parent} = parent) if (index > -1) for (let i = index + dir, e = dir < 0 ? -1 : parent._tree.children.length; i != e; i += dir) {
-			let child = parent._tree.children[i];
-			if (this.mode & IterMode.IncludeAnonymous || child instanceof TreeBuffer || !child.type.isAnonymous || hasChild(child)) return false;
-		}
-		return true;
-	}
-	move(dir, enter) {
-		if (enter && this.enterChild(dir, 0, 4)) return true;
-		for (;;) {
-			if (this.sibling(dir)) return true;
-			if (this.atLastNode(dir) || !this.parent()) return false;
-		}
-	}
-	/**
-	Move to the next node in a
-	[pre-order](https://en.wikipedia.org/wiki/Tree_traversal#Pre-order,_NLR)
-	traversal, going from a node to its first child or, if the
-	current node is empty or `enter` is false, its next sibling or
-	the next sibling of the first parent node that has one.
-	*/
-	next(enter = true) {
-		return this.move(1, enter);
-	}
-	/**
-	Move to the next node in a last-to-first pre-order traversal. A
-	node is followed by its last child or, if it has none, its
-	previous sibling or the previous sibling of the first parent
-	node that has one.
-	*/
-	prev(enter = true) {
-		return this.move(-1, enter);
-	}
-	/**
-	Move the cursor to the innermost node that covers `pos`. If
-	`side` is -1, it will enter nodes that end at `pos`. If it is 1,
-	it will enter nodes that start at `pos`.
-	*/
-	moveTo(pos, side = 0) {
-		while (this.from == this.to || (side < 1 ? this.from >= pos : this.from > pos) || (side > -1 ? this.to <= pos : this.to < pos)) if (!this.parent()) break;
-		while (this.enterChild(1, pos, side));
-		return this;
-	}
-	/**
-	Get a [syntax node](#common.SyntaxNode) at the cursor's current
-	position.
-	*/
-	get node() {
-		if (!this.buffer) return this._tree;
-		let cache = this.bufferNode, result = null, depth = 0;
-		if (cache && cache.context == this.buffer) scan: for (let index = this.index, d = this.stack.length; d >= 0;) {
-			for (let c = cache; c; c = c._parent) if (c.index == index) {
-				if (index == this.index) return c;
-				result = c;
-				depth = d + 1;
-				break scan;
-			}
-			index = this.stack[--d];
-		}
-		for (let i = depth; i < this.stack.length; i++) result = new BufferNode(this.buffer, result, this.stack[i]);
-		return this.bufferNode = new BufferNode(this.buffer, result, this.index);
-	}
-	/**
-	Get the [tree](#common.Tree) that represents the current node, if
-	any. Will return null when the node is in a [tree
-	buffer](#common.TreeBuffer).
-	*/
-	get tree() {
-		return this.buffer ? null : this._tree._tree;
-	}
-	/**
-	Iterate over the current node and all its descendants, calling
-	`enter` when entering a node and `leave`, if given, when leaving
-	one. When `enter` returns `false`, any children of that node are
-	skipped, and `leave` isn't called for it.
-	*/
-	iterate(enter, leave) {
-		for (let depth = 0;;) {
-			let mustLeave = false;
-			if (this.type.isAnonymous || enter(this) !== false) {
-				if (this.firstChild()) {
-					depth++;
-					continue;
-				}
-				if (!this.type.isAnonymous) mustLeave = true;
-			}
-			for (;;) {
-				if (mustLeave && leave) leave(this);
-				mustLeave = this.type.isAnonymous;
-				if (!depth) return;
-				if (this.nextSibling()) break;
-				this.parent();
-				depth--;
-				mustLeave = true;
-			}
-		}
-	}
-	/**
-	Test whether the current node matches a given context—a sequence
-	of direct parent node names. Empty strings in the context array
-	are treated as wildcards.
-	*/
-	matchContext(context) {
-		if (!this.buffer) return matchNodeContext(this.node.parent, context);
-		let { buffer } = this.buffer, { types } = buffer.set;
-		for (let i = context.length - 1, d = this.stack.length - 1; i >= 0; d--) {
-			if (d < 0) return matchNodeContext(this._tree, context, i);
-			let type = types[buffer.buffer[this.stack[d]]];
-			if (!type.isAnonymous) {
-				if (context[i] && context[i] != type.name) return false;
-				i--;
-			}
-		}
-		return true;
-	}
-};
-function hasChild(tree) {
-	return tree.children.some((ch) => ch instanceof TreeBuffer || !ch.type.isAnonymous || hasChild(ch));
-}
-function buildTree(data) {
-	var _a;
-	let { buffer, nodeSet, maxBufferLength = DefaultBufferLength, reused = [], minRepeatType = nodeSet.types.length } = data;
-	let cursor = Array.isArray(buffer) ? new FlatBufferCursor(buffer, buffer.length) : buffer;
-	let types = nodeSet.types;
-	let contextHash = 0, lookAhead = 0;
-	function takeNode(parentStart, minPos, children, positions, inRepeat, depth) {
-		let { id, start, end, size } = cursor;
-		let lookAheadAtStart = lookAhead, contextAtStart = contextHash;
-		if (size < 0) {
-			cursor.next();
-			if (size == -1) {
-				let node = reused[id];
-				children.push(node);
-				positions.push(start - parentStart);
-				return;
-			} else if (size == -3) {
-				contextHash = id;
-				return;
-			} else if (size == -4) {
-				lookAhead = id;
-				return;
-			} else throw new RangeError(`Unrecognized record size: ${size}`);
-		}
-		let type = types[id], node, buffer;
-		let startPos = start - parentStart;
-		if (end - start <= maxBufferLength && (buffer = findBufferSize(cursor.pos - minPos, inRepeat))) {
-			let data = new Uint16Array(buffer.size - buffer.skip);
-			let endPos = cursor.pos - buffer.size, index = data.length;
-			while (cursor.pos > endPos) index = copyToBuffer(buffer.start, data, index);
-			node = new TreeBuffer(data, end - buffer.start, nodeSet);
-			startPos = buffer.start - parentStart;
-		} else {
-			let endPos = cursor.pos - size;
-			cursor.next();
-			let localChildren = [], localPositions = [];
-			let localInRepeat = id >= minRepeatType ? id : -1;
-			let lastGroup = 0, lastEnd = end;
-			while (cursor.pos > endPos) if (localInRepeat >= 0 && cursor.id == localInRepeat && cursor.size >= 0) {
-				if (cursor.end <= lastEnd - maxBufferLength) {
-					makeRepeatLeaf(localChildren, localPositions, start, lastGroup, cursor.end, lastEnd, localInRepeat, lookAheadAtStart, contextAtStart);
-					lastGroup = localChildren.length;
-					lastEnd = cursor.end;
-				}
-				cursor.next();
-			} else if (depth > 2500) takeFlatNode(start, endPos, localChildren, localPositions);
-			else takeNode(start, endPos, localChildren, localPositions, localInRepeat, depth + 1);
-			if (localInRepeat >= 0 && lastGroup > 0 && lastGroup < localChildren.length) makeRepeatLeaf(localChildren, localPositions, start, lastGroup, start, lastEnd, localInRepeat, lookAheadAtStart, contextAtStart);
-			localChildren.reverse();
-			localPositions.reverse();
-			if (localInRepeat > -1 && lastGroup > 0) {
-				let make = makeBalanced(type, contextAtStart);
-				node = balanceRange(type, localChildren, localPositions, 0, localChildren.length, 0, end - start, make, make);
-			} else node = makeTree(type, localChildren, localPositions, end - start, lookAheadAtStart - end, contextAtStart);
-		}
-		children.push(node);
-		positions.push(startPos);
-	}
-	function takeFlatNode(parentStart, minPos, children, positions) {
-		let nodes = [];
-		let nodeCount = 0, stopAt = -1;
-		while (cursor.pos > minPos) {
-			let { id, start, end, size } = cursor;
-			if (size > 4) cursor.next();
-			else if (stopAt > -1 && start < stopAt) break;
-			else {
-				if (stopAt < 0) stopAt = end - maxBufferLength;
-				nodes.push(id, start, end);
-				nodeCount++;
-				cursor.next();
-			}
-		}
-		if (nodeCount) {
-			let buffer = new Uint16Array(nodeCount * 4);
-			let start = nodes[nodes.length - 2];
-			for (let i = nodes.length - 3, j = 0; i >= 0; i -= 3) {
-				buffer[j++] = nodes[i];
-				buffer[j++] = nodes[i + 1] - start;
-				buffer[j++] = nodes[i + 2] - start;
-				buffer[j++] = j;
-			}
-			children.push(new TreeBuffer(buffer, nodes[2] - start, nodeSet));
-			positions.push(start - parentStart);
-		}
-	}
-	function makeBalanced(type, contextHash) {
-		return (children, positions, length) => {
-			let lookAhead = 0, lastI = children.length - 1, last, lookAheadProp;
-			if (lastI >= 0 && (last = children[lastI]) instanceof Tree) {
-				if (!lastI && last.type == type && last.length == length) return last;
-				if (lookAheadProp = last.prop(NodeProp.lookAhead)) lookAhead = positions[lastI] + last.length + lookAheadProp;
-			}
-			return makeTree(type, children, positions, length, lookAhead, contextHash);
-		};
-	}
-	function makeRepeatLeaf(children, positions, base, i, from, to, type, lookAhead, contextHash) {
-		let localChildren = [], localPositions = [];
-		while (children.length > i) {
-			localChildren.push(children.pop());
-			localPositions.push(positions.pop() + base - from);
-		}
-		children.push(makeTree(nodeSet.types[type], localChildren, localPositions, to - from, lookAhead - to, contextHash));
-		positions.push(from - base);
-	}
-	function makeTree(type, children, positions, length, lookAhead, contextHash, props) {
-		if (contextHash) {
-			let pair = [NodeProp.contextHash, contextHash];
-			props = props ? [pair].concat(props) : [pair];
-		}
-		if (lookAhead > 25) {
-			let pair = [NodeProp.lookAhead, lookAhead];
-			props = props ? [pair].concat(props) : [pair];
-		}
-		return new Tree(type, children, positions, length, props);
-	}
-	function findBufferSize(maxSize, inRepeat) {
-		let fork = cursor.fork();
-		let size = 0, start = 0, skip = 0, minStart = fork.end - maxBufferLength;
-		let result = {
-			size: 0,
-			start: 0,
-			skip: 0
-		};
-		scan: for (let minPos = fork.pos - maxSize; fork.pos > minPos;) {
-			let nodeSize = fork.size;
-			if (fork.id == inRepeat && nodeSize >= 0) {
-				result.size = size;
-				result.start = start;
-				result.skip = skip;
-				skip += 4;
-				size += 4;
-				fork.next();
-				continue;
-			}
-			let startPos = fork.pos - nodeSize;
-			if (nodeSize < 0 || startPos < minPos || fork.start < minStart) break;
-			let localSkipped = fork.id >= minRepeatType ? 4 : 0;
-			let nodeStart = fork.start;
-			fork.next();
-			while (fork.pos > startPos) {
-				if (fork.size < 0) {
-					if (fork.size == -3 || fork.size == -4) localSkipped += 4;
-					else break scan;
-				} else if (fork.id >= minRepeatType) localSkipped += 4;
-				fork.next();
-			}
-			start = nodeStart;
-			size += nodeSize;
-			skip += localSkipped;
-		}
-		if (inRepeat < 0 || size == maxSize) {
-			result.size = size;
-			result.start = start;
-			result.skip = skip;
-		}
-		return result.size > 4 ? result : void 0;
-	}
-	function copyToBuffer(bufferStart, buffer, index) {
-		let { id, start, end, size } = cursor;
-		cursor.next();
-		if (size >= 0 && id < minRepeatType) {
-			let startIndex = index;
-			if (size > 4) {
-				let endPos = cursor.pos - (size - 4);
-				while (cursor.pos > endPos) index = copyToBuffer(bufferStart, buffer, index);
-			}
-			buffer[--index] = startIndex;
-			buffer[--index] = end - bufferStart;
-			buffer[--index] = start - bufferStart;
-			buffer[--index] = id;
-		} else if (size == -3) contextHash = id;
-		else if (size == -4) lookAhead = id;
-		return index;
-	}
-	let children = [], positions = [];
-	while (cursor.pos > 0) takeNode(data.start || 0, data.bufferStart || 0, children, positions, -1, 0);
-	let length = (_a = data.length) !== null && _a !== void 0 ? _a : children.length ? positions[0] + children[0].length : 0;
-	return new Tree(types[data.topID], children.reverse(), positions.reverse(), length);
-}
-var nodeSizeCache = /* @__PURE__ */ new WeakMap();
-function nodeSize(balanceType, node) {
-	if (!balanceType.isAnonymous || node instanceof TreeBuffer || node.type != balanceType) return 1;
-	let size = nodeSizeCache.get(node);
-	if (size == null) {
-		size = 1;
-		for (let child of node.children) {
-			if (child.type != balanceType || !(child instanceof Tree)) {
-				size = 1;
-				break;
-			}
-			size += nodeSize(balanceType, child);
-		}
-		nodeSizeCache.set(node, size);
-	}
-	return size;
-}
-function balanceRange(balanceType, children, positions, from, to, start, length, mkTop, mkTree) {
-	let total = 0;
-	for (let i = from; i < to; i++) total += nodeSize(balanceType, children[i]);
-	let maxChild = Math.ceil(total * 1.5 / 8);
-	let localChildren = [], localPositions = [];
-	function divide(children, positions, from, to, offset) {
-		for (let i = from; i < to;) {
-			let groupFrom = i, groupStart = positions[i], groupSize = nodeSize(balanceType, children[i]);
-			i++;
-			for (; i < to; i++) {
-				let nextSize = nodeSize(balanceType, children[i]);
-				if (groupSize + nextSize >= maxChild) break;
-				groupSize += nextSize;
-			}
-			if (i == groupFrom + 1) {
-				if (groupSize > maxChild) {
-					let only = children[groupFrom];
-					divide(only.children, only.positions, 0, only.children.length, positions[groupFrom] + offset);
-					continue;
-				}
-				localChildren.push(children[groupFrom]);
-			} else {
-				let length = positions[i - 1] + children[i - 1].length - groupStart;
-				localChildren.push(balanceRange(balanceType, children, positions, groupFrom, i, groupStart, length, null, mkTree));
-			}
-			localPositions.push(groupStart + offset - start);
-		}
-	}
-	divide(children, positions, from, to, 0);
-	return (mkTop || mkTree)(localChildren, localPositions, length);
-}
-new NodeProp({ perNode: true });
 //#endregion
 //#region ../../node_modules/.pnpm/@lezer+highlight@1.2.5/node_modules/@lezer/highlight/dist/index.js
 var nextTagID = 0;
@@ -141479,105 +140766,179 @@ tagHighlighter([
 	}
 ]);
 //#endregion
-//#region ../../node_modules/.pnpm/style-mod@4.1.3_patch_hash=8b8994768dcd5295790b5425f0e9f8a8dfaaaea0f61f438744f64f243c5a511b/node_modules/style-mod/src/style-mod.js
-var C = "ͼ";
-var COUNT = typeof Symbol == "undefined" ? "__ͼ" : Symbol.for(C);
-var SET = typeof Symbol == "undefined" ? "__styleSet" + Math.floor(Math.random() * 1e8) : Symbol("styleSet");
-var top = typeof globalThis != "undefined" ? globalThis : typeof window != "undefined" ? window : {};
-var StyleModule = class {
-	constructor(spec, options) {
-		this.rules = [];
-		let { finish } = options || {};
-		function splitSelector(selector) {
-			return /^@/.test(selector) ? [selector] : selector.split(/,\s*/);
+//#region ../../node_modules/.pnpm/@codemirror+streamparser@6.0.0/node_modules/@codemirror/streamparser/dist/index.js
+function countCol(string, end, tabSize, startIndex = 0, startValue = 0) {
+	if (end == null) {
+		end = string.search(/[^\s\u00a0]/);
+		if (end == -1) end = string.length;
+	}
+	let n = startValue;
+	for (let i = startIndex; i < end; i++) if (string.charCodeAt(i) == 9) n += tabSize - n % tabSize;
+	else n++;
+	return n;
+}
+/**
+Encapsulates a single line of input. Given to stream syntax code,
+which uses it to tokenize the content.
+*/
+var StringStream = class {
+	/**
+	Create a stream.
+	*/
+	constructor(string, tabSize, indentUnit, overrideIndent) {
+		this.string = string;
+		this.tabSize = tabSize;
+		this.indentUnit = indentUnit;
+		this.overrideIndent = overrideIndent;
+		/**
+		The current position on the line.
+		*/
+		this.pos = 0;
+		/**
+		The start position of the current token.
+		*/
+		this.start = 0;
+		this.lastColumnPos = 0;
+		this.lastColumnValue = 0;
+	}
+	/**
+	True if we are at the end of the line.
+	*/
+	eol() {
+		return this.pos >= this.string.length;
+	}
+	/**
+	True if we are at the start of the line.
+	*/
+	sol() {
+		return this.pos == 0;
+	}
+	/**
+	Get the next code unit after the current position, or undefined
+	if we're at the end of the line.
+	*/
+	peek() {
+		return this.string.charAt(this.pos) || void 0;
+	}
+	/**
+	Read the next code unit and advance `this.pos`.
+	*/
+	next() {
+		if (this.pos < this.string.length) return this.string.charAt(this.pos++);
+	}
+	/**
+	Match the next character against the given string, regular
+	expression, or predicate. Consume and return it if it matches.
+	*/
+	eat(match) {
+		let ch = this.string.charAt(this.pos);
+		let ok;
+		if (typeof match == "string") ok = ch == match;
+		else ok = ch && (match instanceof RegExp ? match.test(ch) : match(ch));
+		if (ok) {
+			++this.pos;
+			return ch;
 		}
-		function render(selectors, spec, target, isKeyframes) {
-			let local = [], isAt = /^@(\w+)\b/.exec(selectors[0]), keyframes = isAt && isAt[1] == "keyframes";
-			if (isAt && spec == null) return target.push(selectors[0] + ";");
-			for (let prop in spec) {
-				let value = spec[prop];
-				if (/&/.test(prop)) render(prop.split(/,\s*/).map((part) => selectors.map((sel) => part.replace(/&/, sel))).reduce((a, b) => a.concat(b)), value, target);
-				else if (value && typeof value == "object") {
-					if (!isAt) throw new RangeError("The value of a property (" + prop + ") should be a primitive value.");
-					render(splitSelector(prop), value, local, keyframes);
-				} else if (value != null) local.push(prop.replace(/_.*/, "").replace(/[A-Z]/g, (l) => "-" + l.toLowerCase()) + ": " + value + ";");
-			}
-			if (local.length || keyframes) target.push((finish && !isAt && !isKeyframes ? selectors.map(finish) : selectors).join(", ") + " {" + local.join(" ") + "}");
+	}
+	/**
+	Continue matching characters that match the given string,
+	regular expression, or predicate function. Return true if any
+	characters were consumed.
+	*/
+	eatWhile(match) {
+		let start = this.pos;
+		while (this.eat(match));
+		return this.pos > start;
+	}
+	/**
+	Consume whitespace ahead of `this.pos`. Return true if any was
+	found.
+	*/
+	eatSpace() {
+		let start = this.pos;
+		while (/[\s\u00a0]/.test(this.string.charAt(this.pos))) ++this.pos;
+		return this.pos > start;
+	}
+	/**
+	Move to the end of the line.
+	*/
+	skipToEnd() {
+		this.pos = this.string.length;
+	}
+	/**
+	Move to directly before the given character, if found on the
+	current line.
+	*/
+	skipTo(ch) {
+		let found = this.string.indexOf(ch, this.pos);
+		if (found > -1) {
+			this.pos = found;
+			return true;
 		}
-		for (let prop in spec) render(splitSelector(prop), spec[prop], this.rules);
 	}
-	getRules() {
-		return this.rules.join("\n");
+	/**
+	Move back `n` characters.
+	*/
+	backUp(n) {
+		this.pos -= n;
 	}
-	static newName() {
-		let id = top[COUNT] || 1;
-		top[COUNT] = id + 1;
-		return C + id.toString(36);
+	/**
+	Get the column position at `this.pos`.
+	*/
+	column() {
+		if (this.lastColumnPos < this.start) {
+			this.lastColumnValue = countCol(this.string, this.start, this.tabSize, this.lastColumnPos, this.lastColumnValue);
+			this.lastColumnPos = this.start;
+		}
+		return this.lastColumnValue;
 	}
-	static mount(root, modules, options) {
-		let set = root[SET], nonce = options && options.nonce;
-		if (!set) set = new StyleSet(root, nonce);
-		else if (nonce) set.setNonce(nonce);
-		set.mount(Array.isArray(modules) ? modules : [modules], root);
+	/**
+	Get the indentation column of the current line.
+	*/
+	indentation() {
+		var _a;
+		return (_a = this.overrideIndent) !== null && _a !== void 0 ? _a : countCol(this.string, null, this.tabSize);
 	}
-};
-var adoptedSet = /* @__PURE__ */ new Map();
-var StyleSet = class {
-	constructor(root, nonce) {
-		let doc = root.ownerDocument || root, win = doc.defaultView;
-		if (root.adoptedStyleSheets && win.CSSStyleSheet) {
-			let adopted = adoptedSet.get(doc);
-			if (adopted) return root[SET] = adopted;
-			this.sheet = new win.CSSStyleSheet();
-			adoptedSet.set(doc, this);
+	/**
+	Match the input against the given string or regular expression
+	(which should start with a `^`). Return true or the regexp match
+	if it matches.
+	
+	Unless `consume` is set to `false`, this will move `this.pos`
+	past the matched text.
+	
+	When matching a string `caseInsensitive` can be set to true to
+	make the match case-insensitive.
+	*/
+	match(pattern, consume, caseInsensitive) {
+		if (typeof pattern == "string") {
+			let cased = (str) => caseInsensitive ? str.toLowerCase() : str;
+			if (cased(this.string.substr(this.pos, pattern.length)) == cased(pattern)) {
+				if (consume !== false) this.pos += pattern.length;
+				return true;
+			} else return null;
 		} else {
-			this.styleTag = doc.createElement("style");
-			if (nonce) this.styleTag.setAttribute("nonce", nonce);
-		}
-		this.modules = [];
-		root[SET] = this;
-	}
-	mount(modules, root) {
-		let sheet = this.sheet;
-		let pos = 0, j = 0;
-		for (let i = 0; i < modules.length; i++) {
-			let mod = modules[i], index = this.modules.indexOf(mod);
-			if (index < j && index > -1) {
-				this.modules.splice(index, 1);
-				j--;
-				index = -1;
-			}
-			if (index == -1) {
-				this.modules.splice(j++, 0, mod);
-				if (sheet) for (let k = 0; k < mod.rules.length; k++) sheet.insertRule(mod.rules[k], pos++);
-			} else {
-				while (j < index) pos += this.modules[j++].rules.length;
-				pos += mod.rules.length;
-				j++;
-			}
-		}
-		if (sheet) {
-			if (root.adoptedStyleSheets.indexOf(this.sheet) < 0) root.adoptedStyleSheets = [this.sheet, ...root.adoptedStyleSheets];
-		} else {
-			let text = "";
-			for (let i = 0; i < this.modules.length; i++) text += this.modules[i].getRules() + "\n";
-			this.styleTag.textContent = text;
-			let target = root.head || root;
-			if (this.styleTag.parentNode != target) target.insertBefore(this.styleTag, target.firstChild);
+			let match = this.string.slice(this.pos).match(pattern);
+			if (match && match.index > 0) return null;
+			if (match && consume !== false) this.pos += match[0].length;
+			return match;
 		}
 	}
-	setNonce(nonce) {
-		if (this.styleTag && this.styleTag.getAttribute("nonce") != nonce) this.styleTag.setAttribute("nonce", nonce);
+	/**
+	Get the current token.
+	*/
+	current() {
+		return this.string.slice(this.start, this.pos);
 	}
 };
 //#endregion
-//#region ../../node_modules/.pnpm/@codemirror+language@6.12.4/node_modules/@codemirror/language/dist/index.js
+//#region ../../node_modules/.pnpm/@codemirror+language@6.13.1/node_modules/@codemirror/language/dist/index.js
 var _a;
 /**
 Node prop stored in a parser's top syntax node to provide the
 facet that stores language-specific data for that language.
 */
-var languageDataProp = /*@__PURE__*/ new NodeProp$1();
+var languageDataProp = /*@__PURE__*/ new NodeProp();
 /**
 Helper function to define a facet (to be added to the top syntax
 node(s) for a language via
@@ -141593,7 +140954,7 @@ function defineLanguageFacet(baseData) {
 Syntax node prop used to register sublanguages. Should be added to
 the top level node type for the language.
 */
-var sublanguageProp = /*@__PURE__*/ new NodeProp$1();
+var sublanguageProp = /*@__PURE__*/ new NodeProp();
 /**
 A language object manages parsing and per-language
 [metadata](https://codemirror.net/6/docs/ref/#state.EditorState.languageDataAt). Parse data is
@@ -141659,7 +141020,7 @@ var Language = class {
 				});
 				return;
 			}
-			let mount = tree.prop(NodeProp$1.mounted);
+			let mount = tree.prop(NodeProp.mounted);
 			if (mount) {
 				if (mount.tree.prop(languageDataProp) == this.data) {
 					if (mount.overlay) for (let r of mount.overlay) result.push({
@@ -141679,7 +141040,7 @@ var Language = class {
 			}
 			for (let i = 0; i < tree.children.length; i++) {
 				let ch = tree.children[i];
-				if (ch instanceof Tree$1) explore(ch, tree.positions[i] + from);
+				if (ch instanceof Tree) explore(ch, tree.positions[i] + from);
 			}
 		};
 		explore(syntaxTree(state), 0);
@@ -141700,7 +141061,7 @@ Language.setState = /*@__PURE__*/ StateEffect.define();
 function topNodeAt(state, pos, side) {
 	let topLang = state.facet(language$1), tree = syntaxTree(state).topNode;
 	if (!topLang || topLang.allowsNesting) {
-		for (let node = tree; node; node = node.enter(pos, side, IterMode$1.ExcludeBuffers | IterMode$1.EnterBracketed)) if (node.type.isTop) tree = node;
+		for (let node = tree; node; node = node.enter(pos, side, IterMode.ExcludeBuffers | IterMode.EnterBracketed)) if (node.type.isTop) tree = node;
 	}
 	return tree;
 }
@@ -141712,7 +141073,7 @@ language available.
 */
 function syntaxTree(state) {
 	let field = state.field(Language.state, false);
-	return field ? field.tree : Tree$1.empty;
+	return field ? field.tree : Tree.empty;
 }
 /**
 Lezer-style
@@ -141774,7 +141135,7 @@ var ParseContext = class ParseContext {
 	@internal
 	*/
 	static create(parser, state, viewport) {
-		return new ParseContext(parser, state, [], Tree$1.empty, 0, viewport, [], null);
+		return new ParseContext(parser, state, [], Tree.empty, 0, viewport, [], null);
 	}
 	startParse() {
 		return this.parser.startParse(new DocInput(this.state.doc), this.fragments);
@@ -141784,7 +141145,7 @@ var ParseContext = class ParseContext {
 	*/
 	work(until, upto) {
 		if (upto != null && upto >= this.state.doc.length) upto = void 0;
-		if (this.tree != Tree$1.empty && this.isDone(upto !== null && upto !== void 0 ? upto : this.state.doc.length)) {
+		if (this.tree != Tree.empty && this.isDone(upto !== null && upto !== void 0 ? upto : this.state.doc.length)) {
 			this.takeTree();
 			return true;
 		}
@@ -141854,7 +141215,7 @@ var ParseContext = class ParseContext {
 				toB
 			}));
 			fragments = TreeFragment.applyChanges(fragments, ranges);
-			tree = Tree$1.empty;
+			tree = Tree.empty;
 			treeLen = 0;
 			viewport = {
 				from: changes.mapPos(viewport.from, -1),
@@ -141933,7 +141294,7 @@ var ParseContext = class ParseContext {
 							if (until) cx.scheduleOn = cx.scheduleOn ? Promise.all([cx.scheduleOn, until]) : until;
 						}
 						this.parsedPos = to;
-						return new Tree$1(NodeType$1.none, [], [], to - from);
+						return new Tree(NodeType.none, [], [], to - from);
 					},
 					stoppedAt: null,
 					stopAt() {}
@@ -142251,7 +141612,7 @@ context to a column number (see also
 [`indentString`](https://codemirror.net/6/docs/ref/#language.indentString)) or null, where null
 indicates that no definitive indentation can be determined.
 */
-var indentNodeProp = /*@__PURE__*/ new NodeProp$1();
+var indentNodeProp = /*@__PURE__*/ new NodeProp();
 function syntaxIndentation(cx, ast, pos) {
 	let stack = ast.resolveStack(pos);
 	let inner = ast.resolveInner(pos, -1).resolve(pos, 0).enterUnfinishedNodesBefore(pos);
@@ -142279,7 +141640,7 @@ function indentStrategy(tree) {
 	let strategy = tree.type.prop(indentNodeProp);
 	if (strategy) return strategy;
 	let first = tree.firstChild, close;
-	if (first && (close = first.type.prop(NodeProp$1.closedBy))) {
+	if (first && (close = first.type.prop(NodeProp.closedBy))) {
 		let last = tree.lastChild, closed = last && close.indexOf(last.name) > -1;
 		return (cx) => delimitedStrategy(cx, true, 1, void 0, closed && !ignoreClosed(cx) ? last.from : void 0);
 	}
@@ -142642,9 +142003,9 @@ a node, a ‘handle’—the part of the node that is highlighted, and
 that the cursor must be on to activate highlighting in the first
 place.
 */
-var bracketMatchingHandle = /*@__PURE__*/ new NodeProp$1();
+var bracketMatchingHandle = /*@__PURE__*/ new NodeProp();
 function matchingNodes(node, dir, brackets) {
-	let byProp = node.prop(dir < 0 ? NodeProp$1.openedBy : NodeProp$1.closedBy);
+	let byProp = node.prop(dir < 0 ? NodeProp.openedBy : NodeProp.closedBy);
 	if (byProp) return byProp;
 	if (node.name.length == 1) {
 		let index = brackets.indexOf(node.name);
@@ -142749,170 +142110,6 @@ function matchPlainBrackets(state, pos, dir, tree, tokenType, maxScanDistance, b
 		matched: false
 	} : null;
 }
-function countCol(string, end, tabSize, startIndex = 0, startValue = 0) {
-	if (end == null) {
-		end = string.search(/[^\s\u00a0]/);
-		if (end == -1) end = string.length;
-	}
-	let n = startValue;
-	for (let i = startIndex; i < end; i++) if (string.charCodeAt(i) == 9) n += tabSize - n % tabSize;
-	else n++;
-	return n;
-}
-/**
-Encapsulates a single line of input. Given to stream syntax code,
-which uses it to tokenize the content.
-*/
-var StringStream = class {
-	/**
-	Create a stream.
-	*/
-	constructor(string, tabSize, indentUnit, overrideIndent) {
-		this.string = string;
-		this.tabSize = tabSize;
-		this.indentUnit = indentUnit;
-		this.overrideIndent = overrideIndent;
-		/**
-		The current position on the line.
-		*/
-		this.pos = 0;
-		/**
-		The start position of the current token.
-		*/
-		this.start = 0;
-		this.lastColumnPos = 0;
-		this.lastColumnValue = 0;
-	}
-	/**
-	True if we are at the end of the line.
-	*/
-	eol() {
-		return this.pos >= this.string.length;
-	}
-	/**
-	True if we are at the start of the line.
-	*/
-	sol() {
-		return this.pos == 0;
-	}
-	/**
-	Get the next code unit after the current position, or undefined
-	if we're at the end of the line.
-	*/
-	peek() {
-		return this.string.charAt(this.pos) || void 0;
-	}
-	/**
-	Read the next code unit and advance `this.pos`.
-	*/
-	next() {
-		if (this.pos < this.string.length) return this.string.charAt(this.pos++);
-	}
-	/**
-	Match the next character against the given string, regular
-	expression, or predicate. Consume and return it if it matches.
-	*/
-	eat(match) {
-		let ch = this.string.charAt(this.pos);
-		let ok;
-		if (typeof match == "string") ok = ch == match;
-		else ok = ch && (match instanceof RegExp ? match.test(ch) : match(ch));
-		if (ok) {
-			++this.pos;
-			return ch;
-		}
-	}
-	/**
-	Continue matching characters that match the given string,
-	regular expression, or predicate function. Return true if any
-	characters were consumed.
-	*/
-	eatWhile(match) {
-		let start = this.pos;
-		while (this.eat(match));
-		return this.pos > start;
-	}
-	/**
-	Consume whitespace ahead of `this.pos`. Return true if any was
-	found.
-	*/
-	eatSpace() {
-		let start = this.pos;
-		while (/[\s\u00a0]/.test(this.string.charAt(this.pos))) ++this.pos;
-		return this.pos > start;
-	}
-	/**
-	Move to the end of the line.
-	*/
-	skipToEnd() {
-		this.pos = this.string.length;
-	}
-	/**
-	Move to directly before the given character, if found on the
-	current line.
-	*/
-	skipTo(ch) {
-		let found = this.string.indexOf(ch, this.pos);
-		if (found > -1) {
-			this.pos = found;
-			return true;
-		}
-	}
-	/**
-	Move back `n` characters.
-	*/
-	backUp(n) {
-		this.pos -= n;
-	}
-	/**
-	Get the column position at `this.pos`.
-	*/
-	column() {
-		if (this.lastColumnPos < this.start) {
-			this.lastColumnValue = countCol(this.string, this.start, this.tabSize, this.lastColumnPos, this.lastColumnValue);
-			this.lastColumnPos = this.start;
-		}
-		return this.lastColumnValue;
-	}
-	/**
-	Get the indentation column of the current line.
-	*/
-	indentation() {
-		var _a;
-		return (_a = this.overrideIndent) !== null && _a !== void 0 ? _a : countCol(this.string, null, this.tabSize);
-	}
-	/**
-	Match the input against the given string or regular expression
-	(which should start with a `^`). Return true or the regexp match
-	if it matches.
-	
-	Unless `consume` is set to `false`, this will move `this.pos`
-	past the matched text.
-	
-	When matching a string `caseInsensitive` can be set to true to
-	make the match case-insensitive.
-	*/
-	match(pattern, consume, caseInsensitive) {
-		if (typeof pattern == "string") {
-			let cased = (str) => caseInsensitive ? str.toLowerCase() : str;
-			if (cased(this.string.substr(this.pos, pattern.length)) == cased(pattern)) {
-				if (consume !== false) this.pos += pattern.length;
-				return true;
-			} else return null;
-		} else {
-			let match = this.string.slice(this.pos).match(pattern);
-			if (match && match.index > 0) return null;
-			if (match && consume !== false) this.pos += match[0].length;
-			return match;
-		}
-	}
-	/**
-	Get the current token.
-	*/
-	current() {
-		return this.string.slice(this.start, this.pos);
-	}
-};
 function fullParser(spec) {
 	return {
 		name: spec.name || "",
@@ -142953,7 +142150,7 @@ var StreamLanguage = class StreamLanguage extends Language {
 		this.topNode = docID(data, this);
 		self = this;
 		this.streamParser = p;
-		this.stateAfter = new NodeProp$1({ perNode: true });
+		this.stateAfter = new NodeProp({ perNode: true });
 		this.tokenTable = parser.tokenTable ? new TokenTable(p.tokenTable) : defaultTokenTable;
 	}
 	/**
@@ -143007,7 +142204,7 @@ function findState(lang, tree, off, startPos, before) {
 	};
 	for (let i = tree.children.length - 1; i >= 0; i--) {
 		let child = tree.children[i], pos = off + tree.positions[i];
-		let found = child instanceof Tree$1 && pos < before && findState(lang, child, pos, startPos, before);
+		let found = child instanceof Tree && pos < before && findState(lang, child, pos, startPos, before);
 		if (found) return found;
 	}
 	return null;
@@ -143017,9 +142214,9 @@ function cutTree(lang, tree, from, to, inside) {
 	if (!inside && from == 0 && tree.type == lang.topNode) inside = true;
 	for (let i = tree.children.length - 1; i >= 0; i--) {
 		let pos = tree.positions[i], child = tree.children[i], inner;
-		if (pos < to && child instanceof Tree$1) {
+		if (pos < to && child instanceof Tree) {
 			if (!(inner = cutTree(lang, child, from - pos, to - pos, inside))) break;
-			return !inside ? inner : new Tree$1(tree.type, tree.children.slice(0, i).concat(inner), tree.positions.slice(0, i + 1), pos + inner.length);
+			return !inside ? inner : new Tree(tree.type, tree.children.slice(0, i).concat(inner), tree.positions.slice(0, i + 1), pos + inner.length);
 		}
 	}
 	return null;
@@ -143035,7 +142232,7 @@ function findStartInFragments(lang, fragments, startPos, endPos, editorState) {
 	}
 	return {
 		state: lang.streamParser.startState(editorState ? getIndentUnit(editorState) : 4),
-		tree: Tree$1.empty
+		tree: Tree.empty
 	};
 }
 var Parse = class {
@@ -143150,7 +142347,7 @@ var Parse = class {
 		if (this.parsedPos < this.to) this.parsedPos++;
 	}
 	finishChunk() {
-		let tree = Tree$1.build({
+		let tree = Tree.build({
 			buffer: this.chunk,
 			start: this.chunkStart,
 			length: this.parsedPos - this.chunkStart,
@@ -143159,7 +142356,7 @@ var Parse = class {
 			maxBufferLength: 512,
 			reused: this.chunkReused
 		});
-		tree = new Tree$1(tree.type, tree.children, tree.positions, tree.length, [[this.lang.stateAfter, this.lang.streamParser.copyState(this.state)]]);
+		tree = new Tree(tree.type, tree.children, tree.positions, tree.length, [[this.lang.stateAfter, this.lang.streamParser.copyState(this.state)]]);
 		this.chunks.push(tree);
 		this.chunkPos.push(this.chunkStart - this.ranges[0].from);
 		this.chunk = [];
@@ -143167,7 +142364,7 @@ var Parse = class {
 		this.chunkStart = this.parsedPos;
 	}
 	finish() {
-		return new Tree$1(this.lang.topNode, this.chunks, this.chunkPos, this.parsedPos - this.ranges[0].from).balance();
+		return new Tree(this.lang.topNode, this.chunks, this.chunkPos, this.parsedPos - this.ranges[0].from).balance();
 	}
 };
 function readToken(token, stream, state) {
@@ -143179,7 +142376,7 @@ function readToken(token, stream, state) {
 	throw new Error("Stream parser failed to advance stream.");
 }
 var noTokens = /*@__PURE__*/ Object.create(null);
-var typeArray = [NodeType$1.none];
+var typeArray = [NodeType.none];
 var nodeSet = /*@__PURE__*/ new NodeSet(typeArray);
 var warned = [];
 var byTag = /*@__PURE__*/ Object.create(null);
@@ -143232,7 +142429,7 @@ function createTokenType(extra, tagStr) {
 	let name = tagStr.replace(/ /g, "_"), key = name + " " + tags$1.map((t) => t.id);
 	let known = byTag[key];
 	if (known) return known.id;
-	let type = byTag[key] = NodeType$1.define({
+	let type = byTag[key] = NodeType.define({
 		id: typeArray.length,
 		name,
 		props: [styleTags({ [name]: tags$1 })]
@@ -143241,7 +142438,7 @@ function createTokenType(extra, tagStr) {
 	return type.id;
 }
 function docID(data, lang) {
-	let type = NodeType$1.define({
+	let type = NodeType.define({
 		id: typeArray.length,
 		name: "Document",
 		props: [languageDataProp.add(() => data), indentNodeProp.add(() => (cx) => lang.getIndent(cx))],
@@ -146524,7 +145721,7 @@ function interestingNode(state, node, bracketProp) {
 }
 function moveBySyntax(state, start, forward) {
 	let pos = syntaxTree(state).resolveInner(start.head);
-	let bracketProp = forward ? NodeProp$1.closedBy : NodeProp$1.openedBy;
+	let bracketProp = forward ? NodeProp.closedBy : NodeProp.openedBy;
 	for (let at = start.head;;) {
 		let next = forward ? pos.childAfter(at) : pos.childBefore(at);
 		if (!next) break;
@@ -147170,7 +146367,7 @@ function isBetweenBrackets(state, pos) {
 	};
 	let context = syntaxTree(state).resolveInner(pos);
 	let before = context.childBefore(pos), after = context.childAfter(pos), closedBy;
-	if (before && after && before.to <= pos && after.from >= pos && (closedBy = before.type.prop(NodeProp$1.closedBy)) && closedBy.indexOf(after.name) > -1 && state.doc.lineAt(before.to).from == state.doc.lineAt(after.from).from && !/\S/.test(state.sliceDoc(before.to, after.from))) return {
+	if (before && after && before.to <= pos && after.from >= pos && (closedBy = before.type.prop(NodeProp.closedBy)) && closedBy.indexOf(after.name) > -1 && state.doc.lineAt(before.to).from == state.doc.lineAt(after.from).from && !/\S/.test(state.sliceDoc(before.to, after.from))) return {
 		from: before.to,
 		to: after.from
 	};
