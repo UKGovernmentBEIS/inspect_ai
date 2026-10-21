@@ -329,3 +329,5 @@ def bash(timeout: int | None = None) -> Tool:
 The `ToolCallViewer` gets passed the `ToolCall` and returns a `ToolCallView` that provides one or both of `context` (additional information for understand the call) and `call` (alternate rendering of the call). In the case of the bash tool we provide a markdown code block rendering of the bash code to be executed.
 
 The `context` is typically used for stateful tools that need to present some context from the current state. For example, the web browsing tool provides a snippet from the currently loaded page.
+
+If a viewer raises an exception when tool approval or a sentinel step before the tool runs (`BeforeToolCall`) checks the call, the call is rejected and the model is told why. Approvers and those sentinel monitors never see a fallback rendering in its place. Other steps still use the default rendering: steps that see the call when the model proposes it, such as sentinel steps after generation, and steps after the call has run, such as tool result review.
