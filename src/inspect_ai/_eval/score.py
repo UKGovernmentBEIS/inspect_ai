@@ -35,6 +35,7 @@ from inspect_ai._util.registry import (
     DisallowedRegistryArg,
     create_registry_object,
     has_registry_params,
+    is_model_dict,
     is_registry_dict,
     registry_lookup,
     registry_params,
@@ -700,21 +701,32 @@ def ensure_metrics_registered(
 
 
 def _metric_names(definition: EvalMetricDefinition) -> list[str]:
+    """Names of the metric and the metrics nested in its options.
+
+    Walks the options the way `registry_arg()` resolves them: a mapping of
+    arguments is never itself a registry dict, and a model dict is passed to
+    the model as is.
+    """
     names = [definition.name]
+
+    def walk_args(args: dict[str, Any]) -> None:
+        for value in args.values():
+            walk(value)
 
     def walk(value: Any) -> None:
         if is_registry_dict(value):
             if value["type"] == "metric":
                 names.append(value["name"])
-            walk(value["params"])
+            walk_args(value["params"])
+        elif is_model_dict(value):
+            return
         elif isinstance(value, dict):
-            for item in value.values():
-                walk(item)
+            walk_args(value)
         elif isinstance(value, (list, tuple)):
             for item in value:
                 walk(item)
 
-    walk(definition.options or {})
+    walk_args(definition.options or {})
     return names
 
 

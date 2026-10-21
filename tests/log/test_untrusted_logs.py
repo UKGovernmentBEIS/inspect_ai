@@ -98,6 +98,14 @@ def untrusted_options_metric(option: Any = None) -> Metric:
     return compute
 
 
+@metric
+def registry_shaped_args_metric(type: str, name: str, params: dict[str, Any]) -> Metric:
+    def compute(scores: list[SampleScore]) -> float:
+        return 1.0
+
+    return compute
+
+
 scored_samples: list[Any] = []
 
 
@@ -381,6 +389,75 @@ def test_recompute_refuses_forbidden_metric_options(
     assert untrusted_models == []
     # refused before the metric factory ran
     assert options_metric_calls == []
+
+
+REGISTRY_SHAPED = {"type": "metric", "name": "not_a_metric", "params": {}}
+
+
+@pytest.mark.parametrize(
+    "definition",
+    [
+        # the argument mapping itself looks like a registry dict
+        EvalMetricDefinition(
+            name="registry_shaped_args_metric", options=REGISTRY_SHAPED
+        ),
+        # so does the params mapping of a nested metric
+        EvalMetricDefinition(
+            name="untrusted_options_metric",
+            options={
+                "option": {
+                    "type": "metric",
+                    "name": "registry_shaped_args_metric",
+                    "params": REGISTRY_SHAPED,
+                }
+            },
+        ),
+    ],
+    ids=["top_level", "nested_params"],
+)
+@pytest.mark.parametrize("source", ["scorer", "task"])
+@pytest.mark.parametrize("trust_log", [False, True])
+def test_recompute_treats_argument_mappings_as_arguments(
+    definition: EvalMetricDefinition, source: str, trust_log: bool
+) -> None:
+    log = (
+        _log(scorer_metrics=[definition])
+        if source == "scorer"
+        else _log(eval_metrics=[definition])
+    )
+
+    recompute_metrics(log, trust_log=trust_log)
+
+    assert log.results is not None
+
+
+@pytest.mark.parametrize("container", ["config", "model_args"])
+@pytest.mark.parametrize("source", ["scorer", "task"])
+def test_recompute_does_not_look_for_metrics_inside_model_dicts(
+    container: str, source: str, untrusted_models: list[str]
+) -> None:
+    model = {**MODEL_DICT, container: {"extra_body": REGISTRY_SHAPED}}
+    definition = EvalMetricDefinition(
+        name="untrusted_options_metric", options={"option": model}
+    )
+
+    def make() -> EvalLog:
+        return (
+            _log(scorer_metrics=[definition])
+            if source == "scorer"
+            else _log(eval_metrics=[definition])
+        )
+
+    # untrusted, the model is still refused where it would be built
+    with pytest.raises(DisallowedRegistryArg):
+        recompute_metrics(make())
+    assert untrusted_models == []
+
+    log = make()
+    recompute_metrics(log, trust_log=True)
+
+    assert log.results is not None
+    assert untrusted_models == [UNTRUSTED_URL]
 
 
 def test_recompute_untrusted_allows_nested_metrics() -> None:
