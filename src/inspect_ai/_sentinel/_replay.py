@@ -162,6 +162,11 @@ class _PooledInput:
     def __init__(self, view: PoolView, keys: _PoolKeys) -> None:
         self.view = view
         self._keys = keys
+        # the rows this input holds, as sorted disjoint ranges: built the first
+        # time a lookup misses, while it is the previous input
+        self._held: tuple[list[int], list[int]] | None = None
+        # contents known not to be at or after a position, for this alignment
+        self._absent: dict[int, int] = {}
         self._ends = [
             start + max(end - begin, 0)
             for start, (begin, end) in zip(view.starts, view.refs)
@@ -207,11 +212,17 @@ class _PooledInput:
     def _find(self, canonical: int, at_least: int) -> int | None:
         """The first position at or after `at_least` holding the canonical row's content.
 
-        Ranges are searched in input order from the one holding `at_least`, each by bisecting the rows with that content, so a lookup costs the ranges it passes, not the rows that share the content.
+        A content this input does not hold at all is answered from the rows it holds, as ranges, and one not found at or after a position is remembered for the rest of the alignment, whose pointer only moves forward. Otherwise ranges are searched in input order from the one holding `at_least`, each by bisecting the rows that share the content.
         """
         if at_least >= len(self):
             return None
+        absent = self._absent.get(canonical)
+        if absent is not None and at_least >= absent:
+            return None
         rows = self._keys.rows(canonical)
+        if not self._holds(rows):
+            self._absent[canonical] = 0
+            return None
         starts, refs = self.view.starts, self.view.refs
         for at in range(max(bisect_right(starts, at_least) - 1, 0), len(refs)):
             begin, end = refs[at]
@@ -219,7 +230,33 @@ class _PooledInput:
             found = bisect_left(rows, low)
             if found < len(rows) and rows[found] < end:
                 return starts[at] + rows[found] - begin
+        self._absent[canonical] = at_least
         return None
+
+    def _holds(self, rows: list[int]) -> bool:
+        """Whether any of these rows (sorted) is in this input."""
+        if self._held is None:
+            begins: list[int] = []
+            ends: list[int] = []
+            for begin, end in sorted(r for r in self.view.refs if r[0] < r[1]):
+                if ends and begin <= ends[-1]:
+                    ends[-1] = max(ends[-1], end)
+                else:
+                    begins.append(begin)
+                    ends.append(end)
+            self._held = (begins, ends)
+        begins, ends = self._held
+        if len(rows) <= len(begins):
+            for row in rows:
+                at = bisect_right(begins, row) - 1
+                if at >= 0 and row < ends[at]:
+                    return True
+            return False
+        for begin, end in zip(begins, ends):
+            found = bisect_left(rows, begin)
+            if found < len(rows) and rows[found] < end:
+                return True
+        return False
 
 
 @dataclass
@@ -249,18 +286,18 @@ class _Call:
 
 @dataclass
 class _Batch:
+    """The calls one `execute_tools()` ran: one assistant message's, in its conversation."""
+
     conversation: str
-    assistant: ChatMessageAssistant | None
+    assistant: ChatMessageAssistant
     calls: list[_Call] = field(default_factory=list)
-    # the conversation's next agent turn, which closed the batch
-    next_turn: ModelEvent | None = None
-    # reserved when the batch closes: after its own steps, before the next turn's
-    seq: int = 0
 
 
 class _Action(NamedTuple):
     position: int
-    # at one position: effects and steps before the event there (0, 1), then the event's own effect (2)
+    # at one position: steps built before the event there (1), the event's own
+    # effect (2), steps built once the event has happened (3), then what joins
+    # the record after those steps (4)
     phase: int
     seq: int
     run: Callable[[], None]
@@ -305,7 +342,12 @@ class _Driver:
         self.built: list["ReplayStep"] = []
         self.ids: set[tuple[str, str]] = set()
         self.span_steps: dict[str, tuple["Step", str]] = {}
-        self._assistants: dict[str, ChatMessageAssistant] | None = None
+        # each conversation's agent-turn model events, in log order
+        self.turns: dict[str, list[tuple[int, ModelEvent]]] = {}
+        # each model event's input view and producer, shared by its steps
+        self._views: dict[int, PoolView] = {}
+        self._producers: dict[int, Producer] = {}
+        self._assistants: dict[str, tuple[ChatMessageAssistant, ToolCall]] | None = None
         self._messages_by_id: dict[str, ChatMessage] | None = None
 
     # ---- the first pass: read the events in log order
@@ -320,10 +362,9 @@ class _Driver:
         ] = {}
         last_turn: dict[str, int] = {}
         candidates: dict[str, list[str]] = {}
-        produced: dict[str, tuple[ChatMessageAssistant, ModelEvent]] = {}
+        produced: dict[str, tuple[ChatMessageAssistant, ModelEvent, ToolCall]] = {}
         approvals: dict[str, ApprovalEvent] = {}
-        batches: dict[str, _Batch] = {}
-        closed: list[_Batch] = []
+        batches: dict[tuple[str, int], _Batch] = {}
         calls: list[_Call] = []
 
         for index, event in enumerate(self.events):
@@ -348,7 +389,7 @@ class _Driver:
                 if message_id is not None:
                     message = event.output.choices[0].message
                     for tool_call in message.tool_calls or []:
-                        produced[tool_call.id] = (message, event)
+                        produced[tool_call.id] = (message, event, tool_call)
                 if not is_agent_turn(event.origin):
                     continue
                 conversation = self._conversation(event)
@@ -361,11 +402,6 @@ class _Driver:
                 if group is not None:
                     group.attempts.append((index, event))
                 else:
-                    batch = batches.pop(conversation, None)
-                    if batch is not None:
-                        batch.next_turn = event
-                        batch.seq = self._next_seq()
-                        closed.append(batch)
                     group = _Generate(
                         conversation,
                         [(index, event)],
@@ -377,6 +413,7 @@ class _Driver:
                 if event.error is not None:
                     open_generates[attempt_key] = group
                 last_turn[conversation] = index
+                self.turns.setdefault(conversation, []).append((index, event))
             elif isinstance(event, ApprovalEvent):
                 approvals[event.call.id] = event
             elif isinstance(event, CompactionEvent):
@@ -386,21 +423,17 @@ class _Driver:
                 if self._in_sentinel_span(event.span_id):
                     continue
                 found = produced.get(event.id)
+                producer: ModelEvent | None = None
+                assistant: ChatMessageAssistant | None
+                proposal: ToolCall | None
                 if found is not None:
-                    assistant: ChatMessageAssistant | None = found[0]
-                    producer: ModelEvent | None = found[1]
+                    assistant, producer, proposal = found
                 else:
-                    assistant, producer = self._assistant(event.id), None
+                    assistant, proposal = self._assistant(event.id)
                 conversation = (
                     self._conversation(producer)
                     if producer is not None
                     else self._conversation(event)
-                )
-                proposal = next(
-                    (c for c in (assistant.tool_calls or []) if c.id == event.id)
-                    if assistant is not None
-                    else iter(()),
-                    None,
                 )
                 entry = _Call(
                     index,
@@ -410,29 +443,28 @@ class _Driver:
                     proposal,
                     producer,
                     approvals.pop(event.id, None),
-                    self._next_seq(2),
+                    self._next_seq(3),
                     self._tool_span(index, event),
                 )
                 calls.append(entry)
-                if producer is not None and not is_agent_turn(producer.origin):
+                if assistant is None or (
+                    producer is not None and not is_agent_turn(producer.origin)
+                ):
                     # execute_tools() records results only in an agent turn's region
                     continue
-                batch = batches.get(conversation)
-                if batch is None or batch.assistant is not assistant:
-                    if batch is not None:
-                        batch.seq = self._next_seq()
-                        closed.append(batch)
-                    batch = batches[conversation] = _Batch(conversation, assistant)
+                # batches of different messages can be open at once, when
+                # agents sharing a conversation run tools concurrently
+                key = (conversation, id(assistant))
+                batch = batches.get(key)
+                if batch is None:
+                    batch = batches[key] = _Batch(conversation, assistant)
                 batch.calls.append(entry)
-        for batch in batches.values():
-            batch.seq = self._next_seq()
-            closed.append(batch)
 
         for group in generates:
             self._generate(group)
         for entry in calls:
             self._tool_call(entry)
-        for batch in closed:
+        for batch in batches.values():
             self._batch(batch)
 
         # the second pass: in log order, each step at its cut
@@ -461,6 +493,7 @@ class _Driver:
             candidates.setdefault(event.conversation, []).append(span)
 
     def _sentinel_span(self, span_id: str | None) -> str | None:
+        # the span tree has no cycle (_check_span_tree)
         walked: list[str] = []
         found: str | None = None
         while span_id is not None:
@@ -470,10 +503,6 @@ class _Driver:
             begin = self.begins.get(span_id)
             if begin is None:
                 break
-            if span_id in walked:
-                raise MalformedLogError(
-                    f"The span tree has a parent_id cycle at {span_id}."
-                )
             walked.append(span_id)
             if begin[1].type == "sentinel":
                 found = span_id
@@ -511,10 +540,10 @@ class _Driver:
     def _at(self, position: int, phase: int, run: Callable[[], None]) -> None:
         self.actions.append(_Action(position, phase, self._next_seq(), run))
 
-    def _at_seq(
-        self, position: int, phase: int, seq: int, run: Callable[[], None]
+    def _at_point(
+        self, point: tuple[int, int], seq: int, run: Callable[[], None]
     ) -> None:
-        self.actions.append(_Action(position, phase, seq, run))
+        self.actions.append(_Action(point[0], point[1], seq, run))
 
     def _record(self, conversation: str) -> ConversationRecord:
         record = self.records.get(conversation)
@@ -557,7 +586,9 @@ class _Driver:
             )
             self._built(before_id, "model_input", step, before_span)
 
-        self._at_seq(self._cut(before_span, first_index), 1, group.seq, build_before)
+        self._at_point(
+            self._cut(before_span, (first_index, 1)), group.seq, build_before
+        )
         self._settle_at_end(before_span)
 
         refused = (
@@ -599,8 +630,8 @@ class _Driver:
                 self._record(conversation).ran([last.output.message])
 
         after_end = self.ends.get(after_span) if after_span is not None else None
-        self._at_seq(
-            self._cut(after_span, last_index + 1), 1, group.seq + 1, build_after
+        self._at_point(
+            self._cut(after_span, (last_index, 3)), group.seq + 1, build_after
         )
         if after_end is not None:
             self._at(after_end, 2, join)
@@ -689,10 +720,8 @@ class _Driver:
             )
             self._built(event.id, "tool_call", step, before_span)
 
-        before_cut = self._cut(
-            before_span, self.begins[tool_span][0] if tool_span else call.index
-        )
-        self._at_seq(before_cut, 1, call.seq, build_before)
+        begin = self.begins[tool_span][0] if tool_span else call.index
+        self._at_point(self._cut(before_span, (begin, 1)), call.seq, build_before)
         self._settle_at_end(before_span)
         if not ran:
             return
@@ -721,8 +750,8 @@ class _Driver:
             self._built(event.id, "tool_result", step, after_span)
 
         end = self.ends.get(tool_span) if tool_span is not None else None
-        after_cut = self._cut(after_span, (end if end is not None else call.index) + 1)
-        self._at_seq(after_cut, 1, call.seq + 1, build_after)
+        after_cut = self._cut(after_span, (end if end is not None else call.index, 3))
+        self._at_point(after_cut, call.seq + 2, build_after)
         self._settle_at_end(after_span)
 
     def _checks_tool_calls(self, producer: ModelEvent | None) -> bool:
@@ -749,24 +778,25 @@ class _Driver:
         return False
 
     def _batch(self, batch: _Batch) -> None:
-        if batch.assistant is None:
-            return
+        # execute_tools() returns, and appends its results, once every call
+        # and stage of its batch has finished
         last = 0
         for call in batch.calls:
-            last = max(last, call.index + 1)
-            span = call.tool_span
-            if span is not None and span in self.ends:
-                last = max(last, self.ends[span] + 1)
-            after_span = self.step_spans.get(("tool_result", call.event.id))
-            if after_span is not None and after_span in self.ends:
-                last = max(last, self.ends[after_span] + 1)
+            last = max(last, call.index)
+            spans = [
+                call.tool_span,
+                self.step_spans.get(("tool_result", call.event.id)),
+            ]
+            for span in spans:
+                if span is not None and span in self.ends:
+                    last = max(last, self.ends[span])
         conversation = batch.conversation
         if any(call.event.failed or call.event.pending for call in batch.calls):
             # live never reaches the append when a batch raises
             return
         handoff = any(call.event.agent is not None for call in batch.calls)
         if handoff:
-            joined = self._handoff_results(batch)
+            joined = self._handoff_results(batch, last)
         else:
             by_id = {call.event.id: call for call in batch.calls}
             joined = [
@@ -782,7 +812,7 @@ class _Driver:
             else:
                 record.ran(joined)
 
-        self._at_seq(last, 1, batch.seq, join)
+        self._at(last, 4, join)
 
     # ---- effects of the second pass
 
@@ -849,16 +879,25 @@ class _Driver:
 
     # ---- helpers
 
-    def _cut(self, span: str | None, anchor: int) -> int:
-        return self.begins[span][0] if span is not None else anchor
+    def _cut(self, span: str | None, anchor: tuple[int, int]) -> tuple[int, int]:
+        """Where a step is built: before its sentinel span, else at its anchor."""
+        return (self.begins[span][0], 1) if span is not None else anchor
 
     def _input(self, event: ModelEvent) -> PoolView:
-        return PoolView(self.pool, event.input_refs or [])
+        found = self._views.get(id(event))
+        if found is None:
+            found = self._views[id(event)] = PoolView(self.pool, event.input_refs or [])
+        return found
 
     def _producer(self, event: ModelEvent | None) -> Producer | None:
         if event is None:
             return None
-        return Producer(self._input(event), view(event.tools), event.tool_choice)
+        found = self._producers.get(id(event))
+        if found is None:
+            found = self._producers[id(event)] = Producer(
+                self._input(event), view(event.tools), event.tool_choice
+            )
+        return found
 
     def _truncated(self, event: ToolEvent) -> Any:
         from inspect_sentinel import Truncation
@@ -892,22 +931,25 @@ class _Driver:
             self._messages_by_id = found
         return self._messages_by_id.get(message_id)
 
-    def _assistant(self, call_id: str) -> ChatMessageAssistant | None:
+    def _assistant(
+        self, call_id: str
+    ) -> tuple[ChatMessageAssistant | None, ToolCall | None]:
+        """A call no model call produced: the assistant message holding it, and the call."""
         if self._assistants is None:
-            found: dict[str, ChatMessageAssistant] = {}
+            found: dict[str, tuple[ChatMessageAssistant, ToolCall]] = {}
             for message in [*self.pool, *self.messages]:
                 if isinstance(message, ChatMessageAssistant):
                     for tool_call in message.tool_calls or []:
-                        found[tool_call.id] = message
+                        found[tool_call.id] = (message, tool_call)
             self._assistants = found
-        return self._assistants.get(call_id)
+        return self._assistants.get(call_id, (None, None))
 
-    def _handoff_results(self, batch: _Batch) -> list[ChatMessage] | None:
-        assert batch.assistant is not None
+    def _handoff_results(self, batch: _Batch, last: int) -> list[ChatMessage] | None:
+        """The messages a handoff's batch returned: what follows its assistant message in the conversation's next agent turn after the batch finished, else in the sample's messages."""
+        turns = self.turns.get(batch.conversation, [])
+        at = bisect_right([index for index, _ in turns], last)
         source: Sequence[ChatMessage] = (
-            self._input(batch.next_turn)
-            if batch.next_turn is not None
-            else self.messages
+            self._input(turns[at][1]) if at < len(turns) else self.messages
         )
         for position in range(len(source) - 1, -1, -1):
             if source[position].id == batch.assistant.id:
@@ -958,12 +1000,14 @@ class _Driver:
             call_ids=(call.event.id,),
             decided=decided,
         )
+        # the person decided before the call ran, so its own after-call step
+        # sees the decision, as a human() answer at tool_call reaches it
         span = call.tool_span
-        end = self.ends.get(span) if span is not None else None
+        begin = self.begins[span][0] if span is not None else call.index
         conversation = call.conversation
-        self._at(
-            (end if end is not None else call.index) + 1,
-            0,
+        self._at_point(
+            (begin, 1),
+            call.seq + 1,
             lambda: self._record(conversation).publish([decision]),
         )
 

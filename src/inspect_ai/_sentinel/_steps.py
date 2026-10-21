@@ -5,7 +5,6 @@ Each driver gathers the facts a step is made from, live from its arguments and c
 
 from bisect import bisect_left, bisect_right
 from collections.abc import Callable, Iterator, Sequence
-from itertools import islice
 from typing import (
     TYPE_CHECKING,
     Literal,
@@ -83,7 +82,9 @@ class ListView(Sequence[T]):
         return self._items[self._start + index]
 
     def __iter__(self) -> Iterator[T]:
-        return islice(self._items, self._start, self._stop)
+        # by index, so a view of a list's end does not walk the list to it
+        for index in range(self._start, self._stop):
+            yield self._items[index]
 
     def __reversed__(self) -> Iterator[T]:
         for index in range(self._stop - 1, self._start - 1, -1):

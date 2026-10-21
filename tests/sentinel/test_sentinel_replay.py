@@ -958,6 +958,10 @@ def assert_views_share_storage(
                 backing.setdefault((step.message_id, "tools"), set()).add(
                     id(step.tools._items)
                 )
+                # one range index per producing model call, not per call
+                backing.setdefault((step.message_id, "input view"), set()).add(
+                    id(step.input)
+                )
             for input in inputs:
                 assert isinstance(input, PoolView) and input._pool is pool
     for (conversation, name), lists in backing.items():
@@ -1455,6 +1459,9 @@ def test_a_person_s_approval_decision_reaches_later_steps(
     decisions = last.step.human_decisions or []
     assert decisions, [s.stage for s in replay]
     assert decisions[0].decided.report.action == action
+    # the person decided before the call ran, so its own result step sees it
+    for after in [s for s in replay if s.stage == "tool_result"]:
+        assert [d.step_id for d in after.step.human_decisions or []][-1:] == [after.id]
 
 
 @tool
@@ -1862,3 +1869,144 @@ def test_a_task_scorer_s_unrecorded_tool_calls_are_replayed() -> None:
     )
     assert len(seen) == 1
     assert [s.stage for s in replayed(log) if s.stage == "tool_call"] == ["tool_call"]
+
+
+# review pass 3: concurrent batches, misses, shared range indexes, suffixes
+
+
+@tool(parallel=False)
+def synchronised(
+    a1_started: Any, b1_started: Any, a2_started: Any, b_done: Any
+) -> Tool:
+    async def execute(kind: str) -> str:
+        """Return `kind` once the other agent has reached its point.
+
+        Args:
+            kind: Which call this is.
+        """
+        if kind == "A1":
+            a1_started.set()
+            await b1_started.wait()
+        elif kind == "A2":
+            a2_started.set()
+            await b_done.wait()
+        else:
+            b1_started.set()
+            await a2_started.wait()
+        return kind
+
+    return execute
+
+
+@solver
+def r7_runs_batches_concurrently(
+    tools: list[Tool], a1_started: Any, b_done: Any
+) -> Solver:
+    """Two agents in one conversation: B's batch and its next turn run while A's batch is between its calls."""
+
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        model = get_model()
+
+        async def a() -> None:
+            input: list[ChatMessage] = [ChatMessageUser(content="first")]
+            output = await model.generate(input, tools)
+            await execute_tools([*input, output.message], tools)
+
+        async def b() -> None:
+            await a1_started.wait()
+            input: list[ChatMessage] = [ChatMessageUser(content="second")]
+            output = await model.generate(input, tools)
+            result = await execute_tools([*input, output.message], tools)
+            await model.generate([*input, output.message, *result.messages], tools)
+            b_done.set()
+
+        await tg_collect([a, b])
+        return state
+
+    return solve
+
+
+@pytest.mark.parametrize("backend", ["asyncio", "trio"])
+def test_a_batch_joins_when_its_execute_tools_returns_though_another_batch_overlaps(
+    backend: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
+    a1_started, b1_started, a2_started, b_done = (
+        anyio.Event(),
+        anyio.Event(),
+        anyio.Event(),
+        anyio.Event(),
+    )
+    tools = [synchronised(a1_started, b1_started, a2_started, b_done)]
+    replay = assert_replay_equals_live(
+        r7_runs_batches_concurrently(tools, a1_started, b_done),
+        outputs(
+            calls(
+                ("synchronised", {"kind": "A1"}),
+                ("synchronised", {"kind": "A2"}),
+                turn=1,
+            ),
+            calls(("synchronised", {"kind": "B1"}), turn=2),
+            done("C"),
+        ),
+    )
+    *_, last = [s for s in replay if s.stage == "model_input"]
+    assert "A1" not in [m.text for m in last.step.agent_messages or []]
+
+
+def inserted_block_inputs(turns: int) -> tuple[list[ModelEvent], list[ChatMessage]]:
+    """A history stored as single-row ranges, then an input with a block of new messages before all of it."""
+    pool: list[ChatMessage] = []
+    for n in range(turns):
+        pool.append(ChatMessageUser(content=f"kept {n}"))
+        pool.append(ChatMessageAssistant(content=f"between {n}"))
+    pool.extend(ChatMessageUser(content=f"inserted {n}") for n in range(turns))
+    kept = [(2 * n, 2 * n + 1) for n in range(turns)]
+    block = (2 * turns, 3 * turns)
+    return [turn_event([], kept), turn_event([], [block, *kept])], pool
+
+
+def test_a_block_inserted_before_fragmented_history_keeps_the_fold_linear(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    info = EvalInfo(inspect_ai_version=None, sentinel=False)
+    small, large = (
+        replay_work(monkeypatch, [], *inserted_block_inputs(turns), "sample", info)
+        for turns in (200, 400)
+    )
+    assert_linear(small, large)
+
+
+def test_a_model_call_s_range_index_is_built_once_for_all_its_calls() -> None:
+    proposals = calls(*[("addition", {"x": n, "y": 1}) for n in range(50)])
+    log = run_logged(tool_loop(addition()), outputs(proposals, done()))
+    replay = replayed(log)
+    turn = next(s.step for s in replay if s.stage == "model_input")
+    tool_inputs = {
+        id(s.step.input)
+        for s in replay
+        if isinstance(s.step, BeforeToolCall | AfterToolCall)
+    }
+    assert tool_inputs == {id(turn.input)}
+
+
+class _CountingList(list[Any]):
+    reads = 0
+
+    def __getitem__(self, index: Any) -> Any:
+        _CountingList.reads += 1
+        return super().__getitem__(index)
+
+    def __iter__(self) -> Any:
+        for item in super().__iter__():
+            _CountingList.reads += 1
+            yield item
+
+
+@pytest.mark.parametrize("length", [200, 400])
+def test_reading_a_view_s_end_reads_only_the_end(length: int) -> None:
+    items = _CountingList(range(length))
+    view = ListView(items, length)
+    _CountingList.reads = 0
+    assert list(view[-3:]) == [length - 3, length - 2, length - 1]
+    assert _CountingList.reads == 3
