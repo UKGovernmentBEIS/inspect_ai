@@ -77,6 +77,7 @@ from inspect_ai.tool._tool_call import (
     ToolCallContent,
     ToolCallView,
     ToolCallViewer,
+    ToolCallViewError,
     default_tool_call_viewer,
     resolve_tool_call_view,
     substitute_tool_call_content,
@@ -119,6 +120,10 @@ async def sentinel_before_tool_call(
     if not _watches(BeforeToolCall):
         return None
     _require_message_id()
+    try:
+        view = resolve_tool_call_view(call, viewer, reject_on_error=True)
+    except ToolCallViewError as ex:
+        raise ToolApprovalError(str(ex)) from ex
     producer = _producing_event(call, history)
     conversation = _conversation()
     # inspect_sentinel 0.1.4, which mypy checks against, has neither
@@ -128,7 +133,7 @@ async def sentinel_before_tool_call(
         message=message,
         message_id=_message_id(message_id),
         call=call,
-        view=resolve_tool_call_view(call, viewer),
+        view=view,
         input=list(producer.input) if producer is not None else None,
         agent_messages=ran_messages(conversation),
         history=sent_messages(conversation),
