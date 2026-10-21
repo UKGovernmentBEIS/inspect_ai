@@ -19,10 +19,16 @@ from inspect_ai.log._transcript import Transcript, init_transcript, transcript
 from inspect_ai.util._span import (
     SpanRotationScope,
     current_span_id,
+    parent_span,
     span,
     span_id_provider,
 )
-from inspect_ai.util._store import Store, init_subtask_store, store
+from inspect_ai.util._store import (
+    Store,
+    init_subtask_store,
+    store,
+    suspend_store_events,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -157,6 +163,48 @@ async def test_store_changes_emitted_inside_closing_span() -> None:
     assert events.index(store_events[0]) < end_index
 
 
+async def test_suspend_store_events_fixed_at_open(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A scope opened inside the switch neither snapshots nor logs the store.
+
+    A scope opened outside it keeps tracking, even when a task inside the
+    switch rotates it.
+    """
+    events: list[object] = []
+    transcript()._subscribe(events.append)
+    snapshots: list[None] = []
+
+    def counting_store_jsonable(s: Store) -> dict[str, object]:
+        snapshots.append(None)
+        return dict(s.items())
+
+    monkeypatch.setattr(
+        "inspect_ai.util._store.store_jsonable", counting_store_jsonable
+    )
+
+    with suspend_store_events():
+        scope = SpanRotationScope(type="checkpoint")
+        await scope.open("checkpoint 1")
+        store().set("suspended", 1)
+        await scope.end_span()
+        await scope.begin_span("checkpoint 2")
+        await scope.close()
+    assert snapshots == []
+    assert not [e for e in events if isinstance(e, StoreEvent)]
+
+    scope = SpanRotationScope(type="checkpoint")
+    await scope.open("checkpoint 3")
+    store().set("tracked", 1)
+    with suspend_store_events():
+        await scope.end_span()
+        await scope.begin_span("checkpoint 4")
+    await scope.close()
+
+    store_events = [e for e in events if isinstance(e, StoreEvent)]
+    assert [[c.path for c in e.changes] for e in store_events] == [["/tracked"]]
+
+
 async def test_span_id_provider_consulted() -> None:
     async def provider(name: str, parent_id: str | None, id: str | None) -> str:
         return f"provided-{name}"
@@ -195,3 +243,28 @@ async def test_close_is_idempotent() -> None:
     await scope.open("checkpoint 2")
     assert current_span_id() is not None
     await scope.close()
+
+
+async def test_parent_span_places_events_and_spans_under_the_given_parent() -> None:
+    async with span("current"):
+        current = current_span_id()
+        with parent_span("elsewhere"):
+            info = InfoEvent(data="placed")
+            async with span("child"):
+                child = current_span_id()
+        assert current_span_id() == current
+
+    assert info.span_id == "elsewhere"
+    [begin] = [
+        e
+        for e in transcript().events
+        if isinstance(e, SpanBeginEvent) and e.id == child
+    ]
+    assert begin.parent_id == "elsewhere"
+
+
+async def test_parent_span_none_leaves_the_current_span() -> None:
+    async with span("current"):
+        current = current_span_id()
+        with parent_span(None):
+            assert current_span_id() == current
