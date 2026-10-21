@@ -1,8 +1,11 @@
 """End-to-end tests for the skill() tool."""
 
+import hashlib
 import os
+import re
 from pathlib import Path
 
+import anyio
 import pytest
 from test_helpers.sandbox import CannedSandbox
 from test_helpers.utils import flaky_retry, skip_if_no_docker, skip_if_no_openai
@@ -11,12 +14,31 @@ from inspect_ai import Task, eval
 from inspect_ai.agent import react
 from inspect_ai.dataset import Sample
 from inspect_ai.scorer import includes
-from inspect_ai.tool import bash, skill
-from inspect_ai.tool._tools._skill.install import install_skills
+from inspect_ai.solver import Generate, Solver, TaskState, fork, solver
+from inspect_ai.tool import Tool, ToolError, bash, skill
+from inspect_ai.tool._tool_def import ToolDef
+from inspect_ai.tool._tools._skill.install import install_lock, install_skills
 from inspect_ai.tool._tools._skill.read import SkillParsingError, _read_skill
+from inspect_ai.tool._tools._skill.tool import _cache_lock
 from inspect_ai.tool._tools._skill.types import Skill
-from inspect_ai.util import SandboxUserUnsupportedError
+from inspect_ai.util import (
+    SandboxUserUnsupportedError,
+    Store,
+    store,
+    subtask,
+    tool_state_scope,
+)
+from inspect_ai.util._sandbox.context import (
+    sandbox_default_context_var,
+    sandbox_environments_context_var,
+)
+from inspect_ai.util._sandbox.environment import SandboxEnvironment
+from inspect_ai.util._sandbox.limits import (
+    OutputLimitExceededError,
+    override_max_read_file_size,
+)
 from inspect_ai.util._sandbox.local import LocalSandboxEnvironment
+from inspect_ai.util._store import init_subtask_store
 from inspect_ai.util._subprocess import ExecResult
 
 # Path to test skills directory
@@ -628,3 +650,570 @@ def test_skill_end_to_end() -> None:
         "Model did not run the script. "
         f"Expected 'DELTA-ECHO-FOXTROT' in output but got: {combined_output[:500]}..."
     )
+
+
+class _FileSandbox(CannedSandbox):
+    """Keeps written files in memory and answers the installer's commands.
+
+    `pwd` gives /work, the digest script hashes the in-memory file, `chown`
+    records the owner, `rm -f` removes the file, and writes yield so
+    concurrent installs interleave.
+    """
+
+    def __init__(self, files: dict[str, bytes] | None = None) -> None:
+        super().__init__(self._answer)
+        self.files = dict(files or {})
+        self.owners: dict[str, str] = {}
+
+    def _answer(self, cmd: list[str], user: str | None) -> ExecResult[str]:
+        if cmd[-1] == "pwd":
+            return ExecResult(True, 0, "/work", "")
+        if "sha256sum" in cmd[2]:
+            contents = self.files.get(cmd[-1])
+            if contents is None:
+                return ExecResult(True, 0, "missing\n", "")
+            return ExecResult(
+                True, 0, f"{hashlib.sha256(contents).hexdigest()}  -\n", ""
+            )
+        if cmd[4:5] == ["chown"]:
+            self.owners[cmd[-1]] = cmd[-2]
+        if cmd[4:6] == ["rm", "-f"]:
+            self.files.pop(cmd[-1], None)
+            self.owners.pop(cmd[-1], None)
+        return ExecResult(True, 0, "", "")
+
+    async def write_file(self, file: str, contents: str | bytes) -> None:
+        await anyio.lowlevel.checkpoint()
+        await super().write_file(file, contents)
+        self.files[file] = contents.encode() if isinstance(contents, str) else contents
+
+
+class _BlockingSandbox(_FileSandbox):
+    """Blocks the first `stage` (write, chown or chmod) of an install.
+
+    The blocked operation waits for `release`. If its caller is cancelled
+    first, the backend still carries it out later, as a detached
+    `docker exec` can: a write lands half the file and a command runs. These
+    late effects are kept until `apply_late()`.
+    """
+
+    def __init__(self, stage: str) -> None:
+        super().__init__()
+        self.stage = stage
+        self.block = True
+        self.blocked = anyio.Event()
+        self.release = anyio.Event()
+        self.blocked_path = ""
+        self.late_files: dict[str, bytes] = {}
+        self.late_cmds: list[list[str]] = []
+        self.finalized: list[tuple[str, str]] = []
+
+    async def _block(self, path: str) -> None:
+        self.block = False
+        self.blocked_path = path
+        self.blocked.set()
+        await self.release.wait()
+
+    def apply_late(self) -> None:
+        self.files.update(self.late_files)
+        for cmd in self.late_cmds:
+            self._answer(cmd, None)
+
+    async def write_file(self, file: str, contents: str | bytes) -> None:
+        if self.stage == "write" and self.block:
+            try:
+                await self._block(file)
+            except anyio.get_cancelled_exc_class():
+                data = contents.encode() if isinstance(contents, str) else contents
+                self.late_files[file] = data[: len(data) // 2]
+                raise
+        await super().write_file(file, contents)
+
+    async def exec(
+        self,
+        cmd: list[str],
+        input: str | bytes | None = None,
+        cwd: str | None = None,
+        env: dict[str, str] | None = None,
+        user: str | None = None,
+        timeout: int | None = None,
+        timeout_retry: bool = True,
+        concurrency: bool = True,
+    ) -> ExecResult[str]:
+        if cmd[4:5] == [self.stage] and self.block:
+            try:
+                await self._block(cmd[-1])
+            except anyio.get_cancelled_exc_class():
+                self.late_cmds.append(cmd)
+                raise
+        if cmd[4:5] in (["chown"], ["chmod"]):
+            self.finalized.append((cmd[4], cmd[-1]))
+        return await super().exec(
+            cmd, input, cwd, env, user, timeout, timeout_retry, concurrency
+        )
+
+
+class _CountingLocalSandbox(LocalSandboxEnvironment):
+    def __init__(self) -> None:
+        super().__init__()
+        self.written: list[str] = []
+
+    async def write_file(self, file: str, contents: str | bytes) -> None:
+        self.written.append(file)
+        await super().write_file(file, contents)
+
+
+def _use_sandbox(sandbox: SandboxEnvironment) -> None:
+    sandbox_environments_context_var.set({"default": sandbox})
+    sandbox_default_context_var.set("default")
+
+
+class TestSkillToolStateScope:
+    SKILL = Skill(name="example", description="Example.", instructions="Do it.")
+    OTHER = Skill(name="example", description="Example.", instructions="Other.")
+
+    @pytest.fixture
+    def sandbox(self) -> _FileSandbox:
+        """A sandbox that keeps written files in memory."""
+        return _FileSandbox()
+
+    async def test_default_skill_tool_is_per_scope(self, sandbox: _FileSandbox) -> None:
+        _use_sandbox(sandbox)
+        init_subtask_store(Store())
+        tool = skill([self.SKILL])
+        with tool_state_scope("w-1"):
+            await tool(command="example")
+            await tool(command="example")
+        with tool_state_scope("w-2"):
+            await tool(command="example")
+        assert sandbox.written == ["/work/skills/example/SKILL.md"]
+        assert "InstalledSkills:skills" not in store()
+        assert store().get("InstalledSkills:@w-1:skills") is not None
+        assert store().get("InstalledSkills:@w-2:skills") is not None
+
+    async def test_deepagent_child_skill_tool_is_per_scope(
+        self, sandbox: _FileSandbox
+    ) -> None:
+        from inspect_ai.agent._deepagent.agent_tool import _resolve_tools
+        from inspect_ai.agent._deepagent.subagent import subagent
+
+        _use_sandbox(sandbox)
+        init_subtask_store(Store())
+        sa = subagent(name="general", description="General.", prompt="General.")
+
+        async def call_child_skill() -> None:
+            tools = _resolve_tools(
+                sa, [sa], None, None, [self.SKILL], 0, 1, get_messages=None
+            )
+            [child_skill] = [
+                t for t in tools if isinstance(t, Tool) and ToolDef(t).name == "skill"
+            ]
+            await child_skill(command="example")
+
+        with tool_state_scope("w-1"):
+            await call_child_skill()
+        with tool_state_scope("w-2"):
+            await call_child_skill()
+        assert sandbox.written == ["/work/skills/example/SKILL.md"]
+        assert "InstalledSkills:general:skills" not in store()
+        assert store().get("InstalledSkills:@w-1#general:skills") is not None
+        assert store().get("InstalledSkills:@w-2#general:skills") is not None
+
+        # outside a scope the subagent name is today's instance
+        await call_child_skill()
+        assert store().get("InstalledSkills:general:skills") is not None
+
+    async def test_concurrent_first_calls_across_scopes_install_once(
+        self, sandbox: _FileSandbox
+    ) -> None:
+        _use_sandbox(sandbox)
+        init_subtask_store(Store())
+        skill_with_script = Skill(
+            name="example",
+            description="Example.",
+            instructions="Do it.",
+            scripts={"run.sh": "echo hello"},
+        )
+        tool = skill([skill_with_script])
+
+        async def call_in_scope(name: str) -> None:
+            with tool_state_scope(name):
+                await tool(command="example")
+
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(call_in_scope, "w-1")
+            tg.start_soon(call_in_scope, "w-2")
+
+        assert sandbox.written == [
+            "/work/skills/example/SKILL.md",
+            "/work/skills/example/scripts/run.sh",
+        ]
+        assert store().get("InstalledSkills:@w-1:skills") is not None
+        assert store().get("InstalledSkills:@w-2:skills") is not None
+
+    async def test_conflicting_skill_contents_raise(
+        self, sandbox: _FileSandbox
+    ) -> None:
+        _use_sandbox(sandbox)
+        init_subtask_store(Store())
+        with tool_state_scope("w-1"):
+            await skill([self.SKILL])(command="example")
+        with tool_state_scope("w-2"):
+            with pytest.raises(
+                RuntimeError,
+                match="/work/skills/example/SKILL.md already exists in the sandbox with different contents",
+            ):
+                await skill([self.OTHER])(command="example")
+        assert sandbox.written == ["/work/skills/example/SKILL.md"]
+        assert sandbox.files["/work/skills/example/SKILL.md"] == (
+            self.SKILL.skill_md().encode()
+        )
+
+    async def test_existing_sandbox_files_are_compared(self) -> None:
+        """Files already in the sandbox (a resumed sandbox or the image) count."""
+        path = "/work/skills/example/SKILL.md"
+        same = _FileSandbox({path: self.SKILL.skill_md().encode()})
+        _use_sandbox(same)
+        init_subtask_store(Store())
+        await skill([self.SKILL])(command="example")
+        assert same.written == []
+
+        different = _FileSandbox({path: b"other"})
+        _use_sandbox(different)
+        init_subtask_store(Store())
+        with pytest.raises(RuntimeError, match="different contents"):
+            await skill([self.SKILL])(command="example")
+        assert different.written == []
+        assert different.files[path] == b"other"
+
+    async def test_aliased_skill_dirs_compare_the_same_files(self) -> None:
+        if os.name != "posix":
+            pytest.skip("requires POSIX symlinks")
+        local = _CountingLocalSandbox()
+        try:
+            _use_sandbox(local)
+            init_subtask_store(Store())
+            root = Path(local.directory.name)
+            (root / "other" / "child").mkdir(parents=True)
+            (root / "other" / "skills").mkdir()
+            (root / "link").symlink_to(root / "other" / "skills")
+            (root / "child-link").symlink_to(root / "other" / "child")
+            aliases = [
+                f"{root}/link",  # symlink
+                f"{root}/other/skills/../skills",  # ..
+                f"{root}/child-link/../skills",  # symlink then ..
+            ]
+            with tool_state_scope("w-0"):
+                await skill([self.SKILL], dir=f"{root}/other/skills")(command="example")
+            for scope, dir in zip(["w-1", "w-2", "w-3"], aliases):
+                with tool_state_scope(scope):
+                    await skill([self.SKILL], dir=dir)(command="example")
+            assert len(local.written) == 1
+
+            for dir in aliases:
+                with tool_state_scope("w-4"):
+                    with pytest.raises(RuntimeError, match="different contents"):
+                        await skill([self.OTHER], dir=dir)(command="example")
+            assert len(local.written) == 1
+            skill_md = root / "other" / "skills" / "example" / "SKILL.md"
+            assert skill_md.read_text() == self.SKILL.skill_md()
+        finally:
+            local.directory.cleanup()
+
+    @pytest.mark.parametrize("wrapper", ["subtask", "fork"])
+    @pytest.mark.parametrize("conflict", [False, True])
+    def test_installs_through_subtask_and_fork_branches(
+        self, wrapper: str, conflict: bool, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        written: list[str] = []
+        local_write_file = LocalSandboxEnvironment.write_file
+
+        async def counting_write_file(
+            self: LocalSandboxEnvironment, file: str, contents: str | bytes
+        ) -> None:
+            written.append(file)
+            await local_write_file(self, file, contents)
+
+        monkeypatch.setattr(LocalSandboxEnvironment, "write_file", counting_write_file)
+
+        first = self.SKILL
+        second = self.OTHER if conflict else self.SKILL
+
+        @solver
+        def install(scope: str, sk: Skill) -> Solver:
+            async def solve(state: TaskState, generate: Generate) -> TaskState:
+                with tool_state_scope(scope):
+                    await skill([sk])(command="example")
+                return state
+
+            return solve
+
+        @subtask
+        async def install_subtask(scope: str, sk: Skill) -> None:
+            with tool_state_scope(scope):
+                await skill([sk])(command="example")
+
+        @solver
+        def branches() -> Solver:
+            async def solve(state: TaskState, generate: Generate) -> TaskState:
+                if wrapper == "fork":
+                    await fork(state, [install("w-1", first), install("w-2", second)])
+                else:
+                    await install_subtask("w-1", first)
+                    await install_subtask("w-2", second)
+                return state
+
+            return solve
+
+        log = eval(
+            Task(dataset=[Sample(input="x")], solver=branches(), sandbox="local"),
+            model="mockllm/model",
+        )[0]
+        assert log.samples is not None
+        error = log.samples[0].error
+        if conflict:
+            assert error is not None and "different contents" in error.message
+        else:
+            assert error is None
+        assert len(written) == 1 and written[0].endswith("skills/example/SKILL.md")
+
+    @pytest.mark.parametrize("stage", ["write", "chown", "chmod"])
+    async def test_interrupted_install_is_redone(self, stage: str) -> None:
+        sandbox = _BlockingSandbox(stage)
+        _use_sandbox(sandbox)
+        init_subtask_store(Store())
+        with_script = Skill(
+            name="example",
+            description="Example.",
+            instructions="Do it.",
+            scripts={"run.sh": "echo hello"},
+        )
+
+        async def first_install() -> None:
+            with tool_state_scope("w-1"):
+                await skill([with_script], user="1000")(command="example")
+
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(first_install)
+            await sandbox.blocked.wait()
+            tg.cancel_scope.cancel()
+            sandbox.release.set()
+        assert sandbox.blocked_path
+
+        sandbox.finalized.clear()
+        with tool_state_scope("w-2"):
+            await skill([with_script], user="2000")(command="example")
+        # whatever the cancelled install left running lands now
+        sandbox.apply_late()
+        expected = {
+            "/work/skills/example/SKILL.md": with_script.skill_md().encode(),
+            "/work/skills/example/scripts/run.sh": b"echo hello",
+        }
+        assert sandbox.files == expected
+        assert sandbox.owners == {path: "2000" for path in expected}
+        assert ("chown" if stage == "write" else stage, sandbox.blocked_path) in (
+            sandbox.finalized
+        )
+
+    async def test_cancelled_install_starts_no_further_files(self) -> None:
+        sandbox = _BlockingSandbox("write")
+        _use_sandbox(sandbox)
+        init_subtask_store(Store())
+        full = Skill(
+            name="example",
+            description="Example.",
+            instructions="Do it.",
+            scripts={"run.sh": "echo hello"},
+            references={"ref.md": "ref"},
+            assets={"data.txt": "data"},
+        )
+
+        async def install() -> None:
+            await skill([full])(command="example")
+
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(install)
+            await sandbox.blocked.wait()
+            tg.cancel_scope.cancel()
+            sandbox.release.set()
+
+        # the write in flight finishes; nothing after it starts
+        assert sandbox.files == {
+            "/work/skills/example/SKILL.md": full.skill_md().encode()
+        }
+        assert sandbox.written == ["/work/skills/example/SKILL.md"]
+        assert not install_lock(sandbox).locked()
+
+    async def test_failed_write_is_removed(self) -> None:
+        class FailingSandbox(_FileSandbox):
+            fail = True
+
+            async def write_file(self, file: str, contents: str | bytes) -> None:
+                if self.fail:
+                    self.fail = False
+                    self.files[file] = b"part"
+                    raise RuntimeError("write failed")
+                await super().write_file(file, contents)
+
+        sandbox = FailingSandbox()
+        _use_sandbox(sandbox)
+        init_subtask_store(Store())
+        with tool_state_scope("w-1"):
+            with pytest.raises(RuntimeError, match="write failed"):
+                await skill([self.SKILL])(command="example")
+        assert sandbox.files == {}
+        with tool_state_scope("w-2"):
+            await skill([self.SKILL])(command="example")
+        assert sandbox.files == {
+            "/work/skills/example/SKILL.md": self.SKILL.skill_md().encode()
+        }
+
+    @pytest.mark.parametrize("second_sandbox", [None, "other"])
+    async def test_concurrent_first_calls_for_one_instance_keep_the_first_list(
+        self, second_sandbox: str | None
+    ) -> None:
+        sandbox = _BlockingSandbox("write")
+        other = _FileSandbox()
+        sandbox_environments_context_var.set({"default": sandbox, "other": other})
+        sandbox_default_context_var.set("default")
+        init_subtask_store(Store())
+        alpha = Skill(name="alpha", description="Alpha.", instructions="Alpha.")
+        beta = Skill(name="beta", description="Beta.", instructions="Beta.")
+        first = skill([alpha], instance="team")
+        second = skill([beta], instance="team", sandbox=second_sandbox)
+        errors: list[str] = []
+
+        async def call_second() -> None:
+            try:
+                await second(command="beta")
+            except ToolError as ex:
+                errors.append(ex.message)
+
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(first, "alpha")
+            await sandbox.blocked.wait()
+            tg.start_soon(call_second)
+            while _cache_lock(store(), "team").statistics().tasks_waiting == 0:
+                await anyio.lowlevel.checkpoint()
+            sandbox.release.set()
+
+        # as before tool state scopes: the first tool to install sets the list
+        assert errors == ["Unknown skill: beta"]
+        await first(command="alpha")
+        with pytest.raises(ToolError, match="Unknown skill: beta"):
+            await second(command="beta")
+        assert list(sandbox.files) == ["/work/skills/alpha/SKILL.md"]
+        assert other.files == {}
+
+    async def test_existing_identical_script_is_made_executable(self) -> None:
+        local = _CountingLocalSandbox()
+        try:
+            _use_sandbox(local)
+            init_subtask_store(Store())
+            dir = Path(local.directory.name) / "skills"
+            contents = "#!/bin/sh\necho hello\n"
+            with_script = Skill(
+                name="example",
+                description="Example.",
+                instructions="Do it.",
+                scripts={"run.sh": contents},
+            )
+            script = dir / "example" / "scripts" / "run.sh"
+            script.parent.mkdir(parents=True)
+            script.write_text(contents)
+            script.chmod(0o644)
+            (dir / "example" / "SKILL.md").write_text(with_script.skill_md())
+
+            await skill([with_script], dir=str(dir))(command="example")
+            assert local.written == []
+            assert os.access(script, os.X_OK)
+        finally:
+            local.directory.cleanup()
+
+    async def test_file_names_with_the_same_path_are_refused(
+        self, sandbox: _FileSandbox
+    ) -> None:
+        _use_sandbox(sandbox)
+        init_subtask_store(Store())
+        aliased = self.SKILL.model_copy(
+            update={"assets": {"file.txt": "first", "./file.txt": "second"}}
+        )
+        with pytest.raises(
+            ValueError,
+            match="Skill 'example' has assets file names 'file.txt' and './file.txt'",
+        ):
+            await skill([aliased])(command="example")
+        assert sandbox.written == []
+
+    async def test_non_canonical_file_name_installs_at_normalized_path(
+        self, sandbox: _FileSandbox
+    ) -> None:
+        _use_sandbox(sandbox)
+        init_subtask_store(Store())
+        dotted = self.SKILL.model_copy(update={"assets": {"./file.txt": "data"}})
+        with tool_state_scope("w-1"):
+            await skill([dotted])(command="example")
+        with tool_state_scope("w-2"):
+            await skill([dotted])(command="example")
+        assert sandbox.written == [
+            "/work/skills/example/SKILL.md",
+            "/work/skills/example/assets/file.txt",
+        ]
+
+    @pytest.mark.parametrize("name", ["", "/etc/passwd", "../file.txt", "a/../b"])
+    async def test_file_names_outside_their_directory_are_refused(
+        self, sandbox: _FileSandbox, name: str
+    ) -> None:
+        _use_sandbox(sandbox)
+        init_subtask_store(Store())
+        bad = self.SKILL.model_copy(update={"references": {name: "data"}})
+        with pytest.raises(
+            ValueError,
+            match=f"Skill 'example' has an invalid references file name '{re.escape(name)}'",
+        ):
+            await skill([bad])(command="example")
+        assert sandbox.written == []
+
+    async def test_nested_file_names_are_accepted(self, sandbox: _FileSandbox) -> None:
+        _use_sandbox(sandbox)
+        init_subtask_store(Store())
+        nested = self.SKILL.model_copy(
+            update={
+                "scripts": {"tools/run.sh": "echo hi"},
+                "assets": {"a/b/c.txt": "c"},
+            }
+        )
+        await skill([nested])(command="example")
+        assert sandbox.written == [
+            "/work/skills/example/SKILL.md",
+            "/work/skills/example/scripts/tools/run.sh",
+            "/work/skills/example/assets/a/b/c.txt",
+        ]
+
+    async def test_comparison_is_not_limited_by_read_file_size(self) -> None:
+        local = _CountingLocalSandbox()
+        try:
+            _use_sandbox(local)
+            init_subtask_store(Store())
+            dir = f"{local.directory.name}/skills"
+            asset = f"{dir}/example/assets/data.bin"
+            large = Skill(
+                name="example",
+                description="Example.",
+                instructions="Do it.",
+                assets={"data.bin": b"x" * 256},
+            )
+            different = large.model_copy(update={"assets": {"data.bin": b"y" * 256}})
+            with override_max_read_file_size(128):
+                with tool_state_scope("w-1"):
+                    await skill([large], dir=dir)(command="example")
+                with tool_state_scope("w-2"):
+                    await skill([large], dir=dir)(command="example")
+                with tool_state_scope("w-3"):
+                    with pytest.raises(RuntimeError, match="different contents"):
+                        await skill([different], dir=dir)(command="example")
+                assert len(local.written) == 2
+                with pytest.raises(OutputLimitExceededError):
+                    await local.read_file(asset, text=False)
+        finally:
+            local.directory.cleanup()
