@@ -39,7 +39,7 @@ from inspect_ai._util.registry import (
 )
 from inspect_ai.event._model import ModelEvent
 from inspect_ai.event._score_edit import ScoreEditEvent
-from inspect_ai.log import EvalLogInfo, EvalSampleSummary, write_eval_log
+from inspect_ai.log import EvalLogInfo, EvalSampleSummary, write_eval_log_async
 from inspect_ai.log._log import (
     EvalConfig,
     EvalDataset,
@@ -837,7 +837,7 @@ async def test_score_cli_trusts_log_metrics_only_with_log_scorers(
         )
     ]
     input_file = tmp_path / "input.eval"
-    write_eval_log(log, input_file.as_posix())
+    await write_eval_log_async(log, input_file.as_posix())
 
     run = score_cli.score(
         log_dir=tmp_path.as_posix(),
