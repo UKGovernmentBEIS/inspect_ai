@@ -39,7 +39,7 @@ from inspect_ai._util.registry import (
 )
 from inspect_ai.event._model import ModelEvent
 from inspect_ai.event._score_edit import ScoreEditEvent
-from inspect_ai.log import EvalLogInfo, EvalSampleSummary
+from inspect_ai.log import EvalLogInfo, EvalSampleSummary, write_eval_log
 from inspect_ai.log._log import (
     EvalConfig,
     EvalDataset,
@@ -787,7 +787,6 @@ def test_rescore_with_callers_scorers_rebuilds_log_metrics_untrusted(
             counting_scorer(),
             action="overwrite",
             model="mockllm/model",
-            display="none",
         )
 
     assert message in str(ex.value)
@@ -802,7 +801,6 @@ def test_rescore_with_callers_scorers_rebuilds_log_metrics_untrusted(
         metrics=[accuracy()],
         action="overwrite",
         model="mockllm/model",
-        display="none",
     )
     assert rescored.results is not None
 
@@ -816,11 +814,54 @@ def test_rescore_overwrite_ignores_replaced_scorer_metrics(
         counting_scorer(),
         action="overwrite",
         model="mockllm/model",
-        display="none",
     )
 
     assert rescored.results is not None
     assert _imported(imports) == [] and untrusted_models == []
+
+
+@pytest.mark.parametrize("scorer", [None, "counting_scorer"])
+async def test_score_cli_trusts_log_metrics_only_with_log_scorers(
+    scorer: str | None,
+    tmp_path: Path,
+    untrusted_models: list[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from inspect_ai._cli import score as score_cli
+
+    monkeypatch.setattr(score_cli, "print_results", lambda *args, **kwargs: None)
+    log = _fixture("3t", tmp_path)
+    log.eval.scorers = [
+        EvalScorer(
+            name="counting_scorer", metrics=[EvalMetricDefinition(name="accuracy")]
+        )
+    ]
+    input_file = tmp_path / "input.eval"
+    write_eval_log(log, input_file.as_posix())
+
+    run = score_cli.score(
+        log_dir=tmp_path.as_posix(),
+        log_file=input_file.as_posix(),
+        scorer=scorer,
+        s=(),
+        metric=None,
+        overwrite=False,
+        action="overwrite",
+        log_level=None,
+        output_file=(tmp_path / "output.eval").as_posix(),
+        model="mockllm/model",
+    )
+
+    if scorer is None:
+        # the log's own scorers: its metric options are rebuilt as recorded
+        await run
+        assert untrusted_models == [UNTRUSTED_URL]
+        assert scored_samples == [1, 2]
+    else:
+        with pytest.raises(DisallowedRegistryArg, match="option 'option': a model"):
+            await run
+        assert untrusted_models == []
+        assert scored_samples == []
 
 
 async def test_rescore_with_log_scorers_trusts_metric_options(
