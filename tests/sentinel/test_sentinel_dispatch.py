@@ -3524,6 +3524,8 @@ class _Spec(NamedTuple):
     role: str
     id: str
     content: str
+    # varies the source and metadata, which are not sent to the model
+    tag: int = 0
 
 
 class _Request(NamedTuple):
@@ -3538,12 +3540,19 @@ class _Case(NamedTuple):
     requests: tuple[_Request, ...]
 
 
+_SOURCES: tuple[Literal["input", "generate"] | None, ...] = (None, "input", "generate")
+
+
 def _message(spec: _Spec) -> ChatMessage:
+    unsent: dict[str, Any] = {
+        "source": _SOURCES[spec.tag],
+        "metadata": {"tag": spec.tag} if spec.tag else None,
+    }
     if spec.role == "system":
-        return ChatMessageSystem(id=spec.id, content=spec.content)
+        return ChatMessageSystem(id=spec.id, content=spec.content, **unsent)
     if spec.role == "user":
-        return ChatMessageUser(id=spec.id, content=spec.content)
-    return ChatMessageAssistant(id=spec.id, content=spec.content)
+        return ChatMessageUser(id=spec.id, content=spec.content, **unsent)
+    return ChatMessageAssistant(id=spec.id, content=spec.content, **unsent)
 
 
 def _sent_content(message: ChatMessage) -> tuple[type, dict[str, Any]]:
@@ -3579,7 +3588,7 @@ def _random_case(rng: random.Random, requests: int) -> _Case:
 
     def new(role: str, content: str, shared: tuple[str, ...] | None) -> int:
         message_id = rng.choice(shared) if shared else f"m{next(fresh)}"
-        specs.append(_Spec(role, message_id, content))
+        specs.append(_Spec(role, message_id, content, rng.randrange(len(_SOURCES))))
         return len(specs) - 1
 
     def appended() -> int:
@@ -4470,6 +4479,18 @@ def test_mcp_sampling_records_its_origin(watched: bool) -> None:
     assert origin_counts(log) == {"sampling": 1, "agent": 1}
 
 
+def test_rescoring_a_log_records_the_scorer_origin() -> None:
+    from inspect_ai import score
+
+    log = eval(
+        Task(dataset=[Sample(input="Say hi.")], solver=generate()),
+        model="mockllm/model",
+    )[0]
+    assert log.status == "success", log.error
+    rescored = score(log, d3_model_scorer(), action="append")
+    assert origin_counts(rescored) == {"agent": 1, "scorer": 1}
+
+
 def test_a_monitor_s_own_call_records_the_sentinel_origin() -> None:
     monitor_model = get_model(
         "mockllm/monitor",
@@ -4667,6 +4688,16 @@ async def test_the_span_tree_follows_a_checkpoint_rotation_seen_by_an_earlier_ta
     found = span_tree_conversations(transcript().events, "")
     assert found == live
     assert len(set(live.values())) == 2
+
+
+def test_a_span_begun_after_its_child_still_gives_the_conversation() -> None:
+    from inspect_ai._sentinel._conversation import SpanConversations
+
+    conversations = SpanConversations("sample")
+    conversations.add(SpanBeginEvent(id="child", parent_id="agent", name="child"))
+    assert conversations.conversation("child") == "sample"
+    conversations.add(SpanBeginEvent(id="agent", type="agent", name="agent"))
+    assert conversations.conversation("child") == "agent"
 
 
 def test_a_span_tree_cycle_is_an_error() -> None:
@@ -4875,6 +4906,14 @@ def test_the_fold_matches_by_content_and_position() -> None:
             "continue",
         ],
     }
+
+
+def test_the_fold_ignores_source_and_metadata() -> None:
+    question = ChatMessageUser(content="Question.", source="input")
+    retagged = ChatMessageUser(
+        content="Question.", source="generate", metadata={"seen": True}
+    )
+    assert fold([question], [retagged, _A1]) == [question, _A1]
 
 
 def test_a_message_changed_in_place_and_sent_again_is_new() -> None:

@@ -25,6 +25,8 @@ def model_origin(origin: Literal["environment", "helper"]) -> Iterator[None]:
 
     The marker is a context variable, so it reaches the calls made in the task that entered the block and in tasks that task starts while inside it, and no others. A task started before the block, or by another task, is not marked. A design that makes the evaluated agent's calls from inside an environment region (for example, an auditor's tool that generates the target's turn) marks those calls as environment too; make them outside the block instead.
 
+    Use it as a `with` block, not as a decorator on an `async def`: as a decorator it marks only the creation of the coroutine, so the calls it makes are left unmarked.
+
     Args:
         origin: `"environment"` or `"helper"`.
     """

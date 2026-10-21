@@ -38,6 +38,7 @@ from inspect_ai._control.pause import (
 from inspect_ai._control.scoring import (
     ScorePass,
     TaskScoring,
+    _apply_scorers,
     _enumerate_targets,
     _pass_superseded,
     _sample_scoped_targets,
@@ -1811,3 +1812,30 @@ def test_eval_interim_score_pass_e2e(
     assert len(intermediate) == 1 and len(final) == 1
     assert log.samples[0].scores is not None
     assert list(log.samples[0].scores) == [scorer_name]
+
+
+async def test_a_score_pass_s_scorer_calls_record_the_scorer_origin() -> None:
+    from inspect_ai._sentinel._scope import current_origin
+
+    origins: list[str] = []
+
+    @scorer(metrics=[accuracy()])
+    def origin_scorer():
+        async def score(state: TaskState, target: Target) -> Score:
+            origins.append(current_origin())
+            return Score(value=1.0)
+
+        return score
+
+    scores: dict[str, Any] = {}
+    errors: dict[str, str] = {}
+    await _apply_scorers(
+        _scoring_handle(scorer_obj=origin_scorer()),
+        _active_sample().live_state,
+        Target("42"),
+        should_record=lambda: False,
+        scores=scores,
+        errors=errors,
+    )
+    assert errors == {}
+    assert origins == ["scorer"]

@@ -100,7 +100,7 @@ class ModelEvent(BaseEvent):
     request with a different model."""
 
     origin: str | None = Field(default=None)
-    """Where the call was made: `"agent"` for one of its conversation's agent turns; otherwise `"environment"`, `"helper"`, `"tool"`, `"compaction"`, `"approval"`, `"review"`, `"sampling"`, `"sentinel"`, `"scorer"` or `"setup"` (a call outside the solve). Inspect owns the set of kinds, and a reader treats a kind it does not know as not an agent turn. `None` in logs written before it was recorded."""
+    """Where the call was made: `"agent"` for one of its conversation's agent turns; otherwise `"environment"`, `"helper"`, `"tool"`, `"compaction"`, `"approval"`, `"review"`, `"sampling"`, `"sentinel"`, `"scorer"` or `"setup"` (a call outside the solve that no region marks). Inspect owns the set of kinds, and a reader treats a kind it does not know as not an agent turn. `None` in logs written before it was recorded."""
 
     input: list[ChatMessage]
     """Model input (list of messages)."""

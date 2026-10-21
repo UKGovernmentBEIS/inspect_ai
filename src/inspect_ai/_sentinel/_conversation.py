@@ -15,7 +15,7 @@ def live_conversation() -> str:
 class SpanConversations:
     """The conversation of each event in a log, from its span tree.
 
-    An event's conversation is the innermost span of type `agent` reached from its `span_id` through `parent_id`, else the sample's uuid: what `live_conversation()` returned when the event was made. Spans are added in log order, as their `SpanBeginEvent`s are read, and each span's answer is kept, so a pass over a sample's events walks each span once.
+    An event's conversation is the innermost span of type `agent` reached from its `span_id` through `parent_id`, else the sample's uuid: what `live_conversation()` returned when the event was made. Spans are added in log order, as their `SpanBeginEvent`s are read, and each span's answer is kept, so a pass over a sample's events walks each span once. A walk that reaches a span not yet added is not kept, so a span whose begin is read later still counts.
     """
 
     def __init__(self, sample_uuid: str) -> None:
@@ -42,7 +42,7 @@ class SpanConversations:
                 raise ValueError(f"The span tree has a parent_id cycle at {span_id}.")
             begin = self._spans.get(span_id)
             if begin is None:
-                break
+                return conversation
             walked.add(span_id)
             if begin.type == AGENT_SPAN_TYPE:
                 conversation = span_id

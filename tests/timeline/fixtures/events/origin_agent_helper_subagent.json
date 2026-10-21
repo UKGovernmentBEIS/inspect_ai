@@ -1,5 +1,5 @@
 {
-  "description": "The utility_subagent_loop shape with each model call recording origin \"agent\". A recorded origin decides alone, so the single-turn sub-agent with a different system prompt is not utility.",
+  "description": "The utility_subagent_loop shape with each model call recording origin \"agent\", as a bridged CLI's helper sub-agent does. A call recorded as \"agent\" goes through the existing rules, so the single-turn sub-agent with a different system prompt stays utility.",
   "events": [
     {
       "event": "span_begin",
@@ -201,7 +201,7 @@
         {
           "id": "helper",
           "name": "helper",
-          "utility": false,
+          "utility": true,
           "event_uuids": [
             "m2"
           ]
