@@ -6,12 +6,12 @@ import sys
 import textwrap
 import threading
 import weakref
-from typing import Awaitable, Callable
+from typing import AsyncIterator, Awaitable, Callable
 
 import anyio.to_thread
 import pytest
 
-from inspect_ai._util._async import run_coroutine, tg_collect
+from inspect_ai._util._async import run_coroutine, tg_collect, unwrapped_task_group
 from inspect_ai.util import collect
 
 
@@ -259,3 +259,20 @@ async def test_collect_and_tg_collect_unwrap_rules() -> None:
     with pytest.raises(ExceptionGroup) as group:
         await tg_collect([_fail_with_cause], exception_group=True)
     assert len(group.value.exceptions) == 1
+
+
+async def test_unwrapped_task_errors_keep_their_type() -> None:
+    async def empty() -> AsyncIterator[None]:
+        return
+        yield
+
+    async def exhausted() -> None:
+        await anext(empty())
+
+    with pytest.raises(StopAsyncIteration):
+        await collect(exhausted())
+
+    # the scheduler and the debug_errors task runner use "first"
+    with pytest.raises(StopAsyncIteration):
+        async with unwrapped_task_group("first") as tg:
+            tg.start_soon(exhausted)
