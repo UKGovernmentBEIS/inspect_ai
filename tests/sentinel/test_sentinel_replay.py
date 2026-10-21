@@ -952,20 +952,6 @@ def long_run(turns: int, seen: dict[str, Step] | None = None) -> EvalLog:
     )
 
 
-SEQUENCES = {
-    "BeforeGenerate": ("history", "agent_messages", "human_decisions"),
-    "AfterGenerate": ("history", "agent_messages", "human_decisions"),
-    "BeforeToolCall": (
-        "history",
-        "agent_messages",
-        "human_decisions",
-        "input",
-        "tools",
-    ),
-    "AfterToolCall": ("history", "agent_messages", "human_decisions", "input", "tools"),
-}
-
-
 def assert_views_share_storage(
     steps: Sequence[Step], pool: Sequence[ChatMessage] | None = None
 ) -> None:

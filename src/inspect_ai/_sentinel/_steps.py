@@ -122,7 +122,7 @@ class FoldInput(Protocol):
 
 
 class KeyedInput:
-    """A live input: every message's key is computed on every send (the per-call pass R7-D7 keeps), so an object changed in place since it was last sent counts as new."""
+    """A live input: every message's key is computed on every send, so an object changed in place since it was last sent counts as new."""
 
     def __init__(self, messages: Sequence[ChatMessage]) -> None:
         self._messages = messages

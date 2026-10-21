@@ -240,7 +240,8 @@ class _PooledInput:
     ) -> tuple[list[int], list[list[int]], tuple[list[int], list[int]]]:
         # linear for non-overlapping inputs; nested overlapping pool ranges (an
         # input repeating runs of its own messages) are a known superlinear
-        # case, accepted (Charles 2026-10-21) and pinned by test
+        # case, pinned by
+        # test_an_input_that_repeats_its_own_suffixes_costs_its_overlaps
         if self._points is None:
             ranges = [
                 (begin, end, start - begin)
