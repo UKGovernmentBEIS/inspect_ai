@@ -9,6 +9,7 @@ from test_helpers.utils import (
     setenv_if_unset,
     skip_if_no_anthropic,
     skip_if_no_bedrock,
+    skip_if_no_vertex,
 )
 
 from inspect_ai import Task, eval
@@ -2815,6 +2816,19 @@ async def test_anthropic_sonnet_4_6_bedrock_live() -> None:
     )
     response = await model.generate(input="Say hello in one short sentence.")
     assert len(response.completion) >= 1
+
+
+@pytest.mark.anyio
+@skip_if_no_vertex
+async def test_anthropic_sonnet_4_6_vertex_live() -> None:
+    """Vertex generate and count_tokens accept our `anthropic_version`."""
+    model = get_model(
+        "anthropic/vertex/claude-sonnet-4-6",
+        config=GenerateConfig(max_tokens=128),
+    )
+    response = await model.generate(input="Say hello in one short sentence.")
+    assert len(response.completion) >= 1
+    assert await model.count_tokens([ChatMessageUser(content="hello")]) > 0
 
 
 @pytest.mark.anyio
