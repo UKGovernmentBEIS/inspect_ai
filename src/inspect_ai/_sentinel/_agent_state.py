@@ -24,6 +24,9 @@ class _Running:
 
 _running: ContextVar[_Running | None] = ContextVar("sentinel_agent_state", default=None)
 
+# how many decorated agents deep the current call is below the registering one
+_depth: ContextVar[int] = ContextVar("sentinel_agent_depth", default=0)
+
 
 def current_conversation() -> str:
     agent_span_id = current_agent_span_id()
@@ -36,7 +39,7 @@ def current_conversation() -> str:
 def running(agent: "Agent") -> "Agent":
     """Wrap an `@agent` agent so the stages of its conversation can read its state.
 
-    The outermost agent running in a conversation registers the state it was called with. An agent nested in the same conversation that was called with that state and returns a different one registers the returned state, since the outer loop continues with it (react's `model=` agent can). The registration is restored when the agent returns or raises.
+    The outermost agent running in a conversation registers the state it was called with. Its direct callee among `@agent` agents (depth is counted in decorated frames only), when called with the registered state, registers the different state it returns, since the outer loop continues with it: react's `model=` agent can return one. A deeper agent never does, so the states a micro-protocol's policies return, which it may discard, are not registered while it runs. The registration is restored when the agent returns or raises.
     """
     from inspect_ai.agent._agent import AgentState
 
@@ -49,12 +52,20 @@ def running(agent: "Agent") -> "Agent":
         here = current_conversation()
         if current is None or current.conversation != here:
             token = _running.set(_Running(here, state))
+            depth_token = _depth.set(0)
             try:
                 return await agent(*args, **kwargs)
             finally:
+                _depth.reset(depth_token)
                 _running.reset(token)
-        result = await agent(*args, **kwargs)
-        if current.state is state and result is not state:
+        depth = _depth.get() + 1
+        replaces = depth == 1 and current.state is state
+        depth_token = _depth.set(depth)
+        try:
+            result = await agent(*args, **kwargs)
+        finally:
+            _depth.reset(depth_token)
+        if replaces and result is not state:
             current.state = result
         return result
 
@@ -80,7 +91,7 @@ def bridge_request() -> Iterator[None]:
 def agent_messages(conversation: str) -> list[ChatMessage] | None:
     """A stage's `agent_messages`: the `messages` of the outermost `@agent` agent running in the conversation, read when the stage runs.
 
-    The list is the agent's own, by reference, not a copy. A scaffold that keeps its conversation in a list outside its `AgentState` shows that state at every stage. `None` when no `@agent` agent is running in the conversation (a solver calling `generate()`, or an undecorated agent loop) and during a bridge request (see `bridge_request()`). A replay has no agent running, so it is `None` there too.
+    The list is the agent's own, by reference, not a copy. A scaffold that keeps its conversation in a list outside its `AgentState` shows that state at every stage. A scaffold that continues with a new `AgentState` (one its callee returned, or one it built) shows the earlier state, unless the callee that returned it is an `@agent` agent that the registering (outermost) agent called directly (see `running()`); under an `@agent` agent that wraps react, react's `model=` agent is not. Messages a scaffold keeps out of its list (a policy's hidden instructions) stay out only when that scaffold is the outermost `@agent` agent in its conversation: when an undecorated scaffold calls an `@agent` policy, the policy registers the state it is given. `None` when no `@agent` agent is running in the conversation (a solver calling `generate()`, or an undecorated agent loop that calls no `@agent` agent) and during a bridge request (see `bridge_request()`). A replay has no agent running, so it is `None` there too.
     """
     current = _running.get()
     if current is None or current.conversation != conversation:

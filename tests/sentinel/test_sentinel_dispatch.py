@@ -4166,6 +4166,155 @@ def test_a_state_the_model_agent_returns_in_its_place_is_read() -> None:
     assert later.agent_messages is second
 
 
+@agent
+def returns_new_state(name: str, calls: Any) -> Agent:
+    async def execute(state: AgentState, tools: list[Tool]) -> AgentState:
+        output = await get_model().generate(state.messages, tools)
+        replaced = AgentState(messages=[*state.messages, output.message])
+        replaced.output = output
+        calls.append((name, state.messages, replaced.messages))
+        return replaced
+
+    return execute
+
+
+@agent
+def defer_to_trusted(untrusted: Agent, trusted: Agent) -> Agent:
+    async def execute(state: AgentState, tools: list[Tool]) -> AgentState:
+        await untrusted(state, tools)
+        return await trusted(state, tools)
+
+    return execute
+
+
+@agent
+def passes_through(inner: Agent) -> Agent:
+    async def execute(state: AgentState, tools: list[Tool]) -> AgentState:
+        return await inner(state, tools)
+
+    return execute
+
+
+def adds(x: int) -> ModelOutput:
+    return ModelOutput.for_tool_call(
+        "mockllm/model", tool_name="addition", tool_arguments={"x": x, "y": x}
+    )
+
+
+def last_call(messages: Sequence[ChatMessage] | None) -> ToolCall:
+    assert messages is not None
+    assistant = [m for m in messages if isinstance(m, ChatMessageAssistant)][-1]
+    assert assistant.tool_calls
+    return assistant.tool_calls[-1]
+
+
+@pytest.mark.parametrize("wrapped", [False, True])
+def test_a_protocols_discarded_policy_state_is_never_read(wrapped: bool) -> None:
+    # untrusted proposes 1 + 1 and then 9 + 9; both are discarded for trusted's
+    calls: list[tuple[str, list[ChatMessage], list[ChatMessage]]] = []
+    protocol = defer_to_trusted(
+        returns_new_state("untrusted", calls), returns_new_state("trusted", calls)
+    )
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            adds(1),
+            adds(2),
+            adds(9),
+            ModelOutput.for_tool_call(
+                "mockllm/model", tool_name="submit", tool_arguments={"answer": "4"}
+            ),
+        ],
+        memoize=False,
+    )
+    seen: list[StageSeen] = []
+    run_solver(
+        as_solver(
+            react(
+                model=passes_through(protocol) if wrapped else protocol,
+                tools=[addition()],
+            )
+        ),
+        seen,
+        model,
+    )
+
+    assert [name for name, _, _ in calls] == [
+        "untrusted",
+        "trusted",
+        "untrusted",
+        "trusted",
+    ]
+    rejected = [returned for name, _, returned in calls if name == "untrusted"]
+    kept = [returned for name, _, returned in calls if name == "trusted"]
+    # each policy's generate stages read the state react passed the protocol,
+    # never a state untrusted returned
+    befores = of_stage(seen, BeforeGenerate)
+    afters = of_stage(seen, AfterGenerate)
+    assert len(befores) == len(afters) == len(calls)
+    for (name, passed, _), before, after in zip(calls, befores, afters):
+        for step in (before, after):
+            assert step.agent_messages is passed, name
+            assert all(step.agent_messages is not r for r in rejected)
+    # the stages after a turn read the state the protocol returned
+    [add, submit] = of_stage(seen, BeforeToolCall)
+    assert add.agent_messages is kept[0]
+    assert last_call(add.agent_messages).id == add.call.id
+    assert last_call(add.agent_messages).arguments == {"x": 2, "y": 2}
+    assert calls[2][1] is kept[0]
+    assert submit.agent_messages is kept[1]
+    assert last_call(submit.agent_messages).function == "submit"
+
+
+def test_an_undecorated_model_agents_new_state_is_not_followed() -> None:
+    # documented: react continues with the new state, the stages stay on the
+    # state react registered
+    calls: list[tuple[str, list[ChatMessage], list[ChatMessage]]] = []
+
+    async def undecorated(state: AgentState, tools: list[Tool]) -> AgentState:
+        output = await get_model().generate(state.messages, tools)
+        replaced = AgentState(messages=[*state.messages, output.message])
+        replaced.output = output
+        calls.append(("undecorated", state.messages, replaced.messages))
+        return replaced
+
+    seen: list[StageSeen] = []
+    run_solver(
+        as_solver(react(model=undecorated, tools=[addition()])),
+        seen,
+        addition_then_submit(),
+    )
+
+    (_, entry, _), (_, continued, _) = calls
+    assert continued is not entry
+    for s in seen:
+        assert s.step.agent_messages is entry
+    assert not any(isinstance(m, ChatMessageAssistant) for m in entry)
+
+
+def test_an_undecorated_scaffolds_curated_state_is_registered_by_its_policy() -> None:
+    # documented: the hidden instructions stay out only when the scaffold that
+    # owns the conversation is the outermost @agent agent
+    @solver
+    def undecorated_scaffold() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            curated = AgentState(
+                messages=[ChatMessageSystem(content=HIDDEN), *state.messages]
+            )
+            await generates()(curated)
+            return state
+
+        return solve
+
+    seen: list[StageSeen] = []
+    run_solver(undecorated_scaffold(), seen, "mockllm/model")
+
+    assert stages(seen) == {BeforeGenerate, AfterGenerate}
+    for s in seen:
+        assert s.messages is not None
+        assert s.messages[0].text == HIDDEN
+
+
 def test_a_solver_calling_generate_has_no_agent_messages() -> None:
     seen: list[StageSeen] = []
     log = run([d3_every_stage(seen)])
