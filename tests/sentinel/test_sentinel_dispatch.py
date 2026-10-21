@@ -4700,3 +4700,208 @@ def test_with_compaction_agent_messages_is_the_whole_list() -> None:
     assert shape(last.messages)[1] == ("user", "What is 1 + 1?")
     results = [m for m in last.messages if isinstance(m, ChatMessageTool)]
     assert len(results) == 4
+
+
+def fresh(text: str) -> AgentState:
+    return AgentState(messages=[ChatMessageUser(content=text)])
+
+
+@contextmanager
+def watching(seen: list[StageSeen]) -> Iterator[None]:
+    from inspect_ai._sentinel._scope import sentinel_solving
+
+    init_transcript(Transcript())
+    with active([d3_every_stage(seen)]), sentinel_solving():
+        yield
+
+
+def mock_generate(messages: list[ChatMessage]) -> Any:
+    return get_model("mockllm/model").generate(messages)
+
+
+async def test_a_late_sibling_does_not_replace_a_newer_registered_state() -> None:
+    from inspect_ai._sentinel._agent_state import agent_messages, current_conversation
+
+    seen: list[StageSeen] = []
+    started, release, finished = anyio.Event(), anyio.Event(), anyio.Event()
+
+    @agent
+    def slow() -> Agent:
+        async def execute(state: AgentState) -> AgentState:
+            started.set()
+            await release.wait()
+            return fresh("discarded sibling state")
+
+        return execute
+
+    @agent
+    def fast() -> Agent:
+        async def execute(state: AgentState) -> AgentState:
+            return fresh("adopted state")
+
+        return execute
+
+    @agent
+    def parent() -> Agent:
+        async def execute(state: AgentState) -> AgentState:
+            async def sibling() -> None:
+                await slow()(state)
+                finished.set()
+
+            async with anyio.create_task_group() as tg:
+                tg.start_soon(sibling)
+                await started.wait()
+                adopted = await fast()(state)
+                assert agent_messages(current_conversation()) is adopted.messages
+                release.set()
+                await finished.wait()
+                await mock_generate(adopted.messages)
+            assert [s.step.agent_messages for s in seen] == [adopted.messages] * 2
+            assert seen[0].step.agent_messages is adopted.messages
+            return adopted
+
+        return execute
+
+    with watching(seen):
+        await parent()(fresh("entry"))
+
+
+@pytest.mark.parametrize("ending", ["returns", "raises", "cancelled"])
+async def test_a_task_that_outlives_its_agent_reads_no_state(ending: str) -> None:
+    import gc
+    import weakref
+
+    from inspect_ai._sentinel._agent_state import agent_messages, current_conversation
+
+    seen: list[StageSeen] = []
+    started, release, done = anyio.Event(), anyio.Event(), anyio.Event()
+    refs: list[weakref.ref[AgentState]] = []
+    own: list[bool] = []
+    scope = anyio.CancelScope()
+
+    @agent
+    def later() -> Agent:
+        async def execute(state: AgentState) -> AgentState:
+            own.append(agent_messages(current_conversation()) is state.messages)
+            return state
+
+        return execute
+
+    async def outlives() -> None:
+        started.set()
+        await release.wait()
+        await mock_generate([ChatMessageUser(content="plain traffic")])
+        await later()(fresh("its own state"))
+        done.set()
+
+    with watching(seen):
+        async with anyio.create_task_group() as tg:
+
+            @agent
+            def parent() -> Agent:
+                async def execute(state: AgentState) -> AgentState:
+                    refs.append(weakref.ref(state))
+                    tg.start_soon(outlives)
+                    await started.wait()
+                    if ending == "raises":
+                        raise RuntimeError("agent failed")
+                    if ending == "cancelled":
+                        scope.cancel()
+                        await anyio.sleep_forever()
+                    return state
+
+                return execute
+
+            with scope:
+                try:
+                    await parent()(fresh("the exited agent's state"))
+                except RuntimeError:
+                    assert ending == "raises"
+            assert scope.cancelled_caught == (ending == "cancelled")
+            assert agent_messages(current_conversation()) is None
+            # the event loop holds a cancellation until the task next suspends
+            await anyio.lowlevel.checkpoint()
+            gc.collect()
+            # the task still runs, and no longer holds the agent's state
+            assert refs[0]() is None
+            release.set()
+            await done.wait()
+
+    assert stages(seen) == {BeforeGenerate, AfterGenerate}
+    assert all(s.messages is None for s in seen)
+    assert own == [True]
+
+
+async def test_a_task_that_outlives_a_bridge_request_can_register() -> None:
+    from inspect_ai._sentinel._agent_state import (
+        agent_messages,
+        bridge_request,
+        current_conversation,
+    )
+
+    release, done = anyio.Event(), anyio.Event()
+    own: list[bool] = []
+
+    @agent
+    def later() -> Agent:
+        async def execute(state: AgentState) -> AgentState:
+            own.append(agent_messages(current_conversation()) is state.messages)
+            return state
+
+        return execute
+
+    async def outlives() -> None:
+        await release.wait()
+        await later()(fresh("its own state"))
+        done.set()
+
+    with watching([]):
+        async with anyio.create_task_group() as tg:
+            with bridge_request():
+                tg.start_soon(outlives)
+            release.set()
+            await done.wait()
+
+    assert own == [True]
+
+
+async def test_a_new_function_wrapping_a_decorated_agent_is_wrapped_too() -> None:
+    from functools import wraps
+
+    seen: list[StageSeen] = []
+
+    @agent
+    def policy() -> Agent:
+        async def execute(state: AgentState) -> AgentState:
+            await mock_generate(state.messages)
+            return state
+
+        return execute
+
+    @agent
+    def scaffold() -> Agent:
+        inner = policy()
+
+        # functools.wraps copies the decorated agent's attributes to a new function
+        @wraps(inner)
+        async def execute(state: AgentState) -> AgentState:
+            await inner(
+                AgentState(
+                    messages=[ChatMessageSystem(content=HIDDEN), *state.messages]
+                )
+            )
+            return state
+
+        return execute
+
+    curated = fresh("What is 1 + 1?")
+    with watching(seen):
+        await scaffold()(curated)
+
+    assert stages(seen) == {BeforeGenerate, AfterGenerate}
+    for s in seen:
+        assert s.step.agent_messages is curated.messages
+        assert s.messages is not None
+        assert HIDDEN not in [m.text for m in s.messages]
+    [before] = of_stage(seen, BeforeGenerate)
+    assert before.input[0].text == HIDDEN
