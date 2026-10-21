@@ -85,8 +85,12 @@ class unwrap_exception_group:
 
     Use `with`, or `async with` in the same statement as the task group:
     `async with unwrap_exception_group(), anyio.create_task_group() as tg:`.
-    It is a class rather than a generator, which would turn a `StopIteration`
-    or `StopAsyncIteration` into a `RuntimeError`.
+    It is a class rather than a generator, and its async exit raises before
+    any coroutine runs: an exception raised out of a generator or coroutine
+    frame changes type (`StopIteration` becomes `RuntimeError`).
+
+    Exception classes that override `__class__`, `__cause__` or `__setattr__`
+    are not supported.
 
     Args:
        unwrap: "single" raises the exception when the group holds exactly
@@ -124,13 +128,18 @@ class unwrap_exception_group:
     async def __aenter__(self) -> None:
         return None
 
-    async def __aexit__(
+    def __aexit__(
         self,
         exc_type: type[BaseException] | None,
         exc_value: BaseException | None,
         traceback: TracebackType | None,
-    ) -> None:
+    ) -> Awaitable[None]:
         self.__exit__(exc_type, exc_value, traceback)
+        return _completed()
+
+
+async def _completed() -> None:
+    return None
 
 
 class Wake:

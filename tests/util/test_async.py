@@ -287,6 +287,15 @@ async def test_unwrapped_task_errors_keep_their_type() -> None:
         async with unwrap_exception_group("first"), anyio.create_task_group() as tg:
             tg.start_soon(exhausted)
 
+    # raised in the body itself, the error crosses the helper's async exit
+    cause = ValueError("cause")
+    policies: list[Literal["single", "first"]] = ["single", "first"]
+    for unwrap in policies:
+        with pytest.raises(StopIteration) as excinfo:
+            async with unwrap_exception_group(unwrap), anyio.create_task_group():
+                raise StopIteration("exhausted") from cause
+        assert excinfo.value.__cause__ is cause
+
 
 @pytest.mark.parametrize("unwrap", ["single", "first"])
 async def test_unwrapped_task_error_when_host_is_cancelled(
