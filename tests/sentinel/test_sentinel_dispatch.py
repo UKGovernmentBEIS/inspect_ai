@@ -4102,10 +4102,12 @@ def model_from_agent() -> Agent:
 
 
 @solver
-def awaits(agent: Agent) -> Solver:
+def awaits(agent: Agent, states: Any = None) -> Solver:
     async def solve(state: TaskState, generate: Generate) -> TaskState:
         agent_state = AgentState(messages=state.messages)
-        await agent(agent_state)
+        returned = await agent(agent_state)
+        if states is not None:
+            states.append((agent_state, returned))
         return state
 
     return solve
@@ -4134,36 +4136,6 @@ def test_a_nested_agents_own_state_is_not_read() -> None:
         assert shape(s.messages) == [("user", "What is 1 + 1?")]
     [before] = of_stage(seen, BeforeGenerate)
     assert before.input[0].text == HIDDEN
-
-
-@agent
-def replacing_policy(received: Any) -> Agent:
-    async def execute(state: AgentState, tools: list[Tool]) -> AgentState:
-        received.append(state.messages)
-        output = await get_model().generate(state.messages, tools)
-        replaced = AgentState(messages=[*state.messages, output.message])
-        replaced.output = output
-        return replaced
-
-    return execute
-
-
-def test_a_state_the_model_agent_returns_in_its_place_is_read() -> None:
-    seen: list[StageSeen] = []
-    received: list[list[ChatMessage]] = []
-    run_solver(
-        as_solver(react(model=replacing_policy(received), tools=[addition()])),
-        seen,
-        addition_then_submit(),
-    )
-
-    first, second = received
-    assert first is not second
-    before_call, _ = of_stage(seen, BeforeToolCall)
-    assert before_call.call.function == "addition"
-    assert before_call.agent_messages is second
-    [_, later] = of_stage(seen, BeforeGenerate)
-    assert later.agent_messages is second
 
 
 @agent
@@ -4256,7 +4228,7 @@ def test_a_protocols_discarded_policy_state_is_never_read(wrapped: bool) -> None
         for step in (before, after):
             assert step.agent_messages is passed, name
             assert all(step.agent_messages is not r for r in rejected)
-    # the stages after a turn read the state the protocol returned
+    # react keeps the turns of the state the protocol returned
     [add, submit] = of_stage(seen, BeforeToolCall)
     assert add.agent_messages is kept[0]
     assert last_call(add.agent_messages).id == add.call.id
@@ -4266,8 +4238,32 @@ def test_a_protocols_discarded_policy_state_is_never_read(wrapped: bool) -> None
     assert last_call(submit.agent_messages).function == "submit"
 
 
-def test_a_factory_returning_react_follows_its_model_agents_new_state() -> None:
+def test_react_keeps_its_own_state_when_its_model_agent_returns_a_new_one() -> None:
     calls: list[tuple[str, list[ChatMessage], list[ChatMessage]]] = []
+    states: list[tuple[AgentState, AgentState]] = []
+    seen: list[StageSeen] = []
+    run_solver(
+        awaits(
+            react(model=returns_new_state("policy", calls), tools=[addition()]), states
+        ),
+        seen,
+        addition_then_submit(),
+    )
+
+    [(entry, returned)] = states
+    assert returned is entry
+    (_, _, first), (_, second_entry, second) = calls
+    assert second_entry is first
+    add, submit = of_stage(seen, BeforeToolCall)
+    assert add.agent_messages is first
+    assert last_call(add.agent_messages).id == add.call.id
+    assert submit.agent_messages is second
+    assert last_call(submit.agent_messages).function == "submit"
+
+
+def test_a_factory_returning_react_shows_its_model_agents_new_turns() -> None:
+    calls: list[tuple[str, list[ChatMessage], list[ChatMessage]]] = []
+    states: list[tuple[AgentState, AgentState]] = []
 
     @agent
     def my_agent() -> Agent:
@@ -4277,19 +4273,19 @@ def test_a_factory_returning_react_follows_its_model_agents_new_state() -> None:
     assert not hasattr(vars(my_agent())["__wrapped__"], "__wrapped__")
 
     seen: list[StageSeen] = []
-    run_solver(as_solver(my_agent()), seen, addition_then_submit())
+    run_solver(awaits(my_agent(), states), seen, addition_then_submit())
 
-    (_, entry, returned), _ = calls
+    [(entry, returned)] = states
+    assert returned is entry
+    (_, _, first), _ = calls
     add, _ = of_stage(seen, BeforeToolCall)
-    assert add.agent_messages is returned
-    assert add.agent_messages is not entry
+    assert add.agent_messages is first
     assert last_call(add.agent_messages).id == add.call.id
 
 
-def test_react_awaited_in_an_agents_body_does_not_follow_its_model_agent() -> None:
-    # documented: react is the outer agent's direct callee, so its model=
-    # agent is two decorated frames deep and its new state is not followed
+def test_react_awaited_in_an_agents_body_shows_its_model_agents_new_turns() -> None:
     calls: list[tuple[str, list[ChatMessage], list[ChatMessage]]] = []
+    states: list[tuple[AgentState, AgentState]] = []
     inner = react(model=returns_new_state("policy", calls), tools=[addition()])
 
     @agent
@@ -4300,17 +4296,17 @@ def test_react_awaited_in_an_agents_body_does_not_follow_its_model_agent() -> No
         return execute
 
     seen: list[StageSeen] = []
-    run_solver(as_solver(awaits_react()), seen, addition_then_submit())
+    run_solver(awaits(awaits_react(), states), seen, addition_then_submit())
 
-    (_, entry, returned), _ = calls
+    [(entry, returned)] = states
+    assert returned is entry
+    (_, _, first), _ = calls
     add, _ = of_stage(seen, BeforeToolCall)
-    assert add.agent_messages is entry
-    assert add.agent_messages is not returned
+    assert add.agent_messages is first
+    assert last_call(add.agent_messages).id == add.call.id
 
 
-def test_an_undecorated_model_agents_new_state_is_not_followed() -> None:
-    # documented: react continues with the new state, the stages stay on the
-    # state react registered
+def test_an_undecorated_model_agents_new_turns_are_shown() -> None:
     calls: list[tuple[str, list[ChatMessage], list[ChatMessage]]] = []
 
     async def undecorated(state: AgentState, tools: list[Tool]) -> AgentState:
@@ -4327,11 +4323,11 @@ def test_an_undecorated_model_agents_new_state_is_not_followed() -> None:
         addition_then_submit(),
     )
 
-    (_, entry, _), (_, continued, _) = calls
-    assert continued is not entry
-    for s in seen:
-        assert s.step.agent_messages is entry
-    assert not any(isinstance(m, ChatMessageAssistant) for m in entry)
+    (_, _, first), (_, second_entry, _) = calls
+    assert second_entry is first
+    add, _ = of_stage(seen, BeforeToolCall)
+    assert add.agent_messages is first
+    assert last_call(add.agent_messages).id == add.call.id
 
 
 def test_an_undecorated_scaffolds_curated_state_is_registered_by_its_policy() -> None:
@@ -4719,149 +4715,130 @@ def mock_generate(messages: list[ChatMessage]) -> Any:
     return get_model("mockllm/model").generate(messages)
 
 
-async def test_a_late_sibling_does_not_replace_a_newer_registered_state() -> None:
-    from inspect_ai._sentinel._agent_state import agent_messages, current_conversation
+@agent
+def returns_new(text: str) -> Agent:
+    async def execute(state: AgentState) -> AgentState:
+        return AgentState(
+            messages=[*state.messages, ChatMessageAssistant(content=text)]
+        )
 
+    return execute
+
+
+def assert_shows_entry(seen: list[StageSeen], entry: AgentState) -> None:
+    assert stages(seen) == {BeforeGenerate, AfterGenerate}
+    for s in seen:
+        assert s.step.agent_messages is entry.messages
+        assert s.messages is not None
+        assert HIDDEN not in [m.text for m in s.messages]
+
+
+async def test_a_scaffold_that_discards_a_callees_state_shows_its_own() -> None:
     seen: list[StageSeen] = []
-    started, release, finished = anyio.Event(), anyio.Event(), anyio.Event()
+    entry = fresh("task")
 
     @agent
-    def slow() -> Agent:
+    def scaffold() -> Agent:
         async def execute(state: AgentState) -> AgentState:
-            started.set()
-            await release.wait()
-            return fresh("discarded sibling state")
-
-        return execute
-
-    @agent
-    def fast() -> Agent:
-        async def execute(state: AgentState) -> AgentState:
-            return fresh("adopted state")
-
-        return execute
-
-    @agent
-    def parent() -> Agent:
-        async def execute(state: AgentState) -> AgentState:
-            async def sibling() -> None:
-                await slow()(state)
-                finished.set()
-
-            async with anyio.create_task_group() as tg:
-                tg.start_soon(sibling)
-                await started.wait()
-                adopted = await fast()(state)
-                assert agent_messages(current_conversation()) is adopted.messages
-                release.set()
-                await finished.wait()
-                await mock_generate(adopted.messages)
-            assert [s.step.agent_messages for s in seen] == [adopted.messages] * 2
-            assert seen[0].step.agent_messages is adopted.messages
-            return adopted
+            for turn in range(2):
+                await returns_new(f"untrusted {turn} (rejected)")(state)
+                state = await returns_new(f"trusted {turn}")(state)
+                await mock_generate(state.messages)
+            return state
 
         return execute
 
     with watching(seen):
-        await parent()(fresh("entry"))
+        await scaffold()(entry)
+
+    assert len(of_stage(seen, BeforeGenerate)) == 2
+    assert_shows_entry(seen, entry)
+    assert all(shape(s.messages) == [("user", "task")] for s in seen)
 
 
-async def test_a_late_sibling_does_not_replace_a_state_replaced_back_to_its_own() -> (
-    None
-):
-    from inspect_ai._sentinel._agent_state import agent_messages, current_conversation
-
+async def test_a_scaffold_keeping_a_later_siblings_state_shows_its_own() -> None:
     seen: list[StageSeen] = []
-    started, release, finished = anyio.Event(), anyio.Event(), anyio.Event()
-    adopted = fresh("adopted state")
+    entry = fresh("task")
+    first_done = anyio.Event()
 
     @agent
-    def returns(result: AgentState) -> Agent:
+    def first() -> Agent:
         async def execute(state: AgentState) -> AgentState:
-            return result
+            return await returns_new("first (discarded)")(state)
 
         return execute
 
     @agent
-    def slow() -> Agent:
+    def second() -> Agent:
         async def execute(state: AgentState) -> AgentState:
-            started.set()
-            await release.wait()
-            return fresh("discarded sibling state")
+            await first_done.wait()
+            return await returns_new("second (kept)")(state)
 
         return execute
 
     @agent
-    def parent() -> Agent:
+    def scaffold() -> Agent:
         async def execute(state: AgentState) -> AgentState:
-            async def sibling() -> None:
-                await slow()(state)
-                finished.set()
+            results: dict[str, AgentState] = {}
+
+            async def run_first() -> None:
+                results["first"] = await first()(state)
+                first_done.set()
+
+            async def run_second() -> None:
+                results["second"] = await second()(state)
 
             async with anyio.create_task_group() as tg:
-                tg.start_soon(sibling)
-                await started.wait()
-                # the registration goes to another state and back to the one
-                # the sibling entered with
-                current = await returns(adopted)(state)
-                current = await returns(state)(current)
-                assert current is state
-                assert agent_messages(current_conversation()) is state.messages
-                release.set()
-                await finished.wait()
-                await mock_generate(current.messages)
-            assert [s.step.agent_messages for s in seen] == [state.messages] * 2
-            assert seen[0].step.agent_messages is state.messages
-            return current
+                tg.start_soon(run_second)
+                tg.start_soon(run_first)
+            state = results["second"]
+            await mock_generate(state.messages)
+            return state
 
         return execute
 
     with watching(seen):
-        await parent()(fresh("entry"))
+        await scaffold()(entry)
+
+    assert len(of_stage(seen, BeforeGenerate)) == 1
+    assert_shows_entry(seen, entry)
+    assert all(shape(s.messages) == [("user", "task")] for s in seen)
 
 
-async def test_a_callee_returning_after_its_agent_exits_is_not_registered() -> None:
-    import gc
-    import weakref
-
-    started, release, returned, finish = (anyio.Event() for _ in range(4))
-    refs: list[weakref.ref[AgentState]] = []
+async def test_a_policys_curated_return_is_not_shown() -> None:
+    seen: list[StageSeen] = []
+    entry = fresh("task")
 
     @agent
-    def slow() -> Agent:
+    def policy() -> Agent:
         async def execute(state: AgentState) -> AgentState:
-            started.set()
-            await release.wait()
-            result = fresh("returned after the agent exited")
-            refs.append(weakref.ref(result))
-            return result
+            curated = AgentState(
+                messages=[ChatMessageSystem(content=HIDDEN), *state.messages]
+            )
+            output = await mock_generate(curated.messages)
+            curated.messages.append(output.message)
+            return curated
 
         return execute
 
-    async def sibling(state: AgentState) -> None:
-        await slow()(state)
-        returned.set()
-        await finish.wait()
+    @agent
+    def scaffold() -> Agent:
+        async def execute(state: AgentState) -> AgentState:
+            result = await policy()(state)
+            state.messages.append(result.messages[-1])
+            await mock_generate(state.messages)
+            return state
 
-    with watching([]):
-        async with anyio.create_task_group() as tg:
+        return execute
 
-            @agent
-            def parent() -> Agent:
-                async def execute(state: AgentState) -> AgentState:
-                    tg.start_soon(sibling, state)
-                    await started.wait()
-                    return state
+    with watching(seen):
+        await scaffold()(entry)
 
-                return execute
-
-            await parent()(fresh("entry"))
-            release.set()
-            await returned.wait()
-            gc.collect()
-            # the sibling's task, and its copy of the ended registration, live on
-            assert refs[0]() is None
-            finish.set()
+    policy_generate, scaffold_generate = of_stage(seen, BeforeGenerate)
+    assert policy_generate.input[0].text == HIDDEN
+    assert HIDDEN not in [m.text for m in scaffold_generate.input]
+    assert_shows_entry(seen, entry)
+    assert [m.role for m in seen[-1].messages or []] == ["user", "assistant"]
 
 
 @pytest.mark.parametrize("ending", ["returns", "raises", "cancelled"])

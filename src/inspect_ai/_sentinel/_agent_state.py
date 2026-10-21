@@ -23,9 +23,6 @@ class _Running:
     # cleared when the registering call exits: tasks it started hold copies of
     # the context, and must not read or keep its state after it
     active: bool = True
-    # counts replacements, so a callee can tell that the state it entered with
-    # was replaced while it ran, even by a later replacement back to it
-    revision: int = 0
 
     def end(self) -> None:
         self.active = False
@@ -33,9 +30,6 @@ class _Running:
 
 
 _running: ContextVar[_Running | None] = ContextVar("sentinel_agent_state", default=None)
-
-# how many decorated agents deep the current call is below the registering one
-_depth: ContextVar[int] = ContextVar("sentinel_agent_depth", default=0)
 
 
 def current_conversation() -> str:
@@ -61,9 +55,7 @@ _RUNNING = "_inspect_sentinel_running"
 def running(agent: "Agent") -> "Agent":
     """Wrap an `@agent` agent so the stages of its conversation can read its state.
 
-    The outermost agent running in a conversation registers the state it was called with. Its direct callee among `@agent` agents (depth is counted in decorated frames only), when called with the registered state, registers the different state it returns, since the outer loop continues with it: react's `model=` agent can return one. A deeper agent never does, so the states a micro-protocol's policies return, which it may discard, are not registered while it runs. The registration is restored when the agent returns or raises.
-
-    An agent already wrapped is returned as it is, so a factory that returns a decorated agent (`return react(...)`) adds no frame. A replacement is not registered if any other replacement happened while the callee ran (a sibling's state was registered first, even one later replaced back), and a task that outlives the registering call reads no state and can register its own.
+    The outermost agent running in a conversation registers the `AgentState` object it was called with, until it returns, raises or is cancelled; agents it calls do not change the registration, whatever state they return. A task that outlives the registering call reads no state and can register its own. An agent already wrapped is returned as it is, so a factory that returns a decorated agent (`return react(...)`) adds no frame.
     """
     from inspect_ai.agent._agent import AgentState
 
@@ -77,33 +69,15 @@ def running(agent: "Agent") -> "Agent":
         if active_sentinel() is None or not isinstance(state, AgentState):
             return await agent(*args, **kwargs)
         here = current_conversation()
-        current = _registered(here)
-        if current is None:
-            registration = _Running(here, state)
-            token = _running.set(registration)
-            depth_token = _depth.set(0)
-            try:
-                return await agent(*args, **kwargs)
-            finally:
-                registration.end()
-                _depth.reset(depth_token)
-                _running.reset(token)
-        depth = _depth.get() + 1
-        revision = current.revision if depth == 1 and current.state is state else None
-        depth_token = _depth.set(depth)
+        if _registered(here) is not None:
+            return await agent(*args, **kwargs)
+        registration = _Running(here, state)
+        token = _running.set(registration)
         try:
-            result = await agent(*args, **kwargs)
+            return await agent(*args, **kwargs)
         finally:
-            _depth.reset(depth_token)
-        if (
-            revision is not None
-            and revision == current.revision
-            and current.active
-            and result is not state
-        ):
-            current.state = result
-            current.revision += 1
-        return result
+            registration.end()
+            _running.reset(token)
 
     setattr(run, _RUNNING, run)
     return run
@@ -128,9 +102,9 @@ def bridge_request() -> Iterator[None]:
 
 
 def agent_messages(conversation: str) -> list[ChatMessage] | None:
-    """A stage's `agent_messages`: the `messages` of the outermost `@agent` agent running in the conversation, read when the stage runs.
+    """A stage's `agent_messages`: the `messages` of the `AgentState` object the outermost `@agent` agent running in the conversation was called with, read when the stage runs.
 
-    The list is the agent's own, by reference, not a copy. A scaffold that keeps its conversation in a list outside its `AgentState` shows that state at every stage. A scaffold that continues with a new `AgentState` (one its callee returned, or one it built) shows the earlier state, unless the callee that returned it is an `@agent` agent that the registering (outermost) agent called directly (see `running()`); when an `@agent` agent's body awaits react itself, react's `model=` agent is not (a factory that returns react adds no frame). Messages a scaffold keeps out of its list (a policy's hidden instructions) stay out only when that scaffold is the outermost `@agent` agent in its conversation: when an undecorated scaffold calls an `@agent` policy, the policy registers the state it is given. `None` when no `@agent` agent is running in the conversation (a solver calling `generate()`, or an undecorated agent loop that calls no `@agent` agent) and during a bridge request (see `bridge_request()`). A replay has no agent running, so it is `None` there too.
+    The list is the agent's own, by reference, not a copy. A scaffold that mutates its state shows it at every stage; react keeps its own object when its `model=` agent returns a new one. A scaffold that continues with another `AgentState` object (one a callee returned, or one it built) shows the object it was called with, never the other one. Messages a scaffold keeps out of its list (a policy's hidden instructions) stay out only when that scaffold is the outermost `@agent` agent in its conversation: when an undecorated scaffold calls an `@agent` policy, the policy registers the state it is given. `None` when no `@agent` agent is running in the conversation (a solver calling `generate()`, or an undecorated agent loop that calls no `@agent` agent) and during a bridge request (see `bridge_request()`). A replay has no agent running, so it is `None` there too.
     """
     current = _registered(conversation)
     if current is None or current.state is None:
