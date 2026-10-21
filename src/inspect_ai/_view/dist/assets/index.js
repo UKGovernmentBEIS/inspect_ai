@@ -55472,7 +55472,7 @@ var fromLogRecord = (record) => {
 		name: file_path
 	};
 };
-var DB_VERSION = 1602;
+var DB_VERSION = 1603;
 var DB_NAME = "InspectAI";
 /** The boundary-safe prefix for scoping `file_path` queries to a dir:
 *  `/logs/important` must not match `/logs/important-2`. */ var scopePrefix = (dir) => dir.endsWith("/") ? dir : `${dir}/`;
