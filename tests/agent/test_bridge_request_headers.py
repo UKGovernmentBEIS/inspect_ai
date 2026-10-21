@@ -399,3 +399,35 @@ async def test_nested_bridged_request_does_not_inherit_outer_headers(
     for _, request in inner.seen:
         assert request is not None
         assert dict(request.headers) == {}
+
+
+@pytest.mark.anyio
+async def test_in_process_responses_exposes_extra_headers() -> None:
+    from openai import AsyncOpenAI
+
+    from inspect_ai.agent import agent_bridge
+
+    sink = _CapturingSink()
+    async with agent_bridge(AgentState(messages=[]), model_event_sink=sink):
+        async with AsyncOpenAI(
+            api_key="unused", base_url="http://localhost:1/v1"
+        ) as client:
+            await client.responses.create(
+                model="inspect/mockllm/model",
+                input="hi",
+                extra_headers={"X-Agent-Id": "r1"},
+            )
+    assert sink.seen
+    for _, request in sink.seen:
+        assert request is not None and request.headers.get("x-agent-id") == "r1"
+
+
+def test_scopes_reset_on_exception() -> None:
+    with pytest.raises(RuntimeError):
+        with client_request_headers_scope({"x-app": "cli"}):
+            with bridged_request_scope("slug"):
+                raise RuntimeError("boom")
+    assert current_bridge_request() is None
+    with bridged_request_scope("slug"):
+        request = current_bridge_request()
+        assert request is not None and dict(request.headers) == {}
