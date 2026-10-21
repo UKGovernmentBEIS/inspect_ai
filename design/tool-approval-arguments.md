@@ -38,11 +38,13 @@ in B, so they are not compared. A comparison that raises is a parsing error.
 3. Convert A to the tool's parameter types (`tool_params()`). A conversion
    error (a bad ISO date or enum value, a failing constructor) is a parsing
    error.
-4. Serialize each converted argument the call gives to JSON, using one
-   serializer for every type: Pydantic's, in JSON mode, by alias and without
-   computed fields. This is B. A serializer error is a parsing error, and so
-   is a non-finite number (`inf`, `-inf` or `NaN`) at any depth in B, which
-   the ApprovalEvent would record as null.
+4. Serialize a copy of each converted argument the call gives to JSON, using
+   one serializer for every type: Pydantic's, in JSON mode, by alias and
+   without computed fields. This is B. The copy means a serializer that
+   changes its input cannot change the value step 5 compares with. A
+   serializer error is a parsing error, and so is a non-finite number
+   (`inf`, `-inf` or `NaN`) at any depth in B, which the ApprovalEvent would
+   record as null.
 5. Apply the rebuild check and the value check to B. If either fails, the
    call is a parsing error and is not shown.
 6. Approvers and sentinel monitors see B, rendered by the tool's viewer. An
@@ -109,12 +111,12 @@ reach the agent as given.
 | Normalizing validator (lowercase) | `{"name": "A"}` | `{"name": "a"}` | runs with `"a"` |
 | Validator that doubles | `{"n": 2}` | nothing | parsing error: 4 rebuilds as 8 |
 | Modify that leaves out a default | approver selects `{"name": "a"}` | | approval error: rebuilds with `status` added |
-| Lazy iterable field | `{"values": [1, 2]}` | nothing | parsing error: lazy iterables compare by identity, so the value check fails; a modify that adds one runs with its values, since the tool gets a fresh build |
+| Lazy iterable field | `{"values": [1, 2]}` | nothing | parsing error: a lazy iterable cannot be copied for step 4 (and would fail the value check, since it compares by identity); a modify that adds one runs with its values, since the tool gets a fresh build |
 | Validator that returns a different value each run | `{"n": 2}` | varies | unsupported: the build the check used and the build the tool runs can differ |
 | `SecretStr` field | `{"key": "k"}` | nothing | parsing error: shown as `**********`, which rebuilds to another secret |
 | Field with `exclude=True` | `{"sudo": true}` | nothing | parsing error: left out of B, so it rebuilds as its default |
 | Set or frozenset, also as a model or dataclass field | `{"tags": ["a", "b"]}` | `{"tags": [...]}` in iteration order, or nothing | parsing error when that order does not rebuild identically, which can depend on hash order between runs |
-| Serializer that rounds a float | `{"price": {"amount": 1.234}}` | nothing | parsing error: shown as `1.23`, which rebuilds to a different value |
+| Serializer that rounds a float | `{"price": {"amount": 1.234}}` | nothing | parsing error: shown as `1.23`, which rebuilds to a different value, also when the serializer rounds the model in place |
 | Validator that turns a finite number into infinity | `{"capped": {"x": 101}}` | nothing | parsing error: B holds `inf`, which the ApprovalEvent would record as null |
 | Validation alias differs from serialization alias | `{"in": 1}` | nothing | parsing error: `{"out": 1}` does not convert back |
 | Field serializer that changes the type (`int` as text) | `{"item": {"count": 5}}` | `{"item": {"count": "5"}}` | runs with 5; a modify that copies the shown JSON fails the schema |

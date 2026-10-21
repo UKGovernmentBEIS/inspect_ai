@@ -715,6 +715,23 @@ class Unserializable(BaseModel):
         raise ValueError("cannot serialize")
 
 
+class Rounded(BaseModel):
+    amount: float
+
+    @field_serializer("amount")
+    def round_amount(self, amount: float) -> float:
+        return round(amount, 2)
+
+
+class RoundedInPlace(BaseModel):
+    amount: float
+
+    @field_serializer("amount")
+    def round_amount(self, amount: float) -> float:
+        self.amount = round(amount, 2)
+        return self.amount
+
+
 class Secret(BaseModel):
     key: SecretStr
 
@@ -793,6 +810,8 @@ def step_tool(received: list[dict[str, Any]]) -> Tool:
         tokened: Tokened | None = None,
         guarded: Guarded | None = None,
         capped: Capped | None = None,
+        rounded: Rounded | None = None,
+        rounded_in_place: RoundedInPlace | None = None,
     ) -> str:
         """Record its arguments.
 
@@ -812,6 +831,8 @@ def step_tool(received: list[dict[str, Any]]) -> Tool:
             tokened: A model with a generated default.
             guarded: A model with a private attribute whose equality raises.
             capped: A model whose validator turns large numbers into infinity.
+            rounded: A model whose serializer rounds.
+            rounded_in_place: A model whose serializer rounds the model itself.
         """
         arguments = {
             "step": step,
@@ -829,6 +850,8 @@ def step_tool(received: list[dict[str, Any]]) -> Tool:
             "tokened": tokened,
             "guarded": guarded,
             "capped": capped,
+            "rounded": rounded,
+            "rounded_in_place": rounded_in_place,
         }
         received.append({k: v for k, v in arguments.items() if v is not None})
         return "done"
@@ -918,6 +941,8 @@ async def test_approver_sees_the_arguments_as_converted() -> None:
         {"secret": {"key": "k"}},
         {"privileged": {"command": "ls", "sudo": True}},
         {"lazy": {"values": [1, 2, 3]}},
+        {"rounded": {"amount": 1.234}},
+        {"rounded_in_place": {"amount": 1.234}},
     ],
     ids=[
         "validator-not-idempotent",
@@ -926,6 +951,8 @@ async def test_approver_sees_the_arguments_as_converted() -> None:
         "masked-secret",
         "excluded-field",
         "lazy-iterable",
+        "rounding-serializer",
+        "rounding-serializer-in-place",
     ],
 )
 async def test_arguments_that_do_not_rebuild_are_refused(
@@ -1429,6 +1456,8 @@ async def test_without_oversight_hidden_values_run() -> None:
         "secret": {"key": "k"},
         "privileged": {"command": "ls", "sudo": True},
         "lazy": {"values": [1, 2, 3]},
+        "rounded": {"amount": 1.234},
+        "rounded_in_place": {"amount": 1.234},
     }
     message = await execute_with_approval(
         ToolCall(id="1", function="step_tool", arguments=arguments),
@@ -1441,6 +1470,8 @@ async def test_without_oversight_hidden_values_run() -> None:
     assert args["secret"].key.get_secret_value() == "k"
     assert args["privileged"].sudo is True
     assert args["lazy"] == [1, 2, 3]
+    assert args["rounded"].amount == 1.234
+    assert args["rounded_in_place"].amount == 1.234
 
 
 @tool

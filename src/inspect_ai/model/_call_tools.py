@@ -1558,7 +1558,8 @@ def validated_tool_call(call: ToolCall, tool_def: ToolDef) -> ValidatedToolCall:
 
     converted = _rebuilt_arguments(call.arguments, tool_def)
     shown = replace(
-        call, arguments=_serialized_converted(call.arguments, converted, tool_def)
+        call,
+        arguments=_serialized_converted(call.arguments, converted, tool_def, copy=True),
     )
     non_finite = _non_finite(shown.arguments)
     if non_finite is not None:
@@ -1652,7 +1653,10 @@ def _serialized_arguments(
 
 
 def _serialized_converted(
-    arguments: dict[str, Any], converted: dict[str, Any], tool_def: ToolDef
+    arguments: dict[str, Any],
+    converted: dict[str, Any],
+    tool_def: ToolDef,
+    copy: bool = False,
 ) -> dict[str, Any]:
     """A call's arguments, already converted for the tool, serialized as JSON.
 
@@ -1664,7 +1668,7 @@ def _serialized_converted(
 
     curried = tool_def.tool.kwargs if isinstance(tool_def.tool, AgentTool) else {}
     return {
-        name: _serialized(name, converted[name])
+        name: _serialized(name, converted[name], copy)
         for name in arguments
         if name in converted and name not in curried
     }
@@ -1716,11 +1720,18 @@ def _changed_from(
 _JSON_VALUE = TypeAdapter[Any](Any)
 
 
-def _serialized(name: str, value: Any) -> Any:
-    """An argument value as JSON, with models dumped by alias and without computed fields."""
+def _serialized(name: str, value: Any, copy: bool = False) -> Any:
+    """An argument value as JSON, with models dumped by alias and without computed fields.
+
+    With `copy`, a copy is serialized, so a serializer that changes the value
+    it is given cannot change the value the rebuild is compared with.
+    """
     try:
         return _JSON_VALUE.dump_python(
-            value, mode="json", by_alias=True, exclude_computed_fields=True
+            deepcopy(value) if copy else value,
+            mode="json",
+            by_alias=True,
+            exclude_computed_fields=True,
         )
     except Exception as ex:
         raise ToolParsingError(
