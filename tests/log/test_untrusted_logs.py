@@ -856,7 +856,7 @@ async def test_score_cli_trusts_log_metrics_only_with_log_scorers(
         # the log's own scorers: its metric options are rebuilt as recorded
         await run
         assert untrusted_models == [UNTRUSTED_URL]
-        assert scored_samples == [1, 2]
+        assert sorted(scored_samples) == [1, 2]
     else:
         with pytest.raises(DisallowedRegistryArg, match="option 'option': a model"):
             await run
