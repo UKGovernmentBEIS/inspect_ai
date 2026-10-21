@@ -282,6 +282,9 @@ def test_sanitize_catches_credential_variants() -> None:
             "x-hmac-signature": "sig",
             "x-custom": "Bearer abc",
             "x-other": "sk-ant-123",
+            "x-joined": "v, Bearer abc",
+            "x-tab": "Bearer\tabc",
+            "x-token": "Token abc",
             "x-session-id": "ok",
         }
     )

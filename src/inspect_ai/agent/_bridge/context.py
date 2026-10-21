@@ -1,3 +1,4 @@
+import re
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass, field
@@ -92,7 +93,8 @@ class BridgeRequest:
     Names are lowercased; repeated headers are joined with ", ". Headers that
     may carry credentials are removed: names like `authorization` or
     `cookie`, names containing a fragment such as `key`, `auth` or `token`
-    (`_` read as `-`), and values starting with `Bearer `, `Basic ` or `sk-`.
+    (`_` read as `-`), and values (or comma-separated parts) starting with a
+    `Bearer`, `Basic` or `Token` scheme or `sk-`.
     This errs toward dropping, so is broader on purpose than what the bridge
     blocks from the provider. These
     are what the client sent, not what the model provider receives: the
@@ -143,7 +145,7 @@ _CREDENTIAL_HEADER_FRAGMENTS = (
 )
 
 
-_CREDENTIAL_VALUE_PREFIXES = ("bearer ", "basic ", "sk-")
+_CREDENTIAL_VALUE = re.compile(r"\s*((bearer|basic|token)\s|sk-)", re.IGNORECASE)
 
 
 def _is_credential_header(lower_name: str) -> bool:
@@ -156,7 +158,8 @@ def _is_credential_header(lower_name: str) -> bool:
 
 
 def _is_credential_value(value: str) -> bool:
-    return value.lstrip().lower().startswith(_CREDENTIAL_VALUE_PREFIXES)
+    # repeated headers arrive joined with ", ", so check each part
+    return any(_CREDENTIAL_VALUE.match(part) for part in value.split(","))
 
 
 def sanitize_client_headers(headers: object) -> Mapping[str, str]:
