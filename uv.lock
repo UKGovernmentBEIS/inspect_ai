@@ -2248,7 +2248,6 @@ dependencies = [
     { name = "click" },
     { name = "cloudpickle" },
     { name = "duckdb" },
-    { name = "exceptiongroup", marker = "python_full_version < '3.11'" },
     { name = "fastapi" },
     { name = "ijson" },
     { name = "importlib-metadata" },
