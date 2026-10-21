@@ -31,6 +31,7 @@ from inspect_ai.tool._tool import Tool, ToolError, ToolParsingError, ToolResult
 from inspect_ai.tool._tool_call import ToolCallContent, ToolCallError
 from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.util._anyio import inner_exception
+from inspect_ai.util._sandbox.service import find_control_flow
 from inspect_ai.util._span import parent_span, span
 
 from .types import SandboxAgentBridge, _ToolExecutionGrant
@@ -61,11 +62,15 @@ async def execute_host_tool(
     Exceptions are classified after unwrapping any task-group
     `ExceptionGroup`, as `execute_tools` does, and with the same
     `tool_call_error` mapping. Those a native call would show the model
-    propagate unchanged as the RPC error the scaffold reads as tool output. Any
-    other exception is a bug in the eval's tool, which natively fails the
-    sample: the unwrapped exception is signalled through `bridge.request_fail`
-    so the bridge's monitor task ends the sample at once, and the original
-    still propagates so the RPC unwinds with an error reply (the teardown may
+    propagate unchanged as the RPC error the scaffold reads as tool output. A
+    termination (`TerminateSampleError`, anywhere in the exception as
+    `find_control_flow` finds it) also propagates unchanged: the service
+    dispatcher answers the RPC and propagates the termination out of the service
+    task, which ends the sample as a native tool's termination does. Any other
+    exception is a bug in the eval's tool, which natively fails the sample: the
+    unwrapped exception is signalled through `bridge.request_fail` so the
+    bridge's monitor task ends the sample at once, and the original still
+    propagates so the RPC unwinds with an error reply (the teardown may
     pre-empt its delivery; the scaffold's turn is over either way). An error
     building the reply from the tool's result (one that cannot be serialized)
     is classified the same way, so it too fails the sample.
@@ -397,7 +402,9 @@ def _raised(ex: Exception, tool: str, max_output: int | None) -> _Outcome:
     inner_ex = inner_exception(ex)
     mapped = tool_call_error(inner_ex, tool)
     if mapped is None:
-        return _Outcome(failed=True, raised=ex, fatal=inner_ex)
+        # a termination is the service dispatcher's to enact
+        fatal = inner_ex if find_control_flow(ex) is None else None
+        return _Outcome(failed=True, raised=ex, fatal=fatal)
     output, truncated = _recorded_result(tool, mapped.result or "", max_output)
     return _Outcome(output, truncated, error=mapped.error, raised=ex)
 
