@@ -1,9 +1,11 @@
 """Steps rebuilt from a log (`steps_from_events`) equal the steps live, field by field."""
 
+import bisect
 import dataclasses
 import random
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import replace
+from functools import partial
 from typing import TYPE_CHECKING, Any, NamedTuple, cast
 
 import anyio
@@ -36,21 +38,34 @@ from inspect_ai.event import (
     ToolEvent,
 )
 from inspect_ai.log import EvalLog, EvalSample, read_eval_log
+from inspect_ai.log._transcript import transcript
 from inspect_ai.model import (
     ChatCompletionChoice,
     ChatMessage,
     ChatMessageAssistant,
+    ChatMessageSystem,
+    ChatMessageTool,
     ChatMessageUser,
     GenerateConfig,
     ModelAPI,
     ModelOutput,
+    ModelRefusalError,
     get_model,
+    model_origin,
     modelapi,
 )
 from inspect_ai.model._call_tools import execute_tools
 from inspect_ai.model._providers.mockllm import MockLLM
+from inspect_ai.scorer import Score, Scorer, Target, scorer
 from inspect_ai.solver import Generate, Solver, TaskState, generate, solver, use_tools
-from inspect_ai.tool import Tool, ToolCall, ToolCallView, ToolInfo, tool
+from inspect_ai.tool import (
+    Tool,
+    ToolCall,
+    ToolCallContent,
+    ToolCallView,
+    ToolInfo,
+    tool,
+)
 from inspect_ai.tool._tool import ToolApprovalError
 from inspect_ai.util._span import span
 
@@ -986,7 +1001,6 @@ def replay_work(
     keyed = visited = indexed = 0
     content_key = _steps.content_key
     canonical = _replay._PoolKeys.canonical
-    bisect_left = _replay.bisect_left
 
     def counting_content_key(message: Any) -> str:
         nonlocal keyed
@@ -1002,7 +1016,7 @@ def replay_work(
         # one per range a lookup passes
         nonlocal indexed
         indexed += 1
-        return bisect_left(rows, row)
+        return bisect.bisect_left(rows, row)
 
     with monkeypatch.context() as patch:
         patch.setattr(_replay, "content_key", counting_content_key)
@@ -1460,3 +1474,391 @@ def test_a_tool_s_own_timeout_keeps_its_result_step() -> None:
         "tool_call",
         "tool_result",
     ]
+
+
+# review pass 2: grouping by input, the rules each stated case pins, ids,
+# lookups and malformed ranges
+
+
+@solver
+def r7_generates_two_different_inputs_at_once() -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        model = get_model()
+
+        async def ask(text: str) -> ModelOutput:
+            return await model.generate([ChatMessageUser(content=text)])
+
+        await tg_collect([partial(ask, "first"), partial(ask, "second")])
+        return state
+
+    return solve
+
+
+def test_overlapping_generates_with_different_inputs_keep_their_retries_apart() -> None:
+    _Interleaved.requests = 0
+    _Interleaved.second = anyio.Event()
+    replay = assert_replay_equals_live(
+        r7_generates_two_different_inputs_at_once(), "r7_interleaved/model"
+    )
+    assert len([s for s in replay if s.stage == "model_output"]) == 2
+
+
+@solver
+def r7_carries_on_after_a_failed_batch() -> Solver:
+    """Two turns; a batch that raises is caught and the run continues."""
+
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        model = get_model()
+        tools = state.tools
+        for _ in range(2):
+            output = await model.generate(state.messages, tools)
+            state.messages.append(output.message)
+            if not output.message.tool_calls:
+                break
+            try:
+                result = await execute_tools(state.messages, tools)
+                state.messages.extend(result.messages)
+            except Exception:
+                state.messages.append(ChatMessageUser(content="carry on"))
+        return state
+
+    return solve
+
+
+@tool
+def raises_value_error() -> Tool:
+    async def execute() -> str:
+        """Fail with an error that escapes the call's own handling."""
+        raise ValueError("not a tool error")
+
+    return execute
+
+
+@pytest.mark.parametrize(
+    "failing,name", [(explodes, "explodes"), (raises_value_error, "raises_value_error")]
+)
+def test_a_batch_that_raised_appends_nothing_when_the_scaffold_carries_on(
+    failing: Callable[[], Tool], name: str
+) -> None:
+    # explodes() records failed; a ValueError escaping call_tool_task is
+    # finalised by its stage as a cancelled call that failed
+    replay = assert_replay_equals_live(
+        [use_tools(failing()), r7_carries_on_after_a_failed_batch()],
+        outputs(call(name), done()),
+    )
+    *_, last = [s for s in replay if s.stage == "model_input"]
+    assert not any(m.role == "tool" for m in last.step.agent_messages or []), (
+        "the raised batch's results never joined"
+    )
+    assert not [s for s in replay if s.stage == "tool_result"]
+
+
+class _FailsOnce(MockLLM):
+    """The first request fails with an error that is not retried."""
+
+    requests = 0
+
+    async def generate(
+        self,
+        input: list[ChatMessage],
+        tools: list[ToolInfo],
+        tool_choice: Any,
+        config: GenerateConfig,
+    ) -> Any:
+        _FailsOnce.requests += 1
+        if _FailsOnce.requests == 1:
+            raise RuntimeError("provider down")
+        return done()
+
+
+@modelapi(name="r7_fails_once")
+def r7_fails_once() -> type[ModelAPI]:
+    return _FailsOnce
+
+
+@solver
+def r7_retries_with_a_changed_input() -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        model = get_model()
+        try:
+            await model.generate([ChatMessageUser(content="first try")])
+        except RuntimeError:
+            pass
+        state.output = await model.generate([ChatMessageUser(content="second try")])
+        return state
+
+    return solve
+
+
+def test_a_retry_with_a_changed_input_is_a_generate_of_its_own() -> None:
+    _FailsOnce.requests = 0
+    replay = assert_replay_equals_live(
+        r7_retries_with_a_changed_input(), "r7_fails_once/model"
+    )
+    assert [s.stage for s in replay] == ["model_input", "model_input", "model_output"]
+
+
+@solver
+def r7_runs_a_helpers_call_in_its_region() -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        tools = [addition()]
+        with model_origin("helper"):
+            output = await get_model().generate(state.messages, tools)
+            await execute_tools([*state.messages, output.message], tools)
+        state.output = await get_model().generate(state.messages)
+        return state
+
+    return solve
+
+
+def test_a_call_run_in_a_final_region_has_no_tool_steps() -> None:
+    replay = assert_replay_equals_live(
+        r7_runs_a_helpers_call_in_its_region(),
+        outputs(call("addition", x=1, y=1), done()),
+    )
+    assert not [s for s in replay if s.stage.startswith("tool")]
+
+
+@scorer(metrics=[])
+def r7_scores_with_a_tool_loop() -> Scorer:
+    async def score(state: TaskState, target: Target) -> Score:
+        tools = [addition()]
+        output = await get_model().generate("Check the sum.", tools)
+        await execute_tools(
+            [ChatMessageUser(content="Check the sum."), output.message], tools
+        )
+        return Score(value=1)
+
+    return score
+
+
+def test_a_task_scorer_s_tool_calls_are_replayed() -> None:
+    replay = assert_replay_equals_live(
+        generate(),
+        outputs(done(), call("addition", x=1, y=1)),
+        scorer=r7_scores_with_a_tool_loop(),
+    )
+    assert [s.stage for s in replay if s.stage.startswith("tool")] == [
+        "tool_call",
+        "tool_result",
+    ]
+
+
+@solver
+def r7_carries_on_after_a_refusal() -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        model = get_model()
+        try:
+            await model.generate(
+                state.messages, config=GenerateConfig(fail_on_refusal=True)
+            )
+        except ModelRefusalError:
+            pass
+        state.output = await model.generate(state.messages)
+        return state
+
+    return solve
+
+
+def test_a_refusal_raised_under_fail_on_refusal_has_no_after_step() -> None:
+    replay = assert_replay_equals_live(
+        r7_carries_on_after_a_refusal(),
+        outputs(
+            ModelOutput.from_content(
+                "mockllm/model", "I refuse", stop_reason="content_filter"
+            ),
+            done(),
+        ),
+    )
+    assert [s.stage for s in replay] == ["model_input", "model_input", "model_output"]
+
+
+def test_a_superseded_human_decision_is_withdrawn(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    Panel("approve").install(monkeypatch)
+    seen: dict[str, Step] = {}
+    log = run_logged(
+        tool_loop(addition()),
+        agent_model(2),
+        sentinel=[r7_probe(seen), h_ask("tool_call", ["approve", "reject"])],
+    )
+    events = logged_sample(log).events
+    first = next(
+        e
+        for e in events
+        if isinstance(e, SentinelEvent) and e.factory == "inspect_sentinel/human"
+    )
+    assert first.action == "proceed"
+    # a layer above the person superseded the decision with its own action
+    superseded = first.model_copy(update={"status": "superseded", "path": ""})
+    at = events.index(first) + 1
+    replay = replay_events(log, [*events[:at], superseded, *events[at:]])
+    second = [s for s in replay if s.stage == "tool_call"][1]
+    assert second.step.human_decisions == ()
+    assert [
+        d.stage
+        for d in [s for s in replay_events(log, events) if s.stage == "tool_call"][
+            1
+        ].step.human_decisions
+        or []
+    ] == ["tool_call"]
+
+
+@pytest.mark.parametrize("version,truncated", [("0.3.30", None), ("0.3.31", False)])
+def test_a_log_from_before_the_record_of_cuts_says_it_cannot_tell(
+    version: str, truncated: bool | None
+) -> None:
+    log = run_logged(tool_loop(addition()), agent_model())
+    sample = logged_sample(log)
+    replay = steps_from_events(
+        sample.messages,
+        sample.events,
+        [],
+        sample_uuid=sample.uuid or "",
+        eval_info=EvalInfo(inspect_ai_version=version, sentinel=True),
+    )
+    [after] = [s.step for s in replay if isinstance(s.step, AfterToolCall)]
+    assert after.truncated is truncated
+
+
+def context_viewer(call: ToolCall) -> ToolCallView:
+    return ToolCallView(
+        context=ToolCallContent(format="text", content="adding for the user"),
+        call=ToolCallContent(format="text", content=f"add {call.arguments}"),
+    )
+
+
+@tool(viewer=context_viewer)
+def viewed_addition() -> Tool:
+    async def execute(x: int, y: int) -> str:
+        """Add two numbers.
+
+        Args:
+            x: First number to add.
+            y: Second number to add.
+        """
+        return str(x + y)
+
+    return execute
+
+
+def test_an_approvers_view_replays_whole() -> None:
+    replay = assert_replay_equals_live(
+        tool_loop(viewed_addition()),
+        outputs(call("viewed_addition", x=1, y=2), done()),
+        approval=[ApprovalPolicy(d3_approver([]), "*")],
+    )
+    [before] = [s.step for s in replay if isinstance(s.step, BeforeToolCall)]
+    # the approval recorded the whole view; a ToolEvent holds only its call
+    assert before.view.context is not None
+    assert before.view.context.content == "adding for the user"
+
+
+def test_a_result_is_the_message_the_tool_event_names() -> None:
+    from inspect_ai._sentinel._replay import _Driver
+
+    logged = ChatMessageTool(
+        id="m1", content="as the model saw it", tool_call_id="c1", function="f"
+    )
+    driver = _Driver([], [], [logged], "sample", EvalInfo(None, True), None, ())
+    event = ToolEvent(id="c1", function="f", arguments={}, result="", message_id="m1")
+    assert driver._result(event) is logged
+    unknown = event.model_copy(update={"message_id": "m2", "result": "rebuilt"})
+    rebuilt = driver._result(unknown)
+    assert (rebuilt.id, rebuilt.text) == ("m2", "rebuilt")
+
+
+def nudged_inputs(turns: int) -> list[Event]:
+    """An append-only conversation whose scaffold stamps its turn on each nudge: equal content, a pool row each."""
+    system = ChatMessageSystem(content="Be helpful.")
+    sent: list[ChatMessage] = [system]
+    events: list[Event] = []
+    for turn in range(turns):
+        sent.append(ChatMessageUser(content="continue", metadata={"turn": turn}))
+        events.append(turn_event(list(sent)))
+        sent.append(ChatMessageAssistant(content=f"answer {turn}"))
+    return events
+
+
+def test_metadata_stamped_nudges_keep_the_fold_linear(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from inspect_ai._sentinel import _replay
+
+    info = EvalInfo(inspect_ai_version=None, sentinel=False)
+    works = []
+    for turns in (100, 200):
+        condensed, pool = _replay._condensed(nudged_inputs(turns), [])
+        works.append(replay_work(monkeypatch, [], condensed, pool, "sample", info))
+    small, large = works
+    assert_linear(small, large)
+
+
+@pytest.mark.parametrize("refs", [[(0, 1000)], [(-2, 0)], [(3, 1)]])
+def test_input_ranges_outside_the_pool_fail_the_replay(
+    refs: list[tuple[int, int]],
+) -> None:
+    from inspect_ai._sentinel import _replay
+
+    log = run_logged(tool_loop(addition()), agent_model())
+    sample = logged_sample(log)
+    events, pool = _replay._condensed(sample.events, [])
+    turn = next(e for e in events if isinstance(e, ModelEvent))
+    turn.input_refs = refs
+    with pytest.raises(MalformedLogError, match="outside the pool"):
+        steps_from_events(
+            sample.messages,
+            events,
+            pool,
+            sample_uuid=sample.uuid or "",
+            eval_info=EvalInfo.from_eval(log.eval),
+        )
+
+
+@tool
+def cancelled_by_its_operator() -> Tool:
+    async def execute() -> str:
+        """Cancel this call as an operator would, while it runs."""
+        [event] = [
+            e
+            for e in transcript().events
+            if isinstance(e, ToolEvent) and e.function == "cancelled_by_its_operator"
+        ]
+        event._cancel()
+        await anyio.sleep(10)
+        return "never"
+
+    return execute
+
+
+def test_an_operator_cancel_is_a_known_difference() -> None:
+    # known difference (design call 2): an operator's cancel records the same
+    # timeout error as a tool's own timeout, so replay builds the after-stage
+    # step a timeout has, which the cancelled call never reached live
+    seen: dict[str, Step] = {}
+    log = run_logged(
+        tool_loop(cancelled_by_its_operator()),
+        outputs(call("cancelled_by_its_operator"), done()),
+        sentinel=[r7_probe(seen)],
+    )
+    assert log.samples
+    live = set(live_steps(log.samples[0], seen))
+    replay = {(s.stage, s.id) for s in replayed(log)}
+    [call_id] = [id for stage, id in live if stage == "tool_call"]
+    assert replay - live == {("tool_result", call_id)}
+    assert live <= replay
+
+
+def test_a_task_scorer_s_unrecorded_tool_calls_are_replayed() -> None:
+    # with every instance abstaining no SentinelEvent records the stage, so
+    # replay decides from the producer's region alone
+    seen: list[Any] = []
+    log = run_logged(
+        generate(),
+        outputs(done(), call("addition", x=1, y=1)),
+        sentinel=[r7_counts_tool_calls(seen)],
+        scorer=r7_scores_with_a_tool_loop(),
+    )
+    assert len(seen) == 1
+    assert [s.stage for s in replayed(log) if s.stage == "tool_call"] == ["tool_call"]
