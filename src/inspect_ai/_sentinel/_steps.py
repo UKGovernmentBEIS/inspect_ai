@@ -486,7 +486,16 @@ class PoolView(Sequence[ChatMessage]):
 
     def __getitem__(self, index: int | slice) -> ChatMessage | Sequence[ChatMessage]:
         if isinstance(index, slice):
-            return [self[i] for i in range(*index.indices(self._length))]
+            start, stop, step = index.indices(self._length)
+            if step != 1:
+                return [self[i] for i in range(start, stop, step)]
+            refs: list[tuple[int, int]] = []
+            for (first, last), at in zip(self._refs, self._starts):
+                low = max(start - at, 0)
+                high = min(stop - at, last - first)
+                if low < high:
+                    refs.append((first + low, first + high))
+            return PoolView(self._pool, refs)
         if index < 0:
             index += self._length
         if not 0 <= index < self._length:

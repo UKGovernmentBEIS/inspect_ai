@@ -147,9 +147,7 @@ class BeforeGenerate:
     input: Sequence[ChatMessage]
     agent_messages: Sequence[ChatMessage] | None
     history: Sequence[ChatMessage] | None = field(default=None, kw_only=True)
-    human_decisions: Sequence[HumanDecision] | None = field(
-        default=None, kw_only=True
-    )
+    human_decisions: Sequence[HumanDecision] | None = field(default=None, kw_only=True)
     tools: list[ToolInfo]
     tool_choice: ToolChoice
     config: GenerateConfig
@@ -162,9 +160,7 @@ class AfterGenerate:
     input: Sequence[ChatMessage]
     agent_messages: Sequence[ChatMessage] | None
     history: Sequence[ChatMessage] | None = field(default=None, kw_only=True)
-    human_decisions: Sequence[HumanDecision] | None = field(
-        default=None, kw_only=True
-    )
+    human_decisions: Sequence[HumanDecision] | None = field(default=None, kw_only=True)
     tools: list[ToolInfo]
     tool_choice: ToolChoice
     config: GenerateConfig
@@ -187,9 +183,7 @@ class BeforeToolCall:
     input: Sequence[ChatMessage] | None
     agent_messages: Sequence[ChatMessage] | None
     history: Sequence[ChatMessage] | None = field(default=None, kw_only=True)
-    human_decisions: Sequence[HumanDecision] | None = field(
-        default=None, kw_only=True
-    )
+    human_decisions: Sequence[HumanDecision] | None = field(default=None, kw_only=True)
     tools: Sequence[ToolInfo] | None = None
     tool_choice: ToolChoice | None = None
 
@@ -206,15 +200,14 @@ class AfterToolCall:
     input: Sequence[ChatMessage] | None
     agent_messages: Sequence[ChatMessage] | None
     history: Sequence[ChatMessage] | None = field(default=None, kw_only=True)
-    human_decisions: Sequence[HumanDecision] | None = field(
-        default=None, kw_only=True
-    )
+    human_decisions: Sequence[HumanDecision] | None = field(default=None, kw_only=True)
     tools: Sequence[ToolInfo] | None = None
     tool_choice: ToolChoice | None = None
     truncated: Truncation | Literal[False] | None = None
 
 
 Step: TypeAlias = BeforeGenerate | AfterGenerate | BeforeToolCall | AfterToolCall
+
 
 @dataclass(frozen=True)
 class ReplayStep:

@@ -6,10 +6,12 @@ from typing import TYPE_CHECKING, Any
 
 import anyio
 import pytest
+import tenacity
 from pydantic import BaseModel
 
 from inspect_ai import Task, eval
 from inspect_ai._sentinel._replay import EvalInfo, MalformedLogError, steps_from_events
+from inspect_ai._util._async import tg_collect
 from inspect_ai.agent import Agent, as_solver, as_tool, handoff, react
 from inspect_ai.approval import ApprovalPolicy
 from inspect_ai.dataset import Sample
@@ -42,6 +44,7 @@ from inspect_ai.tool import Tool, ToolCall, ToolInfo, tool
 from inspect_ai.util._span import span
 
 from .test_sentinel_dispatch import (
+    _RetriedError,
     _RetryingMockLLM,
     addition,
     addition_call,
@@ -200,7 +203,9 @@ def assert_replay_equals_live(
     assert log.samples
     live = live_steps(log.samples[0], seen)
     replay = replayed(log)
-    rebuilt = {(step.stage, step.id): step for step in replay}
+    rebuilt: dict[tuple[str, str], ReplayStep] = {
+        (step.stage, step.id): step for step in replay
+    }
     assert len(rebuilt) == len(replay)
     assert set(rebuilt) == set(live)
     for key, step in live.items():
@@ -307,7 +312,7 @@ def test_a_truncated_result_replays_as_it_ran() -> None:
         config=GenerateConfig(max_tool_output=10),
     )
     [after] = [step for step in replay if step.stage == "tool_result"]
-    assert after.step.truncated
+    assert isinstance(after.step, AfterToolCall) and after.step.truncated
 
 
 def helper(model: Any) -> Agent:
@@ -593,6 +598,7 @@ def test_an_approvers_modified_memory_path_replays_canonical() -> None:
         ],
     )
     [before] = [step for step in replay if step.stage == "tool_call"]
+    assert isinstance(before.step, BeforeToolCall)
     assert before.step.call.arguments["path"] == "/memories/secret.txt"
 
 
@@ -607,7 +613,7 @@ def test_a_memory_path_replays_canonical_without_approval() -> None:
     assert [
         step.step.call.arguments["path"]
         for step in replay
-        if step.stage.startswith("tool")
+        if isinstance(step.step, BeforeToolCall | AfterToolCall)
     ] == [canonical, canonical]
 
 
@@ -634,7 +640,7 @@ def test_a_custom_memory_tool_replays_its_path_as_given() -> None:
     assert [
         step.step.call.arguments["path"]
         for step in replay
-        if step.stage.startswith("tool")
+        if isinstance(step.step, BeforeToolCall | AfterToolCall)
     ] == [path, path]
 
 
@@ -889,12 +895,12 @@ def replay_work(
     turns: int, monkeypatch: pytest.MonkeyPatch
 ) -> tuple[int, int, int, int]:
     """Pool rows keyed, positions the fold visited, pool size and steps for a run of `turns`."""
-    from inspect_ai._sentinel import _replay
+    from inspect_ai._sentinel import _replay, _steps
 
     log = long_run(turns)
     sample = logged_sample(log)
     keyed = visited = 0
-    content_key = _replay.content_key
+    content_key = _steps.content_key
     key = _replay._PooledInput.key
 
     def counting_content_key(message: Any) -> str:
@@ -930,3 +936,104 @@ def test_replay_reads_each_pool_row_once_and_folds_linearly(
     assert keyed <= pool and keyed2 <= pool2
     assert steps2 <= 2.2 * steps
     assert visited2 <= 2.2 * visited, (visited, visited2)
+
+
+class _Interleaved(MockLLM):
+    """The first two requests fail, the first only once the second has arrived; the rest succeed."""
+
+    requests = 0
+    second: anyio.Event | None = None
+
+    def should_retry(self, ex: Exception) -> bool:
+        return isinstance(ex, _RetriedError)
+
+    def retry_wait(self) -> Any:
+        return tenacity.wait_fixed(0)
+
+    async def generate(
+        self,
+        input: list[ChatMessage],
+        tools: list[ToolInfo],
+        tool_choice: Any,
+        config: GenerateConfig,
+    ) -> Any:
+        _Interleaved.requests += 1
+        second = _Interleaved.second
+        assert second is not None
+        if _Interleaved.requests == 1:
+            await second.wait()
+            raise _RetriedError("try again")
+        if _Interleaved.requests == 2:
+            second.set()
+            raise _RetriedError("try again")
+        return done()
+
+
+@modelapi(name="r7_interleaved")
+def r7_interleaved() -> type[ModelAPI]:
+    return _Interleaved
+
+
+@solver
+def r7_generates_the_same_input_twice_at_once() -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        model = get_model()
+
+        async def ask() -> ModelOutput:
+            return await model.generate([ChatMessageUser(content="Same question.")])
+
+        await tg_collect([ask, ask])
+        return state
+
+    return solve
+
+
+def test_overlapping_equal_generates_with_interleaved_retries_are_a_known_difference() -> (
+    None
+):
+    # known difference (P4-F2): a generate's later attempts carry no id, so
+    # replay groups them by inference, and two overlapping generates with equal
+    # input whose retries interleave are grouped wrongly
+    _Interleaved.requests = 0
+    _Interleaved.second = anyio.Event()
+    seen: dict[str, Step] = {}
+    log = run_logged(
+        r7_generates_the_same_input_twice_at_once(),
+        "r7_interleaved/model",
+        sentinel=[r7_probe(seen)],
+    )
+    assert log.samples
+    live = set(live_steps(log.samples[0], seen))
+    replay = {(step.stage, step.id) for step in replayed(log)}
+    first_attempts = [
+        e.uuid
+        for e in log.samples[0].events
+        if isinstance(e, ModelEvent) and e.error is not None
+    ]
+    assert {id for _, id in live} == set(first_attempts)
+    assert len(replay) == len(live) == 4
+    assert replay != live
+
+
+def test_views_read_as_the_lists_they_cut() -> None:
+    from inspect_ai._sentinel._steps import ListView, PoolView
+
+    items = list(range(10))
+    pool: list[ChatMessage] = [ChatMessageUser(content=str(i)) for i in range(10)]
+    cases: list[tuple[Sequence[Any], list[Any]]] = [
+        (ListView(items, 7, 2), items[2:7]),
+        (
+            PoolView(pool, [(0, 3), (5, 8), (2, 4)]),
+            [*pool[0:3], *pool[5:8], *pool[2:4]],
+        ),
+    ]
+    for view, expected in cases:
+        assert view == expected and expected == view
+        assert list(reversed(view)) == expected[::-1]
+        for start in range(-len(expected) - 1, len(expected) + 1):
+            for stop in range(-len(expected) - 1, len(expected) + 1):
+                assert list(view[start:stop]) == expected[start:stop]
+        assert list(view[::2]) == expected[::2]
+        assert view[-1] == expected[-1]
+        with pytest.raises(IndexError):
+            view[len(expected)]
