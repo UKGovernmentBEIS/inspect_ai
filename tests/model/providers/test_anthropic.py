@@ -1522,7 +1522,7 @@ def _cfg(**kwargs: Any) -> GenerateConfig:
 @pytest.mark.parametrize("reasoning_effort", [None, "none", "low"])
 @pytest.mark.parametrize("param,value", list(_SAMPLING_PARAMS.items()))
 def test_anthropic_strips_sampling_params(
-    model_name: str, reasoning_effort: Any, param: str, value: float | int
+    model_name: str, reasoning_effort: str | None, param: str, value: float | int
 ) -> None:
     """API version 2026-10-21 rejects temperature/top_p/top_k on every model."""
     api = AnthropicAPI(model_name=model_name, api_key="test-key")
