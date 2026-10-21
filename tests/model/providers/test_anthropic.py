@@ -1400,13 +1400,13 @@ async def test_anthropic_top_level_cache_control_skipped_on_bedrock_vertex(
     [
         ("claude-sonnet-4-6", None),
         ("bedrock/us.anthropic.claude-sonnet-4-6", "bedrock-2023-05-31"),
-        ("vertex/claude-sonnet-4-6@20250929", "vertex-2023-10-16"),
+        ("vertex/claude-sonnet-4-6@20250929", None),
     ],
 )
-async def test_anthropic_platform_api_version(
+async def test_anthropic_bedrock_api_version(
     model_name: str, anthropic_version: str | None, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Bedrock and Vertex requests carry their platform `anthropic_version`."""
+    """Bedrock requests carry the Bedrock `anthropic_version` in the body."""
     monkeypatch.setenv("AWS_REGION", "us-east-1")
     monkeypatch.setenv("ANTHROPIC_VERTEX_PROJECT_ID", "fake")
     monkeypatch.setenv("ANTHROPIC_VERTEX_REGION", "us-east5")
@@ -2843,7 +2843,7 @@ async def test_anthropic_sonnet_4_6_bedrock_live() -> None:
 @pytest.mark.anyio
 @skip_if_no_vertex
 async def test_anthropic_sonnet_4_6_vertex_live() -> None:
-    """Vertex generate and count_tokens accept our `anthropic_version`."""
+    """Vertex generate and count_tokens accept the SDK's API version."""
     model = get_model(
         "anthropic/vertex/claude-sonnet-4-6",
         config=GenerateConfig(max_tokens=128),
