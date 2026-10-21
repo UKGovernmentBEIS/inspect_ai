@@ -424,7 +424,7 @@ fallback (`:575-590`, `:628-650`). The caller chooses the fallback user: a
 sandbox service prepares the shared directory as the service's own user, which
 is the user passed to `sandbox_service(user=...)` or the default user when
 none is (`ai/util/_sandbox/service.py:661-675`); the human agent's installer
-falls back to the default user (`ai/agent/_human/install.py:124-131`). A contract violation (`FrameworkDirectoryError`), a
+falls back to the default user (`ai/agent/_human/install.py:182-194`). A contract violation (`FrameworkDirectoryError`), a
 check that could not be performed (`FrameworkDirectoryUnavailableError`), a
 timeout and a `ValueError` are re-raised rather than read as "no root". This
 per-call classification is separate from the sandbox's recorded root-access
@@ -458,7 +458,9 @@ sticky `/var/tmp/sandbox-services`, root-owned where root is usable, holding a
 private directory per service), the checkpoint work area
 (`ai/util/_checkpoint/_sandbox_dir.py:20-67`, root-only with no rootless
 fallback), and the human agent's install directory
-(`ai/agent/_human/install.py`).
+(`ai/agent/_human/install.py`, which replaces a `task.py` generated for other
+commands by publishing the new one under a staging name with the atomic write and
+renaming it over `task.py` inside the verified directory).
 
 ### Guest verified directories
 

@@ -2,11 +2,13 @@ from typing import cast
 
 import anyio
 
+from inspect_ai.tool import Tool
 from inspect_ai.util import display_type, input_panel, sandbox
 from inspect_ai.util._sandbox.events import SandboxEnvironmentProxy
 
 from .._agent import Agent, AgentState, agent
 from .commands import human_agent_commands
+from .commands.tool import ToolCommand
 from .install import install_human_agent
 from .panel import HumanAgentPanel
 from .service import run_human_agent_service
@@ -21,6 +23,7 @@ def human_cli(
     user: str | None = None,
     instructions: str | None = None,
     bashrc: str | None = None,
+    tools: list[Tool] | None = None,
 ) -> Agent:
     """Human CLI agent for tasks that run in a sandbox.
 
@@ -43,10 +46,16 @@ def human_cli(
        user: User to login as. Defaults to the sandbox environment's default user.
        instructions: Additional instructions beyond the default task command instructions.
        bashrc: Additional content to include in the .bashrc file for the human cli shell.
+       tools: List of tools available for the human to call via `task tool <name>`.
 
     Returns:
        Agent: Human CLI agent.
     """
+    # reject tools whose `task tool` CLI can't be generated now, at task
+    # definition, rather than when a sample starts
+    if tools:
+        ToolCommand(tools)
+
     # we can only run one human agent interaction at a time (use lock to enforce)
     agent_lock = anyio.Lock()
 
@@ -73,6 +82,7 @@ def human_cli(
                         intermediate_scoring,
                         record_session,
                         instructions,
+                        tools,
                     )
 
                     # install agent tools

@@ -11,6 +11,7 @@ from argparse import Namespace
 from collections.abc import AsyncIterator, Iterator
 from io import StringIO
 from pathlib import Path
+from subprocess import CompletedProcess
 from typing import Awaitable, Callable, Literal, NamedTuple, overload
 from uuid import uuid4
 
@@ -18,7 +19,7 @@ import anyio
 import pytest
 from pydantic import JsonValue
 from test_helpers.local_shell_sandbox import LocalShellSandbox
-from test_helpers.sandbox import CannedSandbox
+from test_helpers.sandbox import CannedSandbox, ExecPolicy
 from test_helpers.utils import skip_if_no_docker
 
 from inspect_ai import Task, eval
@@ -29,13 +30,17 @@ from inspect_ai.agent._human.agent import human_cli
 from inspect_ai.agent._human.commands import submit
 from inspect_ai.agent._human.commands.command import HumanAgentCommand
 from inspect_ai.agent._human.commands.submit import QuitCommand, SubmitCommand
+from inspect_ai.agent._human.commands.tool import ToolCommand
 from inspect_ai.agent._human.install import (
     _BASHRC_APPEND_SCRIPT,
+    _CLEAR_ENTRY,
+    _RENAME_ENTRY,
     BASHRC,
     BASHRC_MARKER,
     HUMAN_AGENT_DIR,
     TASK_PY,
     TASK_PY_MODE,
+    TASK_PY_NEXT,
     append_bashrc,
     human_agent_bashrc,
     human_agent_commands,
@@ -45,6 +50,7 @@ from inspect_ai.agent._human.service import run_human_agent_service
 from inspect_ai.agent._human.state import HumanAgentState
 from inspect_ai.dataset import Sample
 from inspect_ai.solver import Generate, Solver, TaskState, solver
+from inspect_ai.tool import Tool, ToolDef, ToolError, tool
 from inspect_ai.util import sandbox
 from inspect_ai.util._sandbox._framework_directory import (
     _SCRIPT,
@@ -258,16 +264,75 @@ async def test_install_writes_task_py_into_verified_root_dir_after_bashrc(
     assert sandbox.written == []
 
 
-async def test_install_is_skipped_when_task_py_is_already_a_regular_file() -> None:
-    sandbox = CannedSandbox(
-        lambda cmd, user: REGULAR_TASK_PY if is_helper_call(cmd) else OK
-    )
-    await install_human_agent("nonroot", [], None, True, sandbox_env=sandbox)
+def is_task_py_read(cmd: list[str]) -> bool:
+    """A helper call reading ``task.py`` back from the verified directory."""
+    return is_helper_call(cmd) and wrapped_command(cmd) == ["cat", "--", TASK_PY]
 
-    assert [user for _, user in sandbox.exec_calls] == ["root", "root"]
+
+def installed_task_py(content: str) -> ExecPolicy:
+    """Root works and a regular task.py with ``content`` is already installed."""
+
+    def policy(cmd: list[str], user: str | None) -> ExecResult[str]:
+        if is_task_py_read(cmd):
+            return ExecResult(
+                success=True,
+                returncode=0,
+                stdout=content,
+                stderr=f"{_VERIFIED_MARKER}\n",
+            )
+        if is_helper_call(cmd):
+            return REGULAR_TASK_PY if is_task_py_probe(cmd) else VERIFIED
+        return OK
+
+    return policy
+
+
+async def test_install_is_skipped_when_task_py_is_already_installed() -> None:
+    sandbox = CannedSandbox(installed_task_py(human_agent_commands(REAL_COMMANDS)))
+    await install_human_agent("nonroot", REAL_COMMANDS, None, True, sandbox_env=sandbox)
+
+    assert [user for _, user in sandbox.exec_calls] == ["root", "root", "root"]
     assert is_task_py_probe(sandbox.exec_calls[1][0])
+    assert is_task_py_read(sandbox.exec_calls[2][0])
     assert not any(is_bashrc_call(cmd) for cmd, _ in sandbox.exec_calls)
-    assert sandbox.inputs == [None, None]
+    assert sandbox.inputs == [None, None, None]
+
+
+async def test_install_replaces_task_py_generated_for_other_commands() -> None:
+    """A later interaction with other commands (e.g. tools) gets its own task.py.
+
+    task.py embeds the command list, so keeping the first one would leave the
+    new commands unreachable. The replacement is published under a staging
+    name with the atomic write, then renamed over task.py inside the verified
+    directory; the .bashrc block is already there and is not appended again.
+    """
+    sandbox = CannedSandbox(installed_task_py("# generated for other commands\n"))
+    await install_human_agent("nonroot", REAL_COMMANDS, None, True, sandbox_env=sandbox)
+
+    calls = [cmd for cmd, _ in sandbox.exec_calls]
+    assert [user for _, user in sandbox.exec_calls] == ["root"] * 6
+    assert not any(is_bashrc_call(cmd) for cmd in calls)
+    assert is_task_py_probe(calls[1])
+    assert is_task_py_read(calls[2])
+    assert wrapped_command(calls[3]) == ["sh", "-c", _CLEAR_ENTRY, "sh", TASK_PY_NEXT]
+    assert wrapped_command(calls[4]) == [
+        "sh",
+        "-c",
+        _WRITE_ENTRY,
+        "sh",
+        TASK_PY_NEXT,
+        "755",
+    ]
+    assert sandbox.inputs[4] == human_agent_commands(REAL_COMMANDS)
+    assert wrapped_command(calls[5]) == [
+        "sh",
+        "-c",
+        _RENAME_ENTRY,
+        "sh",
+        TASK_PY_NEXT,
+        TASK_PY,
+    ]
+    assert all(helper_flags(cmd) == ROOT_CHECK for cmd in calls[1:])
 
 
 @pytest.mark.parametrize(
@@ -477,7 +542,8 @@ def test_installer_source_runs_nothing_outside_the_helper_and_bashrc_scripts() -
 
     Every ``exec`` in the module must launch the absolute shell with either the
     framework-directory helper script or the ``.bashrc`` append script; the only
-    ``chmod`` is inside a command the helper runs in the verified directory.
+    ``chmod``, ``rm`` and ``mv`` are inside commands the helper runs in the
+    verified directory.
     """
     source = Path(human_install.__file__).read_text()
     tree = ast.parse(source)
@@ -541,10 +607,10 @@ class _HomeSandbox(SandboxEnvironment):
         self.inner = inner
         self.bindir = tmp_path / "bin"
         self.bindir.mkdir()
-        for tool in ("id", "cut", "cat", "grep"):
-            found = shutil.which(tool)
-            assert found, f"{tool} not found on host"
-            os.symlink(found, self.bindir / tool)
+        for program in ("id", "cut", "cat", "grep"):
+            found = shutil.which(program)
+            assert found, f"{program} not found on host"
+            os.symlink(found, self.bindir / program)
         self.getent_lookups = tmp_path / "getent-lookups"
         # Like the real getent: exit 2 with no output for an unknown account.
         (self.bindir / "getent").write_text(
@@ -929,6 +995,67 @@ async def test_docker_install_for_nonroot_user_and_reinstall_is_skipped(
     assert await _root_sh(docker_sandbox, "cat /home/nonroot/.bashrc") == after
 
 
+def _echo_tool(name: str) -> Tool:
+    async def execute(text: str) -> str:
+        """Echo text.
+
+        Args:
+            text: Text to echo.
+
+        Returns:
+            The text.
+        """
+        return text
+
+    return ToolDef(
+        execute, name=name, description="Echo text.", parameters={"text": "Text."}
+    ).as_tool()
+
+
+@pytest.mark.slow
+@skip_if_no_docker
+async def test_docker_reinstall_with_other_tools_replaces_task_py(
+    docker_sandbox: SandboxEnvironment,
+) -> None:
+    """A second human interaction in the same sandbox can reach its own tools."""
+    await install_human_agent(
+        "nonroot",
+        [*REAL_COMMANDS, ToolCommand([_echo_tool("first")])],
+        None,
+        True,
+        sandbox_env=docker_sandbox,
+    )
+    bashrc = await _root_sh(docker_sandbox, "cat /home/nonroot/.bashrc")
+    await install_human_agent(
+        "nonroot",
+        [*REAL_COMMANDS, ToolCommand([_echo_tool("second")])],
+        None,
+        True,
+        sandbox_env=docker_sandbox,
+    )
+
+    # Still root-owned 0755 with nothing left behind, and .bashrc unchanged.
+    assert await _stat(docker_sandbox, f"{HUMAN_AGENT_DIR}/{TASK_PY}") == "81ed 0"
+    listing = await _root_sh(docker_sandbox, f"ls -A {HUMAN_AGENT_DIR}")
+    assert listing.split() == [TASK_PY]
+    assert await _root_sh(docker_sandbox, "cat /home/nonroot/.bashrc") == bashrc
+
+    # The installed CLI routes the second tool (the RPC module is stubbed so
+    # the parser can run without the service).
+    await _root_sh(
+        docker_sandbox,
+        "mkdir -p /tmp/stub && echo 'def call_human_agent(*a, **k): pass' "
+        "> /tmp/stub/human_agent.py && chmod -R a+rX /tmp/stub",
+    )
+    result = await docker_sandbox.exec(
+        ["python3", f"{HUMAN_AGENT_DIR}/{TASK_PY}", "tool", "second", "--help"],
+        user="nonroot",
+        env={"PYTHONPATH": "/tmp/stub"},
+    )
+    assert result.success, result.stderr
+    assert "--text" in result.stdout
+
+
 @pytest.mark.slow
 @skip_if_no_docker
 async def test_docker_install_for_default_root_user(
@@ -1143,6 +1270,505 @@ def test_human_cli_submit_no_answer(capsys: pytest.CaptureFixture[str]):
             assert log.samples[0].output.choices[0].message.content == ""
         else:
             raise Exception("eval() did not complete within timeout")
+
+
+def fmt_err(cp: CompletedProcess) -> str:
+    return f"Wrong output. {cp.stdout}\n{cp.stderr}"
+
+
+def wait_for_container_name(
+    capsys: pytest.CaptureFixture[str], timeout: int = 10
+) -> str:
+    """Wait for the container name to appear in captured output."""
+    out = ""
+    for _ in range(timeout):
+        out += capsys.readouterr().out
+        if match := re.search(r"inspect-task-\S+-default-1", out):
+            return match.group(0)
+        time.sleep(1)
+    raise Exception("Failed to find container name")
+
+
+def wait_for_human_agent(docker_exec: list[str], timeout: int = 10) -> None:
+    """Wait for the human agent sandbox service to be available."""
+    for _ in range(timeout):
+        result = subprocess.run(
+            docker_exec + ["ls /var/tmp/sandbox-services/human_agent/human_agent.py"]
+        )
+        if result.returncode == 0:
+            return
+        time.sleep(1)
+    raise Exception("Human agent sandbox service not found")
+
+
+def submit_task(docker_exec: list[str], answer: str = "done") -> None:
+    subprocess.check_call(docker_exec + ["python3 /opt/human_agent/task.py start"])
+    subprocess.check_call(
+        docker_exec
+        + [f'echo -e "y\\n" | python3 /opt/human_agent/task.py submit "{answer}"']
+    )
+
+
+@pytest.mark.slow
+@skip_if_no_docker
+def test_human_cli_with_tools(capsys: pytest.CaptureFixture[str]):
+    """Test human_cli with tools parameter.
+
+    Exercises typed named arguments (task tool addition --x 12 --y 34)
+    and the generated per-tool help.
+    """
+
+    @tool
+    def addition():
+        async def execute(x: int, y: int) -> int:
+            """Add two numbers together.
+
+            Args:
+                x: First number to add.
+                y: Second number to add.
+
+            Returns:
+                The sum of the two numbers.
+            """
+            return x + y
+
+        return execute
+
+    def run_eval():
+        task = Task(
+            solver=human_cli(tools=[addition()]),
+            sandbox=(
+                "docker",
+                (Path(__file__).parent / "compose.human.yaml").as_posix(),
+            ),
+        )
+        return eval(task, display="plain")[0]
+
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        future = executor.submit(run_eval)
+
+        container_name = wait_for_container_name(capsys)
+        docker_exec = ["docker", "exec", container_name, "bash", "-l", "-c"]
+        wait_for_human_agent(docker_exec)
+
+        try:
+            # Test: task tool (list tools via argparse help)
+            list_result = subprocess.run(
+                docker_exec + ["python3 /opt/human_agent/task.py tool"],
+                capture_output=True,
+                text=True,
+            )
+            # argparse help shows tool names and descriptions
+            assert (
+                """usage: task.py tool [-h] {addition} ...
+
+positional arguments:
+  {addition}
+    addition  Add two numbers together.
+
+options:
+  -h, --help  show this help message and exit
+"""
+                in list_result.stdout
+            ), fmt_err(list_result)
+
+            # Test: task tool addition --help (note this will clash with a tool argument called 'help')
+            help_result = subprocess.run(
+                docker_exec + ["python3 /opt/human_agent/task.py tool addition --help"],
+                capture_output=True,
+                text=True,
+            )
+            assert (
+                """usage: task.py tool addition [-h] --x X --y Y
+
+options:
+  -h, --help  show this help message and exit
+  --x X       First number to add.
+  --y Y       Second number to add.
+"""
+                in help_result.stdout
+            ), fmt_err(help_result)
+
+            # Test: named args - task tool addition --x 12 --y 34
+            named_result = subprocess.run(
+                docker_exec
+                + ["python3 /opt/human_agent/task.py tool addition --x 12 --y 34"],
+                capture_output=True,
+                text=True,
+            )
+            assert named_result.stdout.strip() == "46", fmt_err(named_result)
+
+        finally:
+            # Always call task start/submit to unblock eval thread (otherwise test hangs!)
+            submit_task(docker_exec)
+
+        done, _ = concurrent.futures.wait([future], timeout=5)
+        if future not in done:
+            raise Exception("eval() did not complete within timeout")
+        # unwrap the future — a future completed with an exception is
+        # "done", so done-ness alone hides eval failures
+        log = future.result()
+        assert log.status == "success", f"eval failed: {log.error}"
+
+
+@pytest.mark.slow
+@skip_if_no_docker
+def test_human_cli_with_tools_complex(capsys: pytest.CaptureFixture[str]):
+    """Test human_cli with a tool that has structured (JSON-valued) parameters.
+
+    Complex types (dicts, nested objects) become ordinary named arguments
+    whose values are JSON; simple parameters on the same tool stay typed flags.
+    """
+
+    @tool
+    def process_config():
+        async def execute(config: dict, name: str) -> str:
+            """Process a configuration object.
+
+            Args:
+                config: Configuration dictionary with settings.
+                name: Name for the configuration.
+
+            Returns:
+                A summary of the configuration.
+            """
+            return f"{name}: {len(config)} settings"
+
+        return execute
+
+    def run_eval():
+        task = Task(
+            solver=human_cli(tools=[process_config()]),
+            sandbox=(
+                "docker",
+                (Path(__file__).parent / "compose.human.yaml").as_posix(),
+            ),
+        )
+        return eval(task, display="plain")[0]
+
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        future = executor.submit(run_eval)
+
+        container_name = wait_for_container_name(capsys)
+        docker_exec = ["docker", "exec", container_name, "bash", "-l", "-c"]
+        wait_for_human_agent(docker_exec)
+
+        try:
+            # Test: help shows flags for both params, with a JSON example for
+            # the structured one (no schema dump, no escape hatch)
+            help_result = subprocess.run(
+                docker_exec
+                + ["python3 /opt/human_agent/task.py tool process_config --help"],
+                capture_output=True,
+                text=True,
+            )
+            assert "--name" in help_result.stdout, fmt_err(help_result)
+            assert "--config JSON" in help_result.stdout, fmt_err(help_result)
+            assert "e.g." in help_result.stdout, fmt_err(help_result)
+            assert "escape-hatch" not in help_result.stdout, fmt_err(help_result)
+
+            # Test: structured param passed as a JSON value alongside a plain flag
+            json_result = subprocess.run(
+                docker_exec
+                + [
+                    "python3 /opt/human_agent/task.py tool process_config "
+                    '--name test --config \'{"a": 1, "b": 2}\''
+                ],
+                capture_output=True,
+                text=True,
+            )
+            assert json_result.stdout.strip() == "test: 2 settings", fmt_err(
+                json_result
+            )
+
+            # Test: malformed JSON is an immediate usage error naming the flag
+            bad_json_result = subprocess.run(
+                docker_exec
+                + [
+                    "python3 /opt/human_agent/task.py tool process_config "
+                    "--name test --config '{not json'"
+                ],
+                capture_output=True,
+                text=True,
+            )
+            assert bad_json_result.returncode == 2, fmt_err(bad_json_result)
+            assert "invalid JSON" in bad_json_result.stderr, fmt_err(bad_json_result)
+
+        finally:
+            # Always call task start/submit to unblock eval thread (otherwise test hangs!)
+            submit_task(docker_exec)
+
+        done, _ = concurrent.futures.wait([future], timeout=5)
+        if future not in done:
+            raise Exception("eval() did not complete within timeout")
+        # unwrap the future — a future completed with an exception is
+        # "done", so done-ness alone hides eval failures
+        log = future.result()
+        assert log.status == "success", f"eval failed: {log.error}"
+
+
+@pytest.mark.slow
+@skip_if_no_docker
+def test_human_cli_with_tools_no_args(capsys: pytest.CaptureFixture[str]):
+    """Test human_cli with a tool that takes no arguments."""
+
+    @tool
+    def get_timestamp():
+        async def execute() -> str:
+            """Get the current timestamp.
+
+            Returns:
+                A fixed timestamp string for testing.
+            """
+            return "2024-01-01T00:00:00Z"
+
+        return execute
+
+    def run_eval():
+        task = Task(
+            solver=human_cli(tools=[get_timestamp()]),
+            sandbox=(
+                "docker",
+                (Path(__file__).parent / "compose.human.yaml").as_posix(),
+            ),
+        )
+        return eval(task, display="plain")[0]
+
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        future = executor.submit(run_eval)
+
+        container_name = wait_for_container_name(capsys)
+        docker_exec = ["docker", "exec", container_name, "bash", "-l", "-c"]
+        wait_for_human_agent(docker_exec)
+
+        try:
+            # Test: tool is listed
+            list_result = subprocess.run(
+                docker_exec + ["python3 /opt/human_agent/task.py tool"],
+                capture_output=True,
+                text=True,
+            )
+            assert "get_timestamp" in list_result.stdout, fmt_err(list_result)
+
+            # Test: calling without arguments works
+            call_result = subprocess.run(
+                docker_exec + ["python3 /opt/human_agent/task.py tool get_timestamp"],
+                capture_output=True,
+                text=True,
+            )
+            assert call_result.stdout.strip() == "2024-01-01T00:00:00Z", fmt_err(
+                call_result
+            )
+
+        finally:
+            # Always call task start/submit to unblock eval thread (otherwise test hangs!)
+            submit_task(docker_exec)
+
+        done, _ = concurrent.futures.wait([future], timeout=5)
+        if future not in done:
+            raise Exception("eval() did not complete within timeout")
+        # unwrap the future — a future completed with an exception is
+        # "done", so done-ness alone hides eval failures
+        log = future.result()
+        assert log.status == "success", f"eval failed: {log.error}"
+
+
+@pytest.mark.slow
+@skip_if_no_docker
+def test_human_cli_unexpected_tool_exception_fails_sample(
+    capsys: pytest.CaptureFixture[str],
+):
+    """An unexpected tool exception fails the sample, as on the model path.
+
+    An expected ToolError is shown to the human and the session continues;
+    a bug in the tool (RuntimeError) is reported to the human, recorded as a
+    failed ToolEvent, and then ends the sample with an error.
+    """
+
+    @tool
+    def flaky():
+        async def execute(broken: bool) -> str:
+            """Fail one way or another.
+
+            Args:
+                broken: Raise an unexpected exception instead of a ToolError.
+
+            Returns:
+                Never returns.
+            """
+            if broken:
+                raise RuntimeError("tool defect")
+            raise ToolError("try again")
+
+        return execute
+
+    def run_eval():
+        task = Task(
+            solver=human_cli(tools=[flaky()]),
+            sandbox=(
+                "docker",
+                (Path(__file__).parent / "compose.human.yaml").as_posix(),
+            ),
+        )
+        return eval(task, display="plain")[0]
+
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        future = executor.submit(run_eval)
+
+        container_name = wait_for_container_name(capsys)
+        docker_exec = ["docker", "exec", container_name, "bash", "-l", "-c"]
+        wait_for_human_agent(docker_exec)
+
+        expected_result = subprocess.run(
+            docker_exec + ["python3 /opt/human_agent/task.py tool flaky --no-broken"],
+            capture_output=True,
+            text=True,
+        )
+        broken_result = subprocess.run(
+            docker_exec + ["python3 /opt/human_agent/task.py tool flaky --broken"],
+            capture_output=True,
+            text=True,
+        )
+
+        done, _ = concurrent.futures.wait([future], timeout=20)
+        if future not in done:
+            # the sample kept running: unblock the eval thread, then fail
+            submit_task(docker_exec)
+            concurrent.futures.wait([future], timeout=10)
+            raise AssertionError("sample continued after an unexpected tool exception")
+
+        assert "try again" in expected_result.stdout, fmt_err(expected_result)
+        assert "tool defect" in broken_result.stdout, fmt_err(broken_result)
+
+        log = future.result()
+        assert log.status == "error", log.status
+        assert log.samples is not None
+        sample = log.samples[0]
+        assert sample.error is not None
+        assert "tool defect" in sample.error.message
+        tool_events = [e for e in sample.events if e.event == "tool"]
+        assert [
+            (e.error.message if e.error else None, e.failed) for e in tool_events
+        ] == [
+            ("try again", None),
+            ("tool defect", True),
+        ]
+
+
+@pytest.mark.slow
+@skip_if_no_docker
+def test_human_cli_with_tools_boolean(capsys: pytest.CaptureFixture[str]):
+    """Test human_cli with a tool that has boolean parameters."""
+
+    @tool
+    def format_text():
+        async def execute(
+            text: str, uppercase: bool = False, reverse: bool = True
+        ) -> str:
+            """Format text with various options.
+
+            Args:
+                text: The text to format.
+                uppercase: Whether to convert to uppercase.
+                reverse: Whether to reverse the text.
+
+            Returns:
+                The formatted text.
+            """
+            result = text
+            if uppercase:
+                result = result.upper()
+            if reverse:
+                result = result[::-1]
+            return result
+
+        return execute
+
+    def run_eval():
+        task = Task(
+            solver=human_cli(tools=[format_text()]),
+            sandbox=(
+                "docker",
+                (Path(__file__).parent / "compose.human.yaml").as_posix(),
+            ),
+        )
+        return eval(task, display="plain")[0]
+
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        future = executor.submit(run_eval)
+
+        container_name = wait_for_container_name(capsys)
+        docker_exec = ["docker", "exec", container_name, "bash", "-l", "-c"]
+        wait_for_human_agent(docker_exec)
+
+        try:
+            # Test: without boolean flags, the tool's own defaults apply
+            # (reverse defaults to True in the tool signature)
+            no_flags_result = subprocess.run(
+                docker_exec
+                + ['python3 /opt/human_agent/task.py tool format_text --text "hello"'],
+                capture_output=True,
+                text=True,
+            )
+            assert no_flags_result.stdout.strip() == "olleh", fmt_err(no_flags_result)
+
+            # Test: --no-reverse expresses False explicitly
+            no_reverse_result = subprocess.run(
+                docker_exec
+                + [
+                    'python3 /opt/human_agent/task.py tool format_text --text "hello" --no-reverse'
+                ],
+                capture_output=True,
+                text=True,
+            )
+            assert no_reverse_result.stdout.strip() == "hello", fmt_err(
+                no_reverse_result
+            )
+
+            # Test: with --uppercase flag, it becomes True
+            uppercase_result = subprocess.run(
+                docker_exec
+                + [
+                    'python3 /opt/human_agent/task.py tool format_text --text "hello" --uppercase'
+                ],
+                capture_output=True,
+                text=True,
+            )
+            assert uppercase_result.stdout.strip() == "OLLEH", fmt_err(uppercase_result)
+
+            # Test: with --reverse flag
+            reverse_result = subprocess.run(
+                docker_exec
+                + [
+                    'python3 /opt/human_agent/task.py tool format_text --text "hello" --reverse'
+                ],
+                capture_output=True,
+                text=True,
+            )
+            assert reverse_result.stdout.strip() == "olleh", fmt_err(reverse_result)
+
+            # Test: with both flags
+            both_result = subprocess.run(
+                docker_exec
+                + [
+                    'python3 /opt/human_agent/task.py tool format_text --text "hello" --uppercase --reverse'
+                ],
+                capture_output=True,
+                text=True,
+            )
+            assert both_result.stdout.strip() == "OLLEH", fmt_err(both_result)
+
+        finally:
+            # Always call task start/submit to unblock eval thread (otherwise test hangs!)
+            submit_task(docker_exec)
+
+        done, _ = concurrent.futures.wait([future], timeout=5)
+        if future not in done:
+            raise Exception("eval() did not complete within timeout")
+        # unwrap the future — a future completed with an exception is
+        # "done", so done-ness alone hides eval failures
+        log = future.result()
+        assert log.status == "success", f"eval failed: {log.error}"
 
 
 class _TerminateCommand(HumanAgentCommand):
