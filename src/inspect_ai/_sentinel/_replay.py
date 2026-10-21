@@ -507,7 +507,8 @@ class _Driver:
 
         def build_before() -> None:
             record = self._record(conversation)
-            record.open(list(input), sent=True)
+            if not record.opened:
+                record.open(list(input), sent=True)
             step = before_generate(
                 model=first.model,
                 conversation=conversation,

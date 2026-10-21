@@ -219,6 +219,10 @@ class ConversationRecord:
             self._opening = len(input)
             self._opening_sent = True
 
+    @property
+    def opened(self) -> bool:
+        return self._ran is not None
+
     def ran(self, messages: Sequence[ChatMessage]) -> None:
         """Add an agent turn's output, or the results `execute_tools()` returned, to an opened record."""
         if self._ran is not None:
