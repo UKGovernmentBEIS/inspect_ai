@@ -1,6 +1,5 @@
 """Tests for `BridgeRequest.headers`: the client's request headers on the host."""
 
-from types import MappingProxyType
 from typing import Any, Awaitable, Callable, Mapping, cast
 
 import httpx2
@@ -17,13 +16,12 @@ from inspect_ai.agent._bridge.context import (
 from inspect_ai.agent._bridge.sandbox.service import (
     generate_anthropic,
     generate_completions,
-    generate_google,
     generate_responses,
 )
 from inspect_ai.agent._bridge.sandbox.types import SandboxAgentBridge
 from inspect_ai.event._model import ModelEvent
 from inspect_ai.model import GenerateConfig, get_model
-from inspect_ai.model._model import use_model_event_sink
+from inspect_ai.model._model import GenerateFilter, use_model_event_sink
 from inspect_ai.tool._tools._code_execution import CodeExecutionProviders
 from inspect_ai.tool._tools._web_search._web_search import WebSearchProviders
 
@@ -41,6 +39,7 @@ _CLIENT_HEADERS = {
     "Cookie": "a=b",
     "X-Amz-Security-Token": "sandbox-token",
     "x-custom-auth-token": "secret",
+    "Ocp-Apim-Subscription-Key": "secret",
 }
 
 _EXPOSED = {
@@ -72,7 +71,20 @@ def test_bridge_request_headers_default_empty_and_hashable() -> None:
     request = BridgeRequest(model="m")
     assert dict(request.headers) == {}
     hash(request)
-    assert request == BridgeRequest(model="m", headers=MappingProxyType({}))
+    assert request == BridgeRequest(model="m", headers={})
+
+
+def test_bridge_request_copies_pickles_and_is_read_only() -> None:
+    import copy
+    import dataclasses
+    import pickle
+
+    request = BridgeRequest(model="m", headers={"x-app": "cli"})
+    assert copy.deepcopy(request) == request
+    assert pickle.loads(pickle.dumps(request)) == request
+    assert dataclasses.asdict(request)["headers"] == {"x-app": "cli"}
+    with pytest.raises(TypeError):
+        cast(dict[str, str], request.headers)["x-app"] = "other"
 
 
 def test_scope_carries_headers_and_resets() -> None:
@@ -102,10 +114,12 @@ class _CapturingSink:
         self.seen.append(("complete", current_bridge_request()))
 
 
-def _bridge(model: Any = "mockllm/model") -> SandboxAgentBridge:
+def _bridge(
+    model: Any = "mockllm/model", filter: GenerateFilter | None = None
+) -> SandboxAgentBridge:
     return SandboxAgentBridge(
         state=AgentState(messages=[]),
-        filter=None,
+        filter=filter,
         retry_refusals=None,
         compaction=None,
         port=13131,
@@ -138,14 +152,8 @@ _PROTOCOLS: dict[str, tuple[Callable[[SandboxAgentBridge], _Generate], Any]] = {
             "messages": [{"role": "user", "content": "hi"}],
         },
     ),
-    "google": (
-        lambda b: generate_google(_NO_WEB, _NO_CODE, b),
-        {
-            "model": "agent-model",
-            "contents": [{"role": "user", "parts": [{"text": "hi"}]}],
-        },
-    ),
 }
+# Google is left out: the sandbox proxy sends no headers for Gemini requests.
 
 
 @pytest.mark.anyio
@@ -163,6 +171,20 @@ async def test_model_event_sink_sees_client_headers(protocol: str) -> None:
         assert dict(request.headers) == _EXPOSED
     # nothing leaks past the request
     assert current_bridge_request() is None
+
+
+@pytest.mark.anyio
+async def test_filter_sees_client_headers() -> None:
+    seen: list[BridgeRequest | None] = []
+
+    async def capture(*args: Any) -> None:
+        seen.append(current_bridge_request())
+        return None
+
+    factory, body = _PROTOCOLS["anthropic"]
+    await factory(_bridge(filter=capture))(body, dict(_CLIENT_HEADERS))
+    [request] = seen
+    assert request is not None and dict(request.headers) == _EXPOSED
 
 
 @pytest.mark.anyio

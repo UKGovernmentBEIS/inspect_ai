@@ -1,8 +1,7 @@
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass, field
-from types import MappingProxyType
-from typing import Iterator, Literal, Mapping
+from typing import Any, Iterator, Literal, Mapping
 
 
 @dataclass(frozen=True)
@@ -56,6 +55,30 @@ class AgentBridgeContext:
             )
 
 
+class _ReadOnlyHeaders(Mapping[str, str]):
+    """Immutable header mapping that (unlike `MappingProxyType`) copies and pickles."""
+
+    __slots__ = ("_headers",)
+
+    def __init__(self, headers: Mapping[str, str] | None = None) -> None:
+        self._headers = dict(headers or {})
+
+    def __getitem__(self, key: str) -> str:
+        return self._headers[key]
+
+    def __iter__(self) -> Iterator[str]:
+        return iter(self._headers)
+
+    def __len__(self) -> int:
+        return len(self._headers)
+
+    def __repr__(self) -> str:
+        return repr(self._headers)
+
+    def __reduce__(self) -> tuple[Any, ...]:
+        return (_ReadOnlyHeaders, (self._headers,))
+
+
 @dataclass(frozen=True)
 class BridgeRequest:
     """Facts about the bridged request currently being handled."""
@@ -63,9 +86,7 @@ class BridgeRequest:
     model: str
     """Model slug requested by the scaffold (before model alias resolution)."""
 
-    headers: Mapping[str, str] = field(
-        default_factory=lambda: _EMPTY_HEADERS, hash=False
-    )
+    headers: Mapping[str, str] = field(default_factory=_ReadOnlyHeaders, hash=False)
     """HTTP headers the scaffold sent with this request (read-only).
 
     Names are lowercased; repeated headers are joined with ", ". Credential
@@ -75,14 +96,23 @@ class BridgeRequest:
     `sandbox_agent_bridge()`, those listed in `forward_client_headers`).
     Empty when the request carried no headers. For the in-process
     `agent_bridge()`, these are the per-request headers passed to the SDK
-    call (e.g. `extra_headers`), not the SDK's defaults.
+    call (e.g. `extra_headers`), not the SDK's defaults. Google Gemini
+    requests carry none on either bridge.
+
+    The values are asserted by the client and not verified: a sandboxed
+    agent can set any of them, e.g. claim to be a different sub-agent.
     """
 
+    def __post_init__(self) -> None:
+        if not isinstance(self.headers, _ReadOnlyHeaders):
+            object.__setattr__(self, "headers", _ReadOnlyHeaders(self.headers))
 
-_EMPTY_HEADERS: Mapping[str, str] = MappingProxyType({})
 
-# Header names (lowercase) never exposed on `BridgeRequest.headers`
-_CREDENTIAL_HEADERS = frozenset(
+_EMPTY_HEADERS: Mapping[str, str] = _ReadOnlyHeaders()
+
+# Credential header names (lowercase): never exposed on `BridgeRequest.headers`
+# and never forwarded from a sandboxed client to the provider (`bridge.py`)
+CREDENTIAL_HEADERS = frozenset(
     [
         "authorization",
         "proxy-authorization",
@@ -90,12 +120,11 @@ _CREDENTIAL_HEADERS = frozenset(
         "api-key",
         "x-goog-api-key",
         "cookie",
-        "set-cookie",
     ]
 )
-_CREDENTIAL_HEADER_PREFIXES = ("x-amz-",)
+CREDENTIAL_HEADER_PREFIXES = ("x-amz-",)
 _CREDENTIAL_HEADER_FRAGMENTS = (
-    "api-key",
+    "-key",
     "apikey",
     "auth",
     "token",
@@ -103,14 +132,13 @@ _CREDENTIAL_HEADER_FRAGMENTS = (
     "password",
     "credential",
     "cookie",
-    "session-key",
 )
 
 
 def _is_credential_header(lower_name: str) -> bool:
     return (
-        lower_name in _CREDENTIAL_HEADERS
-        or lower_name.startswith(_CREDENTIAL_HEADER_PREFIXES)
+        lower_name in CREDENTIAL_HEADERS
+        or lower_name.startswith(CREDENTIAL_HEADER_PREFIXES)
         or any(fragment in lower_name for fragment in _CREDENTIAL_HEADER_FRAGMENTS)
     )
 
@@ -134,7 +162,7 @@ def sanitize_client_headers(headers: object) -> Mapping[str, str]:
             sanitized[lower_name] = f"{sanitized[lower_name]}, {value}"
         else:
             sanitized[lower_name] = value
-    return MappingProxyType(sanitized) if sanitized else _EMPTY_HEADERS
+    return _ReadOnlyHeaders(sanitized) if sanitized else _EMPTY_HEADERS
 
 
 _UNKNOWN_CONTEXT = AgentBridgeContext("unknown")

@@ -48,7 +48,11 @@ from inspect_ai.tool._tools._web_search._web_search import (
 
 from .anthropic_api import inspect_anthropic_api_request
 from .completions import inspect_completions_api_request
-from .context import client_request_headers_scope
+from .context import (
+    CREDENTIAL_HEADER_PREFIXES,
+    CREDENTIAL_HEADERS,
+    client_request_headers_scope,
+)
 from .google_api import inspect_google_api_request
 from .responses import inspect_responses_api_request
 from .util import (
@@ -96,14 +100,8 @@ _BLOCKED_BRIDGE_HEADER_PREFIXES = ("x-stainless-",)
 # the provider SDK or Inspect owns. The credential names cover the provider
 # SDKs Inspect uses: bearer tokens, Anthropic and Foundry keys, Azure OpenAI's
 # `api-key`, Google's `x-goog-api-key`, and AWS SigV4 (`x-amz-` prefix).
-_BLOCKED_CLIENT_HEADERS = frozenset(
+_BLOCKED_CLIENT_HEADERS = CREDENTIAL_HEADERS | frozenset(
     [
-        "authorization",
-        "proxy-authorization",
-        "x-api-key",
-        "api-key",
-        "x-goog-api-key",
-        "cookie",
         "host",
         "content-type",
         "content-length",
@@ -114,7 +112,7 @@ _BLOCKED_CLIENT_HEADERS = frozenset(
         "x-irid",
     ]
 )
-_BLOCKED_CLIENT_HEADER_PREFIXES = ("x-stainless-", "x-amz-")
+_BLOCKED_CLIENT_HEADER_PREFIXES = ("x-stainless-", *CREDENTIAL_HEADER_PREFIXES)
 
 _FORWARD_CLIENT_HEADERS_OPTION = "sandbox_agent_bridge(forward_client_headers=...)"
 
