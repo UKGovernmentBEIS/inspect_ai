@@ -111,7 +111,9 @@ class unwrap_exception_group:
         if self._unwrap == "single" and len(exc_value.exceptions) != 1:
             return
         unwrapped = exc_value.exceptions[0]
-        raise unwrapped from unwrapped.__cause__
+        # the stored cause, past any __cause__ attribute of the subclass's own
+        cause = vars(BaseException)["__cause__"].__get__(unwrapped)
+        raise unwrapped from cause
 
     async def __aenter__(self) -> None:
         return None

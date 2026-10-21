@@ -1,3 +1,4 @@
+import dataclasses
 import functools
 import gc
 import os
@@ -6,7 +7,7 @@ import sys
 import textwrap
 import threading
 import weakref
-from typing import AsyncIterator, Awaitable, Callable, Literal
+from typing import Any, AsyncIterator, Awaitable, Callable, Literal
 
 import anyio.to_thread
 import pytest
@@ -313,3 +314,44 @@ async def test_unwrapped_task_error_when_host_is_cancelled(
             await anyio.sleep_forever()
     _assert_cause_kept(excinfo.value)
     assert cleaned_up
+
+
+def _stored_cause(error: BaseException) -> Any:
+    return vars(BaseException)["__cause__"].__get__(error)
+
+
+@dataclasses.dataclass(slots=True)
+class _SlottedCauseError(Exception):
+    __cause__: BaseException | None = None
+
+
+def _raise_lookup_error(self: BaseException) -> BaseException | None:
+    raise LookupError("cause getter failed")
+
+
+_ThrowingCauseError: Any = type(
+    "_ThrowingCauseError", (Exception,), {"__cause__": property(_raise_lookup_error)}
+)
+
+
+@pytest.mark.parametrize(
+    "error_type", [_SlottedCauseError, _ThrowingCauseError], ids=["slot", "getter"]
+)
+async def test_unwrapped_task_error_keeps_a_cause_its_class_shadows(
+    error_type: Callable[[], BaseException],
+) -> None:
+    cause = ValueError("cause")
+    error = error_type()
+
+    async def fail() -> None:
+        raise error from cause
+
+    with pytest.raises(Exception) as excinfo:
+        await collect(fail())
+    assert excinfo.value is error
+    assert _stored_cause(error) is cause
+
+    with pytest.raises(Exception) as excinfo:
+        await tg_collect([fail])
+    assert excinfo.value is error
+    assert _stored_cause(error) is cause
