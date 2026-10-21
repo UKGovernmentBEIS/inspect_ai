@@ -461,8 +461,11 @@ fails with the registry's generic "not found" `LookupError`.
 
 When the trusted import runs, the tracker logs
 `Imported task file /abs/path/evals/task.py (recorded in the log) to load metric 'my_metric'.`
-at `INFO`, once per tracker, and `inspect log recover --trust-log` prints
-it as part of the step 7 record.
+at `INFO`, once per tracker. Nothing prints it: the tracker is local to
+metric resolution and returns nothing to its callers, and the user who
+passes `trust_log=True` or `--trust-log` asked for the import (step 7's
+printed records are for run operations, where the log chooses what runs).
+`inspect log recover --log-level info` shows it.
 
 `trust_log=True` means the caller trusts the log's code-selecting fields. It
 does what happens today for scorer metrics, extended to task-level metrics:
@@ -521,8 +524,14 @@ keyword-only and defaulting to `False`:
   (`src/inspect_ai/log/_score.py`), which resolves metrics before it edits
   (below).
 - `recover_eval_log(..., trust_log: bool = False)` and
-  `recover_eval_log_async(...)` (`src/inspect_ai/log/_recover/_api.py`),
-  which resolve metrics before they write (below).
+  `recover_eval_log_async(..., trust_log: bool = False)`
+  (`src/inspect_ai/log/_recover/_api.py`), which resolve metrics before
+  they write (below). Both also take the private keyword-only
+  `_untrusted_metrics: Literal["raise", "warn"] = "raise"` (eval-set,
+  below). The sync wrapper passes an explicit keyword list to the async
+  function (`_api.py:163-173`), so it forwards `trust_log` and
+  `_untrusted_metrics` as it forwards `_stats`; the CLI and eval-set call
+  the sync function.
 - `inspect log recover --trust-log` (`src/inspect_ai/_cli/log.py`,
   `recover_command`). Its help text says it imports the task file and runs
   its code.
@@ -576,16 +585,24 @@ so resolving first gives the same metrics.
   crashed log's header after its existing guards, which write nothing, and
   before `write_recovered_eval_log()`, and passes the resolved
   `LogMetrics` to the writer:
-  - Untrusted resolution fails (`trust_log=False`: a missing task-file
-    metric, a forbidden option): `recover_eval_log()`,
+  - Untrusted resolution fails (`trust_log=False`): any metric that is not
+    registered, whether the task file defines it, an extension package that
+    is not installed does, or nothing does any more; an epoch reducer that
+    is not registered; or a forbidden option. The resolver cannot tell
+    these apart without importing the task file. A missing metric raises
+    the step 2 `LookupError`; a missing reducer raises the registry's
+    `LookupError` unchanged (reducers were never imported from the task
+    file). `recover_eval_log()`,
     `recover_eval_log_async()` and `inspect log recover` raise it, with the
     `--trust-log` advice it carries, before anything is written or cleaned
     up. The crashed log and its buffer are untouched, so the rerun with the
     flag works. The CLI reports it with `click.ClickException`, as it does
     `RecoveryThresholdExceeded` (`_cli/log.py:495-496`).
-  - Trusted resolution fails (`trust_log=True`, a metric the task file does
-    not define): as today, the writer gets no metrics, writes the log
-    without results and logs the existing warning.
+  - Trusted resolution fails (`trust_log=True`: a metric the task file
+    does not define, a missing reducer): as today, the writer gets no
+    metrics, writes the log without results and logs the existing warning.
+    So the warn-and-write fallback for an unavailable dependency is now
+    reached only with trust, or through eval-set's `"warn"` (below).
   - A metric function that raises while computing keeps today's handling:
     the writer's `except Exception` now wraps only `eval_results()`.
 
@@ -602,10 +619,15 @@ Callers inside Inspect:
 - eval-set recovery (`_recover_crashed_log()`, `evalset.py:1575-1586`,
   reached from `as_previous_tasks()`, `list_latest_eval_logs()` and
   `_resumed_task()`) uses the default `trust_log=False` and keeps today's
-  warn-and-continue behaviour: it passes a private
-  `_untrusted_metrics="warn"` (default `"raise"`), so an untrusted
-  resolution failure is written without results and warned about, as
-  trusted failures are. The paired task file has already been loaded to
+  warn-and-continue behaviour: it passes the private
+  `_untrusted_metrics="warn"` on both of its `recover_eval_log()` calls
+  (the resolving call and the `RecoveryThresholdExceeded` fallback,
+  `evalset.py:1575`, `:1586`), so an untrusted resolution failure is
+  written without results and warned about, as trusted failures are. Both
+  calls sit inside `_recover_crashed_log()`'s outer `except`, which would
+  otherwise keep the crashed log silently if the keyword were rejected, so
+  the eval-set tests assert the recovered log, not just a completed
+  eval set. The paired task file has already been loaded to
   build the task (see Current behaviour), so metrics defined in or imported
   by it are registered and recovery results do not change for them. The one
   difference: a metric whose recorded options hold a model or a non-metric
@@ -1017,8 +1039,9 @@ rather than old behaviour):
   `recover_eval_log_async(..., trust_log=False)`.
 - CLI: `inspect log recover --trust-log`.
 - `score()` / `score_async()` keep their public signatures; `score_async()`
-  gains only the private `_log_scorers` (step 6), and
-  `recover_eval_log_async()` the private `_untrusted_metrics` (step 2).
+  gains only the private `_log_scorers` (step 6), and `recover_eval_log()`
+  and `recover_eval_log_async()` the private `_untrusted_metrics` (step 2),
+  which the sync wrapper forwards with `trust_log`.
 
 Behaviour changes, by user:
 
@@ -1030,13 +1053,27 @@ Behaviour changes, by user:
   or whose metrics live in installed packages, see no change. `edit_score()`
   raises before it edits, so the log is unchanged and the call can be
   repeated with `trust_log=True`.
-- **`inspect log recover` / `recover_eval_log()` users with task-file
-  metrics or model-valued metric options**: recovery now raises the step 2
-  or step 3 error, naming `--trust-log`, before writing anything; today it
-  imports the task file. The crashed log and buffer are untouched. Fix:
-  rerun with `--trust-log` (`trust_log=True`). A trusted recovery whose
-  metric still cannot be found, and a metric that raises while computing,
-  are handled as today (recovered without results, with a warning).
+- **`inspect log recover` / `recover_eval_log()` users whose log's metrics
+  or reducers cannot be resolved untrusted**: recovery now raises before
+  writing anything, where today it imports the task file for a scorer
+  metric and otherwise recovers without results and warns. This covers a
+  metric defined in the task file, a metric or reducer from an extension
+  package that is not installed or no longer defines it, and model-valued
+  or other forbidden metric options. The crashed log and buffer are
+  untouched, so each fix is a rerun:
+  - Install the package that defines a missing metric or reducer (a
+    `package/name` lookup loads installed packages' entry points), or from
+    Python import the module that defines it before the call. This needs
+    no trust in the log.
+  - Rerun with `--trust-log` (`trust_log=True`), only for a log you trust:
+    it imports the task file and rebuilds options as today, and anything
+    still unresolved is recovered without results with today's warning.
+  An untrusted log whose metric no installed code defines cannot be
+  recovered directly without `--trust-log`; that is the cost of raising
+  rather than writing a result-less log (decision: Ransom, 2026-10-16),
+  and eval-set recovery keeps warning instead. A metric that raises while
+  computing is handled as today (recovered without results, with a
+  warning).
 - **`eval-retry`**: no change apart from the printed record and help text;
   its recovery passes `trust_log=True`, so it imports the task file and
   rebuilds metric options as today.
@@ -1165,10 +1202,17 @@ one check cannot stop an operation before another is reached:
 1. **Hostile score key**: registered metrics only, and sample score keys
    naming a marker module as `<path>@<name>` and as a bare existing path.
 2. **Missing task-file metric**: `task_file` pointing at a marker module
-   that defines a scorer metric and a task-level metric used by the log.
+   that defines a scorer metric and a task-level metric. Three variants:
+   2s uses only the scorer metric (in `eval.scorers[*].metrics`; every
+   `eval.metrics` entry registered), 2t only the task-level metric, and 2b
+   both. Today the task-level resolver runs first (`log/_metric.py:40-41`,
+   `_write.py:273-274`) and a failure there stops the operation before the
+   scorer resolver, so only 2s reaches the scorer-metric path; 2b is for
+   the trusted single-import test.
 3. **Forbidden metric options**: a model dict and a non-metric registry dict
-   in registered metrics' options, in `eval.metrics` and
-   `eval.scorers[*].metrics`, at the top level and nested.
+   in registered metrics' options, at the top level and nested. Two
+   variants for the same reason: 3s puts them only in
+   `eval.scorers[*].metrics`, 3t only in `eval.metrics`.
 4. **Hostile sandbox**: a header sandbox that differs from the task's,
    including an inline compose config.
 
@@ -1180,32 +1224,36 @@ What the tests must prove:
   resume on both recovery paths, `evals_df()` with `model_info()`,
   `read_eval_log()`, `inspect log dump`, `inspect info`, and the view
   server's log endpoints): no marker, no spy hit. Fixture 1 gets default
-  metrics. For recompute, edit and direct recovery, fixture 2 raises the
-  step 2 `LookupError` and fixture 3 `DisallowedRegistryArg`, each naming
-  the metric (and option path) and ending with the `trust_log` advice.
+  metrics. For recompute, edit and direct recovery, each of 2s and 2t
+  raises the step 2 `LookupError` and each of 3s and 3t
+  `DisallowedRegistryArg`, each naming the metric (and option path) and
+  ending with the `trust_log` advice; a missing extension metric
+  (`somepkg/nope`) and a missing epoch reducer raise `LookupError` too.
   Eval-set resume, on both recovery paths, instead logs the warning with
   that message, recovers the log without results and completes the eval
-  set (step 2's `_untrusted_metrics="warn"`). Fixtures 1 and 3 fail on `main` today,
-  so they are the regression tests for steps 1 and 3.
+  set (step 2's `_untrusted_metrics="warn"`). Fixtures 1, 2s, 3s and 3t fail on `main` today
+  (2s imports the marker; 3s and 3t rebuild the options), so they are the
+  regression tests for steps 1, 2 and 3; 2t fails there on the message.
 - **A failed edit or recovery changes nothing.** `edit_score()` on
-  fixtures 2 and 3 leaves the log unchanged; the retry with
+  fixtures 2s, 2t, 3s and 3t leaves the log unchanged; the retry with
   `trust_log=True` applies the edit once (one history entry for the edit,
   one `ScoreEditEvent`). `recover_eval_log()` and `inspect log recover` on
-  fixtures 2 and 3, with a database and with a filestore buffer, raise
+  fixtures 2s, 2t, 3s and 3t, with a database and with a filestore buffer, raise
   before writing: no output file, the crashed log and buffer intact,
   including with `overwrite=True`; the rerun with `trust_log=True` /
   `--trust-log` recovers with results and, under a resolving
   `incomplete_action`, finalizes.
 - **Trust restores today's behaviour, importing once.**
-  `recompute_metrics(trust_log=True)` and trusted recovery on fixture 2
-  compute both metrics with one marker import and one record line;
-  eval-retry of a crashed fixture 2 log recovers its metrics, and eval-set
+  `recompute_metrics(trust_log=True)` and trusted recovery on fixture 2b
+  compute both metrics with one marker import and one `INFO` record (caplog;
+  nothing is printed); eval-retry of a crashed fixture 2b log recovers its
+  metrics, and eval-set
   resume of a log with a task-file metric needs no opt-in. A registered
   custom metric taking a model recomputes with `trust_log=True`, and
   `grouped(accuracy(), ...)` passes step 3 untrusted.
 - **Rescoring trust follows the scorers' source.** With `--scorer` (and
   `score(log, [match()])`), `--action overwrite` and an explicit
-  `--model mockllm/model` (`model="mockllm/model"`), fixtures 2 and 3 raise
+  `--model mockllm/model` (`model="mockllm/model"`), fixtures 2t and 3t raise
   with the `SCORE_OPT_IN` advice before any sample is scored (a counting
   scorer is never called), with no marker and no spy hit. The explicit
   model, and fixtures that keep the distinctive model and base URL out of
@@ -1213,8 +1261,8 @@ What the tests must prove:
   options: `score_async()` builds the log's model when no model is passed
   and always builds the log's model roles (`score.py:263-275`), before
   metric resolution, which is a "Not this design" item; `--metric`
-  instead succeeds; an old `eval.scorers` naming an unavailable metric does
-  not block the overwrite. Without `--scorer`, a model-option metric still
+  instead succeeds; fixtures 2s and 3s (the old `eval.scorers` naming an
+  unavailable metric or forbidden options) do not block the overwrite. Without `--scorer`, a model-option metric still
   computes and an unregistered task-level metric still raises
   `LookupError`.
 - **Recorded scorer names are registry names.** A recorded scorer name of
@@ -1259,10 +1307,12 @@ PRs open, as the repo requires.
    `src/inspect_ai/log/_metric.py` (`resolve_log_metrics()`,
    `compute_log_metrics()`), `src/inspect_ai/log/_score.py` (resolve before
    editing), `src/inspect_ai/log/_recover/_api.py` and `_write.py`
-   (`trust_log`, `_untrusted_metrics`, resolve before writing),
+   (`trust_log` and `_untrusted_metrics` on both recovery functions,
+   forwarded by the sync wrapper; resolve before writing),
    `src/inspect_ai/_cli/log.py` (`--trust-log`, the error),
    `src/inspect_ai/_eval/eval.py` (both retry recovery calls pass
-   `trust_log=True`), `src/inspect_ai/_eval/evalset.py` (`_untrusted_metrics="warn"`),
+   `trust_log=True`), `src/inspect_ai/_eval/evalset.py` (`_untrusted_metrics="warn"` on both
+   `recover_eval_log()` calls),
    `docs/eval-logs.qmd` (the recompute example and a short "Logs from
    others" note), `docs/scoring-workflow.qmd` (how the log's metrics are
    treated with the user's scorers), and the tests for these paths,
