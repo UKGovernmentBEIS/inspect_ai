@@ -25,6 +25,14 @@ class X11ClientError(Exception):
         self.message = message
 
 
+class X11CoordinateError(X11ClientError):
+    """The model sent a coordinate or region outside the screen.
+
+    Unlike other `X11ClientError`s, the model can fix this by retrying, so
+    `computer_tool.main()` reports it back as a tool error.
+    """
+
+
 class Resolution(TypedDict):
     width: int
     height: int
@@ -260,7 +268,7 @@ class X11Client:
             or region[2] <= region[0]
             or region[3] <= region[1]
         ):
-            raise X11ClientError("Invalid region")
+            raise X11CoordinateError("Invalid region")
 
         # Scale coordinates from API space to native screen space
         x0, y0 = self._scale_coordinates("api_to_native", region[0], region[1])
@@ -396,7 +404,7 @@ class X11Client:
                 themselves are valid rather than one past the last pixel.
 
         Raises:
-            X11ClientError: If an "api_to_native" coordinate lies outside the
+            X11CoordinateError: If an "api_to_native" coordinate lies outside the
                 screen as advertised to the model.
         """
         api_width, api_height, target_dimension = self._api_dimensions()
@@ -406,7 +414,7 @@ class X11Client:
             else:
                 out_of_bounds = x < 0 or y < 0 or x >= api_width or y >= api_height
             if out_of_bounds:
-                raise X11ClientError(
+                raise X11CoordinateError(
                     f"Coordinates {x}, {y} are out of bounds "
                     f"for a {api_width}x{api_height} screen"
                 )

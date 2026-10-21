@@ -5,23 +5,25 @@ parser and dispatcher from `_resources/tool/` driven directly, minus X11.
 """
 
 import importlib
+import json
 import logging
 import math
 import re
 import sys
 from argparse import Namespace
 from pathlib import Path
-from types import ModuleType
+from types import ModuleType, SimpleNamespace
 from typing import Any, Awaitable, Callable, Iterator, NamedTuple, get_args
 
 import pytest
 
-from inspect_ai.tool import ToolResult, computer
+from inspect_ai.tool import ToolError, ToolResult, computer
 from inspect_ai.tool._tool import ToolParsingError
 from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.tool._tool_info import parse_tool_info
 from inspect_ai.tool._tools._computer import _common
 from inspect_ai.tool._tools._computer._computer import Action
+from inspect_ai.util import ExecResult
 
 ACTIONS: list[str] = list(get_args(Action))
 
@@ -558,3 +560,125 @@ def test_x11_scale_bounds_follow_advertised_size(
     assert scale("api_to_native", *api, region_end=True) == native
     with pytest.raises(x11_client.X11ClientError):
         scale("api_to_native", api[0] + 1, api[1], region_end=True)
+
+
+def _run_container_main(
+    container: Container,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    argv: list[str],
+) -> dict[str, Any]:
+    """Run `computer_tool.main()` as the sandbox does and return its JSON stdout."""
+    monkeypatch.setattr(sys, "argv", ["computer_tool.py", *argv])
+    container.computer_tool.main()
+    return json.loads(capsys.readouterr().out)
+
+
+def _patch_container_x11(
+    container: Container, monkeypatch: pytest.MonkeyPatch, x11: X11
+) -> None:
+    result_module = importlib.import_module("_tool_result")
+
+    async def fake_shell(command: str, take_screenshot: bool = True) -> object:
+        x11.shell_cmds.append(command)
+        return result_module.ToolResult(output="ok")
+
+    monkeypatch.setattr(x11.client, "_shell", fake_shell)
+    monkeypatch.setattr(container.computer_tool, "X11Client", lambda: x11.client)
+
+
+def test_container_reports_out_of_bounds_coordinate_as_error(
+    container: Container,
+    x11: X11,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _patch_container_x11(container, monkeypatch, x11)
+    out = _run_container_main(
+        container, monkeypatch, capsys, ["left_click", "--coordinate", "1800", "100"]
+    )
+    assert "out of bounds" in out["error"]
+    assert out["output"] is None and out["base64_image"] is None
+    assert not any("mousedown" in c or "click" in c for c in x11.shell_cmds)
+
+
+def test_container_reports_invalid_zoom_region_as_error(
+    container: Container,
+    x11: X11,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _patch_container_x11(container, monkeypatch, x11)
+    out = _run_container_main(
+        container, monkeypatch, capsys, ["zoom", "--region", "0", "0", "0", "0"]
+    )
+    assert out["error"] == "Invalid region"
+
+
+def test_container_valid_call_succeeds_after_out_of_bounds_call(
+    container: Container,
+    x11: X11,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _patch_container_x11(container, monkeypatch, x11)
+    bad = _run_container_main(
+        container, monkeypatch, capsys, ["left_click", "--coordinate", "1800", "100"]
+    )
+    assert bad["error"]
+    good = _run_container_main(
+        container, monkeypatch, capsys, ["left_click", "--coordinate", "1000", "500"]
+    )
+    assert good["error"] is None and good["output"] == "ok"
+    assert any("mousemove --sync 1406 703" in c for c in x11.shell_cmds)
+
+
+def test_container_other_x11_errors_still_fail_the_command(
+    container: Container,
+    x11: X11,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    async def broken_screenshot(*args: object, **kwargs: object) -> object:
+        raise importlib.import_module("_x11_client").X11ClientError(
+            "Failed to take screenshot"
+        )
+
+    monkeypatch.setattr(x11.client, "screenshot", broken_screenshot, raising=False)
+    monkeypatch.setattr(container.computer_tool, "X11Client", lambda: x11.client)
+    monkeypatch.setattr(sys, "argv", ["computer_tool.py", "screenshot"])
+    with pytest.raises(SystemExit) as exit_info:
+        container.computer_tool.main()
+    assert exit_info.value.code == 1
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "Failed to take screenshot" in captured.err
+
+
+async def test_host_raises_tool_error_for_container_coordinate_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The container's error JSON becomes a `ToolError`, not a `RuntimeError`."""
+    stdout = json.dumps(
+        {
+            "output": None,
+            "error": "Coordinates 1800, 100 are out of bounds for a 1366x768 screen",
+            "base64_image": None,
+        }
+    )
+
+    class FakeSandbox:
+        async def exec(
+            self, cmd: list[str], timeout: int | None = None
+        ) -> ExecResult[str]:
+            return ExecResult(success=True, returncode=0, stdout=stdout, stderr="")
+
+    async def fake_computer_sandbox() -> object:
+        return FakeSandbox()
+
+    sample = SimpleNamespace(sample=SimpleNamespace(id=1))
+    monkeypatch.setattr("inspect_ai.log._samples.sample_active", lambda: sample)
+    monkeypatch.setattr(_common, "computer_sandbox", fake_computer_sandbox)
+
+    with pytest.raises(ToolError, match="out of bounds"):
+        await _common._send_cmd(["left_click", "--coordinate", "1800", "100"])
