@@ -4266,6 +4266,48 @@ def test_a_protocols_discarded_policy_state_is_never_read(wrapped: bool) -> None
     assert last_call(submit.agent_messages).function == "submit"
 
 
+def test_a_factory_returning_react_follows_its_model_agents_new_state() -> None:
+    calls: list[tuple[str, list[ChatMessage], list[ChatMessage]]] = []
+
+    @agent
+    def my_agent() -> Agent:
+        return react(model=returns_new_state("policy", calls), tools=[addition()])
+
+    # the factory returns react's wrapped agent rather than wrapping it again
+    assert not hasattr(vars(my_agent())["__wrapped__"], "__wrapped__")
+
+    seen: list[StageSeen] = []
+    run_solver(as_solver(my_agent()), seen, addition_then_submit())
+
+    (_, entry, returned), _ = calls
+    add, _ = of_stage(seen, BeforeToolCall)
+    assert add.agent_messages is returned
+    assert add.agent_messages is not entry
+    assert last_call(add.agent_messages).id == add.call.id
+
+
+def test_react_awaited_in_an_agents_body_does_not_follow_its_model_agent() -> None:
+    # documented: react is the outer agent's direct callee, so its model=
+    # agent is two decorated frames deep and its new state is not followed
+    calls: list[tuple[str, list[ChatMessage], list[ChatMessage]]] = []
+    inner = react(model=returns_new_state("policy", calls), tools=[addition()])
+
+    @agent
+    def awaits_react() -> Agent:
+        async def execute(state: AgentState) -> AgentState:
+            return await inner(state)
+
+        return execute
+
+    seen: list[StageSeen] = []
+    run_solver(as_solver(awaits_react()), seen, addition_then_submit())
+
+    (_, entry, returned), _ = calls
+    add, _ = of_stage(seen, BeforeToolCall)
+    assert add.agent_messages is entry
+    assert add.agent_messages is not returned
+
+
 def test_an_undecorated_model_agents_new_state_is_not_followed() -> None:
     # documented: react continues with the new state, the stages stay on the
     # state react registered
