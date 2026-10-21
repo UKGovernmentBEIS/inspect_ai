@@ -62,7 +62,7 @@ class WebSearchProviders(TypedDict, total=False):
     """Use Anthropic internal provider. For available options see <https://docs.anthropic.com/en/docs/agents-and-tools/tool-use/web-search-tool>."""
 
     grok: dict[str, Any] | bool
-    """Use Grok internal provider. For available options see <https://docs.x.ai/docs/guides/tools/search-tools#web-search-parameters>."""
+    """Use Grok internal provider. For available options see <https://docs.x.ai/developers/tools/web-search>."""
 
     gemini: dict[str, Any] | bool
     """Use Gemini internal provider. For available options see <https://ai.google.dev/gemini-api/docs/google-search>."""
