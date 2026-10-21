@@ -27,9 +27,11 @@ and published to PyPI and npm by GitHub Actions with trusted publishing.
    every release PR needs.
 3. **Checks.** `release-pr-checks.yml` fails the release PR if the version is
    not newer than PyPI's latest or is already tagged, if any sandbox-tools
-   artifact pinned in `SHA256SUMS` is not on S3 with its digest, if the PR head
-   fails the build gates (`build-dist`), or if rebuilding PyPI's latest version
-   no longer matches PyPI (`publish-parity.yml`).
+   artifact pinned in `SHA256SUMS` is not on S3 with its digest, or if the PR
+   head fails the build gates (`build-dist`). `publish-parity.yml`, which
+   rebuilds PyPI's latest version and compares it with PyPI, runs on PRs that
+   change the build or publish files, not on the release PR, which does not
+   change the build.
 4. **Merge on Monday** by default; merge sooner for an urgent fix. To refresh
    the changelog date first, run the Release workflow from the Actions tab. The
    release PR changes `.release-please-manifest.json`, which
@@ -178,7 +180,8 @@ Re-running the Release workflow is safe at any point.
   for a rebuild (archive metadata such as timestamps differs between builds),
   the same members with the same contents under the parity rules
   (`compare_archives`, which ignores only the sdist's recorded checkout
-  branch). A same-named file with different contents fails the job, since
+  branch and the wheel's build tool: the `Generator` line in WHEEL and
+  WHEEL's hash and size in RECORD). A same-named file with different contents fails the job, since
   PyPI never replaces a file. npm skips a version it already has.
 - **A queued Release run can be replaced by a newer push**, so the run that
   creates a release may be on a later commit than the release PR merge. If

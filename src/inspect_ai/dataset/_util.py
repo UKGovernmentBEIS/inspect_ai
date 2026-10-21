@@ -4,7 +4,7 @@ import numbers
 import sys
 from typing import Any, Iterable, NamedTuple, cast
 
-from pydantic import ValidationError
+from pydantic import TypeAdapter, ValidationError
 
 from inspect_ai.model import (
     ChatMessage,
@@ -13,6 +13,8 @@ from inspect_ai.model import (
     ChatMessageTool,
     ChatMessageUser,
 )
+from inspect_ai.util._checkpoint._triggers import CheckpointTrigger
+from inspect_ai.util._checkpoint.config import CheckpointSampleConfig
 from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec
 
 from ._dataset import (
@@ -104,6 +106,9 @@ def record_to_sample_fn(
                 sandbox=read_sandbox(record.get(sample_fields.sandbox)),
                 files=read_files(record.get(sample_fields.files)),
                 setup=read_setup(record.get(sample_fields.setup)),
+                checkpoint=read_checkpoint(record.get(sample_fields.checkpoint))
+                if sample_fields.checkpoint is not None
+                else None,
             )
 
         return record_to_sample
@@ -263,6 +268,66 @@ def read_files(files: Any | None) -> dict[str, str] | None:
         raise ValueError(f"Unexpected type for 'files' field: {type(files)}")
     else:
         return None
+
+
+_CHECKPOINT_ADAPTER: TypeAdapter[CheckpointSampleConfig | None] = TypeAdapter(
+    CheckpointSampleConfig | None
+)
+
+
+def read_checkpoint(checkpoint: Any | None) -> CheckpointSampleConfig | None:
+    """Parse a serialized sample ``checkpoint`` configuration.
+
+    Validates through the same pydantic contract as :class:`Sample`'s
+    ``checkpoint`` field, so explicit zero and empty overrides survive.
+    Missing values (``None``, NaN, a blank CSV cell, or the JSON ``null``
+    literal) map to ``None``; other strings are JSON-decoded first, so a CSV
+    or Hugging Face cell holding a JSON object works like an object in
+    JSON/JSONL.
+
+    A dataset record cannot set ``trigger`` (unless it is already a trigger
+    object): turn, token and cost interval triggers all serialize as
+    ``{"every": N}``, so a serialized trigger cannot be trusted, and a sample
+    trigger overrides the task's. A missing or null ``trigger`` inherits the
+    task or eval trigger (or the default).
+    """
+    if is_none_or_nan(checkpoint):
+        return None
+
+    if isinstance(checkpoint, str):
+        if not checkpoint.strip():
+            return None
+        try:
+            checkpoint = json.loads(checkpoint)
+        except ValueError as ex:
+            raise _checkpoint_parse_error(ex) from ex
+
+    trigger = checkpoint.get("trigger") if isinstance(checkpoint, dict) else None
+    if trigger is not None and not isinstance(trigger, CheckpointTrigger):
+        raise ValueError(
+            "A dataset record cannot set the checkpoint 'trigger'. Turn, token and "
+            'cost interval triggers all serialize as {"every": N}, so a trigger '
+            "read from a dataset cannot be trusted to keep its kind. Remove "
+            "'trigger' to inherit the task or eval trigger (or the default). To "
+            "choose a trigger, set it with Task(checkpoint=CheckpointConfig("
+            "trigger=...)) or eval(checkpoint=...), or construct it in a custom "
+            "sample_fields "
+            f"converter. Got: {trigger!r}"
+        )
+
+    try:
+        return _CHECKPOINT_ADAPTER.validate_python(checkpoint)
+    except ValueError as ex:
+        raise _checkpoint_parse_error(ex) from ex
+
+
+def _checkpoint_parse_error(ex: ValueError) -> ValueError:
+    return ValueError(
+        "Could not parse 'checkpoint' field as a sample checkpoint configuration. "
+        "If this column contains other data, use FieldSpec(checkpoint=None) to "
+        'ignore it, FieldSpec(checkpoint="<column>") to read another column, or a '
+        f"custom sample_fields converter. Details: {ex}"
+    )
 
 
 def shuffle_choices_if_requested(
