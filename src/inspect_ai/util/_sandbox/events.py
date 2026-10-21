@@ -9,6 +9,7 @@ from pydantic_core import to_jsonable_python
 from typing_extensions import override
 
 from inspect_ai._util.text import truncate_lines, truncate_string_to_bytes
+from inspect_ai._util.working import sandbox_exec_work, untracked_sandbox_execs
 from inspect_ai.util._subprocess import ExecResult
 
 from .environment import (
@@ -71,7 +72,8 @@ class SandboxEnvironmentProxy(SandboxEnvironment):
 
         # make call
         try:
-            result = await self._sandbox.exec(**params)
+            with sandbox_exec_work():
+                result = await self._sandbox.exec(**params)
         except TimeoutError as ex:
             raise SandboxTimeoutError(
                 str(ex), truncated_output=getattr(ex, "truncated_output", None)
@@ -221,7 +223,8 @@ class SandboxEnvironmentProxy(SandboxEnvironment):
     def no_events(self) -> Iterator[None]:
         self._events = False
         try:
-            yield
+            with untracked_sandbox_execs():
+                yield
         finally:
             self._events = True
 

@@ -195,6 +195,11 @@
       "undescribed": 1
     }
   },
+  "src/inspect_ai/_sentinel/_dispatch.py": {
+    "type: ignore[call-arg]": {
+      "count": 2
+    }
+  },
   "src/inspect_ai/_util/_async.py": {
     "type: ignore": {
       "count": 1,
@@ -281,16 +286,6 @@
   },
   "src/inspect_ai/_util/s3_monitor.py": {
     "type: ignore[method-assign]": {
-      "count": 1,
-      "undescribed": 1
-    }
-  },
-  "src/inspect_ai/_util/strenum.py": {
-    "type: ignore[assignment]": {
-      "count": 1,
-      "undescribed": 1
-    },
-    "type: ignore[override]": {
       "count": 1,
       "undescribed": 1
     }
@@ -1468,12 +1463,6 @@
       "undescribed": 4
     }
   },
-  "tests/agent/test_channel/test_channel.py": {
-    "noqa:F401": {
-      "count": 1,
-      "undescribed": 1
-    }
-  },
   "tests/agent/test_monitor_proxy.py": {
     "type: ignore[arg-type]": {
       "count": 2,
@@ -1706,6 +1695,11 @@
       "undescribed": 2
     }
   },
+  "tests/model/test_tool_exec_shared.py": {
+    "noqa:B904": {
+      "count": 1
+    }
+  },
   "tests/model/test_tool_info_lifecycle.py": {
     "type: ignore[method-assign]": {
       "count": 2,
@@ -1755,6 +1749,22 @@
     "type: ignore (file-wide)": {
       "count": 1,
       "undescribed": 1
+    }
+  },
+  "tests/sentinel/test_sentinel_dispatch.py": {
+    "type: ignore[attr-defined]": {
+      "count": 3
+    },
+    "type: ignore[call-arg]": {
+      "count": 3
+    },
+    "type: ignore[union-attr]": {
+      "count": 1
+    }
+  },
+  "tests/sentinel/test_sentinel_human.py": {
+    "type: ignore[call-arg]": {
+      "count": 2
     }
   },
   "tests/test_eval_set_capture.py": {
@@ -1929,12 +1939,6 @@
     "type: ignore[attr-defined]": {
       "count": 6,
       "undescribed": 6
-    }
-  },
-  "tests/util/test_strenum.py": {
-    "type: ignore[comparison-overlap]": {
-      "count": 1,
-      "undescribed": 1
     }
   },
   "tests/util/test_utc_datetime_str.py": {
