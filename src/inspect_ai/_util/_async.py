@@ -115,12 +115,13 @@ class unwrap_exception_group:
             return
         unwrapped = exc_value.exceptions[0]
         # raising here, while the with statement handles the group, sets the
-        # exception's context to the group; restore it as it propagates
+        # exception's context to the group; restore it as it propagates, past
+        # any __setattr__ of the exception's own (a frozen dataclass rejects it)
         context = unwrapped.__context__
         try:
             raise unwrapped
         finally:
-            unwrapped.__context__ = context
+            BaseException.__setattr__(unwrapped, "__context__", context)
 
     async def __aenter__(self) -> None:
         return None
