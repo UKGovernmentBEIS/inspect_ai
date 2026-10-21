@@ -22,7 +22,14 @@ from inspect_ai.model import (
     ModelUsage,
     get_model,
 )
-from inspect_ai.model._model import _snapshot_messages, use_model_event_sink
+from inspect_ai.model._model import (
+    _snapshot_messages,
+    init_model_usage,
+    init_sample_model_usage,
+    model_usage,
+    sample_model_usage,
+    use_model_event_sink,
+)
 from inspect_ai.tool import ToolCall, ToolCallError
 
 
@@ -136,10 +143,14 @@ async def test_model_event_output_copy_failure_completes_event(
     with_sink: bool,
 ) -> None:
     # a lock can't be deep copied: generate raises, and the event still ends
+    # with the response's usage recorded
     output = ModelOutput.from_content("mockllm/model", "done")
     output.message.metadata = {"lock": threading.Lock()}
-    output.usage = ModelUsage(input_tokens=1, output_tokens=1, total_tokens=2)
+    usage = ModelUsage(input_tokens=1, output_tokens=1, total_tokens=2)
+    output.usage = usage
     init_transcript(Transcript())
+    init_model_usage({})
+    init_sample_model_usage()
     model = get_model("mockllm/model", custom_outputs=[output])
     sink = _Sink()
 
@@ -151,6 +162,9 @@ async def test_model_event_output_copy_failure_completes_event(
     assert event.pending is None
     assert event.error is not None and "TypeError" in event.error
     assert event.output.completion == ""
+    assert event.output.usage == usage
+    assert sample_model_usage()["mockllm/model"].total_tokens == 2
+    assert model_usage()["mockllm/model"].total_tokens == 2
     if with_sink:
         assert sink.completed == [event]
     else:

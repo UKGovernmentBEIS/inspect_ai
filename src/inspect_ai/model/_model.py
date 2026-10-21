@@ -1735,8 +1735,13 @@ class Model:
                 for tool_call in choice.message.tool_calls or []:
                     tool_call.view = tool_call_view(tool_call, tdefs)
 
-            # complete the transcript event
-            complete(output, call)
+            # complete the transcript event (an output that can't be recorded
+            # raises after its usage is recorded)
+            complete_error: Exception | None = None
+            try:
+                complete(output, call)
+            except Exception as ex:
+                complete_error = ex
 
             # record usage
             if output.usage:
@@ -1752,6 +1757,9 @@ class Model:
                     "model_usage",
                     json.dumps(dict(model=str(self), usage=output.usage.model_dump())),
                 )
+
+            if complete_error is not None:
+                raise complete_error
 
             if cache_policy and cache_entry:
                 cache_store(entry=cache_entry, output=output)
@@ -2075,15 +2083,22 @@ class Model:
             # suppress display.
 
             # an output that can't be copied fails the event, which is still
-            # finalized before the error is raised
+            # finalized (keeping the output's usage) before the error is raised
             snapshot_error: Exception | None = None
             if isinstance(result, ModelOutput):
                 try:
                     snapshot = _snapshot_output(result)
                 except Exception as ex:
                     snapshot_error = ex
+                    event.output = result.model_copy(
+                        update={
+                            "choices": ModelOutput.from_content(
+                                event.model, ""
+                            ).choices,
+                            "completion": "",
+                        }
+                    )
                     result = ex
-                    event.output = ModelOutput.from_content(event.model, "")
                 else:
                     if result.choices:
                         display_conversation_assistant(input, result.choices[0].message)
