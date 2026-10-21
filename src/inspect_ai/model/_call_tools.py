@@ -915,6 +915,9 @@ async def call_tool(
     canonical_arguments = tool_canonical_arguments(tool_def.tool)
     if canonical_arguments is not None:
         call = replace(call, arguments=canonical_arguments(call.arguments))
+        # the log records the arguments as checked, which replay reads back
+        event.arguments = call.arguments
+        event.view = tool_call_view(call, tools)
 
     # if we have a tool approver, apply it now
     from inspect_ai.approval._apply import (

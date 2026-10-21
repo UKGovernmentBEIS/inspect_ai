@@ -144,10 +144,10 @@ class HumanDecision:
 class BeforeGenerate:
     model: str
     conversation: str
-    input: list[ChatMessage]
-    agent_messages: list[ChatMessage] | None
-    history: list[ChatMessage] | None = field(default=None, kw_only=True)
-    human_decisions: tuple[HumanDecision, ...] | None = field(
+    input: Sequence[ChatMessage]
+    agent_messages: Sequence[ChatMessage] | None
+    history: Sequence[ChatMessage] | None = field(default=None, kw_only=True)
+    human_decisions: Sequence[HumanDecision] | None = field(
         default=None, kw_only=True
     )
     tools: list[ToolInfo]
@@ -159,10 +159,10 @@ class BeforeGenerate:
 class AfterGenerate:
     model: str
     conversation: str
-    input: list[ChatMessage]
-    agent_messages: list[ChatMessage] | None
-    history: list[ChatMessage] | None = field(default=None, kw_only=True)
-    human_decisions: tuple[HumanDecision, ...] | None = field(
+    input: Sequence[ChatMessage]
+    agent_messages: Sequence[ChatMessage] | None
+    history: Sequence[ChatMessage] | None = field(default=None, kw_only=True)
+    human_decisions: Sequence[HumanDecision] | None = field(
         default=None, kw_only=True
     )
     tools: list[ToolInfo]
@@ -184,13 +184,13 @@ class BeforeToolCall:
     message_id: str
     call: ToolCall
     view: ToolCallView
-    input: list[ChatMessage] | None
-    agent_messages: list[ChatMessage] | None
-    history: list[ChatMessage] | None = field(default=None, kw_only=True)
-    human_decisions: tuple[HumanDecision, ...] | None = field(
+    input: Sequence[ChatMessage] | None
+    agent_messages: Sequence[ChatMessage] | None
+    history: Sequence[ChatMessage] | None = field(default=None, kw_only=True)
+    human_decisions: Sequence[HumanDecision] | None = field(
         default=None, kw_only=True
     )
-    tools: list[ToolInfo] | None = None
+    tools: Sequence[ToolInfo] | None = None
     tool_choice: ToolChoice | None = None
 
 
@@ -201,20 +201,29 @@ class AfterToolCall:
     message_id: str
     call: ToolCall
     result: ChatMessageTool
-    output: ToolResult
+    output: ToolResult | None
     view: ToolCallView
-    input: list[ChatMessage] | None
-    agent_messages: list[ChatMessage] | None
-    history: list[ChatMessage] | None = field(default=None, kw_only=True)
-    human_decisions: tuple[HumanDecision, ...] | None = field(
+    input: Sequence[ChatMessage] | None
+    agent_messages: Sequence[ChatMessage] | None
+    history: Sequence[ChatMessage] | None = field(default=None, kw_only=True)
+    human_decisions: Sequence[HumanDecision] | None = field(
         default=None, kw_only=True
     )
-    tools: list[ToolInfo] | None = None
+    tools: Sequence[ToolInfo] | None = None
     tool_choice: ToolChoice | None = None
     truncated: Truncation | Literal[False] | None = None
 
 
 Step: TypeAlias = BeforeGenerate | AfterGenerate | BeforeToolCall | AfterToolCall
+
+@dataclass(frozen=True)
+class ReplayStep:
+    id: str
+    stage: Literal["model_input", "model_output", "tool_call", "tool_result"]
+    step: Step
+    segment: tuple[str, int]
+    recorded_answers: Mapping[str, "HumanAnswer"] = field(default_factory=dict)
+
 
 STAGES: tuple[type[Step], ...] = (
     BeforeGenerate,

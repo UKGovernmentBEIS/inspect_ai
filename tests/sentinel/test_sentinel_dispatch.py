@@ -1763,7 +1763,7 @@ def test_a_history_read_error_fails_the_sentinel() -> None:
 
 
 def test_produced_by_narrows_find_last_to_a_model_event() -> None:
-    from inspect_ai._sentinel._dispatch import _produced_by
+    from inspect_ai._sentinel._steps import produced_by
 
     current = Transcript()
     init_transcript(current)
@@ -1771,7 +1771,7 @@ def test_produced_by_narrows_find_last_to_a_model_event() -> None:
     current._event(agent)
     message_id = agent.output.choices[0].message.id
     assert message_id is not None
-    found = current.history.find_last(_produced_by(message_id))
+    found = current.history.find_last(produced_by(message_id))
     assert_type(found, ModelEvent | None)
     assert found is agent
 
@@ -3337,7 +3337,7 @@ _REBUILT_TURNS = 20
 @solver
 def d3_rebuilds_every_message(remembered: dict[str, int]) -> Solver:
     async def solve(state: TaskState, generate: Generate) -> TaskState:
-        from inspect_ai._sentinel._sent import _sent
+        from inspect_ai._sentinel._dispatch import _records
 
         model = get_model()
         turns: list[tuple[str, str]] = [("user", "Begin.")]
@@ -3352,9 +3352,10 @@ def d3_rebuilds_every_message(remembered: dict[str, int]) -> Solver:
             ]
             output = await model.generate(input)
             turns += [("assistant", output.completion), ("user", f"Turn {turn}.")]
-        [record] = _sent[transcript()].values()
-        remembered["messages"] = len(record.messages)
-        remembered["previous"] = len(record.previous)
+        [record] = _records[transcript()].values()
+        remembered["messages"] = len(record.sent.messages)
+        previous = record.sent._previous
+        remembered["previous"] = len(previous) if previous is not None else 0
         remembered["last_input"] = len(input)
         return state
 
@@ -3491,10 +3492,10 @@ def test_tool_stages_carry_what_was_sent_for_the_call() -> None:
 @solver
 def d3_generates_and_checks_nothing_was_recorded() -> Solver:
     async def solve(state: TaskState, generate: Generate) -> TaskState:
-        from inspect_ai._sentinel._sent import _sent
+        from inspect_ai._sentinel._dispatch import _records
 
         state.output = await get_model().generate(state.messages)
-        assert transcript() not in _sent
+        assert transcript() not in _records
         return state
 
     return solve
@@ -3509,7 +3510,7 @@ def test_nothing_is_recorded_without_a_sentinel() -> None:
     assert log.status == "success", log.error
 
 
-# A reference model of step.history's rules, checked against _sent.py on random
+# A reference model of step.history's rules, checked against _steps.py on random
 # request sequences. The reference refolds the whole sequence for every
 # request, with no incremental state, no index and no prefix shortcut.
 
@@ -3633,9 +3634,9 @@ def _random_case(rng: random.Random, requests: int) -> _Case:
 
 
 def _first_divergence(case: _Case) -> str | None:
-    from inspect_ai._sentinel._sent import record_sent, sent_messages
+    from inspect_ai._sentinel._steps import ConversationRecord
 
-    init_transcript(Transcript())
+    record = ConversationRecord()
     objects = [_message(spec) for spec in case.specs]
     snapshots: list[list[ChatMessage]] = []
     passed: list[ChatMessage] = []
@@ -3646,8 +3647,8 @@ def _first_divergence(case: _Case) -> str | None:
         else:
             passed = messages
         snapshots.append(list(messages))
-        record_sent("conversation", passed)
-        actual = sent_messages("conversation")
+        record.sent.record(passed)
+        actual = list(record.history())
         expected = reference_sent(snapshots)
         if len(actual) != len(expected) or any(
             a is not e for a, e in zip(actual, expected)
@@ -4214,7 +4215,7 @@ async def test_a_long_folding_run_retains_only_references() -> None:
     import gc
     import tracemalloc
 
-    from inspect_ai._sentinel._ran import _ran
+    from inspect_ai._sentinel._dispatch import _records
     from inspect_ai._sentinel._scope import sentinel_solving
 
     turns = 500
@@ -4242,7 +4243,9 @@ async def test_a_long_folding_run_retains_only_references() -> None:
                 await execute_tools([*input, output.message], tools)
                 seen.clear()
 
-        [record] = [ran.messages for ran in _ran[transcript()].values()]
+        [record] = [
+            list(r.agent_messages() or []) for r in _records[transcript()].values()
+        ]
         assert len(record) == 1 + 2 * turns
         results = [m for m in record if isinstance(m, ChatMessageTool)]
         assert all(len(m.text) < 20_000 for m in results)
@@ -4251,7 +4254,7 @@ async def test_a_long_folding_run_retains_only_references() -> None:
         # what only the record keeps alive: the memory freed when it is dropped
         gc.collect()
         before = tracemalloc.get_traced_memory()[0]
-        _ran[transcript()].clear()
+        _records[transcript()].clear()
         gc.collect()
         freed = before - tracemalloc.get_traced_memory()[0]
     finally:
@@ -4718,7 +4721,7 @@ def assert_history_is_the_fold_of_the_log(
 ) -> None:
     from inspect_ai._sentinel._conversation import SpanConversations
     from inspect_ai._sentinel._scope import is_agent_turn
-    from inspect_ai._sentinel._sent import _Sent
+    from inspect_ai._sentinel._steps import _Sent
 
     assert log.status == "success", log.error
     assert log.location
@@ -4848,7 +4851,7 @@ def test_parallel_sub_agents_histories_are_the_folds_of_their_calls() -> None:
 
 
 def fold(*inputs: list[ChatMessage]) -> list[ChatMessage]:
-    from inspect_ai._sentinel._sent import _Sent
+    from inspect_ai._sentinel._steps import _Sent
 
     sent = _Sent()
     for input in inputs:
@@ -4878,7 +4881,7 @@ def test_the_fold_matches_by_content_and_position() -> None:
 
 
 def test_a_message_changed_in_place_and_sent_again_is_new() -> None:
-    from inspect_ai._sentinel._sent import _Sent
+    from inspect_ai._sentinel._steps import _Sent
 
     sent = _Sent()
     message = _u("A")
