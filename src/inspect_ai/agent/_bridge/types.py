@@ -196,10 +196,12 @@ class AgentBridge:
     model_event_sink: ModelEventSink | None
     """Optional sink that takes ownership of `ModelEvent` emission for calls
     routed through the bridge. When set, the bridge installs it around
-    `model.generate()`; `_record_model_interaction` then dispatches pending /
-    complete events to the sink instead of emitting them to the transcript.
-    Use this to attribute bridge model events to externally-managed agent
-    spans (e.g. spans driven by a side-channel event stream).
+    `model.generate()`. The sink's optional `on_start` decides under which span
+    each generation runs, which a live sentinel's conversation follows;
+    `_record_model_interaction` dispatches pending / complete events to the
+    sink, which decides when each is emitted to the transcript. Use this to
+    attribute bridge model events to externally-managed agent spans (e.g.
+    spans driven by a side-channel event stream). See `ModelEventSink`.
     """
 
     forward_generation_config: bool

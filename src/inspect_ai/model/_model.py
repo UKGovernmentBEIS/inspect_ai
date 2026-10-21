@@ -24,6 +24,7 @@ from typing import (
     Type,
     TypeAlias,
     cast,
+    runtime_checkable,
 )
 
 if TYPE_CHECKING:
@@ -95,6 +96,7 @@ from inspect_ai.util._limit import (
     token_limit_usage,
     turn_count,
 )
+from inspect_ai.util._span import current_span_id, in_span
 
 from ._agent_message import validate_agent_message
 from ._cache import CacheEntry, CachePolicy, cache_fetch, cache_store, epoch
@@ -1021,6 +1023,16 @@ class Model:
 
         prepared = await self._prepare_input(input, tools, tool_choice, config)
 
+        with _model_event_sink_span(prepared.input):
+            return await self._generate_prepared(prepared, config, cache, on_stream)
+
+    async def _generate_prepared(
+        self,
+        prepared: "_PreparedInput",
+        config: GenerateConfig,
+        cache: bool | CachePolicy | NotGiven,
+        on_stream: StreamHandler | None,
+    ) -> ModelOutput:
         # the uuid of this generate's first ModelEvent, minted before the
         # sentinel runs so that its generate stages are identified by it
         generate_id = uuid()
@@ -3022,12 +3034,14 @@ _model_roles: ContextVar[dict[str, Model | list[Model]]] = ContextVar(
 class ModelEventSink(Protocol):
     """Recipient of `ModelEvent` emissions when installed via `use_model_event_sink`.
 
-    When a sink is active, `_record_model_interaction` routes the event to the
-    sink instead of emitting it to the transcript directly. The sink can decide
-    *when* and *under which span* the event ultimately reaches the transcript.
+    A sink decides under which span each `generate()` runs, and when each of its `ModelEvent`s reaches the transcript:
 
-    All other `_record_model_interaction` behavior (call recording, usage
-    accounting, retry handling, the active-model-event context) is unaffected.
+    - `on_start(input) -> str | None` (optional): called once per `generate()`, after its input is prepared and before a sentinel's `BeforeGenerate` stage. It returns the span the whole generate runs under (`None` for the current span). Each attempt's `ModelEvent` is created in that span, and a live sentinel takes the generate's conversation from it: the innermost `agent` span at or above it, as replay does from the log. Bookkeeping a sink does once per generate (rather than once per attempt) belongs here.
+    - `on_pending(event)` and `on_complete(event)`: called once per attempt (retries included), when its event is created and when it completes. The sink emits the event to the transcript (`_event` and `_event_updated`) when it chooses.
+
+    A sink may still place an event in another span by setting `event.span_id` in `on_pending`. The log keeps that placement, but a live sentinel follows the `on_start` span (or the span current when `generate()` was called, without `on_start`), so its history can differ from what replay rebuilds from the log. To keep the two consistent, implement `on_start` and do not move the event afterwards.
+
+    A sentinel's own model calls (its monitors, while a generate stage runs) are not routed to the sink. All other `_record_model_interaction` behavior (call recording, usage accounting, retry handling, the active-model-event context) is unaffected.
     """
 
     def on_pending(self, event: "ModelEvent") -> None:
@@ -3037,6 +3051,11 @@ class ModelEventSink(Protocol):
     def on_complete(self, event: "ModelEvent") -> None:
         """Called after generation completes (output / error / call populated, `pending=None`)."""
         ...
+
+
+@runtime_checkable
+class _StartingModelEventSink(ModelEventSink, Protocol):
+    def on_start(self, input: list[ChatMessage]) -> str | None: ...
 
 
 _model_event_sink: ContextVar[ModelEventSink | None] = ContextVar(
@@ -3058,6 +3077,32 @@ def use_model_event_sink(sink: ModelEventSink | None) -> Iterator[None]:
         yield
     finally:
         _model_event_sink.reset(token)
+
+
+@contextlib.contextmanager
+def suspend_model_event_sink() -> Iterator[None]:
+    """Emit `ModelEvent`s straight to the transcript for the block, whatever sink is installed."""
+    token = _model_event_sink.set(None)
+    try:
+        yield
+    finally:
+        _model_event_sink.reset(token)
+
+
+@contextlib.contextmanager
+def _model_event_sink_span(input: list[ChatMessage]) -> Iterator[None]:
+    sink = _model_event_sink.get()
+    if not isinstance(sink, _StartingModelEventSink):
+        yield
+        return
+    span_id = sink.on_start(input)
+    if span_id is None or span_id == current_span_id():
+        yield
+        return
+    from inspect_ai.log._transcript import transcript
+
+    with in_span(span_id, transcript()._agent_span(span_id)):
+        yield
 
 
 _requested_model: ContextVar[str | None] = ContextVar("_requested_model", default=None)

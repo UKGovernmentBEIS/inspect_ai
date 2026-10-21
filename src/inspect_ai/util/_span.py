@@ -3,11 +3,14 @@ import inspect
 from collections.abc import Awaitable, Callable, Iterator
 from contextvars import ContextVar, Token
 from logging import getLogger
-from typing import Any, AsyncIterator
+from typing import TYPE_CHECKING, Any, AsyncIterator
 
 from shortuuid import uuid as shortuuid
 
 from inspect_ai._sentinel._scope import enter_scope, exit_scope
+
+if TYPE_CHECKING:
+    from inspect_ai.event._span import SpanBeginEvent
 
 logger = getLogger(__name__)
 
@@ -156,6 +159,21 @@ def parent_span(parent_id: str | None) -> Iterator[None]:
     try:
         yield
     finally:
+        _current_span_id.reset(token)
+
+
+@contextlib.contextmanager
+def in_span(span_id: str, agent_span_id: str | None) -> Iterator[None]:
+    """Make `span_id` the current span and `agent_span_id` the current agent span for the block.
+
+    As `parent_span()`, for running work under a span other than the one current in this task (no begin or end event is emitted), where the work's agent span must follow it too.
+    """
+    token = _current_span_id.set(span_id)
+    agent_token = _current_agent_span_id.set(agent_span_id)
+    try:
+        yield
+    finally:
+        _current_agent_span_id.reset(agent_token)
         _current_span_id.reset(token)
 
 
@@ -322,3 +340,43 @@ _current_agent_span_id: ContextVar[str | None] = ContextVar(
 _span_id_provider: ContextVar[SpanIdProvider | None] = ContextVar(
     "_span_id_provider", default=None
 )
+
+
+class AgentSpans:
+    """The innermost agent span of each span, from the `SpanBeginEvent`s added.
+
+    A span's agent span is the innermost span of type `agent` reached from it through `parent_id`, or None when there is none. Spans are added in log order, and each span's answer is kept, so a pass over a sample's events walks each span once. A walk that reaches a span not yet added is not kept, so a span whose begin is added later still counts.
+    """
+
+    def __init__(self) -> None:
+        self._spans: dict[str, "SpanBeginEvent"] = {}
+        self._agent_spans: dict[str, str | None] = {}
+
+    def add(self, begin: "SpanBeginEvent") -> None:
+        self._spans[begin.id] = begin
+
+    def agent_span(self, span_id: str | None) -> str | None:
+        """The agent span of an event in the span `span_id`.
+
+        Raises:
+            ValueError: The span tree has a `parent_id` cycle.
+        """
+        walked: set[str] = set()
+        agent_span: str | None = None
+        while span_id is not None:
+            if span_id in self._agent_spans:
+                agent_span = self._agent_spans[span_id]
+                break
+            if span_id in walked:
+                raise ValueError(f"The span tree has a parent_id cycle at {span_id}.")
+            begin = self._spans.get(span_id)
+            if begin is None:
+                return agent_span
+            walked.add(span_id)
+            if begin.type == AGENT_SPAN_TYPE:
+                agent_span = span_id
+                break
+            span_id = begin.parent_id
+        for walked_id in walked:
+            self._agent_spans[walked_id] = agent_span
+        return agent_span

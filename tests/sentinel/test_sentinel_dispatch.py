@@ -4,6 +4,7 @@ from collections import Counter
 from collections.abc import Callable, Iterator, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass, replace
+from functools import partial
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal, NamedTuple, cast
 
@@ -4414,6 +4415,7 @@ async def run_bridge_request(
     filter: Any = None,
     response_filter: Any = None,
     during: Any = None,
+    sink: Any = None,
 ) -> tuple[AgentState, list[list[ChatMessage] | None]]:
     """Run one bridge request inside a decorated agent, outside an eval."""
     from inspect_ai._sentinel._agent_state import agent_messages
@@ -4427,7 +4429,12 @@ async def run_bridge_request(
     @agent
     def bridged_turn() -> Agent:
         async def execute(state: AgentState) -> AgentState:
-            bridge = AgentBridge(state, filter=filter, response_filter=response_filter)
+            bridge = AgentBridge(
+                state,
+                filter=filter,
+                response_filter=response_filter,
+                model_event_sink=sink,
+            )
             request: list[ChatMessage] = [ChatMessageUser(content="rebuilt request")]
             if during is None:
                 await bridge_generate(
@@ -5778,7 +5785,9 @@ def test_a_message_edited_in_place_in_the_prefix_is_sent_again() -> None:
     assert first.input[1].text == "Final question."
 
 
-# attributes each call to a sub-agent span, as a bridged CLI's event consumer does
+# a model event sink, as a bridged CLI's event consumer is: one without
+# on_start moves each call into a sub-agent span in on_pending; one with
+# on_start names the span the generate runs under
 class _SubAgentSink:
     def on_pending(self, event: Any) -> None:
         event.span_id = "sub-agent"
@@ -5788,54 +5797,395 @@ class _SubAgentSink:
         transcript()._event_updated(event)
 
 
-@solver
-def d3_attributes_a_call_to_a_sub_agent() -> Solver:
-    async def solve(state: TaskState, generate: Generate) -> TaskState:
-        from inspect_ai.model._model import use_model_event_sink
-        from inspect_ai.util._span import current_span_id, span
+class _StartingSink:
+    def __init__(
+        self,
+        span_id: str | Callable[[list[ChatMessage]], str | None] | None,
+        *,
+        move_to: str | None = None,
+        raises: bool = False,
+    ) -> None:
+        self.span_id = span_id
+        self.move_to = move_to
+        self.raises = raises
+        self.started: list[str] = []
+        self.pending: list[ModelEvent] = []
 
-        async with span("outer", type="agent"):
+    def on_start(self, input: list[ChatMessage]) -> str | None:
+        if self.raises:
+            raise RuntimeError("The sink could not start the generate.")
+        self.started.append(input[-1].text)
+        return self.span_id(input) if callable(self.span_id) else self.span_id
+
+    def on_pending(self, event: ModelEvent) -> None:
+        self.pending.append(event)
+        if self.move_to is not None:
+            event.span_id = self.move_to
+        transcript()._event(event)
+
+    def on_complete(self, event: ModelEvent) -> None:
+        transcript()._event_updated(event)
+
+
+@solver
+def d3_attributes_a_call_to_a_sub_agent(
+    sink: Any = None,
+    calls: Sequence[str] = ("Sub-agent turn.",),
+    *,
+    parallel: bool = False,
+    retry: bool = False,
+    cache: bool = False,
+) -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        from inspect_ai._util._async import tg_collect
+        from inspect_ai.model._model import use_model_event_sink
+        from inspect_ai.util._span import span
+
+        async def call(text: str) -> ModelOutput:
+            return await get_model().generate(text, cache=cache)
+
+        async with span("outer", type="agent", id="outer"):
             await get_model().generate("Main turn.")
-            transcript()._event(
+            begins = [
                 SpanBeginEvent(
-                    id="sub-agent",
-                    parent_id=current_span_id(),
-                    type="agent",
-                    name="sub",
-                )
-            )
-            with use_model_event_sink(_SubAgentSink()):
-                state.output = await get_model().generate("Sub-agent turn.")
-            transcript()._event(SpanEndEvent(id="sub-agent"))
+                    id="sub-agent", parent_id="outer", type="agent", name="sub"
+                ),
+                SpanBeginEvent(
+                    id="sub-tool", parent_id="sub-agent", type="tool", name="t"
+                ),
+                SpanBeginEvent(
+                    id="sub-agent-2", parent_id="outer", type="agent", name="sub 2"
+                ),
+            ]
+            for begin in begins:
+                transcript()._event(begin)
+            with use_model_event_sink(sink or _SubAgentSink()):
+                if retry:
+                    _RetryingMockLLM.failures = 1
+                if parallel:
+                    outputs = await tg_collect([partial(call, text) for text in calls])
+                else:
+                    outputs = [await call(text) for text in calls]
+            for begin in reversed(begins):
+                transcript()._event(SpanEndEvent(id=begin.id))
+        state.output = outputs[-1]
         return state
 
     return solve
 
 
-def test_a_sink_attributed_call_s_span_tree_conversation_differs_from_live() -> None:
-    # a known difference, pending a decision: live puts a call in the
-    # generating task's agent span, the span tree in the span the event sink
-    # gave it
+class _SinkRun(NamedTuple):
+    log: EvalLog
+    seen: dict[str, tuple[str, list[ChatMessage]]]
+    live: dict[str, str]
+    from_spans: dict[str, str]
+    events: list[Event]
+
+
+def run_sink(
+    solver: Solver, sentinel: Any = None, model: str = "mockllm/model"
+) -> _SinkRun:
     seen: dict[str, tuple[str, list[ChatMessage]]] = {}
     with live_conversations() as live:
         log = eval(
             Task(
                 dataset=[Sample(input="Hi.")],
-                solver=d3_attributes_a_call_to_a_sub_agent(),
-                sentinel=[d3_probe(seen)],
+                solver=solver,
+                sentinel=sentinel if sentinel is not None else [d3_probe(seen)],
             ),
-            model="mockllm/model",
+            model=model,
         )[0]
-    assert log.status == "success", log.error
     assert log.location
     [sample] = read_eval_log(log.location).samples or []
-    from_spans = span_tree_conversations(sample.events, sample.uuid or "")
-    main, sub = agent_events_by_origin(log)
+    events = list(sample.events)
+    return _SinkRun(
+        log, seen, live, span_tree_conversations(events, sample.uuid or ""), events
+    )
+
+
+def sentinel_span_parents(events: list[Event], step_id: str) -> set[str | None]:
+    """The parent of each sentinel span holding a SentinelEvent with `step_id`."""
+    spans = {e.id: e for e in events if isinstance(e, SpanBeginEvent)}
+    parents: set[str | None] = set()
+    for event in events:
+        if isinstance(event, SentinelEvent) and event.step_id == step_id:
+            span_id = event.span_id
+            while span_id is not None and spans[span_id].type != "sentinel":
+                span_id = spans[span_id].parent_id
+            assert span_id is not None
+            parents.add(spans[span_id].parent_id)
+    return parents
+
+
+def test_a_sink_without_on_start_keeps_live_in_the_generating_task_s_span() -> None:
+    # the documented difference: the log keeps the span on_pending gave the
+    # call, while live follows the span current when generate() was called
+    run = run_sink(d3_attributes_a_call_to_a_sub_agent())
+    assert run.log.status == "success", run.log.error
+    main, sub = agent_events_by_origin(run.log)
     assert main.uuid is not None and sub.uuid is not None
-    assert live[sub.uuid] == live[main.uuid] == from_spans[main.uuid]
-    assert from_spans[sub.uuid] == "sub-agent"
+    assert run.live[sub.uuid] == run.live[main.uuid] == run.from_spans[main.uuid]
+    assert run.from_spans[sub.uuid] == "sub-agent"
 
     # live history is the fold by live conversation, not by the span tree
-    assert_history_is_the_fold_of_the_log(log, seen, live)
+    assert_history_is_the_fold_of_the_log(run.log, run.seen, run.live)
     with pytest.raises(AssertionError):
-        assert_history_is_the_fold_of_the_log(log, seen)
+        assert_history_is_the_fold_of_the_log(run.log, run.seen)
+
+
+def test_an_on_start_sink_s_call_runs_in_its_span_live_and_in_the_log() -> None:
+    sink = _StartingSink("sub-agent")
+    run = run_sink(d3_attributes_a_call_to_a_sub_agent(sink))
+    assert run.log.status == "success", run.log.error
+    main, sub = agent_events_by_origin(run.log)
+    assert main.uuid is not None and sub.uuid is not None
+    assert sub.span_id == "sub-agent"
+    assert run.live == run.from_spans
+    assert run.live[sub.uuid] == "sub-agent" != run.live[main.uuid]
+    assert_history_is_the_fold_of_the_log(run.log, run.seen)
+
+    # the generate's sentinel steps are the sub-agent's, in its span
+    [*_, inputs, outputs] = sentinel_events(run.log)
+    assert inputs.step_id == outputs.step_id == sub.uuid
+    assert inputs.conversation == outputs.conversation == "sub-agent"
+    assert sentinel_span_parents(run.events, sub.uuid) == {"sub-agent"}
+    assert sink.started == ["Sub-agent turn."]
+
+
+def test_an_on_start_sink_that_moves_the_event_keeps_live_in_the_on_start_span() -> (
+    None
+):
+    # the documented difference: the log keeps on_pending's placement, live
+    # follows on_start
+    run = run_sink(
+        d3_attributes_a_call_to_a_sub_agent(_StartingSink("sub-agent", move_to="outer"))
+    )
+    assert run.log.status == "success", run.log.error
+    main, sub = agent_events_by_origin(run.log)
+    assert main.uuid is not None and sub.uuid is not None
+    assert sub.span_id == "outer"
+    assert run.live[sub.uuid] == "sub-agent"
+    assert run.from_spans[sub.uuid] == run.from_spans[main.uuid] == "outer"
+    [*_, inputs, _] = sentinel_events(run.log)
+    assert inputs.conversation == "sub-agent"
+    assert_history_is_the_fold_of_the_log(run.log, run.seen, run.live)
+    with pytest.raises(AssertionError):
+        assert_history_is_the_fold_of_the_log(run.log, run.seen)
+
+
+@pytest.mark.parametrize("span_id", [None, "outer"])
+def test_an_on_start_sink_naming_no_other_span_changes_nothing(
+    span_id: str | None,
+) -> None:
+    run = run_sink(d3_attributes_a_call_to_a_sub_agent(_StartingSink(span_id)))
+    assert run.log.status == "success", run.log.error
+    main, sub = agent_events_by_origin(run.log)
+    assert main.uuid is not None and sub.uuid is not None
+    assert sub.span_id == "outer"
+    assert run.live == run.from_spans
+    assert run.live[sub.uuid] == run.live[main.uuid] == "outer"
+    assert_history_is_the_fold_of_the_log(run.log, run.seen)
+
+
+def test_an_on_start_span_that_is_not_an_agent_s_gives_the_enclosing_agent() -> None:
+    run = run_sink(d3_attributes_a_call_to_a_sub_agent(_StartingSink("sub-tool")))
+    assert run.log.status == "success", run.log.error
+    _, sub = agent_events_by_origin(run.log)
+    assert sub.uuid is not None
+    assert sub.span_id == "sub-tool"
+    assert run.live == run.from_spans
+    assert run.live[sub.uuid] == "sub-agent"
+    assert_history_is_the_fold_of_the_log(run.log, run.seen)
+
+
+def test_an_on_start_span_whose_begin_is_not_recorded_gives_the_sample() -> None:
+    # as the span tree does for a span it has not read
+    run = run_sink(d3_attributes_a_call_to_a_sub_agent(_StartingSink("unknown")))
+    assert run.log.status == "success", run.log.error
+    main, sub = agent_events_by_origin(run.log)
+    assert main.uuid is not None and sub.uuid is not None
+    assert run.live == run.from_spans
+    assert run.log.samples
+    assert run.live[sub.uuid] == run.log.samples[0].uuid
+
+
+def test_on_start_runs_once_per_generate_across_retries() -> None:
+    sink = _StartingSink("sub-agent")
+    run = run_sink(
+        d3_attributes_a_call_to_a_sub_agent(sink, retry=True),
+        model="d3_retrying/model",
+    )
+    assert run.log.status == "success", run.log.error
+    _, failed, retried = agent_events_by_origin(run.log)
+    assert failed.error is not None and retried.error is None
+    assert sink.started == ["Sub-agent turn."]
+    assert sink.pending == [failed, retried]
+    assert failed.span_id == retried.span_id == "sub-agent"
+    assert failed.uuid is not None
+    assert generate_step_ids(run.log)[failed.uuid] == ["model_input", "model_output"]
+    assert sentinel_span_parents(run.events, failed.uuid) == {"sub-agent"}
+    assert_history_is_the_fold_of_the_log(run.log, run.seen)
+
+
+def test_on_start_runs_for_a_cache_hit(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("INSPECT_CACHE_DIR", str(tmp_path))
+    sink = _StartingSink("sub-agent")
+    run = run_sink(
+        d3_attributes_a_call_to_a_sub_agent(
+            sink, ["Sub-agent turn.", "Sub-agent turn."], cache=True
+        )
+    )
+    assert run.log.status == "success", run.log.error
+    _, written, read = agent_events_by_origin(run.log)
+    assert (written.cache, read.cache) == ("write", "read")
+    assert sink.started == ["Sub-agent turn.", "Sub-agent turn."]
+    assert written.span_id == read.span_id == "sub-agent"
+    assert run.live == run.from_spans
+    assert_history_is_the_fold_of_the_log(run.log, run.seen)
+
+
+def test_parallel_generates_in_different_on_start_spans_keep_their_histories() -> None:
+    def by_input(input: list[ChatMessage]) -> str:
+        return "sub-agent" if input[-1].text == "Sub A." else "sub-agent-2"
+
+    run = run_sink(
+        d3_attributes_a_call_to_a_sub_agent(
+            _StartingSink(by_input), ["Sub A.", "Sub B."], parallel=True
+        )
+    )
+    assert run.log.status == "success", run.log.error
+    assert run.live == run.from_spans
+    assert {
+        e.input[-1].text: run.live[e.uuid or ""]
+        for e in agent_events_by_origin(run.log)
+    } == {"Main turn.": "outer", "Sub A.": "sub-agent", "Sub B.": "sub-agent-2"}
+    assert_history_is_the_fold_of_the_log(run.log, run.seen)
+
+
+def test_an_on_start_failure_fails_the_generate_before_any_event() -> None:
+    run = run_sink(
+        d3_attributes_a_call_to_a_sub_agent(_StartingSink(None, raises=True))
+    )
+    assert run.log.status == "error"
+    assert run.log.error is not None
+    assert "could not start the generate" in run.log.error.message
+    [main] = agent_events_by_origin(run.log)
+    assert main.uuid is not None
+    assert set(generate_step_ids(run.log)) == {main.uuid}
+
+
+def test_a_monitor_s_own_calls_do_not_reach_the_sink() -> None:
+    sink = _StartingSink("sub-agent")
+    seen: list[Any] = []
+    run = run_sink(
+        d3_attributes_a_call_to_a_sub_agent(sink),
+        sentinel=[d3_generates(seen, ask=True)],
+    )
+    assert run.log.status == "success", run.log.error
+    assert origin_counts(run.log) == {"agent": 2, "sentinel": 2}
+    _, sub = agent_events_by_origin(run.log)
+    assert sink.pending == [sub]
+
+
+async def test_a_bridged_generate_under_an_on_start_span_has_no_agent_messages() -> (
+    None
+):
+    from inspect_ai.util._span import current_span_id
+
+    def open_sub_agent(input: list[ChatMessage]) -> str:
+        transcript()._event(
+            SpanBeginEvent(
+                id="sub-agent", parent_id=current_span_id(), type="agent", name="sub"
+            )
+        )
+        return "sub-agent"
+
+    seen: list[StageSeen] = []
+    await run_bridge_request(seen, sink=_StartingSink(open_sub_agent))
+    assert stages(seen) == {BeforeGenerate, AfterGenerate}
+    assert {s.step.conversation for s in seen} == {"sub-agent"}
+    assert all(s.messages is None for s in seen)
+
+
+def test_acp_filters_an_on_start_sub_agent_s_sentinel_steps_with_its_events() -> None:
+    from inspect_ai.agent._acp.event_mapping import SubagentDepthTracker
+
+    run = run_sink(d3_attributes_a_call_to_a_sub_agent(_StartingSink("sub-agent")))
+    assert run.log.status == "success", run.log.error
+    tracker = SubagentDepthTracker()
+    actions = [(event, tracker.process(event)) for event in run.events]
+    main, sub = (
+        e for e in run.events if isinstance(e, ModelEvent) and e.origin == "agent"
+    )
+    kept = {
+        (event.stage, event.step_id == sub.uuid): action
+        for event, action in actions
+        if isinstance(event, SentinelEvent)
+    }
+    assert kept == {
+        ("model_input", False): "emit",
+        ("model_output", False): "emit",
+        ("model_input", True): "skip",
+        ("model_output", True): "skip",
+    }
+    assert dict((id(e), a) for e, a in actions)[id(sub)] == "skip"
+    assert dict((id(e), a) for e, a in actions)[id(main)] == "emit"
+
+
+async def test_an_on_start_sink_naming_the_current_span_follows_a_checkpoint_rotation() -> (
+    None
+):
+    from inspect_ai._sentinel._conversation import current_conversation
+    from inspect_ai.model._model import use_model_event_sink
+    from inspect_ai.util._span import SpanRotationScope, current_span_id, span
+
+    init_transcript(Transcript())
+    live: dict[str, str] = {}
+    model = get_model("mockllm/model")
+    sink = _StartingSink(lambda input: current_span_id())
+
+    async def call() -> None:
+        with use_model_event_sink(sink):
+            await model.generate("Hello.")
+        event = sink.pending[-1]
+        assert event.uuid is not None
+        live[event.uuid] = current_conversation()
+
+    async with span("agent", type="agent"):
+        checkpoints = SpanRotationScope(type="checkpoint")
+        await checkpoints.open("checkpoint 1")
+        first = current_span_id()
+        rotated = anyio.Event()
+
+        async def spawned_before_the_rotation() -> None:
+            await rotated.wait()
+            await call()
+
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(spawned_before_the_rotation)
+            await call()
+            await checkpoints.end_span()
+            await checkpoints.begin_span("checkpoint 2")
+            second = current_span_id()
+            rotated.set()
+        await checkpoints.close()
+
+    assert [e.span_id for e in sink.pending] == [first, second]
+    assert span_tree_conversations(transcript().events, "") == live
+
+
+def test_a_transcript_knows_the_agent_spans_of_seeded_restored_and_new_spans() -> None:
+    seeded = Transcript(
+        [SpanBeginEvent(id="seeded", type="agent", name="seeded")], bounded=True
+    )
+    seeded._extend_restored_events(
+        [SpanBeginEvent(id="restored", parent_id="seeded", type="tool", name="t")], {}
+    )
+    seeded._event(
+        SpanBeginEvent(id="new", parent_id="restored", type="solver", name="s")
+    )
+    assert seeded._agent_span("new") == "seeded"
+    assert seeded._agent_span("unknown") is None
+    assert seeded._agent_span(None) is None
