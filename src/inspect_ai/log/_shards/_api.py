@@ -5,7 +5,7 @@ import json
 import logging
 import tempfile
 import zipfile
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import Literal, NamedTuple
 
@@ -224,12 +224,13 @@ async def merge_shards(
     sample_count: int | None = None,
     allow_incomplete: bool = False,
     delete_shards: bool = False,
-    warn_task_file: bool = True,
+    on_task_file_import: Callable[[str], None] | None = None,
 ) -> MergeOutcome:
     """Implement :func:`merge_eval_log_shards`, reporting what the CLI shows.
 
-    `warn_task_file` logs a warning when metric recomputation imports the
-    task file; the CLI turns it off and prints its own notice.
+    `on_task_file_import` is called with the task file just before metric
+    recomputation imports it; by default a warning is logged. The CLI
+    prints its own notice instead.
     """
     given = given_selection(sample_ids, sample_count)
     if delete_shards and allow_incomplete:
@@ -247,7 +248,7 @@ async def merge_shards(
                 given,
                 allow_incomplete=allow_incomplete,
                 delete_shards=delete_shards,
-                warn_task_file=warn_task_file,
+                on_task_file_import=on_task_file_import or _warn_task_file_import,
             )
             if delete_shards:
                 await _verify(fs, merged_path, merge_pass)
@@ -345,7 +346,7 @@ async def _merge_pass(
     *,
     allow_incomplete: bool,
     delete_shards: bool,
-    warn_task_file: bool,
+    on_task_file_import: Callable[[str], None],
 ) -> _Pass:
     listing = await list_shard_set(fs, shards_dir)
     if listing.stray:
@@ -472,11 +473,8 @@ async def _merge_pass(
             # decided before recomputation imports the file and registers
             # its metrics
             imported = task_file_import(base)
-            if imported is not None and warn_task_file:
-                logger.warning(
-                    f"Importing {imported} to resolve the metrics and epoch "
-                    "reducers of the merged log."
-                )
+            if imported is not None:
+                on_task_file_import(imported)
             with tempfile.TemporaryFile(dir=temp_dir) as out:
                 header = await write_merged_zip(
                     out,
@@ -518,6 +516,13 @@ async def _merge_pass(
         new_samples=len(set(keys) - records),
         task_file_imported=imported,
         status=status,
+    )
+
+
+def _warn_task_file_import(task_file: str) -> None:
+    logger.warning(
+        f"Importing {task_file} to resolve the metrics and epoch reducers of the "
+        "merged log."
     )
 
 

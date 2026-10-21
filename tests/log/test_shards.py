@@ -2167,8 +2167,109 @@ def test_cli_notice_names_the_imported_task_file(
     monkeypatch.delitem(registry._registry, "metric:shard_trust_answers")
     result = CliRunner().invoke(log_command, ["merge-shards", f"{NAME}.eval"])
     assert result.exit_code == 0, result.output
-    assert "Notice: imported trust_task.py to resolve metrics" in result.stderr
+    assert "Notice: importing trust_task.py to resolve metrics" in result.stderr
     assert f"{NAME}.eval: success" in result.stdout
+
+
+@pytest.mark.parametrize("json_output", [False, True])
+@pytest.mark.parametrize("fail", [False, True])
+def test_cli_keeps_stdout_and_the_notice_with_printing_task_code(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, json_output: bool, fail: bool
+) -> None:
+    from click.testing import CliRunner
+
+    from inspect_ai._cli.log import log_command
+    from inspect_ai._util import registry
+
+    monkeypatch.chdir(tmp_path)
+    Path("noisy_task.py").write_text(_NOISY_TASK)
+    shards = f"{NAME}.shards"
+    for k, ids in (("0", [1, 2]), ("1", [3, 4])):
+        eval(
+            "noisy_task.py",
+            model="mockllm/model",
+            log_dir=f"{shards}/{k}",
+            display="none",
+            sample_id=ids,
+        )
+    monkeypatch.delitem(registry._registry, "metric:shard_noisy_count")
+    if fail:
+        monkeypatch.setenv("SHARD_NOISY_FAIL", "1")
+    args = ["merge-shards", f"{NAME}.eval"] + (["--json"] if json_output else [])
+    result = CliRunner().invoke(log_command, args)
+    # the notice is printed when the import starts, so a later failure keeps it
+    assert "Notice: importing noisy_task.py" in result.stderr
+    assert result.exit_code == (1 if fail else 0), result.output
+    if json_output:
+        output = json.loads(result.stdout)
+        if fail:
+            assert output["error"]["type"] == "ValueError"
+        else:
+            assert output["status"] == "success"
+            assert output["task_file_imported"] == "noisy_task.py"
+        assert "noise" in result.stderr
+    elif fail:
+        assert "metric failed" in result.stderr
+
+
+_NOISY_TASK = f"""
+import os
+
+from inspect_ai import Task, task
+from inspect_ai.dataset import Sample
+from inspect_ai.scorer import Metric, SampleScore, match, metric
+
+print("import noise")
+
+
+@metric
+def shard_noisy_count() -> Metric:
+    def compute(scores: list[SampleScore]) -> float:
+        print("metric noise")
+        if os.environ.get("SHARD_NOISY_FAIL"):
+            raise ValueError("metric failed")
+        return float(len(scores))
+
+    return compute
+
+
+@task
+def {TASK}() -> Task:
+    return Task(
+        dataset=[Sample(id=i, input="q", target="x") for i in range(1, 5)],
+        scorer=match(),
+        metrics=[shard_noisy_count()],
+    )
+"""
+
+
+async def test_delete_shards_on_s3_deletes_folder_markers(
+    s3_shards: tuple[str, str], s3_root: str
+) -> None:
+    from inspect_ai.log import merge_eval_log_shards_async
+
+    merged, _ = s3_shards
+    client = boto3.client("s3")
+    markers = [
+        f"{s3_root}/{NAME}.shards/",
+        f"{s3_root}/{NAME}.shards/0/",
+        f"{s3_root}/{NAME}.shards/1/x.checkpoints/",
+    ]
+
+    def put_markers() -> None:
+        for key in markers:
+            client.put_object(Bucket="test-bucket", Key=key, Body=b"")
+
+    put_markers()
+    result = await merge_eval_log_shards_async(merged, delete_shards=True)
+    assert result.shards_deleted
+    assert _s3_keys(f"{s3_root}/") == [f"{s3_root}/{NAME}.eval"]
+    # a remnant of markers only, then a repeated call
+    put_markers()
+    for _ in range(2):
+        result = await merge_eval_log_shards_async(merged, delete_shards=True)
+        assert result.shards_deleted and not result.written
+        assert _s3_keys(f"{s3_root}/") == [f"{s3_root}/{NAME}.eval"]
 
 
 @pytest.mark.parametrize("suffix", [".shards", ".eval"])

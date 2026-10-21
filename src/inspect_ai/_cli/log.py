@@ -1,7 +1,9 @@
 import functools
 import os
+import sys
+from contextlib import nullcontext
 from json import dumps
-from typing import Any, Callable, Literal, NoReturn, cast
+from typing import Any, Callable, Literal, NoReturn, TextIO, cast
 from urllib.parse import urlparse
 
 import click
@@ -565,6 +567,7 @@ def merge_shards_command(
 
     LOG is the merged log (<name>.eval) or its shards directory (<name>.shards).
     """
+    from inspect_ai._cli.eval import _stdout_owned_for_json
     from inspect_ai._util._async import run_coroutine
     from inspect_ai._util.error import WriteConflictError
     from inspect_ai._util.platform import platform_init
@@ -575,57 +578,62 @@ def merge_shards_command(
     process_common_options(common)
     platform_init()
 
-    if sample_id is not None and sample_count is not None:
-        _merge_failure(
-            json_output,
-            click.UsageError("Pass at most one of --sample-id and --sample-count."),
-        )
-    try:
-        outcome = run_coroutine(
-            merge_shards(
-                log,
-                sample_ids=parse_sample_id(sample_id),
-                sample_count=sample_count,
-                allow_incomplete=allow_incomplete,
-                delete_shards=delete_shards,
-                warn_task_file=False,
-            )
-        )
-    except (
-        ShardSetError,
-        ShardSetIncomplete,
-        WriteConflictError,
-        FileNotFoundError,
-        ValueError,
-    ) as ex:
-        _merge_failure(json_output, ex)
-
-    if outcome.task_file_imported is not None:
+    def notice(task_file: str) -> None:
         click.echo(
-            f"Notice: imported {outcome.task_file_imported} to resolve metrics and "
-            "epoch reducers.",
+            f"Notice: importing {task_file} to resolve metrics and epoch reducers.",
             err=True,
         )
-    header = outcome.result.log
-    ledger = header.eval.shards.ledger if header.eval.shards else []
-    samples = sum(entry.samples for entry in ledger)
-    status = outcome.status
-    if json_output:
-        result = {
-            "log": header.location,
-            "status": header.status,
-            "written": outcome.result.written,
-            "shards": len(ledger),
-            "samples": samples,
-            "new_samples": outcome.new_samples,
-            "missing": status.missing,
-            "running": status.running,
-            "failed": status.failed,
-            "shards_deleted": outcome.result.shards_deleted,
-            "task_file_imported": outcome.task_file_imported,
-        }
-        click.echo(dumps(result, indent=2))
-        return
+
+    # with --json, stdout carries only the result or error object: output
+    # from task-file, metric and reducer code goes to stderr
+    owned = _stdout_owned_for_json() if json_output else nullcontext(sys.stdout)
+    with owned as stdout:
+        if sample_id is not None and sample_count is not None:
+            _merge_failure(
+                json_output,
+                click.UsageError("Pass at most one of --sample-id and --sample-count."),
+                stdout,
+            )
+        try:
+            outcome = run_coroutine(
+                merge_shards(
+                    log,
+                    sample_ids=parse_sample_id(sample_id),
+                    sample_count=sample_count,
+                    allow_incomplete=allow_incomplete,
+                    delete_shards=delete_shards,
+                    on_task_file_import=notice,
+                )
+            )
+        except (
+            ShardSetError,
+            ShardSetIncomplete,
+            WriteConflictError,
+            FileNotFoundError,
+            ValueError,
+        ) as ex:
+            _merge_failure(json_output, ex, stdout)
+
+        header = outcome.result.log
+        ledger = header.eval.shards.ledger if header.eval.shards else []
+        samples = sum(entry.samples for entry in ledger)
+        status = outcome.status
+        if json_output:
+            result = {
+                "log": header.location,
+                "status": header.status,
+                "written": outcome.result.written,
+                "shards": len(ledger),
+                "samples": samples,
+                "new_samples": outcome.new_samples,
+                "missing": status.missing,
+                "running": status.running,
+                "failed": status.failed,
+                "shards_deleted": outcome.result.shards_deleted,
+                "task_file_imported": outcome.task_file_imported,
+            }
+            click.echo(dumps(result, indent=2), file=stdout)
+            return
     line = (
         f"{header.location}: {header.status}, {samples} samples "
         f"({outcome.new_samples} new) from {len(ledger)} shards"
@@ -644,8 +652,8 @@ def merge_shards_command(
     click.echo(line)
 
 
-def _merge_failure(json_output: bool, ex: Exception) -> NoReturn:
-    """End `merge-shards` with `ex`: an error object on stdout with `--json`.
+def _merge_failure(json_output: bool, ex: Exception, stdout: TextIO) -> NoReturn:
+    """End `merge-shards` with `ex`: an error object on `stdout` with `--json`.
 
     Without `--json`, a usage error exits 2 and any other error exits 1 with
     its message on stderr. With it, every failure prints
@@ -664,7 +672,7 @@ def _merge_failure(json_output: bool, ex: Exception) -> NoReturn:
         error.update(
             status=ex.status, missing=ex.missing, running=ex.running, failed=ex.failed
         )
-    click.echo(dumps({"error": error}, indent=2))
+    click.echo(dumps({"error": error}, indent=2), file=stdout)
     raise SystemExit(1)
 
 

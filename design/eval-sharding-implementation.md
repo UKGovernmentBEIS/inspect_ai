@@ -504,15 +504,20 @@ inspect log merge-shards LOG
   an integer. Passing both is a usage error (exit 2).
 - Output: one line with the merged log, its status, the number of samples,
   new samples and shards, and, when incomplete, the missing count and the
-  running and failed shard names. When the `task_file` fallback imported
-  code, a notice on stderr names the file (parent decision, 2026-09-21: a
-  visible notice, no opt-in).
+  running and failed shard names. When the `task_file` fallback imports
+  code, a notice on stderr names the file just before the import, so it
+  shows even when recomputation or publication fails afterwards (parent
+  decision, 2026-09-21: a visible notice, no opt-in).
 - `--json` (decision: Ransom, 2026-10-21: a model or launcher calling the
   command needs machine-readable output): one JSON object on stdout. On
   success: `log`, `status`, `written`, `shards`, `samples`,
   `new_samples`, `missing` (ids or null), `running`, `failed`,
-  `shards_deleted` and `task_file_imported` (the file or null). The
-  task-file notice stays on stderr, so stdout stays parseable.
+  `shards_deleted` and `task_file_imported` (the file or null). For the
+  whole merge, stdout is redirected to stderr at the file-descriptor level
+  (`_stdout_owned_for_json`, as `inspect eval --json` does) and the object
+  is written to the saved stdout, so output from the task file, metrics,
+  reducers or their subprocesses and the task-file notice all go to
+  stderr and stdout stays parseable.
 - Exit 0 when the merge wrote or had nothing new. The API's documented
   errors (`ShardSetError`, `ShardSetIncomplete`, `WriteConflictError`,
   `FileNotFoundError`, `ValueError`) print their message and exit 1; an
@@ -1235,7 +1240,9 @@ cleanup (removes the merged log too). Both use one routine,
   symbolic links); on S3 and other fsspec backends it lists every object
   under the prefix and deletes each, 16 at a time, by the name a detailed
   listing gives (fsspec's plain listing drops the scheme, which would
-  resolve the name to the local filesystem). It neither classifies
+  resolve the name to the local filesystem). On S3 the listing includes
+  directory-marker keys (`<name>.shards/`, `<k>/`), which ordinary file
+  listings skip, so they are deleted too. It neither classifies
   objects nor orders the deletes, and a missing companion is not an error.
   With `include_log`, the merged log is deleted first.
 - **No resumption protocol.** An interrupted deletion raises its storage
@@ -2229,7 +2236,11 @@ Per PR (numbers from "Implementation plan"):
    refused with exit 1; the `task_file` notice; exit codes; `--json` on
    success, and its error object for each failure the command handles
    (usage error, missing log, `-recovered` name, incomplete set, held
-   lock, stray log).
+   lock, stray log); with a task file and metric that print, in both
+   output modes, success and a metric failure after the import: `--json`
+   stdout parses and the notice is on stderr either way. `mock_s3`
+   deletion removes directory markers, including a marker-only remnant
+   and on a repeated call.
 6. **Eval-set integration.** `tests/test_eval_set.py`: `log_samples_complete`
    on a `success` merged log is true when its `dataset.sample_ids` equals the
    eval set's selection (for each recorded form: ids, count, neither) and

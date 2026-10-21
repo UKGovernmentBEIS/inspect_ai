@@ -57,7 +57,9 @@ async def remove_shards_dir(
     try:
         files = [
             info.name
-            async for info in fs.iter_files(shards_dir, recursive=True, detail=True)
+            async for info in fs.iter_files(
+                shards_dir, recursive=True, detail=True, include_markers=True
+            )
         ]
     except FileNotFoundError:
         return

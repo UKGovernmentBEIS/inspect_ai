@@ -122,7 +122,7 @@ The merge checks that the shards belong to one run, recomputes metrics over all 
 
 `--delete-shards` deletes the whole `.shards` directory after a complete merge, including any checkpoints and scan results in it.
 
-`--json` prints one JSON object on stdout for scripts and agents. On success it has the merged log's `log`, `status`, `written`, `shards`, `samples`, `new_samples`, `missing`, `running`, `failed`, `shards_deleted` and `task_file_imported`. On failure it is `{"error": {"type": ..., "message": ...}}` and the exit code is 1; for an incomplete set the error also has `status`, `missing`, `running` and `failed`. The task-file notice stays on stderr.
+`--json` prints one JSON object on stdout for scripts and agents. On success it has the merged log's `log`, `status`, `written`, `shards`, `samples`, `new_samples`, `missing`, `running`, `failed`, `shards_deleted` and `task_file_imported`. On failure it is `{"error": {"type": ..., "message": ...}}` and the exit code is 1; for an incomplete set the error also has `status`, `missing`, `running` and `failed`. The task-file notice and any output from task, metric or reducer code go to stderr.
 
 When a metric or epoch reducer is not registered, the merge imports the task file recorded in the shard logs to find it, and prints a notice.
 

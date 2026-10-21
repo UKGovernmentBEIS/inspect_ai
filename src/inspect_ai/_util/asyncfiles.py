@@ -1262,6 +1262,7 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
         *,
         recursive: bool = False,
         detail: Literal[False] = False,
+        include_markers: bool = False,
     ) -> AsyncIterator[str]: ...
 
     @overload
@@ -1272,6 +1273,7 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
         *,
         recursive: bool = False,
         detail: Literal[True],
+        include_markers: bool = False,
     ) -> AsyncIterator[FileInfo]: ...
 
     async def iter_files(
@@ -1281,6 +1283,7 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
         *,
         recursive: bool = False,
         detail: bool = False,
+        include_markers: bool = False,
     ) -> AsyncIterator[str | FileInfo]:
         """Yield files under `base` — URIs, or `FileInfo` when ``detail=True``.
 
@@ -1292,6 +1295,10 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
         contain `/`. With ``detail=True`` each match is a `FileInfo`
         (name/size/mtime/etag) built from metadata the listing already
         returns — no extra stat calls.
+
+        S3 directory-marker keys (ending in ``/``) are not files and are
+        skipped, unless ``include_markers=True`` (for deleting a whole
+        prefix). Other backends list no markers.
         """
         if is_s3_filename(base):
             bucket, prefix = s3_bucket_and_key(base)
@@ -1304,7 +1311,7 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
                     kwargs["Delimiter"] = "/"
                 async for page in paginator.paginate(**kwargs):
                     for obj in page.get("Contents", []):
-                        if _is_s3_file_key(obj["Key"], pattern):
+                        if _is_s3_file_key(obj["Key"], pattern, include_markers):
                             yield (
                                 _s3_obj_to_file_info(bucket, obj)
                                 if detail
@@ -1319,6 +1326,7 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
                     pattern,
                     recursive,
                     detail,
+                    include_markers,
                 )
                 for r in results:
                     yield r
@@ -1906,14 +1914,17 @@ def s3_delete_object(s3: Any, bucket: str, key: str) -> None:
     s3.delete_object(Bucket=bucket, Key=key)
 
 
-def _is_s3_file_key(key: str, pattern: str) -> bool:
+def _is_s3_file_key(key: str, pattern: str, include_markers: bool = False) -> bool:
     """Whether a listed key is a file whose basename matches ``pattern``.
 
     Zero-byte "directory marker" keys (``prefix/``, created by the S3
     console's "Create folder" and by some sync tools) are not files —
-    their empty basename would otherwise match ``*``.
+    their empty basename would otherwise match ``*`` — and are included
+    only with `include_markers`.
     """
-    return not key.endswith("/") and fnmatchcase(key.rsplit("/", 1)[-1], pattern)
+    if key.endswith("/"):
+        return include_markers
+    return fnmatchcase(key.rsplit("/", 1)[-1], pattern)
 
 
 def s3_iter_files(
@@ -1923,6 +1934,7 @@ def s3_iter_files(
     pattern: str,
     recursive: bool,
     detail: bool = False,
+    include_markers: bool = False,
 ) -> list[str | FileInfo]:
     paginator = s3.get_paginator("list_objects_v2")
     kwargs: dict[str, Any] = {"Bucket": bucket, "Prefix": prefix}
@@ -1931,7 +1943,7 @@ def s3_iter_files(
     results: list[str | FileInfo] = []
     for page in paginator.paginate(**kwargs):
         for obj in page.get("Contents", []):
-            if _is_s3_file_key(obj["Key"], pattern):
+            if _is_s3_file_key(obj["Key"], pattern, include_markers):
                 results.append(
                     _s3_obj_to_file_info(bucket, obj)
                     if detail
