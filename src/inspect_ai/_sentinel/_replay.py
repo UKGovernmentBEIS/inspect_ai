@@ -168,6 +168,7 @@ class _PooledInput:
         # covering it, sorted
         self._points: list[int] | None = None
         self._covers: list[list[int]] = []
+        self._held: tuple[list[int], list[int]] | None = None
         self._ends = [
             start + max(end - begin, 0)
             for start, (begin, end) in zip(view.starts, view.refs)
@@ -213,13 +214,14 @@ class _PooledInput:
     def _find(self, canonical: int, at_least: int) -> int | None:
         """The first position at or after `at_least` holding the canonical row's content.
 
-        Each row with that content is looked up in the index of this input's ranges: the segment holding the row, then the first covering range whose position for the row is at or after `at_least`.
+        The rows with that content that this input holds are looked up in the index of its ranges: the segment holding the row, then the first covering range whose position for the row is at or after `at_least`. They are found by walking whichever is shorter, the rows with that content or the row intervals this input covers, so a content stored under many rows (equal messages with different `metadata`) costs no more than this input's ranges.
         """
         if at_least >= len(self):
             return None
-        points, covers = self._index()
+        points, covers, held = self._index()
+        rows = self._keys.rows(canonical)
         best: int | None = None
-        for row in self._keys.rows(canonical):
+        for row in rows if len(rows) <= len(held[0]) else _rows_within(rows, held):
             segment = bisect_right(points, row) - 1
             if segment < 0 or segment >= len(covers):
                 continue
@@ -231,7 +233,9 @@ class _PooledInput:
                     best = position
         return best
 
-    def _index(self) -> tuple[list[int], list[list[int]]]:
+    def _index(
+        self,
+    ) -> tuple[list[int], list[list[int]], tuple[list[int], list[int]]]:
         if self._points is None:
             ranges = [
                 (begin, end, start - begin)
@@ -245,10 +249,30 @@ class _PooledInput:
                     bisect_left(points, begin), bisect_left(points, end)
                 ):
                     covers[segment].append(offset)
-            for offsets in covers:
+            # the row intervals covered, merged
+            begins: list[int] = []
+            ends: list[int] = []
+            for segment, offsets in enumerate(covers):
                 offsets.sort()
-            self._points, self._covers = points, covers
-        return self._points, self._covers
+                if not offsets:
+                    continue
+                if ends and ends[-1] == points[segment]:
+                    ends[-1] = points[segment + 1]
+                else:
+                    begins.append(points[segment])
+                    ends.append(points[segment + 1])
+            self._points, self._covers, self._held = points, covers, (begins, ends)
+        assert self._held is not None
+        return self._points, self._covers, self._held
+
+
+def _rows_within(rows: list[int], held: tuple[list[int], list[int]]) -> Iterator[int]:
+    """The rows (sorted) inside the intervals `held`."""
+    for begin, end in zip(*held):
+        at = bisect_left(rows, begin)
+        while at < len(rows) and rows[at] < end:
+            yield rows[at]
+            at += 1
 
 
 @dataclass

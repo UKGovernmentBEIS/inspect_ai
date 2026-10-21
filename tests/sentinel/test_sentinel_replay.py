@@ -984,7 +984,9 @@ class Work(NamedTuple):
     visited: int
     """Positions the fold compared, by content."""
     indexed: int
-    """Ranges the fold's lookups passed in the previous input."""
+    """Bisections the fold's lookups and index construction made."""
+    entries: int
+    """Entries the fold's indexes of previous inputs were built with."""
     pool: int
     """Rows in the message pool."""
     ranges: int
@@ -1002,7 +1004,8 @@ def replay_work(
 ) -> Work:
     from inspect_ai._sentinel import _replay, _steps
 
-    keyed = visited = indexed = 0
+    keyed = visited = indexed = entries = 0
+    index = _replay._PooledInput._index
     content_key = _steps.content_key
     canonical = _replay._PoolKeys.canonical
 
@@ -1022,7 +1025,16 @@ def replay_work(
         indexed += 1
         return bisect.bisect_left(rows, row)
 
+    def counting_index(self: Any) -> Any:
+        nonlocal entries
+        built = self._points is None
+        result = index(self)
+        if built:
+            entries += sum(len(offsets) for offsets in result[1])
+        return result
+
     with monkeypatch.context() as patch:
+        patch.setattr(_replay._PooledInput, "_index", counting_index)
         patch.setattr(_replay, "content_key", counting_content_key)
         patch.setattr(_replay._PoolKeys, "canonical", counting_canonical)
         patch.setattr(_replay, "bisect_left", counting_bisect_left)
@@ -1031,18 +1043,21 @@ def replay_work(
         )
     assert_views_share_storage([step.step for step in replay], pool)
     ranges = sum(len(e.input_refs or []) for e in events if isinstance(e, ModelEvent))
-    return Work(keyed, visited, indexed, len(pool), ranges, len(replay))
+    return Work(keyed, visited, indexed, entries, len(pool), ranges, len(replay))
 
 
 def assert_linear(small: Work, large: Work, doubles: bool = True) -> None:
-    """Each pool row is keyed once, and the fold's work is within a constant of what the log stores; with `doubles`, twice the turns cost at most a little over twice the work."""
+    """Each pool row is keyed once, and the fold's work (comparisons, bisections and index entries) is within a constant of what the log stores; with `doubles`, twice the turns cost at most a little over twice the work."""
     for work in (small, large):
         assert work.keyed <= work.pool
-        assert work.visited + work.indexed <= 4 * (work.ranges + work.pool), work
+        # a few comparisons, bisections and index entries per stored row and range
+        fold = work.visited + work.indexed + work.entries
+        assert fold <= 6 * (work.ranges + work.pool), work
     if doubles:
         assert large.steps <= 2.2 * small.steps
         assert large.visited <= 2.2 * small.visited, (small, large)
         assert large.indexed <= 2.2 * small.indexed + 10, (small, large)
+        assert large.entries <= 2.2 * small.entries + 10, (small, large)
 
 
 def log_work(turns: int, monkeypatch: pytest.MonkeyPatch) -> Work:
@@ -2081,3 +2096,60 @@ def test_repeated_handoffs_find_their_next_turn_without_rebuilding_the_turns(
 ) -> None:
     small, large = (handoff_reads(n, monkeypatch) for n in (20, 40))
     assert 0 < small and large <= 2.5 * small, (small, large)
+
+
+# review pass 5: contents stored under many rows, and overlapping ranges
+
+
+def rebuilt_opening_with_stamped_nudges(turns: int) -> list[Event]:
+    """Each input: a system prompt rebuilt for the turn, a nudge stamped with the turn, and an unchanged tail."""
+    return [
+        turn_event(
+            [
+                ChatMessageSystem(content=f"prompt {turn}"),
+                ChatMessageUser(content="continue", metadata={"turn": turn}),
+                ChatMessageUser(content="tail"),
+            ]
+        )
+        for turn in range(turns)
+    ]
+
+
+def test_a_content_stored_under_many_rows_keeps_the_fold_linear(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from inspect_ai._sentinel import _replay
+
+    info = EvalInfo(inspect_ai_version=None, sentinel=False)
+    works = []
+    for turns in (200, 400):
+        condensed, pool = _replay._condensed(
+            rebuilt_opening_with_stamped_nudges(turns), []
+        )
+        works.append(replay_work(monkeypatch, [], condensed, pool, "sample", info))
+    small, large = works
+    assert_linear(small, large)
+
+
+def nested_suffix_inputs(n: int) -> tuple[list[ModelEvent], list[ChatMessage]]:
+    """Inputs that repeat their own suffixes, as inspect_ai's writer stores them (`[(0, n), (1, n), ...]`), each after an opening rebuilt for the turn."""
+    pool: list[ChatMessage] = [ChatMessageUser(content=f"body {k}") for k in range(n)]
+    pool.extend(ChatMessageSystem(content=f"prompt {turn}") for turn in range(n))
+    body = [(k, n) for k in range(n)]
+    events = [turn_event([], [(n + turn, n + turn + 1), *body]) for turn in range(n)]
+    return events, pool
+
+
+@pytest.mark.parametrize("n", [20, 40])
+def test_an_input_that_repeats_its_own_suffixes_costs_its_overlaps(
+    n: int, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # a known limit: an input whose stored ranges overlap is indexed per range
+    # and segment it covers, n(n + 1) / 2 entries for n nested suffixes, and
+    # each changed opening indexes the previous input again, so this shape
+    # costs n**3 / 2 for n**2 stored ranges; inspect_ai's writer stores an
+    # input this way only when the input repeats its own messages
+    info = EvalInfo(inspect_ai_version=None, sentinel=False)
+    events, pool = nested_suffix_inputs(n)
+    work = replay_work(monkeypatch, [], events, pool, "sample", info)
+    assert work.entries == (n - 1) * (n * (n + 1) // 2 + 1)
