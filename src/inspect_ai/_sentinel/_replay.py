@@ -607,9 +607,13 @@ class _Driver:
             before_call = replace(approved, arguments=event.arguments)
         if approval is not None and approval.view is not None and not approver_modified:
             before_view = approval.view
-        elif modify is None:
+        elif modify is None or event.view is None:
+            # a ToolEvent without a view is a call to a tool without a viewer,
+            # whose view is the default rendering of the call
             before_view = ToolCallView(call=event.view or _default_view(before_call))
         else:
+            # a sentinel's modify replaced the view with the modified call's,
+            # and the tool's viewer is not in the log
             before_view = ToolCallView()
         producer = self._producer(call.producer)
         assistant = call.assistant
