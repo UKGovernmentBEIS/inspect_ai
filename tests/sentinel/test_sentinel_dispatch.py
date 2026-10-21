@@ -4766,6 +4766,104 @@ async def test_a_late_sibling_does_not_replace_a_newer_registered_state() -> Non
         await parent()(fresh("entry"))
 
 
+async def test_a_late_sibling_does_not_replace_a_state_replaced_back_to_its_own() -> (
+    None
+):
+    from inspect_ai._sentinel._agent_state import agent_messages, current_conversation
+
+    seen: list[StageSeen] = []
+    started, release, finished = anyio.Event(), anyio.Event(), anyio.Event()
+    adopted = fresh("adopted state")
+
+    @agent
+    def returns(result: AgentState) -> Agent:
+        async def execute(state: AgentState) -> AgentState:
+            return result
+
+        return execute
+
+    @agent
+    def slow() -> Agent:
+        async def execute(state: AgentState) -> AgentState:
+            started.set()
+            await release.wait()
+            return fresh("discarded sibling state")
+
+        return execute
+
+    @agent
+    def parent() -> Agent:
+        async def execute(state: AgentState) -> AgentState:
+            async def sibling() -> None:
+                await slow()(state)
+                finished.set()
+
+            async with anyio.create_task_group() as tg:
+                tg.start_soon(sibling)
+                await started.wait()
+                # the registration goes to another state and back to the one
+                # the sibling entered with
+                current = await returns(adopted)(state)
+                current = await returns(state)(current)
+                assert current is state
+                assert agent_messages(current_conversation()) is state.messages
+                release.set()
+                await finished.wait()
+                await mock_generate(current.messages)
+            assert [s.step.agent_messages for s in seen] == [state.messages] * 2
+            assert seen[0].step.agent_messages is state.messages
+            return current
+
+        return execute
+
+    with watching(seen):
+        await parent()(fresh("entry"))
+
+
+async def test_a_callee_returning_after_its_agent_exits_is_not_registered() -> None:
+    import gc
+    import weakref
+
+    started, release, returned, finish = (anyio.Event() for _ in range(4))
+    refs: list[weakref.ref[AgentState]] = []
+
+    @agent
+    def slow() -> Agent:
+        async def execute(state: AgentState) -> AgentState:
+            started.set()
+            await release.wait()
+            result = fresh("returned after the agent exited")
+            refs.append(weakref.ref(result))
+            return result
+
+        return execute
+
+    async def sibling(state: AgentState) -> None:
+        await slow()(state)
+        returned.set()
+        await finish.wait()
+
+    with watching([]):
+        async with anyio.create_task_group() as tg:
+
+            @agent
+            def parent() -> Agent:
+                async def execute(state: AgentState) -> AgentState:
+                    tg.start_soon(sibling, state)
+                    await started.wait()
+                    return state
+
+                return execute
+
+            await parent()(fresh("entry"))
+            release.set()
+            await returned.wait()
+            gc.collect()
+            # the sibling's task, and its copy of the ended registration, live on
+            assert refs[0]() is None
+            finish.set()
+
+
 @pytest.mark.parametrize("ending", ["returns", "raises", "cancelled"])
 async def test_a_task_that_outlives_its_agent_reads_no_state(ending: str) -> None:
     import gc

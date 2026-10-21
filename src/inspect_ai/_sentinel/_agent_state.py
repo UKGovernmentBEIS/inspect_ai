@@ -23,6 +23,9 @@ class _Running:
     # cleared when the registering call exits: tasks it started hold copies of
     # the context, and must not read or keep its state after it
     active: bool = True
+    # counts replacements, so a callee can tell that the state it entered with
+    # was replaced while it ran, even by a later replacement back to it
+    revision: int = 0
 
     def end(self) -> None:
         self.active = False
@@ -60,7 +63,7 @@ def running(agent: "Agent") -> "Agent":
 
     The outermost agent running in a conversation registers the state it was called with. Its direct callee among `@agent` agents (depth is counted in decorated frames only), when called with the registered state, registers the different state it returns, since the outer loop continues with it: react's `model=` agent can return one. A deeper agent never does, so the states a micro-protocol's policies return, which it may discard, are not registered while it runs. The registration is restored when the agent returns or raises.
 
-    An agent already wrapped is returned as it is, so a factory that returns a decorated agent (`return react(...)`) adds no frame. A replacement is not registered if the registration moved on while the callee ran (a sibling's state was registered first), and a task that outlives the registering call reads no state and can register its own.
+    An agent already wrapped is returned as it is, so a factory that returns a decorated agent (`return react(...)`) adds no frame. A replacement is not registered if any other replacement happened while the callee ran (a sibling's state was registered first, even one later replaced back), and a task that outlives the registering call reads no state and can register its own.
     """
     from inspect_ai.agent._agent import AgentState
 
@@ -86,14 +89,20 @@ def running(agent: "Agent") -> "Agent":
                 _depth.reset(depth_token)
                 _running.reset(token)
         depth = _depth.get() + 1
-        replaces = depth == 1 and current.state is state
+        revision = current.revision if depth == 1 and current.state is state else None
         depth_token = _depth.set(depth)
         try:
             result = await agent(*args, **kwargs)
         finally:
             _depth.reset(depth_token)
-        if replaces and current.state is state and result is not state:
+        if (
+            revision is not None
+            and revision == current.revision
+            and current.active
+            and result is not state
+        ):
             current.state = result
+            current.revision += 1
         return result
 
     setattr(run, _RUNNING, run)
