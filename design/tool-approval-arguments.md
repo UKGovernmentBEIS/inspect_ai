@@ -52,10 +52,8 @@ in B, so they are not compared. A comparison that raises is a parsing error.
    error, reported to the model and recorded with the tool event, saying a
    modify must give the full call as shown. An approval needs no second
    check: C = B, which passed step 5.
-8. Run the tool with the conversion of C that the rebuild check checked: for
-   an approval, B's from step 5; for a modify, C's from step 7. No other
-   conversion runs, so a validator that returns a different value each time
-   cannot change what runs after the check. The ToolEvent records a
+8. Run the tool with C converted: for an approval, B as converted for the
+   value check; for a modify, a fresh conversion. The ToolEvent records a
    copy of C, so a later callback cannot change what the log says ran, and
    its view is rendered from a copy of C without converting again.
 
@@ -109,7 +107,8 @@ reach the agent as given.
 | Normalizing validator (lowercase) | `{"name": "A"}` | `{"name": "a"}` | runs with `"a"` |
 | Validator that doubles | `{"n": 2}` | nothing | parsing error: 4 rebuilds as 8 |
 | Modify that leaves out a default | approver selects `{"name": "a"}` | | approval error: rebuilds with `status` added |
-| Lazy iterable field | `{"values": [1, 2]}` | nothing | parsing error: lazy iterables compare by identity, so the value check fails |
+| Lazy iterable field | `{"values": [1, 2]}` | nothing | parsing error: lazy iterables compare by identity, so the value check fails; a modify that adds one runs with its values, since the tool gets a fresh build |
+| Validator that returns a different value each run | `{"n": 2}` | varies | unsupported: the build the check used and the build the tool runs can differ |
 | `SecretStr` field | `{"key": "k"}` | nothing | parsing error: shown as `**********`, which rebuilds to another secret |
 | Field with `exclude=True` | `{"sudo": true}` | nothing | parsing error: left out of B, so it rebuilds as its default |
 | Validation alias differs from serialization alias | `{"in": 1}` | nothing | parsing error: `{"out": 1}` does not convert back |
@@ -140,6 +139,11 @@ refuse every call to such a tool under oversight, with a parsing error the
 model cannot fix; without it, only modify is affected. This applies only to
 shown JSON that passes the rebuild check: a split alias that does not rebuild
 is refused before approval, as in the table.
+
+A validator or constructor that returns a different value each time it runs
+on the same input is not supported. Conversion runs more than once (steps 3,
+5, 7 and 8), so the build the checks used and the build the tool runs may
+differ, and this is not detected.
 
 ## Without oversight
 
@@ -180,3 +184,7 @@ nothing here: on `main` a later edit to the call did not reach the log either.
   the model's arguments, so a value that serialization hides or masks is a
   parsing error under oversight. A `modify` may not change the call's id
   (decision: Ransom, 2026-10-21).
+- 2026-10-21: the tool runs a fresh build of C (step 8), not the build a
+  check used, so checking a lazy iterable does not consume the tool's value.
+  Validators and constructors that return a different value each time are
+  unsupported (decision: Ransom, 2026-10-21).

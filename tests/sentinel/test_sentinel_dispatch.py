@@ -1,5 +1,5 @@
 import logging
-from collections.abc import Callable, Iterator, Sequence
+from collections.abc import Callable, Iterable, Iterator, Sequence
 from contextlib import contextmanager
 from dataclasses import replace
 from pathlib import Path
@@ -1040,79 +1040,66 @@ async def test_the_approval_event_keeps_the_calls_it_recorded() -> None:
     assert event.modified.arguments == {"items": {"b": {"name": "b"}}}
 
 
-_drift_seen: dict[int, int] = {}
-
-
-class Drifting(BaseModel):
-    """A model whose validator returns a larger value each time it sees 2 or more."""
-
-    n: int
-
-    @field_validator("n")
-    @classmethod
-    def drift(cls, n: int) -> int:
-        if n < 2:
-            return n
-        seen = _drift_seen.get(n, 0)
-        _drift_seen[n] = seen + 1
-        return n + seen
+class Lazy(BaseModel):
+    values: Iterable[int]
 
 
 @tool
-def drifting_tool() -> Tool:
-    async def execute(item: Drifting) -> str:
-        """Return the item's number.
+def lazy_tool() -> Tool:
+    async def execute(payload: Lazy | None = None) -> str:
+        """Return the payload's values.
 
         Args:
-            item: The item.
+            payload: The payload.
         """
-        return str(item.n)
+        return "none" if payload is None else str(list(payload.values))
 
     return execute
 
 
 @approver
-def d3_drifting_approver() -> Approver:
+def d3_lazy_approver() -> Approver:
     async def approve(
         message: str, call: ToolCall, view: ToolCallView, history: list[ChatMessage]
     ) -> Approval:
-        modified = replace(call, arguments={"item": {"n": 2}})
+        modified = replace(call, arguments={"payload": {"values": [1, 2, 3]}})
         return Approval(decision="modify", modified=modified)
 
     return approve
 
 
 @protocol
-def d3_drifting_modify() -> Protocol:
+def d3_lazy_modify() -> Protocol:
     async def rewrite(context: Context, step: BeforeToolCall) -> Decision | None:
-        modified = replace(step.call, arguments={"item": {"n": 2}})
-        return Decision(action="modify", modified=modified, explanation="two")
+        modified = replace(step.call, arguments={"payload": {"values": [1, 2, 3]}})
+        return Decision(action="modify", modified=modified, explanation="values")
 
     return rewrite
 
 
 @pytest.mark.parametrize("modifier", ["approver", "sentinel"])
-async def test_a_modify_runs_the_arguments_it_checked(modifier: str) -> None:
-    """The tool gets the build of the selected call that was checked, not another."""
+async def test_a_modify_that_adds_a_lazy_field_runs_with_its_values(
+    modifier: str,
+) -> None:
+    """The tool gets a fresh build of the selected call, not the one the check used."""
     init_transcript(Transcript())
-    _drift_seen.clear()
-    call = ToolCall(id="1", function="drifting_tool", arguments={"item": {"n": 1}})
+    call = ToolCall(id="1", function="lazy_tool", arguments={})
     messages: list[ChatMessage] = [ChatMessageAssistant(content=[], tool_calls=[call])]
     if modifier == "approver":
         result = await execute_tools(
             messages,
-            [drifting_tool()],
-            approval=[ApprovalPolicy(d3_drifting_approver(), "*")],
+            [lazy_tool()],
+            approval=[ApprovalPolicy(d3_lazy_approver(), "*")],
         )
     else:
-        with active(d3_drifting_modify()):
-            result = await execute_tools(messages, [drifting_tool()])
+        with active(d3_lazy_modify()):
+            result = await execute_tools(messages, [lazy_tool()])
 
     [message] = result.messages
     assert isinstance(message, ChatMessageTool)
-    assert message.error is None and message.text == "2"
+    assert message.error is None and message.text == "[1, 2, 3]"
     [event] = transcript_tool_events()
-    assert event.arguments == {"item": {"n": 2}}
+    assert event.arguments == {"payload": {"values": [1, 2, 3]}}
 
 
 InPlaceEdit = Literal["arguments", "function", "id"]
