@@ -4215,31 +4215,149 @@ def test_an_undecorated_agent_loop_has_no_agent_messages() -> None:
         assert all(s.messages is None for s in seen), in_span
 
 
-def test_a_bridged_agents_generates_have_no_agent_messages() -> None:
+async def run_bridge_request(
+    seen: list[StageSeen],
+    *,
+    filter: Any = None,
+    response_filter: Any = None,
+    during: Any = None,
+) -> tuple[AgentState, list[list[ChatMessage] | None]]:
+    """Run one bridge request inside a decorated agent, outside an eval."""
+    from inspect_ai._sentinel._agent_state import agent_messages, current_conversation
+    from inspect_ai._sentinel._scope import sentinel_solving
     from inspect_ai.agent._bridge.types import AgentBridge
     from inspect_ai.agent._bridge.util import bridge_generate
+
+    read: list[list[ChatMessage] | None] = []
 
     @agent
     def bridged_turn() -> Agent:
         async def execute(state: AgentState) -> AgentState:
-            await bridge_generate(
-                AgentBridge(state),
-                get_model(),
-                list(state.messages),
-                [],
-                None,
-                GenerateConfig(),
-                requested_model=None,
-            )
+            bridge = AgentBridge(state, filter=filter, response_filter=response_filter)
+            request: list[ChatMessage] = [ChatMessageUser(content="rebuilt request")]
+            if during is None:
+                await bridge_generate(
+                    bridge,
+                    model,
+                    request,
+                    [],
+                    None,
+                    GenerateConfig(),
+                    requested_model=None,
+                )
+            else:
+                await during(
+                    bridge_generate(
+                        bridge,
+                        model,
+                        request,
+                        [],
+                        None,
+                        GenerateConfig(),
+                        requested_model=None,
+                    )
+                )
+            read.append(agent_messages(current_conversation()))
             return state
 
         return execute
 
-    seen: list[StageSeen] = []
-    run_solver(awaits(bridged_turn()), seen, "mockllm/model")
+    init_transcript(Transcript())
+    state = AgentState(messages=[ChatMessageUser(content="the agent's own")])
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[ModelOutput.from_content("mockllm/model", "reply")] * 2,
+        memoize=False,
+    )
+    with active([d3_every_stage(seen)]), sentinel_solving():
+        await bridged_turn()(state)
+    return state, read
 
+
+async def model_filter(
+    model: Model,
+    input: list[ChatMessage],
+    tools: list[ToolInfo],
+    tool_choice: Any,
+    config: GenerateConfig,
+) -> ModelOutput:
+    return await model.generate(input, tools, tool_choice, config)
+
+
+async def generating_response_filter(
+    model: Model, output: ModelOutput, generate_input: Any
+) -> ModelOutput:
+    return await model.generate(generate_input.input)
+
+
+@pytest.mark.parametrize("generated_by", ["bridge", "filter", "response_filter"])
+async def test_a_bridge_requests_generates_have_no_agent_messages(
+    generated_by: str,
+) -> None:
+    seen: list[StageSeen] = []
+    state, read = await run_bridge_request(
+        seen,
+        filter=model_filter if generated_by == "filter" else None,
+        response_filter=(
+            generating_response_filter if generated_by == "response_filter" else None
+        ),
+    )
+
+    generates = 2 if generated_by == "response_filter" else 1
+    assert len(of_stage(seen, BeforeGenerate)) == generates
     assert stages(seen) == {BeforeGenerate, AfterGenerate}
     assert all(s.messages is None for s in seen)
+    for step in of_stage(seen, BeforeGenerate):
+        assert shape(step.input) == [("user", "rebuilt request")]
+    # the agent's own stages read its state again once the request is done
+    assert read == [state.messages]
+    assert read[0] is state.messages
+
+
+async def test_a_bridge_request_restores_the_agent_state_when_it_raises() -> None:
+    from inspect_ai._sentinel._agent_state import agent_messages, current_conversation
+
+    during_filter: list[list[ChatMessage] | None] = []
+
+    async def raising_filter(*args: Any) -> ModelOutput:
+        during_filter.append(agent_messages(current_conversation()))
+        raise RuntimeError("filter failed")
+
+    async def expect_failure(request: Any) -> None:
+        with pytest.raises(RuntimeError, match="filter failed"):
+            await request
+
+    seen: list[StageSeen] = []
+    state, read = await run_bridge_request(
+        seen, filter=raising_filter, during=expect_failure
+    )
+    assert during_filter == [None]
+    assert read[0] is state.messages
+
+
+async def test_a_bridge_request_restores_the_agent_state_when_cancelled() -> None:
+    from inspect_ai._sentinel._agent_state import agent_messages, current_conversation
+
+    during_filter: list[list[ChatMessage] | None] = []
+    scope = anyio.CancelScope()
+
+    async def cancelled_filter(*args: Any) -> ModelOutput:
+        during_filter.append(agent_messages(current_conversation()))
+        scope.cancel()
+        await anyio.sleep_forever()
+        raise AssertionError("not cancelled")
+
+    async def cancelling(request: Any) -> None:
+        with scope:
+            await request
+        assert scope.cancelled_caught
+
+    seen: list[StageSeen] = []
+    state, read = await run_bridge_request(
+        seen, filter=cancelled_filter, during=cancelling
+    )
+    assert during_filter == [None]
+    assert read[0] is state.messages
 
 
 @pytest.mark.parametrize("via_tool", [False, True])

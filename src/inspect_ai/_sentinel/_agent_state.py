@@ -1,3 +1,5 @@
+from collections.abc import Iterator
+from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass
 from functools import wraps
@@ -16,7 +18,8 @@ if TYPE_CHECKING:
 @dataclass
 class _Running:
     conversation: str
-    state: "AgentState"
+    # None while a bridge request is handled
+    state: "AgentState | None"
 
 
 _running: ContextVar[_Running | None] = ContextVar("sentinel_agent_state", default=None)
@@ -58,16 +61,28 @@ def running(agent: "Agent") -> "Agent":
     return run
 
 
+@contextmanager
+def bridge_request() -> Iterator[None]:
+    """Hide the running agent's state from the stages of one bridge request.
+
+    The request's generates (the bridge's own, and any its filters make) belong to the bridged scaffold, whose state the bridge rebuilds from its requests, so the enclosing agent's list is not theirs. An agent called during the request in the same conversation does not register either. A separate marker from `bridge_model_generate()`, which covers only the bridge's own generation and is what ACP's event mapping relies on.
+    """
+    if active_sentinel() is None:
+        yield
+        return
+    token = _running.set(_Running(current_conversation(), None))
+    try:
+        yield
+    finally:
+        _running.reset(token)
+
+
 def agent_messages(conversation: str) -> list[ChatMessage] | None:
     """A stage's `agent_messages`: the `messages` of the outermost `@agent` agent running in the conversation, read when the stage runs.
 
-    The list is the agent's own, by reference, not a copy. A scaffold that keeps its conversation in a list outside its `AgentState` shows that state at every stage. `None` when no `@agent` agent is running in the conversation (a solver calling `generate()`, or an undecorated agent loop) and for a bridged agent's generates, whose state the bridge rebuilds from the model requests. A replay has no agent running, so it is `None` there too.
+    The list is the agent's own, by reference, not a copy. A scaffold that keeps its conversation in a list outside its `AgentState` shows that state at every stage. `None` when no `@agent` agent is running in the conversation (a solver calling `generate()`, or an undecorated agent loop) and during a bridge request (see `bridge_request()`). A replay has no agent running, so it is `None` there too.
     """
-    from inspect_ai.agent._bridge.util import in_bridge_model_generate
-
     current = _running.get()
     if current is None or current.conversation != conversation:
         return None
-    if in_bridge_model_generate():
-        return None
-    return current.state.messages
+    return current.state.messages if current.state is not None else None
