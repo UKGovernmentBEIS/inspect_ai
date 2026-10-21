@@ -16,6 +16,7 @@ from .._errors import PROVIDER_ERROR_KEY, ResponseFilterError, provider_error_pa
 from ..anthropic_api import inspect_anthropic_api_request
 from ..bridge import filter_sandbox_client_headers
 from ..completions import inspect_completions_api_request
+from ..context import client_request_headers_scope
 from ..google_api import inspect_google_api_request
 from ..responses import inspect_responses_api_request
 from .host_tool import execute_host_tool
@@ -95,6 +96,24 @@ def _forward_provider_errors(
     return generate_forwarding_errors
 
 
+def _expose_client_headers(generate: GenerateMethod) -> GenerateMethod:
+    """Expose the client's request headers as `current_bridge_request().headers`.
+
+    Only for host code (filters, model event sinks) reading the bridged
+    request; what reaches the provider is still limited by
+    `filter_sandbox_client_headers`.
+    """
+
+    async def generate_with_client_headers(
+        json_data: dict[str, JsonValue],
+        headers: dict[str, str] | None = None,
+    ) -> dict[str, JsonValue]:
+        with client_request_headers_scope(headers):
+            return await generate(json_data, headers)
+
+    return generate_with_client_headers
+
+
 async def run_model_service(
     sandbox: SandboxEnvironment,
     web_search: WebSearchProviders | None,
@@ -144,7 +163,7 @@ def generate_completions(
         )
         return completion.model_dump(mode="json", warnings=False)
 
-    return generate
+    return _expose_client_headers(generate)
 
 
 def generate_responses(
@@ -165,7 +184,7 @@ def generate_responses(
         )
         return completion.model_dump(mode="json", warnings=False)
 
-    return generate
+    return _expose_client_headers(generate)
 
 
 def generate_anthropic(
@@ -186,7 +205,7 @@ def generate_anthropic(
         )
         return completion.model_dump(mode="json", warnings=False)
 
-    return generate
+    return _expose_client_headers(generate)
 
 
 def generate_google(
@@ -204,7 +223,7 @@ def generate_google(
         )
         return completion
 
-    return generate
+    return _expose_client_headers(generate)
 
 
 def list_tools(
