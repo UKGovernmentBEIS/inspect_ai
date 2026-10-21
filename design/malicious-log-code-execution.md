@@ -188,7 +188,7 @@ download weights or start servers on construction.
 | `eval_set()` resume of a `started` log | A, B, C, D | recovery through `_recover_crashed_log()` (`evalset.py:1522`), from `as_previous_tasks()` (`:1504`), from `list_latest_eval_logs()` with a resolving `incomplete_action` (`:1803`), and from selection-worker resume (`:1734`) |
 | `eval_set()` resume of any other log | D | |
 | `inspect_ai.analysis.model_info()` | E | only for names missing from the model database |
-| `eval_retry()`, `inspect eval-retry` | A, B, C via recovery; then the task file, solver file, model, sandbox, approval, review and ACP settings from the log | run operation (`src/inspect_ai/_eval/eval.py:1684-1960`) |
+| `eval_retry()`, `inspect eval-retry` | A, B, C via recovery; then the task file, solver file, model, sandbox, approval, review, sentinel and ACP settings from the log | run operation (`src/inspect_ai/_eval/eval.py:1684-1960`) |
 | `inspect score`, `score()`, `resolve_scorers()` | scorer names and options from the log (without `--scorer`), with the scorer fallback that imports the recorded task file whenever building a recorded scorer or bare `--scorer` name from the registry raises `ValueError` (not registered, or a registered factory rejecting its options), in either action (`loader.py:833-856`); C for `--action overwrite`; model and model roles from the log | run operation with the log's scorers (`src/inspect_ai/_cli/score.py:206`, `score.py:263-275`, `:347-349`) |
 
 In eval-set, B only ever imports the user's own task file: a log is paired
@@ -549,10 +549,13 @@ class LogMetrics(NamedTuple):
     metrics: list[Metric | dict[str, list[Metric]]] | dict[str, list[Metric]] | None
     scorers: list[ScorerInfo]
 
-def resolve_log_metrics(log: EvalLog, *, trust_log: bool = False) -> LogMetrics:
+def resolve_log_metrics(
+    log: EvalLog, *, trust_log: bool = False, reducer_advice: str | None = None
+) -> LogMetrics:
     """Rebuild the log's reducers and metrics. Reads only the header; may
     import the task file (trust_log=True); raises LookupError or
-    DisallowedRegistryArg."""
+    DisallowedRegistryArg. A reducer the registry cannot find raises
+    LookupError with REDUCER_MISSING, then reducer_advice if given."""
 
 def compute_log_metrics(log: EvalLog, resolved: LogMetrics) -> None:
     """eval_results() over the samples' scores; sets results and reductions."""
@@ -564,6 +567,27 @@ def recompute_metrics(log: EvalLog, *, trust_log: bool = False) -> None:
 Resolution reads only header fields (`eval.metrics`, `eval.scorers`,
 `eval.config.epochs_reducer`), which neither an edit nor recovery changes,
 so resolving first gives the same metrics.
+
+Reducers are never imported from the task file, today or with
+`trust_log=True`, and the registry's own error names only the reducer
+(`my_reducer was not found in the registry`). So `resolve_log_metrics()`
+builds each recorded reducer name with `create_reducers()` and re-raises
+its `LookupError` (`from` the original) with this text, leaving the general
+reducer constructor unchanged:
+
+```
+Epoch reducer 'my_reducer' (the log's epochs_reducer) is not registered.
+Install the package that defines it, or import the module that defines it,
+first; the log's task file is not imported for reducers.
+```
+
+`recompute_metrics()` and `edit_score()` pass no `reducer_advice`, because
+`trust_log=True` does not help them. Untrusted recovery passes
+`RECOVER_REDUCER_ADVICE`: "Nothing was written; the crashed log and its
+buffer are unchanged. To recover it without results instead, pass
+trust_log=True (inspect log recover: --trust-log); this imports the log's
+task file and runs its code, so do it only for logs you trust." Trusted
+recovery passes none, since it warns instead of raising (below).
 
 - **`edit_score()`.** Today it sets the score, appends to `score.history`
   and inserts a `ScoreEditEvent`, then calls `recompute_metrics()`
@@ -590,9 +614,8 @@ so resolving first gives the same metrics.
     is not installed does, or nothing does any more; an epoch reducer that
     is not registered; or a forbidden option. The resolver cannot tell
     these apart without importing the task file. A missing metric raises
-    the step 2 `LookupError`; a missing reducer raises the registry's
-    `LookupError` unchanged (reducers were never imported from the task
-    file). `recover_eval_log()`,
+    the step 2 `LookupError`, a missing reducer the reducer `LookupError`
+    above with `RECOVER_REDUCER_ADVICE`. `recover_eval_log()`,
     `recover_eval_log_async()` and `inspect log recover` raise it, with the
     `--trust-log` advice it carries, before anything is written or cleaned
     up. The crashed log and its buffer are untouched, so the rerun with the
@@ -902,7 +925,12 @@ waits on it:
   no task file and an `hf/` task name, the Hugging Face repo and revision
   whose `eval.yaml` will define the task; the solver file if `eval.solver`
   is a file spec; the model and its base URL if recorded; the sandbox type
-  and its config file (or "inline config"); and the ACP server binding if
+  and its config file (or "inline config"); the sentinel monitors and
+  protocols (their registry names) if `eval.config.sentinel` is set, which
+  the retry forwards to `eval_async()` (`eval.py:1831`, `:1975`) and
+  `resolve_sentinel_spec()` builds from installed `inspect_sentinel`
+  factories with their recorded parameters (`eval.py:856-858`,
+  `_sentinel/_config.py:120-129`); and the ACP server binding if
   `eval.config.acp_server` is set.
 
 Paths are printed resolved, so a relative `task_file` that resolved to an
@@ -1171,7 +1199,9 @@ an eval set resumes from. After this design:
 - What remains in run operations is the purpose of the operation: the task
   file, the solver file (retry), the Hugging Face repo and its `eval.yaml`
   (retry of an `hf/` task), the model and its base URL, the sandbox,
-  approval and review policies, and the ACP binding. The docs and `--help`
+  approval and review policies, the sentinel configuration (installed
+  monitor and protocol factories, built with the log's parameters), and the
+  ACP binding. The docs and `--help`
   say these commands should only be run on trusted logs; step 7's printed
   record shows what was used but is not a safeguard. The credential and
   network items are under "Not this design".
@@ -1228,10 +1258,19 @@ What the tests must prove:
   raises the step 2 `LookupError` and each of 3s and 3t
   `DisallowedRegistryArg`, each naming the metric (and option path) and
   ending with the `trust_log` advice; a missing extension metric
-  (`somepkg/nope`) and a missing epoch reducer raise `LookupError` too.
-  Eval-set resume, on both recovery paths, instead logs the warning with
-  that message, recovers the log without results and completes the eval
-  set (step 2's `_untrusted_metrics="warn"`). Fixtures 1, 2s, 3s and 3t fail on `main` today
+  (`somepkg/nope`) raises the same `LookupError`. A missing epoch reducer
+  raises `LookupError` whose message names the reducer and says to install
+  or import it; from direct recovery it also says nothing was written and
+  names `--trust-log` / `trust_log=True` as the way to recover without
+  results, and from recompute and edit it does not mention `trust_log`.
+  Eval-set resume applies only to fixtures 1, 3s, 3t and 4: a fixture 2
+  log names the marker task file, which pairs only with a task loaded from
+  that file (`evalset.py:2073-2085`), and loading it registers the marker's
+  metrics, so fixture 2 is the legitimate case below. On both recovery
+  paths, 3s and 3t log the warning with the `DisallowedRegistryArg`
+  message, recover the log without results and complete the eval set
+  (step 2's `_untrusted_metrics="warn"`); 1 recovers with default metrics
+  and 4 is the sandbox case. Fixtures 1, 2s, 3s and 3t fail on `main` today
   (2s imports the marker; 3s and 3t rebuild the options), so they are the
   regression tests for steps 1, 2 and 3; 2t fails there on the message.
 - **A failed edit or recovery changes nothing.** `edit_score()` on
@@ -1248,7 +1287,8 @@ What the tests must prove:
   compute both metrics with one marker import and one `INFO` record (caplog;
   nothing is printed); eval-retry of a crashed fixture 2b log recovers its
   metrics, and eval-set
-  resume of a log with a task-file metric needs no opt-in. A registered
+  resume of a fixture 2b log, paired with the task loaded from its marker
+  file, recovers with both metrics and no opt-in. A registered
   custom metric taking a model recomputes with `trust_log=True`, and
   `grouped(accuracy(), ...)` passes step 3 untrusted.
 - **Rescoring trust follows the scorers' source.** With `--scorer` (and
@@ -1282,7 +1322,10 @@ What the tests must prove:
   `--sandbox` wins, and eval-retry keeps the log's; `model_info()` still
   fills metadata from the database, `set_model_info()` and `model_info=`;
   `inspect score --help` and `inspect eval-retry --help` carry the
-  trusted-logs sentence, and the retry record lists what it loads.
+  trusted-logs sentence, and the retry record lists what it loads,
+  including the sentinel entries of a log that records
+  `eval.config.sentinel` (with `resolve_sentinel_spec()` mocked, so the
+  test needs no `inspect_sentinel`).
 
 Tests go next to the existing ones for each area (`tests/scorer/`,
 `tests/log/test_recover_*.py`, `tests/test_retry.py`,
