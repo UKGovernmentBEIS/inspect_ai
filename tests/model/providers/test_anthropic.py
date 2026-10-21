@@ -2791,6 +2791,21 @@ async def test_anthropic_sonnet_5_5_reasoning_effort_none_bedrock_live(
 
 
 @pytest.mark.anyio
+@skip_if_no_vertex
+@pytest.mark.parametrize("effort", [None, "max"])
+async def test_anthropic_sonnet_5_5_reasoning_effort_none_vertex_live(
+    effort: Literal["max"] | None,
+) -> None:
+    """reasoning_effort='none' (between_tools) must not 400 on Vertex either."""
+    model = get_model(
+        "anthropic/vertex/claude-sonnet-5-5",
+        config=GenerateConfig(reasoning_effort="none", effort=effort, max_tokens=128),
+    )
+    response = await model.generate(input="Say hello in one short sentence.")
+    assert len(response.completion) >= 1
+
+
+@pytest.mark.anyio
 @skip_if_no_anthropic
 async def test_anthropic_sonnet_5_5_forced_tool_choice_live() -> None:
     """Forced tool choice must not 400 on Sonnet 5.5 (degraded to auto)."""
@@ -2804,6 +2819,13 @@ async def test_anthropic_sonnet_5_5_forced_tool_choice_bedrock_live() -> None:
     await _check_forced_tool_choice_degrades(
         "anthropic/bedrock/global.anthropic.claude-sonnet-5-5"
     )
+
+
+@pytest.mark.anyio
+@skip_if_no_vertex
+async def test_anthropic_sonnet_5_5_forced_tool_choice_vertex_live() -> None:
+    """Forced tool choice must not 400 on Sonnet 5.5 via Vertex (degraded to auto)."""
+    await _check_forced_tool_choice_degrades("anthropic/vertex/claude-sonnet-5-5")
 
 
 @pytest.mark.anyio
@@ -2930,6 +2952,18 @@ async def test_anthropic_forced_tool_choice_adaptive_thinking_bedrock_live(
     await _check_forced_tool_choice_with_reasoning(
         f"anthropic/bedrock/global.anthropic.{model_name}"
     )
+
+
+@pytest.mark.anyio
+@skip_if_no_vertex
+@pytest.mark.parametrize(
+    "model_name", ["claude-sonnet-4-6", "claude-sonnet-5", "claude-haiku-5-5"]
+)
+async def test_anthropic_forced_tool_choice_adaptive_thinking_vertex_live(
+    model_name: str,
+) -> None:
+    """Forced tool choice is honored with adaptive thinking on Vertex."""
+    await _check_forced_tool_choice_with_reasoning(f"anthropic/vertex/{model_name}")
 
 
 async def _check_forced_tool_choice_with_reasoning(model_str: str) -> None:
