@@ -235,18 +235,23 @@ def _failing_tasks(count: int) -> list[Callable[[], Awaitable[None]]]:
     return [functools.partial(fail, index) for index in range(count)]
 
 
-async def test_collect_keeps_task_error_cause_and_context() -> None:
+def _assert_cause_kept(error: BaseException) -> None:
+    assert repr(error.__cause__) == "ValueError('cause')"
+    # the context is the task group's group, as with `raise ... from None`
+    assert isinstance(error.__context__, ExceptionGroup)
+    assert error.__suppress_context__
+
+
+async def test_collect_keeps_task_error_cause() -> None:
     with pytest.raises(RuntimeError, match="task failed") as excinfo:
         await collect(_fail_with_cause())
-    assert repr(excinfo.value.__cause__) == "ValueError('cause')"
-    assert repr(excinfo.value.__context__) == "KeyError('context')"
+    _assert_cause_kept(excinfo.value)
 
 
-async def test_tg_collect_keeps_task_error_cause_and_context() -> None:
+async def test_tg_collect_keeps_task_error_cause() -> None:
     with pytest.raises(RuntimeError, match="task failed") as excinfo:
         await tg_collect([_fail_with_cause])
-    assert repr(excinfo.value.__cause__) == "ValueError('cause')"
-    assert repr(excinfo.value.__context__) == "KeyError('context')"
+    _assert_cause_kept(excinfo.value)
 
 
 async def test_collect_and_tg_collect_unwrap_rules() -> None:
@@ -283,19 +288,15 @@ async def test_unwrapped_task_errors_keep_their_type() -> None:
 
 
 @pytest.mark.parametrize("unwrap", ["single", "first"])
-async def test_unwrapped_task_error_keeps_context_when_host_is_cancelled(
+async def test_unwrapped_task_error_when_host_is_cancelled(
     unwrap: Literal["single", "first"],
 ) -> None:
-    original = KeyError("context")
     started = anyio.Event()
     cleaned_up = False
 
     async def fail() -> None:
         await started.wait()
-        try:
-            raise original
-        except KeyError:
-            raise RuntimeError("task failed")
+        await _fail_with_cause()
 
     async def block() -> None:
         nonlocal cleaned_up
@@ -310,38 +311,5 @@ async def test_unwrapped_task_error_keeps_context_when_host_is_cancelled(
             tg.start_soon(fail)
             tg.start_soon(block)
             await anyio.sleep_forever()
-    assert excinfo.value.__context__ is original
+    _assert_cause_kept(excinfo.value)
     assert cleaned_up
-
-
-class _ContextRejectingError(Exception):
-    def __setattr__(self, name: str, value: object) -> None:
-        if name == "__context__":
-            raise AttributeError("cannot assign __context__")
-        super().__setattr__(name, value)
-
-
-@pytest.mark.parametrize("unwrap", ["single", "first"])
-async def test_unwrapped_task_error_that_rejects_context_assignment(
-    unwrap: Literal["single", "first"],
-) -> None:
-    error = _ContextRejectingError("task failed")
-
-    async def fail() -> None:
-        raise error
-
-    with pytest.raises(_ContextRejectingError) as excinfo:
-        with unwrap_exception_group(unwrap):
-            async with anyio.create_task_group() as tg:
-                tg.start_soon(fail)
-    assert excinfo.value is error
-
-    with pytest.raises(_ContextRejectingError) as excinfo:
-        async with unwrap_exception_group(unwrap), anyio.create_task_group() as tg:
-            tg.start_soon(fail)
-    assert excinfo.value is error
-
-    if unwrap == "single":
-        with pytest.raises(_ContextRejectingError) as excinfo:
-            await collect(fail())
-        assert excinfo.value is error

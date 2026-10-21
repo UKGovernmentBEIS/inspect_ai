@@ -80,16 +80,13 @@ async def tg_collect(
 class unwrap_exception_group:
     """Unwrap an `ExceptionGroup` that leaves the block, raising its exception bare.
 
-    The exception keeps its own `__cause__` and `__context__`. Unwrapping
-    inside an `except` clause would set its context to the group, and
-    `raise ... from None` would also drop its cause.
+    The exception keeps its own `__cause__`. Its context is the group and is
+    suppressed, as with `raise ... from None`, which would also drop the cause.
 
     Use `with`, or `async with` in the same statement as the task group:
     `async with unwrap_exception_group(), anyio.create_task_group() as tg:`.
-    Its async exit never awaits: on asyncio, an exception raised out of an
-    exit that awaits gets the cancellation its caller is handling as its
-    context. It is a class rather than a generator, which would turn a
-    `StopIteration` or `StopAsyncIteration` into a `RuntimeError`.
+    It is a class rather than a generator, which would turn a `StopIteration`
+    or `StopAsyncIteration` into a `RuntimeError`.
 
     Args:
        unwrap: "single" raises the exception when the group holds exactly
@@ -114,14 +111,7 @@ class unwrap_exception_group:
         if self._unwrap == "single" and len(exc_value.exceptions) != 1:
             return
         unwrapped = exc_value.exceptions[0]
-        # raising here, while the with statement handles the group, sets the
-        # exception's context to the group; restore it as it propagates, past
-        # any __setattr__ of the exception's own (a frozen dataclass rejects it)
-        context = unwrapped.__context__
-        try:
-            raise unwrapped
-        finally:
-            BaseException.__setattr__(unwrapped, "__context__", context)
+        raise unwrapped from unwrapped.__cause__
 
     async def __aenter__(self) -> None:
         return None
