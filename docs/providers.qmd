@@ -216,6 +216,8 @@ inspect eval arc.py --model anthropic/claude-sonnet-4-0
 
 For the `anthropic` provider, custom model args (`-M`) are forwarded to the constructor of the `AsyncAnthropic` class.
 
+The `anthropic` provider does not pass `temperature`, `top_p`, or `top_k` to the model, because the Anthropic API rejects them as of API version `2026-10-21` (sent by `anthropic>=2.0`). It logs a warning when one of them is set.
+
 The following environment variables are supported by the Anthropic provider
 
 | Variable | Description |
