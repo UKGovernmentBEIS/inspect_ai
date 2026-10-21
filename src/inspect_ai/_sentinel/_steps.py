@@ -42,6 +42,10 @@ if TYPE_CHECKING:
 T = TypeVar("T")
 
 
+class MalformedLogError(ValueError):
+    """A log replay cannot read without guessing."""
+
+
 class ListView(Sequence[T]):
     """A read-only view of `items[start:stop]`, for a list that is only appended to.
 
@@ -454,8 +458,13 @@ class PoolView(Sequence[ChatMessage]):
         self._starts: list[int] = []
         length = 0
         for start, end in refs:
+            if not 0 <= start <= end <= len(pool):
+                raise MalformedLogError(
+                    f"A model input names pool rows [{start}, {end}), "
+                    f"outside the pool of {len(pool)} messages."
+                )
             self._starts.append(length)
-            length += max(end - start, 0)
+            length += end - start
         self._length = length
 
     @property

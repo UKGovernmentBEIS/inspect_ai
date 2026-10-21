@@ -12,8 +12,12 @@ import tenacity
 from pydantic import BaseModel
 
 from inspect_ai import Task, eval
-from inspect_ai._sentinel._replay import EvalInfo, MalformedLogError, steps_from_events
-from inspect_ai._sentinel._steps import PoolView
+from inspect_ai._sentinel._integration import (
+    EvalInfo,
+    MalformedLogError,
+    steps_from_events,
+)
+from inspect_ai._sentinel._steps import ListView, PoolView
 from inspect_ai._util._async import tg_collect
 from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai.agent import Agent, as_solver, as_tool, handoff, react
@@ -160,21 +164,31 @@ def replayed(log: EvalLog, **kwargs: Any) -> list["ReplayStep"]:
     )
 
 
-def comparable(value: Any) -> Any:
-    """A value with message ids left out: the log's pool keeps the first id stored for each content, so a message sent again under a new id reads back with the first."""
+# the fields whose messages come from the log's pool, which keeps the first id
+# stored for each content: a message sent again under a new id reads back with
+# the first, and equal messages in one history are one row, so one id and one
+# object (a known difference)
+POOLED = {"input", "history", "agent_messages"}
+
+
+def comparable(value: Any, ids: bool = True) -> Any:
+    """A value as data, with message ids left out unless `ids`."""
     if isinstance(value, BaseModel) and hasattr(value, "role"):
-        return (type(value).__name__, value.model_dump(exclude={"id"}))
+        return (
+            type(value).__name__,
+            value.model_dump(exclude=None if ids else {"id"}),
+        )
     if isinstance(value, BaseModel):
         return value.model_dump()
     if dataclasses.is_dataclass(value) and not isinstance(value, type):
         return {
-            f.name: comparable(getattr(value, f.name))
+            f.name: comparable(getattr(value, f.name), ids)
             for f in dataclasses.fields(value)
         }
     if isinstance(value, Sequence) and not isinstance(value, str | bytes):
-        return [comparable(item) for item in value]
+        return [comparable(item, ids) for item in value]
     if isinstance(value, dict):
-        return {key: comparable(item) for key, item in value.items()}
+        return {key: comparable(item, ids) for key, item in value.items()}
     return value
 
 
@@ -229,7 +243,8 @@ def assert_replay_equals_live(
             ours, theirs = getattr(again, f.name), getattr(step, f.name)
             if f.name == "view":
                 ours, theirs = ours.call, theirs.call
-            assert comparable(ours) == comparable(theirs), f"{key} {f.name}"
+            ids = f.name not in POOLED
+            assert comparable(ours, ids) == comparable(theirs, ids), f"{key} {f.name}"
     return replay
 
 
@@ -888,15 +903,51 @@ SEQUENCES = {
 }
 
 
-def copied_into_steps(steps: Sequence[Step]) -> int:
-    """Elements a builder copied into the steps' conversation fields: any list or tuple there is a copy."""
-    copied = 0
+def assert_views_share_storage(
+    steps: Sequence[Step], pool: Sequence[ChatMessage] | None = None
+) -> None:
+    """Every step's conversation fields are views of lists the conversation keeps, never copies.
+
+    Per conversation, `history` and `human_decisions` are each backed by one list, and `agent_messages` by at most two (the opening is replaced once, by the input as sent). The tool stages' `input` and `tools` are the producing model call's own lists, one per assistant message, whatever its calls and stages: live, its `ModelEvent`'s; in replay, rows of the one pool.
+    """
+    backing: dict[tuple[str, str], set[int]] = {}
+    generates = {
+        step.output.message.id: step
+        for step in steps
+        if isinstance(step, AfterGenerate) and step.output.choices
+    }
     for step in steps:
-        for name in SEQUENCES[type(step).__name__]:
+        for name in ("history", "agent_messages", "human_decisions"):
             value = getattr(step, name)
-            if isinstance(value, list | tuple):
-                copied += len(value)
-    return copied
+            if value is not None:
+                assert isinstance(value, ListView), (name, type(value))
+                backing.setdefault((step.conversation, name), set()).add(
+                    id(value._items)
+                )
+        inputs: list[Any] = [step.input]
+        if isinstance(step, BeforeToolCall | AfterToolCall) and step.input is not None:
+            assert isinstance(step.tools, ListView)
+            if pool is None:
+                assert isinstance(step.input, ListView)
+                producer = generates.get(step.message_id)
+                if producer is not None:
+                    assert step.input == producer.input
+                for name in ("input", "tools"):
+                    backing.setdefault((step.message_id, name), set()).add(
+                        id(getattr(step, name)._items)
+                    )
+                inputs = []
+        if pool is not None:
+            if isinstance(step, BeforeToolCall | AfterToolCall) and step.tools:
+                assert isinstance(step.tools, ListView)
+                backing.setdefault((step.message_id, "tools"), set()).add(
+                    id(step.tools._items)
+                )
+            for input in inputs:
+                assert isinstance(input, PoolView) and input._pool is pool
+    for (conversation, name), lists in backing.items():
+        allowed = 2 if name == "agent_messages" else 1
+        assert len(lists) <= allowed, (conversation, name, len(lists))
 
 
 @pytest.mark.parametrize("turns", [10, 20])
@@ -905,7 +956,7 @@ def test_live_steps_copy_nothing_of_the_conversation(turns: int) -> None:
     log = long_run(turns, seen)
     assert log.samples
     assert len(seen) > 4 * turns
-    assert copied_into_steps(list(seen.values())) == 0
+    assert_views_share_storage(list(seen.values()))
 
 
 class Work(NamedTuple):
@@ -914,7 +965,7 @@ class Work(NamedTuple):
     visited: int
     """Positions the fold compared, by content."""
     indexed: int
-    """Ranges the fold's lookups scanned in the previous input."""
+    """Ranges the fold's lookups passed in the previous input."""
     pool: int
     """Rows in the message pool."""
     ranges: int
@@ -935,7 +986,7 @@ def replay_work(
     keyed = visited = indexed = 0
     content_key = _steps.content_key
     canonical = _replay._PoolKeys.canonical
-    find = _replay._PooledInput._find
+    bisect_left = _replay.bisect_left
 
     def counting_content_key(message: Any) -> str:
         nonlocal keyed
@@ -947,19 +998,20 @@ def replay_work(
         visited += 1
         return canonical(self, row)
 
-    def counting_find(self: Any, row: int, at_least: int) -> int | None:
+    def counting_bisect_left(rows: list[int], row: int) -> int:
+        # one per range a lookup passes
         nonlocal indexed
-        indexed += len(self.view.refs) * len(self._keys.rows(row))
-        return find(self, row, at_least)
+        indexed += 1
+        return bisect_left(rows, row)
 
     with monkeypatch.context() as patch:
         patch.setattr(_replay, "content_key", counting_content_key)
         patch.setattr(_replay._PoolKeys, "canonical", counting_canonical)
-        patch.setattr(_replay._PooledInput, "_find", counting_find)
+        patch.setattr(_replay, "bisect_left", counting_bisect_left)
         replay = steps_from_events(
             messages, events, pool, sample_uuid=sample_uuid, eval_info=eval_info
         )
-    assert copied_into_steps([step.step for step in replay]) == 0
+    assert_views_share_storage([step.step for step in replay], pool)
     ranges = sum(len(e.input_refs or []) for e in events if isinstance(e, ModelEvent))
     return Work(keyed, visited, indexed, len(pool), ranges, len(replay))
 

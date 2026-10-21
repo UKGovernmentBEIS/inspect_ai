@@ -1,6 +1,6 @@
 """The log driver: a sample's steps rebuilt from its events, with the builders the live dispatcher uses (`_steps.py`)."""
 
-from bisect import bisect_right
+from bisect import bisect_left, bisect_right
 from collections.abc import Callable, Iterator, Sequence
 from dataclasses import dataclass, field, replace
 from functools import partial
@@ -31,6 +31,7 @@ from ._scope import is_agent_turn
 from ._steps import (
     ConversationRecord,
     FoldInput,
+    MalformedLogError,
     PoolView,
     Producer,
     after_generate,
@@ -65,10 +66,6 @@ class EvalInfo(NamedTuple):
         )
 
 
-class MalformedLogError(ValueError):
-    """A log replay cannot read without guessing."""
-
-
 def steps_from_events(
     messages: Sequence[ChatMessage],
     events: Sequence[Event],
@@ -85,7 +82,7 @@ def steps_from_events(
 
     Args:
         messages: The sample's messages (`EvalSample.messages`).
-        events: The sample's events, with model inputs condensed (`input_refs` into `message_pool`), as the log stores them; inputs given expanded are condensed first.
+        events: The sample's events, with model inputs condensed (`input_refs` into `message_pool`), as the log stores them; inputs given expanded are condensed first. Attachments must be resolved (`resolve_attachments`), or monitors are handed `attachment://` references.
         message_pool: The sample's message pool (`EvalSample.events_data["messages"]`).
         sample_uuid: The sample's uuid: the conversation of calls made outside any agent span.
         eval_info: What the log's header says about the eval.
@@ -96,21 +93,16 @@ def steps_from_events(
         The steps, in the order they ran live.
 
     Raises:
-        MalformedLogError: Two steps of one stage have one step id, or the span tree has a `parent_id` cycle.
+        MalformedLogError: Two steps of one stage have one step id, the span tree has a `parent_id` cycle, or a model input names rows outside the message pool.
         NotImplementedError: The log does not record where its model calls were made (`ModelEvent.origin`, written since inspect_ai PR #5990); turns from the timeline come later.
     """
     flat = _flatten(events)
     pool: list[ChatMessage] | Sequence[ChatMessage] = message_pool
     if any(isinstance(e, ModelEvent) and e.input_refs is None for e in flat):
         flat, pool = _condensed(flat, message_pool)
-    try:
-        return _Driver(
-            messages, flat, pool, sample_uuid, eval_info, timeline, human_approvers
-        ).steps()
-    except ValueError as ex:
-        if isinstance(ex, MalformedLogError):
-            raise
-        raise MalformedLogError(str(ex)) from ex
+    return _Driver(
+        messages, flat, pool, sample_uuid, eval_info, timeline, human_approvers
+    ).steps()
 
 
 def _flatten(events: Sequence[Event]) -> list[Event]:
@@ -213,15 +205,21 @@ class _PooledInput:
         return self._ends[bisect_right(self.view.starts, position) - 1] - position
 
     def _find(self, canonical: int, at_least: int) -> int | None:
-        """The first position at or after `at_least` holding the canonical row's content."""
-        best: int | None = None
-        for row in self._keys.rows(canonical):
-            for start, (begin, end) in zip(self.view.starts, self.view.refs):
-                if begin <= row < end:
-                    position = start + row - begin
-                    if position >= at_least and (best is None or position < best):
-                        best = position
-        return best
+        """The first position at or after `at_least` holding the canonical row's content.
+
+        Ranges are searched in input order from the one holding `at_least`, each by bisecting the rows with that content, so a lookup costs the ranges it passes, not the rows that share the content.
+        """
+        if at_least >= len(self):
+            return None
+        rows = self._keys.rows(canonical)
+        starts, refs = self.view.starts, self.view.refs
+        for at in range(max(bisect_right(starts, at_least) - 1, 0), len(refs)):
+            begin, end = refs[at]
+            low = begin + max(at_least - starts[at], 0)
+            found = bisect_left(rows, low)
+            if found < len(rows) and rows[found] < end:
+                return starts[at] + rows[found] - begin
+        return None
 
 
 @dataclass
@@ -315,7 +313,11 @@ class _Driver:
     def steps(self) -> list["ReplayStep"]:
         _check_span_tree(self.events)
         generates: list[_Generate] = []
-        open_generates: dict[str | None, _Generate] = {}
+        # each span's generates whose last attempt errored, by input: a retry
+        # joins the open generate with its own input
+        open_generates: dict[
+            tuple[str | None, tuple[tuple[int, int], ...]], _Generate
+        ] = {}
         last_turn: dict[str, int] = {}
         candidates: dict[str, list[str]] = {}
         produced: dict[str, tuple[ChatMessageAssistant, ModelEvent]] = {}
@@ -351,12 +353,12 @@ class _Driver:
                     continue
                 conversation = self._conversation(event)
                 self._at(index, 2, partial(self._fold, conversation, event))
-                group = open_generates.get(event.span_id)
-                if (
-                    group is not None
-                    and group.attempts[-1][1].error is not None
-                    and group.attempts[-1][1].input_refs == event.input_refs
-                ):
+                attempt_key = (
+                    event.span_id,
+                    tuple((start, end) for start, end in event.input_refs or []),
+                )
+                group = open_generates.pop(attempt_key, None)
+                if group is not None:
                     group.attempts.append((index, event))
                 else:
                     batch = batches.pop(conversation, None)
@@ -372,7 +374,8 @@ class _Driver:
                         candidates.pop(conversation, []),
                     )
                     generates.append(group)
-                    open_generates[event.span_id] = group
+                if event.error is not None:
+                    open_generates[attempt_key] = group
                 last_turn[conversation] = index
             elif isinstance(event, ApprovalEvent):
                 approvals[event.call.id] = event
@@ -723,9 +726,9 @@ class _Driver:
         self._settle_at_end(after_span)
 
     def _checks_tool_calls(self, producer: ModelEvent | None) -> bool:
-        """Whether live checked the calls a model call produced: wherever the region it was made in is not final (`checks_tool_calls()`).
+        """Whether live checked the calls a model call produced, inferred from the region the model call was made in.
 
-        A call no model call produced (a pre-filled message) is taken as checked: the log does not say which region ran it.
+        Live decides by the region that runs the call (`checks_tool_calls()` in `call_tool`), which the log does not record, so a call run in a region other than the one its producer was made in is replayed by its producer's. A call no model call produced (a pre-filled message) is taken as checked.
         """
         if producer is None:
             return True
@@ -870,6 +873,7 @@ class _Driver:
             if isinstance(found, ChatMessageTool):
                 return found
         return ChatMessageTool(
+            id=event.message_id,
             content=cast(str | list[Content], event.result),
             tool_call_id=event.id,
             function=event.function,
