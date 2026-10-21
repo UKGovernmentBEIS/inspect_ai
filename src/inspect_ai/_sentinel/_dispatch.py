@@ -135,7 +135,7 @@ async def sentinel_before_tool_call(
         call=call,
         view=view,
         input=list(producer.input) if producer is not None else None,
-        agent_messages=ran_messages(conversation),
+        agent_messages=ran_messages(conversation, _producing_message(call, history)),
         history=sent_messages(conversation),
         human_decisions=_human_decisions(conversation),
         tools=list(producer.tools) if producer is not None else None,
@@ -188,7 +188,7 @@ async def sentinel_after_tool_call(
         output=output,
         view=resolve_tool_call_view(call, viewer),
         input=list(producer.input) if producer is not None else None,
-        agent_messages=ran_messages(conversation),
+        agent_messages=ran_messages(conversation, _producing_message(call, history)),
         history=sent_messages(conversation),
         human_decisions=_human_decisions(conversation),
         tools=list(producer.tools) if producer is not None else None,
@@ -434,6 +434,13 @@ def _assistant_index(call: ToolCall, history: list[ChatMessage]) -> int | None:
         ):
             return index
     return None
+
+
+def _producing_message(
+    call: ToolCall, history: list[ChatMessage]
+) -> ChatMessage | None:
+    index = _assistant_index(call, history)
+    return history[index] if index is not None else None
 
 
 def _producing_event(call: ToolCall, history: list[ChatMessage]) -> ModelEvent | None:

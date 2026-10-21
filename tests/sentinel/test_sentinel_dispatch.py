@@ -4294,3 +4294,188 @@ def test_the_opening_is_the_first_input_as_sent_after_hooks() -> None:
     for step in later:
         assert shape(step.agent_messages)[:2] == opening, type(step).__name__
     assert shape(of_stage(seen, AfterGenerate)[0].history) == opening
+
+
+def final_messages(log: EvalLog) -> list[tuple[str, str]]:
+    assert log.samples
+    return shape(log.samples[0].messages)
+
+
+def test_a_react_refusal_it_retries_stays_in_agent_messages() -> None:
+    seen: Steps = []
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.from_content(
+                "mockllm/model", "I refuse", stop_reason="content_filter"
+            ),
+            ModelOutput.for_tool_call(
+                "mockllm/model", tool_name="submit", tool_arguments={"answer": "2"}
+            ),
+        ],
+        memoize=False,
+    )
+    task = Task(
+        dataset=[Sample(input="What is 1 + 1?")],
+        solver=as_solver(react(tools=[addition()], retry_refusals=2)),
+        sentinel=[d3_every_stage(seen)],
+    )
+    log = eval(task, model=model)[0]
+    assert log.status == "success", log.error
+
+    # documented: an output returned to the agent is recorded, even when react
+    # discards it and generates again
+    *_, last = of_stage(seen, AfterGenerate)
+    assert shape(last.agent_messages)[-1] == ("assistant", "I refuse")
+    assert ("assistant", "I refuse") not in final_messages(log)
+
+
+def test_a_react_overflow_turn_stays_in_agent_messages() -> None:
+    seen: Steps = []
+
+    async def drop_the_last_turn(messages: list[ChatMessage]) -> list[ChatMessage]:
+        return messages[:2]
+
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.for_tool_call(
+                "mockllm/model", tool_name="addition", tool_arguments={"x": 1, "y": 1}
+            ),
+            ModelOutput.from_content(
+                "mockllm/model", "too long", stop_reason="model_length"
+            ),
+            ModelOutput.for_tool_call(
+                "mockllm/model", tool_name="submit", tool_arguments={"answer": "2"}
+            ),
+        ],
+        memoize=False,
+    )
+    task = Task(
+        dataset=[Sample(input="What is 1 + 1?")],
+        solver=as_solver(react(tools=[addition()], truncation=drop_the_last_turn)),
+        sentinel=[d3_every_stage(seen)],
+    )
+    log = eval(task, model=model)[0]
+    assert log.status == "success", log.error
+
+    # documented: the turn react's overflow recovery removes stays recorded,
+    # as do the turns its filter dropped
+    *_, last = of_stage(seen, BeforeGenerate)
+    assert shape(last.agent_messages)[-3:] == [
+        ("assistant", "tool call for tool addition"),
+        ("tool", "2"),
+        ("assistant", "too long"),
+    ]
+    assert ("assistant", "too long") not in final_messages(log)
+
+
+def run_solver(solve: Solver, seen: Steps, model: Any) -> EvalLog:
+    task = Task(
+        dataset=[Sample(input="add")], solver=solve, sentinel=[d3_every_stage(seen)]
+    )
+    log = eval(task, model=model)[0]
+    assert log.status == "success", log.error
+    return log
+
+
+def test_a_tool_stage_shows_the_record_through_its_assistant_message() -> None:
+    @solver
+    def generate_twice_run_the_first() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            model = get_model()
+            tools = [addition()]
+            input: list[ChatMessage] = [ChatMessageUser(content="add")]
+            first = await model.generate(input, tools)
+            await model.generate(input, tools)
+            await execute_tools([*input, first.message], tools)
+            return state
+
+        return solve
+
+    seen: Steps = []
+    run_solver(generate_twice_run_the_first(), seen, agent_model(turns=2))
+
+    first, second = [step.output.message for step in of_stage(seen, AfterGenerate)]
+    for step in of_stage(seen, BeforeToolCall) + of_stage(seen, AfterToolCall):
+        assert step.agent_messages is not None
+        assert step.agent_messages[-1] is first
+        assert not any(m is second for m in step.agent_messages)
+
+
+def test_a_tool_stage_for_a_hand_built_message_shows_the_whole_record() -> None:
+    @solver
+    def runs_a_hand_built_call() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            model = get_model()
+            tools = [addition()]
+            input: list[ChatMessage] = [ChatMessageUser(content="add")]
+            await model.generate(input, tools)
+            built = ChatMessageAssistant(content="", tool_calls=[addition_call()])
+            await execute_tools([*input, built], tools)
+            return state
+
+        return solve
+
+    seen: Steps = []
+    run_solver(runs_a_hand_built_call(), seen, agent_model(turns=1))
+
+    [output] = [step.output.message for step in of_stage(seen, AfterGenerate)]
+    [before_call] = of_stage(seen, BeforeToolCall)
+    assert before_call.call.id == "call"
+    assert shape(before_call.agent_messages) == [
+        ("user", "add"),
+        ("assistant", "tool call for tool addition"),
+    ]
+    assert before_call.agent_messages[-1] is output
+
+
+@tool
+def runs_its_own_agent() -> Tool:
+    async def execute() -> str:
+        """Run a model and its tool call inside the tool."""
+        inner = get_model(
+            "mockllm/model",
+            custom_outputs=[
+                ModelOutput.for_tool_call(
+                    "mockllm/model",
+                    tool_name="addition",
+                    tool_arguments={"x": 5, "y": 5},
+                )
+            ],
+            memoize=False,
+        )
+        input: list[ChatMessage] = [ChatMessageUser(content="inner")]
+        output = await inner.generate(input, [addition()])
+        result = await execute_tools([*input, output.message], [addition()])
+        return result.messages[0].text
+
+    return execute
+
+
+def test_a_tool_bodys_own_generates_and_tool_calls_are_not_recorded() -> None:
+    seen: Steps = []
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.for_tool_call(
+                "mockllm/model", tool_name="runs_its_own_agent", tool_arguments={}
+            ),
+            ModelOutput.from_content("mockllm/model", "done"),
+        ],
+        memoize=False,
+    )
+    task = Task(
+        dataset=[Sample(input="go")],
+        solver=[use_tools(runs_its_own_agent(), addition()), generate()],
+        sentinel=[d3_every_stage(seen)],
+    )
+    log = eval(task, model=model)[0]
+    assert log.status == "success", log.error
+
+    *_, last = of_stage(seen, BeforeGenerate)
+    assert shape(last.agent_messages) == [
+        ("user", "go"),
+        ("assistant", "tool call for tool runs_its_own_agent"),
+        ("tool", "10"),
+    ]
