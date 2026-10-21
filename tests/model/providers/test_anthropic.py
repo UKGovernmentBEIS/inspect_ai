@@ -1394,6 +1394,29 @@ async def test_anthropic_top_level_cache_control_skipped_on_bedrock_vertex(
 
 
 @pytest.mark.anyio
+@pytest.mark.parametrize(
+    "model_name,anthropic_version",
+    [
+        ("claude-sonnet-4-6", None),
+        ("bedrock/us.anthropic.claude-sonnet-4-6", "bedrock-2023-05-31"),
+        ("vertex/claude-sonnet-4-6@20250929", "vertex-2023-10-16"),
+    ],
+)
+async def test_anthropic_platform_api_version(
+    model_name: str, anthropic_version: str | None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Bedrock and Vertex requests carry their platform `anthropic_version`."""
+    monkeypatch.setenv("AWS_REGION", "us-east-1")
+    monkeypatch.setenv("ANTHROPIC_VERTEX_PROJECT_ID", "fake")
+    monkeypatch.setenv("ANTHROPIC_VERTEX_REGION", "us-east5")
+
+    api = AnthropicAPI(model_name=model_name, api_key="test-key")
+    _, extra_body, _, _ = api.completion_config(GenerateConfig(max_tokens=16))
+
+    assert extra_body.get("anthropic_version") == anthropic_version
+
+
+@pytest.mark.anyio
 @skip_if_no_anthropic
 async def test_anthropic_prompt_caching_changing_suffix() -> None:
     """Verify caching when only the last content block changes.
@@ -2780,6 +2803,18 @@ async def test_anthropic_sonnet_5_5_forced_tool_choice_bedrock_live() -> None:
     await _check_forced_tool_choice_degrades(
         "anthropic/bedrock/global.anthropic.claude-sonnet-5-5"
     )
+
+
+@pytest.mark.anyio
+@skip_if_no_bedrock
+async def test_anthropic_sonnet_4_6_bedrock_live() -> None:
+    """Bedrock rejects API version 2026-10-21 in the body for Sonnet 4.6."""
+    model = get_model(
+        "anthropic/bedrock/us.anthropic.claude-sonnet-4-6",
+        config=GenerateConfig(max_tokens=128),
+    )
+    response = await model.generate(input="Say hello in one short sentence.")
+    assert len(response.completion) >= 1
 
 
 @pytest.mark.anyio

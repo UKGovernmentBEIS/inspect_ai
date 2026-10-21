@@ -1144,11 +1144,13 @@ class AnthropicAPI(ModelAPI):
         # Beta opt-ins required for special content in the history. The API
         # validates content block types for token counting too, so replayed
         # compaction and fallback blocks need the same betas as generate.
-        request_extra: dict[str, Any] = {}
+        request_extra: dict[str, Any] = {
+            "extra_body": platform_api_version(self.client)
+        }
         if has_compaction:
             betas.append("compact-2026-01-12")
-            request_extra["extra_body"] = {
-                "context_management": {"edits": [{"type": "compact_20260112"}]}
+            request_extra["extra_body"]["context_management"] = {
+                "edits": [{"type": "compact_20260112"}]
             }
         if has_fallback:
             betas.append(FALLBACK_BETA)
@@ -1423,7 +1425,7 @@ class AnthropicAPI(ModelAPI):
         max_tokens = cast(int, config.max_tokens)
         params = dict(model=self.service_model_name(), max_tokens=max_tokens)
         headers: dict[str, str] = (config.extra_headers or {}).copy()
-        extra_body: dict[str, Any] = {}
+        extra_body: dict[str, Any] = platform_api_version(self.client)
         betas: list[str] = self.betas + self._pull_betas_from_headers(headers)
 
         # API version 2026-10-21 (anthropic >= 2.0) rejects these params on
@@ -5852,6 +5854,26 @@ async def message_block_params(
         )
 
 
+def platform_api_version(
+    client: AsyncAnthropic
+    | AsyncAnthropicBedrock
+    | AsyncAnthropicVertex
+    | AsyncAnthropicFoundry,
+) -> dict[str, str]:
+    """Request body `anthropic_version` for Bedrock and Vertex.
+
+    anthropic >= 2.0 sends its own API version (2026-10-21) in the body on
+    these platforms, and Bedrock rejects it for some models (Sonnet 4.6).
+    Send the platform versions that anthropic 1.x sent instead.
+    """
+    if isinstance(client, AsyncAnthropicBedrock):
+        return {"anthropic_version": "bedrock-2023-05-31"}
+    elif isinstance(client, AsyncAnthropicVertex):
+        return {"anthropic_version": "vertex-2023-10-16"}
+    else:
+        return {}
+
+
 async def count_tokens(
     client: AsyncAnthropic | AsyncAnthropicBedrock | AsyncAnthropicVertex,
     model: str,
@@ -5861,6 +5883,7 @@ async def count_tokens(
         response = await client.messages.count_tokens(
             model=model,
             messages=[{"role": "user", "content": text}],
+            extra_body=platform_api_version(client),
         )
         return response.input_tokens
     except Exception as ex:
