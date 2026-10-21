@@ -103,6 +103,7 @@ from inspect_ai.util._sandbox.events import SandboxTimeoutError
 from inspect_ai.util._span import (
     SpanRotationScope,
     current_span_id,
+    parent_span,
     span,
     span_id_provider,
 )
@@ -3588,6 +3589,27 @@ async def test_execution_follows_an_on_start_sink_s_later_move_of_its_proposal()
     assert model_event.span_id == "agent-other"
     [event] = recorded.tool_events
     assert event.span_id == "agent-other"
+
+
+async def test_a_sink_without_on_start_is_wrapped_without_one() -> None:
+    """The bridge runs such a sink's generation as before: no span lookup at all."""
+    from inspect_ai.agent._bridge.util import _span_capturing_sink
+    from inspect_ai.model._model import _StartingModelEventSink
+
+    assert not isinstance(_span_capturing_sink(StampingSink()), _StartingModelEventSink)
+    assert isinstance(
+        _span_capturing_sink(StartingStampingSink()), _StartingModelEventSink
+    )
+    bridge = sandbox_bridge_with_sink(
+        AsyncMock(return_value="contents"), StampingSink({"current"})
+    )
+    call = ToolCall(id="proposed", function="read_file", arguments={"path": "a"})
+    with recorded_transcript() as recorded:
+        # a current span this transcript has no begin for
+        with parent_span("elsewhere"):
+            await propose(bridge, call)
+    [model_event] = [e for e in recorded.events if isinstance(e, ModelEvent)]
+    assert model_event.span_id == "elsewhere"
 
 
 @pytest.mark.parametrize("sink", SINKS)

@@ -5405,6 +5405,107 @@ def test_a_span_tree_cycle_is_an_error() -> None:
         conversations.conversation("a")
 
 
+class _CountingSpans(dict[str, Any]):
+    def __init__(self) -> None:
+        super().__init__()
+        self.gets = 0
+
+    def get(self, key: str, default: Any = None) -> Any:
+        self.gets += 1
+        return super().get(key, default)
+
+
+def chain_lookup_work(n: int, late_root: bool) -> int:
+    """Index reads to add a chain of `n` spans below an agent root, looking up each as it is added."""
+    from inspect_ai.util._span import AgentSpans
+
+    spans = AgentSpans()
+    counted = _CountingSpans()
+    spans._spans = counted
+    root = SpanBeginEvent(id="root", type="agent", name="root")
+    if not late_root:
+        spans.add(root)
+    for i in range(n):
+        parent = str(i - 1) if i else "root"
+        spans.add(SpanBeginEvent(id=str(i), parent_id=parent, name="child"))
+        assert spans.agent_span(str(i)) == (None if late_root else "root")
+    if late_root:
+        spans.add(root)
+        assert spans.agent_span(str(n - 1)) == "root"
+        assert spans.agent_span("0") == "root"
+    return counted.gets
+
+
+@pytest.mark.parametrize("late_root", [False, True], ids=["known-root", "late-root"])
+def test_agent_span_lookups_are_linear_in_the_spans_added(late_root: bool) -> None:
+    n = 2_000
+    work = chain_lookup_work(n, late_root)
+    assert work <= n + 3
+    assert chain_lookup_work(2 * n, late_root) <= 2 * work
+
+
+def test_a_cycle_closed_after_a_lookup_is_an_error() -> None:
+    from inspect_ai._sentinel._conversation import SpanConversations
+
+    conversations = SpanConversations("sample")
+    conversations.add(SpanBeginEvent(id="a", parent_id="b", name="a"))
+    assert conversations.conversation("a") == "sample"
+    conversations.add(SpanBeginEvent(id="b", parent_id="a", name="b"))
+    for _ in range(2):
+        with pytest.raises(ValueError, match="cycle"):
+            conversations.conversation("a")
+
+
+def naive_agent_span(
+    spans: dict[str, tuple[str | None, bool]], span_id: str
+) -> str | None:
+    seen: set[str] = set()
+    current: str | None = span_id
+    while current is not None:
+        if current in seen:
+            raise ValueError("cycle")
+        seen.add(current)
+        if current not in spans:
+            return None
+        parent, is_agent = spans[current]
+        if is_agent:
+            return current
+        current = parent
+    return None
+
+
+def test_agent_spans_match_a_full_walk_whatever_the_order_spans_are_added() -> None:
+    from inspect_ai.util._span import AgentSpans
+
+    rng = random.Random(5990)
+    for _ in range(300):
+        size = rng.randint(1, 12)
+        ids = [f"s{i}" for i in range(size)]
+        tree = {id: (rng.choice([None, *ids]), rng.random() < 0.3) for id in ids}
+        index = AgentSpans()
+        added: dict[str, tuple[str | None, bool]] = {}
+        for id in rng.sample(ids, size):
+            parent, is_agent = tree[id]
+            index.add(
+                SpanBeginEvent(
+                    id=id, parent_id=parent, type="agent" if is_agent else None, name=id
+                )
+            )
+            added[id] = tree[id]
+            for looked_up in rng.sample(list(added), min(3, len(added))):
+                try:
+                    expected: str | None | type[ValueError] = naive_agent_span(
+                        added, looked_up
+                    )
+                except ValueError:
+                    expected = ValueError
+                try:
+                    found: str | None | type[ValueError] = index.agent_span(looked_up)
+                except ValueError:
+                    found = ValueError
+                assert found == expected, (tree, list(added), looked_up)
+
+
 # every live step.history is the fold of the inputs of its conversation's
 # "agent" calls before the step's sentinel span, in log order
 
@@ -6009,11 +6110,22 @@ def d3_generates_under_a_parent_span(sink: Any) -> Solver:
     return solve
 
 
-def test_an_on_start_sink_naming_the_current_span_gives_that_span_s_agent() -> None:
+def _names_the_current_span(input: list[ChatMessage]) -> str | None:
     from inspect_ai.util._span import current_span_id
 
+    return current_span_id()
+
+
+# on_start's None is the current span, as is naming it
+CURRENT_SPAN_RESULTS = {"none": None, "current": _names_the_current_span}
+
+
+@pytest.mark.parametrize("result", CURRENT_SPAN_RESULTS)
+def test_an_on_start_sink_naming_the_current_span_gives_that_span_s_agent(
+    result: str,
+) -> None:
     run = run_sink(
-        d3_generates_under_a_parent_span(_StartingSink(lambda input: current_span_id()))
+        d3_generates_under_a_parent_span(_StartingSink(CURRENT_SPAN_RESULTS[result]))
     )
     assert run.log.status == "success", run.log.error
     main, sub = agent_events_by_origin(run.log)
@@ -6368,3 +6480,50 @@ async def test_a_generate_cancelled_under_an_on_start_span_restores_the_caller_s
     after = events[events.index(cancelled) + 1 :]
     assert [e.event for e in after if e.span_id == "sub-agent"] == []
     assert {e.event for e in after if e.span_id == "outer"} >= {"info", "model"}
+
+
+@pytest.mark.parametrize("result", CURRENT_SPAN_RESULTS)
+async def test_an_on_start_sink_under_a_parent_span_gives_that_span_s_agent(
+    result: str,
+) -> None:
+    # as the eval test above, in-process, so it runs under asyncio and trio
+    from inspect_ai._sentinel._scope import sentinel_solving
+    from inspect_ai.model._model import use_model_event_sink
+    from inspect_ai.util._span import parent_span, span
+
+    init_transcript(Transcript())
+    seen: list[StageSeen] = []
+    sink = _StartingSink(CURRENT_SPAN_RESULTS[result])
+    with live_conversations() as live:
+        async with span("outer", type="agent", id="outer"):
+            transcript()._event(
+                SpanBeginEvent(
+                    id="sub-agent", parent_id="outer", type="agent", name="sub"
+                )
+            )
+            with active([d3_every_stage(seen)]), sentinel_solving():
+                with parent_span("sub-agent"), use_model_event_sink(sink):
+                    await get_model("mockllm/model").generate("Sub-agent turn.")
+    [event] = sink.pending
+    assert event.span_id == "sub-agent"
+    assert live == span_tree_conversations(transcript().events, "")
+    assert set(live.values()) == {"sub-agent"}
+    assert {s.step.conversation for s in seen} == {"sub-agent"}
+
+
+async def test_an_on_start_sink_with_no_current_span_gives_the_sample_s_conversation() -> (
+    None
+):
+    from inspect_ai.model._model import use_model_event_sink
+    from inspect_ai.util._span import current_span_id
+
+    init_transcript(Transcript())
+    sink = _StartingSink(None)
+    assert current_span_id() is None
+    with live_conversations() as live:
+        with use_model_event_sink(sink):
+            await get_model("mockllm/model").generate("Turn.")
+    [event] = sink.pending
+    assert event.span_id is None
+    # outside an eval the sample's conversation is ""
+    assert list(live.values()) == [""]

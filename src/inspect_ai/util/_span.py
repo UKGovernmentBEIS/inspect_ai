@@ -357,15 +357,33 @@ class _Ancestry(NamedTuple):
     is_agent: bool
 
 
+class _Waiting:
+    """The spans whose agent span is not known yet: their walk reached `missing`, a span not yet added.
+
+    A union-find node. Once `missing` is added, the first lookup that reaches this node resolves it from `missing`: to an agent span (or None), or by linking it (`next`) to the node that walk reached in turn.
+    """
+
+    __slots__ = ("missing", "next", "resolved", "answer")
+
+    def __init__(self, missing: str) -> None:
+        self.missing = missing
+        self.next: _Waiting | None = None
+        self.resolved = False
+        self.answer: str | None = None
+
+
 class AgentSpans:
     """The innermost agent span of each span, from the `SpanBeginEvent`s added.
 
-    A span's agent span is the innermost span of type `agent` reached from it through `parent_id`, or None when there is none. Spans are added in log order, and each span's answer is kept, so a pass over a sample's events walks each span once. A walk that reaches a span not yet added is not kept, so a span whose begin is added later still counts. Only each span's id, parent and whether it is an agent span are kept, not the event, so a transcript that evicts its span begins can release them.
+    A span's agent span is the innermost span of type `agent` reached from it through `parent_id`, or None when there is none. Spans are added in log order. A span whose ancestor is not added yet has no agent span until the ancestor is added, so a span whose begin is added later still counts.
+
+    Each lookup's answer is kept for every span it walks, including an answer that waits on a missing ancestor (a `_Waiting` node, resolved once when that ancestor is added), so adding a span and looking spans up is amortized constant work. Only each span's id, parent and whether it is an agent span are kept, not the event, so a transcript that evicts its span begins can release them.
     """
 
     def __init__(self) -> None:
         self._spans: dict[str, _Ancestry] = {}
-        self._agent_spans: dict[str, str | None] = {}
+        self._agent_spans: dict[str, str | None | _Waiting] = {}
+        self._waiting: dict[str, _Waiting] = {}
 
     def add(self, begin: "SpanBeginEvent") -> None:
         self._spans[begin.id] = _Ancestry(
@@ -381,22 +399,61 @@ class AgentSpans:
         Raises:
             ValueError: The span tree has a `parent_id` cycle.
         """
-        walked: set[str] = set()
-        agent_span: str | None = None
+        found = self._walk(span_id)
+        resolving: dict[int, _Waiting] = {}
+        while (
+            isinstance(found, _Waiting)
+            and not found.resolved
+            and found.missing in self._spans
+        ):
+            if id(found) in resolving:
+                raise ValueError(
+                    f"The span tree has a parent_id cycle at {found.missing}."
+                )
+            resolving[id(found)] = found
+            self._waiting.pop(found.missing, None)
+            found = self._walk(found.missing)
+        for node in resolving.values():
+            if isinstance(found, _Waiting):
+                node.next = found
+            else:
+                node.resolved, node.answer = True, found
+        return None if isinstance(found, _Waiting) else found
+
+    def _walk(self, span_id: str | None) -> str | None | _Waiting:
+        # the agent span reached from `span_id`, or the unresolved node it waits on
+        walked: list[str] = []
+        seen: set[str] = set()
+        found: str | None | _Waiting = None
         while span_id is not None:
             if span_id in self._agent_spans:
-                agent_span = self._agent_spans[span_id]
+                found = self._known(self._agent_spans[span_id])
                 break
-            if span_id in walked:
+            if span_id in seen:
                 raise ValueError(f"The span tree has a parent_id cycle at {span_id}.")
             ancestry = self._spans.get(span_id)
             if ancestry is None:
-                return agent_span
-            walked.add(span_id)
+                found = self._waiting.get(span_id)
+                if found is None:
+                    found = self._waiting[span_id] = _Waiting(span_id)
+                break
+            seen.add(span_id)
+            walked.append(span_id)
             if ancestry.is_agent:
-                agent_span = span_id
+                found = span_id
                 break
             span_id = ancestry.parent_id
         for walked_id in walked:
-            self._agent_spans[walked_id] = agent_span
-        return agent_span
+            self._agent_spans[walked_id] = found
+        return found
+
+    @staticmethod
+    def _known(memo: str | None | _Waiting) -> str | None | _Waiting:
+        if not isinstance(memo, _Waiting):
+            return memo
+        root = memo
+        while root.next is not None:
+            root = root.next
+        while memo.next is not None and memo.next is not root:
+            memo.next, memo = root, memo.next
+        return root.answer if root.resolved else root
