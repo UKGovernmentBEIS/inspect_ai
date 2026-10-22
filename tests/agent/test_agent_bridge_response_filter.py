@@ -1,7 +1,8 @@
 import json
 import re
+import traceback
 from pathlib import Path
-from typing import Any, Literal, NamedTuple, cast, get_args
+from typing import Any, Callable, Literal, NamedTuple, NoReturn, cast, get_args
 from unittest.mock import AsyncMock
 
 import anyio
@@ -42,7 +43,7 @@ from inspect_ai.agent._bridge.sandbox.service import (
 )
 from inspect_ai.agent._bridge.sandbox.types import SandboxAgentBridge
 from inspect_ai.agent._bridge.types import AgentBridge
-from inspect_ai.agent._bridge.util import bridge_generate
+from inspect_ai.agent._bridge.util import _apply_response_filter, bridge_generate
 from inspect_ai.approval import Approval, ApprovalPolicy, Approver, approver
 from inspect_ai.event import ModelEvent
 from inspect_ai.log import EvalLog
@@ -992,6 +993,56 @@ async def test_response_filter_error_keeps_the_filter_exception_as_cause() -> No
             requested_model=None,
         )
     assert isinstance(exc_info.value.__cause__, ValueError)
+
+
+def _raise(error: Exception) -> NoReturn:
+    raise error
+
+
+@pytest.mark.parametrize(
+    "make_error",
+    [
+        lambda: LimitExceededError("token", value=2, limit=1),
+        lambda: TerminateSampleError("stop"),
+        lambda: ModelRefusalError(
+            ModelOutput.from_content("mockllm/model", "no"), "mockllm/model"
+        ),
+    ],
+    ids=["limit", "terminate", "refusal"],
+)
+async def test_response_filter_control_flow_keeps_its_context(
+    make_error: Callable[[], Exception],
+) -> None:
+    """Control flow raised from a filter's task group keeps its own context."""
+    error = make_error()
+
+    async def fail() -> None:
+        try:
+            raise ValueError("context")
+        except ValueError:
+            _raise(error)
+
+    async def grouped_filter(
+        model: Model, output: ModelOutput, generate_input: GenerateInput
+    ) -> ModelOutput | None:
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(collect, fail())
+        return None
+
+    model = get_model("mockllm/model")
+    with pytest.raises(type(error)) as exc_info:
+        await _apply_response_filter(
+            grouped_filter,
+            model,
+            ModelOutput.from_content("mockllm/model", "hi"),
+            GenerateInput([], [], "auto", GenerateConfig()),
+        )
+    assert exc_info.value is error
+    assert repr(error.__context__) == "ValueError('context')"
+    assert not error.__suppress_context__
+    text = "".join(traceback.format_exception(error))
+    assert "Exception Group Traceback" not in text
+    assert text.count(f"{type(error).__name__}: ") == 1
 
 
 @skip_if_no_docker

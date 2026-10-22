@@ -6,6 +6,9 @@ concurrent stage, while each `parallel=False` call is a one-element stage
 that acts as a barrier preserving the model's declared call ordering.
 """
 
+import traceback
+from typing import NoReturn
+
 import anyio
 import pytest
 
@@ -16,6 +19,7 @@ from inspect_ai.model._chat_message import ChatMessageAssistant, ChatMessageTool
 from inspect_ai.tool import ToolError, tool
 from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_def import ToolDef
+from inspect_ai.util import collect
 
 # -- fixtures ---------------------------------------------------------------
 
@@ -373,6 +377,43 @@ async def test_unhandled_exception_in_parallel_cancels_siblings_and_raises():
     assert "operator" not in sibling_event.error.message
     assert "timeout" not in sibling_event.error.message.lower()
     assert "sibling" in sibling_event.error.message.lower()
+
+
+def _raise_wrapped() -> NoReturn:
+    raise RuntimeError("wrapped")
+
+
+async def _fail_while_handling() -> None:
+    try:
+        raise ValueError("context")
+    except ValueError:
+        _raise_wrapped()
+
+
+@tool
+def grouped_failure():
+    async def grouped_failure() -> str:
+        """Fail from a task group child while handling another error."""
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(collect, _fail_while_handling())
+        return "unreachable"
+
+    return grouped_failure
+
+
+async def test_unhandled_tool_error_keeps_its_context():
+    """The error raised out of a tool's task group keeps its own context."""
+    with pytest.raises(RuntimeError, match="wrapped") as excinfo:
+        await execute_tools(
+            [assistant(call("grouped_failure", "grouped-failure-c0"))],
+            [ToolDef(grouped_failure())],
+        )
+    error = excinfo.value
+    assert repr(error.__context__) == "ValueError('context')"
+    assert not error.__suppress_context__
+    text = "".join(traceback.format_exception(error))
+    assert "Exception Group Traceback" not in text
+    assert text.count("RuntimeError: wrapped") == 1
 
 
 async def test_per_call_cancel_isolates_to_one_call():

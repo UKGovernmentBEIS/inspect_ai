@@ -42,6 +42,7 @@ from typing_extensions import is_typeddict
 
 from inspect_ai._sentinel._context import SentinelFailure, checks_tool_calls
 from inspect_ai._sentinel._scope import AgentScope, sentinel_scope
+from inspect_ai._util._async import raise_unwrapped
 from inspect_ai._util.content import (
     Content,
     ContentAudio,
@@ -251,8 +252,7 @@ async def _execute_tools_impl(
                         agent_span_id = called.agent_span_id
                 # unwrap exception group
                 except Exception as ex:
-                    inner_ex = inner_exception(ex)
-                    raise inner_ex.with_traceback(inner_ex.__traceback__)
+                    raise_unwrapped(ex, inner_exception(ex))
 
             except SentinelFailure as ex:
                 tool_exception = _sentinel_exception(ex)
