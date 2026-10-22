@@ -124,6 +124,8 @@ def model_graded_qa(
 ) -> Scorer:
     """Score a question/answer task using a model.
 
+    A blank completion returns NOANSWER immediately and never reaches the grader.
+
     Args:
       template: Template for grading prompt. This template has
         four variables:
