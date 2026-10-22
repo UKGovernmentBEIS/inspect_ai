@@ -41,7 +41,8 @@ def resolve_log_metrics(
         trust_log: Import the log's task file for unregistered metrics and
             rebuild metric options without restriction. This runs the task
             file's code, so pass it only for logs you trust.
-        reducer_advice: Text appended to the error for a missing reducer.
+        reducer_advice: Text appended to the error for a missing reducer,
+            recorded or nested in metric options.
         trust_log_advice: End untrusted metric errors with advice to pass
             `trust_log=True`. `False` for callers that have no such option.
 
@@ -75,6 +76,7 @@ def resolve_log_metrics(
         log,
         trust_log=trust_log,
         opt_in=TRUST_LOG_OPT_IN if trust_log_advice else None,
+        dependency_advice=reducer_advice,
     )
     metrics = metrics_from_log_header(log, task_import=task_import)
     scorers = resolve_scorers_info(log, task_import=task_import)

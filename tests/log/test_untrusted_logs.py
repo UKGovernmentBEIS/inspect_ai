@@ -696,27 +696,58 @@ FACTORY_LOOKUP_ERRORS = {
 NESTED_REDUCER = "untrusted_nested_reducer"
 
 
-@pytest.mark.parametrize("overwrite", [False, True])
-@pytest.mark.parametrize("source", ["scorer", "task"])
-def test_failed_recovery_with_missing_nested_reducer_writes_nothing(
-    source: str, overwrite: bool, crashed: Any
-) -> None:
+def _nested_reducer_log(source: str) -> EvalLog:
+    """A log whose metric options hold a reducer that is not registered."""
     definition = EvalMetricDefinition(
         name="untrusted_options_metric",
         options={
             "option": {"type": "score_reducer", "name": NESTED_REDUCER, "params": {}}
         },
     )
-    log = (
+    return (
         _log(scorer_metrics=[definition])
         if source == "scorer"
         else _log(eval_metrics=[definition])
     )
-    path = crashed(log)
+
+
+def test_missing_nested_reducer_diagnostics(crashed: Any) -> None:
+    # recompute and edit need the dependency, not trust
+    with pytest.raises(RegistryNameNotFound) as ex:
+        recompute_metrics(_nested_reducer_log("scorer"))
+    message = str(ex.value)
+    assert "Metric 'untrusted_options_metric'" in message
+    assert NESTED_REDUCER in message
+    assert "import the module that defines it" in message
+    assert "trust_log" not in message
+
+    # the CLI reports the refusal with its advice
+    path = crashed(_nested_reducer_log("task"))
+    result = CliRunner().invoke(recover_command, [path.as_posix()])
+    assert result.exit_code == 1
+    assert "Metric 'untrusted_options_metric'" in result.output
+    assert NESTED_REDUCER in result.output
+    assert "Nothing was written" in result.output
+    assert sorted(p.name for p in path.parent.iterdir()) == ["crashed.eval"]
+
+
+@pytest.mark.parametrize("overwrite", [False, True])
+@pytest.mark.parametrize("source", ["scorer", "task"])
+def test_failed_recovery_with_missing_nested_reducer_writes_nothing(
+    source: str, overwrite: bool, crashed: Any
+) -> None:
+    path = crashed(_nested_reducer_log(source))
     original = path.read_bytes()
 
-    with pytest.raises(RegistryNameNotFound, match=NESTED_REDUCER):
+    with pytest.raises(RegistryNameNotFound) as ex:
         recover_eval_log(path.as_posix(), overwrite=overwrite)
+
+    message = str(ex.value)
+    assert "Metric 'untrusted_options_metric'" in message
+    assert NESTED_REDUCER in message
+    assert "import the module that defines it" in message
+    assert "Nothing was written" in message
+    assert "--trust-log" in message
 
     assert sorted(p.name for p in path.parent.iterdir()) == ["crashed.eval"]
     assert path.read_bytes() == original
@@ -836,6 +867,7 @@ def _log_info(path: Path, log: EvalLog) -> EvalLogInfo:
         ("options_task", FORBIDDEN_OPTIONS["model"][1]),
         ("missing_metric", "Metric 'somepkg/nope' (used by scorer 'match')"),
         ("missing_reducer", "Epoch reducer 'no_such_reducer'"),
+        ("missing_nested_reducer", "Metric 'untrusted_options_metric' needs"),
     ],
 )
 @pytest.mark.parametrize("threshold_fallback", [False, True])
@@ -854,6 +886,8 @@ def test_eval_set_recovery_warns_and_recovers_without_results(
             log = _fixture("3t", Path("unused"))
         case "missing_metric":
             log = _log(scorer_metrics=[EvalMetricDefinition(name="somepkg/nope")])
+        case "missing_nested_reducer":
+            log = _nested_reducer_log("scorer")
         case _:
             log = _log(epochs_reducer=["no_such_reducer"])
     path = crashed(log)

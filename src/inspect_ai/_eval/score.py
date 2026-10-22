@@ -616,6 +616,7 @@ class LogTaskFileImport:
         trust_log: bool,
         import_task_file: bool = True,
         opt_in: str | None = TRUST_LOG_OPT_IN,
+        dependency_advice: str | None = None,
     ) -> None:
         """Create the tracker.
 
@@ -630,10 +631,14 @@ class LogTaskFileImport:
                 missing metric as it always has.
             opt_in: Closing advice of untrusted-log errors, naming an option
                 the caller actually has (`None` for no advice).
+            dependency_advice: Advice appended to the error for an object
+                nested in metric options that is not registered (the task
+                file is not imported for those).
         """
         self.trust_log = trust_log
         self.import_task_file = import_task_file
         self.opt_in = opt_in
+        self.dependency_advice = dependency_advice
         self.task_file = log.eval.task_file
         self.task_path = Path(self.task_file).absolute() if self.task_file else None
         self.imported = False
@@ -810,6 +815,16 @@ def metric_from_log(
     except DisallowedRegistryArg as ex:
         ex.advice = task_import.opt_in if task_import else TRUST_LOG_OPT_IN
         raise
+    except RegistryNameNotFound as ex:
+        # an object nested in the options (metrics are checked beforehand)
+        message = (
+            f"Metric '{metric.name}' needs an object that is not registered "
+            f"({ex}). Install the package that defines it, or import the module "
+            "that defines it, first."
+        )
+        if task_import and task_import.dependency_advice:
+            message = f"{message} {task_import.dependency_advice}"
+        raise RegistryNameNotFound(message) from ex
 
 
 def reducers_from_log_header(log: EvalLog) -> list[ScoreReducer] | None:
