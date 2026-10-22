@@ -216,6 +216,8 @@ inspect eval arc.py --model anthropic/claude-sonnet-4-0
 
 For the `anthropic` provider, custom model args (`-M`) are forwarded to the constructor of the `AsyncAnthropic` class.
 
+The `anthropic` provider does not pass `temperature`, `top_p`, or `top_k` to the model, because the Anthropic API rejects them as of API version `2026-10-21` (sent by `anthropic>=2.0`). It logs a warning when one of them is set.
+
 The following environment variables are supported by the Anthropic provider
 
 | Variable | Description |
@@ -227,7 +229,7 @@ The following environment variables are supported by the Anthropic provider
 
 Some Anthropic features require that you include a beta identifier in the `betas` field of model requests. Inspect automatically includes the requisite identifier for beta features it utilizes (e.g. "mcp-client-2025-04-04", "computer-use-2025-01-24", etc.).
 
-If there are other beta features you want to enable, use the `betas` model arg (`-M`). For example, to enable [1M token context windows](https://docs.anthropic.com/en/docs/build-with-claude/context-windows#1m-token-context-window) for Sonnet 4.5 and Opus 4.6 models:
+If there are other beta features you want to enable, use the `betas` model arg (`-M`). For example, to enable [1M token context windows](https://platform.claude.com/docs/en/build-with-claude/context-windows) for Sonnet 4.5 and Opus 4.6 models:
 
 ``` bash
 inspect eval arc.py --model anthropic/claude-sonnet-4-0 -M betas=context-1m-2025-08-07
@@ -590,6 +592,10 @@ The following environment variables are supported by the Meta provider
 | `META_API_KEY` | API key credentials (required unless `MODEL_API_KEY` is set). |
 | `MODEL_API_KEY` | API key credentials (Meta's official variable name; used when `META_API_KEY` is not set). |
 | `META_BASE_URL` | Base URL for requests (optional, defaults to `https://api.meta.ai/v1`). |
+
+### Prompt Caching {#meta-prompt-caching}
+
+Inspect sets Meta's [`prompt_cache_key`](https://dev.meta.ai/docs/prompt-caching#prompt-cache-key) to the running sample's unique id (no key is sent outside a sample) and, on the Responses API, sets `prompt_cache_retention` to `"24h"`. Use the `prompt_cache_key` and `prompt_cache_retention` model args to override these (e.g. `-M prompt_cache_retention=in_memory`). Values supplied in `GenerateConfig(extra_body=...)` take precedence. Cached tokens are reported as `input_tokens_cache_read`.
 
 ## Grok {#grok}
 
@@ -980,9 +986,13 @@ The following environment variables are supported by the Perplexity provider
 | Variable | Description |
 |----------------------------|--------------------------------------------|
 | `PERPLEXITY_API_KEY` | API key credentials (required). |
-| `PERPLEXITY_BASE_URL` | Base URL for requests (optional, defaults to `https://api.perplexity.ai`) |
+| `PERPLEXITY_BASE_URL` | Base URL for requests (optional, defaults to `https://api.perplexity.ai/v1`) |
 
-Perplexity responses include citations when available. These are surfaced as `UrlCitation`s attached to the assistant message. Additional usage metrics such as `reasoning_tokens` and `citation_tokens` are recorded in `ModelOutput.metadata`.
+The provider uses Perplexity's [Agent API](https://docs.perplexity.ai/docs/agent-api/quickstart). Name models as `perplexity/<provider>/<model>`, using the ids in Perplexity's [model list](https://docs.perplexity.ai/docs/agent-api/models) (for example `perplexity/openai/gpt-5.6-luna`). Perplexity's own models can omit the provider, so `perplexity/sonar` is the same as `perplexity/perplexity/sonar`. Perplexity retired `sonar-pro`, `sonar-reasoning-pro`, and `sonar-deep-research` with its Sonar API; use another Agent API model instead.
+
+Perplexity models search the web only when you pass the [`web_search()`](tools-standard.qmd#perplexity-options) tool, which also takes the search options. This is true for `perplexity/sonar` as well: Sonar searched on every request, but the Agent API does not. Add `web_search()` to keep search-grounded answers and citations. Other Agent API request fields can be passed with `extra_body`. Fields that Inspect sets from the generation config, such as `include` and `text`, are not replaced. From a `reasoning` object, only fields that the config has no option for, such as `context`, are sent. Set the effort, mode and summary with `reasoning_effort`, `reasoning_mode` and `reasoning_summary`. The `tools` in `extra_body` can include Perplexity's [`fetch_url`](https://docs.perplexity.ai/docs/agent-api/tools/fetch-url) tool; `web_search()` adds its tool to that list. Inspect's `tool_choice` does not apply to the tools in `extra_body`. To turn them off, set `tool_choice` in `extra_body`. The request has a single tool choice, so that value applies to the `web_search()` tool as well. A `tool_choice` that forces a search raises an error if `extra_body` sets a different `tool_choice`. Inspect cannot read the results of Perplexity's other tools, so a response with them raises an error.
+
+When the model searches or fetches a page, the results are recorded in `ModelOutput.metadata["search_results"]` or `ModelOutput.metadata["fetch_url_results"]` and attached as `UrlCitation`s to the assistant message. The number of searches, which Perplexity bills per search, is recorded in `ModelOutput.metadata["num_search_queries"]`.
 
 ## Hugging Face {#hugging-face}
 
@@ -1131,7 +1141,7 @@ pip install vllm
 inspect eval arc.py --model vllm/openai-community/gpt2
 ```
 
-For the `vllm` provider, custom model args (-M) are forwarded to the vllm [CLI](https://docs.vllm.ai/en/stable/serving/openai_compatible_server.html#cli-reference). Top-level model arg names are converted to CLI flag form (for example, `tensor_parallel_size` becomes `--tensor-parallel-size`). Dotted vLLM arguments preserve nested field names after the dot, so `-M speculative-config.num_speculative_tokens=1` is forwarded as `--speculative-config.num_speculative_tokens 1`.
+For the `vllm` provider, custom model args (-M) are forwarded to the vllm [CLI](https://docs.vllm.ai/en/stable/cli/serve/). Top-level model arg names are converted to CLI flag form (for example, `tensor_parallel_size` becomes `--tensor-parallel-size`). Dotted vLLM arguments preserve nested field names after the dot, so `-M speculative-config.num_speculative_tokens=1` is forwarded as `--speculative-config.num_speculative_tokens 1`.
 
 The following environment variables are supported by the vLLM provider:
 
@@ -1653,7 +1663,7 @@ For the `openrouter` provider, the following custom model args (`-M`) are suppor
 
 | Argument | Example |
 |------------------------------------|------------------------------------|
-| [`models`](https://openrouter.ai/docs/features/model-routing#the-models-parameter) | `-M "models=anthropic/claude-3.5-sonnet, gryphe/mythomax-l2-13b"` |
+| [`models`](https://openrouter.ai/docs/guides/routing/model-fallbacks) | `-M "models=anthropic/claude-3.5-sonnet, gryphe/mythomax-l2-13b"` |
 | [`provider`](https://openrouter.ai/docs/features/provider-routing) | `-M "provider={ 'quantizations': ['int8'] }"` |
 | [`transforms`](https://openrouter.ai/docs/features/message-transforms) | `-M "transforms=['middle-out']"` |
 | [`reasoning_enabled`](https://openrouter.ai/docs/use-cases/reasoning-tokens) | `-M "reasoning_enabled=false"` |
@@ -1712,7 +1722,7 @@ model_list:
       supports_adaptive_thinking: true
 ```
 
-`base_model` also lets LiteLLM accept parameters it would otherwise reject for an unknown model, such as reasoning effort and (for Bedrock) tool choice. For Anthropic, OpenAI, Google and xAI models the error message suggests that vendor's current frontier model.
+`base_model` also lets LiteLLM accept parameters it would otherwise reject for an unknown model, such as reasoning effort and (for Bedrock) tool choice. For Anthropic, OpenAI, Google, xAI and Meta models the error message suggests that vendor's current frontier model.
 
 For a Claude 4.6 or later model under a name LiteLLM doesn't know (such as a codename), also set `supports_reasoning` and `supports_adaptive_thinking` as above. LiteLLM uses adaptive thinking only for Claude models it recognizes by their upstream name, and `base_model` does not change this. Without the flags, LiteLLM either sends extended thinking with a reasoning effort, which Claude 4.7 and later reject (Inspect then fails with an error naming this fix), or, without `base_model`, refuses the reasoning effort (Inspect then sends none and warns with this fix).
 
@@ -1733,11 +1743,30 @@ A model that does not accept a conversation ending with an assistant message (as
 
 ### Gemini Models {#litellm-proxy-gemini}
 
-When the upstream model is a Gemini model (recognized by its name), requests with tools follow the native `google` provider's handling of malformed function calls:
+When the upstream model is a Gemini model (recognized by its name), requests with tools follow the native `google` provider's retry of malformed function calls:
 
--   The system prompt carries a function-calling hint that discourages Gemini from writing a function call as code (`print(default_api.bash(...))`).
+-   No function-calling hint is added to the system prompt. In live trials through the proxy, the hint made Gemini 2.5 Pro loop on repeated tool calls and did not reduce malformed calls.
 -   A turn that comes back as a malformed function call is retried up to 3 times with a corrective exchange, with tool calling required when the tool choice was `auto`. LiteLLM reports Gemini's `MALFORMED_FUNCTION_CALL` as an ordinary stop, so Inspect recognizes such a turn by its shape: no text and no tool call, or text that is a function call written as code. When the retries run out, the assistant message says that it had trouble calling a function. Usage covers every attempt, and `ModelOutput.metadata` records `malformed_function_call_attempts`.
 -   Each replayed tool call carries its thought signature in `provider_specific_fields` as well as in its id. LiteLLM strips the id-embedded signature when the proxy's `model_name` does not contain "gemini" and then sends a placeholder signature, which Google documents as degrading the model.
+
+### Grok Models {#litellm-proxy-grok}
+
+When the upstream model is an xAI Grok model (recognized by its name, or the `xai` provider), requests follow the native `grok` provider:
+
+-   Grok 4 and later models served directly by xAI use the Responses API (see [Responses API and Streaming](#litellm-proxy-streaming)), so their encrypted reasoning is carried from one turn to the next. On the Chat Completions API, xAI returns only a summary of the reasoning. As with the `grok` provider, any model name on LiteLLM's `xai` provider other than Grok 2 and Grok 3 (including predeployment codenames) counts as Grok 4 or later.
+-   `reasoning_effort` values the model rejects are lowered: `max` to `xhigh`, and `none` is not sent.
+-   Requests made within a sample carry its id in the `x-grok-conv-id` header, which keeps the sample's requests on one xAI server so that they reuse its prompt cache. The proxy forwards the header only when its config has `forward_client_headers_to_llm_api: true` under `general_settings`.
+-   xAI's context window errors end the turn with stop reason `model_length`, and its safety refusals with `content_filter`.
+
+### Meta Models {#litellm-proxy-meta}
+
+When the upstream model is a Meta Muse model (recognized by LiteLLM's `meta` provider, other than for Llama models, or by a `muse-` name not under another host's path), requests follow the native `meta` provider:
+
+-   Models served directly by the Meta Model API use the Responses API (see [Responses API and Streaming](#litellm-proxy-streaming)), so their encrypted reasoning is carried from one turn to the next. On the Chat Completions API, Meta returns no reasoning.
+-   Meta does not accept a forced tool choice. A `tool_choice` of `"any"` or a specific tool is sent as `"auto"`, with a warning and `tool_choice_degraded` in the output metadata. For `tool_choice="none"` no tools are sent.
+-   `logprobs` and `top_logprobs`, and on the Chat Completions API `stop_seqs`, `logit_bias` and `num_choices`, are dropped with a warning.
+-   A refusal ends the turn with stop reason `content_filter`.
+-   Meta reports a prompt over the context window as a generic invalid request, so it ends in an error rather than stop reason `model_length`.
 
 ### Reasoning Effort {#litellm-proxy-reasoning-effort}
 
@@ -1747,9 +1776,9 @@ When the proxy or upstream model rejects the requested `reasoning_effort`, Inspe
 
 ### Responses API and Streaming {#litellm-proxy-streaming}
 
-GPT-5 and later, o-series and Codex models served directly by OpenAI use the proxy's Responses API, as they do with the `openai` provider, so their reasoning is carried from one turn to the next. This applies when every deployment of the model uses LiteLLM's `openai` provider with no `api_base` other than OpenAI's (Azure deployments and OpenAI-compatible servers are not included). A predeployment model qualifies when its deployment sets `model_info.base_model` (see [Model Info](#litellm-proxy-model-info)). Other models use the Chat Completions API. Pass `-M responses_api=true` or `-M responses_api=false` to choose the API. Through the proxy, web search is the only OpenAI built-in tool used on the Responses API; `computer()`, `code_execution()` and remote MCP servers are sent as ordinary tools, as on the Chat Completions API.
+GPT-5 and later, o-series and Codex models served directly by OpenAI use the proxy's Responses API, as they do with the `openai` provider, so their reasoning is carried from one turn to the next. This applies when every deployment of the model uses LiteLLM's `openai` provider with no `api_base` other than OpenAI's (Azure deployments and OpenAI-compatible servers are not included). A predeployment model qualifies when its deployment sets `model_info.base_model` (see [Model Info](#litellm-proxy-model-info)). The same applies to Grok 4 and later models whose deployments all use LiteLLM's `xai` provider with no `api_base` other than xAI's, and to Meta models whose deployments all use LiteLLM's `meta` provider with no `api_base` other than Meta's. Other models use the Chat Completions API. Pass `-M responses_api=true` or `-M responses_api=false` to choose the API. Through the proxy, web search is the only OpenAI built-in tool used on the Responses API; `computer()`, `code_execution()` and remote MCP servers are sent as ordinary tools, as on the Chat Completions API.
 
-Requests stream by default, so long generations don't hit client or proxy timeouts, except Responses API requests for models not served by OpenAI. Pass `-M stream=false` to disable streaming.
+Requests stream by default, so long generations don't hit client or proxy timeouts, except Responses API requests for models not served by OpenAI, xAI or Meta. Pass `-M stream=false` to disable streaming.
 
 ### Web Search {#litellm-proxy-web-search}
 
@@ -1761,8 +1790,8 @@ The `web_search()` tool uses OpenAI's built-in search (its `openai` provider) fo
 |------------------------------------|------------------------------------|
 | `require_model_info` | Fail if the model has no context window (default: `true`). |
 | `model_info` | Read the proxy's `/model/info` listing (default: `true`). With `false`, Inspect does not look up the upstream model and requests are shaped by the proxy model name alone. |
-| `stream` | Stream requests (default: `true`, except Responses API requests for models not served by OpenAI). |
-| `responses_api` | Use the Responses API (default: `true` for GPT-5 and later, o-series and Codex models served by OpenAI, `false` otherwise). |
+| `stream` | Stream requests (default: `true`, except Responses API requests for models not served by OpenAI, xAI or Meta). |
+| `responses_api` | Use the Responses API (default: `true` for GPT-5 and later, o-series and Codex models served by OpenAI, Grok 4 and later models served by xAI, and Meta models served by Meta; `false` otherwise). |
 | `thinking_display` | Thinking text Claude 4.6 and later models return when a `reasoning_effort` is set: `summarized` (default) or `omitted`. |
 
 : {tbl-colwidths=\[25,75\]}

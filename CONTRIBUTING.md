@@ -158,7 +158,7 @@ is the PR description, which Release Please also reads:
 
 - For a breaking change, use `feat!:` (or `fix!:`) and add a paragraph to the
   PR description starting with `BREAKING CHANGE:` that says what users must
-  change, with a blank line after it. It is listed under "⚠ BREAKING CHANGES".
+  change, with a blank line after it. It is listed under "Breaking Changes".
 - A line in the description that starts with a type and colon (such as
   `fix: ...`) right after a blank line adds its own changelog entry. To show
   such a line without adding an entry, indent it (four spaces also renders it
@@ -189,6 +189,12 @@ report what you ran, its outcome, and any checks you could not run. Run
 **Review expectations:** we aim to review every PR, given time. A PR that goes
 inactive for 60 days is closed by the stale bot with an invitation to reopen —
 that isn't a judgment of you or your work.
+
+**Reviewing other PRs:** feedback on other people's PRs is welcome. Unless a
+maintainer asked for your review, leave it as a comment rather than choosing
+Approve or Request changes. Those are maintainer decisions here: a
+non-maintainer's verdict doesn't count toward merging and can mislead the
+author about where their PR stands.
 
 ## Becoming a qualified contributor
 
