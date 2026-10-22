@@ -115,7 +115,6 @@ def test_merge_shards_json(tmp_path: Path) -> None:
         "running": [],
         "failed": [],
         "shards_deleted": False,
-        "task_file_imported": None,
     }
     _shard(shards, "1", [3, 4])
     result = _merge(str(merged), "--sample-count", "4", "--delete-shards", "--json")

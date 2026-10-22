@@ -13,7 +13,7 @@ from inspect_ai import Epochs, Task, eval, eval_retry, task
 from inspect_ai._util.async_zip import AsyncZipReader, ZipCrcError
 from inspect_ai._util.asyncfiles import AsyncFilesystem, DirListing
 from inspect_ai._util.error import WriteConflictError
-from inspect_ai._util.file import FileInfo, local_path
+from inspect_ai._util.file import FileInfo, FileSystem, local_path
 from inspect_ai.dataset import Sample
 from inspect_ai.log import (
     EvalLog,
@@ -1500,23 +1500,6 @@ def test_delete_shards_refuses_an_incomplete_set(tmp_path: Path) -> None:
     assert len(_files(shards)) == 1
 
 
-def _failing_deletes(
-    monkeypatch: pytest.MonkeyPatch, fails: Callable[[str], bool]
-) -> list[str]:
-    """Record every delete, failing those `fails` selects."""
-    deleted: list[str] = []
-    delete_file = AsyncFilesystem.delete_file
-
-    async def recording(self: AsyncFilesystem, filename: str) -> None:
-        if fails(filename):
-            raise OSError(f"injected failure deleting {filename}")
-        deleted.append(filename)
-        await delete_file(self, filename)
-
-    monkeypatch.setattr(AsyncFilesystem, "delete_file", recording)
-    return deleted
-
-
 def test_an_interrupted_delete_is_refused_until_it_is_finished(
     tmp_path: Path,
 ) -> None:
@@ -1725,52 +1708,69 @@ def test_a_shard_sample_that_does_not_validate_fails_at_once(
     assert not os.path.exists(merged)
 
 
-def test_a_metric_from_the_task_file_is_resolved_with_a_warning(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
-) -> None:
-    from inspect_ai._util import registry
-
-    monkeypatch.chdir(tmp_path)
-    Path("trust_task.py").write_text(_TRUST_TASK)
-    shards = f"{NAME}.shards"
+def _run_task_file(source: str) -> None:
+    """Run the task in `source` as two shards from the current directory."""
+    Path("custom_task.py").write_text(source)
     for k, ids in (("0", [1, 2]), ("1", [3, 4])):
         eval(
-            "trust_task.py",
+            "custom_task.py",
             model="mockllm/model",
-            log_dir=f"{shards}/{k}",
+            log_dir=f"{NAME}.shards/{k}",
             display="none",
             sample_id=ids,
         )
-    monkeypatch.delitem(registry._registry, "metric:shard_trust_answers")
-    header = merge_eval_log_shards(f"{NAME}.eval").log
-    assert "Importing trust_task.py" in caplog.text
-    assert header.results is not None
-    metrics = header.results.scores[0].metrics
-    assert metrics["shard_trust_answers"].value == 4
 
-    # a metric that neither source provides fails without writing
-    os.remove(f"{NAME}.eval")
-    monkeypatch.delitem(registry._registry, "metric:shard_trust_answers")
-    os.remove("trust_task.py")
-    with pytest.raises(Exception):
+
+@pytest.mark.parametrize(
+    "source,registry_key,named",
+    [
+        ("scorer_metric", "metric:shard_custom_count", "Metric 'shard_custom_count'"),
+        ("task_metric", "metric:shard_custom_total", "Metric 'shard_custom_total'"),
+        (
+            "reducer",
+            "score_reducer:shard_custom_first",
+            "Epoch reducer 'shard_custom_first'",
+        ),
+    ],
+)
+def test_an_unregistered_metric_or_reducer_is_refused_until_imported(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    source: str,
+    registry_key: str,
+    named: str,
+) -> None:
+    import runpy
+
+    from inspect_ai._util import registry
+
+    monkeypatch.chdir(tmp_path)
+    _run_task_file(_CUSTOM_TASKS[source])
+    # as in a fresh process: the merge never imports the recorded task file
+    monkeypatch.delitem(registry._registry, registry_key)
+    with pytest.raises(LookupError, match=named) as raised:
         merge_eval_log_shards(f"{NAME}.eval")
+    assert "Import the module that defines it" in str(raised.value)
     assert not os.path.exists(f"{NAME}.eval")
+    assert registry_key not in registry._registry
+
+    # the caller imports the module that defines it, and the same merge works
+    runpy.run_path("custom_task.py")
+    header = merge_eval_log_shards(f"{NAME}.eval").log
+    assert header.status == "success" and header.results is not None
 
 
-_TRUST_TASK = f"""
+_CUSTOM_TASKS = {
+    "scorer_metric": f"""
 from inspect_ai import Task, task
 from inspect_ai.dataset import Sample
 from inspect_ai.scorer import Metric, SampleScore, match, metric
 
 
 @metric
-def shard_trust_answers() -> Metric:
+def shard_custom_count() -> Metric:
     def compute(scores: list[SampleScore]) -> float:
-        return sum(
-            1
-            for s in scores
-            if s.score.answer is not None and s.sample_metadata["index"] > 0
-        )
+        return float(len(scores))
 
     return compute
 
@@ -1778,93 +1778,12 @@ def shard_trust_answers() -> Metric:
 @task
 def {TASK}() -> Task:
     return Task(
-        dataset=[
-            Sample(id=i, input="q", target="x", metadata={{"index": i}})
-            for i in range(1, 5)
-        ],
+        dataset=[Sample(id=i, input="q", target="x") for i in range(1, 5)],
         scorer=match(),
-        metrics=[shard_trust_answers()],
+        metrics=[shard_custom_count()],
     )
-"""
-
-
-def test_an_epoch_reducer_from_the_task_file_is_resolved_with_a_warning(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
-) -> None:
-    from inspect_ai._util import registry
-
-    monkeypatch.chdir(tmp_path)
-    Path("reducer_task.py").write_text(_REDUCER_TASK)
-    shards = f"{NAME}.shards"
-    for k, ids in (("0", [1, 2]), ("1", [3, 4])):
-        eval(
-            "reducer_task.py",
-            model="mockllm/model",
-            log_dir=f"{shards}/{k}",
-            display="none",
-            sample_id=ids,
-        )
-    # the metrics are built in, so only the reducer needs the task file
-    monkeypatch.delitem(registry._registry, "score_reducer:shard_trust_first")
-    header = merge_eval_log_shards(f"{NAME}.eval").log
-    assert "Importing reducer_task.py" in caplog.text
-    assert header.results is not None
-    assert header.results.scores[0].reducer == "shard_trust_first"
-    assert header.results.scores[0].metrics["accuracy"].value == 0.5
-
-
-_REDUCER_TASK = f"""
-from inspect_ai import Epochs, Task, task
-from inspect_ai.dataset import Sample
-from inspect_ai.scorer import Score, ScoreReducer, match, score_reducer
-
-
-@score_reducer
-def shard_trust_first() -> ScoreReducer:
-    def reduce(scores: list[Score]) -> Score:
-        return scores[0]
-
-    return reduce
-
-
-@task
-def {TASK}() -> Task:
-    return Task(
-        dataset=[
-            Sample(id=i, input="q", target="{MATCH}" if i % 2 else "x")
-            for i in range(1, 5)
-        ],
-        scorer=match(),
-        epochs=Epochs(2, shard_trust_first()),
-    )
-"""
-
-
-def test_a_task_metric_from_the_task_file_is_resolved_with_a_warning(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
-) -> None:
-    from inspect_ai._util import registry
-
-    monkeypatch.chdir(tmp_path)
-    Path("solver_task.py").write_text(_SOLVER_SCORE_TASK)
-    shards = f"{NAME}.shards"
-    for k, ids in (("0", [1, 2]), ("1", [3, 4])):
-        eval(
-            "solver_task.py",
-            model="mockllm/model",
-            log_dir=f"{shards}/{k}",
-            display="none",
-            sample_id=ids,
-        )
-    # no scorer: the metric is only in the task's own metrics
-    monkeypatch.delitem(registry._registry, "metric:shard_trust_total")
-    header = merge_eval_log_shards(f"{NAME}.eval").log
-    assert "Importing solver_task.py" in caplog.text
-    assert header.results is not None
-    assert header.results.scores[0].metrics["shard_trust_total"].value == 4
-
-
-_SOLVER_SCORE_TASK = f"""
+""",
+    "task_metric": f"""
 from inspect_ai import Task, task
 from inspect_ai.dataset import Sample
 from inspect_ai.scorer import Metric, SampleScore, Score, metric
@@ -1872,7 +1791,7 @@ from inspect_ai.solver import Generate, Solver, TaskState, solver
 
 
 @metric
-def shard_trust_total() -> Metric:
+def shard_custom_total() -> Metric:
     def compute(scores: list[SampleScore]) -> float:
         return float(sum(s.score.as_float() for s in scores))
 
@@ -1890,17 +1809,40 @@ def scoring_solver() -> Solver:
 
 @task
 def {TASK}() -> Task:
+    # no scorer: the metric is only in the task's own metrics
     return Task(
         dataset=[Sample(id=i, input="q") for i in range(1, 5)],
         solver=scoring_solver(),
-        metrics=[shard_trust_total()],
+        metrics=[shard_custom_total()],
     )
-"""
+""",
+    "reducer": f"""
+from inspect_ai import Epochs, Task, task
+from inspect_ai.dataset import Sample
+from inspect_ai.scorer import Score, ScoreReducer, match, score_reducer
 
 
-def test_remove_shards_dir_keeps_a_remote_backend(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+@score_reducer
+def shard_custom_first() -> ScoreReducer:
+    def reduce(scores: list[Score]) -> Score:
+        return scores[0]
+
+    return reduce
+
+
+@task
+def {TASK}() -> Task:
+    # built-in metrics: only the reducer is custom
+    return Task(
+        dataset=[Sample(id=i, input="q", target="x") for i in range(1, 5)],
+        scorer=match(),
+        epochs=Epochs(2, shard_custom_first()),
+    )
+""",
+}
+
+
+def test_remove_shards_dir_deletes_a_remote_directory(tmp_path: Path) -> None:
     import shortuuid
 
     from inspect_ai._util.file import filesystem
@@ -1909,15 +1851,42 @@ def test_remove_shards_dir_keeps_a_remote_backend(
     root = f"memory://{shortuuid.uuid()}/logs"
     memory = filesystem(root).fs
     merged, shards = _paths(root)
-    names = ["0/a.eval", "0/.buffer/x/segment.0.zip", "1/b.checkpoints/1/data"]
-    for name in names:
+    for name in ["0/a.eval", "0/.buffer/x/segment.0.zip", "1/b.checkpoints/1/data"]:
         memory.pipe(f"{shards}/{name}", b"x")
     memory.pipe(merged, b"x")
-    deleted = _failing_deletes(monkeypatch, lambda f: False)
+    memory.pipe(f"{root}/{NAME}.shards-other/0/a.eval", b"x")
     anyio.run(lambda: remove_shards_dir(merged, include_log=True))
-    assert len(deleted) == len(names) + 1
-    assert all(name.startswith("memory://") for name in deleted)
-    assert memory.find(root) == []
+    assert memory.find(root) == [
+        memory._strip_protocol(f"{root}/{NAME}.shards-other/0/a.eval")
+    ]
+    # a missing directory is not an error
+    anyio.run(lambda: remove_shards_dir(merged))
+
+
+def test_remove_shards_dir_addresses_the_given_url(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from inspect_ai.log._shards import _delete
+
+    calls: list[tuple[str, ...]] = []
+
+    class Recording:
+        def rm(self, path: str, recursive: bool = False) -> None:
+            calls.append(("rm", path, str(recursive)))
+
+    def recording_filesystem(path: str) -> Recording:
+        calls.append(("filesystem", path))
+        return Recording()
+
+    monkeypatch.setattr(_delete, "filesystem", recording_filesystem)
+    monkeypatch.setattr(_delete, "is_local", lambda location: False)
+    # an account-qualified URL whose listed names would lose the account
+    root = "abfss://container@account.dfs.core.windows.net/logs"
+    anyio.run(lambda: _delete.remove_shards_dir(f"{root}/{NAME}.eval"))
+    assert calls == [
+        ("filesystem", f"{root}/{NAME}.shards"),
+        ("rm", f"{root}/{NAME}.shards", "True"),
+    ]
 
 
 def _s3_keys(prefix: str) -> list[str]:
@@ -2074,8 +2043,12 @@ def test_an_interrupted_delete_on_s3_is_finished_by_a_rerun(
     merged, shards = s3_shards
     merge_eval_log_shards(merged)
     b = next(k for k in _s3_keys(f"{s3_root}/{NAME}.shards/1/") if k.endswith(".eval"))
-    _failing_deletes(monkeypatch, lambda f: f.endswith(b))
-    with pytest.raises(OSError, match=Path(b).name):
+
+    def failing_rm(self: Any, path: str, recursive: bool = False) -> None:
+        raise OSError(f"injected failure deleting {path}")
+
+    monkeypatch.setattr(FileSystem, "rm", failing_rm)
+    with pytest.raises(OSError, match="injected failure"):
         merge_eval_log_shards(merged, delete_shards=True)
     monkeypatch.undo()
     assert b in _s3_keys(f"{s3_root}/")
@@ -2145,7 +2118,29 @@ def test_delete_shards_keeps_exact_names_with_reserved_characters(
     assert all(path.exists() for path in neighbours)
 
 
-def test_cli_notice_names_the_imported_task_file(
+@pytest.mark.parametrize("fail", [False, True])
+def test_cli_json_stdout_holds_only_the_object_when_metric_code_prints(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fail: bool
+) -> None:
+    from click.testing import CliRunner
+
+    from inspect_ai._cli.log import log_command
+
+    monkeypatch.chdir(tmp_path)
+    _run_task_file(_NOISY_TASK)
+    if fail:
+        monkeypatch.setenv("SHARD_NOISY_FAIL", "1")
+    result = CliRunner().invoke(log_command, ["merge-shards", f"{NAME}.eval", "--json"])
+    assert result.exit_code == (1 if fail else 0), result.output
+    output = json.loads(result.stdout)
+    if fail:
+        assert output["error"]["type"] == "ValueError"
+    else:
+        assert output["status"] == "success"
+    assert "metric noise" in result.stderr
+
+
+def test_cli_json_reports_an_unregistered_metric(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     from click.testing import CliRunner
@@ -2154,62 +2149,16 @@ def test_cli_notice_names_the_imported_task_file(
     from inspect_ai._util import registry
 
     monkeypatch.chdir(tmp_path)
-    Path("trust_task.py").write_text(_TRUST_TASK)
-    shards = f"{NAME}.shards"
-    for k, ids in (("0", [1, 2]), ("1", [3, 4])):
-        eval(
-            "trust_task.py",
-            model="mockllm/model",
-            log_dir=f"{shards}/{k}",
-            display="none",
-            sample_id=ids,
-        )
-    monkeypatch.delitem(registry._registry, "metric:shard_trust_answers")
-    result = CliRunner().invoke(log_command, ["merge-shards", f"{NAME}.eval"])
-    assert result.exit_code == 0, result.output
-    assert "Notice: importing trust_task.py to resolve metrics" in result.stderr
-    assert f"{NAME}.eval: success" in result.stdout
-
-
-@pytest.mark.parametrize("json_output", [False, True])
-@pytest.mark.parametrize("fail", [False, True])
-def test_cli_keeps_stdout_and_the_notice_with_printing_task_code(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, json_output: bool, fail: bool
-) -> None:
-    from click.testing import CliRunner
-
-    from inspect_ai._cli.log import log_command
-    from inspect_ai._util import registry
-
-    monkeypatch.chdir(tmp_path)
-    Path("noisy_task.py").write_text(_NOISY_TASK)
-    shards = f"{NAME}.shards"
-    for k, ids in (("0", [1, 2]), ("1", [3, 4])):
-        eval(
-            "noisy_task.py",
-            model="mockllm/model",
-            log_dir=f"{shards}/{k}",
-            display="none",
-            sample_id=ids,
-        )
-    monkeypatch.delitem(registry._registry, "metric:shard_noisy_count")
-    if fail:
-        monkeypatch.setenv("SHARD_NOISY_FAIL", "1")
-    args = ["merge-shards", f"{NAME}.eval"] + (["--json"] if json_output else [])
-    result = CliRunner().invoke(log_command, args)
-    # the notice is printed when the import starts, so a later failure keeps it
-    assert "Notice: importing noisy_task.py" in result.stderr
-    assert result.exit_code == (1 if fail else 0), result.output
-    if json_output:
-        output = json.loads(result.stdout)
-        if fail:
-            assert output["error"]["type"] == "ValueError"
-        else:
-            assert output["status"] == "success"
-            assert output["task_file_imported"] == "noisy_task.py"
-        assert "noise" in result.stderr
-    elif fail:
-        assert "metric failed" in result.stderr
+    _run_task_file(_CUSTOM_TASKS["scorer_metric"])
+    monkeypatch.delitem(registry._registry, "metric:shard_custom_count")
+    text = CliRunner().invoke(log_command, ["merge-shards", f"{NAME}.eval"])
+    assert text.exit_code == 1 and "shard_custom_count" in text.stderr
+    result = CliRunner().invoke(log_command, ["merge-shards", f"{NAME}.eval", "--json"])
+    assert result.exit_code == 1, result.output
+    error = json.loads(result.stdout)["error"]
+    assert error["type"] == "LookupError"
+    assert "shard_custom_count" in error["message"]
+    assert not os.path.exists(f"{NAME}.eval")
 
 
 _NOISY_TASK = f"""
@@ -2218,8 +2167,6 @@ import os
 from inspect_ai import Task, task
 from inspect_ai.dataset import Sample
 from inspect_ai.scorer import Metric, SampleScore, match, metric
-
-print("import noise")
 
 
 @metric

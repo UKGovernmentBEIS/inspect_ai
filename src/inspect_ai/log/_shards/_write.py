@@ -3,7 +3,6 @@
 import json
 import zipfile
 from collections.abc import Awaitable, Callable, Sequence
-from pathlib import Path
 from typing import Any, BinaryIO, NamedTuple
 
 import anyio
@@ -38,29 +37,38 @@ class _SampleInputs(NamedTuple):
     error: bool
 
 
-def task_file_import(header: EvalLog) -> str | None:
-    """The task file metric recomputation would import, if any.
+def check_scoring_resolvable(header: EvalLog) -> None:
+    """Refuse metrics and epoch reducers the registry cannot resolve.
 
-    The header's `task_file` is imported when a metric of its scorers or of
-    the task (`eval.metrics`) is not registered, or when its epoch reducers
-    cannot be created.
+    The merge never imports the log's `task_file`, so every metric (of a
+    scorer or of the task, `eval.metrics`) and every epoch reducer must
+    already be registered: built in, from an installed package, or imported
+    by the caller.
+
+    Raises:
+        LookupError: A metric or epoch reducer is not registered.
     """
-    from inspect_ai._eval.score import reducers_from_log_header
     from inspect_ai._util.registry import registry_lookup
+    from inspect_ai.scorer._reducer.registry import create_reducers
 
-    task_file = header.eval.task_file
-    if not task_file:
-        return None
     groups = [scorer.metrics for scorer in header.eval.scorers or []]
     for metrics in [*groups, header.eval.metrics]:
         for metric in _metric_definitions(metrics):
             if registry_lookup("metric", metric.name) is None:
-                return task_file
-    try:
-        reducers_from_log_header(header)
-    except LookupError:
-        return task_file
-    return None
+                raise LookupError(_unregistered("Metric", metric.name))
+    for name in header.eval.config.epochs_reducer or []:
+        try:
+            create_reducers([name])
+        except LookupError as ex:
+            raise LookupError(_unregistered("Epoch reducer", name)) from ex
+
+
+def _unregistered(kind: str, name: str) -> str:
+    return (
+        f"{kind} '{name}' is not registered, and the merge does not import the "
+        "log's task file. Import the module that defines it, then merge from "
+        "Python with merge_eval_log_shards()."
+    )
 
 
 def _metric_definitions(metrics: Any) -> list[EvalMetricDefinition]:
@@ -153,7 +161,6 @@ def _recompute_results(
     template: EvalLog, inputs: list[_SampleInputs], total_samples: int
 ) -> tuple[EvalResults | None, list[EvalSampleReductions] | None]:
     """Metrics over the merged samples, as `recompute_metrics` computes them."""
-    from inspect_ai._eval.loader import load_file_tasks
     from inspect_ai._eval.score import (
         metrics_from_log_header,
         reducers_from_log_header,
@@ -161,9 +168,8 @@ def _recompute_results(
     )
     from inspect_ai._eval.task.results import eval_results
 
-    task_file = task_file_import(template)
-    if task_file is not None:
-        load_file_tasks(Path(task_file).absolute())
+    # resolve_scorers_info imports the task file for an unregistered metric
+    check_scoring_resolvable(template)
     scorers = resolve_scorers_info(template)
     return eval_results(
         samples=total_samples,

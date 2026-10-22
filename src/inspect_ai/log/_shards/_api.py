@@ -2,10 +2,9 @@
 
 import functools
 import json
-import logging
 import tempfile
 import zipfile
-from collections.abc import Callable, Sequence
+from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Literal, NamedTuple
 
@@ -55,9 +54,7 @@ from ._plan import (
 )
 from ._publish import is_local, merge_guard, merged_log_copy, publish
 from ._walk import ShardDir, list_shard_set
-from ._write import task_file_import, write_merged_zip
-
-logger = logging.getLogger(__name__)
+from ._write import check_scoring_resolvable, write_merged_zip
 
 _MAX_CONCURRENT_READS = 16
 
@@ -112,8 +109,15 @@ def merge_eval_log_shards(
     A local merged log is guarded by a lock file beside it and an S3 one by a
     conditional upload, so a merge that overlaps another is refused. Other
     storage backends have no guard: callers must not run two merges of one
-    log at once. Metric recomputation may import the log's task file when a
-    metric or epoch reducer is not registered; a warning names the file.
+    log at once.
+
+    Metrics and epoch reducers are resolved from the registry only: built
+    in, from installed packages, or imported by the caller. The merge never
+    imports the log's task file; to merge a log whose task defines its own
+    metric or reducer, import that module first and merge from Python. A
+    custom reducer named like built-in shorthand (`pass_at_1`,
+    `at_least_2`, `mean_2`) that is not imported resolves as the built-in,
+    or fails with its argument error, as `recompute_metrics()` does.
 
     A merge that runs while a worker is writing its shard can fail with a
     read error (for example a CRC or JSON error). Nothing is written; run
@@ -150,6 +154,8 @@ def merge_eval_log_shards(
         WriteConflictError: Another merge holds the lock or published first.
             Run the merge again later.
         FileNotFoundError: Neither the merged log nor any shard exists.
+        LookupError: A metric or epoch reducer is not registered. Nothing is
+            written.
         ValueError: Invalid arguments.
     """
     return run_coroutine(
@@ -191,8 +197,6 @@ class MergeOutcome(NamedTuple):
     result: ShardMergeResult
     new_samples: int
     """Records the merged log did not hold before this call."""
-    task_file_imported: str | None
-    """Task file imported to resolve metrics, when the call wrote."""
     status: Status
     """The merged status, with the missing ids and running and failed shards."""
 
@@ -213,7 +217,6 @@ class _Pass(NamedTuple):
     etag: str | None
     records: set[SampleRecordKey]
     new_samples: int
-    task_file_imported: str | None
     status: Status
 
 
@@ -224,14 +227,8 @@ async def merge_shards(
     sample_count: int | None = None,
     allow_incomplete: bool = False,
     delete_shards: bool = False,
-    on_task_file_import: Callable[[str], None] | None = None,
 ) -> MergeOutcome:
-    """Implement :func:`merge_eval_log_shards`, reporting what the CLI shows.
-
-    `on_task_file_import` is called with the task file just before metric
-    recomputation imports it; by default a warning is logged. The CLI
-    prints its own notice instead.
-    """
+    """Implement :func:`merge_eval_log_shards`, reporting what the CLI shows."""
     given = given_selection(sample_ids, sample_count)
     if delete_shards and allow_incomplete:
         raise ValueError("delete_shards cannot be combined with allow_incomplete.")
@@ -248,7 +245,6 @@ async def merge_shards(
                 given,
                 allow_incomplete=allow_incomplete,
                 delete_shards=delete_shards,
-                on_task_file_import=on_task_file_import or _warn_task_file_import,
             )
             if delete_shards:
                 await _verify(fs, merged_path, merge_pass)
@@ -261,7 +257,6 @@ async def merge_shards(
             log=header, written=merge_pass.written, shards_deleted=delete_shards
         ),
         new_samples=merge_pass.new_samples,
-        task_file_imported=merge_pass.task_file_imported,
         status=merge_pass.status,
     )
 
@@ -346,7 +341,6 @@ async def _merge_pass(
     *,
     allow_incomplete: bool,
     delete_shards: bool,
-    on_task_file_import: Callable[[str], None],
 ) -> _Pass:
     listing = await list_shard_set(fs, shards_dir)
     if listing.stray:
@@ -432,8 +426,9 @@ async def _merge_pass(
         raise _incomplete(merged_path, status)
 
     if existing is not None and not changed and selection.same_as(recorded):
-        return _Pass(existing.header, False, existing.etag, records, 0, None, status)
+        return _Pass(existing.header, False, existing.etag, records, 0, status)
 
+    check_scoring_resolvable(base)
     with tempfile.TemporaryDirectory() as temp_dir:
         carried_zip: zipfile.ZipFile | None = None
         try:
@@ -470,11 +465,6 @@ async def _merge_pass(
 
             name = log_basename(merged_path)
             total = selected_total(selection, held_ids) * epochs
-            # decided before recomputation imports the file and registers
-            # its metrics
-            imported = task_file_import(base)
-            if imported is not None:
-                on_task_file_import(imported)
             with tempfile.TemporaryFile(dir=temp_dir) as out:
                 header = await write_merged_zip(
                     out,
@@ -514,15 +504,7 @@ async def _merge_pass(
         etag=etag,
         records=set(keys),
         new_samples=len(set(keys) - records),
-        task_file_imported=imported,
         status=status,
-    )
-
-
-def _warn_task_file_import(task_file: str) -> None:
-    logger.warning(
-        f"Importing {task_file} to resolve the metrics and epoch reducers of the "
-        "merged log."
     )
 
 
@@ -553,7 +535,7 @@ def _recorded_pass(
     )
     if header.status != "success" and not allow_incomplete:
         raise _incomplete(header.location, status)
-    return _Pass(header, False, existing.etag, existing.records, 0, None, status)
+    return _Pass(header, False, existing.etag, existing.records, 0, status)
 
 
 def _incomplete(location: str, status: Status) -> ShardSetIncomplete:

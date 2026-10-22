@@ -6,20 +6,16 @@ guaranteed otherwise. An interrupted deletion leaves objects behind; running
 it again, or deleting the directory by hand, finishes it.
 """
 
-import functools
 import shutil
 from contextlib import suppress
 
 import anyio
 
-from inspect_ai._util._async import tg_collect
 from inspect_ai._util.asyncfiles import AsyncFilesystem
-from inspect_ai._util.file import local_path
+from inspect_ai._util.file import filesystem, local_path
 from inspect_ai._util.log_layout import eval_shards_dir
 
 from ._publish import is_local
-
-_MAX_CONCURRENT_DELETES = 16
 
 
 async def remove_shards_dir(
@@ -28,8 +24,11 @@ async def remove_shards_dir(
     """Delete the shards directory of the merged log `log`.
 
     Everything under ``<name>.shards/`` is deleted: shard attempts, sample
-    buffers, checkpoint directories and any other file. A missing directory
-    is not an error.
+    buffers, checkpoint directories, S3 folder markers and any other object.
+    A remote directory is deleted with one recursive delete on the
+    filesystem built from `log` itself, so connection details in the URL
+    (an Azure account, a WebHDFS host) are kept. A missing directory is not
+    an error.
 
     Args:
         log: The merged log ``<dir>/<name>.eval``.
@@ -50,26 +49,9 @@ async def remove_shards_dir(
     if is_local(shards_dir):
         await anyio.to_thread.run_sync(_remove_local_dir, shards_dir)
         return
-
-    # collect first: deleting while iterating a paginated listing is undefined.
-    # Detailed listings name objects with their scheme; plain fsspec listings
-    # drop it, and the name would then resolve to the local filesystem.
-    try:
-        files = [
-            info.name
-            async for info in fs.iter_files(
-                shards_dir, recursive=True, detail=True, include_markers=True
-            )
-        ]
-    except FileNotFoundError:
-        return
-    limiter = anyio.CapacityLimiter(_MAX_CONCURRENT_DELETES)
-
-    async def delete(path: str) -> None:
-        async with limiter:
-            await fs.delete_file(path)
-
-    await tg_collect([functools.partial(delete, f) for f in files])
+    # on the loop thread: to_thread over remote fsspec work can deadlock
+    with suppress(FileNotFoundError):
+        filesystem(shards_dir).rm(shards_dir, recursive=True)
 
 
 def _remove_local_dir(path: str) -> None:

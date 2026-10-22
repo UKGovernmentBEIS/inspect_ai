@@ -59,6 +59,10 @@ directories and scan results included, with no per-object rules or
 delete order; `inspect log merge-shards` takes one `LOG`; and a torn
 shard read fails the merge with its own error instead of restarting the
 pass.
+Revised on 2026-10-22 (decision: Ransom): remote deletion is one
+recursive delete of the location the caller gave, and the merge never
+imports the log's task file, resolving metrics and reducers from the
+registry only.
 
 This is the follow-on document that [`eval-sharding.md`](eval-sharding.md)
 ("the parent design") names: the public surface, the shape of the stored
@@ -474,15 +478,31 @@ merge holds the lock or published first; re-run later),
 `FileNotFoundError` (neither the merged log nor any shard attempt exists), and
 storage errors as they occur.
 
-Trust: the merge follows `resolve_scorers_info`'s `task_file` fallback as
-`recompute_metrics` does, and also imports the `task_file` when a
-task-level metric (`eval.metrics`, as solver-set scores without a scorer
-use) is not registered or an epoch reducer in `config.epochs_reducer`
-cannot be created (a custom
-`@score_reducer` defined there, with built-in metrics). It decides
-whether to import before recomputing, and logs a warning naming the
-imported file; the CLI also prints a notice (below). Parent "Trust": the merge runs
-only as a trusted step; no reader path calls it.
+Trust (decision: Ransom, 2026-10-22): the merge never imports the log's
+`task_file`. Merging shards is a read of logs, and in the trust model of
+UKGovernmentBEIS/inspect_ai#6007 a read imports nothing a log names
+unless the caller trusts the log; this PR has no trust option, so it
+never imports. Every metric (of a scorer, or of the task in
+`eval.metrics`, as solver-set scores without a scorer use) and every
+epoch reducer must be in the registry: built in, from an installed
+package, or imported by the caller. When one is not, the merge raises
+`LookupError` before writing anything (the type `recompute_metrics`
+raises for a missing metric), naming it and saying to import the module
+that defines it and merge from Python. The `eval_set()` startup merge
+(PR 6) runs with the task loaded, so its metrics and reducers are
+registered.
+
+Known limitation (decision: Ransom, 2026-10-22): an unregistered custom
+reducer whose name looks like built-in shorthand (`pass_at_1`,
+`at_least_2`, `mean_2`) resolves as the built-in with that `k`, or fails
+with the built-in's argument error, exactly as `recompute_metrics` does.
+Without running the task's code the two cannot be told apart, and the
+merge does not try. Follow-up, not this PR: once #6007 lands, add
+`trust_log` / `--trust-log` to the merge through its `LogTaskFileImport`,
+so there is one trust contract. A trusted merge would import the
+recorded task file up front, which also removes the shorthand collision.
+Parent "Trust": the merge runs only as a trusted step; no reader path
+calls it.
 
 #### CLI
 
@@ -504,23 +524,20 @@ inspect log merge-shards LOG
   an integer. Passing both is a usage error (exit 2).
 - Output: one line with the merged log, its status, the number of samples,
   new samples and shards, and, when incomplete, the missing count and the
-  running and failed shard names. When the `task_file` fallback imports
-  code, a notice on stderr names the file just before the import, so it
-  shows even when recomputation or publication fails afterwards (parent
-  decision, 2026-09-21: a visible notice, no opt-in).
+  running and failed shard names.
 - `--json` (decision: Ransom, 2026-10-21: a model or launcher calling the
   command needs machine-readable output): one JSON object on stdout. On
   success: `log`, `status`, `written`, `shards`, `samples`,
   `new_samples`, `missing` (ids or null), `running`, `failed`,
-  `shards_deleted` and `task_file_imported` (the file or null). For the
-  whole merge, stdout is redirected to stderr at the file-descriptor level
-  (`_stdout_owned_for_json`, as `inspect eval --json` does) and the object
-  is written to the saved stdout, so output from the task file, metrics,
-  reducers or their subprocesses and the task-file notice all go to
-  stderr and stdout stays parseable.
+  and `shards_deleted`. For the whole merge, stdout is redirected to
+  stderr at the file-descriptor level (`_stdout_owned_for_json`, as
+  `inspect eval --json` does) and the object is written to the saved
+  stdout, so output from metric or reducer code or its subprocesses goes
+  to stderr and stdout stays parseable.
 - Exit 0 when the merge wrote or had nothing new. The API's documented
   errors (`ShardSetError`, `ShardSetIncomplete`, `WriteConflictError`,
-  `FileNotFoundError`, `ValueError`) print their message and exit 1; an
+  `FileNotFoundError`, `ValueError`, and `LookupError` for an
+  unregistered metric or reducer) print their message and exit 1; an
   incomplete set without `--allow-incomplete` raises. With `--json`, each
   of them and the usage error for both selection options goes through
   one helper that prints `{"error": {"type", "message"}}` on stdout
@@ -607,8 +624,8 @@ shard with an attempt in shard order, and the ledger has an entry for
 exactly the shards with an attempt, in shard order, so the last merge's
 template is `ledger[0].shard`; a `<k>/` with no attempt is not a shard
 and has no entry, "The merge" step 5, and a companion with vanished
-entries is refused, "Validation"), no merge time, no metric source (the merge's warning and
-the CLI notice name an imported `task_file`), and per shard no attempt
+entries is refused, "Validation"), no merge time, no metric source (the
+merge resolves metrics from the registry only), and per shard no attempt
 count (a reader that shows it counts the `.eval` files in `<k>/`) and no
 `eval_id` or `task_id` (`log` names the attempt).
 
@@ -1167,13 +1184,13 @@ completed_samples=..., headline_metric=h.eval.headline_metric)` with the
 template header `h`, mirroring `recompute_metrics` without loading the log.
 Carried samples are read from the merged log's temp copy on every pass that
 writes, because the merged log's sample members are the only lossless
-source (summaries are lossy, parent "Constraints"). When
-`resolve_scorers_info` would import the header's `task_file` (detected by
-checking the registry for each metric name before the call), the merge
-logs a warning naming the file and the CLI prints its notice; nothing is
-recorded in the log. A metric that neither source provides raises, as
-`metric_create` does today, and nothing is written (parent: "fails rather
-than store metrics from a lossy input").
+source (summaries are lossy, parent "Constraints"). Before reading any
+sample the merge checks that the registry resolves every metric and epoch
+reducer of `h` (`check_scoring_resolvable`: a registry lookup per metric
+name, `create_reducers` per reducer name), so `resolve_scorers_info`
+never reaches its `task_file` import ("Trust" under "Python API"); an
+unregistered one raises `LookupError` and nothing is written (parent:
+"fails rather than store metrics from a lossy input").
 
 Memory: the current sample plus every sample's `SampleScore`s, as the
 parent's "Scale" accepts. The baseline parses each sample whole, so peak
@@ -1237,13 +1254,18 @@ cleanup (removes the merged log too). Both use one routine,
   everything in it: shard attempts, buffers, checkpoint directories, scan
   results and any other file. Locally that is one recursive delete of the
   directory by its exact path (`shutil.rmtree`, which does not follow
-  symbolic links); on S3 and other fsspec backends it lists every object
-  under the prefix and deletes each, 16 at a time, by the name a detailed
-  listing gives (fsspec's plain listing drops the scheme, which would
-  resolve the name to the local filesystem). On S3 the listing includes
-  directory-marker keys (`<name>.shards/`, `<k>/`), which ordinary file
-  listings skip, so they are deleted too. It neither classifies
-  objects nor orders the deletes, and a missing companion is not an error.
+  symbolic links). On S3 and other fsspec backends it is one call,
+  `filesystem(shards_dir).rm(shards_dir, recursive=True)`, on the
+  filesystem built from the location the caller gave, so it keeps
+  connection details in the URL (an Azure account in
+  `abfss://container@account.dfs.core.windows.net/...`, a WebHDFS host
+  and user) that names from a listing can lose (decision: Ransom,
+  2026-10-22). It runs on the event loop thread, as the non-S3 branch of
+  `AsyncFilesystem.delete_file` does, since `to_thread` over remote fsspec
+  work can deadlock. On S3 it removes every object and folder marker
+  under the prefix, a marker-only remnant included, and leaves a sibling
+  `<name>.shards-other/` alone. It neither classifies objects nor orders
+  the deletes, and a missing companion is not an error.
   With `include_log`, the merged log is deleted first.
 - **No resumption protocol.** An interrupted deletion raises its storage
   error and leaves some objects behind; the user re-runs the command or
@@ -1983,11 +2005,12 @@ today.
   selection) refuses a stray or
   hostile file rather than skipping it; a merge never overwrites a
   `<name>.eval` without the field.
-- **Code execution.** Recomputation may import the header's `task_file`
-  (the existing `resolve_scorers_info` fallback). The merge runs only in
-  trusted steps (API, CLI, `eval_set()` startup), logs a warning naming
-  the imported file, and the CLI prints a notice. No reader path (viewer server,
-  `read_eval_log*`, dataframes, ctl log-dir mode) calls it.
+- **Code execution.** The merge never imports the header's `task_file`:
+  metrics and reducers come from the registry, and an unregistered one is
+  refused ("Trust" under "Python API"). Metric and reducer code that is
+  registered runs, as in any recomputation. The merge runs only in
+  trusted steps (API, CLI, `eval_set()` startup). No reader path (viewer
+  server, `read_eval_log*`, dataframes, ctl log-dir mode) calls it.
 - **Viewer.** No change to the viewer server; its delete endpoint still
   authorizes and deletes only the requested file, so the new companion
   layout widens nothing it can delete.
@@ -2206,8 +2229,9 @@ Per PR (numbers from "Implementation plan"):
      verification failure leaves the shards; combined with
      `allow_incomplete` it is a `ValueError`; local names with reserved
      characters are deleted by their exact path, and neighbours with the
-     decoded names are kept; on fsspec's `memory://` backend every delete
-     names the object with its scheme, never a local path;
+     decoded names are kept; on fsspec's `memory://` backend the recursive
+     delete removes the companion and keeps a `<name>.shards-other/`
+     sibling;
    - interrupted `delete_shards`: locally, a companion left with an older
      attempt in one `<k>/` (its recorded attempt deleted) and only a
      checkpoint directory in another: an ordinary merge refuses (attempt
@@ -2216,16 +2240,16 @@ Per PR (numbers from "Implementation plan"):
      log byte-identical; a new attempt beside a vanished shard makes the
      re-run refuse rather than delete; a vanished shard under a `started`
      merged log is refused even with `delete_shards=True`. On `mock_s3` a
-     storage hook fails one delete; the call raises that error and a re-run
-     finishes;
+     storage hook fails the recursive delete; the call raises that error
+     and a re-run finishes;
    - a merge that read the merged log before a retry-cleanup removal
      deleted it has its conditional publish refused (`WriteConflictError`),
      on `mock_s3` with a pause between the read and the publish;
-   - trust: a metric registered only in a `task_file` is resolved through
-     the fallback, with a warning naming the file (and the CLI notice), and
-     so are a task-level metric of solver-set scores with no scorer and a
-     custom epoch reducer defined there with built-in metrics; a missing
-     metric fails without writing; a spy asserts no reader path
+   - trust: an unregistered scorer metric, an unregistered task-level
+     metric of solver-set scores with no scorer, and an unregistered custom
+     epoch reducer with built-in metrics each raise `LookupError` naming
+     it, write nothing and import nothing; the same merge succeeds once
+     the module that defines it is imported; a spy asserts no reader path
      (`read_eval_log`, `list_eval_logs`, `evals_df`) calls the merge;
    - cancellation mid-pass (after reads, during the build, during the S3
      upload) leaves the merged log and shards as they were and no temp or
@@ -2233,14 +2257,14 @@ Per PR (numbers from "Implementation plan"):
    `tests/cli/test_log.py`: `merge-shards` on a merged log and on a
    companion; `--sample-id` and `--sample-count`, and the usage error for
    both; `--delete-shards`; a `-recovered` `LOG` and a directory `LOG`
-   refused with exit 1; the `task_file` notice; exit codes; `--json` on
-   success, and its error object for each failure the command handles
-   (usage error, missing log, `-recovered` name, incomplete set, held
-   lock, stray log); with a task file and metric that print, in both
-   output modes, success and a metric failure after the import: `--json`
-   stdout parses and the notice is on stderr either way. `mock_s3`
-   deletion removes directory markers, including a marker-only remnant
-   and on a repeated call.
+   refused with exit 1; exit codes; `--json` on success, and its error
+   object for each failure the command handles (usage error, missing log,
+   `-recovered` name, incomplete set, held lock, stray log, unregistered
+   metric); with a metric that prints, success and a metric failure:
+   `--json` stdout parses and the output is on stderr. `mock_s3` deletion
+   removes directory markers, including a marker-only remnant and on a
+   repeated call; a recording filesystem shows remote deletion is one
+   recursive `rm` of the account-qualified URL the caller gave.
 6. **Eval-set integration.** `tests/test_eval_set.py`: `log_samples_complete`
    on a `success` merged log is true when its `dataset.sample_ids` equals the
    eval set's selection (for each recorded form: ids, count, neither) and

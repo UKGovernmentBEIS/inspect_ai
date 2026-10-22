@@ -578,14 +578,8 @@ def merge_shards_command(
     process_common_options(common)
     platform_init()
 
-    def notice(task_file: str) -> None:
-        click.echo(
-            f"Notice: importing {task_file} to resolve metrics and epoch reducers.",
-            err=True,
-        )
-
     # with --json, stdout carries only the result or error object: output
-    # from task-file, metric and reducer code goes to stderr
+    # from metric and reducer code goes to stderr
     owned = _stdout_owned_for_json() if json_output else nullcontext(sys.stdout)
     with owned as stdout:
         if sample_id is not None and sample_count is not None:
@@ -602,7 +596,6 @@ def merge_shards_command(
                     sample_count=sample_count,
                     allow_incomplete=allow_incomplete,
                     delete_shards=delete_shards,
-                    on_task_file_import=notice,
                 )
             )
         except (
@@ -612,6 +605,12 @@ def merge_shards_command(
             FileNotFoundError,
             ValueError,
         ) as ex:
+            _merge_failure(json_output, ex, stdout)
+        except LookupError as ex:
+            # an unregistered metric or reducer; KeyError and IndexError are
+            # bugs, not refusals
+            if isinstance(ex, (KeyError, IndexError)):
+                raise
             _merge_failure(json_output, ex, stdout)
 
         header = outcome.result.log
@@ -630,7 +629,6 @@ def merge_shards_command(
                 "running": status.running,
                 "failed": status.failed,
                 "shards_deleted": outcome.result.shards_deleted,
-                "task_file_imported": outcome.task_file_imported,
             }
             click.echo(dumps(result, indent=2), file=stdout)
             return
