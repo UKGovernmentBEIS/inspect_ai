@@ -416,6 +416,7 @@ class Hooks:
         Defaults to ``True``. Summary-only hooks may return ``False`` to allow
         empty ``events`` and ``attachments`` and ``timelines=None``. They must
         also accept a full sample when another consumer needs its history.
+        Hooks using the default ``Hooks.on_sample_end`` never require full history.
         """
         return True
 
@@ -1101,9 +1102,18 @@ def get_all_hooks() -> list[Hooks]:
     return _hooks_cache
 
 
+def _implements_on_sample_end(hook: Hooks) -> bool:
+    for cls in type(hook).mro():
+        if "on_sample_end" in cls.__dict__:
+            return cls is not Hooks
+    return False
+
+
 def any_hook_needs_full_sample() -> bool:
     """Whether any enabled hook needs full history, assuming it does on error."""
     for hook in get_all_hooks():
+        if not _implements_on_sample_end(hook):
+            continue
         try:
             if hook.enabled() and hook.needs_full_sample():
                 return True

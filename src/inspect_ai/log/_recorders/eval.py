@@ -1133,6 +1133,8 @@ class ZipLogFile:
             # Keep yielding, but defer cancellation until the entry is complete.
             with anyio.CancelScope(shield=True):
                 filename = _sample_filename(sample.id, sample.epoch)
+                assert self._zip
+                member_count = len(self._zip.filelist)
                 try:
                     with self._zip_open_write(filename) as stream:
                         # Required id/epoch fields make the header non-empty.
@@ -1146,10 +1148,13 @@ class ZipLogFile:
                         await write_events_data_field(stream, events_data, comma=True)
                         stream.write(b"}")
                 except BaseException:
-                    # Supersede the truncated member with a readable stub.
-                    # Timeline UUIDs cannot resolve against the stub's empty events.
-                    header.pop("timelines", None)
-                    self._zip_writestr(filename, header)
+                    # Drop the failed write, preserving any earlier entry.
+                    del self._zip.filelist[member_count:]
+                    prior = [i for i in self._zip.filelist if i.filename == filename]
+                    if prior:
+                        self._zip.NameToInfo[filename] = prior[-1]
+                    else:
+                        self._zip.NameToInfo.pop(filename, None)
                     raise
 
             key = SampleRecordKey(str(sample.id), sample.epoch)
