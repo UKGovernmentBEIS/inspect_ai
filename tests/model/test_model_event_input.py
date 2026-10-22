@@ -22,14 +22,7 @@ from inspect_ai.model import (
     ModelUsage,
     get_model,
 )
-from inspect_ai.model._model import (
-    _snapshot_messages,
-    init_model_usage,
-    init_sample_model_usage,
-    model_usage,
-    sample_model_usage,
-    use_model_event_sink,
-)
+from inspect_ai.model._model import _snapshot_messages, use_model_event_sink
 from inspect_ai.tool import ToolCall, ToolCallError
 
 
@@ -92,13 +85,12 @@ async def test_model_event_input_unchanged_by_later_edits() -> None:
 class _Sink:
     def __init__(self) -> None:
         self.events: list[ModelEvent] = []
-        self.completed: list[ModelEvent] = []
 
     def on_pending(self, event: ModelEvent) -> None:
         self.events.append(event)
 
     def on_complete(self, event: ModelEvent) -> None:
-        self.completed.append(event)
+        pass
 
 
 async def test_model_event_input_snapshot_with_event_sink() -> None:
@@ -136,39 +128,6 @@ async def test_model_event_output_unchanged_by_later_edits(with_sink: bool) -> N
     assert first.output.message.metadata is None
     # the next input reuses the output's copy
     assert second.input[1] is first.output.message
-
-
-@pytest.mark.parametrize("with_sink", [False, True])
-async def test_model_event_output_copy_failure_completes_event(
-    with_sink: bool,
-) -> None:
-    # a lock can't be deep copied: generate raises, and the event still ends
-    # with the response's usage recorded
-    output = ModelOutput.from_content("mockllm/model", "done")
-    output.message.metadata = {"lock": threading.Lock()}
-    usage = ModelUsage(input_tokens=1, output_tokens=1, total_tokens=2)
-    output.usage = usage
-    init_transcript(Transcript())
-    init_model_usage({})
-    init_sample_model_usage()
-    model = get_model("mockllm/model", custom_outputs=[output])
-    sink = _Sink()
-
-    with use_model_event_sink(sink if with_sink else None):
-        with pytest.raises(TypeError):
-            await model.generate([ChatMessageUser(content="hi")])
-
-    [event] = sink.events if with_sink else _model_events()
-    assert event.pending is None
-    assert event.error is not None and "TypeError" in event.error
-    assert event.output.completion == ""
-    assert event.output.usage == usage
-    assert sample_model_usage()["mockllm/model"].total_tokens == 2
-    assert model_usage()["mockllm/model"].total_tokens == 2
-    if with_sink:
-        assert sink.completed == [event]
-    else:
-        assert transcript().pending_events == []
 
 
 async def test_model_event_output_snapshot_on_cache_hit(
@@ -265,28 +224,41 @@ async def test_model_event_input_compares_nan_as_logged(
         assert json.dumps(logged.tool_calls[0].arguments["x"]) == json.dumps(expected)
 
 
-@dataclass(slots=True)
-class _SlottedState:
-    step: int
-
-
-async def test_model_event_input_copies_unserializable_metadata() -> None:
-    # numpy arrays don't serialize, so the message is copied every time
+async def test_model_event_input_logs_unserializable_message_live() -> None:
+    # numpy arrays don't serialize, so the event holds the live message
     init_transcript(Transcript())
     model = get_model("mockllm/model")
     message = ChatMessageUser(content="hi", metadata={"values": np.array([1, 2])})
 
     await model.generate([message])
-    assert message.metadata is not None
-    message.metadata["values"][0] = 99
-    await model.generate([message])
 
-    first, second = _model_events()
-    assert first.input[0] is not second.input[0]
-    assert first.input[0].metadata is not None
-    assert second.input[0].metadata is not None
-    assert first.input[0].metadata["values"].tolist() == [1, 2]
-    assert second.input[0].metadata["values"].tolist() == [99, 2]
+    [event] = _model_events()
+    assert event.input[0] is message
+
+
+async def test_model_event_logs_uncopyable_messages_live() -> None:
+    # a lock can't be deep copied: generate succeeds and the event holds the
+    # live input and output messages
+    output = ModelOutput.from_content("mockllm/model", "done")
+    output.message.metadata = {"lock": threading.Lock()}
+    usage = ModelUsage(input_tokens=1, output_tokens=1, total_tokens=2)
+    output.usage = usage
+    init_transcript(Transcript())
+    model = get_model("mockllm/model", custom_outputs=[output])
+    message = ChatMessageUser(content="hi", metadata={"lock": threading.Lock()})
+
+    result = await model.generate([message])
+
+    [event] = _model_events()
+    assert event.pending is None and event.error is None
+    assert event.input[0] is message
+    assert event.output.message is result.message
+    assert event.output.usage == usage
+
+
+@dataclass(slots=True)
+class _SlottedState:
+    step: int
 
 
 def test_model_event_input_snapshots_object_tool_arguments() -> None:
