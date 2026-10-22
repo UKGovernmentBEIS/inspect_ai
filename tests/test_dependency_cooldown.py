@@ -36,8 +36,11 @@ def uv_config() -> dict[str, Any]:
 def dependabot_uv() -> dict[str, Any]:
     config = yaml.safe_load((REPO / ".github" / "dependabot.yml").read_text())
     updates: list[dict[str, Any]] = config["updates"]
-    (update,) = [u for u in updates if u["package-ecosystem"] == "uv"]
-    return update
+    root = [
+        u for u in updates if u["package-ecosystem"] == "uv" and u["directory"] == "/"
+    ]
+    assert len(root) == 1, "expected one uv entry for directory / in dependabot.yml"
+    return root[0]
 
 
 def build_job(name: str) -> dict[str, Any]:
@@ -107,6 +110,31 @@ def test_dependabot_cooldown_matches_pyproject() -> None:
     exempt = config["exclude-newer-package"]
     assert all(value is False for value in exempt.values())
     assert sorted(cooldown["exclude"]) == sorted(exempt)
+
+
+def version(text: str) -> tuple[int, ...]:
+    return tuple(int(part) for part in text.split("."))
+
+
+def test_pinned_uv_versions_meet_required_version() -> None:
+    required = re.fullmatch(r">=(\d+\.\d+\.\d+)", uv_config()["required-version"])
+    assert required, uv_config()["required-version"]
+    pinned = {
+        workflow: yaml.safe_load(
+            (REPO / ".github" / "workflows" / workflow).read_text()
+        )["env"]["UV_VERSION"]
+        for workflow in ["build.yml", "log_viewer.yml", "sync_model_data.yml"]
+    }
+    pre_commit = yaml.safe_load((REPO / ".pre-commit-config.yaml").read_text())
+    (pinned["pre-commit"],) = [
+        repo["rev"] for repo in pre_commit["repos"] if "uv-pre-commit" in repo["repo"]
+    ]
+    devcontainer = (REPO / ".devcontainer" / "Dockerfile").read_text()
+    devcontainer_uv = re.search(r"^ARG UV_VERSION=(\S+)$", devcontainer, re.M)
+    assert devcontainer_uv
+    pinned["devcontainer"] = devcontainer_uv[1]
+    for where, pin in pinned.items():
+        assert version(pin) >= version(required[1]), f"{where}: uv {pin}"
 
 
 @pytest.mark.parametrize("name", LOCKED_JOBS)

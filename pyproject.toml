@@ -199,6 +199,8 @@ dev = ["inspect_ai[dev]"]
 [tool.uv]
 cache-keys = [{ git = { commit = true } }, { file = "pyproject.toml" }]
 default-groups = ["dev"]
+# 0.11.8 is the first uv that keeps uv.lock stable with a relative exclude-newer.
+required-version = ">=0.11.8"
 # Only resolve releases at least 7 days old (see CONTRIBUTING.md).
 exclude-newer = "7 days"
 

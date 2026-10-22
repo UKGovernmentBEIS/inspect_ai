@@ -98,7 +98,7 @@ If there’s something you’d like to work on but no GitHub issue for it, start
 Note that `good first issue` implies `accepted` — you can open a PR for one directly.
 
 ## Working on your issue
-After you’ve claimed an issue, you can start working on it. If this is your first contribution, install [uv](https://docs.astral.sh/uv/) (0.11.8 or later), clone the repository, and sync the development environment from the lockfile:
+After you’ve claimed an issue, you can start working on it. If this is your first contribution, install [uv](https://docs.astral.sh/uv/) 0.11.8 or later (`required-version` in `pyproject.toml` enforces this; upgrade with `uv self update`, or `brew upgrade uv` if you installed it with Homebrew), clone the repository, and sync the development environment from the lockfile:
 
 ```
 git clone https://github.com/UKGovernmentBEIS/inspect_ai.git
