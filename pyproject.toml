@@ -199,3 +199,25 @@ dev = ["inspect_ai[dev]"]
 [tool.uv]
 cache-keys = [{ git = { commit = true } }, { file = "pyproject.toml" }]
 default-groups = ["dev"]
+# Only resolve releases at least 7 days old (see CONTRIBUTING.md).
+exclude-newer = "7 days"
+
+# Exempt from the cooldown, so a new release can be adopted the day it ships:
+# the model provider SDKs (and the AWS SDKs Bedrock and SageMaker use) and
+# Inspect's own packages, which are released together with inspect_ai.
+[tool.uv.exclude-newer-package]
+aiobotocore = false
+anthropic = false
+aws-bedrock-token-generator = false
+azure-ai-inference = false
+boto3 = false
+botocore = false
+google-genai = false
+groq = false
+huggingface-hub = false
+inspect-scout = false
+inspect-sentinel = false
+mistralai = false
+openai = false
+together = false
+xai-sdk = false

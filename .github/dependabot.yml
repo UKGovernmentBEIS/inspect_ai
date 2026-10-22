@@ -13,12 +13,32 @@ updates:
       github-actions:
         patterns:
           - "*"
-  - package-ecosystem: pip
+  # Bumps uv.lock. The cooldown matches `exclude-newer` in pyproject.toml,
+  # and its exclude list matches `exclude-newer-package` there.
+  - package-ecosystem: uv
     versioning-strategy: lockfile-only
     directory: "/"
     schedule:
       interval: daily
       time: "13:00"
+    cooldown:
+      default-days: 7
+      exclude:
+        - "aiobotocore"
+        - "anthropic"
+        - "aws-bedrock-token-generator"
+        - "azure-ai-inference"
+        - "boto3"
+        - "botocore"
+        - "google-genai"
+        - "groq"
+        - "huggingface-hub"
+        - "inspect-scout"
+        - "inspect-sentinel"
+        - "mistralai"
+        - "openai"
+        - "together"
+        - "xai-sdk"
     groups:
       python-packages:
         patterns:
