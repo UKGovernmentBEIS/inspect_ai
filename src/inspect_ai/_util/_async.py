@@ -4,7 +4,7 @@ import inspect
 import os
 import signal
 import threading
-from types import FrameType
+from types import FrameType, TracebackType
 from typing import (
     Any,
     Awaitable,
@@ -61,7 +61,7 @@ async def tg_collect(
        ExceptionGroup: Exceptions that occurred in failed tasks
          (for `exception_group == True`)
     """
-    try:
+    with unwrap_exception_group(None if exception_group else "first"):
         results: list[tuple[int, T]] = []
 
         async with anyio.create_task_group() as tg:
@@ -75,11 +75,71 @@ async def tg_collect(
 
         # sort results by original index and return just the values
         return [r for _, r in sorted(results)]
-    except ExceptionGroup as ex:
-        if exception_group:
-            raise
-        else:
-            raise ex.exceptions[0] from None
+
+
+class unwrap_exception_group:
+    """Unwrap an `ExceptionGroup` that leaves the block, raising its exception bare.
+
+    The exception keeps its own `__cause__`. Its context is the group and is
+    suppressed, as with `raise ... from None`, which would also drop the cause.
+
+    Use `with`, or `async with` in the same statement as the task group:
+    `async with unwrap_exception_group(), anyio.create_task_group() as tg:`.
+    It is a class rather than a generator, and its async exit raises before
+    any coroutine runs: an exception raised out of a generator or coroutine
+    frame changes type (`StopIteration` becomes `RuntimeError`).
+
+    Exception classes that override `__class__`, `__cause__` or `__setattr__`
+    are not supported.
+
+    Args:
+       unwrap: "single" raises the exception when the group holds exactly
+          one and the group otherwise; "first" raises the first exception
+          and drops the rest; `None` leaves the group as it is.
+    """
+
+    def __init__(self, unwrap: Literal["single", "first"] | None = "single") -> None:
+        self._unwrap = unwrap
+
+    def __enter__(self) -> None:
+        return None
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_value: BaseException | None,
+        traceback: TracebackType | None,
+    ) -> None:
+        # match the exception's own type, not a __class__ attribute it defines
+        if (
+            self._unwrap is None
+            or exc_type is None
+            or not issubclass(exc_type, ExceptionGroup)
+        ):
+            return
+        group = cast(ExceptionGroup[Exception], exc_value)
+        if self._unwrap == "single" and len(group.exceptions) != 1:
+            return
+        unwrapped = group.exceptions[0]
+        # the stored cause, past any __cause__ attribute of the subclass's own
+        cause = vars(BaseException)["__cause__"].__get__(unwrapped)
+        raise unwrapped from cause
+
+    async def __aenter__(self) -> None:
+        return None
+
+    def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_value: BaseException | None,
+        traceback: TracebackType | None,
+    ) -> Awaitable[None]:
+        self.__exit__(exc_type, exc_value, traceback)
+        return _completed()
+
+
+async def _completed() -> None:
+    return None
 
 
 class Wake:
