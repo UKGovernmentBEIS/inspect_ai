@@ -1529,6 +1529,7 @@ def as_previous_tasks(
                 task_args=resolve_task_args(task.task),
                 model=task.model,
                 model_roles=task.model_roles,
+                sandbox=task.sandbox,
                 log=eval_log,
                 log_info=log_info,
             )
@@ -1756,6 +1757,7 @@ def _resumed_task(task: ResolvedTask, identifier: str, resume: str) -> PreviousT
         task_args=resolve_task_args(task.task),
         model=task.model,
         model_roles=task.model_roles,
+        sandbox=task.sandbox,
         log=eval_log,
         log_info=log_info,
     )
