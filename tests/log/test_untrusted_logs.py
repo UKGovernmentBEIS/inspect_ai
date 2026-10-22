@@ -674,14 +674,31 @@ def _log_info(path: Path, log: EvalLog) -> EvalLogInfo:
     )
 
 
-@pytest.mark.parametrize("source", ["scorer", "task"])
-def test_eval_set_recovery_warns_on_forbidden_metric_options(
-    source: str,
+@pytest.mark.parametrize(
+    "case,message",
+    [
+        ("options_scorer", FORBIDDEN_OPTIONS["model"][1]),
+        ("options_task", FORBIDDEN_OPTIONS["model"][1]),
+        ("missing_metric", "Metric 'somepkg/nope' (used by scorer 'match')"),
+        ("missing_reducer", "Epoch reducer 'no_such_reducer'"),
+    ],
+)
+def test_eval_set_recovery_warns_and_recovers_without_results(
+    case: str,
+    message: str,
     crashed: Any,
     untrusted_models: list[str],
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    log = _fixture("3s" if source == "scorer" else "3t", Path("unused"))
+    match case:
+        case "options_scorer":
+            log = _fixture("3s", Path("unused"))
+        case "options_task":
+            log = _fixture("3t", Path("unused"))
+        case "missing_metric":
+            log = _log(scorer_metrics=[EvalMetricDefinition(name="somepkg/nope")])
+        case _:
+            log = _log(epochs_reducer=["no_such_reducer"])
     path = crashed(log)
     header = EvalLog(eval=log.eval, status="started", location=path.as_posix())
 
@@ -689,13 +706,17 @@ def test_eval_set_recovery_warns_on_forbidden_metric_options(
         recovered, info = _recover_crashed_log(header, _log_info(path, log))
 
     assert recovered.location is not None and "-recovered" in recovered.location
+    assert Path(recovered.location).exists()
     assert info.name == recovered.location
     assert recovered.results is None
-    assert any(
-        "Unable to recompute metrics" in r.message
-        and FORBIDDEN_OPTIONS["model"][1] in r.message
-        for r in caplog.records
-    )
+    warnings = [
+        r.message for r in caplog.records if "Unable to recompute metrics" in r.message
+    ]
+    assert len(warnings) == 1
+    assert message in warnings[0]
+    # eval-set recovers anyway and has no trust_log option, so no rerun advice
+    assert "Nothing was written" not in warnings[0]
+    assert "trust_log" not in warnings[0]
     assert untrusted_models == []
 
 

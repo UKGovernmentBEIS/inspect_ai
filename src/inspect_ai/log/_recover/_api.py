@@ -373,7 +373,12 @@ def _resolve_recovery_metrics(
     trust_log: bool,
     untrusted_metrics: Literal["raise", "warn"],
 ) -> LogMetrics | None:
-    """Rebuild the crashed log's metrics, or `None` to recover without results."""
+    """Rebuild the crashed log's metrics, or `None` to recover without results.
+
+    With `untrusted_metrics="warn"` a failure is only warned about and the log
+    is recovered anyway, so its message carries no advice for a manual rerun.
+    """
+    refuse = not trust_log and untrusted_metrics == "raise"
     header = EvalLog(
         version=crashed.version,
         eval=crashed.eval,
@@ -384,10 +389,11 @@ def _resolve_recovery_metrics(
         return resolve_log_metrics(
             header,
             trust_log=trust_log,
-            reducer_advice=None if trust_log else RECOVER_REDUCER_ADVICE,
+            reducer_advice=RECOVER_REDUCER_ADVICE if refuse else None,
+            trust_log_advice=refuse,
         )
     except (LookupError, DisallowedRegistryArg) as ex:
-        if not trust_log and untrusted_metrics == "raise":
+        if refuse:
             raise
         logger.warning(f"Unable to recompute metrics for recovered log: {ex}")
     except Exception as ex:

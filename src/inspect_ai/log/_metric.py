@@ -24,7 +24,11 @@ class LogMetrics(NamedTuple):
 
 
 def resolve_log_metrics(
-    log: EvalLog, *, trust_log: bool = False, reducer_advice: str | None = None
+    log: EvalLog,
+    *,
+    trust_log: bool = False,
+    reducer_advice: str | None = None,
+    trust_log_advice: bool = True,
 ) -> LogMetrics:
     """Rebuild the log's reducers and metrics.
 
@@ -37,6 +41,8 @@ def resolve_log_metrics(
             rebuild metric options without restriction. This runs the task
             file's code, so pass it only for logs you trust.
         reducer_advice: Text appended to the error for a missing reducer.
+        trust_log_advice: End untrusted metric errors with advice to pass
+            `trust_log=True`. `False` for callers that have no such option.
 
     Raises:
         LookupError: A metric or epoch reducer is not registered.
@@ -45,6 +51,7 @@ def resolve_log_metrics(
     """
     # Import here to avoid circular imports
     from inspect_ai._eval.score import (
+        TRUST_LOG_OPT_IN,
         LogTaskFileImport,
         metrics_from_log_header,
         resolve_scorers_info,
@@ -62,7 +69,11 @@ def resolve_log_metrics(
                     message = f"{message} {reducer_advice}"
                 raise LookupError(message) from ex
 
-    task_import = LogTaskFileImport(log, trust_log=trust_log)
+    task_import = LogTaskFileImport(
+        log,
+        trust_log=trust_log,
+        opt_in=TRUST_LOG_OPT_IN if trust_log_advice else None,
+    )
     metrics = metrics_from_log_header(log, task_import=task_import)
     scorers = resolve_scorers_info(log, task_import=task_import)
     return LogMetrics(reducers=reducers, metrics=metrics, scorers=scorers)

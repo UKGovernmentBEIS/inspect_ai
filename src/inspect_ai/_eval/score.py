@@ -614,7 +614,7 @@ class LogTaskFileImport:
         *,
         trust_log: bool,
         import_task_file: bool = True,
-        opt_in: str = TRUST_LOG_OPT_IN,
+        opt_in: str | None = TRUST_LOG_OPT_IN,
     ) -> None:
         """Create the tracker.
 
@@ -628,7 +628,7 @@ class LogTaskFileImport:
                 the log's own scorers, which trusts options but fails on a
                 missing metric as it always has.
             opt_in: Closing advice of untrusted-log errors, naming an option
-                the caller actually has.
+                the caller actually has (`None` for no advice).
         """
         self.trust_log = trust_log
         self.import_task_file = import_task_file
@@ -669,7 +669,7 @@ class LogTaskFileImport:
             )
         else:
             message += " Install or import the module that defines it first."
-        if not self.trust_log:
+        if not self.trust_log and self.opt_in:
             message += f" {self.opt_in}"
         return LookupError(message)
 
