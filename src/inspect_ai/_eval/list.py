@@ -37,8 +37,9 @@ def list_tasks(
         List of TaskInfo
 
     Raises:
-        ValueError: Relative output cannot represent a task on a different
-            Windows drive or UNC share. Use absolute=True in that case.
+        ValueError: An absolute glob names a bare filesystem root, or relative
+            output cannot represent a task on a different Windows drive or UNC
+            share. Use absolute=True for paths on different drives or shares.
     """
     # resolve globs
     globs = globs if isinstance(globs, list) else [globs]
@@ -71,6 +72,11 @@ def task_files(globs: list[str] = [], root_dir: Path | None = None) -> list[Path
         glob_path = Path(glob)
         if glob_path.is_absolute():
             glob_root = Path(glob_path.anchor)
+            if glob_path == glob_root:
+                raise ValueError(
+                    f"Cannot scan filesystem root '{glob}'. "
+                    "Specify a task file or subdirectory."
+                )
             trailing_sep = glob.endswith((os.sep, "/"))
             glob = str(glob_path.relative_to(glob_root))
             if trailing_sep and glob != ".":

@@ -118,14 +118,33 @@ def test_task_list_preserves_symlink_parent(tmp_path: Path, outside_root: bool) 
     assert (root / tasks[0].file).resolve() == outside / "task.py"
 
 
-def test_task_files_absolute_anchor(monkeypatch: pytest.MonkeyPatch) -> None:
+@pytest.mark.parametrize("suffix", ["", ".", "//"])
+def test_task_files_rejects_absolute_anchor(
+    suffix: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
     anchor = Path(Path.cwd().anchor)
-    # Avoid traversing the actual filesystem root.
-    monkeypatch.setattr(
-        "inspect_ai._eval.list.tasks_in_dir", lambda path: [path / "task.py"]
-    )
+    scan = Mock(side_effect=AssertionError("must not scan a filesystem root"))
+    monkeypatch.setattr("inspect_ai._eval.list.tasks_in_dir", scan)
 
-    assert task_files([str(anchor)]) == [anchor / "task.py"]
+    with pytest.raises(ValueError, match="filesystem root"):
+        task_files([f"{anchor}{suffix}"])
+    scan.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "glob",
+    ["C:/", "C:\\", "C:/.", "//server/share/", "\\\\server\\share\\"],
+)
+def test_task_files_rejects_windows_anchor(
+    glob: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    scan = Mock(side_effect=AssertionError("must not scan a filesystem root"))
+    monkeypatch.setattr("inspect_ai._eval.list.Path", PureWindowsPath)
+    monkeypatch.setattr("inspect_ai._eval.list.tasks_in_dir", scan)
+
+    with pytest.raises(ValueError, match="filesystem root"):
+        task_files([glob], root_dir=Mock(wraps=PureWindowsPath("C:/work")))
+    scan.assert_not_called()
 
 
 @pytest.mark.parametrize(

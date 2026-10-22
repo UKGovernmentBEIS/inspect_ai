@@ -55,6 +55,19 @@ def test_eval_task_paths(
     assert len(logs[0].samples) == 1
 
 
+def test_eval_rejects_filesystem_root(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    anchor = Path(Path.cwd().anchor)
+    scan = mock.Mock(side_effect=AssertionError("must not scan a filesystem root"))
+    monkeypatch.setattr("inspect_ai._eval.list.tasks_in_dir", scan)
+    monkeypatch.chdir(tmp_path)
+
+    with pytest.raises(ValueError, match="filesystem root"):
+        eval(str(anchor), model="mockllm/model", log_dir=str(tmp_path / "logs"))
+    scan.assert_not_called()
+
+
 def test_eval_epochs_sample_count():
     task = Task(dataset=[Sample(input="s1"), Sample(input="s2")])
     log = eval(task, model="mockllm/model", epochs=3)[0]
