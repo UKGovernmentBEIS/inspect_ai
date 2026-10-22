@@ -68,10 +68,12 @@ def tool_call_matcher(
     matches when its function matches one of them and every entry of
     `arguments` names an argument of the call whose value matches its glob.
 
-    The legacy form `name(arg='value'` (optionally closed with `)`) matches as
-    it did when patterns were matched against the formatted call text: the
-    function named exactly, `value` as a glob over the whole of a string value,
-    and with `)` no other arguments. Any other `tools` entry containing `(` is refused.
+    The legacy form `name(arg='value'` (optionally closed with `)`) has these
+    limitations: the function name must match exactly; only string values
+    match; `value` is a glob over the whole value; matching is case-sensitive
+    on every platform; path separators are literal (on Windows a slash and a
+    backslash differ); and with `)` the call may have no other arguments. Any other
+    `tools` entry containing `(`, including an unclosed value, is refused.
 
     Function names are matched with `fnmatch.fnmatch`, so they ignore case on
     Windows. Argument values, including legacy ones, are always case-sensitive.

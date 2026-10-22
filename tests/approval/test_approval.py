@@ -939,7 +939,9 @@ async def test_policy_legacy_argument_form() -> None:
     assert not await routed(make_tool_call("f", timeout=10), "f(timeout='10'")
 
 
-async def test_policy_case_rules_on_windows(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_policy_case_and_separator_rules_on_windows(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     # fnmatch ignores case through the platform's normcase; use Windows' here
     monkeypatch.setattr(fnmatch, "os", SimpleNamespace(path=ntpath))
 
@@ -948,6 +950,11 @@ async def test_policy_case_rules_on_windows(monkeypatch: pytest.MonkeyPatch) -> 
     assert not await routed(call, "computer", action="key")
     assert not await routed(call, "computer(action='key'")
     assert await routed(call, "computer(action='KEY'")
+
+    # path separators in argument values are literal
+    call = make_tool_call("read_file", path="C:\\data\\secret.txt")
+    assert not await routed(call, "read_file(path='C:/data/*'")
+    assert not await routed(call, "read_file", path="C:/data/*")
 
 
 @pytest.mark.parametrize(

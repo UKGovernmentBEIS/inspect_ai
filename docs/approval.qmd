@@ -78,7 +78,17 @@ ApprovalPolicy(human_approver(), "computer", arguments={"action": "key"})
 ```
 
 ::: {.callout-note}
-Earlier versions matched arguments within `tools`, as in `computer(action='key'`. This legacy form still works for one argument with a single-quoted value, but on Windows the value is now case-sensitive. Use `arguments` instead. Any other `tools` pattern containing `(` raises an error.
+Earlier versions matched arguments within `tools`, as in `computer(action='key'`. This legacy form still works for one argument with a single-quoted value, with these limitations:
+
+- The function name must match exactly.
+- Only string argument values match. Other values never do.
+- The glob must match the whole value.
+- Matching is case-sensitive on every platform.
+- Path separators are literal, so on Windows `/` and `\` are different characters.
+- The closed form `name(arg='value')` matches only calls with no other arguments.
+- Any other `tools` pattern containing `(`, including one with an unclosed value such as `bash(cmd='rm`, raises an error.
+
+Use `arguments` for any other matching.
 
 Older logs still open, but `eval_retry()` restores the policies saved in the log and raises an error for a pattern that is no longer supported. Updating the task's current policies does not replace the saved ones. Migrate the saved approval or review configuration in a copy of the log, or start a new evaluation with migrated policies.
 :::
