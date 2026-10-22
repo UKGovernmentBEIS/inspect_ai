@@ -3399,6 +3399,7 @@ class _GatedFS(fsspec.asyn.AsyncFileSystem):
         self.cat_calls = 0
         self.cleaned = False
         self.threads: list[int] = []
+        self.cat_returned = threading.Event()
 
     async def _gate(self) -> None:
         self.entries += 1
@@ -3440,12 +3441,15 @@ class _GatedFS(fsspec.asyn.AsyncFileSystem):
     ) -> bytes:
         self.cat_calls += 1
         path = self._strip_protocol(path)
-        await self._gate()
-        if path.endswith("timeout.bin"):
-            raise TimeoutError(path)
-        if path not in self.files:
-            raise FileNotFoundError(path)
-        return self.files[path][start:end]
+        try:
+            await self._gate()
+            if path.endswith("timeout.bin"):
+                raise TimeoutError(path)
+            if path not in self.files:
+                raise FileNotFoundError(path)
+            return self.files[path][start:end]
+        finally:
+            self.cat_returned.set()
 
     async def _get_file(self, rpath: str, lpath: str, **kwargs: Any) -> None:
         path = self._strip_protocol(rpath)
@@ -3659,10 +3663,18 @@ async def test_async_fsspec_read_cancelled_before_start_does_not_hang(
 async def test_async_fsspec_read_completes_while_loop_makes_sync_call(
     gated_fs: _GatedFS,
 ) -> None:
+    async def wait_for_read_task() -> None:
+        # runs on fsspec's loop: returns once the read's `_cat_file` has
+        # returned and its task's done callback has had a loop iteration to run
+        while not gated_fs.cat_returned.is_set():
+            await asyncio.sleep(0.001)
+        await asyncio.sleep(0.001)
+
     async def release_then_block() -> None:
         await _release_when_entered(gated_fs)
-        # synchronous: blocks this loop until fsspec's loop has run it
-        gated_fs.info("bucket/dir/a.bin")
+        # blocks this loop until the read task's done callback has run on
+        # fsspec's loop; deadlocks if that callback waits for this loop
+        fsspec.asyn.sync(gated_fs.loop, wait_for_read_task)
 
     async with AsyncFilesystem() as afs, anyio.create_task_group() as tg:
         tg.start_soon(release_then_block)
@@ -3691,6 +3703,12 @@ async def test_async_fsspec_empty_range_makes_no_request(gated_fs: _GatedFS) -> 
     async with AsyncFilesystem() as afs:
         assert await afs.read_file_bytes_fully(_GATED_URL, 10, 10) == b""
     assert gated_fs.cat_calls == 0
+
+
+@pytest.mark.timeout(30, method="thread")
+async def test_run_on_fsspec_loop_rejects_a_non_coroutine(gated_fs: _GatedFS) -> None:
+    with pytest.raises(TypeError):
+        await asyncfiles._run_on_fsspec_loop(gated_fs, cast(Any, object()))
 
 
 @skip_if_trio

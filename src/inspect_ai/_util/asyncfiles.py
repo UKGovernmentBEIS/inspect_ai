@@ -2191,8 +2191,9 @@ def _is_async_remote(fsw: FileSystem) -> bool:
 
     True for async fsspec filesystems (gcsfs, adlfs, ...) other than HTTP.
     fsspec's HTTP ``_cat_file`` doesn't check that the server honoured the
-    range, and its ``_info`` can report no size, so HTTP keeps the synchronous
-    file-object path, which raises in both cases.
+    range (its file object raises if not), and its ``_info`` can report no
+    size (its file object then streams), so HTTP keeps the synchronous
+    file-object path.
     """
     protocol = fsw.fs.protocol
     protocols = protocol if isinstance(protocol, tuple) else (protocol,)
@@ -2213,14 +2214,20 @@ async def _run_on_fsspec_loop(fs: Any, coro: Coroutine[Any, Any, _T]) -> _T:
     nothing on fsspec's loop waits for the caller, whose loop may itself be
     blocked in a synchronous fsspec call. A cancelled caller cancels the task
     and waits for it to finish, so the coroutine's own cleanup has run before
-    the cancellation propagates. As with ``sync()``, a ``TimeoutError`` is
-    raised as ``FSTimeoutError``.
+    the cancellation propagates. As with ``sync()``, a ``TimeoutError`` from
+    the coroutine is raised as ``FSTimeoutError``.
+
+    A filesystem already bound to the caller's loop (``asynchronous=True``)
+    is awaited directly, with no mapping, as its own callers would.
     """
     backend = current_async_backend()
     if fs.asynchronous or (
         backend == "asyncio" and fs.loop is asyncio.get_running_loop()
     ):
         return await coro
+    # as `run_coroutine_threadsafe` does: `start` can't report a failure
+    if not asyncio.iscoroutine(coro):
+        raise TypeError(f"A coroutine object is required, not {type(coro)!r}")
     loop = fs.loop
     if loop is None or loop.is_closed():
         coro.close()
