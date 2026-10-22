@@ -75,8 +75,8 @@ def tool_call_matcher(
     backslash differ); and with `)` the call may have no other arguments. Any other
     `tools` entry containing `(`, including an unclosed value, is refused.
 
-    Function names are matched with `fnmatch.fnmatch`, so they ignore case on
-    Windows. Argument values, including legacy ones, are always case-sensitive.
+    Other function names are matched with `fnmatch.fnmatch`, so they ignore
+    case on Windows. Argument values are always case-sensitive.
 
     Raises:
         ValueError: If `tools` or `arguments` cannot be compiled.
@@ -129,7 +129,9 @@ def tool_call_matcher(
 
     def matches(call: ToolCall) -> bool:
         return any(
-            fnmatch.fnmatch(call.function, pattern.function)
+            (fnmatch.fnmatchcase if pattern.legacy else fnmatch.fnmatch)(
+                call.function, pattern.function
+            )
             and all(
                 name in call.arguments
                 and (not pattern.legacy or isinstance(call.arguments[name], str))

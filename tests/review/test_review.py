@@ -1,4 +1,7 @@
+import fnmatch
+import ntpath
 from pathlib import Path
+from types import SimpleNamespace
 from typing import NamedTuple
 
 import anyio
@@ -398,6 +401,21 @@ async def test_review_policy_tools_and_arguments_match_as_for_approval() -> None
 
     with pytest.raises(ValueError, match="'arguments'"):
         ReviewPolicy(fixed_reviewer(), "bash(cmd='ls', timeout=10)")
+
+
+async def test_review_policy_case_rules_on_windows(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # fnmatch ignores case through the platform's normcase; use Windows' here
+    monkeypatch.setattr(fnmatch, "os", SimpleNamespace(path=ntpath))
+
+    def call(function: str) -> ToolCall:
+        return ToolCall(id="1", function=function, arguments={"action": "key"})
+
+    assert await reviewed(call("computer"), "Computer")
+    assert not await reviewed(call("computer"), "Computer(action='key'")
+    assert not await reviewed(call("Computer"), "computer(action='key')")
+    assert await reviewed(call("computer"), "computer(action='key')")
 
 
 # --- what the reviewer sees ----------------------------------------------------

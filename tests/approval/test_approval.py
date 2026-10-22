@@ -946,6 +946,13 @@ async def test_policy_case_and_separator_rules_on_windows(
     monkeypatch.setattr(fnmatch, "os", SimpleNamespace(path=ntpath))
 
     assert await routed(make_tool_call("computer", action="key"), "Computer")
+    # except in the legacy form, open or closed
+    assert not await routed(
+        make_tool_call("computer", action="key"), "Computer(action='key'"
+    )
+    assert not await routed(
+        make_tool_call("Computer", action="key"), "computer(action='key')"
+    )
     call = make_tool_call("computer", action="KEY")
     assert not await routed(call, "computer", action="key")
     assert not await routed(call, "computer(action='key'")
