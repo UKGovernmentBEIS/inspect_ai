@@ -1046,7 +1046,7 @@ async def test_zip_log_write_buffered_samples_yields_between_samples() -> None:
             nonlocal counter
             while not flush_done.is_set():
                 counter += 1
-                await anyio.sleep(0)
+                await anyio.lowlevel.checkpoint()
 
         async with anyio.create_task_group() as tg:
             tg.start_soon(sibling)
@@ -2647,7 +2647,7 @@ class _S3CallSpy:
             failure = self._failures.pop(name, None)
             if isinstance(failure, anyio.CancelScope):
                 failure.cancel()
-                await anyio.sleep(0)
+                await anyio.lowlevel.checkpoint()
             elif failure is not None:
                 raise failure
             return await attr(**kwargs)
