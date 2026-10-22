@@ -271,6 +271,15 @@ def registry_name(o: object, name: str) -> str:
     return f"{package}/{name}" if package else name
 
 
+class RegistryNameNotFound(LookupError):
+    """No object is registered under the name.
+
+    Raised by `registry_create()` and `create_registry_object()` (at any
+    depth of nested arguments), so callers can tell a missing registration
+    from a `LookupError` raised inside a registered factory.
+    """
+
+
 def registry_lookup(type: RegistryType, name: str) -> object | None:
     r"""Lookup an object in the registry by type and name.
 
@@ -450,7 +459,8 @@ def registry_create(type: RegistryType, name: str, **kwargs: Any) -> object:  # 
         Instance of specified name and type.
 
     Raises:
-        LookupError: If the named object was not found in the registry.
+        RegistryNameNotFound: If the named object was not found in the
+            registry (a `LookupError`).
         TypeError: If the specified parameters are not valid for the object.
     """
     obj = registry_lookup(type, name)
@@ -470,22 +480,13 @@ def registry_create(type: RegistryType, name: str, **kwargs: Any) -> object:  # 
         else:
             return obj
     else:
-        raise LookupError(f"{name} was not found in the registry")
+        raise RegistryNameNotFound(f"{name} was not found in the registry")
 
 
 LOG_METRIC_OPTION_TYPES: frozenset[RegistryType] = frozenset(
     {"metric", "score_reducer"}
 )
 """Registry types that metric options from an untrusted log may construct."""
-
-
-class RegistryNameNotFound(LookupError):
-    """A name recorded in a log is not registered.
-
-    Raised by log metric resolution before anything is constructed, so callers
-    can tell a missing registration from a `LookupError` raised inside a
-    registered factory.
-    """
 
 
 class DisallowedRegistryArg(ValueError):
@@ -544,7 +545,7 @@ def create_registry_object(
             ex.owner = (type, name)
             raise
     else:
-        raise LookupError(f"{name} was not found in the registry")
+        raise RegistryNameNotFound(f"{name} was not found in the registry")
 
 
 def _instantiate_registry_object(

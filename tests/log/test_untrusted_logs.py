@@ -121,6 +121,14 @@ def lookup_error_reducer() -> ScoreReducer:
     raise KeyError("reducer factory failure")
 
 
+@metric
+def failing_compute_metric() -> Metric:
+    def compute(scores: list[SampleScore]) -> float:
+        raise ValueError("metric compute failure")
+
+    return compute
+
+
 scored_samples: list[Any] = []
 
 
@@ -683,6 +691,74 @@ FACTORY_LOOKUP_ERRORS = {
     ),
     "reducer": _log(epochs_reducer=["lookup_error_reducer"]),
 }
+
+
+NESTED_REDUCER = "untrusted_nested_reducer"
+
+
+@pytest.mark.parametrize("overwrite", [False, True])
+@pytest.mark.parametrize("source", ["scorer", "task"])
+def test_failed_recovery_with_missing_nested_reducer_writes_nothing(
+    source: str, overwrite: bool, crashed: Any
+) -> None:
+    definition = EvalMetricDefinition(
+        name="untrusted_options_metric",
+        options={
+            "option": {"type": "score_reducer", "name": NESTED_REDUCER, "params": {}}
+        },
+    )
+    log = (
+        _log(scorer_metrics=[definition])
+        if source == "scorer"
+        else _log(eval_metrics=[definition])
+    )
+    path = crashed(log)
+    original = path.read_bytes()
+
+    with pytest.raises(RegistryNameNotFound, match=NESTED_REDUCER):
+        recover_eval_log(path.as_posix(), overwrite=overwrite)
+
+    assert sorted(p.name for p in path.parent.iterdir()) == ["crashed.eval"]
+    assert path.read_bytes() == original
+    assert read_buffer_recovery_data(path.as_posix()) is not None
+
+    # registering the reducer is enough; no trust needed
+    @score_reducer(name=NESTED_REDUCER)
+    def nested_reducer() -> ScoreReducer:
+        def reduce(scores: list[Score]) -> Score:
+            return scores[0]
+
+        return reduce
+
+    try:
+        recovered = recover_eval_log(
+            path.as_posix(), overwrite=overwrite, incomplete_action="error"
+        )
+    finally:
+        _registry.pop(registry_key("score_reducer", NESTED_REDUCER), None)
+
+    assert recovered.results is not None
+    assert recovered.status == "success"
+
+
+def test_recovery_warns_when_a_metric_fails_on_the_scores(
+    crashed: Any, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A metric that builds but fails while computing warns and writes, as on main."""
+    path = crashed(
+        _log(scorer_metrics=[EvalMetricDefinition(name="failing_compute_metric")])
+    )
+
+    with caplog.at_level(logging.WARNING, logger="inspect_ai"):
+        recovered = recover_eval_log(path.as_posix())
+
+    assert recovered.location is not None and Path(recovered.location).exists()
+    assert recovered.results is None
+    assert any(
+        "Unable to recompute metrics" in r.message
+        and "metric compute failure" in r.message
+        for r in caplog.records
+    )
 
 
 @pytest.mark.parametrize("case", FACTORY_LOOKUP_ERRORS)
