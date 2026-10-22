@@ -3758,3 +3758,24 @@ async def test_async_fsspec_read_range_edges(gated_fs: _GatedFS) -> None:
 
 def test_http_keeps_the_synchronous_path() -> None:
     assert not asyncfiles._is_async_remote(filesystem("https://example.com/x.eval"))
+
+
+async def test_async_fsspec_read_file_into_strips_the_protocol(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # as `fsspec.open()` did: `ReferenceFileSystem._info` doesn't strip it
+    monkeypatch.setitem(fsspec.config.conf, "reference", {"fo": {"foo": "contents"}})
+    dest = io.BytesIO()
+    async with AsyncFilesystem() as afs:
+        await afs.read_file_into("reference://foo", dest)
+    assert dest.getvalue() == b"contents"
+
+
+async def test_dir_over_a_sync_filesystem_keeps_the_synchronous_path(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    (tmp_path / "a.bin").write_bytes(_PAYLOAD)
+    dir_options = {"path": str(tmp_path), "target_protocol": "file"}
+    monkeypatch.setitem(fsspec.config.conf, "dir", dir_options)
+    async with AsyncFilesystem() as afs:
+        assert await afs.read_file("dir://a.bin") == _PAYLOAD

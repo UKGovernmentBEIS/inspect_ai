@@ -748,7 +748,8 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
         else:
             fsw = filesystem(filename)
             if _is_async_remote(fsw):
-                return await _run_on_fsspec_loop(fsw.fs, fsw.fs._cat_file(filename))
+                path = fsw.fs._strip_protocol(filename)
+                return await _run_on_fsspec_loop(fsw.fs, fsw.fs._cat_file(path))
             with file(filename, "rb") as f:
                 return f.read()
 
@@ -783,7 +784,8 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
                 _local_read_file_info, local_path(filename)
             )
         if _is_async_remote(fsw):
-            data = await _run_on_fsspec_loop(fsw.fs, fsw.fs._cat_file(filename))
+            path = fsw.fs._strip_protocol(filename)
+            data = await _run_on_fsspec_loop(fsw.fs, fsw.fs._cat_file(path))
             info = await self.info(filename)
         else:
             with file(filename, "rb") as f:
@@ -837,17 +839,18 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
                 # If local, use AnyIO's async/chunking file reading support
                 return _AnyIOFileByteReceiveStream(local_path(filename), start, end)
             if _is_async_remote(fs):
+                path = fs.fs._strip_protocol(filename)
                 # as the file object's `seek` does; `_cat_file` would read a suffix
                 if start < 0:
                     raise ValueError(f"Negative start offset: {start}")
                 # the file object looks the file up and returns b"" here; some
                 # `_cat_file`s send an unsatisfiable range request instead
                 if end is not None and end <= start:
-                    await _run_on_fsspec_loop(fs.fs, fs.fs._info(filename))
+                    await _run_on_fsspec_loop(fs.fs, fs.fs._info(path))
                     return _BytesByteReceiveStream(b"")
                 return _BytesByteReceiveStream(
                     await _run_on_fsspec_loop(
-                        fs.fs, fs.fs._cat_file(filename, start=start, end=end)
+                        fs.fs, fs.fs._cat_file(path, start=start, end=end)
                     )
                 )
             with file(filename, "rb") as f:
@@ -938,13 +941,14 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
                 _copy_local_file_into, local_path(filename), dest, chunk_size
             )
         elif _is_async_remote(fsw):
-            info = await _run_on_fsspec_loop(fsw.fs, fsw.fs._info(filename))
+            path = fsw.fs._strip_protocol(filename)
+            info = await _run_on_fsspec_loop(fsw.fs, fsw.fs._info(path))
             size = info["size"]
             for start in range(0, size, chunk_size):
                 end = min(start + chunk_size, size)
                 dest.write(
                     await _run_on_fsspec_loop(
-                        fsw.fs, fsw.fs._cat_file(filename, start=start, end=end)
+                        fsw.fs, fsw.fs._cat_file(path, start=start, end=end)
                     )
                 )
         else:
@@ -2192,11 +2196,19 @@ _T = TypeVar("_T")
 
 def _is_async_remote(fsw: FileSystem) -> bool:
     """Whether reads from `fsw` go through :func:`_run_on_fsspec_loop`."""
-    protocol = fsw.fs.protocol
-    protocols = protocol if isinstance(protocol, tuple) else (protocol,)
+    fs = fsw.fs
+    # a `DirFileSystem` is async by class even over a synchronous filesystem,
+    # whose coroutines it then calls
+    if "dir" in _protocols(fs):
+        fs = fs.fs
     # HTTP keeps the file-object path: its `_cat_file` doesn't check that the
     # server honoured the range, and its size can be unknown (the file streams)
-    return fsw.is_async() and not {"http", "https"} & set(protocols)
+    return bool(fs.async_impl) and not {"http", "https"} & _protocols(fs)
+
+
+def _protocols(fs: Any) -> set[str]:
+    protocol = fs.protocol
+    return set(protocol if isinstance(protocol, tuple) else (protocol,))
 
 
 async def _run_on_fsspec_loop(fs: Any, coro: Coroutine[Any, Any, _T]) -> _T:
