@@ -924,6 +924,15 @@ def test_build_dist_builds_with_the_hashed_toolchain() -> None:
     assert len(requirement_lines) == len(pins)
 
 
+def test_dependabot_updates_the_build_toolchain_with_a_cooldown() -> None:
+    updates = _load(".github/dependabot.yml")["updates"]
+    (update,) = [u for u in updates if u["directory"] == "/.github/actions/build-dist"]
+    assert update["package-ecosystem"] == "uv"
+    assert update["cooldown"]["default-days"] == 7
+    assert update["schedule"]["interval"] == "weekly"
+    assert [group["patterns"] for group in update["groups"].values()] == [["*"]]
+
+
 def test_no_composite_action_runs_the_pypi_publish_docker_action() -> None:
     # pypa/gh-action-pypi-publish is a Docker action, unsupported inside a
     # composite: its image resolves against the calling repo and fails.

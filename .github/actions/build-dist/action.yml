@@ -23,9 +23,10 @@ runs:
         python-version: "3.11"
 
     # The build frontend and backend come from requirements.txt, pinned with
-    # hashes and at least 7 days old when compiled. The build below runs
-    # without isolation, so nothing else is resolved at build time. To update
-    # it, run in this directory (or use --upgrade-package <pkg> for one tool):
+    # hashes. The build below runs without isolation, so nothing else is
+    # resolved at build time. Dependabot updates the file weekly with a 7-day
+    # cooldown. To update it by hand, run in this directory (or use
+    # --upgrade-package <pkg> for one tool):
     #   uv pip compile --no-config --generate-hashes --python-version 3.11 \
     #     --python-platform x86_64-unknown-linux-gnu --exclude-newer "7 days" \
     #     --only-binary :all: --upgrade requirements.in -o requirements.txt
