@@ -1,30 +1,16 @@
 from logging import getLogger  # noqa: E402
-from typing import Awaitable, Callable, Protocol, Sequence, cast
+from typing import Awaitable, Callable, Protocol, cast
 
 import anyio
-from pydantic import JsonValue, TypeAdapter
+from pydantic import JsonValue
 
-from inspect_ai._sentinel._scope import AgentScope, sentinel_scope
-from inspect_ai._util.content import Content, ContentImage, ContentText
-from inspect_ai._util.exception import TerminateSampleError
-from inspect_ai._util.json import to_json_str_safe
-from inspect_ai._util.logger import warn_once
-from inspect_ai._util.url import data_uri_mime_type, data_uri_to_base64, is_data_uri
-from inspect_ai.model._call_tools import (
-    get_tools_info,
-    tool_call_error,
-    tool_result_content_list,
-    truncate_tool_output,
-    validate_tool_input,
-)
+from inspect_ai.model._call_tools import get_tools_info
 from inspect_ai.model._model import ModelRefusalError
-from inspect_ai.tool._tool import ToolParsingError
-from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.tool._tools._code_execution import CodeExecutionProviders
 from inspect_ai.tool._tools._web_search._web_search import WebSearchProviders
-from inspect_ai.util._anyio import inner_exception
 from inspect_ai.util._limit import LimitExceededError
 from inspect_ai.util._sandbox import SandboxEnvironment, sandbox_service
+from inspect_ai.util._sandbox.service import find_control_flow
 
 from .._errors import PROVIDER_ERROR_KEY, ResponseFilterError, provider_error_payload
 from ..anthropic_api import inspect_anthropic_api_request
@@ -32,12 +18,12 @@ from ..bridge import filter_sandbox_client_headers
 from ..completions import inspect_completions_api_request
 from ..google_api import inspect_google_api_request
 from ..responses import inspect_responses_api_request
+from .host_tool import execute_host_tool
 from .types import SandboxAgentBridge
 
 logger = getLogger(__name__)
 
 MODEL_SERVICE = "bridge_model_service"
-JSON_VALUE_ADAPTER: TypeAdapter[JsonValue] = TypeAdapter(JsonValue)
 
 
 class GenerateMethod(Protocol):
@@ -61,13 +47,17 @@ def _forward_provider_errors(
     `LimitExceededError` is deliberately excluded so message/token/cost limit
     hit during generation properly end the sample.
 
-    A `ModelRefusalError` (`fail_on_refusal`), a `ResponseFilterError` (a
-    `response_filter` is eval logic, not a passive observer) and a
-    `TerminateSampleError` (for example one raised by a request or response
-    filter) must also end the sample, but the sandbox service dispatcher would
-    swallow a re-raise into an RPC error, so they are signalled through
-    `bridge.request_fail` (raised on the agent's side by the bridge's monitor
-    task) while the scaffold still gets an error reply.
+    A termination is also re-raised: a `TerminateSampleError` (from an approver's
+    `terminate` decision, too many consecutive rejections, or a request or
+    response filter), bare or anywhere in the exception as `find_control_flow`
+    finds it. The sandbox service dispatcher answers the RPC and propagates the
+    termination out of the service task, which ends the sample.
+
+    A `ModelRefusalError` (`fail_on_refusal`) and a `ResponseFilterError` (a
+    `response_filter` is eval logic, not a passive observer) must also end the
+    sample, but the dispatcher would turn a re-raise into an RPC error, so they
+    are signalled through `bridge.request_fail` (raised on the agent's side by
+    the bridge's monitor task) while the scaffold still gets an error reply.
     """
 
     async def generate_forwarding_errors(
@@ -78,12 +68,15 @@ def _forward_provider_errors(
             return await generate(json_data, headers)
         except LimitExceededError:
             raise
-        except (ModelRefusalError, ResponseFilterError, TerminateSampleError) as ex:
-            bridge.request_fail(ex)
-            # no non-provider-error warning: the failure is reported once, by
-            # the sample error the monitor task raises
-            return {PROVIDER_ERROR_KEY: cast(JsonValue, provider_error_payload(ex))}
         except Exception as ex:
+            if find_control_flow(ex) is not None:
+                # the service dispatcher ends the sample with it
+                raise
+            if isinstance(ex, (ModelRefusalError, ResponseFilterError)):
+                bridge.request_fail(ex)
+                # no non-provider-error warning: the failure is reported once,
+                # by the sample error the monitor task raises
+                return {PROVIDER_ERROR_KEY: cast(JsonValue, provider_error_payload(ex))}
             payload = provider_error_payload(ex)
             # A payload with no recoverable HTTP status almost always means the
             # failure came from our own request translation rather than the
@@ -238,122 +231,12 @@ def list_tools(
     return execute
 
 
-def _mcp_tool_content_block(content: JsonValue) -> JsonValue:
-    match content:
-        case {"type": "image", "image": str() as image} if is_data_uri(image):
-            return {
-                "type": "image",
-                "data": data_uri_to_base64(image),
-                "mimeType": data_uri_mime_type(image) or "image/png",
-            }
-        case {"type": "image", "image": str() as image}:
-            return {"type": "text", "text": image}
-        case _:
-            return content
-
-
-def _mcp_tool_result_content(
-    result: ContentImage | Sequence[Content],
-) -> list[JsonValue]:
-    content = JSON_VALUE_ADAPTER.validate_json(to_json_str_safe(result))
-    match content:
-        case list():
-            return [_mcp_tool_content_block(block) for block in content]
-        case _:
-            return [_mcp_tool_content_block(content)]
-
-
 def call_tool(
     bridge: SandboxAgentBridge,
-) -> Callable[[str, str, dict[str, JsonValue]], Awaitable[JsonValue]]:
-    """Execute a bridged tool and return result.
+) -> Callable[[str, str, JsonValue], Awaitable[JsonValue]]:
+    """Execute a bridged tool and return its result (`execute_host_tool`)."""
 
-    A tool runs only for a call the model proposed in a bridged generation, once
-    per proposal (see `SandboxAgentBridge.register_tool_execution_grants`), unless
-    its server was registered with `require_proposal=False`.
-
-    Arguments are validated against the tool's schema as for a native call, so
-    a scaffold's malformed arguments surface as a `ToolParsingError` the model
-    can recover from; they are otherwise forwarded as the scaffold sent them.
-    Exceptions are classified after unwrapping any task-group
-    `ExceptionGroup`, as `execute_tools` does, and with the same
-    `tool_call_error` mapping. Those a native call would show the model
-    propagate unchanged as the RPC error the scaffold reads as tool output. Any other exception is a bug in the eval's
-    tool, which natively fails the sample: the unwrapped exception is
-    signalled through `bridge.request_fail` so the bridge's monitor task ends
-    the sample at once, and the original still propagates so the RPC unwinds
-    with an error reply (the teardown may pre-empt its delivery; the
-    scaffold's turn is over either way).
-
-    A result a native call would pass to the model as text (anything but
-    content) is truncated to the same output limit, in the same format
-    (`truncate_tool_output`).
-    """
-
-    async def execute(
-        server: str, tool: str, arguments: dict[str, JsonValue]
-    ) -> JsonValue:
-        if server not in bridge.bridged_tools:
-            raise ValueError(f"Unknown bridged tools server: {server}")
-
-        server_tools = bridge.bridged_tools[server]
-        if tool not in server_tools:
-            raise ValueError(f"Unknown tool '{tool}' in server '{server}'")
-
-        if (
-            server not in bridge.proposal_exempt_servers
-            and not bridge.consume_tool_execution_grant(server, tool, arguments)
-        ):
-            warn_once(
-                logger,
-                f"Denied host tool call '{server}/{tool}': the model did not "
-                "propose it in a bridged generation (or its proposal has "
-                "already executed). An agent that calls host tools from code "
-                "the model writes (Codex CLI in code mode) can never match a "
-                "proposal; set require_proposal=False on the existing "
-                f"BridgedToolsSpec for server '{server}' for such an agent.",
-            )
-            raise PermissionError(
-                f"Host tool call '{server}/{tool}' was not proposed by the model "
-                "in a bridged generation (a bridged host tool runs once per "
-                "proposed call)"
-            )
-
-        tool_fn = server_tools[tool]
-        try:
-            tool_def = ToolDef(tool_fn)
-            validation_errors = validate_tool_input(arguments, tool_def.parameters)
-            if validation_errors:
-                raise ToolParsingError(validation_errors)
-            # as in call_tool: the tool's own model calls are not agent turns
-            with sentinel_scope(AgentScope.OFF):
-                result = await tool_fn(**arguments)
-        except Exception as ex:
-            # classify the unwrapped exception, but let the original propagate:
-            # the service dispatcher special-cases a bare LimitExceededError
-            # (ending the sample), and unwrapping a grouped one would newly
-            # route it there
-            inner_ex = inner_exception(ex)
-            if tool_call_error(inner_ex, tool) is None:
-                bridge.request_fail(inner_ex)
-            raise
-
-        # Plain strings are returned verbatim (the MCP `tools/call` text part
-        # carries them as-is). For anything else, use pydantic_core.to_json so
-        # Pydantic models (e.g. list[ContentText] from real MCP tools) are
-        # serialized correctly — json.dumps can't handle BaseModel.
-        if tool_result_content_list(result) is None:
-            text = result if isinstance(result, str) else to_json_str_safe(result)
-            truncated = truncate_tool_output(tool, text, tool_def.max_output)
-            return truncated.output if truncated else text
-        if isinstance(result, ContentImage) or (
-            isinstance(result, list)
-            and all(
-                isinstance(content, (ContentText, ContentImage)) for content in result
-            )
-            and any(isinstance(content, ContentImage) for content in result)
-        ):
-            return _mcp_tool_result_content(result)
-        return to_json_str_safe(result)
+    async def execute(server: str, tool: str, arguments: JsonValue) -> JsonValue:
+        return await execute_host_tool(bridge, server, tool, arguments)
 
     return execute

@@ -181,6 +181,7 @@ class Truncation:
 class BeforeToolCall:
     conversation: str
     message: str
+    message_id: str
     call: ToolCall
     view: ToolCallView
     input: list[ChatMessage] | None
@@ -190,12 +191,14 @@ class BeforeToolCall:
         default=None, kw_only=True
     )
     tools: list[ToolInfo] | None = None
+    tool_choice: ToolChoice | None = None
 
 
 @dataclass(frozen=True)
 class AfterToolCall:
     conversation: str
     message: str
+    message_id: str
     call: ToolCall
     result: ChatMessageTool
     output: ToolResult
@@ -207,6 +210,7 @@ class AfterToolCall:
         default=None, kw_only=True
     )
     tools: list[ToolInfo] | None = None
+    tool_choice: ToolChoice | None = None
     truncated: Truncation | Literal[False] | None = None
 
 

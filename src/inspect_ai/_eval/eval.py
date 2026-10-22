@@ -1,6 +1,7 @@
 import contextlib
 import functools
 import logging
+import math
 import os
 from contextlib import nullcontext
 from contextvars import Token, copy_context
@@ -9,6 +10,7 @@ from pathlib import Path
 from typing import Any, Literal, cast
 
 import anyio
+import anyio.lowlevel
 from anyio.abc import TaskGroup
 
 from inspect_ai._control.eval_state import reset_run_registries
@@ -48,6 +50,7 @@ from inspect_ai._sentinel._config import (
     resolve_sentinel_spec,
     sentinel_config,
 )
+from inspect_ai._util._async import current_async_backend
 from inspect_ai._util.asyncfiles import with_async_fs
 from inspect_ai._util.config import parse_cli_args, resolve_args
 from inspect_ai._util.constants import (
@@ -108,7 +111,7 @@ from inspect_ai.util._limit import TokenLimit, token_limit_fields
 from inspect_ai.util._notify import build_apprise, init_apprise
 
 from .context import init_eval_context
-from .loader import resolve_task_source, resolve_tasks
+from .loader import resolve_task_file_sandbox, resolve_task_source, resolve_tasks
 from .run import TaskInjection, eval_run
 from .task import Epochs, PreviousTask, Task, TaskSource
 from .task.enqueue import (
@@ -286,9 +289,10 @@ def eval(
         time_limit: Limit on clock time (in seconds) for samples.
         working_limit: Limit on working time (in seconds) for sample. Working
             time includes model generation, tool calls, etc. but does not include
-            time spent waiting on retries or shared resources. Work done while
-            any wait is open is not charged, so working time can undercount;
-            set `time_limit` as well to bound wall clock time.
+            time spent waiting on retries or shared resources. While a wait is
+            open, only model calls, sandbox commands and tool calls are charged,
+            so working time can undercount; set `time_limit` as well to bound
+            wall clock time.
         cost_limit: Limit on total cost (in dollars) for each sample.
             Requires model cost data via set_model_cost() or --model-cost-config.
         model_cost_config: YAML or JSON file with model prices for cost tracking
@@ -572,9 +576,10 @@ async def eval_async(
         time_limit: Limit on clock time (in seconds) for samples.
         working_limit: Limit on working time (in seconds) for sample. Working
             time includes model generation, tool calls, etc. but does not include
-            time spent waiting on retries or shared resources. Work done while
-            any wait is open is not charged, so working time can undercount;
-            set `time_limit` as well to bound wall clock time.
+            time spent waiting on retries or shared resources. While a wait is
+            open, only model calls, sandbox commands and tool calls are charged,
+            so working time can undercount; set `time_limit` as well to bound
+            wall clock time.
         cost_limit: Limit on total cost (in dollars) for each sample.
             Requires model cost data via set_model_cost() or --model-cost-config.
         model_cost_config: YAML or JSON file with model prices for cost tracking
@@ -814,6 +819,7 @@ async def _eval_async_inner(
     run_id = uuid()
 
     enqueuer_token: Token[TaskEnqueuer | None] | None = None
+    trio_cancelled = False
     try:
         # intialise eval
         model = eval_init(
@@ -1243,21 +1249,31 @@ async def _eval_async_inner(
                 )
                 await wait_for_shutdown_async(_ctl_server)
 
-        # cleanup sample buffers if required
-        await cleanup_sample_buffers(log_dir)
+        # under trio, a Ctrl-C leaves the run's scope cancelled: finish the
+        # run shielded (on asyncio, the cancellation ends it as before)
+        trio_cancelled = (
+            current_async_backend() == "trio"
+            and anyio.current_effective_deadline() == -math.inf
+        )
+        with anyio.CancelScope(shield=True) if trio_cancelled else nullcontext():
+            # cleanup sample buffers if required
+            await cleanup_sample_buffers(log_dir)
 
-        try:
-            await emit_run_end(eval_set_id, run_id, logs)
-        except UnboundLocalError:
-            await emit_run_end(eval_set_id, run_id, EvalLogs([]))
-        _eval_async_running = False
+            try:
+                await emit_run_end(eval_set_id, run_id, logs)
+            except UnboundLocalError:
+                await emit_run_end(eval_set_id, run_id, EvalLogs([]))
 
     except BaseException as e:
-        await emit_run_end(eval_set_id, run_id, EvalLogs([]), e)
-        _eval_async_running = False
+        # a second Ctrl-C while finishing a cancelled trio run does not start
+        # the hooks again
+        if not trio_cancelled:
+            with anyio.CancelScope(shield=True):
+                await emit_run_end(eval_set_id, run_id, EvalLogs([]), e)
         raise e
 
     finally:
+        _eval_async_running = False
         # Stop accepting task additions for this run.
         if enqueuer_token is not None:
             clear_task_enqueuer(enqueuer_token)
@@ -1753,6 +1769,9 @@ async def eval_retry_async(
     # eval them in turn
     eval_logs: list[EvalLog] = []
     for i, eval_log in enumerate(retry_eval_logs):
+        # don't start another retry once the caller is cancelled (under trio
+        # a Ctrl-C leaves the scope cancelled after the interrupted eval)
+        await anyio.lowlevel.checkpoint_if_cancelled()
         if i in finalized_indexes:
             eval_logs.append(eval_log)
             continue
@@ -1956,6 +1975,9 @@ async def eval_retry_async(
                     task_args=task_args,
                     model=None,
                     model_roles=None,
+                    sandbox=resolve_task_file_sandbox(
+                        eval_log.eval.task_file, eval_log.eval.sandbox
+                    ),
                     log=eval_log,
                     log_info=None,
                 ),

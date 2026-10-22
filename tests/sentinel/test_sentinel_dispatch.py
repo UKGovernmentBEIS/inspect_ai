@@ -2,7 +2,7 @@ import logging
 import random
 from collections.abc import Callable, Iterator, Sequence
 from contextlib import contextmanager
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal, NamedTuple, cast
 
@@ -559,14 +559,18 @@ def test_a_handoff_result_is_checked() -> None:
     assert handoff_call_id(log) in {e.step_id for e in after}
 
 
-def producer_tools(log: EvalLog, call_id: str) -> list[ToolInfo]:
+def producer(log: EvalLog, call_id: str) -> ModelEvent:
     assert log.samples
     for event in resolve_sample_attachments(log.samples[0], "full").events:
         if isinstance(event, ModelEvent) and event.output.choices:
             calls = event.output.choices[0].message.tool_calls or []
             if any(call.id == call_id for call in calls):
-                return event.tools
+                return event
     raise AssertionError(f"no model call produced {call_id}")
+
+
+def producer_tools(log: EvalLog, call_id: str) -> list[ToolInfo]:
+    return producer(log, call_id).tools
 
 
 @tool(parallel=False)
@@ -644,7 +648,7 @@ def run_consult_then_add(sentinel: Any) -> EvalLog:
     ],
     ids=["handoff", "inner-generate"],
 )
-def test_each_step_gets_the_tools_of_the_call_that_produced_it(
+def test_each_step_gets_the_tools_and_tool_choice_of_the_call_that_produced_it(
     run_steps: Callable[[Any], EvalLog], expected: list[tuple[str, list[str]]]
 ) -> None:
     before: Seen = []
@@ -660,7 +664,8 @@ def test_each_step_gets_the_tools_of_the_call_that_produced_it(
         == expected
     )
     for step in steps:
-        assert step.tools == producer_tools(log, step.call.id)
+        event = producer(log, step.call.id)
+        assert (step.tools, step.tool_choice) == (event.tools, event.tool_choice)  # type: ignore[union-attr]  # inspect_sentinel 0.1.4 lacks message_id and tool_choice; remove when the lock bumps
 
 
 @protocol
@@ -842,7 +847,7 @@ def test_an_escalate_returned_to_the_host_fails_the_sample(stage: str) -> None:
     assert sample.limit is None
     assert sample.error is not None
     assert f"returned an escalate at the {stage} stage" in sample.error.message
-    assert "inspect_sentinel 0.1.2 or later" in sample.error.message
+    assert "inspect_sentinel 0.2.0 or later" in sample.error.message
     assert tool_messages(log) == []
     [event] = [e for e in sample.events if isinstance(e, ToolEvent)]
     assert event.failed is True
@@ -1637,7 +1642,9 @@ async def test_a_message_no_model_call_produced_has_no_input() -> None:
             [parallel_addition()],
         )
 
-    assert [(step.input, step.tools) for _, step in seen] == [(None, None)] * 2
+    assert [(step.input, step.tools, step.tool_choice) for _, step in seen] == [  # type: ignore[attr-defined]  # inspect_sentinel 0.1.4 lacks message_id and tool_choice; remove when the lock bumps
+        (None, None, None)
+    ] * 2
 
 
 def test_a_call_with_no_assistant_message_has_no_input() -> None:
@@ -1886,9 +1893,10 @@ def test_a_modified_call_on_a_non_modify_decision_is_not_dropped(
 
     init_transcript(Transcript())
     call = addition_call()
-    step = BeforeToolCall(
+    step = BeforeToolCall(  # type: ignore[call-arg]  # inspect_sentinel 0.1.4 lacks message_id and tool_choice; remove when the lock bumps
         conversation="c",
         message="",
+        message_id="m1",
         call=call,
         view=ToolCallView(),
         input=[],
@@ -1909,9 +1917,10 @@ def test_bypassed_and_superseded_layers_are_recorded() -> None:
 
     init_transcript(Transcript())
     call = addition_call()
-    step = BeforeToolCall(
+    step = BeforeToolCall(  # type: ignore[call-arg]  # inspect_sentinel 0.1.4 lacks message_id and tool_choice; remove when the lock bumps
         conversation="c",
         message="",
+        message_id="m1",
         call=call,
         view=ToolCallView(),
         input=[],
@@ -1944,9 +1953,10 @@ def test_a_superseded_human_decision_is_not_kept(
 
     init_transcript(Transcript())
     call = addition_call()
-    step = BeforeToolCall(
+    step = BeforeToolCall(  # type: ignore[call-arg]  # inspect_sentinel 0.1.4 lacks message_id and tool_choice; remove when the lock bumps
         conversation="c",
         message="",
+        message_id="m1",
         call=call,
         view=ToolCallView(),
         input=[],
@@ -2074,6 +2084,48 @@ def test_each_turn_sees_its_own_model_input_and_tools() -> None:
         assert [m.id for m in after_step.input] == [m.id for m in event.input]
         assert step.tools == after_step.tools == producer_tools(log, step.call.id)
     assert len({len(step.input or []) for _, step in before}) == 3
+
+
+@dataclass(frozen=True)
+class _ToolStepWithoutMessageId:
+    conversation: str
+    message: str
+    call: ToolCall
+
+
+def test_a_sentinel_whose_tool_steps_lack_message_id_asks_for_an_upgrade(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import inspect_ai._sentinel._dispatch as dispatch
+    from inspect_ai._sentinel._context import SentinelFailure
+
+    dispatch._require_message_id()
+    monkeypatch.setattr(dispatch, "BeforeToolCall", _ToolStepWithoutMessageId)
+    with pytest.raises(
+        SentinelFailure,
+        match=r"requires inspect_sentinel 0\.2\.0 or later: pip install --upgrade inspect-sentinel",
+    ):
+        dispatch._require_message_id()
+
+
+def test_both_tool_stages_carry_the_id_of_the_message_that_made_the_call() -> None:
+    before: Seen = []
+    after: list[AfterToolCall] = []
+    log = run([d3_recording(before), d3_recording_after(after)], turns=3)
+    assert log.status == "success", log.error
+    assert log.samples
+    made = {
+        call.id: message.id
+        for message in log.samples[0].messages
+        if isinstance(message, ChatMessageAssistant)
+        for call in message.tool_calls or []
+    }
+    assert len(before) == len(after) == 3
+    assert (
+        [step.message_id for _, step in before]  # type: ignore[attr-defined]  # inspect_sentinel 0.1.4 lacks message_id and tool_choice; remove when the lock bumps
+        == [step.message_id for step in after]  # type: ignore[attr-defined]  # inspect_sentinel 0.1.4 lacks message_id and tool_choice; remove when the lock bumps
+        == [made[step.call.id] for _, step in before]
+    )
 
 
 @tool
@@ -3666,3 +3718,209 @@ def test_sent_matches_the_reference_rules() -> None:
 @pytest.mark.slow
 def test_sent_matches_the_reference_rules_at_length() -> None:
     _check_random_cases(seed=1, cases=20_000)
+
+
+def raising_viewer(call: ToolCall) -> ToolCallView:
+    raise KeyError("missing")
+
+
+@tool(viewer=raising_viewer)
+def addition_raising_viewer() -> Tool:
+    async def execute(x: int, y: int) -> str:
+        """Add two numbers.
+
+        Args:
+            x: First number to add.
+            y: Second number to add.
+        """
+        return str(x + y)
+
+    return execute
+
+
+def test_a_raising_viewer_rejects_the_call_before_the_sentinel() -> None:
+    seen: Seen = []
+    task = Task(
+        dataset=[Sample(input="What is 1 + 1?", target="2")],
+        solver=[use_tools(addition_raising_viewer()), generate()],
+        sentinel=[d3_recording(seen)],
+    )
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.for_tool_call(
+                "mockllm/model",
+                tool_name="addition_raising_viewer",
+                tool_arguments={"x": 1, "y": 1},
+            ),
+            ModelOutput.from_content("mockllm/model", content="done"),
+        ],
+        memoize=False,
+    )
+    log = eval(task, model=model)[0]
+    assert log.status == "success", log.error
+
+    # no approver is configured, and the sentinel monitor was not asked to
+    # decide on a fallback rendering
+    assert seen == []
+    [message] = tool_messages(log)
+    assert message.error is not None
+    assert message.error.type == "approval"
+    assert "viewer for tool 'addition_raising_viewer' failed" in message.error.message
+
+
+def test_a_raising_viewer_falls_back_after_the_tool_runs() -> None:
+    after: list[AfterToolCall] = []
+    task = Task(
+        dataset=[Sample(input="What is 1 + 1?", target="2")],
+        solver=[use_tools(addition_raising_viewer()), generate()],
+        sentinel=[d3_recording_after(after)],
+    )
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.for_tool_call(
+                "mockllm/model",
+                tool_name="addition_raising_viewer",
+                tool_arguments={"x": 1, "y": 1},
+            ),
+            ModelOutput.from_content("mockllm/model", content="done"),
+        ],
+        memoize=False,
+    )
+    log = eval(task, model=model)[0]
+    assert log.status == "success", log.error
+
+    # with no approver and no before-tool monitor the tool runs, and the
+    # after-tool monitor gets the default rendering
+    [message] = tool_messages(log)
+    assert message.error is None
+    assert message.text == "2"
+    [step] = after
+    assert step.view.call is not None
+    assert "addition_raising_viewer" in step.view.call.content
+
+
+@protocol
+def d3_public_memory_only() -> Protocol:
+    async def decide(
+        context: Context,
+        step: BeforeToolCall,
+        escalations: Escalations,
+    ) -> Decision | None:
+        if not step.call.arguments["path"].startswith("/memories/public/"):
+            return Decision.reject("outside /memories/public")
+        return None
+
+    return decide
+
+
+@approver
+def d3_memory_path_approver(path: str) -> Approver:
+    async def approve(
+        message: str, call: ToolCall, view: ToolCallView, history: list[ChatMessage]
+    ) -> Approval:
+        return Approval(
+            decision="modify",
+            modified=replace(call, arguments={**call.arguments, "path": path}),
+        )
+
+    return approve
+
+
+def test_an_approvers_modified_memory_path_reaches_the_sentinel_canonical() -> None:
+    from inspect_ai.tool import memory
+
+    seen: Seen = []
+    task = Task(
+        dataset=[Sample(input="Write a note.", target="ok")],
+        solver=[use_tools(memory()), generate()],
+        sentinel=[d3_recording(seen), d3_public_memory_only()],
+        approval=[
+            ApprovalPolicy(
+                d3_memory_path_approver("/memories/public/../secret.txt"), "*"
+            )
+        ],
+    )
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.for_tool_call(
+                "mockllm/model",
+                tool_name="memory",
+                tool_arguments={
+                    "command": "create",
+                    "path": "/memories/public/note.txt",
+                    "file_text": "x",
+                },
+            ),
+            ModelOutput.from_content("mockllm/model", content="done"),
+        ],
+        memoize=False,
+    )
+    log = eval(task, model=model)[0]
+    assert log.status == "success", log.error
+
+    # the sentinel decides on the path the write would use, and rejects it
+    assert [step.call.arguments["path"] for _, step in seen] == ["/memories/secret.txt"]
+    [message] = tool_messages(log)
+    assert message.error is not None
+    assert message.error.type == "approval"
+    assert log.samples
+    [tool_event] = [e for e in log.samples[0].events if isinstance(e, ToolEvent)]
+    assert tool_event.arguments["path"] == "/memories/secret.txt"
+
+
+@reviewer
+def d3_recording_reviewer(seen: list[ToolCall]) -> Reviewer:
+    async def review_(
+        message: str,
+        call: ToolCall,
+        result: ChatMessageTool,
+        output: ToolResult,
+        view: ToolCallView,
+        history: list[ChatMessage],
+    ) -> Review:
+        seen.append(call)
+        return Review(decision="continue")
+
+    return review_
+
+
+def test_a_memory_path_is_canonical_without_approval() -> None:
+    from inspect_ai.tool import memory
+
+    before: Seen = []
+    after: list[AfterToolCall] = []
+    reviewed: list[ToolCall] = []
+    task = Task(
+        dataset=[Sample(input="Write a note.", target="ok")],
+        solver=[use_tools(memory()), generate()],
+        sentinel=[d3_recording(before), d3_recording_after(after)],
+        review=[ReviewPolicy(d3_recording_reviewer(reviewed), "*")],
+    )
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.for_tool_call(
+                "mockllm/model",
+                tool_name="memory",
+                tool_arguments={
+                    "command": "create",
+                    "path": "/memories/x/../public/note.txt",
+                    "file_text": "x",
+                },
+            ),
+            ModelOutput.from_content("mockllm/model", content="done"),
+        ],
+        memoize=False,
+    )
+    log = eval(task, model=model)[0]
+    assert log.status == "success", log.error
+
+    [message] = tool_messages(log)
+    assert message.error is None
+    canonical = "/memories/public/note.txt"
+    assert [step.call.arguments["path"] for _, step in before] == [canonical]
+    assert [step.call.arguments["path"] for step in after] == [canonical]
+    assert [call.arguments["path"] for call in reviewed] == [canonical]
