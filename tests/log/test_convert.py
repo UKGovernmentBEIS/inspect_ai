@@ -138,6 +138,8 @@ def test_stream_convert_preserves_eval_error(
     assert converted.error.message == log.error.message
 
 
+@pytest.mark.parametrize("stream", [True, 3], ids=["stream", "stream-3"])
+@pytest.mark.parametrize("to", ["eval", "json"])
 def test_stream_convert_preserves_log_updates(
     tmp_path: pathlib.Path,
     stream: bool | int,
