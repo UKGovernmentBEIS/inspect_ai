@@ -913,6 +913,7 @@ class _RaisingNeedsFullSampleHook(_RecordingHook):
     ("other_hook_class", "expect_full"),
     [
         pytest.param(None, False, id="summary-only"),
+        pytest.param(MockMinimalHooks, False, id="no-sample-end"),
         pytest.param(_DisabledRecordingHook, False, id="disabled"),
         pytest.param(_RecordingHook, True, id="mixed"),
         pytest.param(_RaisingNeedsFullSampleHook, True, id="predicate-error"),
@@ -923,7 +924,7 @@ def test_opted_out_hook_receives_event_less_sample_when_evicted(
     tmp_path: Path,
     isolated_hooks_registry: None,
     caplog: pytest.LogCaptureFixture,
-    other_hook_class: type[_RecordingHook] | None,
+    other_hook_class: type[Hooks] | None,
     expect_full: bool,
 ) -> None:
     import inspect_ai._eval.task.run as run_module
@@ -960,12 +961,15 @@ def test_opted_out_hook_receives_event_less_sample_when_evicted(
     sample = hook.samples[0]
     if expect_full:
         assert sample.events and sample.attachments and sample.timelines
-        assert other is not None and other.samples == [sample]
+        assert isinstance(other, _RecordingHook) and other.samples == [sample]
     else:
         assert sample.events == []
         assert sample.attachments == {}
         assert sample.timelines is None
-        assert other is None or other.samples == []
+        if isinstance(other, _RecordingHook):
+            assert other.samples == []
+    if isinstance(other, MockMinimalHooks):
+        assert len(other.run_start_events) == 1
     assert sample.output.completion == long_response
     assert sample.messages
     assert sample.total_time is not None

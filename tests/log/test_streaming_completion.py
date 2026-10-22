@@ -23,7 +23,10 @@ from inspect_ai.event import (
     TimelineSpan,
 )
 from inspect_ai.log._condense import condense_sample
-from inspect_ai.log._file import read_eval_log_async
+from inspect_ai.log._file import (
+    read_eval_log_async,
+    read_eval_log_sample_summaries_async,
+)
 from inspect_ai.log._log import (
     EvalConfig,
     EvalDataset,
@@ -804,8 +807,9 @@ async def test_buffer_sample_streaming_shields_cancellation_mid_write(
 
 
 @pytest.mark.anyio
+@pytest.mark.parametrize("failed_sample_id", ["s2", "s1"])
 async def test_streamed_write_failure_leaves_log_readable(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, failed_sample_id: str
 ) -> None:
     import inspect_ai.log._recorders.eval as eval_module
 
@@ -826,7 +830,9 @@ async def test_streamed_write_failure_leaves_log_readable(
             ],
         }
     )
-    sample_2 = sample_1.model_copy(update={"id": "s2"})
+    sample_2 = sample_1.model_copy(
+        update={"id": failed_sample_id, "target": "failed replacement"}
+    )
     with _history_for(tmp_path, sample_1, name="h1") as history:
         await recorder.log_sample_streaming(spec, sample_1, history)
 
@@ -842,16 +848,16 @@ async def test_streamed_write_failure_leaves_log_readable(
     log = await read_eval_log_async(str(tmp_path / "streaming.eval"))
     assert log.samples is not None
     by_id = {sample.id: sample for sample in log.samples}
+    assert set(by_id) == {"s1"}
     healthy = by_id["s1"]
+    assert healthy.target == "answer"
     assert [event.uuid for event in healthy.events] == ["event-1"]
     assert healthy.timelines is not None
     timeline_event = healthy.timelines[0].root.content[0]
     assert isinstance(timeline_event, TimelineEvent)
     assert timeline_event.event is healthy.events[0]
-    if "s2" in by_id:
-        assert by_id["s2"].events == []
-        assert by_id["s2"].timelines is None
-        assert by_id["s2"].target == "answer"
+    summaries = await read_eval_log_sample_summaries_async(tmp_path / "streaming.eval")
+    assert [summary.id for summary in summaries] == ["s1"]
 
 
 @pytest.mark.anyio
