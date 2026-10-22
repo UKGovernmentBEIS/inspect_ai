@@ -677,23 +677,29 @@ class LogTaskFileImport:
             message += " Install or import the module that defines it first."
         if not self.trust_log and self.opt_in:
             message += f" {self.opt_in}"
-        return RegistryNameNotFound(message)
+        return RegistryNameNotFound(message, registry_type="metric", name=name)
 
 
 def ensure_metrics_registered(
     definitions: Iterable[tuple[EvalMetricDefinition, str]],
     task_import: LogTaskFileImport,
 ) -> None:
-    """Make every metric in `definitions` resolvable, or raise.
+    """Import the task file for unregistered metrics, when trusted to.
+
+    Only runs when `task_import` may import the task file, which must happen
+    before anything is built. Otherwise metrics are found missing as they are
+    built, in order, so an earlier failure decides the outcome.
 
     Each definition comes with the label used in the error ("used by scorer
     'my_scorer'" or "a task-level metric"). Metric registry dicts nested in
-    options are checked too. If any metric is not registered, the task file
-    is imported when `task_import` allows it.
+    options are checked too.
 
     Raises:
-        LookupError: A metric is still not registered.
+        RegistryNameNotFound: A metric is still not registered after the
+            import (a `LookupError`).
     """
+    if not (task_import.trust_log and task_import.import_task_file):
+        return
     missing = [
         (name, used_by)
         for definition, used_by in definitions
@@ -751,10 +757,10 @@ def _flatten_metric_definitions(
 
 
 def _metrics_from_definitions(
-    metrics: LogMetricDefinitions, task_import: LogTaskFileImport
+    metrics: LogMetricDefinitions, task_import: LogTaskFileImport, used_by: str
 ) -> list[Metric | dict[str, list[Metric]]] | dict[str, list[Metric]]:
     def build(metric: EvalMetricDefinition) -> Metric:
-        return metric_from_log(metric, task_import=task_import)
+        return metric_from_log(metric, task_import=task_import, used_by=used_by)
 
     if isinstance(metrics, dict):
         return {key: [build(md) for md in mds] for key, mds in metrics.items()}
@@ -791,15 +797,21 @@ def metrics_from_log_header(
         ),
         task_import,
     )
-    return _metrics_from_definitions(log.eval.metrics, task_import)
+    return _metrics_from_definitions(
+        log.eval.metrics, task_import, "a task-level metric"
+    )
 
 
 def metric_from_log(
-    metric: EvalMetricDefinition, *, task_import: LogTaskFileImport | None = None
+    metric: EvalMetricDefinition,
+    *,
+    task_import: LogTaskFileImport | None = None,
+    used_by: str = "a metric",
 ) -> Metric:
     """Rebuild one metric definition from a log.
 
     Untrusted (the default) options may construct only metrics and reducers.
+    `used_by` labels the metric in a missing-metric error.
     """
     trusted = task_import is not None and task_import.trust_log
     try:
@@ -816,7 +828,9 @@ def metric_from_log(
         ex.advice = task_import.opt_in if task_import else TRUST_LOG_OPT_IN
         raise
     except RegistryNameNotFound as ex:
-        # an object nested in the options (metrics are checked beforehand)
+        if ex.registry_type == "metric" and ex.name is not None and task_import:
+            # the metric itself, or one nested in its options
+            raise task_import.missing_metric_error(ex.name, used_by) from ex
         message = (
             f"Metric '{metric.name}' needs an object that is not registered "
             f"({ex}). Install the package that defines it, or import the module "
@@ -915,7 +929,9 @@ def resolve_scorers_info(
     return [
         ScorerInfo(
             name=s.name,
-            metrics=_metrics_from_definitions(s.metrics, task_import)
+            metrics=_metrics_from_definitions(
+                s.metrics, task_import, f"used by scorer '{s.name}'"
+            )
             if s.metrics
             else [],
             params=s.options or {},

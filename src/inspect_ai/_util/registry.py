@@ -279,6 +279,17 @@ class RegistryNameNotFound(LookupError):
     from a `LookupError` raised inside a registered factory.
     """
 
+    def __init__(
+        self,
+        message: str,
+        *,
+        registry_type: RegistryType | None = None,
+        name: str | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.registry_type = registry_type
+        self.name = name
+
 
 def registry_lookup(type: RegistryType, name: str) -> object | None:
     r"""Lookup an object in the registry by type and name.
@@ -480,7 +491,9 @@ def registry_create(type: RegistryType, name: str, **kwargs: Any) -> object:  # 
         else:
             return obj
     else:
-        raise RegistryNameNotFound(f"{name} was not found in the registry")
+        raise RegistryNameNotFound(
+            f"{name} was not found in the registry", registry_type=type, name=name
+        )
 
 
 LOG_METRIC_OPTION_TYPES: frozenset[RegistryType] = frozenset(
@@ -545,7 +558,9 @@ def create_registry_object(
             ex.owner = (type, name)
             raise
     else:
-        raise RegistryNameNotFound(f"{name} was not found in the registry")
+        raise RegistryNameNotFound(
+            f"{name} was not found in the registry", registry_type=type, name=name
+        )
 
 
 def _instantiate_registry_object(

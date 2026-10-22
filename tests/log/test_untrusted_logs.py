@@ -805,6 +805,68 @@ def failing_factory_metric() -> Metric:
     raise ValueError("metric factory failure")
 
 
+FAILING = EvalMetricDefinition(name="failing_factory_metric")
+
+
+def _first_failure_log(shape: str, later: EvalMetricDefinition) -> EvalLog:
+    """A log where a failing factory metric is built before `later`."""
+    log = _log()
+    match shape:
+        case "task_then_scorer":
+            log.eval.metrics = [FAILING]
+            log.eval.scorers = [EvalScorer(name="match", metrics=[later])]
+        case "task_list":
+            log.eval.metrics = [FAILING, later]
+        case "scorer_list":
+            log.eval.scorers = [EvalScorer(name="match", metrics=[FAILING, later])]
+        case "task_dict":
+            log.eval.metrics = {"group": [FAILING, later]}
+        case "scorer_groups":
+            log.eval.scorers = [
+                EvalScorer(name="match", metrics=[{"a": [FAILING]}, {"b": [later]}])
+            ]
+        case "two_scorers":
+            log.eval.scorers = [
+                EvalScorer(name="match", metrics=[FAILING]),
+                EvalScorer(name="extra", metrics=[later]),
+            ]
+        case "nested_options":
+            # both inside one metric's options, failing one first
+            later_value: Any = (
+                {"type": "metric", "name": later.name, "params": {}}
+                if later.options is None
+                else later.options["option"]
+            )
+            log.eval.metrics = [
+                EvalMetricDefinition(
+                    name="untrusted_options_metric",
+                    options={
+                        "option": [
+                            {
+                                "type": "metric",
+                                "name": "failing_factory_metric",
+                                "params": {},
+                            },
+                            later_value,
+                        ]
+                    },
+                )
+            ]
+    return log
+
+
+@pytest.mark.parametrize(
+    "shape",
+    [
+        "task_then_scorer",
+        "task_list",
+        "scorer_list",
+        "task_dict",
+        "scorer_groups",
+        "two_scorers",
+        "nested_options",
+    ],
+)
 @pytest.mark.parametrize(
     "later",
     [
@@ -814,6 +876,7 @@ def failing_factory_metric() -> Metric:
     ids=["missing_metric", "forbidden_option"],
 )
 def test_policy_recovery_warns_when_a_factory_fails_before_a_refusal(
+    shape: str,
     later: EvalMetricDefinition,
     crashed: Any,
     untrusted_models: list[str],
@@ -821,18 +884,15 @@ def test_policy_recovery_warns_when_a_factory_fails_before_a_refusal(
 ) -> None:
     """Chosen policy: the first failure decides (decision: Ransom, 2026-10-22).
 
-    Task-level metrics resolve before scorer metrics. A task metric whose
-    registered factory raises stops resolution before the scorer metric that
-    would refuse recovery, so recovery warns and writes the log without
-    results, as for a factory failure alone. Nothing forbidden is built and
-    no file is imported; the samples and scores are kept for a later recompute.
+    Metrics are built in order (task-level metrics, then each scorer's, each
+    in its recorded order, options before the metric's factory). A metric
+    whose registered factory raises before the definition that would refuse
+    recovery (a missing metric, a forbidden option) makes recovery warn and
+    write the log without results, as for a factory failure alone. Nothing
+    forbidden is built and no file is imported; the samples and scores are
+    kept for a later recompute.
     """
-    path = crashed(
-        _log(
-            eval_metrics=[EvalMetricDefinition(name="failing_factory_metric")],
-            scorer_metrics=[later],
-        )
-    )
+    path = crashed(_first_failure_log(shape, later))
 
     with caplog.at_level(logging.WARNING, logger="inspect_ai"):
         recovered = recover_eval_log(path.as_posix())
@@ -845,6 +905,39 @@ def test_policy_recovery_warns_when_a_factory_fails_before_a_refusal(
         for r in caplog.records
     )
     assert untrusted_models == []
+
+
+@pytest.mark.parametrize("shape", ["task_list", "scorer_list", "nested_options"])
+def test_missing_metric_alone_still_refuses_with_context(
+    shape: str, crashed: Any
+) -> None:
+    """Without an earlier failure, the missing metric refuses, named in context."""
+    log = _first_failure_log(shape, EvalMetricDefinition(name="somepkg/nope"))
+    # drop the failing metric, keeping the shape
+    if shape == "task_list":
+        log.eval.metrics = [EvalMetricDefinition(name="somepkg/nope")]
+        used_by = "a task-level metric"
+    elif shape == "scorer_list":
+        log.eval.scorers = [
+            EvalScorer(
+                name="match", metrics=[EvalMetricDefinition(name="somepkg/nope")]
+            )
+        ]
+        used_by = "used by scorer 'match'"
+    else:
+        assert isinstance(log.eval.metrics, list)
+        definition = log.eval.metrics[0]
+        assert isinstance(definition, EvalMetricDefinition) and definition.options
+        definition.options["option"] = definition.options["option"][1:]
+        used_by = "a task-level metric"
+    path = crashed(log)
+
+    with pytest.raises(RegistryNameNotFound) as ex:
+        recover_eval_log(path.as_posix())
+
+    assert f"Metric 'somepkg/nope' ({used_by}) is not registered" in str(ex.value)
+    assert str(ex.value).endswith(TRUST_LOG_OPT_IN)
+    assert sorted(p.name for p in path.parent.iterdir()) == ["crashed.eval"]
 
 
 def test_recovery_warns_when_a_metric_fails_on_the_scores(
