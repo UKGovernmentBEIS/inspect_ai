@@ -20,11 +20,11 @@ permissions:
   contents: read
 
 env:
-  # Needs >= 0.11.24: relative `exclude-newer` in pyproject.toml (with a
-  # stable uv.lock) and `--exclude-newer false` for the canary jobs. Also
-  # keep >= 0.9.30, whose CPython 3.14 builds accept the `typing.Union | "str"`
-  # forward references used by inspect_scout (3.14.0 rejects them).
-  UV_VERSION: 0.12.24
+  # Needs >= 0.13.4, which drops the compromised emSign root from uv's
+  # certificate store (GHSA-hq85-5cpj-mr62), and >= 0.11.24 for relative
+  # `exclude-newer` in pyproject.toml (with a stable uv.lock) and
+  # `--exclude-newer false` for the canary jobs.
+  UV_VERSION: 0.13.5
 
 jobs:
   # Keep these check names present on Markdown-only PRs while avoiding source

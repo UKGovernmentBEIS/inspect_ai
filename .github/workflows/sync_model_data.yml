@@ -11,7 +11,7 @@ permissions:
   pull-requests: write
 
 env:
-  UV_VERSION: 0.12.24
+  UV_VERSION: 0.13.5
 
 jobs:
   sync-models:
