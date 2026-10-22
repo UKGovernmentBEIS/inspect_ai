@@ -1198,11 +1198,27 @@ unregistered one raises `LookupError` and nothing is written (parent:
 "fails rather than store metrics from a lossy input"). A sample score
 whose name matches no declared scorer (a solver-set score) would make
 `eval_results` call `ScorerInfo.from_name`, which loads a file-qualified
-name (`task.py@scorer`, or an existing file) as a module; the merge builds
-that scorer info itself from the registry only (a registered scorer's
-metrics, else `accuracy` and `stderr`, with the task metrics applied as
-`eval_results` applies them), so a score name in a log never imports a
-file.
+name (`task.py@scorer`, or an existing file) as a module and falls back
+to `accuracy` and `stderr` when it cannot create the scorer. The merge
+builds that scorer info itself and never infers it (decision: Ransom,
+2026-10-22). With task metrics (`eval.metrics`), the score takes them, as
+`eval_results` applies them. Otherwise it takes the metrics the shards
+recorded for that score name: the `results` of the shard headers read in
+the pass, with the merged log's own results standing in for unchanged
+shards (they were built from those shards' recorded results). Each
+recorded metric is rebuilt from its registry name and params (a metric
+with several values is recorded as entries sharing its name as `group`)
+and resolved from the registry only. The merge refuses before publishing
+when a recorded metric is not registered (`LookupError`, the same
+guidance), when the shards record different metrics for the score, when
+they record metrics per key (a dictionary of metric lists, which it does
+not rebuild), or when no shard recorded results for it (only running
+shards hold it), so its metrics cannot be established (`ShardSetError`).
+`accuracy` and `stderr` are used only when the shards recorded them. The
+merge deletes the shards that hold the original results, so it never
+substitutes defaults, unlike other callers of `eval_results`. A score
+name in a log therefore never imports a file and never changes a score's
+metrics.
 
 Memory: the current sample plus every sample's `SampleScore`s, as the
 parent's "Scale" accepts. The baseline parses each sample whole, so peak
@@ -2275,7 +2291,14 @@ Per PR (numbers from "Implementation plan"):
      it, write nothing and import nothing; the same merge succeeds once
      the module that defines it is imported; solver-set score names that
      are a file-qualified scorer spec or an existing file, beside a
-     declared scorer, import no file during the merge; a spy asserts no
+     declared scorer, import no file during the merge and keep the
+     `accuracy`/`stderr` the shards recorded; a solver-set score whose
+     shards recorded a custom scorer's metric refuses on a cold registry
+     (no merged log published, no shard deleted with `delete_shards`),
+     then merges with the recorded metric once its module is imported,
+     even when the scorer's factory now raises; shards recording different
+     metrics for a score, and a score no shard recorded results for (only
+     running shards), are refused; a spy asserts no
      reader path
      (`read_eval_log`, `list_eval_logs`, `evals_df`) calls the merge;
    - cancellation mid-pass (after reads, during the build, during the S3

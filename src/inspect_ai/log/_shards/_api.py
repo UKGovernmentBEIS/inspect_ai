@@ -400,6 +400,9 @@ async def _merge_pass(
     if existing is not None and len(changed) < len(shards):
         headers.append((merged_path, existing.header))
     check_headers(headers)
+    # the shards' own results, with the merged log's standing in for the
+    # unchanged shards, are the metric source for solver-set scores
+    shard_results = [(src, h.results) for src, h in headers if h.results is not None]
 
     records = existing.records if existing is not None else set()
     if existing is not None:
@@ -477,6 +480,7 @@ async def _merge_pass(
                     summaries=summaries,
                     template=base,
                     total_samples=total,
+                    recorded=shard_results,
                     make_header=lambda results: build_header(
                         base=base,
                         merged=existing.header if existing is not None else None,

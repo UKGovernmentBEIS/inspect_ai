@@ -17,6 +17,7 @@ from inspect_ai.log._log import (
     EvalSample,
     EvalSampleReductions,
     EvalSampleSummary,
+    EvalScore,
 )
 from inspect_ai.log._recorders.eval import (
     HEADER_JSON,
@@ -25,7 +26,7 @@ from inspect_ai.log._recorders.eval import (
     _sample_filename,
 )
 from inspect_ai.log._recorders.recorder import SampleRecordKey
-from inspect_ai.scorer._metric import SampleScore
+from inspect_ai.scorer._metric import Metric, SampleScore
 
 from ._errors import ShardSetError
 
@@ -120,6 +121,7 @@ async def write_merged_zip(
     summaries: Sequence[EvalSampleSummary],
     template: EvalLog,
     total_samples: int,
+    recorded: Sequence[tuple[str, EvalResults]],
     make_header: Callable[[EvalResults | None], EvalLog],
 ) -> EvalLog:
     """Write the merged log's members to `out` and return its header.
@@ -128,10 +130,15 @@ async def write_merged_zip(
     rebuilt from its key and reduced to its metric inputs before the next is
     read. Then the summaries, the recomputed reductions and the header (made
     by `make_header` from the recomputed results) are written. No journal is
-    written: the merged log is always written finished.
+    written: the merged log is always written finished. `recorded` holds the
+    results the shards recorded (as `(source, results)`), the metric source
+    for scores with no declared scorer or task metrics.
 
     Raises:
-        ShardSetError: A sample member's id or epoch does not match its name.
+        ShardSetError: A sample member's id or epoch does not match its name,
+            or the metrics of a score with no declared scorer cannot be
+            established from `recorded`.
+        LookupError: A metric is not registered.
         pydantic.ValidationError: A sample member does not parse.
     """
     with zipfile.ZipFile(out, "w", **zipfile_compress_kwargs) as zf:
@@ -139,7 +146,9 @@ async def write_merged_zip(
         for key in keys:
             data = await read_member(key)
             inputs.append(await anyio.to_thread.run_sync(_write_sample, zf, key, data))
-        results, reductions = _recompute_results(template, inputs, total_samples)
+        results, reductions = _recompute_results(
+            template, inputs, total_samples, recorded
+        )
         header = make_header(results)
         await anyio.to_thread.run_sync(
             _write_members, zf, list(summaries), reductions, header
@@ -183,7 +192,10 @@ def _write_members(
 
 
 def _recompute_results(
-    template: EvalLog, inputs: list[_SampleInputs], total_samples: int
+    template: EvalLog,
+    inputs: list[_SampleInputs],
+    total_samples: int,
+    recorded: Sequence[tuple[str, EvalResults]],
 ) -> tuple[EvalResults | None, list[EvalSampleReductions] | None]:
     """Metrics over the merged samples, as `recompute_metrics` computes them."""
     from inspect_ai._eval.score import (
@@ -201,7 +213,9 @@ def _recompute_results(
         samples=total_samples,
         scores=scores,
         reducers=reducers_from_log_header(template),
-        scorers=_scorer_infos(resolve_scorers_info(template), scores, metrics),
+        scorers=_scorer_infos(
+            resolve_scorers_info(template), scores, metrics, recorded
+        ),
         metrics=metrics,
         completed_samples=sum(1 for sample in inputs if not sample.error),
         headline_metric=template.eval.headline_metric,
@@ -212,47 +226,105 @@ def _scorer_infos(
     declared: list["ScorerInfo"],
     scores: list[dict[str, SampleScore]],
     metrics: Any,
+    recorded: Sequence[tuple[str, EvalResults]],
 ) -> list["ScorerInfo"]:
     """The declared scorers plus one for each other score name, in first-seen order.
 
     `eval_results` builds the others with `ScorerInfo.from_name`, which loads
     a file-qualified name (`task.py@scorer`, or an existing file) as a
-    module. A score name comes from the log, and the merge imports nothing
-    a log names, so here they come from the registry only; otherwise this
-    matches `from_name` and the task metrics `eval_results` applies to them.
+    module and falls back to `accuracy` and `stderr` when it cannot load the
+    scorer. The merge imports nothing a log names and must not change a
+    score's metrics, so such a score takes the task metrics, as in
+    `eval_results`, or else the metrics the shards recorded for it.
     """
-    from inspect_ai._eval.task.results import _unique_scorer_names
+    from inspect_ai._eval.task.results import ScorerInfo, _unique_scorer_names
 
     infos = list(declared)
     names = set(_unique_scorer_names(infos))
     for sample_scores in scores:
         for name, sample_score in sample_scores.items():
             if sample_score.scorer is None and name not in names:
-                info = _registry_scorer_info(name)
-                if metrics is not None:
-                    info.metrics = metrics
-                infos.append(info)
+                infos.append(
+                    ScorerInfo(
+                        name=name,
+                        metrics=metrics
+                        if metrics is not None
+                        else _recorded_metrics(name, recorded),
+                    )
+                )
                 names.add(name)
     return infos
 
 
-def _registry_scorer_info(name: str) -> "ScorerInfo":
-    from inspect_ai._eval.task.results import ScorerInfo
-    from inspect_ai._util.registry import registry_create, registry_lookup
-    from inspect_ai.scorer._metrics.accuracy import accuracy
-    from inspect_ai.scorer._metrics.std import stderr
-    from inspect_ai.scorer._scorer import scorer_metrics
+def _recorded_metrics(
+    name: str, recorded: Sequence[tuple[str, EvalResults]]
+) -> list[Metric | dict[str, list[Metric]]]:
+    """The metrics the shards recorded for score `name`, from the registry.
 
-    scorer = None
-    if registry_lookup("scorer", name) is not None:
-        # a scorer that cannot be created gets the default metrics, as in
-        # ScorerInfo.from_name
-        try:
-            scorer = registry_create("scorer", name)
-        except Exception:
-            scorer = None
-    if scorer is not None:
-        metrics = scorer_metrics(scorer)
-    else:
-        metrics = [accuracy(), stderr()]
-    return ScorerInfo(name=name, metrics=metrics)
+    Raises:
+        ShardSetError: No shard recorded results for `name`, the shards
+            recorded different metrics for it, or they recorded per-key metrics
+            (a dictionary of metric lists), which this does not rebuild.
+        LookupError: A recorded metric is not registered.
+    """
+    from inspect_ai._util.registry import registry_lookup
+    from inspect_ai.scorer._metric import metric_create
+
+    sources: dict[tuple[tuple[str, str], ...], list[str]] = {}
+    for source, results in recorded:
+        found = [score for score in results.scores if score.scorer == name]
+        if not found:
+            continue
+        if any(score.name != name for score in found):
+            raise ShardSetError(
+                f"{source} records metrics per key for score '{name}', which has "
+                "no declared scorer or task metrics; the merge cannot rebuild them."
+            )
+        identities = {_metric_identities(score) for score in found}
+        if len(identities) > 1:
+            raise ShardSetError(
+                f"{source} records different metrics for the results of score "
+                f"'{name}'; the merge cannot rebuild them."
+            )
+        sources.setdefault(identities.pop(), []).append(source)
+    if not sources:
+        raise ShardSetError(
+            f"Score '{name}' has no declared scorer or task metrics, and no shard "
+            "recorded results for it, so its metrics cannot be established. Merge "
+            "once a shard holding it has finished."
+        )
+    if len(sources) > 1:
+        raise ShardSetError(
+            f"The shards record different metrics for score '{name}': "
+            + "; ".join(
+                f"{', '.join(m for m, _ in identity) or 'none'} in {', '.join(where)}"
+                for identity, where in sources.items()
+            )
+        )
+    [identity] = sources
+    metrics: list[Metric | dict[str, list[Metric]]] = []
+    for metric_name, params_json in identity:
+        if registry_lookup("metric", metric_name) is None:
+            raise LookupError(_unregistered("Metric", metric_name))
+        params = json.loads(params_json)
+        _check_embedded(params)
+        metrics.append(metric_create(metric_name, **params))
+    return metrics
+
+
+def _metric_identities(score: EvalScore) -> tuple[tuple[str, str], ...]:
+    """The metrics behind a recorded score, as (registry name, params) pairs.
+
+    A metric with one value is recorded under its registry name; one with
+    several values (a dict or list) is recorded as several entries sharing
+    its name as their `group`.
+    """
+    identities: list[tuple[str, str]] = []
+    for metric in score.metrics.values():
+        identity = (
+            metric.group or metric.name,
+            json.dumps(metric.params, sort_keys=True),
+        )
+        if metric.group is None or not identities or identities[-1] != identity:
+            identities.append(identity)
+    return tuple(identities)

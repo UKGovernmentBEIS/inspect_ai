@@ -2311,6 +2311,141 @@ def test_score_names_from_the_log_never_load_files(tmp_path: Path) -> None:
     assert header.results is not None
     names = {score.name for score in header.results.scores}
     assert {"match", *keys} <= names
+    # the shards recorded the default metrics for these names; they are kept
+    for score in header.results.scores:
+        if score.name in keys:
+            assert set(score.metrics) == {"accuracy", "stderr"}
+
+
+def _solver_scorer_shards(monkeypatch: pytest.MonkeyPatch, fail: set[str]) -> None:
+    """Shards of a task whose solver sets a score named after a custom scorer.
+
+    No scorer or task metric is declared, so the worker takes the score's
+    metrics from that scorer, or the defaults where its factory fails (the
+    shards in `fail`).
+    """
+    Path("custom_task.py").write_text(_SOLVER_SCORER_TASK)
+    for k, ids in (("0", [1, 2]), ("1", [3, 4])):
+        with monkeypatch.context() as patch:
+            if k in fail:
+                patch.setenv("SHARD_SCORER_FAIL", "1")
+            eval(
+                "custom_task.py",
+                model="mockllm/model",
+                log_dir=f"{NAME}.shards/{k}",
+                display="none",
+                sample_id=ids,
+            )
+
+
+def test_a_solver_set_score_keeps_the_metrics_its_shards_recorded(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import runpy
+
+    from inspect_ai._util import registry
+
+    monkeypatch.chdir(tmp_path)
+    _solver_scorer_shards(monkeypatch, fail=set())
+    # as in a fresh process: neither the scorer nor its metric is registered
+    monkeypatch.delitem(registry._registry, "metric:shard_recorded_total")
+    monkeypatch.delitem(registry._registry, "scorer:shard_custom_scorer")
+    with pytest.raises(LookupError, match="Metric 'shard_recorded_total'"):
+        merge_eval_log_shards(f"{NAME}.eval", delete_shards=True)
+    assert not os.path.exists(f"{NAME}.eval")
+    assert len(list(Path(f"{NAME}.shards").glob("*/*.eval"))) == 2
+
+    runpy.run_path("custom_task.py")
+    # a scorer factory that now fails is not consulted: the recorded metric
+    # is used, not the defaults
+    monkeypatch.setenv("SHARD_SCORER_FAIL", "1")
+    result = merge_eval_log_shards(f"{NAME}.eval", delete_shards=True)
+    assert result.shards_deleted and result.log.results is not None
+    [score] = result.log.results.scores
+    assert score.name == "shard_custom_scorer"
+    assert set(score.metrics) == {"shard_recorded_total"}
+    assert score.metrics["shard_recorded_total"].value == 4
+
+
+def test_shards_recording_different_metrics_for_a_score_are_refused(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    # shard 1's worker could not create the scorer and recorded the defaults
+    _solver_scorer_shards(monkeypatch, fail={"1"})
+    with pytest.raises(ShardSetError, match="different metrics for score"):
+        merge_eval_log_shards(f"{NAME}.eval")
+    assert not os.path.exists(f"{NAME}.eval")
+
+
+def test_a_solver_set_score_with_no_recorded_results_is_refused(
+    tmp_path: Path,
+) -> None:
+    @solver
+    def labelled() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            state.scores = {"label": Score(value=1)}
+            return state
+
+        return solve
+
+    merged, shards = _paths(tmp_path)
+    task = _task(solver=labelled())
+    for k, ids in (("0", [1, 2, 3]), ("1", [4, 5, 6])):
+        _as_running(_run(shards, k, task, sample_id=ids))
+    with pytest.raises(ShardSetError, match="no shard recorded results"):
+        merge_eval_log_shards(merged, allow_incomplete=True)
+    assert not os.path.exists(merged)
+
+
+_SOLVER_SCORER_TASK = f"""
+import os
+
+from inspect_ai import Task, task
+from inspect_ai.dataset import Sample
+from inspect_ai.scorer import (
+    Metric, SampleScore, Score, Scorer, Target, metric, scorer
+)
+from inspect_ai.solver import Generate, Solver, TaskState, solver
+
+
+@metric
+def shard_recorded_total() -> Metric:
+    def compute(scores: list[SampleScore]) -> float:
+        return float(sum(s.score.as_float() for s in scores))
+
+    return compute
+
+
+@scorer(metrics=[shard_recorded_total()])
+def shard_custom_scorer() -> Scorer:
+    if os.environ.get("SHARD_SCORER_FAIL"):
+        raise RuntimeError("scorer unavailable")
+
+    async def score(state: TaskState, target: Target) -> Score:
+        return Score(value=1)
+
+    return score
+
+
+@solver
+def scoring_solver() -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        state.scores = {{"shard_custom_scorer": Score(value=1)}}
+        return state
+
+    return solve
+
+
+@task
+def {TASK}() -> Task:
+    # no scorer and no task metrics: the worker takes the score's metrics
+    # from the scorer of the same name
+    return Task(
+        dataset=[Sample(id=i, input="q") for i in range(1, 5)],
+        solver=scoring_solver(),
+    )
+"""
 
 
 def test_cli_json_reports_an_unregistered_metric(
