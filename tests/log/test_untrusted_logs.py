@@ -77,6 +77,7 @@ from inspect_ai.scorer import (
     scorer,
 )
 from inspect_ai.scorer._metric import ScoreEdit
+from inspect_ai.scorer._reducer import create_reducers
 from inspect_ai.solver import TaskState
 
 SCORER_METRIC = "untrusted_scorer_metric"
@@ -662,8 +663,35 @@ def test_failed_recovery_reducer_advice(crashed: Any) -> None:
         recover_eval_log(path.as_posix())
 
     assert "Epoch reducer 'no_such_reducer'" in str(ex.value)
+    assert "no_such_reducer was not found in the registry" in str(ex.value)
     assert "Nothing was written" in str(ex.value)
     assert "--trust-log" in str(ex.value)
+    assert sorted(p.name for p in path.parent.iterdir()) == ["crashed.eval"]
+
+
+@score_reducer(name="dependent_reducer")
+def dependent_reducer() -> ScoreReducer:
+    # a registered reducer whose own dependency is not registered
+    return create_reducers("missing_dependency_reducer")[0]
+
+
+def test_missing_reducer_dependency_is_named(crashed: Any) -> None:
+    log = _log(epochs_reducer=["dependent_reducer"])
+
+    with pytest.raises(RegistryNameNotFound) as ex:
+        recompute_metrics(log.model_copy(deep=True))
+    message = str(ex.value)
+    assert "Epoch reducer 'dependent_reducer'" in message
+    assert "missing_dependency_reducer was not found in the registry" in message
+    assert "'dependent_reducer' (the log's epochs_reducer) is not registered" not in (
+        message
+    )
+
+    path = crashed(log)
+    result = CliRunner().invoke(recover_command, [path.as_posix()])
+    assert result.exit_code == 1
+    assert "missing_dependency_reducer was not found in the registry" in result.output
+    assert "Nothing was written" in result.output
     assert sorted(p.name for p in path.parent.iterdir()) == ["crashed.eval"]
 
 

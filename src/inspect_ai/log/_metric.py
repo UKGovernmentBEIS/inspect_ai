@@ -10,9 +10,10 @@ from inspect_ai.scorer._reducer import ScoreReducer, create_reducers
 from ._log import EvalLog
 
 REDUCER_MISSING = (
-    "Epoch reducer '{name}' (the log's epochs_reducer) is not registered. "
-    "Install the package that defines it, or import the module that defines it, "
-    "first; the log's task file is not imported for reducers."
+    "Epoch reducer '{name}' (the log's epochs_reducer) could not be built: "
+    "{error}. Install the package that defines the missing object, or import "
+    "the module that defines it, first; the log's task file is not imported "
+    "for reducers."
 )
 
 
@@ -47,8 +48,8 @@ def resolve_log_metrics(
             `trust_log=True`. `False` for callers that have no such option.
 
     Raises:
-        RegistryNameNotFound: A metric or epoch reducer is not registered
-            (a `LookupError`).
+        RegistryNameNotFound: A metric, an epoch reducer or an object they
+            depend on is not registered (a `LookupError`).
         DisallowedRegistryArg: Untrusted metric options name a model or a
             non-metric registry object.
     """
@@ -67,7 +68,8 @@ def resolve_log_metrics(
             try:
                 reducers.extend(create_reducers(name))
             except RegistryNameNotFound as ex:
-                message = REDUCER_MISSING.format(name=name)
+                # the missing name may be the reducer's or a dependency's
+                message = REDUCER_MISSING.format(name=name, error=ex)
                 if reducer_advice:
                     message = f"{message} {reducer_advice}"
                 raise RegistryNameNotFound(message) from ex
@@ -146,7 +148,8 @@ def recompute_metrics(log: EvalLog, *, trust_log: bool = False) -> None:
 
     Raises:
         ValueError: If log is missing required data for recomputation
-        LookupError: A metric or epoch reducer is not registered.
+        LookupError: A metric, an epoch reducer or an object they depend on
+            is not registered.
         DisallowedRegistryArg: Without `trust_log`, metric options name a
             model or a non-metric registry object (a `ValueError`).
     """
