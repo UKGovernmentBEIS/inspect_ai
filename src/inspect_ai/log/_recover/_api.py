@@ -10,7 +10,7 @@ from typing import Iterator, Literal
 from inspect_ai._util._async import run_coroutine
 from inspect_ai._util.dateutil import datetime_from_iso_format_safe
 from inspect_ai._util.file import dirname, filesystem
-from inspect_ai._util.registry import DisallowedRegistryArg
+from inspect_ai._util.registry import DisallowedRegistryArg, RegistryNameNotFound
 from inspect_ai.log._file import (
     EvalLogInfo,
     list_eval_logs_async,
@@ -128,9 +128,9 @@ def recover_eval_log(
     no_events: bool = False,
     incomplete_action: IncompleteAction = "retry",
     incomplete_max: int | float | None = None,
-    trust_log: bool = False,
     _stats: RecoveryStats | None = None,
     *,
+    trust_log: bool = False,
     _untrusted_metrics: Literal["raise", "warn"] = "raise",
 ) -> EvalLog:
     """Recover a crashed eval log.
@@ -208,9 +208,9 @@ async def recover_eval_log_async(
     no_events: bool = False,
     incomplete_action: IncompleteAction = "retry",
     incomplete_max: int | float | None = None,
-    trust_log: bool = False,
     _stats: RecoveryStats | None = None,
     *,
+    trust_log: bool = False,
     _untrusted_metrics: Literal["raise", "warn"] = "raise",
 ) -> EvalLog:
     """Async implementation of recover_eval_log.
@@ -392,7 +392,7 @@ def _resolve_recovery_metrics(
             reducer_advice=RECOVER_REDUCER_ADVICE if refuse else None,
             trust_log_advice=refuse,
         )
-    except (LookupError, DisallowedRegistryArg) as ex:
+    except (RegistryNameNotFound, DisallowedRegistryArg) as ex:
         if refuse:
             raise
         logger.warning(f"Unable to recompute metrics for recovered log: {ex}")

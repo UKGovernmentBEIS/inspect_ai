@@ -479,6 +479,15 @@ LOG_METRIC_OPTION_TYPES: frozenset[RegistryType] = frozenset(
 """Registry types that metric options from an untrusted log may construct."""
 
 
+class RegistryNameNotFound(LookupError):
+    """A name recorded in a log is not registered.
+
+    Raised by log metric resolution before anything is constructed, so callers
+    can tell a missing registration from a `LookupError` raised inside a
+    registered factory.
+    """
+
+
 class DisallowedRegistryArg(ValueError):
     """An argument names an object that `allowed_types` does not permit.
 

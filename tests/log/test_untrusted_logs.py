@@ -11,6 +11,7 @@ it in a file, and a spy on `get_model` records models built with the
 fixtures' distinctive base URL (which appears only in metric options).
 """
 
+import inspect
 import json
 import logging
 from datetime import datetime, timezone
@@ -33,6 +34,7 @@ from inspect_ai._util.constants import LOG_SCHEMA_VERSION
 from inspect_ai._util.file import local_path
 from inspect_ai._util.registry import (
     DisallowedRegistryArg,
+    RegistryNameNotFound,
     _registry,
     registry_key,
     registry_unqualified_name,
@@ -57,6 +59,7 @@ from inspect_ai.log._recorders.types import SampleEvent
 from inspect_ai.log._recover import (
     read_buffer_recovery_data,
     recover_eval_log,
+    recover_eval_log_async,
 )
 from inspect_ai.log._score import edit_score
 from inspect_ai.model import ChatMessageUser, GenerateConfig, ModelOutput
@@ -65,10 +68,12 @@ from inspect_ai.scorer import (
     SampleScore,
     Score,
     Scorer,
+    ScoreReducer,
     Target,
     accuracy,
     match,
     metric,
+    score_reducer,
     scorer,
 )
 from inspect_ai.scorer._metric import ScoreEdit
@@ -104,6 +109,16 @@ def registry_shaped_args_metric(type: str, name: str, params: dict[str, Any]) ->
         return 1.0
 
     return compute
+
+
+@metric
+def lookup_error_metric() -> Metric:
+    raise KeyError("metric factory failure")
+
+
+@score_reducer(name="lookup_error_reducer")
+def lookup_error_reducer() -> ScoreReducer:
+    raise KeyError("reducer factory failure")
 
 
 scored_samples: list[Any] = []
@@ -635,13 +650,77 @@ def test_failed_recovery_writes_nothing(
 def test_failed_recovery_reducer_advice(crashed: Any) -> None:
     path = crashed(_log(epochs_reducer=["no_such_reducer"]))
 
-    with pytest.raises(LookupError) as ex:
+    with pytest.raises(RegistryNameNotFound) as ex:
         recover_eval_log(path.as_posix())
 
     assert "Epoch reducer 'no_such_reducer'" in str(ex.value)
     assert "Nothing was written" in str(ex.value)
     assert "--trust-log" in str(ex.value)
     assert sorted(p.name for p in path.parent.iterdir()) == ["crashed.eval"]
+
+
+FACTORY_LOOKUP_ERRORS = {
+    "scorer_metric": _log(
+        scorer_metrics=[EvalMetricDefinition(name="lookup_error_metric")]
+    ),
+    "task_metric": _log(
+        eval_metrics=[EvalMetricDefinition(name="lookup_error_metric")]
+    ),
+    "nested_metric": _log(
+        scorer_metrics=[
+            EvalMetricDefinition(
+                name="grouped",
+                options={
+                    "metric": {
+                        "type": "metric",
+                        "name": "lookup_error_metric",
+                        "params": {},
+                    },
+                    "group_key": "category",
+                },
+            )
+        ]
+    ),
+    "reducer": _log(epochs_reducer=["lookup_error_reducer"]),
+}
+
+
+@pytest.mark.parametrize("case", FACTORY_LOOKUP_ERRORS)
+def test_recovery_warns_on_lookup_errors_from_registered_factories(
+    case: str, crashed: Any, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Only missing registrations refuse; a registered factory's own error warns."""
+    log = FACTORY_LOOKUP_ERRORS[case]
+    with pytest.raises(KeyError) as ex:
+        recompute_metrics(log.model_copy(deep=True))
+    assert not isinstance(ex.value, RegistryNameNotFound)
+
+    path = crashed(log)
+    with caplog.at_level(logging.WARNING, logger="inspect_ai"):
+        recovered = recover_eval_log(path.as_posix())
+
+    assert recovered.location is not None and Path(recovered.location).exists()
+    assert recovered.results is None
+    warnings = [
+        r.message for r in caplog.records if "Unable to recompute metrics" in r.message
+    ]
+    assert len(warnings) == 1
+    assert "factory failure" in warnings[0]
+    assert "is not registered" not in warnings[0]
+
+
+@pytest.mark.parametrize("fn", [recover_eval_log, recover_eval_log_async])
+def test_recover_trust_log_is_keyword_only(fn: Any) -> None:
+    params = list(inspect.signature(fn).parameters.values())
+    names = [p.name for p in params]
+    assert inspect.signature(fn).parameters["trust_log"].kind is (
+        inspect.Parameter.KEYWORD_ONLY
+    )
+    # _stats keeps its position, right after incomplete_max
+    assert names.index("_stats") == names.index("incomplete_max") + 1
+    assert params[names.index("_stats")].kind is (
+        inspect.Parameter.POSITIONAL_OR_KEYWORD
+    )
 
 
 def test_recover_cli_trust_log(crashed: Any, task_file: Path, imports: Path) -> None:
@@ -683,9 +762,11 @@ def _log_info(path: Path, log: EvalLog) -> EvalLogInfo:
         ("missing_reducer", "Epoch reducer 'no_such_reducer'"),
     ],
 )
+@pytest.mark.parametrize("threshold_fallback", [False, True])
 def test_eval_set_recovery_warns_and_recovers_without_results(
     case: str,
     message: str,
+    threshold_fallback: bool,
     crashed: Any,
     untrusted_models: list[str],
     caplog: pytest.LogCaptureFixture,
@@ -702,10 +783,23 @@ def test_eval_set_recovery_warns_and_recovers_without_results(
     path = crashed(log)
     header = EvalLog(eval=log.eval, status="started", location=path.as_posix())
 
-    with caplog.at_level(logging.WARNING, logger="inspect_ai"):
-        recovered, info = _recover_crashed_log(header, _log_info(path, log))
+    # incomplete_max=0 with one in-progress sample exceeds the threshold, so
+    # the second (fallback) recovery call is the one that recovers
+    options: dict[str, Any] = (
+        {"incomplete_action": "error", "incomplete_max": 0}
+        if threshold_fallback
+        else {}
+    )
 
+    with caplog.at_level(logging.WARNING, logger="inspect_ai"):
+        recovered, info = _recover_crashed_log(header, _log_info(path, log), **options)
+
+    fallback_warned = any(
+        "exceeded incomplete_max" in r.message for r in caplog.records
+    )
+    assert fallback_warned == threshold_fallback
     assert recovered.location is not None and "-recovered" in recovered.location
+    assert recovered.location != path.as_posix()
     assert Path(recovered.location).exists()
     assert info.name == recovered.location
     assert recovered.results is None

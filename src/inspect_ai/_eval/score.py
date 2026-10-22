@@ -33,6 +33,7 @@ from inspect_ai._util.platform import platform_init, running_in_notebook
 from inspect_ai._util.registry import (
     LOG_METRIC_OPTION_TYPES,
     DisallowedRegistryArg,
+    RegistryNameNotFound,
     create_registry_object,
     has_registry_params,
     is_model_dict,
@@ -660,7 +661,7 @@ class LogTaskFileImport:
         )
         return True
 
-    def missing_metric_error(self, name: str, used_by: str) -> LookupError:
+    def missing_metric_error(self, name: str, used_by: str) -> RegistryNameNotFound:
         message = f"Metric '{name}' ({used_by}) is not registered."
         if self.task_file:
             message += (
@@ -671,7 +672,7 @@ class LogTaskFileImport:
             message += " Install or import the module that defines it first."
         if not self.trust_log and self.opt_in:
             message += f" {self.opt_in}"
-        return LookupError(message)
+        return RegistryNameNotFound(message)
 
 
 def ensure_metrics_registered(

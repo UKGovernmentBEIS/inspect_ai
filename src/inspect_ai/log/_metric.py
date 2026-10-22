@@ -3,8 +3,10 @@
 from typing import NamedTuple
 
 from inspect_ai._eval.task.results import ScorerInfo, eval_results
+from inspect_ai._util.registry import RegistryNameNotFound, registry_lookup
 from inspect_ai.scorer._metric import Metric, SampleScore
 from inspect_ai.scorer._reducer import ScoreReducer, create_reducers
+from inspect_ai.scorer._reducer.registry import reducer_registry_name
 
 from ._log import EvalLog
 
@@ -45,7 +47,8 @@ def resolve_log_metrics(
             `trust_log=True`. `False` for callers that have no such option.
 
     Raises:
-        LookupError: A metric or epoch reducer is not registered.
+        RegistryNameNotFound: A metric or epoch reducer is not registered
+            (a `LookupError`).
         DisallowedRegistryArg: Untrusted metric options name a model or a
             non-metric registry object.
     """
@@ -57,17 +60,14 @@ def resolve_log_metrics(
         resolve_scorers_info,
     )
 
-    reducers: list[ScoreReducer] | None = None
-    if log.eval.config.epochs_reducer is not None:
-        reducers = []
-        for name in log.eval.config.epochs_reducer:
-            try:
-                reducers.extend(create_reducers(name))
-            except LookupError as ex:
-                message = REDUCER_MISSING.format(name=name)
-                if reducer_advice:
-                    message = f"{message} {reducer_advice}"
-                raise LookupError(message) from ex
+    reducer_names = log.eval.config.epochs_reducer
+    for name in reducer_names or []:
+        if registry_lookup("score_reducer", reducer_registry_name(name)[0]) is None:
+            message = REDUCER_MISSING.format(name=name)
+            if reducer_advice:
+                message = f"{message} {reducer_advice}"
+            raise RegistryNameNotFound(message)
+    reducers = create_reducers(reducer_names)
 
     task_import = LogTaskFileImport(
         log,

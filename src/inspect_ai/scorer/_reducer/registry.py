@@ -122,6 +122,22 @@ def reducer_log_name(reducer: ScoreReducer) -> str:
     return name
 
 
+def reducer_registry_name(name: str) -> tuple[str, dict[str, Any]]:
+    """The registry name and parameters for a reducer name.
+
+    Handles the `<name>_<k>` shorthand (e.g. `pass_at_2`), applied only when
+    the literal name is not itself a registered reducer (so a custom reducer
+    named "top_5" is not rewritten to a lookup of "top" with k=5).
+    """
+    params: dict[str, Any] = {}
+    if registry_lookup("score_reducer", name) is None:
+        match = re.match(r"^(.*?)_(\d+)$", name)
+        if match:
+            name = match.group(1)
+            params["k"] = int(match.group(2))
+    return name, params
+
+
 @overload
 def create_reducers(reducers: ScoreReducers) -> list[ScoreReducer]: ...
 
@@ -135,17 +151,7 @@ def create_reducers(reducers: ScoreReducers | None) -> list[ScoreReducer] | None
         return None
 
     def create_reducer(name: str) -> ScoreReducer:
-        # special case to get digit parameters
-        params: dict[str, Any] = {}
-        # only apply the `<name>_<k>` shorthand when the literal name is
-        # not itself a registered reducer (so e.g. a custom reducer named
-        # "top_5" is not rewritten to a lookup of "top" with k=5)
-        if registry_lookup("score_reducer", name) is None:
-            match = re.match(r"^(.*?)_(\d+)$", name)
-            if match:
-                name = match.group(1)
-                params["k"] = int(match.group(2))
-
+        name, params = reducer_registry_name(name)
         return cast(
             ScoreReducer,
             create_registry_object("score_reducer", name, params),

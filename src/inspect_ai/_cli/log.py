@@ -483,7 +483,10 @@ def recover_command(
         if log_file is None:
             raise click.UsageError("LOG_FILE is required when not using --list.")
 
-        from inspect_ai._util.registry import DisallowedRegistryArg
+        from inspect_ai._util.registry import (
+            DisallowedRegistryArg,
+            RegistryNameNotFound,
+        )
         from inspect_ai.log._recover import (
             RecoveryNotAvailable,
             RecoveryStats,
@@ -505,7 +508,11 @@ def recover_command(
             )
         except RecoveryNotAvailable as e:
             raise click.UsageError(str(e))
-        except (RecoveryThresholdExceeded, LookupError, DisallowedRegistryArg) as e:
+        except (
+            RecoveryThresholdExceeded,
+            RegistryNameNotFound,
+            DisallowedRegistryArg,
+        ) as e:
             raise click.ClickException(str(e))
         output_path = log.location or output
         # keep the historical success line intact (scripts may anchor on its
