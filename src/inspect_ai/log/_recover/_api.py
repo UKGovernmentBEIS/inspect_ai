@@ -377,6 +377,9 @@ def _resolve_recovery_metrics(
 
     With `untrusted_metrics="warn"` a failure is only warned about and the log
     is recovered anyway, so its message carries no advice for a manual rerun.
+    Resolution stops at the first failure: if a registered metric or reducer
+    fails to build before a missing name or a forbidden option is reached, the
+    log is recovered without results with a warning rather than refused.
     """
     refuse = not trust_log and untrusted_metrics == "raise"
     header = EvalLog(

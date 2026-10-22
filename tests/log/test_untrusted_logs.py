@@ -800,6 +800,53 @@ def test_failed_recovery_with_missing_nested_reducer_writes_nothing(
     assert recovered.status == "success"
 
 
+@metric
+def failing_factory_metric() -> Metric:
+    raise ValueError("metric factory failure")
+
+
+@pytest.mark.parametrize(
+    "later",
+    [
+        EvalMetricDefinition(name="somepkg/nope"),
+        FORBIDDEN_OPTIONS["model"][0],
+    ],
+    ids=["missing_metric", "forbidden_option"],
+)
+def test_policy_recovery_warns_when_a_factory_fails_before_a_refusal(
+    later: EvalMetricDefinition,
+    crashed: Any,
+    untrusted_models: list[str],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Chosen policy: the first failure decides (decision: Ransom, 2026-10-22).
+
+    Task-level metrics resolve before scorer metrics. A task metric whose
+    registered factory raises stops resolution before the scorer metric that
+    would refuse recovery, so recovery warns and writes the log without
+    results, as for a factory failure alone. Nothing forbidden is built and
+    no file is imported; the samples and scores are kept for a later recompute.
+    """
+    path = crashed(
+        _log(
+            eval_metrics=[EvalMetricDefinition(name="failing_factory_metric")],
+            scorer_metrics=[later],
+        )
+    )
+
+    with caplog.at_level(logging.WARNING, logger="inspect_ai"):
+        recovered = recover_eval_log(path.as_posix())
+
+    assert recovered.location is not None and Path(recovered.location).exists()
+    assert recovered.results is None
+    assert any(
+        "Unable to recompute metrics" in r.message
+        and "metric factory failure" in r.message
+        for r in caplog.records
+    )
+    assert untrusted_models == []
+
+
 def test_recovery_warns_when_a_metric_fails_on_the_scores(
     crashed: Any, caplog: pytest.LogCaptureFixture
 ) -> None:
