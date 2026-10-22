@@ -32,7 +32,9 @@ serializes as `**********`, and a field with `exclude=True` or a private
 attribute is left out. Omitted parameters and curried handoff values are not
 in B, so they are not compared. A comparison that raises is a parsing error.
 
-1. Parse the tool call, as without oversight.
+1. Parse the tool call, as without oversight. For a tool that declares
+   canonical arguments (the memory tool resolves `..` in paths), A is the
+   canonical form, with or without oversight.
 2. Validate A against the tool's schema. A failure is a parsing error to the
    model.
 3. Convert A to the tool's parameter types (`tool_params()`). A conversion
@@ -56,9 +58,10 @@ in B, so they are not compared. A comparison that raises is a parsing error.
    call is a parsing error and is not shown.
 6. Approvers and sentinel monitors see B, rendered by the tool's viewer. An
    approval makes C = B, if the call is unchanged (see below). A modify makes
-   C the selected JSON, validated against the schema. Each ApprovalEvent
-   records copies of the call and view as presented to its approver and of
-   the modified call, so later edits do not reach it.
+   C the selected JSON in canonical form (as in step 1), validated against
+   the schema. Each ApprovalEvent records copies of the call and view as
+   presented to its approver and of the modified call, so later edits do not
+   reach it.
 7. For a modify, apply the rebuild check to C. A failure is an approval
    error, reported to the model and recorded with the tool event, saying a
    modify must give the full call as shown. An approval needs no second

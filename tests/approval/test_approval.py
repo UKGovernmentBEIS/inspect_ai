@@ -1939,3 +1939,36 @@ def test_human_approver_rejects_modify_as_the_only_choice() -> None:
 
 if __name__ == "__main__":
     test_approve_escalate()
+
+
+async def test_raising_viewer_rejects_call() -> None:
+    from inspect_ai.log._transcript import Transcript, init_transcript, transcript
+    from inspect_ai.model._call_tools import execute_tools
+    from inspect_ai.model._chat_message import ChatMessageAssistant
+    from inspect_ai.tool._tool_def import ToolDef
+
+    def raising_viewer(call: ToolCall) -> ToolCallView:
+        raise KeyError("missing")
+
+    init_transcript(Transcript())
+    calls: list[ToolCall] = []
+    call = ToolCall(id="1", function="addition", arguments={"x": 1, "y": 1})
+    messages, _ = await execute_tools(
+        [ChatMessageAssistant(content=[], tool_calls=[call])],
+        [ToolDef(addition(), viewer=raising_viewer)],
+        approval=[ApprovalPolicy(recording_approver(calls), "*")],
+    )
+
+    # the approver was not asked to decide on a fallback rendering
+    assert calls == []
+    message = messages[-1]
+    assert isinstance(message, ChatMessageTool)
+    assert message.error is not None
+    assert message.error.type == "approval"
+    assert "viewer for tool 'addition' failed" in message.error.message
+
+    # the rejection is in the log
+    approvals = [e for e in transcript().events if isinstance(e, ApprovalEvent)]
+    assert len(approvals) == 1
+    assert approvals[0].decision == "reject"
+    assert approvals[0].view is None

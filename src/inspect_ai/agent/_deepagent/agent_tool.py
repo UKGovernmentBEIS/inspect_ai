@@ -10,12 +10,14 @@ from typing import TYPE_CHECKING, AsyncIterator, Callable, Iterator, Literal, Se
 if TYPE_CHECKING:
     from inspect_ai.approval._policy import ApprovalPolicy
     from inspect_ai.tool._tools._skill import Skill
+    from inspect_ai.util._background import BackgroundTarget
 
 
 import anyio
 from anyio.abc import TaskGroup
 from shortuuid import uuid as shortuuid
 
+from inspect_ai._util._async import unwrap_exception_group
 from inspect_ai.agent._agent import Agent, AgentState
 from inspect_ai.agent._react import react
 from inspect_ai.agent._run import run
@@ -123,9 +125,14 @@ class BackgroundRegistry:
     displays."""
 
     _task_group: TaskGroup | None = field(default=None, init=False, repr=False)
+    _target: BackgroundTarget | None = field(default=None, init=False, repr=False)
 
     def next_id(self) -> str:
-        """Allocate the next AGENT-N handle. Counter never reuses."""
+        """Allocate the next AGENT-N handle.
+
+        The counter never reuses an id, except one whose child failed to
+        start (``_dispatch_background()`` gives it back).
+        """
         self.counter += 1
         return f"AGENT-{self.counter}"
 
@@ -148,15 +155,26 @@ class BackgroundRegistry:
         so a deepagent that starts in a scorer owns a task group instead. Its
         children are cancelled when the deepagent exits, and the exit waits
         for them to finish.
+
+        While ``background_target`` is set, this also does nothing: children
+        start in that target via ``background()``, and it owns them. The
+        target is fixed for the deepagent's lifetime: the registry records
+        the one set on entry, and ``_dispatch_background()`` refuses a
+        dispatch made under a different one.
         """
-        if _live_sample_task_group() is not None:
+        from inspect_ai.util._background import background_target
+
+        self._target = background_target.get()
+        if self._target is not None or _live_sample_task_group() is not None:
             yield
             return
 
-        unwrapped: Exception | None = None
         cancelled: BaseException | None = None
         try:
-            async with anyio.create_task_group() as task_group:
+            async with (
+                unwrap_exception_group(),
+                anyio.create_task_group() as task_group,
+            ):
                 self._task_group = task_group
                 try:
                     yield
@@ -167,16 +185,8 @@ class BackgroundRegistry:
                     raise
                 finally:
                     task_group.cancel_scope.cancel()
-        except ExceptionGroup as ex:
-            # The task group wraps whatever ends it. Undo that wrapper when
-            # it holds one exception, so the caller sees what was raised.
-            if len(ex.exceptions) != 1:
-                raise
-            unwrapped = ex.exceptions[0]
         finally:
             self._task_group = None
-        if unwrapped is not None:
-            raise unwrapped
         if cancelled is not None:
             raise cancelled
 
@@ -639,21 +649,30 @@ def _dispatch_background(
     """Spawn the child agent in the background and return the AGENT-N handle.
 
     Validates the cap, registers an ``AgentFuture``, and kicks the child
-    off via ``background()`` (sample-scoped lifetime), or in the registry's
-    own task group when it has one (see ``owned_task_group()``).
+    off via ``background()`` (sample-scoped lifetime, or the
+    ``background_target``'s when one is set), or in the registry's own task
+    group when it has one (see ``owned_task_group()``). A dispatch under a
+    different ``background_target`` from the one the deepagent started with
+    is refused. If starting the child raises, the future and its id are
+    given back and the error propagates.
 
     All registration is synchronous (no awaits) so the cap check and
     insert form an atomic critical section under cooperative scheduling —
     two parallel ``agent(background=True)`` calls cannot both succeed past
     the cap.
     """
-    from inspect_ai.util._background import background
+    from inspect_ai.util._background import background, background_target
 
     registry = current_background_registry()
     if registry is None:
         raise ToolError(
             "Background dispatch is not available in this context. "
             "(No deepagent background registry on the current ContextVar.)"
+        )
+    if background_target.get() is not registry._target:
+        raise ToolError(
+            "Background dispatch is not available in this context. "
+            "(The background target changed after the deepagent started.)"
         )
 
     # Cap check + registration is a single synchronous critical section:
@@ -678,10 +697,18 @@ def _dispatch_background(
     registry.futures[agent_id] = future
 
     args = (future, child_agent, sa, dispatch_input, span_id, forked, from_message)
-    if registry._task_group is not None:
-        registry._task_group.start_soon(_run_background, *args)
-    else:
-        background(_run_background, *args)
+    try:
+        if registry._task_group is not None:
+            registry._task_group.start_soon(_run_background, *args)
+        else:
+            background(_run_background, *args)
+    except BaseException:
+        # The child never started, so it must not hold a slot, a "running"
+        # future that nothing will finish, or an id. Nothing above awaits, so
+        # no sibling dispatch has taken a later id.
+        del registry.futures[agent_id]
+        registry.counter -= 1
+        raise
 
     return f"Dispatched {agent_id}."
 
