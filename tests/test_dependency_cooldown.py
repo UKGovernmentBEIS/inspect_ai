@@ -1,11 +1,13 @@
 """Tests for the dependency cooldown in pyproject.toml and the CI jobs around it.
 
 pyproject.toml holds back releases younger than seven days except for an
-exempt list of packages, Dependabot applies the same cooldown and exemptions
+exempt list of packages that must include every model provider's own package,
+Dependabot applies the same cooldown and exemptions
 to its uv.lock bumps, and the canary jobs in build.yml opt out of the cooldown
 so they keep installing the newest releases.
 """
 
+import ast
 import pathlib
 import re
 import tomllib
@@ -18,6 +20,11 @@ REPO = pathlib.Path(__file__).parents[1]
 BUILD = REPO / ".github" / "workflows" / "build.yml"
 CANARY_JOBS = ["docs", "sandbox-tools-unit", "slow-tool-tests-dev"]
 LOCKED_JOBS = ["mypy", "test"]
+PROVIDERS = REPO / "src" / "inspect_ai" / "model" / "_providers"
+DEPENDENCY_CHECKS = {"pip_dependency_error", "verify_required_version"}
+# Packages providers need that aren't the provider's own SDK or integration
+# package. These stay under the cooldown.
+PROVIDER_INFRASTRUCTURE = {"accelerate", "torch"}
 
 
 def uv_config() -> dict[str, Any]:
@@ -45,6 +52,50 @@ def run_lines(job: dict[str, Any]) -> list[str]:
         for line in step.get("run", "").splitlines()
         if line.strip()
     ]
+
+
+def provider_packages() -> set[str]:
+    packages: set[str] = set()
+    for path in PROVIDERS.rglob("*.py"):
+        for func in ast.walk(ast.parse(path.read_text())):
+            if not isinstance(func, ast.FunctionDef | ast.AsyncFunctionDef):
+                continue
+            constants = {
+                target.id: node.value.value
+                for node in ast.walk(func)
+                if isinstance(node, ast.Assign)
+                and isinstance(node.value, ast.Constant)
+                and isinstance(node.value.value, str)
+                for target in node.targets
+                if isinstance(target, ast.Name)
+            }
+            for call in ast.walk(func):
+                if not (
+                    isinstance(call, ast.Call)
+                    and isinstance(call.func, ast.Name)
+                    and call.func.id in DEPENDENCY_CHECKS
+                ):
+                    continue
+                arg = call.args[1]
+                names = arg.elts if isinstance(arg, ast.List) else [arg]
+                for name in names:
+                    if isinstance(name, ast.Constant) and isinstance(name.value, str):
+                        packages.add(name.value)
+                    else:
+                        assert isinstance(name, ast.Name) and name.id in constants, (
+                            f"{path}:{call.lineno}: can't resolve the package name"
+                        )
+                        packages.add(constants[name.id])
+    return {re.sub(r"[-_.]+", "-", package).lower() for package in packages}
+
+
+def test_provider_packages_are_exempt() -> None:
+    packages = provider_packages()
+    assert {"openai", "transformers", "vllm"} <= packages
+    missing = (
+        packages - PROVIDER_INFRASTRUCTURE - set(uv_config()["exclude-newer-package"])
+    )
+    assert not missing, f"add to exclude-newer-package and Dependabot: {missing}"
 
 
 def test_dependabot_cooldown_matches_pyproject() -> None:

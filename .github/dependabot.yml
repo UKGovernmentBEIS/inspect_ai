@@ -36,8 +36,13 @@ updates:
         - "inspect-scout"
         - "inspect-sentinel"
         - "mistralai"
+        - "nnterp"
         - "openai"
+        - "sglang"
         - "together"
+        - "transformer-lens"
+        - "transformers"
+        - "vllm"
         - "xai-sdk"
     groups:
       python-packages:

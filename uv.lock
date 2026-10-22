@@ -36,8 +36,13 @@ huggingface-hub = false
 inspect-scout = false
 inspect-sentinel = false
 mistralai = false
+nnterp = false
 openai = false
+sglang = false
 together = false
+transformer-lens = false
+transformers = false
+vllm = false
 xai-sdk = false
 
 [[package]]

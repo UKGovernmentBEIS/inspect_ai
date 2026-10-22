@@ -203,7 +203,8 @@ default-groups = ["dev"]
 exclude-newer = "7 days"
 
 # Exempt from the cooldown, so a new release can be adopted the day it ships:
-# the model provider SDKs (and the AWS SDKs Bedrock and SageMaker use) and
+# each model provider's own SDK or integration package (and the AWS SDKs
+# Bedrock and SageMaker use), but not infrastructure such as torch, and
 # Inspect's own packages, which are released together with inspect_ai.
 [tool.uv.exclude-newer-package]
 aiobotocore = false
@@ -218,6 +219,11 @@ huggingface-hub = false
 inspect-scout = false
 inspect-sentinel = false
 mistralai = false
+nnterp = false
 openai = false
+sglang = false
 together = false
+transformer-lens = false
+transformers = false
+vllm = false
 xai-sdk = false
