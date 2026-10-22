@@ -837,9 +837,13 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
                 # If local, use AnyIO's async/chunking file reading support
                 return _AnyIOFileByteReceiveStream(local_path(filename), start, end)
             if _is_async_remote(fs):
-                # a file object returns b"" here; some `_cat_file`s send an
-                # unsatisfiable range request instead
+                # as the file object's `seek` does; `_cat_file` would read a suffix
+                if start < 0:
+                    raise ValueError(f"Negative start offset: {start}")
+                # the file object looks the file up and returns b"" here; some
+                # `_cat_file`s send an unsatisfiable range request instead
                 if end is not None and end <= start:
+                    await _run_on_fsspec_loop(fs.fs, fs.fs._info(filename))
                     return _BytesByteReceiveStream(b"")
                 return _BytesByteReceiveStream(
                     await _run_on_fsspec_loop(
@@ -1531,13 +1535,13 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
                         terminal = name.rstrip("/").rsplit("/", 1)[-1]
                         if fnmatchcase(terminal, pattern):
                             yield name.rstrip("/") + "/"
+            elif on_loop:
+                async for dirpath, dirnames in _walk_dirs(fs, base):
+                    for dirname in dirnames:
+                        if fnmatchcase(dirname, pattern):
+                            yield f"{dirpath.rstrip('/')}/{dirname}/"
             else:
-                walk = (
-                    await _run_on_fsspec_loop(fs, _collect_walk(fs, base))
-                    if on_loop
-                    else fs.walk(base)
-                )
-                for dirpath, dirnames, _ in walk:
+                for dirpath, dirnames, _ in fs.walk(base):
                     for dirname in dirnames:
                         if fnmatchcase(dirname, pattern):
                             yield f"{dirpath.rstrip('/')}/{dirname}/"
@@ -2221,14 +2225,19 @@ async def _run_on_fsspec_loop(fs: Any, coro: Coroutine[Any, Any, _T]) -> _T:
     is awaited directly, with no mapping, as its own callers would.
     """
     backend = current_async_backend()
-    if fs.asynchronous or (
-        backend == "asyncio" and fs.loop is asyncio.get_running_loop()
-    ):
+    if fs.asynchronous:
         return await coro
     # as `run_coroutine_threadsafe` does: `start` can't report a failure
     if not asyncio.iscoroutine(coro):
         raise TypeError(f"A coroutine object is required, not {type(coro)!r}")
-    loop = fs.loop
+    try:
+        # raises in a forked child, as `sync()` does
+        loop = fs.loop
+    except BaseException:
+        coro.close()
+        raise
+    if backend == "asyncio" and loop is asyncio.get_running_loop():
+        return await coro
     if loop is None or loop.is_closed():
         coro.close()
         raise RuntimeError("Loop is not running")
@@ -2261,8 +2270,13 @@ async def _run_on_fsspec_loop(fs: Any, coro: Coroutine[Any, Any, _T]) -> _T:
     except BaseException:
         # callbacks run in order, so `start` has run before this one
         loop.call_soon_threadsafe(lambda: tasks[0].cancel())
-        with anyio.CancelScope(shield=True):
-            await done.wait()
+        while not done.is_set():
+            try:
+                with anyio.CancelScope(shield=True):
+                    await done.wait()
+            except anyio.get_cancelled_exc_class():
+                # a repeated native asyncio cancel reaches through the shield
+                continue
         raise
     try:
         return tasks[0].result()
@@ -2270,9 +2284,27 @@ async def _run_on_fsspec_loop(fs: Any, coro: Coroutine[Any, Any, _T]) -> _T:
         raise FSTimeoutError from ex
 
 
-async def _collect_walk(fs: Any, base: str) -> list[tuple[str, list[str], list[str]]]:
-    """``fs.walk(base)`` as a coroutine, for :func:`_run_on_fsspec_loop`."""
-    return [entry async for entry in fs._walk(base)]
+async def _walk_dirs(fs: Any, path: str) -> AsyncIterator[tuple[str, list[str]]]:
+    """``(dirpath, dirnames)`` for each directory, as ``fs.walk(path)`` yields them.
+
+    Lists one directory at a time on fsspec's loop through ``_ls``, top-down
+    and omitting directories that fail to list, as ``walk`` does. Not
+    ``_walk``: adlfs defines that as an unrelated synchronous helper.
+    """
+    path = fs._strip_protocol(path)
+    try:
+        listing = await _run_on_fsspec_loop(fs, fs._ls(path, detail=True))
+    except (FileNotFoundError, OSError):
+        return
+    dirs: dict[str, str] = {}
+    for info in listing:
+        pathname = info["name"].rstrip("/")
+        if info["type"] == "directory" and pathname != path:
+            dirs[pathname.rsplit("/", 1)[-1]] = pathname
+    yield path, list(dirs)
+    for pathname in dirs.values():
+        async for entry in _walk_dirs(fs, pathname):
+            yield entry
 
 
 def with_async_fs(

@@ -1,5 +1,6 @@
 import asyncio
 import functools
+import inspect
 import io
 import os
 import tempfile
@@ -8,7 +9,7 @@ import time
 import tracemalloc
 import uuid
 from pathlib import Path
-from typing import Any, Awaitable, Callable, Iterator, cast
+from typing import Any, AsyncGenerator, Awaitable, Callable, Iterator, cast
 from unittest.mock import AsyncMock, Mock
 
 import aiohttp
@@ -3383,10 +3384,12 @@ _PAYLOAD = bytes(range(256)) * 4
 
 
 class _GatedFS(fsspec.asyn.AsyncFileSystem):
-    """An async fsspec filesystem whose calls finish only once `release` is set.
+    """An async fsspec filesystem whose calls finish only once released.
 
-    Tests set `release` from a task on the caller's event loop, so a call that
-    blocks that loop never finishes: it times out instead.
+    A task on the caller's event loop releases each call (`released`) or all of
+    them (`release`), so a call that blocks that loop never finishes: it times
+    out instead. Like adlfs, it defines `_walk` as an unrelated synchronous
+    helper and implements `_find` itself.
     """
 
     protocol = "gatedtest"
@@ -3395,20 +3398,49 @@ class _GatedFS(fsspec.asyn.AsyncFileSystem):
         super().__init__(**kwargs)
         self.files = {"bucket/dir/a.bin": _PAYLOAD, "bucket/dir/sub/b.bin": b"b"}
         self.release = threading.Event()
+        self.released = 0
         self.entries = 0
         self.cat_calls = 0
+        self.ls_calls = 0
         self.cleaned = False
         self.threads: list[int] = []
         self.cat_returned = threading.Event()
+        self.cleanup_started = threading.Event()
+        self.cleanup_release = threading.Event()
+        self.cleanup_release.set()
 
     async def _gate(self) -> None:
         self.entries += 1
+        entry = self.entries
         self.threads.append(threading.get_ident())
+        await self._wait_for(
+            lambda: self.release.is_set() or self.released >= entry,
+            "caller's event loop never released the gate",
+        )
+
+    async def _wait_for(
+        self, condition: Callable[[], bool], timeout_message: str
+    ) -> None:
         deadline = time.monotonic() + _GATE_TIMEOUT
-        while not self.release.is_set():
+        while not condition():
             if time.monotonic() > deadline:
-                raise TimeoutError("caller's event loop never released the gate")
-            await asyncio.sleep(0.005)
+                raise TimeoutError(timeout_message)
+            await asyncio.sleep(0.001)
+
+    def _walk(self, path: str, dirs: Any, files: Any) -> None:
+        raise AssertionError("adlfs's `_walk` is not fsspec's async walk")
+
+    async def _find(
+        self, path: str, withdirs: bool = False, detail: bool = False, **kwargs: Any
+    ) -> Any:
+        path = self._strip_protocol(path)
+        await self._gate()
+        found = {
+            key: {"name": key, "size": len(data), "type": "file"}
+            for key, data in sorted(self.files.items())
+            if key.startswith(f"{path}/")
+        }
+        return found if detail else list(found)
 
     async def _info(self, path: str, **kwargs: Any) -> dict[str, Any]:
         path = self._strip_protocol(path)
@@ -3420,6 +3452,7 @@ class _GatedFS(fsspec.asyn.AsyncFileSystem):
         raise FileNotFoundError(path)
 
     async def _ls(self, path: str, detail: bool = True, **kwargs: Any) -> list[Any]:
+        self.ls_calls += 1
         path = self._strip_protocol(path)
         await self._gate()
         entries: dict[str, dict[str, Any]] = {}
@@ -3462,6 +3495,9 @@ class _GatedFS(fsspec.asyn.AsyncFileSystem):
             await self._gate()
             os.replace(partial, lpath)
         except BaseException:
+            # cleanup that itself awaits, like a backend closing its response
+            self.cleanup_started.set()
+            await self._wait_for(self.cleanup_release.is_set, "cleanup never released")
             os.remove(partial)
             self.cleaned = True
             raise
@@ -3496,6 +3532,13 @@ async def _release_when_entered(fs: _GatedFS, entries: int = 1) -> None:
     while fs.entries < entries:
         await anyio.sleep(0.001)
     fs.release.set()
+
+
+async def _keep_releasing(fs: _GatedFS) -> None:
+    """Release each gated call once the caller's loop has run since it started."""
+    while True:
+        fs.released = fs.entries
+        await anyio.sleep(0.001)
 
 
 async def _cancel_when_entered(fs: _GatedFS, scope: anyio.CancelScope) -> None:
@@ -3621,9 +3664,48 @@ async def test_async_fsspec_reads_do_not_block_the_loop(
 ) -> None:
     async with AsyncFilesystem() as afs:
         async with anyio.create_task_group() as tg:
-            tg.start_soon(_release_when_entered, gated_fs)
+            tg.start_soon(_keep_releasing, gated_fs)
             result = await call(afs, tmp_path)
+            tg.cancel_scope.cancel()
     assert result == expected
+
+
+async def test_async_fsspec_recursive_iter_dirs_yields_as_it_lists(
+    gated_fs: _GatedFS,
+) -> None:
+    gated_fs.release.set()
+    async with AsyncFilesystem() as afs:
+        dirs = cast(
+            AsyncGenerator[str, None],
+            afs.iter_dirs("gatedtest://bucket/dir", recursive=True),
+        )
+        assert await anext(dirs) == "bucket/dir/sub/"
+        assert gated_fs.ls_calls == 1
+        await dirs.aclose()
+
+
+@skip_if_trio
+@pytest.mark.timeout(30, method="thread")
+async def test_repeated_native_cancel_still_waits_for_cleanup(
+    gated_fs: _GatedFS, tmp_path: Path
+) -> None:
+    gated_fs.cleanup_release.clear()
+    async with AsyncFilesystem() as afs:
+        task = asyncio.create_task(afs.get_file(_GATED_URL, str(tmp_path / "out.bin")))
+        while gated_fs.entries < 1:
+            await anyio.sleep(0.001)
+        task.cancel()
+        while not gated_fs.cleanup_started.is_set():
+            await anyio.sleep(0.001)
+        # a native cancel reaches through anyio's shield
+        task.cancel()
+        for _ in range(10):
+            await asyncio.sleep(0)
+        assert not task.done()
+        gated_fs.cleanup_release.set()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+    assert gated_fs.cleaned
 
 
 async def test_async_fsspec_reads_overlap(gated_fs: _GatedFS) -> None:
@@ -3702,13 +3784,33 @@ async def test_async_fsspec_empty_range_makes_no_request(gated_fs: _GatedFS) -> 
     gated_fs.release.set()
     async with AsyncFilesystem() as afs:
         assert await afs.read_file_bytes_fully(_GATED_URL, 10, 10) == b""
+        with pytest.raises(FileNotFoundError):
+            await afs.read_file_bytes_fully("gatedtest://bucket/missing.bin", 0, 0)
     assert gated_fs.cat_calls == 0
+
+
+async def test_async_fsspec_read_rejects_negative_start(gated_fs: _GatedFS) -> None:
+    gated_fs.release.set()
+    async with AsyncFilesystem() as afs:
+        with pytest.raises(ValueError):
+            await afs.read_file_bytes_fully(_GATED_URL, -1, None)
 
 
 @pytest.mark.timeout(30, method="thread")
 async def test_run_on_fsspec_loop_rejects_a_non_coroutine(gated_fs: _GatedFS) -> None:
     with pytest.raises(TypeError):
         await asyncfiles._run_on_fsspec_loop(gated_fs, cast(Any, object()))
+
+
+async def test_run_on_fsspec_loop_closes_coroutine_it_cannot_submit(
+    gated_fs: _GatedFS, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # fsspec's fork guard: `loop` raises in a process other than the creator
+    monkeypatch.setattr(gated_fs, "_pid", -1)
+    coro = gated_fs._cat_file("bucket/dir/a.bin")
+    with pytest.raises(RuntimeError):
+        await asyncfiles._run_on_fsspec_loop(gated_fs, coro)
+    assert inspect.getcoroutinestate(coro) == inspect.CORO_CLOSED
 
 
 @skip_if_trio
