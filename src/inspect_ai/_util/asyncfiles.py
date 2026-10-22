@@ -686,7 +686,11 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
                     s3_info, self.s3_client(), bucket, key, filename
                 )
         else:
-            return filesystem(filename).info(filename)
+            fsw = filesystem(filename)
+            if _is_async_remote(fsw):
+                info = await _run_on_fsspec_loop(fsw.fs, fsw.fs._info(filename))
+                return fsw._file_info(info)
+            return fsw.info(filename)
 
     async def exists(self, filename: str) -> bool:
         """Return True if `filename` exists, False otherwise."""
@@ -711,7 +715,11 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
                 s3_exists, self.s3_client(), bucket, key
             )
         else:
-            return filesystem(filename).exists(filename)
+            fsw = filesystem(filename)
+            if _is_async_remote(fsw):
+                exists = await _run_on_fsspec_loop(fsw.fs, fsw.fs._exists(filename))
+                return exists is True
+            return fsw.exists(filename)
 
     async def read_file(self, filename: str) -> bytes:
         """Read a file's full contents.
@@ -1395,21 +1403,35 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
         else:
             fsw = filesystem(base)
             fs = fsw.fs
+            on_loop = _is_async_remote(fsw)
             if recursive:
                 if detail:
-                    found = fs.find(base, detail=True)
+                    found = (
+                        await _run_on_fsspec_loop(fs, fs._find(base, detail=True))
+                        if on_loop
+                        else fs.find(base, detail=True)
+                    )
                     for path, info in found.items():
                         if fnmatchcase(path.rsplit("/", 1)[-1], pattern):
                             yield fsw._file_info(info)
                 else:
-                    paths = fs.find(base)
+                    paths = (
+                        await _run_on_fsspec_loop(fs, fs._find(base))
+                        if on_loop
+                        else fs.find(base)
+                    )
                     if isinstance(paths, dict):
                         paths = list(paths.keys())
                     for path in paths:
                         if fnmatchcase(path.rsplit("/", 1)[-1], pattern):
                             yield path
             else:
-                for entry in fs.ls(base, detail=True):
+                entries = (
+                    await _run_on_fsspec_loop(fs, fs._ls(base, detail=True))
+                    if on_loop
+                    else fs.ls(base, detail=True)
+                )
+                for entry in entries:
                     if entry["type"] == "file":
                         name = entry["name"]
                         if fnmatchcase(name.rsplit("/", 1)[-1], pattern):
@@ -1468,16 +1490,28 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
                 for r in results:
                     yield r
         else:
-            fs = filesystem(base).fs
+            fsw = filesystem(base)
+            fs = fsw.fs
+            on_loop = _is_async_remote(fsw)
             if not recursive:
-                for entry in fs.ls(base, detail=True):
+                entries = (
+                    await _run_on_fsspec_loop(fs, fs._ls(base, detail=True))
+                    if on_loop
+                    else fs.ls(base, detail=True)
+                )
+                for entry in entries:
                     if entry["type"] == "directory":
                         name = entry["name"]
                         terminal = name.rstrip("/").rsplit("/", 1)[-1]
                         if fnmatchcase(terminal, pattern):
                             yield name.rstrip("/") + "/"
             else:
-                for dirpath, dirnames, _ in fs.walk(base):
+                walk = (
+                    await _run_on_fsspec_loop(fs, _collect_walk(fs, base))
+                    if on_loop
+                    else fs.walk(base)
+                )
+                for dirpath, dirnames, _ in walk:
                     for dirname in dirnames:
                         if fnmatchcase(dirname, pattern):
                             yield f"{dirpath.rstrip('/')}/{dirname}/"
@@ -1536,7 +1570,12 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
             )
         files = []
         dirs = []
-        for entry in fsw.fs.ls(base, detail=True):
+        entries = (
+            await _run_on_fsspec_loop(fsw.fs, fsw.fs._ls(base, detail=True))
+            if _is_async_remote(fsw)
+            else fsw.fs.ls(base, detail=True)
+        )
+        for entry in entries:
             name = entry["name"].rstrip("/").rsplit("/", 1)[-1]
             if entry["type"] == "directory":
                 dirs.append(f"{prefix_path}/{name}")
@@ -2196,6 +2235,11 @@ async def _run_on_fsspec_loop(fs: Any, coro: Coroutine[Any, Any, _T]) -> _T:
         return tasks[0].result()
     except TimeoutError as ex:
         raise FSTimeoutError from ex
+
+
+async def _collect_walk(fs: Any, base: str) -> list[tuple[str, list[str], list[str]]]:
+    """``fs.walk(base)`` as a coroutine, for :func:`_run_on_fsspec_loop`."""
+    return [entry async for entry in fs._walk(base)]
 
 
 def with_async_fs(

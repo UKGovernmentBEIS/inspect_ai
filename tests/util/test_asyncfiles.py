@@ -3506,11 +3506,75 @@ async def _get_file_and_read(afs: AsyncFilesystem, tmp: Path) -> bytes:
     return local.read_bytes()
 
 
+def _basename(path: str) -> str:
+    return path.rstrip("/").rsplit("/", 1)[-1]
+
+
+async def _info_fields(afs: AsyncFilesystem, tmp: Path) -> tuple[str, int, str]:
+    info = await afs.info(_GATED_URL)
+    return info.name, info.size, info.type
+
+
+async def _iter_file_names(afs: AsyncFilesystem, recursive: bool) -> set[str]:
+    base = "gatedtest://bucket/dir"
+    return {_basename(f) async for f in afs.iter_files(base, recursive=recursive)}
+
+
+async def _iter_file_info_names(afs: AsyncFilesystem, tmp: Path) -> set[str]:
+    files = afs.iter_files("gatedtest://bucket/dir", recursive=True, detail=True)
+    return {_basename(f.name) async for f in files}
+
+
+async def _iter_dir_names(afs: AsyncFilesystem, recursive: bool) -> set[str]:
+    base = "gatedtest://bucket/dir"
+    return {_basename(d) async for d in afs.iter_dirs(base, recursive=recursive)}
+
+
+async def _list_dir_names(afs: AsyncFilesystem, tmp: Path) -> tuple[set[str], set[str]]:
+    listing = await afs.list_dir("gatedtest://bucket/dir")
+    return {_basename(f.name) for f in listing.files}, {
+        _basename(d) for d in listing.dirs
+    }
+
+
 _NonBlockingCall = Callable[[AsyncFilesystem, Path], Awaitable[Any]]
 
 _NON_BLOCKING_CASES = [
     pytest.param(lambda afs, tmp: afs.read_file(_GATED_URL), _PAYLOAD, id="read_file"),
     pytest.param(_get_file_and_read, _PAYLOAD, id="get_file"),
+    pytest.param(
+        _info_fields, ("gatedtest://bucket/dir/a.bin", 1024, "file"), id="info"
+    ),
+    pytest.param(lambda afs, tmp: afs.exists(_GATED_URL), True, id="exists"),
+    pytest.param(
+        lambda afs, tmp: afs.exists("gatedtest://bucket/missing.bin"),
+        False,
+        id="exists_missing",
+    ),
+    pytest.param(
+        lambda afs, tmp: _iter_file_names(afs, recursive=False),
+        {"a.bin"},
+        id="iter_files",
+    ),
+    pytest.param(
+        lambda afs, tmp: _iter_file_names(afs, recursive=True),
+        {"a.bin", "b.bin"},
+        id="iter_files_recursive",
+    ),
+    pytest.param(
+        _iter_file_info_names, {"a.bin", "b.bin"}, id="iter_files_recursive_detail"
+    ),
+    pytest.param(
+        lambda afs, tmp: _iter_dir_names(afs, recursive=False),
+        {"sub"},
+        id="iter_dirs",
+    ),
+    pytest.param(
+        lambda afs, tmp: _iter_dir_names(afs, recursive=True),
+        {"sub"},
+        id="iter_dirs_recursive",
+    ),
+    pytest.param(_list_dir_names, ({"a.bin"}, {"sub"}), id="list_dir"),
 ]
 
 
@@ -3581,6 +3645,8 @@ async def test_async_fsspec_errors_pass_through(
             await afs.read_file("gatedtest://bucket/missing.bin")
         with pytest.raises(FileNotFoundError):
             await afs.get_file("gatedtest://bucket/missing.bin", str(tmp_path / "x"))
+        with pytest.raises(FileNotFoundError):
+            await afs.info("gatedtest://bucket/missing.bin")
         with pytest.raises(fsspec.FSTimeoutError):
             await afs.read_file("gatedtest://bucket/timeout.bin")
 
