@@ -1721,39 +1721,72 @@ class Unprintable:
     """A developer object that fails if it is formatted or compared."""
 
     def __str__(self) -> str:
-        raise AssertionError("a curried value was formatted")
+        raise AssertionError("a developer value was formatted")
 
     __repr__ = __str__
 
     def __eq__(self, other: object) -> bool:
-        raise AssertionError("a curried value was compared")
+        raise AssertionError("a developer value was compared")
 
     __hash__ = object.__hash__
 
 
-@pytest.mark.parametrize("oversight", [True, False], ids=["approval", "no-approval"])
-async def test_curried_handoff_arguments_are_not_traced(oversight: bool) -> None:
+_HIDDEN_DEFAULT = Unprintable()
+
+
+@agent
+def hidden_default_agent(received: list[dict[str, Any]]) -> Agent:
+    async def execute(
+        state: AgentState, amount: float, note: Any = "", hidden: Any = _HIDDEN_DEFAULT
+    ) -> AgentState:
+        """Record an amount.
+
+        Args:
+            state: Agent state.
+            amount: An amount.
+            note: A note.
+            hidden: A default the model does not set.
+        """
+        received.append({"amount": amount, "note": note, "hidden": hidden})
+        return state
+
+    return execute
+
+
+@pytest.mark.parametrize(
+    "policy",
+    [None, "approve", "modify"],
+    ids=["no-approval", "approval", "modify"],
+)
+async def test_curried_handoff_arguments_are_not_traced(policy: str | None) -> None:
     """Only the model's handoff arguments are formatted or compared."""
     from inspect_ai.agent import handoff
 
     received: list[dict[str, Any]] = []
     note = Unprintable()
     call = ToolCall(
-        id="1", function="transfer_to_amount_agent", arguments={"amount": 5}
+        id="1", function="transfer_to_hidden_default_agent", arguments={"amount": 5}
     )
+    policies = {
+        None: None,
+        "approve": [ApprovalPolicy(auto_approver(), "*")],
+        "modify": [ApprovalPolicy(modifying_approver({"amount": 6}), "*")],
+    }[policy]
     messages, _ = await execute_tools(
         [
             ChatMessageUser(content="go"),
             ChatMessageAssistant(content="", tool_calls=[call]),
         ],
-        [handoff(amount_agent(received), note=note)],
-        approval=[ApprovalPolicy(auto_approver(), "*")] if oversight else None,
+        [handoff(hidden_default_agent(received), note=note)],
+        approval=policies,
     )
     (message,) = [m for m in messages if isinstance(m, ChatMessageTool)]
 
     assert message.error is None
     (values,) = received
+    assert values["amount"] == (6 if policy == "modify" else 5)
     assert values["note"] is note
+    assert values["hidden"] is _HIDDEN_DEFAULT
 
 
 def test_modify_arguments_run_and_are_recorded() -> None:

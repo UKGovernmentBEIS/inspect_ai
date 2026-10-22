@@ -112,7 +112,8 @@ in when a Pydantic model is constructed are shown. Dataclass fields keep
 leaves out: the field is converted from a missing value instead (a parsing
 error for an `int`, the text `"None"` for a `str`). Curried handoff arguments
 are Python values from the developer: they are not shown, not converted, and
-reach the agent as given.
+reach the agent as given. Neither curried values nor a handoff's omitted
+defaults are formatted for the tool-call trace.
 
 | Case | Model sends | Approver sees | Outcome |
 |---|---|---|---|
@@ -199,7 +200,8 @@ field inspection is added to detect it.
 With no approval policy and no sentinel, the arguments are validated and
 converted before the tool runs, as before this change, and nothing is
 serialized or rebuilt. The tool gets the converted values, and the ToolEvent
-records the model's arguments. The only differences from earlier releases
+records the model's arguments, before canonicalization (step 1), as on
+`main`. The only differences from earlier releases
 are that validation and conversion happen before the approval step, a
 conversion error is a parsing error to the model, curried handoff arguments
 are not converted, and conversion works on a copy of the arguments, so a

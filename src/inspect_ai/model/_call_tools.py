@@ -813,6 +813,7 @@ async def call_tool(
     if tool_def is None:
         raise await record_tool_parsing_error(f"Tool {call.function} not found")
 
+    model_call = call
     canonical_arguments = tool_canonical_arguments(tool_def.tool)
     if canonical_arguments is not None:
         call = replace(call, arguments=canonical_arguments(call.arguments))
@@ -823,12 +824,14 @@ async def call_tool(
         validated = validated_tool_call(call, tool_def)
     except ToolParsingError as ex:
         raise await record_tool_parsing_error(ex.message)
-    if validated.call is not call:
+    overseen = validated.call is not call
+    if overseen:
         # under oversight the event and the call show the call as approvers see it
         event.view = tool_call_view(deepcopy(validated.call), tools)
         validated.call.view = deepcopy(event.view)
     call, arguments = validated
-    shown = shown_to_callbacks(call)
+    # without oversight the event records the model's arguments, as on main
+    shown = shown_to_callbacks(call if overseen else model_call)
 
     # if we have a tool approver, apply it now
     from inspect_ai.approval._apply import (
@@ -895,11 +898,15 @@ async def call_tool(
             call, arguments = await revalidated_tool_call(modified, tool_def)
             shown_to_callbacks(call)
 
-    # call the tool (curried handoff values are the developer's objects, so
-    # only the model's arguments are traced)
+    # call the tool (curried handoff values and omitted defaults are the
+    # developer's objects, so only the call's own arguments are traced)
     traced = arguments
     if isinstance(tool_def.tool, AgentTool):
-        traced = {k: v for k, v in arguments.items() if k not in tool_def.tool.kwargs}
+        traced = {
+            k: v
+            for k, v in arguments.items()
+            if k in call.arguments and k not in tool_def.tool.kwargs
+        }
     with trace_action(
         logger, "Tool Call", format_function_call(tool_def.name, traced, width=1000)
     ):
