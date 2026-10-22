@@ -74,6 +74,7 @@ from inspect_ai.log._condense import condense_sample
 from inspect_ai.log._log import EvalSample
 from inspect_ai.log._samples import _sample_active
 from inspect_ai.log._transcript import Transcript, _transcript, transcript
+from inspect_ai.model._call_tools import parse_tool_call
 from inspect_ai.model._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
@@ -2570,6 +2571,33 @@ async def test_unmatched_tool_is_rejected_by_the_policy_approver() -> None:
     results = run.tool_results(1)
     assert results[0].error is not None
     assert "No approvers registered for tool bash" in results[0].error.message
+
+
+async def test_parsed_key_collision_raises_instead_of_approving() -> None:
+    """An argument whose keys convert to one key is not matched on the lossy text."""
+    tools = [
+        ToolInfo(
+            name="f",
+            description="f",
+            parameters=ToolParams(properties={"value": ToolParam(type="object")}),
+        )
+    ]
+    call = parse_tool_call(
+        "1", "f", '2024-01-01: blocked\n"2024-01-01": allowed', tools
+    )
+    assert call.parse_error is None
+    with pytest.raises(ValueError, match="two object keys"):
+        await run_bridge(
+            [tool_calls_output(call)],
+            approval=[
+                ApprovalPolicy(
+                    auto_approver(),
+                    "f",
+                    arguments={"value": '{"2024-01-01": "allowed"}'},
+                ),
+                ApprovalPolicy(reject_approver(), "*"),
+            ],
+        )
 
 
 async def test_track_state_is_unaffected_by_the_round_trip() -> None:

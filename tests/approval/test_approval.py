@@ -3,7 +3,7 @@ import logging
 import ntpath
 from pathlib import Path
 from types import SimpleNamespace
-from typing import NamedTuple
+from typing import Literal, NamedTuple
 
 import pytest
 from pydantic_core import PydanticSerializationError
@@ -886,6 +886,32 @@ async def test_policy_arguments_match_json_values_pydantic_rejects() -> None:
     assert await routed(
         make_tool_call("f", value=[call.arguments["value"]]), "f", value="*"
     )
+
+
+@pytest.mark.parametrize(
+    "param_type,arguments",
+    [
+        ("object", '2024-01-01: blocked\n"2024-01-01": allowed'),
+        ("object", 'outer:\n  2024-01-01: blocked\n  "2024-01-01": allowed'),
+        ("array", '- 2024-01-01: blocked\n  "2024-01-01": allowed'),
+        ("object", '!!binary YQ==: blocked\n"a": allowed'),
+    ],
+)
+async def test_policy_arguments_refuse_parsed_key_collisions(
+    param_type: Literal["object", "array"], arguments: str
+) -> None:
+    # the parser's YAML fallback can produce a key that converts to another key
+    tools = [
+        ToolInfo(
+            name="f",
+            description="f",
+            parameters=ToolParams(properties={"value": ToolParam(type=param_type)}),
+        )
+    ]
+    call = parse_tool_call("1", "f", arguments, tools)
+    assert call.parse_error is None
+    with pytest.raises(ValueError, match="two object keys"):
+        await routed(call, "f", value="*allowed*")
 
 
 async def test_policy_legacy_argument_form() -> None:

@@ -159,19 +159,24 @@ def _jsonable(value: Any) -> Any:
     """Convert only the non-JSON parts of `value` with Pydantic.
 
     JSON values are left to `json.dumps`, since Pydantic rejects some it
-    accepts (e.g. a lone surrogate in an object key).
+    accepts (e.g. a lone surrogate in an object key). Raises `ValueError` if
+    a converted object key equals another key, since one entry would be lost.
     """
     if value is None or isinstance(value, str | int | float):
         return value
     if isinstance(value, list | tuple):
         return [_jsonable(item) for item in value]
     if isinstance(value, dict):
-        return {
-            key
-            if key is None or isinstance(key, str | int | float)
-            else to_jsonable_python(key): _jsonable(item)
-            for key, item in value.items()
-        }
+        converted: dict[Any, Any] = {}
+        for key, item in value.items():
+            if not (key is None or isinstance(key, str | int | float)):
+                key = to_jsonable_python(key)
+            if key in converted:
+                raise ValueError(
+                    f"Tool call argument has two object keys that both convert to {key!r}."
+                )
+            converted[key] = _jsonable(item)
+        return converted
     return to_jsonable_python(value)
 
 

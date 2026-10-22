@@ -21,7 +21,7 @@ from inspect_ai.model import (
     ModelOutput,
     get_model,
 )
-from inspect_ai.model._call_tools import execute_tools
+from inspect_ai.model._call_tools import execute_tools, parse_tool_call
 from inspect_ai.review import (
     Review,
     ReviewDecision,
@@ -49,6 +49,8 @@ from inspect_ai.tool._tool import (
 )
 from inspect_ai.tool._tool_call import ToolCall, ToolCallView
 from inspect_ai.tool._tool_def import ToolDef
+from inspect_ai.tool._tool_info import ToolInfo
+from inspect_ai.tool._tool_params import ToolParam, ToolParams
 
 
 @tool
@@ -381,6 +383,18 @@ async def test_review_policy_tools_and_arguments_match_as_for_approval() -> None
 
     # JSON values Pydantic rejects (a lone surrogate in an object key)
     assert await reviewed(call("f", value={"\ud800": "x"}), "f", value="*")
+
+    # parsed keys that convert to another key raise rather than lose an entry
+    tools = [
+        ToolInfo(
+            name="f",
+            description="f",
+            parameters=ToolParams(properties={"value": ToolParam(type="object")}),
+        )
+    ]
+    collision = parse_tool_call("1", "f", '2024-01-01: a\n"2024-01-01": b', tools)
+    with pytest.raises(ValueError, match="two object keys"):
+        await reviewed(collision, "f", value="*")
 
     with pytest.raises(ValueError, match="'arguments'"):
         ReviewPolicy(fixed_reviewer(), "bash(cmd='ls', timeout=10)")
