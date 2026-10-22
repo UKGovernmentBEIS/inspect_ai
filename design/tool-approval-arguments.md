@@ -41,12 +41,13 @@ in B, so they are not compared. A comparison that raises is a parsing error.
 4. Serialize each converted argument the call gives to JSON, using one
    serializer for every type: Pydantic's, in JSON mode, by alias and without
    computed fields. This is B. A serializer error is a parsing error.
-   B must also survive the event writer unchanged: the call is written as
-   events write it (`to_json_str_safe()`) and reloaded, and the reloaded
-   arguments must equal B by JSON equality. Otherwise the argument is a
-   parsing error. This refuses any value the log cannot hold: `inf`, `-inf`
-   and `NaN` are written as null, and an unpaired surrogate in a string as
-   escaped text.
+   B must also survive the event writer unchanged: each argument is written
+   in the call as events write it (`to_json_str_safe()`) and reloaded, and
+   the reloaded argument must equal B's by JSON equality. Otherwise, or if
+   writing or reloading it fails, the argument is a parsing error. This
+   refuses any value the log cannot hold: `inf`, `-inf` and `NaN` are
+   written as null, an unpaired surrogate in a string as escaped text, and
+   an integer over Python's 4,300-digit limit cannot be read back.
 5. Apply the rebuild check and the value check to B. If either fails, the
    call is a parsing error and is not shown.
 6. Approvers and sentinel monitors see B, rendered by the tool's viewer. An
@@ -121,6 +122,8 @@ reach the agent as given.
 | Serializer that rounds a float | `{"price": {"amount": 1.234}}` | nothing | parsing error: shown as `1.23`, which rebuilds to a different value |
 | Validator that turns a finite number into infinity | `{"capped": {"x": 101}}` | nothing | parsing error: B holds `inf`, which the log would write as null |
 | Validator that produces an unpaired surrogate | `{"text": "a"}` | nothing | parsing error: the log would write it as the text `\ud800`; valid Unicode and literal `\u` text are shown |
+| Validator that produces an integer over 4,300 digits | `{"n": 4301}` | nothing | parsing error: the log cannot read it back; 4,300 digits are shown |
+| Dataclass field with `compare=False` and `exclude=True` | `{"dry_run": true}` | `{}` | unsupported: rebuilds as its default and still compares equal, so the tool gets the default |
 | Validation alias differs from serialization alias | `{"in": 1}` | nothing | parsing error: `{"out": 1}` does not convert back |
 | Field serializer that changes the type (`int` as text) | `{"item": {"count": 5}}` | `{"item": {"count": "5"}}` | runs with 5; a modify that copies the shown JSON fails the schema |
 
@@ -133,7 +136,8 @@ Under oversight, a call is refused when:
 - the serialized arguments change when the event writer stores them and
   they are reloaded (parsing error), since the approval record would not
   hold what the approver saw: a non-finite number, an unpaired surrogate,
-  or any other value the log cannot hold;
+  or any other value the log cannot hold; writing or reloading that fails
+  (an integer too long to read back) is refused the same way;
 - the serialized arguments do not rebuild to the same JSON, or to the same
   value in Python (parsing error), since the approver would otherwise approve
   a value the tool never gets;
@@ -171,6 +175,14 @@ under oversight, and this is not detected. Conversion runs more than once
 different value each time can give the checks and the tool different
 values. A serializer that changes the model it serializes (rounding a field
 in place, say) changes the value the value check compares with.
+
+Python equality on a parameter type is assumed to compare all state that
+affects execution (decision: Ransom, 2026-10-22). A type whose `==` ignores
+such a value (a dataclass field with `compare=False`, a custom `__eq__` that
+skips state) is unsupported under oversight and is not checked, in
+particular when that value is also left out of serialization: the value
+check then passes although the tool gets a different value. No type or
+field inspection is added to detect it.
 
 ## Without oversight
 
@@ -228,3 +240,8 @@ nothing here: on `main` a later edit to the call did not reach the log either.
   unchanged after the event writer stores it, which also covers unpaired
   surrogates and any other value the log cannot hold (decision: Ransom,
   2026-10-22).
+- 2026-10-22: Python equality on a parameter type must compare all
+  execution-relevant state. A type whose `==` ignores such state (a
+  `compare=False` dataclass field, a custom `__eq__`), in particular state
+  also excluded from serialization, is unsupported under oversight and not
+  checked (decision: Ransom, 2026-10-22).

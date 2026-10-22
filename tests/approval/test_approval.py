@@ -762,6 +762,17 @@ class Unpaired(BaseModel):
         return text.replace("<hi>", "\ud800")
 
 
+class Digits(BaseModel):
+    """A number of digits the validator turns into a number that long."""
+
+    n: int = Field(repr=False)
+
+    @field_validator("n")
+    @classmethod
+    def lengthen(cls, n: int) -> int:
+        return 10 ** (n - 1) if 1 < n <= 5000 else n
+
+
 class Incomparable:
     """A value whose equality raises."""
 
@@ -814,6 +825,7 @@ def step_tool(received: list[dict[str, Any]]) -> Tool:
         capped: Capped | None = None,
         rounded: Rounded | None = None,
         unpaired: Unpaired | None = None,
+        digits: Digits | None = None,
     ) -> str:
         """Record its arguments.
 
@@ -835,6 +847,7 @@ def step_tool(received: list[dict[str, Any]]) -> Tool:
             capped: A model whose validator turns large numbers into infinity.
             rounded: A model whose serializer rounds.
             unpaired: A model whose validator can produce an unpaired surrogate.
+            digits: A model whose validator can produce a very long integer.
         """
         arguments = {
             "step": step,
@@ -854,6 +867,7 @@ def step_tool(received: list[dict[str, Any]]) -> Tool:
             "capped": capped,
             "rounded": rounded,
             "unpaired": unpaired,
+            "digits": digits,
         }
         received.append({k: v for k, v in arguments.items() if v is not None})
         return "done"
@@ -996,8 +1010,9 @@ async def test_a_value_that_cannot_be_compared_is_refused() -> None:
         {"capped": {"x": 101}},
         {"capped": {"x": -101}},
         {"unpaired": {"text": "a<hi>"}},
+        {"digits": {"n": 4301}},
     ],
-    ids=["infinity", "negative-infinity", "unpaired-surrogate"],
+    ids=["infinity", "negative-infinity", "unpaired-surrogate", "unreadable-integer"],
 )
 async def test_a_shown_value_the_log_cannot_store_is_refused(
     arguments: dict[str, Any],
@@ -1026,8 +1041,9 @@ async def test_a_shown_value_the_log_cannot_store_is_refused(
         ({"capped": {"x": 1}}, {"capped": {"x": 1.0}}),
         ({"unpaired": {"text": "é 😀"}}, {"unpaired": {"text": "é 😀"}}),
         ({"unpaired": {"text": "\\ud800"}}, {"unpaired": {"text": "\\ud800"}}),
+        ({"digits": {"n": 4300}}, {"digits": {"n": 10**4299}}),
     ],
-    ids=["finite", "unicode", "backslash-u-text"],
+    ids=["finite", "unicode", "backslash-u-text", "longest-readable-integer"],
 )
 async def test_the_persisted_events_keep_the_shown_arguments(
     arguments: dict[str, Any], shown: dict[str, Any]
@@ -1475,13 +1491,14 @@ async def test_a_failing_constructor_is_a_parsing_error(policy: str | None) -> N
 
 
 async def test_without_oversight_hidden_values_run() -> None:
-    """Values serialization hides are refused only under oversight."""
+    """Values that are refused under oversight run without it."""
     received: list[dict[str, Any]] = []
     arguments = {
         "secret": {"key": "k"},
         "privileged": {"command": "ls", "sudo": True},
         "lazy": {"values": [1, 2, 3]},
         "rounded": {"amount": 1.234},
+        "digits": {"n": 4301},
     }
     message = await execute_with_approval(
         ToolCall(id="1", function="step_tool", arguments=arguments),
@@ -1495,6 +1512,7 @@ async def test_without_oversight_hidden_values_run() -> None:
     assert args["privileged"].sudo is True
     assert args["lazy"] == [1, 2, 3]
     assert args["rounded"].amount == 1.234
+    assert args["digits"].n == 10**4300
 
 
 @tool

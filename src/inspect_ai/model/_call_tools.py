@@ -1546,8 +1546,8 @@ def validated_tool_call(call: ToolCall, tool_def: ToolDef) -> ValidatedToolCall:
     Raises:
         ToolParsingError: The arguments fail the schema or cannot be
             converted, or (while approval or a sentinel is active) cannot be
-            serialized, change when the log writes them, or do not rebuild to
-            the same JSON and value.
+            serialized, do not survive the log writing and reading them
+            unchanged, or do not rebuild to the same JSON and value.
     """
     validation_errors = validate_tool_input(call.arguments, tool_def.parameters)
     if validation_errors:
@@ -1560,13 +1560,7 @@ def validated_tool_call(call: ToolCall, tool_def: ToolDef) -> ValidatedToolCall:
     shown = replace(
         call, arguments=_serialized_converted(call.arguments, converted, tool_def)
     )
-    unlogged = _changed_when_logged(shown)
-    if unlogged is not None:
-        raise ToolParsingError(
-            f"Argument '{unlogged}' cannot be shown to approvers or monitors: as "
-            "converted for the tool and serialized, it holds a value the log "
-            "cannot store unchanged (such as inf, NaN or an unpaired surrogate)."
-        )
+    _check_logged_unchanged(shown)
     try:
         changed = _changed_on_rebuild(shown.arguments, tool_def)
         rebuilt = _rebuilt_arguments(shown.arguments, tool_def)
@@ -1670,18 +1664,35 @@ def _serialized_converted(
     }
 
 
-def _changed_when_logged(call: ToolCall) -> str | None:
-    """The first argument the event writer does not store unchanged.
+def _check_logged_unchanged(call: ToolCall) -> None:
+    """Check that the event writer stores each argument unchanged.
 
-    The call is written as events write it, so a value the log cannot hold
-    (a non-finite number becomes null, an unpaired surrogate escaped text)
-    reloads as something else.
+    Each argument is written in the call as events write it and read back, so
+    a value the log cannot hold (a non-finite number becomes null, an
+    unpaired surrogate escaped text) reloads as something else, and one it
+    cannot read back (an integer over Python's digit limit) fails.
+
+    Raises:
+        ToolParsingError: An argument reloads changed, or writing or reading
+            it failed.
     """
-    logged = json.loads(to_json_str_safe(call))["arguments"]
     for name, value in call.arguments.items():
-        if name not in logged or not json_equal(logged[name], value):
-            return name
-    return None
+        try:
+            logged = json.loads(
+                to_json_str_safe(replace(call, arguments={name: value}))
+            )["arguments"]
+            unchanged = name in logged and json_equal(logged[name], value)
+            detail = ""
+        except Exception as ex:
+            unchanged = False
+            detail = f" Writing it and reading it back failed ({ex})."
+        if not unchanged:
+            raise ToolParsingError(
+                f"Argument '{name}' cannot be shown to approvers or monitors: as "
+                "converted for the tool and serialized, it holds a value the log "
+                "cannot store unchanged (such as inf, NaN or an unpaired "
+                f"surrogate).{detail}"
+            )
 
 
 def _changed_on_rebuild(arguments: dict[str, Any], tool_def: ToolDef) -> str | None:
