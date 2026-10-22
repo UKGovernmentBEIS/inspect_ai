@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import errno
 import functools
 import io
@@ -35,6 +36,9 @@ from anyio import AsyncFile, EndOfStream, open_file
 from anyio.abc import ByteReceiveStream
 from anyio.streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
 from botocore.exceptions import ClientError, ResponseStreamingError
+from fsspec.exceptions import (  # type: ignore[import-untyped]  # fsspec ships no type stubs
+    FSTimeoutError,
+)
 from tenacity import (
     AsyncRetrying,
     RetryCallState,
@@ -53,7 +57,14 @@ if TYPE_CHECKING:
 from inspect_ai._util._async import current_async_backend, tg_collect
 from inspect_ai._util.constants import HTTP
 from inspect_ai._util.error import WriteConflictError
-from inspect_ai._util.file import FileInfo, file, filesystem, local_path, to_uri
+from inspect_ai._util.file import (
+    FileInfo,
+    FileSystem,
+    file,
+    filesystem,
+    local_path,
+    to_uri,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -727,6 +738,9 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
                         s3_read_file, self.s3_client(), bucket, key
                     )
         else:
+            fsw = filesystem(filename)
+            if _is_async_remote(fsw):
+                return await _run_on_fsspec_loop(fsw.fs, fsw.fs._cat_file(filename))
             with file(filename, "rb") as f:
                 return f.read()
 
@@ -1141,7 +1155,9 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
         existing read-only target (restic writes repo files ``0400``) is
         replaced rather than opened for writing. boto3's ``download_file``
         does this itself; the asyncio path streams into the temp file. The
-        non-S3 branch copies in place.
+        non-S3 branch copies in place; an async fsspec filesystem (``gs://``,
+        ``az://``, ...) downloads on fsspec's own event loop without blocking
+        the caller's.
         """
         if is_s3_filename(remote):
             bucket, key = s3_bucket_and_key(remote)
@@ -1162,7 +1178,11 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
                         s3_get_file, self.s3_client(), bucket, key, local
                     )
         else:
-            filesystem(remote).get_file(remote, local)
+            fsw = filesystem(remote)
+            if _is_async_remote(fsw):
+                await _run_on_fsspec_loop(fsw.fs, fsw.fs._get_file(remote, local))
+            else:
+                fsw.get_file(remote, local)
 
     async def get_file_if_match(self, remote: str, local: str, etag: str) -> None:
         """Download the S3 object `remote` to `local` only if its ETag is `etag`.
@@ -2099,6 +2119,83 @@ _current_async_fs: ContextVar[AsyncFilesystem | None] = ContextVar(
 
 
 _T = TypeVar("_T")
+
+
+def _is_async_remote(fsw: FileSystem) -> bool:
+    """Whether reads from `fsw` go through :func:`_run_on_fsspec_loop`.
+
+    True for async fsspec filesystems (gcsfs, adlfs, ...) other than HTTP.
+    fsspec's HTTP ``_cat_file`` doesn't check that the server honoured the
+    range, and its ``_info`` can report no size, so HTTP keeps the synchronous
+    file-object path, which raises in both cases.
+    """
+    protocol = fsw.fs.protocol
+    protocols = protocol if isinstance(protocol, tuple) else (protocol,)
+    return fsw.is_async() and not {"http", "https"} & set(protocols)
+
+
+async def _run_on_fsspec_loop(fs: Any, coro: Coroutine[Any, Any, _T]) -> _T:
+    """Run `coro`, a coroutine of the async fsspec filesystem `fs`, on fsspec's loop.
+
+    fsspec's sync API (``fsspec.asyn.sync``) submits the coroutine to the
+    filesystem's IO-loop thread and blocks the calling thread until it
+    finishes, so the caller's event loop is frozen for the whole request. This
+    makes the same submission but waits without blocking. No thread pool is
+    involved, so the fsspec rule in AGENTS.md (never ``to_thread`` remote
+    fsspec work) still holds.
+
+    The task's done callback only schedules a wake-up on the caller's loop:
+    nothing on fsspec's loop waits for the caller, whose loop may itself be
+    blocked in a synchronous fsspec call. A cancelled caller cancels the task
+    and waits for it to finish, so the coroutine's own cleanup has run before
+    the cancellation propagates. As with ``sync()``, a ``TimeoutError`` is
+    raised as ``FSTimeoutError``.
+    """
+    backend = current_async_backend()
+    if fs.asynchronous or (
+        backend == "asyncio" and fs.loop is asyncio.get_running_loop()
+    ):
+        return await coro
+    loop = fs.loop
+    if loop is None or loop.is_closed():
+        coro.close()
+        raise RuntimeError("Loop is not running")
+
+    done = anyio.Event()
+    if backend == "trio":
+        import trio
+
+        token = trio.lowlevel.current_trio_token()
+
+        def wake() -> None:
+            token.run_sync_soon(done.set)
+    else:
+        caller_loop = asyncio.get_running_loop()
+
+        def wake() -> None:
+            caller_loop.call_soon_threadsafe(done.set)
+
+    tasks: list[asyncio.Task[_T]] = []
+
+    def start() -> None:
+        task = loop.create_task(coro)
+        # fires even for a task cancelled before its first step
+        task.add_done_callback(lambda _: wake())
+        tasks.append(task)
+
+    loop.call_soon_threadsafe(start)
+    try:
+        await done.wait()
+    except BaseException:
+        # callbacks run in order, so `start` has run before this one
+        loop.call_soon_threadsafe(lambda: tasks[0].cancel())
+        with anyio.CancelScope(shield=True):
+            await done.wait()
+        raise
+    try:
+        return tasks[0].result()
+    except TimeoutError as ex:
+        raise FSTimeoutError from ex
 
 
 def with_async_fs(
