@@ -11,15 +11,19 @@ from argparse import Namespace
 from collections.abc import AsyncIterator, Iterator
 from io import StringIO
 from pathlib import Path
-from typing import Callable, Literal, NamedTuple, overload
+from typing import Awaitable, Callable, Literal, NamedTuple, overload
 from uuid import uuid4
 
+import anyio
 import pytest
+from pydantic import JsonValue
 from test_helpers.local_shell_sandbox import LocalShellSandbox
 from test_helpers.sandbox import CannedSandbox
 from test_helpers.utils import skip_if_no_docker
 
 from inspect_ai import Task, eval
+from inspect_ai._util.exception import TerminateSampleError
+from inspect_ai.agent._agent import AgentState
 from inspect_ai.agent._human import install as human_install
 from inspect_ai.agent._human.agent import human_cli
 from inspect_ai.agent._human.commands import submit
@@ -37,6 +41,11 @@ from inspect_ai.agent._human.install import (
     human_agent_commands,
     install_human_agent,
 )
+from inspect_ai.agent._human.service import run_human_agent_service
+from inspect_ai.agent._human.state import HumanAgentState
+from inspect_ai.dataset import Sample
+from inspect_ai.solver import Generate, Solver, TaskState, solver
+from inspect_ai.util import sandbox
 from inspect_ai.util._sandbox._framework_directory import (
     _SCRIPT,
     _STAT_ENTRY,
@@ -1134,3 +1143,85 @@ def test_human_cli_submit_no_answer(capsys: pytest.CaptureFixture[str]):
             assert log.samples[0].output.choices[0].message.content == ""
         else:
             raise Exception("eval() did not complete within timeout")
+
+
+class _TerminateCommand(HumanAgentCommand):
+    """A service command that terminates the sample, as a tool call can."""
+
+    @property
+    def name(self) -> str:
+        return "stop_now"
+
+    @property
+    def description(self) -> str:
+        return "Terminate the sample."
+
+    @property
+    def contexts(self) -> list[Literal["cli", "service"]]:
+        return ["service"]
+
+    def service(self, state: HumanAgentState) -> Callable[..., Awaitable[JsonValue]]:
+        async def stop_now() -> None:
+            raise TerminateSampleError("human tool says stop")
+
+        return stop_now
+
+
+_CALL_STOP_NOW = """
+import os, sys, time
+service_dir = "/var/tmp/sandbox-services/human_agent"
+while not os.path.exists(f"{service_dir}/human_agent.py"):
+    time.sleep(0.1)
+sys.path.append(service_dir)
+from human_agent import call_human_agent
+call_human_agent("stop_now")
+"""
+
+
+@pytest.mark.slow
+@skip_if_no_docker
+def test_human_agent_service_terminate_ends_the_sample() -> None:
+    """A service method's `TerminateSampleError` ends the sample as a termination.
+
+    The service dispatcher answers the call and propagates the termination out of
+    `run_human_agent_service`, so the sample ends once with an operator limit
+    rather than the error being logged and the service left running.
+    """
+    completed: list[bool] = []
+
+    @solver
+    def terminating_service() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            await sandbox().write_file("stop_now.py", _CALL_STOP_NOW)
+            async with anyio.create_task_group() as tg:
+                tg.start_soon(sandbox().exec, ["python3", "stop_now.py"])
+                with anyio.fail_after(60):
+                    await run_human_agent_service(
+                        None, AgentState(messages=[]), [_TerminateCommand()], None
+                    )
+            # must not be reached: the termination unwinds the service
+            completed.append(True)
+            return state
+
+        return solve
+
+    log = eval(
+        Task(dataset=[Sample(input="Stop.")], solver=terminating_service()),
+        sandbox="docker",
+        model="mockllm/model",
+    )[0]
+
+    assert log.status == "success"
+    assert log.samples is not None
+    sample = log.samples[0]
+    assert sample.error is None, sample.error
+    assert sample.limit is not None
+    assert (sample.limit.type, sample.limit.reason) == (
+        "operator",
+        "human tool says stop",
+    )
+    limits = [e for e in sample.events if e.event == "sample_limit"]
+    assert [(e.type, e.message) for e in limits] == [
+        ("operator", "human tool says stop")
+    ]
+    assert completed == []
