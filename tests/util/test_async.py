@@ -25,7 +25,9 @@ from inspect_ai._util._async import (
     tg_collect,
     unwrap_exception_group,
 )
+from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai.util import collect
+from inspect_ai.util._sandbox.service import find_control_flow
 
 
 @pytest.mark.parametrize("backend", ["asyncio", "trio"])
@@ -299,6 +301,29 @@ async def test_unwrapped_task_error_keeps_its_chain(
     assert repr(error.__cause__) == cause
     assert repr(error.__context__) == context
     assert error.__suppress_context__ is suppressed
+
+
+async def test_first_error_keeps_dropped_sibling_termination() -> None:
+    started = anyio.Event()
+    termination = TerminateSampleError("stop")
+
+    async def fail() -> None:
+        await started.wait()
+        raise RuntimeError("first")
+
+    async def terminate_when_cancelled() -> None:
+        try:
+            started.set()
+            await anyio.sleep_forever()
+        finally:
+            raise termination
+
+    with pytest.raises(RuntimeError, match="first") as excinfo:
+        await tg_collect([fail, terminate_when_cancelled])
+    # the dropped sibling stays in the error's (suppressed) history
+    assert isinstance(excinfo.value.__context__, ExceptionGroup)
+    assert excinfo.value.__suppress_context__
+    assert find_control_flow(excinfo.value) is termination
 
 
 async def test_collect_keeps_task_error_cause() -> None:

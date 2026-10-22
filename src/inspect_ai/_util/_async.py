@@ -12,6 +12,7 @@ from typing import (
     Coroutine,
     Iterable,
     Literal,
+    NoReturn,
     TypeVar,
     TypeVarTuple,
     Unpack,
@@ -80,9 +81,8 @@ async def tg_collect(
 class unwrap_exception_group:
     """Unwrap an `ExceptionGroup` that leaves the block, raising its exception bare.
 
-    The exception keeps its own `__cause__`, `__context__` and
-    `__suppress_context__`, so its traceback reads as it would without the
-    task group.
+    See `raise_unwrapped()` for the chain the exception keeps: its own when
+    the group held only it, the group's otherwise.
 
     Use `with`, or `async with` in the same statement as the task group:
     `async with unwrap_exception_group(), anyio.create_task_group() as tg:`.
@@ -121,18 +121,7 @@ class unwrap_exception_group:
         group = cast(ExceptionGroup[Exception], exc_value)
         if self._unwrap == "single" and len(group.exceptions) != 1:
             return
-        unwrapped = group.exceptions[0]
-        # raising here sets the context to the group: restore the stored
-        # context, past any attributes of the subclass's own
-        context = vars(BaseException)["__context__"]
-        suppress_context = vars(BaseException)["__suppress_context__"]
-        saved_context = context.__get__(unwrapped)
-        saved_suppress_context = suppress_context.__get__(unwrapped)
-        try:
-            raise unwrapped
-        finally:
-            context.__set__(unwrapped, saved_context)
-            suppress_context.__set__(unwrapped, saved_suppress_context)
+        raise_unwrapped(group, group.exceptions[0])
 
     async def __aenter__(self) -> None:
         return None
@@ -149,6 +138,52 @@ class unwrap_exception_group:
 
 async def _completed() -> None:
     return None
+
+
+def raise_unwrapped(group: BaseException, error: BaseException) -> NoReturn:
+    """Raise `error`, taken from `group`, while `group` is being handled.
+
+    When `group` holds only `error` (through nested groups of one), or is
+    `error` itself, `error` keeps its own `__cause__`, `__context__` and
+    `__suppress_context__`, so its traceback reads as it would without the
+    group. Otherwise its context is `group`, suppressed as with
+    `raise ... from`, and it keeps its own `__cause__`: the errors dropped
+    with the group stay in its history, where `find_control_flow()` looks.
+
+    Exception classes that override `__class__`, `__cause__` or `__setattr__`
+    are not supported.
+
+    Args:
+       group: The exception being handled.
+       error: The exception from `group` to raise.
+    """
+    # the stored attributes, past any attributes of the subclass's own
+    cause = vars(BaseException)["__cause__"]
+    if not _holds_only(group, error):
+        raise error from cause.__get__(error)
+    # raising here sets the context to the group: restore the stored context
+    context = vars(BaseException)["__context__"]
+    suppress_context = vars(BaseException)["__suppress_context__"]
+    saved_context = context.__get__(error)
+    saved_suppress_context = suppress_context.__get__(error)
+    try:
+        raise error
+    finally:
+        context.__set__(error, saved_context)
+        suppress_context.__set__(error, saved_suppress_context)
+
+
+def _holds_only(group: BaseException, error: BaseException) -> bool:
+    node = group
+    while node is not error:
+        # match the exception's own type, not a __class__ attribute it defines
+        if not issubclass(type(node), BaseExceptionGroup):
+            return False
+        members = cast(BaseExceptionGroup[BaseException], node).exceptions
+        if len(members) != 1:
+            return False
+        node = members[0]
+    return True
 
 
 class Wake:
