@@ -17,8 +17,8 @@ import pytest
 import yaml
 
 REPO = pathlib.Path(__file__).parents[1]
-BUILD = REPO / ".github" / "workflows" / "build.yml"
-CANARY_JOBS = ["docs", "sandbox-tools-unit", "slow-tool-tests-dev"]
+WORKFLOWS = REPO / ".github" / "workflows"
+BUILD = WORKFLOWS / "build.yml"
 LOCKED_JOBS = ["mypy", "test"]
 PROVIDERS = REPO / "src" / "inspect_ai" / "model" / "_providers"
 DEPENDENCY_CHECKS = {"pip_dependency_error", "verify_required_version"}
@@ -51,7 +51,7 @@ def build_job(name: str) -> dict[str, Any]:
 def run_lines(job: dict[str, Any]) -> list[str]:
     return [
         line.strip()
-        for step in job["steps"]
+        for step in job.get("steps", [])
         for line in step.get("run", "").splitlines()
         if line.strip()
     ]
@@ -143,9 +143,31 @@ def test_locked_jobs_install_from_the_lockfile(name: str) -> None:
     assert syncs == ["uv sync --locked"]
 
 
-@pytest.mark.parametrize("name", CANARY_JOBS)
-def test_canary_jobs_float_without_secrets_or_cache_saves(name: str) -> None:
-    job = build_job(name)
+def canary_jobs() -> list[tuple[str, str]]:
+    return [
+        (path.name, name)
+        for path in sorted(WORKFLOWS.glob("*.yml"))
+        for name, job in yaml.safe_load(path.read_text())["jobs"].items()
+        if any("--exclude-newer false" in line for line in run_lines(job))
+    ]
+
+
+def test_canary_jobs_are_found() -> None:
+    assert {
+        ("build.yml", "docs"),
+        ("build.yml", "sandbox-tools-unit"),
+        ("build.yml", "slow-tool-tests-dev"),
+    } <= set(canary_jobs())
+
+
+# Hygiene, so honest canary runs keep unvetted releases out of the cache. The
+# protection against a malicious release is that jobs holding credentials
+# restore no cache (test_workflow_cache.py).
+@pytest.mark.parametrize("workflow,name", canary_jobs())
+def test_canary_jobs_float_without_secrets_or_cache_saves(
+    workflow: str, name: str
+) -> None:
+    job = yaml.safe_load((WORKFLOWS / workflow).read_text())["jobs"][name]
     installs = [line for line in run_lines(job) if line.startswith("uv pip install")]
     assert installs
     assert all("--exclude-newer false" in line for line in installs)
