@@ -982,6 +982,8 @@ async def test_policy_case_and_separator_rules_on_windows(
         "bash(cmd='it\\'s'",
         "bash(cmd='ls'), python",
         "computer*(action='key'",
+        "computer*(action='key')",
+        "comput?r(action='key'",
         "comput?r(action='key')",
         "[c]omputer(action='key'",
         "computer[s](action='key')",

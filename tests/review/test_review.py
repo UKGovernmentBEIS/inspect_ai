@@ -422,6 +422,8 @@ async def test_review_policy_case_rules_on_windows(
     "tools",
     [
         "computer*(action='key'",
+        "computer*(action='key')",
+        "comput?r(action='key'",
         "comput?r(action='key')",
         "[c]omputer(action='key'",
         "computer[s](action='key')",
