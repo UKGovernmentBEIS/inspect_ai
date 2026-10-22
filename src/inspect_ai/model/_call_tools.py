@@ -1546,8 +1546,9 @@ def validated_tool_call(call: ToolCall, tool_def: ToolDef) -> ValidatedToolCall:
     Raises:
         ToolParsingError: The arguments fail the schema or cannot be
             converted, or (while approval or a sentinel is active) cannot be
-            serialized, do not survive the log writing and reading them
-            unchanged, or do not rebuild to the same JSON and value.
+            serialized, nest deeper than the arguments the model may send, do
+            not survive the log writing and reading them unchanged, or do not
+            rebuild to the same JSON and value.
     """
     validation_errors = validate_tool_input(call.arguments, tool_def.parameters)
     if validation_errors:
@@ -1560,6 +1561,13 @@ def validated_tool_call(call: ToolCall, tool_def: ToolDef) -> ValidatedToolCall:
     shown = replace(
         call, arguments=_serialized_converted(call.arguments, converted, tool_def)
     )
+    for name, value in shown.arguments.items():
+        if _exceeds_max_depth({name: value}):
+            raise ToolParsingError(
+                f"Argument '{name}' cannot be shown to approvers or monitors: as "
+                "converted for the tool and serialized, it exceeds the maximum "
+                f"supported nesting depth of {MAX_TOOL_CALL_ARGUMENTS_DEPTH}."
+            )
     _check_logged_unchanged(shown)
     try:
         changed = _changed_on_rebuild(shown.arguments, tool_def)
@@ -1957,7 +1965,9 @@ unbounded depth would crash sample logging rather than the sample itself.
 Enforced in `parse_tool_call` for providers that deliver arguments as a
 string (recorded as `ToolCall.parse_error`) and again in `call_tool` for
 every provider, including those that construct `ToolCall` from an
-already-parsed dict and so never reach `parse_tool_call`.
+already-parsed dict and so never reach `parse_tool_call`. Under approval or a
+sentinel, `validated_tool_call` also enforces it on the converted arguments
+that are shown and logged, since conversion can add nesting.
 """
 
 

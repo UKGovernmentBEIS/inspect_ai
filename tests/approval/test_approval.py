@@ -44,6 +44,7 @@ from inspect_ai.dataset import Sample
 from inspect_ai.event._approval import ApprovalEvent
 from inspect_ai.event._model import ModelEvent
 from inspect_ai.event._tool import ToolEvent
+from inspect_ai.log import read_eval_log
 from inspect_ai.log._log import EvalLog
 from inspect_ai.log._transcript import Transcript, init_transcript, transcript
 from inspect_ai.model import (
@@ -773,6 +774,25 @@ class Digits(BaseModel):
         return 10 ** (n - 1) if 1 < n <= 5000 else n
 
 
+def nested_lists(depth: int) -> list[Any]:
+    """Lists nested `depth` levels deep."""
+    value: list[Any] = []
+    for _ in range(depth - 1):
+        value = [value]
+    return value
+
+
+class Nested(BaseModel):
+    """A number the validator turns into lists nested that deep."""
+
+    value: Any
+
+    @field_validator("value")
+    @classmethod
+    def nest(cls, value: Any) -> Any:
+        return nested_lists(value) if isinstance(value, int) else value
+
+
 class Incomparable:
     """A value whose equality raises."""
 
@@ -826,6 +846,7 @@ def step_tool(received: list[dict[str, Any]]) -> Tool:
         rounded: Rounded | None = None,
         unpaired: Unpaired | None = None,
         digits: Digits | None = None,
+        nested: Nested | None = None,
     ) -> str:
         """Record its arguments.
 
@@ -848,6 +869,7 @@ def step_tool(received: list[dict[str, Any]]) -> Tool:
             rounded: A model whose serializer rounds.
             unpaired: A model whose validator can produce an unpaired surrogate.
             digits: A model whose validator can produce a very long integer.
+            nested: A model whose validator can produce deeply nested lists.
         """
         arguments = {
             "step": step,
@@ -868,6 +890,7 @@ def step_tool(received: list[dict[str, Any]]) -> Tool:
             "rounded": rounded,
             "unpaired": unpaired,
             "digits": digits,
+            "nested": nested,
         }
         received.append({k: v for k, v in arguments.items() if v is not None})
         return "done"
@@ -1067,6 +1090,73 @@ async def test_the_persisted_events_keep_the_shown_arguments(
     assert (
         ToolEvent.model_validate_json(to_json_str_safe(tool_event)).arguments == shown
     )
+
+
+@pytest.mark.parametrize(
+    "depth,oversight,refused",
+    [(98, True, False), (99, True, True), (251, True, True), (251, False, False)],
+    ids=["at-limit", "over-limit", "unwritable", "unwritable-without-oversight"],
+)
+async def test_converted_nesting_is_bounded_under_oversight(
+    depth: int, oversight: bool, refused: bool
+) -> None:
+    """Converted arguments get the same nesting bound as the model's arguments."""
+    calls: list[ToolCall] = []
+    received: list[dict[str, Any]] = []
+    message = await execute_with_approval(
+        ToolCall(id="1", function="step_tool", arguments={"nested": {"value": depth}}),
+        [step_tool(received)],
+        [ApprovalPolicy(recording_approver(calls), "*")] if oversight else None,
+    )
+
+    if refused:
+        assert message.error is not None
+        assert message.error.type == "parsing"
+        assert "Argument 'nested' cannot be shown" in message.error.message
+        assert "maximum supported nesting depth of 100" in message.error.message
+        assert calls == []
+        assert received == []
+    else:
+        assert message.error is None
+        assert received == [{"nested": Nested(value=nested_lists(depth))}]
+
+
+def test_converted_nesting_at_the_limit_is_written_and_read_back(
+    tmp_path: Path,
+) -> None:
+    """The deepest accepted converted call is in the log as shown and ran."""
+    shown = {"nested": {"value": nested_lists(98)}}
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.for_tool_call(
+                "mockllm/model",
+                tool_name="step_tool",
+                tool_arguments={"nested": {"value": 98}},
+            ),
+            ModelOutput.from_content("mockllm/model", content="done"),
+        ],
+        memoize=False,
+    )
+    task = Task(
+        dataset=[Sample(input="go")], solver=[use_tools(step_tool([])), generate()]
+    )
+    [log] = eval(
+        task,
+        model=model,
+        approval=[ApprovalPolicy(auto_approver(), "*")],
+        log_dir=str(tmp_path),
+    )
+    assert log.status == "success", log.error
+
+    log = read_eval_log(log.location)
+    assert log.samples
+    events = log.samples[0].events
+    [approval] = [e for e in events if isinstance(e, ApprovalEvent)]
+    assert approval.call.arguments == shown
+    [tool_event] = [e for e in events if isinstance(e, ToolEvent)]
+    assert tool_event.arguments == shown
+    assert tool_event.error is None
 
 
 async def test_a_generated_default_runs_as_shown() -> None:

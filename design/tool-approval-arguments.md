@@ -40,7 +40,11 @@ in B, so they are not compared. A comparison that raises is a parsing error.
    error.
 4. Serialize each converted argument the call gives to JSON, using one
    serializer for every type: Pydantic's, in JSON mode, by alias and without
-   computed fields. This is B. A serializer error is a parsing error.
+   computed fields. This is B. A serializer error is a parsing error, and
+   so is an argument of B nested deeper than the bound on the model's
+   arguments (`MAX_TOOL_CALL_ARGUMENTS_DEPTH`, 100), since conversion can
+   add nesting and the log's writer, readers and condensation handle only
+   bounded depth.
    B must also survive the event writer unchanged: each argument is written
    in the call as events write it (`to_json_str_safe()`) and reloaded, and
    the reloaded argument must equal B's by JSON equality. Otherwise, or if
@@ -122,6 +126,7 @@ reach the agent as given.
 | Serializer that rounds a float | `{"price": {"amount": 1.234}}` | nothing | parsing error: shown as `1.23`, which rebuilds to a different value |
 | Validator that turns a finite number into infinity | `{"capped": {"x": 101}}` | nothing | parsing error: B holds `inf`, which the log would write as null |
 | Validator that produces an unpaired surrogate | `{"text": "a"}` | nothing | parsing error: the log would write it as the text `\ud800`; valid Unicode and literal `\u` text are shown |
+| Validator that turns a number into nested lists | `{"value": 99}` | nothing | parsing error: B nests deeper than 100 levels; 98 lists (100 levels with the argument and model) are shown and logged |
 | Validator that produces an integer over 4,300 digits | `{"n": 4301}` | nothing | parsing error: the log cannot read it back; 4,300 digits are shown |
 | Dataclass field with `compare=False` and `exclude=True` | `{"dry_run": true}` | `{}` | unsupported: rebuilds as its default and still compares equal, so the tool gets the default |
 | Validation alias differs from serialization alias | `{"in": 1}` | nothing | parsing error: `{"out": 1}` does not convert back |
@@ -133,6 +138,8 @@ Under oversight, a call is refused when:
 
 - its arguments fail the schema or cannot be converted (parsing error);
 - a converted argument cannot be serialized (parsing error);
+- a serialized argument nests deeper than the model's arguments may
+  (parsing error);
 - the serialized arguments change when the event writer stores them and
   they are reloaded (parsing error), since the approval record would not
   hold what the approver saw: a non-finite number, an unpaired surrogate,

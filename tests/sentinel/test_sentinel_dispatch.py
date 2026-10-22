@@ -932,6 +932,71 @@ async def test_a_sentinel_sees_and_modifies_the_converted_call(
         assert message.error is not None and message.error.type == error
 
 
+class Nested(BaseModel):
+    """A number the validator turns into lists nested that deep."""
+
+    value: Any
+
+    @field_validator("value")
+    @classmethod
+    def nest(cls, value: Any) -> Any:
+        if not isinstance(value, int):
+            return value
+        nested: list[Any] = []
+        for _ in range(value - 1):
+            nested = [nested]
+        return nested
+
+
+@tool
+def nested_depth() -> Tool:
+    async def execute(nested: Nested) -> str:
+        """Report that it ran.
+
+        Args:
+            nested: A model whose validator can produce deeply nested lists.
+        """
+        return "ran"
+
+    return execute
+
+
+@protocol
+def d3_watching(seen: list[ToolCall]) -> Protocol:
+    async def watch(context: Context, step: BeforeToolCall) -> Decision | None:
+        seen.append(step.call)
+        return None
+
+    return watch
+
+
+@pytest.mark.parametrize(
+    "depth,refused", [(98, False), (99, True)], ids=["at-limit", "over-limit"]
+)
+async def test_a_sentinel_sees_converted_nesting_only_within_the_bound(
+    depth: int, refused: bool
+) -> None:
+    seen: list[ToolCall] = []
+    call = ToolCall(
+        id="1", function="nested_depth", arguments={"nested": {"value": depth}}
+    )
+    with active(d3_watching(seen)):
+        result = await execute_tools(
+            [ChatMessageAssistant(content=[], tool_calls=[call])], [nested_depth()]
+        )
+
+    [message] = result.messages
+    assert isinstance(message, ChatMessageTool)
+    if refused:
+        assert message.error is not None and message.error.type == "parsing"
+        assert "maximum supported nesting depth of 100" in message.error.message
+        assert seen == []
+    else:
+        assert message.error is None
+        assert message.text == "ran"
+        assert len(seen) == 1
+
+
 @protocol
 def d3_renaming_modify(rename: bool) -> Protocol:
     async def rewrite(context: Context, step: BeforeToolCall) -> Decision | None:
