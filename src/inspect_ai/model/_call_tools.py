@@ -54,7 +54,7 @@ from inspect_ai._util.content import (
 from inspect_ai._util.dateutil import datetime_from_iso_format_safe
 from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai._util.format import format_function_call
-from inspect_ai._util.json import exceeds_max_depth, json_equal
+from inspect_ai._util.json import exceeds_max_depth, json_equal, to_json_str_safe
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.text import truncate_string_to_bytes
 from inspect_ai._util.trace import trace_action
@@ -1546,7 +1546,7 @@ def validated_tool_call(call: ToolCall, tool_def: ToolDef) -> ValidatedToolCall:
     Raises:
         ToolParsingError: The arguments fail the schema or cannot be
             converted, or (while approval or a sentinel is active) cannot be
-            serialized, serialize to a non-finite number, or do not rebuild to
+            serialized, change when the log writes them, or do not rebuild to
             the same JSON and value.
     """
     validation_errors = validate_tool_input(call.arguments, tool_def.parameters)
@@ -1558,15 +1558,14 @@ def validated_tool_call(call: ToolCall, tool_def: ToolDef) -> ValidatedToolCall:
 
     converted = _rebuilt_arguments(call.arguments, tool_def)
     shown = replace(
-        call,
-        arguments=_serialized_converted(call.arguments, converted, tool_def, copy=True),
+        call, arguments=_serialized_converted(call.arguments, converted, tool_def)
     )
-    non_finite = _non_finite(shown.arguments)
-    if non_finite is not None:
+    unlogged = _changed_when_logged(shown)
+    if unlogged is not None:
         raise ToolParsingError(
-            f"Argument '{non_finite}' cannot be shown to approvers or monitors: as "
-            "converted for the tool and serialized, it contains a non-finite "
-            "number (inf or NaN), which the approval record cannot store."
+            f"Argument '{unlogged}' cannot be shown to approvers or monitors: as "
+            "converted for the tool and serialized, it holds a value the log "
+            "cannot store unchanged (such as inf, NaN or an unpaired surrogate)."
         )
     try:
         changed = _changed_on_rebuild(shown.arguments, tool_def)
@@ -1653,10 +1652,7 @@ def _serialized_arguments(
 
 
 def _serialized_converted(
-    arguments: dict[str, Any],
-    converted: dict[str, Any],
-    tool_def: ToolDef,
-    copy: bool = False,
+    arguments: dict[str, Any], converted: dict[str, Any], tool_def: ToolDef
 ) -> dict[str, Any]:
     """A call's arguments, already converted for the tool, serialized as JSON.
 
@@ -1668,18 +1664,22 @@ def _serialized_converted(
 
     curried = tool_def.tool.kwargs if isinstance(tool_def.tool, AgentTool) else {}
     return {
-        name: _serialized(name, converted[name], copy)
+        name: _serialized(name, converted[name])
         for name in arguments
         if name in converted and name not in curried
     }
 
 
-def _non_finite(arguments: dict[str, Any]) -> str | None:
-    """The first argument whose JSON holds inf or NaN at any depth."""
-    for name, value in arguments.items():
-        try:
-            json.dumps(value, allow_nan=False)
-        except ValueError:
+def _changed_when_logged(call: ToolCall) -> str | None:
+    """The first argument the event writer does not store unchanged.
+
+    The call is written as events write it, so a value the log cannot hold
+    (a non-finite number becomes null, an unpaired surrogate escaped text)
+    reloads as something else.
+    """
+    logged = json.loads(to_json_str_safe(call))["arguments"]
+    for name, value in call.arguments.items():
+        if name not in logged or not json_equal(logged[name], value):
             return name
     return None
 
@@ -1720,15 +1720,11 @@ def _changed_from(
 _JSON_VALUE = TypeAdapter[Any](Any)
 
 
-def _serialized(name: str, value: Any, copy: bool = False) -> Any:
-    """An argument value as JSON, with models dumped by alias and without computed fields.
-
-    With `copy`, a copy is serialized, so a serializer that changes the value
-    it is given cannot change the value the rebuild is compared with.
-    """
+def _serialized(name: str, value: Any) -> Any:
+    """An argument value as JSON, with models dumped by alias and without computed fields."""
     try:
         return _JSON_VALUE.dump_python(
-            deepcopy(value) if copy else value,
+            value,
             mode="json",
             by_alias=True,
             exclude_computed_fields=True,

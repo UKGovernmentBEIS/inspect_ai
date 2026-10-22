@@ -723,15 +723,6 @@ class Rounded(BaseModel):
         return round(amount, 2)
 
 
-class RoundedInPlace(BaseModel):
-    amount: float
-
-    @field_serializer("amount")
-    def round_amount(self, amount: float) -> float:
-        self.amount = round(amount, 2)
-        return self.amount
-
-
 class Secret(BaseModel):
     key: SecretStr
 
@@ -758,6 +749,17 @@ class Capped(BaseModel):
     @classmethod
     def cap(cls, x: float) -> float:
         return math.copysign(math.inf, x) if abs(x) > 100 else x
+
+
+class Unpaired(BaseModel):
+    """Text whose validator turns `<hi>` into an unpaired surrogate."""
+
+    text: str
+
+    @field_validator("text")
+    @classmethod
+    def unpair(cls, text: str) -> str:
+        return text.replace("<hi>", "\ud800")
 
 
 class Incomparable:
@@ -811,7 +813,7 @@ def step_tool(received: list[dict[str, Any]]) -> Tool:
         guarded: Guarded | None = None,
         capped: Capped | None = None,
         rounded: Rounded | None = None,
-        rounded_in_place: RoundedInPlace | None = None,
+        unpaired: Unpaired | None = None,
     ) -> str:
         """Record its arguments.
 
@@ -832,7 +834,7 @@ def step_tool(received: list[dict[str, Any]]) -> Tool:
             guarded: A model with a private attribute whose equality raises.
             capped: A model whose validator turns large numbers into infinity.
             rounded: A model whose serializer rounds.
-            rounded_in_place: A model whose serializer rounds the model itself.
+            unpaired: A model whose validator can produce an unpaired surrogate.
         """
         arguments = {
             "step": step,
@@ -851,7 +853,7 @@ def step_tool(received: list[dict[str, Any]]) -> Tool:
             "guarded": guarded,
             "capped": capped,
             "rounded": rounded,
-            "rounded_in_place": rounded_in_place,
+            "unpaired": unpaired,
         }
         received.append({k: v for k, v in arguments.items() if v is not None})
         return "done"
@@ -942,7 +944,6 @@ async def test_approver_sees_the_arguments_as_converted() -> None:
         {"privileged": {"command": "ls", "sudo": True}},
         {"lazy": {"values": [1, 2, 3]}},
         {"rounded": {"amount": 1.234}},
-        {"rounded_in_place": {"amount": 1.234}},
     ],
     ids=[
         "validator-not-idempotent",
@@ -952,7 +953,6 @@ async def test_approver_sees_the_arguments_as_converted() -> None:
         "excluded-field",
         "lazy-iterable",
         "rounding-serializer",
-        "rounding-serializer-in-place",
     ],
 )
 async def test_arguments_that_do_not_rebuild_are_refused(
@@ -990,42 +990,67 @@ async def test_a_value_that_cannot_be_compared_is_refused() -> None:
     assert received == []
 
 
-@pytest.mark.parametrize("x", [101, -101])
-async def test_a_non_finite_shown_value_is_refused(x: int) -> None:
-    """A finite input a validator turns into infinity cannot be recorded, so it is refused."""
+@pytest.mark.parametrize(
+    "arguments",
+    [
+        {"capped": {"x": 101}},
+        {"capped": {"x": -101}},
+        {"unpaired": {"text": "a<hi>"}},
+    ],
+    ids=["infinity", "negative-infinity", "unpaired-surrogate"],
+)
+async def test_a_shown_value_the_log_cannot_store_is_refused(
+    arguments: dict[str, Any],
+) -> None:
+    """A converted value the event writer would change is refused before approval."""
     calls: list[ToolCall] = []
     received: list[dict[str, Any]] = []
     message = await execute_with_approval(
-        ToolCall(id="1", function="step_tool", arguments={"capped": {"x": x}}),
+        ToolCall(id="1", function="step_tool", arguments=arguments),
         [step_tool(received)],
         [ApprovalPolicy(recording_approver(calls), "*")],
     )
 
+    (name,) = arguments
     assert message.error is not None
     assert message.error.type == "parsing"
-    assert "Argument 'capped' cannot be shown" in message.error.message
-    assert "non-finite" in message.error.message
+    assert f"Argument '{name}' cannot be shown" in message.error.message
+    assert "the log cannot store unchanged" in message.error.message
     assert calls == []
     assert received == []
 
 
-async def test_the_persisted_approval_event_keeps_the_shown_arguments() -> None:
-    """The ApprovalEvent as the log buffer writes it reloads with the shown call."""
+@pytest.mark.parametrize(
+    "arguments,shown",
+    [
+        ({"capped": {"x": 1}}, {"capped": {"x": 1.0}}),
+        ({"unpaired": {"text": "é 😀"}}, {"unpaired": {"text": "é 😀"}}),
+        ({"unpaired": {"text": "\\ud800"}}, {"unpaired": {"text": "\\ud800"}}),
+    ],
+    ids=["finite", "unicode", "backslash-u-text"],
+)
+async def test_the_persisted_events_keep_the_shown_arguments(
+    arguments: dict[str, Any], shown: dict[str, Any]
+) -> None:
+    """The ApprovalEvent and ToolEvent as the log writes them reload with the shown call."""
     init_transcript(Transcript())
     calls: list[ToolCall] = []
     received: list[dict[str, Any]] = []
     message = await execute_with_approval(
-        ToolCall(id="1", function="step_tool", arguments={"capped": {"x": 1}}),
+        ToolCall(id="1", function="step_tool", arguments=arguments),
         [step_tool(received)],
         [ApprovalPolicy(recording_approver(calls), "*")],
     )
 
     assert message.error is None
-    shown = {"capped": {"x": 1.0}}
     assert [call.arguments for call in calls] == [shown]
-    [event] = [e for e in transcript().events if isinstance(e, ApprovalEvent)]
-    persisted = ApprovalEvent.model_validate_json(to_json_str_safe(event))
+    [approval] = [e for e in transcript().events if isinstance(e, ApprovalEvent)]
+    persisted = ApprovalEvent.model_validate_json(to_json_str_safe(approval))
     assert persisted.call.arguments == shown
+    [tool_event] = [e for e in transcript().events if isinstance(e, ToolEvent)]
+    assert (
+        ToolEvent.model_validate_json(to_json_str_safe(tool_event)).arguments == shown
+    )
 
 
 async def test_a_generated_default_runs_as_shown() -> None:
@@ -1457,7 +1482,6 @@ async def test_without_oversight_hidden_values_run() -> None:
         "privileged": {"command": "ls", "sudo": True},
         "lazy": {"values": [1, 2, 3]},
         "rounded": {"amount": 1.234},
-        "rounded_in_place": {"amount": 1.234},
     }
     message = await execute_with_approval(
         ToolCall(id="1", function="step_tool", arguments=arguments),
@@ -1471,7 +1495,6 @@ async def test_without_oversight_hidden_values_run() -> None:
     assert args["privileged"].sudo is True
     assert args["lazy"] == [1, 2, 3]
     assert args["rounded"].amount == 1.234
-    assert args["rounded_in_place"].amount == 1.234
 
 
 @tool

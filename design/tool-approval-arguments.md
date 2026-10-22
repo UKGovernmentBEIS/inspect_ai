@@ -38,13 +38,15 @@ in B, so they are not compared. A comparison that raises is a parsing error.
 3. Convert A to the tool's parameter types (`tool_params()`). A conversion
    error (a bad ISO date or enum value, a failing constructor) is a parsing
    error.
-4. Serialize a copy of each converted argument the call gives to JSON, using
-   one serializer for every type: Pydantic's, in JSON mode, by alias and
-   without computed fields. This is B. The copy means a serializer that
-   changes its input cannot change the value step 5 compares with. A
-   serializer error is a parsing error, and so is a non-finite number
-   (`inf`, `-inf` or `NaN`) at any depth in B, which the ApprovalEvent would
-   record as null.
+4. Serialize each converted argument the call gives to JSON, using one
+   serializer for every type: Pydantic's, in JSON mode, by alias and without
+   computed fields. This is B. A serializer error is a parsing error.
+   B must also survive the event writer unchanged: the call is written as
+   events write it (`to_json_str_safe()`) and reloaded, and the reloaded
+   arguments must equal B by JSON equality. Otherwise the argument is a
+   parsing error. This refuses any value the log cannot hold: `inf`, `-inf`
+   and `NaN` are written as null, and an unpaired surrogate in a string as
+   escaped text.
 5. Apply the rebuild check and the value check to B. If either fails, the
    call is a parsing error and is not shown.
 6. Approvers and sentinel monitors see B, rendered by the tool's viewer. An
@@ -111,13 +113,14 @@ reach the agent as given.
 | Normalizing validator (lowercase) | `{"name": "A"}` | `{"name": "a"}` | runs with `"a"` |
 | Validator that doubles | `{"n": 2}` | nothing | parsing error: 4 rebuilds as 8 |
 | Modify that leaves out a default | approver selects `{"name": "a"}` | | approval error: rebuilds with `status` added |
-| Lazy iterable field | `{"values": [1, 2]}` | nothing | parsing error: a lazy iterable cannot be copied for step 4 (and would fail the value check, since it compares by identity); a modify that adds one runs with its values, since the tool gets a fresh build |
-| Validator that returns a different value each run | `{"n": 2}` | varies | unsupported: the build the check used and the build the tool runs can differ |
+| Lazy iterable field | `{"values": [1, 2]}` | nothing | parsing error: lazy iterables compare by identity, so the value check fails; a modify that adds one runs with its values, since the tool gets a fresh build |
+| Validator that returns a different value each run, or a serializer that changes the model | `{"n": 2}` | varies | unsupported: the checks and the tool may see different values |
 | `SecretStr` field | `{"key": "k"}` | nothing | parsing error: shown as `**********`, which rebuilds to another secret |
 | Field with `exclude=True` | `{"sudo": true}` | nothing | parsing error: left out of B, so it rebuilds as its default |
 | Set or frozenset, also as a model or dataclass field | `{"tags": ["a", "b"]}` | `{"tags": [...]}` in iteration order, or nothing | parsing error when that order does not rebuild identically, which can depend on hash order between runs |
-| Serializer that rounds a float | `{"price": {"amount": 1.234}}` | nothing | parsing error: shown as `1.23`, which rebuilds to a different value, also when the serializer rounds the model in place |
-| Validator that turns a finite number into infinity | `{"capped": {"x": 101}}` | nothing | parsing error: B holds `inf`, which the ApprovalEvent would record as null |
+| Serializer that rounds a float | `{"price": {"amount": 1.234}}` | nothing | parsing error: shown as `1.23`, which rebuilds to a different value |
+| Validator that turns a finite number into infinity | `{"capped": {"x": 101}}` | nothing | parsing error: B holds `inf`, which the log would write as null |
+| Validator that produces an unpaired surrogate | `{"text": "a"}` | nothing | parsing error: the log would write it as the text `\ud800`; valid Unicode and literal `\u` text are shown |
 | Validation alias differs from serialization alias | `{"in": 1}` | nothing | parsing error: `{"out": 1}` does not convert back |
 | Field serializer that changes the type (`int` as text) | `{"item": {"count": 5}}` | `{"item": {"count": "5"}}` | runs with 5; a modify that copies the shown JSON fails the schema |
 
@@ -127,8 +130,10 @@ Under oversight, a call is refused when:
 
 - its arguments fail the schema or cannot be converted (parsing error);
 - a converted argument cannot be serialized (parsing error);
-- the serialized arguments hold a non-finite number (parsing error), since
-  the approval record cannot store it;
+- the serialized arguments change when the event writer stores them and
+  they are reloaded (parsing error), since the approval record would not
+  hold what the approver saw: a non-finite number, an unpaired surrogate,
+  or any other value the log cannot hold;
 - the serialized arguments do not rebuild to the same JSON, or to the same
   value in Python (parsing error), since the approver would otherwise approve
   a value the tool never gets;
@@ -158,10 +163,14 @@ model cannot fix; without it, only modify is affected. This applies only to
 shown JSON that passes the rebuild check: a split alias that does not rebuild
 is refused before approval, as in the table.
 
-A validator or constructor that returns a different value each time it runs
-on the same input is not supported. Conversion runs more than once (steps 3,
-5, 7 and 8), so the build the checks used and the build the tool runs may
-differ, and this is not detected.
+Validators, constructors and serializers are assumed to be deterministic
+and free of side effects, including side effects on the object being
+serialized (decision: Ransom, 2026-10-22). Ones that are not are unsupported
+under oversight, and this is not detected. Conversion runs more than once
+(steps 3, 5, 7 and 8), so a validator or constructor that returns a
+different value each time can give the checks and the tool different
+values. A serializer that changes the model it serializes (rounding a field
+in place, say) changes the value the value check compares with.
 
 ## Without oversight
 
@@ -211,3 +220,11 @@ nothing here: on `main` a later edit to the call did not reach the log either.
   form, stay refused under oversight. A shown call holding `inf`, `-inf` or
   `NaN` at any depth is a parsing error, since the approval record cannot
   store it (decision: Ransom, 2026-10-21).
+- 2026-10-22: validators, constructors and serializers are assumed
+  deterministic and free of side effects, including on the object being
+  serialized; ones that are not are unsupported under oversight. This
+  generalizes the 2026-10-21 decision on validators that return a different
+  value each time. One check replaces the non-finite rule: B must reload
+  unchanged after the event writer stores it, which also covers unpaired
+  surrogates and any other value the log cannot hold (decision: Ransom,
+  2026-10-22).
