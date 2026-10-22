@@ -617,7 +617,7 @@ async def _execute_tools_impl(
                             waiting_starts,
                         )
             except Exception as ex:
-                stage_exception = inner_exception(ex)
+                stage_exception = ex
 
             # Splice results into `result_messages` in declared order so the
             # message list matches the order of tool_calls (Anthropic and
@@ -714,7 +714,7 @@ async def _execute_tools_impl(
             # If anything in the stage raised, re-raise after updating the
             # events so the transcript captures partial state cleanly.
             if stage_exception is not None:
-                raise stage_exception
+                raise_unwrapped(stage_exception, inner_exception(stage_exception))
 
         # return tool messages
         return ExecuteToolsResult(result_messages, result_output)

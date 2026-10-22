@@ -21,6 +21,7 @@ import anyio.to_thread
 import pytest
 
 from inspect_ai._util._async import (
+    raise_unwrapped,
     run_coroutine,
     tg_collect,
     unwrap_exception_group,
@@ -322,6 +323,55 @@ async def test_first_error_keeps_dropped_sibling_termination() -> None:
         await tg_collect([fail, terminate_when_cancelled])
     # the dropped sibling stays in the error's (suppressed) history
     assert isinstance(excinfo.value.__context__, ExceptionGroup)
+    assert excinfo.value.__suppress_context__
+    assert find_control_flow(excinfo.value) is termination
+
+
+def _raise(error: BaseException) -> NoReturn:
+    raise error
+
+
+def _group_with_context(leaf: Exception, termination: Exception) -> ExceptionGroup:
+    try:
+        try:
+            raise termination
+        except TerminateSampleError:
+            _raise(ExceptionGroup("cleanup", [leaf]))
+    except ExceptionGroup as group:
+        return group
+
+
+def _group_with_cause(leaf: Exception, termination: Exception) -> ExceptionGroup:
+    group = ExceptionGroup("cleanup", [leaf])
+    group.__cause__ = termination
+    return group
+
+
+def _nested_group_with_context(
+    leaf: Exception, termination: Exception
+) -> ExceptionGroup:
+    return ExceptionGroup("outer", [_group_with_context(leaf, termination)])
+
+
+@pytest.mark.parametrize(
+    "make_group",
+    [_group_with_context, _group_with_cause, _nested_group_with_context],
+    ids=["context", "cause", "nested"],
+)
+async def test_unwrapped_error_keeps_its_wrappers_termination(
+    make_group: Callable[[Exception, Exception], ExceptionGroup],
+) -> None:
+    leaf = RuntimeError("leaf")
+    termination = TerminateSampleError("stop now")
+    group = make_group(leaf, termination)
+
+    with pytest.raises(RuntimeError, match="leaf") as excinfo:
+        try:
+            _raise(group)
+        except ExceptionGroup as ex:
+            raise_unwrapped(ex, leaf)
+    # the group carried the termination, so it stays as suppressed context
+    assert excinfo.value.__context__ is group
     assert excinfo.value.__suppress_context__
     assert find_control_flow(excinfo.value) is termination
 

@@ -1045,6 +1045,39 @@ async def test_response_filter_control_flow_keeps_its_context(
     assert text.count(f"{type(error).__name__}: ") == 1
 
 
+async def test_response_filter_termination_on_a_wrapper_ends_the_request(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A termination the filter's group was raised while handling stays sticky."""
+
+    async def grouped_filter(
+        model: Model, output: ModelOutput, generate_input: GenerateInput
+    ) -> ModelOutput | None:
+        try:
+            raise TerminateSampleError("stop now")
+        except TerminateSampleError:
+            _raise(
+                ExceptionGroup(
+                    "cleanup", [LimitExceededError("token", value=2, limit=1)]
+                )
+            )
+
+    async def generate() -> JsonValue:
+        await _apply_response_filter(
+            grouped_filter,
+            get_model("mockllm/model"),
+            ModelOutput.from_content("mockllm/model", "hi"),
+            GenerateInput([], [], "auto", GenerateConfig()),
+        )
+        return None
+
+    replies: list[str | None] = []
+    service = dispatching_service(monkeypatch, "generate", generate, {}, replies)
+    with pytest.raises(TerminateSampleError, match="stop now"):
+        await service._handle_request_tracked(REQUEST_FILE, REQUEST_ID)
+    assert replies == ["Terminating: stop now"]
+
+
 @skip_if_no_docker
 @pytest.mark.slow
 @pytest.mark.parametrize(

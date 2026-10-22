@@ -416,6 +416,53 @@ async def test_unhandled_tool_error_keeps_its_context():
     assert text.count("RuntimeError: wrapped") == 1
 
 
+async def test_stage_error_keeps_a_sibling_failure_in_its_history():
+    """When parallel tools both fail, the raised error keeps the other's."""
+    started = 0
+    all_started = anyio.Event()
+
+    @tool(parallel=True)
+    def fail_together():
+        async def fail_together(label: str) -> str:
+            """Fail once every call has started.
+
+            Args:
+                label: The error message.
+            """
+            nonlocal started
+            # shielded, so a sibling's failure cannot cancel this one first
+            with anyio.CancelScope(shield=True):
+                started += 1
+                if started == 2:
+                    all_started.set()
+                await all_started.wait()
+                raise RuntimeError(label)
+            return label  # not reached: the shielded block raises
+
+        return fail_together
+
+    calls = [
+        call("fail_together", "fail-together-c0", label="first"),
+        call("fail_together", "fail-together-c1", label="second"),
+    ]
+    with pytest.raises(RuntimeError) as excinfo:
+        await execute_tools([assistant(*calls)], [ToolDef(fail_together())])
+    group = excinfo.value.__context__
+    assert isinstance(group, ExceptionGroup)
+    assert excinfo.value.__suppress_context__
+    failed, _ = group.split(RuntimeError)
+    assert failed is not None
+    leaves: list[BaseException] = []
+    pending: list[BaseException] = [failed]
+    while pending:
+        e = pending.pop()
+        if isinstance(e, BaseExceptionGroup):
+            pending.extend(e.exceptions)
+        else:
+            leaves.append(e)
+    assert sorted(str(e) for e in leaves) == ["first", "second"]
+
+
 async def test_per_call_cancel_isolates_to_one_call():
     """event._cancel() on one call only cancels that call; siblings finish.
 
