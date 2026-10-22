@@ -1185,6 +1185,27 @@ flush time and the rest. Expected from the issues: shape A at default
 `log_buffer` from ≈75 s to ≈25–30 s; flush time no longer scaling with log
 size.
 
+## Performance
+
+Step 4, measured 2026-10-22 on real S3 (`s3://inspect-flow-test/perf-481/`,
+from an office link, verify mode off): an `EvalRecorder` log flushed after
+every 4 samples of random data (≈9.4 MB per batch, 10 flushes to 94 MB), once
+composing and once with composing disabled (today's whole uploads).
+
+| Flush | Log size | Whole upload | Compose |
+|---|---|---|---|
+| 1 | 9.4 MB | 2.5 s | 2.4 s (whole: under the minimum) |
+| 2 | 18.9 MB | 5.2 s | 2.9 s |
+| 5 | 47.2 MB | 7.8 s | 2.9 s |
+| 10 | 94.4 MB | 14.1 s | 3.0 s |
+| total | | 86.2 s | 30.3 s |
+
+Composed flushes stay at 2.7–3.8 s whatever the log size; whole uploads grow
+with it. Both objects equalled their temp files byte for byte, and neither
+left an in-progress upload. A run that replaced the object between flushes
+logged "compose source changed", uploaded that flush whole, and composed
+the next one. The #420 retry benchmark (shapes A and B) has not been re-run.
+
 ## Implementation plan
 
 1. **#480 — threshold re-check.** `src/inspect_ai/_eval/task/log.py`
