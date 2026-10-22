@@ -2191,39 +2191,24 @@ _T = TypeVar("_T")
 
 
 def _is_async_remote(fsw: FileSystem) -> bool:
-    """Whether reads from `fsw` go through :func:`_run_on_fsspec_loop`.
-
-    True for async fsspec filesystems (gcsfs, adlfs, ...) other than HTTP.
-    fsspec's HTTP ``_cat_file`` doesn't check that the server honoured the
-    range (its file object raises if not), and its ``_info`` can report no
-    size (its file object then streams), so HTTP keeps the synchronous
-    file-object path.
-    """
+    """Whether reads from `fsw` go through :func:`_run_on_fsspec_loop`."""
     protocol = fsw.fs.protocol
     protocols = protocol if isinstance(protocol, tuple) else (protocol,)
+    # HTTP keeps the file-object path: its `_cat_file` doesn't check that the
+    # server honoured the range, and its size can be unknown (the file streams)
     return fsw.is_async() and not {"http", "https"} & set(protocols)
 
 
 async def _run_on_fsspec_loop(fs: Any, coro: Coroutine[Any, Any, _T]) -> _T:
     """Run `coro`, a coroutine of the async fsspec filesystem `fs`, on fsspec's loop.
 
-    fsspec's sync API (``fsspec.asyn.sync``) submits the coroutine to the
-    filesystem's IO-loop thread and blocks the calling thread until it
-    finishes, so the caller's event loop is frozen for the whole request. This
-    makes the same submission but waits without blocking. No thread pool is
-    involved, so the fsspec rule in AGENTS.md (never ``to_thread`` remote
-    fsspec work) still holds.
-
-    The task's done callback only schedules a wake-up on the caller's loop:
-    nothing on fsspec's loop waits for the caller, whose loop may itself be
-    blocked in a synchronous fsspec call. A cancelled caller cancels the task
-    and waits for it to finish, so the coroutine's own cleanup has run before
-    the cancellation propagates. As with ``sync()``, a ``TimeoutError`` from
-    the coroutine is raised as ``FSTimeoutError``.
-
-    A filesystem already bound to the caller's loop (``asynchronous=True``)
-    is awaited directly, with no mapping, as its own callers would.
+    Like ``fsspec.asyn.sync()``, but the caller's event loop keeps running. On
+    cancellation it returns only once the coroutine has finished, so its own
+    cleanup has run. As with ``sync()``, a ``TimeoutError`` is raised as
+    ``FSTimeoutError``. An ``asynchronous=True`` filesystem is awaited directly.
     """
+    # `sync()` without its blocking wait: no thread pool is nested over
+    # fsspec's loop, so the fsspec rule in AGENTS.md holds
     backend = current_async_backend()
     if fs.asynchronous:
         return await coro
@@ -2242,6 +2227,8 @@ async def _run_on_fsspec_loop(fs: Any, coro: Coroutine[Any, Any, _T]) -> _T:
         coro.close()
         raise RuntimeError("Loop is not running")
 
+    # a wake-up only schedules work on the caller's loop: that loop may itself
+    # be blocked in a synchronous fsspec call, so waiting on it would deadlock
     done = anyio.Event()
     if backend == "trio":
         import trio
@@ -2285,13 +2272,9 @@ async def _run_on_fsspec_loop(fs: Any, coro: Coroutine[Any, Any, _T]) -> _T:
 
 
 async def _walk_dirs(fs: Any, path: str) -> AsyncIterator[tuple[str, list[str]]]:
-    """``(dirpath, dirnames)`` for each directory, as ``fs.walk(path)`` yields them.
-
-    Lists one directory at a time on fsspec's loop through ``_ls``, top-down
-    and omitting directories that fail to list, as ``walk`` does. Not
-    ``_walk``: adlfs defines that as an unrelated synchronous helper.
-    """
+    """``(dirpath, dirnames)`` per directory, lazily, as ``fs.walk(path)`` yields them."""
     path = fs._strip_protocol(path)
+    # `_ls`, not `_walk`: adlfs defines `_walk` as an unrelated synchronous helper
     try:
         listing = await _run_on_fsspec_loop(fs, fs._ls(path, detail=True))
     except (FileNotFoundError, OSError):

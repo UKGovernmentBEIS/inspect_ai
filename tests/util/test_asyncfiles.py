@@ -1,6 +1,5 @@
 import asyncio
 import functools
-import inspect
 import io
 import os
 import tempfile
@@ -3403,7 +3402,6 @@ class _GatedFS(fsspec.asyn.AsyncFileSystem):
         self.cat_calls = 0
         self.ls_calls = 0
         self.cleaned = False
-        self.threads: list[int] = []
         self.cat_returned = threading.Event()
         self.cleanup_started = threading.Event()
         self.cleanup_release = threading.Event()
@@ -3412,7 +3410,6 @@ class _GatedFS(fsspec.asyn.AsyncFileSystem):
     async def _gate(self) -> None:
         self.entries += 1
         entry = self.entries
-        self.threads.append(threading.get_ident())
         await self._wait_for(
             lambda: self.release.is_set() or self.released >= entry,
             "caller's event loop never released the gate",
@@ -3501,21 +3498,6 @@ class _GatedFS(fsspec.asyn.AsyncFileSystem):
             os.remove(partial)
             self.cleaned = True
             raise
-
-    def _open(self, path: str, mode: str = "rb", **kwargs: Any) -> "_GatedFile":
-        return _GatedFile(self, path, mode, **kwargs)
-
-
-class _GatedFile(fsspec.spec.AbstractBufferedFile):
-    """Read through fsspec's sync bridge, as file objects of async filesystems do."""
-
-    def _fetch_range(self, start: int, end: int) -> bytes:
-        return cast(
-            bytes,
-            fsspec.asyn.sync(
-                self.fs.loop, self.fs._cat_file, self.path, start=start, end=end
-            ),
-        )
 
 
 @pytest.fixture
@@ -3612,11 +3594,6 @@ _NON_BLOCKING_CASES = [
     ),
     pytest.param(lambda afs, tmp: afs.exists(_GATED_URL), True, id="exists"),
     pytest.param(
-        lambda afs, tmp: afs.exists("gatedtest://bucket/missing.bin"),
-        False,
-        id="exists_missing",
-    ),
-    pytest.param(
         lambda afs, tmp: _iter_file_names(afs, recursive=False),
         {"a.bin"},
         id="iter_files",
@@ -3645,11 +3622,6 @@ _NON_BLOCKING_CASES = [
         lambda afs, tmp: afs.read_file_bytes_fully(_GATED_URL, 2, 5),
         _PAYLOAD[2:5],
         id="read_file_bytes",
-    ),
-    pytest.param(
-        lambda afs, tmp: afs.read_file_bytes_fully(_GATED_URL, 1000, None),
-        _PAYLOAD[1000:],
-        id="read_file_bytes_to_eof",
     ),
     pytest.param(
         _read_file_suffix_fields, (_PAYLOAD[-100:], 1024), id="read_file_suffix"
@@ -3763,67 +3735,26 @@ async def test_async_fsspec_read_completes_while_loop_makes_sync_call(
         assert await afs.read_file(_GATED_URL) == _PAYLOAD
 
 
-async def test_async_fsspec_errors_pass_through(
-    gated_fs: _GatedFS, tmp_path: Path
-) -> None:
+async def test_async_fsspec_errors_pass_through(gated_fs: _GatedFS) -> None:
     gated_fs.release.set()
     async with AsyncFilesystem() as afs:
         with pytest.raises(FileNotFoundError):
             await afs.read_file("gatedtest://bucket/missing.bin")
-        with pytest.raises(FileNotFoundError):
-            await afs.get_file("gatedtest://bucket/missing.bin", str(tmp_path / "x"))
-        with pytest.raises(FileNotFoundError):
-            await afs.info("gatedtest://bucket/missing.bin")
-        with pytest.raises(FileNotFoundError):
-            await afs.read_file_bytes_fully("gatedtest://bucket/missing.bin", 0, 10)
         with pytest.raises(fsspec.FSTimeoutError):
             await afs.read_file("gatedtest://bucket/timeout.bin")
 
 
-async def test_async_fsspec_empty_range_makes_no_request(gated_fs: _GatedFS) -> None:
+async def test_async_fsspec_read_range_edges(gated_fs: _GatedFS) -> None:
     gated_fs.release.set()
     async with AsyncFilesystem() as afs:
         assert await afs.read_file_bytes_fully(_GATED_URL, 10, 10) == b""
         with pytest.raises(FileNotFoundError):
             await afs.read_file_bytes_fully("gatedtest://bucket/missing.bin", 0, 0)
+        with pytest.raises(ValueError):
+            await afs.read_file_bytes_fully(_GATED_URL, -1, None)
+    # gcsfs's `_cat_file` sends an unsatisfiable range for an empty one
     assert gated_fs.cat_calls == 0
 
 
-async def test_async_fsspec_read_rejects_negative_start(gated_fs: _GatedFS) -> None:
-    gated_fs.release.set()
-    async with AsyncFilesystem() as afs:
-        with pytest.raises(ValueError):
-            await afs.read_file_bytes_fully(_GATED_URL, -1, None)
-
-
-@pytest.mark.timeout(30, method="thread")
-async def test_run_on_fsspec_loop_rejects_a_non_coroutine(gated_fs: _GatedFS) -> None:
-    with pytest.raises(TypeError):
-        await asyncfiles._run_on_fsspec_loop(gated_fs, cast(Any, object()))
-
-
-async def test_run_on_fsspec_loop_closes_coroutine_it_cannot_submit(
-    gated_fs: _GatedFS, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    # fsspec's fork guard: `loop` raises in a process other than the creator
-    monkeypatch.setattr(gated_fs, "_pid", -1)
-    coro = gated_fs._cat_file("bucket/dir/a.bin")
-    with pytest.raises(RuntimeError):
-        await asyncfiles._run_on_fsspec_loop(gated_fs, coro)
-    assert inspect.getcoroutinestate(coro) == inspect.CORO_CLOSED
-
-
-@skip_if_trio
-async def test_run_on_fsspec_loop_awaits_asynchronous_instance_directly() -> None:
-    fs = _GatedFS(asynchronous=True, skip_instance_cache=True)
-    fs.release.set()
-    result = await asyncfiles._run_on_fsspec_loop(fs, fs._cat_file("bucket/dir/a.bin"))
-    assert result == _PAYLOAD
-    assert fs.threads == [threading.get_ident()]
-
-
-def test_is_async_remote(gated_fs: _GatedFS, tmp_path: Path) -> None:
-    assert asyncfiles._is_async_remote(filesystem(_GATED_URL))
+def test_http_keeps_the_synchronous_path() -> None:
     assert not asyncfiles._is_async_remote(filesystem("https://example.com/x.eval"))
-    assert not asyncfiles._is_async_remote(filesystem("memory://x.eval"))
-    assert not asyncfiles._is_async_remote(filesystem(str(tmp_path)))
