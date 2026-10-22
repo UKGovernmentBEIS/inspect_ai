@@ -182,7 +182,9 @@ Validators, constructors and serializers are assumed to be deterministic
 and free of side effects, including side effects on the object being
 serialized (decision: Ransom, 2026-10-22). Ones that are not are unsupported
 under oversight, and this is not detected. Conversion runs more than once
-(steps 3, 5, 7 and 8), so a validator or constructor that returns a
+during preparation and the checks (steps 3, 5 and 7), and again after a
+modify (step 8; an approval runs the value check's build), so a validator
+or constructor that returns a
 different value each time can give the checks and the tool different
 values. A serializer that changes the model it serializes (rounding a field
 in place, say) changes the value the value check compares with.
@@ -235,8 +237,10 @@ nothing here: on `main` a later edit to the call did not reach the log either.
   the model's arguments, so a value that serialization hides or masks is a
   parsing error under oversight. A `modify` may not change the call's id
   (decision: Ransom, 2026-10-21).
-- 2026-10-21: the tool runs a fresh build of C (step 8), not the build a
-  check used, so checking a lazy iterable does not consume the tool's value.
+- 2026-10-21: the tool runs a build separate from the JSON rebuild check
+  (step 8): an approval runs B as converted for the Python value check, and a
+  modify runs a fresh conversion of C, so the rebuild check does not consume
+  the tool's values.
   Validators and constructors that return a different value each time are
   unsupported (decision: Ransom, 2026-10-21).
 - 2026-10-21: sets and frozensets whose shown order does not rebuild
