@@ -5,10 +5,13 @@ are correctly normalized through the CLI layer without mangling nested key segme
 """
 
 import os
+from typing import Any
 
 import pytest
 import yaml
+from click.testing import CliRunner
 
+import inspect_ai._cli.eval as cli_eval
 import inspect_ai._util.dotenv as dotenv_mod
 from inspect_ai._cli.common import CommonOptions, process_common_options
 from inspect_ai._util.config import parse_cli_args
@@ -88,6 +91,46 @@ def test_shared_parser_preserves_quoted_commas_by_default() -> None:
     # Explicit opt-out retains the earlier parser behavior
     res5 = parse_cli_args(['target="alpha,beta"'], preserve_quoted_commas=False)
     assert res5 == {"target": ["alpha", "beta"]}
+
+
+@pytest.mark.parametrize(
+    ("option", "field"),
+    [("-T", "task_args"), ("-S", "solver"), ("-M", "model_args")],
+)
+def test_eval_cli_quoted_strings_and_list_migration(
+    option: str, field: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    captured: dict[str, Any] = {}
+
+    def record(**kwargs: Any) -> list[Any]:
+        captured.update(kwargs)
+        return []
+
+    monkeypatch.setattr(cli_eval, "eval", record)
+    result = CliRunner().invoke(
+        cli_eval.eval_command,
+        [
+            "tests/test_eval_config.py@eval_config_task",
+            "--model",
+            "mockllm/model",
+            "--solver",
+            "generate",
+            option,
+            'label="alpha,beta"',
+            option,
+            "items=alpha,beta",
+            option,
+            'explicit=["alpha", "beta"]',
+        ],
+    )
+
+    assert result.exit_code == 0, result.output or result.exception
+    parsed = captured[field].args if field == "solver" else captured[field]
+    assert parsed == {
+        "label": "alpha,beta",
+        "items": ["alpha", "beta"],
+        "explicit": ["alpha", "beta"],
+    }
 
 
 def test_quoted_commas_preserved_in_parse_cli_args_with_flag() -> None:
