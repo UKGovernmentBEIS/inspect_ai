@@ -2448,6 +2448,190 @@ def {TASK}() -> Task:
 """
 
 
+def _policy_shards(
+    monkeypatch: pytest.MonkeyPatch, runs: list[tuple[str, list[int], str, str]]
+) -> None:
+    """Run `_POLICY_TASK` shards: (shard, ids, metric policy, scored ids)."""
+    Path("custom_task.py").write_text(_POLICY_TASK)
+    for k, ids, policy, scored in runs:
+        with monkeypatch.context() as patch:
+            patch.setenv("SHARD_POLICY", policy)
+            patch.setenv("SHARD_SCORED", scored)
+            eval(
+                "custom_task.py",
+                model="mockllm/model",
+                log_dir=f"{NAME}.shards/{k}",
+                display="none",
+                sample_id=ids,
+            )
+
+
+def _score_metrics(log: str) -> dict[str, float]:
+    header = read_eval_log(log, header_only=True)
+    assert header.results is not None
+    [score] = header.results.scores
+    return {name: metric.value for name, metric in score.metrics.items()}
+
+
+def test_a_replaced_shards_old_metrics_do_not_block_an_incremental_merge(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import shutil
+
+    monkeypatch.chdir(tmp_path)
+    # only shard 0 holds the solver-set score; shard 1 stays unchanged
+    _policy_shards(
+        monkeypatch, [("0", [1, 2], "mean", "1,2"), ("1", [3, 4], "mean", "1,2")]
+    )
+    merge_eval_log_shards(f"{NAME}.eval")
+    assert set(_score_metrics(f"{NAME}.eval")) == {"mean"}
+
+    # shard 0 is re-run recording another metric for the score
+    _policy_shards(monkeypatch, [("0", [1, 2], "stderr", "1,2")])
+    assert merge_eval_log_shards(f"{NAME}.eval").written
+    incremental = _score_metrics(f"{NAME}.eval")
+    shutil.move(f"{NAME}.eval", "incremental.eval")
+    merge_eval_log_shards(f"{NAME}.eval")
+    assert _score_metrics(f"{NAME}.eval") == incremental
+    assert set(incremental) == {"stderr"}
+
+
+def test_an_unchanged_shard_recording_other_metrics_still_refuses(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    _policy_shards(
+        monkeypatch,
+        [("0", [1, 2], "mean", "1,2,3,4"), ("1", [3, 4], "mean", "1,2,3,4")],
+    )
+    merge_eval_log_shards(f"{NAME}.eval")
+    before = Path(f"{NAME}.eval").read_bytes()
+    _policy_shards(monkeypatch, [("0", [1, 2], "stderr", "1,2,3,4")])
+    with pytest.raises(ShardSetError, match="different metrics for score"):
+        merge_eval_log_shards(f"{NAME}.eval")
+    assert Path(f"{NAME}.eval").read_bytes() == before
+
+
+def test_reduced_and_unreduced_metrics_of_a_solver_set_score_merge(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    # one reduced (mean) and one unreduced metric, over two epochs: the
+    # results record them in separate rows
+    _policy_shards(
+        monkeypatch,
+        [("0", [1, 2], "mixed", "1,2,3,4"), ("1", [3, 4], "mixed", "1,2,3,4")],
+    )
+    header = merge_eval_log_shards(f"{NAME}.eval").log
+    assert header.results is not None
+    rows = {
+        (score.reducer, name): metric.value
+        for score in header.results.scores
+        for name, metric in score.metrics.items()
+    }
+    assert rows == {("mean", "mean"): 1.0, (None, "shard_unreduced_count"): 8.0}
+
+
+@pytest.mark.parametrize("value", ["{'a': 42.0}", "[42.0]"], ids=["dict", "list"])
+def test_a_multi_value_metric_of_a_solver_set_score_is_refused(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, value: str
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("SHARD_MULTI_VALUE", value)
+    # recorded under the group 'mean', which the built-in mean also has
+    _policy_shards(
+        monkeypatch,
+        [
+            ("0", [1, 2], "namespaced", "1,2,3,4"),
+            ("1", [3, 4], "namespaced", "1,2,3,4"),
+        ],
+    )
+    with pytest.raises(ShardSetError, match="several values"):
+        merge_eval_log_shards(f"{NAME}.eval", delete_shards=True)
+    assert not os.path.exists(f"{NAME}.eval")
+    assert len(list(Path(f"{NAME}.shards").glob("*/*.eval"))) == 2
+
+
+def test_per_key_recorded_metrics_are_refused() -> None:
+    from inspect_ai.log import EvalResults, EvalScore
+    from inspect_ai.log._shards._write import _recorded_metrics
+
+    results = EvalResults(
+        scores=[EvalScore(name=key, scorer="labels") for key in ("a", "b")]
+    )
+    with pytest.raises(ShardSetError, match="per key"):
+        _recorded_metrics("labels", [("shard.eval", results)])
+
+
+_POLICY_TASK = f"""
+import ast
+import os
+
+from inspect_ai import Epochs, Task, task
+from inspect_ai.dataset import Sample
+from inspect_ai.scorer import (
+    Metric, SampleScore, Score, Scorer, Target, mean, metric, scorer, stderr
+)
+from inspect_ai.solver import Generate, Solver, TaskState, solver
+
+
+@metric(scores="unreduced")
+def shard_unreduced_count() -> Metric:
+    def compute(scores: list[SampleScore]) -> float:
+        return float(len(scores))
+
+    return compute
+
+
+@metric(name="shard_ns/mean")
+def shard_ns_mean() -> Metric:
+    def compute(scores: list[SampleScore]):
+        return ast.literal_eval(os.environ["SHARD_MULTI_VALUE"])
+
+    return compute
+
+
+POLICY = os.environ.get("SHARD_POLICY", "mean")
+METRICS = {{
+    "mean": [mean()],
+    "stderr": [stderr()],
+    "mixed": [mean(), shard_unreduced_count()],
+    "namespaced": [shard_ns_mean()],
+}}[POLICY]
+
+
+@scorer(metrics=METRICS)
+def shard_policy_scorer() -> Scorer:
+    async def score(state: TaskState, target: Target) -> Score:
+        return Score(value=1)
+
+    return score
+
+
+@solver
+def scoring_solver() -> Solver:
+    scored = {{int(i) for i in os.environ.get("SHARD_SCORED", "1,2,3,4").split(",")}}
+
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        if state.sample_id in scored:
+            state.scores = {{"shard_policy_scorer": Score(value=1)}}
+        return state
+
+    return solve
+
+
+@task
+def {TASK}() -> Task:
+    # no scorer and no task metrics: the worker takes the score's metrics
+    # from the scorer of the same name
+    return Task(
+        dataset=[Sample(id=i, input="q") for i in range(1, 5)],
+        solver=scoring_solver(),
+        epochs=Epochs(2) if POLICY == "mixed" else 1,
+    )
+"""
+
+
 def test_cli_json_reports_an_unregistered_metric(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

@@ -1203,17 +1203,25 @@ to `accuracy` and `stderr` when it cannot create the scorer. The merge
 builds that scorer info itself and never infers it (decision: Ransom,
 2026-10-22). With task metrics (`eval.metrics`), the score takes them, as
 `eval_results` applies them. Otherwise it takes the metrics the shards
-recorded for that score name: the `results` of the shard headers read in
-the pass, with the merged log's own results standing in for unchanged
-shards (they were built from those shards' recorded results). Each
-recorded metric is rebuilt from its registry name and params (a metric
-with several values is recorded as entries sharing its name as `group`)
-and resolved from the registry only. The merge refuses before publishing
-when a recorded metric is not registered (`LookupError`, the same
-guidance), when the shards record different metrics for the score, when
-they record metrics per key (a dictionary of metric lists, which it does
-not rebuild), or when no shard recorded results for it (only running
-shards hold it), so its metrics cannot be established (`ShardSetError`).
+recorded for that score name: the `results` of every shard's current
+attempt (headers read in the pass are reused; unchanged shards' headers
+are read only when such a score exists). The merged log's own results are
+not used, since they also hold what replaced attempts contributed. One
+log's metrics for the score are the union of its result views:
+`eval_results` records reduced metrics in one row per epoch reducer and
+unreduced metrics in a row without a reducer. Each recorded metric is
+rebuilt from its registry name and params and resolved from the registry
+only. A metric with several values (a dict or list, such as
+`frequency()` or `grouped()`) is recorded as entries whose `group` is its
+name without the package namespace, so `pkg/mean` and the built-in `mean`
+record the same group; the merge refuses such a metric rather than guess
+(declare the score's metrics on the task instead). The merge refuses
+before publishing when a recorded metric is not registered (`LookupError`,
+the same guidance), when the current attempts record different metrics
+for the score, when they record a several-valued metric or metrics per
+key (a dictionary of metric lists), or when no current attempt recorded
+results for it (only running shards hold it), so its metrics cannot be
+established (`ShardSetError`).
 `accuracy` and `stderr` are used only when the shards recorded them. The
 merge deletes the shards that hold the original results, so it never
 substitutes defaults, unlike other callers of `eval_results`. A score
@@ -2298,7 +2306,14 @@ Per PR (numbers from "Implementation plan"):
      then merges with the recorded metric once its module is imported,
      even when the scorer's factory now raises; shards recording different
      metrics for a score, and a score no shard recorded results for (only
-     running shards), are refused; a spy asserts no
+     running shards), are refused; an incremental merge after a shard
+     holding the score is re-run with other metrics equals a fresh merge,
+     while an unchanged shard recording other metrics still refuses;
+     reduced and unreduced metrics of one score (separate result rows)
+     merge; a several-valued metric (dict and list, named `shard_ns/mean`
+     so its group collides with the built-in `mean`) and per-key metrics
+     are refused, with no merged log published or shard deleted; a spy
+     asserts no
      reader path
      (`read_eval_log`, `list_eval_logs`, `evals_df`) calls the merge;
    - cancellation mid-pass (after reads, during the build, during the S3
