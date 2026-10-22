@@ -50,7 +50,7 @@ from inspect_ai._sentinel._config import (
     resolve_sentinel_spec,
     sentinel_config,
 )
-from inspect_ai._util._async import current_async_backend
+from inspect_ai._util._async import current_async_backend, unwrap_exception_group
 from inspect_ai._util.asyncfiles import with_async_fs
 from inspect_ai._util.config import parse_cli_args, resolve_args
 from inspect_ai._util.constants import (
@@ -347,7 +347,8 @@ def eval(
     )
 
     async def run_task_app() -> list[EvalLog]:
-        try:
+        # exceptions can escape when debug_errors is True and that's okay
+        with unwrap_exception_group("first" if debug_errors else None):
             return await eval_async(
                 tasks=tasks,
                 model=model,
@@ -411,12 +412,6 @@ def eval(
                 task_retry_attempts=task_retry_attempts,
                 **kwargs,
             )
-        # exceptions can escape when debug_errors is True and that's okay
-        except ExceptionGroup as ex:
-            if debug_errors:
-                raise ex.exceptions[0] from None
-            else:
-                raise
 
     result = task_display().run_task_app(with_async_fs(run_task_app))
 

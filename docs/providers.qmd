@@ -98,11 +98,11 @@ inspect eval math.py --model openai/o4-mini -M responses_store=True
 
 ### Responses Metadata
 
-You can attach [`metadata`](https://platform.openai.com/docs/api-reference/responses/create#responses-create-metadata) key-value pairs to Responses API requests via the `extra_body` generation config. For example:
+You can attach [`metadata`](https://developers.openai.com/api/reference/resources/responses/methods/create) key-value pairs to Responses API requests via the `extra_body` generation config (`--extra-body` on the command line). For example:
 
 ``` bash
 inspect eval math.py --model openai/gpt-5.4 \
-    -M extra_body='{"metadata": {"experiment": "baseline"}}'
+    --extra-body '{"metadata": {"experiment": "baseline"}}'
 ```
 
 The `metadata` returned on responses (the echoed request metadata, which some models augment with additional fields) is surfaced as `ModelOutput.metadata`. Note that request metadata is not sent when `responses_store=True`.
