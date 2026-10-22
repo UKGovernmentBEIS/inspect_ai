@@ -73,6 +73,9 @@ def tool_call_matcher(
     function named exactly, `value` as a glob over the whole of a string value,
     and with `)` no other arguments. Any other `tools` entry containing `(` is refused.
 
+    Function names are matched with `fnmatch.fnmatch`, so they ignore case on
+    Windows. Argument values, including legacy ones, are always case-sensitive.
+
     Raises:
         ValueError: If `tools` or `arguments` cannot be compiled.
     """

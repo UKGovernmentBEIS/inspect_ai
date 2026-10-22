@@ -1,5 +1,8 @@
+import fnmatch
 import logging
+import ntpath
 from pathlib import Path
+from types import SimpleNamespace
 from typing import NamedTuple
 
 import pytest
@@ -908,6 +911,17 @@ async def test_policy_legacy_argument_form() -> None:
         call = make_tool_call("computer", action=value)
         assert not await routed(call, "computer(action='*'")
     assert not await routed(make_tool_call("f", timeout=10), "f(timeout='10'")
+
+
+async def test_policy_case_rules_on_windows(monkeypatch: pytest.MonkeyPatch) -> None:
+    # fnmatch ignores case through the platform's normcase; use Windows' here
+    monkeypatch.setattr(fnmatch, "os", SimpleNamespace(path=ntpath))
+
+    assert await routed(make_tool_call("computer", action="key"), "Computer")
+    call = make_tool_call("computer", action="KEY")
+    assert not await routed(call, "computer", action="key")
+    assert not await routed(call, "computer(action='key'")
+    assert await routed(call, "computer(action='KEY'")
 
 
 @pytest.mark.parametrize(
