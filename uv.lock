@@ -2150,7 +2150,7 @@ requires-dist = [
     { name = "huggingface-hub", marker = "extra == 'dev'", specifier = ">=1.6.0" },
     { name = "ijson", specifier = ">=3.2.0" },
     { name = "inspect-scout", marker = "extra == 'dev'", specifier = ">=0.5.5" },
-    { name = "inspect-sentinel", marker = "extra == 'dev'", specifier = ">=0.1.4" },
+    { name = "inspect-sentinel", marker = "extra == 'dev'", specifier = ">=0.2.0" },
     { name = "ipython", marker = "extra == 'dev'" },
     { name = "jsonlines", specifier = ">=3.0.0" },
     { name = "jsonpatch", specifier = ">=1.32" },
@@ -2242,7 +2242,7 @@ dev = [{ name = "inspect-ai", extras = ["dev"] }]
 
 [[package]]
 name = "inspect-scout"
-version = "0.5.5"
+version = "0.6.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "anyio" },
@@ -2276,23 +2276,26 @@ dependencies = [
     { name = "wrapt" },
     { name = "zstandard" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/aa/24/c590b8e04d206c9041eba2db670eff80e73cdde719f4d1977e89742cd974/inspect_scout-0.5.5.tar.gz", hash = "sha256:c8def7b478be28bf9b5017b1279a9fd065c56a553e1474282c7b6f0ff733c351", size = 2562099, upload-time = "2026-10-11T13:20:26.078Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/52/f3/4e70fbd30de997328aa92b0cc6f54623f97be301435d05a67ed84298bfdf/inspect_scout-0.6.1.tar.gz", hash = "sha256:7a1ff1145e53564f80e669b2f65291811ee1a3e4d02e5633f096ec78a2f666c0", size = 2576673, upload-time = "2026-10-21T22:59:31.949Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/50/da/ea4b4643064503b4c33dac4a10f2ac5e6d3b009a68c8f3a137dab7a87491/inspect_scout-0.5.5-py3-none-any.whl", hash = "sha256:54293e319675b7d397b8bc98a8eca3855c3e35d83c09d952a83100ffc9e9fc68", size = 2650888, upload-time = "2026-10-11T13:20:24.079Z" },
+    { url = "https://files.pythonhosted.org/packages/9b/7f/cb2915d2c9525b217c4e1be3b105785afe09cad436acfd4ad7c69f78a701/inspect_scout-0.6.1-py3-none-any.whl", hash = "sha256:16eb5e51b7f2608e9a74036ab3b0588345dd7a81896d2f0517ec0bdf73accd68", size = 2656172, upload-time = "2026-10-21T22:59:29.946Z" },
 ]
 
 [[package]]
 name = "inspect-sentinel"
-version = "0.1.4"
+version = "0.2.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "anyio" },
     { name = "inspect-ai" },
+    { name = "inspect-scout" },
+    { name = "jinja2" },
     { name = "pydantic" },
+    { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/a0/4f/bf6cdfc9f2f1f421047c0623dc69a510a958a7a210f51e33651cc49e914d/inspect_sentinel-0.1.4.tar.gz", hash = "sha256:c4d3cf4d0174c1921a013e24840649252b43a909d6038d8799d699c8d61b909b", size = 128618, upload-time = "2026-10-19T21:45:03.875Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/50/86/109670df4e00bc1c506efc90e11195510f37e7c107759d97284b21afcdde/inspect_sentinel-0.2.0.tar.gz", hash = "sha256:0e4c1a8c6bd347b7bf228ef8d7dcdabbececa38bf62c4cc2db79b1b7fedfea8a", size = 265076, upload-time = "2026-10-21T23:30:41.451Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/2d/f4/174cd1f32ecbf1761a2029b5dc3dfea16d3962cc1ca79765265be29e119e/inspect_sentinel-0.1.4-py3-none-any.whl", hash = "sha256:df633c060859fcd973d594a99bcde9b016391bcb030c1e9a0bcde7c6edbb86dd", size = 132991, upload-time = "2026-10-19T21:45:02.237Z" },
+    { url = "https://files.pythonhosted.org/packages/27/a3/d0eef88161ff15ff2930dbc17f709200613e47f3e50ae0cbd130d5cf2a96/inspect_sentinel-0.2.0-py3-none-any.whl", hash = "sha256:bb55c9e290e17d689be0c1dc5e2c145456ebc5286791a2351f7dbabcb9f9d3a5", size = 305964, upload-time = "2026-10-21T23:30:39.781Z" },
 ]
 
 [[package]]
