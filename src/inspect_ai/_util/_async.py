@@ -148,15 +148,18 @@ def raise_unwrapped(group: BaseException, error: BaseException) -> NoReturn:
     `__suppress_context__`, so its traceback reads as it would without the
     group. Otherwise its context is `group`, suppressed as with
     `raise ... from`, so what `group` carried stays in its history, where
-    `find_control_flow()` looks.
+    `find_control_flow()` looks. If `group` reaches `error`'s own context
+    only through that context, which this replaces, the new context is a
+    group of `error`'s own context and `group`, so neither is lost.
 
     `group` carries something `error` does not when it holds other errors
     (through nested groups), or when a group around `error` has a context or
     cause leading to an `Exception` that is not already in `error`'s own
-    history. Groups and cancellation exceptions in that history count only
-    for what they lead to, so a task group whose host was cancelled, or that
-    was raised while handling another group of the same error, carries
-    nothing extra.
+    history. Groups, and exceptions that are not `Exception` subclasses
+    (cancellation, `KeyboardInterrupt`, `SystemExit`, ...), count only for
+    what they lead to: `find_control_flow()` looks only for `Exception`
+    subclasses. So a task group whose host was cancelled, or that was raised
+    while handling another group of the same error, carries nothing extra.
 
     It may be called inside or after the handler for `group`. Exception
     classes that override `__class__`, `__cause__` or `__setattr__` are not
@@ -169,11 +172,17 @@ def raise_unwrapped(group: BaseException, error: BaseException) -> NoReturn:
     # the stored attributes, past any attributes of the subclass's own
     context = vars(BaseException)["__context__"]
     suppress_context = vars(BaseException)["__suppress_context__"]
+    own_context = context.__get__(error)
     if _carries_only(group, error):
-        saved_context = context.__get__(error)
+        saved_context = own_context
         saved_suppress_context = suppress_context.__get__(error)
-    else:
+    elif own_context is None or id(own_context) in _history([group], leaf=error):
         saved_context, saved_suppress_context = group, True
+    else:
+        saved_context = BaseExceptionGroup(
+            "unwrapped exception history", [own_context, group]
+        )
+        saved_suppress_context = True
     # raising sets the context to the exception being handled, if any
     try:
         raise error
@@ -204,8 +213,13 @@ def _carries_only(group: BaseException, error: BaseException) -> bool:
     )
 
 
-def _history(roots: list[BaseException]) -> dict[int, BaseException]:
-    """The exceptions reachable from `roots` by cause, context and group members."""
+def _history(
+    roots: list[BaseException], leaf: BaseException | None = None
+) -> dict[int, BaseException]:
+    """The exceptions reachable from `roots` by cause, context and group members.
+
+    The cause and context of `leaf` are not followed.
+    """
     seen: dict[int, BaseException] = {}
     stack = list(roots)
     while stack:
@@ -213,7 +227,8 @@ def _history(roots: list[BaseException]) -> dict[int, BaseException]:
         if id(e) in seen:
             continue
         seen[id(e)] = e
-        stack.extend(_links(e))
+        if e is not leaf:
+            stack.extend(_links(e))
         if issubclass(type(e), BaseExceptionGroup):
             stack.extend(cast(BaseExceptionGroup[BaseException], e).exceptions)
     return seen

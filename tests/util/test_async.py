@@ -376,6 +376,36 @@ async def test_unwrapped_error_keeps_its_wrappers_termination(
     assert find_control_flow(excinfo.value) is termination
 
 
+@pytest.mark.parametrize("selected", ["error", "group"])
+@pytest.mark.parametrize("link", ["context", "cause"])
+async def test_unwrapped_error_keeps_its_own_termination(
+    selected: Literal["error", "group"], link: Literal["context", "cause"]
+) -> None:
+    termination = TerminateSampleError("stop now")
+    leaf = RuntimeError("leaf")
+    error: Exception = leaf if selected == "error" else ExceptionGroup("inner", [leaf])
+    setattr(error, f"__{link}__", termination)
+    outer = ExceptionGroup("outer", [error])
+    outer_cause = ValueError("outer cause")
+    outer.__cause__ = outer_cause
+
+    with pytest.raises(type(error)) as excinfo:
+        with unwrap_exception_group():
+            raise outer
+    assert excinfo.value is error
+    assert error.__suppress_context__
+    # the outer group carried its cause, so it stays as context, next to the
+    # error's own context
+    if link == "context":
+        assert isinstance(error.__context__, BaseExceptionGroup)
+        assert error.__context__.exceptions == (termination, outer)
+    else:
+        assert error.__cause__ is termination
+        assert error.__context__ is outer
+    assert outer.__cause__ is outer_cause
+    assert find_control_flow(error) is termination
+
+
 async def test_collect_keeps_task_error_cause() -> None:
     with pytest.raises(RuntimeError, match="task failed") as excinfo:
         await collect(_fail_with_cause())

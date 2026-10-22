@@ -21,6 +21,7 @@ from test_helpers.utils import (
 )
 from typing_extensions import assert_never
 
+from inspect_ai._util._async import unwrap_exception_group
 from inspect_ai._util.content import (
     Content,
     ContentReasoning,
@@ -1061,6 +1062,41 @@ async def test_response_filter_termination_on_a_wrapper_ends_the_request(
                     "cleanup", [LimitExceededError("token", value=2, limit=1)]
                 )
             )
+
+    async def generate() -> JsonValue:
+        await _apply_response_filter(
+            grouped_filter,
+            get_model("mockllm/model"),
+            ModelOutput.from_content("mockllm/model", "hi"),
+            GenerateInput([], [], "auto", GenerateConfig()),
+        )
+        return None
+
+    replies: list[str | None] = []
+    service = dispatching_service(monkeypatch, "generate", generate, {}, replies)
+    with pytest.raises(TerminateSampleError, match="stop now"):
+        await service._handle_request_tracked(REQUEST_FILE, REQUEST_ID)
+    assert replies == ["Terminating: stop now"]
+
+
+@pytest.mark.parametrize("selected", ["error", "group"])
+async def test_response_filter_termination_on_the_unwrapped_error_ends_the_request(
+    monkeypatch: pytest.MonkeyPatch, selected: Literal["error", "group"]
+) -> None:
+    """A termination in the context of the error a filter unwraps stays sticky."""
+
+    async def grouped_filter(
+        model: Model, output: ModelOutput, generate_input: GenerateInput
+    ) -> ModelOutput | None:
+        limit = LimitExceededError("token", value=2, limit=1)
+        error: Exception = (
+            limit if selected == "error" else ExceptionGroup("inner", [limit])
+        )
+        error.__context__ = TerminateSampleError("stop now")
+        outer = ExceptionGroup("outer", [error])
+        outer.__cause__ = ValueError("outer cause")
+        with unwrap_exception_group():
+            raise outer
 
     async def generate() -> JsonValue:
         await _apply_response_filter(
