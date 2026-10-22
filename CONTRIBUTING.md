@@ -110,6 +110,8 @@ uv sync
 
 uv only resolves releases that have been on PyPI for at least seven days (`exclude-newer` in `pyproject.toml`), so a compromised or broken release can be found and yanked before it reaches `uv.lock`, CI, or your machine. Each model provider's own SDK or integration package (for example `openai`, `transformers` or `vllm`) and Inspect's own packages are exempt (`exclude-newer-package`), so support for a new release can land the day it ships. Infrastructure that providers also need, such as `torch` and `accelerate`, stays under the cooldown. To adopt a specific new release deliberately, run `uv lock --upgrade-package <package>`. If the release is less than seven days old and the package isn't exempt, also add it to `exclude-newer-package` in `pyproject.toml` and to `cooldown.exclude` in `.github/dependabot.yml`.
 
+uv is the supported way to set up Inspect. Installing with pip (`pip install -e ".[dev]"`) gets neither `uv.lock` nor the repository's cooldown.
+
 Create a branch with a short, descriptive name, then start working on the issue. You may find it helpful to install the pre-commit hooks:
 
 ```
