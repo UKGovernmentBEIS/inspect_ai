@@ -30,6 +30,7 @@ aws-bedrock-token-generator = false
 azure-ai-inference = false
 boto3 = false
 botocore = false
+certifi = false
 google-genai = false
 groq = false
 huggingface-hub = false

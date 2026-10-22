@@ -30,6 +30,7 @@ updates:
         - "azure-ai-inference"
         - "boto3"
         - "botocore"
+        - "certifi"
         - "google-genai"
         - "groq"
         - "huggingface-hub"
