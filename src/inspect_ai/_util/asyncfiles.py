@@ -782,9 +782,13 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
             return await anyio.to_thread.run_sync(
                 _local_read_file_info, local_path(filename)
             )
-        with file(filename, "rb") as f:
-            data = f.read()
-        info = fsw.info(filename)
+        if _is_async_remote(fsw):
+            data = await _run_on_fsspec_loop(fsw.fs, fsw.fs._cat_file(filename))
+            info = await self.info(filename)
+        else:
+            with file(filename, "rb") as f:
+                data = f.read()
+            info = fsw.info(filename)
         return FileContent(data=data, etag=info.etag, mtime=info.mtime)
 
     async def read_file_bytes(
@@ -832,6 +836,16 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
             if fs.is_local():
                 # If local, use AnyIO's async/chunking file reading support
                 return _AnyIOFileByteReceiveStream(local_path(filename), start, end)
+            if _is_async_remote(fs):
+                # a file object returns b"" here; some `_cat_file`s send an
+                # unsatisfiable range request instead
+                if end is not None and end <= start:
+                    return _BytesByteReceiveStream(b"")
+                return _BytesByteReceiveStream(
+                    await _run_on_fsspec_loop(
+                        fs.fs, fs.fs._cat_file(filename, start=start, end=end)
+                    )
+                )
             with file(filename, "rb") as f:
                 f.seek(start)
                 return _BytesByteReceiveStream(
@@ -886,11 +900,13 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
         cancellation checks between chunks; under asyncio a byte stream
         from :meth:`read_file_bytes` is written inline (a buffered
         write of one chunk lands in the page cache faster than a thread hop
-        would). Any other remote filesystem (``gs://``, ``az://``, ...) has
-        no async client and, per the fsspec rule in AGENTS.md, cannot be read
-        in a worker thread either, so it is read synchronously on the event
-        loop one chunk at a time with a checkpoint between chunks: each
-        stall is bounded by one chunk's fetch rather than the whole download.
+        would). An async fsspec filesystem (``gs://``, ``az://``, ...) is
+        read with one ranged request per chunk on fsspec's own event loop,
+        without blocking the caller's. Any other remote filesystem has no
+        async API and, per the fsspec rule in AGENTS.md, cannot be read in a
+        worker thread either, so it is read synchronously on the event loop
+        one chunk at a time with a checkpoint between chunks: each stall is
+        bounded by one chunk's fetch rather than the whole download.
 
         Raises ``FileNotFoundError`` for a missing file on every backend.
         Cancellation waits for an active worker to close its response before
@@ -913,10 +929,20 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
                     dest.write(chunk)
             finally:
                 await stream.aclose()
-        elif filesystem(filename).is_local():
+        elif (fsw := filesystem(filename)).is_local():
             await anyio.to_thread.run_sync(
                 _copy_local_file_into, local_path(filename), dest, chunk_size
             )
+        elif _is_async_remote(fsw):
+            info = await _run_on_fsspec_loop(fsw.fs, fsw.fs._info(filename))
+            size = info["size"]
+            for start in range(0, size, chunk_size):
+                end = min(start + chunk_size, size)
+                dest.write(
+                    await _run_on_fsspec_loop(
+                        fsw.fs, fsw.fs._cat_file(filename, start=start, end=end)
+                    )
+                )
         else:
             with file(filename, "rb") as src:
                 while chunk := src.read(chunk_size):
@@ -958,7 +984,7 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
                         suffix_length,
                     )
         else:
-            file_size = filesystem(filename).info(filename).size
+            file_size = (await self.info(filename)).size
             start = max(0, file_size - suffix_length)
             data = await self.read_file_bytes_fully(filename, start, file_size)
             return SuffixResult(data, file_size)

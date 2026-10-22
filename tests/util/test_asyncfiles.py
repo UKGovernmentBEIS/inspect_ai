@@ -3537,6 +3537,24 @@ async def _list_dir_names(afs: AsyncFilesystem, tmp: Path) -> tuple[set[str], se
     }
 
 
+async def _read_file_info_data(afs: AsyncFilesystem, tmp: Path) -> bytes:
+    return (await afs.read_file_info(_GATED_URL)).data
+
+
+async def _read_file_suffix_fields(
+    afs: AsyncFilesystem, tmp: Path
+) -> tuple[bytes, int]:
+    suffix = await afs.read_file_suffix(_GATED_URL, 100)
+    return suffix.data, suffix.file_size
+
+
+async def _read_file_into_bytes(afs: AsyncFilesystem, tmp: Path) -> bytes:
+    with tempfile.TemporaryFile() as dest:
+        await afs.read_file_into(_GATED_URL, dest, chunk_size=100)
+        dest.seek(0)
+        return dest.read()
+
+
 _NonBlockingCall = Callable[[AsyncFilesystem, Path], Awaitable[Any]]
 
 _NON_BLOCKING_CASES = [
@@ -3575,6 +3593,21 @@ _NON_BLOCKING_CASES = [
         id="iter_dirs_recursive",
     ),
     pytest.param(_list_dir_names, ({"a.bin"}, {"sub"}), id="list_dir"),
+    pytest.param(_read_file_info_data, _PAYLOAD, id="read_file_info"),
+    pytest.param(
+        lambda afs, tmp: afs.read_file_bytes_fully(_GATED_URL, 2, 5),
+        _PAYLOAD[2:5],
+        id="read_file_bytes",
+    ),
+    pytest.param(
+        lambda afs, tmp: afs.read_file_bytes_fully(_GATED_URL, 1000, None),
+        _PAYLOAD[1000:],
+        id="read_file_bytes_to_eof",
+    ),
+    pytest.param(
+        _read_file_suffix_fields, (_PAYLOAD[-100:], 1024), id="read_file_suffix"
+    ),
+    pytest.param(_read_file_into_bytes, _PAYLOAD, id="read_file_into"),
 ]
 
 
@@ -3647,8 +3680,17 @@ async def test_async_fsspec_errors_pass_through(
             await afs.get_file("gatedtest://bucket/missing.bin", str(tmp_path / "x"))
         with pytest.raises(FileNotFoundError):
             await afs.info("gatedtest://bucket/missing.bin")
+        with pytest.raises(FileNotFoundError):
+            await afs.read_file_bytes_fully("gatedtest://bucket/missing.bin", 0, 10)
         with pytest.raises(fsspec.FSTimeoutError):
             await afs.read_file("gatedtest://bucket/timeout.bin")
+
+
+async def test_async_fsspec_empty_range_makes_no_request(gated_fs: _GatedFS) -> None:
+    gated_fs.release.set()
+    async with AsyncFilesystem() as afs:
+        assert await afs.read_file_bytes_fully(_GATED_URL, 10, 10) == b""
+    assert gated_fs.cat_calls == 0
 
 
 @skip_if_trio
