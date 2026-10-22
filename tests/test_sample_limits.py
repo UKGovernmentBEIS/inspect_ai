@@ -1,4 +1,5 @@
 import functools
+import json
 import tempfile
 from pathlib import Path
 from random import randint
@@ -21,7 +22,12 @@ from inspect_ai import Task, eval
 from inspect_ai._util._async import tg_collect
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.registry import _registry
-from inspect_ai._util.working import add_sample_wait, sample_clock
+from inspect_ai._util.working import (
+    add_sample_wait,
+    report_sample_waiting_time,
+    sample_clock,
+)
+from inspect_ai.agent import sandbox_agent_bridge
 from inspect_ai.approval import (
     Approval,
     ApprovalPolicy,
@@ -68,7 +74,7 @@ from inspect_ai.tool import (
     ToolResult,
     tool,
 )
-from inspect_ai.util import subtask
+from inspect_ai.util import sandbox, subtask
 from inspect_ai.util._concurrency import concurrency
 from inspect_ai.util._limit import TokenLimit, sample_limits, suspend_working_limit
 
@@ -925,6 +931,7 @@ class _FlakyAPI(ModelAPI):
         attempt_seconds: float = 0.1,
         call_time: float | None = None,
         return_call: bool = False,
+        usage: bool = False,
         **model_args: object,
     ) -> None:
         super().__init__(
@@ -938,6 +945,7 @@ class _FlakyAPI(ModelAPI):
         self.attempt_seconds = attempt_seconds
         self.call_time = call_time
         self.return_call = return_call
+        self.usage = usage
         self.attempts: dict[str, int] = {}
 
     async def generate(
@@ -949,6 +957,8 @@ class _FlakyAPI(ModelAPI):
     ) -> ModelOutput | tuple[ModelOutput, ModelCall]:
         await self._attempt(input[-1].text)
         output = ModelOutput.from_content(model=self.model_name, content="ok")
+        if self.usage:
+            output.usage = ModelUsage(input_tokens=1, output_tokens=1, total_tokens=2)
         if self.call_time is not None or self.return_call:
             return output, ModelCall.create({}, {}, time=self.call_time)
         return output
@@ -1127,6 +1137,40 @@ def test_token_count_and_compact_retries_are_waiting(
     assert sample.working_time is not None and sample.working_time >= 0.15
 
 
+@pytest.mark.parametrize("operation", ["count_tokens", "compact"])
+def test_token_count_and_compact_retries_inside_a_tool_are_waiting(
+    flaky_model: None, operation: str
+) -> None:
+    """A tool's own retried attempts are waiting, though the tool is known work."""
+
+    @tool
+    def retrying_tool() -> Tool:
+        async def execute() -> str:
+            """Tool whose model operation is retried."""
+            model = get_model(
+                "flakytiming/m", fail_times=2, attempt_seconds=0.2, memoize=False
+            )
+            if operation == "count_tokens":
+                await model.count_tokens("count")
+            else:
+                await model.compact([ChatMessageUser(content="compact")], [])
+            return "done"
+
+        return execute
+
+    @solver
+    def retried_in_tool() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            await execute_tools(_tool_calls("retrying_tool"), [retrying_tool()])
+            return state
+
+        return solve
+
+    sample = _run_timing_solver(retried_in_tool())
+    # two failed 0.2 s attempts and two backoffs
+    assert _waiting(sample) >= 2 * (0.2 + _BACKOFF) - 0.05
+
+
 def test_sdk_internal_retries_are_waiting(flaky_model: None) -> None:
     """An attempt's time before its successful request is waiting."""
 
@@ -1145,6 +1189,51 @@ def test_sdk_internal_retries_are_waiting(flaky_model: None) -> None:
     assert _waiting(sample) >= 0.35
     # the successful 0.1 s request is working time
     assert sample.working_time is not None and sample.working_time >= 0.09
+
+
+@pytest.mark.parametrize("call_time", [None, 0.2])
+def test_attempt_retried_after_provider_success_is_waiting(
+    flaky_model: None, monkeypatch: pytest.MonkeyPatch, call_time: float | None
+) -> None:
+    """An attempt is not charged when a later step of it fails and is retried.
+
+    The provider call succeeds, then usage telemetry fails once with a
+    retryable error, so the retry loop retries the whole attempt.
+    """
+    failures = [_FlakyError("telemetry failed")]
+
+    async def flaky_telemetry(type: str, json: str) -> str:
+        if failures:
+            raise failures.pop()
+        return "not_handled"
+
+    monkeypatch.setattr(
+        "inspect_ai.hooks._legacy.send_telemetry_legacy", flaky_telemetry
+    )
+
+    @solver
+    def retried_after_success() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            model = get_model(
+                "flakytiming/m",
+                attempt_seconds=0.5,
+                call_time=call_time,
+                usage=True,
+                memoize=False,
+            )
+            await model.generate("telemetry")
+            return state
+
+        return solve
+
+    sample = _run_timing_solver(retried_after_success())
+    assert not failures
+    # the retried 0.5 s attempt, the backoff, and the second attempt's time
+    # before its measured request
+    sdk = 0.5 - call_time if call_time is not None else 0.0
+    assert _waiting(sample) >= 0.5 + _BACKOFF + sdk - 0.05
+    assert sample.working_time is not None
+    assert sample.working_time >= (call_time or 0.5) - 0.01
 
 
 @pytest.mark.parametrize(
@@ -1235,25 +1324,14 @@ def _tool_calls(*functions: str) -> list[ChatMessage]:
 
 
 def test_events_use_waits_inside_their_own_interval() -> None:
-    """Tools and subtasks charge only the waits inside their own interval.
+    """Subtasks charge only the waits inside their own interval.
 
-    A wait from the solver's start is known only once the slow tool and the
-    subtask are running and the fast tool has completed. The fast tool keeps
-    its published duration; the slow tool and the subtask subtract the part
-    of the wait inside their own interval.
+    A wait from the solver's start is known only once the subtask is running
+    and the fast tool has completed. The fast tool keeps its published
+    duration; the subtask subtracts the part of the wait inside its own
+    interval.
     """
-    slow_started = anyio.Event()
     sub_started = anyio.Event()
-
-    @tool
-    def slow_tool() -> Tool:
-        async def execute() -> str:
-            """Slow tool."""
-            slow_started.set()
-            await anyio.sleep(0.8)
-            return "slow"
-
-        return execute
 
     @subtask
     async def slow_subtask() -> str:
@@ -1268,33 +1346,28 @@ def test_events_use_waits_inside_their_own_interval() -> None:
             fast_done = anyio.Event()
 
             async def classify_late() -> None:
-                await slow_started.wait()
                 await sub_started.wait()
                 await fast_done.wait()
                 await anyio.sleep(0.3)
                 add_sample_wait(start, sample_clock())
 
-            async def run_slow() -> None:
-                await execute_tools(_tool_calls("slow_tool"), [slow_tool()])
-
             async def run_fast() -> None:
                 await execute_tools(_tool_calls("_fast_tool"), [_fast_tool()])
                 fast_done.set()
 
-            await tg_collect([classify_late, run_slow, run_fast, slow_subtask])
+            await tg_collect([classify_late, run_fast, slow_subtask])
             return state
 
         return solve
 
     sample = _run_timing_solver(straddle())
-    tools = {e.id: e for e in sample.events if isinstance(e, ToolEvent)}
+    (fast,) = [e for e in sample.events if isinstance(e, ToolEvent)]
     (sub,) = [e for e in sample.events if isinstance(e, SubtaskEvent)]
-    slow, fast = tools["slow_tool"], tools["_fast_tool"]
     # the fast tool completed before the wait was known
     assert _event_waiting(fast) == pytest.approx(0, abs=0.01)
-    # the slow tool and the subtask subtract at least the 0.3 s after they started
-    assert 0.25 <= _event_waiting(slow) <= 0.8
-    assert 0.25 <= _event_waiting(sub) <= 0.8
+    # the subtask subtracts at least the 0.3 s after it started, but not the
+    # fast tool's time, which is known work
+    assert 0.25 <= _event_waiting(sub) <= 0.75
 
 
 def _event_waiting(event: ToolEvent | SubtaskEvent) -> float:
@@ -1380,6 +1453,244 @@ def test_human_input_is_waiting() -> None:
 
     sample = _run_timing_solver(ask_human())
     assert _waiting(sample) >= 0.35
+
+
+@tool
+def _second_tool() -> Tool:
+    async def execute() -> str:
+        """Tool that runs for one second."""
+        await anyio.sleep(1.0)
+        return "done"
+
+    return execute
+
+
+@pytest.mark.parametrize("sibling", ["tool", "generate", "count_tokens", "compact"])
+def test_sibling_work_during_backoff_is_working(
+    flaky_model: None, sibling: str
+) -> None:
+    """A tool call or model request beside a call in retry backoff is charged."""
+
+    @solver
+    def backoff_beside_work() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            flaky = get_model("flakytiming/m", fail_times=1, memoize=False)
+            slow = get_model("flakytiming/m", attempt_seconds=1.0, memoize=False)
+
+            async def work() -> None:
+                if sibling == "tool":
+                    await execute_tools(_tool_calls("_second_tool"), [_second_tool()])
+                elif sibling == "count_tokens":
+                    await slow.count_tokens("slow")
+                elif sibling == "compact":
+                    await slow.compact([ChatMessageUser(content="slow")], [])
+                else:
+                    await slow.generate("slow")
+
+            async def retried() -> None:
+                await flaky.generate("flaky")
+
+            # the retried attempt and its backoff (0.1 s + 0.3 s) end
+            # well inside the sibling's one second of work
+            await tg_collect([work, retried])
+            return state
+
+        return solve
+
+    sample = _run_timing_solver(backoff_beside_work())
+    assert _waiting(sample) < 0.1
+
+
+@pytest.mark.parametrize("helper", ["report_sample_waiting_time", "add_sample_wait"])
+def test_late_wait_after_generate_in_tool_is_waiting(
+    flaky_model: None, helper: str
+) -> None:
+    """A tool reporting its finished model call as a wait is not charged for it."""
+
+    @tool
+    def reporting_tool() -> Tool:
+        async def execute() -> str:
+            """Tool that reports its model call as waiting."""
+            model = get_model("flakytiming/m", attempt_seconds=0.5, memoize=False)
+            start = sample_clock()
+            await model.generate("report")
+            if helper == "report_sample_waiting_time":
+                report_sample_waiting_time(sample_clock() - start)
+            else:
+                add_sample_wait(start, sample_clock())
+            return "done"
+
+        return execute
+
+    @solver
+    def report_in_tool() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            await execute_tools(_tool_calls("reporting_tool"), [reporting_tool()])
+            return state
+
+        return solve
+
+    sample = _run_timing_solver(report_in_tool())
+    (event,) = [e for e in sample.events if isinstance(e, ToolEvent)]
+    assert _event_waiting(event) >= 0.45
+    assert _waiting(sample) >= 0.45
+
+
+def test_semaphore_wait_beside_generate_is_working(flaky_model: None) -> None:
+    """A task queued on a semaphore while its holder generates is charged."""
+
+    @solver
+    def queued_beside_generate() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            model = get_model("flakytiming/m", attempt_seconds=0.5, memoize=False)
+            held = anyio.Event()
+
+            async def holder() -> None:
+                async with concurrency("working-time-generate", 1):
+                    held.set()
+                    await model.generate("held")
+
+            async def waiter() -> None:
+                await held.wait()
+                async with concurrency("working-time-generate", 1):
+                    pass
+
+            await tg_collect([holder, waiter])
+            return state
+
+        return solve
+
+    sample = _run_timing_solver(queued_beside_generate())
+    assert _waiting(sample) < 0.1
+
+
+def test_model_approver_generate_is_waiting(flaky_model: None) -> None:
+    """An approver's own model call does not charge an otherwise idle agent."""
+
+    @approver(name="working_time_model_approver")
+    def model_approver() -> Approver:
+        async def approve(
+            message: str,
+            call: ToolCall,
+            view: ToolCallView,
+            history: list[ChatMessage],
+        ) -> Approval:
+            model = get_model("flakytiming/m", attempt_seconds=0.4, memoize=False)
+            await model.generate("approve?")
+            return Approval(decision="approve")
+
+        return approve
+
+    @solver
+    def approved_tool() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            await execute_tools(
+                _tool_calls("_fast_tool"),
+                [_fast_tool()],
+                approval=[ApprovalPolicy(approver=model_approver(), tools="*")],
+            )
+            return state
+
+        return solve
+
+    sample = _run_timing_solver(approved_tool())
+    assert _waiting(sample) >= 0.35
+
+
+def test_sandbox_exec_beside_wait_is_working() -> None:
+    """A sandbox command charges the time a sibling spends waiting."""
+
+    @solver
+    def exec_beside_wait() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            started = anyio.Event()
+            done = anyio.Event()
+
+            async def run_exec() -> None:
+                started.set()
+                await sandbox().exec(["sleep", "0.6"])
+                done.set()
+
+            async def wait() -> None:
+                await started.wait()
+                with suspend_working_limit():
+                    await done.wait()
+
+            await tg_collect([run_exec, wait])
+            return state
+
+        return solve
+
+    sample = _run_timing_solver(exec_beside_wait(), sandbox="local")
+    assert _waiting(sample) < 0.1
+
+
+@skip_if_no_docker
+@pytest.mark.slow
+def test_bridged_agent_model_waits_are_waiting(flaky_model: None) -> None:
+    """A bridged agent's model retries are waiting though its launcher exec runs.
+
+    The agent is one blocking exec that sends a chat completion through
+    `sandbox_agent_bridge()`; the request fails once after 0.5 s, backs off
+    and succeeds.
+    """
+
+    @solver
+    def bridged_agent() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            model = get_model(
+                "flakytiming/m", fail_times=1, attempt_seconds=0.5, memoize=False
+            )
+            async with sandbox_agent_bridge(model_aliases={"inspect": model}) as bridge:
+                request = {
+                    "model": "inspect",
+                    "messages": [{"role": "user", "content": "bridged"}],
+                }
+                script = (
+                    "import urllib.request\n"
+                    "request = urllib.request.Request(\n"
+                    f"    'http://127.0.0.1:{bridge.port}/v1/chat/completions',\n"
+                    f"    data={json.dumps(request)!r}.encode(),\n"
+                    "    headers={'Content-Type': 'application/json'},\n"
+                    ")\n"
+                    "print(urllib.request.urlopen(request).read().decode())\n"
+                )
+                await sandbox().write_file("bridged_agent.py", script)
+                result = await sandbox().exec(["python3", "bridged_agent.py"])
+                assert result.success, result.stderr
+            return state
+
+        return solve
+
+    sample = _run_timing_solver(bridged_agent(), sandbox="docker")
+    # the failed 0.5 s attempt and its backoff
+    assert _waiting(sample) >= 0.5 + _BACKOFF - 0.05
+
+
+def test_queued_sandbox_exec_is_waiting() -> None:
+    """A sandbox command queued for a subprocess slot is not known work."""
+
+    @solver
+    def queued_exec() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            held = anyio.Event()
+
+            async def holder() -> None:
+                async with concurrency("subprocesses", 1, resizable=True):
+                    held.set()
+                    await anyio.sleep(0.5)
+
+            async def run_exec() -> None:
+                await held.wait()
+                await sandbox().exec(["true"])
+
+            await tg_collect([holder, run_exec])
+            return state
+
+        return solve
+
+    sample = _run_timing_solver(queued_exec(), sandbox="local", max_subprocesses=1)
+    assert _waiting(sample) >= 0.4
 
 
 def _check_live_working_time(model: str) -> None:

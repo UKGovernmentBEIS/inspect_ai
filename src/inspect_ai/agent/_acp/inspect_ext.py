@@ -133,7 +133,10 @@ TOTAL_MESSAGES_META_KEY = "inspect.total_messages"
 # Inspect, so there's no pending ``ToolEvent`` for the connection handler to
 # cancel — the request would silently no-op. The Inspect TUI reads this off the
 # tool card to suppress the per-tool "cancel tool" affordance (the operator can
-# still interrupt the whole turn). Absent ⇒ cancelable (the react default).
+# still interrupt the whole turn). Absent ⇒ cancelable (the react default). A
+# ``ToolCallProgress`` carrying the key changes it: when a sandbox bridge runs a
+# host tool for a proposed call, the real pending ``ToolEvent`` makes the card
+# cancelable.
 TOOL_CALL_CANCELABLE_META_KEY = "inspect.tool_call_cancelable"
 
 
