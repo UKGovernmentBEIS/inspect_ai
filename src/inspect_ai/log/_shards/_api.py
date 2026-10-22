@@ -30,7 +30,7 @@ from inspect_ai.log._recorders.eval import (
 )
 from inspect_ai.log._recorders.recorder import SampleRecordKey
 
-from ._delete import remove_shards_dir
+from ._delete import check_deletable, remove_shards_dir
 from ._errors import ShardSetError, ShardSetIncomplete
 from ._plan import (
     AttemptRead,
@@ -156,7 +156,9 @@ def merge_eval_log_shards(
         FileNotFoundError: Neither the merged log nor any shard exists.
         LookupError: A metric or epoch reducer is not registered. Nothing is
             written.
-        ValueError: Invalid arguments.
+        ValueError: Invalid arguments, or `delete_shards` for a remote log
+            whose location holds a glob character (`*`, `?`, `[`), which the
+            storage backend would expand to other paths.
     """
     return run_coroutine(
         merge_eval_log_shards_async(
@@ -233,6 +235,8 @@ async def merge_shards(
     if delete_shards and allow_incomplete:
         raise ValueError("delete_shards cannot be combined with allow_incomplete.")
     location, merged_path, shards_dir = merge_paths(log)
+    if delete_shards:
+        check_deletable(merged_path)
 
     async with AsyncFilesystem() as fs:
         with merge_guard(merged_path):

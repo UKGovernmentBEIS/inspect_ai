@@ -1731,6 +1731,7 @@ def _run_task_file(source: str) -> None:
             "score_reducer:shard_custom_first",
             "Epoch reducer 'shard_custom_first'",
         ),
+        ("wrapped_metric", "metric:shard_custom_inner", "Metric 'shard_custom_inner'"),
     ],
 )
 def test_an_unregistered_metric_or_reducer_is_refused_until_imported(
@@ -1816,6 +1817,32 @@ def {TASK}() -> Task:
         metrics=[shard_custom_total()],
     )
 """,
+    "wrapped_metric": f"""
+from inspect_ai import Task, task
+from inspect_ai.dataset import Sample
+from inspect_ai.scorer import Metric, SampleScore, grouped, match, metric
+
+
+@metric
+def shard_custom_inner() -> Metric:
+    def compute(scores: list[SampleScore]) -> float:
+        return float(len(scores))
+
+    return compute
+
+
+@task
+def {TASK}() -> Task:
+    # the custom metric is only inside a registered wrapper's options
+    return Task(
+        dataset=[
+            Sample(id=i, input="q", target="x", metadata={{"group": i % 2}})
+            for i in range(1, 5)
+        ],
+        scorer=match(),
+        metrics=[grouped(shard_custom_inner(), "group")],
+    )
+""",
     "reducer": f"""
 from inspect_ai import Epochs, Task, task
 from inspect_ai.dataset import Sample
@@ -1840,6 +1867,53 @@ def {TASK}() -> Task:
     )
 """,
 }
+
+
+def test_metrics_nested_in_wrappers_are_checked(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from inspect_ai._util import registry
+    from inspect_ai._util.registry import registry_params
+    from inspect_ai.log._shards._write import _check_embedded
+    from inspect_ai.scorer import Metric, SampleScore, aggregate, grouped, metric
+
+    @metric
+    def shard_custom_nested() -> Metric:
+        def compute(scores: list[SampleScore]) -> float:
+            return 0.0
+
+        return compute
+
+    options = registry_params(grouped(aggregate("k", shard_custom_nested()), "g"))
+    _check_embedded(options)
+    monkeypatch.delitem(registry._registry, "metric:shard_custom_nested")
+    with pytest.raises(LookupError, match="Metric 'shard_custom_nested'"):
+        _check_embedded(options)
+
+
+@pytest.mark.parametrize(
+    "name", ["run?", "run*", "run[1]", "lo?s/run"], ids=["?", "*", "[]", "parent"]
+)
+def test_remote_deletion_refuses_glob_characters(name: str) -> None:
+    import shortuuid
+
+    from inspect_ai._util.file import filesystem
+    from inspect_ai.log._shards._delete import remove_shards_dir
+
+    root = f"memory://{shortuuid.uuid()}/logs"
+    memory = filesystem(root).fs
+    targets = [f"{root}/{name}.shards/0/a.eval", f"{root}/{name}.eval"]
+    neighbours = [f"{root}/run1.shards/0/a.eval", f"{root}/run1.eval"]
+    neighbours += [f"{root}/logs/run1.shards/0/a.eval", f"{root}/logs/run1.eval"]
+    for path in targets + neighbours:
+        memory.pipe(path, b"x")
+    before = sorted(memory.find(root))
+
+    with pytest.raises(ValueError, match="glob character"):
+        anyio.run(lambda: remove_shards_dir(f"{root}/{name}.eval", include_log=True))
+    with pytest.raises(ValueError, match="glob character"):
+        merge_eval_log_shards(f"{root}/{name}.eval", delete_shards=True)
+    assert sorted(memory.find(root)) == before
 
 
 def test_remove_shards_dir_deletes_a_remote_directory(tmp_path: Path) -> None:

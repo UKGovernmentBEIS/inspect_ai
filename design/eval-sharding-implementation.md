@@ -1187,7 +1187,9 @@ writes, because the merged log's sample members are the only lossless
 source (summaries are lossy, parent "Constraints"). Before reading any
 sample the merge checks that the registry resolves every metric and epoch
 reducer of `h` (`check_scoring_resolvable`: a registry lookup per metric
-name, `create_reducers` per reducer name), so `resolve_scorers_info`
+name, including the metrics that wrappers such as `grouped()` and
+`aggregate()` record as registry dicts in their options, at any depth,
+and `create_reducers` per reducer name), so `resolve_scorers_info`
 never reaches its `task_file` import ("Trust" under "Python API"); an
 unregistered one raises `LookupError` and nothing is written (parent:
 "fails rather than store metrics from a lossy input").
@@ -1264,8 +1266,14 @@ cleanup (removes the merged log too). Both use one routine,
   `AsyncFilesystem.delete_file` does, since `to_thread` over remote fsspec
   work can deadlock. On S3 it removes every object and folder marker
   under the prefix, a marker-only remnant included, and leaves a sibling
-  `<name>.shards-other/` alone. It neither classifies objects nor orders
-  the deletes, and a missing companion is not an error.
+  `<name>.shards-other/` alone. fsspec expands glob characters in the
+  paths it deletes (`run?.shards` would also delete `run1.shards`), so a
+  remote log whose URL holds `*`, `?` or `[` anywhere is refused with
+  `ValueError` before anything is deleted, by `delete_shards` before the
+  merge reads anything and by `remove_shards_dir` itself (for retry
+  cleanup); such a companion is deleted by hand. Local paths are deleted
+  by their exact path and are not refused. It neither classifies objects
+  nor orders the deletes, and a missing companion is not an error.
   With `include_log`, the merged log is deleted first.
 - **No resumption protocol.** An interrupted deletion raises its storage
   error and leaves some objects behind; the user re-runs the command or
@@ -2231,7 +2239,10 @@ Per PR (numbers from "Implementation plan"):
      characters are deleted by their exact path, and neighbours with the
      decoded names are kept; on fsspec's `memory://` backend the recursive
      delete removes the companion and keeps a `<name>.shards-other/`
-     sibling;
+     sibling; on `memory://`, a remote log whose name or parent holds `?`,
+     `*` or `[` is refused by `delete_shards` and by `remove_shards_dir`
+     (with `include_log`), and every neighbouring companion and log the
+     glob would match is kept;
    - interrupted `delete_shards`: locally, a companion left with an older
      attempt in one `<k>/` (its recorded attempt deleted) and only a
      checkpoint directory in another: an ordinary merge refuses (attempt
@@ -2246,8 +2257,10 @@ Per PR (numbers from "Implementation plan"):
      deleted it has its conditional publish refused (`WriteConflictError`),
      on `mock_s3` with a pause between the read and the publish;
    - trust: an unregistered scorer metric, an unregistered task-level
-     metric of solver-set scores with no scorer, and an unregistered custom
-     epoch reducer with built-in metrics each raise `LookupError` naming
+     metric of solver-set scores with no scorer, an unregistered metric
+     wrapped in `grouped()` (and, at unit level, nested in
+     `grouped(aggregate(...))`), and an unregistered custom epoch reducer
+     with built-in metrics each raise `LookupError` naming
      it, write nothing and import nothing; the same merge succeeds once
      the module that defines it is imported; a spy asserts no reader path
      (`read_eval_log`, `list_eval_logs`, `evals_df`) calls the merge;

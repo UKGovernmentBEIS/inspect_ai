@@ -6,6 +6,7 @@ guaranteed otherwise. An interrupted deletion leaves objects behind; running
 it again, or deleting the directory by hand, finishes it.
 """
 
+import re
 import shutil
 from contextlib import suppress
 
@@ -16,6 +17,9 @@ from inspect_ai._util.file import filesystem, local_path
 from inspect_ai._util.log_layout import eval_shards_dir
 
 from ._publish import is_local
+
+# fsspec expands these in paths it deletes, also inside a recursive delete
+_GLOB_CHARS = re.compile(r"[*?[]")
 
 
 async def remove_shards_dir(
@@ -34,7 +38,12 @@ async def remove_shards_dir(
         log: The merged log ``<dir>/<name>.eval``.
         include_log: Delete the merged log too, before the shards.
         fs: Filesystem to use (a new one when omitted).
+
+    Raises:
+        ValueError: A remote `log` holds glob characters (see
+            :func:`check_deletable`); nothing is deleted.
     """
+    check_deletable(log)
     if fs is None:
         async with AsyncFilesystem() as owned:
             await remove_shards_dir(log, include_log=include_log, fs=owned)
@@ -52,6 +61,24 @@ async def remove_shards_dir(
     # on the loop thread: to_thread over remote fsspec work can deadlock
     with suppress(FileNotFoundError):
         filesystem(shards_dir).rm(shards_dir, recursive=True)
+
+
+def check_deletable(log: str) -> None:
+    """Refuse to delete the shards of a remote `log` whose URL holds glob characters.
+
+    fsspec expands `*`, `?` and `[` in the paths it deletes, so deleting
+    `run?.shards` would also delete `run1.shards`. Local paths are deleted by
+    their exact path and are not refused.
+
+    Raises:
+        ValueError: `log` is remote and holds `*`, `?` or `[`.
+    """
+    if not is_local(log) and _GLOB_CHARS.search(log):
+        raise ValueError(
+            f"Cannot delete the shards of {log}: its location holds a glob "
+            "character (*, ? or [), which the storage backend would expand to "
+            "other paths. Delete the shards directory by hand."
+        )
 
 
 def _remove_local_dir(path: str) -> None:

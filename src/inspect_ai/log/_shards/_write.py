@@ -56,11 +56,33 @@ def check_scoring_resolvable(header: EvalLog) -> None:
         for metric in _metric_definitions(metrics):
             if registry_lookup("metric", metric.name) is None:
                 raise LookupError(_unregistered("Metric", metric.name))
+            _check_embedded(metric.options)
     for name in header.eval.config.epochs_reducer or []:
         try:
             create_reducers([name])
         except LookupError as ex:
             raise LookupError(_unregistered("Epoch reducer", name)) from ex
+
+
+def _check_embedded(value: Any) -> None:
+    """Refuse unregistered registry objects in a metric's options.
+
+    Wrappers such as `grouped()` and `aggregate()` record the metrics they
+    wrap as registry dicts, at any depth, which `registry_arg` creates.
+    """
+    from inspect_ai._util.registry import is_registry_dict, registry_lookup
+
+    if is_registry_dict(value):
+        if registry_lookup(value["type"], value["name"]) is None:
+            kind = "Metric" if value["type"] == "metric" else value["type"]
+            raise LookupError(_unregistered(kind, value["name"]))
+        _check_embedded(value["params"])
+    elif isinstance(value, dict):
+        for item in value.values():
+            _check_embedded(item)
+    elif isinstance(value, (list, tuple)):
+        for item in value:
+            _check_embedded(item)
 
 
 def _unregistered(kind: str, name: str) -> str:
