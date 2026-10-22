@@ -22,7 +22,7 @@ moto[server]>=5.1.5
 mypy>=2.3.0 # older mypy emits a `misc` error at a site where the ignore was removed as unused
 nbformat
 openai>=3.4.0
-pandas>=2.0.0,<3.1 # temporary: in 3.1, Series.apply() on Arrow columns keeps the Arrow dtype, which breaks score_to_float() tests
+pandas>=2.0.0
 pandas-stubs
 panflute
 pip
