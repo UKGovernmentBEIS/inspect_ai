@@ -906,6 +906,13 @@ def test_build_dist_builds_with_the_hashed_toolchain() -> None:
     ]
     assert "python -m build --no-isolation" in runs
 
+    # The documented refresh must not keep existing pins as preferences.
+    action = (action_dir / "action.yml").read_text()
+    refresh = re.search(r"#\s+(uv pip compile .*?-o requirements\.txt)", action, re.S)
+    assert refresh
+    assert "--upgrade " in refresh.group(1)
+    assert '--exclude-newer "7 days"' in refresh.group(1)
+
     requirements = (action_dir / "requirements.txt").read_text()
     pins = re.findall(r"^([A-Za-z0-9_.-]+)==\S+ \\$", requirements, re.MULTILINE)
     assert {"build", "setuptools", "setuptools-scm"} <= set(pins)
