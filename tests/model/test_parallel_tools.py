@@ -11,6 +11,7 @@ from typing import NoReturn
 
 import anyio
 import pytest
+from test_helpers.utils import fail_in_a_group_with_handled_context
 
 from inspect_ai.event._tool import ToolEvent
 from inspect_ai.log._transcript import Transcript, init_transcript
@@ -414,6 +415,36 @@ async def test_unhandled_tool_error_keeps_its_context():
     text = "".join(traceback.format_exception(error))
     assert "Exception Group Traceback" not in text
     assert text.count("RuntimeError: wrapped") == 1
+
+
+@tool
+def fatal_in_group():
+    async def fatal_in_group(outer_cause: bool) -> str:
+        """Fail from a task group with a recoverable error as the group's context.
+
+        Args:
+            outer_cause: Whether the task group's wrapper has its own cause.
+        """
+        await fail_in_a_group_with_handled_context(outer_cause)
+        return "unreachable"
+
+    return fatal_in_group
+
+
+@pytest.mark.parametrize("outer_cause", [False, True])
+async def test_fatal_group_member_is_not_mapped_from_its_context(outer_cause: bool):
+    """A handled ToolError in a failing group's context does not hide the failure."""
+    # the group's member and its context were ordered by a set: try fresh ones
+    for i in range(20):
+        with pytest.raises(RuntimeError, match="fatal"):
+            await execute_tools(
+                [
+                    assistant(
+                        call("fatal_in_group", f"fatal-c{i}", outer_cause=outer_cause)
+                    )
+                ],
+                [ToolDef(fatal_in_group())],
+            )
 
 
 async def test_stage_error_keeps_a_sibling_failure_in_its_history():
