@@ -80,7 +80,7 @@ ApprovalPolicy(human_approver(), "computer", arguments={"action": "key"})
 ::: {.callout-note}
 Earlier versions matched arguments within `tools`, as in `computer(action='key'`. This legacy form still works for one argument with a single-quoted value, with these limitations:
 
-- The function name must match exactly.
+- The function name must match exactly and cannot contain glob characters (`*`, `?`, `[`, `]`).
 - Only string argument values match. Other values never do.
 - The glob must match the whole value.
 - Matching is case-sensitive on every platform.

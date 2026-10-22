@@ -37,7 +37,7 @@ class ApprovalPolicy:
 
 
 # the legacy form `name(arg='value'`, optionally closed with `)`
-_LEGACY_TOOL_PATTERN = re.compile(r"([^\s(),']+)\((\w+)='([^']*)'(\))?")
+_LEGACY_TOOL_PATTERN = re.compile(r"([^\s(),'*?\[\]]+)\((\w+)='([^']*)'(\))?")
 
 # characters that make a function name a glob rather than a prefix
 _GLOB_CHARS = re.compile(r"[*?\[]")
@@ -69,11 +69,12 @@ def tool_call_matcher(
     `arguments` names an argument of the call whose value matches its glob.
 
     The legacy form `name(arg='value'` (optionally closed with `)`) has these
-    limitations: the function name must match exactly; only string values
-    match; `value` is a glob over the whole value; matching is case-sensitive
-    on every platform; path separators are literal (on Windows a slash and a
-    backslash differ); and with `)` the call may have no other arguments. Any other
-    `tools` entry containing `(`, including an unclosed value, is refused.
+    limitations: the function name must match exactly and cannot contain glob
+    characters; only string values match; `value` is a glob over the whole
+    value; matching is case-sensitive on every platform; path separators are
+    literal (on Windows a slash and a backslash differ); and with `)` the call
+    may have no other arguments. Any other `tools` entry containing `(`,
+    including an unclosed value, is refused.
 
     Other function names are matched with `fnmatch.fnmatch`, so they ignore
     case on Windows. Argument values are always case-sensitive.
@@ -129,8 +130,10 @@ def tool_call_matcher(
 
     def matches(call: ToolCall) -> bool:
         return any(
-            (fnmatch.fnmatchcase if pattern.legacy else fnmatch.fnmatch)(
-                call.function, pattern.function
+            (
+                call.function == pattern.function
+                if pattern.legacy
+                else fnmatch.fnmatch(call.function, pattern.function)
             )
             and all(
                 name in call.arguments

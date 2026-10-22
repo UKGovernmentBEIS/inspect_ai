@@ -418,6 +418,20 @@ async def test_review_policy_case_rules_on_windows(
     assert await reviewed(call("computer"), "computer(action='key')")
 
 
+@pytest.mark.parametrize(
+    "tools",
+    [
+        "computer*(action='key'",
+        "comput?r(action='key')",
+        "[c]omputer(action='key'",
+        "computer[s](action='key')",
+    ],
+)
+def test_review_policy_refuses_glob_names_in_the_legacy_form(tools: str) -> None:
+    with pytest.raises(ValueError, match="'arguments'"):
+        ReviewPolicy(fixed_reviewer(), tools)
+
+
 # --- what the reviewer sees ----------------------------------------------------
 
 

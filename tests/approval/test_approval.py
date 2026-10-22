@@ -932,6 +932,13 @@ async def test_policy_legacy_argument_form() -> None:
     # the value is a glob
     assert await routed(make_tool_call("bash", cmd="rm -rf /"), "bash(cmd='rm *'")
 
+    # names with `-` and `.` (bridged and MCP tools) are matched exactly
+    pattern = "my-server.read_file(path='a.txt'"
+    assert await routed(make_tool_call("my-server.read_file", path="a.txt"), pattern)
+    assert not await routed(
+        make_tool_call("my-server.read_files", path="a.txt"), pattern
+    )
+
     # quoted values matched strings only
     for value in (10, True, ["key"], None):
         call = make_tool_call("computer", action=value)
@@ -974,6 +981,10 @@ async def test_policy_case_and_separator_rules_on_windows(
         'bash(cmd="ls"',
         "bash(cmd='it\\'s'",
         "bash(cmd='ls'), python",
+        "computer*(action='key'",
+        "comput?r(action='key')",
+        "[c]omputer(action='key'",
+        "computer[s](action='key')",
     ],
 )
 def test_policy_refuses_other_argument_forms(tools: str) -> None:
