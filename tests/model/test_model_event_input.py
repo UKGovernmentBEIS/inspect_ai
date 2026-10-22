@@ -3,12 +3,14 @@
 import json
 import math
 import threading
+from copy import deepcopy
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 import numpy as np
 import pytest
+from pydantic import BaseModel, PrivateAttr
 
 from inspect_ai._util.constants import get_deserializing_context
 from inspect_ai.event._model import ModelEvent
@@ -22,6 +24,7 @@ from inspect_ai.model import (
     ModelUsage,
     get_model,
 )
+from inspect_ai.model._chat_message import logged_json
 from inspect_ai.model._model import _snapshot_messages, use_model_event_sink
 from inspect_ai.tool import ToolCall, ToolCallError
 
@@ -236,16 +239,24 @@ async def test_model_event_input_logs_unserializable_message_live() -> None:
     assert event.input[0] is message
 
 
+class _Locked(BaseModel):
+    step: int = 1
+    _lock: threading.Lock = PrivateAttr(default_factory=threading.Lock)
+
+
 async def test_model_event_logs_uncopyable_messages_live() -> None:
-    # a lock can't be deep copied: generate succeeds and the event holds the
-    # live input and output messages
+    # serializes, but its lock can't be deep copied: generate succeeds and
+    # the event holds the live input and output messages
     output = ModelOutput.from_content("mockllm/model", "done")
-    output.message.metadata = {"lock": threading.Lock()}
+    output.message.metadata = {"state": _Locked()}
     usage = ModelUsage(input_tokens=1, output_tokens=1, total_tokens=2)
     output.usage = usage
     init_transcript(Transcript())
     model = get_model("mockllm/model", custom_outputs=[output])
-    message = ChatMessageUser(content="hi", metadata={"lock": threading.Lock()})
+    message = ChatMessageUser(content="hi", metadata={"state": _Locked()})
+    assert logged_json(message) is not None
+    with pytest.raises(TypeError):
+        deepcopy(message)
 
     result = await model.generate([message])
 
