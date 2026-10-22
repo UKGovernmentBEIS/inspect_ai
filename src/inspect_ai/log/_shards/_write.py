@@ -17,7 +17,6 @@ from inspect_ai.log._log import (
     EvalSample,
     EvalSampleReductions,
     EvalSampleSummary,
-    EvalScore,
 )
 from inspect_ai.log._recorders.eval import (
     HEADER_JSON,
@@ -132,13 +131,14 @@ async def write_merged_zip(
     by `make_header` from the recomputed results) are written. No journal is
     written: the merged log is always written finished. `shard_results`
     returns the results each shard's current attempt recorded (as
-    `(source, results)`), the metric source for scores with no declared
-    scorer or task metrics; it is called only when there is such a score.
+    `(source, results)`), which show whether a score with no declared
+    scorer or task metrics used the default metrics; it is called only when
+    there is such a score.
 
     Raises:
         ShardSetError: A sample member's id or epoch does not match its name,
-            or the metrics of a score with no declared scorer cannot be
-            established from `recorded`.
+            or a score with no declared scorer or task metrics is not the
+            default case (see :func:`_default_metrics`).
         LookupError: A metric is not registered.
         pydantic.ValidationError: A sample member does not parse.
     """
@@ -217,7 +217,7 @@ async def _recompute_results(
     elif others:
         recorded = await shard_results()
         other_infos = [
-            ScorerInfo(name=name, metrics=_recorded_metrics(name, recorded))
+            ScorerInfo(name=name, metrics=_default_metrics(name, recorded, scores))
             for name in others
         ]
     else:
@@ -243,7 +243,8 @@ def _other_score_names(
     file) as a module and falls back to `accuracy` and `stderr` when it
     cannot load the scorer. The merge imports nothing a log names and must
     not change a score's metrics, so it builds that info itself: the task
-    metrics, as in `eval_results`, or else the metrics the shards recorded.
+    metrics, as in `eval_results`, or else the default metrics when the
+    shards recorded exactly those (:func:`_default_metrics`).
     """
     from inspect_ai._eval.task.results import _unique_scorer_names
 
@@ -257,105 +258,61 @@ def _other_score_names(
     return others
 
 
-def _recorded_metrics(
-    name: str, recorded: Sequence[tuple[str, EvalResults]]
+def _default_metrics(
+    name: str,
+    recorded: Sequence[tuple[str, EvalResults]],
+    scores: list[dict[str, SampleScore]],
 ) -> list[Metric | dict[str, list[Metric]]]:
-    """The metrics the shards recorded for score `name`, from the registry.
+    """`accuracy` and `stderr` for score `name`, when that is what the shards used.
+
+    `name` has no declared scorer and the task declares no metrics. The
+    merge supports only the default case: every current attempt that
+    recorded results for `name` recorded exactly `accuracy` and `stderr`
+    with their default parameters, and every merged value of `name` is a
+    scalar. The results are a display record that cannot be read back into
+    any other metric configuration (decision: Ransom, 2026-10-22).
 
     Raises:
-        ShardSetError: No shard recorded results for `name`, the shards
-            recorded different metrics for it, or they recorded metrics this
-            does not rebuild (see :func:`_recorded_identity`).
-        LookupError: A recorded metric is not registered.
+        ShardSetError: Any other case.
     """
-    from inspect_ai._util.registry import registry_lookup
-    from inspect_ai.scorer._metric import metric_create
+    from inspect_ai._util.registry import registry_log_name, registry_params
+    from inspect_ai.scorer._metrics.accuracy import accuracy
+    from inspect_ai.scorer._metrics.std import stderr
 
-    sources: dict[tuple[tuple[str, str], ...], list[str]] = {}
-    for source, results in recorded:
-        identity = _recorded_identity(source, name, results)
-        if identity is not None:
-            sources.setdefault(identity, []).append(source)
-    if not sources:
+    defaults: list[Metric | dict[str, list[Metric]]] = [accuracy(), stderr()]
+    expected = {
+        (registry_log_name(m), json.dumps(registry_params(m), sort_keys=True))
+        for m in [accuracy(), stderr()]
+    }
+    rows = [
+        (source, score)
+        for source, results in recorded
+        for score in results.scores
+        if score.scorer == name
+    ]
+    default = bool(rows) and all(
+        score.name == name
+        and len(score.metrics) == len(expected)
+        and {
+            (m.name, json.dumps(m.params, sort_keys=True))
+            for m in score.metrics.values()
+            if m.group is None
+        }
+        == expected
+        for _, score in rows
+    )
+    scalar = all(
+        not isinstance(sample_scores[name].score.value, dict | list)
+        for sample_scores in scores
+        if name in sample_scores
+    )
+    if not (default and scalar):
         raise ShardSetError(
-            f"Score '{name}' has no declared scorer or task metrics, and no shard "
-            "recorded results for it, so its metrics cannot be established. Merge "
-            "once a shard holding it has finished."
+            f"The metrics of score '{name}' cannot be established for merging. "
+            "It has no declared scorer and the task declares no metrics, so the "
+            "merge supports it only when the shards recorded the default "
+            "metrics (accuracy and stderr) for a scalar score. Declare the "
+            "task's metrics (Task(metrics=...)); shards already written "
+            "without declared metrics have to be re-run."
         )
-    if len(sources) > 1:
-        raise ShardSetError(
-            f"The shards record different metrics for score '{name}': "
-            + "; ".join(
-                f"{', '.join(m for m, _ in identity) or 'none'} in {', '.join(where)}"
-                for identity, where in sources.items()
-            )
-        )
-    [identity] = sources
-    metrics: list[Metric | dict[str, list[Metric]]] = []
-    for metric_name, params_json in identity:
-        if registry_lookup("metric", metric_name) is None:
-            raise LookupError(_unregistered("Metric", metric_name))
-        params = json.loads(params_json)
-        _check_embedded(params)
-        metrics.append(metric_create(metric_name, **params))
-    return metrics
-
-
-def _recorded_identity(
-    source: str, name: str, results: EvalResults
-) -> tuple[tuple[str, str], ...] | None:
-    """The metrics one log recorded for score `name`, across its result views.
-
-    `eval_results` records a score's reduced metrics once per epoch reducer
-    (rows with a `reducer`) and its unreduced metrics in a row without one;
-    together they are the score's metrics. `None` when the log recorded no
-    results for `name`.
-
-    Raises:
-        ShardSetError: The log recorded metrics per key (a dictionary of
-            metric lists), different metrics for two reducers, or a metric
-            with several values (see :func:`_metric_identities`).
-    """
-    rows = [score for score in results.scores if score.scorer == name]
-    if not rows:
-        return None
-    if any(score.name != name for score in rows):
-        raise ShardSetError(
-            f"{source} records metrics per key for score '{name}', which has "
-            "no declared scorer or task metrics; the merge cannot rebuild them."
-        )
-    reduced = {_metric_identities(s, source) for s in rows if s.reducer is not None}
-    unreduced = {_metric_identities(s, source) for s in rows if s.reducer is None}
-    if len(reduced) > 1 or len(unreduced) > 1:
-        raise ShardSetError(
-            f"{source} records different metrics for the results of score "
-            f"'{name}'; the merge cannot rebuild them."
-        )
-    return (reduced.pop() if reduced else ()) + (unreduced.pop() if unreduced else ())
-
-
-def _metric_identities(score: EvalScore, source: str) -> tuple[tuple[str, str], ...]:
-    """The metrics of one recorded result row, as (registry name, params) pairs.
-
-    A metric with one value is recorded under its registry name. One with
-    several values (a dict or list) is recorded as entries whose `group` is
-    its name without the package namespace, so `pkg/mean` and the built-in
-    `mean` record the same group: such a metric is refused rather than
-    guessed.
-
-    Raises:
-        ShardSetError: The row holds a metric with several values.
-    """
-    identities: list[tuple[str, str]] = []
-    for metric in score.metrics.values():
-        if metric.group is not None:
-            raise ShardSetError(
-                f"{source} records metric '{metric.group}' of score '{score.scorer}' "
-                "as several values, under a name that does not identify the metric "
-                "(its package is not recorded), and the score has no declared "
-                "scorer or task metrics, so the merge cannot rebuild it. Declare "
-                "the score's metrics on the task (Task(metrics=...)) and re-run "
-                "the shards."
-            )
-        identities.append((metric.name, json.dumps(metric.params, sort_keys=True)))
-    return tuple(identities)
+    return defaults

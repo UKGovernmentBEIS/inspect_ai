@@ -1200,33 +1200,39 @@ whose name matches no declared scorer (a solver-set score) would make
 `eval_results` call `ScorerInfo.from_name`, which loads a file-qualified
 name (`task.py@scorer`, or an existing file) as a module and falls back
 to `accuracy` and `stderr` when it cannot create the scorer. The merge
-builds that scorer info itself and never infers it (decision: Ransom,
-2026-10-22). With task metrics (`eval.metrics`), the score takes them, as
-`eval_results` applies them. Otherwise it takes the metrics the shards
-recorded for that score name: the `results` of every shard's current
-attempt (headers read in the pass are reused; unchanged shards' headers
-are read only when such a score exists). The merged log's own results are
-not used, since they also hold what replaced attempts contributed. One
-log's metrics for the score are the union of its result views:
-`eval_results` records reduced metrics in one row per epoch reducer and
-unreduced metrics in a row without a reducer. Each recorded metric is
-rebuilt from its registry name and params and resolved from the registry
-only. A metric with several values (a dict or list, such as
-`frequency()` or `grouped()`) is recorded as entries whose `group` is its
-name without the package namespace, so `pkg/mean` and the built-in `mean`
-record the same group; the merge refuses such a metric rather than guess
-(declare the score's metrics on the task instead). The merge refuses
-before publishing when a recorded metric is not registered (`LookupError`,
-the same guidance), when the current attempts record different metrics
-for the score, when they record a several-valued metric or metrics per
-key (a dictionary of metric lists), or when no current attempt recorded
-results for it (only running shards hold it), so its metrics cannot be
-established (`ShardSetError`).
-`accuracy` and `stderr` are used only when the shards recorded them. The
-merge deletes the shards that hold the original results, so it never
-substitutes defaults, unlike other callers of `eval_results`. A score
-name in a log therefore never imports a file and never changes a score's
-metrics.
+builds that scorer info itself, for exactly two shapes (decision: Ransom,
+2026-10-22):
+
+1. The task declares metrics (`eval.metrics`): the score takes them, as
+   `eval_results` applies them.
+2. The default case: every shard's current attempt that recorded results
+   for the score recorded exactly `accuracy` and `stderr` (scalar, with
+   their default parameters), and the score's value is a scalar in every
+   merged sample. The merge recomputes it with `accuracy` and `stderr`.
+   The current attempts' headers are those read in the pass, plus the
+   unchanged shards' headers, read only when such a score exists; the
+   merged log's own results are not used, since they also hold what
+   replaced attempts contributed.
+
+Anything else is refused with `ShardSetError` before publishing or
+deleting: a score named after a scorer whose metrics were not the
+defaults, dictionary- or list-valued scores, several-valued or custom
+recorded metrics, shards that disagree, and a score no current attempt
+recorded results for (only running shards hold it). The message says the
+score's metrics cannot be established for merging and that the task should
+declare its metrics (`Task(metrics=...)`); shards already written without
+declared metrics have to be re-run. `EvalResults` is a display record
+(several-valued metrics lose their package namespace, per-key and
+reduced/unreduced views are flattened into rows), and earlier revisions
+that rebuilt metric configurations from it kept finding cases it could
+not read back. A score name in a log therefore never imports a file and
+never changes a score's metrics.
+
+Possible follow-up work, not in Step 1: a `metrics=` option on the merge
+that supplies a solver-set score's metrics, if a real task hits this
+refusal; or workers recording the metric definitions they used for each
+score in the log header, which the merge could then resolve as it
+resolves `eval.metrics`.
 
 Memory: the current sample plus every sample's `SampleScore`s, as the
 parent's "Scale" accepts. The baseline parses each sample whole, so peak
@@ -2300,19 +2306,15 @@ Per PR (numbers from "Implementation plan"):
      the module that defines it is imported; solver-set score names that
      are a file-qualified scorer spec or an existing file, beside a
      declared scorer, import no file during the merge and keep the
-     `accuracy`/`stderr` the shards recorded; a solver-set score whose
-     shards recorded a custom scorer's metric refuses on a cold registry
-     (no merged log published, no shard deleted with `delete_shards`),
-     then merges with the recorded metric once its module is imported,
-     even when the scorer's factory now raises; shards recording different
-     metrics for a score, and a score no shard recorded results for (only
-     running shards), are refused; an incremental merge after a shard
-     holding the score is re-run with other metrics equals a fresh merge,
-     while an unchanged shard recording other metrics still refuses;
-     reduced and unreduced metrics of one score (separate result rows)
-     merge; a several-valued metric (dict and list, named `shard_ns/mean`
-     so its group collides with the built-in `mean`) and per-key metrics
-     are refused, with no merged log published or shard deleted; a spy
+     `accuracy`/`stderr` the shards recorded; a solver-set scalar score
+     with recorded `accuracy`/`stderr` merges, fresh and after a re-run
+     shard (incremental equals fresh); with `delete_shards=True`, a score
+     named after a scorer with other metrics, one whose scorer's metric is
+     custom, a dictionary-valued score whose key equals its name with
+     per-key metrics, and shards that disagree are refused, with no merged
+     log published and the shards intact, and each merges once the task
+     declares its metrics; a score with no recorded results (running
+     shards only) is refused; a spy
      asserts no
      reader path
      (`read_eval_log`, `list_eval_logs`, `evals_df`) calls the merge;
