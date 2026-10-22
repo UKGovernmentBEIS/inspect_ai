@@ -35,7 +35,17 @@ from inspect_ai.log._shards._walk import (
     is_shard_path,
     list_shard_set,
 )
-from inspect_ai.scorer import Score, match
+from inspect_ai.scorer import (
+    CORRECT,
+    INCORRECT,
+    Score,
+    Scorer,
+    Target,
+    accuracy,
+    match,
+    mean,
+    scorer,
+)
 from inspect_ai.solver import Generate, Solver, TaskState, generate, solver
 
 T1 = "2026-09-30T10-00-00-00-00"
@@ -744,6 +754,46 @@ def test_merge_of_sample_id_shards_matches_an_unsharded_run(tmp_path: Path) -> N
     ]
     assert log.reductions is not None and unsharded.reductions is not None
     assert log.reductions[0].samples == unsharded.reductions[0].samples
+
+
+@scorer(metrics={"other": [mean()]})
+def parts() -> Scorer:
+    """A per-key scorer whose key is another declared scorer's name."""
+
+    async def score(state: TaskState, target: Target) -> Score:
+        return Score(value={"other": float(int(state.sample_id) % 2)})
+
+    return score
+
+
+@scorer(metrics=[accuracy()])
+def other() -> Scorer:
+    async def score(state: TaskState, target: Target) -> Score:
+        return Score(value=CORRECT if int(state.sample_id) <= 4 else INCORRECT)
+
+    return score
+
+
+def test_merge_keeps_declared_scorer_names_that_collide_with_result_names(
+    tmp_path: Path,
+) -> None:
+    # `parts` reports a result named `other`, and `other` is declared twice
+    task = _task()
+    task.scorer = [parts(), other(), other()]
+    merged, shards = _paths(tmp_path)
+    _run(shards, "0", task, sample_id=[1, 2, 3])
+    _run(shards, "1", task, sample_id=[4, 5, 6])
+    unsharded = eval(
+        task, model="mockllm/model", log_dir=str(tmp_path / "unsharded"), display="none"
+    )[0]
+    assert unsharded.results is not None
+
+    result = merge_eval_log_shards(merged, delete_shards=True)
+    assert result.shards_deleted and result.log.results is not None
+    assert result.log.results.scores == unsharded.results.scores
+    by_name = {score.name: score for score in result.log.results.scores}
+    assert by_name["other1"].metrics["accuracy"].value == pytest.approx(4 / 6)
+    assert by_name["other1"].scored_samples == 6
 
 
 def test_merge_of_limit_range_shards(tmp_path: Path) -> None:

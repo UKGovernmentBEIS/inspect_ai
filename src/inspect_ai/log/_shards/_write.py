@@ -204,7 +204,11 @@ async def _recompute_results(
         reducers_from_log_header,
         resolve_scorers_info,
     )
-    from inspect_ai._eval.task.results import ScorerInfo, eval_results
+    from inspect_ai._eval.task.results import (
+        ScorerInfo,
+        _unique_scorer_names,
+        eval_results,
+    )
 
     # resolve_scorers_info imports the task file for an unregistered metric
     check_scoring_resolvable(template)
@@ -227,6 +231,10 @@ async def _recompute_results(
         scores=scores,
         reducers=reducers_from_log_header(template),
         scorers=[*declared, *other_infos],
+        # the names the worker scored samples under, as the task runner
+        # resolves them once: aggregation must not derive them from
+        # earlier result names (a per-key result can take a later name)
+        scorer_names=[*_unique_scorer_names(declared), *others],
         metrics=metrics,
         completed_samples=sum(1 for sample in inputs if not sample.error),
         headline_metric=template.eval.headline_metric,

@@ -1185,6 +1185,12 @@ discarded before the next. After the last sample it calls
 scorers=resolve_scorers_info(h), metrics=metrics_from_log_header(h),
 completed_samples=..., headline_metric=h.eval.headline_metric)` with the
 template header `h`, mirroring `recompute_metrics` without loading the log.
+It also passes `scorer_names`, the names the worker scored samples under,
+resolved once from the declared scorers with `unique_scorer_name` as the
+task runner resolves them (plus the solver-set score names), so
+aggregation does not derive a later scorer's name from earlier result
+names: a per-key result named like a later declared scorer would
+otherwise rename that scorer and leave it without scores.
 Carried samples are read from the merged log's temp copy on every pass that
 writes, because the merged log's sample members are the only lossless
 source (summaries are lossy, parent "Constraints"). Before reading any
@@ -2313,7 +2319,10 @@ Per PR (numbers from "Implementation plan"):
      custom, a dictionary-valued score whose key equals its name with
      per-key metrics, and shards that disagree are refused, with no merged
      log published and the shards intact, and each merges once the task
-     declares its metrics; a score with no recorded results (running
+     declares its metrics; declared scorers whose names collide with a
+     per-key result name (`parts` reporting `other`, then `other` twice)
+     merge to the same results as an unsharded run, with deletion enabled;
+     a score with no recorded results (running
      shards only) is refused; a spy
      asserts no
      reader path
