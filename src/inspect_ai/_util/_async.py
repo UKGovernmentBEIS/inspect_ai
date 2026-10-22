@@ -80,8 +80,9 @@ async def tg_collect(
 class unwrap_exception_group:
     """Unwrap an `ExceptionGroup` that leaves the block, raising its exception bare.
 
-    The exception keeps its own `__cause__`. Its context is the group and is
-    suppressed, as with `raise ... from None`, which would also drop the cause.
+    The exception keeps its own `__cause__`, `__context__` and
+    `__suppress_context__`, so its traceback reads as it would without the
+    task group.
 
     Use `with`, or `async with` in the same statement as the task group:
     `async with unwrap_exception_group(), anyio.create_task_group() as tg:`.
@@ -121,9 +122,17 @@ class unwrap_exception_group:
         if self._unwrap == "single" and len(group.exceptions) != 1:
             return
         unwrapped = group.exceptions[0]
-        # the stored cause, past any __cause__ attribute of the subclass's own
-        cause = vars(BaseException)["__cause__"].__get__(unwrapped)
-        raise unwrapped from cause
+        # raising here sets the context to the group: restore the stored
+        # context, past any attributes of the subclass's own
+        context = vars(BaseException)["__context__"]
+        suppress_context = vars(BaseException)["__suppress_context__"]
+        saved_context = context.__get__(unwrapped)
+        saved_suppress_context = suppress_context.__get__(unwrapped)
+        try:
+            raise unwrapped
+        finally:
+            context.__set__(unwrapped, saved_context)
+            suppress_context.__set__(unwrapped, saved_suppress_context)
 
     async def __aenter__(self) -> None:
         return None

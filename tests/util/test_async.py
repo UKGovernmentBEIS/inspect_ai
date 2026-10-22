@@ -7,7 +7,15 @@ import sys
 import textwrap
 import threading
 import weakref
-from typing import Any, AsyncIterator, Awaitable, Callable, Literal
+from typing import (
+    Any,
+    AsyncIterator,
+    Awaitable,
+    Callable,
+    Coroutine,
+    Literal,
+    NoReturn,
+)
 
 import anyio.to_thread
 import pytest
@@ -238,9 +246,59 @@ def _failing_tasks(count: int) -> list[Callable[[], Awaitable[None]]]:
 
 def _assert_cause_kept(error: BaseException) -> None:
     assert repr(error.__cause__) == "ValueError('cause')"
-    # the context is the task group's group, as with `raise ... from None`
-    assert isinstance(error.__context__, ExceptionGroup)
+    assert repr(error.__context__) == "KeyError('context')"
     assert error.__suppress_context__
+
+
+def _raise_wrapped() -> NoReturn:
+    raise RuntimeError("wrapped")
+
+
+async def _fail_implicitly() -> None:
+    try:
+        raise ValueError("context")
+    except ValueError:
+        _raise_wrapped()
+
+
+async def _fail_explicitly() -> None:
+    try:
+        raise KeyError("context")
+    except KeyError:
+        raise RuntimeError("wrapped") from ValueError("cause")
+
+
+async def _fail_from_none() -> None:
+    try:
+        raise KeyError("context")
+    except KeyError:
+        raise RuntimeError("wrapped") from None
+
+
+@pytest.mark.parametrize(
+    "fail,cause,context,suppressed",
+    [
+        (_fail_implicitly, "None", "ValueError('context')", False),
+        (_fail_explicitly, "ValueError('cause')", "KeyError('context')", True),
+        (_fail_from_none, "None", "KeyError('context')", True),
+    ],
+    ids=["implicit", "explicit", "from-none"],
+)
+@pytest.mark.parametrize("unwrap", ["single", "first"])
+async def test_unwrapped_task_error_keeps_its_chain(
+    fail: Callable[[], Coroutine[Any, Any, None]],
+    cause: str,
+    context: str,
+    suppressed: bool,
+    unwrap: Literal["single", "first"],
+) -> None:
+    with pytest.raises(RuntimeError, match="wrapped") as excinfo:
+        async with unwrap_exception_group(unwrap), anyio.create_task_group() as tg:
+            tg.start_soon(fail)
+    error = excinfo.value
+    assert repr(error.__cause__) == cause
+    assert repr(error.__context__) == context
+    assert error.__suppress_context__ is suppressed
 
 
 async def test_collect_keeps_task_error_cause() -> None:
