@@ -3,7 +3,7 @@
 import json
 import zipfile
 from collections.abc import Awaitable, Callable, Sequence
-from typing import Any, BinaryIO, NamedTuple
+from typing import TYPE_CHECKING, Any, BinaryIO, NamedTuple
 
 import anyio
 
@@ -28,6 +28,9 @@ from inspect_ai.log._recorders.recorder import SampleRecordKey
 from inspect_ai.scorer._metric import SampleScore
 
 from ._errors import ShardSetError
+
+if TYPE_CHECKING:
+    from inspect_ai._eval.task.results import ScorerInfo
 
 
 class _SampleInputs(NamedTuple):
@@ -192,13 +195,64 @@ def _recompute_results(
 
     # resolve_scorers_info imports the task file for an unregistered metric
     check_scoring_resolvable(template)
-    scorers = resolve_scorers_info(template)
+    metrics = metrics_from_log_header(template)
+    scores = [sample.scores for sample in inputs if sample.scores]
     return eval_results(
         samples=total_samples,
-        scores=[sample.scores for sample in inputs if sample.scores],
+        scores=scores,
         reducers=reducers_from_log_header(template),
-        scorers=scorers,
-        metrics=metrics_from_log_header(template),
+        scorers=_scorer_infos(resolve_scorers_info(template), scores, metrics),
+        metrics=metrics,
         completed_samples=sum(1 for sample in inputs if not sample.error),
         headline_metric=template.eval.headline_metric,
     )
+
+
+def _scorer_infos(
+    declared: list["ScorerInfo"],
+    scores: list[dict[str, SampleScore]],
+    metrics: Any,
+) -> list["ScorerInfo"]:
+    """The declared scorers plus one for each other score name, in first-seen order.
+
+    `eval_results` builds the others with `ScorerInfo.from_name`, which loads
+    a file-qualified name (`task.py@scorer`, or an existing file) as a
+    module. A score name comes from the log, and the merge imports nothing
+    a log names, so here they come from the registry only; otherwise this
+    matches `from_name` and the task metrics `eval_results` applies to them.
+    """
+    from inspect_ai._eval.task.results import _unique_scorer_names
+
+    infos = list(declared)
+    names = set(_unique_scorer_names(infos))
+    for sample_scores in scores:
+        for name, sample_score in sample_scores.items():
+            if sample_score.scorer is None and name not in names:
+                info = _registry_scorer_info(name)
+                if metrics is not None:
+                    info.metrics = metrics
+                infos.append(info)
+                names.add(name)
+    return infos
+
+
+def _registry_scorer_info(name: str) -> "ScorerInfo":
+    from inspect_ai._eval.task.results import ScorerInfo
+    from inspect_ai._util.registry import registry_create, registry_lookup
+    from inspect_ai.scorer._metrics.accuracy import accuracy
+    from inspect_ai.scorer._metrics.std import stderr
+    from inspect_ai.scorer._scorer import scorer_metrics
+
+    scorer = None
+    if registry_lookup("scorer", name) is not None:
+        # a scorer that cannot be created gets the default metrics, as in
+        # ScorerInfo.from_name
+        try:
+            scorer = registry_create("scorer", name)
+        except Exception:
+            scorer = None
+    if scorer is not None:
+        metrics = scorer_metrics(scorer)
+    else:
+        metrics = [accuracy(), stderr()]
+    return ScorerInfo(name=name, metrics=metrics)

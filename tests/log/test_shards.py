@@ -1,5 +1,6 @@
 import json
 import os
+import sys
 import zipfile
 from collections.abc import Callable
 from pathlib import Path
@@ -34,7 +35,7 @@ from inspect_ai.log._shards._walk import (
     is_shard_path,
     list_shard_set,
 )
-from inspect_ai.scorer import match
+from inspect_ai.scorer import Score, match
 from inspect_ai.solver import Generate, Solver, TaskState, generate, solver
 
 T1 = "2026-09-30T10-00-00-00-00"
@@ -2212,6 +2213,104 @@ def test_cli_json_stdout_holds_only_the_object_when_metric_code_prints(
     else:
         assert output["status"] == "success"
     assert "metric noise" in result.stderr
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="uses the C library's printf")
+@pytest.mark.parametrize("fail", [False, True])
+def test_cli_json_stdout_holds_only_the_object_in_a_real_process(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fail: bool
+) -> None:
+    import subprocess
+
+    monkeypatch.chdir(tmp_path)
+    _run_task_file(_NATIVE_TASK)
+    Path("merge.py").write_text(
+        "import runpy\n"
+        "runpy.run_path('custom_task.py')\n"
+        "from inspect_ai._cli.log import log_command\n"
+        f"log_command.main(['merge-shards', '{NAME}.eval', '--json'])\n"
+    )
+    # a legacy hook makes startup print a banner, which must not reach stdout
+    Path("key_hook.py").write_text("def override(var, value):\n    return None\n")
+    env = {
+        **os.environ,
+        "SHARD_NATIVE_PRINT": "1",
+        "INSPECT_API_KEY_OVERRIDE": "key_hook.override",
+    }
+    if fail:
+        env["SHARD_NATIVE_FAIL"] = "1"
+    # a real process: the C library buffers printf output to a pipe
+    result = subprocess.run(
+        [sys.executable, "merge.py"], capture_output=True, text=True, env=env
+    )
+    assert result.returncode == (1 if fail else 0), result.stderr
+    output = json.loads(result.stdout)
+    if fail:
+        assert output["error"]["type"] == "ValueError"
+    else:
+        assert output["status"] == "success"
+    assert "native noise" in result.stderr
+    assert "api key override enabled" in result.stderr
+
+
+_NATIVE_TASK = f"""
+import ctypes
+import os
+
+from inspect_ai import Task, task
+from inspect_ai.dataset import Sample
+from inspect_ai.scorer import Metric, SampleScore, match, metric
+
+
+@metric
+def shard_native_count() -> Metric:
+    def compute(scores: list[SampleScore]) -> float:
+        if os.environ.get("SHARD_NATIVE_PRINT"):
+            ctypes.CDLL(None).printf(b"native noise\\n")
+        if os.environ.get("SHARD_NATIVE_FAIL"):
+            raise ValueError("metric failed")
+        return float(len(scores))
+
+    return compute
+
+
+@task
+def {TASK}() -> Task:
+    return Task(
+        dataset=[Sample(id=i, input="q", target="x") for i in range(1, 5)],
+        scorer=match(),
+        metrics=[shard_native_count()],
+    )
+"""
+
+
+def test_score_names_from_the_log_never_load_files(tmp_path: Path) -> None:
+    evil = tmp_path / "evil.py"
+    marker = tmp_path / "imported"
+    evil.write_text(f"open({str(marker)!r}, 'w').close()\n")
+    # a file-qualified scorer spec, and an existing file without '@'
+    keys = [f"{evil}@evil_scorer", str(evil)]
+
+    @solver
+    def file_named_scores() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            state.scores = {key: Score(value=1) for key in keys}
+            return state
+
+        return solve
+
+    task = _task(solver=file_named_scores())
+    merged, shards = _paths(tmp_path / "logs")
+    _run(shards, "0", task, sample_id=[1, 2, 3])
+    _run(shards, "1", task, sample_id=[4, 5, 6])
+    # the shard runs themselves resolve these names as eval always has
+    marker.unlink(missing_ok=True)
+
+    header = merge_eval_log_shards(merged).log
+    assert not marker.exists()
+    assert header.results is not None
+    names = {score.name for score in header.results.scores}
+    assert {"match", *keys} <= names
 
 
 def test_cli_json_reports_an_unregistered_metric(

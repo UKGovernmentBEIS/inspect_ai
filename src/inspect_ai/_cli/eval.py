@@ -1,4 +1,5 @@
 import contextlib
+import ctypes
 import functools
 import json
 import os
@@ -2380,7 +2381,26 @@ def _stdout_owned_for_json() -> Iterator[TextIO]:
             with contextlib.redirect_stdout(sys.stderr):
                 yield saved_stdout
         finally:
+            # output still buffered for fd 1 belongs to the redirected
+            # period: write it to stderr before fd 1 is restored
+            _flush_stdout_buffers()
             os.dup2(saved_stdout.fileno(), stdout_fd)
+
+
+def _flush_stdout_buffers() -> None:
+    """Flush the buffers that write to fd 1: Python's and the C library's.
+
+    Native code (a C extension's ``printf``) buffers in the C library's
+    ``stdout``, which Python's flush does not reach.
+    """
+    if sys.__stdout__ is not None and not sys.__stdout__.closed:
+        sys.__stdout__.flush()
+    try:
+        libc = ctypes.CDLL(None)
+    except (OSError, TypeError):
+        # no process-wide C library handle (Windows)
+        return
+    libc.fflush(None)
 
 
 def parse_comma_separated(value: str | None) -> list[str] | None:

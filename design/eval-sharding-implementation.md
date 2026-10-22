@@ -533,7 +533,10 @@ inspect log merge-shards LOG
   stderr at the file-descriptor level (`_stdout_owned_for_json`, as
   `inspect eval --json` does) and the object is written to the saved
   stdout, so output from metric or reducer code or its subprocesses goes
-  to stderr and stdout stays parseable.
+  to stderr and stdout stays parseable. Before fd 1 is restored the helper
+  flushes Python's original stdout and the C library's buffers
+  (`fflush(NULL)`), so native output buffered during the merge also lands
+  on stderr.
 - Exit 0 when the merge wrote or had nothing new. The API's documented
   errors (`ShardSetError`, `ShardSetIncomplete`, `WriteConflictError`,
   `FileNotFoundError`, `ValueError`, and `LookupError` for an
@@ -1192,7 +1195,14 @@ name, including the metrics that wrappers such as `grouped()` and
 and `create_reducers` per reducer name), so `resolve_scorers_info`
 never reaches its `task_file` import ("Trust" under "Python API"); an
 unregistered one raises `LookupError` and nothing is written (parent:
-"fails rather than store metrics from a lossy input").
+"fails rather than store metrics from a lossy input"). A sample score
+whose name matches no declared scorer (a solver-set score) would make
+`eval_results` call `ScorerInfo.from_name`, which loads a file-qualified
+name (`task.py@scorer`, or an existing file) as a module; the merge builds
+that scorer info itself from the registry only (a registered scorer's
+metrics, else `accuracy` and `stderr`, with the task metrics applied as
+`eval_results` applies them), so a score name in a log never imports a
+file.
 
 Memory: the current sample plus every sample's `SampleScore`s, as the
 parent's "Scale" accepts. The baseline parses each sample whole, so peak
@@ -1770,8 +1780,9 @@ Ransom, 2026-10-05). A log in a shard's ancillary directory (for example
 companion, is not a shard path, so no consumer drops it unreported:
 eval-set keeps it in pairing and header reads, ctl log-dir mode lists it as
 an ordinary log by descending `unlisted_dirs` (its "Walking the
-directory"), the merge ignores it, and deletion refuses to remove it
-("Deleting shards"). A companion nested in an ancillary directory follows
+directory") and the merge ignores it. Deleting the enclosing companion
+deletes it with everything else ("Deleting shards"). A companion nested in
+an ancillary directory follows
 the same rule: from a root above the outer companion its logs are
 ordinary logs, and from a root that is the outer companion or a directory
 inside it, it is a shard set. Given the same root, eval-set and ctl
@@ -2262,7 +2273,10 @@ Per PR (numbers from "Implementation plan"):
      `grouped(aggregate(...))`), and an unregistered custom epoch reducer
      with built-in metrics each raise `LookupError` naming
      it, write nothing and import nothing; the same merge succeeds once
-     the module that defines it is imported; a spy asserts no reader path
+     the module that defines it is imported; solver-set score names that
+     are a file-qualified scorer spec or an existing file, beside a
+     declared scorer, import no file during the merge; a spy asserts no
+     reader path
      (`read_eval_log`, `list_eval_logs`, `evals_df`) calls the merge;
    - cancellation mid-pass (after reads, during the build, during the S3
      upload) leaves the merged log and shards as they were and no temp or
@@ -2274,7 +2288,9 @@ Per PR (numbers from "Implementation plan"):
    object for each failure the command handles (usage error, missing log,
    `-recovered` name, incomplete set, held lock, stray log, unregistered
    metric); with a metric that prints, success and a metric failure:
-   `--json` stdout parses and the output is on stderr. `mock_s3` deletion
+   `--json` stdout parses and the output is on stderr, also in a real
+   subprocess whose metric writes through the C library's buffered
+   `printf`. `mock_s3` deletion
    removes directory markers, including a marker-only remnant and on a
    repeated call; a recording filesystem shows remote deletion is one
    recursive `rm` of the account-qualified URL the caller gave.

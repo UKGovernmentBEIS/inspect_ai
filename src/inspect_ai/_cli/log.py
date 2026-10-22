@@ -575,13 +575,13 @@ def merge_shards_command(
     from inspect_ai.log import ShardSetError, ShardSetIncomplete
     from inspect_ai.log._shards._api import merge_shards
 
-    process_common_options(common)
-    platform_init()
-
-    # with --json, stdout carries only the result or error object: output
-    # from metric and reducer code goes to stderr
+    # with --json, stdout carries only the result or error object: startup
+    # messages (enabled hooks) and output from metric and reducer code go to
+    # stderr
     owned = _stdout_owned_for_json() if json_output else nullcontext(sys.stdout)
     with owned as stdout:
+        process_common_options(common)
+        platform_init()
         if sample_id is not None and sample_count is not None:
             _merge_failure(
                 json_output,
