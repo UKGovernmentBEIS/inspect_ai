@@ -355,9 +355,7 @@ def resolve_previous_task(
         model_roles=_merge_model_roles(
             loaded_task.model_roles, model_roles, previous_task.model_roles
         ),
-        sandbox=resolve_task_file_sandbox(
-            previous_task.log.eval.task_file, previous_task.log.eval.sandbox
-        ),
+        sandbox=previous_task.sandbox,
         checkpoint=loaded_task.checkpoint,
         sequence=sequence,
         id=previous_task.id,
