@@ -722,6 +722,59 @@ async def test_request_permission_raises_when_connection_missing() -> None:
 
 
 @skip_if_trio
+async def test_request_permission_raises_when_connection_unbinds_while_waiting() -> (
+    None
+):
+    """Unbinding while the client holds the card → raise so the shim moves on.
+
+    The connection stays open (the client switched to another sample),
+    so without this the request would wait on a client that left the
+    session while another client could answer it.
+    """
+    h = _bound_handler(wire="sess-1", target="sess-1")
+    sent = asyncio.Event()
+
+    async def unanswered(method: str, payload: Any) -> Any:
+        sent.set()
+        await asyncio.Event().wait()
+
+    h.connection.send_request = unanswered
+    request_task = asyncio.create_task(
+        h.request_permission(_permission_request_for("sess-1"))
+    )
+    await sent.wait()
+
+    await h._stop_forwarders()
+
+    with pytest.raises(ConnectionError, match="unbound"):
+        await asyncio.wait_for(request_task, timeout=5.0)
+    assert h._bound_requests == set()
+
+
+@skip_if_trio
+async def test_request_permission_cancellation_is_not_turned_into_unbind() -> None:
+    """Cancelling the waiting task (sample cancel) propagates as cancellation."""
+    h = _bound_handler(wire="sess-1", target="sess-1")
+    sent = asyncio.Event()
+
+    async def unanswered(method: str, payload: Any) -> Any:
+        sent.set()
+        await asyncio.Event().wait()
+
+    h.connection.send_request = unanswered
+    request_task = asyncio.create_task(
+        h.request_permission(_permission_request_for("sess-1"))
+    )
+    await sent.wait()
+
+    request_task.cancel()
+
+    with pytest.raises(asyncio.CancelledError):
+        await request_task
+    assert h._bound_requests == set()
+
+
+@skip_if_trio
 async def test_driver_chain_falls_through_stale_handler_after_rebind() -> None:
     """Snapshotted handler that rebound to a different target gets skipped cleanly.
 
@@ -1509,14 +1562,15 @@ class _ClientRpcStub:
     ``session/request_permission`` call. The test runs both: drives
     one normal request (initialize / session/load) for handshake,
     then waits for the server's outbound permission request and
-    replies with a pre-set response.
+    replies with a pre-set response, or leaves it unanswered when
+    ``permission_response`` is ``None``.
     """
 
     def __init__(
         self,
         reader: asyncio.StreamReader,
         writer: asyncio.StreamWriter,
-        permission_response: dict[str, Any],
+        permission_response: dict[str, Any] | None,
     ) -> None:
         self._reader = reader
         self._writer = writer
@@ -1524,6 +1578,7 @@ class _ClientRpcStub:
         self._next_id = 1
         self._pending: dict[int, asyncio.Future[dict[str, Any]]] = {}
         self.received_permission_request: dict[str, Any] | None = None
+        self.permission_requested = asyncio.Event()
         self._read_task = asyncio.create_task(self._read_loop())
 
     async def _read_loop(self) -> None:
@@ -1543,6 +1598,9 @@ class _ClientRpcStub:
                 ):
                     # Server sent us an outbound request — answer it.
                     self.received_permission_request = msg
+                    self.permission_requested.set()
+                    if self._permission_response is None:
+                        continue
                     response = {
                         "jsonrpc": "2.0",
                         "id": msg["id"],
@@ -1734,3 +1792,79 @@ async def test_approval_e2e_attach_after_fire(
             assert client.received_permission_request is not None
         finally:
             await client.close()
+
+
+@skip_if_trio
+@unix_only
+async def test_approval_e2e_moves_on_when_holder_switches_sample(
+    short_data_dir: Path, monkeypatch
+) -> None:
+    """The client holding the card loads another sample → the next client gets it.
+
+    One connection binds to one sample at a time, so loading another
+    sample (as an editor does when the operator opens a second thread)
+    unbinds the first. The connection stays open, so its pending
+    ``session/request_permission`` would otherwise keep the approval
+    waiting on a client that left the session.
+    """
+    samples = []
+    for sample_id in ("a", "b"):
+        session = LiveAcpTransport()
+        session._attachable_override = True
+        sample = MagicMock()
+        sample.acp_transport = session
+        sample.task = "t"
+        sample.sample.id = sample_id
+        sample.epoch = 0
+        samples.append(sample)
+    session_a, session_b = (s.acp_transport for s in samples)
+    monkeypatch.setattr("inspect_ai.log._samples.active_samples", lambda: samples)
+    monkeypatch.setattr("inspect_ai.agent._acp.picker.active_samples", lambda: samples)
+    monkeypatch.setattr("inspect_ai.log._samples.sample_active", lambda: samples[0])
+
+    async def bind(client: _ClientRpcStub, session_id: str) -> None:
+        response = await client.request(
+            "session/load", {"cwd": "/tmp", "mcpServers": [], "sessionId": session_id}
+        )
+        assert "error" not in response
+
+    async with acp_server(eval_id="evt-appr-switch", transport=True) as server:
+        assert server is not None and server.socket_path is not None
+        holder = _ClientRpcStub(
+            *await asyncio.open_unix_connection(str(server.socket_path)),
+            permission_response=None,
+        )
+        answerer = _ClientRpcStub(
+            *await asyncio.open_unix_connection(str(server.socket_path)),
+            permission_response={
+                "outcome": {"outcome": "selected", "optionId": "approve"}
+            },
+        )
+        try:
+            for client in (holder, answerer):
+                await client.request(
+                    "initialize",
+                    {"protocolVersion": 1, "clientInfo": {"name": "t", "version": "0"}},
+                )
+            await bind(holder, session_a.session_id)
+
+            shim_task = asyncio.create_task(
+                request_human_approval_via_acp(
+                    message="please confirm",
+                    call=_make_call(),
+                    view=_make_view(),
+                    choices=["approve", "reject"],
+                )
+            )
+            await asyncio.wait_for(holder.permission_requested.wait(), timeout=5.0)
+
+            await bind(holder, session_b.session_id)
+            await bind(answerer, session_a.session_id)
+
+            result = await asyncio.wait_for(shim_task, timeout=5.0)
+            assert result is not None
+            assert result.decision == "approve"
+            assert answerer.received_permission_request is not None
+        finally:
+            await holder.close()
+            await answerer.close()

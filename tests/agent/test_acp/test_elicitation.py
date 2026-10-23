@@ -14,6 +14,7 @@ are already covered by ``test_session.py`` via the shared
 
 from __future__ import annotations
 
+import asyncio
 from typing import Any
 from unittest.mock import MagicMock
 
@@ -461,3 +462,30 @@ async def test_request_elicitation_raises_when_connection_missing() -> None:
     handler.connection = None
     with pytest.raises(ConnectionError, match="not attached"):
         await handler.request_elicitation(_form_request())
+
+
+@skip_if_trio
+@pytest.mark.anyio
+async def test_request_elicitation_raises_when_connection_unbinds_while_waiting() -> (
+    None
+):
+    """Unbinding while the client holds the form raises so the shim moves on."""
+    from inspect_ai.agent._acp.connection import Bound
+
+    handler = ConnectionHandler()
+    handler.state.binding = Bound(target_session_id="s1", wire_session_id="s1")
+    sent = asyncio.Event()
+
+    async def unanswered(method: str, payload: dict[str, Any]) -> Any:
+        sent.set()
+        await asyncio.Event().wait()
+
+    handler.connection = MagicMock()
+    handler.connection.send_request = unanswered
+    request_task = asyncio.create_task(handler.request_elicitation(_form_request()))
+    await sent.wait()
+
+    await handler._stop_forwarders()
+
+    with pytest.raises(ConnectionError, match="unbound"):
+        await asyncio.wait_for(request_task, timeout=5.0)
