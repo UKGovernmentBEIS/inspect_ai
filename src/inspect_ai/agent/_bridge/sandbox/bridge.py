@@ -7,7 +7,7 @@ import anyio
 from shortuuid import uuid
 
 from inspect_ai._sentinel._context import warn_sentinel_bridged
-from inspect_ai._util.exception import TerminateSampleError
+from inspect_ai._util.working import untracked_sandbox_execs
 from inspect_ai.model._compaction.types import CompactionStrategy
 from inspect_ai.model._model import (
     GenerateFilter,
@@ -33,6 +33,7 @@ from inspect_ai.util._sandbox.exec_remote import (
     ExecRemoteStreamingOptions,
     ExecStderr,
 )
+from inspect_ai.util._sandbox.service import find_control_flow
 
 from ..._agent import AgentState
 from ..util import resolve_bridge_code_execution, resolve_bridge_web_search
@@ -89,6 +90,13 @@ async def sandbox_agent_bridge(
     requests with `previous_response_id` are refused, and of the agent's HTTP
     headers only `Accept-Encoding` and those listed in `forward_client_headers`
     are forwarded.
+
+    Sandbox commands run inside the block, such as the one that launches the
+    agent, are not known work, because Inspect cannot see when a bridged agent
+    is working: they do not count as working while a known wait (such as a
+    model retry) is in progress. Otherwise their time counts as working, as
+    any time does. The agent's model requests and bridged tool calls are
+    known work.
 
     Args:
         state: Initial state for agent bridge. Used as a basis for yielding
@@ -155,7 +163,11 @@ async def sandbox_agent_bridge(
         model_event_sink: Optional sink that takes ownership of `ModelEvent`
             emission for calls routed through the bridge. When set, the bridge
             installs it around `model.generate()` so the sink decides when and
-            under which span each event is emitted to the transcript.
+            under which span each event is emitted to the transcript. A host
+            tool call the model proposed is recorded in the span the sink set
+            on the proposing `ModelEvent` by the time `on_complete` returns,
+            and is recorded right away: a span set later, or a `ModelEvent`
+            the sink emits later, is not matched up with it.
         forward_generation_config: Forward client generation parameters (e.g.
             `max_tokens`, `temperature`, reasoning effort) to the model. Defaults
             to `False`, in which case those parameters are dropped and the resolved
@@ -285,12 +297,15 @@ async def sandbox_agent_bridge(
             tg.start_soon(_monitor_proxy, proxy)
 
             # monitor for a sample failure requested from the service task
-            # (approver termination, fail_on_refusal, a host tool that raised)
+            # (fail_on_refusal, a response filter failure, an invalid approver
+            # modification, a host tool bug). A termination needs no monitor:
+            # the service dispatcher propagates it out of run_model_service.
             tg.start_soon(_monitor_failure, bridge)
 
             # main agent
             try:
-                yield bridge
+                with untracked_sandbox_execs():
+                    yield bridge
                 agent_completed = True
             finally:
                 with anyio.CancelScope(shield=True):
@@ -300,6 +315,12 @@ async def sandbox_agent_bridge(
                 # ensure the scope is cancelled
                 tg.cancel_scope.cancel()
     except Exception as ex:
+        # A termination ends the sample even if the agent completed first: the
+        # service dispatcher answers a terminating request before raising, so the
+        # scaffold can read that reply and exit before the termination arrives.
+        termination = find_control_flow(ex)
+        if termination is not None:
+            raise termination from ex
         # If the agent completed successfully but we got an error during cleanup,
         # log the error but don't fail the sample.
         if agent_completed:
@@ -338,14 +359,14 @@ async def _monitor_failure(bridge: SandboxAgentBridge) -> None:
     """Raise the error a bridged generation or tool call asked the sample to fail with.
 
     Bridged generations and host tool calls run in the sandbox service task,
-    whose exceptions never propagate (see `SandboxAgentBridge.request_fail`).
-    Raising here instead puts the error in the bridge's own task group, so it
-    unwinds the agent and reaches the sample runner.
+    whose dispatcher turns their exceptions into RPC error responses, except a
+    limit or a termination (see `SandboxAgentBridge.request_fail`). Raising here
+    instead puts the error in the bridge's own task group, so it unwinds the
+    agent and reaches the sample runner.
     """
     await bridge._failure_requested.wait()
-    raise bridge._failure or TerminateSampleError(
-        "Sample terminated by tool call approver."
-    )
+    assert bridge._failure is not None
+    raise bridge._failure
 
 
 async def _monitor_proxy(proxy: ExecRemoteProcess) -> None:

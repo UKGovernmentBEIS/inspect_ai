@@ -1,5 +1,5 @@
 from logging import getLogger
-from typing import Awaitable, Callable, cast
+from typing import Awaitable, Callable, Sequence, cast
 
 from typing_extensions import TypedDict, Unpack
 
@@ -10,7 +10,7 @@ from inspect_ai.model._chat_message import ChatMessage, ChatMessageTool, ChatMes
 from inspect_ai.model._model import get_model
 from inspect_ai.scorer._metric import Score, ValueToFloat, value_to_float
 from inspect_ai.scorer._score import score
-from inspect_ai.solver._chain import chain
+from inspect_ai.solver._chain import chain, is_solver_sequence
 from inspect_ai.tool._tool import Tool, ToolResult, tool
 from inspect_ai.tool._tool_with import tool_with
 from inspect_ai.util._limit import TokenLimit, resolve_token_limit
@@ -51,7 +51,7 @@ class BasicAgentDeprecatedArgs(TypedDict, total=False):
 @solver
 def basic_agent(
     *,
-    init: Solver | list[Solver] | None = None,
+    init: Solver | Sequence[Solver] | None = None,
     tools: list[Tool] | Solver | None = None,
     cache: bool | CachePolicy = False,
     max_attempts: int = 1,
@@ -127,7 +127,7 @@ def basic_agent(
     # resolve init
     if init is None:
         init = system_message(DEFAULT_SYSTEM_MESSAGE, submit=submit_name)
-    init = init if isinstance(init, list) else [init]
+    init = list(init) if is_solver_sequence(init) else [cast(Solver, init)]
 
     # resolve tools
     if tools is None:
