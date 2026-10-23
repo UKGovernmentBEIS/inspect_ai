@@ -1040,6 +1040,7 @@ async def test_terminal_retry_startup_releases_recorder(
                 task_args={},
                 model=None,
                 model_roles=None,
+                sandbox=None,
                 log=await read_eval_log_async(prior.location, header_only=True),
                 log_info=list_eval_logs(str(tmp_path))[0],
             ),

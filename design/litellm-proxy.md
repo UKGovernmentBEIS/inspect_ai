@@ -235,7 +235,8 @@ in the right place, in upstream request N+1:
 The tests run offline against fake upstreams and live against real providers:
 Claude Sonnet 4.5, Sonnet 5, Opus 5.5 and Fable 5.1, Gemini 3.1 Pro, 3.5 Flash,
 3 Flash and 2.5 Flash, GPT-6 Astra, GPT-5.5 and gpt-5-mini, Bedrock Claude
-Sonnet 4.5, Kimi K2.6, and Together gpt-oss-120b and DeepSeek V4.1. Bedrock
+Sonnet 4.5, Kimi K2.6, Together gpt-oss-120b and DeepSeek V4.1, and Grok 4.7
+(see "Grok"). Bedrock
 Claude Sonnet 5 is untested: the test AWS account has no access to it. They
 cover chat completions and Responses, streaming and not, and a tool loop plus
 a text follow-up. The newest models show the same results as their
@@ -364,9 +365,19 @@ Usage shows what happened: `completion_tokens == reasoning_tokens`,
 (and by `native_finish_reason` when present) and runs the native provider's
 retry: a model-role acknowledgement, a user-role request for function call
 JSON, `tool_choice` forced to `any` when it was `auto`, three attempts in
-total, then words in the model's mouth. The function-calling hint goes in the
-system prompt. Both are in `_litellm_proxy_gemini.py`, with the texts shared
-with `google.py` through `_gemini_function_calling.py`.
+total, then words in the model's mouth. It is in `_litellm_proxy_gemini.py`,
+with the texts shared with `google.py` through `_gemini_function_calling.py`.
+
+**No function-calling hint.** Until 2026-10 the provider added the native
+provider's function-calling hint to the system prompt. Same-batch live trials
+through a `main-latest` proxy on 2026-10-07 showed it did harm and no good. On
+gemini-2.5-pro, with three identical addition tools and the first turn forced,
+16 of 1,500 samples looped to the message limit with the hint and 2 of 1,500
+without. Samples needing a malformed-call retry: 10 with the hint, 1 without.
+On the `write_files` workload of #2990, the hint did not lower
+`MALFORMED_FUNCTION_CALL` on gemini-2.5-flash (50 of 50 turns with it, 49 of
+50 without), gemini-2.5-pro or gemini-3-flash-preview (none either way), and
+raised it on gemini-3.1-pro-preview (6 of 100, against 0 of 100).
 
 **The id-embedded signature is lost unless the alias says "gemini".** LiteLLM
 embeds each tool call's thought signature in its id
@@ -383,6 +394,196 @@ on both versions; with an alias such as `gemini-probe` the id alone works.
 made without thinking (it wraps a constant UUID) was suspected of triggering
 the empty turns; across 1,795 tool-call turns, the turn after such a call was
 bad 9% of the time versus 41% after a call with a full signature.
+
+### Meta
+
+Probed 2026-10-15 with `meta/muse-wonder-1.0` through `main-latest` and
+1.96.0 proxies, live, and against Meta's API directly where noted.
+
+- **The model and its info.** LiteLLM's `meta` provider is a JSON-configured
+  OpenAI-compatible provider (`llms/openai_like/providers.json`: base
+  `https://api.meta.ai/v1`, `META_API_KEY`, chat and Responses endpoints).
+  Neither image's bundled map has `muse-wonder-1.0`. Both proxies report it
+  anyway (1M input, 131k output, reasoning, prices), from the model map
+  LiteLLM fetches at startup. It resolves to `meta/muse-wonder-1.0`, which
+  Inspect's database lacks, so the context window comes from the proxy. A
+  proxy using only its local map would fail the model info check, and with
+  no Meta vendor the error suggests a limits template rather than
+  `base_model: meta/muse-spark-1.3`. Bare `muse-*` names (e.g. behind
+  `openai/`) do not resolve: `NAME_ORGS` has no `muse` prefix.
+- **Reasoning round trips.**
+  - Chat returns no reasoning at all (no `reasoning_content`), only usage, so
+    nothing is carried to the next turn.
+  - Responses returns encrypted reasoning items, and the provider replays
+    them unchanged before the function calls, streamed or not.
+  - The native `meta` provider uses the Responses API by default for this
+    reason. The proxy uses Chat Completions (`meta` is not a recognized
+    vendor or route).
+- **Reasoning effort.** `minimal` through `max` are accepted on both paths
+  and versions. `none` is rejected, on both paths: ``reasoning_effort 'none'
+  is not supported for model 'muse-wonder-1.0'. Supported values: [minimal,
+  low, medium, high, xhigh, max]``. The provider's patterns do not match it,
+  so the request fails. The native provider drops `none` with a warning
+  (Muse always reasons).
+- **Request parameters Meta rejects** (400s that fail the request today):
+
+  | Parameter | Chat | Responses |
+  |---|---|---|
+  | `tool_choice` other than `auto` (`any`, a function, and `none`) | rejected | rejected |
+  | `logprobs` / `top_logprobs` | rejected ("not supported with reasoning") | rejected |
+  | `stop` | rejected | not sent (the Responses API has none) |
+  | `n` > 1 (`num_choices`) | rejected | not sent |
+
+  The native provider degrades forced tool choice to `auto` (warning, plus
+  `tool_choice_degraded` in the output metadata), and drops `logprobs`,
+  `top_logprobs`, `stop`, `logit_bias` and `n` with warnings. It does not
+  handle `tool_choice="none"` with tools.
+- **Errors.** A prompt over the context window gets `The request contains
+  invalid parameters. Check the request body for any errors or
+  inconsistencies.`, from the proxy and from Meta's API directly (1.06M and
+  1.2M tokens). It cannot be told apart from other invalid requests, so it
+  is not mapped to `model_length`. Refusals were not reproduced. The native
+  provider promotes Meta's structured refusal field (Responses `refusal`
+  part, chat `message.refusal`) from `stop` to `content_filter`. The proxy
+  records it as refusal content and stop details, but keeps `stop`. On
+  non-streamed chat, LiteLLM (1.96 and `main-latest`, every route) moves
+  `message.refusal` into `message.provider_specific_fields` and returns
+  `refusal: null`, so the refusal reads as an empty response. Streamed
+  deltas keep it.
+- **Usage and cost.** On Responses, usage matches Meta's on both versions.
+  On chat, Meta's `completion_tokens` includes reasoning (direct: 52, of
+  which 41 reasoning). `main-latest` passes it through, but 1.96 reports 1
+  output token, which undercounts output and cost (a LiteLLM bug, fixed
+  since). Cached prompt tokens are reported.
+
+**Changes made:**
+
+1. Meta is a vendor: the `meta` provider segment (except Llama, which
+   `vertex_ai/meta/...` and `nvidia_nim/meta/...` normalize to), or a bare
+   or `meta/` `muse-` name (not under another host's path: Fireworks serves
+   a `muse-glimmer-30b`). `muse-` → `meta` is in `NAME_ORGS`, and the model
+   info error suggests `base_model: meta/muse-spark-1.3`.
+2. The Responses API is the default, streamed, when every deployment has the
+   `meta` route and an `api_base` that is unset or a `meta.ai` host, as in
+   the native provider. This also avoids the 1.96 chat usage bug.
+3. Meta's `none` rejection is recognized, so `none` is dropped with the usual
+   warning.
+4. For Meta models, as in the native provider:
+   - forced tool choice is degraded to `auto`, with a warning and
+     `tool_choice_degraded` in the output metadata;
+   - `logprobs` / `top_logprobs`, and on chat `stop`, `logit_bias` and `n`,
+     are dropped with warnings;
+   - `tool_choice="none"` sends no tools and no `tool_choice` (Meta accepts a
+     tool call history without tools, on both paths).
+5. A structured refusal becomes `content_filter` for Meta models
+   (`_flag_refusal_stop` from the native provider). For every vendor, a
+   non-streamed chat refusal is read back from `provider_specific_fields`
+   (`with_upstream_refusals`), so it is refusal content with refusal stop
+   details, as from the vendor's own API.
+6. Not changed: context overflow (Meta's error is not identifiable).
+
+All of 2–4 verified live on `main-latest`, on both paths.
+
+**Tests.** `muse-wonder-1.0` is in the live round-trip matrix (Responses
+only: chat returns no reasoning), the live Responses default test,
+`test_live_reasoning_effort_lowered` (every effort on both paths, with the
+value sent upstream; shared with Grok), and `test_live_meta_request_shaping`
+(a forced and a `none` tool choice, and `logprobs`, `stop` and `n`, on both
+paths, with the request sent upstream). Offline: a `meta` fake in the
+round-trip matrix (Responses), `muse-wonder-1.0` in the effort guarantee with
+a fake that rejects `none` in Meta's wording, and `muse-context` (stays an
+error), `muse-policy` (a `content_policy_violation` 400), `muse-refusal` (the
+structured refusal, on all four paths) and `muse-rate-limit` error scenarios.
+Live, on `main-latest` and 1.96.0: 10 passed each.
+
+### Grok
+
+Probed 2026-10-15 with `xai/grok-4.7` (xAI's frontier) through `main-latest`
+and 1.96.0 proxies, live except where noted. Both images know `xai/grok-4.7`
+(`supports_reasoning`, 500k window, prices), and it resolves to Inspect's
+`grok/grok-4.7`. LiteLLM sends chat to xAI's `/v1/chat/completions` and
+Responses to xAI's own `/v1/responses` (`llms/xai/responses`), not through its
+chat bridge.
+
+**Reasoning round trips work on both paths** (live matrix: 8 of 8 passed,
+chat and Responses, streamed or not, tool loop and text follow-up). They
+carry different things:
+
+- Chat returns `reasoning_content`, which is a summary (1,457 characters for
+  4,035 reasoning tokens). The provider sends it back unchanged; the model's
+  reasoning state is not carried.
+- Responses returns `encrypted_content` with `include:
+  reasoning.encrypted_content` and `store: false`, and the provider replays it
+  unchanged before the function calls, as for OpenAI. This matches the native
+  provider, which always sends `use_encrypted_content`.
+
+**Reasoning effort.** `minimal` through `xhigh` are forwarded and accepted on
+both paths and both versions. `none` and `max` are forwarded and rejected by
+xAI, and the provider returns the error instead of lowering, because neither
+message matches its rejection patterns:
+
+- `none`: ``This model does not support `reasoning_effort` value `none`.``
+- `max`: `Invalid reasoning effort.` (names no value)
+
+The native provider sends `xhigh` for `max` and drops `none`.
+
+**Errors.**
+
+- Context overflow becomes `model_length` on all four paths. It matches only
+  through the Anthropic marker `prompt is too long`, in xAI's
+  `[input_too_large] The prompt is too long for this model's context window
+  (601243 tokens > 500000 tokens)`. The output text is xAI's raw JSON
+  (`{"code": ..., "error": "<string>"}`), since `upstream_message` reads only
+  `error.message`.
+- Refusals: not reproduced live, and xAI does not document their REST shape.
+  The native provider matches `safety_check` and "can't help with that
+  request" on gRPC `PERMISSION_DENIED`. With a fake upstream returning that
+  wording, a 403 reaches the client as `PermissionDeniedError` and a 400 as
+  `BadRequestError`, and neither becomes `content_filter`.
+
+**Caching and cost.** xAI caches prefixes without help: a one-line prompt
+reports 1,152 cached tokens, from xAI's own system prompt. Cost is correct on
+both paths: cache reads at the cache rate, from the proxy's prices, and equal
+to xAI's `cost_in_usd_ticks`. LiteLLM folds xAI's separate `reasoning_tokens`
+into `completion_tokens`. The native provider sends `x-grok-conv-id` (the
+sample id) so that a conversation stays on one xAI server. The proxy forwards
+that header only with `general_settings.forward_client_headers_to_llm_api:
+true` (offline, both versions). `prompt_cache_key` is rejected by
+`main-latest` (`UnsupportedParamsError`) and dropped by 1.96.
+
+**Requests.** LiteLLM sends no `max_tokens` for xAI (no truncation default)
+and removes `strict` from tool schemas on chat. Parallel tool calls work.
+
+**Changes made:**
+
+1. The Responses API is the default for Grok 4 and later (by family,
+   including codenames with `base_model`) when every deployment has the
+   `xai` route and an `api_base` that is unset or an `x.ai` host. It streams
+   by default, as on the OpenAI route (§9).
+2. Both rejection wordings are recognized (`_litellm_proxy_reasoning_effort`).
+   "Invalid reasoning effort." names no value, so it counts as rejecting the
+   value sent. `max` is lowered to `xhigh` and `none` is dropped, with the
+   usual warning (verified live on both paths).
+3. `input_too_large` is a context window marker, `upstream_message` reads
+   `{"error": "<string>"}` bodies (preferring a sibling `message`), and
+   `safety_check` / "can't help with that request" are content policy
+   markers for any status, for grok models only (`acknowledged_safety_checks`
+   appears in OpenAI computer use errors). The refusal wording is the native
+   provider's and is unverified over REST.
+4. `x-grok-conv-id` (the sample id) is sent for grok models; a caller's own
+   header wins. The constant is shared with the native provider through
+   `_grok_cache.py`, which does not import `xai_sdk`.
+
+On chat completions a 403 reaches `handle_bad_request`; on the Responses path
+it reaches `handle_stream_error`, so the provider checks
+`PermissionDeniedError` there too (it is never retried).
+
+**Tests.** `grok-4.7` is in the live round-trip matrix, the live Responses
+default test, and `test_live_reasoning_effort_lowered` (every effort on both
+paths, with the value sent upstream). Offline: an `xai` fake in the round-trip
+matrix, `grok-4.7` in the effort guarantee with a fake that rejects `none` and
+`max` in xAI's wording, and `grok-context`, `grok-refusal` and `grok-rate-limit`
+error scenarios. Live, on `main-latest` and 1.96.0: 12 passed.
 
 ### Working around LiteLLM behavior
 
@@ -412,7 +613,7 @@ Inspect retries rate limit and transient errors, and turns context window
 and content policy errors into model output (`model_length`,
 `content_filter`) rather than failing the sample. The proxy's errors were
 probed with a fake upstream that returns each provider's native errors
-(Anthropic, OpenAI, Gemini, Bedrock, DeepSeek, Moonshot, Azure), across chat
+(Anthropic, OpenAI, Gemini, Bedrock, DeepSeek, Moonshot, xAI, Azure), across chat
 and Responses, streaming and not, with the proxy's own retries off
 (`test_litellm_proxy_error_handling` in `test_litellm_proxy.py`).
 
@@ -878,6 +1079,10 @@ through `model_info.base_model`, which the model info gate asks for. Azure is
 excluded until verified. Responses to the OpenAI route streams by default
 (#43010 affects Anthropic only).
 
+The same default applies to Grok 4 and later on the `xai` route with an
+unset or `x.ai` `api_base`, whose Responses requests LiteLLM also passes to
+the vendor's API unconverted (see "Grok"). A mix of routes gets no default.
+
 Verified live (gpt-5-mini, gpt-5.5, gpt-6-astra): encrypted reasoning
 replays across a tool loop, streamed and not; `store` is false; built-in web
 search works; `none` is dropped, `xhigh`/`max` are lowered to `high` for
@@ -948,9 +1153,9 @@ Each phase ends with review and approval before the next starts.
    text-less tool call turns, the prefill error, default streaming, the
    environment variable fallbacks, the gate's `base_model` suggestion, and
    the virtual key check.
-7. **Docs, CHANGELOG, live tests.** Provider docs (including `base_model`
-   guidance for opaque deployments), the CHANGELOG entry, and adding the
-   provider to the `slow-tests` skill.
+7. **Docs, PR title, live tests.** Provider docs (including `base_model`
+   guidance for opaque deployments), the PR title (the changelog line), and
+   adding the provider to the `slow-tests` skill.
 
    **PR description:** list the LiteLLM issues filed from this work, with
    links, and the behavior each one causes (strict xfail, or covered by the

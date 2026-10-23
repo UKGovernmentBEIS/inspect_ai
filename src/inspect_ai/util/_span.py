@@ -7,6 +7,8 @@ from typing import Any, AsyncIterator
 
 from shortuuid import uuid as shortuuid
 
+from inspect_ai._sentinel._scope import AgentScope, enter_scope, exit_scope
+
 logger = getLogger(__name__)
 
 
@@ -84,9 +86,9 @@ async def span(
 
     # set new current span (reset at the end)
     token = _current_span_id.set(id)
-    agent_token = (
-        _current_agent_span_id.set(id) if (type or name) == AGENT_SPAN_TYPE else None
-    )
+    is_agent = (type or name) == AGENT_SPAN_TYPE
+    agent_token = _current_agent_span_id.set(id) if is_agent else None
+    scope_token = enter_scope(AgentScope.ON) if is_agent else None
 
     # run the span
     try:
@@ -118,6 +120,11 @@ async def span(
                 _current_agent_span_id.reset(agent_token)
             except ValueError:
                 foreign = True
+        if scope_token is not None:
+            try:
+                exit_scope(scope_token)
+            except ValueError:
+                foreign = True
         if foreign:
             frame = inspect.stack()[1]
             caller = f"{frame.function}() [{frame.filename}:{frame.lineno}]"
@@ -132,6 +139,24 @@ def current_span_id() -> str | None:
 
 def current_agent_span_id() -> str | None:
     return _current_agent_span_id.get()
+
+
+@contextlib.contextmanager
+def parent_span(parent_id: str | None) -> Iterator[None]:
+    """Make `parent_id` the current span for the block (no-op when `None`).
+
+    Events constructed in the block are stamped with `parent_id`, and a `span()`
+    opened in it gets `parent_id` as its parent. For recording work under a span
+    other than the one current in this task (no begin or end event is emitted).
+    """
+    if parent_id is None:
+        yield
+        return
+    token = _current_span_id.set(parent_id)
+    try:
+        yield
+    finally:
+        _current_span_id.reset(token)
 
 
 @contextlib.contextmanager
@@ -179,6 +204,9 @@ class SpanRotationScope:
     in the same task. ``end_span()`` and ``begin_span()`` may run in any task:
     they emit span/store events and mutate the shared cell, never touching
     the ContextVar.
+
+    Whether the scope's spans track store changes is fixed at ``open()``
+    (see `suspend_store_events`), so rotations in other tasks follow it.
     """
 
     def __init__(self, *, type: str) -> None:
@@ -188,6 +216,7 @@ class SpanRotationScope:
         self._parent_id: str | None = None
         self._span_open = False
         self._store_before: dict[str, Any] = {}
+        self._track_store = True
 
     @property
     def is_open(self) -> bool:
@@ -197,7 +226,10 @@ class SpanRotationScope:
     async def open(self, name: str) -> None:
         """Enter the scope and begin its first span (entry task only)."""
         assert self._cell is None, "SpanRotationScope already open"
+        from inspect_ai.util._store import store_events_suspended
+
         self._parent_id = current_span_id()
+        self._track_store = not store_events_suspended()
         id = await self._span_id(name)
         self._cell = _SpanCell(id)
         self._token = _current_span_id.set(self._cell)
@@ -263,6 +295,8 @@ class SpanRotationScope:
     def _snapshot_store(self) -> None:
         from inspect_ai.util._store import store, store_jsonable
 
+        if not self._track_store:
+            return
         self._store_before = store_jsonable(store())
 
     def _emit_store_changes(self) -> None:
@@ -270,6 +304,8 @@ class SpanRotationScope:
         from inspect_ai.log._transcript import transcript
         from inspect_ai.util._store import store, store_changes, store_jsonable
 
+        if not self._track_store:
+            return
         changes = store_changes(self._store_before, store_jsonable(store()))
         if changes:
             transcript()._event(StoreEvent(changes=changes))
