@@ -894,6 +894,45 @@ def test_publish_steps_skip_what_the_registries_already_have() -> None:
         assert steps[upload]["if"] == "steps.dist.outputs.count != '0'"
 
 
+def test_build_dist_builds_with_the_hashed_toolchain() -> None:
+    # Without isolation, the build backend is the one installed from the
+    # hashed requirements rather than whatever PyPI serves at build time.
+    action_dir = REPO / ".github" / "actions" / "build-dist"
+    steps = _load(".github/actions/build-dist/action.yml")["runs"]["steps"]
+    runs = [s.get("run", "").strip() for s in steps]
+    installs = [r for r in runs if "pip install" in r]
+    assert installs == [
+        'python -m pip install --require-hashes --only-binary :all: --no-deps -r "$REQUIREMENTS"'
+    ]
+    assert "python -m build --no-isolation" in runs
+
+    # The documented refresh must not keep existing pins as preferences.
+    action = (action_dir / "action.yml").read_text()
+    refresh = re.search(r"#\s+(uv pip compile .*?-o requirements\.txt)", action, re.S)
+    assert refresh
+    assert "--upgrade " in refresh.group(1)
+    assert '--exclude-newer "7 days"' in refresh.group(1)
+
+    requirements = (action_dir / "requirements.txt").read_text()
+    pins = re.findall(r"^([A-Za-z0-9_.-]+)==\S+ \\$", requirements, re.MULTILINE)
+    assert {"build", "setuptools", "setuptools-scm"} <= set(pins)
+    requirement_lines = [
+        line
+        for line in requirements.splitlines()
+        if line and not line.startswith(("#", " "))
+    ]
+    assert len(requirement_lines) == len(pins)
+
+
+def test_dependabot_updates_the_build_toolchain_with_a_cooldown() -> None:
+    updates = _load(".github/dependabot.yml")["updates"]
+    (update,) = [u for u in updates if u["directory"] == "/.github/actions/build-dist"]
+    assert update["package-ecosystem"] == "uv"
+    assert update["cooldown"]["default-days"] == 7
+    assert update["schedule"]["interval"] == "weekly"
+    assert [group["patterns"] for group in update["groups"].values()] == [["*"]]
+
+
 def test_no_composite_action_runs_the_pypi_publish_docker_action() -> None:
     # pypa/gh-action-pypi-publish is a Docker action, unsupported inside a
     # composite: its image resolves against the calling repo and fails.
