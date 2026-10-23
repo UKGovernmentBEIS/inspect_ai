@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Generator, Type, TypeVar
 from unittest.mock import patch
@@ -844,6 +845,78 @@ def test_model_event_is_delivered_when_a_usage_limit_trips(
     assert len(logged) == 1
     assert logged[0].error is None
     assert [event.uuid for event in delivered] == [event.uuid for event in logged]
+
+
+def test_model_event_is_delivered_when_a_turn_limit_trips(
+    mock_hooks: MockHooks,
+) -> None:
+    """A completed call that then exceeds a turn limit is still delivered once."""
+    from inspect_ai.event._model import ModelEvent
+
+    log = eval(
+        Task(dataset=[Sample(input="hello")], turn_limit=0),
+        model="mockllm/model",
+        display="none",
+    )[0]
+
+    assert log.samples is not None
+    logged = [event for event in log.samples[0].events if isinstance(event, ModelEvent)]
+    delivered = [
+        data.event
+        for data in mock_hooks.sample_event_events
+        if isinstance(data.event, ModelEvent)
+    ]
+    assert len(logged) == 1
+    assert logged[0].error is None
+    assert [event.uuid for event in delivered] == [event.uuid for event in logged]
+
+
+def test_cached_model_event_is_delivered_once(
+    mock_hooks: MockHooks, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A cache miss and the later hit each reach hooks once, with timing set."""
+    from inspect_ai.event._model import ModelEvent
+
+    monkeypatch.setenv("INSPECT_CACHE_DIR", str(tmp_path))
+    timestamp = str(datetime.now(timezone.utc))
+    task = Task(
+        dataset=[Sample(input=f"What is the timestamp: {timestamp}")],
+        solver=[generate(cache=True)],
+    )
+
+    def delivered_models() -> list[ModelEvent]:
+        return [
+            data.event
+            for data in mock_hooks.sample_event_events
+            if isinstance(data.event, ModelEvent)
+        ]
+
+    miss = eval(task, model="mockllm/model", display="none")[0]
+    assert miss.samples is not None
+    miss_logged = [
+        event for event in miss.samples[0].events if isinstance(event, ModelEvent)
+    ]
+    miss_delivered = delivered_models()
+    assert len(miss_logged) == 1
+    assert miss_logged[0].cache == "write"
+    assert [event.uuid for event in miss_delivered] == [
+        event.uuid for event in miss_logged
+    ]
+    assert miss_delivered[0].completed is not None
+
+    mock_hooks.sample_event_events.clear()
+    hit = eval(task, model="mockllm/model", display="none")[0]
+    assert hit.samples is not None
+    hit_logged = [
+        event for event in hit.samples[0].events if isinstance(event, ModelEvent)
+    ]
+    hit_delivered = delivered_models()
+    assert len(hit_logged) == 1
+    assert hit_logged[0].cache == "read"
+    assert [event.uuid for event in hit_delivered] == [
+        event.uuid for event in hit_logged
+    ]
+    assert hit_delivered[0].completed is not None
 
 
 def test_failed_model_events_are_still_delivered(mock_hooks: MockHooks) -> None:

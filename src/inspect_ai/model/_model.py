@@ -1803,6 +1803,11 @@ class Model:
         # sees the final count for a sample halted by its turn limit
         try:
             record_turn()
+        except BaseException:
+            # generate() clears the defer flag after it stamps timing. A turn
+            # limit raised here aborts before that.
+            _emit_deferred_model_hook(event)
+            raise
         finally:
             set_active_sample_total_turns(turn_count() or 0)
 
@@ -2068,6 +2073,10 @@ class Model:
 
             record_agent_turn(input)
         sink = _model_event_sink.get()
+        # A cache hit is inserted already complete. Hold its hook delivery for
+        # the timed snapshot, the same way complete() holds a live call.
+        if output is not None:
+            event._defer_sample_hook = True
         if sink is None:
             transcript()._event(event)
         else:

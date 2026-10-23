@@ -151,9 +151,10 @@ class ModelEvent(BaseEvent):
     _defer_sample_hook: bool = PrivateAttr(default=False)
     """Skip the hook delivery of this snapshot.
 
-    A successful call is written to the transcript when the provider
-    returns, then again after ``generate`` stamps timing. The sample
-    buffer needs both snapshots. Hooks should see the timed one only.
+    A successful call is written when the provider returns, and a cache
+    hit is written complete on its first insert. ``generate`` writes the
+    timed snapshot after either of those. The sample buffer needs both.
+    Hooks should see the timed one only.
     Not serialized.
     """
 
