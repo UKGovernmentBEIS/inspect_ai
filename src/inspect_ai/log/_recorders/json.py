@@ -17,7 +17,10 @@ from inspect_ai._util.constants import (
 )
 from inspect_ai._util.error import EvalError
 from inspect_ai._util.file import absolute_file_path, file, filesystem, local_path
-from inspect_ai._util.json import is_ijson_nan_inf_error
+from inspect_ai._util.json import (
+    is_ijson_int_overflow_error,
+    is_ijson_nan_inf_error,
+)
 from inspect_ai._util.trace import trace_action
 
 from .._config_update import ConfigUpdate
@@ -312,9 +315,10 @@ class JSONRecorder(FileRecorder):
             # this isn't technically part of the JSON spec. The json-stream
             # library shares this limitation, so if we fail with an
             # invalid character (or Unexpected symbol) then we move on and and parse w/ pydantic
-            # (which does support NaN and Inf by default)
+            # (which does support NaN and Inf by default). Likewise for integers
+            # beyond int64, which ijson's C backend rejects when use_float=True.
             except (ValueError, IncompleteJSONError, UnexpectedSymbol) as ex:
-                if is_ijson_nan_inf_error(ex):
+                if is_ijson_nan_inf_error(ex) or is_ijson_int_overflow_error(ex):
                     pass
                 else:
                     raise ValueError(f"Unable to read log file: {location}") from ex
@@ -552,7 +556,7 @@ def _read_header_streaming(log_file: str) -> EvalLog:
         error: EvalError | None = None
         log_updates: list[LogUpdate] | None = None
         config_updates: list[ConfigUpdate] | None = None
-        for k, v in ijson.kvitems(f, ""):
+        for k, v in ijson.kvitems(f, "", use_float=True):
             if k == "status":
                 assert v in get_args(EvalStatus)
                 status = v

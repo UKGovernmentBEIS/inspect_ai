@@ -1,6 +1,9 @@
 import io
+from pathlib import Path
 
+from inspect_ai.log import read_eval_log, write_eval_log
 from inspect_ai.log._recorders.json import _scan_header_keys
+from inspect_ai.util._early_stopping import EarlyStoppingSummary
 
 
 def test_scan_header_keys_stops_at_last_header_field_not_samples():
@@ -17,3 +20,37 @@ def test_scan_header_keys_stops_at_last_header_field_not_samples():
 
     assert version == 2
     assert last_header_field == "status"
+
+
+def test_json_header_only_reads_floats_as_float(tmp_path: Path) -> None:
+    """Floats in untyped header fields must not come back as ``Decimal``.
+
+    A ``Decimal`` is written back as a JSON string by anything that rewrites
+    the header, and fails validation in ``JsonValue`` fields.
+    """
+    log = read_eval_log("tests/log/test_eval_log/log_formats.json")
+    log.eval.metadata = {"run": 0.25}
+    assert log.results
+    log.results.early_stopping = EarlyStoppingSummary(
+        manager="test", early_stops=[], metadata={"confidence": 0.95}
+    )
+    log_file = (tmp_path / "log.json").as_posix()
+    write_eval_log(log, log_file)
+
+    header = read_eval_log(log_file, header_only=True)
+
+    assert header.eval.metadata == {"run": 0.25}
+    assert type(header.eval.metadata["run"]) is float
+    assert header.results and header.results.early_stopping
+    assert header.results.early_stopping.metadata == {"confidence": 0.95}
+
+
+def test_json_header_only_reads_int_beyond_int64(tmp_path: Path) -> None:
+    log = read_eval_log("tests/log/test_eval_log/log_formats.json")
+    log.eval.metadata = {"hash": 2**64 - 1}
+    log_file = (tmp_path / "log.json").as_posix()
+    write_eval_log(log, log_file)
+
+    header = read_eval_log(log_file, header_only=True)
+
+    assert header.eval.metadata == {"hash": 2**64 - 1}
