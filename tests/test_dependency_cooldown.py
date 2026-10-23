@@ -105,11 +105,17 @@ def test_dependabot_cooldown_matches_pyproject() -> None:
     config = uv_config()
     days = re.fullmatch(r"(\d+) days", config["exclude-newer"])
     assert days, config["exclude-newer"]
-    cooldown = dependabot_uv()["cooldown"]
+    dependabot = dependabot_uv()
+    cooldown = dependabot["cooldown"]
     assert cooldown["default-days"] == int(days.group(1))
     exempt = config["exclude-newer-package"]
     assert all(value is False for value in exempt.values())
     assert sorted(cooldown["exclude"]) == sorted(exempt)
+    # The exempt packages have their own group, listed before the catch-all.
+    groups = dependabot["groups"]
+    assert list(groups) == ["provider-sdks", "python-packages"]
+    assert sorted(groups["provider-sdks"]["patterns"]) == sorted(exempt)
+    assert groups["python-packages"]["patterns"] == ["*"]
 
 
 def version(text: str) -> tuple[int, ...]:
