@@ -125,9 +125,7 @@ async def sentinel_before_tool_call(
         raise ToolApprovalError(str(ex)) from ex
     producer = _producing_event(call, history)
     conversation = _conversation()
-    # inspect_sentinel 0.1.4, which mypy checks against, has neither
-    # message_id nor tool_choice; _require_message_id() ensures they exist
-    step = BeforeToolCall(  # type: ignore[call-arg]  # inspect_sentinel 0.1.4 lacks message_id and tool_choice; remove when the lock bumps
+    step = BeforeToolCall(
         conversation=conversation,
         message=message,
         message_id=_message_id(message_id),
@@ -176,9 +174,7 @@ async def sentinel_after_tool_call(
     _require_message_id()
     producer = _producing_event(call, history)
     conversation = _conversation()
-    # inspect_sentinel 0.1.4, which mypy checks against, has neither
-    # message_id nor tool_choice; _require_message_id() ensures they exist
-    step = AfterToolCall(  # type: ignore[call-arg]  # inspect_sentinel 0.1.4 lacks message_id and tool_choice; remove when the lock bumps
+    step = AfterToolCall(
         conversation=conversation,
         message=message,
         message_id=_message_id(message_id),

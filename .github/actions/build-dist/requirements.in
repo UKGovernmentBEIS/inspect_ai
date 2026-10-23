@@ -1,0 +1,3 @@
+build
+setuptools>=64
+setuptools_scm[toml]>=8
