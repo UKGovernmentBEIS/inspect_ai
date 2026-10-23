@@ -1,11 +1,15 @@
+from pathlib import Path
 from typing import Generator, Type, TypeVar
 from unittest.mock import patch
 
+import anyio
+import anyio.lowlevel
 import pytest
 
 import inspect_ai.hooks._startup as hooks_startup_module
-from inspect_ai import eval
+from inspect_ai import eval, eval_async
 from inspect_ai._eval.task.task import Task
+from inspect_ai._util._async import current_async_backend
 from inspect_ai._util.entrypoints import clear_entry_points_state, ensure_entry_points
 from inspect_ai._util.environ import environ_var
 from inspect_ai._util.error import PrerequisiteError
@@ -32,7 +36,8 @@ from inspect_ai.hooks._hooks import (
     override_api_key,
 )
 from inspect_ai.hooks._startup import _load_registry_hooks, init_hooks
-from inspect_ai.solver._solver import Generate, Solver, solver
+from inspect_ai.log import EvalLog, list_eval_logs_async, read_eval_log_async
+from inspect_ai.solver._solver import Generate, Solver, generate, solver
 from inspect_ai.solver._task_state import TaskState
 
 
@@ -122,6 +127,23 @@ class MockMinimalHooks(Hooks):
         self.run_start_events.append(data)
 
 
+class AwaitingRunHooks(Hooks):
+    """Run hooks that await, so cancellation can reach them."""
+
+    def __init__(self) -> None:
+        self.run_start_suspended: anyio.Event | None = None
+        self.run_end_events: list[RunEnd] = []
+
+    async def on_run_start(self, data: RunStart) -> None:
+        if self.run_start_suspended is not None:
+            self.run_start_suspended.set()
+            await anyio.sleep_forever()
+
+    async def on_run_end(self, data: RunEnd) -> None:
+        await anyio.lowlevel.checkpoint()
+        self.run_end_events.append(data)
+
+
 @pytest.fixture(autouse=True)
 def reset_hooks() -> None:
     # Reset the _registry_hooks_loaded flag before each test, which ensures that
@@ -143,6 +165,11 @@ def hooks_2() -> Generator[MockHooks, None, None]:
 @pytest.fixture
 def hooks_minimal() -> Generator[MockMinimalHooks, None, None]:
     yield from _create_mock_hooks("test_hooks_minimal", MockMinimalHooks)
+
+
+@pytest.fixture
+def awaiting_run_hooks() -> Generator[AwaitingRunHooks, None, None]:
+    yield from _create_mock_hooks("test_awaiting_run_hooks", AwaitingRunHooks)
 
 
 def test_can_run_eval_with_no_hooks() -> None:
@@ -515,6 +542,63 @@ def test_hooks_with_base_exception_passes_exception_to_run_end(
     assert mock_hooks.run_end_events[0].exception is not None
 
 
+async def test_run_end_hook_runs_when_cancelled_during_run_start(
+    awaiting_run_hooks: AwaitingRunHooks,
+) -> None:
+    awaiting_run_hooks.run_start_suspended = anyio.Event()
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(_eval_async_one_sample)
+        await awaiting_run_hooks.run_start_suspended.wait()
+        tg.cancel_scope.cancel()
+
+    (run_end,) = awaiting_run_hooks.run_end_events
+    assert isinstance(run_end.exception, anyio.get_cancelled_exc_class())
+    assert run_end.logs == []
+
+    # the cancelled run no longer counts as running
+    awaiting_run_hooks.run_start_suspended = None
+    (log,) = await _eval_async_one_sample()
+    assert log.status == "success"
+    assert len(awaiting_run_hooks.run_end_events) == 2
+
+
+async def test_run_end_hook_finishes_once_when_samples_are_cancelled(
+    awaiting_run_hooks: AwaitingRunHooks, tmp_path: Path
+) -> None:
+    sample_started = anyio.Event()
+
+    @solver
+    def wait_solver() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            sample_started.set()
+            await anyio.sleep_forever()
+            return state
+
+        return solve
+
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(_eval_async_one_sample, wait_solver(), str(tmp_path))
+        await sample_started.wait()
+        tg.cancel_scope.cancel()
+
+    (log_info,) = await list_eval_logs_async(str(tmp_path))
+    log = await read_eval_log_async(log_info.name, header_only=True)
+    assert log.status == "cancelled"
+    (run_end,) = awaiting_run_hooks.run_end_events
+    if current_async_backend() == "trio":
+        # the run is finished shielded and gets its log
+        assert run_end.exception is None
+        assert [log.status for log in run_end.logs] == ["cancelled"]
+    else:
+        # the cancellation cuts the hook short; it runs again with it
+        assert isinstance(run_end.exception, anyio.get_cancelled_exc_class())
+        assert run_end.logs == []
+
+    (log,) = await _eval_async_one_sample()
+    assert log.status == "success"
+    assert len(awaiting_run_hooks.run_end_events) == 2
+
+
 def test_hooks_do_not_need_to_subscribe_to_all_events(
     hooks_minimal: MockMinimalHooks,
 ) -> None:
@@ -758,6 +842,17 @@ def _create_mock_hooks(name: str, hooks_class: Type[T]) -> Generator[T, None, No
     finally:
         # Remove the hook from the registry to avoid conflicts in other tests.
         del _registry[f"hooks:{name}"]
+
+
+async def _eval_async_one_sample(
+    solver: Solver = generate(), log_dir: str | None = None
+) -> list[EvalLog]:
+    return await eval_async(
+        Task(dataset=[Sample("sample_1")], solver=solver),
+        model="mockllm/model",
+        log_dir=log_dir,
+        ctl_server=False,
+    )
 
 
 @solver

@@ -83,6 +83,28 @@ def _map_missing_s3_object(filename: str) -> Iterator[None]:
         raise
 
 
+class ObjectChangedError(Exception):
+    """An S3 object no longer has the ETag a read was pinned to (``if_match``)."""
+
+    def __init__(self, filename: str, etag: str) -> None:
+        super().__init__(f"{filename} changed: it no longer has ETag {etag}")
+        self.filename = filename
+
+
+@contextmanager
+def _map_changed_s3_object(filename: str, if_match: str | None) -> Iterator[None]:
+    """Raise ``ObjectChangedError`` for a read whose ``IfMatch`` failed."""
+    try:
+        yield
+    except ClientError as ex:
+        if if_match is not None and ex.response.get("Error", {}).get("Code") in (
+            "PreconditionFailed",
+            "412",
+        ):
+            raise ObjectChangedError(filename, if_match) from ex
+        raise
+
+
 class _BytesByteReceiveStream(ByteReceiveStream):
     """
     Adapt bytes into an AnyIO ByteReceiveStream
@@ -119,9 +141,10 @@ class _StreamingBodyByteReceiveStream(ByteReceiveStream):
     This adapter is needed when using async S3 under asyncio
     """
 
-    def __init__(self, body: StreamingBody):
-        """Initialize with S3 response body stream."""
+    def __init__(self, body: StreamingBody, etag: str | None = None):
+        """Initialize with S3 response body stream and the response's ETag."""
         self._body = body
+        self.etag = etag
 
     async def receive(self, max_bytes: int = 65536) -> bytes:
         """Receive up to max_bytes from the S3 body stream."""
@@ -266,6 +289,69 @@ async def _read_exactly(source: BinaryIO, size: int) -> bytearray:
     return await anyio.to_thread.run_sync(_read_exactly_sync, source, size)
 
 
+async def _s3_upload_parts_async(
+    client: Any,
+    source: BinaryIO,
+    bucket: str,
+    key: str,
+    upload_id: str,
+    parts: list[dict[str, Any]],
+    first_part_number: int,
+    config: TransferConfig,
+    first_part: bytearray | None = None,
+) -> None:
+    """Upload ``source`` from its position to EOF as parts of a multipart upload.
+
+    Parts are numbered from ``first_part_number`` and appended to ``parts``.
+    ``first_part`` is a chunk the caller has already read from ``source``.
+    Parts are read off the loop in ``multipart_chunksize`` chunks and uploaded
+    by ``max_request_concurrency`` workers, so every part but the last is a
+    full chunk. The caller creates, completes and aborts the upload.
+    """
+
+    async def read_parts(send: MemoryObjectSendStream[tuple[int, bytearray]]) -> None:
+        async with send:
+            part_number = first_part_number
+            body = (
+                first_part
+                if first_part is not None
+                else await _read_exactly(source, config.multipart_chunksize)
+            )
+            while True:
+                if body:
+                    await send.send((part_number, body))
+                    part_number += 1
+                if len(body) < config.multipart_chunksize:
+                    break
+                body = await _read_exactly(source, config.multipart_chunksize)
+
+    async def upload_parts(
+        receive: MemoryObjectReceiveStream[tuple[int, bytearray]],
+    ) -> None:
+        async with receive:
+            async for part_number, body in receive:
+                response = await client.upload_part(
+                    Bucket=bucket,
+                    Key=key,
+                    UploadId=upload_id,
+                    PartNumber=part_number,
+                    Body=body,
+                )
+                parts.append({"ETag": response["ETag"], "PartNumber": part_number})
+
+    send, receive = anyio.create_memory_object_stream[tuple[int, bytearray]](0)
+    async with receive:
+        await tg_collect(
+            [
+                functools.partial(read_parts, send),
+                *[
+                    functools.partial(upload_parts, receive.clone())
+                    for _ in range(config.max_request_concurrency)
+                ],
+            ]
+        )
+
+
 async def _s3_multipart_upload_async(
     client: Any,
     source: BinaryIO,
@@ -284,45 +370,10 @@ async def _s3_multipart_upload_async(
     upload_id = created["UploadId"]
     parts: list[dict[str, Any]] = []
 
-    async def read_parts(send: MemoryObjectSendStream[tuple[int, bytearray]]) -> None:
-        async with send:
-            part_number = 1
-            await send.send((part_number, first_part))
-
-            while True:
-                body = await _read_exactly(source, config.multipart_chunksize)
-                if body:
-                    part_number += 1
-                    await send.send((part_number, body))
-                if len(body) < config.multipart_chunksize:
-                    break
-
-    async def upload_parts(
-        receive: MemoryObjectReceiveStream[tuple[int, bytearray]],
-    ) -> None:
-        async with receive:
-            async for part_number, body in receive:
-                response = await client.upload_part(
-                    Bucket=bucket,
-                    Key=key,
-                    UploadId=upload_id,
-                    PartNumber=part_number,
-                    Body=body,
-                )
-                parts.append({"ETag": response["ETag"], "PartNumber": part_number})
-
     try:
-        send, receive = anyio.create_memory_object_stream[tuple[int, bytearray]](0)
-        async with receive:
-            await tg_collect(
-                [
-                    functools.partial(read_parts, send),
-                    *[
-                        functools.partial(upload_parts, receive.clone())
-                        for _ in range(config.max_request_concurrency)
-                    ],
-                ]
-            )
+        await _s3_upload_parts_async(
+            client, source, bucket, key, upload_id, parts, 1, config, first_part
+        )
 
         parts.sort(key=lambda part: part["PartNumber"])
         response = await (final_client or client).complete_multipart_upload(
@@ -385,6 +436,161 @@ async def _s3_upload_fileobj_async(
         raise RuntimeError("S3 upload completed without returning an ETag")
 
     return str(etag).strip('"')
+
+
+class ComposeSource(NamedTuple):
+    """An S3 object whose leading bytes become the start of a composed object."""
+
+    filename: str
+    """The object's ``s3://`` URL."""
+
+    etag: str
+    """The unquoted ETag the object must still carry."""
+
+    length: int
+    """How many leading bytes to copy: ``[0, length)``."""
+
+
+class ComposeSourceChangedError(Exception):
+    """A compose source no longer matches its ``ComposeSource``.
+
+    Its ETag changed, it is shorter than the prefix, or it no longer exists.
+    """
+
+
+# Compose only when the copied prefix is at least this long. Below it the
+# whole object is a single PutObject anyway (the multipart threshold), and it
+# clears S3's 5 MiB minimum for every part but the last.
+S3_COMPOSE_MIN_PREFIX = 8 * 1024 * 1024
+
+# One UploadPartCopy runs at about 50 MB/s on S3, so the prefix is copied as
+# parallel parts of at most this size (measured best of 16, 32 and 64 MiB).
+_S3_COPY_PART_SIZE = 16 * 1024 * 1024
+
+# S3 allows 10,000 parts per upload; the copy takes at most half of them.
+_S3_MAX_COPY_PARTS = 5_000
+
+
+def _s3_copy_ranges(length: int) -> list[tuple[int, int]]:
+    """Split ``[0, length)`` into equal ``[start, end)`` ranges.
+
+    Each range is at most ``_S3_COPY_PART_SIZE``, or larger when that would
+    take more than ``_S3_MAX_COPY_PARTS`` parts. Sizes differ by at most one
+    byte, so none falls under S3's 5 MiB part minimum when
+    ``length >= S3_COMPOSE_MIN_PREFIX``.
+    """
+    count = min(-(-length // _S3_COPY_PART_SIZE), _S3_MAX_COPY_PARTS)
+    size, extra = divmod(length, count)
+    ranges = []
+    start = 0
+    for index in range(count):
+        end = start + size + (1 if index < extra else 0)
+        ranges.append((start, end))
+        start = end
+    return ranges
+
+
+def _s3_error_code(ex: ClientError) -> str | None:
+    return ex.response.get("Error", {}).get("Code")
+
+
+def _s3_response_etag(response: dict[str, Any]) -> str | None:
+    etag = response.get("ETag")
+    return str(etag).strip('"') if etag else None
+
+
+async def _s3_compose_async(
+    client: Any,
+    bucket: str,
+    key: str,
+    prefix: ComposeSource,
+    tail: BinaryIO,
+    config: TransferConfig,
+) -> str:
+    """Replace ``bucket/key`` with ``prefix``'s leading bytes then ``tail``.
+
+    One multipart upload: ``UploadPartCopy`` of the prefix in parallel parts
+    (each conditional on its ETag, at most ``_S3_MAX_COPY_CONCURRENCY`` at a
+    time), then ``tail`` from its position to EOF as uploaded parts.
+    The ``HeadObject`` check comes first because some S3-compatible stores
+    (moto among them) ignore ``CopySourceIfMatch``; real S3 enforces it as
+    well. Any failure after the upload is created aborts it. Returns the
+    new object's ETag.
+    """
+    source_bucket, source_key = s3_bucket_and_key(prefix.filename)
+    try:
+        head = await client.head_object(Bucket=source_bucket, Key=source_key)
+    except ClientError as ex:
+        if _s3_error_code(ex) in _S3_MISSING_OBJECT_CODES:
+            raise ComposeSourceChangedError(
+                f"{prefix.filename} no longer exists"
+            ) from ex
+        raise
+    etag = _s3_response_etag(head)
+    size = int(head["ContentLength"])
+    if etag != prefix.etag or size < prefix.length:
+        raise ComposeSourceChangedError(
+            f"{prefix.filename} changed (ETag {etag}, {size} bytes; expected "
+            f"ETag {prefix.etag}, at least {prefix.length} bytes)"
+        )
+
+    created = await client.create_multipart_upload(Bucket=bucket, Key=key)
+    upload_id = created["UploadId"]
+    parts: list[dict[str, Any]] = []
+    copy_limiter = anyio.CapacityLimiter(_S3_MAX_COPY_CONCURRENCY)
+
+    async def copy_part(part_number: int, start: int, end: int) -> None:
+        async with copy_limiter:
+            response = await client.upload_part_copy(
+                Bucket=bucket,
+                Key=key,
+                UploadId=upload_id,
+                PartNumber=part_number,
+                CopySource={"Bucket": source_bucket, "Key": source_key},
+                CopySourceRange=s3_range_header(start, end),
+                CopySourceIfMatch=f'"{prefix.etag}"',
+            )
+        parts.append(
+            {"ETag": response["CopyPartResult"]["ETag"], "PartNumber": part_number}
+        )
+
+    try:
+        ranges = _s3_copy_ranges(prefix.length)
+        try:
+            await tg_collect(
+                [
+                    functools.partial(copy_part, number, start, end)
+                    for number, (start, end) in enumerate(ranges, start=1)
+                ]
+            )
+        except ClientError as ex:
+            if _s3_error_code(ex) in ("PreconditionFailed", *_S3_MISSING_OBJECT_CODES):
+                raise ComposeSourceChangedError(
+                    f"{prefix.filename} changed during the copy"
+                ) from ex
+            raise
+        await _s3_upload_parts_async(
+            client, tail, bucket, key, upload_id, parts, len(ranges) + 1, config
+        )
+
+        parts.sort(key=lambda part: part["PartNumber"])
+        response = await client.complete_multipart_upload(
+            Bucket=bucket,
+            Key=key,
+            UploadId=upload_id,
+            MultipartUpload={"Parts": parts},
+        )
+    except BaseException:
+        with anyio.move_on_after(_S3_ABORT_TIMEOUT, shield=True), suppress(Exception):
+            await client.abort_multipart_upload(
+                Bucket=bucket, Key=key, UploadId=upload_id
+            )
+        raise
+
+    composed_etag = _s3_response_etag(response)
+    if composed_etag is None:
+        raise RuntimeError("S3 upload completed without returning an ETag")
+    return composed_etag
 
 
 async def _s3_download_file_async(
@@ -744,20 +950,45 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
         return FileContent(data=data, etag=info.etag, mtime=info.mtime)
 
     async def read_file_bytes(
-        self, filename: str, start: int, end: int | None
+        self,
+        filename: str,
+        start: int,
+        end: int | None,
+        *,
+        if_match: str | None = None,
     ) -> ByteReceiveStream:
-        """Stream the byte range [start, end) of a file (end=None reads to EOF)."""
+        """Stream the byte range [start, end) of a file (end=None reads to EOF).
+
+        ``if_match`` pins an S3 read to that ETag: if the object has changed,
+        the read raises :class:`ObjectChangedError`. Other backends ignore it.
+        """
         if is_s3_filename(filename):
             bucket, key = s3_bucket_and_key(filename)
-            with _map_missing_s3_object(filename):
+            with (
+                _map_missing_s3_object(filename),
+                _map_changed_s3_object(filename, if_match),
+            ):
                 if current_async_backend() == "asyncio":
                     response = await (await self.s3_client_async()).get_object(
-                        Bucket=bucket, Key=key, Range=s3_range_header(start, end)
+                        Bucket=bucket,
+                        Key=key,
+                        Range=s3_range_header(start, end),
+                        **_s3_if_match(if_match),
                     )
-                    return _StreamingBodyByteReceiveStream(response["Body"])
+                    return _StreamingBodyByteReceiveStream(
+                        response["Body"], _s3_response_etag(response)
+                    )
                 return _BytesByteReceiveStream(
                     await anyio.to_thread.run_sync(
-                        s3_read_file_bytes, self.s3_client(), bucket, key, start, end
+                        functools.partial(
+                            s3_read_file_bytes,
+                            self.s3_client(),
+                            bucket,
+                            key,
+                            start,
+                            end,
+                            if_match=if_match,
+                        )
                     )
                 )
         else:
@@ -772,19 +1003,24 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
                 )
 
     async def read_file_bytes_fully(
-        self, filename: str, start: int, end: int | None
+        self,
+        filename: str,
+        start: int,
+        end: int | None,
+        *,
+        if_match: str | None = None,
     ) -> bytes:
         """Read the byte range [start, end) of a file into bytes (end=None reads to EOF).
 
-        A local range is read in one worker thread rather than through
-        :meth:`read_file_bytes`, whose file stream makes a thread hop for each
-        open, seek, read and close.
+        ``if_match`` is as for :meth:`read_file_bytes`. A local range is read
+        in one worker thread rather than through :meth:`read_file_bytes`, whose
+        file stream makes a thread hop for each open, seek, read and close.
         """
         if not is_s3_filename(filename) and filesystem(filename).is_local():
             return await anyio.to_thread.run_sync(
                 _read_local_range, local_path(filename), start, end
             )
-        stream = await self.read_file_bytes(filename, start, end)
+        stream = await self.read_file_bytes(filename, start, end, if_match=if_match)
         chunks: list[bytes] = []
         try:
             # Pull in large chunks rather than the stream's default
@@ -801,7 +1037,7 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
 
     async def read_file_into(
         self, filename: str, dest: BinaryIO, chunk_size: int = _READ_INTO_CHUNK_SIZE
-    ) -> None:
+    ) -> str | None:
         """Copy a file's full contents into an open binary file object.
 
         The download counterpart of :meth:`write_file_streaming`, for a
@@ -820,10 +1056,15 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
         loop one chunk at a time with a checkpoint between chunks: each
         stall is bounded by one chunk's fetch rather than the whole download.
 
+        Returns the S3 object's ETag on the asyncio backend, taken from the
+        response the bytes came from, so both describe the same object
+        version; ``None`` on every other backend.
+
         Raises ``FileNotFoundError`` for a missing file on every backend.
         Cancellation waits for an active worker to close its response before
         returning, so the caller can safely close or reuse ``dest``.
         """
+        etag: str | None = None
         if is_s3_filename(filename) and current_async_backend() != "asyncio":
             bucket, key = s3_bucket_and_key(filename)
             with _map_missing_s3_object(filename):
@@ -832,6 +1073,8 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
                 )
         elif is_s3_filename(filename):
             stream = await self.read_file_bytes(filename, 0, None)
+            if isinstance(stream, _StreamingBodyByteReceiveStream):
+                etag = stream.etag
             try:
                 while True:
                     try:
@@ -850,6 +1093,7 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
                 while chunk := src.read(chunk_size):
                     dest.write(chunk)
                     await anyio.lowlevel.checkpoint()
+        return etag
 
     async def read_file_suffix(self, filename: str, suffix_length: int) -> SuffixResult:
         """Read the last suffix_length bytes of a file.
@@ -967,6 +1211,58 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
             ) as f:
                 shutil.copyfileobj(source, f, length=_STREAMING_COPY_BUFSIZE)
             return None
+
+    def can_compose(self, filename: str) -> bool:
+        """Whether :meth:`compose_file` can write ``filename``.
+
+        True for an ``s3://`` URL under the asyncio backend. Trio uploads
+        through boto3 in a worker thread and keeps whole-file uploads.
+        """
+        return is_s3_filename(filename) and current_async_backend() == "asyncio"
+
+    async def compose_file(
+        self, filename: str, prefix: ComposeSource, tail: BinaryIO
+    ) -> str:
+        """Replace ``filename`` with ``prefix``'s leading bytes followed by ``tail``.
+
+        The prefix is copied server-side (S3 ``UploadPartCopy``), so only
+        ``tail``, read from its current position to EOF, is uploaded. A
+        stale-signature failure is retried from the same tail position, as
+        :meth:`write_file_streaming` does. ``tail`` is never closed.
+
+        Returns:
+            The new object's ETag.
+
+        Raises:
+            ComposeSourceChangedError: The source's ETag or size no longer
+                matches ``prefix``, or the source is gone.
+            ValueError: ``can_compose`` is false for ``filename``, the source
+                is not an ``s3://`` URL, or ``prefix.length`` is under
+                ``S3_COMPOSE_MIN_PREFIX``.
+            ClientError: Any other S3 failure. A multipart upload this call
+                created is aborted on every failure it observes.
+        """
+        if not self.can_compose(filename) or not is_s3_filename(prefix.filename):
+            raise ValueError(
+                f"Cannot compose {filename} from {prefix.filename}: both must be "
+                "s3:// URLs under the asyncio backend"
+            )
+        if prefix.length < S3_COMPOSE_MIN_PREFIX:
+            raise ValueError(
+                f"Cannot compose {filename}: the prefix ({prefix.length} bytes) is "
+                f"under the {S3_COMPOSE_MIN_PREFIX} byte minimum"
+            )
+        bucket, key = s3_bucket_and_key(filename)
+        tail_start = tail.tell()
+
+        async def do_compose() -> str:
+            tail.seek(tail_start)
+            client = await self.s3_client_async()
+            return await _s3_compose_async(
+                client, bucket, key, prefix, tail, _s3_transfer_config()
+            )
+
+        return await _s3_put_with_retry(do_compose, location=filename)
 
     async def write_file_conditional(
         self,
@@ -1743,10 +2039,31 @@ def s3_range_header(start: int, end: int | None) -> str:
     return f"bytes={start}-" if end is None else f"bytes={start}-{end - 1}"
 
 
+def _s3_if_match(etag: str | None) -> dict[str, str]:
+    """``get_object``'s ``IfMatch`` argument pinning a read to ``etag``.
+
+    ETags are kept without their quotes; an HTTP entity tag needs them.
+    """
+    if etag is None:
+        return {}
+    return {"IfMatch": '"' + etag.strip('"') + '"'}
+
+
 def s3_read_file_bytes(
-    s3: Any, bucket: str, key: str, start: int, end: int | None
+    s3: Any,
+    bucket: str,
+    key: str,
+    start: int,
+    end: int | None,
+    *,
+    if_match: str | None = None,
 ) -> bytes:
-    response = s3.get_object(Bucket=bucket, Key=key, Range=s3_range_header(start, end))
+    response = s3.get_object(
+        Bucket=bucket,
+        Key=key,
+        Range=s3_range_header(start, end),
+        **_s3_if_match(if_match),
+    )
     return cast(bytes, response["Body"].read())
 
 
@@ -2095,6 +2412,14 @@ def _s3_transfer_config() -> TransferConfig:
         multipart_chunksize=8 * 1024 * 1024,  # 8 MB
         max_concurrency=10,
     )
+
+
+# Concurrent UploadPartCopy requests per compose. Higher than the upload bound
+# above: each copy runs at only ~40-55 MB/s on S3's side, and 10 at a time was
+# measured slower than main's whole upload on an in-region EC2 host. The S3
+# client's connection pool (max_pool_connections=50) caps the requests of
+# composes that share it.
+_S3_MAX_COPY_CONCURRENCY = 32
 
 
 # fsspec write buffer size for cloud storage backends (GCS, Azure, etc.).

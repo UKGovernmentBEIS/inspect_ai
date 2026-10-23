@@ -15,8 +15,9 @@ from typing import (
 import anyio
 from pydantic import JsonValue
 
-from inspect_ai._util._async import coro_log_exceptions
 from inspect_ai._util.error import PrerequisiteError
+from inspect_ai._util.exception import TerminateSampleError
+from inspect_ai._util.working import untracked_sandbox_execs
 from inspect_ai.util._subprocess import ExecResult
 
 from ._framework_directory import (
@@ -32,6 +33,62 @@ from .environment import SandboxEnvironment
 from .limits import OutputLimitExceededError, override_max_exec_output_size
 
 logger = getLogger(__name__)
+
+# Control-flow exceptions that a service method may raise and that must
+# propagate out of sandbox_service() to be enacted (in contrast to ordinary
+# exceptions, which become RPC error responses, and LimitExceededError,
+# which is routed to the active sample unless a termination is in its
+# history). ExceptionGroups are searched exhaustively before matching. TerminateTaskError is deliberately absent:
+# the sample runner consumes TerminateSampleError from solver exceptions
+# (task/run.py) but has no equivalent task-boundary consumer, so routing it
+# would not reliably enact anything.
+CONTROL_FLOW_EXCEPTIONS: tuple[type[BaseException], ...] = (TerminateSampleError,)
+
+
+def find_control_flow(ex: Exception) -> BaseException | None:
+    """Find a control-flow exception in an exception's causal history.
+
+    Termination is sticky by protocol: group leaves, explicit causes
+    (raise ... from), and implicit context are all searched, so once a
+    termination has been raised anywhere in the history of the escaping
+    exception it propagates — including when a response write fails
+    mid-handling and the termination survives only as context. The only
+    way to suppress a termination is to handle it and return normally.
+    Precedence follows CONTROL_FLOW_EXCEPTIONS order, then traversal
+    order.
+    """
+    seen: set[int] = set()
+    stack: list[BaseException] = [ex]
+    history: list[BaseException] = []
+    while stack:
+        e = stack.pop()
+        if id(e) in seen:
+            continue
+        seen.add(id(e))
+        history.append(e)
+        if isinstance(e, BaseExceptionGroup):
+            stack.extend(e.exceptions)
+        if e.__cause__ is not None:
+            stack.append(e.__cause__)
+        if e.__context__ is not None:
+            stack.append(e.__context__)
+    for control_flow_type in CONTROL_FLOW_EXCEPTIONS:
+        for e in history:
+            if isinstance(e, control_flow_type):
+                return e
+    return None
+
+
+def raise_if_control_flow(ex: Exception) -> None:
+    """Re-raise a contained control-flow exception (no-op otherwise).
+
+    Used at each layer of the service's error handling so terminations
+    raised by service methods propagate out of sandbox_service() instead
+    of being logged and swallowed.
+    """
+    control = find_control_flow(ex)
+    if control is not None:
+        raise control from ex
 
 
 REQUESTS_DIR = "requests"
@@ -54,6 +111,10 @@ POLLING_INTERVAL = 0.1
 # until() true) always finish; bounded so a handler stuck in user/model code
 # can't hold the service open indefinitely.
 NORMAL_EXIT_DRAIN_TIMEOUT = 30.0
+
+# Bound on the reply to a request that terminates the sample. The termination
+# is raised when the reply is written, fails, is cancelled, or times out.
+TERMINATING_REPLY_TIMEOUT = 30.0
 
 SERVICE_NAME_PATTERN = re.compile(r"[A-Za-z_][A-Za-z0-9_]{0,127}")
 FILENAME_TOKEN_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}")
@@ -181,7 +242,8 @@ async def sandbox_service(
     """
     # validate python in sandbox
     if requires_python:
-        await validate_sandbox_python(name, sandbox, user)
+        with untracked_sandbox_execs():
+            await validate_sandbox_python(name, sandbox, user)
 
     # sort out polling interval
     default_polling_interval = sandbox.default_polling_interval()
@@ -208,6 +270,9 @@ async def sandbox_service(
         try:
             await service.handle_requests(task_group)
         except Exception as ex:
+            # let control-flow exceptions (terminate) propagate — they are
+            # raised by service methods precisely to end the sample
+            raise_if_control_flow(ex)
             logger.warning(f"Error waiting for sandbox rpc: {ex}")
 
     # wait for and process methods
@@ -403,12 +468,13 @@ class SandboxService:
 
     async def _handle_request_tracked(self, request_file: str, request_id: str) -> None:
         try:
-            await coro_log_exceptions(
-                logger,
-                "handling sandbox service request",
-                self._handle_request,
-                request_file,
-            )
+            # log-and-continue for ordinary errors (one bad request must not
+            # tear down the polling loop), but control-flow exceptions raised
+            # by service methods must propagate to be enacted
+            await self._handle_request(request_file)
+        except Exception as ex:
+            raise_if_control_flow(ex)
+            logger.warning(f"Error handling sandbox service request: {ex}")
         finally:
             self._in_flight.discard(request_id)
 
@@ -550,6 +616,10 @@ class SandboxService:
                         request_file, request_id, await method(**params)
                     )
                 except LimitExceededError as ex:
+                    # a termination anywhere in the limit's history wins: the
+                    # handler below answers the RPC and propagates it
+                    if find_control_flow(ex) is not None:
+                        raise
                     active = sample_active()
                     if active is not None:
                         active.limit_exceeded(ex)
@@ -560,6 +630,25 @@ class SandboxService:
                         f"Limit exceeded calling method {method_name}: {ex.message}",
                     )
             except Exception as err:
+                # sample termination raised by a service method (bare or
+                # wrapped in an ExceptionGroup) must propagate out of the
+                # service to be enacted — try to answer the RPC exactly once
+                # first so the sandbox-side caller isn't left polling forever
+                control = find_control_flow(err)
+                if control is not None:
+                    # the termination is raised however the reply ends: a
+                    # caller that reads it may finish and have its owner
+                    # cancel this service before the write returns
+                    try:
+                        with anyio.move_on_after(TERMINATING_REPLY_TIMEOUT):
+                            await self._write_response(
+                                request_file,
+                                request_id,
+                                None,
+                                f"Terminating: {control}",
+                            )
+                    finally:
+                        raise control from err
                 # Log the host-side traceback, but do NOT put it in the response.
                 # This text is delivered into the sandbox and, for bridged MCP
                 # tools, surfaces verbatim as tool output the model reads. The
@@ -658,14 +747,15 @@ class SandboxService:
         refused, not repaired.
         """
         try:
-            as_root = await try_ensure_framework_directory_as_root(
-                self._sandbox,
-                SERVICES_DIR,
-                mode=SHARED_MODE,
-                trace_tag="Sandbox Service",
-                timeout=_EXEC_TIMEOUT,
-                concurrency=False,
-            )
+            with untracked_sandbox_execs():
+                as_root = await try_ensure_framework_directory_as_root(
+                    self._sandbox,
+                    SERVICES_DIR,
+                    mode=SHARED_MODE,
+                    trace_tag="Sandbox Service",
+                    timeout=_EXEC_TIMEOUT,
+                    concurrency=False,
+                )
         except TimeoutError:
             raise RuntimeError(
                 f"Timed out preparing directory {SERVICES_DIR} in sandbox"
@@ -709,6 +799,7 @@ class SandboxService:
 
     # Every command below bypasses the sandbox concurrency limit: services must
     # keep running while sandboxed clients hold exec slots waiting for responses.
+    # None of them is the sample's known work (`untracked_sandbox_execs()`).
 
     async def _ensure_dir(
         self,
@@ -719,15 +810,16 @@ class SandboxService:
         mode: int = DEFAULT_MODE,
     ) -> None:
         try:
-            await ensure_framework_directory(
-                self._sandbox,
-                path,
-                user=user,
-                expected_uid=expected_uid,
-                mode=mode,
-                timeout=_EXEC_TIMEOUT,
-                concurrency=False,
-            )
+            with untracked_sandbox_execs():
+                await ensure_framework_directory(
+                    self._sandbox,
+                    path,
+                    user=user,
+                    expected_uid=expected_uid,
+                    mode=mode,
+                    timeout=_EXEC_TIMEOUT,
+                    concurrency=False,
+                )
         except TimeoutError:
             raise RuntimeError(f"Timed out preparing directory {path} in sandbox")
 
@@ -735,15 +827,16 @@ class SandboxService:
         self, dir: str, cmd: list[str], input: str | None = None
     ) -> ExecResult[str]:
         try:
-            return await exec_in_framework_directory(
-                self._sandbox,
-                dir,
-                cmd,
-                user=self._user,
-                input=input,
-                timeout=_EXEC_TIMEOUT,
-                concurrency=False,
-            )
+            with untracked_sandbox_execs():
+                return await exec_in_framework_directory(
+                    self._sandbox,
+                    dir,
+                    cmd,
+                    user=self._user,
+                    input=input,
+                    timeout=_EXEC_TIMEOUT,
+                    concurrency=False,
+                )
         except TimeoutError:
             raise RuntimeError(
                 f"Timed out executing command {' '.join(cmd)} in {dir} in sandbox"
@@ -763,14 +856,15 @@ class SandboxService:
         user planted on the image's ``PATH``.
         """
         try:
-            return await privileged_exec(
-                self._sandbox,
-                cmd,
-                user=self._user,
-                input=input,
-                timeout=_EXEC_TIMEOUT,
-                concurrency=False,
-            )
+            with untracked_sandbox_execs():
+                return await privileged_exec(
+                    self._sandbox,
+                    cmd,
+                    user=self._user,
+                    input=input,
+                    timeout=_EXEC_TIMEOUT,
+                    concurrency=False,
+                )
         except TimeoutError:
             raise RuntimeError(
                 f"Timed out executing command {' '.join(cmd)} in sandbox"
