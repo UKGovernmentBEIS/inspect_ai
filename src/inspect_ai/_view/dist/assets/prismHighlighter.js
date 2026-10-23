@@ -1,5 +1,4 @@
 import { t as __commonJSMin } from "./rolldown-runtime.js";
-import "./src.js";
 import { r as isRecord } from "./type.js";
 //#region ../../packages/react/src/hooks/prismManual.ts
 var existing = Reflect.get(globalThis, "Prism");

@@ -9,6 +9,7 @@ from test_helpers.utils import (
     setenv_if_unset,
     skip_if_no_anthropic,
     skip_if_no_bedrock,
+    skip_if_no_vertex,
 )
 
 from inspect_ai import Task, eval
@@ -662,6 +663,7 @@ async def test_anthropic_generate_handles_midstream_content_filter(
         pending_tool_uses: Any = None,
         pending_mcp_tool_uses: Any = None,
         span_recorder: Any = None,
+        chain: Any = None,
     ) -> tuple[dict[str, Any], ModelOutput]:
         raise APIStatusError(
             "Output blocked by content filtering policy",
@@ -1028,6 +1030,180 @@ async def test_anthropic_continuation_preserves_server_tool_pairing() -> None:
     assert tool_uses[0].id == "toolu_1"
 
 
+def _pause_turn_chain_api(messages: list[Any]) -> tuple[AnthropicAPI, AsyncMock]:
+    """An API whose client returns `messages` in turn, for continuation tests."""
+    from anthropic import AsyncAnthropic
+
+    api = create_autospec(AnthropicAPI, instance=True)
+    api._batcher = None
+    api.model_name = "claude-sonnet-4-6"
+    api.service_model_name.return_value = "claude-sonnet-4-6"
+    api.cache_diagnostics_enabled.return_value = False
+
+    client = create_autospec(AsyncAnthropic, instance=True)
+    create = AsyncMock(side_effect=messages)
+    client.messages.create = create
+    api.client = client
+
+    # Bind the real method so recursive continuation calls work
+    api._perform_request_and_continuations = types.MethodType(
+        AnthropicAPI._perform_request_and_continuations, api
+    )
+    return api, create
+
+
+def _chain_message(index: int, stop_reason: str) -> Any:
+    from anthropic.types import Message, TextBlock, Usage
+    from anthropic.types.output_tokens_details import OutputTokensDetails
+
+    return Message(
+        id=f"msg_{index}",
+        type="message",
+        role="assistant",
+        model="claude-sonnet-4-6",
+        stop_reason=cast(Any, stop_reason),
+        content=[TextBlock(type="text", text=f"part {index}")],
+        usage=Usage(
+            input_tokens=10 * index,
+            output_tokens=index,
+            cache_creation_input_tokens=100 * index,
+            cache_read_input_tokens=1000 * index,
+            output_tokens_details=OutputTokensDetails(thinking_tokens=index),
+        ),
+    )
+
+
+async def test_anthropic_pause_turn_chain_sums_usage() -> None:
+    """Usage covers the head request and every pause_turn continuation."""
+    api, create = _pause_turn_chain_api(
+        [
+            _chain_message(1, "pause_turn"),
+            _chain_message(2, "pause_turn"),
+            _chain_message(3, "end_turn"),
+        ]
+    )
+
+    _, output = await api._perform_request_and_continuations(
+        request={"messages": []},
+        streaming=False,
+        tools=[],
+        config=GenerateConfig(),
+    )
+
+    assert create.await_count == 3
+    assert output.stop_reason == "stop"
+    assert output.message.text == "part 1\npart 2\npart 3"
+    assert output.usage is not None
+    assert output.usage.input_tokens == 10 + 20 + 30
+    assert output.usage.output_tokens == 1 + 2 + 3
+    assert output.usage.input_tokens_cache_write == 100 + 200 + 300
+    assert output.usage.input_tokens_cache_read == 1000 + 2000 + 3000
+    assert output.usage.reasoning_tokens == 1 + 2 + 3
+    assert output.usage.total_tokens == 1111 * (1 + 2 + 3)
+    # the context size is the head request's input, not the sum
+    assert output.input_context_tokens == 10 + 100 + 1000
+
+
+def _handled_continuation_error(kind: str) -> Exception:
+    """An API error that generate() converts into a ModelOutput."""
+    import httpx2
+    from anthropic import APIStatusError, BadRequestError
+
+    request = httpx2.Request("POST", "https://api.anthropic.com/v1/messages")
+    if kind == "too_large":
+        return APIStatusError(
+            "Request too large",
+            response=httpx2.Response(status_code=413, request=request),
+            body=None,
+        )
+    message = {
+        "prompt_too_long": "prompt is too long: 250000 tokens > 200000 maximum",
+        "content_filter": "Output blocked by content filtering policy",
+    }[kind]
+    return BadRequestError(
+        message,
+        response=httpx2.Response(status_code=400, request=request),
+        body={
+            "type": "error",
+            "error": {"type": "invalid_request_error", "message": message},
+        },
+    )
+
+
+_HANDLED_ERROR_STOP_REASONS = {
+    "prompt_too_long": "model_length",
+    "content_filter": "content_filter",
+    "too_large": "model_length",
+}
+
+
+@pytest.mark.parametrize("kind", list(_HANDLED_ERROR_STOP_REASONS))
+async def test_anthropic_continuation_error_keeps_earlier_usage(kind: str) -> None:
+    """A continuation error converted to an output keeps the billed heads' usage."""
+    from anthropic import AsyncAnthropic
+
+    from inspect_ai.model._model_output import ModelOutput
+
+    api = AnthropicAPI(
+        model_name="claude-sonnet-4-6", api_key="test-key", streaming=False
+    )
+    client = create_autospec(AsyncAnthropic, instance=True)
+    create = AsyncMock(
+        side_effect=[
+            _chain_message(1, "pause_turn"),
+            _chain_message(2, "pause_turn"),
+            _handled_continuation_error(kind),
+        ]
+    )
+    client.messages.create = create
+    api.client = client
+
+    output, _ = await api.generate(
+        input=[ChatMessageUser(content="hello")],
+        tools=[],
+        tool_choice="auto",
+        config=GenerateConfig(max_tokens=64),
+    )
+
+    assert create.await_count == 3
+    assert isinstance(output, ModelOutput)
+    assert output.stop_reason == _HANDLED_ERROR_STOP_REASONS[kind]
+    assert output.usage is not None
+    assert output.usage.input_tokens == 10 + 20
+    assert output.usage.output_tokens == 1 + 2
+    assert output.usage.input_tokens_cache_write == 100 + 200
+    assert output.usage.input_tokens_cache_read == 1000 + 2000
+    assert output.usage.reasoning_tokens == 1 + 2
+    assert output.input_context_tokens == 10 + 100 + 1000
+
+
+@pytest.mark.parametrize("kind", list(_HANDLED_ERROR_STOP_REASONS))
+async def test_anthropic_initial_request_error_reports_no_usage(kind: str) -> None:
+    """A rejected first request was not billed, so its output has no usage."""
+    from anthropic import AsyncAnthropic
+
+    from inspect_ai.model._model_output import ModelOutput
+
+    api = AnthropicAPI(
+        model_name="claude-sonnet-4-6", api_key="test-key", streaming=False
+    )
+    client = create_autospec(AsyncAnthropic, instance=True)
+    client.messages.create = AsyncMock(side_effect=[_handled_continuation_error(kind)])
+    api.client = client
+
+    output, _ = await api.generate(
+        input=[ChatMessageUser(content="hello")],
+        tools=[],
+        tool_choice="auto",
+        config=GenerateConfig(max_tokens=64),
+    )
+
+    assert isinstance(output, ModelOutput)
+    assert output.stop_reason == _HANDLED_ERROR_STOP_REASONS[kind]
+    assert output.usage is None
+    assert output.input_context_tokens is None
+
+
 @pytest.mark.anyio
 @skip_if_no_anthropic
 async def test_anthropic_prompt_caching() -> None:
@@ -1199,6 +1375,7 @@ async def test_anthropic_top_level_cache_control_skipped_on_bedrock_vertex(
         pending_tool_uses: Any = None,
         pending_mcp_tool_uses: Any = None,
         span_recorder: Any = None,
+        chain: Any = None,
     ) -> tuple[dict[str, Any], ModelOutput]:
         captured.update(request)
         return {}, ModelOutput.from_content(
@@ -1215,6 +1392,29 @@ async def test_anthropic_top_level_cache_control_skipped_on_bedrock_vertex(
     )
 
     assert ("cache_control" in captured) is expects_top_level_cache_control
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    "model_name,anthropic_version",
+    [
+        ("claude-sonnet-4-6", None),
+        ("bedrock/us.anthropic.claude-sonnet-4-6", "bedrock-2023-05-31"),
+        ("vertex/claude-sonnet-4-6@20250929", None),
+    ],
+)
+async def test_anthropic_bedrock_api_version(
+    model_name: str, anthropic_version: str | None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Bedrock requests carry the Bedrock `anthropic_version` in the body."""
+    monkeypatch.setenv("AWS_REGION", "us-east-1")
+    monkeypatch.setenv("ANTHROPIC_VERTEX_PROJECT_ID", "fake")
+    monkeypatch.setenv("ANTHROPIC_VERTEX_REGION", "us-east5")
+
+    api = AnthropicAPI(model_name=model_name, api_key="test-key")
+    _, extra_body, _, _ = api.completion_config(GenerateConfig(max_tokens=16))
+
+    assert extra_body.get("anthropic_version") == anthropic_version
 
 
 @pytest.mark.anyio
@@ -1318,7 +1518,7 @@ def test_anthropic_reasoning_effort_returns_none_for_old_models() -> None:
 
 
 # ---------------------------------------------------------------------------
-# sampling param stripping for Claude 4.7+ (adaptive-thinking-only)
+# sampling param stripping
 # ---------------------------------------------------------------------------
 
 
@@ -1333,75 +1533,33 @@ def _cfg(**kwargs: Any) -> GenerateConfig:
     return GenerateConfig(max_tokens=64, **kwargs)
 
 
-@pytest.mark.parametrize("param,value", list(_SAMPLING_PARAMS.items()))
-def test_anthropic_claude_4_7_strips_sampling_params(
-    param: str, value: float | int
-) -> None:
-    """Claude 4.7+ rejects temperature/top_p/top_k outright; the provider must omit them."""
-    api = AnthropicAPI(model_name="claude-opus-4-7", api_key="test-key")
-    params, extra_body, _headers, _betas = api.completion_config(_cfg(**{param: value}))
-    assert param not in params
-    assert param not in extra_body
-
-
-@pytest.mark.parametrize("param,value", list(_SAMPLING_PARAMS.items()))
-def test_anthropic_claude_4_7_strips_sampling_params_with_reasoning_effort_none(
-    param: str, value: float | int
-) -> None:
-    """reasoning_effort='none' must not re-enable sending sampling params on 4.7."""
-    api = AnthropicAPI(model_name="claude-opus-4-7", api_key="test-key")
-    params, extra_body, _headers, _betas = api.completion_config(
-        _cfg(reasoning_effort="none", **{param: value})
-    )
-    assert param not in params
-    assert param not in extra_body
-
-
-@pytest.mark.parametrize(
-    "model_name", ["claude-opus-4-6", "claude-sonnet-4-6", "claude-haiku-4-5-20251001"]
-)
-@pytest.mark.parametrize("param,value", list(_SAMPLING_PARAMS.items()))
-def test_anthropic_pre_4_7_keeps_sampling_params_without_thinking(
-    model_name: str, param: str, value: float | int
-) -> None:
-    """Pre-4.7 models still send sampling params when thinking is off.
-
-    anthropic >= 1.0 removed them from the method signatures, so they are
-    routed via extra_body rather than params.
-    """
-    api = AnthropicAPI(model_name=model_name, api_key="test-key")
-    params, extra_body, _headers, _betas = api.completion_config(_cfg(**{param: value}))
-    assert param not in params
-    assert extra_body[param] == value
-
-
 @pytest.mark.parametrize(
     "model_name",
     [
-        "claude-opus-4-8",
-        "claude-fable-5",
-        "claude-opus-5-0",
-        "claude-opus-5-5",
+        "claude-haiku-4-5-20251001",
+        "claude-sonnet-4-6",
+        "claude-opus-4-6",
+        "claude-opus-4-7",
         "claude-sonnet-5-5",
-        "claude-haiku-5-5",
-        "claude-sonnet-4-7",
-        "claude-sonnet-5-0",
     ],
 )
+@pytest.mark.parametrize("reasoning_effort", [None, "none", "low"])
 @pytest.mark.parametrize("param,value", list(_SAMPLING_PARAMS.items()))
-def test_anthropic_future_4_7_plus_strips_sampling_params(
-    model_name: str, param: str, value: float | int
+def test_anthropic_strips_sampling_params(
+    model_name: str, reasoning_effort: str | None, param: str, value: float | int
 ) -> None:
-    """All 4.7+ models inherit the adaptive-thinking restriction."""
+    """API version 2026-10-21 rejects temperature/top_p/top_k on every model."""
     api = AnthropicAPI(model_name=model_name, api_key="test-key")
-    params, extra_body, _headers, _betas = api.completion_config(_cfg(**{param: value}))
+    params, extra_body, _headers, _betas = api.completion_config(
+        _cfg(reasoning_effort=reasoning_effort, **{param: value})
+    )
     assert param not in params
     assert param not in extra_body
 
 
 @pytest.mark.anyio
 async def test_anthropic_batch_merges_extra_body_into_params() -> None:
-    """The Batches API has no extra_body — its fields (e.g. sampling params) must land directly in each request's params."""
+    """The Batches API has no extra_body — its fields must land directly in each request's params."""
     from unittest.mock import AsyncMock, MagicMock
 
     import anyio
@@ -1427,7 +1585,7 @@ async def test_anthropic_batch_merges_extra_body_into_params() -> None:
             "max_tokens": 64,
             "messages": [{"role": "user", "content": "hi"}],
             "extra_headers": {"x-header": "y"},
-            "extra_body": {"temperature": 0.5, "top_k": 10},
+            "extra_body": {"fallbacks": [{"model": "claude-opus-4-6"}]},
         },
         result_stream=send_stream,
     )
@@ -1435,8 +1593,7 @@ async def test_anthropic_batch_merges_extra_body_into_params() -> None:
     assert batch_id == "batch_1"
     (call,) = client.messages.batches.create.call_args_list
     params = call.kwargs["requests"][0]["params"]
-    assert params["temperature"] == 0.5
-    assert params["top_k"] == 10
+    assert params["fallbacks"] == [{"model": "claude-opus-4-6"}]
     assert "extra_body" not in params
     assert call.kwargs["extra_headers"] == {"x-header": "y"}
 
@@ -1540,27 +1697,16 @@ def _warn_once_messages() -> Any:
     _inspect_logger._warned.clear()
 
 
-def test_anthropic_claude_4_7_emits_adaptive_only_warning(
-    _warn_once_messages: list[str],
+@pytest.mark.parametrize("model_name", ["claude-opus-4-7", "claude-sonnet-4-6"])
+def test_anthropic_sampling_param_warning(
+    _warn_once_messages: list[str], model_name: str
 ) -> None:
-    """Claude 4.7+ should emit the adaptive-only message, not the extended-thinking one."""
-    api = AnthropicAPI(model_name="claude-opus-4-7", api_key="test-key")
+    api = AnthropicAPI(model_name=model_name, api_key="test-key")
     api.completion_config(_cfg(temperature=0.0))
     assert any(
-        "adaptive thinking only" in m and "claude-opus-4-7" in m
+        "'temperature'" in m and "API version 2026-10-21" in m
         for m in _warn_once_messages
     )
-    assert not any("when using extended thinking" in m for m in _warn_once_messages)
-
-
-def test_anthropic_thinking_model_emits_extended_thinking_warning(
-    _warn_once_messages: list[str],
-) -> None:
-    """A non-adaptive-only thinking model should emit the extended-thinking message."""
-    api = AnthropicAPI(model_name="claude-opus-4-6", api_key="test-key")
-    api.completion_config(_cfg(reasoning_effort="low", temperature=0.0))
-    assert any("when using extended thinking" in m for m in _warn_once_messages)
-    assert not any("adaptive thinking only" in m for m in _warn_once_messages)
 
 
 # ---------------------------------------------------------------------------
@@ -2196,6 +2342,7 @@ async def test_anthropic_forced_tool_choice_request_wiring(
         pending_tool_uses: Any = None,
         pending_mcp_tool_uses: Any = None,
         span_recorder: Any = None,
+        chain: Any = None,
     ) -> tuple[dict[str, Any], ModelOutput]:
         captured.update(request)
         return {}, ModelOutput.from_content(
@@ -2288,6 +2435,7 @@ async def test_anthropic_forced_tool_choice_with_thinking_records_metadata(
         pending_tool_uses: Any = None,
         pending_mcp_tool_uses: Any = None,
         span_recorder: Any = None,
+        chain: Any = None,
     ) -> tuple[dict[str, Any], ModelOutput]:
         captured.update(request)
         return {}, ModelOutput.from_content(
@@ -2643,6 +2791,21 @@ async def test_anthropic_sonnet_5_5_reasoning_effort_none_bedrock_live(
 
 
 @pytest.mark.anyio
+@skip_if_no_vertex
+@pytest.mark.parametrize("effort", [None, "max"])
+async def test_anthropic_sonnet_5_5_reasoning_effort_none_vertex_live(
+    effort: Literal["max"] | None,
+) -> None:
+    """reasoning_effort='none' (between_tools) must not 400 on Vertex either."""
+    model = get_model(
+        "anthropic/vertex/claude-sonnet-5-5",
+        config=GenerateConfig(reasoning_effort="none", effort=effort, max_tokens=128),
+    )
+    response = await model.generate(input="Say hello in one short sentence.")
+    assert len(response.completion) >= 1
+
+
+@pytest.mark.anyio
 @skip_if_no_anthropic
 async def test_anthropic_sonnet_5_5_forced_tool_choice_live() -> None:
     """Forced tool choice must not 400 on Sonnet 5.5 (degraded to auto)."""
@@ -2656,6 +2819,38 @@ async def test_anthropic_sonnet_5_5_forced_tool_choice_bedrock_live() -> None:
     await _check_forced_tool_choice_degrades(
         "anthropic/bedrock/global.anthropic.claude-sonnet-5-5"
     )
+
+
+@pytest.mark.anyio
+@skip_if_no_vertex
+async def test_anthropic_sonnet_5_5_forced_tool_choice_vertex_live() -> None:
+    """Forced tool choice must not 400 on Sonnet 5.5 via Vertex (degraded to auto)."""
+    await _check_forced_tool_choice_degrades("anthropic/vertex/claude-sonnet-5-5")
+
+
+@pytest.mark.anyio
+@skip_if_no_bedrock
+async def test_anthropic_sonnet_4_6_bedrock_live() -> None:
+    """Bedrock rejects API version 2026-10-21 in the body for Sonnet 4.6."""
+    model = get_model(
+        "anthropic/bedrock/us.anthropic.claude-sonnet-4-6",
+        config=GenerateConfig(max_tokens=128),
+    )
+    response = await model.generate(input="Say hello in one short sentence.")
+    assert len(response.completion) >= 1
+
+
+@pytest.mark.anyio
+@skip_if_no_vertex
+async def test_anthropic_sonnet_4_6_vertex_live() -> None:
+    """Vertex generate and count_tokens accept the SDK's API version."""
+    model = get_model(
+        "anthropic/vertex/claude-sonnet-4-6",
+        config=GenerateConfig(max_tokens=128),
+    )
+    response = await model.generate(input="Say hello in one short sentence.")
+    assert len(response.completion) >= 1
+    assert await model.count_tokens([ChatMessageUser(content="hello")]) > 0
 
 
 @pytest.mark.anyio
@@ -2757,6 +2952,18 @@ async def test_anthropic_forced_tool_choice_adaptive_thinking_bedrock_live(
     await _check_forced_tool_choice_with_reasoning(
         f"anthropic/bedrock/global.anthropic.{model_name}"
     )
+
+
+@pytest.mark.anyio
+@skip_if_no_vertex
+@pytest.mark.parametrize(
+    "model_name", ["claude-sonnet-4-6", "claude-sonnet-5", "claude-haiku-5-5"]
+)
+async def test_anthropic_forced_tool_choice_adaptive_thinking_vertex_live(
+    model_name: str,
+) -> None:
+    """Forced tool choice is honored with adaptive thinking on Vertex."""
+    await _check_forced_tool_choice_with_reasoning(f"anthropic/vertex/{model_name}")
 
 
 async def _check_forced_tool_choice_with_reasoning(model_str: str) -> None:

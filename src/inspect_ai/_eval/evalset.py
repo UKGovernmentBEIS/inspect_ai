@@ -432,9 +432,10 @@ def eval_set(
         time_limit: Limit on clock time (in seconds) for samples.
         working_limit: Limit on working time (in seconds) for sample. Working
             time includes model generation, tool calls, etc. but does not include
-            time spent waiting on retries or shared resources. Work done while
-            any wait is open is not charged, so working time can undercount;
-            set `time_limit` as well to bound wall clock time.
+            time spent waiting on retries or shared resources. While a wait is
+            open, only model calls, sandbox commands and tool calls are charged,
+            so working time can undercount; set `time_limit` as well to bound
+            wall clock time.
         cost_limit: Limit on total cost (in dollars) for each sample.
             Requires model cost data via set_model_cost() or --model-cost-config.
         model_cost_config: YAML or JSON file with model prices for cost tracking.
@@ -1528,6 +1529,7 @@ def as_previous_tasks(
                 task_args=resolve_task_args(task.task),
                 model=task.model,
                 model_roles=task.model_roles,
+                sandbox=task.sandbox,
                 log=eval_log,
                 log_info=log_info,
             )
@@ -1755,6 +1757,7 @@ def _resumed_task(task: ResolvedTask, identifier: str, resume: str) -> PreviousT
         task_args=resolve_task_args(task.task),
         model=task.model,
         model_roles=task.model_roles,
+        sandbox=task.sandbox,
         log=eval_log,
         log_info=log_info,
     )

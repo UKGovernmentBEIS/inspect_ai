@@ -298,7 +298,7 @@ This option applies only to the `inspect view` server. Bundled and embedded view
 The viewer option only lowers trust. Leaving it unset, or passing `--trust-content`, defers to each log, and a log that sets `trust_content=False` is never shown richly.
 
 ::: {.callout-note}
-`trust_content` is applied by the viewer when it reads the log. Viewers that predate the setting (including older versions of the VS Code extension) ignore it, and older versions of Inspect drop it if they rewrite the log. Scout does not yet honor it. The setting controls rendering only; it doesn't make the content safe to copy or act on.
+`trust_content` is applied by the viewer when it reads the log. Viewers that predate the setting (including older versions of the VS Code extension) ignore it, and older versions of Inspect drop it if they rewrite the log. Scout honors it from version 0.5.5, including for results of scanners run during `eval_set()`. The setting controls rendering only; it doesn't make the content safe to copy or act on.
 :::
 
 ## Reference

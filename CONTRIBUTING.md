@@ -98,21 +98,19 @@ If there’s something you’d like to work on but no GitHub issue for it, start
 Note that `good first issue` implies `accepted` — you can open a PR for one directly.
 
 ## Working on your issue
-After you’ve claimed an issue, you can start working on it. If this is your first contribution, you’ll need to clone the repository and install the development dependencies:
+After you’ve claimed an issue, you can start working on it. If this is your first contribution, install [uv](https://docs.astral.sh/uv/) 0.11.8 or later (`required-version` in `pyproject.toml` enforces this; upgrade with `uv self update`, or `brew upgrade uv` if you installed it with Homebrew), clone the repository, and sync the development environment from the lockfile:
 
 ```
 git clone https://github.com/UKGovernmentBEIS/inspect_ai.git
 cd inspect_ai
-pip install -e ".[dev]"
+uv sync
 ```
 
-If you prefer [uv](https://docs.astral.sh/uv/), you can instead sync the development environment from the lockfile:
+`uv sync` installs Inspect in editable mode with its development dependencies (the `dev` dependency group, which uv installs by default) at the versions recorded in `uv.lock`. Inspect's dependencies are declared in the `requirements*.txt` files and exposed through `pyproject.toml`. If you are changing dependencies, update the relevant requirements file and run `uv lock` rather than using `uv add`.
 
-```
-uv sync --extra dev
-```
+uv only resolves releases that have been on PyPI for at least seven days (`exclude-newer` in `pyproject.toml`), so a compromised or broken release can be found and yanked before it reaches `uv.lock`, CI, or your machine. Each model provider's own SDK or integration package (for example `openai`, `transformers` or `vllm`), Inspect's own packages, and the CA bundle (`certifi`) are exempt (`exclude-newer-package`), so support for a new release can land the day it ships. A `certifi` release usually removes a compromised root certificate, which you want right away. Infrastructure that providers also need, such as `torch` and `accelerate`, stays under the cooldown. To adopt a specific new release deliberately, run `uv lock --upgrade-package <package>`. If the release is less than seven days old and the package isn't exempt, also add it to `exclude-newer-package` in `pyproject.toml` and to `cooldown.exclude` in `.github/dependabot.yml`.
 
-The uv workflow is optional. Inspect's dependencies are declared in the `requirements*.txt` files and exposed through `pyproject.toml`; `uv.lock` captures a reproducible development resolution. If you are changing dependencies, update the relevant requirements file and refresh the lockfile rather than using `uv add` as the source of truth.
+uv is the supported way to set up Inspect. Installing with pip (`pip install -e ".[dev]"`) gets neither `uv.lock` nor the repository's cooldown.
 
 Create a branch with a short, descriptive name, then start working on the issue. You may find it helpful to install the pre-commit hooks:
 
@@ -127,7 +125,7 @@ make check    # Run linter (ruff) and formatter
 make test     # Run pytest suite
 ```
 
-In a uv-managed environment, run these as `uv run make check` and `uv run make test`.
+Run these as `uv run make check` and `uv run make test`, or activate the environment in `.venv` first.
 
 If any tests are failing, fix the code and run both commands again to verify. Once all the tests are passing, push your branch to GitHub.
 
@@ -189,6 +187,12 @@ report what you ran, its outcome, and any checks you could not run. Run
 **Review expectations:** we aim to review every PR, given time. A PR that goes
 inactive for 60 days is closed by the stale bot with an invitation to reopen —
 that isn't a judgment of you or your work.
+
+**Reviewing other PRs:** feedback on other people's PRs is welcome. Unless a
+maintainer asked for your review, leave it as a comment rather than choosing
+Approve or Request changes. Those are maintainer decisions here: a
+non-maintainer's verdict doesn't count toward merging and can mislead the
+author about where their PR stands.
 
 ## Becoming a qualified contributor
 

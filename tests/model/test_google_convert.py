@@ -1,5 +1,6 @@
 """Tests for Google GenAI model API conversion functions."""
 
+import pytest
 from google.genai.types import (
     Candidate,
     Content,
@@ -11,6 +12,7 @@ from google.genai.types import (
     GenerateContentResponseUsageMetadata,
     Part,
 )
+from test_helpers.utils import skip_if_no_mcp_package
 
 from inspect_ai._util.content import ContentReasoning, ContentText
 from inspect_ai.model import (
@@ -127,6 +129,113 @@ async def test_messages_from_google_with_tool_response() -> None:
     assert isinstance(message, ChatMessageTool)
     assert message.function == "get_weather"
     assert "Sunny" in message.content
+
+
+@pytest.mark.parametrize(
+    "response",
+    [
+        {"output": "Sunny, 72°F"},
+        {"result": "Sunny, 72°F"},
+        {"content": "Sunny, 72°F", "safety_acknowledgement": "true"},
+    ],
+)
+async def test_messages_from_google_tool_response_keys(
+    response: dict[str, object],
+) -> None:
+    contents = [
+        Content(
+            role="user",
+            parts=[
+                Part(
+                    function_response=FunctionResponse(
+                        name="get_weather", response=response
+                    )
+                )
+            ],
+        ),
+    ]
+
+    (message,) = await messages_from_google(contents)
+
+    assert isinstance(message, ChatMessageTool)
+    assert message.content == "Sunny, 72°F"
+    assert message.error is None
+
+
+async def test_messages_from_google_tool_response_error() -> None:
+    contents = [
+        Content(
+            role="user",
+            parts=[
+                Part(
+                    function_response=FunctionResponse(
+                        name="get_weather", response={"error": "City not found"}
+                    )
+                )
+            ],
+        ),
+    ]
+
+    (message,) = await messages_from_google(contents)
+
+    assert isinstance(message, ChatMessageTool)
+    assert message.content == "City not found"
+    assert message.error is not None
+    assert message.error.message == "City not found"
+
+
+@pytest.mark.parametrize(
+    "response,content,error",
+    [
+        ({"output": "42", "error": None}, "42", None),
+        ({"output": "42", "error": ""}, "42", None),
+        ({"result": 42, "error": False}, "42", None),
+        ({"output": "ok", "error": {}}, "ok", None),
+        ({"error": []}, '{"error": []}', None),
+        ({"result": {"temp": 72, "ok": True}}, '{"temp": 72, "ok": true}', None),
+        ({"result": [1, 2]}, "[1, 2]", None),
+        ({"error": {"code": 404}}, '{"code": 404}', '{"code": 404}'),
+        ({"data": {"ok": True}}, '{"data": {"ok": true}}', None),
+    ],
+)
+async def test_messages_from_google_tool_response_values(
+    response: dict[str, object], content: str, error: str | None
+) -> None:
+    contents = [
+        Content(
+            role="user",
+            parts=[
+                Part(
+                    function_response=FunctionResponse(
+                        name="get_weather", response=response
+                    )
+                )
+            ],
+        ),
+    ]
+
+    (message,) = await messages_from_google(contents)
+
+    assert isinstance(message, ChatMessageTool)
+    assert message.content == content
+    assert (message.error.message if message.error else None) == error
+
+
+@skip_if_no_mcp_package
+async def test_messages_from_google_mcp_response() -> None:
+    from mcp.types import CallToolResult, TextContent
+
+    response = FunctionResponse.from_mcp_response(
+        name="lookup",
+        response=CallToolResult(content=[TextContent(type="text", text="42")]),
+    )
+    contents = [Content(role="user", parts=[Part(function_response=response)])]
+
+    (message,) = await messages_from_google(contents)
+
+    assert isinstance(message, ChatMessageTool)
+    assert message.content == '[{"type": "text", "text": "42"}]'
+    assert message.error is None
 
 
 async def test_messages_from_google_with_reasoning() -> None:
