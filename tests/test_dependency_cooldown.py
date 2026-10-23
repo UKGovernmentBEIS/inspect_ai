@@ -187,24 +187,25 @@ def workflow_run_lines() -> list[tuple[str, str]]:
     ]
 
 
-# A bare `uv run` re-resolves an out-of-date uv.lock and installs the result.
-def test_uv_run_never_relocks() -> None:
+# A bare `uv run` or `uv sync` re-resolves an out-of-date uv.lock and installs
+# the result.
+def test_uv_never_relocks() -> None:
     unlocked = [
         (where, line)
         for where, line in workflow_run_lines()
-        if re.search(r"\buv run\b", line)
+        if re.search(r"\buv (run|sync)\b", line)
         and not {"--locked", "--no-sync"} & set(line.split())
     ]
     assert unlocked == []
 
 
-# Every other install comes from uv.lock, through `uv sync --locked` or
-# `uv run --locked`.
+# pip installs skip uv.lock, so only the canaries' floating installs and
+# dependency-free installs of local packages may use them.
 def test_pip_installs_are_canaries_or_dependency_free() -> None:
     unlocked = [
         (where, line)
         for where, line in workflow_run_lines()
-        if re.search(r"\bpip install\b", line)
+        if re.search(r"\bpip3? install\b", line)
         and "--exclude-newer false" not in line
         and "--no-deps" not in line.split()
     ]
