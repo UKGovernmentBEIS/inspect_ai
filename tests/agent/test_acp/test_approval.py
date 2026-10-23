@@ -26,6 +26,7 @@ from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
+from acp.exceptions import RequestError
 from acp.schema import (
     AllowedOutcome,
     DeniedOutcome,
@@ -369,6 +370,35 @@ async def test_driver_disconnect_falls_through_to_next_client() -> None:
     # Both clients were contacted — driver first, then fallback.
     assert len(broken_driver.received) == 1
     assert len(fallback.received) == 1
+
+
+@skip_if_trio
+@pytest.mark.parametrize(
+    ("exc", "level"),
+    [
+        (ConnectionError("disconnected"), logging.DEBUG),
+        (RequestError.invalid_params({"details": "no options"}), logging.WARNING),
+    ],
+)
+async def test_failed_request_log_level(
+    exc: Exception, level: int, caplog: pytest.LogCaptureFixture
+) -> None:
+    """An error reply is logged at WARNING; a disconnect stays at DEBUG.
+
+    A client that answers with an error is still bound but is not asked
+    again, so the sample can park with that client attached. Without a
+    WARNING nothing at the default log level says why.
+    """
+    failing = _StubClient(exc=exc)
+    fallback = _StubClient(response=_selected("approve"))
+
+    with caplog.at_level(logging.DEBUG, logger="inspect_ai.approval._human.acp"):
+        await _request_from_driver_with_fallback(
+            _StubSession([failing, fallback]), _trivial_request(), ["approve"]
+        )
+
+    (record,) = [r for r in caplog.records if "request failed" in r.getMessage()]
+    assert record.levelno == level
 
 
 @skip_if_trio

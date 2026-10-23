@@ -42,7 +42,7 @@ even though the orchestration is asyncio.
 
 from __future__ import annotations
 
-from logging import getLogger
+from logging import DEBUG, WARNING, getLogger
 from typing import TYPE_CHECKING, Any, Callable, Literal, Protocol, cast
 
 import anyio
@@ -498,9 +498,13 @@ async def _request_from_driver_with_fallback(
                     except cancel_exc:
                         raise
                     except Exception as exc:
-                        # Transport failure or other client-side error.
-                        # Try the next client in the fallback chain.
-                        logger.debug(
+                        # Try the next client in the fallback chain. A
+                        # ConnectionError means the client left. Anything
+                        # else (an error reply, a malformed response) is
+                        # from a client that stays attached but won't be
+                        # asked again, which can leave the sample parked.
+                        logger.log(
+                            DEBUG if isinstance(exc, ConnectionError) else WARNING,
                             "ACP approval request failed for client %r; "
                             "trying next: %s",
                             client,
@@ -530,14 +534,14 @@ async def request_human_approval_via_acp(
     """Route a human-approval prompt through attached ACP clients.
 
     Returns:
-        - An :class:`Approval` when at least one ACP client responded.
-        - ``None`` when no ACP clients are attached, when no live
-          ACP session is bound for the current sample, when every
-          attached client failed (disconnect, transport error), or
-          when an unexpected internal error occurred building or
-          racing the request. The caller falls through to the
-          existing in-proc panel / console human-approval flow in any
-          of those cases.
+        - An :class:`Approval` when an ACP client responded. With no
+          client attached, or once every attached client has failed,
+          this waits for the next client to attach.
+        - ``None`` when no ACP server is accepting clients, when there
+          is no active sample or ACP session, or when an unexpected
+          internal error occurred building or racing the request. The
+          caller falls through to the in-proc panel / console
+          human-approval flow in those cases.
 
     The ``message`` argument (the assistant text accompanying the
     tool call) is accepted for signature parity with the in-proc
