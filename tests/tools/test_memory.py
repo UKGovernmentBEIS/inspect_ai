@@ -381,6 +381,134 @@ async def test_memory_readonly_no_write_params() -> None:
         await ro_tool(command="view", path="/memories", file_text="nope")
 
 
+async def test_approval_sees_canonical_path() -> None:
+    """A `..` path is approved as the path the command acts on."""
+    from inspect_ai.approval import Approval, ApprovalPolicy, Approver, auto_approver
+    from inspect_ai.approval._registry import approver
+    from inspect_ai.model._call_tools import execute_tools
+    from inspect_ai.model._chat_message import (
+        ChatMessage,
+        ChatMessageAssistant,
+        ChatMessageTool,
+    )
+    from inspect_ai.tool._tool_call import ToolCall, ToolCallView
+
+    approved_paths: list[str] = []
+
+    @approver
+    def recording() -> Approver:
+        async def approve(
+            message: str,
+            call: ToolCall,
+            view: ToolCallView,
+            history: list[ChatMessage],
+        ) -> Approval:
+            approved_paths.append(call.arguments["path"])
+            return Approval(decision="approve")
+
+        return approve
+
+    policies = [
+        ApprovalPolicy(recording(), "memory(path='/memories/public/*"),
+        ApprovalPolicy(auto_approver("reject"), "*"),
+    ]
+    tool = memory()
+
+    async def create(path: str) -> ChatMessageTool:
+        call = ToolCall(
+            id="1",
+            function="memory",
+            # path first: the policy pattern is matched against the call text
+            arguments={"path": path, "command": "create", "file_text": "x"},
+        )
+        messages, _ = await execute_tools(
+            [ChatMessageAssistant(content=[], tool_calls=[call])],
+            [tool],
+            approval=policies,
+        )
+        assert isinstance(messages[-1], ChatMessageTool)
+        return messages[-1]
+
+    # matches the public policy as written, but acts outside it
+    escaped = await create("/memories/public/../secret.txt")
+    assert escaped.error is not None
+    assert escaped.error.type == "approval"
+    assert approved_paths == []
+
+    # stays inside the public subtree once canonical
+    inside = await create("/memories/other/../public/note.txt")
+    assert inside.error is None
+    assert approved_paths == ["/memories/public/note.txt"]
+    result = await tool(command="view", path="/memories/public/note.txt")
+    assert isinstance(result, str)
+    assert "x" in result
+
+
+async def test_approval_sees_canonical_readonly_and_rename_paths() -> None:
+    """Readonly memory and rename's two paths are approved in canonical form."""
+    from inspect_ai.approval import Approval, ApprovalPolicy, Approver
+    from inspect_ai.approval._registry import approver
+    from inspect_ai.model._call_tools import execute_tools
+    from inspect_ai.model._chat_message import (
+        ChatMessage,
+        ChatMessageAssistant,
+        ChatMessageTool,
+    )
+    from inspect_ai.tool._tool import Tool
+    from inspect_ai.tool._tool_call import ToolCall, ToolCallView
+
+    approved: list[dict[str, object]] = []
+
+    @approver
+    def recording() -> Approver:
+        async def approve(
+            message: str,
+            call: ToolCall,
+            view: ToolCallView,
+            history: list[ChatMessage],
+        ) -> Approval:
+            approved.append(call.arguments)
+            return Approval(decision="approve")
+
+        return approve
+
+    async def run(tool: Tool, arguments: dict[str, object]) -> ChatMessageTool:
+        call = ToolCall(id="1", function="memory", arguments=arguments)
+        messages, _ = await execute_tools(
+            [ChatMessageAssistant(content=[], tool_calls=[call])],
+            [tool],
+            approval=[ApprovalPolicy(recording(), "*")],
+        )
+        assert isinstance(messages[-1], ChatMessageTool)
+        return messages[-1]
+
+    reader = memory(initial_data={"/memories/seed.txt": "seed"}, readonly=True)
+    viewed = await run(reader, {"command": "view", "path": "/memories/x/../seed.txt"})
+    assert viewed.error is None
+    assert "seed" in viewed.text
+    assert approved[-1] == {"command": "view", "path": "/memories/seed.txt"}
+
+    tool = memory()
+    await tool(command="create", path="/memories/old.txt", file_text="x")
+    renamed = await run(
+        tool,
+        {
+            "command": "rename",
+            "old_path": "/memories/a/../old.txt",
+            "new_path": "/memories/b/../new.txt",
+        },
+    )
+    assert renamed.error is None
+    assert approved[-1] == {
+        "command": "rename",
+        "old_path": "/memories/old.txt",
+        "new_path": "/memories/new.txt",
+    }
+    result = await tool(command="view", path="/memories/new.txt")
+    assert isinstance(result, str)
+    assert "x" in result
+
+
 async def test_tool_state_scopes_keep_separate_memory() -> None:
     """Default-instance memory tools in two scopes keep separate files."""
     tool = memory()

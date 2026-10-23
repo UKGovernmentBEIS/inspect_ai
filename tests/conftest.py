@@ -930,6 +930,13 @@ def _report_oom_kills(exitstatus: int) -> None:
 
 
 def pytest_configure(config):
+    # inspect_ai must never load inspect_sentinel for a user who configures no
+    # sentinel, so any import of it in a test raises ImportError. Tests of the
+    # sentinel code install a fake with the `fake_sentinel` fixture.
+    block_sentinel = pytest.MonkeyPatch()
+    block_sentinel.setitem(sys.modules, "inspect_sentinel", None)
+    config.add_cleanup(block_sentinel.undo)
+
     config.addinivalue_line("markers", "slow: mark test as slow to run")
     config.addinivalue_line("markers", "api: mark test as requiring API access")
     config.addinivalue_line("markers", "flaky: mark test as flaky/unreliable")
@@ -945,6 +952,9 @@ def pytest_configure(config):
         "is the live control surface)",
     )
     os.environ["INSPECT_EVAL_LOG_MODEL_API"] = "1"
+    # verify every composed S3 log flush against a digest of the temp file's
+    # prefix (off in production; see design/s3-incremental-log-flush.md)
+    os.environ["INSPECT_VERIFY_COMPOSE_PREFIX"] = "1"
     # Dummy provider keys so tests that only construct a client (not call the
     # API) work without real credentials. Real keys (when present) win via
     # setdefault. api-marked tests are gated behind --runapi and skip when the

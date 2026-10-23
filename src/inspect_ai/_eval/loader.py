@@ -355,9 +355,7 @@ def resolve_previous_task(
         model_roles=_merge_model_roles(
             loaded_task.model_roles, model_roles, previous_task.model_roles
         ),
-        sandbox=resolve_task_file_sandbox(
-            previous_task.log.eval.task_file, previous_task.log.eval.sandbox
-        ),
+        sandbox=previous_task.sandbox,
         checkpoint=loaded_task.checkpoint,
         sequence=sequence,
         id=previous_task.id,
@@ -415,6 +413,16 @@ def resolve_task_sandbox(
     # do the resolution
     resolved_sandbox = resolve_sandbox_environment(sandbox) or task.sandbox
 
+    # a bare override of the task's own sandbox type keeps the task's config,
+    # as resolve_sandbox() does for a sample and task of the same type
+    if (
+        resolved_sandbox is not None
+        and resolved_sandbox.config is None
+        and task.sandbox is not None
+        and resolved_sandbox.type == task.sandbox.type
+    ):
+        resolved_sandbox = task.sandbox
+
     # if we have a sandbox with no config, see if there are implcit
     # config files available for the provider
     if resolved_sandbox is not None:
@@ -439,7 +447,7 @@ def resolve_task_sandbox(
 
             # if we found an override without a config then we may still
             # want to forward the task config if it's docker config ->
-            # docker compatible sandbox
+            # docker compatible sandbox (otherwise the task config is not used)
             if resolved_sandbox.config is None and task.sandbox is not None:
                 if is_docker_compatible_config(
                     task.sandbox.config
@@ -447,16 +455,46 @@ def resolve_task_sandbox(
                     resolved_sandbox = SandboxEnvironmentSpec(
                         resolved_sandbox.type, task.sandbox.config
                     )
-                elif is_docker_compatible_config(task.sandbox.config):
-                    warn_once(
-                        logger,
-                        f"Task '{task.name}' declares sandbox '{task.sandbox.type}' "
-                        "with a Dockerfile/compose.yaml configuration, but the "
-                        f"'{resolved_sandbox.type}' sandbox specified for the eval "
-                        "does not support that configuration. The task's compose "
-                        "services, packages, and tools will not be available in "
-                        f"the '{resolved_sandbox.type}' sandbox.",
+                elif task.sandbox.config is not None:
+                    config_text = (
+                        f"configuration '{task.sandbox.config}'"
+                        if isinstance(task.sandbox.config, str)
+                        else "a configuration"
                     )
+                    if is_docker_compatible_sandbox_type(resolved_sandbox.type):
+                        warn_once(
+                            logger,
+                            f"Task '{task.name}' declares sandbox "
+                            f"'{task.sandbox.type}' with {config_text}, which the "
+                            f"'{resolved_sandbox.type}' sandbox specified for the "
+                            "eval will not use. A configuration declared for a "
+                            "different sandbox type is carried over only when it "
+                            "is a Dockerfile, a compose file with a recognized name "
+                            "(such as 'compose.yaml' or '*-compose.yaml'), or a "
+                            "ComposeConfig. Rename a compose file to a recognized "
+                            "name, or declare a native "
+                            f"'{resolved_sandbox.type}' configuration with sandbox "
+                            f"type '{resolved_sandbox.type}'.",
+                        )
+                    elif is_docker_compatible_config(task.sandbox.config):
+                        warn_once(
+                            logger,
+                            f"Task '{task.name}' declares sandbox "
+                            f"'{task.sandbox.type}' with a Dockerfile/compose.yaml "
+                            f"configuration, but the '{resolved_sandbox.type}' "
+                            "sandbox specified for the eval does not support that "
+                            "configuration. The task's compose services, packages, "
+                            "and tools will not be available in the "
+                            f"'{resolved_sandbox.type}' sandbox.",
+                        )
+                    else:
+                        warn_once(
+                            logger,
+                            f"Task '{task.name}' declares sandbox "
+                            f"'{task.sandbox.type}' with {config_text}, which the "
+                            f"'{resolved_sandbox.type}' sandbox specified for the "
+                            "eval does not support, so it will not be used.",
+                        )
 
         # resolve relative paths
         if isinstance(resolved_sandbox.config, str):

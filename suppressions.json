@@ -702,8 +702,8 @@
       "undescribed": 1
     },
     "type: ignore[typeddict-item]": {
-      "count": 4,
-      "undescribed": 2
+      "count": 3,
+      "undescribed": 1
     }
   },
   "src/inspect_ai/model/_providers/google.py": {
@@ -1688,6 +1688,11 @@
     "type: ignore[typeddict-unknown-key]": {
       "count": 2,
       "undescribed": 2
+    }
+  },
+  "tests/model/test_tool_exec_shared.py": {
+    "noqa:B904": {
+      "count": 1
     }
   },
   "tests/model/test_tool_info_lifecycle.py": {

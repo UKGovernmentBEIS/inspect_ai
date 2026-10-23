@@ -6,6 +6,7 @@ from typing import Any, Callable, Literal
 from pydantic import Field
 
 from inspect_ai.tool import Tool, ToolError, tool
+from inspect_ai.tool._tool_canonical import set_tool_canonical_arguments
 from inspect_ai.util import StoreModel, store_as
 from inspect_ai.util._resource import resource
 from inspect_ai.util._tool_state import tool_state_instance
@@ -58,6 +59,7 @@ def memory(
     if readonly:
         result = _readonly_execute(_seed, instance)
         result.initial_data = initial_data  # type: ignore[attr-defined]
+        set_tool_canonical_arguments(result, _canonical_arguments)
         return result
 
     async def execute(
@@ -132,6 +134,7 @@ def memory(
                 raise ToolError(f"Unknown command: {command}")
 
     execute.initial_data = initial_data  # type: ignore[attr-defined]
+    set_tool_canonical_arguments(execute, _canonical_arguments)
     return execute
 
 
@@ -185,6 +188,25 @@ def _validate_path(path: str) -> str:
     if norm != "/memories" and not norm.startswith("/memories/"):
         raise ToolError(f"Invalid path: {path} escapes /memories directory")
     return norm
+
+
+def _canonical_arguments(arguments: dict[str, Any]) -> dict[str, Any]:
+    """Arguments with each valid path replaced by the canonical path it acts on.
+
+    Tool calls are approved on these arguments, so an approval policy written
+    for a path matches the path the command will use (`/memories/a/../b` is
+    approved as `/memories/b`). An invalid path is left as given; the command
+    rejects it.
+    """
+    canonical = dict(arguments)
+    for name in ("path", "old_path", "new_path"):
+        path = canonical.get(name)
+        if isinstance(path, str):
+            try:
+                canonical[name] = _validate_path(path)
+            except ToolError:
+                pass
+    return canonical
 
 
 def _path_exists(store: MemoryStore, path: str) -> bool:
