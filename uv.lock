@@ -2634,11 +2634,11 @@ wheels = [
 
 [[package]]
 name = "jsonpath-ng"
-version = "1.9.0"
+version = "1.13.0"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/4e/ef/f320c80029173a7156dd34fe6eaba761329cbdb018cbca8a6bed2d9fc74e/jsonpath_ng-1.9.0.tar.gz", hash = "sha256:0790eea49bdd75198dbc319aba969ce9350b0d96cda6e498dba62334f53979c9", size = 78042, upload-time = "2026-10-05T18:15:13.58Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/4a/a4/4db8bd69f41fd56bdc0a709137c10a410e5cc148b3760ea206a510128ae6/jsonpath_ng-1.13.0.tar.gz", hash = "sha256:da54eff64eef303b90a8491f50c607e6beb2eb4a6e66828edab948766d40c531", size = 116355, upload-time = "2026-10-23T11:50:31.346Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/f6/dc/68bee5d3344c785da2a3b420b52c16af758ab6eb7bb1fd6c79464183c7c8/jsonpath_ng-1.9.0-py3-none-any.whl", hash = "sha256:c563c5e8afb055488f2ecd5775f52c6950bb6202602b055f2293e012e3059fb4", size = 68196, upload-time = "2026-10-05T18:15:12.449Z" },
+    { url = "https://files.pythonhosted.org/packages/5c/03/30db4cd2e778aee7feb29b14ff9c831735e5e1939600dff2bacba38107b1/jsonpath_ng-1.13.0-py3-none-any.whl", hash = "sha256:f58e7f88cdd2eb04a402c0d542e7d6db71909e521f4c23c62f4d2ee73266361e", size = 83987, upload-time = "2026-10-23T11:50:30.012Z" },
 ]
 
 [[package]]
