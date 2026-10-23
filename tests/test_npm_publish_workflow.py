@@ -10,6 +10,7 @@ gitignored CSS-module typings are generated before ``check-all`` runs tsc.
 
 import json
 import pathlib
+import re
 import shlex
 from typing import Any
 
@@ -97,3 +98,17 @@ def test_css_typings_generated_before_checks() -> None:
         "check-all runs tsc outside turbo, so the gitignored *.module.css.d.ts "
         "typings must be generated in an earlier step"
     )
+
+
+def test_npm_upgrade_is_pinned_without_install_scripts() -> None:
+    # The job holds the npm publishing id-token, so the npm it runs must not
+    # float or run install scripts.
+    upgrade = next(s for s in publish_steps() if "npm-upgrade" in s.get("run", ""))
+    (install,) = [
+        shlex.split(line)
+        for line in upgrade["run"].splitlines()
+        if line.strip().startswith("npm install")
+    ]
+    assert "--ignore-scripts" in install
+    (spec,) = [token for token in install if token.startswith("npm@")]
+    assert re.fullmatch(r"npm@\d+\.\d+\.\d+", spec), spec
