@@ -18,7 +18,7 @@ permissions:
   contents: read
 
 env:
-  UV_VERSION: 0.9.4
+  UV_VERSION: 0.13.5
 
 jobs:
   # Keep the existing check names on Markdown-only PRs, but skip the viewer
