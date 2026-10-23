@@ -5772,10 +5772,10 @@ def test_a_message_edited_in_place_in_the_prefix_is_sent_again() -> None:
         step.input[2].text,
     ]
     assert last[1] is last[2]
-    # a known difference: the log's earlier ModelEvent holds the same object,
-    # so it records the edited content and the fold over the log has it once
+    # the log's earlier ModelEvent snapshots its input, so it keeps the
+    # content as it was sent
     first, _ = agent_events(log)
-    assert first.input[1].text == "Final question."
+    assert first.input[1].text == "Draft question."
 
 
 # attributes each call to a sub-agent span, as a bridged CLI's event consumer does
