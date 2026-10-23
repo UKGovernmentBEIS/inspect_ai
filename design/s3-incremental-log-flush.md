@@ -1187,9 +1187,10 @@ size.
 
 ## Performance
 
-Step 4, measured 2026-10-22 and 2026-10-23 on real S3
-(`s3://inspect-flow-test/perf-481/`) from an office link (≈7 MB/s each way),
-verify mode off. "main" is `1031b575f9` (#479 landed: the seeded start flush
+Step 4 was measured on real S3 (`s3://inspect-flow-test/perf-481/`) from
+the office link with verify mode off: retries and the flush microbenchmark
+on 2026-10-22 (≈7 MB/s each way that day), and first attempts on
+2026-10-23 (≈10 MB/s for main's whole uploads). "main" is `1031b575f9` (#479 landed: the seeded start flush
 composes, later flushes upload whole); "branch" is this change. Both ran from
 the same venv, main's `src` on `PYTHONPATH`, as in the #420 method.
 
