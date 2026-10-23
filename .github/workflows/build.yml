@@ -108,14 +108,6 @@ jobs:
         if: github.event_name != 'pull_request' || steps.filter.outputs.code == 'true'
         run: uv sync
 
-      # TEMPORARY: the dispatcher requires inspect_sentinel with
-      # meridianlabs-ai/inspect_sentinel#87 (Host wraps HostNative), installed from
-      # sentinel main. Remove when a release with it
-      # is on PyPI and requirements-dev.txt requires it.
-      - name: Install inspect_sentinel (TEMPORARY)
-        if: github.event_name != 'pull_request' || steps.filter.outputs.code == 'true'
-        run: uv pip install --no-deps "inspect_sentinel @ git+https://github.com/meridianlabs-ai/inspect_sentinel@main"
-
       - name: Run mypy
         if: github.event_name != 'pull_request' || steps.filter.outputs.code == 'true'
         run: uv run --no-sync mypy --exclude tests/test_package src tests
@@ -338,14 +330,6 @@ jobs:
         run: |-
           uv sync
           uv pip install --no-deps ./tests/test_package
-
-      # TEMPORARY: the dispatcher requires inspect_sentinel with
-      # meridianlabs-ai/inspect_sentinel#87 (Host wraps HostNative), installed from
-      # sentinel main. Remove when a release with it
-      # is on PyPI and requirements-dev.txt requires it.
-      - name: Install inspect_sentinel (TEMPORARY)
-        if: env.RUN_TESTS == 'true'
-        run: uv pip install --no-deps "inspect_sentinel @ git+https://github.com/meridianlabs-ai/inspect_sentinel@main"
 
       - name: Test with pytest
         if: env.RUN_TESTS == 'true'
@@ -574,6 +558,12 @@ jobs:
         env:
           DOCKER_BUILDKIT: 1
           BUILDKIT_PROGRESS: plain
+          # Compose 2.38's bake builder gives every project that builds the
+          # same Dockerfile one image ID, so a parallel test's `docker rmi`
+          # can delete it mid-build ("failed to get digest"). Drop once the
+          # runner has Compose >= 2.39, together with the same setting in
+          # meridianlabs-ai/actions inspect-ai-scheduled-tests.yml (actions#156).
+          COMPOSE_BAKE: "false"
         run: uv run pytest --runslow -m slow tests/tools/ -x -v --durations=0 -n logical
 
       - name: Minimize uv cache
@@ -666,6 +656,8 @@ jobs:
           # the non-dev name; _check_main_divergence would otherwise return
           # "edited" on this PR (version.txt differs from main).
           INSPECT_SANDBOX_TOOLS_INSTALL_STATE: clean
+          # Shared image IDs under Compose 2.38; see "Run slow tool tests".
+          COMPOSE_BAKE: "false"
         run: uv run pytest --runslow -m slow tests/tools/ -x -v --durations=0 -n logical
 
       - name: Minimize uv cache
@@ -707,6 +699,9 @@ jobs:
           uv pip install .[dev]
 
       - name: Run slow tests
+        env:
+          # Shared image IDs under Compose 2.38; see "Run slow tool tests".
+          COMPOSE_BAKE: "false"
         run: uv run pytest --runslow -m slow tests/${{ matrix.area }}/ -n logical --durations=0
 
       - name: Minimize uv cache

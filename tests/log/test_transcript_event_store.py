@@ -6,8 +6,9 @@ from pathlib import Path
 from typing import cast
 from unittest.mock import patch
 
+import numpy as np
 import pytest
-from pydantic import JsonValue
+from pydantic import BaseModel, ConfigDict, JsonValue, field_serializer
 from test_helpers.transcript import make_model_event
 
 from inspect_ai._util.constants import get_deserializing_context
@@ -20,7 +21,9 @@ from inspect_ai.model._chat_message import (
     ChatMessageSystem,
     ChatMessageUser,
 )
+from inspect_ai.model._model import _snapshot_messages
 from inspect_ai.model._model_call import ModelCall
+from inspect_ai.tool import ToolCall
 
 TRANSCRIPT_EVENT_STORE = "transcript_event_store.sqlite"
 
@@ -219,6 +222,20 @@ def test_transcript_event_store_retains_cumulative_attachments(
     }
 
 
+def test_transcript_event_store_exports_attachments_in_insertion_order(
+    tmp_path: Path,
+) -> None:
+    transcript_store = TranscriptEventStore(tmp_path / TRANSCRIPT_EVENT_STORE)
+
+    transcript_store.merge_attachments({"zzz": "first"})
+    _write_transcript_files(transcript_store, tmp_path)
+    transcript_store.merge_attachments({"aaa": "second", "mmm": "third"})
+    _write_transcript_files(transcript_store, tmp_path)
+
+    attachments = json.loads((tmp_path / "attachments.json").read_text())
+    assert list(attachments) == ["zzz", "aaa", "mmm"]
+
+
 def test_transcript_event_store_retains_attachment_on_event_update(
     tmp_path: Path,
 ) -> None:
@@ -313,6 +330,51 @@ def test_transcript_event_store_exports_stable_message_pool(
     )
     model_events = [event for event in expanded if isinstance(event, ModelEvent)]
     assert [len(event.input) for event in model_events] == [2, 3]
+
+
+class _Vector(BaseModel):
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+    values: np.ndarray
+
+    @field_serializer("values")
+    def _serialize_values(self, values: np.ndarray) -> list[int]:
+        return [int(v) for v in values]
+
+
+@pytest.mark.parametrize("where", ["metadata", "arguments"])
+def test_transcript_event_store_pools_edited_array_snapshots(
+    tmp_path: Path, where: str
+) -> None:
+    # comparing the two snapshots raises (array ==), which is a pool miss
+    vector = _Vector(values=np.array([1, 2]))
+    message = (
+        ChatMessageUser(content="hi", metadata={"vector": vector})
+        if where == "metadata"
+        else ChatMessageAssistant(
+            content="",
+            tool_calls=[ToolCall(id="c1", function="f", arguments={"v": vector})],
+        )
+    )
+    transcript_store = TranscriptEventStore(tmp_path / TRANSCRIPT_EVENT_STORE)
+
+    transcript_store.merge_event(
+        make_model_event(_snapshot_messages([message])),
+        attachment_lookup=_no_attachment,
+    )
+    vector.values[0] = 9
+    transcript_store.merge_event(
+        make_model_event(_snapshot_messages([message])),
+        attachment_lookup=_no_attachment,
+    )
+    _write_transcript_files(transcript_store, tmp_path)
+
+    assert transcript_store.counts().events == 2
+    pooled = json.loads((tmp_path / "events_data.json").read_text())["messages"]
+    if where == "metadata":
+        values = [m["metadata"]["vector"]["values"] for m in pooled]
+    else:
+        values = [m["tool_calls"][0]["arguments"]["v"]["values"] for m in pooled]
+    assert values == [[1, 2], [9, 2]]
 
 
 def test_transcript_event_store_merge_pool_entry_returns_canonical_position(
