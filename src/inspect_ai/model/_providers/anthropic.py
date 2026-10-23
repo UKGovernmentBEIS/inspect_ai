@@ -35,6 +35,7 @@ from anthropic import (
 )
 from anthropic.lib.streaming import AsyncMessageStream
 from anthropic.types import (
+    AssistantMessageParam,
     Base64PDFSourceParam,
     BrowserStateBlockParam,
     CacheControlEphemeralParam,
@@ -48,6 +49,7 @@ from anthropic.types import (
     DocumentBlockParam,
     ImageBlockParam,
     Message,
+    MessageContentParam,
     MessageParam,
     OutputConfigParam,
     PlainTextSourceParam,
@@ -55,6 +57,7 @@ from anthropic.types import (
     RedactedThinkingBlockParam,
     ServerToolUseBlock,
     ServerToolUseBlockParam,
+    SystemMessageParam,
     TextBlock,
     TextBlockParam,
     ThinkingBlock,
@@ -70,6 +73,7 @@ from anthropic.types import (
     ToolTextEditor20250124Param,
     ToolUseBlock,
     ToolUseBlockParam,
+    UserMessageParam,
     WebSearchResultBlock,
     WebSearchTool20250305Param,
     WebSearchTool20260209Param,
@@ -198,6 +202,8 @@ from .._model_output import (
     StopDetails,
     StopReason,
     collect_stop_details,
+    sum_usage,
+    usage_input_tokens,
 )
 from .._providers._anthropic_citations import (
     to_anthropic_citation,
@@ -242,13 +248,9 @@ logger = getLogger(__name__)
 ANTHROPIC_API_KEY = "ANTHROPIC_API_KEY"
 AZUREAI_ANTHROPIC_API_KEY = "AZUREAI_ANTHROPIC_API_KEY"
 
-_THINKING_WARNING = (
+_SAMPLING_PARAM_WARNING = (
     "anthropic models do not support the '{parameter}' parameter "
-    "when using extended thinking."
-)
-_ADAPTIVE_ONLY_WARNING = (
-    "anthropic model '{model}' does not support the '{parameter}' parameter "
-    "(adaptive thinking only)."
+    "(removed in API version 2026-10-21)."
 )
 _REASONING_TOKENS_UNSUPPORTED_ERROR = (
     "anthropic model '{model}' does not support 'reasoning_tokens' (extended "
@@ -316,6 +318,79 @@ _cache_write_ttl: ContextVar[Literal["5m", "1h"] | None] = ContextVar(
 _last_request_start: ContextVar[float | None] = ContextVar(
     "anthropic_last_request_start", default=None
 )
+
+
+@dataclass
+class _ContinuationChain:
+    """The requests sent so far for one generate call (a head and its continuations)."""
+
+    requests: int = 0
+    """Number of requests that returned a response."""
+
+    usage: ModelUsage | None = None
+    """Usage summed over those requests (each one is billed)."""
+
+    input_context_tokens: int | None = None
+    """Input size of the head request, the one built from the generate input.
+
+    Later requests also carry the partial turn, which the returned message holds.
+    """
+
+    served: list[ServedModelUsage] = field(default_factory=list)
+    """Usage of each request, attributed to the model that served it."""
+
+    fallbacks: list[ModelFallback] = field(default_factory=list)
+    """Refusal fallbacks of the requests that had one, in request order."""
+
+    def add(self, output: ModelOutput, served: list[ServedModelUsage]) -> None:
+        """Add a request's output, and its usage attributed by serving model."""
+        self.requests += 1
+        self.usage = sum_usage(self.usage, output.usage)
+        if self.requests == 1:
+            self.input_context_tokens = (
+                output.input_context_tokens
+                if output.input_context_tokens is not None
+                else usage_input_tokens(output.usage)
+            )
+        self.served.extend(served)
+        if output.fallback is not None:
+            self.fallbacks.append(output.fallback)
+
+    def report(self, output: ModelOutput) -> None:
+        """Give the output returned for the generate call the chain's totals.
+
+        When a request fell back and the output does not describe that one
+        request alone, `output.fallback` describes the chain: `count` is the
+        number of requests that fell back, its metadata joins every
+        fallback's `handoffs` and `iterations`, and its `served_usage`
+        attributes each request's usage to the model that served it (see
+        `AnthropicAPI.served_model_usage`). `model` and `fallback_model`
+        come from the first and last fallbacks, so a chain that fell back to
+        different models names only the last one.
+        """
+        output.usage = self.usage
+        output.input_context_tokens = self.input_context_tokens
+        if not self.fallbacks or (self.requests == 1 and output.fallback is not None):
+            return
+        output.fallback = ModelFallback(
+            model=self.fallbacks[0].model,
+            fallback_model=self.fallbacks[-1].fallback_model,
+            count=len(self.fallbacks),
+            metadata={
+                key: [
+                    item
+                    for fallback in self.fallbacks
+                    for item in (fallback.metadata or {}).get(key) or []
+                ]
+                for key in ("handoffs", "iterations")
+            }
+            | {
+                "served_usage": [
+                    {"model": part.model, "usage": part.usage.model_dump()}
+                    for part in self.served
+                ]
+            },
+        )
 
 
 @dataclass
@@ -535,10 +610,8 @@ class AnthropicAPI(ModelAPI):
         else:
             base_url = model_base_url(self.base_url, "ANTHROPIC_BASE_URL")
             # Support OAuth Bearer auth via ANTHROPIC_AUTH_TOKEN. When set,
-            # create the client with auth_token= (sends Authorization: Bearer)
-            # instead of api_key= (sends X-Api-Key). The Anthropic API rejects
-            # requests that have both headers if the X-Api-Key is invalid, so
-            # we must use one or the other — not both.
+            # create the client with auth_token= instead of api_key= (the SDK
+            # rejects passing both).
             auth_token = os.environ.get("ANTHROPIC_AUTH_TOKEN")
             if auth_token:
                 default_headers = self._oauth_default_headers(model_args)
@@ -736,6 +809,16 @@ class AnthropicAPI(ModelAPI):
             ):
                 return [ServedModelUsage(f"anthropic/{output.model}", output.usage)]
             return None
+        # a pause_turn chain in which some request fell back (see
+        # `_ContinuationChain.report`)
+        served_usage = (fallback.metadata or {}).get("served_usage")
+        if isinstance(served_usage, list):
+            return [
+                ServedModelUsage(
+                    part["model"], ModelUsage.model_validate(part["usage"])
+                )
+                for part in served_usage
+            ]
         iterations = (fallback.metadata or {}).get("iterations")
         if isinstance(iterations, list) and any(
             isinstance(it, dict) and it.get("type") == "fallback_message"
@@ -743,6 +826,14 @@ class AnthropicAPI(ModelAPI):
         ):
             return _fallback_attempts_usage(iterations, self.service_model_name())
         return [ServedModelUsage(f"anthropic/{fallback.fallback_model}", output.usage)]
+
+    def _request_served_usage(self, output: ModelOutput) -> list[ServedModelUsage]:
+        """Usage of one request's output, attributed to the model that served it."""
+        if output.usage is None:
+            return []
+        return self.served_model_usage(output) or [
+            ServedModelUsage(f"anthropic/{self.service_model_name()}", output.usage)
+        ]
 
     @override
     def cache_write_ttl(self) -> str | None:
@@ -765,6 +856,10 @@ class AnthropicAPI(ModelAPI):
         # allocate request_id (so we can see it from ModelCall)
         with self._http_hooks.request() as request_id:
             model_call: ModelCall | None = None
+
+            # an error converted to an output below still reports the usage of
+            # the requests that succeeded before it
+            chain = _ContinuationChain()
 
             # generate
             try:
@@ -940,7 +1035,7 @@ class AnthropicAPI(ModelAPI):
 
                 try:
                     response, output = await self._perform_request_and_continuations(
-                        request, streaming, tools, config
+                        request, streaming, tools, config, chain=chain
                     )
                 except (BadRequestError, APIStatusError) as ex:
                     ex = _normalize_stream_error(ex)
@@ -966,22 +1061,28 @@ class AnthropicAPI(ModelAPI):
                 return output, model_call
 
             except BadRequestError as ex:
-                return self.handle_bad_request(ex), model_call or ModelCall(request={})
+                handled = self.handle_bad_request(ex)
+                if isinstance(handled, ModelOutput):
+                    chain.report(handled)
+                return handled, model_call or ModelCall(request={})
 
             except APIStatusError as ex:
                 if ex.status_code == 413:
-                    return ModelOutput.from_content(
+                    too_large = ModelOutput.from_content(
                         model=self.service_model_name(),
                         content=ex.message,
                         stop_reason="model_length",
                         error=ex.message,
-                    ), model_call or ModelCall(request={})
+                    )
+                    chain.report(too_large)
+                    return too_large, model_call or ModelCall(request={})
                 # Content-filter errors that arrive mid-stream surface as a plain
                 # APIStatusError (the SDK can't infer the 400 subclass once the
                 # HTTP response was 200), so route through handle_bad_request to
                 # convert them into a content_filter refusal.
                 handled = self.handle_bad_request(ex)
                 if isinstance(handled, ModelOutput):
+                    chain.report(handled)
                     return handled, model_call or ModelCall(request={})
                 raise ex
 
@@ -1147,12 +1248,16 @@ class AnthropicAPI(ModelAPI):
         | None = None,
         pending_mcp_tool_uses: dict[str, BetaMCPToolUseBlock] | None = None,
         span_recorder: "_ServerToolSpanRecorder | None" = None,
+        chain: _ContinuationChain | None = None,
     ) -> tuple[dict[str, Any], ModelOutput]:
         """
         This helper function is split out so that it can be easily call itself recursively in cases where the model requires a continuation
 
         It considers the result from the initial request the "head" and the result
-        from the continuation the "tail".
+        from the continuation the "tail". The returned output's usage is the sum
+        over the head and every continuation, since each one is billed; `chain`
+        holds that sum as requests complete, so a caller can still report it
+        when a later continuation raises.
         """
         # each continuation re-sends the same cache_control, so it refreshes the
         # cache entry at its own prefill -- record it as the gap baseline
@@ -1166,6 +1271,8 @@ class AnthropicAPI(ModelAPI):
             # block in the head message, result in the tail) so the recorder
             # is threaded through continuations like pending_tool_uses
             span_recorder = _ServerToolSpanRecorder()
+        if chain is None:
+            chain = _ContinuationChain()
 
         # TODO: Bogus that we have to do this on each call. Ideally, it would be
         # done only once and ideally by non-provider specific code.
@@ -1201,12 +1308,11 @@ class AnthropicAPI(ModelAPI):
             cache_diagnostics=self.cache_diagnostics_enabled(config),
             span_recorder=span_recorder,
         )
+        chain.add(head_model_output, self._request_served_usage(head_model_output))
 
         if continuation_required:
             tail_request = dict(request)
-            tail_request["messages"] = request["messages"] + [
-                MessageParam(role=head_message.role, content=head_message.content)
-            ]
+            tail_request["messages"] = request["messages"] + [head_message.to_param()]
             # server tool calls (e.g. web search w/ dynamic filtering) may run
             # inside a code execution container -- reuse it for the continuation
             if head_message.container:
@@ -1219,6 +1325,7 @@ class AnthropicAPI(ModelAPI):
                 pending_tool_uses=pending_tool_uses,
                 pending_mcp_tool_uses=pending_mcp_tool_uses,
                 span_recorder=span_recorder,
+                chain=chain,
             )
 
             head_content = _content_list(head_model_output.message.content)
@@ -1238,6 +1345,9 @@ class AnthropicAPI(ModelAPI):
             # even when it has needed to recurse. This is because model_call()
             # above doesn't currently support multiple requests
             return head_message.model_dump(warnings="none"), tail_model_output
+
+        # the last request of the chain reports the usage of all of them
+        chain.report(head_model_output)
 
         # NOTE: we do warnings="none" here because we are including beta API message
         # params (for MCP tool use/result) in the payload which causes Message to emit
@@ -1313,35 +1423,23 @@ class AnthropicAPI(ModelAPI):
         max_tokens = cast(int, config.max_tokens)
         params = dict(model=self.service_model_name(), max_tokens=max_tokens)
         headers: dict[str, str] = (config.extra_headers or {}).copy()
-        extra_body: dict[str, Any] = {}
+        # anthropic >= 2.0 sends anthropic_version 2026-10-21 in the Bedrock
+        # request body, which Bedrock rejects for some models (Sonnet 4.6);
+        # send the version anthropic 1.x sent
+        extra_body: dict[str, Any] = (
+            {"anthropic_version": "bedrock-2023-05-31"} if self.is_bedrock() else {}
+        )
         betas: list[str] = self.betas + self._pull_betas_from_headers(headers)
 
-        # Claude 4.7+ is always in adaptive thinking and rejects these params
-        # regardless of config; other models only reject them under thinking.
-        forbid_sampling_params = (
-            self.is_claude_4_7_or_later() or self.is_using_thinking(config)
-        )
-
-        def sampling_param_warning(parameter: str) -> str:
-            if self.is_claude_4_7_or_later():
-                return _ADAPTIVE_ONLY_WARNING.format(
-                    parameter=parameter, model=self.service_model_name()
-                )
-            return _THINKING_WARNING.format(parameter=parameter)
-
-        # anthropic >= 1.0 removed temperature/top_p/top_k from the method
-        # signatures (the API still accepts them for models that support
-        # them), so route via extra_body rather than params
+        # API version 2026-10-21 (anthropic >= 2.0) rejects these params on
+        # every model
         for parameter, value in (
             ("temperature", config.temperature),
             ("top_p", config.top_p),
             ("top_k", config.top_k),
         ):
             if value is not None:
-                if forbid_sampling_params:
-                    warn_once(logger, sampling_param_warning(parameter))
-                else:
-                    extra_body[parameter] = value
+                warn_once(logger, _SAMPLING_PARAM_WARNING.format(parameter=parameter))
 
         # effort
         if config.effort is not None:
@@ -1380,7 +1478,6 @@ class AnthropicAPI(ModelAPI):
                 thinking.pop("display", None)
             params["thinking"] = thinking
 
-            headers["anthropic-version"] = "2023-06-01"
             if max_tokens > 8192:
                 betas.append("output-128k-2025-02-19")
 
@@ -2973,23 +3070,23 @@ def consecutive_message_reducer(
 
 def combine_messages(a: MessageParam, b: MessageParam) -> MessageParam:
     # TODO: Fix this code as it currently drops interesting properties when combining
-    role = a["role"]
     a_content = a["content"]
     b_content = b["content"]
+    content: MessageContentParam
     if isinstance(a_content, str) and isinstance(b_content, str):
-        return MessageParam(role=role, content=f"{a_content}\n{b_content}")
+        content = f"{a_content}\n{b_content}"
     elif isinstance(a_content, list) and isinstance(b_content, list):
-        return MessageParam(role=role, content=a_content + b_content)
+        content = a_content + b_content
     elif isinstance(a_content, str) and isinstance(b_content, list):
-        return MessageParam(
-            role=role, content=[TextBlockParam(type="text", text=a_content)] + b_content
-        )
+        content = [TextBlockParam(type="text", text=a_content)] + b_content
     elif isinstance(a_content, list) and isinstance(b_content, str):
-        return MessageParam(
-            role=role, content=a_content + [TextBlockParam(type="text", text=b_content)]
-        )
+        content = a_content + [TextBlockParam(type="text", text=b_content)]
     else:
         raise ValueError(f"Unexpected content types for messages: {a}, {b}")
+    if a["role"] == "assistant":
+        return AssistantMessageParam(role="assistant", content=content)
+    assert a["role"] == "user"
+    return UserMessageParam(role="user", content=content)
 
 
 def message_tool_choice(
@@ -3415,7 +3512,9 @@ async def message_param(
     if message.role == "system":
         assert isinstance(message, ChatMessageSystem)
         if isinstance(message.content, str):
-            return MessageParam(role="system", content=message.content or NO_CONTENT)
+            return SystemMessageParam(
+                role="system", content=message.content or NO_CONTENT
+            )
         text_blocks: list[TextBlockParam] = [
             TextBlockParam(type="text", text=block.text)
             for block in message.content
@@ -3423,7 +3522,7 @@ async def message_param(
         ]
         if not text_blocks:
             text_blocks = [TextBlockParam(type="text", text=NO_CONTENT)]
-        return MessageParam(role="system", content=text_blocks)  # type: ignore[typeddict-item]
+        return SystemMessageParam(role="system", content=text_blocks)
 
     # "tool" means serving a tool call result back to claude
     elif message.role == "tool":
@@ -3453,7 +3552,7 @@ async def message_param(
         )
         if message.tool_call_id in computer_toolset_call_ids:
             tool_result["toolset_name"] = COMPUTER_TOOLSET_NAME
-        return MessageParam(role="user", content=[tool_result])
+        return UserMessageParam(role="user", content=[tool_result])
 
     # tool_calls means claude is attempting to call our tools
     elif message.role == "assistant":
@@ -3461,19 +3560,19 @@ async def message_param(
             message, computer_toolset_call_ids=computer_toolset_call_ids
         )
 
-        return MessageParam(
-            role=message.role,
+        return AssistantMessageParam(
+            role="assistant",
             content=block_params,  # type: ignore[typeddict-item]
         )
 
     # normal text content
     elif isinstance(message.content, str):
-        return MessageParam(role=message.role, content=message.content or NO_CONTENT)
+        return UserMessageParam(role="user", content=message.content or NO_CONTENT)
 
     # mixed text/images
     else:
-        return MessageParam(
-            role=message.role,
+        return UserMessageParam(
+            role="user",
             content=[
                 item  # type: ignore[misc]
                 for content in message.content
@@ -4442,6 +4541,7 @@ async def model_output_from_message(
         isinstance(it, dict) and it.get("type") == "fallback_message"
         for it in iterations
     )
+    input_context_tokens: int | None = None
     if (
         isinstance(iterations, list)
         and len(iterations) > 0
@@ -4454,6 +4554,15 @@ async def model_output_from_message(
         output_tokens = sum(
             it.get("output_tokens", 0) for it in iterations if isinstance(it, dict)
         )
+        # the first iteration read the request's input (later ones read a
+        # compacted or extended version of it)
+        first = next((it for it in iterations if isinstance(it, dict)), None)
+        if first is not None:
+            input_context_tokens = (
+                (first.get("input_tokens") or 0)
+                + (first.get("cache_read_input_tokens") or 0)
+                + (first.get("cache_creation_input_tokens") or 0)
+            )
     else:
         input_tokens = message.usage.input_tokens
         output_tokens = message.usage.output_tokens
@@ -4541,6 +4650,7 @@ async def model_output_from_message(
                 input_tokens_cache_read=input_tokens_cache_read,
                 reasoning_tokens=reasoning_tokens if reasoning_tokens > 0 else None,
             ),
+            input_context_tokens=input_context_tokens,
             fallback=fallback,
             metadata=metadata,
             response_id=message.id,
@@ -5830,7 +5940,9 @@ def pad_tool_messages_for_token_counting(
                             for tid in orphaned_ids
                         ]
                         result.append(
-                            MessageParam(role="assistant", content=fake_tool_uses)
+                            AssistantMessageParam(
+                                role="assistant", content=fake_tool_uses
+                            )
                         )
 
         result.append(msg)
@@ -5873,7 +5985,7 @@ def pad_tool_messages_for_token_counting(
                             for tid in orphaned_ids
                         ]
                         result.append(
-                            MessageParam(role="user", content=fake_tool_results)
+                            UserMessageParam(role="user", content=fake_tool_results)
                         )
 
     return result
@@ -5940,7 +6052,7 @@ def neutralize_thinking_for_token_counting(
         # never emit an empty assistant message (the API rejects it)
         if not neutralized:
             neutralized = [TextBlockParam(type="text", text=NO_CONTENT)]
-        result.append(MessageParam(role="assistant", content=neutralized))
+        result.append(AssistantMessageParam(role="assistant", content=neutralized))
 
     return result
 

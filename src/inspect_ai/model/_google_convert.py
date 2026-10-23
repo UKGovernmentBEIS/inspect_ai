@@ -1,8 +1,10 @@
 """Conversion functions for Google GenAI models."""
 
 import base64
+import json
 from typing import TYPE_CHECKING, Any, Literal, Sequence, Union
 
+from pydantic_core import to_jsonable_python
 from shortuuid import uuid
 
 from inspect_ai._util.content import (
@@ -26,7 +28,7 @@ from inspect_ai.model._chat_message import (
 )
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.model._providers.providers import validate_google_client
-from inspect_ai.tool import ToolCall
+from inspect_ai.tool import ToolCall, ToolCallError
 
 if TYPE_CHECKING:
     from google.genai.types import Content, ContentDict, GenerateContentResponse, Part
@@ -327,9 +329,28 @@ async def tool_message_from_parts(parts: "list[Part]") -> ChatMessageTool:
             function_name = part.function_response.name
             response_content = part.function_response.response
 
-            # Extract text from response dict
+            # Gemini documents `output` and `error`; the SDK sends `result`, and
+            # older Inspect requests sent `content`
+            error: ToolCallError | None = None
             if isinstance(response_content, dict):
-                text = response_content.get("content", str(response_content))
+                key = next(
+                    (
+                        k
+                        for k in ("output", "result", "content")
+                        if response_content.get(k) is not None
+                    ),
+                    None,
+                )
+                if response_content.get("error"):
+                    error = ToolCallError(
+                        "unknown", _response_text(response_content["error"])
+                    )
+                if key is not None:
+                    text = _response_text(response_content[key])
+                elif error is not None:
+                    text = error.message
+                else:
+                    text = _response_text(response_content)
             else:
                 text = str(response_content)
 
@@ -337,7 +358,21 @@ async def tool_message_from_parts(parts: "list[Part]") -> ChatMessageTool:
                 function=function_name,
                 content=text,
                 tool_call_id=f"{function_name}_{uuid()}",
+                error=error,
             )
 
     # Shouldn't happen if caller checks properly
     raise ValueError("No function_response found in parts")
+
+
+def _response_text(value: Any) -> str:
+    """A function response value as text, with dicts and lists as JSON.
+
+    Values may hold Pydantic models, such as the MCP content blocks that
+    `FunctionResponse.from_mcp_response()` puts in `result`.
+    """
+    if isinstance(value, dict | list):
+        return json.dumps(
+            value, default=lambda v: to_jsonable_python(v, exclude_none=True)
+        )
+    return str(value)

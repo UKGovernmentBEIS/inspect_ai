@@ -253,6 +253,13 @@ class GroqAPI(ModelAPI):
         self._http_hooks = HttpxHooks(self.client._client, api=self)
 
     @override
+    async def refresh_credentials(self) -> None:
+        # In-flight requests and SDK retries share this client; closing it
+        # during credential refresh would also fail other samples.
+        super().initialize()
+        self.client.api_key = cast(str, self.api_key)
+
+    @override
     async def aclose(self) -> None:
         await self.client.close()
 
@@ -752,7 +759,9 @@ async def groq_chat_message(message: ChatMessage) -> ChatCompletionMessageParam:
     elif isinstance(message, ChatMessageTool):
         return ChatCompletionToolMessageParam(
             role="tool",
-            content=message.text,
+            content=(
+                f"Error: {message.error.message}" if message.error else message.text
+            ),
             tool_call_id=str(message.tool_call_id),
         )
 
