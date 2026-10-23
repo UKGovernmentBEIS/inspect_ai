@@ -184,6 +184,12 @@
   categories: ["Sandboxes"]
 
 
+- name: "[Lizard Sandboxes](https://github.com/lizard-build/integrations/tree/main/packages/inspect-lizard)"
+  description: |
+    Run Inspect tasks in Firecracker microVMs on Lizard (lizard.build).
+  author: "[Lizard](https://github.com/lizard-build)"
+  categories: ["Sandboxes"]
+
 - name: "[EC2 Sandbox](https://github.com/UKGovernmentBEIS/inspect_ec2_sandbox)"
   description: |
     Python package that provides a EC2 virtual machine sandbox environment for Inspect.

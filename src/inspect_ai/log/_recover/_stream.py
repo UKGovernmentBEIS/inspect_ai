@@ -6,7 +6,7 @@ import json as json_module
 import re
 import tempfile
 from logging import getLogger
-from typing import IO, Any
+from typing import IO, Any, NamedTuple
 
 from pydantic import JsonValue
 
@@ -27,6 +27,7 @@ from inspect_ai.event._validate import validate_chat_messages, validate_events
 from inspect_ai.log._condense import (
     WalkContext,
     condense_event,
+    existing_attachments_content_fn,
     messages_attachment_fn,
     walk_chat_messages,
     walk_input,
@@ -39,6 +40,7 @@ from inspect_ai.log._log import (
 from inspect_ai.log._recorders.buffer.filestore import Manifest, SampleBufferFilestore
 from inspect_ai.log._recorders.eval import ZipLogFile, _sample_filename
 from inspect_ai.model._chat_message import ChatMessage
+from inspect_ai.scorer._metric import Score
 
 from ._attachments import StreamingAttachmentStore, write_attachments_field
 from ._reconstruct import (
@@ -46,8 +48,11 @@ from ._reconstruct import (
     IncompleteAction,
     MessageAccumulator,
     _summary_with_uuid_fallback,
+    dataset_sample_or_summary,
     in_progress_sample_error,
     recovered_sample_limit,
+    recovered_sample_scores,
+    resolve_output_attachments,
 )
 
 logger = getLogger(__name__)
@@ -71,6 +76,19 @@ def _write_json_field(
     stream.write(to_json_safe(value, indent=None))
 
 
+class StreamedSample(NamedTuple):
+    """What the writer needs from a sample written by `_write_sample_streaming`."""
+
+    summary: EvalSampleSummary
+    """Summary for stats accumulation (thinned, as in a normal log)."""
+
+    metadata: dict[str, Any] | None
+    """The full metadata written to the sample."""
+
+    scores: dict[str, Score] | None
+    """The full scores written to the sample."""
+
+
 def _write_sample_streaming(
     zip_log: "ZipLogFile",
     buffer: SampleBufferFilestore,
@@ -81,7 +99,7 @@ def _write_sample_streaming(
     is_in_progress: bool = False,
     incomplete_action: IncompleteAction = "retry",
     include_events: bool = True,
-) -> tuple[EvalSampleSummary, dict[str, Any] | None]:
+) -> StreamedSample:
     """Stream-process a single sample's segments and write to a ZIP entry.
 
     Two-pass per sample: first walk segments to accumulate pools /
@@ -92,8 +110,8 @@ def _write_sample_streaming(
     the collapsed rows, run attachment walking / pool dedup, and write
     condensed events followed by walked messages / output / attachments.
 
-    Returns the summary for stats accumulation and the full metadata written
-    to the sample. Samples with no flushed event data are still written with
+    Returns the summary for stats accumulation and the full metadata and scores
+    written to the sample. Samples with no flushed event data are still written with
     empty events/messages so summaries and sample files stay consistent.
 
     All fields declared on ``EvalSample`` are emitted unconditionally
@@ -154,11 +172,10 @@ def _write_sample_streaming(
         with zip_log._zip_open_write(filename) as stream:
             stream.write(b"{")
 
-            # Write scalar fields from summary (input written later after walking)
+            # Write scalar fields from summary (input, target and choices are
+            # written after the events, which carry their full values)
             _write_json_field(stream, "id", summary.id)
             _write_json_field(stream, "epoch", summary.epoch, comma=True)
-            _write_json_field(stream, "choices", summary.choices, comma=True)
-            _write_json_field(stream, "target", summary.target, comma=True)
             _write_json_field(stream, "description", summary.description, comma=True)
 
             collapser = EventVersionCollapser()
@@ -299,10 +316,19 @@ def _write_sample_streaming(
 
             # Get messages and output from accumulator
             messages, output = accumulator.result()
+            output = resolve_output_attachments(output, attachments)
 
-            # Walk messages for attachment refs
-            messages_fn = messages_attachment_fn(attachments)
-            walked_input = walk_input(summary.input, messages_fn, messages_context)
+            dataset_sample = dataset_sample_or_summary(
+                summary, sample_init, attachments
+            )
+            # Like condense_sample: resolve the buffer's refs, keep text
+            # inline, and pool images as attachments
+            messages_fn = existing_attachments_content_fn(
+                attachments, set(), messages_attachment_fn(attachments)
+            )
+            walked_input = walk_input(
+                dataset_sample.input, messages_fn, messages_context
+            )
             walked_messages = walk_chat_messages(
                 messages, messages_fn, messages_context
             )
@@ -321,7 +347,10 @@ def _write_sample_streaming(
                     else summary.metadata
                 )
             _write_json_field(stream, "metadata", sample_metadata, comma=True)
-            _write_json_field(stream, "scores", summary.scores, comma=True)
+            scores = recovered_sample_scores(summary, raw_events)
+            _write_json_field(stream, "scores", scores, comma=True)
+            _write_json_field(stream, "choices", dataset_sample.choices, comma=True)
+            _write_json_field(stream, "target", dataset_sample.target, comma=True)
 
             # Store: parity with DB recovery path (defaults to {}).
             _write_json_field(stream, "store", {}, comma=True)
@@ -384,4 +413,4 @@ def _write_sample_streaming(
     # ("we don't know") beats seeding it with a guess. The body keeps the
     # best-effort reconstruction.
 
-    return summary, sample_metadata
+    return StreamedSample(summary=summary, metadata=sample_metadata, scores=scores)
