@@ -61,7 +61,7 @@ def test_json_header_only_streams_numbers_ijson_overflows(
     Python never writes ``1e309`` (it writes ``Infinity``), but it is valid JSON.
     """
     log = read_eval_log("tests/log/test_eval_log/log_formats.json")
-    log.eval.metadata = {"big": 0, "nested": {"x": 0.25}}
+    log.eval.metadata = {"big": 0, "nested": {"x": 0.25, "xs": [0.5]}}
     log_file = tmp_path / "log.json"
     write_eval_log(log, log_file.as_posix())
     log_file.write_text(
@@ -75,5 +75,7 @@ def test_json_header_only_streams_numbers_ijson_overflows(
     header = read_eval_log(log_file.as_posix(), header_only=True)
 
     assert header.samples is None
-    assert header.eval.metadata == {"big": expected, "nested": {"x": 0.25}}
+    nested = {"x": 0.25, "xs": [0.5]}
+    assert header.eval.metadata == {"big": expected, "nested": nested}
     assert type(header.eval.metadata["nested"]["x"]) is float
+    assert type(header.eval.metadata["nested"]["xs"][0]) is float
