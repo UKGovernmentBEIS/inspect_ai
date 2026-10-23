@@ -48,6 +48,7 @@ from ._reconstruct import (
     _summary_with_uuid_fallback,
     in_progress_sample_error,
     recovered_sample_limit,
+    resolve_attachment_refs,
 )
 
 logger = getLogger(__name__)
@@ -299,6 +300,7 @@ def _write_sample_streaming(
 
             # Get messages and output from accumulator
             messages, output = accumulator.result()
+            messages, output = resolve_attachment_refs(messages, output, attachments)
 
             # Walk messages for attachment refs
             messages_fn = messages_attachment_fn(attachments)

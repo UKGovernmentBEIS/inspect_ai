@@ -513,6 +513,25 @@ def attachment_fn(attachments: MutableMapping[str, str]) -> Callable[[str], str]
     return create_attachment
 
 
+def resolve_attachment_fn(attachments: Mapping[str, str]) -> Callable[[str], str]:
+    """Content function that swaps `attachment://` refs for their content.
+
+    Refs missing from `attachments` are left as they are.
+    """
+
+    def content_fn(text: str) -> str:
+        # migrate previous flavor of content reference
+        CONTENT_PROTOCOL = "tc://"
+        if text.startswith(CONTENT_PROTOCOL):
+            text = text.replace(CONTENT_PROTOCOL, ATTACHMENT_PROTOCOL, 1)
+        if text.startswith(ATTACHMENT_PROTOCOL):
+            return attachments.get(text.replace(ATTACHMENT_PROTOCOL, "", 1), text)
+        else:
+            return text
+
+    return content_fn
+
+
 class _CreatedAttachment(NamedTuple):
     """An attachment produced while walking one message."""
 
@@ -769,18 +788,7 @@ def resolve_sample_attachments(
     if resolve_attachments is False:
         return sample
 
-    def content_fn(text: str) -> str:
-        # migrate previous flavor of content reference
-        CONTENT_PROTOCOL = "tc://"
-        if text.startswith(CONTENT_PROTOCOL):
-            text = text.replace(CONTENT_PROTOCOL, ATTACHMENT_PROTOCOL, 1)
-        if text.startswith(ATTACHMENT_PROTOCOL):
-            return sample.attachments.get(
-                text.replace(ATTACHMENT_PROTOCOL, "", 1), text
-            )
-        else:
-            return text
-
+    content_fn = resolve_attachment_fn(sample.attachments)
     context = WalkContext(
         message_cache={},
         only_core=resolve_attachments == "core",
@@ -950,16 +958,7 @@ def resolve_events_attachments(
     if resolve_attachments is False:
         return events
 
-    def content_fn(text: str) -> str:
-        # migrate previous flavor of content reference
-        CONTENT_PROTOCOL = "tc://"
-        if text.startswith(CONTENT_PROTOCOL):
-            text = text.replace(CONTENT_PROTOCOL, ATTACHMENT_PROTOCOL, 1)
-        if text.startswith(ATTACHMENT_PROTOCOL):
-            return attachments.get(text.replace(ATTACHMENT_PROTOCOL, "", 1), text)
-        else:
-            return text
-
+    content_fn = resolve_attachment_fn(attachments)
     context = WalkContext(message_cache={}, only_core=resolve_attachments == "core")
     return walk_events(events, content_fn, context)
 

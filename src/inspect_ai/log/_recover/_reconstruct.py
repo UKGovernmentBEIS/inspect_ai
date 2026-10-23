@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Mapping
 from logging import getLogger
 from typing import Any, Literal, cast, get_args
 
@@ -21,6 +22,12 @@ from inspect_ai.event._pool import (
 from inspect_ai.event._sample_init import SampleInitEvent
 from inspect_ai.event._sample_limit import SampleLimitEvent
 from inspect_ai.event._validate import validate_events
+from inspect_ai.log._condense import (
+    WalkContext,
+    resolve_attachment_fn,
+    walk_chat_messages,
+    walk_model_output,
+)
 from inspect_ai.log._log import (
     EvalSample,
     EvalSampleLimit,
@@ -207,11 +214,12 @@ def reconstruct_eval_sample(
         if sample_init is not None:
             sample_metadata = sample_init.sample.metadata
 
-    messages, output = _extract_messages_from_events(events)
-
     attachments = {
         attachment.hash: attachment.content for attachment in sample_data.attachments
     }
+
+    messages, output = _extract_messages_from_events(events)
+    messages, output = resolve_attachment_refs(messages, output, attachments)
 
     # Set error: synthesize an error for in-progress samples (per the
     # recovery disposition), or preserve existing error from
@@ -431,6 +439,26 @@ def _extract_messages_from_events(
     acc = MessageAccumulator()
     acc.process_events(events)
     return acc.result()
+
+
+def resolve_attachment_refs(
+    messages: list[ChatMessage],
+    output: ModelOutput,
+    attachments: Mapping[str, str],
+) -> tuple[list[ChatMessage], ModelOutput]:
+    """Resolve the `attachment://` refs in messages and output taken from events.
+
+    The buffer stores events condensed, so their long text and images are refs.
+    A normal run's log keeps message text and the whole output inline (only
+    message images become attachments, when the sample is condensed), so
+    recovery resolves them before writing.
+    """
+    content_fn = resolve_attachment_fn(attachments)
+    context = WalkContext(message_cache={}, only_core=False)
+    return (
+        walk_chat_messages(messages, content_fn, context),
+        walk_model_output(output, content_fn, context),
+    )
 
 
 def _segment_messages(model_event: ModelEvent) -> list[ChatMessage]:
