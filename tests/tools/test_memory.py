@@ -564,3 +564,46 @@ async def test_no_tool_state_scope_keeps_default_keys() -> None:
     """Outside a scope the default instance keeps today's store keys."""
     await memory()(command="create", path="/memories/a.txt", file_text="x")
     assert "/memories/a.txt" in store().get("MemoryStore:files")
+
+
+async def test_rename_refuses_existing_file_destination() -> None:
+    """Rename onto an existing file must refuse, not replace its content."""
+    tool = memory()
+    await tool(command="create", path="/memories/old.txt", file_text="old content")
+    await tool(command="create", path="/memories/new.txt", file_text="precious")
+    with pytest.raises(ToolError, match="already exists"):
+        await tool(
+            command="rename", old_path="/memories/old.txt", new_path="/memories/new.txt"
+        )
+    # Destination content survives the refused rename.
+    content = await tool(command="view", path="/memories/new.txt")
+    assert isinstance(content, str)
+    assert "precious" in content
+
+
+async def test_rename_refuses_existing_directory_destination() -> None:
+    """Rename onto an existing directory must refuse, not fork the store."""
+    tool = memory()
+    await tool(command="create", path="/memories/old.txt", file_text="content")
+    await tool(command="create", path="/memories/dir/keep.txt", file_text="keep")
+    with pytest.raises(ToolError, match="already exists"):
+        await tool(
+            command="rename", old_path="/memories/old.txt", new_path="/memories/dir"
+        )
+    content = await tool(command="view", path="/memories/dir/keep.txt")
+    assert isinstance(content, str)
+    assert "keep" in content
+
+
+async def test_rename_directory_refuses_existing_file_destination() -> None:
+    """Renaming a directory onto an existing file must refuse."""
+    tool = memory()
+    await tool(command="create", path="/memories/dir/a.txt", file_text="a")
+    await tool(command="create", path="/memories/blocker.txt", file_text="blocker")
+    with pytest.raises(ToolError, match="already exists"):
+        await tool(
+            command="rename", old_path="/memories/dir", new_path="/memories/blocker.txt"
+        )
+    content = await tool(command="view", path="/memories/dir/a.txt")
+    assert isinstance(content, str)
+    assert "a" in content
