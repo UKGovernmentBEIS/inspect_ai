@@ -1,6 +1,6 @@
-from typing import Sequence, cast, overload
+from typing import Any, Sequence, cast, overload
 
-from typing_extensions import override
+from typing_extensions import TypeGuard, override
 
 from inspect_ai.agent._agent import Agent, is_agent
 from inspect_ai.agent._as_solver import as_solver
@@ -11,7 +11,7 @@ from ._task_state import TaskState, set_sample_state
 
 @solver
 def chain(
-    *solvers: Solver | Agent | list[Solver] | list[Solver | Agent],
+    *solvers: Solver | Agent | Sequence[Solver | Agent],
 ) -> Solver:
     """Compose a solver from multiple other solvers and/or agents.
 
@@ -26,7 +26,7 @@ def chain(
     Returns:
       Solver that executes the passed solvers and agents as a chain.
     """
-    # flatten lists and chains
+    # flatten sequences and chains
     all_solvers: list[Solver] = []
     for s in solvers:
         all_solvers.extend(unroll(s))
@@ -35,19 +35,37 @@ def chain(
 
 
 def unroll(
-    solver: Solver | Agent | list[Solver] | list[Solver | Agent],
+    solver: Solver | Agent | Sequence[Solver | Agent],
 ) -> list[Solver]:
-    if isinstance(solver, list):
+    if is_agent(solver):
+        return [as_solver(solver)]
+    elif isinstance(solver, Chain):
+        return unroll(solver._solvers)
+    elif is_solver_sequence(solver):
         unrolled: list[Solver] = []
         for s in solver:
             unrolled.extend(unroll(s))
         return unrolled
-    elif is_agent(solver):
-        return [as_solver(solver)]
-    elif isinstance(solver, Chain):
-        return unroll(solver._solvers)
     else:
         return [cast(Solver, solver)]
+
+
+def is_solver_sequence(value: object) -> TypeGuard[Sequence[Any]]:
+    """Whether `value` is a sequence of solvers rather than a single solver.
+
+    Callable values (individual solvers, agents, and `Chain`) are not treated
+    as sequences, even when they implement `Sequence`.
+
+    Raises:
+      TypeError: If `value` is a `str`, `bytes`, or `bytearray`, which are
+        sequences but never a valid collection of solvers.
+    """
+    if isinstance(value, (str, bytes, bytearray)):
+        raise TypeError(
+            "Expected a solver, an agent, or a sequence of solvers, "
+            f"but got {type(value).__name__} {value!r}."
+        )
+    return isinstance(value, Sequence) and not callable(value)
 
 
 class Chain(Sequence[Solver], Solver):
