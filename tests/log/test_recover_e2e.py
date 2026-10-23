@@ -1322,3 +1322,4 @@ async def test_recovery_keeps_messages_and_output_inline(buffer_kind: str) -> No
             recovered_sample = recovered.samples[0]
             assert recovered_sample.messages == expected.messages
             assert recovered_sample.output == expected.output
+            assert expected.attachments.items() <= recovered_sample.attachments.items()

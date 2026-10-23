@@ -26,8 +26,8 @@ from inspect_ai.event._sample_limit import SampleLimitEvent
 from inspect_ai.event._validate import validate_chat_messages, validate_events
 from inspect_ai.log._condense import (
     WalkContext,
-    _existing_attachments_content_fn,
     condense_event,
+    existing_attachments_content_fn,
     messages_attachment_fn,
     walk_chat_messages,
     walk_input,
@@ -305,7 +305,7 @@ def _write_sample_streaming(
 
             # Like condense_sample: resolve the buffer's refs, keep text
             # inline, and pool images as attachments
-            messages_fn = _existing_attachments_content_fn(
+            messages_fn = existing_attachments_content_fn(
                 attachments, set(), messages_attachment_fn(attachments)
             )
             walked_input = walk_input(summary.input, messages_fn, messages_context)

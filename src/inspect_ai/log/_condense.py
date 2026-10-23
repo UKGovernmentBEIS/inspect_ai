@@ -300,12 +300,12 @@ def condense_sample(sample: EvalSample, log_images: bool = True) -> EvalSample:
     existing_attachments = dict(sample.attachments)
     attachments = dict(existing_attachments)
     rewritten_attachments: set[str] = set()
-    events_fn = _existing_attachments_content_fn(
+    events_fn = existing_attachments_content_fn(
         existing_attachments,
         rewritten_attachments,
         events_attachment_fn(attachments, log_images),
     )
-    messages_fn = _existing_attachments_content_fn(
+    messages_fn = existing_attachments_content_fn(
         existing_attachments,
         rewritten_attachments,
         messages_attachment_fn(attachments, log_images),
@@ -483,7 +483,7 @@ def messages_attachment_fn(
     return fn
 
 
-def _existing_attachments_content_fn(
+def existing_attachments_content_fn(
     existing: Mapping[str, str],
     rewritten_attachments: set[str],
     content_fn: Callable[[str], str],

@@ -199,8 +199,9 @@ def reconstruct_eval_sample(
             extract messages and output.
 
     Returns:
-        A fully resolved EvalSample (not condensed — condensing happens
-        at write time in Step 4).
+        An EvalSample with message and call pools and its output resolved.
+        Events and messages keep the buffer's attachment refs until
+        `condense_sample` runs at write time.
     """
     summary = _summary_with_uuid_fallback(summary)
 
