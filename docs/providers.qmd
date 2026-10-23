@@ -98,11 +98,11 @@ inspect eval math.py --model openai/o4-mini -M responses_store=True
 
 ### Responses Metadata
 
-You can attach [`metadata`](https://platform.openai.com/docs/api-reference/responses/create#responses-create-metadata) key-value pairs to Responses API requests via the `extra_body` generation config. For example:
+You can attach [`metadata`](https://developers.openai.com/api/reference/resources/responses/methods/create) key-value pairs to Responses API requests via the `extra_body` generation config (`--extra-body` on the command line). For example:
 
 ``` bash
 inspect eval math.py --model openai/gpt-5.4 \
-    -M extra_body='{"metadata": {"experiment": "baseline"}}'
+    --extra-body '{"metadata": {"experiment": "baseline"}}'
 ```
 
 The `metadata` returned on responses (the echoed request metadata, which some models augment with additional fields) is surfaced as `ModelOutput.metadata`. Note that request metadata is not sent when `responses_store=True`.
@@ -215,6 +215,8 @@ inspect eval arc.py --model anthropic/claude-sonnet-4-0
 ```
 
 For the `anthropic` provider, custom model args (`-M`) are forwarded to the constructor of the `AsyncAnthropic` class.
+
+The `anthropic` provider does not pass `temperature`, `top_p`, or `top_k` to the model, because the Anthropic API rejects them as of API version `2026-10-21` (sent by `anthropic>=2.0`). It logs a warning when one of them is set.
 
 The following environment variables are supported by the Anthropic provider
 
@@ -590,6 +592,10 @@ The following environment variables are supported by the Meta provider
 | `META_API_KEY` | API key credentials (required unless `MODEL_API_KEY` is set). |
 | `MODEL_API_KEY` | API key credentials (Meta's official variable name; used when `META_API_KEY` is not set). |
 | `META_BASE_URL` | Base URL for requests (optional, defaults to `https://api.meta.ai/v1`). |
+
+### Prompt Caching {#meta-prompt-caching}
+
+Inspect sets Meta's [`prompt_cache_key`](https://dev.meta.ai/docs/prompt-caching#prompt-cache-key) to the running sample's unique id (no key is sent outside a sample) and, on the Responses API, sets `prompt_cache_retention` to `"24h"`. Use the `prompt_cache_key` and `prompt_cache_retention` model args to override these (e.g. `-M prompt_cache_retention=in_memory`). Values supplied in `GenerateConfig(extra_body=...)` take precedence. Cached tokens are reported as `input_tokens_cache_read`.
 
 ## Grok {#grok}
 

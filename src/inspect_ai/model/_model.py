@@ -5,6 +5,7 @@ import functools
 import json
 import logging
 import os
+import weakref
 from contextvars import ContextVar
 from copy import copy, deepcopy
 from datetime import datetime, timezone
@@ -23,6 +24,7 @@ from typing import (
     Sequence,
     Type,
     TypeAlias,
+    TypeVar,
     cast,
 )
 
@@ -31,6 +33,7 @@ if TYPE_CHECKING:
     from inspect_ai.tool import ToolInfo
 
 import anyio
+import mmh3
 from pydantic import BaseModel
 from pydantic_core import to_jsonable_python
 from shortuuid import uuid
@@ -112,6 +115,7 @@ from ._chat_message import (
     ChatMessageSystem,
     ChatMessageTool,
     ChatMessageUser,
+    logged_json,
 )
 from ._display import (
     display_conversation_assistant,
@@ -1014,7 +1018,6 @@ class Model:
         # normalize input to chat
         if isinstance(input, str):
             input = [ChatMessageUser(content=input)]
-        history = input
 
         # insert any system message provided in config
         if config.system_message:
@@ -1030,7 +1033,6 @@ class Model:
             generate_step = await sentinel_before_generate(
                 model=str(self),
                 input=prepared.input,
-                history=history,
                 tools=prepared.tools,
                 tool_choice=prepared.tool_choice,
                 config=config,
@@ -2035,7 +2037,7 @@ class Model:
             model=model,
             role=self.role,
             requested_model=_requested_model.get(),
-            input=input,
+            input=_snapshot_messages(input),
             tools=tools,
             tool_choice=tool_choice,
             config=config,
@@ -2074,7 +2076,7 @@ class Model:
             if isinstance(result, ModelOutput):
                 if result.choices:
                     display_conversation_assistant(input, result.choices[0].message)
-                event.output = result
+                event.output = _snapshot_output(result)
             else:
                 display_conversation_assistant_error(result)
                 event.error = exception_message(result)
@@ -3024,6 +3026,99 @@ class ModelEventSink(Protocol):
 _model_event_sink: ContextVar[ModelEventSink | None] = ContextVar(
     "_model_event_sink", default=None
 )
+
+
+class _Snapshot(NamedTuple):
+    message: weakref.ReferenceType[ChatMessage]
+    hash: bytes
+    """Hash of the message's `logged_json()`."""
+
+
+_message_snapshots: dict[str | int, _Snapshot] = {}
+"""Latest snapshot of each message, held while a logged event holds it.
+
+Keyed by message id, or by `id()` of the live message when it has none.
+Each hit is confirmed against the serialization hash, so an address reused
+by another message can only find a copy that serializes the same.
+"""
+
+
+def _snapshot_messages(messages: list[ChatMessage]) -> list[ChatMessage]:
+    """Copy messages so later in-place edits do not change a logged input.
+
+    Each message is deep copied unless the last copy made for it still
+    serializes the same (as the log records it), in which case that copy is
+    reused. Successive events then share the objects of unchanged messages,
+    which keeps memory proportional to message versions and lets the log's
+    message pool dedup them by identity. A completed event's output messages
+    are copied the same way (`_snapshot_output`), so an agent that edits the
+    assistant message it appended does not change the earlier event's
+    output, and the next input reuses that copy. This holds while a message
+    keeps its id (or, without one, is the same live object); preparation
+    that creates new messages with fresh ids each generation
+    (reasoning-history filtering, tool `model_input` rewriting, media
+    extraction) still copies them every time. Only the latest copy for an id
+    is reused, so alternating different versions with the same id (handoff
+    filters, concurrent epochs) copies on each switch. The comparison
+    serializes every message on each call, so its cost grows with the inline
+    media (base64 data URIs) in the history and can exceed deep copying,
+    which shares those strings.
+
+    A message that can't be serialized or deep copied (a numpy array or a
+    lock in its metadata, nesting past the recursion limit) is logged as the
+    live message, as before snapshots, so later edits to it still show in
+    the event. Serializing must leave values unchanged: an iterator in a
+    message is consumed by the comparison, as writing the log consumes it.
+    """
+    return [_snapshot_message(message) for message in messages]
+
+
+def _snapshot_output(output: ModelOutput) -> ModelOutput:
+    """Copy of `output` whose choice messages are snapshots (`_snapshot_messages`)."""
+    return output.model_copy(
+        update={
+            "choices": [
+                choice.model_copy(update={"message": _snapshot_message(choice.message)})
+                for choice in output.choices
+            ]
+        }
+    )
+
+
+_MessageT = TypeVar("_MessageT", bound=ChatMessage)
+
+
+def _snapshot_message(message: _MessageT) -> _MessageT:
+    key = message.id if message.id is not None else id(message)
+    # any value can fail to serialize or copy, in any way: log it live
+    try:
+        logged = logged_json(message)
+        if logged is None:
+            return message
+        digest = mmh3.hash_bytes(logged)
+        entry = _message_snapshots.get(key)
+        snapshot = entry.message() if entry and entry.hash == digest else None
+        # the logged JSON includes the role, so a hit has the message's type
+        if isinstance(snapshot, type(message)):
+            return snapshot
+        copied = deepcopy(message)
+    except Exception:
+        return message
+    _message_snapshots[key] = _Snapshot(
+        weakref.ref(copied, _forget_snapshot(key)), digest
+    )
+    return copied
+
+
+def _forget_snapshot(
+    key: str | int,
+) -> Callable[[weakref.ReferenceType[ChatMessage]], None]:
+    def forget(ref: weakref.ReferenceType[ChatMessage]) -> None:
+        entry = _message_snapshots.get(key)
+        if entry is not None and entry.message is ref:
+            del _message_snapshots[key]
+
+    return forget
 
 
 @contextlib.contextmanager

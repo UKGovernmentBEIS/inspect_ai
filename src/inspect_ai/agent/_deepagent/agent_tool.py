@@ -3,7 +3,6 @@ from __future__ import annotations
 from contextlib import asynccontextmanager, contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass, field
-from logging import getLogger
 from pathlib import Path
 from typing import TYPE_CHECKING, AsyncIterator, Callable, Iterator, Literal, Sequence
 
@@ -17,6 +16,7 @@ import anyio
 from anyio.abc import TaskGroup
 from shortuuid import uuid as shortuuid
 
+from inspect_ai._util._async import unwrap_exception_group
 from inspect_ai.agent._agent import Agent, AgentState
 from inspect_ai.agent._react import react
 from inspect_ai.agent._run import run
@@ -43,8 +43,6 @@ from inspect_ai.util._tool_state import private_tool_instance
 
 from .prompt import SUBAGENT_SUBMIT_PROMPT
 from .subagent import Subagent
-
-logger = getLogger(__name__)
 
 SUBAGENT_RESULT_MAX_OUTPUT = 0
 """Output limit for tools that hand a subagent's result back to the parent.
@@ -168,10 +166,12 @@ class BackgroundRegistry:
             yield
             return
 
-        unwrapped: Exception | None = None
         cancelled: BaseException | None = None
         try:
-            async with anyio.create_task_group() as task_group:
+            async with (
+                unwrap_exception_group(),
+                anyio.create_task_group() as task_group,
+            ):
                 self._task_group = task_group
                 try:
                     yield
@@ -182,16 +182,8 @@ class BackgroundRegistry:
                     raise
                 finally:
                     task_group.cancel_scope.cancel()
-        except ExceptionGroup as ex:
-            # The task group wraps whatever ends it. Undo that wrapper when
-            # it holds one exception, so the caller sees what was raised.
-            if len(ex.exceptions) != 1:
-                raise
-            unwrapped = ex.exceptions[0]
         finally:
             self._task_group = None
-        if unwrapped is not None:
-            raise unwrapped
         if cancelled is not None:
             raise cancelled
 
@@ -822,16 +814,11 @@ async def _run_background(
         future.status = "cancelled"
         raise
     except Exception as ex:
-        # A background subagent failure is captured on the future and
-        # surfaced via agent_status / agent_wait — it must NOT propagate
-        # to the task group running it (that would fail the whole sample, or
-        # the deepagent that owns the group). Swallow after recording; log so
-        # the failure is still visible in the eval log.
+        # Unexpected failures must reach the sample runner, just as they
+        # do for foreground subagents, so retry_on_error / fail_on_error apply.
         future.status = "errored"
         future.error = f"{type(ex).__name__}: {ex}"
-        logger.warning(
-            f"Background agent '{future.agent_id}' ({sa.name}) errored: {ex}"
-        )
+        raise
     finally:
         future.done.set()
 
