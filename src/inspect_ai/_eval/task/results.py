@@ -152,16 +152,17 @@ def eval_results(
     if len(scorers_info) > 0:
         result_scores: list[EvalScore] = []
         sample_reductions: list[EvalSampleReductions] = []
+        # Result names can be dict keys, so track scorer identities separately.
+        used_scorer_names: list[str] = []
         for index, scorer_info in enumerate(scorers_info):
             # this scorer (if an explicit list of scorer name is provided, use those
             # otherwise, generate a unique name for the scorer)
             scorer_name = (
                 scorer_names[index]
                 if scorer_names and index < len(scorer_names)
-                else unique_scorer_name(
-                    scorer_info.name, [eval_score.name for eval_score in result_scores]
-                )
+                else unique_scorer_name(scorer_info.name, used_scorer_names)
             )
+            used_scorer_names.append(scorer_name)
 
             # scores for this scorer
             resolved_scores = [
@@ -304,7 +305,7 @@ def compute_eval_scores(
 
 
 def _unique_scorer_names(scorers_info: list[ScorerInfo]) -> list[str]:
-    """Mirror result score names so duplicate header scorers are accounted for."""
+    """Resolve scorer identities independently of metric expansion."""
     scorer_names: list[str] = []
     for scorer_info in scorers_info:
         scorer_names.append(unique_scorer_name(scorer_info.name, scorer_names))
