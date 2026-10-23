@@ -154,6 +154,16 @@ def spawn_followup():
 
 Enqueued tasks run under the current run id, resolved against the run's models and config, and share a buffer with tasks returned from `sample_complete` / `task_complete`. `enqueue_task()` raises if no eval is running.
 
+### Starting an added task while the batch runs
+
+Outside a live `TaskSource` run (see [Concurrency](#concurrency) below), an enqueued task waits until every task in the current batch has finished. To start it as soon as there is free task capacity instead, for example when the task that adds it needs it running alongside, pass `start="when_free"`:
+
+```python
+enqueue_task(companion_task(), start="when_free")
+```
+
+This works the same under `eval()`, `eval_set()`, and `TaskSource` runs. Capacity is `max_tasks`, read live: if the running tasks hold every slot (for example at `max_tasks=1`), the added task waits until a slot frees or the limit is raised with `inspect ctl config --max-tasks`.
+
 ## Concurrency
 
 A `TaskSource` run is live: a task added mid-run starts as soon as there is free capacity, rather than waiting for a batch boundary.

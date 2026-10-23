@@ -7,7 +7,7 @@ from contextlib import nullcontext
 from contextvars import Token, copy_context
 from dataclasses import replace
 from pathlib import Path
-from typing import Any, Literal, Sequence, cast
+from typing import Any, Callable, Literal, Sequence, cast
 
 import anyio
 import anyio.lowlevel
@@ -1150,6 +1150,17 @@ async def _eval_async_inner(
                 # (enqueue_task) or declaratively (a TaskSource's next_tasks())
                 # feed later iterations, repeating until none remain. A
                 # cancelled batch ends the run. Returns the combined logs.
+                async def no_more_tasks() -> list[ResolvedTask] | None:
+                    return None
+
+                # every batch takes `start="when_free"` enqueues while it runs;
+                # `after_batch` enqueues wait for the batch boundary below
+                when_free = TaskInjection(
+                    drain=enqueuer.drain_when_free,
+                    next=no_more_tasks,
+                    set_wake=lambda fn: setattr(enqueuer, "on_enqueue_when_free", fn),
+                )
+
                 async def run_batches(initial: list[ResolvedTask]) -> EvalLogs:
                     results: list[EvalLog] = []
                     pending: list[ResolvedTask] | None = initial
@@ -1169,11 +1180,15 @@ async def _eval_async_inner(
                                 if t.sequence == sequence
                             ]
                             batch_logs.extend(
-                                await run_batch(ordered, debug_errors is True)
+                                await run_batch(
+                                    ordered, debug_errors is True, inject=when_free
+                                )
                             )
                         else:
                             # multiple task definitions, run together
-                            batch_logs.extend(await run_batch(pending, False))
+                            batch_logs.extend(
+                                await run_batch(pending, False, inject=when_free)
+                            )
                         results.extend(batch_logs)
 
                         # a cancelled batch ends the run
@@ -1187,7 +1202,11 @@ async def _eval_async_inner(
                         # next batch under this run_id: imperative additions
                         # (enqueue_task) first, else the TaskSource's next_tasks()
                         # (which may block, and ends the run by returning None).
-                        pending = enqueuer.drain() or None
+                        # (`when_free` enqueues that arrived after the batch
+                        # stopped dispatching run here too)
+                        pending = (
+                            enqueuer.drain_when_free() + enqueuer.drain()
+                        ) or None
                         if pending is None and task_source is not None:
                             next_tasks = await task_source.next_tasks()
                             pending = (
@@ -1211,10 +1230,14 @@ async def _eval_async_inner(
                         more = await task_source.next_tasks()
                         return resolve_added_tasks(more) if more else None
 
+                    def set_live_wake(fn: Callable[[], None]) -> None:
+                        enqueuer.on_enqueue = fn
+                        enqueuer.on_enqueue_when_free = fn
+
                     injection = TaskInjection(
-                        drain=enqueuer.drain,
+                        drain=lambda: enqueuer.drain_when_free() + enqueuer.drain(),
                         next=inject_next,
-                        set_wake=lambda fn: setattr(enqueuer, "on_enqueue", fn),
+                        set_wake=set_live_wake,
                     )
                     logs = EvalLogs(
                         await run_batch(
