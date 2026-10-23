@@ -103,7 +103,6 @@ from inspect_ai.model._model_output import (
     StopDetails,
     collect_stop_details,
     sum_usage,
-    usage_input_tokens,
 )
 from inspect_ai.model._providers._google_batch import GoogleBatcher, batch_request_dict
 from inspect_ai.model._providers._google_citations import (
@@ -557,8 +556,14 @@ class GoogleGenAIAPI(ModelAPI):
                         attempt_usage = usage_metadata_to_model_usage(
                             response.usage_metadata
                         )
-                        if tool_calling_attempts == 0:
-                            input_context_tokens = usage_input_tokens(attempt_usage)
+                        if (
+                            tool_calling_attempts == 0
+                            and response.usage_metadata is not None
+                        ):
+                            # Native tool results arrive after the original prompt.
+                            input_context_tokens = (
+                                response.usage_metadata.prompt_token_count or 0
+                            )
                         usage = sum_usage(usage, attempt_usage)
                         # retry for MALFORMED_FUNCTION_CALL
                         if (
@@ -2341,6 +2346,8 @@ def usage_metadata_to_model_usage(
     # cached count from `input_tokens` and surface it separately.
     cached = metadata.cached_content_token_count or 0
     prompt = metadata.prompt_token_count or 0
+    # Built-in tool results are reported separately as additional uncached input.
+    tool_use_prompt = metadata.tool_use_prompt_token_count or 0
     # Gemini also reports thoughts separately from candidates. Fold them into
     # `output_tokens` to match the OpenAI/Anthropic convention — reasoning is
     # included in output (Gemini bills thinking at the output rate), with
@@ -2348,7 +2355,7 @@ def usage_metadata_to_model_usage(
     # token limits (`token_limit(type="output")`) counting thinking tokens.
     thoughts = metadata.thoughts_token_count or 0
     return ModelUsage(
-        input_tokens=max(prompt - cached, 0),
+        input_tokens=max(prompt - cached, 0) + tool_use_prompt,
         output_tokens=(metadata.candidates_token_count or 0) + thoughts,
         total_tokens=metadata.total_token_count or 0,
         input_tokens_cache_read=cached or None,

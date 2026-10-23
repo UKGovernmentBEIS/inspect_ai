@@ -1377,26 +1377,53 @@ async def test_function_tools_add_no_system_instruction():
 
 
 def _with_usage(
-    response: GenerateContentResponse, prompt: int, candidates: int, thoughts: int
+    response: GenerateContentResponse,
+    prompt: int,
+    candidates: int,
+    thoughts: int,
+    *,
+    tool_use_prompt: int = 0,
 ) -> GenerateContentResponse:
     response.usage_metadata = GenerateContentResponseUsageMetadata(
         prompt_token_count=prompt,
         cached_content_token_count=1,
+        tool_use_prompt_token_count=tool_use_prompt,
         candidates_token_count=candidates,
         thoughts_token_count=thoughts,
-        total_token_count=prompt + candidates + thoughts,
+        total_token_count=prompt + tool_use_prompt + candidates + thoughts,
     )
     return response
 
 
 @pytest.mark.anyio
-async def test_malformed_function_call_retry_sums_usage():
+@pytest.mark.parametrize("tool_use_prompt_counts", [(0, 0, 0), (100, 200, 300)])
+async def test_malformed_function_call_retry_sums_usage(
+    tool_use_prompt_counts: tuple[int, int, int],
+) -> None:
     """Usage covers every billed attempt of the retry loop, not just the last."""
     mock_generate = AsyncMock(
         side_effect=[
-            _with_usage(_create_malformed_response(), 10, 2, 3),
-            _with_usage(_create_malformed_response(), 20, 4, 5),
-            _with_usage(_create_success_response_with_tool_call(), 30, 6, 7),
+            _with_usage(
+                _create_malformed_response(),
+                10,
+                2,
+                3,
+                tool_use_prompt=tool_use_prompt_counts[0],
+            ),
+            _with_usage(
+                _create_malformed_response(),
+                20,
+                4,
+                5,
+                tool_use_prompt=tool_use_prompt_counts[1],
+            ),
+            _with_usage(
+                _create_success_response_with_tool_call(),
+                30,
+                6,
+                7,
+                tool_use_prompt=tool_use_prompt_counts[2],
+            ),
         ]
     )
     mock_client = _create_mock_google_client(mock_generate)
@@ -1416,15 +1443,16 @@ async def test_malformed_function_call_retry_sums_usage():
         )
 
     assert mock_generate.call_count == 3
+    assert isinstance(output, ModelOutput)
     assert output.choices[0].message.tool_calls is not None
     assert output.usage is not None
     # input excludes the 1 cached token per request
-    assert output.usage.input_tokens == 9 + 19 + 29
+    assert output.usage.input_tokens == 9 + 19 + 29 + sum(tool_use_prompt_counts)
     assert output.usage.input_tokens_cache_read == 3
     assert output.usage.output_tokens == 5 + 9 + 13
     assert output.usage.reasoning_tokens == 3 + 5 + 7
-    assert output.usage.total_tokens == 15 + 29 + 43
-    # the context size is the first attempt's prompt, not the sum
+    assert output.usage.total_tokens == 15 + 29 + 43 + sum(tool_use_prompt_counts)
+    # the context size is the first attempt's input, not the sum
     assert output.input_context_tokens == 10
 
 
@@ -2145,6 +2173,81 @@ def test_usage_metadata_without_thoughts():
     assert usage is not None
     assert usage.output_tokens == 5
     assert usage.reasoning_tokens == 0
+
+
+@pytest.mark.parametrize("tool_use_prompt", [None, 0, 4000])
+@pytest.mark.parametrize("cached", [None, 600])
+def test_usage_metadata_includes_tool_use_prompt_tokens(
+    tool_use_prompt: int | None, cached: int | None
+) -> None:
+    usage = google_provider.usage_metadata_to_model_usage(
+        GenerateContentResponseUsageMetadata(
+            prompt_token_count=1000,
+            cached_content_token_count=cached,
+            tool_use_prompt_token_count=tool_use_prompt,
+            candidates_token_count=200,
+            thoughts_token_count=300,
+            total_token_count=1500 + (tool_use_prompt or 0),
+        )
+    )
+
+    assert usage is not None
+    assert usage.input_tokens == 1000 - (cached or 0) + (tool_use_prompt or 0)
+    assert usage.input_tokens_cache_read == cached
+    assert usage.output_tokens == 500
+    assert usage.reasoning_tokens == 300
+    assert usage.total_tokens == 1500 + (tool_use_prompt or 0)
+    assert (
+        usage.input_tokens + (usage.input_tokens_cache_read or 0) + usage.output_tokens
+        == usage.total_tokens
+    )
+
+
+async def test_native_tool_usage_preserves_input_context_tokens() -> None:
+    response = GenerateContentResponse(
+        candidates=[
+            Candidate(
+                finish_reason=FinishReason.STOP,
+                content=Content(role="model", parts=[Part(text="Search result")]),
+            )
+        ],
+        usage_metadata=GenerateContentResponseUsageMetadata(
+            prompt_token_count=1000,
+            cached_content_token_count=600,
+            tool_use_prompt_token_count=4000,
+            candidates_token_count=200,
+            thoughts_token_count=300,
+            total_token_count=5500,
+        ),
+    )
+    mock_generate = AsyncMock(return_value=response)
+    mock_client = _create_mock_google_client(mock_generate)
+
+    with patch("inspect_ai.model._providers.google.Client", return_value=mock_client):
+        api = GoogleGenAIAPI(
+            model_name="gemini-2.5-pro", base_url=None, api_key="test-key"
+        )
+        output, _ = await api.generate(
+            input=[ChatMessageUser(content="Search the web")],
+            tools=[
+                ToolInfo(
+                    name="web_search",
+                    description="Search the web",
+                    options={"gemini": {}},
+                )
+            ],
+            tool_choice="auto",
+            config=GenerateConfig(),
+        )
+
+    assert isinstance(output, ModelOutput)
+    assert output.usage is not None
+    assert output.usage.input_tokens == 4400
+    assert output.usage.input_tokens_cache_read == 600
+    assert output.usage.total_tokens == 5500
+    assert output.input_context_tokens == 1000
+    config = mock_generate.call_args.kwargs["config"]
+    assert config.tools[0].google_search is not None
 
 
 # ---- OAuth / ADC credentials for the Gemini Developer API ----
