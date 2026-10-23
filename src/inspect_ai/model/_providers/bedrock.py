@@ -1659,7 +1659,13 @@ async def converse_chat_message(
 
         # process the tool response content
         tool_result_content: list[ConverseToolResultContent] = []
-        if isinstance(message.content, str):
+        if message.error is not None:
+            tool_result_content.append(
+                ConverseToolResultContent(
+                    text=message.error.message or message.text or "error"
+                )
+            )
+        elif isinstance(message.content, str):
             tool_result_content.append(ConverseToolResultContent(text=message.content))
         else:
             for c in message.content:

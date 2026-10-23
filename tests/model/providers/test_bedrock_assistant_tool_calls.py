@@ -11,13 +11,23 @@ removed the model's interleaved reasoning from later-turn context. See #4457.
 
 import pytest
 
+from inspect_ai.model._call_tools import execute_tools
+from inspect_ai.tool import Tool, tool
+
 pytest.importorskip("aiobotocore")
 pytest.importorskip("botocore")
 
-from inspect_ai._util.content import ContentReasoning, ContentText  # noqa: E402
-from inspect_ai.model._chat_message import ChatMessageAssistant  # noqa: E402
+from inspect_ai._util.content import (  # noqa: E402
+    Content,
+    ContentReasoning,
+    ContentText,
+)
+from inspect_ai.model._chat_message import (  # noqa: E402
+    ChatMessageAssistant,
+    ChatMessageTool,
+)
 from inspect_ai.model._providers.bedrock import converse_chat_message  # noqa: E402
-from inspect_ai.tool._tool_call import ToolCall  # noqa: E402
+from inspect_ai.tool._tool_call import ToolCall, ToolCallError  # noqa: E402
 
 
 def _tool_call(id: str, function: str) -> ToolCall:
@@ -76,3 +86,85 @@ async def test_assistant_tool_calls_without_content_unchanged():
     # No spurious NO_CONTENT text block; just the tool call.
     assert [b.toolUse.name for b in blocks if b.toolUse is not None] == ["pwd"]
     assert all(b.text is None for b in blocks)
+
+
+async def test_failed_tool_call_error_sent_to_bedrock() -> None:
+    @tool
+    def lookup() -> Tool:
+        async def execute(path: str) -> str:
+            """Look up a file.
+
+            Args:
+                path: File path.
+            """
+            raise FileNotFoundError(f"{path}: does not exist")
+
+        return execute
+
+    call = ChatMessageAssistant(
+        content="",
+        tool_calls=[
+            ToolCall(id="c1", function="lookup", arguments={"path": "/tmp/missing"})
+        ],
+    )
+    message = (await execute_tools([call], [lookup()])).messages[0]
+    assert isinstance(message, ChatMessageTool)
+    assert message.content == ""
+    assert message.error == ToolCallError(
+        type="file_not_found", message="/tmp/missing: does not exist"
+    )
+
+    result = await converse_chat_message(message)
+
+    assert result is not None and len(result) == 1
+    assert result[0].role == "user"
+    tool_result = result[0].content[0].toolResult
+    assert tool_result is not None
+    assert tool_result.model_dump(exclude_none=True) == {
+        "toolUseId": "c1",
+        "content": [{"text": "/tmp/missing: does not exist"}],
+        "status": "error",
+    }
+
+
+@pytest.mark.parametrize(
+    ("error_message", "content", "expected"),
+    [
+        ("Tool timed out", "Partial output", "Tool timed out"),
+        ("Tool timed out", [ContentText(text="Partial output")], "Tool timed out"),
+        ("", "Partial output", "Partial output"),
+        ("", [ContentText(text="Partial output")], "Partial output"),
+        ("", "", "error"),
+        ("", [], "error"),
+    ],
+)
+async def test_tool_error_content(
+    error_message: str, content: str | list[Content], expected: str
+) -> None:
+    message = ChatMessageTool(
+        content=content,
+        tool_call_id="c1",
+        function="lookup",
+        error=ToolCallError(type="timeout", message=error_message),
+    )
+
+    result = await converse_chat_message(message)
+
+    assert result is not None and len(result) == 1
+    tool_result = result[0].content[0].toolResult
+    assert tool_result is not None
+    assert tool_result.status == "error"
+    assert [block.text for block in tool_result.content] == [expected]
+
+
+@pytest.mark.parametrize("content", ["Tool output", [ContentText(text="Tool output")]])
+async def test_successful_tool_result_content(content: str | list[Content]) -> None:
+    message = ChatMessageTool(content=content, tool_call_id="c1", function="lookup")
+
+    result = await converse_chat_message(message)
+
+    assert result is not None and len(result) == 1
+    tool_result = result[0].content[0].toolResult
+    assert tool_result is not None
+    assert tool_result.status == "success"
+    assert [block.text for block in tool_result.content] == ["Tool output"]
