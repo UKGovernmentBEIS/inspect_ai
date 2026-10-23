@@ -13,13 +13,20 @@ callers' own objects rather than copies, so callers must treat the lists
 they hand in as read-only.
 """
 
+import builtins
 import dataclasses
 import random
+import sys
 from collections.abc import Callable, Hashable, Sequence
 from itertools import compress
 from typing import Generic, TypeVar
 
 from pydantic import BaseModel
+
+if sys.version_info >= (3, 15):
+    _MISSING = builtins.sentinel("_MISSING")
+else:
+    _MISSING = object()
 
 
 def strict_eq(a: object, b: object) -> bool:
@@ -45,10 +52,9 @@ def strict_eq(a: object, b: object) -> bool:
     if type(a) is dict and type(b) is dict:
         if len(a) != len(b):
             return False
-        sentinel = object()
         for k, v in a.items():
-            other = b.get(k, sentinel)
-            if other is sentinel or not strict_eq(v, other):
+            other = b.get(k, _MISSING)
+            if other is _MISSING or not strict_eq(v, other):
                 return False
             # dict lookup matches keys by ==, which conflates 0/0.0 and
             # True/1 on the key axis just like values ({0: x} and {0.0: x}
