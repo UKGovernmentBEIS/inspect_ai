@@ -100,13 +100,16 @@ async def _find_central_directory(
     tail = suffix.data
     tail_start = suffix.file_size - len(tail)
 
-    # Search backward for the EOCD signature, considering only matches with
-    # room for a full record after them. The EOCD's own fields can contain
-    # the signature (e.g. 0x4B50 entries followed by a central directory size
-    # ending 0x0605), and a match there has no room. This is the record stdlib
-    # zipfile reads.
-    idx = tail.rfind(b"PK\x05\x06", 0, max(0, len(tail) - _MIN_EOCD_SIZE + 4))
-    if idx == -1:
+    # Like stdlib zipfile, first check for a comment-less EOCD ending the file:
+    # its own fields can contain the signature (e.g. 0x4B50 entries followed by
+    # a central directory size ending 0x0605), so a search would find that
+    # instead. Otherwise take the last signature, and reject a truncated record
+    # rather than falling back to an earlier match.
+    eocd_sig = b"PK\x05\x06"
+    idx = len(tail) - _MIN_EOCD_SIZE
+    if idx < 0 or tail[idx : idx + 4] != eocd_sig or tail[-2:] != b"\x00\x00":
+        idx = tail.rfind(eocd_sig)
+    if idx == -1 or idx + _MIN_EOCD_SIZE > len(tail):
         raise ValueError("EOCD not found")
 
     # Parse 32-bit EOCD fields

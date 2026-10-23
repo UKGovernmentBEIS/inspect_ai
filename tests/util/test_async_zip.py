@@ -486,6 +486,22 @@ async def test_eocd_with_trailing_data(tmp_path: Path) -> None:
         assert await reader.read_member_fully("member.txt") == b"payload"
 
 
+async def test_truncated_eocd_raises(tmp_path: Path) -> None:
+    """A truncated EOCD raises rather than an earlier signature being read."""
+    zip_path = tmp_path / "truncated.zip"
+    with zipfile.ZipFile(zip_path, "w") as zf:
+        zf.writestr("PK\x05\x06" + "A" * 30, b"")
+    zip_path.write_bytes(zip_path.read_bytes()[:-1])
+
+    with pytest.raises(zipfile.BadZipFile):
+        zipfile.ZipFile(zip_path)
+
+    async with AsyncFilesystem() as fs:
+        reader = AsyncZipReader(fs, str(zip_path))
+        with pytest.raises(ValueError, match="EOCD not found"):
+            await reader.entries()
+
+
 async def test_65535_entries_without_zip64(tmp_path: Path) -> None:
     """A 0xFFFF entry count with no ZIP64 locator isn't sent searching for one.
 
