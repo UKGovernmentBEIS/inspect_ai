@@ -85,3 +85,44 @@ async def test_no_events_suppresses_only_the_calling_task() -> None:
         ("write_file", "shown.txt"),
         ("read_file", "shown.txt"),
     ]
+
+
+def _exec_events(transcript: Transcript) -> list[str | None]:
+    return [
+        e.cmd
+        for e in transcript.events
+        if isinstance(e, SandboxEvent) and e.action == "exec"
+    ]
+
+
+async def test_nested_no_events_restores_outer_block() -> None:
+    transcript = Transcript()
+    init_transcript(transcript)
+    proxy = SandboxEnvironmentProxy(_GatedSandbox())
+
+    with proxy.no_events():
+        with proxy.no_events():
+            await proxy.exec(["inner"])
+        await proxy.exec(["outer"])
+    await proxy.exec(["after"])
+
+    assert _exec_events(transcript) == ["after"]
+
+
+async def test_task_started_inside_no_events_stays_suppressed() -> None:
+    transcript = Transcript()
+    init_transcript(transcript)
+    proxy = SandboxEnvironmentProxy(_GatedSandbox())
+    parent_exited = anyio.Event()
+
+    async def child() -> None:
+        await parent_exited.wait()
+        await proxy.exec(["child"])
+
+    async with anyio.create_task_group() as tg:
+        with proxy.no_events():
+            tg.start_soon(child)
+        await proxy.exec(["parent"])
+        parent_exited.set()
+
+    assert _exec_events(transcript) == ["parent"]
