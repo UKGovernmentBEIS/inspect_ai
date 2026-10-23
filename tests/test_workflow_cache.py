@@ -14,9 +14,10 @@ from typing import Any, Callable
 
 import pytest
 import yaml
+from test_helpers.workflows import references_secrets, workflow_files
 
 REPO = Path(__file__).parents[1]
-WORKFLOWS = sorted((REPO / ".github" / "workflows").glob("*.yml"))
+WORKFLOWS = workflow_files()
 
 Permissions = dict[str, str] | str | None
 
@@ -31,12 +32,18 @@ def can_read_actions(permissions: Permissions) -> bool:
     return permissions.get("actions", "none") != "none"
 
 
+def uses_job_token(inputs: dict[str, Any]) -> bool:
+    token = "".join(str(inputs.get("repo-token", "${{ github.token }}")).split())
+    return token in {"${{github.token}}", "${{secrets.GITHUB_TOKEN}}"}
+
+
 # Actions that can restore from the Actions cache, each with a check that
 # passes only when the step's inputs (or the job's permissions) rule it out.
 CACHE_ACTIONS: dict[str, Callable[[dict[str, Any], Permissions], bool]] = {
     "actions/cache": never,
     "actions/cache/restore": never,
     "hynek/build-and-inspect-python-package": never,
+    "pre-commit/action": never,
     "astral-sh/setup-uv": lambda inputs, _: inputs.get("enable-cache") is False,
     "actions/setup-python": lambda inputs, _: "cache" not in inputs,
     "actions/setup-node": lambda inputs, _: (
@@ -48,9 +55,24 @@ CACHE_ACTIONS: dict[str, Callable[[dict[str, Any], Permissions], bool]] = {
     "docker/setup-buildx-action": lambda inputs, _: (
         inputs.get("cache-binary") is False
     ),
-    # Restores its state only after listing the repository's caches with the
-    # job token, which needs `actions: read`.
-    "actions/stale": lambda _, permissions: not can_read_actions(permissions),
+    # Restores its state only after listing the repository's caches with its
+    # repo-token. The job token can't list them without `actions: read`.
+    "actions/stale": lambda inputs, permissions: (
+        uses_job_token(inputs) and not can_read_actions(permissions)
+    ),
+}
+
+# Actions audited at their pinned SHA as never restoring from the Actions
+# cache. Any other action in a privileged job fails the test until it is
+# added here or to CACHE_ACTIONS.
+NON_RESTORING_ACTIONS = {
+    "actions/checkout",
+    "actions/download-artifact",
+    "actions/upload-artifact",
+    "docker/login-action",
+    "googleapis/release-please-action",
+    "peter-evans/create-pull-request",
+    "pypa/gh-action-pypi-publish",
 }
 
 
@@ -75,7 +97,7 @@ def grants_write(permissions: Permissions) -> bool:
 def holds_credentials(workflow: dict[Any, Any], job: dict[str, Any]) -> bool:
     return (
         grants_write(job_permissions(workflow, job))
-        or "secrets." in yaml.safe_dump([workflow.get("env", {}), job])
+        or references_secrets([workflow.get("env", {}), job])
         or "secrets" in job
         or "pull_request_target" in triggers(workflow)
     )
@@ -123,7 +145,7 @@ def step_restores(
     restores: list[str] = []
     for step in steps:
         uses = step.get("uses")
-        if uses is None or uses.startswith("docker://"):
+        if uses is None:
             continue
         if uses.startswith("./"):
             action = yaml.safe_load(local_action(uses, checkouts).read_text())
@@ -135,9 +157,13 @@ def step_restores(
                 )
             ]
             continue
-        check = CACHE_ACTIONS.get(uses.split("@")[0])
-        if check is not None and not check(step.get("with", {}), permissions):
-            restores.append(uses)
+        name = uses.split("@")[0]
+        check = CACHE_ACTIONS.get(name)
+        if check is not None:
+            if not check(step.get("with", {}), permissions):
+                restores.append(uses)
+        elif name not in NON_RESTORING_ACTIONS:
+            restores.append(f"{uses} (not audited)")
     return restores
 
 
@@ -214,3 +240,95 @@ def test_cache_restores_in_privileged_jobs_are_reported() -> None:
     assert workflow_restores(workflow) == {}
     workflow["on"] = ["pull_request_target"]
     assert workflow_restores(workflow) == {"test": ["actions/cache@v1"]}
+
+
+def test_pre_commit_action_restores_a_cache() -> None:
+    workflow = yaml.safe_load(
+        (REPO / ".github" / "workflows" / "build.yml").read_text()
+    )
+    (pre_commit,) = [
+        step["uses"]
+        for step in workflow["jobs"]["pre-commit"]["steps"]
+        if step.get("uses", "").startswith("pre-commit/action@")
+    ]
+    workflow["jobs"]["pre-commit"]["permissions"] = {"contents": "write"}
+    assert workflow_restores(workflow)["pre-commit"] == [pre_commit]
+
+
+def test_unaudited_actions_in_privileged_jobs_are_reported() -> None:
+    workflow = {
+        "on": "push",
+        "permissions": {"contents": "write"},
+        "jobs": {"build": {"steps": [{"uses": "example/action@v1"}]}},
+    }
+    assert workflow_restores(workflow) == {"build": ["example/action@v1 (not audited)"]}
+
+
+@pytest.mark.parametrize(
+    "token",
+    [
+        "${{ secrets.TOKEN }}",
+        "${{ secrets['TOKEN'] }}",
+        '${{ secrets["TOKEN"] }}',
+        "${{ toJSON(secrets) }}",
+        "${{ format('{0}', secrets.TOKEN) }}",
+    ],
+)
+def test_jobs_that_reference_secrets_are_privileged(token: str) -> None:
+    workflow = {
+        "on": "push",
+        "permissions": {"contents": "read"},
+        "jobs": {
+            "build": {
+                "env": {"TOKEN": token},
+                "steps": [{"uses": "actions/cache@v1"}],
+            }
+        },
+    }
+    assert workflow_restores(workflow) == {"build": ["actions/cache@v1"]}
+
+
+@pytest.mark.parametrize(
+    "value", ["${{ inputs.secrets }}", "no secrets here", "${{ github.token }}"]
+)
+def test_other_values_do_not_reference_secrets(value: str) -> None:
+    assert not references_secrets({"env": {"VALUE": value}})
+
+
+@pytest.mark.parametrize(
+    "token,restores",
+    [
+        (None, False),
+        ("${{ github.token }}", False),
+        ("${{ secrets.GITHUB_TOKEN }}", False),
+        ("${{ secrets.ADMIN_TOKEN }}", True),
+    ],
+)
+def test_stale_is_allowed_only_with_the_job_token(
+    token: str | None, restores: bool
+) -> None:
+    stale: dict[str, Any] = {"uses": "actions/stale@v1"}
+    if token is not None:
+        stale["with"] = {"repo-token": token}
+    workflow = {
+        "on": "schedule",
+        "permissions": {"issues": "write"},
+        "jobs": {"stale": {"steps": [stale]}},
+    }
+    expected = {"stale": ["actions/stale@v1"]} if restores else {}
+    assert workflow_restores(workflow) == expected
+
+
+def test_yaml_workflows_are_scanned(tmp_path: Path) -> None:
+    workflow = {
+        "on": "push",
+        "permissions": {"contents": "write"},
+        "jobs": {"build": {"steps": [{"uses": "actions/cache@v1"}]}},
+    }
+    (tmp_path / "a.yml").write_text("{}")
+    (tmp_path / "b.yaml").write_text(yaml.safe_dump(workflow))
+    files = workflow_files(tmp_path)
+    assert [path.name for path in files] == ["a.yml", "b.yaml"]
+    assert workflow_restores(yaml.safe_load(files[1].read_text())) == {
+        "build": ["actions/cache@v1"]
+    }
