@@ -1,4 +1,15 @@
 #!/usr/bin/env python3
+# /// script
+# requires-python = ">=3.11"
+# dependencies = ["pyyaml", "requests"]
+#
+# [tool.uv]
+# exclude-newer = "7 days"
+#
+# # Exempt as in pyproject.toml: certifi releases remove compromised roots.
+# [tool.uv.exclude-newer-package]
+# certifi = false
+# ///
 """Sync model data from external sources.
 
 This script fetches model information from inference provider APIs and writes
@@ -24,7 +35,9 @@ a sibling file and the sync leaves it alone.
 
 This script must stay self-contained (stdlib + pyyaml + requests only, no
 inspect_ai imports): the sync workflow runs it without installing the package
-(see .github/workflows/sync_model_data.yml).
+(see .github/workflows/sync_model_data.yml), from the inline script metadata
+above and its lockfile, `sync_models.py.lock`. After changing the metadata,
+update the lockfile with `uv lock --no-config --script <this file>`.
 
 Usage:
     python -m inspect_ai.model._model_data.sync_models [--source SOURCE]

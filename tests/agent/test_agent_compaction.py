@@ -22,6 +22,7 @@ from inspect_ai.model import (
     CompactionTrim,
     Model,
     ModelOutput,
+    ModelUsage,
     get_model,
 )
 from inspect_ai.scorer import includes
@@ -321,6 +322,50 @@ def test_compaction_event_emitted() -> None:
     assert event.metadata is not None
     assert "strategy" in event.metadata
     assert event.metadata["strategy"] == "CompactionEdit"
+
+
+@pytest.mark.parametrize(
+    ("input_context_tokens", "compacts"),
+    [
+        # each call billed several requests (usage over the threshold) but its
+        # input was small: no compaction
+        (300, False),
+        # a provider that leaves it unset gets it filled from usage
+        (None, True),
+    ],
+)
+def test_react_compaction_baseline_uses_input_context_tokens(
+    input_context_tokens: int | None, compacts: bool
+) -> None:
+    """React compacts on the input's context size, not billed multi-request usage."""
+    outputs = mock_outputs_for_compaction_test(tool_calls=3)
+    for output in outputs:
+        output.usage = ModelUsage(
+            input_tokens=50_000, output_tokens=10, total_tokens=50_010
+        )
+        if input_context_tokens is not None:
+            output.input_context_tokens = input_context_tokens
+    task = Task(
+        dataset=[Sample(input="Run the verbose tool several times.", target="done")],
+        solver=react(
+            tools=[verbose_tool()],
+            compaction=CompactionTrim(threshold=20_000, preserve=0.5, memory=False),
+        ),
+        scorer=includes(),
+        message_limit=50,
+    )
+    log = eval(task, model=get_model("mockllm/model", custom_outputs=outputs))[0]
+
+    assert log.status == "success"
+    assert log.samples
+    model_events = get_model_events(log)
+    assert [e.output.input_context_tokens for e in model_events] == [
+        input_context_tokens or 50_000
+    ] * len(outputs)
+    compaction_events = [
+        e for e in log.samples[0].events if isinstance(e, CompactionEvent)
+    ]
+    assert bool(compaction_events) == compacts
 
 
 def test_react_threads_checkpointer_into_compaction() -> None:

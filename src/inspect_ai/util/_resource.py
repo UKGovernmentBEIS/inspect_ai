@@ -15,7 +15,7 @@ def resource(
     Resources are often used for templates, configuration, etc.
     They are sometimes hard-coded strings, and sometimes paths
     to external resources (e.g. in the local filesystem or
-    remote stores e.g. s3:// or https://).
+    remote stores e.g. `s3://` or `https://`).
 
     The `resource()` function will resolve its argument to
     a resource string. If a protocol-prefixed file name

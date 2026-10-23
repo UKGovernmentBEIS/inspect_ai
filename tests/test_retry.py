@@ -24,6 +24,7 @@ from inspect_ai.model import GenerateConfig, get_model
 from inspect_ai.model._providers.mockllm import MockLLM
 from inspect_ai.scorer import exact
 from inspect_ai.solver import TaskState, generate, solver
+from inspect_ai.util import SandboxEnvironmentSpec
 from inspect_ai.viewer import TaskSamplesView, ViewerConfig
 
 
@@ -67,6 +68,17 @@ def mytask():
 def test_eval_retry_with_task_name():
     log = eval(mytask())[0]
     log = eval_retry(log)[0]
+
+
+def test_eval_retry_keeps_logged_sandbox_override():
+    log = eval(
+        failing_task_deterministic([True]), sandbox="local", model="mockllm/model"
+    )[0]
+    assert log.status == "error"
+
+    retried = eval_retry(log)[0]
+
+    assert retried.eval.sandbox == SandboxEnvironmentSpec("local")
 
 
 @task

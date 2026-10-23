@@ -1,4 +1,6 @@
+import gc
 import tempfile
+import weakref
 from pathlib import Path
 
 import pandas as pd
@@ -21,11 +23,18 @@ from inspect_ai.analysis import (
     messages_df,
     samples_df,
 )
+from inspect_ai.analysis._dataframe import extract
 from inspect_ai.analysis._dataframe.evals.columns import EvalTask
-from inspect_ai.analysis._dataframe.extract import score_details
+from inspect_ai.analysis._dataframe.extract import (
+    message_as_str,
+    message_render_cache,
+    messages_as_str,
+    score_details,
+)
 from inspect_ai.analysis._dataframe.samples.columns import SampleScores
 from inspect_ai.analysis._dataframe.util import resolve_logs
 from inspect_ai.dataset import Sample
+from inspect_ai.event import ModelEvent
 from inspect_ai.log import (
     EvalLog,
     MetadataEdit,
@@ -36,9 +45,10 @@ from inspect_ai.log import (
     read_eval_log,
     write_eval_log,
 )
-from inspect_ai.model import get_model
+from inspect_ai.model import ChatMessage, ChatMessageUser, ModelOutput, get_model
 from inspect_ai.model._model import requested_model
-from inspect_ai.solver import Generate, TaskState, solver
+from inspect_ai.solver import Generate, TaskState, generate, solver, use_tools
+from inspect_ai.tool import Tool, tool
 
 LOGS_DIR = Path(__file__).parent / "test_logs"
 SECURITY_GUIDE_LOG = LOGS_DIR / "2025-05-12T20-28-26-04-00_security-guide.json"
@@ -597,3 +607,102 @@ def test_dataframe_functions_empty_list(
     assert len(samples_df([])) == 0
     assert len(messages_df([])) == 0
     assert len(events_df([])) == 0
+
+
+def _tool_loop_log(log_dir: Path, turns: int) -> EvalLog:
+    @tool
+    def lookup() -> Tool:
+        async def execute(query: str) -> str:
+            """Look up a value.
+
+            Args:
+                query: Value to look up.
+            """
+            return f"result for {query}"
+
+        return execute
+
+    outputs = [
+        ModelOutput.for_tool_call("mockllm/model", "lookup", {"query": f"q{i}"})
+        for i in range(turns)
+    ] + [ModelOutput.from_content("mockllm/model", "done")]
+    task = Task(
+        dataset=[Sample(input="start")], solver=[use_tools(lookup()), generate()]
+    )
+    model = get_model("mockllm/model", custom_outputs=outputs)
+    return eval(task, model=model, log_dir=str(log_dir))[0]
+
+
+def _model_event_inputs(log: EvalLog) -> list[list[ChatMessage]]:
+    samples = read_eval_log(log.location).samples
+    assert samples is not None
+    return [e.input for e in samples[0].events if isinstance(e, ModelEvent)]
+
+
+def test_events_df_model_event_input_matches_per_message_render(tmp_path: Path):
+    log = _tool_loop_log(tmp_path, turns=5)
+    df = events_df(
+        log.location,
+        columns=EventInfo + ModelEventColumns,
+        filter=lambda e: e.event == "model",
+    )
+    expected = [
+        "\n\n".join(message_as_str(m) for m in messages)
+        for messages in _model_event_inputs(log)
+    ]
+    assert df["model_event_input"].tolist() == expected
+
+
+def test_events_df_renders_each_input_message_once(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    log = _tool_loop_log(tmp_path, turns=5)
+    distinct = {m.id for messages in _model_event_inputs(log) for m in messages}
+
+    renders = 0
+
+    def counting_message_as_str(message: ChatMessage) -> str:
+        nonlocal renders
+        renders += 1
+        return message_as_str(message)
+
+    monkeypatch.setattr(extract, "message_as_str", counting_message_as_str)
+    events_df(
+        log.location,
+        columns=EventInfo + ModelEventColumns,
+        filter=lambda e: e.event == "model",
+    )
+    assert renders == len(distinct), (
+        "expected one render per distinct message; reading the log should share "
+        "message objects across model event inputs"
+    )
+
+
+def test_message_render_cache_keeps_rendered_messages_alive():
+    # a freed message would let a new message reuse its object id
+    message = ChatMessageUser(content="first")
+    ref = weakref.ref(message)
+    with message_render_cache():
+        assert messages_as_str([message]) == "user:\nfirst\n"
+        del message
+        gc.collect()
+        assert ref() is not None
+    gc.collect()
+    assert ref() is None
+
+
+def test_message_render_cache_distinguishes_messages_sharing_an_id():
+    first = ChatMessageUser(id="shared", content="first")
+    second = ChatMessageUser(id="shared", content="second")
+    with message_render_cache():
+        assert messages_as_str([first]) == "user:\nfirst\n"
+        assert messages_as_str([second]) == "user:\nsecond\n"
+
+
+def test_message_render_cache_does_not_outlive_its_scope():
+    message = ChatMessageUser(content="before")
+    with message_render_cache():
+        assert messages_as_str([message]) == "user:\nbefore\n"
+    message.content = "after"
+    with message_render_cache():
+        assert messages_as_str([message]) == "user:\nafter\n"
