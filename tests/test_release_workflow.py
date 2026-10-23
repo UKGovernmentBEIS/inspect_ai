@@ -1,16 +1,21 @@
-"""Tests for the retry paths of the Release workflow.
+"""Tests for the Release workflow and the Release Please changelog.
 
-Covers .github/scripts/release_workflow.py with a fake `gh`/`git`, and the
-parts of release.yml and the publish steps that make re-runs safe. The PyPI
+Covers .github/scripts/release_workflow.py with a fake `gh`/`git`, the parts
+of release.yml and the publish steps that make re-runs safe, Changelog Lint
+(run against real git diffs) and the Release Please configuration. The PyPI
 skip-already-published step is tested with the other pypi-release.py tests in
 tests/tools/sandbox_tools_utils/test_sandbox_tools_digests.py.
 """
 
 from __future__ import annotations
 
+import base64
+import hashlib
 import importlib.util
 import json
+import os
 import re
+import shutil
 import subprocess
 from email.message import Message
 from pathlib import Path
@@ -51,8 +56,6 @@ class FakeGitHub:
         self.calls: list[list[str]] = []
         self.dispatched: list[str] = []
         self.latest: str | None = None  # tag of releases/latest
-        self.bodies: dict[str, str] = {}  # tag -> GitHub Release body
-        self.changelogs: dict[str, str] = {}  # tag -> CHANGELOG.md at the tag
         self.release_runs: list[dict[str, Any]] = []  # release.yml runs, newest first
 
     def add_release(self, tag: str, commit: str, **flags: bool) -> None:
@@ -99,14 +102,7 @@ class FakeGitHub:
             if path.endswith("/releases/latest"):
                 if self.latest is None:
                     raise not_found
-                return json.dumps(
-                    {"tag_name": self.latest, "body": self.bodies.get(self.latest)}
-                )
-            if "/contents/CHANGELOG.md?ref=" in path:
-                tag = path.rsplit("=", 1)[1]
-                if tag not in self.changelogs:
-                    raise not_found
-                return self.changelogs[tag]
+                return json.dumps({"tag_name": self.latest})
             if path.endswith(f"/branches/{BRANCH}"):
                 return self.branch_head + "\n"
         if args[:3] == ["gh", "run", "list"]:
@@ -319,8 +315,6 @@ def test_invalid_requested_tag_never_falls_back_to_a_created_release() -> None:
 # check-latest-published: fail closed when a re-run cannot find its release
 # ---------------------------------------------------------------------------
 
-NOTES = "- Fixed a thing.\n"
-CHANGELOG_0_3_278 = f"## Unreleased\n\n## 0.3.278 (12 October 2026)\n\n{NOTES}"
 PYPI_FILES = {
     "urls": [{"packagetype": "bdist_wheel"}, {"packagetype": "sdist"}],
 }
@@ -348,8 +342,6 @@ def _published_release() -> tuple[FakeGitHub, FakeRegistries]:
     gh = FakeGitHub()
     gh.add_release("0.3.278", RELEASE_SHA)
     gh.latest = "0.3.278"
-    gh.changelogs["0.3.278"] = CHANGELOG_0_3_278
-    gh.bodies["0.3.278"] = NOTES
     gh.release_runs = [{"databaseId": int(THIS_RUN), "status": "in_progress"}]
     return gh, FakeRegistries()
 
@@ -362,12 +354,10 @@ def test_all_jobs_retry_of_a_release_created_on_an_earlier_commit_fails() -> Non
     """The pass-3 sequence: created on an earlier merge SHA, retried on a later one."""
     gh, registries = _published_release()
     # Attempt 1 ran on LATER_SHA and created 0.3.278 on the release PR's merge
-    # commit (RELEASE_SHA); its build failed, so nothing was published and the
-    # release keeps Release Please's generated notes.
+    # commit (RELEASE_SHA); its build failed, so nothing was published.
     assert _resolve(gh, sha=LATER_SHA, created_tag="0.3.278") == "0.3.278"
     registries.pypi = None
     registries.npm = None
-    gh.bodies["0.3.278"] = "## 0.3.278\n\n### Bug Fixes\n\n* generated"
 
     # Attempt 2 (Re-run all jobs): Release Please reports nothing.
     assert _resolve(gh, sha=LATER_SHA) == ""
@@ -375,7 +365,7 @@ def test_all_jobs_retry_of_a_release_created_on_an_earlier_commit_fails() -> Non
         _check(gh, registries)
     assert str(error.value) == (
         "Release 0.3.278 exists but is not fully published (missing its PyPI "
-        "wheel and sdist, its npm package, its CHANGELOG.md release notes); "
+        "wheel and sdist, its npm package); "
         "re-run the Release workflow with tag=0.3.278"
     )
 
@@ -394,12 +384,8 @@ def test_all_jobs_retry_of_a_release_created_on_an_earlier_commit_fails() -> Non
             "its PyPI wheel and sdist",
         ),
         (lambda gh, r: setattr(r, "npm", None), "its npm package"),
-        (
-            lambda gh, r: gh.bodies.update({"0.3.278": "generated notes"}),
-            "its CHANGELOG.md release notes",
-        ),
     ],
-    ids=["pypi-missing", "sdist-missing", "npm-missing", "notes-missing"],
+    ids=["pypi-missing", "sdist-missing", "npm-missing"],
 )
 def test_each_missing_part_makes_the_latest_release_incomplete(
     break_it: Callable[[FakeGitHub, FakeRegistries], Any], missing: str
@@ -418,12 +404,6 @@ def test_complete_latest_release_is_a_no_op() -> None:
     assert _check(gh, registries) == "0.3.278"
 
 
-def test_release_notes_with_crlf_line_endings_count_as_curated() -> None:
-    gh, registries = _published_release()
-    gh.bodies["0.3.278"] = NOTES.replace("\n", "\r\n")
-    assert _check(gh, registries) == "0.3.278"
-
-
 def test_no_release_or_a_non_release_please_release_is_not_checked() -> None:
     gh, registries = _published_release()
     gh.latest = None
@@ -432,14 +412,6 @@ def test_no_release_or_a_non_release_please_release_is_not_checked() -> None:
     gh.manifests["0.3.278"] = "0.3.277"  # e.g. a break-glass release
     registries.pypi = None
     assert _check(gh, registries) == ""
-
-
-def test_unreadable_changelog_section_does_not_block_every_run() -> None:
-    """An empty section fails the release-notes job, which no retry can fix."""
-    gh, registries = _published_release()
-    gh.changelogs["0.3.278"] = "## Unreleased\n\n## 0.3.278 (12 October 2026)\n"
-    gh.bodies["0.3.278"] = "generated"
-    assert _check(gh, registries) == "0.3.278"
 
 
 def test_incomplete_release_is_not_reported_while_another_release_run_is_active() -> (
@@ -500,7 +472,6 @@ def test_active_runs_are_queried_by_status_on_the_server() -> None:
     [
         "latest-release",
         "release-manifest",
-        "changelog",
         "pypi",
         "npm",
         "release-runs",
@@ -512,7 +483,6 @@ def test_lookup_failure_while_checking_completeness_fails(fail: str) -> None:
     paths = {
         "latest-release": "/releases/latest",
         "release-manifest": ".release-please-manifest.json",
-        "changelog": "/contents/CHANGELOG.md",
     }
     if fail in paths:
         gh.fail = lambda args: args[:2] == ["gh", "api"] and paths[fail] in args[2]
@@ -558,22 +528,22 @@ def test_cli_fails_with_the_recovery_instruction(
 # dispatch-checks: retrying the release PR's checks
 # ---------------------------------------------------------------------------
 
-WORKFLOWS = ["build.yml", "release-pr-checks.yml"]
+WORKFLOWS = ["build.yml", "changelog-lint.yml", "release-pr-checks.yml"]
 
 
 def _dispatch(gh: FakeGitHub) -> list[str]:
     return release_workflow.dispatch_checks(gh, GH_REPO, BRANCH, WORKFLOWS)
 
 
-def test_rerun_after_failure_following_the_changelog_push_dispatches_both() -> None:
-    # Run 1 pushed the changelog commit, then failed before dispatching. On
-    # re-run nothing changes on the branch, but its head has no check runs.
+def test_rerun_after_failure_before_dispatching_dispatches_all() -> None:
+    # Run 1 updated the release PR, then failed before dispatching. On re-run
+    # nothing changes on the branch, but its head has no check runs.
     gh = FakeGitHub()
     assert _dispatch(gh) == WORKFLOWS
     assert gh.dispatches() == WORKFLOWS
 
 
-def test_rerun_after_only_the_first_dispatch_succeeded_dispatches_the_second() -> None:
+def test_rerun_after_only_the_first_dispatches_succeeded_dispatches_the_last() -> None:
     gh = FakeGitHub()
     gh.fail = lambda args: args[:4] == [
         "gh",
@@ -583,7 +553,7 @@ def test_rerun_after_only_the_first_dispatch_succeeded_dispatches_the_second() -
     ]
     with pytest.raises(ReleaseError, match="release-pr-checks.yml"):
         _dispatch(gh)
-    assert gh.dispatches() == ["build.yml"]
+    assert gh.dispatches() == ["build.yml", "changelog-lint.yml"]
 
     gh.fail = lambda args: False
     gh.dispatched.clear()
@@ -601,7 +571,11 @@ def test_a_failed_dispatch_does_not_stop_the_next_one() -> None:
 
 def test_checks_that_already_ran_on_the_head_are_not_dispatched_again() -> None:
     gh = FakeGitHub()
-    gh.runs = {"build.yml": [1], "release-pr-checks.yml": [2]}
+    gh.runs = {
+        "build.yml": [1],
+        "changelog-lint.yml": [2],
+        "release-pr-checks.yml": [3],
+    }
     assert _dispatch(gh) == []
     assert gh.dispatches() == []
 
@@ -627,6 +601,219 @@ def test_cli_reports_errors(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 # ---------------------------------------------------------------------------
+# breaking-changes-heading: Release Please's heading, renamed on each update
+# ---------------------------------------------------------------------------
+
+GENERATED = "### \u26a0 BREAKING CHANGES"
+RENAMED = "### Breaking Changes"
+PR_NUMBER = 5900
+
+
+def _section(version: str, heading: str, previous: str = "0.3.280") -> str:
+    return (
+        f"## [{version}](https://github.com/{GH_REPO}/compare/{previous}...{version})"
+        " (2026-10-15)\n\n\n"
+        f"{heading}\n\n"
+        "* require Python 3.11 \u2014 see the \u26a0 note ([#5862](x))\n\n"
+        "### Features\n\n"
+        "* add swarm types ([#5860](x)) ([a11afc9](y))\n"
+    )
+
+
+def _changelog(new_heading: str, old_heading: str = GENERATED) -> str:
+    return (
+        "# Changelog\n\n"
+        + _section("0.3.282", new_heading, "0.3.281")
+        + "\n"
+        + _section("0.3.281", old_heading)
+        + "\n## 0.3.150 (2025-11-02)\n\n- Older hand-written notes.\n"
+    )
+
+
+def _body(heading: str) -> str:
+    return (
+        "Merging this PR tags the release.\n---\n\n\n"
+        + _section("0.3.282", heading, "0.3.281")
+        + "\n---\nThis PR was generated with [Release Please](https://github.com/"
+        "googleapis/release-please). See [documentation](https://github.com/"
+        "googleapis/release-please#release-please)."
+    )
+
+
+class ReleasePRGitHub(FakeGitHub):
+    """Adds the release PR, its CHANGELOG.md blob and the writes to FakeGitHub."""
+
+    def __init__(self, changelog: str | None, body: str) -> None:
+        super().__init__()
+        self.changelog = None if changelog is None else changelog.encode("utf-8")
+        self.body = body
+        self.open_prs = [(PR_NUMBER, False)]  # (number, from a fork)
+        self.commits: list[dict[str, Any]] = []
+        self.patches: list[dict[str, Any]] = []
+
+    def _blob_sha(self) -> str:
+        assert self.changelog is not None
+        return hashlib.sha1(
+            b"blob %d\0" % len(self.changelog) + self.changelog
+        ).hexdigest()
+
+    def __call__(self, args: Sequence[str]) -> str:
+        args = list(args)
+        if args[:3] == ["gh", "pr", "list"]:
+            self.calls.append(args)
+            assert args[args.index("--head") + 1] == BRANCH
+            assert args[args.index("--state") + 1] == "open"
+            return json.dumps(
+                [
+                    {"number": n, "body": self.body, "isCrossRepository": fork}
+                    for n, fork in self.open_prs
+                ]
+            )
+        if args[:2] == ["gh", "api"] and "--input" in args:
+            self.calls.append(args)
+            if self.fail(args):
+                raise subprocess.CalledProcessError(1, args, stderr=self.fail_stderr)
+            payload = json.loads(Path(args[args.index("--input") + 1]).read_text())
+            if args[2] == "graphql":
+                commit = payload["variables"]["input"]
+                assert commit["expectedHeadOid"] == self.branch_head
+                (change,) = commit["fileChanges"]["additions"]
+                assert change["path"] == "CHANGELOG.md"
+                self.changelog = base64.b64decode(change["contents"])
+                self.commits.append(commit)
+                self.branch_head = f"{len(self.commits):040x}"
+                return json.dumps(
+                    {"data": {"createCommitOnBranch": {"commit": {"oid": "x"}}}}
+                )
+            assert args[2:5] == ["-X", "PATCH", f"repos/{GH_REPO}/pulls/{PR_NUMBER}"]
+            self.body = payload["body"]
+            self.patches.append(payload)
+            return "{}"
+        if args[:2] == ["gh", "api"] and "/contents/CHANGELOG.md?ref=" in args[2]:
+            self.calls.append(args)
+            assert args[2].endswith(f"?ref={self.branch_head}")
+            if self.changelog is None:
+                raise subprocess.CalledProcessError(
+                    1, args, stderr="gh: Not Found (HTTP 404)"
+                )
+            return self._blob_sha() + "\n"
+        if args[:2] == ["gh", "api"] and "/git/blobs/" in args[2]:
+            self.calls.append(args)
+            assert self.changelog is not None
+            assert args[2].endswith(self._blob_sha())
+            # GitHub wraps the base64 content at 60 characters.
+            encoded = base64.b64encode(self.changelog).decode("ascii")
+            return "\n".join(encoded[i : i + 60] for i in range(0, len(encoded), 60))
+        return super().__call__(args)
+
+    def writes(self) -> int:
+        return len(self.commits) + len(self.patches)
+
+
+def _rename(gh: ReleasePRGitHub) -> list[str]:
+    return release_workflow.breaking_changes_heading(gh, GH_REPO, BRANCH)
+
+
+def test_heading_is_renamed_in_the_body_and_the_newest_changelog_section() -> None:
+    gh = ReleasePRGitHub(_changelog(GENERATED), _body(GENERATED))
+    assert _rename(gh) == ["CHANGELOG.md", "body"]
+    # Everything else is byte-identical, including the older section's
+    # heading (hand-fixed releases keep whatever they shipped with).
+    assert gh.changelog == _changelog(RENAMED).encode("utf-8")
+    assert gh.body == _body(RENAMED)
+    (commit,) = gh.commits
+    assert commit["branch"] == {
+        "repositoryNameWithOwner": GH_REPO,
+        "branchName": BRANCH,
+    }
+    assert re.match(r"chore: ", commit["message"]["headline"])
+
+
+def test_renaming_again_changes_nothing() -> None:
+    gh = ReleasePRGitHub(_changelog(GENERATED), _body(GENERATED))
+    _rename(gh)
+    head = gh.branch_head
+    assert _rename(gh) == []
+    assert gh.writes() == 2
+    assert gh.branch_head == head
+
+
+def test_release_without_breaking_changes_is_left_alone() -> None:
+    changelog = _changelog("### Bug Fixes", old_heading="### Bug Fixes")
+    gh = ReleasePRGitHub(changelog, _body("### Bug Fixes"))
+    assert _rename(gh) == []
+    assert gh.writes() == 0
+    assert gh.changelog == changelog.encode("utf-8")
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        f"{GENERATED} (extra)",
+        f"#{GENERATED}",
+        f" {GENERATED}",
+        "### \u26a0\ufe0f BREAKING CHANGES",
+        "### BREAKING CHANGES",
+        f"* mentions {GENERATED} inline",
+    ],
+)
+def test_only_the_exact_heading_line_is_renamed(line: str) -> None:
+    gh = ReleasePRGitHub(_changelog(line), _body(line))
+    assert _rename(gh) == []
+    assert gh.writes() == 0
+
+
+def test_crlf_body_keeps_its_line_endings() -> None:
+    body = _body(GENERATED).replace("\n", "\r\n")
+    gh = ReleasePRGitHub(_changelog(RENAMED), body)
+    assert _rename(gh) == ["body"]
+    assert gh.body == _body(RENAMED).replace("\n", "\r\n")
+    assert gh.commits == []
+
+
+def test_already_renamed_changelog_with_generated_body_updates_the_body_only() -> None:
+    # A previous run committed the CHANGELOG.md rename but failed on the body.
+    gh = ReleasePRGitHub(_changelog(RENAMED), _body(GENERATED))
+    assert _rename(gh) == ["body"]
+    assert gh.commits == []
+
+
+def test_no_open_release_pr_changes_nothing() -> None:
+    gh = ReleasePRGitHub(_changelog(GENERATED), _body(GENERATED))
+    gh.open_prs = []
+    assert _rename(gh) == []
+    assert [c[:3] for c in gh.calls] == [["gh", "pr", "list"]]
+
+
+def test_fork_pr_with_the_release_branch_name_is_ignored() -> None:
+    gh = ReleasePRGitHub(_changelog(GENERATED), _body(GENERATED))
+    gh.open_prs = [(PR_NUMBER - 1, True)]
+    assert _rename(gh) == []
+    assert gh.writes() == 0
+
+
+def test_branch_without_a_changelog_still_gets_its_body_renamed() -> None:
+    gh = ReleasePRGitHub(None, _body(GENERATED))
+    assert _rename(gh) == ["body"]
+    assert gh.commits == []
+
+
+def test_failed_commit_fails_the_command(monkeypatch: pytest.MonkeyPatch) -> None:
+    # e.g. Release Please pushed again after the branch head was read.
+    gh = ReleasePRGitHub(_changelog(GENERATED), _body(GENERATED))
+    gh.fail = lambda args: args[:3] == ["gh", "api", "graphql"]
+    gh.fail_stderr = "gh: Expected branch to point to x"
+    monkeypatch.setattr(release_workflow, "run", gh)
+    assert (
+        release_workflow.main(
+            ["--repo", GH_REPO, "breaking-changes-heading", "--branch", BRANCH]
+        )
+        == 1
+    )
+    assert gh.writes() == 0
+
+
+# ---------------------------------------------------------------------------
 # Workflow wiring
 # ---------------------------------------------------------------------------
 
@@ -643,8 +830,7 @@ def test_release_jobs_follow_the_resolved_tag() -> None:
     assert jobs["release-please"]["outputs"] == {
         "tag": "${{ steps.resolve.outputs.tag }}"
     }
-    for name in ("release-notes", "build"):
-        assert jobs[name]["if"] == "needs.release-please.outputs.tag != ''"
+    assert jobs["build"]["if"] == "needs.release-please.outputs.tag != ''"
     for name in ("publish-pypi", "publish-npm"):
         assert "build" in jobs[name]["needs"]
     assert "release_created" not in json.dumps(
@@ -668,12 +854,10 @@ def test_tag_dispatch_is_recovery_only() -> None:
     steps = {s.get("id") or s.get("name"): s for s in job["steps"]}
     assert steps["release"]["if"] == "${{ !inputs.tag }}"
     assert steps["pr"]["if"] == "${{ !inputs.tag }}"
-    # The release PR steps run only when the (skipped) lookup found an open PR.
-    for name in (
-        "Release CHANGELOG.md entries on the release PR",
-        "Run checks on the release PR",
-    ):
-        assert steps[name]["if"] == "steps.pr.outputs.open == 'true'"
+    # The release PR step runs only when the (skipped) lookup found an open PR.
+    assert steps["Run checks on the release PR"]["if"] == (
+        "steps.pr.outputs.open == 'true'"
+    )
     resolve = steps["resolve"]
     assert resolve["env"]["REQUESTED_TAG"] == "${{ inputs.tag }}"
     assert "--requested-tag" in resolve["run"]
@@ -688,19 +872,311 @@ def test_release_pr_check_dispatch_does_not_depend_on_this_run_changing_the_bran
     assert "dispatch-checks" in dispatch["run"]
 
 
+PYPI_PUBLISH = "pypa/gh-action-pypi-publish@"
+
+
 def test_publish_steps_skip_what_the_registries_already_have() -> None:
     action = _load(".github/actions/publish-dist/action.yml")
-    steps = action["runs"]["steps"]
-    names = [s.get("name") for s in steps]
-    assert (
-        names.index("Verify distributions")
-        < names.index("Skip files already on PyPI")
-        < names.index("Publish to PyPI")
+    names = [s.get("name") for s in action["runs"]["steps"]]
+    assert names.index("Verify distributions") < names.index(
+        "Skip files already on PyPI"
     )
-    assert steps[names.index("Publish to PyPI")]["if"] == (
-        "steps.pending.outputs.count != '0'"
-    )
+    assert action["outputs"]["count"]["value"] == "${{ steps.pending.outputs.count }}"
+
+    for workflow, job in [("release.yml", "publish-pypi"), ("publish.yml", "publish")]:
+        steps = _load(f".github/workflows/{workflow}")["jobs"][job]["steps"]
+        dist = next(i for i, s in enumerate(steps) if s.get("id") == "dist")
+        assert steps[dist]["uses"].endswith(".github/actions/publish-dist")
+        upload = next(
+            i for i, s in enumerate(steps) if s.get("uses", "").startswith(PYPI_PUBLISH)
+        )
+        assert dist < upload
+        assert steps[upload]["if"] == "steps.dist.outputs.count != '0'"
+
+
+def test_build_dist_builds_with_the_hashed_toolchain() -> None:
+    # Without isolation, the build backend is the one installed from the
+    # hashed requirements rather than whatever PyPI serves at build time.
+    action_dir = REPO / ".github" / "actions" / "build-dist"
+    steps = _load(".github/actions/build-dist/action.yml")["runs"]["steps"]
+    runs = [s.get("run", "").strip() for s in steps]
+    installs = [r for r in runs if "pip install" in r]
+    assert installs == [
+        'python -m pip install --require-hashes --only-binary :all: --no-deps -r "$REQUIREMENTS"'
+    ]
+    assert "python -m build --no-isolation" in runs
+
+    # The documented refresh must not keep existing pins as preferences.
+    action = (action_dir / "action.yml").read_text()
+    refresh = re.search(r"#\s+(uv pip compile .*?-o requirements\.txt)", action, re.S)
+    assert refresh
+    assert "--upgrade " in refresh.group(1)
+    assert '--exclude-newer "7 days"' in refresh.group(1)
+
+    requirements = (action_dir / "requirements.txt").read_text()
+    pins = re.findall(r"^([A-Za-z0-9_.-]+)==\S+ \\$", requirements, re.MULTILINE)
+    assert {"build", "setuptools", "setuptools-scm"} <= set(pins)
+    requirement_lines = [
+        line
+        for line in requirements.splitlines()
+        if line and not line.startswith(("#", " "))
+    ]
+    assert len(requirement_lines) == len(pins)
+
+
+def test_dependabot_updates_the_build_toolchain_with_a_cooldown() -> None:
+    updates = _load(".github/dependabot.yml")["updates"]
+    (update,) = [u for u in updates if u["directory"] == "/.github/actions/build-dist"]
+    assert update["package-ecosystem"] == "uv"
+    assert update["cooldown"]["default-days"] == 7
+    assert update["schedule"]["interval"] == "weekly"
+    assert [group["patterns"] for group in update["groups"].values()] == [["*"]]
+
+
+def test_no_composite_action_runs_the_pypi_publish_docker_action() -> None:
+    # pypa/gh-action-pypi-publish is a Docker action, unsupported inside a
+    # composite: its image resolves against the calling repo and fails.
+    for path in (REPO / ".github" / "actions").glob("*/action.yml"):
+        steps = _load(str(path.relative_to(REPO)))["runs"].get("steps", [])
+        assert not any(s.get("uses", "").startswith(PYPI_PUBLISH) for s in steps), path
+
+
+def test_release_publishes_with_this_runs_publish_steps() -> None:
+    # A recovery dispatch on main publishes an older tag; the tag's own
+    # publish-dist may predate a fix, so the action comes from the run's commit.
+    steps = _load(".github/workflows/release.yml")["jobs"]["publish-pypi"]["steps"]
+    ci = next(s for s in steps if s.get("with", {}).get("path") == ".ci")
+    assert "ref" not in ci["with"]
+    assert ci["with"]["sparse-checkout"] == ".github/actions"
+    dist = next(s for s in steps if s.get("id") == "dist")
+    assert dist["uses"] == "./.ci/.github/actions/publish-dist"
 
     npm_steps = _load(".github/workflows/npm-publish.yml")["jobs"]["publish"]["steps"]
     publish = next(s for s in npm_steps if s.get("name") == "Publish to NPM")
     assert "steps.npm-version.outputs.published != 'true'" in publish["if"]
+
+
+def test_release_pr_gets_every_required_check() -> None:
+    # Release Please pushes the release PR with GITHUB_TOKEN, so it gets no
+    # pull_request runs; each workflow providing a required status check on
+    # main must be dispatched on it.
+    steps = _load(".github/workflows/release.yml")["jobs"]["release-please"]["steps"]
+    dispatch = next(s for s in steps if s.get("name") == "Run checks on the release PR")
+    for workflow in ["build.yml", "changelog-lint.yml"]:
+        assert workflow in dispatch["run"].split()
+
+
+def test_release_notes_are_release_pleases() -> None:
+    """release.yml changes Release Please's notes only by renaming one heading."""
+    workflow = (REPO / ".github" / "workflows" / "release.yml").read_text()
+    assert "gh release edit" not in workflow
+    assert "release_changelog" not in workflow
+    assert not (REPO / ".github" / "scripts" / "release_changelog.py").exists()
+
+
+def test_heading_is_renamed_before_the_release_pr_checks_are_dispatched() -> None:
+    steps = _load(".github/workflows/release.yml")["jobs"]["release-please"]["steps"]
+    names = [s.get("id") or s.get("name") for s in steps]
+    rename = steps[names.index("Rename the breaking changes heading")]
+    assert names.index("pr") < names.index("Rename the breaking changes heading")
+    assert names.index("Rename the breaking changes heading") < names.index(
+        "Run checks on the release PR"
+    )
+    assert rename["if"] == "steps.pr.outputs.open == 'true'"
+    # A failed rename must not fail the job and skip the publish jobs.
+    assert rename["continue-on-error"] is True
+    assert rename["env"] == {"GH_TOKEN": "${{ github.token }}"}
+    assert 'breaking-changes-heading --branch "$RELEASE_BRANCH"' in rename["run"]
+
+
+# ---------------------------------------------------------------------------
+# Changelog Lint: PRs other than the release PR must not edit CHANGELOG.md
+# ---------------------------------------------------------------------------
+
+CHANGELOG_LINT = ".github/workflows/changelog-lint.yml"
+LINT_STEP = "Check CHANGELOG.md is not edited"
+
+
+def test_changelog_lint_runs_on_every_pr_and_on_dispatch() -> None:
+    # A required check filtered by path would leave PRs that don't touch
+    # CHANGELOG.md waiting for a check that never runs.
+    workflow = _load(CHANGELOG_LINT)
+    triggers = workflow[True]
+    assert triggers["pull_request"] is None
+    assert "workflow_dispatch" in triggers
+    # A dispatched run needs main's history for the merge base. 0 is falsy in
+    # expressions, so the depths must be quoted.
+    checkout = workflow["jobs"]["lint"]["steps"][0]
+    assert checkout["with"]["fetch-depth"] == (
+        "${{ github.event_name == 'workflow_dispatch' && '0' || '2' }}"
+    )
+    # The required check's name: a fixed string, with no matrix or job `if`.
+    job = workflow["jobs"]["lint"]
+    assert job["name"] == "no-changelog-edits"
+    assert "if" not in job and "strategy" not in job
+
+
+def _git(cwd: Path, *args: str) -> str:
+    return subprocess.run(
+        ["git", "-c", "user.name=t", "-c", "user.email=t@example.com", *args],
+        cwd=cwd,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+
+
+def _lint(
+    tmp_path: Path,
+    *,
+    edit: bool,
+    event: str = "pull_request",
+    branch: str = "feature",
+    head_repo: str = GH_REPO,
+) -> subprocess.CompletedProcess[str]:
+    """Run the lint step on a PR branch that does or doesn't edit CHANGELOG.md.
+
+    A pull_request run checks out the PR's merge commit; a dispatched run
+    checks out the branch with origin/main available.
+    """
+    _git(tmp_path, "init", "-q", "-b", "main")
+    (tmp_path / "CHANGELOG.md").write_text("# Changelog\n\n## 0.3.278\n\n- x\n")
+    (tmp_path / "code.py").write_text("x = 1\n")
+    _git(tmp_path, "add", ".")
+    _git(tmp_path, "commit", "-qm", "base")
+    _git(tmp_path, "update-ref", "refs/remotes/origin/main", "HEAD")
+    _git(tmp_path, "checkout", "-qb", branch)
+    (tmp_path / "code.py").write_text("x = 2\n")
+    if edit:
+        (tmp_path / "CHANGELOG.md").write_text(
+            "# Changelog\n\n## Unreleased\n\n- y\n\n## 0.3.278\n\n- x\n"
+        )
+    _git(tmp_path, "commit", "-qam", "change")
+    if event == "pull_request":
+        # Move main on, so the PR's merge commit has a distinct base parent.
+        _git(tmp_path, "checkout", "-q", "main")
+        (tmp_path / "other.py").write_text("y = 1\n")
+        _git(tmp_path, "add", "other.py")
+        _git(tmp_path, "commit", "-qm", "main moves on")
+        _git(tmp_path, "merge", "-q", "--no-ff", "-m", "merge", branch)
+
+    steps = _load(CHANGELOG_LINT)["jobs"]["lint"]["steps"]
+    step = next(s for s in steps if s.get("name") == LINT_STEP)
+    env = {
+        **os.environ,
+        "EVENT_NAME": event,
+        "BRANCH": branch,
+        "HEAD_REPO": head_repo if event == "pull_request" else "",
+        "RELEASE_BRANCH": step["env"]["RELEASE_BRANCH"],
+        "GITHUB_REPOSITORY": GH_REPO,
+    }
+    return subprocess.run(
+        ["bash", "-e", "-c", step["run"]],
+        cwd=tmp_path,
+        env=env,
+        capture_output=True,
+        text=True,
+    )
+
+
+needs_bash = pytest.mark.skipif(shutil.which("bash") is None, reason="needs bash")
+
+
+@needs_bash
+@pytest.mark.parametrize("event", ["pull_request", "workflow_dispatch"])
+def test_changelog_lint_passes_when_changelog_md_is_untouched(
+    tmp_path: Path, event: str
+) -> None:
+    result = _lint(tmp_path, edit=False, event=event)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "CHANGELOG.md is unchanged." in result.stdout
+
+
+@needs_bash
+@pytest.mark.parametrize("event", ["pull_request", "workflow_dispatch"])
+def test_changelog_lint_fails_a_pr_that_edits_changelog_md(
+    tmp_path: Path, event: str
+) -> None:
+    result = _lint(tmp_path, edit=True, event=event)
+    assert result.returncode == 1
+    assert "::error file=CHANGELOG.md::" in result.stdout
+    assert "your PR title is the changelog line" in result.stdout
+
+
+@needs_bash
+@pytest.mark.parametrize("event", ["pull_request", "workflow_dispatch"])
+def test_changelog_lint_exempts_the_release_pr(tmp_path: Path, event: str) -> None:
+    result = _lint(tmp_path, edit=True, event=event, branch=BRANCH)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "Release PR" in result.stdout
+
+
+@needs_bash
+def test_changelog_lint_does_not_exempt_a_fork_branch_named_like_the_release_pr(
+    tmp_path: Path,
+) -> None:
+    result = _lint(tmp_path, edit=True, branch=BRANCH, head_repo="someone/inspect_ai")
+    assert result.returncode == 1
+
+
+# ---------------------------------------------------------------------------
+# Release Please configuration
+# ---------------------------------------------------------------------------
+
+# meridianlabs-ai/inspect_scout's changelog-sections.
+CHANGELOG_SECTIONS = [
+    {"type": "feat", "section": "Features"},
+    {"type": "fix", "section": "Bug Fixes"},
+    {"type": "perf", "section": "Performance Improvements"},
+    {"type": "revert", "section": "Reverts"},
+    {"type": "refactor", "section": "Code Refactoring", "hidden": True},
+    {"type": "docs", "section": "Documentation", "hidden": True},
+    {"type": "chore", "section": "Miscellaneous", "hidden": True},
+    {"type": "build", "section": "Build System", "hidden": True},
+    {"type": "ci", "section": "Continuous Integration", "hidden": True},
+    {"type": "test", "section": "Tests", "hidden": True},
+    {"type": "style", "section": "Styles", "hidden": True},
+]
+
+
+def test_release_please_config_invariants() -> None:
+    config = json.loads((REPO / ".release-please-config.json").read_text())
+    manifest = json.loads((REPO / ".release-please-manifest.json").read_text())
+    package = config["packages"]["."]
+
+    assert config["release-type"] == "python"
+    # Bare tags; release-please ignores these two at the top level.
+    assert package["include-v-in-tag"] is False
+    assert package["include-component-in-tag"] is False
+    # Every release is a patch, breaking changes included; a minor or major
+    # release is set with a temporary release-as.
+    assert package["versioning"] == "always-bump-patch"
+    # Inert under always-bump-patch; kept so switching back to default
+    # versioning restores the 0.x behavior.
+    assert package["bump-minor-pre-major"] is True
+    assert package["bump-patch-for-minor-pre-major"] is True
+    # Release Please writes CHANGELOG.md.
+    assert "skip-changelog" not in package and "skip-changelog" not in config
+    assert package["changelog-sections"] == CHANGELOG_SECTIONS
+    # package-name or component would change the release branch name from
+    # release-please--branches--main, which the workflows refer to.
+    assert "package-name" not in package and "component" not in package
+
+    assert list(manifest) == ["."]
+    assert re.fullmatch(r"\d+\.\d+\.\d+", manifest["."])
+
+
+def test_changelog_md_starts_with_the_title_and_a_release_section() -> None:
+    """Release Please inserts each release's section after the `# Changelog` line."""
+    lines = (REPO / "CHANGELOG.md").read_text(encoding="utf-8").splitlines()
+    assert lines[0] == "# Changelog"
+    first_section = next(line for line in lines[1:] if line.strip())
+    # Not necessarily the manifest version: a break-glass release adds none.
+    assert re.match(r"## \[?\d+\.\d+\.\d+\b", first_section)
+
+
+def test_release_workflow_passes_no_release_type() -> None:
+    """A release-type input puts the action in simple mode, ignoring the config."""
+    workflow = (REPO / ".github" / "workflows" / "release.yml").read_text()
+    assert "release-type:" not in workflow
+    assert "config-file: .release-please-config.json" in workflow

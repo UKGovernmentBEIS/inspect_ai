@@ -2,9 +2,10 @@ name: Release
 
 # Release Please keeps a release PR (head branch release-please--branches--main)
 # open against main, versioned from the Conventional Commit PR titles merged
-# since the last release. Merging that PR tags the release and creates the
-# GitHub Release; this workflow then sets the release notes from CHANGELOG.md
-# and publishes to PyPI and npm, each behind its environment's approval.
+# since the last release, and writes their titles into CHANGELOG.md and the
+# release notes. Merging that PR tags the release and creates the GitHub
+# Release; this workflow then publishes to PyPI and npm, each behind its
+# environment's approval.
 #
 # Everything runs with GITHUB_TOKEN. Releases, tags and pushes made with it
 # trigger no other workflows, so this workflow runs the publish jobs itself
@@ -92,38 +93,31 @@ jobs:
           if [ "$COUNT" -gt 0 ]; then OPEN=true; else OPEN=false; fi
           echo "open=$OPEN" >> "$GITHUB_OUTPUT"
 
-      # Default credentials: the next step pushes to the release branch.
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # Release Please rewrites the release PR on every update, so this renames
+      # its "### ⚠ BREAKING CHANGES" heading each run, before the checks are
+      # dispatched on the resulting head. The commit is made with GITHUB_TOKEN
+      # and starts no workflows. A failure here must not block a publish, so
+      # the step continues on error; the next run (or a re-run) renames it.
+      - name: Rename the breaking changes heading
         if: steps.pr.outputs.open == 'true'
-        with:
-          ref: ${{ env.RELEASE_BRANCH }}
-          path: release-pr
-
-      - name: Release CHANGELOG.md entries on the release PR
-        if: steps.pr.outputs.open == 'true'
-        working-directory: release-pr
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          VERSION=$(jq -r '."."' .release-please-manifest.json)
-          python3 .github/scripts/release_changelog.py prepare "$VERSION"
-          if git diff --quiet; then
-            exit 0
-          fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -am "chore: move Unreleased changelog entries to $VERSION"
-          git push origin "HEAD:$RELEASE_BRANCH"
+          python3 .github/scripts/release_workflow.py --repo "$GITHUB_REPOSITORY" \
+            breaking-changes-heading --branch "$RELEASE_BRANCH"
 
       # Dispatches only the workflows with no run on the release PR's current
-      # head, so re-running this job retries a failed dispatch. build.yml
-      # provides the required status checks; if they are missing, a
-      # maintainer can also close and reopen the release PR.
+      # head, so re-running this job retries a failed dispatch. build.yml and
+      # changelog-lint.yml provide the required status checks; if they are
+      # missing, a maintainer can also close and reopen the release PR.
       - name: Run checks on the release PR
         if: steps.pr.outputs.open == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           python3 .github/scripts/release_workflow.py --repo "$GITHUB_REPOSITORY" \
-            dispatch-checks --branch "$RELEASE_BRANCH" build.yml release-pr-checks.yml
+            dispatch-checks --branch "$RELEASE_BRANCH" build.yml changelog-lint.yml release-pr-checks.yml
 
       # Last, so the release PR steps still run. A re-run cannot find a release
       # created on an earlier commit; fail and name the tag to dispatch with
@@ -135,29 +129,6 @@ jobs:
         run: |
           python3 .github/scripts/release_workflow.py --repo "$GITHUB_REPOSITORY" \
             check-latest-published --run-id "$GITHUB_RUN_ID"
-
-  release-notes:
-    name: Set release notes from CHANGELOG.md
-    needs: release-please
-    if: needs.release-please.outputs.tag != ''
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    permissions:
-      contents: write # edit the GitHub Release
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ needs.release-please.outputs.tag }}
-          sparse-checkout: .github/scripts
-          persist-credentials: false
-
-      - name: Set release notes
-        env:
-          GH_TOKEN: ${{ github.token }}
-          TAG: ${{ needs.release-please.outputs.tag }}
-        run: |
-          python3 .github/scripts/release_changelog.py notes "$TAG" > "$RUNNER_TEMP/notes.md"
-          gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --notes-file "$RUNNER_TEMP/notes.md"
 
   # The build and publish jobs match publish.yml's: the build holds no
   # id-token, and both use the shared build-dist and publish-dist actions.
@@ -192,7 +163,7 @@ jobs:
         with:
           version: ${{ needs.release-please.outputs.tag }}
 
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: dist
           path: dist/
@@ -221,9 +192,23 @@ jobs:
             src/inspect_ai/tool/_sandbox_tools_utils
           persist-credentials: false
 
-      - uses: ./.github/actions/publish-dist
+      # The publish steps come from this run's commit rather than the tag, so
+      # a recovery run on main publishes an older tag with current steps.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: .ci
+          sparse-checkout: .github/actions
+          persist-credentials: false
+
+      - id: dist
+        uses: ./.ci/.github/actions/publish-dist
         with:
           version: ${{ needs.release-please.outputs.tag }}
+
+      # A Docker action, so it runs here rather than inside publish-dist.
+      - name: Publish to PyPI
+        if: steps.dist.outputs.count != '0'
+        uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2
 
   # Waits for the build so npm never gets a version that failed the PyPI gates.
   publish-npm:

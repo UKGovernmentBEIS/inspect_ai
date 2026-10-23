@@ -13,17 +13,24 @@
   check-latest-published
                    Run when resolve-release found nothing. Fails if the latest
                    Release Please release on main is not fully published (no
-                   PyPI wheel and sdist, no npm version, or release notes
-                   without its CHANGELOG.md section) and no other Release run
-                   is still active. A re-run cannot find a release created on
-                   an earlier commit, so this tells the maintainer to dispatch
-                   Release with that tag instead of finishing green. It never
-                   resumes or picks a release itself.
+                   PyPI wheel and sdist, or no npm version) and no other
+                   Release run is still active. A re-run cannot find a
+                   release created on an earlier commit, so this tells the
+                   maintainer to dispatch Release with that tag instead of
+                   finishing green. It never resumes or picks a release
+                   itself.
   dispatch-checks  Dispatches each workflow that has no run yet for the
                    branch's current head commit. Safe to repeat: workflows
                    that already ran (or are running) on that commit are
                    skipped, and every workflow is attempted even if an
                    earlier dispatch fails.
+  breaking-changes-heading
+                   Renames Release Please's "### ⚠ BREAKING CHANGES"
+                   heading to "### Breaking Changes" in the open release PR's
+                   body and in the newest section of CHANGELOG.md on its
+                   branch. The merged PR body becomes the GitHub Release
+                   notes. Changes nothing when the heading is already
+                   renamed or absent, so it is safe to repeat.
 
 Runs `gh` and `git` and reads PyPI and npm; stdlib only.
 """
@@ -31,15 +38,15 @@ Runs `gh` and `git` and reads PyPI and npm; stdlib only.
 from __future__ import annotations
 
 import argparse
-import importlib.util
+import base64
 import json
+import os
 import re
 import subprocess
 import sys
+import tempfile
 import urllib.error
 import urllib.request
-from pathlib import Path
-from types import ModuleType
 from typing import Any, Callable, Sequence
 
 VERSION_RE = re.compile(r"^\d+\.\d+\.\d+$")
@@ -47,6 +54,18 @@ VERSION_RE = re.compile(r"^\d+\.\d+\.\d+$")
 PYPI_URL = "https://pypi.org/pypi/inspect-ai/{version}/json"
 NPM_URL = "https://registry.npmjs.org/@meridianlabs%2flog-viewer/{version}"
 ACTIVE_RUN_STATUSES = {"queued", "in_progress", "waiting", "requested", "pending"}
+
+# Release Please's changelog template hard-codes the warning sign and the
+# upper case; no config option changes them.
+BREAKING_HEADING_RE = re.compile(r"^### \u26a0 BREAKING CHANGES(?=\r?$)", re.MULTILINE)
+BREAKING_HEADING = "### Breaking Changes"
+VERSION_SECTION_RE = re.compile(r"^## ", re.MULTILINE)
+CHANGELOG = "CHANGELOG.md"
+CREATE_COMMIT = """
+mutation($input: CreateCommitOnBranchInput!) {
+  createCommitOnBranch(input: $input) { commit { oid } }
+}
+"""
 
 Run = Callable[[Sequence[str]], str]
 Fetch = Callable[[str], "dict[str, Any] | None"]
@@ -82,16 +101,6 @@ def fetch_json(url: str) -> dict[str, Any] | None:
     if not isinstance(data, dict):
         raise LookupFailed(f"Unexpected response from {url}")
     return data
-
-
-def _release_changelog() -> ModuleType:
-    spec = importlib.util.spec_from_file_location(
-        "release_changelog", Path(__file__).with_name("release_changelog.py")
-    )
-    assert spec is not None and spec.loader is not None
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
 
 
 def _notice(message: str) -> None:
@@ -238,9 +247,9 @@ def check_latest_published(run_: Run, fetch: Fetch, repo: str, run_id: str) -> s
         Release Please release to check.
 
     Raises:
-        IncompleteRelease: If PyPI or npm lacks the version, or the release
-            notes lack its CHANGELOG.md section, and no other Release run is
-            active (one may still be waiting for publish approval).
+        IncompleteRelease: If PyPI or npm lacks the version and no other
+            Release run is active (one may still be waiting for publish
+            approval).
         LookupFailed: If GitHub, PyPI or npm could not be queried.
     """
     latest = _api(run_, f"repos/{repo}/releases/latest")
@@ -248,7 +257,7 @@ def check_latest_published(run_: Run, fetch: Fetch, repo: str, run_id: str) -> s
         return ""
     try:
         release = json.loads(latest)
-        tag, body = release["tag_name"], release.get("body") or ""
+        tag = release["tag_name"]
     except (ValueError, KeyError) as e:
         raise LookupFailed(f"Unexpected latest-release response: {e}") from e
     try:
@@ -264,21 +273,6 @@ def check_latest_published(run_: Run, fetch: Fetch, repo: str, run_id: str) -> s
         missing.append("its PyPI wheel and sdist")
     if fetch(NPM_URL.format(version=tag)) is None:
         missing.append("its npm package")
-    changelog = _api(
-        run_,
-        f"repos/{repo}/contents/CHANGELOG.md?ref={tag}",
-        "-H",
-        "Accept: application/vnd.github.raw",
-    )
-    release_changelog = _release_changelog()
-    try:
-        notes = release_changelog.notes(changelog or "", tag).strip()
-    except release_changelog.ChangelogError as e:
-        # The release-notes job fails on this itself; republishing can't fix it.
-        _notice(f"Not checking release notes for {tag}: {e}")
-    else:
-        if notes not in body.replace("\r\n", "\n"):
-            missing.append("its CHANGELOG.md release notes")
     if not missing:
         return tag
 
@@ -345,6 +339,117 @@ def dispatch_checks(
     return dispatched
 
 
+def rename_breaking_heading(text: str) -> str:
+    """Return `text` with each breaking-changes heading line renamed."""
+    return BREAKING_HEADING_RE.sub(BREAKING_HEADING, text)
+
+
+def rename_in_newest_section(changelog: str) -> str:
+    """Rename the breaking-changes heading in the first `## ` section only."""
+    starts = [m.start() for m in VERSION_SECTION_RE.finditer(changelog)]
+    if not starts:
+        return changelog
+    end = starts[1] if len(starts) > 1 else len(changelog)
+    section = rename_breaking_heading(changelog[starts[0] : end])
+    return changelog[: starts[0]] + section + changelog[end:]
+
+
+def _run_with_input(run_: Run, args: Sequence[str], payload: dict[str, Any]) -> str:
+    """Run `gh api ... --input FILE` with `payload` as the JSON request body."""
+    with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as f:
+        json.dump(payload, f)
+    try:
+        return run_([*args, "--input", f.name])
+    finally:
+        os.unlink(f.name)
+
+
+def breaking_changes_heading(run_: Run, repo: str, branch: str) -> list[str]:
+    """Rename the heading in the open release PR's body and CHANGELOG.md.
+
+    Edits only the newest CHANGELOG.md section, commits only when it changes
+    (with the branch head it read as the expected head, so a concurrent push
+    fails the commit rather than being overwritten), and updates the body
+    only when it changes.
+
+    Returns:
+        What was changed: "CHANGELOG.md" and/or "body".
+    """
+    prs = json.loads(
+        run_(
+            ["gh", "pr", "list", "--repo", repo, "--head", branch, "--base", "main"]
+            + ["--state", "open", "--json", "number,body,isCrossRepository"]
+        )
+    )
+    # A fork's branch can have the same name; only this repository's is ours.
+    prs = [pr for pr in prs if not pr["isCrossRepository"]]
+    if not prs:
+        print(f"No open release PR from {branch}")
+        return []
+    number, body = prs[0]["number"], prs[0]["body"]
+
+    changed: list[str] = []
+    head = run_(
+        ["gh", "api", f"repos/{repo}/branches/{branch}", "--jq", ".commit.sha"]
+    ).strip()
+    blob = _api(
+        run_,
+        f"repos/{repo}/contents/{CHANGELOG}?ref={head}",
+        "-H",
+        "Accept: application/vnd.github.object",
+        "--jq",
+        ".sha",
+    )
+    if blob is None:
+        print(f"{branch} has no {CHANGELOG}")
+    else:
+        encoded = run_(
+            ["gh", "api", f"repos/{repo}/git/blobs/{blob.strip()}", "--jq", ".content"]
+        )
+        changelog = base64.b64decode(encoded).decode("utf-8")
+        renamed = rename_in_newest_section(changelog)
+        if renamed != changelog:
+            branch_input = {"repositoryNameWithOwner": repo, "branchName": branch}
+            commit = {
+                "branch": branch_input,
+                "expectedHeadOid": head,
+                "message": {
+                    "headline": "chore: use the Breaking Changes heading in "
+                    + CHANGELOG
+                },
+                "fileChanges": {
+                    "additions": [
+                        {
+                            "path": CHANGELOG,
+                            "contents": base64.b64encode(
+                                renamed.encode("utf-8")
+                            ).decode("ascii"),
+                        }
+                    ]
+                },
+            }
+            _run_with_input(
+                run_,
+                ["gh", "api", "graphql"],
+                {"query": CREATE_COMMIT, "variables": {"input": commit}},
+            )
+            changed.append(CHANGELOG)
+            print(f"Renamed the breaking-changes heading in {CHANGELOG} on {branch}")
+
+    renamed_body = rename_breaking_heading(body)
+    if renamed_body != body:
+        _run_with_input(
+            run_,
+            ["gh", "api", "-X", "PATCH", f"repos/{repo}/pulls/{number}"],
+            {"body": renamed_body},
+        )
+        changed.append("body")
+        print(f"Renamed the breaking-changes heading in the body of #{number}")
+    if not changed:
+        print("The release PR has no breaking-changes heading to rename")
+    return changed
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Release workflow steps")
     parser.add_argument("--repo", required=True)
@@ -358,6 +463,8 @@ def main(argv: list[str] | None = None) -> int:
     dispatch = commands.add_parser("dispatch-checks")
     dispatch.add_argument("--branch", required=True)
     dispatch.add_argument("workflows", nargs="+")
+    heading = commands.add_parser("breaking-changes-heading")
+    heading.add_argument("--branch", required=True)
     args = parser.parse_args(argv)
 
     try:
@@ -370,8 +477,13 @@ def main(argv: list[str] | None = None) -> int:
         elif args.command == "check-latest-published":
             tag = check_latest_published(run, fetch_json, args.repo, args.run_id)
             print(f"Nothing to finish (latest release: {tag or 'none'})")
+        elif args.command == "breaking-changes-heading":
+            breaking_changes_heading(run, args.repo, args.branch)
         else:
             dispatch_checks(run, args.repo, args.branch, args.workflows)
+    except subprocess.CalledProcessError as e:
+        print(f"::error::{' '.join(e.cmd)} failed: {e.stderr or e}", file=sys.stderr)
+        return 1
     except (ReleaseError, LookupFailed, IncompleteRelease) as e:
         print(f"::error::{e}", file=sys.stderr)
         return 1

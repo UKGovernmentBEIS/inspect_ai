@@ -83,7 +83,7 @@ from .._stream import (
     report_model_stream_progress,
     report_model_stream_start,
 )
-from .util.hooks import HttpxHooks
+from .util.hooks import HttpxHooks, polling
 
 logger = getLogger(__name__)
 
@@ -129,7 +129,18 @@ async def generate_responses(
     model_family: str | None = None,
     streaming: bool = False,
     supports_explicit_prompt_cache: bool = False,
+    extra_body: dict[str, Any] | None = None,
+    process_response: Callable[[Response], Response] | None = None,
 ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
+    """Generate a model output through the Responses API.
+
+    `extra_body` adds fields to the request body as given, except those that
+    Inspect sets itself (see `_raw_extra_body()`). `process_response`
+    receives each successful response after it is recorded on the model call
+    and before it is converted to model output, so a compatible service can
+    consume output items or usage fields that the OpenAI conversion does not
+    understand.
+    """
     # background in extra_body should be applied
     if background is None and config.extra_body:
         background = config.extra_body.get("background", None)
@@ -230,6 +241,9 @@ async def generate_responses(
         # matches the wire request (batched and background requests can't stream)
         if streaming and not background and batcher is None:
             request["stream"] = True
+        raw_extra_body = _raw_extra_body(extra_body or {}, request)
+        if raw_extra_body:
+            request["extra_body"] = raw_extra_body
 
         model_call = set_active_model_event_call(
             request=request,
@@ -276,6 +290,8 @@ async def generate_responses(
                 model_response.model_dump(warnings=False),
                 http_hooks.end_request(request_id),
             )
+            if process_response is not None:
+                model_response = process_response(model_response)
 
             # parse out choices
             choices = openai_responses_chat_choices(model_name, model_response, tools)
@@ -443,7 +459,10 @@ async def wait_for_background_response(
         ),
     )
     async def check_model_response(model_response: Response) -> Response:
-        return await client.responses.retrieve(model_response.id)
+        # a poll carries no request id (each one would count as a retry), so
+        # the HTTP hooks are told to record the headers of its responses
+        with polling():
+            return await client.responses.retrieve(model_response.id)
 
     try:
         # keep checking status until we get "complete", "incomplete", of "failed"
@@ -463,6 +482,41 @@ async def wait_for_background_response(
                 )
                 pass
         raise
+
+
+# Responses `reasoning` fields that come from GenerateConfig (`generate_summary`
+# is the deprecated name for `summary`), never from a `reasoning` object in
+# `extra_body`.
+_GENERATE_CONFIG_REASONING_FIELDS = frozenset(
+    ["effort", "mode", "summary", "generate_summary"]
+)
+
+
+# `config.extra_body` fields that the request reads, besides
+# `responses_extra_body_fields()`.
+_REQUEST_EXTRA_BODY_FIELDS = frozenset(["background", "reasoning"])
+
+
+def _raw_extra_body(
+    extra_body: dict[str, Any], request: dict[str, Any]
+) -> dict[str, Any]:
+    """Fields of `extra_body` to send as given.
+
+    The SDK merges `extra_body` over the request with its fields winning, so a
+    field the request already reads or sets (`reasoning`, `include`, `text`)
+    would replace Inspect's value. Those fields are left out, with a warning
+    for the ones Inspect sets from `GenerateConfig` or the input.
+    """
+    read = _REQUEST_EXTRA_BODY_FIELDS.union(responses_extra_body_fields())
+    built = {k for k, v in request.items() if not isinstance(v, NotGiven)}
+    built.add("stream")
+    ignored = sorted(k for k in extra_body if k in built and k not in read)
+    if ignored:
+        warn_once(
+            logger,
+            f"extra_body fields {ignored} are set by Inspect and are not sent as given.",
+        )
+    return {k: v for k, v in extra_body.items() if k not in read and k not in built}
 
 
 def completion_params_responses(
@@ -576,7 +630,7 @@ def completion_params_responses(
     ):
         params["parallel_tool_calls"] = config.parallel_tool_calls
 
-    reasoning: dict[str, str] = {}
+    reasoning: dict[str, Any] = {}
     if config.reasoning_effort is not None:
         # models that predate `max` effort top out at `xhigh`; map `max` to it
         # so the request isn't rejected. Mirrors the mapping in
@@ -596,6 +650,14 @@ def completion_params_responses(
         reasoning["mode"] = config.reasoning_mode
     if config.reasoning_summary != "none":
         reasoning["summary"] = config.reasoning_summary or "auto"
+    # A `reasoning` object in config.extra_body (e.g. from a client talking to us
+    # through the agent bridge) contributes the fields GenerateConfig does not
+    # model (e.g. `context`); the fields it does model come from config above.
+    extra_reasoning = (config.extra_body or {}).get("reasoning")
+    if isinstance(extra_reasoning, dict):
+        for key, value in extra_reasoning.items():
+            if key not in _GENERATE_CONFIG_REASONING_FIELDS:
+                reasoning[key] = value
     if len(reasoning) > 0:
         if model_info.has_reasoning_options():
             params["reasoning"] = reasoning
