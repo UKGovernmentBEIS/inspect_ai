@@ -54,3 +54,18 @@ def test_json_header_only_reads_int_beyond_int64(tmp_path: Path) -> None:
     header = read_eval_log(log_file, header_only=True)
 
     assert header.eval.metadata == {"hash": 2**64 - 1}
+
+
+def test_json_header_only_reads_float_beyond_double(tmp_path: Path) -> None:
+    log = read_eval_log("tests/log/test_eval_log/log_formats.json")
+    log.eval.metadata = {"large": 0.5}
+    log_file = tmp_path / "log.json"
+    write_eval_log(log, log_file.as_posix())
+    # Python never writes this literal (it writes Infinity), but it is valid JSON
+    log_file.write_text(
+        log_file.read_text().replace('"large": 0.5', '"large": 1e309', 1)
+    )
+
+    header = read_eval_log(log_file.as_posix(), header_only=True)
+
+    assert header.eval.metadata == {"large": float("inf")}
