@@ -12,21 +12,15 @@ Inspect also includes a collection of over 200 pre-built evaluations ready to ru
 
 ***
 
-To work on development of Inspect, clone the repository and install with the `-e` flag and `[dev]` optional dependencies:
+To work on development of Inspect, install [uv](https://docs.astral.sh/uv/) (0.11.8 or later), clone the repository, and sync the development environment from the checked-in lockfile:
 
 ```bash
 git clone https://github.com/UKGovernmentBEIS/inspect_ai.git
 cd inspect_ai
-pip install -e ".[dev]"
+uv sync
 ```
 
-Alternatively, if you use [uv](https://docs.astral.sh/uv/), sync the development environment from the checked-in lockfile:
-
-```bash
-uv sync --extra dev
-```
-
-The uv workflow is supported but not required. The `uv.lock` file records a reproducible development resolution; project dependencies are still declared in `requirements*.txt` and exposed through `pyproject.toml`. When changing dependencies, update the appropriate requirements file and refresh the lockfile rather than relying on `uv add`.
+This installs Inspect in editable mode with its development dependencies at the versions recorded in `uv.lock`. Project dependencies are declared in `requirements*.txt` and exposed through `pyproject.toml`. When changing dependencies, update the appropriate requirements file and run `uv lock` rather than relying on `uv add`. uv only resolves releases that are at least seven days old, except for model provider SDKs and Inspect's own packages; see [CONTRIBUTING.md](CONTRIBUTING.md#working-on-your-issue) for how to adopt a newer release.
 
 Optionally install pre-commit hooks via
 
@@ -41,7 +35,7 @@ make check
 make test
 ```
 
-When working in a uv-managed environment, prefix those commands with `uv run` (for example, `uv run make check`).
+Prefix those commands with `uv run` (for example, `uv run make check`), or activate the environment in `.venv` first.
 
 If you use VS Code, you should be sure to have installed the recommended extensions (Python, Ruff, and MyPy). Note that you'll be prompted to install these when you open the project in VS Code.
 
@@ -53,12 +47,12 @@ Initialize the submodule and install dependencies — see the [one-time setup gu
 
 ### Documentation
 
-To work on the Inspect documentation, install the optional `[doc]` dependencies with the `-e` flag and build the docs:
+To work on the Inspect documentation, sync the optional `doc` dependencies and build the docs:
 
 ```
-pip install -e ".[doc]"
+uv sync --extra doc
 cd docs
-quarto render # or 'quarto preview'
+uv run quarto render # or 'uv run quarto preview'
 ```
 
 If you intend to work on the docs iteratively, you'll want to install the Quarto extension in VS Code.

@@ -100,10 +100,16 @@ async def _find_central_directory(
     tail = suffix.data
     tail_start = suffix.file_size - len(tail)
 
-    # Search backward for EOCD signature
+    # Like stdlib zipfile, first check for a comment-less EOCD ending the file:
+    # its own fields can contain the signature (e.g. 0x4B50 entries followed by
+    # a central directory size ending 0x0605), so a search would find that
+    # instead. Otherwise take the last signature, and reject a truncated record
+    # rather than falling back to an earlier match.
     eocd_sig = b"PK\x05\x06"
-    idx = tail.rfind(eocd_sig)
-    if idx == -1:
+    idx = len(tail) - _MIN_EOCD_SIZE
+    if idx < 0 or tail[idx : idx + 4] != eocd_sig or tail[-2:] != b"\x00\x00":
+        idx = tail.rfind(eocd_sig)
+    if idx == -1 or idx + _MIN_EOCD_SIZE > len(tail):
         raise ValueError("EOCD not found")
 
     # Parse 32-bit EOCD fields
@@ -134,16 +140,11 @@ async def _find_central_directory(
 
     if needs_zip64:
         # The ZIP64 EOCD Locator is exactly 20 bytes and per the spec
-        # appears immediately before the standard EOCD record.
-        loc_sig = b"PK\x06\x07"
+        # appears immediately before the standard EOCD record. Without it the
+        # sentinels are real values (e.g. stdlib writes 65535 entries as a
+        # plain EOCD), so, like stdlib, look only there.
         loc_idx = idx - 20
-        if loc_idx >= 0 and tail[loc_idx : loc_idx + 4] == loc_sig:
-            pass  # found at expected position
-        else:
-            # Fall back to searching (handles non-standard writers)
-            loc_idx = tail.rfind(loc_sig, 0, idx)
-
-        if loc_idx >= 0 and tail[loc_idx : loc_idx + 4] == loc_sig:
+        if loc_idx >= 0 and tail[loc_idx : loc_idx + 4] == b"PK\x06\x07":
             # Parse ZIP64 EOCD locator to get EOCD64 offset
             fields = struct.unpack_from("<IQI", tail, loc_idx + 4)
             eocd64_offset = fields[1]
