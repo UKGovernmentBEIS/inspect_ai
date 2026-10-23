@@ -13,13 +13,65 @@ updates:
       github-actions:
         patterns:
           - "*"
-  - package-ecosystem: pip
+  # Bumps uv.lock. The cooldown matches `exclude-newer` in pyproject.toml,
+  # and its exclude list matches `exclude-newer-package` there. Those exempt
+  # packages get their own group, so a new SDK release is proposed the next day
+  # and a broken update elsewhere can't hold it up. It comes first: a package
+  # in both groups goes to the first match (and to the more specific pattern).
+  - package-ecosystem: uv
     versioning-strategy: lockfile-only
     directory: "/"
     schedule:
       interval: daily
       time: "13:00"
+    cooldown:
+      default-days: 7
+      exclude:
+        - "aiobotocore"
+        - "anthropic"
+        - "aws-bedrock-token-generator"
+        - "azure-ai-inference"
+        - "boto3"
+        - "botocore"
+        - "certifi"
+        - "google-genai"
+        - "groq"
+        - "huggingface-hub"
+        - "inspect-scout"
+        - "inspect-sentinel"
+        - "mistralai"
+        - "nnterp"
+        - "openai"
+        - "sglang"
+        - "together"
+        - "transformer-lens"
+        - "transformers"
+        - "vllm"
+        - "xai-sdk"
     groups:
+      provider-sdks:
+        patterns:
+          - "aiobotocore"
+          - "anthropic"
+          - "aws-bedrock-token-generator"
+          - "azure-ai-inference"
+          - "boto3"
+          - "botocore"
+          - "certifi"
+          - "google-genai"
+          - "groq"
+          - "huggingface-hub"
+          - "inspect-scout"
+          - "inspect-sentinel"
+          - "mistralai"
+          - "nnterp"
+          - "openai"
+          - "sglang"
+          - "together"
+          - "transformer-lens"
+          - "transformers"
+          - "vllm"
+          - "xai-sdk"
       python-packages:
         patterns:
           - "*"
@@ -38,3 +90,15 @@ updates:
         versions: [">=8.2.0"]
       - dependency-name: "griffe"
         versions: [">=1.15.0"]
+  # Bumps the release build toolchain pinned in
+  # .github/actions/build-dist/requirements.txt.
+  - package-ecosystem: uv
+    directory: "/.github/actions/build-dist"
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      build-toolchain:
+        patterns:
+          - "*"

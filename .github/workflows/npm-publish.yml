@@ -65,7 +65,9 @@ jobs:
       - name: Upgrade npm (for Trusted Publishing)
         run: |
           # Install via prefix to avoid npm self-upgrade rebuild bug on Node 22.
-          npm install --prefix "$RUNNER_TEMP/npm-upgrade" --no-audit --no-fund npm@^11.5.1
+          # An exact version (Trusted Publishing needs >= 11.5.1) without install
+          # scripts, since this job holds the publishing id-token.
+          npm install --prefix "$RUNNER_TEMP/npm-upgrade" --no-audit --no-fund --ignore-scripts npm@11.21.0
           echo "$RUNNER_TEMP/npm-upgrade/node_modules/.bin" >> "$GITHUB_PATH"
           "$RUNNER_TEMP/npm-upgrade/node_modules/.bin/npm" --version
 

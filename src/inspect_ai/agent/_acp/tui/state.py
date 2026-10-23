@@ -426,7 +426,9 @@ class ToolCallState:
     scaffold runs the tool, so there's no pending ``ToolEvent`` to cancel and the
     request would no-op. The ``cancel_tool_call_ids`` accessor filters these out
     so the per-tool cancel affordance isn't offered (turn-level interrupt still
-    works). Absent meta ⇒ True (the react default).
+    works). Absent meta ⇒ True (the react default). A later update carrying the
+    key replaces it: a host tool the sandbox bridge runs for a proposed call
+    makes its synthesized card cancelable.
     """
     parallel_batch_id: int | None = None
     """Sticky id of the parallel batch this tool joined, or None for solo tools.
@@ -2749,6 +2751,9 @@ class SessionState:
             tc.raw_input = update.raw_input
         if update.raw_output is not None:
             tc.raw_output = update.raw_output
+        meta = getattr(update, "field_meta", None) or {}
+        if TOOL_CALL_CANCELABLE_META_KEY in meta:
+            tc.cancelable = bool(meta[TOOL_CALL_CANCELABLE_META_KEY])
 
     def _consume_usage(self, update: UsageUpdate, outer_meta: dict[str, Any]) -> bool:
         # ``totalMessages`` rides on the outer ``field_meta`` (the inspect-

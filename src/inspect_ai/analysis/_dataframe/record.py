@@ -6,7 +6,7 @@ import yaml
 from jsonpath_ng import JSONPath  # type: ignore
 from pydantic import JsonValue
 
-from inspect_ai._util.dateutil import datetime_from_iso_format_safe
+from inspect_ai._util.dateutil import datetime_from_iso_format_safe, datetime_safe
 from inspect_ai.analysis._dataframe.events.columns import EventColumn
 from inspect_ai.analysis._dataframe.messages.columns import MessageColumn
 from inspect_ai.analysis._dataframe.samples.columns import SampleColumn
@@ -349,7 +349,9 @@ def _coerce_from_str(tp: Type[ColumnType], text: str) -> ColumnType:
         # exact match?
         if isinstance(parsed, tp) and not _is_bool_int_mismatch(tp, parsed):
             if isinstance(parsed, datetime):
-                parsed = parsed.astimezone(timezone.utc)
+                # YAML timestamps without an offset are naive, and astimezone()
+                # treats those as local time. Tag them UTC first.
+                parsed = datetime_safe(parsed, timezone.utc).astimezone(timezone.utc)
             return cast(ColumnType, parsed)
         # try constructor on the YAML result (e.g. str→float via YAML "1.5")
         coerced = _try_constructor(tp, parsed)
