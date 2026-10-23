@@ -53,6 +53,10 @@ class HeldReductions(NamedTuple):
     sources: dict[str, str]
     """The log each held sample id is taken from."""
 
+    unfinished: Callable[[], Awaitable[set[str]]]
+    """The held sample ids whose shard has not finished (no recorded
+    reductions yet); called only when a reduction is missing."""
+
 
 class MergedScoring(NamedTuple):
     """What the merged header takes from the merged samples."""
@@ -63,17 +67,30 @@ class MergedScoring(NamedTuple):
 
 
 def check_scoring_resolvable(header: EvalLog) -> None:
-    """Refuse metrics the registry cannot resolve.
+    """Refuse metrics the registry cannot resolve, and repeated reducer names.
 
     The merge never imports the log's `task_file`, so every metric (of a
     scorer or of the task, `eval.metrics`) must already be registered: built
     in, from an installed package, or imported by the caller. Epoch reducers
-    are not recreated (see :func:`_recompute_results`).
+    are not recreated (see :func:`_recompute_results`): their recorded
+    reductions are told apart by name, so two reducers with one name
+    (`at_least(1, value=0.5)` and `at_least(1)` are both `at_least_1`) are
+    refused.
 
     Raises:
         LookupError: A metric is not registered.
+        ShardSetError: Two epoch reducers have the same name.
     """
     from inspect_ai._util.registry import registry_lookup
+
+    names = header.eval.config.epochs_reducer or []
+    repeated = sorted({name for name in names if names.count(name) > 1})
+    if repeated:
+        raise ShardSetError(
+            f"The epoch reducers {names} name {', '.join(repeated)} more than "
+            "once. A log records its reducers by name only, so the merge cannot "
+            "tell their reductions apart and does not merge such shards."
+        )
 
     groups = [scorer.metrics for scorer in header.eval.scorers or []]
     for metrics in [*groups, header.eval.metrics]:
@@ -138,7 +155,6 @@ async def write_merged_zip(
     total_samples: int,
     shard_results: Callable[[], Awaitable[Sequence[tuple[str, EvalResults]]]],
     held_reductions: HeldReductions,
-    complete: bool,
     make_header: Callable[[MergedScoring], EvalLog],
 ) -> EvalLog:
     """Write the merged log's members to `out` and return its header.
@@ -151,8 +167,7 @@ async def write_merged_zip(
     always written finished. `shard_results` returns the results each
     shard's current attempt recorded (as `(source, results)`), which show
     whether a score with no declared scorer or task metrics used the default
-    metrics; it is called only when there is such a score. `complete` is
-    whether the merged log is `success`.
+    metrics; it is called only when there is such a score.
 
     Raises:
         ShardSetError: A sample member's id or epoch does not match its name;
@@ -169,7 +184,7 @@ async def write_merged_zip(
             data = await read_member(key)
             inputs.append(await anyio.to_thread.run_sync(_write_sample, zf, key, data))
         results, reductions = await _recompute_results(
-            template, inputs, total_samples, shard_results, held_reductions, complete
+            template, inputs, total_samples, shard_results, held_reductions
         )
         header = make_header(
             MergedScoring(
@@ -227,7 +242,6 @@ async def _recompute_results(
     total_samples: int,
     shard_results: Callable[[], Awaitable[Sequence[tuple[str, EvalResults]]]],
     held_reductions: HeldReductions,
-    complete: bool,
 ) -> tuple[EvalResults | None, list[EvalSampleReductions] | None]:
     """Metrics over the merged samples, as `eval_results` computes them live.
 
@@ -239,10 +253,13 @@ async def _recompute_results(
     reducer is the default `mean`, which is applied as the live run applies
     it.
 
-    A sample whose reduction is not recorded (its shard has not finished)
-    leaves an incomplete merged log without results and refuses a complete
-    merge. An edited score refuses any merge: its recorded reduction
-    predates the edit or was recomputed with a recreated reducer.
+    When the samples whose reduction is not recorded all belong to shards
+    that have not finished, the merged log (incomplete) is written without
+    results, keeping the reductions recorded so far (decision: Ransom,
+    2026-10-23). A finished shard (or the merged log) without a recorded
+    reduction, a recovered attempt, and an edited score are refused: an
+    edited score's recorded reduction predates the edit or was recomputed
+    with a recreated reducer.
 
     Raises:
         ShardSetError: A reduction cannot be taken from its log, or see
@@ -278,7 +295,17 @@ async def _recompute_results(
     )
     lookup: _RecordedLookup | None = None
     if names:
-        lookup = _RecordedLookup(held_reductions, inputs)
+        edited = [
+            (str(sample.scores[name].sample_id), name)
+            for sample in inputs
+            for name in sorted(sample.edited)
+        ]
+        if edited:
+            id, name = edited[0]
+            raise ShardSetError(
+                edited_score_message(name, id, held_reductions.sources[id])
+            )
+        lookup = _RecordedLookup(held_reductions)
         reducers = RecordedReductions(names, lookup)
     results, reductions = eval_results(
         samples=total_samples,
@@ -293,59 +320,58 @@ async def _recompute_results(
         completed_samples=sum(1 for sample in inputs if not sample.error),
         headline_metric=template.eval.headline_metric,
     )
-    if lookup is not None and lookup.missing is not None:
-        if complete:
-            raise ShardSetError(lookup.missing)
+    if lookup is not None and lookup.missing:
+        unfinished = await held_reductions.unfinished()
+        finished = [id for id in lookup.missing if id not in unfinished]
+        if finished:
+            raise ShardSetError(lookup.missing[finished[0]])
         return None, held_reductions.reductions
     return results, reductions
+
+
+def edited_score_message(score: str, sample_id: str, location: str) -> str:
+    """The refusal for an edited score when epoch reducers are recorded."""
+    return (
+        f"Score '{score}' of sample {sample_id!r} in {location} was edited. With "
+        "an epoch reducer set, the merge takes each sample's reduced scores from "
+        "the log it merges the sample from, and an edited score's recorded "
+        "reduction may not match it: the log records its reducers by name only, "
+        "so the merge cannot recompute it. Re-run the shard holding the sample, "
+        "or, if the edit is in the merged log, delete the merged log so the "
+        "next merge rebuilds it from the shards."
+    )
 
 
 class _RecordedLookup:
     """Each sample's recorded reduction (the `reduced` of `RecordedReductions`).
 
     A sample with no recorded reduction is left out, and `missing` describes
-    the first one.
+    it, by sample id.
     """
 
-    def __init__(self, held: HeldReductions, inputs: list[_SampleInputs]) -> None:
+    def __init__(self, held: HeldReductions) -> None:
         self._sources = held.sources
         self._by_view = {
             (r.scorer, r.reducer): {str(s.sample_id): s for s in r.samples}
             for r in held.reductions
         }
-        self._edited = {
-            (str(sample.scores[name].sample_id), name)
-            for sample in inputs
-            for name in sample.edited
-        }
-        self.missing: str | None = None
+        self.missing: dict[str, str] = {}
 
     def __call__(
         self, scorer: str, reducer: str, scores: list[SampleScore]
     ) -> list[SampleScore]:
-        """Raises ShardSetError for an edited score."""
         recorded = self._by_view.get((scorer, reducer), {})
         firsts: dict[str, SampleScore] = {}
         for score in scores:
             firsts.setdefault(str(score.sample_id), score)
         reduced: list[SampleScore] = []
         for id, first in firsts.items():
-            source = self._sources[id]
-            if (id, scorer) in self._edited:
-                raise ShardSetError(
-                    f"Score '{scorer}' of sample {id!r} in {source} was edited, so "
-                    f"its recorded epoch reduction ('{reducer}') may not match "
-                    "it. A log records its epoch reducers by name only, without "
-                    "their arguments, so the merge cannot recompute it. Re-run "
-                    "the shard holding the sample, or, if the edit is in the "
-                    "merged log, delete the merged log so the next merge "
-                    "rebuilds it from the shards."
-                )
             entry = recorded.get(id)
             if entry is None:
-                if self.missing is None:
-                    self.missing = (
-                        f"{source} records no epoch reduction ('{reducer}') of "
+                if id not in self.missing:
+                    self.missing[id] = (
+                        f"{self._sources[id]} records no epoch reduction "
+                        f"('{reducer}') of "
                         f"score '{scorer}' for sample {id!r}. A log records its "
                         "epoch reducers by name only, without their arguments, "
                         "so the merge takes each sample's reduction from the log "

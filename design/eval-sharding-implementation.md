@@ -855,7 +855,8 @@ downloaded and rewritten only when step 10 says so.
     `write_file_streaming`.
 12. **Delete shards** when `delete_shards` is set and the merged log's
     status is `success` ("Deleting shards"). This runs whether or not step
-    11 wrote.
+    11 wrote; when it did not and shard attempts remain, the merged log's
+    samples are first checked for edited scores ("Metric recomputation").
 13. **Release** the local guard and remove temp files, in `finally`.
 
 #### Validation
@@ -1263,18 +1264,32 @@ disabled) is passed as it is. A one-epoch run is not an exception: the
 live run applies the reducer to the single score too
 (`at_least(1, value=0.5)` turns 0.75 into 1).
 
-When a held sample's reduction is not recorded (its shard is running, or
-its finished attempt or the merged log lacks the entry), an incomplete
-merged log is written with no `results` and the recorded reductions of the
-other held samples, which carried samples read on a later pass; a
-`success` merge is refused with `ShardSetError` before publishing or
-deleting. Readers attach `reductions.json` only when `results` is set, so
-the partial reductions are not shown. A score with an edit history (from
-`edit_score`, in a shard or the merged log) refuses any pass that writes:
-its recorded reduction predates the edit or was recomputed with a
-recreated reducer. The messages name the sample, score, reducer and log,
-and say to re-run the shard or delete the merged log so the next merge
-rebuilds it from the shards.
+When held samples have no recorded reduction and all of them belong to
+shards whose current attempt is still running (`started`), the merge
+writes an incomplete merged log with no `results` and the recorded
+reductions of the other held samples, which carried samples read on a
+later pass (decision: Ransom, 2026-10-23). A running read attempt's status
+is in its header; an unchanged shard's is in its ledger entry, and its
+header is read for its selected ids only in this case. No partial metrics
+are computed. Everything else is refused with `ShardSetError` before
+publishing or deleting, whether the merge is complete or not: a finished
+attempt (success, error or cancelled) or the merged log without the
+entry, and a recovered attempt. Readers attach `reductions.json` only when
+`results` is set, so the partial reductions are not shown.
+
+With reducers recorded, a score with an edit history (from `edit_score`,
+in a shard or the merged log) is refused too: its recorded reduction
+predates the edit or was recomputed with a recreated reducer. A pass that
+writes checks the samples it parses; a pass that writes nothing but would
+delete shard attempts (no shard changed, or an interrupted deletion's
+remnant) reads every sample member of the merged log in step 12, before
+deleting, for the same check, since summaries drop edit histories. A merge that neither
+writes nor deletes is not checked. Two reducers recorded under one name
+(`at_least(1, value=0.5)` and `at_least(1)` are both `at_least_1`; two
+`mean` with different converters) are refused before any sample is read,
+because their recorded reductions cannot be told apart. The messages name
+the sample, score, reducer and log, and say to re-run the shard or delete
+the merged log so the next merge rebuilds it from the shards.
 
 Memory: the current sample plus every sample's `SampleScore`s, as the
 parent's "Scale" accepts. The baseline parses each sample whole, so peak
@@ -2365,13 +2380,17 @@ Per PR (numbers from "Implementation plan"):
      reduced and unreduced metrics, merge to an unsharded run's results
      and reductions, fresh and incrementally (the first pass, made while a
      shard runs, has no results; the next carries the finished shard's
-     reductions from the merged log), with `delete_shards=True`; a cold
-     custom reducer registered as `pass_at_1` merges with its recorded
-     reductions; with `delete_shards=True`, a finished shard without
-     `reductions.json`, a recovered attempt and a score edited in a shard
-     are refused, with no merged log published and the shards intact, and
-     a score edited in the merged log refuses the next pass that writes,
-     leaving the merged log unchanged;
+     reductions from the merged log), with `delete_shards=True`, and two
+     reducers with distinct names; a cold custom reducer registered as
+     `pass_at_1` merges with its recorded reductions; a finished shard
+     without `reductions.json`, a recovered attempt and a score edited in a
+     shard are refused, both with `delete_shards=True` and in an
+     incomplete merge beside a running shard, with no merged log published
+     and the shards intact; two reducers named `at_least_1` are refused
+     with `delete_shards=True`; a score edited in the merged log refuses
+     the next pass that writes, and refuses `delete_shards=True` with no
+     shard changed and on an interrupted deletion's remnant, leaving the
+     merged log and shards byte-identical;
    - `invalidated`: a fresh merge of an invalidated shard sample sets it, a
      replacement without the last invalidated sample clears it, and an
      invalidated replacement in an incremental merge sets it again; each

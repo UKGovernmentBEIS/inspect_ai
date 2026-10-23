@@ -4,14 +4,14 @@ import functools
 import json
 import tempfile
 import zipfile
-from collections.abc import Sequence
+from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass
 from typing import Any, Literal, NamedTuple
 
 import anyio
 
 from inspect_ai._util._async import run_coroutine, tg_collect
-from inspect_ai._util.async_zip import AsyncZipReader
+from inspect_ai._util.async_zip import AsyncZipReader, CentralDirectory
 from inspect_ai._util.asyncfiles import AsyncFilesystem, is_s3_filename
 from inspect_ai._util.constants import get_deserializing_context
 from inspect_ai._util.file import FileInfo, basename, local_path, to_uri
@@ -58,13 +58,19 @@ from ._plan import (
     is_unchanged,
     ledger_entry,
     merged_records,
+    parse_sample_member,
     plan_status,
     recorded_selection,
     selected_total,
 )
 from ._publish import is_local, merge_guard, merged_log_copy, publish
 from ._walk import ShardDir, attempt_sort_key, list_shard_set
-from ._write import HeldReductions, check_scoring_resolvable, write_merged_zip
+from ._write import (
+    HeldReductions,
+    check_scoring_resolvable,
+    edited_score_message,
+    write_merged_zip,
+)
 
 _MAX_CONCURRENT_READS = 16
 
@@ -126,11 +132,12 @@ def merge_eval_log_shards(
     task file; to merge a log whose task defines its own metric, import that
     module first and merge from Python. Epoch reducers are not recreated:
     with a reducer configured, each sample's reduced scores are taken from
-    the shard that ran it, which records them when it finishes. An
-    incomplete merged log then has no results until every shard holding its
-    samples has finished, and a score edited in a shard or the merged log
-    (`edit_score`) refuses the merge, since its recorded reduction cannot be
-    checked.
+    the shard that ran it, which records them when it finishes. While a
+    shard holding samples is still running, an incomplete merged log has no
+    results. A finished shard without recorded reductions, a recovered shard
+    log, two reducers with the same name and a score edited in a shard or
+    the merged log (`edit_score`) refuse the merge, since the reductions
+    cannot be established.
 
     A merge that runs while a worker is writing its shard can fail with a
     read error (for example a CRC or JSON error). Nothing is written; run
@@ -232,6 +239,9 @@ class _Pass(NamedTuple):
     records: set[SampleRecordKey]
     new_samples: int
     status: Status
+    check_edits: bool
+    """Whether deleting the shards must first check the merged log's samples
+    for edited scores: nothing was written and shard attempts remain."""
 
 
 async def merge_shards(
@@ -444,7 +454,7 @@ async def _merge_pass(
         raise _incomplete(merged_path, status)
 
     if existing is not None and not changed and selection.same_as(recorded):
-        return _Pass(existing.header, False, existing.etag, records, 0, status)
+        return _Pass(existing.header, False, existing.etag, records, 0, status, True)
 
     check_scoring_resolvable(base)
     with tempfile.TemporaryDirectory() as temp_dir:
@@ -500,9 +510,14 @@ async def _merge_pass(
                         _current_results, fs, shards, current
                     ),
                     held_reductions=_held_reductions(
-                        reads, carried, carried_reductions, merged_path
+                        reads,
+                        carried,
+                        carried_reductions,
+                        merged_path,
+                        functools.partial(
+                            _unfinished_ids, fs, shards, reads, ledger, carried
+                        ),
                     ),
-                    complete=status.status == "success",
                     make_header=lambda scoring: build_header(
                         base=base,
                         merged=existing.header if existing is not None else None,
@@ -536,6 +551,7 @@ async def _merge_pass(
         records=set(keys),
         new_samples=len(set(keys) - records),
         status=status,
+        check_edits=False,
     )
 
 
@@ -566,7 +582,9 @@ def _recorded_pass(
     )
     if header.status != "success" and not allow_incomplete:
         raise _incomplete(header.location, status)
-    return _Pass(header, False, existing.etag, existing.records, 0, status)
+    return _Pass(
+        header, False, existing.etag, existing.records, 0, status, not shards_gone
+    )
 
 
 def _incomplete(location: str, status: Status) -> ShardSetIncomplete:
@@ -713,6 +731,7 @@ def _held_reductions(
     carried: set[SampleRecordKey],
     carried_reductions: list[EvalSampleReductions],
     merged_path: str,
+    unfinished: Callable[[], Awaitable[set[str]]],
 ) -> HeldReductions:
     """The recorded reductions of the held samples, each from its own log.
 
@@ -731,7 +750,13 @@ def _held_reductions(
 
     for read in reads:
         ids = {key.sample_id for key in read.summaries}
-        sources.update(dict.fromkeys(ids, read.file.name))
+        source = read.file.name
+        if attempt_sort_key(read.file).recovered:
+            source += (
+                " (a recovered log, whose reductions recovery recomputes from "
+                "the reducers' names)"
+            )
+        sources.update(dict.fromkeys(ids, source))
         add(read.reductions or [], ids)
     add(carried_reductions, {key.sample_id for key in carried})
     return HeldReductions(
@@ -740,7 +765,48 @@ def _held_reductions(
             for (scorer, reducer), held in samples.items()
         ],
         sources=sources,
+        unfinished=unfinished,
     )
+
+
+async def _unfinished_ids(
+    fs: AsyncFilesystem,
+    shards: list[ShardDir],
+    reads: list[AttemptRead],
+    ledger: dict[str, EvalShardEntry],
+    carried: set[SampleRecordKey],
+) -> set[str]:
+    """The held sample ids whose shard's current attempt is still running.
+
+    A read attempt's status is in its header. An unchanged shard's is in its
+    ledger entry; the sample ids it selects are read from its header only
+    when that status is `started`.
+    """
+    ids = {
+        key.sample_id
+        for read in reads
+        if read.header.status == "started"
+        for key in read.summaries
+    }
+    read_shards = {read.shard for read in reads}
+    running = [
+        shard
+        for shard in shards
+        if shard.name not in read_shards and ledger[shard.name].status == "started"
+    ]
+    limiter = anyio.CapacityLimiter(_MAX_CONCURRENT_READS)
+
+    async def selected(shard: ShardDir) -> set[str]:
+        async with limiter:
+            header = await _read_attempt_header(fs, shard)
+        return {str(id) for id in header.eval.dataset.sample_ids or []}
+
+    carried_ids = {key.sample_id for key in carried}
+    for selection in await tg_collect(
+        [functools.partial(selected, s) for s in running]
+    ):
+        ids |= selection & carried_ids
+    return ids
 
 
 def _read_carried_summaries(
@@ -757,8 +823,13 @@ def _read_carried_summaries(
 async def _verify(fs: AsyncFilesystem, merged_path: str, merge_pass: _Pass) -> None:
     """Check the published merged log before its shards are deleted.
 
+    When this pass wrote nothing and shard attempts remain, a merged log
+    with epoch reducers recorded is also checked for edited scores, which
+    the writing passes refuse (see `_recompute_results` in `_write.py`).
+
     Raises:
-        ShardSetError: The merged log is not the one this call planned.
+        ShardSetError: The merged log is not the one this call planned, or
+            holds an edited score.
     """
     reader = AsyncZipReader(fs, merged_path)
     cd = await reader.entries()
@@ -790,3 +861,25 @@ async def _verify(fs: AsyncFilesystem, merged_path: str, merge_pass: _Pass) -> N
             f"{merged_path} does not hold what the merge planned; its shards were "
             "not deleted."
         )
+    if merge_pass.check_edits and header.eval.config.epochs_reducer:
+        await _check_unedited(reader, cd, merged_path)
+
+
+async def _check_unedited(
+    reader: AsyncZipReader, cd: CentralDirectory, merged_path: str
+) -> None:
+    """Refuse a merged log holding an edited score (see `edited_score_message`).
+
+    Summaries do not keep score edit histories, so every sample member is read.
+    """
+    for entry in cd.entries:
+        key = parse_sample_member(entry.filename)
+        if key is None:
+            continue
+        sample = json.loads(await reader.read_member_fully(entry))
+        for name, score in sorted((sample.get("scores") or {}).items()):
+            if score.get("history"):
+                raise ShardSetError(
+                    edited_score_message(name, key.sample_id, merged_path)
+                    + " Its shards were not deleted."
+                )

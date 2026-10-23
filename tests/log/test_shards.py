@@ -843,6 +843,9 @@ def _graded_task(epochs: Epochs | int) -> Task:
         pytest.param(Epochs(2, pass_at(2, value=0.5)), id="pass_at"),
         pytest.param(Epochs(2, pass_k(2, value=0.5)), id="pass_k"),
         pytest.param(Epochs(2, mean_score(value_to_float=_doubled)), id="mean"),
+        pytest.param(
+            Epochs(2, [at_least(1, value=0.5), pass_at(2, value=0.5)]), id="two"
+        ),
     ],
 )
 def test_configured_reducers_merge_with_the_workers_results(
@@ -930,9 +933,10 @@ def {TASK}() -> Task:
 """
 
 
+@pytest.mark.parametrize("incomplete", [False, True])
 @pytest.mark.parametrize("case", ["no_reductions", "recovered", "edited"])
 def test_a_reduction_the_merge_cannot_take_from_its_shard_is_refused(
-    tmp_path: Path, case: str
+    tmp_path: Path, case: str, incomplete: bool
 ) -> None:
     import shutil
 
@@ -940,8 +944,11 @@ def test_a_reduction_the_merge_cannot_take_from_its_shard_is_refused(
 
     merged, shards = _paths(tmp_path)
     task = _graded_task(Epochs(2, at_least(1, value=0.5)))
-    _run(shards, "0", task, sample_id=[1, 2, 3])
-    shard = _run(shards, "1", task, sample_id=[4, 5, 6])
+    shard = _run(shards, "0", task, sample_id=[1, 2, 3])
+    other = _run(shards, "1", task, sample_id=[4, 5, 6])
+    if incomplete:
+        # a running shard's samples alone would leave the log without results
+        _as_running(other, keep={(4, 1)})
     if case == "no_reductions":
         _remove_member(shard.location, "reductions.json")
     elif case == "recovered":
@@ -952,12 +959,29 @@ def test_a_reduction_the_merge_cannot_take_from_its_shard_is_refused(
     else:
         _rewrite(
             shard,
-            lambda log: edit_score(log, 4, "graded", ScoreEdit(value=0.25), epoch=1),
+            lambda log: edit_score(log, 1, "graded", ScoreEdit(value=0.25), epoch=1),
         )
     before = _files(shards)
-    with pytest.raises(ShardSetError, match="epoch reduction .*at_least_1") as raised:
+    message = "was edited" if case == "edited" else "no epoch reduction .*at_least_1"
+    with pytest.raises(ShardSetError, match=message) as raised:
+        if incomplete:
+            merge_eval_log_shards(merged, allow_incomplete=True)
+        else:
+            merge_eval_log_shards(merged, delete_shards=True)
+    assert ("recovered log" in str(raised.value)) == (case == "recovered")
+    assert not os.path.exists(merged)
+    assert _files(shards) == before
+
+
+def test_epoch_reducers_sharing_a_name_are_refused(tmp_path: Path) -> None:
+    # both are recorded as `at_least_1`
+    task = _graded_task(Epochs(2, [at_least(1, value=0.5), at_least(1)]))
+    merged, shards = _paths(tmp_path)
+    _run(shards, "0", task, sample_id=[1, 2, 3])
+    _run(shards, "1", task, sample_id=[4, 5, 6])
+    before = _files(shards)
+    with pytest.raises(ShardSetError, match="name at_least_1 more than once"):
         merge_eval_log_shards(merged, delete_shards=True)
-    assert ("edited" in str(raised.value)) == (case == "edited")
     assert not os.path.exists(merged)
     assert _files(shards) == before
 
@@ -980,6 +1004,36 @@ def test_an_edited_carried_score_refuses_the_next_merge(tmp_path: Path) -> None:
         merge_eval_log_shards(merged, delete_shards=True)
     assert Path(merged).read_bytes() == before
     assert len(list(Path(shards).glob("*/*.eval"))) == 3
+
+
+@pytest.mark.parametrize("remnant", ["unchanged", "interrupted"])
+def test_an_edited_score_refuses_deleting_unchanged_shards(
+    tmp_path: Path, remnant: str
+) -> None:
+    import shutil
+
+    from inspect_ai.scorer import ScoreEdit
+
+    merged, shards = _paths(tmp_path)
+    task = _graded_task(Epochs(2, at_least(1, value=0.5)))
+    _run(shards, "0", task, sample_id=[1, 2, 3])
+    _run(shards, "1", task, sample_id=[4, 5, 6])
+    merge_eval_log_shards(merged)
+    # edit_score recomputes the reductions with reducers recreated by name
+    log = read_eval_log(merged)
+    edit_score(log, 1, "graded", ScoreEdit(value=0.25), epoch=1)
+    write_eval_log(log, merged)
+    if remnant == "interrupted":
+        # what an interrupted deletion leaves
+        shutil.rmtree(f"{shards}/1")
+    before = Path(merged).read_bytes(), _files(shards)
+
+    with pytest.raises(ShardSetError, match="was edited.*shards were not deleted"):
+        merge_eval_log_shards(merged, delete_shards=True)
+    assert (Path(merged).read_bytes(), _files(shards)) == before
+    if remnant == "unchanged":
+        # without deletion, a merge with nothing to do still returns the log
+        assert not merge_eval_log_shards(merged).written
 
 
 def _check_invalidated(merged: str, expected: bool) -> None:
