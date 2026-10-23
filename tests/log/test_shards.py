@@ -934,7 +934,9 @@ def {TASK}() -> Task:
 
 
 @pytest.mark.parametrize("incomplete", [False, True])
-@pytest.mark.parametrize("case", ["no_reductions", "recovered", "edited"])
+@pytest.mark.parametrize(
+    "case", ["no_reductions", "recovered", "recovered_untimestamped", "edited"]
+)
 def test_a_reduction_the_merge_cannot_take_from_its_shard_is_refused(
     tmp_path: Path, case: str, incomplete: bool
 ) -> None:
@@ -956,6 +958,9 @@ def test_a_reduction_the_merge_cannot_take_from_its_shard_is_refused(
         shutil.copy2(
             local_path(shard.location), shard.location[:-5] + "-recovered.eval"
         )
+    elif case == "recovered_untimestamped":
+        # the shard's only attempt, under a name with no timestamp
+        os.rename(local_path(shard.location), f"{shards}/0/worker-recovered.eval")
     else:
         _rewrite(
             shard,
@@ -968,7 +973,7 @@ def test_a_reduction_the_merge_cannot_take_from_its_shard_is_refused(
             merge_eval_log_shards(merged, allow_incomplete=True)
         else:
             merge_eval_log_shards(merged, delete_shards=True)
-    assert ("recovered log" in str(raised.value)) == (case == "recovered")
+    assert ("recovered log" in str(raised.value)) == case.startswith("recovered")
     assert not os.path.exists(merged)
     assert _files(shards) == before
 
@@ -1145,6 +1150,27 @@ def test_explicitly_empty_task_metrics_merge_solver_set_scores(
     result = merge_eval_log_shards(merged, delete_shards=True)
     assert result.shards_deleted and result.log.results is not None
     assert result.log.results.scores == unsharded.results.scores
+
+
+@pytest.mark.parametrize("snapshot", ["startup", "unscored"])
+def test_a_merge_holding_no_scores_needs_no_recorded_reductions(
+    tmp_path: Path, failing: set[int], snapshot: str
+) -> None:
+    task = _graded_task(Epochs(2, at_least(1, value=0.5)))
+    task.solver = _flaky()
+    merged, shards = _paths(tmp_path)
+    if snapshot == "startup":
+        # a running shard that has flushed no sample yet
+        _as_running(_run(shards, "0", task, sample_id=[1, 2]), keep=set())
+    else:
+        # a failed shard holding a sample that errored before scoring
+        failing.add(1)
+        _run(shards, "0", task, sample_id=[1])
+    header = merge_eval_log_shards(merged, allow_incomplete=True).log
+    assert header.status == ("started" if snapshot == "startup" else "error")
+    assert header.results is not None and header.results.scores[0].scored_samples == 0
+    held = _keys(merged)
+    assert held == (set() if snapshot == "startup" else {("1", 1), ("1", 2)})
 
 
 def _check_invalidated(merged: str, expected: bool) -> None:

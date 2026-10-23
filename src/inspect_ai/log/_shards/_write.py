@@ -493,9 +493,10 @@ def _recorded(
 ) -> list[SampleScore]:
     """Each sample's recorded reduction (the `reduced` of `RecordedReductions`).
 
-    Every one is present: `_missing_reductions` was checked first.
+    Every one is present: `_missing_reductions` was checked first. A scorer
+    with no scores (no sample scored yet) may have no recorded view.
     """
-    recorded = by_view[(scorer, reducer)]
+    recorded = by_view.get((scorer, reducer), {})
     firsts: dict[str, SampleScore] = {}
     for score in scores:
         firsts.setdefault(str(score.sample_id), score)

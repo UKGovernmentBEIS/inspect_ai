@@ -64,7 +64,7 @@ from ._plan import (
     selected_total,
 )
 from ._publish import is_local, merge_guard, merged_log_copy, publish
-from ._walk import ShardDir, attempt_sort_key, list_shard_set
+from ._walk import ShardDir, is_recovered_attempt, list_shard_set
 from ._write import (
     HeldReductions,
     check_retained_reductions,
@@ -668,7 +668,7 @@ async def _read_attempt(
     if (
         header.eval.config.epochs_reducer
         and header.status != "started"
-        and not attempt_sort_key(info).recovered
+        and not is_recovered_attempt(info)
         and REDUCTIONS_JSON in names
     ):
         reductions = _parse_reductions(await _read_member_json(reader, REDUCTIONS_JSON))
@@ -758,7 +758,7 @@ def _held_reductions(
     for read in reads:
         ids = {key.sample_id for key in read.summaries}
         source = read.file.name
-        if attempt_sort_key(read.file).recovered:
+        if is_recovered_attempt(read.file):
             source += (
                 " (a recovered log, whose reductions recovery recomputes from "
                 "the reducers' names)"

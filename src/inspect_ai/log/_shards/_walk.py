@@ -212,8 +212,12 @@ def attempt_sort_key(info: FileInfo) -> AttemptSortKey:
     created = _parse_timestamp_prefix(name)
     if created is None:
         return AttemptSortKey(False, _NO_TIMESTAMP, False, mtime)
-    stem = name.removesuffix(_EVAL_SUFFIX)
-    return AttemptSortKey(True, created, stem.endswith(_RECOVERED_SUFFIX), mtime)
+    return AttemptSortKey(True, created, is_recovered_attempt(info), mtime)
+
+
+def is_recovered_attempt(info: FileInfo) -> bool:
+    """Whether an attempt's file name ends in ``-recovered.eval``, timestamped or not."""
+    return _name(info.name).removesuffix(_EVAL_SUFFIX).endswith(_RECOVERED_SUFFIX)
 
 
 def is_shard_path(root: str, path: str) -> bool:
