@@ -1,3 +1,5 @@
+import dataclasses
+import functools
 import gc
 import os
 import subprocess
@@ -5,11 +7,17 @@ import sys
 import textwrap
 import threading
 import weakref
+from typing import Any, AsyncIterator, Awaitable, Callable, Literal
 
 import anyio.to_thread
 import pytest
 
-from inspect_ai._util._async import run_coroutine
+from inspect_ai._util._async import (
+    run_coroutine,
+    tg_collect,
+    unwrap_exception_group,
+)
+from inspect_ai.util import collect
 
 
 @pytest.mark.parametrize("backend", ["asyncio", "trio"])
@@ -201,3 +209,187 @@ def test_run_coroutine_releases_result() -> None:
     ref = released_result_ref()
     gc.collect()
     assert ref() is None, "result still referenced after release"
+
+
+async def _fail_with_cause() -> None:
+    try:
+        raise KeyError("context")
+    except KeyError:
+        raise RuntimeError("task failed") from ValueError("cause")
+
+
+def _failing_tasks(count: int) -> list[Callable[[], Awaitable[None]]]:
+    """Tasks that all fail, each only after every one has started."""
+    started = 0
+    all_started = anyio.Event()
+
+    async def fail(index: int) -> None:
+        nonlocal started
+        # shielded, so a sibling's failure cannot cancel this one first
+        with anyio.CancelScope(shield=True):
+            started += 1
+            if started == count:
+                all_started.set()
+            await all_started.wait()
+            raise RuntimeError(f"task {index} failed")
+
+    return [functools.partial(fail, index) for index in range(count)]
+
+
+def _assert_cause_kept(error: BaseException) -> None:
+    assert repr(error.__cause__) == "ValueError('cause')"
+    # the context is the task group's group, as with `raise ... from None`
+    assert isinstance(error.__context__, ExceptionGroup)
+    assert error.__suppress_context__
+
+
+async def test_collect_keeps_task_error_cause() -> None:
+    with pytest.raises(RuntimeError, match="task failed") as excinfo:
+        await collect(_fail_with_cause())
+    _assert_cause_kept(excinfo.value)
+
+
+async def test_tg_collect_keeps_task_error_cause() -> None:
+    with pytest.raises(RuntimeError, match="task failed") as excinfo:
+        await tg_collect([_fail_with_cause])
+    _assert_cause_kept(excinfo.value)
+
+
+async def test_collect_and_tg_collect_unwrap_rules() -> None:
+    # collect() raises the group when several tasks fail
+    with pytest.raises(ExceptionGroup) as group:
+        await collect(*[task() for task in _failing_tasks(2)])
+    assert len(group.value.exceptions) == 2
+
+    # tg_collect() raises one of them bare
+    with pytest.raises(RuntimeError, match="failed"):
+        await tg_collect(_failing_tasks(2))
+
+    # unless it is asked for the group
+    with pytest.raises(ExceptionGroup) as group:
+        await tg_collect([_fail_with_cause], exception_group=True)
+    assert len(group.value.exceptions) == 1
+
+
+async def test_unwrapped_task_errors_keep_their_type() -> None:
+    async def empty() -> AsyncIterator[None]:
+        return
+        yield
+
+    async def exhausted() -> None:
+        await anext(empty())
+
+    with pytest.raises(StopAsyncIteration):
+        await collect(exhausted())
+
+    # the scheduler and the debug_errors task runner use "first"
+    with pytest.raises(StopAsyncIteration):
+        async with unwrap_exception_group("first"), anyio.create_task_group() as tg:
+            tg.start_soon(exhausted)
+
+    # raised in the body itself, the error crosses the helper's async exit
+    cause = ValueError("cause")
+    policies: list[Literal["single", "first"]] = ["single", "first"]
+    for unwrap in policies:
+        with pytest.raises(StopIteration) as excinfo:
+            async with unwrap_exception_group(unwrap), anyio.create_task_group():
+                raise StopIteration("exhausted") from cause
+        assert excinfo.value.__cause__ is cause
+
+
+@pytest.mark.parametrize("unwrap", ["single", "first"])
+async def test_unwrapped_task_error_when_host_is_cancelled(
+    unwrap: Literal["single", "first"],
+) -> None:
+    started = anyio.Event()
+    cleaned_up = False
+
+    async def fail() -> None:
+        await started.wait()
+        await _fail_with_cause()
+
+    async def block() -> None:
+        nonlocal cleaned_up
+        try:
+            started.set()
+            await anyio.sleep_forever()
+        finally:
+            cleaned_up = True
+
+    with pytest.raises(RuntimeError, match="task failed") as excinfo:
+        async with unwrap_exception_group(unwrap), anyio.create_task_group() as tg:
+            tg.start_soon(fail)
+            tg.start_soon(block)
+            await anyio.sleep_forever()
+    _assert_cause_kept(excinfo.value)
+    assert cleaned_up
+
+
+def _stored_cause(error: BaseException) -> Any:
+    return vars(BaseException)["__cause__"].__get__(error)
+
+
+@dataclasses.dataclass(slots=True)
+class _SlottedCauseError(Exception):
+    __cause__: BaseException | None = None
+
+
+def _raise_lookup_error(self: BaseException) -> BaseException | None:
+    raise LookupError("getter failed")
+
+
+_ThrowingCauseError: Any = type(
+    "_ThrowingCauseError", (Exception,), {"__cause__": property(_raise_lookup_error)}
+)
+
+
+@pytest.mark.parametrize(
+    "error_type", [_SlottedCauseError, _ThrowingCauseError], ids=["slot", "getter"]
+)
+async def test_unwrapped_task_error_keeps_a_cause_its_class_shadows(
+    error_type: Callable[[], BaseException],
+) -> None:
+    cause = ValueError("cause")
+    error = error_type()
+
+    async def fail() -> None:
+        raise error from cause
+
+    with pytest.raises(Exception) as excinfo:
+        await collect(fail())
+    assert excinfo.value is error
+    assert _stored_cause(error) is cause
+
+    with pytest.raises(Exception) as excinfo:
+        await tg_collect([fail])
+    assert excinfo.value is error
+    assert _stored_cause(error) is cause
+
+
+_SpoofedGroupError: Any = type(
+    "_SpoofedGroupError", (Exception,), {"__class__": ExceptionGroup}
+)
+_ThrowingClassError: Any = type(
+    "_ThrowingClassError", (Exception,), {"__class__": property(_raise_lookup_error)}
+)
+
+
+@pytest.mark.parametrize(
+    "error_type", [_SpoofedGroupError, _ThrowingClassError], ids=["spoofed", "getter"]
+)
+@pytest.mark.parametrize("unwrap", ["single", "first", None])
+async def test_error_that_is_not_a_group_passes_through(
+    error_type: Callable[[], BaseException],
+    unwrap: Literal["single", "first"] | None,
+) -> None:
+    error = error_type()
+
+    with pytest.raises(Exception) as excinfo:
+        with unwrap_exception_group(unwrap):
+            raise error
+    assert excinfo.value is error
+
+    with pytest.raises(Exception) as excinfo:
+        async with unwrap_exception_group(unwrap):
+            raise error
+    assert excinfo.value is error

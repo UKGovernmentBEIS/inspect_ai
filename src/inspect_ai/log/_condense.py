@@ -53,6 +53,7 @@ from inspect_ai.model._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
     ChatMessageBase,
+    logged_json,
 )
 from inspect_ai.model._model_call import ModelCall
 from inspect_ai.model._model_output import ModelOutput
@@ -1330,7 +1331,14 @@ def walk_chat_message(
         hit = cache.get(message.id)
         if hit is not None:
             pre_walk, walked = hit
-            if pre_walk is message or pre_walk == message:
+            if pre_walk is message:
+                return walked
+            # snapshots give one id several versions, some == but logged
+            # differently (True and 1), so compare what the log writes; a
+            # match re-keys the entry so later sightings hit by identity
+            logged = logged_json(message)
+            if logged is not None and logged == logged_json(pre_walk):
+                cache[message.id] = (message, walked)
                 return walked
     if isinstance(message.content, str):
         res = message.model_copy(update=dict(content=content_fn(message.content)))
