@@ -1036,6 +1036,117 @@ def test_an_edited_score_refuses_deleting_unchanged_shards(
         assert not merge_eval_log_shards(merged).written
 
 
+def _replace_member(location: str, name: str, data: bytes | None) -> None:
+    """Replace (or, with `None`, remove) a member of a log, keeping the rest."""
+    path = local_path(location)
+    with zipfile.ZipFile(path) as src:
+        members = [(i, src.read(i)) for i in src.infolist() if i.filename != name]
+    with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as dst:
+        for info, member in members:
+            dst.writestr(info.filename, member)
+        if data is not None:
+            dst.writestr(name, data)
+
+
+@pytest.mark.parametrize("damage", ["absent", "empty", "partial"])
+@pytest.mark.parametrize("remnant", ["unchanged", "interrupted"])
+def test_missing_retained_reductions_refuse_deleting_shards(
+    tmp_path: Path, remnant: str, damage: str
+) -> None:
+    import shutil
+
+    merged, shards = _paths(tmp_path)
+    task = _graded_task(Epochs(2, at_least(1, value=0.5)))
+    _run(shards, "0", task, sample_id=[1, 2, 3])
+    _run(shards, "1", task, sample_id=[4, 5, 6])
+    merge_eval_log_shards(merged)
+    with zipfile.ZipFile(merged) as zf:
+        reductions = json.loads(zf.read("reductions.json"))
+    if damage == "absent":
+        _remove_member(merged, "reductions.json")
+    elif damage == "empty":
+        _replace_member(merged, "reductions.json", b"[]")
+    else:
+        reductions[0]["samples"] = reductions[0]["samples"][1:]
+        _replace_member(merged, "reductions.json", json.dumps(reductions).encode())
+    if remnant == "interrupted":
+        shutil.rmtree(f"{shards}/1")
+    before = Path(merged).read_bytes(), _files(shards)
+
+    with pytest.raises(
+        ShardSetError, match="no epoch reduction .*shards were not deleted"
+    ):
+        merge_eval_log_shards(merged, delete_shards=True)
+    assert (Path(merged).read_bytes(), _files(shards)) == before
+
+
+# armed while a test merges: an unreduced metric that must not run
+_GUARD_ARMED: list[bool] = []
+
+
+@metric(scores="unreduced")
+def shard_unreduced_guard() -> Metric:
+    def compute(scores: list[SampleScore]) -> float:
+        if _GUARD_ARMED:
+            raise AssertionError("an unreduced metric ran on partial data")
+        return float(len(scores))
+
+    return compute
+
+
+def test_a_running_shard_without_reductions_computes_no_metrics(
+    tmp_path: Path,
+) -> None:
+    task = _graded_task(Epochs(2, at_least(1, value=0.5)))
+    task.scorer = [graded_guarded()]
+    merged, shards = _paths(tmp_path)
+    _run(shards, "0", task, sample_id=[1, 2, 3])
+    _as_running(_run(shards, "1", task, sample_id=[4, 5, 6]), keep={(4, 1)})
+    _GUARD_ARMED.append(True)
+    try:
+        header = merge_eval_log_shards(merged, allow_incomplete=True).log
+    finally:
+        _GUARD_ARMED.clear()
+    assert header.status == "started" and header.results is None
+    assert _keys(merged) == {(str(i), e) for i in (1, 2, 3) for e in (1, 2)} | {
+        ("4", 1)
+    }
+
+
+@scorer(metrics=[mean(), shard_unreduced_guard()])
+def graded_guarded() -> Scorer:
+    return graded()
+
+
+@solver
+def _solver_scored() -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        state.scores = {"simple": Score(value=1)}
+        return state
+
+    return solve
+
+
+@pytest.mark.parametrize("metrics", [[], {}])
+def test_explicitly_empty_task_metrics_merge_solver_set_scores(
+    tmp_path: Path, metrics: list[Any] | dict[str, Any]
+) -> None:
+    task = _task(solver=_solver_scored())
+    task.scorer = None
+    task.metrics = metrics
+    unsharded = eval(
+        task, model="mockllm/model", log_dir=str(tmp_path / "unsharded"), display="none"
+    )[0]
+    assert unsharded.eval.metrics == metrics and unsharded.results is not None
+
+    merged, shards = _paths(tmp_path)
+    _run(shards, "0", task, sample_id=[1, 2, 3])
+    _run(shards, "1", task, sample_id=[4, 5, 6])
+    result = merge_eval_log_shards(merged, delete_shards=True)
+    assert result.shards_deleted and result.log.results is not None
+    assert result.log.results.scores == unsharded.results.scores
+
+
 def _check_invalidated(merged: str, expected: bool) -> None:
     from inspect_ai._eval.evalset import all_evals_succeeded
 
@@ -1274,12 +1385,7 @@ def _edit_header(location: str, change: Callable[[dict[str, Any]], None]) -> Non
 
 
 def _remove_member(location: str, name: str) -> None:
-    path = local_path(location)
-    with zipfile.ZipFile(path) as src:
-        members = [(i, src.read(i)) for i in src.infolist() if i.filename != name]
-    with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as dst:
-        for info, data in members:
-            dst.writestr(info.filename, data)
+    _replace_member(location, name, None)
 
 
 @pytest.mark.parametrize(

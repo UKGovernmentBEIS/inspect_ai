@@ -1,8 +1,9 @@
 """Building the merged log's zip, recomputing metrics as samples pass through."""
 
+import functools
 import json
 import zipfile
-from collections.abc import Awaitable, Callable, Sequence
+from collections.abc import Awaitable, Callable, Mapping, Sequence
 from typing import TYPE_CHECKING, Any, BinaryIO, NamedTuple
 
 import anyio
@@ -16,6 +17,7 @@ from inspect_ai.log._log import (
     EvalResults,
     EvalSample,
     EvalSampleReductions,
+    EvalSampleScore,
     EvalSampleSummary,
 )
 from inspect_ai.log._recorders.eval import (
@@ -31,7 +33,7 @@ from inspect_ai.scorer._reducer.types import ScoreReducer
 from ._errors import ShardSetError
 
 if TYPE_CHECKING:
-    from inspect_ai._eval.task.results import ScorerInfo
+    from inspect_ai._eval.task.results import Metrics, ScorerInfo
 
 
 class _SampleInputs(NamedTuple):
@@ -265,7 +267,7 @@ async def _recompute_results(
         ShardSetError: A reduction cannot be taken from its log, or see
             :func:`_default_metrics`.
     """
-    from inspect_ai._eval.score import metrics_from_log_header, resolve_scorers_info
+    from inspect_ai._eval.score import resolve_scorers_info
     from inspect_ai._eval.task.results import (
         RecordedReductions,
         ScorerInfo,
@@ -275,7 +277,7 @@ async def _recompute_results(
 
     # resolve_scorers_info imports the task file for an unregistered metric
     check_scoring_resolvable(template)
-    metrics = metrics_from_log_header(template)
+    metrics = _task_metrics(template)
     scores = [sample.scores for sample in inputs if sample.scores]
     declared = resolve_scorers_info(template)
     others = _other_score_names(declared, scores)
@@ -289,11 +291,15 @@ async def _recompute_results(
         ]
     else:
         other_infos = []
+    infos = [*declared, *other_infos]
+    # the names the worker scored samples under, as the task runner resolves
+    # them once: aggregation must not derive them from earlier result names
+    # (a per-key result can take a later name)
+    scorer_names = [*_unique_scorer_names(declared), *others]
     names = template.eval.config.epochs_reducer
     reducers: RecordedReductions | list[ScoreReducer] | None = (
         None if names is None else []
     )
-    lookup: _RecordedLookup | None = None
     if names:
         edited = [
             (str(sample.scores[name].sample_id), name)
@@ -305,28 +311,165 @@ async def _recompute_results(
             raise ShardSetError(
                 edited_score_message(name, id, held_reductions.sources[id])
             )
-        lookup = _RecordedLookup(held_reductions)
-        reducers = RecordedReductions(names, lookup)
-    results, reductions = eval_results(
+        # settled before any metric runs, so a running shard's samples never
+        # reach a metric without their reductions
+        by_view = _by_view(held_reductions.reductions)
+        missing = _missing_reductions(
+            _reduced_score_names(infos, scorer_names),
+            names,
+            _score_ids(scores),
+            by_view,
+        )
+        if missing:
+            unfinished = await held_reductions.unfinished()
+            finished = [m for m in missing if m.sample_id not in unfinished]
+            if finished:
+                raise ShardSetError(
+                    _missing_message(
+                        finished[0], held_reductions.sources[finished[0].sample_id]
+                    )
+                    + " Re-run the shard holding the sample, or delete the merged "
+                    "log so the next merge rebuilds it from the shards."
+                )
+            return None, held_reductions.reductions
+        reducers = RecordedReductions(names, functools.partial(_recorded, by_view))
+    return eval_results(
         samples=total_samples,
         scores=scores,
         reducers=reducers,
-        scorers=[*declared, *other_infos],
-        # the names the worker scored samples under, as the task runner
-        # resolves them once: aggregation must not derive them from
-        # earlier result names (a per-key result can take a later name)
-        scorer_names=[*_unique_scorer_names(declared), *others],
+        scorers=infos,
+        scorer_names=scorer_names,
         metrics=metrics,
         completed_samples=sum(1 for sample in inputs if not sample.error),
         headline_metric=template.eval.headline_metric,
     )
-    if lookup is not None and lookup.missing:
-        unfinished = await held_reductions.unfinished()
-        finished = [id for id in lookup.missing if id not in unfinished]
-        if finished:
-            raise ShardSetError(lookup.missing[finished[0]])
-        return None, held_reductions.reductions
-    return results, reductions
+
+
+def check_retained_reductions(
+    header: EvalLog,
+    score_ids: dict[str, set[str]],
+    reductions: list[EvalSampleReductions],
+    location: str,
+) -> None:
+    """Refuse a merged log whose `reductions.json` lacks a required reduction.
+
+    Before shards are deleted by a pass that wrote nothing, the merged log's
+    recorded reductions are the only copy of the shards' once the shards are
+    gone. With epoch reducers recorded, every reduced view (a scorer with
+    reduced metrics, times each reducer) must hold every sample that has the
+    score. `score_ids` maps each score name in the merged samples to the ids
+    of the samples holding it, in first-seen order.
+
+    Raises:
+        LookupError: A metric is not registered.
+        ShardSetError: A required reduction is missing.
+    """
+    from inspect_ai._eval.score import resolve_scorers_info
+    from inspect_ai._eval.task.results import ScorerInfo, _unique_scorer_names
+    from inspect_ai.scorer._metrics.accuracy import accuracy
+    from inspect_ai.scorer._metrics.std import stderr
+
+    names = header.eval.config.epochs_reducer
+    if not names:
+        return
+    check_scoring_resolvable(header)
+    metrics = _task_metrics(header)
+    declared = resolve_scorers_info(header)
+    others = _other_score_names(declared, [dict.fromkeys(score_ids)])
+    # a pass that wrote the log merged a solver-set score only with the task's
+    # metrics or the default ones (_default_metrics)
+    other_metrics: Metrics = metrics if metrics is not None else [accuracy(), stderr()]
+    infos = [
+        *declared,
+        *(ScorerInfo(name=name, metrics=other_metrics) for name in others),
+    ]
+    missing = _missing_reductions(
+        _reduced_score_names(infos, [*_unique_scorer_names(declared), *others]),
+        names,
+        score_ids,
+        _by_view(reductions),
+    )
+    if missing:
+        raise ShardSetError(
+            _missing_message(missing[0], location)
+            + " Its shards were not deleted. Delete the merged log so the next "
+            "merge rebuilds it from the shards."
+        )
+
+
+def _task_metrics(header: EvalLog) -> "Metrics | None":
+    """The task's metrics, keeping an explicitly empty declaration.
+
+    `metrics_from_log_header` returns `None` for `Task(metrics=[])` (or
+    `{}`), which the live run applies as no metrics for solver-set scores.
+    """
+    from inspect_ai._eval.score import metrics_from_log_header
+
+    metrics = metrics_from_log_header(header)
+    if metrics is None and header.eval.metrics is not None:
+        return {} if isinstance(header.eval.metrics, dict) else []
+    return metrics
+
+
+class _Missing(NamedTuple):
+    sample_id: str
+    scorer: str
+    reducer: str
+
+
+def _by_view(
+    reductions: list[EvalSampleReductions],
+) -> dict[tuple[str, str | None], dict[str, EvalSampleScore]]:
+    return {
+        (r.scorer, r.reducer): {str(s.sample_id): s for s in r.samples}
+        for r in reductions
+    }
+
+
+def _score_ids(scores: list[dict[str, SampleScore]]) -> dict[str, set[str]]:
+    ids: dict[str, set[str]] = {}
+    for sample_scores in scores:
+        for name, score in sample_scores.items():
+            ids.setdefault(name, set()).add(str(score.sample_id))
+    return ids
+
+
+def _reduced_score_names(
+    infos: list["ScorerInfo"], scorer_names: list[str]
+) -> list[str]:
+    """The scorer names whose metrics include reduced ones (a reduced view)."""
+    from inspect_ai._eval.task.results import _filter_metrics_by_scores
+
+    return [
+        name
+        for name, info in zip(scorer_names, infos)
+        if _filter_metrics_by_scores(info.metrics, {"auto", "reduced"}) is not None
+    ]
+
+
+def _missing_reductions(
+    scorer_names: list[str],
+    reducers: list[str],
+    score_ids: dict[str, set[str]],
+    by_view: dict[tuple[str, str | None], dict[str, EvalSampleScore]],
+) -> list[_Missing]:
+    """The (sample, scorer, reducer) reductions that are required but not recorded."""
+    return [
+        _Missing(id, scorer, reducer)
+        for scorer in scorer_names
+        for reducer in reducers
+        for id in sorted(score_ids.get(scorer, set()))
+        if id not in by_view.get((scorer, reducer), {})
+    ]
+
+
+def _missing_message(missing: _Missing, location: str) -> str:
+    return (
+        f"{location} records no epoch reduction ('{missing.reducer}') of score "
+        f"'{missing.scorer}' for sample {missing.sample_id!r}. A log records its "
+        "epoch reducers by name only, without their arguments, so the merge "
+        "takes each sample's reduction from the log it merges the sample from."
+    )
 
 
 def edited_score_message(score: str, sample_id: str, location: str) -> str:
@@ -342,56 +485,32 @@ def edited_score_message(score: str, sample_id: str, location: str) -> str:
     )
 
 
-class _RecordedLookup:
+def _recorded(
+    by_view: dict[tuple[str, str | None], dict[str, EvalSampleScore]],
+    scorer: str,
+    reducer: str,
+    scores: list[SampleScore],
+) -> list[SampleScore]:
     """Each sample's recorded reduction (the `reduced` of `RecordedReductions`).
 
-    A sample with no recorded reduction is left out, and `missing` describes
-    it, by sample id.
+    Every one is present: `_missing_reductions` was checked first.
     """
-
-    def __init__(self, held: HeldReductions) -> None:
-        self._sources = held.sources
-        self._by_view = {
-            (r.scorer, r.reducer): {str(s.sample_id): s for s in r.samples}
-            for r in held.reductions
-        }
-        self.missing: dict[str, str] = {}
-
-    def __call__(
-        self, scorer: str, reducer: str, scores: list[SampleScore]
-    ) -> list[SampleScore]:
-        recorded = self._by_view.get((scorer, reducer), {})
-        firsts: dict[str, SampleScore] = {}
-        for score in scores:
-            firsts.setdefault(str(score.sample_id), score)
-        reduced: list[SampleScore] = []
-        for id, first in firsts.items():
-            entry = recorded.get(id)
-            if entry is None:
-                if id not in self.missing:
-                    self.missing[id] = (
-                        f"{self._sources[id]} records no epoch reduction "
-                        f"('{reducer}') of "
-                        f"score '{scorer}' for sample {id!r}. A log records its "
-                        "epoch reducers by name only, without their arguments, "
-                        "so the merge takes each sample's reduction from the log "
-                        "it merges the sample from. Re-run the shard holding the "
-                        "sample, or delete the merged log so the next merge "
-                        "rebuilds it from the shards."
-                    )
-                continue
-            reduced.append(
-                SampleScore(
-                    score=Score(**entry.model_dump(exclude={"sample_id"})),
-                    sample_id=first.sample_id,
-                    sample_metadata=first.sample_metadata,
-                )
-            )
-        return reduced
+    recorded = by_view[(scorer, reducer)]
+    firsts: dict[str, SampleScore] = {}
+    for score in scores:
+        firsts.setdefault(str(score.sample_id), score)
+    return [
+        SampleScore(
+            score=Score(**recorded[id].model_dump(exclude={"sample_id"})),
+            sample_id=first.sample_id,
+            sample_metadata=first.sample_metadata,
+        )
+        for id, first in firsts.items()
+    ]
 
 
 def _other_score_names(
-    declared: list["ScorerInfo"], scores: list[dict[str, SampleScore]]
+    declared: list["ScorerInfo"], scores: Sequence[Mapping[str, object]]
 ) -> list[str]:
     """Score names with no declared scorer (solver-set scores), in first-seen order.
 
@@ -408,8 +527,8 @@ def _other_score_names(
     names = set(_unique_scorer_names(declared))
     others: list[str] = []
     for sample_scores in scores:
-        for name, sample_score in sample_scores.items():
-            if sample_score.scorer is None and name not in names:
+        for name in sample_scores:
+            if name not in names:
                 others.append(name)
                 names.add(name)
     return others

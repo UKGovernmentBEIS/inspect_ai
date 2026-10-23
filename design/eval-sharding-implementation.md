@@ -1211,7 +1211,9 @@ builds that scorer info itself, for exactly two shapes (decision: Ransom,
 2026-10-22):
 
 1. The task declares metrics (`eval.metrics`): the score takes them, as
-   `eval_results` applies them.
+   `eval_results` applies them. An explicitly empty declaration (`[]` or
+   `{}`) means no metrics, as in the live run; `metrics_from_log_header`
+   returns `None` for it, so the merge keeps it apart from an absent one.
 2. The default case: every shard's current attempt that recorded results
    for the score recorded exactly `accuracy` and `stderr` (scalar, with
    their default parameters), and the score's value is a scalar in every
@@ -1257,7 +1259,20 @@ are computed by the live code. Each sample's reduction comes from the log
 it is merged from: a changed shard's current attempt, or for carried
 samples the merged log, which holds what their unchanged shard recorded
 when it was merged. The reductions of a recovered attempt are not used:
-recovery recomputes them with reducers recreated by name. With no reducer
+recovery recomputes them with reducers recreated by name.
+
+Known limitation (decision: Ransom, 2026-10-23): a recovered attempt is
+recognised only by the `-recovered` suffix `inspect log recover` gives
+its output by default. A shard log recovered with `--overwrite`, or to
+another output path, records no recovery marker and cannot be told apart
+from a finished log, so its recomputed reductions are used. When the task
+sets an epoch reducer with arguments or a value converter, the merged
+metrics for its samples may then be wrong; default reducers recompute
+correctly. The log format gains no recovery-provenance field, here or in
+another PR. The docs say not to recover a shard's log and to re-run the
+shard instead.
+
+With no reducer
 recorded (`None`), the reducer is the default `mean_score()` and the merge
 passes `reducers=None`, exactly as the live run does; `[]` (reduction
 disabled) is passed as it is. A one-epoch run is not an exception: the
@@ -1275,7 +1290,12 @@ are computed. Everything else is refused with `ShardSetError` before
 publishing or deleting, whether the merge is complete or not: a finished
 attempt (success, error or cancelled) or the merged log without the
 entry, and a recovered attempt. Readers attach `reductions.json` only when
-`results` is set, so the partial reductions are not shown.
+`results` is set, so the partial reductions are not shown. This is
+settled before any metric runs: the scorers whose metrics include reduced
+ones (a reduced view; `_filter_metrics_by_scores`, as `eval_results`
+selects them) and their samples are checked against the recorded
+reductions first, so no metric sees a partial set, and the lookup
+`eval_results` calls then always finds an entry.
 
 With reducers recorded, a score with an edit history (from `edit_score`,
 in a shard or the merged log) is refused too: its recorded reduction
@@ -1283,8 +1303,14 @@ predates the edit or was recomputed with a recreated reducer. A pass that
 writes checks the samples it parses; a pass that writes nothing but would
 delete shard attempts (no shard changed, or an interrupted deletion's
 remnant) reads every sample member of the merged log in step 12, before
-deleting, for the same check, since summaries drop edit histories. A merge that neither
-writes nor deletes is not checked. Two reducers recorded under one name
+deleting, for the same check, since summaries drop edit histories. That
+pass also checks the merged log's `reductions.json`: every reduced view
+(the declared scorers resolved from the header, and solver-set scores with
+the task's metrics or the default `accuracy` and `stderr`, the only ones a
+writing pass accepts) must hold every merged sample that has the score,
+since once the shards are deleted it is the only copy of their
+reductions. A missing member, an empty list or a partial one is refused.
+A merge that neither writes nor deletes is not checked. Two reducers recorded under one name
 (`at_least(1, value=0.5)` and `at_least(1)` are both `at_least_1`; two
 `mean` with different converters) are refused before any sample is read,
 because their recorded reductions cannot be told apart. The messages name
@@ -2390,7 +2416,13 @@ Per PR (numbers from "Implementation plan"):
      with `delete_shards=True`; a score edited in the merged log refuses
      the next pass that writes, and refuses `delete_shards=True` with no
      shard changed and on an interrupted deletion's remnant, leaving the
-     merged log and shards byte-identical;
+     merged log and shards byte-identical; on both of those paths a merged
+     `reductions.json` that is absent, empty or partial refuses
+     `delete_shards=True` the same way; an incomplete merge beside a
+     running shard, on a scorer with reduced and unreduced metrics, runs no
+     metric (an unreduced metric that raises when called) and writes no
+     results; solver-set scores with `Task(metrics=[])` and `{}` merge with
+     `delete_shards=True` to an unsharded run's results;
    - `invalidated`: a fresh merge of an invalidated shard sample sets it, a
      replacement without the last invalidated sample clears it, and an
      invalidated replacement in an incremental merge sets it again; each

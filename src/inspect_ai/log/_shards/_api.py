@@ -67,6 +67,7 @@ from ._publish import is_local, merge_guard, merged_log_copy, publish
 from ._walk import ShardDir, attempt_sort_key, list_shard_set
 from ._write import (
     HeldReductions,
+    check_retained_reductions,
     check_scoring_resolvable,
     edited_score_message,
     write_merged_zip,
@@ -135,9 +136,14 @@ def merge_eval_log_shards(
     the shard that ran it, which records them when it finishes. While a
     shard holding samples is still running, an incomplete merged log has no
     results. A finished shard without recorded reductions, a recovered shard
-    log, two reducers with the same name and a score edited in a shard or
-    the merged log (`edit_score`) refuse the merge, since the reductions
-    cannot be established.
+    log (`-recovered.eval`), two reducers with the same name and a score
+    edited in a shard or the merged log (`edit_score`) refuse the merge,
+    since the reductions cannot be established. Do not recover a shard's
+    log; re-run the shard. A shard log recovered with `overwrite` or to
+    another output path cannot be told apart from a finished log, and with
+    an epoch reducer that takes arguments or a value converter the merged
+    metrics for its samples may be wrong (default reducers are not
+    affected).
 
     A merge that runs while a worker is writing its shard can fail with a
     read error (for example a CRC or JSON error). Nothing is written; run
@@ -239,9 +245,10 @@ class _Pass(NamedTuple):
     records: set[SampleRecordKey]
     new_samples: int
     status: Status
-    check_edits: bool
-    """Whether deleting the shards must first check the merged log's samples
-    for edited scores: nothing was written and shard attempts remain."""
+    check_retained: bool
+    """Whether deleting the shards must first check that the merged log keeps
+    trusted reductions (no edited score, none missing): nothing was written
+    and shard attempts remain."""
 
 
 async def merge_shards(
@@ -551,7 +558,7 @@ async def _merge_pass(
         records=set(keys),
         new_samples=len(set(keys) - records),
         status=status,
-        check_edits=False,
+        check_retained=False,
     )
 
 
@@ -824,12 +831,14 @@ async def _verify(fs: AsyncFilesystem, merged_path: str, merge_pass: _Pass) -> N
     """Check the published merged log before its shards are deleted.
 
     When this pass wrote nothing and shard attempts remain, a merged log
-    with epoch reducers recorded is also checked for edited scores, which
-    the writing passes refuse (see `_recompute_results` in `_write.py`).
+    with epoch reducers recorded is also checked for edited scores and
+    missing reductions, which the writing passes refuse (see
+    `_recompute_results` in `_write.py`).
 
     Raises:
-        ShardSetError: The merged log is not the one this call planned, or
-            holds an edited score.
+        ShardSetError: The merged log is not the one this call planned, holds
+            an edited score or lacks a required reduction.
+        LookupError: A metric is not registered.
     """
     reader = AsyncZipReader(fs, merged_path)
     cd = await reader.entries()
@@ -861,17 +870,20 @@ async def _verify(fs: AsyncFilesystem, merged_path: str, merge_pass: _Pass) -> N
             f"{merged_path} does not hold what the merge planned; its shards were "
             "not deleted."
         )
-    if merge_pass.check_edits and header.eval.config.epochs_reducer:
-        await _check_unedited(reader, cd, merged_path)
+    if merge_pass.check_retained and header.eval.config.epochs_reducer:
+        await _check_retained(reader, cd, header, merged_path)
 
 
-async def _check_unedited(
-    reader: AsyncZipReader, cd: CentralDirectory, merged_path: str
+async def _check_retained(
+    reader: AsyncZipReader, cd: CentralDirectory, header: EvalLog, merged_path: str
 ) -> None:
-    """Refuse a merged log holding an edited score (see `edited_score_message`).
+    """Refuse deleting shards whose reductions the merged log does not keep.
 
-    Summaries do not keep score edit histories, so every sample member is read.
+    Refuses an edited score (see `edited_score_message`) and a missing
+    required reduction (see `check_retained_reductions`). Summaries do not
+    keep score edit histories, so every sample member is read.
     """
+    score_ids: dict[str, set[str]] = {}
     for entry in cd.entries:
         key = parse_sample_member(entry.filename)
         if key is None:
@@ -883,3 +895,11 @@ async def _check_unedited(
                     edited_score_message(name, key.sample_id, merged_path)
                     + " Its shards were not deleted."
                 )
+            score_ids.setdefault(name, set()).add(key.sample_id)
+    names = {e.filename for e in cd.entries}
+    reductions = (
+        _parse_reductions(await _read_member_json(reader, REDUCTIONS_JSON))
+        if REDUCTIONS_JSON in names
+        else []
+    )
+    check_retained_reductions(header, score_ids, reductions, merged_path)
