@@ -25,6 +25,7 @@ from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock
 
+import anyio
 import pytest
 from acp.exceptions import RequestError
 from acp.schema import (
@@ -732,11 +733,11 @@ async def test_request_permission_raises_when_connection_unbinds_while_waiting()
     session while another client could answer it.
     """
     h = _bound_handler(wire="sess-1", target="sess-1")
-    sent = asyncio.Event()
+    sent = anyio.Event()
 
     async def unanswered(method: str, payload: Any) -> Any:
         sent.set()
-        await asyncio.Event().wait()
+        await anyio.Event().wait()
 
     h.connection.send_request = unanswered
     request_task = asyncio.create_task(
@@ -755,11 +756,11 @@ async def test_request_permission_raises_when_connection_unbinds_while_waiting()
 async def test_request_permission_cancellation_is_not_turned_into_unbind() -> None:
     """Cancelling the waiting task (sample cancel) propagates as cancellation."""
     h = _bound_handler(wire="sess-1", target="sess-1")
-    sent = asyncio.Event()
+    sent = anyio.Event()
 
     async def unanswered(method: str, payload: Any) -> Any:
         sent.set()
-        await asyncio.Event().wait()
+        await anyio.Event().wait()
 
     h.connection.send_request = unanswered
     request_task = asyncio.create_task(
@@ -772,6 +773,29 @@ async def test_request_permission_cancellation_is_not_turned_into_unbind() -> No
     with pytest.raises(asyncio.CancelledError):
         await request_task
     assert h._bound_requests == set()
+
+
+@skip_if_trio
+async def test_request_permission_cancellation_racing_unbind_still_cancels() -> None:
+    """A task cancel that lands with an unbind still propagates as cancellation."""
+    h = _bound_handler(wire="sess-1", target="sess-1")
+    sent = anyio.Event()
+
+    async def unanswered(method: str, payload: Any) -> Any:
+        sent.set()
+        await anyio.Event().wait()
+
+    h.connection.send_request = unanswered
+    request_task = asyncio.create_task(
+        h.request_permission(_permission_request_for("sess-1"))
+    )
+    await sent.wait()
+
+    await h._stop_forwarders()
+    request_task.cancel()
+
+    with pytest.raises(asyncio.CancelledError):
+        await request_task
 
 
 @skip_if_trio
@@ -1578,7 +1602,7 @@ class _ClientRpcStub:
         self._next_id = 1
         self._pending: dict[int, asyncio.Future[dict[str, Any]]] = {}
         self.received_permission_request: dict[str, Any] | None = None
-        self.permission_requested = asyncio.Event()
+        self.permission_requested = anyio.Event()
         self._read_task = asyncio.create_task(self._read_loop())
 
     async def _read_loop(self) -> None:

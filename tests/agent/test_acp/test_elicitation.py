@@ -18,6 +18,7 @@ import asyncio
 from typing import Any
 from unittest.mock import MagicMock
 
+import anyio
 import pytest
 from acp.schema import (
     AcceptElicitationResponse,
@@ -474,11 +475,11 @@ async def test_request_elicitation_raises_when_connection_unbinds_while_waiting(
 
     handler = ConnectionHandler()
     handler.state.binding = Bound(target_session_id="s1", wire_session_id="s1")
-    sent = asyncio.Event()
+    sent = anyio.Event()
 
     async def unanswered(method: str, payload: dict[str, Any]) -> Any:
         sent.set()
-        await asyncio.Event().wait()
+        await anyio.Event().wait()
 
     handler.connection = MagicMock()
     handler.connection.send_request = unanswered

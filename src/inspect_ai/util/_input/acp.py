@@ -160,8 +160,9 @@ async def _request_from_driver_with_fallback(
                         # Try the next client in the fallback chain. A
                         # ConnectionError means the client left. Anything
                         # else (an error reply, a malformed response) is
-                        # from a client that stays attached but won't be
-                        # asked again, which can leave the sample parked.
+                        # from a client that stays attached but isn't asked
+                        # again until another client attaches, so the sample
+                        # can stay parked.
                         logger.log(
                             DEBUG if isinstance(exc, ConnectionError) else WARNING,
                             "ACP elicitation request failed for client %r; "

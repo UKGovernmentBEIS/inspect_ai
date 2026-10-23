@@ -1106,6 +1106,11 @@ class ConnectionHandler:
                 return await self.connection.send_request(method, payload)
             finally:
                 self._bound_requests.discard(scope)
+        # The scope also absorbs a task cancel that lands in the same loop
+        # iteration as the unbind; that cancel must still propagate.
+        task = asyncio.current_task()
+        if task is not None and task.cancelling():
+            raise asyncio.CancelledError
         raise ConnectionError(
             f"{method}: connection unbound before the client answered"
         )
