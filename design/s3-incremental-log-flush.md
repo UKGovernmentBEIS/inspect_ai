@@ -1187,11 +1187,42 @@ size.
 
 ## Performance
 
-Step 4, measured 2026-10-22 on real S3 (`s3://inspect-flow-test/perf-481/`)
-from an office link (≈7 MB/s each way that day), verify mode off. "main" is
-`1031b575f9` (#479 landed: the seeded start flush composes, later flushes
-upload whole); "branch" is this change. Both ran from the same venv, main's
-`src` on `PYTHONPATH`, as in the #420 method.
+Step 4, measured 2026-10-22 and 2026-10-23 on real S3
+(`s3://inspect-flow-test/perf-481/`) from an office link (≈7 MB/s each way),
+verify mode off. "main" is `1031b575f9` (#479 landed: the seeded start flush
+composes, later flushes upload whole); "branch" is this change. Both ran from
+the same venv, main's `src` on `PYTHONPATH`, as in the #420 method.
+
+### First attempt (shapes A and B)
+
+The #420 workload with no failing samples: one `eval_set(retry_attempts=0)`
+in a fresh process, writing to an empty S3 log directory at the default
+`log_buffer` (10). Each mock output carries a fixed token usage, so mockllm
+does not count the tokens of the whole conversation on every turn, a
+mock-only cost that otherwise dominates the run; log contents and flush
+cadence are unchanged. The script timed the whole `eval_set` call and each
+destination write (`_write_remote`). Every run ended `success` with all
+samples present and no sample errors, left one `.eval` file, and left no
+multipart upload in progress. Two runs per build and shape, alternating
+builds.
+
+| Shape, build | wall | log writes (count, composed) | bytes uploaded |
+|---|---|---|---|
+| A, main | 323.7, 355.0 s | 192.3, 195.1 s (30, 0) | 1.84 GB |
+| A, branch | 164.1, 196.6 s | 41.2, 43.2 s (30, 28) | 0.12 GB |
+| B, main | 179.9, 196.6 s | 54.3, 55.6 s (4, 0) | 0.59 GB |
+| B, branch | 150.8, 170.1 s | 22.2, 23.1 s (4, 2) | 0.20 GB |
+
+Shape A (118 MB log) writes 30 times: the start, 28 flushes and the finish.
+On main each flush uploads the whole log, up to 11–12 s near the end; on the
+branch the first flush uploads whole (the object on S3 is the near-empty
+start write, under 8 MiB) and every later write composes in 0.7–2.3 s. Wall time falls by about 47%.
+
+Shape B (202 MB log) gains less. Its 50 samples finish close together near
+the end, so it writes only four times: the empty start, a first flush of
+181 MB, the last samples and the finish. The 181 MB flush is the log's first
+large write and uploads whole on both builds (≈18 s); the branch composes the
+last two (1–3 s instead of ≈18 s each). Wall time falls by about 15%.
 
 ### Retry benchmark (shapes A and B)
 
