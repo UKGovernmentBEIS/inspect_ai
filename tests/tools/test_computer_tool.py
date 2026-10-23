@@ -319,10 +319,33 @@ async def test_computer_actions_list_clear_before_typing(
     sent_cmds: list[list[str]],
 ) -> None:
     await computer()(
-        actions=[{"action": "type", "text": "hello", "clear_before_typing": True}]
+        actions=[
+            {
+                "action": "type",
+                "text": "hello",
+                "coordinate": [3, 4],
+                "clear_before_typing": True,
+            }
+        ]
     )
     assert [cmd[0] for cmd in sent_cmds] == ["triple_click", "type"]
-    assert sent_cmds[0] == ["triple_click"]
+    assert sent_cmds[0][1:] == ["--coordinate", "3", "4"]
+
+
+@pytest.mark.parametrize(
+    "call",
+    [
+        {"action": "type", "text": "hello", "clear_before_typing": True},
+        {"actions": [{"action": "type", "text": "hello", "clear_before_typing": True}]},
+    ],
+    ids=["action", "actions_list"],
+)
+async def test_computer_type_clear_before_typing_requires_coordinate(
+    sent_cmds: list[list[str]], call: dict[str, object]
+) -> None:
+    with pytest.raises(ToolParsingError, match="coordinate must be provided"):
+        await computer()(**call)
+    assert sent_cmds == []
 
 
 def test_computer_tool_info_is_recognized_as_computer_tool() -> None:
