@@ -28,7 +28,7 @@ from inspect_ai.tool._tool_call import ToolCall, ToolCallContent
 
 def _prefix(index: CallPoolIndex, msgs: Sequence[JsonValue]) -> list[int]:
     """match_prefix's indices alone, for assertions that don't reuse the match."""
-    return list(index.match_prefix(msgs).indices)
+    return index.match_prefix(msgs).entries
 
 
 def test_message_pool_index_comparison_error_is_a_miss() -> None:
@@ -153,7 +153,7 @@ def test_call_pool_index_set_prev_ignores_match_dropped_by_restore() -> None:
     index.set_prev(first, [0])
     grown: list[JsonValue] = first + [{"content": "b"}]
     match = index.match_prefix(grown)
-    assert match.indices == (0,)
+    assert match.entries == [0]
 
     index.restore(0)  # rollback drops every lineage
     index.set_prev(grown, [1, 2], match=match)
@@ -251,14 +251,14 @@ def test_call_pool_index_multi_slot_alternating_forms() -> None:
 
     raw2: list[JsonValue] = raw + [{"role": "assistant", "content": "raw reply"}]
     raw_match = index.match_prefix(raw2)
-    assert raw_match.indices == (0,)
+    assert raw_match.entries == [0]
     index.set_prev(raw2, [0, 1], match=raw_match)
 
     condensed2: list[JsonValue] = condensed + [
         {"role": "assistant", "content": "attachment://def"}
     ]
     condensed_match = index.match_prefix(condensed2)
-    assert condensed_match.indices == (10,)
+    assert condensed_match.entries == [10]
     index.set_prev(condensed2, [10, 11], match=condensed_match)
 
     # both lineages continue to extend
@@ -278,7 +278,7 @@ def test_call_pool_index_carry_forward_uses_matched_slot() -> None:
 
     grown_a: list[JsonValue] = [{"content": "lineage-a"}, {"content": "a-2"}]
     match = index.match_prefix(grown_a)
-    assert match.indices == (0,)
+    assert match.entries == [0]
     index.set_prev(grown_a, [0, 1], match=match)
 
     assert _prefix(index, [{"content": "lineage-a"}]) == [0]
@@ -372,17 +372,17 @@ def test_call_pool_index_forked_streams_keep_separate_lineages() -> None:
 
     a1: list[JsonValue] = shared + [{"content": "a-0"}]
     match = index.match_prefix(a1)
-    assert match.indices == (0, 1)
+    assert match.entries == [0, 1]
     index.set_prev(a1, [0, 1, 2], match=match)  # full consumption: replaces
 
     b1: list[JsonValue] = shared + [{"content": "b-0"}]
     match = index.match_prefix(b1)  # partial match against A's slot
-    assert match.indices == (0, 1)
+    assert match.entries == [0, 1]
     index.set_prev(b1, [0, 1, 3], match=match)  # partial: appends sibling
 
     a2: list[JsonValue] = a1 + [{"content": "a-1"}]
     match = index.match_prefix(a2)
-    assert match.indices == (0, 1, 2)  # [0, 1] if lineages had merged
+    assert match.entries == [0, 1, 2]  # [0, 1] if lineages had merged
     index.set_prev(a2, [0, 1, 2, 4], match=match)
     b2: list[JsonValue] = b1 + [{"content": "b-1"}]
     assert _prefix(index, b2) == [0, 1, 3]
@@ -400,7 +400,7 @@ def test_call_pool_index_repeated_prefix_request_reuses_its_slot() -> None:
     def condense(msgs: list[JsonValue], indices: list[int]) -> list[int]:
         match = index.match_prefix(msgs)
         index.set_prev(msgs, indices, match=match)
-        return list(match.indices)
+        return match.entries
 
     m: list[JsonValue] = [{"content": f"m{i}"} for i in range(4)]
     long_a: list[JsonValue] = [m[0], m[1], m[2], m[3]]
@@ -436,7 +436,7 @@ def test_call_pool_index_extending_request_replaces_the_lineage_it_consumes() ->
 
     request: list[JsonValue] = m[:2] + [{"content": "x"}]
     match = index.match_prefix(request)
-    assert match.indices == (0, 1)
+    assert match.entries == [0, 1]
     index.set_prev(request, [0, 1, 4], match=match)
     assert sorted(len(prev.snapshots) for prev in index._lineages) == [3, 4]
 

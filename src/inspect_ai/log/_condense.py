@@ -33,6 +33,7 @@ from inspect_ai._util.url import is_data_uri
 from inspect_ai.dataset._dataset import Sample
 from inspect_ai.event._pool import (
     _CALL_MESSAGE_KEYS,
+    CallMessageKey,
     _build_call_index,
     _build_msg_index,
     condense_model_event_calls,
@@ -606,8 +607,8 @@ class CallWalkCache:
     """
 
     def __init__(self) -> None:
-        self._lineages: PrefixLineages[_WalkedCallMessage] = PrefixLineages(
-            _CALL_WALK_SLOTS, _CALL_WALK_MAX_IDLE
+        self._lineages: PrefixLineages[CallMessageKey, _WalkedCallMessage] = (
+            PrefixLineages(_CALL_WALK_SLOTS, _CALL_WALK_MAX_IDLE)
         )
 
     def condense(
@@ -654,7 +655,7 @@ class CallWalkCache:
             )
             entries.append(_WalkedCallMessage(walked, created_attachments))
 
-        self._lineages.record(msg_key, match, list(msgs), entries)
+        self._lineages.record(match, list(msgs), entries)
 
         rest = {k: v for k, v in call.request.items() if k != msg_key}
         new_request: dict[str, JsonValue] = dict(

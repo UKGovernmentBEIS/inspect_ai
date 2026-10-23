@@ -1397,7 +1397,7 @@ def test_condense_model_call_distinct_message_keys_use_distinct_lineages() -> No
     tr._condense_model_call(
         ModelCall.create({"model": "g", "contents": [dict(msg)]}, None)
     )
-    assert sorted(str(s.key) for s in tr._call_walk_cache._lineages) == [
+    assert sorted(s.key for s in tr._call_walk_cache._lineages) == [
         "contents",
         "messages",
     ]

@@ -125,15 +125,16 @@ def eq_prefix_len(
     return k
 
 
+K = TypeVar("K", bound=Hashable)
 E = TypeVar("E")
 
 
 # identity comparison: lineages are unique objects, never compared by value
 @dataclasses.dataclass(eq=False)
-class Lineage(Generic[E]):
+class Lineage(Generic[K, E]):
     """One retained message list and what a caller derived for each message."""
 
-    key: Hashable
+    key: K
     """Lineages only match requests with an equal key."""
 
     snapshots: list[object]
@@ -153,31 +154,39 @@ class Lineage(Generic[E]):
 
 
 @dataclasses.dataclass(frozen=True)
-class LineageMatch(Generic[E]):
+class LineageMatch(Generic[K, E]):
     """A ``PrefixLineages.match`` result, consumed by the following ``record``."""
 
-    lineage: Lineage[E] | None
+    key: K
+    """Key the list was matched with."""
+
+    lineage: Lineage[K, E] | None = None
     """Lineage the shared run came from, if any."""
 
-    length: int
+    length: int = 0
     """Number of leading messages shared with ``lineage``."""
 
     @property
+    def snapshots(self) -> list[object]:
+        """New list of the matched lineage's snapshots for the shared run."""
+        return self.lineage.snapshots[: self.length] if self.lineage else []
+
+    @property
     def entries(self) -> list[E]:
-        """The matched lineage's entries for the shared run."""
+        """New list of the matched lineage's entries for the shared run."""
         return self.lineage.entries[: self.length] if self.lineage else []
 
 
-PrefixLen = Callable[[Sequence[object], Lineage[E]], int]
+PrefixLen = Callable[[Sequence[object], Lineage[K, E]], int]
 """Leading messages of a list shared with a lineage's snapshots."""
 
 
-def snapshot_prefix_len(msgs: Sequence[object], lineage: Lineage[E]) -> int:
+def snapshot_prefix_len(msgs: Sequence[object], lineage: Lineage[K, E]) -> int:
     """``eq_prefix_len`` against a lineage's snapshots."""
     return eq_prefix_len(msgs, lineage.snapshots, lineage.strict)
 
 
-class PrefixLineages(Generic[E]):
+class PrefixLineages(Generic[K, E]):
     """Recent message lists, matched by longest shared leading run.
 
     Up to ``slots`` lineages are retained. A list replaces the lineage it
@@ -204,12 +213,12 @@ class PrefixLineages(Generic[E]):
         self,
         slots: int,
         max_idle: int,
-        prefix_len: "PrefixLen[E]" = snapshot_prefix_len,
+        prefix_len: PrefixLen[K, E] = snapshot_prefix_len,
     ) -> None:
         self._slots = slots
         self._max_idle = max_idle
         self._prefix_len = prefix_len
-        self._lineages: list[Lineage[E]] = []
+        self._lineages: list[Lineage[K, E]] = []
         # monotonic count of scans, for staleness eviction
         self._scans = 0
         # seeded: eviction choice affects performance only, never output
@@ -218,11 +227,11 @@ class PrefixLineages(Generic[E]):
     def __len__(self) -> int:
         return len(self._lineages)
 
-    def __iter__(self) -> Iterator[Lineage[E]]:
+    def __iter__(self) -> Iterator[Lineage[K, E]]:
         """Retained lineages, oldest first."""
-        return iter(list(self._lineages))
+        return iter(self._lineages)
 
-    def match(self, key: Hashable, msgs: Sequence[object]) -> LineageMatch[E]:
+    def match(self, key: K, msgs: Sequence[object]) -> LineageMatch[K, E]:
         """The retained lineage sharing the longest leading run with ``msgs``.
 
         Args:
@@ -234,7 +243,7 @@ class PrefixLineages(Generic[E]):
             Hand it to the following ``record`` for the same ``msgs``.
         """
         self._scans += 1
-        best: Lineage[E] | None = None
+        best: Lineage[K, E] | None = None
         best_len = 0
         best_full = False
         # newest first: a list usually extends the most recent lineage
@@ -255,21 +264,20 @@ class PrefixLineages(Generic[E]):
         # stamp the lineage the scan selected, not every one it visited
         if best is not None:
             best.last_used = self._scans
-        return LineageMatch(best, best_len)
+        return LineageMatch(key, best, best_len)
 
     def record(
         self,
-        key: Hashable,
-        match: LineageMatch[E],
+        match: LineageMatch[K, E],
         snapshots: list[object],
         entries: list[E],
     ) -> None:
         """Retain a message list for matching later ones.
 
         Args:
-            key: Key the list was matched with.
-            match: The ``match`` result for this list; its lineage's strict
-                flags are reused for the shared run.
+            match: The ``match`` result for this list; its key is the
+                lineage's, and its lineage's strict flags are reused for the
+                shared run.
             snapshots: What later lists compare against, one per message.
             entries: Caller-derived value for each message.
         """
@@ -281,13 +289,13 @@ class PrefixLineages(Generic[E]):
             if self._scans - lineage.last_used <= self._max_idle
         ]
         prev = match.lineage if match.lineage in self._lineages else None
-        if prev is not None and match.length == len(prev.snapshots):
+        if prev is not None and match.length == len(prev):
             self._lineages.remove(prev)
         elif len(self._lineages) >= self._slots:
             del self._lineages[self._evict_rng.randrange(len(self._lineages))]
         self._lineages.append(
             Lineage(
-                key=key,
+                key=match.key,
                 snapshots=snapshots,
                 strict=strict,
                 entries=entries,
@@ -297,4 +305,4 @@ class PrefixLineages(Generic[E]):
 
     def clear(self) -> None:
         """Drop every lineage."""
-        self._lineages = []
+        self._lineages.clear()

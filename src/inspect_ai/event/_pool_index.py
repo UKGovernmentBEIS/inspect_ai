@@ -51,7 +51,7 @@ import dataclasses
 import operator
 from collections.abc import Callable, Sequence
 from itertools import compress, count
-from typing import Any, Final, NamedTuple
+from typing import Any, Final, TypeAlias
 
 from pydantic import BaseModel, JsonValue
 
@@ -311,14 +311,9 @@ _CALL_PREV_MAX_IDLE: Final = 4 * _CALL_PREV_SLOTS
 """Prefix scans a lineage may go unmatched before it is dropped."""
 
 
-class PrefixMatch(NamedTuple):
-    """A ``match_prefix`` result, consumed by the following ``set_prev``."""
-
-    indices: tuple[int, ...]
-    """Pool indices of the matched prefix (empty if nothing matched)."""
-
-    lineage: LineageMatch[int] = LineageMatch(None, 0)
-    """The lineage match the indices came from."""
+PrefixMatch: TypeAlias = LineageMatch[None, int]
+"""A ``match_prefix`` result (``entries`` are its pool indices), consumed by
+the following ``set_prev``."""
 
 
 class CallPoolIndex:
@@ -344,7 +339,7 @@ class CallPoolIndex:
         # walked-form content hash -> pool index
         self._hash_index: dict[str, int] = {}
         # retained previous-request lineages, with each message's pool index
-        self._lineages: PrefixLineages[int] = PrefixLineages(
+        self._lineages: PrefixLineages[None, int] = PrefixLineages(
             _CALL_PREV_SLOTS, _CALL_PREV_MAX_IDLE
         )
         # undo log of hashes added (for mark/restore)
@@ -362,11 +357,11 @@ class CallPoolIndex:
             msgs: New request's message list (pre-walk wire format).
 
         Returns:
-            The matched prefix's pool indices and the lineage they came from.
-            Hand it to the following ``set_prev`` for the same ``msgs``.
+            The matched prefix (``entries`` are its pool indices) and the
+            lineage it came from. Hand it to the following ``set_prev`` for
+            the same ``msgs``.
         """
-        match = self._lineages.match(None, msgs)
-        return PrefixMatch(tuple(match.entries), match)
+        return self._lineages.match(None, msgs)
 
     def get_by_hash(self, hash_value: str) -> int | None:
         """Look up a pool index by walked-form content hash.
@@ -406,8 +401,11 @@ class CallPoolIndex:
             match: The ``match_prefix`` result for these same ``msgs``, or
                 ``None`` for callers that do not prefix-match.
         """
-        lineage_match = match.lineage if match is not None else LineageMatch(None, 0)
-        self._lineages.record(None, lineage_match, list(msgs), list(indices))
+        self._lineages.record(
+            match if match is not None else LineageMatch(None),
+            list(msgs),
+            list(indices),
+        )
 
     def mark(self) -> int:
         """Return a mark for later ``restore()``.
@@ -522,8 +520,8 @@ def condense_model_event_with_indices(
         msgs = call.request.get(msg_key) if msg_key else None
         if msgs and isinstance(msgs, list):
             match = calls.match_prefix(msgs)
-            call_indices = list(match.indices)
-            for msg_value in msgs[len(match.indices) :]:
+            call_indices = match.entries
+            for msg_value in msgs[match.length :]:
                 walked_value = walk_call_message(msg_value)
                 call_hash = _pool._call_hash(walked_value)
                 call_index = calls.get_by_hash(call_hash)

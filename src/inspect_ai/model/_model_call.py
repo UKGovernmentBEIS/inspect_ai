@@ -173,6 +173,9 @@ def _walk_json_value(
         return value
 
 
+_InternKey: TypeAlias = tuple[CallMessageKey, ModelCallFilter | None]
+"""Interned lineages match only requests with the same message key and filter."""
+
 _INTERN_SLOTS: Final = 8
 """Request lineages retained per sample (about four interleaved streams)."""
 
@@ -224,7 +227,7 @@ class CallMessageInterner:
     """
 
     def __init__(self) -> None:
-        self._lineages: PrefixLineages[JsonValue] = PrefixLineages(
+        self._lineages: PrefixLineages[_InternKey, JsonValue] = PrefixLineages(
             _INTERN_SLOTS, _INTERN_MAX_IDLE, _interned_prefix_len
         )
 
@@ -275,24 +278,23 @@ class CallMessageInterner:
             The filtered messages, sharing objects with earlier calls for
             the leading run they repeat.
         """
-        key = (msg_key, filter)
-        match = self._lineages.match(key, msgs)
-        n = match.length
-        lineage = match.lineage
+        match = self._lineages.match((msg_key, filter), msgs)
         logged = match.entries
-        snapshots = lineage.snapshots[:n] if lineage else []
-        for msg in msgs[n:]:
+        snapshots = match.snapshots
+        for msg in msgs[match.length :]:
             out = _walk_json_value(None, msg, filter) if filter else msg
             logged.append(out)
             heavy = filter is not None and _has_heavy_str(msg)
             snapshots.append(_HEAVY if heavy else msg)
-        self._lineages.record(key, match, snapshots, logged)
+        self._lineages.record(match, snapshots, logged)
         return list(logged)
 
 
-def _interned_prefix_len(msgs: Sequence[object], lineage: Lineage[JsonValue]) -> int:
+def _interned_prefix_len(
+    msgs: Sequence[object], lineage: Lineage[_InternKey, JsonValue]
+) -> int:
     """Shared leading run, comparing ``_HEAVY`` snapshots by filtered form."""
-    filter = cast(tuple[CallMessageKey, ModelCallFilter | None], lineage.key)[1]
+    filter = lineage.key[1]
     snapshots = lineage.snapshots
     limit = min(len(msgs), len(snapshots))
     n = 0
