@@ -268,9 +268,10 @@ def react(
                     try:
                         with ch.turn_scope():
                             # generate output and append assistant message
-                            state = await _agent_generate(
+                            generated = await _agent_generate(
                                 model, state, tools, retry_refusals, compact, approval
                             )
+                            _absorb(state, generated)
 
                             # check for context window overflow
                             if state.output.stop_reason == "model_length":
@@ -508,9 +509,10 @@ def react_no_submit(
                     try:
                         with ch.turn_scope():
                             # generate output and append assistant message
-                            state = await _agent_generate(
+                            generated = await _agent_generate(
                                 model, state, tools, retry_refusals, compact, approval
                             )
+                            _absorb(state, generated)
 
                             # check for context window overflow
                             if state.output.stop_reason == "model_length":
@@ -711,6 +713,14 @@ def _agent_compact(
         )
     else:
         return None
+
+
+def _absorb(state: AgentState, generated: AgentState) -> None:
+    # keep react's own object when its model agent returns another, since a
+    # sentinel's stages read the object react was called with
+    if generated is not state:
+        state._messages = generated._messages
+        state._output = generated._output
 
 
 async def _agent_generate(
