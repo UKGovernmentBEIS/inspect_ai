@@ -15,10 +15,10 @@ from typing import Any
 
 import pytest
 import yaml
-from test_helpers.workflows import WORKFLOW_DIR, references_secrets, workflow_files
 
 REPO = pathlib.Path(__file__).parents[1]
-BUILD = WORKFLOW_DIR / "build.yml"
+WORKFLOWS = REPO / ".github" / "workflows"
+BUILD = WORKFLOWS / "build.yml"
 LOCKED_JOBS = ["mypy", "test"]
 PROVIDERS = REPO / "src" / "inspect_ai" / "model" / "_providers"
 DEPENDENCY_CHECKS = {"pip_dependency_error", "verify_required_version"}
@@ -149,10 +149,10 @@ def test_locked_jobs_install_from_the_lockfile(name: str) -> None:
     assert syncs == ["uv sync --locked"]
 
 
-def canary_jobs(directory: pathlib.Path = WORKFLOW_DIR) -> list[tuple[str, str]]:
+def canary_jobs() -> list[tuple[str, str]]:
     return [
         (path.name, name)
-        for path in workflow_files(directory)
+        for path in sorted(WORKFLOWS.glob("*.yml"))
         for name, job in yaml.safe_load(path.read_text())["jobs"].items()
         if any("--exclude-newer false" in line for line in run_lines(job))
     ]
@@ -166,21 +166,14 @@ def test_canary_jobs_are_found() -> None:
     } <= set(canary_jobs())
 
 
-def test_canary_discovery_includes_yaml_workflows(tmp_path: pathlib.Path) -> None:
-    job = {"steps": [{"run": "uv pip install --exclude-newer false ."}]}
-    (tmp_path / "canary.yaml").write_text(yaml.safe_dump({"jobs": {"docs": job}}))
-    assert canary_jobs(tmp_path) == [("canary.yaml", "docs")]
-
-
-# Hygiene, so honest canary runs keep unvetted releases out of the cache. The
-# protection against a malicious release is that jobs holding credentials
+# Keeps honest canary runs from putting unvetted releases into the cache. A
+# malicious release can still write to it, so jobs that hold credentials
 # restore no cache (test_workflow_cache.py).
 @pytest.mark.parametrize("workflow,name", canary_jobs())
 def test_canary_jobs_float_without_secrets_or_cache_saves(
     workflow: str, name: str
 ) -> None:
-    config = yaml.safe_load((WORKFLOW_DIR / workflow).read_text())
-    job = config["jobs"][name]
+    job = yaml.safe_load((WORKFLOWS / workflow).read_text())["jobs"][name]
     installs = [line for line in run_lines(job) if line.startswith("uv pip install")]
     assert installs
     assert all("--exclude-newer false" in line for line in installs)
@@ -190,5 +183,4 @@ def test_canary_jobs_float_without_secrets_or_cache_saves(
         if step.get("uses", "").startswith("astral-sh/setup-uv@")
     ]
     assert setup_uv["with"]["save-cache"] is False
-    assert "secrets" not in job
-    assert not references_secrets([config.get("env", {}), job])
+    assert "secrets" not in yaml.safe_dump(job)

@@ -177,10 +177,9 @@ jobs:
   # packages it locks, so the render and tests themselves run against uv.lock
   # plus the latest versions of anything outside it. These jobs hold no
   # secrets and don't save the uv cache (save-cache: false), so honest runs
-  # don't put unvetted releases into the cache. That doesn't stop a malicious
-  # package, which can write to the cache directly; the protection against it
-  # is that jobs holding credentials restore no cache
-  # (tests/test_workflow_cache.py).
+  # don't put unvetted releases into the cache. A malicious package can still
+  # write to the cache directly, so jobs that hold credentials restore no
+  # cache (tests/test_workflow_cache.py).
   #
   # Validate the Quarto docs site whenever docs change — on docs-only PRs
   # (where the test matrix is skipped) and on mixed docs+code PRs alike.
