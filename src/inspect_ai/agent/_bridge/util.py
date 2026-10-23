@@ -22,6 +22,7 @@ from pydantic_core import PydanticSerializationError
 from shortuuid import uuid
 from typing_extensions import TypeIs
 
+from inspect_ai._sentinel._agent_state import bridge_request
 from inspect_ai._util.content import (
     Content,
     ContentAudio,
@@ -882,7 +883,7 @@ async def bridge_generate(
     if routing is not None and routing.redirected:
         _warn_redirect(routing, bridge.model)
 
-    with bridged_request_scope(requested_model):
+    with bridged_request_scope(requested_model), bridge_request():
         return await _bridge_generate_impl(
             bridge,
             model,
