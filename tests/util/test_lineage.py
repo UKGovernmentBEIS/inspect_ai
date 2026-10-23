@@ -55,7 +55,7 @@ def _record(lineages: PrefixLineages[str], msgs: list[object]) -> LineageMatch[s
     entries = match.entries + [
         f"e{len(match.entries) + i}" for i in range(len(msgs) - match.length)
     ]
-    lineages.record("k", match, list(msgs), [needs_strict_eq(m) for m in msgs], entries)
+    lineages.record("k", match, list(msgs), entries)
     return match
 
 
@@ -65,7 +65,7 @@ def test_prefix_lineages_extend_replaces_and_fork_appends() -> None:
     assert _record(lineages, ["a", "b", "c"]).length == 2
     assert len(lineages) == 1
     assert _record(lineages, ["a", "x"]).length == 1
-    assert sorted(len(lin.snapshots) for lin in lineages.lineages) == [2, 3]
+    assert sorted(len(lin.snapshots) for lin in lineages) == [2, 3]
     assert lineages.match("k", ["a", "b", "c", "d"]).length == 3
     assert lineages.match("other", ["a", "b"]).length == 0
 
@@ -74,7 +74,7 @@ def test_prefix_lineages_retain_callers_objects() -> None:
     lineages: PrefixLineages[str] = PrefixLineages(slots=8, max_idle=32)
     msg = {"role": "user", "content": "a"}
     _record(lineages, [msg])
-    assert lineages.lineages[0].snapshots[0] is msg
+    assert list(lineages)[0].snapshots[0] is msg
 
 
 def test_prefix_lineages_cap_and_idle_drop() -> None:
@@ -84,4 +84,4 @@ def test_prefix_lineages_cap_and_idle_drop() -> None:
     assert len(lineages) == 3
     for _ in range(6):
         _record(lineages, ["live"])
-    assert [lin.snapshots for lin in lineages.lineages] == [["live"]]
+    assert [lin.snapshots for lin in lineages] == [["live"]]

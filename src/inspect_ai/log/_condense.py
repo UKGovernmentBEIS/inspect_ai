@@ -28,7 +28,7 @@ from inspect_ai._util.content import (
 )
 from inspect_ai._util.hash import mm3_hash
 from inspect_ai._util.json import JsonChange, exceeds_max_depth, to_json_safe
-from inspect_ai._util.lineage import PrefixLineages, needs_strict_eq
+from inspect_ai._util.lineage import PrefixLineages
 from inspect_ai._util.url import is_data_uri
 from inspect_ai.dataset._dataset import Sample
 from inspect_ai.event._pool import (
@@ -654,10 +654,7 @@ class CallWalkCache:
             )
             entries.append(_WalkedCallMessage(walked, created_attachments))
 
-        lineage = match.lineage
-        strict = lineage.strict[: match.length] if lineage else []
-        strict.extend(needs_strict_eq(m) for m in msgs[match.length :])
-        self._lineages.record(msg_key, match, list(msgs), strict, entries)
+        self._lineages.record(msg_key, match, list(msgs), entries)
 
         rest = {k: v for k, v in call.request.items() if k != msg_key}
         new_request: dict[str, JsonValue] = dict(

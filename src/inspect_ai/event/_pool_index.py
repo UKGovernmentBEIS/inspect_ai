@@ -55,7 +55,7 @@ from typing import Any, Final, NamedTuple
 
 from pydantic import BaseModel, JsonValue
 
-from inspect_ai._util.lineage import LineageMatch, PrefixLineages, needs_strict_eq
+from inspect_ai._util.lineage import LineageMatch, PrefixLineages
 from inspect_ai._util.lineage import strict_eq as _strict_eq
 from inspect_ai.model._chat_message import ChatMessage
 
@@ -407,11 +407,7 @@ class CallPoolIndex:
                 ``None`` for callers that do not prefix-match.
         """
         lineage_match = match.lineage if match is not None else LineageMatch(None, 0)
-        n = lineage_match.length
-        lineage = lineage_match.lineage
-        strict = lineage.strict[:n] if lineage else []
-        strict.extend(needs_strict_eq(m) for m in msgs[n:])
-        self._lineages.record(None, lineage_match, list(msgs), strict, list(indices))
+        self._lineages.record(None, lineage_match, list(msgs), list(indices))
 
     def mark(self) -> int:
         """Return a mark for later ``restore()``.

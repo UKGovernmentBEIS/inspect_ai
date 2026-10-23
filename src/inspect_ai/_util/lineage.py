@@ -17,7 +17,7 @@ import builtins
 import dataclasses
 import random
 import sys
-from collections.abc import Callable, Hashable, Sequence
+from collections.abc import Callable, Hashable, Iterator, Sequence
 from itertools import compress
 from typing import Generic, TypeVar
 
@@ -148,6 +148,9 @@ class Lineage(Generic[E]):
     last_used: int
     """Scan counter value when this lineage was last created or matched."""
 
+    def __len__(self) -> int:
+        return len(self.snapshots)
+
 
 @dataclasses.dataclass(frozen=True)
 class LineageMatch(Generic[E]):
@@ -215,10 +218,9 @@ class PrefixLineages(Generic[E]):
     def __len__(self) -> int:
         return len(self._lineages)
 
-    @property
-    def lineages(self) -> tuple[Lineage[E], ...]:
+    def __iter__(self) -> Iterator[Lineage[E]]:
         """Retained lineages, oldest first."""
-        return tuple(self._lineages)
+        return iter(list(self._lineages))
 
     def match(self, key: Hashable, msgs: Sequence[object]) -> LineageMatch[E]:
         """The retained lineage sharing the longest leading run with ``msgs``.
@@ -239,7 +241,7 @@ class PrefixLineages(Generic[E]):
         for lineage in reversed(self._lineages):
             if lineage.key != key:
                 continue
-            size = len(lineage.snapshots)
+            size = len(lineage)
             bound = min(len(msgs), size)
             if (bound, bound == size) <= (best_len, best_full):
                 continue
@@ -260,18 +262,19 @@ class PrefixLineages(Generic[E]):
         key: Hashable,
         match: LineageMatch[E],
         snapshots: list[object],
-        strict: list[bool],
         entries: list[E],
     ) -> None:
         """Retain a message list for matching later ones.
 
         Args:
             key: Key the list was matched with.
-            match: The ``match`` result for this list.
+            match: The ``match`` result for this list; its lineage's strict
+                flags are reused for the shared run.
             snapshots: What later lists compare against, one per message.
-            strict: ``needs_strict_eq`` of each snapshot.
             entries: Caller-derived value for each message.
         """
+        carried = match.lineage.strict[: match.length] if match.lineage else []
+        strict = carried + [needs_strict_eq(s) for s in snapshots[len(carried) :]]
         self._lineages = [
             lineage
             for lineage in self._lineages

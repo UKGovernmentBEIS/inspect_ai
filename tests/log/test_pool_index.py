@@ -324,7 +324,7 @@ def test_call_pool_index_abandoned_lineage_bytes_are_released() -> None:
     for _ in range(_CALL_PREV_MAX_IDLE + 2):
         index.set_prev(live_msgs, [1], match=index.match_prefix(live_msgs))
 
-    retained = json.dumps([prev.snapshots for prev in index._lineages.lineages])
+    retained = json.dumps([prev.snapshots for prev in index._lineages])
     assert sentinel not in retained
     assert live in retained
     assert len(retained) < len(sentinel)
@@ -438,7 +438,7 @@ def test_call_pool_index_extending_request_replaces_the_lineage_it_consumes() ->
     match = index.match_prefix(request)
     assert match.indices == (0, 1)
     index.set_prev(request, [0, 1, 4], match=match)
-    assert sorted(len(prev.snapshots) for prev in index._lineages.lineages) == [3, 4]
+    assert sorted(len(prev.snapshots) for prev in index._lineages) == [3, 4]
 
 
 # ---------------------------------------------------------------------------

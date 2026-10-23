@@ -1,4 +1,6 @@
+import builtins
 import json
+import sys
 from collections.abc import Sequence
 from contextvars import ContextVar
 from typing import Any, Callable, Final, Literal, TypeAlias, cast
@@ -10,7 +12,6 @@ from inspect_ai._util.lineage import (
     Lineage,
     PrefixLineages,
     eq_prefix_len,
-    needs_strict_eq,
     strict_eq,
 )
 
@@ -179,18 +180,17 @@ _INTERN_MAX_IDLE: Final = 4 * _INTERN_SLOTS
 """Requests a lineage may go unmatched before it is dropped."""
 
 _HEAVY_STR_LEN: Final = 256 * 1024
-"""Strings longer than this (base64 media) are never retained pre-filter."""
+"""Strings longer than this (base64 media) are never retained pre-filter.
 
+A message holding one is retained as the ``_HEAVY`` snapshot, which equals
+nothing and so ends a list comparison; the message is then compared by its
+filtered form, which holds no payload.
+"""
 
-class _Heavy:
-    """Snapshot stand-in for a message holding a string over ``_HEAVY_STR_LEN``.
-
-    Equal to nothing, so it ends a list comparison; the message is then
-    compared by its filtered form, which holds no payload.
-    """
-
-
-_HEAVY = _Heavy()
+if sys.version_info >= (3, 15):
+    _HEAVY = builtins.sentinel("_HEAVY")
+else:
+    _HEAVY = object()
 
 
 def _has_heavy_str(value: JsonValue) -> bool:
@@ -281,17 +281,12 @@ class CallMessageInterner:
         lineage = match.lineage
         logged = match.entries
         snapshots = lineage.snapshots[:n] if lineage else []
-        strict = lineage.strict[:n] if lineage else []
         for msg in msgs[n:]:
             out = _walk_json_value(None, msg, filter) if filter else msg
             logged.append(out)
-            if filter is not None and _has_heavy_str(msg):
-                snapshots.append(_HEAVY)
-                strict.append(False)
-            else:
-                snapshots.append(msg)
-                strict.append(needs_strict_eq(msg))
-        self._lineages.record(key, match, snapshots, strict, logged)
+            heavy = filter is not None and _has_heavy_str(msg)
+            snapshots.append(_HEAVY if heavy else msg)
+        self._lineages.record(key, match, snapshots, logged)
         return list(logged)
 
 
