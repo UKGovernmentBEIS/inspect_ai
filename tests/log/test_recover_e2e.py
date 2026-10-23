@@ -11,11 +11,12 @@ from test_helpers.buffer import simulate_crashed_buffer_db
 
 from inspect_ai._util.asyncfiles import AsyncFilesystem
 from inspect_ai._util.constants import LOG_SCHEMA_VERSION
-from inspect_ai._util.content import ContentImage, ContentText
+from inspect_ai._util.content import Content, ContentImage, ContentText
 from inspect_ai.dataset._dataset import Sample
 from inspect_ai.event._model import ModelEvent
 from inspect_ai.event._sample_init import SampleInitEvent
 from inspect_ai.event._score import ScoreEvent
+from inspect_ai.log._condense import condense_sample
 from inspect_ai.log._file import read_eval_log_async
 from inspect_ai.log._log import (
     EvalConfig,
@@ -103,7 +104,9 @@ def _simulate_crashed_buffer(buffer: SampleBufferDatabase) -> None:
     simulate_crashed_buffer_db(buffer)
 
 
-def _make_model_event(input_msgs: list[ChatMessage], output_content: str) -> ModelEvent:
+def _make_model_event(
+    input_msgs: list[ChatMessage], output_content: str | list[Content]
+) -> ModelEvent:
     return ModelEvent(
         model="mockllm/model",
         input=input_msgs,
@@ -1380,3 +1383,83 @@ async def test_recovery_restores_full_input_target_and_scores(
             assert recovered_sample.target == sample.target
             assert recovered_sample.choices == sample.choices
             assert recovered_sample.scores == {"long_scorer": score}
+
+
+@pytest.mark.parametrize("buffer_kind", ["database", "filestore"])
+async def test_recovery_keeps_messages_and_output_inline(buffer_kind: str) -> None:
+    """Recovered messages and output match a normal run's log.
+
+    The buffer condenses long text and images in model events into
+    attachments; a normal run's log keeps message text and the whole output,
+    images included, inline, and turns only message images into attachments.
+    """
+    png = (
+        "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlE"
+        "QVR4nGNgAAAAAgABVKJPXQAAAABJRU5ErkJggg=="
+    )
+    user = ChatMessageUser(
+        content=[ContentText(text="Q" * 2000), ContentImage(image=png)]
+    )
+    model_event = _make_model_event(
+        [user], [ContentText(text="R" * 2000), ContentImage(image=png)]
+    )
+    started_at = datetime.now(timezone.utc).isoformat()
+    summary = EvalSampleSummary(
+        id="s1", epoch=1, input="hi", target="reply", started_at=started_at
+    )
+    # what a normal run writes for this sample
+    expected = condense_sample(
+        EvalSample(
+            id="s1",
+            epoch=1,
+            input="hi",
+            target="reply",
+            messages=[user, model_event.output.message],
+            output=model_event.output,
+        )
+    )
+
+    async with AsyncFilesystem():
+        with tempfile.TemporaryDirectory() as temp_dir:
+            eval_path = os.path.join(temp_dir, "inline.eval")
+            output_path = os.path.join(temp_dir, "inline-recovered.eval")
+            zip_log = ZipLogFile(eval_path)
+            await zip_log.init(log_start=None, summary_counter=0, summaries=[])
+            await zip_log.start(
+                LogStart(
+                    version=LOG_SCHEMA_VERSION,
+                    eval=_make_eval_spec(num_samples=1),
+                    plan=EvalPlan(),
+                )
+            )
+            await zip_log.flush()
+
+            db_dir = os.path.join(temp_dir, "bufferdb")
+            buffer = SampleBufferDatabase(eval_path, create=True, db_dir=Path(db_dir))
+            buffer.start_sample(summary)
+            buffer.log_events([SampleEvent(id="s1", epoch=1, event=model_event)])
+            buffer.complete_sample(
+                summary.model_copy(
+                    update={"completed_at": datetime.now(timezone.utc).isoformat()}
+                ),
+                sample_metadata=None,
+            )
+
+            if buffer_kind == "filestore":
+                sync_to_filestore(buffer, SampleBufferFilestore(eval_path, create=True))
+                db_dir = os.path.join(temp_dir, "empty_db_dir")
+            else:
+                _simulate_crashed_buffer(buffer)
+
+            await recover_eval_log_async(
+                eval_path, output=output_path, cleanup=False, _db_dir=db_dir
+            )
+
+            recovered = await read_eval_log_async(
+                output_path, resolve_attachments=False
+            )
+            assert recovered.samples is not None
+            recovered_sample = recovered.samples[0]
+            assert recovered_sample.messages == expected.messages
+            assert recovered_sample.output == expected.output
+            assert expected.attachments.items() <= recovered_sample.attachments.items()
