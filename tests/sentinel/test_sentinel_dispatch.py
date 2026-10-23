@@ -665,7 +665,7 @@ def test_each_step_gets_the_tools_and_tool_choice_of_the_call_that_produced_it(
     )
     for step in steps:
         event = producer(log, step.call.id)
-        assert (step.tools, step.tool_choice) == (event.tools, event.tool_choice)  # type: ignore[union-attr]  # inspect_sentinel 0.1.4 lacks message_id and tool_choice; remove when the lock bumps
+        assert (step.tools, step.tool_choice) == (event.tools, event.tool_choice)
 
 
 @protocol
@@ -1642,7 +1642,7 @@ async def test_a_message_no_model_call_produced_has_no_input() -> None:
             [parallel_addition()],
         )
 
-    assert [(step.input, step.tools, step.tool_choice) for _, step in seen] == [  # type: ignore[attr-defined]  # inspect_sentinel 0.1.4 lacks message_id and tool_choice; remove when the lock bumps
+    assert [(step.input, step.tools, step.tool_choice) for _, step in seen] == [
         (None, None, None)
     ] * 2
 
@@ -1893,7 +1893,7 @@ def test_a_modified_call_on_a_non_modify_decision_is_not_dropped(
 
     init_transcript(Transcript())
     call = addition_call()
-    step = BeforeToolCall(  # type: ignore[call-arg]  # inspect_sentinel 0.1.4 lacks message_id and tool_choice; remove when the lock bumps
+    step = BeforeToolCall(
         conversation="c",
         message="",
         message_id="m1",
@@ -1917,7 +1917,7 @@ def test_bypassed_and_superseded_layers_are_recorded() -> None:
 
     init_transcript(Transcript())
     call = addition_call()
-    step = BeforeToolCall(  # type: ignore[call-arg]  # inspect_sentinel 0.1.4 lacks message_id and tool_choice; remove when the lock bumps
+    step = BeforeToolCall(
         conversation="c",
         message="",
         message_id="m1",
@@ -1953,7 +1953,7 @@ def test_a_superseded_human_decision_is_not_kept(
 
     init_transcript(Transcript())
     call = addition_call()
-    step = BeforeToolCall(  # type: ignore[call-arg]  # inspect_sentinel 0.1.4 lacks message_id and tool_choice; remove when the lock bumps
+    step = BeforeToolCall(
         conversation="c",
         message="",
         message_id="m1",
@@ -2122,8 +2122,8 @@ def test_both_tool_stages_carry_the_id_of_the_message_that_made_the_call() -> No
     }
     assert len(before) == len(after) == 3
     assert (
-        [step.message_id for _, step in before]  # type: ignore[attr-defined]  # inspect_sentinel 0.1.4 lacks message_id and tool_choice; remove when the lock bumps
-        == [step.message_id for step in after]  # type: ignore[attr-defined]  # inspect_sentinel 0.1.4 lacks message_id and tool_choice; remove when the lock bumps
+        [step.message_id for _, step in before]
+        == [step.message_id for step in after]
         == [made[step.call.id] for _, step in before]
     )
 
