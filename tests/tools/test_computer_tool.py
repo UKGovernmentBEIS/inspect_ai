@@ -80,12 +80,16 @@ def container(monkeypatch: pytest.MonkeyPatch) -> Iterator[Container]:
     tool_dir = Path(_common.__file__).parent / "_resources" / "tool"
     monkeypatch.syspath_prepend(str(tool_dir))
     modules_before = set(sys.modules)
-    # computer_tool opens /proc/1/fd/1 (PID 1's stdout) at import time
+    # computer_tool opens /proc/1/fd/1 (PID 1's stdout) at import time. Keep its
+    # logger off the root handlers too: once an earlier test has run `eval()`,
+    # root logs to stdout, which would end up in the JSON the tests parse.
+    tool_logger = logging.getLogger("computer_tool")
+    monkeypatch.setattr(tool_logger, "propagate", False)
+    null_handler = logging.NullHandler()
+    tool_logger.addHandler(null_handler)
     logger_module = importlib.import_module("_logger")
     monkeypatch.setattr(
-        logger_module,
-        "setup_logger",
-        lambda level=logging.INFO: logging.getLogger("computer_tool"),
+        logger_module, "setup_logger", lambda level=logging.INFO: tool_logger
     )
     computer_tool = importlib.import_module("computer_tool")
 
@@ -95,6 +99,7 @@ def container(monkeypatch: pytest.MonkeyPatch) -> Iterator[Container]:
 
     monkeypatch.setattr(computer_tool, "wait_for_file", no_wait)
     yield Container(importlib.import_module("_args").parse_arguments, computer_tool)
+    tool_logger.removeHandler(null_handler)
     for name, module in list(sys.modules.items()):
         if name not in modules_before and str(
             getattr(module, "__file__", "")
