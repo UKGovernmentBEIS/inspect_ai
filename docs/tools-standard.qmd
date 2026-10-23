@@ -88,11 +88,15 @@ Gemini 3 and later models can use `web_search("gemini")` alongside other tools. 
 
 ### Grok Options
 
-The `web_search()` tool can use Grok's built-in live search capability when running on Grok 3.0 models and later. This provider does not require any API keys beyond what's needed for the model itself.
+The `web_search()` tool can use Grok's built-in web search when running on Grok 4 models and later. This provider does not require any API keys beyond what's needed for the model itself. The `grok` provider options are the parameters of xAI's web search tool, such as `allowed_domains` and `excluded_domains`. For example:
 
-For more details, see [Live Search](https://docs.x.ai/docs/guides/live-search).
+``` python
+web_search({"grok": {"allowed_domains": ["arxiv.org"]}})
+```
 
-Note that when using the "grok" provider, you should also specify a fallback external provider (like "tavily", "exa", or "google") if you are also running the evaluation with non-Grok models.
+For more details, see [Web Search](https://docs.x.ai/developers/tools/web-search).
+
+Note that when using the "grok" provider, you should also specify a fallback external provider (like "tavily", "exa", or "google") if you are also running the evaluation with non-Grok models or with Grok models before Grok 4.
 
 ### Perplexity Options
 

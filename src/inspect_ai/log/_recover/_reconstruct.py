@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Mapping
 from logging import getLogger
 from typing import Any, Literal, cast, get_args
 
@@ -11,6 +12,7 @@ from shortuuid import uuid as _shortuuid
 
 from inspect_ai._util.constants import get_deserializing_context
 from inspect_ai._util.error import EvalError
+from inspect_ai.dataset._dataset import Sample
 from inspect_ai.event._compaction import CompactionEvent
 from inspect_ai.event._event import Event
 from inspect_ai.event._model import ModelEvent
@@ -20,7 +22,14 @@ from inspect_ai.event._pool import (
 )
 from inspect_ai.event._sample_init import SampleInitEvent
 from inspect_ai.event._sample_limit import SampleLimitEvent
+from inspect_ai.event._score import ScoreEvent
 from inspect_ai.event._validate import validate_events
+from inspect_ai.log._condense import (
+    WalkContext,
+    resolve_attachment_fn,
+    resolve_events_attachments,
+    walk_model_output,
+)
 from inspect_ai.log._log import (
     EvalSample,
     EvalSampleLimit,
@@ -35,6 +44,7 @@ from inspect_ai.log._recorders.buffer.types import (
 )
 from inspect_ai.model._chat_message import ChatMessage
 from inspect_ai.model._model_output import ModelOutput
+from inspect_ai.scorer._metric import Score
 
 logger = getLogger(__name__)
 
@@ -169,6 +179,50 @@ def _limit_from_summary(summary: EvalSampleSummary) -> EvalSampleLimit | None:
     )
 
 
+def dataset_sample_or_summary(
+    summary: EvalSampleSummary,
+    sample_init: SampleInitEvent | None,
+    attachments: Mapping[str, str],
+) -> Sample | EvalSampleSummary:
+    """Where a recovered sample's input, target and choices come from.
+
+    Shared by both recovery paths. The buffered summary is thinned
+    (`EvalSampleSummary.thin_data` truncates long text and drops images), so
+    prefer the dataset sample its `SampleInitEvent` recorded. The buffer stores
+    that event condensed; its `attachment://` refs are resolved here so the
+    write path condenses the input as a normal run does.
+    """
+    if sample_init is None:
+        return summary
+    [resolved] = resolve_events_attachments([sample_init], attachments)
+    return cast(SampleInitEvent, resolved).sample
+
+
+def recovered_sample_scores(
+    summary: EvalSampleSummary, events: list[Event]
+) -> dict[str, Score] | None:
+    """A recovered sample's scores, taken from its final `ScoreEvent`s.
+
+    Shared by both recovery paths. The buffered summary's scores are thinned
+    (answer, explanation and metadata shortened), so each comes from the last
+    final `ScoreEvent` its scorer recorded. The summary still decides which
+    scores the sample has, and a score with no matching event keeps the
+    summary's copy.
+    """
+    if summary.scores is None:
+        return None
+    final_scores = {
+        event.scorer: event.score
+        for event in events
+        if isinstance(event, ScoreEvent)
+        and not event.intermediate
+        and event.scorer is not None
+    }
+    return {
+        name: final_scores.get(name, score) for name, score in summary.scores.items()
+    }
+
+
 def reconstruct_eval_sample(
     summary: EvalSampleSummary,
     sample_data: SampleData,
@@ -193,25 +247,28 @@ def reconstruct_eval_sample(
             extract messages and output.
 
     Returns:
-        A fully resolved EvalSample (not condensed — condensing happens
-        at write time in Step 4).
+        An EvalSample with message and call pools and its output resolved.
+        Events and messages keep the buffer's attachment refs until
+        `condense_sample` runs at write time.
     """
     summary = _summary_with_uuid_fallback(summary)
 
     events = reconstruct_events(sample_data)
 
-    if sample_metadata is None:
-        sample_init = next(
-            (event for event in events if isinstance(event, SampleInitEvent)), None
-        )
-        if sample_init is not None:
-            sample_metadata = sample_init.sample.metadata
-
-    messages, output = _extract_messages_from_events(events)
+    sample_init = next(
+        (event for event in events if isinstance(event, SampleInitEvent)), None
+    )
+    if sample_metadata is None and sample_init is not None:
+        sample_metadata = sample_init.sample.metadata
 
     attachments = {
         attachment.hash: attachment.content for attachment in sample_data.attachments
     }
+    dataset_sample = dataset_sample_or_summary(summary, sample_init, attachments)
+
+    # condense_sample resolves the refs in messages at write time
+    messages, output = _extract_messages_from_events(events)
+    output = resolve_output_attachments(output, attachments)
 
     # Set error: synthesize an error for in-progress samples (per the
     # recovery disposition), or preserve existing error from
@@ -229,14 +286,14 @@ def reconstruct_eval_sample(
     return EvalSample(
         id=summary.id,
         epoch=summary.epoch,
-        input=summary.input,
-        choices=summary.choices,
-        target=summary.target,
+        input=dataset_sample.input,
+        choices=dataset_sample.choices,
+        target=dataset_sample.target,
         description=summary.description,
         metadata=sample_metadata if sample_metadata is not None else summary.metadata,
         messages=messages,
         output=output,
-        scores=summary.scores,
+        scores=recovered_sample_scores(summary, events),
         events=events if include_events else [],
         timelines=None,
         attachments=attachments,
@@ -431,6 +488,22 @@ def _extract_messages_from_events(
     acc = MessageAccumulator()
     acc.process_events(events)
     return acc.result()
+
+
+def resolve_output_attachments(
+    output: ModelOutput, attachments: Mapping[str, str]
+) -> ModelOutput:
+    """Resolve the `attachment://` refs in an output taken from a model event.
+
+    The buffer stores events condensed, so the output's long text and images
+    are refs. A normal run's log keeps the output inline (condensing a sample
+    leaves `output` alone), so recovery resolves it before writing.
+    """
+    return walk_model_output(
+        output,
+        resolve_attachment_fn(attachments),
+        WalkContext(message_cache={}, only_core=False),
+    )
 
 
 def _segment_messages(model_event: ModelEvent) -> list[ChatMessage]:

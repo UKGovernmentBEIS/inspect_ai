@@ -53,6 +53,7 @@ from inspect_ai.model._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
     ChatMessageBase,
+    logged_json,
 )
 from inspect_ai.model._model_call import ModelCall
 from inspect_ai.model._model_output import ModelOutput
@@ -299,12 +300,12 @@ def condense_sample(sample: EvalSample, log_images: bool = True) -> EvalSample:
     existing_attachments = dict(sample.attachments)
     attachments = dict(existing_attachments)
     rewritten_attachments: set[str] = set()
-    events_fn = _existing_attachments_content_fn(
+    events_fn = existing_attachments_content_fn(
         existing_attachments,
         rewritten_attachments,
         events_attachment_fn(attachments, log_images),
     )
-    messages_fn = _existing_attachments_content_fn(
+    messages_fn = existing_attachments_content_fn(
         existing_attachments,
         rewritten_attachments,
         messages_attachment_fn(attachments, log_images),
@@ -482,7 +483,7 @@ def messages_attachment_fn(
     return fn
 
 
-def _existing_attachments_content_fn(
+def existing_attachments_content_fn(
     existing: Mapping[str, str],
     rewritten_attachments: set[str],
     content_fn: Callable[[str], str],
@@ -510,6 +511,25 @@ def attachment_fn(attachments: MutableMapping[str, str]) -> Callable[[str], str]
         return f"{ATTACHMENT_PROTOCOL}{hash}"
 
     return create_attachment
+
+
+def resolve_attachment_fn(attachments: Mapping[str, str]) -> Callable[[str], str]:
+    """Content function that swaps `attachment://` refs for their content.
+
+    Refs missing from `attachments` are left as they are.
+    """
+
+    def content_fn(text: str) -> str:
+        # migrate previous flavor of content reference
+        CONTENT_PROTOCOL = "tc://"
+        if text.startswith(CONTENT_PROTOCOL):
+            text = text.replace(CONTENT_PROTOCOL, ATTACHMENT_PROTOCOL, 1)
+        if text.startswith(ATTACHMENT_PROTOCOL):
+            return attachments.get(text.replace(ATTACHMENT_PROTOCOL, "", 1), text)
+        else:
+            return text
+
+    return content_fn
 
 
 class _CreatedAttachment(NamedTuple):
@@ -768,18 +788,7 @@ def resolve_sample_attachments(
     if resolve_attachments is False:
         return sample
 
-    def content_fn(text: str) -> str:
-        # migrate previous flavor of content reference
-        CONTENT_PROTOCOL = "tc://"
-        if text.startswith(CONTENT_PROTOCOL):
-            text = text.replace(CONTENT_PROTOCOL, ATTACHMENT_PROTOCOL, 1)
-        if text.startswith(ATTACHMENT_PROTOCOL):
-            return sample.attachments.get(
-                text.replace(ATTACHMENT_PROTOCOL, "", 1), text
-            )
-        else:
-            return text
-
+    content_fn = resolve_attachment_fn(sample.attachments)
     context = WalkContext(
         message_cache={},
         only_core=resolve_attachments == "core",
@@ -949,16 +958,7 @@ def resolve_events_attachments(
     if resolve_attachments is False:
         return events
 
-    def content_fn(text: str) -> str:
-        # migrate previous flavor of content reference
-        CONTENT_PROTOCOL = "tc://"
-        if text.startswith(CONTENT_PROTOCOL):
-            text = text.replace(CONTENT_PROTOCOL, ATTACHMENT_PROTOCOL, 1)
-        if text.startswith(ATTACHMENT_PROTOCOL):
-            return attachments.get(text.replace(ATTACHMENT_PROTOCOL, "", 1), text)
-        else:
-            return text
-
+    content_fn = resolve_attachment_fn(attachments)
     context = WalkContext(message_cache={}, only_core=resolve_attachments == "core")
     return walk_events(events, content_fn, context)
 
@@ -1330,7 +1330,14 @@ def walk_chat_message(
         hit = cache.get(message.id)
         if hit is not None:
             pre_walk, walked = hit
-            if pre_walk is message or pre_walk == message:
+            if pre_walk is message:
+                return walked
+            # snapshots give one id several versions, some == but logged
+            # differently (True and 1), so compare what the log writes; a
+            # match re-keys the entry so later sightings hit by identity
+            logged = logged_json(message)
+            if logged is not None and logged == logged_json(pre_walk):
+                cache[message.id] = (message, walked)
                 return walked
     if isinstance(message.content, str):
         res = message.model_copy(update=dict(content=content_fn(message.content)))

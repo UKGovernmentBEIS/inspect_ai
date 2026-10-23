@@ -16,7 +16,8 @@ from inspect_ai.agent._types import (
     AgentSubmit,
 )
 from inspect_ai.dataset import Sample
-from inspect_ai.log import EvalLog
+from inspect_ai.event import ModelEvent
+from inspect_ai.log import EvalLog, read_eval_log
 from inspect_ai.model import (
     ChatMessageUser,
     GenerateConfig,
@@ -27,6 +28,7 @@ from inspect_ai.model._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
     ChatMessageSystem,
+    ChatMessageTool,
 )
 from inspect_ai.scorer import Score, Target, accuracy, includes, scorer
 from inspect_ai.solver import Generate, Solver, TaskState, solver
@@ -540,6 +542,47 @@ def test_react_agent_on_continue_func_with_braces():
     assert log.samples[0].error is None
     messages = log.samples[0].messages
     assert messages[-2].text == 'You said "I refuse. {pwned}". Please call submit.'
+
+
+def test_react_agent_on_continue_edit_keeps_logged_input(tmp_path):
+    # an on_continue that rewrites an earlier tool result in place must not
+    # change what the earlier generation's logged input shows
+    async def on_continue(state: AgentState) -> bool:
+        tool_messages = [m for m in state.messages if isinstance(m, ChatMessageTool)]
+        if len(tool_messages) == 2:
+            tool_messages[0].content = "[elided]"
+        return True
+
+    addition_task = Task(
+        dataset=[Sample(input="What is 1 + 1?", target="2")],
+        solver=react(tools=[addition()], on_continue=on_continue),
+        scorer=compare_quantities(),
+    )
+    log = eval(
+        addition_task,
+        model=get_model(
+            "mockllm/model",
+            custom_outputs=[
+                ModelOutput.for_tool_call(
+                    "mockllm/model", "addition", {"x": 1, "y": 1}
+                ),
+                ModelOutput.for_tool_call(
+                    "mockllm/model", "addition", {"x": 2, "y": 2}
+                ),
+                ModelOutput.for_tool_call("mockllm/model", "submit", {"answer": "2"}),
+            ],
+        ),
+        log_dir=str(tmp_path),
+    )[0]
+    assert log.status == "success"
+
+    sample = read_eval_log(log.location).samples[0]
+    model_events = [e for e in sample.events if isinstance(e, ModelEvent)]
+    first_tool_results = [
+        next(m for m in e.input if isinstance(m, ChatMessageTool))
+        for e in model_events[1:]
+    ]
+    assert [m.text for m in first_tool_results] == ["2", "[elided]"]
 
 
 def test_react_agent_assistant_prompt_with_braces():
