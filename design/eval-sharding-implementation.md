@@ -61,8 +61,10 @@ shard read fails the merge with its own error instead of restarting the
 pass.
 Revised on 2026-10-22 (decision: Ransom): remote deletion is one
 recursive delete of the location the caller gave, and the merge never
-imports the log's task file, resolving metrics and reducers from the
-registry only.
+imports the log's task file, resolving metrics from the registry only.
+Revised on 2026-10-23 (decision: Ransom): the merge does not recreate
+epoch reducers; it carries each sample's reduced scores from the shard
+that ran it.
 
 This is the follow-on document that [`eval-sharding.md`](eval-sharding.md)
 ("the parent design") names: the public surface, the shape of the stored
@@ -483,24 +485,16 @@ Trust (decision: Ransom, 2026-10-22): the merge never imports the log's
 UKGovernmentBEIS/inspect_ai#6007 a read imports nothing a log names
 unless the caller trusts the log; this PR has no trust option, so it
 never imports. Every metric (of a scorer, or of the task in
-`eval.metrics`, as solver-set scores without a scorer use) and every
-epoch reducer must be in the registry: built in, from an installed
-package, or imported by the caller. When one is not, the merge raises
-`LookupError` before writing anything (the type `recompute_metrics`
-raises for a missing metric), naming it and saying to import the module
-that defines it and merge from Python. The `eval_set()` startup merge
-(PR 6) runs with the task loaded, so its metrics and reducers are
-registered.
-
-Known limitation (decision: Ransom, 2026-10-22): an unregistered custom
-reducer whose name looks like built-in shorthand (`pass_at_1`,
-`at_least_2`, `mean_2`) resolves as the built-in with that `k`, or fails
-with the built-in's argument error, exactly as `recompute_metrics` does.
-Without running the task's code the two cannot be told apart, and the
-merge does not try. Follow-up, not this PR: once #6007 lands, add
-`trust_log` / `--trust-log` to the merge through its `LogTaskFileImport`,
-so there is one trust contract. A trusted merge would import the
-recorded task file up front, which also removes the shorthand collision.
+`eval.metrics`, as solver-set scores without a scorer use) must be in
+the registry: built in, from an installed package, or imported by the
+caller. When one is not, the merge raises `LookupError` before writing
+anything (the type `recompute_metrics` raises for a missing metric),
+naming it and saying to import the module that defines it and merge from
+Python. The `eval_set()` startup merge (PR 6) runs with the task loaded,
+so its metrics are registered. Epoch reducers are never recreated
+("Metric recomputation"), so they need no registry entry. Follow-up, not
+this PR: once #6007 lands, add `trust_log` / `--trust-log` to the merge
+through its `LogTaskFileImport`, so there is one trust contract.
 Parent "Trust": the merge runs only as a trusted step; no reader path
 calls it.
 
@@ -1055,12 +1049,16 @@ Consequences, documented in the API docstring:
 - Deleting one `<k>/` by hand makes later merges refuse until the rest of
   the companion is deleted or the files are restored. Deleting the whole
   companion leaves the merged log as it is (step 10).
-- Edits to the merged log: header edits (`log_updates`, `tags`,
-  `invalidated`) are carried to every later pass. Sample edits (for example
-  `edit_score`) survive while the shard holding the sample is unchanged,
-  and are replaced by the shard's copy when that shard changes. Editing a
-  merged log whose shards are still growing is therefore not supported;
-  finish the run first, or edit the shards.
+- Edits to the merged log: header edits (`log_updates`, `tags`) are
+  carried to every later pass. Sample edits (for example `edit_score`)
+  survive while the shard holding the sample is unchanged, and are
+  replaced by the shard's copy when that shard changes. Editing a merged
+  log whose shards are still growing is therefore not supported; finish
+  the run first, or edit the shards. With an epoch reducer configured, an
+  edited score refuses any pass that writes ("Metric recomputation").
+  `invalidated` follows the samples: it is true when a merged sample
+  carries an `invalidation`, so a sample invalidated in a shard or in the
+  merged log sets it, and replacing the last such sample clears it.
 
 #### Status
 
@@ -1109,7 +1107,8 @@ well-defined shard, so fresh and incremental merges agree.
 | `eval.shards` | the new field: ledger entries for every current attempt (a read shard's with `samples` the number of keys taken, `selected` the size of its `S_k` and the digest of `S_k`; an unchanged shard's carried as they were), `selection` and `sample_count` ("Recorded selection"). A pass under the vanished-shard exception ("Validation") writes nothing and keeps the recorded ledger, vanished entries included |
 | `results` | from "Metric recomputation"; `total_samples` is the selection size (or, without one, the distinct held ids) times epochs, `completed_samples` the merged samples without `error`; `early_stopping`, `logged_samples`, `metadata` absent |
 | `stats` | from the ledger entries: `started_at` the earliest, `completed_at` the latest (`""` while any entry's is empty), `model_usage` and `role_usage` summed per key with `ModelUsage.__add__`; `connection_limit_history` empty (per-process history stays in the shards) |
-| `log_updates`, `tags`, `invalidated` | carried from the existing merged header (merged-log edits), absent at the first merge |
+| `log_updates`, `tags` | carried from the existing merged header (merged-log edits), absent at the first merge |
+| `invalidated` | whether any merged sample has an `invalidation`, accumulated as the samples are parsed (step 11) |
 | `config_updates` | absent (per-process runtime changes stay in the shards) |
 
 **The merged log's `task_id`.** Retry cleanup groups logs by
@@ -1168,7 +1167,9 @@ settings (`zipfile_compress_kwargs`):
 - `summaries.json`: the planned keys' summaries, from the shards'
   summaries for changed shards and the merged log's `summaries.json` for
   carried keys.
-- `reductions.json` from "Metric recomputation", and `header.json` last.
+- `reductions.json` from "Metric recomputation" (with an epoch reducer
+  configured and a sample whose reduction is not recorded, the recorded
+  reductions of the held samples), and `header.json` last.
 - No `_journal/` members: the merged log is written finished, whatever its
   status, so readers never take the running-log path for it.
 
@@ -1179,12 +1180,12 @@ a time plus the metric inputs.
 
 As each planned sample passes through step 11, the merge parses it once and
 keeps `SampleScore(score=..., sample_id=..., sample_metadata=...)` per
-scorer and whether `error` is set; everything else in the sample is
-discarded before the next. After the last sample it calls
-`eval_results(samples=..., scores=..., reducers=reducers_from_log_header(h),
-scorers=resolve_scorers_info(h), metrics=metrics_from_log_header(h),
-completed_samples=..., headline_metric=h.eval.headline_metric)` with the
-template header `h`, mirroring `recompute_metrics` without loading the log.
+scorer, whether `error` is set, which scores carry an edit history and
+whether the sample has an `invalidation`; everything else in the sample
+is discarded before the next. After the last sample it calls
+`eval_results(samples=..., scores=..., reducers=..., scorers=resolve_scorers_info(h),
+metrics=metrics_from_log_header(h), completed_samples=...,
+headline_metric=h.eval.headline_metric)` with the template header `h`.
 It also passes `scorer_names`, the names the worker scored samples under,
 resolved once from the declared scorers with `unique_scorer_name` as the
 task runner resolves them (plus the solver-set score names), so
@@ -1194,11 +1195,10 @@ otherwise rename that scorer and leave it without scores.
 Carried samples are read from the merged log's temp copy on every pass that
 writes, because the merged log's sample members are the only lossless
 source (summaries are lossy, parent "Constraints"). Before reading any
-sample the merge checks that the registry resolves every metric and epoch
-reducer of `h` (`check_scoring_resolvable`: a registry lookup per metric
-name, including the metrics that wrappers such as `grouped()` and
-`aggregate()` record as registry dicts in their options, at any depth,
-and `create_reducers` per reducer name), so `resolve_scorers_info`
+sample the merge checks that the registry resolves every metric of `h`
+(`check_scoring_resolvable`: a registry lookup per metric name, including
+the metrics that wrappers such as `grouped()` and `aggregate()` record as
+registry dicts in their options, at any depth), so `resolve_scorers_info`
 never reaches its `task_file` import ("Trust" under "Python API"); an
 unregistered one raises `LookupError` and nothing is written (parent:
 "fails rather than store metrics from a lossy input"). A sample score
@@ -1239,6 +1239,42 @@ that supplies a solver-set score's metrics, if a real task hits this
 refusal; or workers recording the metric definitions they used for each
 score in the log header, which the merge could then resolve as it
 resolves `eval.metrics`.
+
+Epoch reducers (decision: Ransom, 2026-10-23). A log records each reducer
+by name only (`config.epochs_reducer`, from `reducer_log_name`), without
+its arguments: `at_least(k=1, value=0.5)` is `at_least_1`, and a `mean`
+with a value converter is `mean`. A reducer recreated from the name is
+therefore not the one that ran, so the merge never recreates one. Every
+epoch of a sample runs in one shard (parent "Slicing"), and a shard
+writes `reductions.json` (one reduced score per sample, per scorer and
+reducer) at log finish, whatever its final status; a running attempt has
+none. With reducers recorded, the merge passes `eval_results` a
+`RecordedReductions` (`results.py`): the reducer names and a lookup that
+returns each sample's recorded reduced score, with the sample's metadata
+attached, so the reduced and unreduced views, metric names and headline
+are computed by the live code. Each sample's reduction comes from the log
+it is merged from: a changed shard's current attempt, or for carried
+samples the merged log, which holds what their unchanged shard recorded
+when it was merged. The reductions of a recovered attempt are not used:
+recovery recomputes them with reducers recreated by name. With no reducer
+recorded (`None`), the reducer is the default `mean_score()` and the merge
+passes `reducers=None`, exactly as the live run does; `[]` (reduction
+disabled) is passed as it is. A one-epoch run is not an exception: the
+live run applies the reducer to the single score too
+(`at_least(1, value=0.5)` turns 0.75 into 1).
+
+When a held sample's reduction is not recorded (its shard is running, or
+its finished attempt or the merged log lacks the entry), an incomplete
+merged log is written with no `results` and the recorded reductions of the
+other held samples, which carried samples read on a later pass; a
+`success` merge is refused with `ShardSetError` before publishing or
+deleting. Readers attach `reductions.json` only when `results` is set, so
+the partial reductions are not shown. A score with an edit history (from
+`edit_score`, in a shard or the merged log) refuses any pass that writes:
+its recorded reduction predates the edit or was recomputed with a
+recreated reducer. The messages name the sample, score, reducer and log,
+and say to re-run the shard or delete the merged log so the next merge
+rebuilds it from the shards.
 
 Memory: the current sample plus every sample's `SampleScore`s, as the
 parent's "Scale" accepts. The baseline parses each sample whole, so peak
@@ -2061,9 +2097,9 @@ today.
   hostile file rather than skipping it; a merge never overwrites a
   `<name>.eval` without the field.
 - **Code execution.** The merge never imports the header's `task_file`:
-  metrics and reducers come from the registry, and an unregistered one is
-  refused ("Trust" under "Python API"). Metric and reducer code that is
-  registered runs, as in any recomputation. The merge runs only in
+  metrics come from the registry, and an unregistered one is refused
+  ("Trust" under "Python API"); epoch reducers are never recreated.
+  Metric code that is registered runs, as in any recomputation. The merge runs only in
   trusted steps (API, CLI, `eval_set()` startup). No reader path (viewer
   server, `read_eval_log*`, dataframes, ctl log-dir mode) calls it.
 - **Viewer.** No change to the viewer server; its delete endpoint still
@@ -2306,8 +2342,7 @@ Per PR (numbers from "Implementation plan"):
    - trust: an unregistered scorer metric, an unregistered task-level
      metric of solver-set scores with no scorer, an unregistered metric
      wrapped in `grouped()` (and, at unit level, nested in
-     `grouped(aggregate(...))`), and an unregistered custom epoch reducer
-     with built-in metrics each raise `LookupError` naming
+     `grouped(aggregate(...))`) each raise `LookupError` naming
      it, write nothing and import nothing; the same merge succeeds once
      the module that defines it is imported; solver-set score names that
      are a file-qualified scorer spec or an existing file, beside a
@@ -2323,7 +2358,25 @@ Per PR (numbers from "Implementation plan"):
      per-key result name (`parts` reporting `other`, then `other` twice)
      merge to the same results as an unsharded run, with deletion enabled;
      a score with no recorded results (running
-     shards only) is refused; a spy
+     shards only) is refused;
+   - epoch reducers: `at_least(1, value=0.5)` with one epoch and with two,
+     `pass_at(2, value=0.5)`, `pass_k(2, value=0.5)` and a `mean` with a
+     value converter, beside a default-reducer control, on a scorer with
+     reduced and unreduced metrics, merge to an unsharded run's results
+     and reductions, fresh and incrementally (the first pass, made while a
+     shard runs, has no results; the next carries the finished shard's
+     reductions from the merged log), with `delete_shards=True`; a cold
+     custom reducer registered as `pass_at_1` merges with its recorded
+     reductions; with `delete_shards=True`, a finished shard without
+     `reductions.json`, a recovered attempt and a score edited in a shard
+     are refused, with no merged log published and the shards intact, and
+     a score edited in the merged log refuses the next pass that writes,
+     leaving the merged log unchanged;
+   - `invalidated`: a fresh merge of an invalidated shard sample sets it, a
+     replacement without the last invalidated sample clears it, and an
+     invalidated replacement in an incremental merge sets it again; each
+     time the merged samples and header agree and `all_evals_succeeded()`
+     follows; a spy
      asserts no
      reader path
      (`read_eval_log`, `list_eval_logs`, `evals_df`) calls the merge;

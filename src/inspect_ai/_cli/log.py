@@ -607,7 +607,7 @@ def merge_shards_command(
         ) as ex:
             _merge_failure(json_output, ex, stdout)
         except LookupError as ex:
-            # an unregistered metric or reducer; KeyError and IndexError are
+            # an unregistered metric; KeyError and IndexError are
             # bugs, not refusals
             if isinstance(ex, (KeyError, IndexError)):
                 raise

@@ -21,6 +21,7 @@ from inspect_ai.log import (
     ShardSelectionError,
     ShardSetError,
     ShardSetIncomplete,
+    edit_score,
     merge_eval_log_shards,
     read_eval_log,
     read_eval_log_async,
@@ -38,13 +39,22 @@ from inspect_ai.log._shards._walk import (
 from inspect_ai.scorer import (
     CORRECT,
     INCORRECT,
+    Metric,
+    SampleScore,
     Score,
     Scorer,
     Target,
+    Value,
     accuracy,
+    at_least,
     match,
     mean,
+    mean_score,
+    metric,
+    pass_at,
+    pass_k,
     scorer,
+    value_to_float,
 )
 from inspect_ai.solver import Generate, Solver, TaskState, generate, solver
 
@@ -794,6 +804,219 @@ def test_merge_keeps_declared_scorer_names_that_collide_with_result_names(
     by_name = {score.name: score for score in result.log.results.scores}
     assert by_name["other1"].metrics["accuracy"].value == pytest.approx(4 / 6)
     assert by_name["other1"].scored_samples == 6
+
+
+@metric(scores="unreduced")
+def shard_unreduced_total() -> Metric:
+    def compute(scores: list[SampleScore]) -> float:
+        return float(sum(s.score.as_float() for s in scores))
+
+    return compute
+
+
+@scorer(metrics=[mean(), shard_unreduced_total()])
+def graded() -> Scorer:
+    async def score(state: TaskState, target: Target) -> Score:
+        # 3 and 6 score 0.75 in every epoch, the others 0.75 in one of two
+        id = int(state.sample_id)
+        return Score(value=0.75 if id % 3 == 0 or (id + state.epoch) % 2 else 0.25)
+
+    return score
+
+
+def _doubled(value: Value) -> float:
+    return 2 * value_to_float()(value)
+
+
+def _graded_task(epochs: Epochs | int) -> Task:
+    task = _task(epochs=epochs)
+    task.scorer = [graded()]
+    return task
+
+
+@pytest.mark.parametrize(
+    "epochs",
+    [
+        pytest.param(2, id="default"),
+        pytest.param(Epochs(1, at_least(1, value=0.5)), id="at_least-1-epoch"),
+        pytest.param(Epochs(2, at_least(1, value=0.5)), id="at_least"),
+        pytest.param(Epochs(2, pass_at(2, value=0.5)), id="pass_at"),
+        pytest.param(Epochs(2, pass_k(2, value=0.5)), id="pass_k"),
+        pytest.param(Epochs(2, mean_score(value_to_float=_doubled)), id="mean"),
+    ],
+)
+def test_configured_reducers_merge_with_the_workers_results(
+    tmp_path: Path, epochs: Epochs | int
+) -> None:
+    # the log records `at_least_1`, `pass_at_2`, `mean`: not the arguments
+    task = _graded_task(epochs)
+    unsharded = eval(
+        task, model="mockllm/model", log_dir=str(tmp_path / "unsharded"), display="none"
+    )[0]
+    assert unsharded.results is not None
+
+    # fresh
+    merged, shards = _paths(tmp_path / "fresh")
+    _run(shards, "0", task, sample_id=[1, 2, 3])
+    _run(shards, "1", task, sample_id=[4, 5, 6])
+    result = merge_eval_log_shards(merged, delete_shards=True)
+    assert result.shards_deleted and result.log.results is not None
+    assert result.log.results.scores == unsharded.results.scores
+    assert read_eval_log(merged).reductions == unsharded.reductions
+
+    # incremental: shard 0's samples are carried from a merge made while
+    # shard 1 was running
+    merged, shards = _paths(tmp_path / "incremental")
+    _run(shards, "0", task, sample_id=[1, 2, 3])
+    _as_running(_run(shards, "1", task, sample_id=[4, 5, 6]), keep={(4, 1)})
+    first = merge_eval_log_shards(merged, allow_incomplete=True).log
+    assert first.status == "started"
+    reduced = not isinstance(epochs, int)
+    assert (first.results is None) == reduced
+    _run(shards, "1", task, sample_id=[4, 5, 6])
+    result = merge_eval_log_shards(merged, delete_shards=True)
+    assert result.shards_deleted and result.log.results is not None
+    assert result.log.results.scores == unsharded.results.scores
+    assert read_eval_log(merged).reductions == unsharded.reductions
+
+
+def test_a_cold_reducer_named_like_built_in_shorthand_merges(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from inspect_ai._util import registry
+
+    monkeypatch.chdir(tmp_path)
+    _run_task_file(_SHORTHAND_REDUCER_TASK)
+    # as in a fresh process; recreated, `pass_at_1` would be pass_at(k=1)
+    monkeypatch.delitem(registry._registry, "score_reducer:pass_at_1")
+    header = merge_eval_log_shards(f"{NAME}.eval", delete_shards=True).log
+    assert header.results is not None
+    assert header.results.scores[0].metrics["mean"].value == 1.0
+    reductions = read_eval_log(f"{NAME}.eval").reductions
+    assert reductions is not None and reductions[0].reducer == "pass_at_1"
+    assert [s.value for s in reductions[0].samples] == [1.0] * 4
+
+
+_SHORTHAND_REDUCER_TASK = f"""
+from inspect_ai import Epochs, Task, task
+from inspect_ai.dataset import Sample
+from inspect_ai.scorer import Score, ScoreReducer, Target, mean, score_reducer, scorer
+from inspect_ai.solver import TaskState
+
+
+@score_reducer(name="pass_at_1")
+def first_epoch() -> ScoreReducer:
+    def reduce(scores: list[Score]) -> Score:
+        return scores[0]
+
+    return reduce
+
+
+@scorer(metrics=[mean()])
+def by_epoch():
+    async def score(state: TaskState, target: Target) -> Score:
+        return Score(value=1.0 if state.epoch == 1 else 0.0)
+
+    return score
+
+
+@task
+def {TASK}() -> Task:
+    return Task(
+        dataset=[Sample(id=i, input="q") for i in range(1, 5)],
+        scorer=by_epoch(),
+        epochs=Epochs(2, first_epoch()),
+    )
+"""
+
+
+@pytest.mark.parametrize("case", ["no_reductions", "recovered", "edited"])
+def test_a_reduction_the_merge_cannot_take_from_its_shard_is_refused(
+    tmp_path: Path, case: str
+) -> None:
+    import shutil
+
+    from inspect_ai.scorer import ScoreEdit
+
+    merged, shards = _paths(tmp_path)
+    task = _graded_task(Epochs(2, at_least(1, value=0.5)))
+    _run(shards, "0", task, sample_id=[1, 2, 3])
+    shard = _run(shards, "1", task, sample_id=[4, 5, 6])
+    if case == "no_reductions":
+        _remove_member(shard.location, "reductions.json")
+    elif case == "recovered":
+        # recovery recomputes reductions with reducers recreated by name
+        shutil.copy2(
+            local_path(shard.location), shard.location[:-5] + "-recovered.eval"
+        )
+    else:
+        _rewrite(
+            shard,
+            lambda log: edit_score(log, 4, "graded", ScoreEdit(value=0.25), epoch=1),
+        )
+    before = _files(shards)
+    with pytest.raises(ShardSetError, match="epoch reduction .*at_least_1") as raised:
+        merge_eval_log_shards(merged, delete_shards=True)
+    assert ("edited" in str(raised.value)) == (case == "edited")
+    assert not os.path.exists(merged)
+    assert _files(shards) == before
+
+
+def test_an_edited_carried_score_refuses_the_next_merge(tmp_path: Path) -> None:
+    from inspect_ai.scorer import ScoreEdit
+
+    merged, shards = _paths(tmp_path)
+    task = _graded_task(Epochs(2, at_least(1, value=0.5)))
+    _run(shards, "0", task, sample_id=[1, 2, 3])
+    _run(shards, "1", task, sample_id=[4, 5, 6])
+    merge_eval_log_shards(merged)
+    log = read_eval_log(merged)
+    edit_score(log, 1, "graded", ScoreEdit(value=0.25), epoch=1)
+    write_eval_log(log, merged)
+    before = Path(merged).read_bytes()
+
+    _run(shards, "1", task, sample_id=[4, 5, 6])
+    with pytest.raises(ShardSetError, match=f"sample '1' in {merged} was edited"):
+        merge_eval_log_shards(merged, delete_shards=True)
+    assert Path(merged).read_bytes() == before
+    assert len(list(Path(shards).glob("*/*.eval"))) == 3
+
+
+def _check_invalidated(merged: str, expected: bool) -> None:
+    from inspect_ai._eval.evalset import all_evals_succeeded
+
+    log = read_eval_log(merged)
+    assert log.samples is not None
+    assert log.invalidated == expected
+    assert any(s.invalidation is not None for s in log.samples) == expected
+    assert all_evals_succeeded([log]) == (not expected)
+
+
+def test_merged_invalidated_follows_the_merged_samples(tmp_path: Path) -> None:
+    from inspect_ai.log import ProvenanceData, invalidate_samples
+
+    def invalidated(log: EvalLog) -> None:
+        full = read_eval_log(log.location)
+        assert full.samples is not None
+        out = invalidate_samples(
+            full, [full.samples[0].uuid or ""], ProvenanceData(author="test")
+        )
+        write_eval_log(out, log.location)
+
+    merged, shards = _paths(tmp_path)
+    _run(shards, "0", sample_id=[1, 2, 3])
+    invalidated(_run(shards, "1", sample_id=[4, 5, 6]))
+    # fresh merge of an invalidated shard sample
+    assert merge_eval_log_shards(merged).log.invalidated
+    _check_invalidated(merged, True)
+    # a replacement without the last invalidated sample clears the flag
+    _run(shards, "1", sample_id=[4, 5, 6])
+    assert not merge_eval_log_shards(merged).log.invalidated
+    _check_invalidated(merged, False)
+    # an invalidated replacement in an incremental merge sets it
+    invalidated(_run(shards, "1", sample_id=[4, 5, 6]))
+    assert merge_eval_log_shards(merged).log.invalidated
+    _check_invalidated(merged, True)
 
 
 def test_merge_of_limit_range_shards(tmp_path: Path) -> None:
@@ -1777,15 +2000,10 @@ def _run_task_file(source: str) -> None:
     [
         ("scorer_metric", "metric:shard_custom_count", "Metric 'shard_custom_count'"),
         ("task_metric", "metric:shard_custom_total", "Metric 'shard_custom_total'"),
-        (
-            "reducer",
-            "score_reducer:shard_custom_first",
-            "Epoch reducer 'shard_custom_first'",
-        ),
         ("wrapped_metric", "metric:shard_custom_inner", "Metric 'shard_custom_inner'"),
     ],
 )
-def test_an_unregistered_metric_or_reducer_is_refused_until_imported(
+def test_an_unregistered_metric_is_refused_until_imported(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     source: str,
@@ -1892,29 +2110,6 @@ def {TASK}() -> Task:
         ],
         scorer=match(),
         metrics=[grouped(shard_custom_inner(), "group")],
-    )
-""",
-    "reducer": f"""
-from inspect_ai import Epochs, Task, task
-from inspect_ai.dataset import Sample
-from inspect_ai.scorer import Score, ScoreReducer, match, score_reducer
-
-
-@score_reducer
-def shard_custom_first() -> ScoreReducer:
-    def reduce(scores: list[Score]) -> Score:
-        return scores[0]
-
-    return reduce
-
-
-@task
-def {TASK}() -> Task:
-    # built-in metrics: only the reducer is custom
-    return Task(
-        dataset=[Sample(id=i, input="q", target="x") for i in range(1, 5)],
-        scorer=match(),
-        epochs=Epochs(2, shard_custom_first()),
     )
 """,
 }

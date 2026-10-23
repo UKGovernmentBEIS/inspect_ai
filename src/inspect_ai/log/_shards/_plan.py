@@ -22,6 +22,7 @@ from inspect_ai._util.zip_common import ZipEntry
 from inspect_ai.log._log import (
     EvalLog,
     EvalResults,
+    EvalSampleReductions,
     EvalSampleSummary,
     EvalShardEntry,
     EvalShards,
@@ -163,6 +164,11 @@ class AttemptRead(NamedTuple):
 
     etag: str | None
     """ETag of the bytes read, when the store reports one."""
+
+    reductions: list[EvalSampleReductions] | None
+    """Its recorded epoch reductions: read only when the header records
+    epoch reducers and the attempt finished, and never from a recovered
+    attempt, whose reductions recovery recomputed with recreated reducers."""
 
     @property
     def selection(self) -> frozenset[str] | None:
@@ -508,6 +514,7 @@ def build_header(
     selection: Selection,
     summaries: Sequence[EvalSampleSummary],
     results: EvalResults | None,
+    invalidated: bool,
 ) -> EvalLog:
     """The merged log's header.
 
@@ -515,7 +522,7 @@ def build_header(
     was built from the same attempt); every field the sharding design does
     not list is taken from it. `merged` is the existing merged header, from
     which the ids minted at the first merge and the merged-log edits are
-    carried.
+    carried. `invalidated` is whether any merged sample is invalidated.
     """
     if selection.form == "ids":
         sample_ids: list[str | int] = list(selection.ids or [])
@@ -562,6 +569,6 @@ def build_header(
         results=results,
         stats=ledger_stats(ledger),
         error=status.error,
-        invalidated=merged.invalidated if merged is not None else False,
+        invalidated=invalidated,
         log_updates=merged.log_updates if merged is not None else None,
     )

@@ -1,10 +1,11 @@
 import fnmatch
+import functools
 import inspect
 import logging
 import math
 import re
 from collections import defaultdict
-from collections.abc import Iterator, Mapping, Sequence
+from collections.abc import Callable, Iterator, Mapping, Sequence
 from copy import deepcopy
 from dataclasses import dataclass, field
 from typing import Any, Tuple, TypeGuard, cast, get_args, get_origin, get_type_hints
@@ -51,6 +52,24 @@ logger = logging.getLogger(__name__)
 Metrics = list[Metric | dict[str, list[Metric]]] | dict[str, list[Metric]]
 
 
+@dataclass(frozen=True)
+class RecordedReductions:
+    """Epoch reductions computed earlier, used in place of the reducers.
+
+    A log records each epoch reducer by name only (`EvalConfig.epochs_reducer`),
+    without its arguments, so a reducer recreated from a log can differ from
+    the one that ran. A shard merge passes the reduced scores the shards
+    recorded instead.
+    """
+
+    names: list[str]
+    """The reducers' log names, in order (`EvalConfig.epochs_reducer`)."""
+
+    reduced: Callable[[str, str, list[SampleScore]], list[SampleScore]]
+    """Called with a scorer name, a reducer name and that scorer's scores;
+    returns one reduced score per sample, in first-seen order."""
+
+
 @dataclass
 class ScorerInfo:
     name: str
@@ -90,7 +109,7 @@ class ScorerInfo:
 def eval_results(
     samples: int,
     scores: list[dict[str, SampleScore]],
-    reducers: ScoreReducer | list[ScoreReducer] | None,
+    reducers: ScoreReducer | list[ScoreReducer] | RecordedReductions | None,
     scorers: list[Scorer] | list[ScorerInfo] | None,
     metrics: Metrics | None,
     scorer_names: list[str] | None = None,
@@ -194,7 +213,7 @@ def compute_eval_scores_for_views(
     metrics: Metrics,
     scorer_name: str,
     scorer_info: ScorerInfo,
-    reducers: ScoreReducer | list[ScoreReducer] | None,
+    reducers: ScoreReducer | list[ScoreReducer] | RecordedReductions | None,
 ) -> tuple[list[EvalScore], list[EvalSampleReductions]]:
     result_scores: list[EvalScore] = []
     sample_reductions: list[EvalSampleReductions] = []
@@ -216,8 +235,10 @@ def compute_eval_scores_for_views(
     mixed_views = reduced_metrics is not None and unreduced_metrics is not None
 
     if reduced_metrics is not None:
-        for reducer, reducer_display_nm in _reduced_views(reducers, mixed_views):
-            reduced_scores = reduce_scores(scores, reducer=reducer)
+        for reduce, reducer_display_nm in _reduced_views(
+            reducers, mixed_views, scorer_name
+        ):
+            reduced_scores = reduce(scores)
             sample_reductions.append(
                 EvalSampleReductions(
                     scorer=scorer_name,
@@ -369,13 +390,27 @@ def _has_repeated_sample_ids(scores: list[SampleScore]) -> bool:
 
 
 def _reduced_views(
-    reducers: ScoreReducer | list[ScoreReducer] | None,
+    reducers: ScoreReducer | list[ScoreReducer] | RecordedReductions | None,
     name_implicit_mean: bool,
-) -> list[tuple[ScoreReducer, str | None]]:
+    scorer_name: str,
+) -> list[tuple[Callable[[list[SampleScore]], list[SampleScore]], str | None]]:
+    if isinstance(reducers, RecordedReductions):
+        return [
+            (functools.partial(reducers.reduced, scorer_name, name), name)
+            for name in reducers.names
+        ]
     if reducers is None:
-        return [(mean_score(), "mean" if name_implicit_mean else None)]
+        return [
+            (
+                functools.partial(reduce_scores, reducer=mean_score()),
+                "mean" if name_implicit_mean else None,
+            )
+        ]
     reducers = reducers if isinstance(reducers, list) else [reducers]
-    return [(reducer, reducer_log_name(reducer)) for reducer in reducers]
+    return [
+        (functools.partial(reduce_scores, reducer=reducer), reducer_log_name(reducer))
+        for reducer in reducers
+    ]
 
 
 def split_metrics(

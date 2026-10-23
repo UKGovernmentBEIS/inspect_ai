@@ -6,13 +6,14 @@ import tempfile
 import zipfile
 from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Literal, NamedTuple
+from typing import Any, Literal, NamedTuple
 
 import anyio
 
 from inspect_ai._util._async import run_coroutine, tg_collect
 from inspect_ai._util.async_zip import AsyncZipReader
 from inspect_ai._util.asyncfiles import AsyncFilesystem, is_s3_filename
+from inspect_ai._util.constants import get_deserializing_context
 from inspect_ai._util.file import FileInfo, basename, local_path, to_uri
 from inspect_ai._util.log_layout import (
     eval_log_for_shards_dir,
@@ -22,15 +23,19 @@ from inspect_ai._util.log_layout import (
 from inspect_ai.log._log import (
     EvalLog,
     EvalResults,
+    EvalSampleReductions,
+    EvalSampleScore,
     EvalSampleSummary,
     EvalShardEntry,
 )
 from inspect_ai.log._recorders.chunked.format import classify_sample_shape
 from inspect_ai.log._recorders.eval import (
+    REDUCTIONS_JSON,
     SUMMARIES_JSON,
     _parse_summaries,
     _read_all_summaries_async,
     _read_header_async,
+    _read_member_json,
     _sample_filename,
 )
 from inspect_ai.log._recorders.recorder import SampleRecordKey
@@ -58,8 +63,8 @@ from ._plan import (
     selected_total,
 )
 from ._publish import is_local, merge_guard, merged_log_copy, publish
-from ._walk import ShardDir, list_shard_set
-from ._write import check_scoring_resolvable, write_merged_zip
+from ._walk import ShardDir, attempt_sort_key, list_shard_set
+from ._write import HeldReductions, check_scoring_resolvable, write_merged_zip
 
 _MAX_CONCURRENT_READS = 16
 
@@ -116,13 +121,16 @@ def merge_eval_log_shards(
     storage backends have no guard: callers must not run two merges of one
     log at once.
 
-    Metrics and epoch reducers are resolved from the registry only: built
-    in, from installed packages, or imported by the caller. The merge never
-    imports the log's task file; to merge a log whose task defines its own
-    metric or reducer, import that module first and merge from Python. A
-    custom reducer named like built-in shorthand (`pass_at_1`,
-    `at_least_2`, `mean_2`) that is not imported resolves as the built-in,
-    or fails with its argument error, as `recompute_metrics()` does.
+    Metrics are resolved from the registry only: built in, from installed
+    packages, or imported by the caller. The merge never imports the log's
+    task file; to merge a log whose task defines its own metric, import that
+    module first and merge from Python. Epoch reducers are not recreated:
+    with a reducer configured, each sample's reduced scores are taken from
+    the shard that ran it, which records them when it finishes. An
+    incomplete merged log then has no results until every shard holding its
+    samples has finished, and a score edited in a shard or the merged log
+    (`edit_score`) refuses the merge, since its recorded reduction cannot be
+    checked.
 
     A merge that runs while a worker is writing its shard can fail with a
     read error (for example a CRC or JSON error). Nothing is written; run
@@ -159,8 +167,7 @@ def merge_eval_log_shards(
         WriteConflictError: Another merge holds the lock or published first.
             Run the merge again later.
         FileNotFoundError: Neither the merged log nor any shard exists.
-        LookupError: A metric or epoch reducer is not registered. Nothing is
-            written.
+        LookupError: A metric is not registered. Nothing is written.
         ValueError: Invalid arguments, or `delete_shards` for a remote log
             whose location holds a glob character (`*`, `?`, `[`), which the
             storage backend would expand to other paths.
@@ -444,6 +451,7 @@ async def _merge_pass(
         carried_zip: zipfile.ZipFile | None = None
         try:
             carried_summaries: dict[SampleRecordKey, EvalSampleSummary] = {}
+            carried_reductions: list[EvalSampleReductions] = []
             if carried:
                 assert existing is not None
                 copy = await merged_log_copy(fs, merged_path, existing.etag, temp_dir)
@@ -451,6 +459,10 @@ async def _merge_pass(
                 carried_summaries = await anyio.to_thread.run_sync(
                     _read_carried_summaries, carried_zip, merged_path
                 )
+                if base.eval.config.epochs_reducer:
+                    carried_reductions = await anyio.to_thread.run_sync(
+                        _read_carried_reductions, carried_zip
+                    )
             summaries = []
             for key in keys:
                 if key in taken:
@@ -487,7 +499,11 @@ async def _merge_pass(
                     shard_results=functools.partial(
                         _current_results, fs, shards, current
                     ),
-                    make_header=lambda results: build_header(
+                    held_reductions=_held_reductions(
+                        reads, carried, carried_reductions, merged_path
+                    ),
+                    complete=status.status == "success",
+                    make_header=lambda scoring: build_header(
                         base=base,
                         merged=existing.header if existing is not None else None,
                         name=name,
@@ -495,7 +511,8 @@ async def _merge_pass(
                         ledger=entries,
                         selection=selection,
                         summaries=summaries,
-                        results=results,
+                        results=scoring.results,
+                        invalidated=scoring.invalidated,
                     ),
                 )
                 if carried_zip is not None:
@@ -622,6 +639,14 @@ async def _read_attempt(
             assert entry is not None
             held[key] = summary
             members[key] = entry
+    reductions = None
+    if (
+        header.eval.config.epochs_reducer
+        and header.status != "started"
+        and not attempt_sort_key(info).recovered
+        and REDUCTIONS_JSON in names
+    ):
+        reductions = _parse_reductions(await _read_member_json(reader, REDUCTIONS_JSON))
     read = AttemptRead(
         shard=shard.name,
         file=info,
@@ -629,6 +654,7 @@ async def _read_attempt(
         summaries=held,
         members=members,
         etag=reader.etag,
+        reductions=reductions,
     )
     return read, reader
 
@@ -663,6 +689,58 @@ async def _read_attempt_header(fs: AsyncFilesystem, shard: ShardDir) -> EvalLog:
     reader = AsyncZipReader(fs, info.name, verify_crc=True)
     cd = await reader.entries()
     return await _read_header_async(reader, {e.filename for e in cd.entries}, info.name)
+
+
+def _read_carried_reductions(
+    carried_zip: zipfile.ZipFile,
+) -> list[EvalSampleReductions]:
+    if REDUCTIONS_JSON not in carried_zip.namelist():
+        return []
+    return _parse_reductions(json.loads(carried_zip.read(REDUCTIONS_JSON)))
+
+
+def _parse_reductions(data: list[Any]) -> list[EvalSampleReductions]:
+    return [
+        EvalSampleReductions.model_validate(
+            reduction, context=get_deserializing_context()
+        )
+        for reduction in data
+    ]
+
+
+def _held_reductions(
+    reads: list[AttemptRead],
+    carried: set[SampleRecordKey],
+    carried_reductions: list[EvalSampleReductions],
+    merged_path: str,
+) -> HeldReductions:
+    """The recorded reductions of the held samples, each from its own log.
+
+    A changed shard's samples take theirs from its current attempt, carried
+    samples from the merged log, which holds what their (unchanged) shard
+    recorded when it was merged.
+    """
+    sources = {key.sample_id: merged_path for key in carried}
+    samples: dict[tuple[str, str | None], list[EvalSampleScore]] = {}
+
+    def add(reductions: list[EvalSampleReductions], ids: set[str]) -> None:
+        for reduction in reductions:
+            samples.setdefault((reduction.scorer, reduction.reducer), []).extend(
+                s for s in reduction.samples if str(s.sample_id) in ids
+            )
+
+    for read in reads:
+        ids = {key.sample_id for key in read.summaries}
+        sources.update(dict.fromkeys(ids, read.file.name))
+        add(read.reductions or [], ids)
+    add(carried_reductions, {key.sample_id for key in carried})
+    return HeldReductions(
+        reductions=[
+            EvalSampleReductions(scorer=scorer, reducer=reducer, samples=held)
+            for (scorer, reducer), held in samples.items()
+        ],
+        sources=sources,
+    )
 
 
 def _read_carried_summaries(

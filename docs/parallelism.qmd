@@ -124,7 +124,11 @@ The merge checks that the shards belong to one run, recomputes metrics over all 
 
 `--json` prints one JSON object on stdout for scripts and agents. On success it has the merged log's `log`, `status`, `written`, `shards`, `samples`, `new_samples`, `missing`, `running`, `failed` and `shards_deleted`. On failure it is `{"error": {"type": ..., "message": ...}}` and the exit code is 1; for an incomplete set the error also has `status`, `missing`, `running` and `failed`. Any output from metric or reducer code goes to stderr.
 
-The merge does not import the task file recorded in the shard logs. Every metric and epoch reducer must be built in, come from an installed package, or be imported by you: when one is not, the merge refuses and names it. To merge a task with its own metric or reducer, import the module that defines it and call `merge_eval_log_shards()` from Python. A score that a solver sets, with no scorer, is merged with the task's metrics when the task declares them (`Task(metrics=...)`). Without them, the merge supports only the default case: a scalar score for which the shards recorded `accuracy` and `stderr`. Any other such score is refused; declare the task's metrics and re-run the shards.
+The merge does not import the task file recorded in the shard logs. Every metric must be built in, come from an installed package, or be imported by you: when one is not, the merge refuses and names it. To merge a task with its own metric, import the module that defines it and call `merge_eval_log_shards()` from Python.
+
+The merge does not recreate epoch reducers. When the task sets one (for example `epochs=Epochs(3, at_least(2, value=0.5))`), the merge uses the reduced scores each shard recorded when it finished. Until every shard holding samples has finished, an incomplete merged log has no results. A score edited with `edit_score()`, in a shard or in the merged log, makes the merge refuse: re-run the shard, or delete the merged log so the next merge rebuilds it from the shards.
+
+A score that a solver sets, with no scorer, is merged with the task's metrics when the task declares them (`Task(metrics=...)`). Without them, the merge supports only the default case: a scalar score for which the shards recorded `accuracy` and `stderr`. Any other such score is refused; declare the task's metrics and re-run the shards.
 
 ### Limitations
 
@@ -133,7 +137,6 @@ The merge does not import the task file recorded in the shard logs. Every metric
 -   `eval_retry()` refuses a merged log that was merged with `--sample-id` or `--sample-count`. Re-run the incomplete shards and merge again instead.
 -   Do not change `INSPECT_EVAL_LOG_FILE_PATTERN` while a `.shards` directory exists.
 -   For a remote log (for example on S3) whose location contains `*`, `?` or `[`, `--delete-shards` is refused, because the storage backend would expand those characters to other paths. Delete the `.shards` directory by hand.
--   A custom epoch reducer whose name looks like built-in shorthand (`pass_at_1`, `at_least_2`, `mean_2`) and that is not imported resolves as the built-in, or fails with its argument error. Import the module that defines it before merging.
 -   Deleting a merged log in `inspect view` leaves its `.shards` directory, and the viewer lists the shards again. To remove a sharded run, delete the `.shards` directory as well.
 
 ## Dataset Memory {#sec-dataset-memory}

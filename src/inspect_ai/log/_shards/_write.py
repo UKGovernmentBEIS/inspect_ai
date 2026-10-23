@@ -25,7 +25,8 @@ from inspect_ai.log._recorders.eval import (
     _sample_filename,
 )
 from inspect_ai.log._recorders.recorder import SampleRecordKey
-from inspect_ai.scorer._metric import Metric, SampleScore
+from inspect_ai.scorer._metric import Metric, SampleScore, Score
+from inspect_ai.scorer._reducer.types import ScoreReducer
 
 from ._errors import ShardSetError
 
@@ -38,21 +39,41 @@ class _SampleInputs(NamedTuple):
 
     scores: dict[str, SampleScore]
     error: bool
+    edited: frozenset[str]
+    """Names of the scores that carry an edit history (`edit_score`)."""
+    invalidated: bool
+
+
+class HeldReductions(NamedTuple):
+    """The epoch reductions recorded for the samples a merge holds."""
+
+    reductions: list[EvalSampleReductions]
+    """Recorded reductions, each holding only the held samples it covers."""
+
+    sources: dict[str, str]
+    """The log each held sample id is taken from."""
+
+
+class MergedScoring(NamedTuple):
+    """What the merged header takes from the merged samples."""
+
+    results: EvalResults | None
+    invalidated: bool
+    """Whether any merged sample is invalidated."""
 
 
 def check_scoring_resolvable(header: EvalLog) -> None:
-    """Refuse metrics and epoch reducers the registry cannot resolve.
+    """Refuse metrics the registry cannot resolve.
 
     The merge never imports the log's `task_file`, so every metric (of a
-    scorer or of the task, `eval.metrics`) and every epoch reducer must
-    already be registered: built in, from an installed package, or imported
-    by the caller.
+    scorer or of the task, `eval.metrics`) must already be registered: built
+    in, from an installed package, or imported by the caller. Epoch reducers
+    are not recreated (see :func:`_recompute_results`).
 
     Raises:
-        LookupError: A metric or epoch reducer is not registered.
+        LookupError: A metric is not registered.
     """
     from inspect_ai._util.registry import registry_lookup
-    from inspect_ai.scorer._reducer.registry import create_reducers
 
     groups = [scorer.metrics for scorer in header.eval.scorers or []]
     for metrics in [*groups, header.eval.metrics]:
@@ -60,11 +81,6 @@ def check_scoring_resolvable(header: EvalLog) -> None:
             if registry_lookup("metric", metric.name) is None:
                 raise LookupError(_unregistered("Metric", metric.name))
             _check_embedded(metric.options)
-    for name in header.eval.config.epochs_reducer or []:
-        try:
-            create_reducers([name])
-        except LookupError as ex:
-            raise LookupError(_unregistered("Epoch reducer", name)) from ex
 
 
 def _check_embedded(value: Any) -> None:
@@ -121,24 +137,29 @@ async def write_merged_zip(
     template: EvalLog,
     total_samples: int,
     shard_results: Callable[[], Awaitable[Sequence[tuple[str, EvalResults]]]],
-    make_header: Callable[[EvalResults | None], EvalLog],
+    held_reductions: HeldReductions,
+    complete: bool,
+    make_header: Callable[[MergedScoring], EvalLog],
 ) -> EvalLog:
     """Write the merged log's members to `out` and return its header.
 
     Each sample is read with `read_member`, validated, written under the name
     rebuilt from its key and reduced to its metric inputs before the next is
-    read. Then the summaries, the recomputed reductions and the header (made
-    by `make_header` from the recomputed results) are written. No journal is
-    written: the merged log is always written finished. `shard_results`
-    returns the results each shard's current attempt recorded (as
-    `(source, results)`), which show whether a score with no declared
-    scorer or task metrics used the default metrics; it is called only when
-    there is such a score.
+    read. Then the summaries, the reductions and the header (made by
+    `make_header` from the recomputed results and the samples'
+    invalidation) are written. No journal is written: the merged log is
+    always written finished. `shard_results` returns the results each
+    shard's current attempt recorded (as `(source, results)`), which show
+    whether a score with no declared scorer or task metrics used the default
+    metrics; it is called only when there is such a score. `complete` is
+    whether the merged log is `success`.
 
     Raises:
-        ShardSetError: A sample member's id or epoch does not match its name,
-            or a score with no declared scorer or task metrics is not the
-            default case (see :func:`_default_metrics`).
+        ShardSetError: A sample member's id or epoch does not match its name;
+            a score with no declared scorer or task metrics is not the
+            default case (see :func:`_default_metrics`); or a sample's epoch
+            reduction cannot be taken from its log (see
+            :func:`_recompute_results`).
         LookupError: A metric is not registered.
         pydantic.ValidationError: A sample member does not parse.
     """
@@ -148,9 +169,14 @@ async def write_merged_zip(
             data = await read_member(key)
             inputs.append(await anyio.to_thread.run_sync(_write_sample, zf, key, data))
         results, reductions = await _recompute_results(
-            template, inputs, total_samples, shard_results
+            template, inputs, total_samples, shard_results, held_reductions, complete
         )
-        header = make_header(results)
+        header = make_header(
+            MergedScoring(
+                results=results,
+                invalidated=any(sample.invalidated for sample in inputs),
+            )
+        )
         await anyio.to_thread.run_sync(
             _write_members, zf, list(summaries), reductions, header
         )
@@ -169,14 +195,17 @@ def _write_sample(
             f"{sample.id!r}, epoch {sample.epoch}."
         )
     zf.writestr(_sample_filename(key.sample_id, key.epoch), data)
+    scores = sample.scores or {}
     return _SampleInputs(
         scores={
             name: SampleScore(
                 score=score, sample_id=sample.id, sample_metadata=sample.metadata
             )
-            for name, score in (sample.scores or {}).items()
+            for name, score in scores.items()
         },
         error=sample.error is not None,
+        edited=frozenset(name for name, score in scores.items() if score.history),
+        invalidated=sample.invalidation is not None,
     )
 
 
@@ -197,14 +226,31 @@ async def _recompute_results(
     inputs: list[_SampleInputs],
     total_samples: int,
     shard_results: Callable[[], Awaitable[Sequence[tuple[str, EvalResults]]]],
+    held_reductions: HeldReductions,
+    complete: bool,
 ) -> tuple[EvalResults | None, list[EvalSampleReductions] | None]:
-    """Metrics over the merged samples, as `recompute_metrics` computes them."""
-    from inspect_ai._eval.score import (
-        metrics_from_log_header,
-        reducers_from_log_header,
-        resolve_scorers_info,
-    )
+    """Metrics over the merged samples, as `eval_results` computes them live.
+
+    A log records its epoch reducers by name only, without their arguments
+    (`at_least(1, value=0.5)` is `at_least_1`), so the merge never recreates
+    them. Every epoch of a sample runs in one shard, so each sample's reduced
+    scores are taken from the `reductions.json` of the log it is merged from,
+    which a shard writes when it finishes. With no reducer recorded, the
+    reducer is the default `mean`, which is applied as the live run applies
+    it.
+
+    A sample whose reduction is not recorded (its shard has not finished)
+    leaves an incomplete merged log without results and refuses a complete
+    merge. An edited score refuses any merge: its recorded reduction
+    predates the edit or was recomputed with a recreated reducer.
+
+    Raises:
+        ShardSetError: A reduction cannot be taken from its log, or see
+            :func:`_default_metrics`.
+    """
+    from inspect_ai._eval.score import metrics_from_log_header, resolve_scorers_info
     from inspect_ai._eval.task.results import (
+        RecordedReductions,
         ScorerInfo,
         _unique_scorer_names,
         eval_results,
@@ -226,10 +272,18 @@ async def _recompute_results(
         ]
     else:
         other_infos = []
-    return eval_results(
+    names = template.eval.config.epochs_reducer
+    reducers: RecordedReductions | list[ScoreReducer] | None = (
+        None if names is None else []
+    )
+    lookup: _RecordedLookup | None = None
+    if names:
+        lookup = _RecordedLookup(held_reductions, inputs)
+        reducers = RecordedReductions(names, lookup)
+    results, reductions = eval_results(
         samples=total_samples,
         scores=scores,
-        reducers=reducers_from_log_header(template),
+        reducers=reducers,
         scorers=[*declared, *other_infos],
         # the names the worker scored samples under, as the task runner
         # resolves them once: aggregation must not derive them from
@@ -239,6 +293,75 @@ async def _recompute_results(
         completed_samples=sum(1 for sample in inputs if not sample.error),
         headline_metric=template.eval.headline_metric,
     )
+    if lookup is not None and lookup.missing is not None:
+        if complete:
+            raise ShardSetError(lookup.missing)
+        return None, held_reductions.reductions
+    return results, reductions
+
+
+class _RecordedLookup:
+    """Each sample's recorded reduction (the `reduced` of `RecordedReductions`).
+
+    A sample with no recorded reduction is left out, and `missing` describes
+    the first one.
+    """
+
+    def __init__(self, held: HeldReductions, inputs: list[_SampleInputs]) -> None:
+        self._sources = held.sources
+        self._by_view = {
+            (r.scorer, r.reducer): {str(s.sample_id): s for s in r.samples}
+            for r in held.reductions
+        }
+        self._edited = {
+            (str(sample.scores[name].sample_id), name)
+            for sample in inputs
+            for name in sample.edited
+        }
+        self.missing: str | None = None
+
+    def __call__(
+        self, scorer: str, reducer: str, scores: list[SampleScore]
+    ) -> list[SampleScore]:
+        """Raises ShardSetError for an edited score."""
+        recorded = self._by_view.get((scorer, reducer), {})
+        firsts: dict[str, SampleScore] = {}
+        for score in scores:
+            firsts.setdefault(str(score.sample_id), score)
+        reduced: list[SampleScore] = []
+        for id, first in firsts.items():
+            source = self._sources[id]
+            if (id, scorer) in self._edited:
+                raise ShardSetError(
+                    f"Score '{scorer}' of sample {id!r} in {source} was edited, so "
+                    f"its recorded epoch reduction ('{reducer}') may not match "
+                    "it. A log records its epoch reducers by name only, without "
+                    "their arguments, so the merge cannot recompute it. Re-run "
+                    "the shard holding the sample, or, if the edit is in the "
+                    "merged log, delete the merged log so the next merge "
+                    "rebuilds it from the shards."
+                )
+            entry = recorded.get(id)
+            if entry is None:
+                if self.missing is None:
+                    self.missing = (
+                        f"{source} records no epoch reduction ('{reducer}') of "
+                        f"score '{scorer}' for sample {id!r}. A log records its "
+                        "epoch reducers by name only, without their arguments, "
+                        "so the merge takes each sample's reduction from the log "
+                        "it merges the sample from. Re-run the shard holding the "
+                        "sample, or delete the merged log so the next merge "
+                        "rebuilds it from the shards."
+                    )
+                continue
+            reduced.append(
+                SampleScore(
+                    score=Score(**entry.model_dump(exclude={"sample_id"})),
+                    sample_id=first.sample_id,
+                    sample_metadata=first.sample_metadata,
+                )
+            )
+        return reduced
 
 
 def _other_score_names(
