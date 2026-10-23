@@ -96,7 +96,7 @@ jobs:
 
       - name: Install uv
         if: github.event_name != 'pull_request' || steps.filter.outputs.code == 'true'
-        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
           version: ${{ env.UV_VERSION }}
           python-version: ${{ matrix.python-version }}
@@ -231,7 +231,7 @@ jobs:
 
       - name: Install uv
         if: steps.render-cache.outputs.cache-hit != 'true'
-        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
           version: ${{ env.UV_VERSION }}
           python-version: "3.11"
@@ -318,7 +318,7 @@ jobs:
 
       - name: Install uv
         if: env.RUN_TESTS == 'true'
-        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
           version: ${{ env.UV_VERSION }}
           python-version: ${{ matrix.python-version }}
@@ -389,7 +389,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Install uv
-        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
           version: ${{ env.UV_VERSION }}
           python-version: "3.11"
@@ -545,7 +545,7 @@ jobs:
         run: git branch main origin/main
 
       - name: Install uv
-        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
           version: ${{ env.UV_VERSION }}
           python-version: "3.11"
@@ -603,7 +603,7 @@ jobs:
           submodules: true
 
       - name: Install uv
-        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
           version: ${{ env.UV_VERSION }}
           python-version: "3.11"
@@ -700,7 +700,7 @@ jobs:
           submodules: true
 
       - name: Install uv
-        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
           version: ${{ env.UV_VERSION }}
           python-version: "3.11"
