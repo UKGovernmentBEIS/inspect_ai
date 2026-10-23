@@ -91,7 +91,6 @@ from ._layout.staging_dir import (
     ensure_sample_staging_dir,
     host_repo_dir,
     is_remote_destination,
-    sample_transcript_store_dir,
 )
 from ._repo_ops import drop_orphan_snapshots
 from ._restore_scope import (
@@ -125,8 +124,8 @@ logger = getLogger(__name__)
 # bound covers every node restic lists: the context dir's ancestor
 # directories (a dozen or so for a deep staging path) plus the flat JSON
 # files `host_context` describes, the transcript-store sqlite file with its
-# journal side files (in snapshots from earlier versions, which kept it in
-# `context/`), and at most a few `.tmp` leftovers from an interrupted
+# journal side files (in lineages started by earlier versions, which kept it
+# in `context/`), and at most a few `.tmp` leftovers from an interrupted
 # atomic write — a few dozen nodes. It is set well above that because
 # earlier versions restored into a non-empty `context/` on in-run requeue
 # and left restic's mirrored source-path chain nested inside it, so each
@@ -196,10 +195,6 @@ class HydrationResult:
 
     context_dir: str
     """Per-sample context subdir — restic's backup source."""
-
-    transcript_store_dir: str
-    """Host-local dir for the checkpointer's transcript store, outside
-    ``sample_root``."""
 
     host_restic: Path
     host_repo: str
@@ -463,9 +458,6 @@ async def hydrate(
         sample_staging_dir=sample_staging,
         sample_root=sample_root,
         context_dir=sample_context_dir,
-        transcript_store_dir=sample_transcript_store_dir(
-            log_location, sample_id, epoch
-        ),
         host_restic=host_restic,
         host_repo=host_repo,
         restic_password=restic_config.restic_password,

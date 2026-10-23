@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import contextlib
 import shutil
+import tempfile
 import time
 from collections.abc import (
     AsyncIterator,
@@ -30,6 +31,7 @@ from typing import Any, Literal, TypeVar
 from pydantic import BaseModel, JsonValue, TypeAdapter
 
 from inspect_ai._util._async import tg_collect
+from inspect_ai._util.appdirs import inspect_cache_dir
 from inspect_ai._util.file import write_text_atomic
 from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._util.trace import trace_action
@@ -292,12 +294,12 @@ class _EnteredCheckpointer:
         # seeded once, then updated by subscription so each checkpoint can
         # export complete host-context event files. It lives outside the
         # context dir because resume rebuilds it from those files, so backing
-        # it up would only add storage. ``reset`` clears what an earlier
-        # attempt of this sample under the same log left behind.
-        self._transcript_store_dir = hydration.transcript_store_dir
+        # it up would only add storage.
+        self._transcript_store_dir = tempfile.mkdtemp(
+            dir=inspect_cache_dir("checkpoint-transcript-store")
+        )
         self._transcript_store = TranscriptEventStore(
-            Path(self._transcript_store_dir) / CHECKPOINT_TRANSCRIPT_STORE,
-            reset=True,
+            Path(self._transcript_store_dir) / CHECKPOINT_TRANSCRIPT_STORE
         )
         self._transcript_subscription: Callable[[], None] | None = None
         self._closed = False

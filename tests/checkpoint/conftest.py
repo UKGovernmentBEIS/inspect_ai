@@ -13,12 +13,13 @@ from __future__ import annotations
 import os
 import sys
 from collections.abc import Generator
+from pathlib import Path
 
 import pytest
 from test_helpers.local_shell_sandbox import sandbox_path
 
 from inspect_ai._util import asyncfiles
-from inspect_ai.util._checkpoint import _sandbox_dir
+from inspect_ai.util._checkpoint import _sandbox_dir, checkpointer_impl
 from inspect_ai.util._sandbox import _privileged as privileged
 from inspect_ai.util._sandbox._framework_directory import (
     ensure_framework_directory,
@@ -36,6 +37,20 @@ def _async_fs() -> Generator[None, None, None]:
         yield
     finally:
         asyncfiles._current_async_fs.reset(token)
+
+
+@pytest.fixture(autouse=True)
+def _transcript_store_cache_dir(
+    monkeypatch: pytest.MonkeyPatch, tmp_path_factory: pytest.TempPathFactory
+) -> None:
+    cache_dir = tmp_path_factory.mktemp("cache")
+
+    def fake_cache_dir(subdir: str) -> Path:
+        d = cache_dir / subdir
+        d.mkdir(exist_ok=True)
+        return d
+
+    monkeypatch.setattr(checkpointer_impl, "inspect_cache_dir", fake_cache_dir)
 
 
 @pytest.fixture(autouse=True)

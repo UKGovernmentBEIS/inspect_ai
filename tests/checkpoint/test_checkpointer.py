@@ -199,7 +199,6 @@ def _fake_hydration(sample_checkpoints_dir: str, context_dir: str) -> HydrationR
         sample_staging_dir=None,
         sample_root=sample_checkpoints_dir,
         context_dir=context_dir,
-        transcript_store_dir=f"{context_dir}-transcript-store",
         host_restic=Path("/fake/restic"),
         host_repo=f"{sample_checkpoints_dir}/restic/host",
         restic_password="test-pwd",
@@ -1562,6 +1561,23 @@ def _make_cp(**kwargs: object) -> _EnteredCheckpointer:
     return cp
 
 
+def test_transcript_store_dir_is_per_checkpointer_and_removed_on_close(
+    tmp_path: Path,
+) -> None:
+    hydration = _fake_hydration(str(tmp_path / "ckpts"), str(tmp_path / "work"))
+    first = _make_cp(hydration=hydration)
+    second = _make_cp(hydration=hydration)
+    first_dir = Path(first._transcript_store_dir)
+    second_dir = Path(second._transcript_store_dir)
+    assert first_dir != second_dir
+    assert (first_dir / "checkpoint_transcript.sqlite").exists()
+
+    first.close()
+    assert not first_dir.exists()
+    assert (second_dir / "checkpoint_transcript.sqlite").exists()
+    second.close()
+
+
 def test_track_returns_initial_value(tmp_path: Path) -> None:
     """Without resume hydration, `track()` always returns initial_value."""
     cp = _make_cp()
@@ -1960,10 +1976,6 @@ async def test_setup_aenter_defers_io_setup(tmp_path: Path) -> None:
             "inspect_ai.util._checkpoint.hydrate.ensure_context_dir",
             new=AsyncMock(return_value=f"{sample_ckpt_path}/context"),
         ) as ensure_ctx,
-        patch(
-            "inspect_ai.util._checkpoint.hydrate.sample_transcript_store_dir",
-            return_value=str(tmp_path / "transcript-store"),
-        ),
         patch(
             "inspect_ai.util._checkpoint.hydrate.ensure_restic_config",
             new=AsyncMock(return_value=fake_sample_state),
@@ -2469,19 +2481,18 @@ async def test_finalize_idempotent_across_reentry(tmp_path: Path) -> None:
         fire.assert_awaited_once_with("agent_complete", final=True)
 
 
-async def test_resume_resets_leftover_transcript_store_before_seeding(
+async def test_resume_ignores_transcript_store_restored_into_context_dir(
     tmp_path: Path,
 ) -> None:
     work = tmp_path / "work"
     work.mkdir()
-    hydration = _fake_hydration(str(tmp_path / "ckpts"), str(work))
-    leftover_store = TranscriptEventStore(
-        Path(hydration.transcript_store_dir) / "checkpoint_transcript.sqlite",
-        reset=True,
+    restored_store = TranscriptEventStore(
+        work / "checkpoint_transcript.sqlite", reset=True
     )
-    leftover_store.merge_event(InfoEvent(data="orphan"), lambda _: None)
-    leftover_store.close()
+    restored_store.merge_event(InfoEvent(data="orphan"), lambda _: None)
+    restored_store.close()
 
+    hydration = _fake_hydration(str(tmp_path / "ckpts"), str(work))
     hydration.host.condensed_events = [InfoEvent(data="committed")]
     fake_transcript = Transcript(bounded=False)
     setup = _CheckpointerSetup(

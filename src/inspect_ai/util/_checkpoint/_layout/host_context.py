@@ -24,8 +24,9 @@ Capture-side invariant: the host writes only regular files into the
 context dir — the JSON files above (``write_text_atomic`` /
 ``write_transcript_files``) — never symlinks. (Nested directories occur
 only in lineages that earlier versions restored into a non-empty
-``context/`` on in-run requeue; see the bounds comment in ``hydrate``.) An honest snapshot therefore never contains anything but
-regular files and directories. The restored files come from an untrusted
+``context/`` on in-run requeue; see the bounds comment in ``hydrate``.)
+An honest snapshot therefore never contains anything but regular files
+and directories. The restored files come from an untrusted
 repo, so the resume-side checks — the snapshot listing check in
 ``restore_repo`` and the ``lstat`` regular-file check in :func:`read` —
 reject anything else, and never fire on legitimate data.
