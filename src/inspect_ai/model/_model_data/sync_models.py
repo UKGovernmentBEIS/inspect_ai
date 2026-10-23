@@ -5,6 +5,10 @@
 #
 # [tool.uv]
 # exclude-newer = "7 days"
+#
+# # Exempt as in pyproject.toml: certifi releases remove compromised roots.
+# [tool.uv.exclude-newer-package]
+# certifi = false
 # ///
 """Sync model data from external sources.
 

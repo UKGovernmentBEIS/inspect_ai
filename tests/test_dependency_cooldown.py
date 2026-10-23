@@ -4,7 +4,8 @@ pyproject.toml holds back releases younger than seven days except for an
 exempt list of packages that must include every model provider's own package,
 Dependabot applies the same cooldown and exemptions
 to its uv.lock bumps, and the canary jobs in build.yml opt out of the cooldown
-so they keep installing the newest releases.
+so they keep installing the newest releases. The model-data sync script runs
+without pyproject.toml, so its own metadata repeats the policy.
 """
 
 import ast
@@ -21,6 +22,7 @@ WORKFLOWS = REPO / ".github" / "workflows"
 BUILD = WORKFLOWS / "build.yml"
 LOCKED_JOBS = ["mypy", "test"]
 PROVIDERS = REPO / "src" / "inspect_ai" / "model" / "_providers"
+SYNC_MODELS = REPO / "src" / "inspect_ai" / "model" / "_model_data" / "sync_models.py"
 DEPENDENCY_CHECKS = {"pip_dependency_error", "verify_required_version"}
 # Packages providers need that aren't the provider's own SDK or integration
 # package. These stay under the cooldown.
@@ -116,6 +118,33 @@ def test_dependabot_cooldown_matches_pyproject() -> None:
     assert list(groups) == ["provider-sdks", "python-packages"]
     assert sorted(groups["provider-sdks"]["patterns"]) == sorted(exempt)
     assert groups["python-packages"]["patterns"] == ["*"]
+
+
+def script_uv_config() -> dict[str, Any]:
+    block = re.search(
+        r"^# /// script$\n(.*?)^# ///$", SYNC_MODELS.read_text(), re.M | re.S
+    )
+    assert block
+    lines = [line.removeprefix("#").removeprefix(" ") for line in block[1].splitlines()]
+    config: dict[str, Any] = tomllib.loads("\n".join(lines))["tool"]["uv"]
+    return config
+
+
+def test_sync_models_script_follows_the_cooldown() -> None:
+    config = uv_config()
+    script = script_uv_config()
+    lock = tomllib.loads((SYNC_MODELS.parent / "sync_models.py.lock").read_text())
+    assert script["exclude-newer"] == config["exclude-newer"]
+    # The script exempts the packages it locks that pyproject.toml exempts.
+    locked = {package["name"] for package in lock["package"]}
+    exempt = locked & set(config["exclude-newer-package"])
+    assert "certifi" in exempt
+    assert script["exclude-newer-package"] == dict.fromkeys(exempt, False)
+    # The lock was written with these settings.
+    days = re.fullmatch(r"(\d+) days", script["exclude-newer"])
+    assert days
+    assert lock["options"]["exclude-newer-span"] == f"P{days[1]}D"
+    assert lock["options"]["exclude-newer-package"] == script["exclude-newer-package"]
 
 
 def version(text: str) -> tuple[int, ...]:
