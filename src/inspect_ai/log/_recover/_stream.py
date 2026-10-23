@@ -26,6 +26,7 @@ from inspect_ai.event._sample_limit import SampleLimitEvent
 from inspect_ai.event._validate import validate_chat_messages, validate_events
 from inspect_ai.log._condense import (
     WalkContext,
+    _existing_attachments_content_fn,
     condense_event,
     messages_attachment_fn,
     walk_chat_messages,
@@ -48,7 +49,7 @@ from ._reconstruct import (
     _summary_with_uuid_fallback,
     in_progress_sample_error,
     recovered_sample_limit,
-    resolve_attachment_refs,
+    resolve_output_attachments,
 )
 
 logger = getLogger(__name__)
@@ -300,10 +301,13 @@ def _write_sample_streaming(
 
             # Get messages and output from accumulator
             messages, output = accumulator.result()
-            messages, output = resolve_attachment_refs(messages, output, attachments)
+            output = resolve_output_attachments(output, attachments)
 
-            # Walk messages for attachment refs
-            messages_fn = messages_attachment_fn(attachments)
+            # Like condense_sample: resolve the buffer's refs, keep text
+            # inline, and pool images as attachments
+            messages_fn = _existing_attachments_content_fn(
+                attachments, set(), messages_attachment_fn(attachments)
+            )
             walked_input = walk_input(summary.input, messages_fn, messages_context)
             walked_messages = walk_chat_messages(
                 messages, messages_fn, messages_context

@@ -25,7 +25,6 @@ from inspect_ai.event._validate import validate_events
 from inspect_ai.log._condense import (
     WalkContext,
     resolve_attachment_fn,
-    walk_chat_messages,
     walk_model_output,
 )
 from inspect_ai.log._log import (
@@ -218,8 +217,9 @@ def reconstruct_eval_sample(
         attachment.hash: attachment.content for attachment in sample_data.attachments
     }
 
+    # condense_sample resolves the refs in messages at write time
     messages, output = _extract_messages_from_events(events)
-    messages, output = resolve_attachment_refs(messages, output, attachments)
+    output = resolve_output_attachments(output, attachments)
 
     # Set error: synthesize an error for in-progress samples (per the
     # recovery disposition), or preserve existing error from
@@ -441,23 +441,19 @@ def _extract_messages_from_events(
     return acc.result()
 
 
-def resolve_attachment_refs(
-    messages: list[ChatMessage],
-    output: ModelOutput,
-    attachments: Mapping[str, str],
-) -> tuple[list[ChatMessage], ModelOutput]:
-    """Resolve the `attachment://` refs in messages and output taken from events.
+def resolve_output_attachments(
+    output: ModelOutput, attachments: Mapping[str, str]
+) -> ModelOutput:
+    """Resolve the `attachment://` refs in an output taken from a model event.
 
-    The buffer stores events condensed, so their long text and images are refs.
-    A normal run's log keeps message text and the whole output inline (only
-    message images become attachments, when the sample is condensed), so
-    recovery resolves them before writing.
+    The buffer stores events condensed, so the output's long text and images
+    are refs. A normal run's log keeps the output inline (condensing a sample
+    leaves `output` alone), so recovery resolves it before writing.
     """
-    content_fn = resolve_attachment_fn(attachments)
-    context = WalkContext(message_cache={}, only_core=False)
-    return (
-        walk_chat_messages(messages, content_fn, context),
-        walk_model_output(output, content_fn, context),
+    return walk_model_output(
+        output,
+        resolve_attachment_fn(attachments),
+        WalkContext(message_cache={}, only_core=False),
     )
 
 

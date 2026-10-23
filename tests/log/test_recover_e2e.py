@@ -10,7 +10,7 @@ from test_helpers.buffer import simulate_crashed_buffer_db
 
 from inspect_ai._util.asyncfiles import AsyncFilesystem
 from inspect_ai._util.constants import LOG_SCHEMA_VERSION
-from inspect_ai._util.content import ContentImage, ContentText
+from inspect_ai._util.content import Content, ContentImage, ContentText
 from inspect_ai.event._model import ModelEvent
 from inspect_ai.log._condense import condense_sample
 from inspect_ai.log._file import read_eval_log_async
@@ -100,7 +100,9 @@ def _simulate_crashed_buffer(buffer: SampleBufferDatabase) -> None:
     simulate_crashed_buffer_db(buffer)
 
 
-def _make_model_event(input_msgs: list[ChatMessage], output_content: str) -> ModelEvent:
+def _make_model_event(
+    input_msgs: list[ChatMessage], output_content: str | list[Content]
+) -> ModelEvent:
     return ModelEvent(
         model="mockllm/model",
         input=input_msgs,
@@ -1248,8 +1250,8 @@ async def test_recovery_keeps_messages_and_output_inline(buffer_kind: str) -> No
     """Recovered messages and output match a normal run's log.
 
     The buffer condenses long text and images in model events into
-    attachments; a normal run's log keeps message text and the whole output
-    inline, and turns only message images into attachments.
+    attachments; a normal run's log keeps message text and the whole output,
+    images included, inline, and turns only message images into attachments.
     """
     png = (
         "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlE"
@@ -1258,7 +1260,9 @@ async def test_recovery_keeps_messages_and_output_inline(buffer_kind: str) -> No
     user = ChatMessageUser(
         content=[ContentText(text="Q" * 2000), ContentImage(image=png)]
     )
-    model_event = _make_model_event([user], "R" * 2000)
+    model_event = _make_model_event(
+        [user], [ContentText(text="R" * 2000), ContentImage(image=png)]
+    )
     started_at = datetime.now(timezone.utc).isoformat()
     summary = EvalSampleSummary(
         id="s1", epoch=1, input="hi", target="reply", started_at=started_at
