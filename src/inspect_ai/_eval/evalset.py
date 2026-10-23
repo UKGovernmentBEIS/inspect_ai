@@ -118,7 +118,6 @@ from .eval_set_manifest import (
     EvalSetCaptureScan,
     build_eval_set_capture,
     eval_set_capture_requested,
-    samples_selected,
     task_args_hash,
 )
 from .eval_set_overrides import (
@@ -148,6 +147,7 @@ from .task.scan import scan_context
 from .task.task import PreviousTask, resolve_epochs, resolve_task_epochs
 from .task.task_source import TaskSource
 from .task.tasks import Tasks
+from .task.util import resolve_task_sample_ids, sample_id_filter
 
 if TYPE_CHECKING:
     from inspect_ai._control.eval_state import DeferredStatsProvider
@@ -1894,16 +1894,36 @@ def log_samples_complete(
         return False
     epoch_count = epochs.epochs
 
-    count = samples_selected(
-        task.task.dataset, limit, sample_id, task.task.name, task_names
-    )
-    planned = count * epoch_count
+    dataset = task.task.dataset
+    if sample_id is not None:
+        sample_id = resolve_task_sample_ids(task.task.name, sample_id, task_names)
+        matcher = sample_id_filter(sample_id if sample_id is not None else [])
+        selected_ids = {
+            str(selected_id)
+            for position, sample in enumerate(dataset, start=1)
+            if matcher.matches(
+                selected_id := sample.id if sample.id is not None else position
+            )
+        }
+    else:
+        selection = slice(*limit) if isinstance(limit, tuple) else slice(0, limit)
+        selected_ids = set()
+        for index in range(len(dataset))[selection]:
+            sample = dataset[index]
+            selected_ids.add(str(sample.id if sample.id is not None else index + 1))
+    planned = len(selected_ids) * epoch_count
 
     # a task no `task:id` selector named ran no samples, so its success log
     # holds none (and no results): nothing is outstanding
     if planned == 0:
         return True
     if not log.header.results:
+        return False
+
+    # Counts alone cannot prove coverage when a selector or limit range
+    # changes. Keep reusing supersets, but require every requested id.
+    previous_ids = log.header.eval.dataset.sample_ids
+    if previous_ids is None or not selected_ids.issubset(map(str, previous_ids)):
         return False
 
     # a graceful cancel/drain abandons queued samples but still finishes with
@@ -1915,7 +1935,13 @@ def log_samples_complete(
     # comparison below.
     logged_samples = log.header.results.logged_samples
     if logged_samples is not None:
-        if logged_samples >= planned:
+        # A partial log's sample_ids describe the planned selection, not
+        # which samples resolved. A smaller selection still needs a retry
+        # to establish coverage; the retry can reuse completed samples.
+        # Metric recomputation can shrink total_samples to recorded samples,
+        # so also retain the original selection's planned count.
+        previous_planned = len(previous_ids) * epoch_count
+        if logged_samples >= max(previous_planned, log.header.results.total_samples):
             return True
         # a resolution stamped in this process is honored for the life of
         # the run: with `retry_immediate=False` the outer tenacity pass
