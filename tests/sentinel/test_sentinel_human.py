@@ -336,7 +336,7 @@ def step(
     view = view or ToolCallView()
     if after:
         result = ChatMessageTool(content="2", tool_call_id="c1", function="addition")
-        return AfterToolCall(  # type: ignore[call-arg]  # inspect_sentinel 0.1.4 lacks message_id and tool_choice; remove when the lock bumps
+        return AfterToolCall(
             conversation="",
             message="Adding.",
             message_id="m1",
@@ -347,7 +347,7 @@ def step(
             input=[],
             agent_messages=[],
         )
-    return BeforeToolCall(  # type: ignore[call-arg]  # inspect_sentinel 0.1.4 lacks message_id and tool_choice; remove when the lock bumps
+    return BeforeToolCall(
         conversation="",
         message="Adding.",
         message_id="m1",

@@ -425,14 +425,23 @@ def test_index_paths_across_jsonpath_ng_versions() -> None:
 
 
 def test_integer_filter_across_jsonpath_ng_versions() -> None:
-    """Integer filters truncate non-string values on jsonpath-ng < 1.9 only."""
+    """Integer filters coerce values to int: all on < 1.9, strings on < 1.13, none after."""
     record: dict[str, JsonValue] = {
         "values": [{"v": 1.9, "name": "float"}, {"v": "1", "name": "string"}]
     }
-    spec: list[Column] = [TColumn("name", path="$.values[?(@.v == 1)].name")]
+    spec: list[Column] = [
+        TColumn("name", path="$.values[?(@.v == 1)].name"),
+        TColumn("float_name", path="$.values[?(@.v == 1.9)].name"),
+    ]
     result, errors = import_record(eval_log(), record, spec, strict=False)
     assert errors == []
-    expected = "string" if has_required_version("jsonpath-ng", "1.9.0") else "float"
+    assert result["float_name"] == "float"
+    if has_required_version("jsonpath-ng", "1.13.0"):
+        expected = None
+    elif has_required_version("jsonpath-ng", "1.9.0"):
+        expected = "string"
+    else:
+        expected = "float"
     assert result["name"] == expected
 
 
