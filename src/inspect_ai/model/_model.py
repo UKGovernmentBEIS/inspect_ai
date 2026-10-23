@@ -1018,7 +1018,6 @@ class Model:
         # normalize input to chat
         if isinstance(input, str):
             input = [ChatMessageUser(content=input)]
-        history = input
 
         # insert any system message provided in config
         if config.system_message:
@@ -1034,7 +1033,6 @@ class Model:
             generate_step = await sentinel_before_generate(
                 model=str(self),
                 input=prepared.input,
-                history=history,
                 tools=prepared.tools,
                 tool_choice=prepared.tool_choice,
                 config=config,
