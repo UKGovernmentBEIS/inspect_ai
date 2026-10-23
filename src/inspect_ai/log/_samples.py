@@ -606,7 +606,8 @@ def awaiting_human(
     in an editor over ACP, in the Textual panel, or at the console, and a
     record that only one of the three kept would report an attended run as
     idle for as long as somebody was looking at the prompt. The wait also
-    counts as sample waiting time, so it is not charged as working time.
+    counts as sample waiting time, so it is not charged as working time
+    unless other known work runs in the sample.
 
     A no-op outside a sample (a scorer, a bare `ask_user` in a script), which
     is why callers can wrap unconditionally.

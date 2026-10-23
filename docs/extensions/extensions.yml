@@ -58,6 +58,11 @@
   author: "[Transluce](https://transluce.org/introducing-docent)"
   categories: ["Analysis"]
 
+- name: "[Transect](https://www.aisi.gov.uk/blog/transect-making-large-scale-agentic-evaluations-easier-to-understand)"
+  description: |
+     Transcript analysis for long-horizon agent evaluations, built on Inspect Scout.
+  author: "[UK AISI](https://github.com/AI-Safety-Institute/transect)"
+
 - name: "[Probity native result reader](https://github.com/probityai/agent-evidence-observer/blob/71ac0b2126473316655184235000647a6dd0f5cf/docs/NATIVE-CONSUMER-CI.md)"
   description: |
     Offline reader and publication gate for bounded native Inspect execution records, preserving errors and unstarted attempts.
@@ -128,6 +133,12 @@
   description: |
     Platform for running Inspect AI evaluations on cloud infrastructure. 
   author: "[METR](https://github.com/METR/hawk)"
+  categories: ["Tooling"]
+
+- name: "[Inspect Steward](https://meridianlabs-ai.github.io/inspect_steward/)"
+  description: |
+    Automated execution and supervision of long-running evaluations.
+  author: "[Meridian](https://github.com/meridianlabs-ai/inspect_steward)"
   categories: ["Tooling"]
 
 - name: "[Optstop](https://github.com/UKGovernmentBEIS/optstop)"
