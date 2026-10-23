@@ -566,6 +566,9 @@ class PreviousTask:
     task_args: dict[str, Any]
     model: Model | None
     model_roles: dict[str, Model | list[Model]] | None
+    # the sandbox to resume in: eval-set's resolved task sandbox, never the
+    # log's; eval-retry's from the log, which records a --sandbox override
+    sandbox: SandboxEnvironmentSpec | None
     log: EvalLog
     log_info: EvalLogInfo | None
 

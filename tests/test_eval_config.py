@@ -1,11 +1,14 @@
 import os
 import tempfile
 from pathlib import Path
+from typing import Any
+from unittest.mock import patch
 
 import pytest
 from click.testing import CliRunner, Result
 from pydantic import ValidationError
 
+import inspect_ai._cli.eval as cli_eval
 from inspect_ai import Task, eval, task
 from inspect_ai._cli.eval import (
     RunConfigInput,
@@ -451,6 +454,45 @@ eval_config:
         assert_cli_success(result)
         log = read_eval_log(list_eval_logs(log_dir.as_posix())[0])
         assert log.eval.model == "mockllm/model"
+
+
+@pytest.mark.parametrize(
+    "env",
+    [
+        {"INSPECT_EVAL_SENTINEL_ARGS": "reason=env"},
+        {"INSPECT_EVAL_SENTINEL": "other", "INSPECT_EVAL_SENTINEL_ARGS": "reason=env"},
+    ],
+    ids=["args", "name and args"],
+)
+def test_eval_run_config_sentinel_overrides_env_sentinel_args(
+    env: dict[str, str | None], tmp_path: Path
+) -> None:
+    """INSPECT_EVAL_SENTINEL_ARGS defers to a sentinel set in --run-config."""
+    run_config = tmp_path / "run.yaml"
+    run_config.write_text(
+        """
+task: tests/test_eval_config.py@eval_config_task
+model: mockllm/model
+eval_config:
+  sentinel:
+    name: rule
+    params:
+      reason: run
+""".strip()
+    )
+    captured: dict[str, Any] = {}
+
+    def record(*args: Any, **kwargs: Any) -> list[EvalLog]:
+        captured.update(kwargs)
+        return []
+
+    with patch.object(cli_eval, "eval", record):
+        result = run_eval_cli(
+            ["--run-config", run_config.as_posix(), "--log-dir", str(tmp_path)],
+            env=env,
+        )
+    assert_cli_success(result)
+    assert captured["sentinel"] == {"name": "rule", "params": {"reason": "run"}}
 
 
 def test_eval_run_config_cli_env_var_overridden_by_explicit_flag():
