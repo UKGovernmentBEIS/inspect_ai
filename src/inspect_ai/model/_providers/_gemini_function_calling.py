@@ -6,8 +6,10 @@ Gemini sometimes writes a function call as code (`print(default_api.bash(...))`
 or `call:default_api:bash{...}`) instead of function-call JSON, and the API
 finishes the candidate with MALFORMED_FUNCTION_CALL (see
 https://github.com/googleapis/python-genai/issues/430#issuecomment-3592369131).
-A system hint makes this less likely; a bounded retry with a corrective
-exchange recovers most of the rest.
+A bounded retry with a corrective exchange recovers most of these. Neither
+provider sends a system hint about function calling: in tests on Gemini 2.5 and
+3 models the hint did not reduce MALFORMED_FUNCTION_CALL, and it made
+gemini-2.5-pro repeat tool calls after a tool result.
 """
 
 from textwrap import dedent
@@ -16,13 +18,6 @@ from textwrap import dedent
 # MALFORMED_FUNCTION_CALL retry loop. The stream-restart boundary inside the
 # loop must use the same bound: it only fires when another request will run.
 MAX_TOOL_CALLING_ATTEMPTS = 3
-
-FUNCTION_CALLING_HINT = dedent("""
-    ## Function Calling
-    - Do not generate code. Always generate the function call json
-    When calling functions, output the function name exactly as defined. Do not prepend 'default_api.' or any other namespace to the function name
-    """)
-"""System instruction sent alongside function declarations."""
 
 DEFAULT_MALFORMED_FUNCTION_MESSAGE = (
     "a malformed function call (possibly Python code instead of JSON)"

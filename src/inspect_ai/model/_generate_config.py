@@ -127,7 +127,7 @@ class GenerateConfigArgs(TypedDict, total=False):
     """Random seed. OpenAI, Google, Mistral, Groq, HuggingFace, and vLLM only."""
 
     top_k: int | None
-    """Randomly sample the next word from the top_k most likely next words. Anthropic, Google, and HuggingFace only."""
+    """Randomly sample the next word from the top_k most likely next words. Google and HuggingFace only."""
 
     num_choices: int | None
     """How many chat completion choices to generate for each input message. OpenAI, Grok, Google, and TogetherAI only."""
@@ -253,7 +253,7 @@ class GenerateConfig(BaseModel):
     """Random seed. OpenAI, Google, Mistral, Groq, HuggingFace, and vLLM only."""
 
     top_k: int | None = Field(default=None)
-    """Randomly sample the next word from the top_k most likely next words. Anthropic, Google, HuggingFace, vLLM, and SGLang only."""
+    """Randomly sample the next word from the top_k most likely next words. Google, HuggingFace, vLLM, and SGLang only."""
 
     num_choices: int | None = Field(default=None)
     """How many chat completion choices to generate for each input message. OpenAI, Grok, Google, TogetherAI, vLLM, and SGLang only."""

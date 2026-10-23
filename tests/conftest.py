@@ -1,6 +1,7 @@
 import asyncio
 import contextlib
 import faulthandler
+import gc
 import importlib.util
 import inspect
 import io
@@ -53,6 +54,63 @@ def pytest_pycollect_makeitem(collector, name, obj):
     if inspect.iscoroutinefunction(obj) or inspect.isasyncgenfunction(obj):
         pytest.mark.anyio(obj)
     yield
+
+
+@pytest.hookimpl(hookwrapper=True)
+def pytest_collection(session: pytest.Session) -> Iterator[None]:
+    """Suspend the cyclic garbage collector for the duration of collection.
+
+    Collecting this suite imports ~620 test modules through pytest's assertion
+    rewriter, which builds and discards millions of AST nodes. Every allocation
+    burst trips the generational collector, and each full collection walks the
+    whole object graph of the modules imported so far, which grows with every
+    module. None of that churn is cyclic garbage the collector needs to find.
+    Measured on a cold cache (no rewritten pycs, as in CI): 36.6s -> 23.2s for
+    a single-process collection. Under xdist every worker collects, so each
+    pays this. The collector is restored (with one sweep) before the first
+    test runs, so test-time GC behavior is unchanged.
+    """
+    was_enabled = gc.isenabled()
+    gc.disable()
+    try:
+        yield
+    finally:
+        if was_enabled:
+            gc.enable()
+            gc.collect()
+
+
+_pyc_prewarm_key: pytest.StashKey[str] = pytest.StashKey()
+
+
+def pytest_sessionstart(session: pytest.Session) -> None:
+    """Prewarm the assertion-rewrite pyc cache before xdist spawns its workers.
+
+    Runs ahead of xdist's own (trylast) ``pytest_sessionstart``, so the workers
+    start against a warm cache instead of each rewriting every test module.
+    No-op on workers and in non-distributed runs; see test_helpers.pyc_prewarm.
+    The helper imports private pytest rewrite functions, so an import failure
+    after a pytest upgrade is reported in the header (and pinned by
+    tests/test_pyc_prewarm.py) rather than allowed to take the session down.
+    A ``warnings.warn`` here would be the wrong vehicle: this hook runs outside
+    pytest's warning capture, so under ``-W error`` it would raise.
+    """
+    try:
+        from test_helpers.pyc_prewarm import prewarm_rewritten_pycs
+    except ImportError as ex:
+        outcome = f"unavailable ({ex})"
+    else:
+        result = prewarm_rewritten_pycs(session.config)
+        if result is None:
+            return
+        outcome = result.describe()
+    session.config.stash[_pyc_prewarm_key] = f"assertion-rewrite pyc prewarm: {outcome}"
+
+
+def pytest_report_header(config: pytest.Config) -> list[str]:
+    """Record what the prewarm did, so CI logs show whether it took effect."""
+    line = config.stash.get(_pyc_prewarm_key, None)
+    return [] if line is None else [line]
 
 
 def pytest_addoption(parser):
@@ -872,6 +930,13 @@ def _report_oom_kills(exitstatus: int) -> None:
 
 
 def pytest_configure(config):
+    # inspect_ai must never load inspect_sentinel for a user who configures no
+    # sentinel, so any import of it in a test raises ImportError. Tests of the
+    # sentinel code install a fake with the `fake_sentinel` fixture.
+    block_sentinel = pytest.MonkeyPatch()
+    block_sentinel.setitem(sys.modules, "inspect_sentinel", None)
+    config.add_cleanup(block_sentinel.undo)
+
     config.addinivalue_line("markers", "slow: mark test as slow to run")
     config.addinivalue_line("markers", "api: mark test as requiring API access")
     config.addinivalue_line("markers", "flaky: mark test as flaky/unreliable")
@@ -887,6 +952,9 @@ def pytest_configure(config):
         "is the live control surface)",
     )
     os.environ["INSPECT_EVAL_LOG_MODEL_API"] = "1"
+    # verify every composed S3 log flush against a digest of the temp file's
+    # prefix (off in production; see design/s3-incremental-log-flush.md)
+    os.environ["INSPECT_VERIFY_COMPOSE_PREFIX"] = "1"
     # Dummy provider keys so tests that only construct a client (not call the
     # API) work without real credentials. Real keys (when present) win via
     # setdefault. api-marked tests are gated behind --runapi and skip when the
