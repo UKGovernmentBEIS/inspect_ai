@@ -429,9 +429,13 @@ def test_integer_filter_across_jsonpath_ng_versions() -> None:
     record: dict[str, JsonValue] = {
         "values": [{"v": 1.9, "name": "float"}, {"v": "1", "name": "string"}]
     }
-    spec: list[Column] = [TColumn("name", path="$.values[?(@.v == 1)].name")]
+    spec: list[Column] = [
+        TColumn("name", path="$.values[?(@.v == 1)].name"),
+        TColumn("float_name", path="$.values[?(@.v == 1.9)].name"),
+    ]
     result, errors = import_record(eval_log(), record, spec, strict=False)
     assert errors == []
+    assert result["float_name"] == "float"
     if has_required_version("jsonpath-ng", "1.13.0"):
         expected = None
     elif has_required_version("jsonpath-ng", "1.9.0"):
