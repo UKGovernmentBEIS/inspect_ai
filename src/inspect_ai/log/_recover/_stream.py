@@ -27,6 +27,7 @@ from inspect_ai.event._validate import validate_chat_messages, validate_events
 from inspect_ai.log._condense import (
     WalkContext,
     condense_event,
+    existing_attachments_content_fn,
     messages_attachment_fn,
     walk_chat_messages,
     walk_input,
@@ -51,6 +52,7 @@ from ._reconstruct import (
     in_progress_sample_error,
     recovered_sample_limit,
     recovered_sample_scores,
+    resolve_output_attachments,
 )
 
 logger = getLogger(__name__)
@@ -314,12 +316,16 @@ def _write_sample_streaming(
 
             # Get messages and output from accumulator
             messages, output = accumulator.result()
+            output = resolve_output_attachments(output, attachments)
 
-            # Walk messages for attachment refs
             dataset_sample = dataset_sample_or_summary(
                 summary, sample_init, attachments
             )
-            messages_fn = messages_attachment_fn(attachments)
+            # Like condense_sample: resolve the buffer's refs, keep text
+            # inline, and pool images as attachments
+            messages_fn = existing_attachments_content_fn(
+                attachments, set(), messages_attachment_fn(attachments)
+            )
             walked_input = walk_input(
                 dataset_sample.input, messages_fn, messages_context
             )
