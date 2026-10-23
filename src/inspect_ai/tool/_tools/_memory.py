@@ -513,6 +513,15 @@ def _rename(store: MemoryStore, old_path: str | None, new_path: str | None) -> s
             f"The path {old_path} does not exist. Please provide a valid path."
         )
 
+    # Refuse to rename onto an existing path: a file destination would be
+    # silently replaced, and a directory destination would leave the store
+    # holding both a directory entry and file keys at the same path, breaking
+    # view/str_replace/insert. Mirrors BetaLocalFilesystemMemoryTool.rename in
+    # anthropic-sdk-python, which refuses with "The destination ... already
+    # exists" (#5821).
+    if _path_exists(store, new_path):
+        raise ToolError(f"The destination {new_path} already exists")
+
     if _is_dir(store, old_path):
         # Rename directory and all contents
         old_prefix = old_path + "/"

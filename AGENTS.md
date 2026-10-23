@@ -92,6 +92,7 @@ Example:
 ```
 
 ## Build/Lint/Test Commands
+- Set up the environment: `uv sync` (installs from `uv.lock`; don't `pip install` the project). See CONTRIBUTING.md for the 7-day dependency cooldown and how to adopt a newer release
 - Run all tests: `pytest`
 - Run a single test: `pytest tests/path/to/test_file.py::test_function_name -v`
 - Format code: `ruff format`
