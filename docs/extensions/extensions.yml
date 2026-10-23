@@ -228,6 +228,12 @@
   author: "[Arnab Mitra](https://github.com/Dedulus)"
   categories: ["Sandboxes"]
 
+- name: "[Runtime Sandbox](https://withruntime.com/docs/inspect)"
+  description: |
+    Runs each sample in a Firecracker microVM on Runtime Cloud, from the same Dockerfile or single-service compose file as the Docker sandbox.
+  author: "[Runtime](https://github.com/withruntime/runtime)"
+  categories: ["Sandboxes"]
+
 
 - name: "[Inspect Costs Plugin](https://github.com/jasongwartz/inspect_costs_plugin/)"
   description: |
