@@ -219,7 +219,7 @@ async def write_recovered_eval_log(
                     f"Recovering sample {processed}/{total_streaming} "
                     f"id={summary.id} epoch={summary.epoch} segments={seg_count}"
                 )
-                written_summary, sample_metadata = _write_sample_streaming(
+                written = _write_sample_streaming(
                     zip_log,
                     streaming_buffer,
                     summary,
@@ -230,19 +230,19 @@ async def write_recovered_eval_log(
                     include_events=not no_events,
                 )
                 written_keys.add(entry)
-                stats_acc.add_summary(written_summary)
-                if is_in_progress or written_summary.error is not None:
+                stats_acc.add_summary(written.summary)
+                if is_in_progress or written.summary.error is not None:
                     failed_count += 1
-                zip_log._summaries.append(written_summary)
-                if written_summary.scores:
+                zip_log._summaries.append(written.summary)
+                if written.scores:
                     scores_acc.append(
                         {
                             name: SampleScore(
                                 score=score,
-                                sample_id=written_summary.id,
-                                sample_metadata=sample_metadata,
+                                sample_id=written.summary.id,
+                                sample_metadata=written.metadata,
                             )
-                            for name, score in written_summary.scores.items()
+                            for name, score in written.scores.items()
                         }
                     )
                 sample_count += 1
