@@ -1,6 +1,6 @@
 import inspect
 from logging import getLogger
-from typing import Any, Awaitable, Callable, TypeVar, cast
+from typing import Any, Awaitable, Callable, Sequence, TypeVar, cast
 
 from inspect_ai._util.registry import (
     RegistryInfo,
@@ -12,6 +12,7 @@ from inspect_ai._util.registry import (
     registry_tag,
 )
 
+from ._chain import is_solver_sequence
 from ._solver import Generate, Solver
 from ._task_state import TaskState, set_sample_state
 
@@ -31,7 +32,7 @@ class Plan(Solver):
 
     def __init__(
         self,
-        steps: Solver | list[Solver],
+        steps: Solver | Sequence[Solver],
         finish: Solver | None = None,
         cleanup: Callable[[TaskState], Awaitable[None]] | None = None,
         name: str | None = None,
@@ -50,10 +51,12 @@ class Plan(Solver):
           name (str | None): Optional name for plan (for log files).
           internal (bool): Internal use of Plan (prevent deprecation warning)
         """
-        if isinstance(steps, Solver):
-            self.steps = [steps]
-        else:
+        if isinstance(steps, list):
             self.steps = steps
+        elif is_solver_sequence(steps):
+            self.steps = list(steps)
+        else:
+            self.steps = [cast(Solver, steps)]
 
         self.finish = finish
         self.cleanup = cleanup

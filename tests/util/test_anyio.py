@@ -1,13 +1,8 @@
-import sys
-
 import pytest
 import sniffio
 
 from inspect_ai.tool._tool import ToolError
 from inspect_ai.util._anyio import _flatten_exception
-
-if sys.version_info < (3, 11):
-    from exceptiongroup import ExceptionGroup
 
 
 def test_crazy_with_from():
@@ -100,10 +95,6 @@ def test_circular_exception_context():
 
 def test_circular_exception_group():
     """Test that _flatten_exception handles circular ExceptionGroup references."""
-    if sys.version_info < (3, 11):
-        # Skip this test on older Python versions
-        return
-
     # Create a circular reference in exception groups
     exc1 = ValueError("value error")
     exc2 = TypeError("type error")

@@ -47,8 +47,12 @@ or review request, including when posting a PR review, identify
 yourself as an AI agent. State that you are not a project maintainer
 and that your comment or review does not represent the maintainers'
 views or decisions. Do not imply that you can accept an issue,
-approve a PR, or speak for the project. This does not apply to agents
-acting for project maintainers.
+approve a PR, or speak for the project. Submit an unrequested review
+as a **Comment**, never **Approve** or **Request changes**: on this
+repository those are maintainer decisions, a non-maintainer's verdict
+doesn't count toward merging, and it misleads the author about where
+their PR stands. Put any confirmation or concern in the comment text.
+This does not apply to agents acting for project maintainers.
 
 If you do open a PR: reference the accepted issue (`Fixes #NNN`); run
 `make check` and `make test` and report results honestly; for non-trivial
@@ -88,6 +92,7 @@ Example:
 ```
 
 ## Build/Lint/Test Commands
+- Set up the environment: `uv sync` (installs from `uv.lock`; don't `pip install` the project). See CONTRIBUTING.md for the 7-day dependency cooldown and how to adopt a newer release
 - Run all tests: `pytest`
 - Run a single test: `pytest tests/path/to/test_file.py::test_function_name -v`
 - Format code: `ruff format`

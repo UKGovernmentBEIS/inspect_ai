@@ -35,7 +35,7 @@ class ContentText(ContentBase):
 class ContentReasoning(ContentBase):
     """Reasoning content.
 
-    See the specification for [thinking blocks](https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking#understanding-thinking-blocks) for Claude models.
+    See the specification for [thinking blocks](https://platform.claude.com/docs/en/build-with-claude/extended-thinking) for Claude models.
     """
 
     type: Literal["reasoning"] = Field(default="reasoning")
@@ -100,7 +100,7 @@ class ContentImage(ContentBase):
     detail: Literal["auto", "low", "high", "original"] = Field(default="auto")
     """Specifies the detail level of the image.
 
-    Currently only supported for OpenAI. Learn more in the    [Vision guide](https://platform.openai.com/docs/guides/vision/low-or-high-fidelity-image-understanding).
+    Currently only supported for OpenAI. Learn more in the [Vision guide](https://developers.openai.com/api/docs/guides/images-vision#choose-an-image-detail-level).
     """
 
 
