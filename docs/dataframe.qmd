@@ -75,7 +75,7 @@ RangeIndex: 408 entries, 0 to 407
 Columns: 19 entries, sample_id to fallbacks
 ```
 
-By default, `sample_df()` reads all of the columns in the `EvalSampleSummary` data structure (18 columns), along with the `eval_id` for linking back to the parent eval log file.
+By default, `samples_df()` reads all of the columns in the `EvalSampleSummary` data structure (18 columns), along with the `eval_id` for linking back to the parent eval log file.
 
 ### Column Groups
 
@@ -512,7 +512,7 @@ The `description` column is the sample's `description` (`None` when the sample h
 
 The `turn_count` column is the number of turns (top-level model generations) used by the sample, and `token_limit_usage` is the metered value of the sample's token limit, respecting the limit's type (`None` when no token limit was configured). Both are `None` for logs written by older versions of Inspect.
 
-The `working_time` column is clock time minus the time when any wait was open in the sample, so work done during a wait is not counted. See [Working Limit](setting-limits.qmd#working-limit) for its limitations.
+The `working_time` column is clock time minus the time when a wait was open in the sample and no model call, sandbox command or tool call was running (not counting commands run with `exec_remote()` or inside `sandbox_agent_bridge()`). See [Working Limit](setting-limits.qmd#working-limit) for its limitations.
 
 The `fallbacks` column is the total number of requests served by a [fallback model](providers.qmd#anthropic-refusal-fallback) (0 if none). One generate call can add more than 1 when Anthropic continues a turn after `pause_turn`. For the full per-pair rollup, add a custom column reading the underlying summary field: `SampleColumn("model_fallbacks", path="model_fallbacks")`.
 

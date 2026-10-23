@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 5
 requires-python = ">=3.11"
 resolution-markers = [
     "python_full_version >= '3.15' and sys_platform == 'win32'",
@@ -9,15 +9,42 @@ resolution-markers = [
     "python_full_version == '3.14.*' and sys_platform == 'emscripten'",
     "python_full_version == '3.14.*' and sys_platform != 'emscripten' and sys_platform != 'win32'",
     "python_full_version == '3.13.*' and sys_platform == 'win32'",
-    "python_full_version == '3.12.*' and sys_platform == 'win32'",
     "python_full_version == '3.13.*' and sys_platform == 'emscripten'",
-    "python_full_version == '3.12.*' and sys_platform == 'emscripten'",
     "python_full_version == '3.13.*' and sys_platform != 'emscripten' and sys_platform != 'win32'",
+    "python_full_version == '3.12.*' and sys_platform == 'win32'",
+    "python_full_version == '3.12.*' and sys_platform == 'emscripten'",
     "python_full_version == '3.12.*' and sys_platform != 'emscripten' and sys_platform != 'win32'",
     "python_full_version < '3.12' and sys_platform == 'win32'",
     "python_full_version < '3.12' and sys_platform == 'emscripten'",
     "python_full_version < '3.12' and sys_platform != 'emscripten' and sys_platform != 'win32'",
 ]
+
+[options]
+exclude-newer = "0001-01-01T00:00:00Z" # This has no effect and is included for backwards compatibility when using relative exclude-newer values.
+exclude-newer-span = "P7D"
+
+[options.exclude-newer-package]
+aiobotocore = false
+anthropic = false
+aws-bedrock-token-generator = false
+azure-ai-inference = false
+boto3 = false
+botocore = false
+certifi = false
+google-genai = false
+groq = false
+huggingface-hub = false
+inspect-scout = false
+inspect-sentinel = false
+mistralai = false
+nnterp = false
+openai = false
+sglang = false
+together = false
+transformer-lens = false
+transformers = false
+vllm = false
+xai-sdk = false
 
 [[package]]
 name = "adlfs"
@@ -246,20 +273,21 @@ wheels = [
 
 [[package]]
 name = "anthropic"
-version = "1.0.0"
+version = "2.0.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "anyio" },
     { name = "docstring-parser" },
     { name = "httpx2" },
     { name = "jiter" },
+    { name = "opentelemetry-api" },
     { name = "pydantic" },
     { name = "sniffio" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/25/aa/4978e58035bd6c638c7b483450a68b7ef2d732ab78885e27bb9db0cff1a2/anthropic-1.0.0.tar.gz", hash = "sha256:42be3c97604af7252c5898413aee076ace6c46e9bca0d0d90ceb77c7d3719027", size = 1077769, upload-time = "2026-08-20T19:59:00.565Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/8c/4a/70da82b54cdfda7c4bf089f9e895dc2d559b26e76daf367d124e5d9ec71c/anthropic-2.0.0.tar.gz", hash = "sha256:f063562a869be5642046fa112ba3326259bf156f51d6f66a06d15e9e543b9522", size = 1764549, upload-time = "2026-10-21T15:51:52.694Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/ad/5b/db4a854aebf5d33a5ab714c46af6eb85ee44f390ed29b7b325c00b9f11ed/anthropic-1.0.0-py3-none-any.whl", hash = "sha256:32dd52e9e1d774393b27182f451398ba4262287a4d0eab30887f89f1481b3ae4", size = 1171725, upload-time = "2026-08-20T19:58:58.725Z" },
+    { url = "https://files.pythonhosted.org/packages/ab/e9/5b31953d8f9adf03a253c918c66eedf3cb79d98f5821f3123482cf0b2e5c/anthropic-2.0.0-py3-none-any.whl", hash = "sha256:6b866360b0ad26af29bf6282af6a5f9fe74414dbc1a77ad68c16047348a8958d", size = 2101520, upload-time = "2026-10-21T15:51:54.549Z" },
 ]
 
 [[package]]
@@ -725,11 +753,11 @@ wheels = [
 
 [[package]]
 name = "certifi"
-version = "2026.7.22"
+version = "2026.10.19"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/a3/c2/24167ea9858356b47a87a50d39908bfdb72ceeefe0041586e704e5376b3a/certifi-2026.7.22.tar.gz", hash = "sha256:741e2c3b351ddf169a738da9f2c048608ff7f2c5cc02f1ebc6b118bb090d5d55", size = 138112, upload-time = "2026-07-22T03:35:12.644Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/a6/bd/1436c50cc46699de0230fbaacc1d1de7bfec413176099949e9d5112e88f2/certifi-2026.10.19.tar.gz", hash = "sha256:035c1e85572b141bf1c3a3eff0e33a8eb74917522f2559075ff8d2fea780a1ae", size = 137598, upload-time = "2026-10-20T02:24:16.604Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/0b/a7/71ac2cff56fec219ed242bb11b8efb69fcc4bec75db06fb7bfe35de520e6/certifi-2026.7.22-py3-none-any.whl", hash = "sha256:62f22742b58a1a33014a2b6b706588a8d7e2a88ae7bd1a6ebe8c992928483775", size = 136983, upload-time = "2026-07-22T03:35:11.276Z" },
+    { url = "https://files.pythonhosted.org/packages/c4/51/29046e48f693c54e5b7412216d447a1d8362c9653148d98c02cdf65fa733/certifi-2026.10.19-py3-none-any.whl", hash = "sha256:42d35340cc5b9ba78e818ddbff0c5b1c2b779de448a340fd1b989f5fa8670e1b", size = 136464, upload-time = "2026-10-20T02:24:15.072Z" },
 ]
 
 [[package]]
@@ -1273,15 +1301,6 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/50/07/62586d442e629fd4208da5dd1bee7bb604898604d9343b0a3fb9c973fc06/detect_agent-0.6.0.tar.gz", hash = "sha256:e1b1bba5d4e20f59f97aeae4016291f9563818a33ff7c0e8a18c6b948b5cd939", size = 45886, upload-time = "2026-08-12T17:08:35.836Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/f8/65/4df635649962338b3f4cd4cbb0f360e1354f8b2043b4728284de8a1a3341/detect_agent-0.6.0-py3-none-any.whl", hash = "sha256:d218806fda221486d886d68526acd950cef9eb09571189968bfc004acd5ca595", size = 11449, upload-time = "2026-08-12T17:08:34.991Z" },
-]
-
-[[package]]
-name = "dill"
-version = "0.4.1"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/81/e1/56027a71e31b02ddc53c7d65b01e68edf64dea2932122fe7746a516f75d5/dill-0.4.1.tar.gz", hash = "sha256:423092df4182177d4d8ba8290c8a5b640c66ab35ec7da59ccfa00f6fa3eea5fa", size = 187315, upload-time = "2026-01-19T02:36:56.85Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/1e/77/dc8c558f7593132cf8fefec57c4f60c83b16941c574ac5f619abb3ae7933/dill-0.4.1-py3-none-any.whl", hash = "sha256:1e1ce33e978ae97fcfcff5638477032b801c46c7c65cf717f95fbc2248f79a9d", size = 120019, upload-time = "2026-01-19T02:36:55.663Z" },
 ]
 
 [[package]]
@@ -2132,7 +2151,7 @@ requires-dist = [
     { name = "adlfs", marker = "extra == 'dev'", specifier = ">=2025.8.0" },
     { name = "agent-client-protocol", specifier = ">=0.12.0" },
     { name = "aiobotocore", specifier = ">=2.18.0" },
-    { name = "anthropic", marker = "extra == 'dev'", specifier = ">=1.0.0" },
+    { name = "anthropic", marker = "extra == 'dev'", specifier = ">=2.0.0" },
     { name = "antlr4-python3-runtime", marker = "extra == 'dev'", specifier = ">=4.9.3,!=4.10.*,!=4.12.*,!=4.13.0,!=4.13.1,<=4.13.2" },
     { name = "antlr4-python3-runtime", marker = "extra == 'math'", specifier = ">=4.9.3,!=4.10.*,!=4.12.*,!=4.13.0,!=4.13.1,<=4.13.2" },
     { name = "anyio", specifier = ">=4.14.2" },
@@ -2157,8 +2176,8 @@ requires-dist = [
     { name = "httpx" },
     { name = "huggingface-hub", marker = "extra == 'dev'", specifier = ">=1.6.0" },
     { name = "ijson", specifier = ">=3.2.0" },
-    { name = "inspect-scout", marker = "extra == 'dev'", specifier = ">=0.4.37" },
-    { name = "inspect-sentinel", marker = "extra == 'dev'", specifier = ">=0.1.2" },
+    { name = "inspect-scout", marker = "extra == 'dev'", specifier = ">=0.5.5" },
+    { name = "inspect-sentinel", marker = "extra == 'dev'", specifier = ">=0.2.0" },
     { name = "ipython", marker = "extra == 'dev'" },
     { name = "jsonlines", specifier = ">=3.0.0" },
     { name = "jsonpatch", specifier = ">=1.32" },
@@ -2250,13 +2269,12 @@ dev = [{ name = "inspect-ai", extras = ["dev"] }]
 
 [[package]]
 name = "inspect-scout"
-version = "0.4.46"
+version = "0.6.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "anyio" },
     { name = "click" },
     { name = "cloudpickle" },
-    { name = "dill" },
     { name = "duckdb" },
     { name = "fastapi" },
     { name = "ijson" },
@@ -2285,23 +2303,26 @@ dependencies = [
     { name = "wrapt" },
     { name = "zstandard" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/61/31/441f2451635387d3651122cd5826e7ea4b5d288f1691738f137cd26c86f1/inspect_scout-0.4.46.tar.gz", hash = "sha256:7b79c035573123b5499b204773b5132521d900c00c08900805a24199c48c2d97", size = 2667285, upload-time = "2026-08-05T12:45:45.031Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/52/f3/4e70fbd30de997328aa92b0cc6f54623f97be301435d05a67ed84298bfdf/inspect_scout-0.6.1.tar.gz", hash = "sha256:7a1ff1145e53564f80e669b2f65291811ee1a3e4d02e5633f096ec78a2f666c0", size = 2576673, upload-time = "2026-10-21T22:59:31.949Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/16/54/d841bcd68b5d03b267307a8e6b07595538f9e2623ddb8ea3f83daa7bd0a6/inspect_scout-0.4.46-py3-none-any.whl", hash = "sha256:9ef4882dbc7b112b7434cdbdbdf3ef8a067139ddec9b1c9169e1e938b0239bdc", size = 2757084, upload-time = "2026-08-05T12:45:42.408Z" },
+    { url = "https://files.pythonhosted.org/packages/9b/7f/cb2915d2c9525b217c4e1be3b105785afe09cad436acfd4ad7c69f78a701/inspect_scout-0.6.1-py3-none-any.whl", hash = "sha256:16eb5e51b7f2608e9a74036ab3b0588345dd7a81896d2f0517ec0bdf73accd68", size = 2656172, upload-time = "2026-10-21T22:59:29.946Z" },
 ]
 
 [[package]]
 name = "inspect-sentinel"
-version = "0.1.2"
+version = "0.2.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "anyio" },
     { name = "inspect-ai" },
+    { name = "inspect-scout" },
+    { name = "jinja2" },
     { name = "pydantic" },
+    { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/7d/96/e466f16e76e0f1eb5a09df984396306d26a574ef6f7ce853ef3695fc60b5/inspect_sentinel-0.1.2.tar.gz", hash = "sha256:b1855f3a98ef72d7b08a4975af24253dabf612b3be354ecf4c93fb5dbb8593f2", size = 58549, upload-time = "2026-10-14T01:01:39.725Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/50/86/109670df4e00bc1c506efc90e11195510f37e7c107759d97284b21afcdde/inspect_sentinel-0.2.0.tar.gz", hash = "sha256:0e4c1a8c6bd347b7bf228ef8d7dcdabbececa38bf62c4cc2db79b1b7fedfea8a", size = 265076, upload-time = "2026-10-21T23:30:41.451Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/e2/1f/133fb4d150053a05cbdc08160fd15c26d5155ab6291bed790d35aac654f1/inspect_sentinel-0.1.2-py3-none-any.whl", hash = "sha256:8c6db4e8b620a6b8e12566f1051ed1bc86432132df07c177f403f812680d54ce", size = 62826, upload-time = "2026-10-14T01:01:38.445Z" },
+    { url = "https://files.pythonhosted.org/packages/27/a3/d0eef88161ff15ff2930dbc17f709200613e47f3e50ae0cbd130d5cf2a96/inspect_sentinel-0.2.0-py3-none-any.whl", hash = "sha256:bb55c9e290e17d689be0c1dc5e2c145456ebc5286791a2351f7dbabcb9f9d3a5", size = 305964, upload-time = "2026-10-21T23:30:39.781Z" },
 ]
 
 [[package]]
@@ -2640,11 +2661,11 @@ wheels = [
 
 [[package]]
 name = "jsonpath-ng"
-version = "1.9.0"
+version = "1.13.0"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/4e/ef/f320c80029173a7156dd34fe6eaba761329cbdb018cbca8a6bed2d9fc74e/jsonpath_ng-1.9.0.tar.gz", hash = "sha256:0790eea49bdd75198dbc319aba969ce9350b0d96cda6e498dba62334f53979c9", size = 78042, upload-time = "2026-10-05T18:15:13.58Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/4a/a4/4db8bd69f41fd56bdc0a709137c10a410e5cc148b3760ea206a510128ae6/jsonpath_ng-1.13.0.tar.gz", hash = "sha256:da54eff64eef303b90a8491f50c607e6beb2eb4a6e66828edab948766d40c531", size = 116355, upload-time = "2026-10-23T11:50:31.346Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/f6/dc/68bee5d3344c785da2a3b420b52c16af758ab6eb7bb1fd6c79464183c7c8/jsonpath_ng-1.9.0-py3-none-any.whl", hash = "sha256:c563c5e8afb055488f2ecd5775f52c6950bb6202602b055f2293e012e3059fb4", size = 68196, upload-time = "2026-10-05T18:15:12.449Z" },
+    { url = "https://files.pythonhosted.org/packages/5c/03/30db4cd2e778aee7feb29b14ff9c831735e5e1939600dff2bacba38107b1/jsonpath_ng-1.13.0-py3-none-any.whl", hash = "sha256:f58e7f88cdd2eb04a402c0d542e7d6db71909e521f4c23c62f4d2ee73266361e", size = 83987, upload-time = "2026-10-23T11:50:30.012Z" },
 ]
 
 [[package]]
@@ -4087,10 +4108,10 @@ resolution-markers = [
     "python_full_version == '3.14.*' and sys_platform == 'emscripten'",
     "python_full_version == '3.14.*' and sys_platform != 'emscripten' and sys_platform != 'win32'",
     "python_full_version == '3.13.*' and sys_platform == 'win32'",
-    "python_full_version == '3.12.*' and sys_platform == 'win32'",
     "python_full_version == '3.13.*' and sys_platform == 'emscripten'",
-    "python_full_version == '3.12.*' and sys_platform == 'emscripten'",
     "python_full_version == '3.13.*' and sys_platform != 'emscripten' and sys_platform != 'win32'",
+    "python_full_version == '3.12.*' and sys_platform == 'win32'",
+    "python_full_version == '3.12.*' and sys_platform == 'emscripten'",
     "python_full_version == '3.12.*' and sys_platform != 'emscripten' and sys_platform != 'win32'",
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/9a/80/db0b4559e57ec36362bedbb05530a87fafbcb6067708c946967a41d449e7/numpy-2.5.2.tar.gz", hash = "sha256:d482d171c406ae88c5b19cad3b6a1c4c5209f886ab74bc44c2c865c23f52d860", size = 20773161, upload-time = "2026-08-09T13:48:27.962Z" }
@@ -4431,11 +4452,11 @@ wheels = [
 
 [[package]]
 name = "pip"
-version = "26.2.1"
+version = "26.2.2"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/ae/15/4500e320e6b101ec3b719ae85b697d9940b6cda672bc555bd6016fc60c6f/pip-26.2.1.tar.gz", hash = "sha256:f6ad667e89a1fe78046c8f13232b247200f5258d7828f3f7883d660878e0813f", size = 1848877, upload-time = "2026-08-04T22:51:14.148Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/fa/e8/0842d757e483e895e670f655084cfe8b8c72580c6769a76b30b2789a0608/pip-26.2.2.tar.gz", hash = "sha256:3a8e5c800492787f33a4114ef54444546c340df428974ebba17e0fd47e11af2f", size = 1863336, upload-time = "2026-10-20T16:36:29.008Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/f3/6e/1736e5b4ae2b778ef2f81c47d797de9f891d4d8acb047a24ca37a60294dd/pip-26.2.1-py3-none-any.whl", hash = "sha256:71138adf1f4ca900cdb7d289c21b7494329f2332b6d85f0e1c42108c0384ed3e", size = 1816632, upload-time = "2026-08-04T22:51:12.472Z" },
+    { url = "https://files.pythonhosted.org/packages/3f/06/3e4420302363fbb71be3c7f35ce042f54bfca330e3e66b3a2e3c4cca579f/pip-26.2.2-py3-none-any.whl", hash = "sha256:fd7f4dfa8190e014013b9f08f3e973f4e4c26ffd179a204895533a7254813a70", size = 1819850, upload-time = "2026-10-20T16:36:27.046Z" },
 ]
 
 [[package]]

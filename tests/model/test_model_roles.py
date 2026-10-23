@@ -466,7 +466,12 @@ def test_model_roles_list_config_round_trip() -> None:
     graders = round_tripped[GRADER]
     assert isinstance(graders, list)
     assert [str(m) for m in graders] == [MOCK_A, MOCK_B, MOCK_C]
-    assert isinstance(round_tripped[REVIEWER], Model)
+    assert [m.role for m in graders] == [GRADER, GRADER, GRADER]
+    reviewer = round_tripped[REVIEWER]
+    assert isinstance(reviewer, Model)
+    assert reviewer.role == REVIEWER
+    assert reviewer is not graders[0]
+    assert get_model(MOCK_A).role is None
 
 
 def test_model_role_list_get_model_returns_first() -> None:
