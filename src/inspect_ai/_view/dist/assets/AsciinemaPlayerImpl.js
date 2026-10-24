@@ -6619,16 +6619,19 @@ function create(src, elem, opts = {}) {
 //#region ../../packages/react/src/components/AsciinemaPlayerImpl.tsx
 var import_react = /* @__PURE__ */ __toESM(require_react(), 1);
 var AsciinemaPlayerImpl = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(18);
-	const { id, rows, cols, input, output, timing, fit, speed, autoPlay, loop, theme, idleTimeLimit: t1, style } = t0;
+	const $ = (0, import_compiler_runtime.c)(19);
+	const { id, rows, cols, input, output, timing, cast, fit, speed, autoPlay, loop, theme, idleTimeLimit: t1, style } = t0;
 	const idleTimeLimit = t1 === void 0 ? 2 : t1;
 	const playerContainerRef = (0, import_react.useRef)(null);
 	let t2;
 	let t3;
-	if ($[0] !== autoPlay || $[1] !== cols || $[2] !== fit || $[3] !== idleTimeLimit || $[4] !== input || $[5] !== loop || $[6] !== output || $[7] !== rows || $[8] !== speed || $[9] !== theme || $[10] !== timing) {
+	if ($[0] !== autoPlay || $[1] !== cast || $[2] !== cols || $[3] !== fit || $[4] !== idleTimeLimit || $[5] !== input || $[6] !== loop || $[7] !== output || $[8] !== rows || $[9] !== speed || $[10] !== theme || $[11] !== timing) {
 		t2 = () => {
 			if (!playerContainerRef.current) return;
-			const player = create({
+			const player = create(cast !== void 0 ? {
+				data: () => new Response(cast),
+				parser: "asciicast"
+			} : {
 				data: () => [
 					new Response(timing),
 					new Response(output),
@@ -6654,6 +6657,7 @@ var AsciinemaPlayerImpl = (t0) => {
 			timing,
 			output,
 			input,
+			cast,
 			rows,
 			cols,
 			autoPlay,
@@ -6664,41 +6668,42 @@ var AsciinemaPlayerImpl = (t0) => {
 			fit
 		];
 		$[0] = autoPlay;
-		$[1] = cols;
-		$[2] = fit;
-		$[3] = idleTimeLimit;
-		$[4] = input;
-		$[5] = loop;
-		$[6] = output;
-		$[7] = rows;
-		$[8] = speed;
-		$[9] = theme;
-		$[10] = timing;
-		$[11] = t2;
-		$[12] = t3;
+		$[1] = cast;
+		$[2] = cols;
+		$[3] = fit;
+		$[4] = idleTimeLimit;
+		$[5] = input;
+		$[6] = loop;
+		$[7] = output;
+		$[8] = rows;
+		$[9] = speed;
+		$[10] = theme;
+		$[11] = timing;
+		$[12] = t2;
+		$[13] = t3;
 	} else {
-		t2 = $[11];
-		t3 = $[12];
+		t2 = $[12];
+		t3 = $[13];
 	}
 	(0, import_react.useEffect)(t2, t3);
 	const t4 = `asciinema-player-${id || "default"}`;
 	let t5;
-	if ($[13] !== style) {
+	if ($[14] !== style) {
 		t5 = { ...style };
-		$[13] = style;
-		$[14] = t5;
-	} else t5 = $[14];
+		$[14] = style;
+		$[15] = t5;
+	} else t5 = $[15];
 	let t6;
-	if ($[15] !== t4 || $[16] !== t5) {
+	if ($[16] !== t4 || $[17] !== t5) {
 		t6 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 			id: t4,
 			ref: playerContainerRef,
 			style: t5
 		});
-		$[15] = t4;
-		$[16] = t5;
-		$[17] = t6;
-	} else t6 = $[17];
+		$[16] = t4;
+		$[17] = t5;
+		$[18] = t6;
+	} else t6 = $[18];
 	return t6;
 };
 //#endregion
