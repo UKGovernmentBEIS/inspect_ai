@@ -161,6 +161,7 @@ def test_pinned_uv_versions_meet_required_version() -> None:
         for workflow in [
             "build.yml",
             "log_viewer.yml",
+            "sandbox-tools-build.yml",
             "suppressions.yml",
             "suppressions-comment.yml",
             "sync_model_data.yml",

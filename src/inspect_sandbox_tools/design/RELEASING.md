@@ -11,10 +11,29 @@ The sandbox tools are compiled into portable static Linux executables (amd64 + a
 
 The version is a simple integer in `src/inspect_ai/tool/_sandbox_tools_utils/sandbox_tools_version.txt`.
 
+## Who does what
+
+A sandbox-tools release rides on the PR that changes the injectable. The PR
+either comes from a maintainer, on a branch pushed to `UKGovernmentBEIS/inspect_ai`,
+or from a contributor, on a branch in their fork. The steps are the same
+either way:
+
+| Step | Who |
+|------|-----|
+| Change `src/inspect_sandbox_tools/` and bump the version (`check-version-bump` requires both in the same PR) | PR author |
+| Review and approve | Reviewer |
+| Dispatch the CI build at the approved head commit, upload to S3, commit `SHA256SUMS` to the PR branch | Maintainer (S3 credentials), via the wizard |
+| Merge once `slow-tool-tests-release` is green | Maintainer |
+
+CI builds the binaries; no one builds release binaries on their own machine.
+For a contributor's PR, the maintainer pushes `SHA256SUMS` to the fork's
+branch, which needs "Allow edits by maintainers" (on by default).
+
 ## Release Steps
 
-Steps 3–6 are scripted as an interactive wizard — run it from a checkout of
-the PR's head branch (`--dry-run` builds and validates without publishing;
+Steps 3–6 are scripted as an interactive wizard. Run it from a checkout of
+the PR's head branch (`gh pr checkout <N>` for a fork PR) once the PR is
+approved (`--dry-run` gets the CI build and checks it without publishing;
 `--auto` answers every prompt with its safe default, for agents/unattended
 runs):
 
@@ -36,24 +55,82 @@ Increment the integer in:
 src/inspect_ai/tool/_sandbox_tools_utils/sandbox_tools_version.txt
 ```
 
-### 3. Build executables
+### 3. Build executables in CI
 
-Build production binaries for both architectures:
+Dispatch `.github/workflows/sandbox-tools-build.yml` from `main` with the PR's
+approved head commit:
 
 ```bash
-python src/inspect_ai/tool/_sandbox_tools_utils/build_within_container.py --all --dev=false
+gh workflow run sandbox-tools-build.yml --repo UKGovernmentBEIS/inspect_ai --ref main -f sha={PR_HEAD_SHA}
 ```
 
-This creates Docker containers with PyInstaller, builds `--onedir` bundles, tars each bundle tree, and places the tar artifacts in `src/inspect_ai/binaries/`. It builds all four arch × libc variants:
+Fork PR commits are fetchable by SHA from the upstream repo, so this works for
+contributor PRs too. Each of the four variants builds on a runner of its own
+arch (`ubuntu-latest`, `ubuntu-24.04-arm`) with
+`build_within_container.py --arch {amd64,arm64} [--musl] --dev=false`, which
+builds `--onedir` bundles in Docker and tars each bundle tree:
 
 - `inspect-sandbox-tools-amd64-v{VERSION}` (glibc)
 - `inspect-sandbox-tools-arm64-v{VERSION}` (glibc)
 - `inspect-sandbox-tools-amd64-musl-v{VERSION}` (musl, built via `Dockerfile.pyinstaller.musl`)
 - `inspect-sandbox-tools-arm64-musl-v{VERSION}` (musl)
 
-Requires Docker with multi-architecture support. (Build a single variant with `--arch {amd64,arm64} [--musl]`.)
+Each variant is then validated across distros on the same runner (step 4). A
+final job writes `SHA256SUMS`, attests the four artifacts' provenance, and
+publishes them as the run artifact `sandbox-tools-v{VERSION}`. The build jobs
+hold only `contents: read`; only the attest job can sign, and no job restores
+a cache. The run is titled `Build sandbox tools at {SHA}`.
+
+Download and verify the artifacts into `src/inspect_ai/binaries/` before
+uploading:
+
+```bash
+gh run download {RUN_ID} --repo UKGovernmentBEIS/inspect_ai -n sandbox-tools-v{VERSION} -D src/inspect_ai/binaries
+gh attestation verify src/inspect_ai/binaries/inspect-sandbox-tools-amd64-v{VERSION} \
+  --repo UKGovernmentBEIS/inspect_ai \
+  --signer-workflow UKGovernmentBEIS/inspect_ai/.github/workflows/sandbox-tools-build.yml \
+  --source-ref refs/heads/main
+```
+
+The attestation's `runDetails.metadata.invocationId` names the run that signed
+it; check that run's title names the PR head commit. The wizard does both
+checks for all four artifacts.
+
+The same script builds a single variant locally (`--arch {amd64,arm64} [--musl]`,
+`-dev` suffix by default), as the runtime's local-build fallback and the
+`slow-tool-tests-dev` CI job do.
+
+#### Build inputs
+
+The builders install only pinned inputs, so a build doesn't depend on what
+PyPI or conda-forge serve that day. Everything below lives in
+`src/inspect_ai/tool/_sandbox_tools_utils/`:
+
+- **Base images** are pinned by digest in `Dockerfile.pyinstaller` and
+  `Dockerfile.pyinstaller.musl`. `apt-get`/`apk` build tools (binutils, the C
+  toolchain) are not pinned; none of them is bundled.
+- **The glibc builder's CPython** and the runtime libraries bundled with it
+  (openssl, libffi, ...) come from `conda-{amd64,arm64}.lock`, explicit conda
+  lockfiles with a sha256 per package. Dependabot does not support conda;
+  regenerate them, after changing the base image or to take updates, with
+  `python src/inspect_ai/tool/_sandbox_tools_utils/lock_conda_env.py`, which
+  lists any package published in the last 7 days for review.
+- **Python packages** (the package's dependencies plus PyInstaller and the
+  build backend) come from `requirements.txt`, installed with
+  `--require-hashes --no-deps`. `jsonrpcserver` publishes no wheel and builds
+  from its hash-checked sdist. Dependabot opens security updates only for this
+  file; take routine updates when preparing a release:
+
+  ```bash
+  cd src/inspect_ai/tool/_sandbox_tools_utils
+  uv pip compile --no-config --universal --python-version 3.10 --generate-hashes \
+    --exclude-newer "7 days" --upgrade ../../../inspect_sandbox_tools/pyproject.toml \
+    requirements.in -o requirements.txt
+  ```
 
 ### 4. Validate across distros
+
+CI runs this on each build runner:
 
 ```bash
 python -m inspect_ai.tool._sandbox_tools_utils.validate_distros
@@ -69,7 +146,7 @@ python src/inspect_ai/tool/_sandbox_tools_utils/upload_to_s3.py {VERSION}
 
 Uploads all four artifacts (amd64/arm64 × glibc/musl) to the `inspect-sandbox-tools` bucket (us-east-2) with public-read ACL so runtime S3 downloads work without credentials.
 
-The script refuses to run unless `{VERSION}` matches the committed `sandbox_tools_version.txt`, refuses to overwrite a published version with different bytes (published S3 objects are immutable — if a published object is wrong, bump the version and publish fresh artifacts; never fix a problem by re-uploading), rewrites `src/inspect_ai/tool/_sandbox_tools_utils/SHA256SUMS` with the digests of the four local artifacts before uploading, and round-trip verifies each uploaded object.
+The script refuses to run unless `{VERSION}` matches the committed `sandbox_tools_version.txt`, refuses to overwrite a published version with different bytes (published S3 objects are immutable — if a published object is wrong, bump the version and publish fresh artifacts; never fix a problem by re-uploading), rewrites `src/inspect_ai/tool/_sandbox_tools_utils/SHA256SUMS` with the digests of the four local artifacts (the downloaded CI artifacts, so it matches the run's `SHA256SUMS`) before uploading, and round-trip verifies each uploaded object.
 
 **URL pattern:** `https://inspect-sandbox-tools.s3.us-east-2.amazonaws.com/inspect-sandbox-tools-{arch}[-musl]-v{version}`
 
@@ -116,7 +193,11 @@ The install state detection (`_get_install_state`) determines which tiers are at
 |------|---------|
 | `src/inspect_ai/tool/_sandbox_tools_utils/sandbox_tools_version.txt` | Version (simple integer) |
 | `src/inspect_ai/tool/_sandbox_tools_utils/SHA256SUMS` | Pinned digests for the four published artifacts (written by `upload_to_s3.py`; see `BINARY_INTEGRITY.md`) |
+| `.github/workflows/sandbox-tools-build.yml` | Release build (dispatched by a maintainer) |
 | `src/inspect_ai/tool/_sandbox_tools_utils/build_within_container.py` | Build orchestrator |
+| `src/inspect_ai/tool/_sandbox_tools_utils/Dockerfile.pyinstaller{,.musl}` | Builder images (base images pinned by digest) |
+| `src/inspect_ai/tool/_sandbox_tools_utils/requirements.{in,txt}` | Hashed lock of the Python packages the builders install |
+| `src/inspect_ai/tool/_sandbox_tools_utils/conda-{amd64,arm64}.lock`, `lock_conda_env.py` | The glibc builder's conda env, and its regenerate script |
 | `src/inspect_ai/tool/_sandbox_tools_utils/build_executable.py` | Runs inside Docker container |
 | `src/inspect_ai/tool/_sandbox_tools_utils/validate_distros.py` | Cross-distro validation |
 | `src/inspect_ai/tool/_sandbox_tools_utils/sandbox.py` | Runtime resolution and injection |

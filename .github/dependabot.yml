@@ -102,3 +102,12 @@ updates:
       build-toolchain:
         patterns:
           - "*"
+  # Security updates only for the sandbox-tools build lock
+  # (src/inspect_ai/tool/_sandbox_tools_utils/requirements.txt): those binaries
+  # are released rarely, so routine bumps wait for a release (see RELEASING.md).
+  # A limit of 0 disables version updates; security updates still open.
+  - package-ecosystem: uv
+    directory: "/src/inspect_ai/tool/_sandbox_tools_utils"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 0

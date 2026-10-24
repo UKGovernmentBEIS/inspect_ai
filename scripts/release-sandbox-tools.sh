@@ -183,28 +183,28 @@ finish() {
 # STAGES — author this section. One stage() per step the human takes.
 # ──────────────────────────────────────────────────────────────────────────
 #
-# Releases the inspect-sandbox-tools injectables: builds the four artifacts
-# (amd64/arm64 × glibc/musl) from the PR's head branch, validates them across
-# Linux distros, uploads them to S3, and commits the pinned digests back to
-# the PR branch. Follows .claude/skills/release-sandbox-tools/SKILL.md and
+# Releases the inspect-sandbox-tools injectables: has CI build and validate the
+# four artifacts (amd64/arm64 × glibc/musl) at the PR's head commit, verifies
+# their attestations, uploads them to S3, and commits the pinned digests back
+# to the PR branch. Follows .claude/skills/release-sandbox-tools/SKILL.md and
 # src/inspect_sandbox_tools/design/RELEASING.md.
 #
 # Run it from a checkout of the PR's head branch:
 #   scripts/release-sandbox-tools.sh [--dry-run]
 #
-# --dry-run: build, validate, and rewrite SHA256SUMS locally (uncommitted,
+# --dry-run: get the CI build and rewrite SHA256SUMS locally (uncommitted,
 # for inspection; includes the credential-free immutability check) — skips
 # the S3 upload and everything downstream of it (digest commit/push,
 # published-artifact verify, CI watch).
 #
 # --auto: unattended mode, for agents. Pauses vanish and every confirmation
 # resolves to the safe answer printed at its call site; anything genuinely
-# needing a human mid-run (starting Docker, aws sso login) aborts with
-# instructions instead of assuming. The checks guarding the irreversible step
-# (PR approval, version-vs-main, fingerprints, the upload immutability guard)
+# needing a human mid-run (aws sso login) aborts with instructions instead of
+# assuming. The checks guarding the irreversible step (PR approval,
+# version-vs-main, head commit, attestations, the upload immutability guard)
 # are mechanical and run in both modes.
 
-TOTAL_STAGES=7
+TOTAL_STAGES=6
 
 DRY_RUN=0
 AUTO=0
@@ -241,53 +241,7 @@ SUMS_FILE="src/inspect_ai/tool/_sandbox_tools_utils/SHA256SUMS"
 BUCKET_BASE_URL="https://inspect-sandbox-tools.s3.us-east-2.amazonaws.com"
 VARIANTS="amd64 arm64 amd64-musl arm64-musl"
 
-# Resume support: after a successful build (and validation), a fingerprint of
-# what was built (validated) is recorded in a state file that lives — and is
-# gitignored — alongside the binaries. A later run skips a stage only when the
-# fingerprint still matches exactly; any ambiguity (no record, changed source,
-# untracked files among the build inputs) errs on the side of redoing the
-# work, because publishing stale bytes under a version number is
-# unrecoverable.
-BUILD_SRC_PATHS="src/inspect_sandbox_tools src/inspect_ai/tool/_sandbox_tools_utils"
-
-_sha256() {
-  if command -v sha256sum >/dev/null 2>&1; then sha256sum | awk '{print $1}'
-  else shasum -a 256 | awk '{print $1}'; fi
-}
-
-# build_fingerprint — hash of the worktree state of the build inputs (index
-# listing + unstaged diff). SHA256SUMS is excluded: it's release output the
-# build never reads, and including it would force a rebuild whenever the
-# upload step rewrites it. Prints nothing when untracked files make the
-# inputs unhashable.
-build_fingerprint() {
-  # shellcheck disable=SC2086
-  [[ -z "$(git ls-files --others --exclude-standard -- $BUILD_SRC_PATHS)" ]] || return 0
-  {
-    # shellcheck disable=SC2086
-    git ls-files -s -- $BUILD_SRC_PATHS ":(exclude)$SUMS_FILE"
-    # shellcheck disable=SC2086
-    git diff -- $BUILD_SRC_PATHS ":(exclude)$SUMS_FILE"
-  } | _sha256
-}
-
-# artifacts_fingerprint — combined hash of the four artifact files.
-artifacts_fingerprint() {
-  local f
-  for f in $VARIANTS; do
-    _sha256 < "src/inspect_ai/binaries/inspect-sandbox-tools-$f-v$V"
-  done | _sha256
-}
-
-# state_get/state_set — read/upsert KEY=VALUE in $STATE_FILE.
-state_get() { grep -E "^$1=" "$STATE_FILE" 2>/dev/null | tail -n1 | cut -d= -f2-; }
-state_set() {
-  local tmp; tmp=$(mktemp)
-  { grep -vE "^$1=" "$STATE_FILE" 2>/dev/null || true; printf '%s=%s\n' "$1" "$2"; } > "$tmp"
-  # In a fresh checkout the (gitignored) binaries dir doesn't exist yet.
-  mkdir -p "$(dirname "$STATE_FILE")"
-  mv "$tmp" "$STATE_FILE"
-}
+BUILD_WORKFLOW="sandbox-tools-build.yml"
 
 TITLE="Sandbox tools release"
 if [[ "$DRY_RUN" == 1 ]]; then TITLE="$TITLE — DRY RUN (no S3 upload)"; fi
@@ -313,21 +267,21 @@ if ! confirm_or y "Is '$BRANCH' the head branch of the PR being landed?"; then
 fi
 
 say "Checking that the PR is approved..."
-PR_NUMBER=""
-REVIEW_DECISION=""
-if command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; then
-  # gh pr view <branch> can't resolve cross-fork heads; pr list --head can.
-  read -r PR_NUMBER REVIEW_DECISION < <(gh pr list --repo "$UPSTREAM_REPO" \
-    --head "$BRANCH" --state open --json number,reviewDecision \
-    --jq '"\(.[0].number // "") \(.[0].reviewDecision // "")"' 2>/dev/null) || true
+if ! command -v gh >/dev/null 2>&1 || ! gh auth status >/dev/null 2>&1; then
+  warn "gh must be installed and authenticated: CI builds the binaries."
+  exit 1
 fi
+# gh pr view <branch> can't resolve cross-fork heads; pr list --head can.
+read -r PR_NUMBER REVIEW_DECISION PR_HEAD < <(gh pr list --repo "$UPSTREAM_REPO" \
+  --head "$BRANCH" --state open --json number,reviewDecision,headRefOid \
+  --jq '"\(.[0].number // "") \(.[0].reviewDecision // "") \(.[0].headRefOid // "")"') || true
 if [[ "$REVIEW_DECISION" == "APPROVED" ]]; then
   say "✓ PR #$PR_NUMBER is approved."
 elif [[ "$DRY_RUN" == 1 ]]; then
-  warn "PR IS NOT APPROVED (review decision: ${REVIEW_DECISION:-unknown — no PR found or gh unavailable})."
+  warn "PR IS NOT APPROVED (review decision: ${REVIEW_DECISION:-unknown — no open PR found for this branch})."
   warn "Continuing because this is a dry run — a real release requires an approved PR."
 else
-  warn "PR is not approved (review decision: ${REVIEW_DECISION:-unknown — no PR found or gh unavailable})."
+  warn "PR is not approved (review decision: ${REVIEW_DECISION:-unknown — no open PR found for this branch})."
   warn "Get the PR approved, then re-run."
   exit 1
 fi
@@ -341,28 +295,15 @@ if [[ "$DRY_RUN" == 0 ]] && ! command -v aws >/dev/null 2>&1; then
   exit 1
 fi
 
-while ! docker info >/dev/null 2>&1; do
-  warn "Docker isn't running."
-  if [[ "$AUTO" == 1 ]]; then
-    warn "Start Docker, then re-run."
-    exit 1
-  fi
-  pause "Start Docker, then press Enter to re-check"
-done
-if ! docker buildx version >/dev/null 2>&1; then
-  warn "Docker buildx (multi-arch) is required and not available."
+HEAD_SHA=$(git rev-parse HEAD)
+if [[ "$HEAD_SHA" != "$PR_HEAD" ]]; then
+  warn "This checkout is at $HEAD_SHA but PR #$PR_NUMBER's head is ${PR_HEAD:-unknown}."
+  warn "Pull or push so they match: CI builds the PR's head commit, and the"
+  warn "digests are committed on top of it. Then re-run."
   exit 1
 fi
-say "✓ Docker is running with buildx."
+say "✓ Checkout matches PR #$PR_NUMBER's head ($HEAD_SHA)."
 
-note "Refreshing this branch from its remote..."
-git fetch --quiet
-UPSTREAM_REF=$(git rev-parse --abbrev-ref '@{u}' 2>/dev/null || true)
-if [[ -n "$UPSTREAM_REF" ]] && [[ -n "$(git rev-list "HEAD..$UPSTREAM_REF" 2>/dev/null)" ]]; then
-  warn "This branch is behind $UPSTREAM_REF — pull first so you build the exact"
-  warn "code being merged, then re-run."
-  exit 1
-fi
 note "Fetching origin/main to check the injectable version..."
 git fetch --quiet origin main
 MAIN_V=$(git show origin/main:"$VERSION_FILE" | tr -d '[:space:]')
@@ -377,102 +318,79 @@ else
   exit 1
 fi
 V=$LOCAL_V
-STATE_FILE="src/inspect_ai/binaries/.release-wizard-state-v$V"
 
 # SHA256SUMS is excluded: it's release output (rewritten by the upload step,
 # including on dry runs), not a build input.
 if [[ -n "$(git status --porcelain --untracked-files=no -- . ":(exclude)$SUMS_FILE")" ]]; then
-  warn "Working tree has uncommitted changes — binaries must be built from the"
-  warn "exact code being merged."
+  warn "Working tree has uncommitted changes — CI builds the committed head, so"
+  warn "they won't be in the binaries."
   confirm_or n "Continue anyway?" || exit 1
 fi
 pause
 
-# ── Stage 2: build the four artifacts ─────────────────────────────────────
-stage "Build (slow — Docker builds for 4 variants, can exceed 10 minutes)"
-SRC_FP=$(build_fingerprint || true)
-BUILD_NEEDED=1
-ALL_PRESENT=1
-for f in $VARIANTS; do
-  [[ -f "src/inspect_ai/binaries/inspect-sandbox-tools-$f-v$V" ]] || ALL_PRESENT=0
-done
-if [[ "$ALL_PRESENT" == 1 && -n "$SRC_FP" && "$(state_get built_from)" == "$SRC_FP" ]]; then
-  say "✓ All four v$V artifacts exist and were built from this exact source"
-  say "  (recorded fingerprint matches) — skipping the rebuild."
-  if ! confirm_or n "Rebuild anyway?"; then
-    BUILD_NEEDED=0
-  fi
-elif [[ "$ALL_PRESENT" == 1 ]]; then
-  note "v$V artifacts exist, but there's no record they were built from this"
-  note "checkout's current source — rebuilding to be safe."
-fi
-if [[ "$BUILD_NEEDED" == 1 ]]; then
-  say "The four variants build in parallel; per-variant results print as they"
-  say "finish (full log shown on failure)."
-  pause "Press Enter to start the build"
-  # Invalidate the stamps up front so a crash mid-build can't leave a stale
-  # record paired with partially rewritten artifacts.
-  state_set built_from building
-  state_set validated ""
-  if ! "$PYTHON" src/inspect_ai/tool/_sandbox_tools_utils/build_within_container.py --all --dev=false; then
-    warn "Build failed — fix the error above and re-run the wizard."
+# ── Stage 2: build in CI ──────────────────────────────────────────────────
+stage "Build in CI (slow — 4 variants build and validate in parallel, ~10 minutes)"
+say "$BUILD_WORKFLOW builds and validates each variant on its own arch's runner"
+say "at $HEAD_SHA, then attests the four artifacts."
+# A finished run for this commit is reused, so re-runs skip the build.
+RUN_TITLE="Build sandbox tools at $HEAD_SHA"
+find_run() {
+  gh run list --repo "$UPSTREAM_REPO" --workflow "$BUILD_WORKFLOW" --branch main \
+    --event workflow_dispatch --limit 50 --json databaseId,displayTitle,conclusion \
+    --jq "[.[] | select(.displayTitle == \"$RUN_TITLE\") $1][0].databaseId // empty"
+}
+RUN_ID=$(find_run '| select(.conclusion == "success")')
+if [[ -n "$RUN_ID" ]]; then
+  say "✓ Reusing successful run $RUN_ID for this commit."
+else
+  pause "Press Enter to start the CI build"
+  gh workflow run "$BUILD_WORKFLOW" --repo "$UPSTREAM_REPO" --ref main -f sha="$HEAD_SHA"
+  note "Waiting for the run to appear..."
+  for _ in $(seq 30); do
+    RUN_ID=$(find_run '| select(.conclusion == "")')
+    [[ -n "$RUN_ID" ]] && break
+    sleep 5
+  done
+  if [[ -z "$RUN_ID" ]]; then
+    warn "The dispatched run didn't appear — check the Actions tab, then re-run."
     exit 1
   fi
-  # Record the fingerprint only if the source is unchanged since the build
-  # started; otherwise leave it unmatched so the next run rebuilds.
-  POST_FP=$(build_fingerprint || true)
-  if [[ -n "$POST_FP" && "$POST_FP" == "$SRC_FP" ]]; then
-    state_set built_from "$POST_FP"
-  else
-    state_set built_from ambiguous
-    warn "Couldn't record a trustworthy fingerprint (build inputs changed mid-build,"
-    warn "or untracked files sit among them) — the next run will rebuild."
+  if ! gh run watch "$RUN_ID" --repo "$UPSTREAM_REPO" --exit-status; then
+    warn "CI build failed — see run $RUN_ID. Fix the PR, then re-run."
+    exit 1
   fi
 fi
-say "Checking artifacts:"
-MISSING=0
+DOWNLOAD_DIR=$(mktemp -d)
+gh run download "$RUN_ID" --repo "$UPSTREAM_REPO" -n "sandbox-tools-v$V" -D "$DOWNLOAD_DIR"
+mkdir -p src/inspect_ai/binaries
+say "Verifying attestations (built by $BUILD_WORKFLOW from main, in run $RUN_ID):"
 for f in $VARIANTS; do
-  a="src/inspect_ai/binaries/inspect-sandbox-tools-$f-v$V"
-  if [[ -f "$a" ]]; then
-    note "✓ $a ($(du -h "$a" | cut -f1 | tr -d ' '))"
-  else
-    warn "missing: $a"
-    MISSING=1
+  name="inspect-sandbox-tools-$f-v$V"
+  if [[ ! -f "$DOWNLOAD_DIR/$name" ]]; then
+    warn "Run $RUN_ID has no $name — aborting."
+    exit 1
   fi
+  # The attestation names the run that signed it; the run's title names the
+  # commit it built, so this ties the bytes to $HEAD_SHA.
+  INVOCATION=$(gh attestation verify "$DOWNLOAD_DIR/$name" --repo "$UPSTREAM_REPO" \
+    --signer-workflow "$UPSTREAM_REPO/.github/workflows/$BUILD_WORKFLOW" \
+    --source-ref refs/heads/main --format json \
+    --jq '.[0].verificationResult.statement.predicate.runDetails.metadata.invocationId') || {
+    warn "Attestation check failed for $name — do not upload it."
+    exit 1
+  }
+  if [[ "$INVOCATION" != */actions/runs/"$RUN_ID"/* ]]; then
+    warn "$name was attested by $INVOCATION, not run $RUN_ID — do not upload it."
+    exit 1
+  fi
+  mv "$DOWNLOAD_DIR/$name" "src/inspect_ai/binaries/$name"
+  note "✓ $name ($(du -h "src/inspect_ai/binaries/$name" | cut -f1 | tr -d ' '))"
 done
-if [[ "$MISSING" == 1 ]]; then
-  warn "Not all four artifacts were produced — aborting."
-  exit 1
-fi
+rm -rf "$DOWNLOAD_DIR"
 note "(These are gitignored — never commit them.)"
 pause
 
-# ── Stage 3: validate across distros ──────────────────────────────────────
-stage "Validate across distros (slow)"
-say "Runs each artifact's healthcheck in Docker: glibc on Ubuntu 16.04–24.04,"
-say "Debian 11/12, Kali; musl on Alpine 3.16/3.18/latest. Every distro must pass."
-ART_FP=$(artifacts_fingerprint || true)
-RUN_VALIDATION=1
-if [[ -n "$ART_FP" && "$(state_get validated)" == "$ART_FP" ]]; then
-  say "✓ These exact artifact bytes already passed validation — skipping."
-  if ! confirm_or n "Re-validate anyway?"; then
-    RUN_VALIDATION=0
-  fi
-fi
-if [[ "$RUN_VALIDATION" == 1 ]]; then
-  pause "Press Enter to start validation"
-  if ! "$PYTHON" -m inspect_ai.tool._sandbox_tools_utils.validate_distros; then
-    warn "Validation failed — any distro failure blocks the release. Aborting."
-    exit 1
-  fi
-  say "✓ All distros passed."
-  if [[ -n "$ART_FP" ]]; then
-    state_set validated "$ART_FP"
-  fi
-fi
-pause
-
-# ── Stage 4: upload to S3 ─────────────────────────────────────────────────
+# ── Stage 3: upload to S3 ─────────────────────────────────────────────────
 stage "Upload to S3"
 say "Uploads all four artifacts to s3://inspect-sandbox-tools/ (public-read),"
 say "rewrites $SUMS_FILE, and round-trip verifies each object."
@@ -517,7 +435,7 @@ else
 fi
 pause
 
-# ── Stage 5: commit and push the pinned digests ───────────────────────────
+# ── Stage 4: commit and push the pinned digests ───────────────────────────
 stage "Commit and push digests"
 say "slow-tool-tests-release verifies the S3 objects against the committed"
 say "digests, so it stays red until $SUMS_FILE lands on the PR branch."
@@ -543,7 +461,7 @@ else
 fi
 pause
 
-# ── Stage 6: verify the published artifacts ───────────────────────────────
+# ── Stage 5: verify the published artifacts ───────────────────────────────
 stage "Verify published artifacts"
 say "Downloads all four public objects and checks them against the committed"
 say "digest file (no credentials needed)."
@@ -572,10 +490,10 @@ else
 fi
 pause
 
-# ── Stage 7: get CI green ─────────────────────────────────────────────────
+# ── Stage 6: get CI green ─────────────────────────────────────────────────
 stage "Get CI green"
 if [[ "$DRY_RUN" == 1 ]]; then
-  note "Dry run complete — build and validation passed. Re-run without --dry-run"
+  note "Dry run complete — the CI build passed. Re-run without --dry-run"
   note "to upload, commit the digests, and get CI green."
 else
   say "The digest push triggers a fresh CI run; slow-tool-tests-release should"

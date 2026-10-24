@@ -142,7 +142,7 @@ def _prepare_build_environment() -> None:
     This matches the workflow from build_executable.py:
     1. Copy /inspect_ai/src/inspect_sandbox_tools to /tmp/inspect_sandbox_tools-copy
     2. Change to the copy directory
-    3. Run pip install . to install the package
+    3. Install the package (its locked deps are already in the image)
     """
     # Container paths (matching build_executable.py)
     repo_dir = Path("/inspect_ai")
@@ -169,13 +169,14 @@ def _prepare_build_environment() -> None:
     os.chdir(copy_dir)
     print(f"Changed working directory to: {copy_dir}")
 
-    # Install the package
+    # The image holds the locked deps and build tools (requirements.txt), so
+    # install the package alone: no deps, and no isolated build env fetching
+    # its own setuptools.
     print("Installing package...")
     subprocess.run(
-        [sys.executable, "-m", "pip", "install", "."],
+        [sys.executable, "-m", "pip", "install", "--no-cache-dir"]
+        + ["--no-deps", "--no-build-isolation", "."],
         check=True,
-        stdout=None,
-        stderr=None,
     )
 
 
